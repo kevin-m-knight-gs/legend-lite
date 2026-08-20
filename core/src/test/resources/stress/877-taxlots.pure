@@ -1,0 +1,211 @@
+###Pure
+// How a disposal is matched to a purchase, which decides the gain.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class taxlots::TaxLotMethod
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The default almost everywhere.
+Class taxlots::FirstInFirstOut extends taxlots::TaxLotMethod
+{
+}
+
+// Permitted in fewer places than people assume.
+Class taxlots::LastInFirstOut extends taxlots::TaxLotMethod
+{
+}
+
+// Minimises the gain, and is elective.
+Class taxlots::HighestCostFirst extends taxlots::TaxLotMethod
+{
+}
+
+// Maximises it, which is occasionally what is wanted.
+Class taxlots::LowestCostFirst extends taxlots::TaxLotMethod
+{
+}
+
+// Required for funds in several jurisdictions.
+Class taxlots::AverageCost extends taxlots::TaxLotMethod
+{
+}
+
+// The client picks, and the paperwork must be contemporaneous.
+Class taxlots::SpecificIdentification extends taxlots::TaxLotMethod
+{
+}
+
+// An optimiser over the lots and the rates.
+Class taxlots::MinimiseTaxAlgorithm extends taxlots::TaxLotMethod
+{
+}
+
+// Where short and long-term rates differ enough to matter.
+Class taxlots::ShortTermFirst extends taxlots::TaxLotMethod
+{
+}
+
+// The other way, for the same reason.
+Class taxlots::LongTermFirst extends taxlots::TaxLotMethod
+{
+}
+
+// A loss disallowed and rolled into the replacement lot's basis.
+Class taxlots::WashSaleAdjusted extends taxlots::TaxLotMethod
+{
+}
+
+// Marked annually whether sold or not.
+Class taxlots::MarkToMarketElection extends taxlots::TaxLotMethod
+{
+}
+
+// Basis split across the pieces after a spin-off.
+Class taxlots::CorporateActionBasisAdjustment extends taxlots::TaxLotMethod
+{
+}
+
+// Reduces basis rather than producing income.
+Class taxlots::ReturnOfCapitalAdjustment extends taxlots::TaxLotMethod
+{
+}
+
+// Carried over from the donor, with its own rules.
+Class taxlots::GiftedBasis extends taxlots::TaxLotMethod
+{
+}
+
+// Stepped up at death, which is the largest exemption in the list.
+Class taxlots::InheritedBasis extends taxlots::TaxLotMethod
+{
+}
+
+// Transferred in with no history, and taxed as if it cost nothing.
+Class taxlots::UnknownBasisLot extends taxlots::TaxLotMethod
+{
+}
+
+###Mapping
+Mapping taxlots::TaxlotsMapping
+(
+   *taxlots::TaxLotMethod[taxlotsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]TAX_LOT_METHOD.RECORD_ID )
+      ~mainTable [store::DB]TAX_LOT_METHOD
+      recordId: [store::DB]TAX_LOT_METHOD.RECORD_ID,
+      recordType: [store::DB]TAX_LOT_METHOD.RECORD_TYPE,
+      bookId: [store::DB]TAX_LOT_METHOD.BOOK_ID,
+      notional: [store::DB]TAX_LOT_METHOD.NOTIONAL,
+      currency: [store::DB]TAX_LOT_METHOD.CURRENCY,
+      tradeDate: [store::DB]TAX_LOT_METHOD.TRADE_DATE,
+      maturityDate: [store::DB]TAX_LOT_METHOD.MATURITY_DATE,
+      status: [store::DB]TAX_LOT_METHOD.STATUS,
+      isActive: [store::DB]TAX_LOT_METHOD.IS_ACTIVE,
+      riskScore: [store::DB]TAX_LOT_METHOD.RISK_SCORE
+   }
+
+   taxlots::FirstInFirstOut[tlmFifo] extends [taxlotsBase]: Relational
+   {
+      ~filter [store::DB]TlmFifoRows
+   }
+
+   taxlots::LastInFirstOut[tlmLifo] extends [taxlotsBase]: Relational
+   {
+      ~filter [store::DB]TlmLifoRows
+   }
+
+   taxlots::HighestCostFirst[tlmHighestCost] extends [taxlotsBase]: Relational
+   {
+      ~filter [store::DB]TlmHighestCostRows
+   }
+
+   taxlots::LowestCostFirst[tlmLowestCost] extends [taxlotsBase]: Relational
+   {
+      ~filter [store::DB]TlmLowestCostRows
+   }
+
+   taxlots::AverageCost[tlmAverageCost] extends [taxlotsBase]: Relational
+   {
+      ~filter [store::DB]TlmAverageCostRows
+   }
+
+   taxlots::SpecificIdentification[tlmSpecificIdentification] extends [taxlotsBase]: Relational
+   {
+      ~filter [store::DB]TlmSpecificIdentificationRows
+   }
+
+   taxlots::MinimiseTaxAlgorithm[tlmMinimiseTax] extends [taxlotsBase]: Relational
+   {
+      ~filter [store::DB]TlmMinimiseTaxRows
+   }
+
+   taxlots::ShortTermFirst[tlmShortTermFirst] extends [taxlotsBase]: Relational
+   {
+      ~filter [store::DB]TlmShortTermFirstRows
+   }
+
+   taxlots::LongTermFirst[tlmLongTermFirst] extends [taxlotsBase]: Relational
+   {
+      ~filter [store::DB]TlmLongTermFirstRows
+   }
+
+   taxlots::WashSaleAdjusted[tlmWashSaleAdjusted] extends [taxlotsBase]: Relational
+   {
+      ~filter [store::DB]TlmWashSaleAdjustedRows
+   }
+
+   taxlots::MarkToMarketElection[tlmSection1256] extends [taxlotsBase]: Relational
+   {
+      ~filter [store::DB]TlmSection1256Rows
+   }
+
+   taxlots::CorporateActionBasisAdjustment[tlmCorporateActionBasis] extends [taxlotsBase]: Relational
+   {
+      ~filter [store::DB]TlmCorporateActionBasisRows
+   }
+
+   taxlots::ReturnOfCapitalAdjustment[tlmReturnOfCapital] extends [taxlotsBase]: Relational
+   {
+      ~filter [store::DB]TlmReturnOfCapitalRows
+   }
+
+   taxlots::GiftedBasis[tlmGiftBasis] extends [taxlotsBase]: Relational
+   {
+      ~filter [store::DB]TlmGiftBasisRows
+   }
+
+   taxlots::InheritedBasis[tlmInheritedBasis] extends [taxlotsBase]: Relational
+   {
+      ~filter [store::DB]TlmInheritedBasisRows
+   }
+
+   taxlots::UnknownBasisLot[tlmUnknownBasis] extends [taxlotsBase]: Relational
+   {
+      ~filter [store::DB]TlmUnknownBasisRows
+   }
+)

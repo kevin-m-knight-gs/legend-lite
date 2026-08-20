@@ -1,0 +1,211 @@
+###Pure
+// The XVA family, and the other reserves between a model price and a book price.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class valuationadj::ValuationAdjustment
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The counterparty might not pay, priced.
+Class valuationadj::CreditValuationAdjustment extends valuationadj::ValuationAdjustment
+{
+}
+
+// Neither might you, which is uncomfortable and required.
+Class valuationadj::DebitValuationAdjustment extends valuationadj::ValuationAdjustment
+{
+}
+
+// The cost of funding an uncollateralised position.
+Class valuationadj::FundingValuationAdjustment extends valuationadj::ValuationAdjustment
+{
+}
+
+// The cost of funding initial margin over the life.
+Class valuationadj::MarginValuationAdjustment extends valuationadj::ValuationAdjustment
+{
+}
+
+// The cost of the capital held against it.
+Class valuationadj::CapitalValuationAdjustment extends valuationadj::ValuationAdjustment
+{
+}
+
+// Where the CSA pays a rate other than the discount rate.
+Class valuationadj::CollateralValuationAdjustment extends valuationadj::ValuationAdjustment
+{
+}
+
+// Mid is not where you can leave.
+Class valuationadj::BidOfferReserve extends valuationadj::ValuationAdjustment
+{
+}
+
+// For the model being one of several defensible ones.
+Class valuationadj::ModelUncertaintyReserve extends valuationadj::ValuationAdjustment
+{
+}
+
+// For a position larger than the market clears.
+Class valuationadj::ConcentrationReserve extends valuationadj::ValuationAdjustment
+{
+}
+
+// Deferred where the price is not observable.
+Class valuationadj::DayOneProfitReserve extends valuationadj::ValuationAdjustment
+{
+}
+
+// The regulatory number, deducted from capital, not from profit.
+Class valuationadj::PrudentValuationAdjustment extends valuationadj::ValuationAdjustment
+{
+}
+
+// What unwinding would actually cost.
+Class valuationadj::CloseOutCostAdjustment extends valuationadj::ValuationAdjustment
+{
+}
+
+// Running the trade for twenty years is not free.
+Class valuationadj::FutureAdministrativeCost extends valuationadj::ValuationAdjustment
+{
+}
+
+// For optionality the model does not capture.
+Class valuationadj::EarlyTerminationAdjustment extends valuationadj::ValuationAdjustment
+{
+}
+
+// Exposure and default correlated, which CVA models handle badly.
+Class valuationadj::WrongWayRiskAdjustment extends valuationadj::ValuationAdjustment
+{
+}
+
+// The residual the desk cannot hedge and prices for.
+Class valuationadj::HedgingCostAdjustment extends valuationadj::ValuationAdjustment
+{
+}
+
+###Mapping
+Mapping valuationadj::ValuationadjMapping
+(
+   *valuationadj::ValuationAdjustment[valuationadjBase]: Relational
+   {
+      ~primaryKey ( [store::DB]XVA_ADJUSTMENT.RECORD_ID )
+      ~mainTable [store::DB]XVA_ADJUSTMENT
+      recordId: [store::DB]XVA_ADJUSTMENT.RECORD_ID,
+      recordType: [store::DB]XVA_ADJUSTMENT.RECORD_TYPE,
+      bookId: [store::DB]XVA_ADJUSTMENT.BOOK_ID,
+      notional: [store::DB]XVA_ADJUSTMENT.NOTIONAL,
+      currency: [store::DB]XVA_ADJUSTMENT.CURRENCY,
+      tradeDate: [store::DB]XVA_ADJUSTMENT.TRADE_DATE,
+      maturityDate: [store::DB]XVA_ADJUSTMENT.MATURITY_DATE,
+      status: [store::DB]XVA_ADJUSTMENT.STATUS,
+      isActive: [store::DB]XVA_ADJUSTMENT.IS_ACTIVE,
+      riskScore: [store::DB]XVA_ADJUSTMENT.RISK_SCORE
+   }
+
+   valuationadj::CreditValuationAdjustment[xvaCva] extends [valuationadjBase]: Relational
+   {
+      ~filter [store::DB]XvaCvaRows
+   }
+
+   valuationadj::DebitValuationAdjustment[xvaDva] extends [valuationadjBase]: Relational
+   {
+      ~filter [store::DB]XvaDvaRows
+   }
+
+   valuationadj::FundingValuationAdjustment[xvaFva] extends [valuationadjBase]: Relational
+   {
+      ~filter [store::DB]XvaFvaRows
+   }
+
+   valuationadj::MarginValuationAdjustment[xvaMva] extends [valuationadjBase]: Relational
+   {
+      ~filter [store::DB]XvaMvaRows
+   }
+
+   valuationadj::CapitalValuationAdjustment[xvaKva] extends [valuationadjBase]: Relational
+   {
+      ~filter [store::DB]XvaKvaRows
+   }
+
+   valuationadj::CollateralValuationAdjustment[xvaColva] extends [valuationadjBase]: Relational
+   {
+      ~filter [store::DB]XvaColvaRows
+   }
+
+   valuationadj::BidOfferReserve[xvaBidOfferReserve] extends [valuationadjBase]: Relational
+   {
+      ~filter [store::DB]XvaBidOfferReserveRows
+   }
+
+   valuationadj::ModelUncertaintyReserve[xvaModelReserve] extends [valuationadjBase]: Relational
+   {
+      ~filter [store::DB]XvaModelReserveRows
+   }
+
+   valuationadj::ConcentrationReserve[xvaConcentrationReserve] extends [valuationadjBase]: Relational
+   {
+      ~filter [store::DB]XvaConcentrationReserveRows
+   }
+
+   valuationadj::DayOneProfitReserve[xvaDayOneProfit] extends [valuationadjBase]: Relational
+   {
+      ~filter [store::DB]XvaDayOneProfitRows
+   }
+
+   valuationadj::PrudentValuationAdjustment[xvaPrudentValuation] extends [valuationadjBase]: Relational
+   {
+      ~filter [store::DB]XvaPrudentValuationRows
+   }
+
+   valuationadj::CloseOutCostAdjustment[xvaCloseOutCost] extends [valuationadjBase]: Relational
+   {
+      ~filter [store::DB]XvaCloseOutCostRows
+   }
+
+   valuationadj::FutureAdministrativeCost[xvaFutureAdminCost] extends [valuationadjBase]: Relational
+   {
+      ~filter [store::DB]XvaFutureAdminCostRows
+   }
+
+   valuationadj::EarlyTerminationAdjustment[xvaEarlyTermination] extends [valuationadjBase]: Relational
+   {
+      ~filter [store::DB]XvaEarlyTerminationRows
+   }
+
+   valuationadj::WrongWayRiskAdjustment[xvaWrongWayAdj] extends [valuationadjBase]: Relational
+   {
+      ~filter [store::DB]XvaWrongWayAdjRows
+   }
+
+   valuationadj::HedgingCostAdjustment[xvaHedgeCost] extends [valuationadjBase]: Relational
+   {
+      ~filter [store::DB]XvaHedgeCostRows
+   }
+)

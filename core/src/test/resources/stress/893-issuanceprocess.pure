@@ -1,0 +1,211 @@
+###Pure
+// Bringing a deal to market, stage by stage.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class issuanceprocess::IssuanceStage
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The banks are chosen, often on a pitch rather than on price.
+Class issuanceprocess::MandateAwarded extends issuanceprocess::IssuanceStage
+{
+}
+
+// Where the timetable is agreed and immediately slips.
+Class issuanceprocess::KickOffMeeting extends issuanceprocess::IssuanceStage
+{
+}
+
+// The record that underwriters asked.
+Class issuanceprocess::DueDiligenceCall extends issuanceprocess::IssuanceStage
+{
+}
+
+// Presentations, questions, and a committee.
+Class issuanceprocess::RatingAgencyProcess extends issuanceprocess::IssuanceStage
+{
+}
+
+// Before the deal is formally announced.
+Class issuanceprocess::InvestorEducation extends issuanceprocess::IssuanceStage
+{
+}
+
+// Increasingly virtual, and shorter for it.
+Class issuanceprocess::RoadshowLeg extends issuanceprocess::IssuanceStage
+{
+}
+
+// Initial price thoughts, and the first real feedback.
+Class issuanceprocess::DealAnnouncement extends issuanceprocess::IssuanceStage
+{
+}
+
+// Orders accumulate, and the book is tightened.
+Class issuanceprocess::Bookbuilding extends issuanceprocess::IssuanceStage
+{
+}
+
+// Revised as the book grows, usually inward.
+Class issuanceprocess::PriceGuidanceRevision extends issuanceprocess::IssuanceStage
+{
+}
+
+// Where relationships are actually settled.
+Class issuanceprocess::AllocationDecision extends issuanceprocess::IssuanceStage
+{
+}
+
+// The spread and the size, fixed.
+Class issuanceprocess::PricingEvent extends issuanceprocess::IssuanceStage
+{
+}
+
+// Investors told what they got, which is often less than they asked.
+Class issuanceprocess::AllotmentConfirmation extends issuanceprocess::IssuanceStage
+{
+}
+
+// Permitted price support, disclosed and time-limited.
+Class issuanceprocess::StabilisationActivity extends issuanceprocess::IssuanceStage
+{
+}
+
+// Extra size the underwriters may take up.
+Class issuanceprocess::OverAllotmentOption extends issuanceprocess::IssuanceStage
+{
+}
+
+// Documents signed, money moved, bonds delivered.
+Class issuanceprocess::DealClosing extends issuanceprocess::IssuanceStage
+{
+}
+
+// When the syndicate stops supporting the price.
+Class issuanceprocess::FreeToTradeItem extends issuanceprocess::IssuanceStage
+{
+}
+
+###Mapping
+Mapping issuanceprocess::IssuanceprocessMapping
+(
+   *issuanceprocess::IssuanceStage[issuanceprocessBase]: Relational
+   {
+      ~primaryKey ( [store::DB]ISSUANCE_STAGE.RECORD_ID )
+      ~mainTable [store::DB]ISSUANCE_STAGE
+      recordId: [store::DB]ISSUANCE_STAGE.RECORD_ID,
+      recordType: [store::DB]ISSUANCE_STAGE.RECORD_TYPE,
+      bookId: [store::DB]ISSUANCE_STAGE.BOOK_ID,
+      notional: [store::DB]ISSUANCE_STAGE.NOTIONAL,
+      currency: [store::DB]ISSUANCE_STAGE.CURRENCY,
+      tradeDate: [store::DB]ISSUANCE_STAGE.TRADE_DATE,
+      maturityDate: [store::DB]ISSUANCE_STAGE.MATURITY_DATE,
+      status: [store::DB]ISSUANCE_STAGE.STATUS,
+      isActive: [store::DB]ISSUANCE_STAGE.IS_ACTIVE,
+      riskScore: [store::DB]ISSUANCE_STAGE.RISK_SCORE
+   }
+
+   issuanceprocess::MandateAwarded[issMandateAwarded] extends [issuanceprocessBase]: Relational
+   {
+      ~filter [store::DB]IssMandateAwardedRows
+   }
+
+   issuanceprocess::KickOffMeeting[issKickOff] extends [issuanceprocessBase]: Relational
+   {
+      ~filter [store::DB]IssKickOffRows
+   }
+
+   issuanceprocess::DueDiligenceCall[issDueDiligenceCall] extends [issuanceprocessBase]: Relational
+   {
+      ~filter [store::DB]IssDueDiligenceCallRows
+   }
+
+   issuanceprocess::RatingAgencyProcess[issRatingProcess] extends [issuanceprocessBase]: Relational
+   {
+      ~filter [store::DB]IssRatingProcessRows
+   }
+
+   issuanceprocess::InvestorEducation[issInvestorEducation] extends [issuanceprocessBase]: Relational
+   {
+      ~filter [store::DB]IssInvestorEducationRows
+   }
+
+   issuanceprocess::RoadshowLeg[issRoadshow] extends [issuanceprocessBase]: Relational
+   {
+      ~filter [store::DB]IssRoadshowRows
+   }
+
+   issuanceprocess::DealAnnouncement[issAnnouncement] extends [issuanceprocessBase]: Relational
+   {
+      ~filter [store::DB]IssAnnouncementRows
+   }
+
+   issuanceprocess::Bookbuilding[issBookbuilding] extends [issuanceprocessBase]: Relational
+   {
+      ~filter [store::DB]IssBookbuildingRows
+   }
+
+   issuanceprocess::PriceGuidanceRevision[issPriceGuidance] extends [issuanceprocessBase]: Relational
+   {
+      ~filter [store::DB]IssPriceGuidanceRows
+   }
+
+   issuanceprocess::AllocationDecision[issAllocation] extends [issuanceprocessBase]: Relational
+   {
+      ~filter [store::DB]IssAllocationRows
+   }
+
+   issuanceprocess::PricingEvent[issPricing] extends [issuanceprocessBase]: Relational
+   {
+      ~filter [store::DB]IssPricingRows
+   }
+
+   issuanceprocess::AllotmentConfirmation[issAllotment] extends [issuanceprocessBase]: Relational
+   {
+      ~filter [store::DB]IssAllotmentRows
+   }
+
+   issuanceprocess::StabilisationActivity[issStabilisation] extends [issuanceprocessBase]: Relational
+   {
+      ~filter [store::DB]IssStabilisationRows
+   }
+
+   issuanceprocess::OverAllotmentOption[issGreenshoe] extends [issuanceprocessBase]: Relational
+   {
+      ~filter [store::DB]IssGreenshoeRows
+   }
+
+   issuanceprocess::DealClosing[issClosing] extends [issuanceprocessBase]: Relational
+   {
+      ~filter [store::DB]IssClosingRows
+   }
+
+   issuanceprocess::FreeToTradeItem[issFreeToTrade] extends [issuanceprocessBase]: Relational
+   {
+      ~filter [store::DB]IssFreeToTradeRows
+   }
+)

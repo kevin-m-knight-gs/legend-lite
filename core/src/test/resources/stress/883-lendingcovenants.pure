@@ -1,0 +1,211 @@
+###Pure
+// Covenants: what a borrower promised, and what happens when they cannot.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class lendingcovenants::LoanCovenant
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Debt to earnings, tested quarterly, and the most common of all.
+Class lendingcovenants::LeverageRatioCovenant extends lendingcovenants::LoanCovenant
+{
+}
+
+// Earnings to interest, and the one that bites when rates rise.
+Class lendingcovenants::InterestCoverCovenant extends lendingcovenants::LoanCovenant
+{
+}
+
+// Including rent and lease payments.
+Class lendingcovenants::FixedChargeCoverCovenant extends lendingcovenants::LoanCovenant
+{
+}
+
+// Which depends on an appraisal the lender commissions.
+Class lendingcovenants::LoanToValueCovenant extends lendingcovenants::LoanCovenant
+{
+}
+
+// Cash flow against principal and interest together.
+Class lendingcovenants::DebtServiceCoverCovenant extends lendingcovenants::LoanCovenant
+{
+}
+
+// A floor on cash, tested more often than the rest.
+Class lendingcovenants::MinimumLiquidityCovenant extends lendingcovenants::LoanCovenant
+{
+}
+
+// A cap on spending, with carry-forward provisions.
+Class lendingcovenants::CapitalExpenditureLimit extends lendingcovenants::LoanCovenant
+{
+}
+
+// No further security to anyone else.
+Class lendingcovenants::NegativePledge extends lendingcovenants::LoanCovenant
+{
+}
+
+// Repayable if the owner changes.
+Class lendingcovenants::ChangeOfControlProvision extends lendingcovenants::LoanCovenant
+{
+}
+
+// A default elsewhere is a default here.
+Class lendingcovenants::CrossDefaultClause extends lendingcovenants::LoanCovenant
+{
+}
+
+// Broad, rarely invoked, and always negotiated hardest.
+Class lendingcovenants::MaterialAdverseChangeClause extends lendingcovenants::LoanCovenant
+{
+}
+
+// The sponsor may inject cash to fix a breach.
+Class lendingcovenants::EquityCureRight extends lendingcovenants::LoanCovenant
+{
+}
+
+// Testing suspended for a period, usually after an event.
+Class lendingcovenants::CovenantHoliday extends lendingcovenants::LoanCovenant
+{
+}
+
+// Incurrence tests only, and no maintenance test at all.
+Class lendingcovenants::CovenantLiteFacility extends lendingcovenants::LoanCovenant
+{
+}
+
+// Breached, forgiven, and priced.
+Class lendingcovenants::CovenantWaiver extends lendingcovenants::LoanCovenant
+{
+}
+
+// The threshold moved rather than the breach forgiven.
+Class lendingcovenants::CovenantReset extends lendingcovenants::LoanCovenant
+{
+}
+
+###Mapping
+Mapping lendingcovenants::LendingcovenantsMapping
+(
+   *lendingcovenants::LoanCovenant[lendingcovenantsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]LOAN_COVENANT.RECORD_ID )
+      ~mainTable [store::DB]LOAN_COVENANT
+      recordId: [store::DB]LOAN_COVENANT.RECORD_ID,
+      recordType: [store::DB]LOAN_COVENANT.RECORD_TYPE,
+      bookId: [store::DB]LOAN_COVENANT.BOOK_ID,
+      notional: [store::DB]LOAN_COVENANT.NOTIONAL,
+      currency: [store::DB]LOAN_COVENANT.CURRENCY,
+      tradeDate: [store::DB]LOAN_COVENANT.TRADE_DATE,
+      maturityDate: [store::DB]LOAN_COVENANT.MATURITY_DATE,
+      status: [store::DB]LOAN_COVENANT.STATUS,
+      isActive: [store::DB]LOAN_COVENANT.IS_ACTIVE,
+      riskScore: [store::DB]LOAN_COVENANT.RISK_SCORE
+   }
+
+   lendingcovenants::LeverageRatioCovenant[covLeverageRatio] extends [lendingcovenantsBase]: Relational
+   {
+      ~filter [store::DB]CovLeverageRatioRows
+   }
+
+   lendingcovenants::InterestCoverCovenant[covInterestCover] extends [lendingcovenantsBase]: Relational
+   {
+      ~filter [store::DB]CovInterestCoverRows
+   }
+
+   lendingcovenants::FixedChargeCoverCovenant[covFixedChargeCover] extends [lendingcovenantsBase]: Relational
+   {
+      ~filter [store::DB]CovFixedChargeCoverRows
+   }
+
+   lendingcovenants::LoanToValueCovenant[covLoanToValue] extends [lendingcovenantsBase]: Relational
+   {
+      ~filter [store::DB]CovLoanToValueRows
+   }
+
+   lendingcovenants::DebtServiceCoverCovenant[covDebtServiceCover] extends [lendingcovenantsBase]: Relational
+   {
+      ~filter [store::DB]CovDebtServiceCoverRows
+   }
+
+   lendingcovenants::MinimumLiquidityCovenant[covMinimumLiquidity] extends [lendingcovenantsBase]: Relational
+   {
+      ~filter [store::DB]CovMinimumLiquidityRows
+   }
+
+   lendingcovenants::CapitalExpenditureLimit[covCapexLimit] extends [lendingcovenantsBase]: Relational
+   {
+      ~filter [store::DB]CovCapexLimitRows
+   }
+
+   lendingcovenants::NegativePledge[covNegativePledge] extends [lendingcovenantsBase]: Relational
+   {
+      ~filter [store::DB]CovNegativePledgeRows
+   }
+
+   lendingcovenants::ChangeOfControlProvision[covChangeOfControl] extends [lendingcovenantsBase]: Relational
+   {
+      ~filter [store::DB]CovChangeOfControlRows
+   }
+
+   lendingcovenants::CrossDefaultClause[covCrossDefault] extends [lendingcovenantsBase]: Relational
+   {
+      ~filter [store::DB]CovCrossDefaultRows
+   }
+
+   lendingcovenants::MaterialAdverseChangeClause[covMaterialAdverseChange] extends [lendingcovenantsBase]: Relational
+   {
+      ~filter [store::DB]CovMaterialAdverseChangeRows
+   }
+
+   lendingcovenants::EquityCureRight[covEquityCure] extends [lendingcovenantsBase]: Relational
+   {
+      ~filter [store::DB]CovEquityCureRows
+   }
+
+   lendingcovenants::CovenantHoliday[covCovenantHoliday] extends [lendingcovenantsBase]: Relational
+   {
+      ~filter [store::DB]CovCovenantHolidayRows
+   }
+
+   lendingcovenants::CovenantLiteFacility[covCovenantLite] extends [lendingcovenantsBase]: Relational
+   {
+      ~filter [store::DB]CovCovenantLiteRows
+   }
+
+   lendingcovenants::CovenantWaiver[covWaiverGranted] extends [lendingcovenantsBase]: Relational
+   {
+      ~filter [store::DB]CovWaiverGrantedRows
+   }
+
+   lendingcovenants::CovenantReset[covResetAgreed] extends [lendingcovenantsBase]: Relational
+   {
+      ~filter [store::DB]CovResetAgreedRows
+   }
+)

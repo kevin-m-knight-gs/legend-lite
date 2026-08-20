@@ -1,0 +1,211 @@
+###Pure
+// Clearing: the waterfall, and where each participant sits in it.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class clearingmembers::ClearingArrangement
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The member's own positions, margined separately from clients'.
+Class clearingmembers::HouseAccount extends clearingmembers::ClearingArrangement
+{
+}
+
+// Segregated, and the reason the house account exists.
+Class clearingmembers::ClientAccount extends clearingmembers::ClearingArrangement
+{
+}
+
+// Sized to cover a close-out period at a confidence level.
+Class clearingmembers::InitialMarginPosting extends clearingmembers::ClearingArrangement
+{
+}
+
+// Settled daily in cash, and not really margin at all.
+Class clearingmembers::VariationMarginPosting extends clearingmembers::ClearingArrangement
+{
+}
+
+// Mutualised, and the part that makes a CCP a mutual.
+Class clearingmembers::DefaultFundContribution extends clearingmembers::ClearingArrangement
+{
+}
+
+// A further call on surviving members after the fund is exhausted.
+Class clearingmembers::AssessmentCall extends clearingmembers::ClearingArrangement
+{
+}
+
+// The CCP's own capital, junior to the members'.
+Class clearingmembers::CcpSkinInTheGame extends clearingmembers::ClearingArrangement
+{
+}
+
+// Moved to a surviving member after a default.
+Class clearingmembers::PortedClientPosition extends clearingmembers::ClearingArrangement
+{
+}
+
+// Members bidding for the defaulter's book, compelled to some degree.
+Class clearingmembers::DefaultAuctionParticipation extends clearingmembers::ClearingArrangement
+{
+}
+
+// A poor auction bid moves your contribution down the waterfall.
+Class clearingmembers::JuniorisedContribution extends clearingmembers::ClearingArrangement
+{
+}
+
+// Posted above requirement, and returnable.
+Class clearingmembers::ExcessCollateral extends clearingmembers::ClearingArrangement
+{
+}
+
+// For a position too large to close out quickly.
+Class clearingmembers::ConcentrationAddOn extends clearingmembers::ClearingArrangement
+{
+}
+
+// For collateral that is harder to turn into cash.
+Class clearingmembers::CcpLiquidityAddOn extends clearingmembers::ClearingArrangement
+{
+}
+
+// Offsets recognised across products, and the model risk in doing so.
+Class clearingmembers::CrossMarginBenefit extends clearingmembers::ClearingArrangement
+{
+}
+
+// Where the CCP's cash actually moves.
+Class clearingmembers::SettlementBankLine extends clearingmembers::ClearingArrangement
+{
+}
+
+// Variation margin haircutting and the rest of the end-game.
+Class clearingmembers::CcpRecoveryTool extends clearingmembers::ClearingArrangement
+{
+}
+
+###Mapping
+Mapping clearingmembers::ClearingmembersMapping
+(
+   *clearingmembers::ClearingArrangement[clearingmembersBase]: Relational
+   {
+      ~primaryKey ( [store::DB]CLEARING_ARRANGEMENT.RECORD_ID )
+      ~mainTable [store::DB]CLEARING_ARRANGEMENT
+      recordId: [store::DB]CLEARING_ARRANGEMENT.RECORD_ID,
+      recordType: [store::DB]CLEARING_ARRANGEMENT.RECORD_TYPE,
+      bookId: [store::DB]CLEARING_ARRANGEMENT.BOOK_ID,
+      notional: [store::DB]CLEARING_ARRANGEMENT.NOTIONAL,
+      currency: [store::DB]CLEARING_ARRANGEMENT.CURRENCY,
+      tradeDate: [store::DB]CLEARING_ARRANGEMENT.TRADE_DATE,
+      maturityDate: [store::DB]CLEARING_ARRANGEMENT.MATURITY_DATE,
+      status: [store::DB]CLEARING_ARRANGEMENT.STATUS,
+      isActive: [store::DB]CLEARING_ARRANGEMENT.IS_ACTIVE,
+      riskScore: [store::DB]CLEARING_ARRANGEMENT.RISK_SCORE
+   }
+
+   clearingmembers::HouseAccount[clrHouseAccount] extends [clearingmembersBase]: Relational
+   {
+      ~filter [store::DB]ClrHouseAccountRows
+   }
+
+   clearingmembers::ClientAccount[clrClientAccount] extends [clearingmembersBase]: Relational
+   {
+      ~filter [store::DB]ClrClientAccountRows
+   }
+
+   clearingmembers::InitialMarginPosting[clrInitialMarginPost] extends [clearingmembersBase]: Relational
+   {
+      ~filter [store::DB]ClrInitialMarginPostRows
+   }
+
+   clearingmembers::VariationMarginPosting[clrVariationMarginPost] extends [clearingmembersBase]: Relational
+   {
+      ~filter [store::DB]ClrVariationMarginPostRows
+   }
+
+   clearingmembers::DefaultFundContribution[clrDefaultFundContrib] extends [clearingmembersBase]: Relational
+   {
+      ~filter [store::DB]ClrDefaultFundContribRows
+   }
+
+   clearingmembers::AssessmentCall[clrAssessmentPower] extends [clearingmembersBase]: Relational
+   {
+      ~filter [store::DB]ClrAssessmentPowerRows
+   }
+
+   clearingmembers::CcpSkinInTheGame[clrSkinInTheGame] extends [clearingmembersBase]: Relational
+   {
+      ~filter [store::DB]ClrSkinInTheGameRows
+   }
+
+   clearingmembers::PortedClientPosition[clrPortedPosition] extends [clearingmembersBase]: Relational
+   {
+      ~filter [store::DB]ClrPortedPositionRows
+   }
+
+   clearingmembers::DefaultAuctionParticipation[clrAuctionParticipation] extends [clearingmembersBase]: Relational
+   {
+      ~filter [store::DB]ClrAuctionParticipationRows
+   }
+
+   clearingmembers::JuniorisedContribution[clrJuniorisation] extends [clearingmembersBase]: Relational
+   {
+      ~filter [store::DB]ClrJuniorisationRows
+   }
+
+   clearingmembers::ExcessCollateral[clrExcessCollateral] extends [clearingmembersBase]: Relational
+   {
+      ~filter [store::DB]ClrExcessCollateralRows
+   }
+
+   clearingmembers::ConcentrationAddOn[clrConcentrationAddOn] extends [clearingmembersBase]: Relational
+   {
+      ~filter [store::DB]ClrConcentrationAddOnRows
+   }
+
+   clearingmembers::CcpLiquidityAddOn[clrLiquidityAddOn] extends [clearingmembersBase]: Relational
+   {
+      ~filter [store::DB]ClrLiquidityAddOnRows
+   }
+
+   clearingmembers::CrossMarginBenefit[clrCrossMarginBenefit] extends [clearingmembersBase]: Relational
+   {
+      ~filter [store::DB]ClrCrossMarginBenefitRows
+   }
+
+   clearingmembers::SettlementBankLine[clrSettlementBankLine] extends [clearingmembersBase]: Relational
+   {
+      ~filter [store::DB]ClrSettlementBankLineRows
+   }
+
+   clearingmembers::CcpRecoveryTool[clrRecoveryTool] extends [clearingmembersBase]: Relational
+   {
+      ~filter [store::DB]ClrRecoveryToolRows
+   }
+)

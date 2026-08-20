@@ -1,0 +1,211 @@
+###Pure
+// What the client is sent, and what each report is obliged to contain.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class clientreporting::ClientReport
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Quarterly at least, and the one clients read.
+Class clientreporting::ValuationStatement extends clientreporting::ClientReport
+{
+}
+
+// Every trade, with costs shown separately.
+Class clientreporting::TransactionStatement extends clientreporting::ClientReport
+{
+}
+
+// Ex-ante and ex-post, aggregated and itemised.
+Class clientreporting::CostsAndChargesDisclosure extends clientreporting::ClientReport
+{
+}
+
+// By close of the next business day, which is an operational problem.
+Class clientreporting::TenPercentDepreciationNotice extends clientreporting::ClientReport
+{
+}
+
+// Top five venues, annually, and rarely read by anyone.
+Class clientreporting::BestExecutionReport extends clientreporting::ClientReport
+{
+}
+
+// Against a benchmark the client agreed to.
+Class clientreporting::PerformanceReport extends clientreporting::ClientReport
+{
+}
+
+// Where the performance came from, which is harder.
+Class clientreporting::AttributionReport extends clientreporting::ClientReport
+{
+}
+
+// Exposures and sensitivities, at whatever frequency was agreed.
+Class clientreporting::ClientRiskReport extends clientreporting::ClientReport
+{
+}
+
+// Per jurisdiction, and the reason year-end is busy.
+Class clientreporting::TaxReportingPack extends clientreporting::ClientReport
+{
+}
+
+// How the manager voted, published.
+Class clientreporting::ProxyVotingRecord extends clientreporting::ClientReport
+{
+}
+
+// Under whichever regime the client falls.
+Class clientreporting::SustainabilityDisclosure extends clientreporting::ClientReport
+{
+}
+
+// Per trade, and the oldest document on the list.
+Class clientreporting::ContractNote extends clientreporting::ClientReport
+{
+}
+
+// Requirement, posted, and excess.
+Class clientreporting::MarginStatement extends clientreporting::ClientReport
+{
+}
+
+// With a deadline earlier than the market's.
+Class clientreporting::ClientCorporateActionNotice extends clientreporting::ClientReport
+{
+}
+
+// A change in terms, with a notice period.
+Class clientreporting::RegulatoryClientNotice extends clientreporting::ClientReport
+{
+}
+
+// Confirming the advice still fits, once a year.
+Class clientreporting::AnnualSuitabilityReport extends clientreporting::ClientReport
+{
+}
+
+###Mapping
+Mapping clientreporting::ClientreportingMapping
+(
+   *clientreporting::ClientReport[clientreportingBase]: Relational
+   {
+      ~primaryKey ( [store::DB]CLIENT_REPORT.RECORD_ID )
+      ~mainTable [store::DB]CLIENT_REPORT
+      recordId: [store::DB]CLIENT_REPORT.RECORD_ID,
+      recordType: [store::DB]CLIENT_REPORT.RECORD_TYPE,
+      bookId: [store::DB]CLIENT_REPORT.BOOK_ID,
+      notional: [store::DB]CLIENT_REPORT.NOTIONAL,
+      currency: [store::DB]CLIENT_REPORT.CURRENCY,
+      tradeDate: [store::DB]CLIENT_REPORT.TRADE_DATE,
+      maturityDate: [store::DB]CLIENT_REPORT.MATURITY_DATE,
+      status: [store::DB]CLIENT_REPORT.STATUS,
+      isActive: [store::DB]CLIENT_REPORT.IS_ACTIVE,
+      riskScore: [store::DB]CLIENT_REPORT.RISK_SCORE
+   }
+
+   clientreporting::ValuationStatement[crpValuationStatement] extends [clientreportingBase]: Relational
+   {
+      ~filter [store::DB]CrpValuationStatementRows
+   }
+
+   clientreporting::TransactionStatement[crpTransactionStatement] extends [clientreportingBase]: Relational
+   {
+      ~filter [store::DB]CrpTransactionStatementRows
+   }
+
+   clientreporting::CostsAndChargesDisclosure[crpCostsAndCharges] extends [clientreportingBase]: Relational
+   {
+      ~filter [store::DB]CrpCostsAndChargesRows
+   }
+
+   clientreporting::TenPercentDepreciationNotice[crpTenPercentDepreciation] extends [clientreportingBase]: Relational
+   {
+      ~filter [store::DB]CrpTenPercentDepreciationRows
+   }
+
+   clientreporting::BestExecutionReport[crpBestExecutionReport] extends [clientreportingBase]: Relational
+   {
+      ~filter [store::DB]CrpBestExecutionReportRows
+   }
+
+   clientreporting::PerformanceReport[crpPerformanceReport] extends [clientreportingBase]: Relational
+   {
+      ~filter [store::DB]CrpPerformanceReportRows
+   }
+
+   clientreporting::AttributionReport[crpAttributionReport] extends [clientreportingBase]: Relational
+   {
+      ~filter [store::DB]CrpAttributionReportRows
+   }
+
+   clientreporting::ClientRiskReport[crpRiskReport] extends [clientreportingBase]: Relational
+   {
+      ~filter [store::DB]CrpRiskReportRows
+   }
+
+   clientreporting::TaxReportingPack[crpTaxReport] extends [clientreportingBase]: Relational
+   {
+      ~filter [store::DB]CrpTaxReportRows
+   }
+
+   clientreporting::ProxyVotingRecord[crpProxyVotingReport] extends [clientreportingBase]: Relational
+   {
+      ~filter [store::DB]CrpProxyVotingReportRows
+   }
+
+   clientreporting::SustainabilityDisclosure[crpSustainabilityReport] extends [clientreportingBase]: Relational
+   {
+      ~filter [store::DB]CrpSustainabilityReportRows
+   }
+
+   clientreporting::ContractNote[crpContractNote] extends [clientreportingBase]: Relational
+   {
+      ~filter [store::DB]CrpContractNoteRows
+   }
+
+   clientreporting::MarginStatement[crpMarginStatement] extends [clientreportingBase]: Relational
+   {
+      ~filter [store::DB]CrpMarginStatementRows
+   }
+
+   clientreporting::ClientCorporateActionNotice[crpCorporateActionNotice] extends [clientreportingBase]: Relational
+   {
+      ~filter [store::DB]CrpCorporateActionNoticeRows
+   }
+
+   clientreporting::RegulatoryClientNotice[crpRegulatoryNotice] extends [clientreportingBase]: Relational
+   {
+      ~filter [store::DB]CrpRegulatoryNoticeRows
+   }
+
+   clientreporting::AnnualSuitabilityReport[crpAnnualSuitability] extends [clientreportingBase]: Relational
+   {
+      ~filter [store::DB]CrpAnnualSuitabilityRows
+   }
+)

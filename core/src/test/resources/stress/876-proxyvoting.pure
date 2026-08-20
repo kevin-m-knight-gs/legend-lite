@@ -1,0 +1,211 @@
+###Pure
+// Proxy voting: what is on the ballot, and who actually decides.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class proxyvoting::ProxyVoteItem
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The most common resolution and the most contested.
+Class proxyvoting::DirectorElection extends proxyvoting::ProxyVoteItem
+{
+}
+
+// Routine until it is not.
+Class proxyvoting::AuditorAppointment extends proxyvoting::ProxyVoteItem
+{
+}
+
+// Advisory in some markets and binding in others.
+Class proxyvoting::RemunerationReport extends proxyvoting::ProxyVoteItem
+{
+}
+
+// The vote that produces the headlines.
+Class proxyvoting::SayOnPayResolution extends proxyvoting::ProxyVoteItem
+{
+}
+
+// Permission to dilute, within limits.
+Class proxyvoting::ShareIssuanceAuthority extends proxyvoting::ProxyVoteItem
+{
+}
+
+// Permission to do the opposite.
+Class proxyvoting::BuybackAuthority extends proxyvoting::ProxyVoteItem
+{
+}
+
+// Where control provisions live.
+Class proxyvoting::ArticlesAmendment extends proxyvoting::ProxyVoteItem
+{
+}
+
+// With a higher threshold and a dissenters' right.
+Class proxyvoting::MergerApproval extends proxyvoting::ProxyVoteItem
+{
+}
+
+// Filed against management's recommendation.
+Class proxyvoting::ShareholderProposal extends proxyvoting::ProxyVoteItem
+{
+}
+
+// The category that has grown fastest.
+Class proxyvoting::ClimateResolution extends proxyvoting::ProxyVoteItem
+{
+}
+
+// A position, not an absence.
+Class proxyvoting::RecordedAbstention extends proxyvoting::ProxyVoteItem
+{
+}
+
+// Different underlying clients, different instructions.
+Class proxyvoting::SplitVoteInstruction extends proxyvoting::ProxyVoteItem
+{
+}
+
+// Voting freezes the position, so many holders do not.
+Class proxyvoting::ShareBlockingMarket extends proxyvoting::ProxyVoteItem
+{
+}
+
+// Paperwork that must exist before the meeting.
+Class proxyvoting::PowerOfAttorneyRequirement extends proxyvoting::ProxyVoteItem
+{
+}
+
+// Required in some markets to vote at all.
+Class proxyvoting::BeneficialOwnerDisclosure extends proxyvoting::ProxyVoteItem
+{
+}
+
+// Evidence the vote was actually counted, which is newer than it should be.
+Class proxyvoting::VoteConfirmationItem extends proxyvoting::ProxyVoteItem
+{
+}
+
+###Mapping
+Mapping proxyvoting::ProxyvotingMapping
+(
+   *proxyvoting::ProxyVoteItem[proxyvotingBase]: Relational
+   {
+      ~primaryKey ( [store::DB]PROXY_VOTE_ITEM.RECORD_ID )
+      ~mainTable [store::DB]PROXY_VOTE_ITEM
+      recordId: [store::DB]PROXY_VOTE_ITEM.RECORD_ID,
+      recordType: [store::DB]PROXY_VOTE_ITEM.RECORD_TYPE,
+      bookId: [store::DB]PROXY_VOTE_ITEM.BOOK_ID,
+      notional: [store::DB]PROXY_VOTE_ITEM.NOTIONAL,
+      currency: [store::DB]PROXY_VOTE_ITEM.CURRENCY,
+      tradeDate: [store::DB]PROXY_VOTE_ITEM.TRADE_DATE,
+      maturityDate: [store::DB]PROXY_VOTE_ITEM.MATURITY_DATE,
+      status: [store::DB]PROXY_VOTE_ITEM.STATUS,
+      isActive: [store::DB]PROXY_VOTE_ITEM.IS_ACTIVE,
+      riskScore: [store::DB]PROXY_VOTE_ITEM.RISK_SCORE
+   }
+
+   proxyvoting::DirectorElection[prxDirectorElection] extends [proxyvotingBase]: Relational
+   {
+      ~filter [store::DB]PrxDirectorElectionRows
+   }
+
+   proxyvoting::AuditorAppointment[prxAuditorAppointment] extends [proxyvotingBase]: Relational
+   {
+      ~filter [store::DB]PrxAuditorAppointmentRows
+   }
+
+   proxyvoting::RemunerationReport[prxRemunerationReport] extends [proxyvotingBase]: Relational
+   {
+      ~filter [store::DB]PrxRemunerationReportRows
+   }
+
+   proxyvoting::SayOnPayResolution[prxSayOnPay] extends [proxyvotingBase]: Relational
+   {
+      ~filter [store::DB]PrxSayOnPayRows
+   }
+
+   proxyvoting::ShareIssuanceAuthority[prxShareIssuanceAuthority] extends [proxyvotingBase]: Relational
+   {
+      ~filter [store::DB]PrxShareIssuanceAuthorityRows
+   }
+
+   proxyvoting::BuybackAuthority[prxBuybackAuthority] extends [proxyvotingBase]: Relational
+   {
+      ~filter [store::DB]PrxBuybackAuthorityRows
+   }
+
+   proxyvoting::ArticlesAmendment[prxArticlesAmendment] extends [proxyvotingBase]: Relational
+   {
+      ~filter [store::DB]PrxArticlesAmendmentRows
+   }
+
+   proxyvoting::MergerApproval[prxMergerApproval] extends [proxyvotingBase]: Relational
+   {
+      ~filter [store::DB]PrxMergerApprovalRows
+   }
+
+   proxyvoting::ShareholderProposal[prxShareholderProposal] extends [proxyvotingBase]: Relational
+   {
+      ~filter [store::DB]PrxShareholderProposalRows
+   }
+
+   proxyvoting::ClimateResolution[prxClimateResolution] extends [proxyvotingBase]: Relational
+   {
+      ~filter [store::DB]PrxClimateResolutionRows
+   }
+
+   proxyvoting::RecordedAbstention[prxAbstainRecorded] extends [proxyvotingBase]: Relational
+   {
+      ~filter [store::DB]PrxAbstainRecordedRows
+   }
+
+   proxyvoting::SplitVoteInstruction[prxSplitVote] extends [proxyvotingBase]: Relational
+   {
+      ~filter [store::DB]PrxSplitVoteRows
+   }
+
+   proxyvoting::ShareBlockingMarket[prxShareBlocking] extends [proxyvotingBase]: Relational
+   {
+      ~filter [store::DB]PrxShareBlockingRows
+   }
+
+   proxyvoting::PowerOfAttorneyRequirement[prxPowerOfAttorney] extends [proxyvotingBase]: Relational
+   {
+      ~filter [store::DB]PrxPowerOfAttorneyRows
+   }
+
+   proxyvoting::BeneficialOwnerDisclosure[prxBeneficialDisclosure] extends [proxyvotingBase]: Relational
+   {
+      ~filter [store::DB]PrxBeneficialDisclosureRows
+   }
+
+   proxyvoting::VoteConfirmationItem[prxVoteConfirmation] extends [proxyvotingBase]: Relational
+   {
+      ~filter [store::DB]PrxVoteConfirmationRows
+   }
+)

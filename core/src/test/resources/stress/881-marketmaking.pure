@@ -1,0 +1,211 @@
+###Pure
+// Market making: the obligations attached to being on the screen.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class marketmaking::MarketMakingObligation
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// A two-way price for a percentage of the session.
+Class marketmaking::ContinuousQuotingObligation extends marketmaking::MarketMakingObligation
+{
+}
+
+// A cap, usually widened for volatile names.
+Class marketmaking::MaximumSpreadObligation extends marketmaking::MarketMakingObligation
+{
+}
+
+// Enough to be a real price rather than a gesture.
+Class marketmaking::MinimumQuoteSize extends marketmaking::MarketMakingObligation
+{
+}
+
+// Obligations suspended when the venue declares stress.
+Class marketmaking::StressedMarketRelief extends marketmaking::MarketMakingObligation
+{
+}
+
+// A shorter list, and a higher bar.
+Class marketmaking::ExceptionalCircumstancesRelief extends marketmaking::MarketMakingObligation
+{
+}
+
+// Contracted with the venue, and paid for it.
+Class marketmaking::DesignatedMarketMaker extends marketmaking::MarketMakingObligation
+{
+}
+
+// Registered rather than contracted, with fee benefits.
+Class marketmaking::RegisteredLiquidityProvider extends marketmaking::MarketMakingObligation
+{
+}
+
+// Published off-venue, with its own rules.
+Class marketmaking::SystematicInternaliserQuote extends marketmaking::MarketMakingObligation
+{
+}
+
+// On demand rather than continuous.
+Class marketmaking::RequestForQuoteResponse extends marketmaking::MarketMakingObligation
+{
+}
+
+// Present in the opening and closing auctions.
+Class marketmaking::AuctionParticipationObligation extends marketmaking::MarketMakingObligation
+{
+}
+
+// Permission not to publish, for size or reference price.
+Class marketmaking::PreTradeTransparencyWaiver extends marketmaking::MarketMakingObligation
+{
+}
+
+// Published late, so the risk can be worked out of.
+Class marketmaking::DeferredPublicationItem extends marketmaking::MarketMakingObligation
+{
+}
+
+// A cap on messages, enforced with a fee.
+Class marketmaking::QuoteUpdateRateLimit extends marketmaking::MarketMakingObligation
+{
+}
+
+// The other side of the same control.
+Class marketmaking::OrderToTradeRatio extends marketmaking::MarketMakingObligation
+{
+}
+
+// Exempt from the ban, and only for the exempt activity.
+Class marketmaking::MarketMakerShortExemption extends marketmaking::MarketMakingObligation
+{
+}
+
+// Whether the obligation was met, measured monthly.
+Class marketmaking::ObligationPerformanceMeasure extends marketmaking::MarketMakingObligation
+{
+}
+
+###Mapping
+Mapping marketmaking::MarketmakingMapping
+(
+   *marketmaking::MarketMakingObligation[marketmakingBase]: Relational
+   {
+      ~primaryKey ( [store::DB]MARKET_MAKING_OBLIGATION.RECORD_ID )
+      ~mainTable [store::DB]MARKET_MAKING_OBLIGATION
+      recordId: [store::DB]MARKET_MAKING_OBLIGATION.RECORD_ID,
+      recordType: [store::DB]MARKET_MAKING_OBLIGATION.RECORD_TYPE,
+      bookId: [store::DB]MARKET_MAKING_OBLIGATION.BOOK_ID,
+      notional: [store::DB]MARKET_MAKING_OBLIGATION.NOTIONAL,
+      currency: [store::DB]MARKET_MAKING_OBLIGATION.CURRENCY,
+      tradeDate: [store::DB]MARKET_MAKING_OBLIGATION.TRADE_DATE,
+      maturityDate: [store::DB]MARKET_MAKING_OBLIGATION.MATURITY_DATE,
+      status: [store::DB]MARKET_MAKING_OBLIGATION.STATUS,
+      isActive: [store::DB]MARKET_MAKING_OBLIGATION.IS_ACTIVE,
+      riskScore: [store::DB]MARKET_MAKING_OBLIGATION.RISK_SCORE
+   }
+
+   marketmaking::ContinuousQuotingObligation[mmkContinuousQuoting] extends [marketmakingBase]: Relational
+   {
+      ~filter [store::DB]MmkContinuousQuotingRows
+   }
+
+   marketmaking::MaximumSpreadObligation[mmkMaximumSpread] extends [marketmakingBase]: Relational
+   {
+      ~filter [store::DB]MmkMaximumSpreadRows
+   }
+
+   marketmaking::MinimumQuoteSize[mmkMinimumSize] extends [marketmakingBase]: Relational
+   {
+      ~filter [store::DB]MmkMinimumSizeRows
+   }
+
+   marketmaking::StressedMarketRelief[mmkStressedMarketRelief] extends [marketmakingBase]: Relational
+   {
+      ~filter [store::DB]MmkStressedMarketReliefRows
+   }
+
+   marketmaking::ExceptionalCircumstancesRelief[mmkExceptionalCircumstances] extends [marketmakingBase]: Relational
+   {
+      ~filter [store::DB]MmkExceptionalCircumstancesRows
+   }
+
+   marketmaking::DesignatedMarketMaker[mmkDesignatedMarketMaker] extends [marketmakingBase]: Relational
+   {
+      ~filter [store::DB]MmkDesignatedMarketMakerRows
+   }
+
+   marketmaking::RegisteredLiquidityProvider[mmkRegisteredLiquidity] extends [marketmakingBase]: Relational
+   {
+      ~filter [store::DB]MmkRegisteredLiquidityRows
+   }
+
+   marketmaking::SystematicInternaliserQuote[mmkSystematicInternaliserQuote] extends [marketmakingBase]: Relational
+   {
+      ~filter [store::DB]MmkSystematicInternaliserQuoteRows
+   }
+
+   marketmaking::RequestForQuoteResponse[mmkRfqResponse] extends [marketmakingBase]: Relational
+   {
+      ~filter [store::DB]MmkRfqResponseRows
+   }
+
+   marketmaking::AuctionParticipationObligation[mmkAuctionObligation] extends [marketmakingBase]: Relational
+   {
+      ~filter [store::DB]MmkAuctionObligationRows
+   }
+
+   marketmaking::PreTradeTransparencyWaiver[mmkPreTradeWaiver] extends [marketmakingBase]: Relational
+   {
+      ~filter [store::DB]MmkPreTradeWaiverRows
+   }
+
+   marketmaking::DeferredPublicationItem[mmkDeferredPublication] extends [marketmakingBase]: Relational
+   {
+      ~filter [store::DB]MmkDeferredPublicationRows
+   }
+
+   marketmaking::QuoteUpdateRateLimit[mmkQuoteUpdateRate] extends [marketmakingBase]: Relational
+   {
+      ~filter [store::DB]MmkQuoteUpdateRateRows
+   }
+
+   marketmaking::OrderToTradeRatio[mmkOrderToTradeRatio] extends [marketmakingBase]: Relational
+   {
+      ~filter [store::DB]MmkOrderToTradeRatioRows
+   }
+
+   marketmaking::MarketMakerShortExemption[mmkShortSellingExemption] extends [marketmakingBase]: Relational
+   {
+      ~filter [store::DB]MmkShortSellingExemptionRows
+   }
+
+   marketmaking::ObligationPerformanceMeasure[mmkPerformanceMeasurement] extends [marketmakingBase]: Relational
+   {
+      ~filter [store::DB]MmkPerformanceMeasurementRows
+   }
+)

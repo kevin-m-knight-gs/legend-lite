@@ -1,0 +1,211 @@
+###Pure
+// FRTB: the desk structure, and the tests that decide the capital.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class frtbdesks::FrtbDeskItem
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The unit of approval, and it must match the business.
+Class frtbdesks::RegulatoryTradingDesk extends frtbdesks::FrtbDeskItem
+{
+}
+
+// Delta, vega and curvature by risk class and bucket.
+Class frtbdesks::StandardisedSensitivity extends frtbdesks::FrtbDeskItem
+{
+}
+
+// Jump to default, netted within buckets.
+Class frtbdesks::DefaultRiskCharge extends frtbdesks::FrtbDeskItem
+{
+}
+
+// For exotic underlyings the sensitivities do not capture.
+Class frtbdesks::ResidualRiskAddOn extends frtbdesks::FrtbDeskItem
+{
+}
+
+// Replacing VaR, at 97.5% and with liquidity horizons.
+Class frtbdesks::InternalModelExpectedShortfall extends frtbdesks::FrtbDeskItem
+{
+}
+
+// Calibrated to the worst twelve months for that desk.
+Class frtbdesks::StressedPeriodCalibration extends frtbdesks::FrtbDeskItem
+{
+}
+
+// Insufficient real prices, so a punitive separate charge.
+Class frtbdesks::NonModellableRiskFactor extends frtbdesks::FrtbDeskItem
+{
+}
+
+// Front office and risk P&L must track, or the desk loses approval.
+Class frtbdesks::ProfitAndLossAttributionTest extends frtbdesks::FrtbDeskItem
+{
+}
+
+// Passing, with a surcharge, and on notice.
+Class frtbdesks::ProfitAndLossAttributionAmber extends frtbdesks::FrtbDeskItem
+{
+}
+
+// Failing, so the desk falls back to the standardised approach.
+Class frtbdesks::ProfitAndLossAttributionRed extends frtbdesks::FrtbDeskItem
+{
+}
+
+// A loss beyond the model's own estimate.
+Class frtbdesks::BacktestException extends frtbdesks::FrtbDeskItem
+{
+}
+
+// Twenty-four observations a year, and no ninety-day gap.
+Class frtbdesks::RiskFactorEligibilityTest extends frtbdesks::FrtbDeskItem
+{
+}
+
+// Which book it sits in, and how hard it is to move.
+Class frtbdesks::BankingTradingBoundaryItem extends frtbdesks::FrtbDeskItem
+{
+}
+
+// Between books, and only recognised under conditions.
+Class frtbdesks::InternalRiskTransfer extends frtbdesks::FrtbDeskItem
+{
+}
+
+// The standardised result as a floor under the modelled one.
+Class frtbdesks::OutputFloorItem extends frtbdesks::FrtbDeskItem
+{
+}
+
+// How desks roll up, which changes the diversification benefit.
+Class frtbdesks::DeskHierarchyItem extends frtbdesks::FrtbDeskItem
+{
+}
+
+###Mapping
+Mapping frtbdesks::FrtbdesksMapping
+(
+   *frtbdesks::FrtbDeskItem[frtbdesksBase]: Relational
+   {
+      ~primaryKey ( [store::DB]FRTB_DESK_ITEM.RECORD_ID )
+      ~mainTable [store::DB]FRTB_DESK_ITEM
+      recordId: [store::DB]FRTB_DESK_ITEM.RECORD_ID,
+      recordType: [store::DB]FRTB_DESK_ITEM.RECORD_TYPE,
+      bookId: [store::DB]FRTB_DESK_ITEM.BOOK_ID,
+      notional: [store::DB]FRTB_DESK_ITEM.NOTIONAL,
+      currency: [store::DB]FRTB_DESK_ITEM.CURRENCY,
+      tradeDate: [store::DB]FRTB_DESK_ITEM.TRADE_DATE,
+      maturityDate: [store::DB]FRTB_DESK_ITEM.MATURITY_DATE,
+      status: [store::DB]FRTB_DESK_ITEM.STATUS,
+      isActive: [store::DB]FRTB_DESK_ITEM.IS_ACTIVE,
+      riskScore: [store::DB]FRTB_DESK_ITEM.RISK_SCORE
+   }
+
+   frtbdesks::RegulatoryTradingDesk[frtTradingDesk] extends [frtbdesksBase]: Relational
+   {
+      ~filter [store::DB]FrtTradingDeskRows
+   }
+
+   frtbdesks::StandardisedSensitivity[frtSaSensitivity] extends [frtbdesksBase]: Relational
+   {
+      ~filter [store::DB]FrtSaSensitivityRows
+   }
+
+   frtbdesks::DefaultRiskCharge[frtSaDefaultRisk] extends [frtbdesksBase]: Relational
+   {
+      ~filter [store::DB]FrtSaDefaultRiskRows
+   }
+
+   frtbdesks::ResidualRiskAddOn[frtSaResidualAddOn] extends [frtbdesksBase]: Relational
+   {
+      ~filter [store::DB]FrtSaResidualAddOnRows
+   }
+
+   frtbdesks::InternalModelExpectedShortfall[frtImaExpectedShortfall] extends [frtbdesksBase]: Relational
+   {
+      ~filter [store::DB]FrtImaExpectedShortfallRows
+   }
+
+   frtbdesks::StressedPeriodCalibration[frtImaStressedPeriod] extends [frtbdesksBase]: Relational
+   {
+      ~filter [store::DB]FrtImaStressedPeriodRows
+   }
+
+   frtbdesks::NonModellableRiskFactor[frtNmrf] extends [frtbdesksBase]: Relational
+   {
+      ~filter [store::DB]FrtNmrfRows
+   }
+
+   frtbdesks::ProfitAndLossAttributionTest[frtPlaTest] extends [frtbdesksBase]: Relational
+   {
+      ~filter [store::DB]FrtPlaTestRows
+   }
+
+   frtbdesks::ProfitAndLossAttributionAmber[frtPlaAmber] extends [frtbdesksBase]: Relational
+   {
+      ~filter [store::DB]FrtPlaAmberRows
+   }
+
+   frtbdesks::ProfitAndLossAttributionRed[frtPlaRed] extends [frtbdesksBase]: Relational
+   {
+      ~filter [store::DB]FrtPlaRedRows
+   }
+
+   frtbdesks::BacktestException[frtBacktestException] extends [frtbdesksBase]: Relational
+   {
+      ~filter [store::DB]FrtBacktestExceptionRows
+   }
+
+   frtbdesks::RiskFactorEligibilityTest[frtRiskFactorEligibility] extends [frtbdesksBase]: Relational
+   {
+      ~filter [store::DB]FrtRiskFactorEligibilityRows
+   }
+
+   frtbdesks::BankingTradingBoundaryItem[frtBoundaryItem] extends [frtbdesksBase]: Relational
+   {
+      ~filter [store::DB]FrtBoundaryItemRows
+   }
+
+   frtbdesks::InternalRiskTransfer[frtInternalRiskTransfer] extends [frtbdesksBase]: Relational
+   {
+      ~filter [store::DB]FrtInternalRiskTransferRows
+   }
+
+   frtbdesks::OutputFloorItem[frtCapitalFloor] extends [frtbdesksBase]: Relational
+   {
+      ~filter [store::DB]FrtCapitalFloorRows
+   }
+
+   frtbdesks::DeskHierarchyItem[frtDeskHierarchy] extends [frtbdesksBase]: Relational
+   {
+      ~filter [store::DB]FrtDeskHierarchyRows
+   }
+)

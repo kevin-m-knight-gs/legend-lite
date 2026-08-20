@@ -1,0 +1,211 @@
+###Pure
+// Short selling: the positions, the disclosures and the bans.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class shortselling::ShortPositionItem
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Borrowed before selling, which is the only legal kind in most markets.
+Class shortselling::CoveredShortPosition extends shortselling::ShortPositionItem
+{
+}
+
+// Not borrowed, and prohibited nearly everywhere.
+Class shortselling::NakedShortPosition extends shortselling::ShortPositionItem
+{
+}
+
+// Evidence the stock could have been borrowed.
+Class shortselling::LocateRecord extends shortselling::ShortPositionItem
+{
+}
+
+// Above the private threshold, told to the regulator only.
+Class shortselling::PrivateNetShortNotification extends shortselling::ShortPositionItem
+{
+}
+
+// Above the public threshold, and named.
+Class shortselling::PublicNetShortDisclosure extends shortselling::ShortPositionItem
+{
+}
+
+// With its own thresholds and its own rules.
+Class shortselling::SovereignShortPosition extends shortselling::ShortPositionItem
+{
+}
+
+// Restricted specifically because it is a short by another route.
+Class shortselling::UncoveredSovereignCds extends shortselling::ShortPositionItem
+{
+}
+
+// Exempt, and only for the exempt activity.
+Class shortselling::MarketMakerExemptPosition extends shortselling::ShortPositionItem
+{
+}
+
+// Temporary, imposed after a fall, and of debated effect.
+Class shortselling::ShortSellingBan extends shortselling::ShortPositionItem
+{
+}
+
+// A per-name restriction after a large intraday drop.
+Class shortselling::ShortCircuitBreaker extends shortselling::ShortPositionItem
+{
+}
+
+// Forced to close because the borrow was recalled.
+Class shortselling::ShortBuyIn extends shortselling::ShortPositionItem
+{
+}
+
+// The lender wants the stock back, usually to vote.
+Class shortselling::BorrowRecallNotice extends shortselling::ShortPositionItem
+{
+}
+
+// Where the fee is the whole trade.
+Class shortselling::HardToBorrowItem extends shortselling::ShortPositionItem
+{
+}
+
+// Negative rebate, and a crowded short.
+Class shortselling::SpecialBorrowRate extends shortselling::ShortPositionItem
+{
+}
+
+// Through a swap, and disclosed on the same basis.
+Class shortselling::SyntheticShortPosition extends shortselling::ShortPositionItem
+{
+}
+
+// The fail that short-selling rules exist to prevent.
+Class shortselling::ShortSettlementFail extends shortselling::ShortPositionItem
+{
+}
+
+###Mapping
+Mapping shortselling::ShortsellingMapping
+(
+   *shortselling::ShortPositionItem[shortsellingBase]: Relational
+   {
+      ~primaryKey ( [store::DB]SHORT_POSITION_ITEM.RECORD_ID )
+      ~mainTable [store::DB]SHORT_POSITION_ITEM
+      recordId: [store::DB]SHORT_POSITION_ITEM.RECORD_ID,
+      recordType: [store::DB]SHORT_POSITION_ITEM.RECORD_TYPE,
+      bookId: [store::DB]SHORT_POSITION_ITEM.BOOK_ID,
+      notional: [store::DB]SHORT_POSITION_ITEM.NOTIONAL,
+      currency: [store::DB]SHORT_POSITION_ITEM.CURRENCY,
+      tradeDate: [store::DB]SHORT_POSITION_ITEM.TRADE_DATE,
+      maturityDate: [store::DB]SHORT_POSITION_ITEM.MATURITY_DATE,
+      status: [store::DB]SHORT_POSITION_ITEM.STATUS,
+      isActive: [store::DB]SHORT_POSITION_ITEM.IS_ACTIVE,
+      riskScore: [store::DB]SHORT_POSITION_ITEM.RISK_SCORE
+   }
+
+   shortselling::CoveredShortPosition[shoCoveredShort] extends [shortsellingBase]: Relational
+   {
+      ~filter [store::DB]ShoCoveredShortRows
+   }
+
+   shortselling::NakedShortPosition[shoNakedShort] extends [shortsellingBase]: Relational
+   {
+      ~filter [store::DB]ShoNakedShortRows
+   }
+
+   shortselling::LocateRecord[shoLocateObtained] extends [shortsellingBase]: Relational
+   {
+      ~filter [store::DB]ShoLocateObtainedRows
+   }
+
+   shortselling::PrivateNetShortNotification[shoNetShortPrivate] extends [shortsellingBase]: Relational
+   {
+      ~filter [store::DB]ShoNetShortPrivateRows
+   }
+
+   shortselling::PublicNetShortDisclosure[shoNetShortPublic] extends [shortsellingBase]: Relational
+   {
+      ~filter [store::DB]ShoNetShortPublicRows
+   }
+
+   shortselling::SovereignShortPosition[shoSovereignShort] extends [shortsellingBase]: Relational
+   {
+      ~filter [store::DB]ShoSovereignShortRows
+   }
+
+   shortselling::UncoveredSovereignCds[shoCdsUncovered] extends [shortsellingBase]: Relational
+   {
+      ~filter [store::DB]ShoCdsUncoveredRows
+   }
+
+   shortselling::MarketMakerExemptPosition[shoMarketMakerExempt] extends [shortsellingBase]: Relational
+   {
+      ~filter [store::DB]ShoMarketMakerExemptRows
+   }
+
+   shortselling::ShortSellingBan[shoShortSellingBan] extends [shortsellingBase]: Relational
+   {
+      ~filter [store::DB]ShoShortSellingBanRows
+   }
+
+   shortselling::ShortCircuitBreaker[shoCircuitBreakerShort] extends [shortsellingBase]: Relational
+   {
+      ~filter [store::DB]ShoCircuitBreakerShortRows
+   }
+
+   shortselling::ShortBuyIn[shoBuyInShort] extends [shortsellingBase]: Relational
+   {
+      ~filter [store::DB]ShoBuyInShortRows
+   }
+
+   shortselling::BorrowRecallNotice[shoRecallNotice] extends [shortsellingBase]: Relational
+   {
+      ~filter [store::DB]ShoRecallNoticeRows
+   }
+
+   shortselling::HardToBorrowItem[shoHardToBorrow] extends [shortsellingBase]: Relational
+   {
+      ~filter [store::DB]ShoHardToBorrowRows
+   }
+
+   shortselling::SpecialBorrowRate[shoSpecialRate] extends [shortsellingBase]: Relational
+   {
+      ~filter [store::DB]ShoSpecialRateRows
+   }
+
+   shortselling::SyntheticShortPosition[shoSyntheticShort] extends [shortsellingBase]: Relational
+   {
+      ~filter [store::DB]ShoSyntheticShortRows
+   }
+
+   shortselling::ShortSettlementFail[shoSettlementFailShort] extends [shortsellingBase]: Relational
+   {
+      ~filter [store::DB]ShoSettlementFailShortRows
+   }
+)

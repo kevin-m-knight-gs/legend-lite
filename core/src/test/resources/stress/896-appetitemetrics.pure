@@ -1,0 +1,211 @@
+###Pure
+// Risk appetite: the metrics a board actually sets, and their thresholds.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class appetitemetrics::RiskAppetiteMetric
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Above the requirement by a buffer the board chooses.
+Class appetitemetrics::CommonEquityRatioTarget extends appetitemetrics::RiskAppetiteMetric
+{
+}
+
+// The non-risk-weighted backstop.
+Class appetitemetrics::LeverageRatioTarget extends appetitemetrics::RiskAppetiteMetric
+{
+}
+
+// Above 100%, and usually well above.
+Class appetitemetrics::LiquidityCoverageTarget extends appetitemetrics::RiskAppetiteMetric
+{
+}
+
+// The structural counterpart.
+Class appetitemetrics::StableFundingTarget extends appetitemetrics::RiskAppetiteMetric
+{
+}
+
+// At group, division and desk, and the most granular of these.
+Class appetitemetrics::ValueAtRiskLimit extends appetitemetrics::RiskAppetiteMetric
+{
+}
+
+// Which binds before VaR in a real move.
+Class appetitemetrics::StressLossLimit extends appetitemetrics::RiskAppetiteMetric
+{
+}
+
+// By rating band, and the large exposures rule underneath it.
+Class appetitemetrics::SingleNameConcentrationLimit extends appetitemetrics::RiskAppetiteMetric
+{
+}
+
+// And the argument about what a sector is.
+Class appetitemetrics::SectorConcentrationLimit extends appetitemetrics::RiskAppetiteMetric
+{
+}
+
+// Transfer risk, separate from the obligor's own.
+Class appetitemetrics::CountryRiskLimit extends appetitemetrics::RiskAppetiteMetric
+{
+}
+
+// Annual, and hard to set meaningfully.
+Class appetitemetrics::OperationalLossTolerance extends appetitemetrics::RiskAppetiteMetric
+{
+}
+
+// Zero appetite, expressed in metrics that are not zero.
+Class appetitemetrics::ConductRiskTolerance extends appetitemetrics::RiskAppetiteMetric
+{
+}
+
+// The maximum acceptable disruption to an important service.
+Class appetitemetrics::ImpactToleranceThreshold extends appetitemetrics::RiskAppetiteMetric
+{
+}
+
+// What the board will accept quarter to quarter.
+Class appetitemetrics::EarningsVolatilityTolerance extends appetitemetrics::RiskAppetiteMetric
+{
+}
+
+// Which constrains most of the above.
+Class appetitemetrics::TargetCreditRating extends appetitemetrics::RiskAppetiteMetric
+{
+}
+
+// Set inside the limit, so there is time to act.
+Class appetitemetrics::EarlyWarningIndicator extends appetitemetrics::RiskAppetiteMetric
+{
+}
+
+// Who is told, how fast, and what they must decide.
+Class appetitemetrics::AppetiteBreachEscalation extends appetitemetrics::RiskAppetiteMetric
+{
+}
+
+###Mapping
+Mapping appetitemetrics::AppetitemetricsMapping
+(
+   *appetitemetrics::RiskAppetiteMetric[appetitemetricsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]RISK_APPETITE_METRIC.RECORD_ID )
+      ~mainTable [store::DB]RISK_APPETITE_METRIC
+      recordId: [store::DB]RISK_APPETITE_METRIC.RECORD_ID,
+      recordType: [store::DB]RISK_APPETITE_METRIC.RECORD_TYPE,
+      bookId: [store::DB]RISK_APPETITE_METRIC.BOOK_ID,
+      notional: [store::DB]RISK_APPETITE_METRIC.NOTIONAL,
+      currency: [store::DB]RISK_APPETITE_METRIC.CURRENCY,
+      tradeDate: [store::DB]RISK_APPETITE_METRIC.TRADE_DATE,
+      maturityDate: [store::DB]RISK_APPETITE_METRIC.MATURITY_DATE,
+      status: [store::DB]RISK_APPETITE_METRIC.STATUS,
+      isActive: [store::DB]RISK_APPETITE_METRIC.IS_ACTIVE,
+      riskScore: [store::DB]RISK_APPETITE_METRIC.RISK_SCORE
+   }
+
+   appetitemetrics::CommonEquityRatioTarget[rapCet1RatioTarget] extends [appetitemetricsBase]: Relational
+   {
+      ~filter [store::DB]RapCet1RatioTargetRows
+   }
+
+   appetitemetrics::LeverageRatioTarget[rapLeverageRatioTarget] extends [appetitemetricsBase]: Relational
+   {
+      ~filter [store::DB]RapLeverageRatioTargetRows
+   }
+
+   appetitemetrics::LiquidityCoverageTarget[rapLcrTarget] extends [appetitemetricsBase]: Relational
+   {
+      ~filter [store::DB]RapLcrTargetRows
+   }
+
+   appetitemetrics::StableFundingTarget[rapNsfrTarget] extends [appetitemetricsBase]: Relational
+   {
+      ~filter [store::DB]RapNsfrTargetRows
+   }
+
+   appetitemetrics::ValueAtRiskLimit[rapVarLimit] extends [appetitemetricsBase]: Relational
+   {
+      ~filter [store::DB]RapVarLimitRows
+   }
+
+   appetitemetrics::StressLossLimit[rapStressLossLimit] extends [appetitemetricsBase]: Relational
+   {
+      ~filter [store::DB]RapStressLossLimitRows
+   }
+
+   appetitemetrics::SingleNameConcentrationLimit[rapSingleNameLimit] extends [appetitemetricsBase]: Relational
+   {
+      ~filter [store::DB]RapSingleNameLimitRows
+   }
+
+   appetitemetrics::SectorConcentrationLimit[rapSectorLimit] extends [appetitemetricsBase]: Relational
+   {
+      ~filter [store::DB]RapSectorLimitRows
+   }
+
+   appetitemetrics::CountryRiskLimit[rapCountryLimit] extends [appetitemetricsBase]: Relational
+   {
+      ~filter [store::DB]RapCountryLimitRows
+   }
+
+   appetitemetrics::OperationalLossTolerance[rapOperationalLossTolerance] extends [appetitemetricsBase]: Relational
+   {
+      ~filter [store::DB]RapOperationalLossToleranceRows
+   }
+
+   appetitemetrics::ConductRiskTolerance[rapConductTolerance] extends [appetitemetricsBase]: Relational
+   {
+      ~filter [store::DB]RapConductToleranceRows
+   }
+
+   appetitemetrics::ImpactToleranceThreshold[rapImpactTolerance] extends [appetitemetricsBase]: Relational
+   {
+      ~filter [store::DB]RapImpactToleranceRows
+   }
+
+   appetitemetrics::EarningsVolatilityTolerance[rapEarningsVolatility] extends [appetitemetricsBase]: Relational
+   {
+      ~filter [store::DB]RapEarningsVolatilityRows
+   }
+
+   appetitemetrics::TargetCreditRating[rapRatingTarget] extends [appetitemetricsBase]: Relational
+   {
+      ~filter [store::DB]RapRatingTargetRows
+   }
+
+   appetitemetrics::EarlyWarningIndicator[rapEarlyWarning] extends [appetitemetricsBase]: Relational
+   {
+      ~filter [store::DB]RapEarlyWarningRows
+   }
+
+   appetitemetrics::AppetiteBreachEscalation[rapBreachEscalation] extends [appetitemetricsBase]: Relational
+   {
+      ~filter [store::DB]RapBreachEscalationRows
+   }
+)

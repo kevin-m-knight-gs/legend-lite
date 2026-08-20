@@ -1,0 +1,211 @@
+###Pure
+// Reconciliations: what is compared with what, and how often.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class recontypes::ReconciliationType
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The bank's records against the correspondent's statement.
+Class recontypes::NostroReconciliation extends recontypes::ReconciliationType
+{
+}
+
+// Securities positions against the custodian's.
+Class recontypes::DepotReconciliation extends recontypes::ReconciliationType
+{
+}
+
+// The subledger against the general ledger.
+Class recontypes::CashLedgerReconciliation extends recontypes::ReconciliationType
+{
+}
+
+// Front office against back office, daily.
+Class recontypes::PositionReconciliation extends recontypes::ReconciliationType
+{
+}
+
+// Trade by trade, and the one that finds the missing ticket.
+Class recontypes::TradeReconciliation extends recontypes::ReconciliationType
+{
+}
+
+// With the counterparty, at a frequency the regulation sets.
+Class recontypes::PortfolioReconciliation extends recontypes::ReconciliationType
+{
+}
+
+// Where two firms disagree about what a trade is worth.
+Class recontypes::ValuationReconciliation extends recontypes::ReconciliationType
+{
+}
+
+// Which is usually the previous one, one day later.
+Class recontypes::CollateralReconciliation extends recontypes::ReconciliationType
+{
+}
+
+// Internal and external, and a regulatory offence to get wrong.
+Class recontypes::ClientMoneyReconciliation extends recontypes::ReconciliationType
+{
+}
+
+// The securities equivalent.
+Class recontypes::ClientAssetReconciliation extends recontypes::ReconciliationType
+{
+}
+
+// Two entities of the same group disagreeing with each other.
+Class recontypes::IntercompanyReconciliation extends recontypes::ReconciliationType
+{
+}
+
+// Where unreconciled items live, and age.
+Class recontypes::SuspenseAccountItem extends recontypes::ReconciliationType
+{
+}
+
+// Older than the threshold, and escalated.
+Class recontypes::AgedBreakItem extends recontypes::ReconciliationType
+{
+}
+
+// Genuine, self-clearing, and the majority.
+Class recontypes::TimingDifferenceItem extends recontypes::ReconciliationType
+{
+}
+
+// Not self-clearing, and someone has lost something.
+Class recontypes::PermanentDifferenceItem extends recontypes::ReconciliationType
+{
+}
+
+// The 98% nobody looks at, and the reason the 2% can be.
+Class recontypes::AutoMatchedItem extends recontypes::ReconciliationType
+{
+}
+
+###Mapping
+Mapping recontypes::RecontypesMapping
+(
+   *recontypes::ReconciliationType[recontypesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]RECONCILIATION_TYPE.RECORD_ID )
+      ~mainTable [store::DB]RECONCILIATION_TYPE
+      recordId: [store::DB]RECONCILIATION_TYPE.RECORD_ID,
+      recordType: [store::DB]RECONCILIATION_TYPE.RECORD_TYPE,
+      bookId: [store::DB]RECONCILIATION_TYPE.BOOK_ID,
+      notional: [store::DB]RECONCILIATION_TYPE.NOTIONAL,
+      currency: [store::DB]RECONCILIATION_TYPE.CURRENCY,
+      tradeDate: [store::DB]RECONCILIATION_TYPE.TRADE_DATE,
+      maturityDate: [store::DB]RECONCILIATION_TYPE.MATURITY_DATE,
+      status: [store::DB]RECONCILIATION_TYPE.STATUS,
+      isActive: [store::DB]RECONCILIATION_TYPE.IS_ACTIVE,
+      riskScore: [store::DB]RECONCILIATION_TYPE.RISK_SCORE
+   }
+
+   recontypes::NostroReconciliation[rcnNostroRecon] extends [recontypesBase]: Relational
+   {
+      ~filter [store::DB]RcnNostroReconRows
+   }
+
+   recontypes::DepotReconciliation[rcnDepotRecon] extends [recontypesBase]: Relational
+   {
+      ~filter [store::DB]RcnDepotReconRows
+   }
+
+   recontypes::CashLedgerReconciliation[rcnCashLedgerRecon] extends [recontypesBase]: Relational
+   {
+      ~filter [store::DB]RcnCashLedgerReconRows
+   }
+
+   recontypes::PositionReconciliation[rcnPositionRecon] extends [recontypesBase]: Relational
+   {
+      ~filter [store::DB]RcnPositionReconRows
+   }
+
+   recontypes::TradeReconciliation[rcnTradeRecon] extends [recontypesBase]: Relational
+   {
+      ~filter [store::DB]RcnTradeReconRows
+   }
+
+   recontypes::PortfolioReconciliation[rcnPortfolioReconEmir] extends [recontypesBase]: Relational
+   {
+      ~filter [store::DB]RcnPortfolioReconEmirRows
+   }
+
+   recontypes::ValuationReconciliation[rcnValuationRecon] extends [recontypesBase]: Relational
+   {
+      ~filter [store::DB]RcnValuationReconRows
+   }
+
+   recontypes::CollateralReconciliation[rcnCollateralRecon] extends [recontypesBase]: Relational
+   {
+      ~filter [store::DB]RcnCollateralReconRows
+   }
+
+   recontypes::ClientMoneyReconciliation[rcnClientMoneyRecon] extends [recontypesBase]: Relational
+   {
+      ~filter [store::DB]RcnClientMoneyReconRows
+   }
+
+   recontypes::ClientAssetReconciliation[rcnClientAssetRecon] extends [recontypesBase]: Relational
+   {
+      ~filter [store::DB]RcnClientAssetReconRows
+   }
+
+   recontypes::IntercompanyReconciliation[rcnIntercompanyRecon] extends [recontypesBase]: Relational
+   {
+      ~filter [store::DB]RcnIntercompanyReconRows
+   }
+
+   recontypes::SuspenseAccountItem[rcnSuspenseAccount] extends [recontypesBase]: Relational
+   {
+      ~filter [store::DB]RcnSuspenseAccountRows
+   }
+
+   recontypes::AgedBreakItem[rcnAgedBreak] extends [recontypesBase]: Relational
+   {
+      ~filter [store::DB]RcnAgedBreakRows
+   }
+
+   recontypes::TimingDifferenceItem[rcnTimingDifference] extends [recontypesBase]: Relational
+   {
+      ~filter [store::DB]RcnTimingDifferenceRows
+   }
+
+   recontypes::PermanentDifferenceItem[rcnPermanentDifference] extends [recontypesBase]: Relational
+   {
+      ~filter [store::DB]RcnPermanentDifferenceRows
+   }
+
+   recontypes::AutoMatchedItem[rcnAutoMatched] extends [recontypesBase]: Relational
+   {
+      ~filter [store::DB]RcnAutoMatchedRows
+   }
+)

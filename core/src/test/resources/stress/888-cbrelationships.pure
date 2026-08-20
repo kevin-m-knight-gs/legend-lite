@@ -1,0 +1,211 @@
+###Pure
+// Correspondent banking: the accounts, and the diligence they require.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class cbrelationships::CorrespondentRelationship
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Our account with them, in their currency.
+Class cbrelationships::NostroRelationship extends cbrelationships::CorrespondentRelationship
+{
+}
+
+// Their account with us, and the higher risk of the two.
+Class cbrelationships::VostroRelationship extends cbrelationships::CorrespondentRelationship
+{
+}
+
+// A third party's account, held through us.
+Class cbrelationships::LoroRelationship extends cbrelationships::CorrespondentRelationship
+{
+}
+
+// Their customers transacting directly on our books.
+Class cbrelationships::PayableThroughAccount extends cbrelationships::CorrespondentRelationship
+{
+}
+
+// Their correspondent's correspondent, and the visibility problem.
+Class cbrelationships::NestedCorrespondent extends cbrelationships::CorrespondentRelationship
+{
+}
+
+// Clearing for a bank that clears for others.
+Class cbrelationships::DownstreamClearing extends cbrelationships::CorrespondentRelationship
+{
+}
+
+// The industry due diligence pack, refreshed annually.
+Class cbrelationships::WolfsbergQuestionnaire extends cbrelationships::CorrespondentRelationship
+{
+}
+
+// For higher-risk jurisdictions and structures.
+Class cbrelationships::EnhancedDueDiligenceItem extends cbrelationships::CorrespondentRelationship
+{
+}
+
+// The rule that ended a category of relationship entirely.
+Class cbrelationships::ShellBankProhibition extends cbrelationships::CorrespondentRelationship
+{
+}
+
+// On flows the bank cannot see the origin of.
+Class cbrelationships::CorrespondentTransactionMonitoring extends cbrelationships::CorrespondentRelationship
+{
+}
+
+// Asking the correspondent who the payment was really for.
+Class cbrelationships::RequestForInformation extends cbrelationships::CorrespondentRelationship
+{
+}
+
+// Ending the relationship, and the access it took with it.
+Class cbrelationships::DeRiskingExit extends cbrelationships::CorrespondentRelationship
+{
+}
+
+// Continuous, against a list that changes weekly.
+Class cbrelationships::RelationshipSanctionsScreening extends cbrelationships::CorrespondentRelationship
+{
+}
+
+// Uncommitted, and the largest exposure nobody tracks daily.
+Class cbrelationships::IntradayCreditLine extends cbrelationships::CorrespondentRelationship
+{
+}
+
+// A cap on what can be at risk on one day.
+Class cbrelationships::SettlementLimitItem extends cbrelationships::CorrespondentRelationship
+{
+}
+
+// Risk-rated, and the trigger for most of the above.
+Class cbrelationships::PeriodicRelationshipReview extends cbrelationships::CorrespondentRelationship
+{
+}
+
+###Mapping
+Mapping cbrelationships::CbrelationshipsMapping
+(
+   *cbrelationships::CorrespondentRelationship[cbrelationshipsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]CORRESPONDENT_RELATIONSHIP.RECORD_ID )
+      ~mainTable [store::DB]CORRESPONDENT_RELATIONSHIP
+      recordId: [store::DB]CORRESPONDENT_RELATIONSHIP.RECORD_ID,
+      recordType: [store::DB]CORRESPONDENT_RELATIONSHIP.RECORD_TYPE,
+      bookId: [store::DB]CORRESPONDENT_RELATIONSHIP.BOOK_ID,
+      notional: [store::DB]CORRESPONDENT_RELATIONSHIP.NOTIONAL,
+      currency: [store::DB]CORRESPONDENT_RELATIONSHIP.CURRENCY,
+      tradeDate: [store::DB]CORRESPONDENT_RELATIONSHIP.TRADE_DATE,
+      maturityDate: [store::DB]CORRESPONDENT_RELATIONSHIP.MATURITY_DATE,
+      status: [store::DB]CORRESPONDENT_RELATIONSHIP.STATUS,
+      isActive: [store::DB]CORRESPONDENT_RELATIONSHIP.IS_ACTIVE,
+      riskScore: [store::DB]CORRESPONDENT_RELATIONSHIP.RISK_SCORE
+   }
+
+   cbrelationships::NostroRelationship[cbrNostroAccountRel] extends [cbrelationshipsBase]: Relational
+   {
+      ~filter [store::DB]CbrNostroAccountRelRows
+   }
+
+   cbrelationships::VostroRelationship[cbrVostroAccountRel] extends [cbrelationshipsBase]: Relational
+   {
+      ~filter [store::DB]CbrVostroAccountRelRows
+   }
+
+   cbrelationships::LoroRelationship[cbrLoroAccountRel] extends [cbrelationshipsBase]: Relational
+   {
+      ~filter [store::DB]CbrLoroAccountRelRows
+   }
+
+   cbrelationships::PayableThroughAccount[cbrPayableThrough] extends [cbrelationshipsBase]: Relational
+   {
+      ~filter [store::DB]CbrPayableThroughRows
+   }
+
+   cbrelationships::NestedCorrespondent[cbrNestedRelationship] extends [cbrelationshipsBase]: Relational
+   {
+      ~filter [store::DB]CbrNestedRelationshipRows
+   }
+
+   cbrelationships::DownstreamClearing[cbrDownstreamClearing] extends [cbrelationshipsBase]: Relational
+   {
+      ~filter [store::DB]CbrDownstreamClearingRows
+   }
+
+   cbrelationships::WolfsbergQuestionnaire[cbrWolfsbergQuestionnaire] extends [cbrelationshipsBase]: Relational
+   {
+      ~filter [store::DB]CbrWolfsbergQuestionnaireRows
+   }
+
+   cbrelationships::EnhancedDueDiligenceItem[cbrEnhancedDueDiligence] extends [cbrelationshipsBase]: Relational
+   {
+      ~filter [store::DB]CbrEnhancedDueDiligenceRows
+   }
+
+   cbrelationships::ShellBankProhibition[cbrShellBankProhibition] extends [cbrelationshipsBase]: Relational
+   {
+      ~filter [store::DB]CbrShellBankProhibitionRows
+   }
+
+   cbrelationships::CorrespondentTransactionMonitoring[cbrTransactionMonitoring] extends [cbrelationshipsBase]: Relational
+   {
+      ~filter [store::DB]CbrTransactionMonitoringRows
+   }
+
+   cbrelationships::RequestForInformation[cbrRfiRequest] extends [cbrelationshipsBase]: Relational
+   {
+      ~filter [store::DB]CbrRfiRequestRows
+   }
+
+   cbrelationships::DeRiskingExit[cbrDeRiskingExit] extends [cbrelationshipsBase]: Relational
+   {
+      ~filter [store::DB]CbrDeRiskingExitRows
+   }
+
+   cbrelationships::RelationshipSanctionsScreening[cbrSanctionsScreeningRel] extends [cbrelationshipsBase]: Relational
+   {
+      ~filter [store::DB]CbrSanctionsScreeningRelRows
+   }
+
+   cbrelationships::IntradayCreditLine[cbrCreditLineIntraday] extends [cbrelationshipsBase]: Relational
+   {
+      ~filter [store::DB]CbrCreditLineIntradayRows
+   }
+
+   cbrelationships::SettlementLimitItem[cbrSettlementLimit] extends [cbrelationshipsBase]: Relational
+   {
+      ~filter [store::DB]CbrSettlementLimitRows
+   }
+
+   cbrelationships::PeriodicRelationshipReview[cbrRelationshipReview] extends [cbrelationshipsBase]: Relational
+   {
+      ~filter [store::DB]CbrRelationshipReviewRows
+   }
+)

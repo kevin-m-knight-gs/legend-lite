@@ -1,0 +1,211 @@
+###Pure
+// The offering document, and the parts of it that are actually read.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class prospectus::ProspectusItem
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The programme document, approved once and used for years.
+Class prospectus::BaseProspectus extends prospectus::ProspectusItem
+{
+}
+
+// The specific issue, and usually three pages.
+Class prospectus::FinalTerms extends prospectus::ProspectusItem
+{
+}
+
+// Because something changed after approval.
+Class prospectus::ProspectusSupplement extends prospectus::ProspectusItem
+{
+}
+
+// Long, generic, and occasionally specific enough to matter.
+Class prospectus::RiskFactorsSection extends prospectus::ProspectusItem
+{
+}
+
+// Which is what makes a green bond green.
+Class prospectus::UseOfProceedsSection extends prospectus::ProspectusItem
+{
+}
+
+// The contract, and the part that survives disputes.
+Class prospectus::TermsAndConditions extends prospectus::ProspectusItem
+{
+}
+
+// Between the issuer and the underwriters.
+Class prospectus::SubscriptionAgreement extends prospectus::ProspectusItem
+{
+}
+
+// Who may not be sold this, and where.
+Class prospectus::SellingRestrictions extends prospectus::ProspectusItem
+{
+}
+
+// General, caveated, and not advice.
+Class prospectus::TaxationSection extends prospectus::ProspectusItem
+{
+}
+
+// Three pages, prescribed, and fought over.
+Class prospectus::KeyInformationDocument extends prospectus::ProspectusItem
+{
+}
+
+// For retail offers, in a prescribed order.
+Class prospectus::ProspectusSummary extends prospectus::ProspectusItem
+{
+}
+
+// The accounts, included without being reprinted.
+Class prospectus::IncorporationByReference extends prospectus::ProspectusItem
+{
+}
+
+// For the exchange rather than for the regulator.
+Class prospectus::ListingParticulars extends prospectus::ProspectusItem
+{
+}
+
+// With a second-party opinion attached.
+Class prospectus::GreenBondFramework extends prospectus::ProspectusItem
+{
+}
+
+// For wholesale-only issues, and shorter than final terms.
+Class prospectus::PricingSupplement extends prospectus::ProspectusItem
+{
+}
+
+// What a supplement gives investors who already subscribed.
+Class prospectus::WithdrawalRightItem extends prospectus::ProspectusItem
+{
+}
+
+###Mapping
+Mapping prospectus::ProspectusMapping
+(
+   *prospectus::ProspectusItem[prospectusBase]: Relational
+   {
+      ~primaryKey ( [store::DB]PROSPECTUS_ITEM.RECORD_ID )
+      ~mainTable [store::DB]PROSPECTUS_ITEM
+      recordId: [store::DB]PROSPECTUS_ITEM.RECORD_ID,
+      recordType: [store::DB]PROSPECTUS_ITEM.RECORD_TYPE,
+      bookId: [store::DB]PROSPECTUS_ITEM.BOOK_ID,
+      notional: [store::DB]PROSPECTUS_ITEM.NOTIONAL,
+      currency: [store::DB]PROSPECTUS_ITEM.CURRENCY,
+      tradeDate: [store::DB]PROSPECTUS_ITEM.TRADE_DATE,
+      maturityDate: [store::DB]PROSPECTUS_ITEM.MATURITY_DATE,
+      status: [store::DB]PROSPECTUS_ITEM.STATUS,
+      isActive: [store::DB]PROSPECTUS_ITEM.IS_ACTIVE,
+      riskScore: [store::DB]PROSPECTUS_ITEM.RISK_SCORE
+   }
+
+   prospectus::BaseProspectus[proBaseProspectus] extends [prospectusBase]: Relational
+   {
+      ~filter [store::DB]ProBaseProspectusRows
+   }
+
+   prospectus::FinalTerms[proFinalTerms] extends [prospectusBase]: Relational
+   {
+      ~filter [store::DB]ProFinalTermsRows
+   }
+
+   prospectus::ProspectusSupplement[proSupplement] extends [prospectusBase]: Relational
+   {
+      ~filter [store::DB]ProSupplementRows
+   }
+
+   prospectus::RiskFactorsSection[proRiskFactors] extends [prospectusBase]: Relational
+   {
+      ~filter [store::DB]ProRiskFactorsRows
+   }
+
+   prospectus::UseOfProceedsSection[proUseOfProceeds] extends [prospectusBase]: Relational
+   {
+      ~filter [store::DB]ProUseOfProceedsRows
+   }
+
+   prospectus::TermsAndConditions[proTermsAndConditions] extends [prospectusBase]: Relational
+   {
+      ~filter [store::DB]ProTermsAndConditionsRows
+   }
+
+   prospectus::SubscriptionAgreement[proSubscriptionAgreement] extends [prospectusBase]: Relational
+   {
+      ~filter [store::DB]ProSubscriptionAgreementRows
+   }
+
+   prospectus::SellingRestrictions[proSellingRestrictions] extends [prospectusBase]: Relational
+   {
+      ~filter [store::DB]ProSellingRestrictionsRows
+   }
+
+   prospectus::TaxationSection[proTaxationSection] extends [prospectusBase]: Relational
+   {
+      ~filter [store::DB]ProTaxationSectionRows
+   }
+
+   prospectus::KeyInformationDocument[proKidPriip] extends [prospectusBase]: Relational
+   {
+      ~filter [store::DB]ProKidPriipRows
+   }
+
+   prospectus::ProspectusSummary[proSummarySection] extends [prospectusBase]: Relational
+   {
+      ~filter [store::DB]ProSummarySectionRows
+   }
+
+   prospectus::IncorporationByReference[proIncorporationByReference] extends [prospectusBase]: Relational
+   {
+      ~filter [store::DB]ProIncorporationByReferenceRows
+   }
+
+   prospectus::ListingParticulars[proListingParticulars] extends [prospectusBase]: Relational
+   {
+      ~filter [store::DB]ProListingParticularsRows
+   }
+
+   prospectus::GreenBondFramework[proGreenBondFramework] extends [prospectusBase]: Relational
+   {
+      ~filter [store::DB]ProGreenBondFrameworkRows
+   }
+
+   prospectus::PricingSupplement[proPricingSupplement] extends [prospectusBase]: Relational
+   {
+      ~filter [store::DB]ProPricingSupplementRows
+   }
+
+   prospectus::WithdrawalRightItem[proWithdrawalRight] extends [prospectusBase]: Relational
+   {
+      ~filter [store::DB]ProWithdrawalRightRows
+   }
+)

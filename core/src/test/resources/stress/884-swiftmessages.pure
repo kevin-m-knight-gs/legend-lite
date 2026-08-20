@@ -1,0 +1,211 @@
+###Pure
+// SWIFT message types, which is the vocabulary operations actually speaks.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class swiftmessages::SwiftMessage
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The customer payment, and the most common message there is.
+Class swiftmessages::SingleCustomerCreditTransfer extends swiftmessages::SwiftMessage
+{
+}
+
+// Bank to bank, and the cover for an MT103.
+Class swiftmessages::GeneralFinancialInstitutionTransfer extends swiftmessages::SwiftMessage
+{
+}
+
+// Carrying the underlying customer details, added after 2009.
+Class swiftmessages::CoverPaymentMessage extends swiftmessages::SwiftMessage
+{
+}
+
+// Telling a bank money is coming.
+Class swiftmessages::NoticeToReceive extends swiftmessages::SwiftMessage
+{
+}
+
+// The FX confirmation, matched automatically or not at all.
+Class swiftmessages::ForeignExchangeConfirmation extends swiftmessages::SwiftMessage
+{
+}
+
+// Money market confirmations.
+Class swiftmessages::FixedLoanDepositConfirmation extends swiftmessages::SwiftMessage
+{
+}
+
+// Securities in, no payment.
+Class swiftmessages::ReceiveFreeInstruction extends swiftmessages::SwiftMessage
+{
+}
+
+// Securities in, cash out, simultaneously.
+Class swiftmessages::ReceiveAgainstPayment extends swiftmessages::SwiftMessage
+{
+}
+
+// The mirror of 540.
+Class swiftmessages::DeliverFreeInstruction extends swiftmessages::SwiftMessage
+{
+}
+
+// And of 541, which is where most settlement volume is.
+Class swiftmessages::DeliverAgainstPayment extends swiftmessages::SwiftMessage
+{
+}
+
+// The status, and the reason code when it is not settled.
+Class swiftmessages::SettlementStatusAdvice extends swiftmessages::SwiftMessage
+{
+}
+
+// The event, its terms and its deadlines.
+Class swiftmessages::CorporateActionNotification extends swiftmessages::SwiftMessage
+{
+}
+
+// What was actually received.
+Class swiftmessages::CorporateActionConfirmation extends swiftmessages::SwiftMessage
+{
+}
+
+// The account was debited.
+Class swiftmessages::ConfirmationOfDebit extends swiftmessages::SwiftMessage
+{
+}
+
+// The statement operations reconciles against.
+Class swiftmessages::StatementMessage extends swiftmessages::SwiftMessage
+{
+}
+
+// The ISO 20022 replacement, with room for data the MT never had.
+Class swiftmessages::IsoTwentyTwoTwoCreditTransfer extends swiftmessages::SwiftMessage
+{
+}
+
+###Mapping
+Mapping swiftmessages::SwiftmessagesMapping
+(
+   *swiftmessages::SwiftMessage[swiftmessagesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]SWIFT_MESSAGE.RECORD_ID )
+      ~mainTable [store::DB]SWIFT_MESSAGE
+      recordId: [store::DB]SWIFT_MESSAGE.RECORD_ID,
+      recordType: [store::DB]SWIFT_MESSAGE.RECORD_TYPE,
+      bookId: [store::DB]SWIFT_MESSAGE.BOOK_ID,
+      notional: [store::DB]SWIFT_MESSAGE.NOTIONAL,
+      currency: [store::DB]SWIFT_MESSAGE.CURRENCY,
+      tradeDate: [store::DB]SWIFT_MESSAGE.TRADE_DATE,
+      maturityDate: [store::DB]SWIFT_MESSAGE.MATURITY_DATE,
+      status: [store::DB]SWIFT_MESSAGE.STATUS,
+      isActive: [store::DB]SWIFT_MESSAGE.IS_ACTIVE,
+      riskScore: [store::DB]SWIFT_MESSAGE.RISK_SCORE
+   }
+
+   swiftmessages::SingleCustomerCreditTransfer[swfMt103] extends [swiftmessagesBase]: Relational
+   {
+      ~filter [store::DB]SwfMt103Rows
+   }
+
+   swiftmessages::GeneralFinancialInstitutionTransfer[swfMt202] extends [swiftmessagesBase]: Relational
+   {
+      ~filter [store::DB]SwfMt202Rows
+   }
+
+   swiftmessages::CoverPaymentMessage[swfMt202cov] extends [swiftmessagesBase]: Relational
+   {
+      ~filter [store::DB]SwfMt202covRows
+   }
+
+   swiftmessages::NoticeToReceive[swfMt210] extends [swiftmessagesBase]: Relational
+   {
+      ~filter [store::DB]SwfMt210Rows
+   }
+
+   swiftmessages::ForeignExchangeConfirmation[swfMt300] extends [swiftmessagesBase]: Relational
+   {
+      ~filter [store::DB]SwfMt300Rows
+   }
+
+   swiftmessages::FixedLoanDepositConfirmation[swfMt320] extends [swiftmessagesBase]: Relational
+   {
+      ~filter [store::DB]SwfMt320Rows
+   }
+
+   swiftmessages::ReceiveFreeInstruction[swfMt540] extends [swiftmessagesBase]: Relational
+   {
+      ~filter [store::DB]SwfMt540Rows
+   }
+
+   swiftmessages::ReceiveAgainstPayment[swfMt541] extends [swiftmessagesBase]: Relational
+   {
+      ~filter [store::DB]SwfMt541Rows
+   }
+
+   swiftmessages::DeliverFreeInstruction[swfMt542] extends [swiftmessagesBase]: Relational
+   {
+      ~filter [store::DB]SwfMt542Rows
+   }
+
+   swiftmessages::DeliverAgainstPayment[swfMt543] extends [swiftmessagesBase]: Relational
+   {
+      ~filter [store::DB]SwfMt543Rows
+   }
+
+   swiftmessages::SettlementStatusAdvice[swfMt548] extends [swiftmessagesBase]: Relational
+   {
+      ~filter [store::DB]SwfMt548Rows
+   }
+
+   swiftmessages::CorporateActionNotification[swfMt564] extends [swiftmessagesBase]: Relational
+   {
+      ~filter [store::DB]SwfMt564Rows
+   }
+
+   swiftmessages::CorporateActionConfirmation[swfMt566] extends [swiftmessagesBase]: Relational
+   {
+      ~filter [store::DB]SwfMt566Rows
+   }
+
+   swiftmessages::ConfirmationOfDebit[swfMt900] extends [swiftmessagesBase]: Relational
+   {
+      ~filter [store::DB]SwfMt900Rows
+   }
+
+   swiftmessages::StatementMessage[swfMt950] extends [swiftmessagesBase]: Relational
+   {
+      ~filter [store::DB]SwfMt950Rows
+   }
+
+   swiftmessages::IsoTwentyTwoTwoCreditTransfer[swfMxPacs008] extends [swiftmessagesBase]: Relational
+   {
+      ~filter [store::DB]SwfMxPacs008Rows
+   }
+)

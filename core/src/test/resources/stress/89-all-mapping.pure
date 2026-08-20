@@ -34,6 +34,30 @@ Mapping stress::AllMapping
     include risk::MarketRiskMapping
     include middleoffice::MiddleOfficeMapping
     include backoffice::BackOfficeMapping
+    include greenfinance::GreenfinanceMapping
+    include appetitemetrics::AppetitemetricsMapping
+    include benchmarkreform::BenchmarkreformMapping
+    include shortselling::ShortsellingMapping
+    include issuanceprocess::IssuanceprocessMapping
+    include clientreporting::ClientreportingMapping
+    include outsourcing::OutsourcingMapping
+    include cashmanagement::CashmanagementMapping
+    include prospectus::ProspectusMapping
+    include cbrelationships::CbrelationshipsMapping
+    include frtbdesks::FrtbdesksMapping
+    include legalagreements::LegalagreementsMapping
+    include recontypes::RecontypesMapping
+    include swiftmessages::SwiftmessagesMapping
+    include lendingcovenants::LendingcovenantsMapping
+    include bankingproducts::BankingproductsMapping
+    include marketmaking::MarketmakingMapping
+    include stresstests::StresstestsMapping
+    include valuationadj::ValuationadjMapping
+    include clearingmembers::ClearingmembersMapping
+    include taxlots::TaxlotsMapping
+    include proxyvoting::ProxyvotingMapping
+    include corpactionsx::CorpactionsxMapping
+    include identifiers::IdentifiersMapping
     include realassets::RealassetsMapping
     include pensionsitems::PensionsitemsMapping
     include wealthproducts::WealthproductsMapping

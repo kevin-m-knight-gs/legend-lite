@@ -1,0 +1,211 @@
+###Pure
+// The identifiers an instrument is known by, none of which agree on scope.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class identifiers::InstrumentIdentifier
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Twelve characters, issued nationally, and not unique per venue.
+Class identifiers::IsinIdentifier extends identifiers::InstrumentIdentifier
+{
+}
+
+// North American, nine characters, and licensed.
+Class identifiers::CusipIdentifier extends identifiers::InstrumentIdentifier
+{
+}
+
+// UK, seven characters, and per listing rather than per security.
+Class identifiers::SedolIdentifier extends identifiers::InstrumentIdentifier
+{
+}
+
+// Open, and the only one that identifies a listing unambiguously.
+Class identifiers::FigiIdentifier extends identifiers::InstrumentIdentifier
+{
+}
+
+// Vendor-specific and ubiquitous anyway.
+Class identifiers::ReutersInstrumentCode extends identifiers::InstrumentIdentifier
+{
+}
+
+// The other one, and the one on the trader's screen.
+Class identifiers::BloombergTicker extends identifiers::InstrumentIdentifier
+{
+}
+
+// For the entity, not the instrument, and renewable annually.
+Class identifiers::LegalEntityIdentifier extends identifiers::InstrumentIdentifier
+{
+}
+
+// For OTC products, so a swap has something to be reported under.
+Class identifiers::UniqueProductIdentifier extends identifiers::InstrumentIdentifier
+{
+}
+
+// For the trade, agreed between the two parties.
+Class identifiers::UniqueTradeIdentifier extends identifiers::InstrumentIdentifier
+{
+}
+
+// The venue, at operating or segment level, which are different.
+Class identifiers::MarketIdentifierCode extends identifiers::InstrumentIdentifier
+{
+}
+
+// Six letters describing what the thing is.
+Class identifiers::ClassificationOfFinancialInstruments extends identifiers::InstrumentIdentifier
+{
+}
+
+// German, six characters, and still in use.
+Class identifiers::WertpapierKennnummer extends identifiers::InstrumentIdentifier
+{
+}
+
+// Swiss, numeric.
+Class identifiers::ValorNumber extends identifiers::InstrumentIdentifier
+{
+}
+
+// The bank's own, and the only one guaranteed present.
+Class identifiers::InternalInstrumentId extends identifiers::InstrumentIdentifier
+{
+}
+
+// Per data supplier, and the source of most mapping tables.
+Class identifiers::VendorInstrumentId extends identifiers::InstrumentIdentifier
+{
+}
+
+// Reissued after a period, which is how the wrong bond gets bought.
+Class identifiers::RetiredIdentifier extends identifiers::InstrumentIdentifier
+{
+}
+
+###Mapping
+Mapping identifiers::IdentifiersMapping
+(
+   *identifiers::InstrumentIdentifier[identifiersBase]: Relational
+   {
+      ~primaryKey ( [store::DB]INSTRUMENT_IDENTIFIER.RECORD_ID )
+      ~mainTable [store::DB]INSTRUMENT_IDENTIFIER
+      recordId: [store::DB]INSTRUMENT_IDENTIFIER.RECORD_ID,
+      recordType: [store::DB]INSTRUMENT_IDENTIFIER.RECORD_TYPE,
+      bookId: [store::DB]INSTRUMENT_IDENTIFIER.BOOK_ID,
+      notional: [store::DB]INSTRUMENT_IDENTIFIER.NOTIONAL,
+      currency: [store::DB]INSTRUMENT_IDENTIFIER.CURRENCY,
+      tradeDate: [store::DB]INSTRUMENT_IDENTIFIER.TRADE_DATE,
+      maturityDate: [store::DB]INSTRUMENT_IDENTIFIER.MATURITY_DATE,
+      status: [store::DB]INSTRUMENT_IDENTIFIER.STATUS,
+      isActive: [store::DB]INSTRUMENT_IDENTIFIER.IS_ACTIVE,
+      riskScore: [store::DB]INSTRUMENT_IDENTIFIER.RISK_SCORE
+   }
+
+   identifiers::IsinIdentifier[idnIsin] extends [identifiersBase]: Relational
+   {
+      ~filter [store::DB]IdnIsinRows
+   }
+
+   identifiers::CusipIdentifier[idnCusip] extends [identifiersBase]: Relational
+   {
+      ~filter [store::DB]IdnCusipRows
+   }
+
+   identifiers::SedolIdentifier[idnSedol] extends [identifiersBase]: Relational
+   {
+      ~filter [store::DB]IdnSedolRows
+   }
+
+   identifiers::FigiIdentifier[idnFigi] extends [identifiersBase]: Relational
+   {
+      ~filter [store::DB]IdnFigiRows
+   }
+
+   identifiers::ReutersInstrumentCode[idnRic] extends [identifiersBase]: Relational
+   {
+      ~filter [store::DB]IdnRicRows
+   }
+
+   identifiers::BloombergTicker[idnBloombergTicker] extends [identifiersBase]: Relational
+   {
+      ~filter [store::DB]IdnBloombergTickerRows
+   }
+
+   identifiers::LegalEntityIdentifier[idnLei] extends [identifiersBase]: Relational
+   {
+      ~filter [store::DB]IdnLeiRows
+   }
+
+   identifiers::UniqueProductIdentifier[idnUpi] extends [identifiersBase]: Relational
+   {
+      ~filter [store::DB]IdnUpiRows
+   }
+
+   identifiers::UniqueTradeIdentifier[idnUti] extends [identifiersBase]: Relational
+   {
+      ~filter [store::DB]IdnUtiRows
+   }
+
+   identifiers::MarketIdentifierCode[idnMic] extends [identifiersBase]: Relational
+   {
+      ~filter [store::DB]IdnMicRows
+   }
+
+   identifiers::ClassificationOfFinancialInstruments[idnCfi] extends [identifiersBase]: Relational
+   {
+      ~filter [store::DB]IdnCfiRows
+   }
+
+   identifiers::WertpapierKennnummer[idnWkn] extends [identifiersBase]: Relational
+   {
+      ~filter [store::DB]IdnWknRows
+   }
+
+   identifiers::ValorNumber[idnValor] extends [identifiersBase]: Relational
+   {
+      ~filter [store::DB]IdnValorRows
+   }
+
+   identifiers::InternalInstrumentId[idnInternalId] extends [identifiersBase]: Relational
+   {
+      ~filter [store::DB]IdnInternalIdRows
+   }
+
+   identifiers::VendorInstrumentId[idnVendorId] extends [identifiersBase]: Relational
+   {
+      ~filter [store::DB]IdnVendorIdRows
+   }
+
+   identifiers::RetiredIdentifier[idnRetiredId] extends [identifiersBase]: Relational
+   {
+      ~filter [store::DB]IdnRetiredIdRows
+   }
+)

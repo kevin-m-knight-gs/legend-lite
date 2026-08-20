@@ -1,0 +1,211 @@
+###Pure
+// The documents that decide what happens when something goes wrong.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class legalagreements::LegalAgreement
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The netting agreement, and the reason exposure is net.
+Class legalagreements::IsdaMasterAgreement2002 extends legalagreements::LegalAgreement
+{
+}
+
+// Still in force in places, with different close-out mechanics.
+Class legalagreements::IsdaMasterAgreement1992 extends legalagreements::LegalAgreement
+{
+}
+
+// Title transfer, so the collateral is the taker's.
+Class legalagreements::EnglishLawCreditSupportAnnex extends legalagreements::LegalAgreement
+{
+}
+
+// A security interest instead, which behaves differently in default.
+Class legalagreements::NewYorkLawCreditSupportAnnex extends legalagreements::LegalAgreement
+{
+}
+
+// The 2016 regime for daily margin.
+Class legalagreements::VariationMarginCsa extends legalagreements::LegalAgreement
+{
+}
+
+// Segregated with a third party, and not rehypothecable.
+Class legalagreements::InitialMarginCreditSupportDeed extends legalagreements::LegalAgreement
+{
+}
+
+// For repo, with its own close-out netting.
+Class legalagreements::GlobalMasterRepurchaseAgreement extends legalagreements::LegalAgreement
+{
+}
+
+// For securities lending.
+Class legalagreements::GlobalMasterSecuritiesLendingAgreement extends legalagreements::LegalAgreement
+{
+}
+
+// Where rehypothecation limits are set.
+Class legalagreements::PrimeBrokerageAgreement extends legalagreements::LegalAgreement
+{
+}
+
+// The client clearing terms, and the porting arrangements.
+Class legalagreements::ClearedDerivativesAddendum extends legalagreements::LegalAgreement
+{
+}
+
+// Three-way, between client, executing broker and clearer.
+Class legalagreements::GiveUpAgreement extends legalagreements::LegalAgreement
+{
+}
+
+// Which decides who may be told what.
+Class legalagreements::ConfidentialityAgreement extends legalagreements::LegalAgreement
+{
+}
+
+// The legal opinion that makes netting count for capital.
+Class legalagreements::NettingOpinion extends legalagreements::LegalAgreement
+{
+}
+
+// One with a clean opinion in the relevant jurisdiction.
+Class legalagreements::QualifyingMasterAgreement extends legalagreements::LegalAgreement
+{
+}
+
+// How the number is calculated when it all ends.
+Class legalagreements::CloseOutAmountDetermination extends legalagreements::LegalAgreement
+{
+}
+
+// The mechanism used long before litigation.
+Class legalagreements::DisputeResolutionProvision extends legalagreements::LegalAgreement
+{
+}
+
+###Mapping
+Mapping legalagreements::LegalagreementsMapping
+(
+   *legalagreements::LegalAgreement[legalagreementsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]LEGAL_AGREEMENT.RECORD_ID )
+      ~mainTable [store::DB]LEGAL_AGREEMENT
+      recordId: [store::DB]LEGAL_AGREEMENT.RECORD_ID,
+      recordType: [store::DB]LEGAL_AGREEMENT.RECORD_TYPE,
+      bookId: [store::DB]LEGAL_AGREEMENT.BOOK_ID,
+      notional: [store::DB]LEGAL_AGREEMENT.NOTIONAL,
+      currency: [store::DB]LEGAL_AGREEMENT.CURRENCY,
+      tradeDate: [store::DB]LEGAL_AGREEMENT.TRADE_DATE,
+      maturityDate: [store::DB]LEGAL_AGREEMENT.MATURITY_DATE,
+      status: [store::DB]LEGAL_AGREEMENT.STATUS,
+      isActive: [store::DB]LEGAL_AGREEMENT.IS_ACTIVE,
+      riskScore: [store::DB]LEGAL_AGREEMENT.RISK_SCORE
+   }
+
+   legalagreements::IsdaMasterAgreement2002[lglIsdaMaster2002] extends [legalagreementsBase]: Relational
+   {
+      ~filter [store::DB]LglIsdaMaster2002Rows
+   }
+
+   legalagreements::IsdaMasterAgreement1992[lglIsdaMaster1992] extends [legalagreementsBase]: Relational
+   {
+      ~filter [store::DB]LglIsdaMaster1992Rows
+   }
+
+   legalagreements::EnglishLawCreditSupportAnnex[lglCsaEnglish] extends [legalagreementsBase]: Relational
+   {
+      ~filter [store::DB]LglCsaEnglishRows
+   }
+
+   legalagreements::NewYorkLawCreditSupportAnnex[lglCsaNewYork] extends [legalagreementsBase]: Relational
+   {
+      ~filter [store::DB]LglCsaNewYorkRows
+   }
+
+   legalagreements::VariationMarginCsa[lglVmCsa] extends [legalagreementsBase]: Relational
+   {
+      ~filter [store::DB]LglVmCsaRows
+   }
+
+   legalagreements::InitialMarginCreditSupportDeed[lglImCsd] extends [legalagreementsBase]: Relational
+   {
+      ~filter [store::DB]LglImCsdRows
+   }
+
+   legalagreements::GlobalMasterRepurchaseAgreement[lglGmra] extends [legalagreementsBase]: Relational
+   {
+      ~filter [store::DB]LglGmraRows
+   }
+
+   legalagreements::GlobalMasterSecuritiesLendingAgreement[lglGmsla] extends [legalagreementsBase]: Relational
+   {
+      ~filter [store::DB]LglGmslaRows
+   }
+
+   legalagreements::PrimeBrokerageAgreement[lglPrimeBrokerageAgreement] extends [legalagreementsBase]: Relational
+   {
+      ~filter [store::DB]LglPrimeBrokerageAgreementRows
+   }
+
+   legalagreements::ClearedDerivativesAddendum[lglClearingAgreement] extends [legalagreementsBase]: Relational
+   {
+      ~filter [store::DB]LglClearingAgreementRows
+   }
+
+   legalagreements::GiveUpAgreement[lglGiveUpAgreement] extends [legalagreementsBase]: Relational
+   {
+      ~filter [store::DB]LglGiveUpAgreementRows
+   }
+
+   legalagreements::ConfidentialityAgreement[lglConfidentialityAgreement] extends [legalagreementsBase]: Relational
+   {
+      ~filter [store::DB]LglConfidentialityAgreementRows
+   }
+
+   legalagreements::NettingOpinion[lglNettingOpinion] extends [legalagreementsBase]: Relational
+   {
+      ~filter [store::DB]LglNettingOpinionRows
+   }
+
+   legalagreements::QualifyingMasterAgreement[lglQualifyingMaster] extends [legalagreementsBase]: Relational
+   {
+      ~filter [store::DB]LglQualifyingMasterRows
+   }
+
+   legalagreements::CloseOutAmountDetermination[lglCloseOutAmount] extends [legalagreementsBase]: Relational
+   {
+      ~filter [store::DB]LglCloseOutAmountRows
+   }
+
+   legalagreements::DisputeResolutionProvision[lglDisputeProvision] extends [legalagreementsBase]: Relational
+   {
+      ~filter [store::DB]LglDisputeProvisionRows
+   }
+)

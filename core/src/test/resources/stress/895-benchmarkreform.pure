@@ -1,0 +1,211 @@
+###Pure
+// Benchmark reform: what replaced what, and what was left behind.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class benchmarkreform::BenchmarkTransitionItem
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The date a setting stopped, announced years in advance.
+Class benchmarkreform::LiborCessationEvent extends benchmarkreform::BenchmarkTransitionItem
+{
+}
+
+// Published for tough legacy contracts only, and then withdrawn.
+Class benchmarkreform::SyntheticLiborSetting extends benchmarkreform::BenchmarkTransitionItem
+{
+}
+
+// Secured, overnight, and needing a term structure built on top.
+Class benchmarkreform::SofrAdoption extends benchmarkreform::BenchmarkTransitionItem
+{
+}
+
+// The sterling equivalent, and the earliest to complete.
+Class benchmarkreform::SoniaAdoption extends benchmarkreform::BenchmarkTransitionItem
+{
+}
+
+// Euro, alongside a Euribor that survived.
+Class benchmarkreform::EstrAdoption extends benchmarkreform::BenchmarkTransitionItem
+{
+}
+
+// Yen, with TIBOR persisting in parallel.
+Class benchmarkreform::TonaAdoption extends benchmarkreform::BenchmarkTransitionItem
+{
+}
+
+// Forward-looking, derived from futures, and restricted in use.
+Class benchmarkreform::TermRiskFreeRate extends benchmarkreform::BenchmarkTransitionItem
+{
+}
+
+// The standard, and it means the coupon is unknown until the end.
+Class benchmarkreform::CompoundedInArrears extends benchmarkreform::BenchmarkTransitionItem
+{
+}
+
+// Shifting the observation period so the payment can be calculated in time.
+Class benchmarkreform::LookbackConvention extends benchmarkreform::BenchmarkTransitionItem
+{
+}
+
+// The other way of doing the same thing, and not identical.
+Class benchmarkreform::ObservationShiftConvention extends benchmarkreform::BenchmarkTransitionItem
+{
+}
+
+// The fixed spread bridging a secured rate to an unsecured one.
+Class benchmarkreform::CreditAdjustmentSpread extends benchmarkreform::BenchmarkTransitionItem
+{
+}
+
+// What switches a contract to its replacement.
+Class benchmarkreform::FallbackTriggerEvent extends benchmarkreform::BenchmarkTransitionItem
+{
+}
+
+// Bilateral amendment at scale, by adherence rather than by signature.
+Class benchmarkreform::IsdaFallbackProtocol extends benchmarkreform::BenchmarkTransitionItem
+{
+}
+
+// Cannot be amended and cannot be left without a rate.
+Class benchmarkreform::ToughLegacyContract extends benchmarkreform::BenchmarkTransitionItem
+{
+}
+
+// Asking bondholders to agree to the change.
+Class benchmarkreform::ConsentSolicitation extends benchmarkreform::BenchmarkTransitionItem
+{
+}
+
+// Trading the difference between the old rate and the new.
+Class benchmarkreform::TransitionBasisSwap extends benchmarkreform::BenchmarkTransitionItem
+{
+}
+
+###Mapping
+Mapping benchmarkreform::BenchmarkreformMapping
+(
+   *benchmarkreform::BenchmarkTransitionItem[benchmarkreformBase]: Relational
+   {
+      ~primaryKey ( [store::DB]BENCHMARK_TRANSITION_ITEM.RECORD_ID )
+      ~mainTable [store::DB]BENCHMARK_TRANSITION_ITEM
+      recordId: [store::DB]BENCHMARK_TRANSITION_ITEM.RECORD_ID,
+      recordType: [store::DB]BENCHMARK_TRANSITION_ITEM.RECORD_TYPE,
+      bookId: [store::DB]BENCHMARK_TRANSITION_ITEM.BOOK_ID,
+      notional: [store::DB]BENCHMARK_TRANSITION_ITEM.NOTIONAL,
+      currency: [store::DB]BENCHMARK_TRANSITION_ITEM.CURRENCY,
+      tradeDate: [store::DB]BENCHMARK_TRANSITION_ITEM.TRADE_DATE,
+      maturityDate: [store::DB]BENCHMARK_TRANSITION_ITEM.MATURITY_DATE,
+      status: [store::DB]BENCHMARK_TRANSITION_ITEM.STATUS,
+      isActive: [store::DB]BENCHMARK_TRANSITION_ITEM.IS_ACTIVE,
+      riskScore: [store::DB]BENCHMARK_TRANSITION_ITEM.RISK_SCORE
+   }
+
+   benchmarkreform::LiborCessationEvent[btrLiborCessation] extends [benchmarkreformBase]: Relational
+   {
+      ~filter [store::DB]BtrLiborCessationRows
+   }
+
+   benchmarkreform::SyntheticLiborSetting[btrSyntheticLibor] extends [benchmarkreformBase]: Relational
+   {
+      ~filter [store::DB]BtrSyntheticLiborRows
+   }
+
+   benchmarkreform::SofrAdoption[btrSofrAdoption] extends [benchmarkreformBase]: Relational
+   {
+      ~filter [store::DB]BtrSofrAdoptionRows
+   }
+
+   benchmarkreform::SoniaAdoption[btrSoniaAdoption] extends [benchmarkreformBase]: Relational
+   {
+      ~filter [store::DB]BtrSoniaAdoptionRows
+   }
+
+   benchmarkreform::EstrAdoption[btrEstrAdoption] extends [benchmarkreformBase]: Relational
+   {
+      ~filter [store::DB]BtrEstrAdoptionRows
+   }
+
+   benchmarkreform::TonaAdoption[btrTonaAdoption] extends [benchmarkreformBase]: Relational
+   {
+      ~filter [store::DB]BtrTonaAdoptionRows
+   }
+
+   benchmarkreform::TermRiskFreeRate[btrTermRate] extends [benchmarkreformBase]: Relational
+   {
+      ~filter [store::DB]BtrTermRateRows
+   }
+
+   benchmarkreform::CompoundedInArrears[btrCompoundedInArrears] extends [benchmarkreformBase]: Relational
+   {
+      ~filter [store::DB]BtrCompoundedInArrearsRows
+   }
+
+   benchmarkreform::LookbackConvention[btrLookbackConvention] extends [benchmarkreformBase]: Relational
+   {
+      ~filter [store::DB]BtrLookbackConventionRows
+   }
+
+   benchmarkreform::ObservationShiftConvention[btrObservationShift] extends [benchmarkreformBase]: Relational
+   {
+      ~filter [store::DB]BtrObservationShiftRows
+   }
+
+   benchmarkreform::CreditAdjustmentSpread[btrCreditAdjustmentSpread] extends [benchmarkreformBase]: Relational
+   {
+      ~filter [store::DB]BtrCreditAdjustmentSpreadRows
+   }
+
+   benchmarkreform::FallbackTriggerEvent[btrFallbackTrigger] extends [benchmarkreformBase]: Relational
+   {
+      ~filter [store::DB]BtrFallbackTriggerRows
+   }
+
+   benchmarkreform::IsdaFallbackProtocol[btrIsdaProtocolAdherence] extends [benchmarkreformBase]: Relational
+   {
+      ~filter [store::DB]BtrIsdaProtocolAdherenceRows
+   }
+
+   benchmarkreform::ToughLegacyContract[btrToughLegacy] extends [benchmarkreformBase]: Relational
+   {
+      ~filter [store::DB]BtrToughLegacyRows
+   }
+
+   benchmarkreform::ConsentSolicitation[btrConsentSolicitation] extends [benchmarkreformBase]: Relational
+   {
+      ~filter [store::DB]BtrConsentSolicitationRows
+   }
+
+   benchmarkreform::TransitionBasisSwap[btrBasisSwapTransition] extends [benchmarkreformBase]: Relational
+   {
+      ~filter [store::DB]BtrBasisSwapTransitionRows
+   }
+)

@@ -1,0 +1,211 @@
+###Pure
+// Retail and commercial banking products, which is where the deposits come from.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class bankingproducts::BankingProduct
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The relationship, and rarely the profit.
+Class bankingproducts::CurrentAccount extends bankingproducts::BankingProduct
+{
+}
+
+// Repriced slowly upward and quickly downward.
+Class bankingproducts::InstantAccessSavings extends bankingproducts::BankingProduct
+{
+}
+
+// Notice periods that change the liquidity treatment.
+Class bankingproducts::NoticeSavingsAccount extends bankingproducts::BankingProduct
+{
+}
+
+// Behaviourally the stickiest retail funding there is.
+Class bankingproducts::FixedTermDeposit extends bankingproducts::BankingProduct
+{
+}
+
+// Where the deposit and the loan interact.
+Class bankingproducts::OffsetMortgage extends bankingproducts::BankingProduct
+{
+}
+
+// With an early repayment charge that is itself an option.
+Class bankingproducts::FixedRateMortgage extends bankingproducts::BankingProduct
+{
+}
+
+// Contractually linked to a policy rate, for better or worse.
+Class bankingproducts::TrackerMortgage extends bankingproducts::BankingProduct
+{
+}
+
+// Underwritten on rent, and taxed differently.
+Class bankingproducts::BuyToLetMortgage extends bankingproducts::BankingProduct
+{
+}
+
+// Unsecured, amortising, and priced on a scorecard.
+Class bankingproducts::PersonalLoan extends bankingproducts::BankingProduct
+{
+}
+
+// A revolving line with a payment option nobody models well.
+Class bankingproducts::CreditCardFacility extends bankingproducts::BankingProduct
+{
+}
+
+// Repayable on demand and used as if it were not.
+Class bankingproducts::OverdraftFacility extends bankingproducts::BankingProduct
+{
+}
+
+// Where the guarantee schemes attach.
+Class bankingproducts::SmeTermLoan extends bankingproducts::BankingProduct
+{
+}
+
+// Lending against receivables rather than against the business.
+Class bankingproducts::InvoiceFinanceFacility extends bankingproducts::BankingProduct
+{
+}
+
+// Secured on the equipment, which usually depreciates faster than the loan.
+Class bankingproducts::AssetFinanceAgreement extends bankingproducts::BankingProduct
+{
+}
+
+// With a loan-to-value covenant tested annually.
+Class bankingproducts::CommercialMortgage extends bankingproducts::BankingProduct
+{
+}
+
+// Undrawn until the day everyone draws it.
+Class bankingproducts::RevolvingCreditFacility extends bankingproducts::BankingProduct
+{
+}
+
+###Mapping
+Mapping bankingproducts::BankingproductsMapping
+(
+   *bankingproducts::BankingProduct[bankingproductsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]BANKING_PRODUCT.RECORD_ID )
+      ~mainTable [store::DB]BANKING_PRODUCT
+      recordId: [store::DB]BANKING_PRODUCT.RECORD_ID,
+      recordType: [store::DB]BANKING_PRODUCT.RECORD_TYPE,
+      bookId: [store::DB]BANKING_PRODUCT.BOOK_ID,
+      notional: [store::DB]BANKING_PRODUCT.NOTIONAL,
+      currency: [store::DB]BANKING_PRODUCT.CURRENCY,
+      tradeDate: [store::DB]BANKING_PRODUCT.TRADE_DATE,
+      maturityDate: [store::DB]BANKING_PRODUCT.MATURITY_DATE,
+      status: [store::DB]BANKING_PRODUCT.STATUS,
+      isActive: [store::DB]BANKING_PRODUCT.IS_ACTIVE,
+      riskScore: [store::DB]BANKING_PRODUCT.RISK_SCORE
+   }
+
+   bankingproducts::CurrentAccount[bnkCurrentAccount] extends [bankingproductsBase]: Relational
+   {
+      ~filter [store::DB]BnkCurrentAccountRows
+   }
+
+   bankingproducts::InstantAccessSavings[bnkSavingsInstant] extends [bankingproductsBase]: Relational
+   {
+      ~filter [store::DB]BnkSavingsInstantRows
+   }
+
+   bankingproducts::NoticeSavingsAccount[bnkSavingsNotice] extends [bankingproductsBase]: Relational
+   {
+      ~filter [store::DB]BnkSavingsNoticeRows
+   }
+
+   bankingproducts::FixedTermDeposit[bnkFixedTermDeposit] extends [bankingproductsBase]: Relational
+   {
+      ~filter [store::DB]BnkFixedTermDepositRows
+   }
+
+   bankingproducts::OffsetMortgage[bnkOffsetMortgage] extends [bankingproductsBase]: Relational
+   {
+      ~filter [store::DB]BnkOffsetMortgageRows
+   }
+
+   bankingproducts::FixedRateMortgage[bnkFixedRateMortgage] extends [bankingproductsBase]: Relational
+   {
+      ~filter [store::DB]BnkFixedRateMortgageRows
+   }
+
+   bankingproducts::TrackerMortgage[bnkTrackerMortgage] extends [bankingproductsBase]: Relational
+   {
+      ~filter [store::DB]BnkTrackerMortgageRows
+   }
+
+   bankingproducts::BuyToLetMortgage[bnkBuyToLet] extends [bankingproductsBase]: Relational
+   {
+      ~filter [store::DB]BnkBuyToLetRows
+   }
+
+   bankingproducts::PersonalLoan[bnkPersonalLoan] extends [bankingproductsBase]: Relational
+   {
+      ~filter [store::DB]BnkPersonalLoanRows
+   }
+
+   bankingproducts::CreditCardFacility[bnkCreditCard] extends [bankingproductsBase]: Relational
+   {
+      ~filter [store::DB]BnkCreditCardRows
+   }
+
+   bankingproducts::OverdraftFacility[bnkOverdraft] extends [bankingproductsBase]: Relational
+   {
+      ~filter [store::DB]BnkOverdraftRows
+   }
+
+   bankingproducts::SmeTermLoan[bnkSmeTermLoan] extends [bankingproductsBase]: Relational
+   {
+      ~filter [store::DB]BnkSmeTermLoanRows
+   }
+
+   bankingproducts::InvoiceFinanceFacility[bnkInvoiceFinance] extends [bankingproductsBase]: Relational
+   {
+      ~filter [store::DB]BnkInvoiceFinanceRows
+   }
+
+   bankingproducts::AssetFinanceAgreement[bnkAssetFinance] extends [bankingproductsBase]: Relational
+   {
+      ~filter [store::DB]BnkAssetFinanceRows
+   }
+
+   bankingproducts::CommercialMortgage[bnkCommercialMortgage] extends [bankingproductsBase]: Relational
+   {
+      ~filter [store::DB]BnkCommercialMortgageRows
+   }
+
+   bankingproducts::RevolvingCreditFacility[bnkRevolvingCreditFacility] extends [bankingproductsBase]: Relational
+   {
+      ~filter [store::DB]BnkRevolvingCreditFacilityRows
+   }
+)

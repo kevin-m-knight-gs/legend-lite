@@ -1,0 +1,211 @@
+###Pure
+// Sustainable finance instruments, and what distinguishes them from marketing.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class greenfinance::SustainableFinanceItem
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Proceeds ring-fenced for eligible projects, and reported on.
+Class greenfinance::GreenBond extends greenfinance::SustainableFinanceItem
+{
+}
+
+// The same structure, different eligibility.
+Class greenfinance::SocialBond extends greenfinance::SustainableFinanceItem
+{
+}
+
+// Both, in one instrument.
+Class greenfinance::SustainabilityBond extends greenfinance::SustainableFinanceItem
+{
+}
+
+// Coupon steps up if a target is missed -- general purpose, not ring-fenced.
+Class greenfinance::SustainabilityLinkedBond extends greenfinance::SustainableFinanceItem
+{
+}
+
+// For high-emitting issuers moving, which is contested.
+Class greenfinance::TransitionBond extends greenfinance::SustainableFinanceItem
+{
+}
+
+// The loan-market equivalent, with a margin ratchet.
+Class greenfinance::SustainabilityLinkedLoan extends greenfinance::SustainableFinanceItem
+{
+}
+
+// Annual, and the difference between a green bond and a bond.
+Class greenfinance::UseOfProceedsReport extends greenfinance::SustainableFinanceItem
+{
+}
+
+// An external view on the framework, not an audit.
+Class greenfinance::SecondPartyOpinion extends greenfinance::SustainableFinanceItem
+{
+}
+
+// Voluntary, aligned to the taxonomy, and demanding.
+Class greenfinance::EuGreenBondStandard extends greenfinance::SustainableFinanceItem
+{
+}
+
+// Meeting the technical screening criteria, with do-no-significant-harm.
+Class greenfinance::TaxonomyAlignedActivity extends greenfinance::SustainableFinanceItem
+{
+}
+
+// In scope, and not necessarily aligned -- a distinction constantly elided.
+Class greenfinance::TaxonomyEligibleActivity extends greenfinance::SustainableFinanceItem
+{
+}
+
+// The number a linked instrument pays against.
+Class greenfinance::SustainabilityPerformanceTarget extends greenfinance::SustainableFinanceItem
+{
+}
+
+// Assurance on whether the target was met.
+Class greenfinance::VerificationReport extends greenfinance::SustainableFinanceItem
+{
+}
+
+// Raised internally, and increasingly by supervisors.
+Class greenfinance::GreenwashingConcernFlag extends greenfinance::SustainableFinanceItem
+{
+}
+
+// Voluntary market, and quality varies enormously.
+Class greenfinance::CarbonCreditHolding extends greenfinance::SustainableFinanceItem
+{
+}
+
+// The bank's emissions through its lending, which dwarf its own.
+Class greenfinance::FinancedEmissionsItem extends greenfinance::SustainableFinanceItem
+{
+}
+
+###Mapping
+Mapping greenfinance::GreenfinanceMapping
+(
+   *greenfinance::SustainableFinanceItem[greenfinanceBase]: Relational
+   {
+      ~primaryKey ( [store::DB]SUSTAINABLE_FINANCE_ITEM.RECORD_ID )
+      ~mainTable [store::DB]SUSTAINABLE_FINANCE_ITEM
+      recordId: [store::DB]SUSTAINABLE_FINANCE_ITEM.RECORD_ID,
+      recordType: [store::DB]SUSTAINABLE_FINANCE_ITEM.RECORD_TYPE,
+      bookId: [store::DB]SUSTAINABLE_FINANCE_ITEM.BOOK_ID,
+      notional: [store::DB]SUSTAINABLE_FINANCE_ITEM.NOTIONAL,
+      currency: [store::DB]SUSTAINABLE_FINANCE_ITEM.CURRENCY,
+      tradeDate: [store::DB]SUSTAINABLE_FINANCE_ITEM.TRADE_DATE,
+      maturityDate: [store::DB]SUSTAINABLE_FINANCE_ITEM.MATURITY_DATE,
+      status: [store::DB]SUSTAINABLE_FINANCE_ITEM.STATUS,
+      isActive: [store::DB]SUSTAINABLE_FINANCE_ITEM.IS_ACTIVE,
+      riskScore: [store::DB]SUSTAINABLE_FINANCE_ITEM.RISK_SCORE
+   }
+
+   greenfinance::GreenBond[grnGreenBond] extends [greenfinanceBase]: Relational
+   {
+      ~filter [store::DB]GrnGreenBondRows
+   }
+
+   greenfinance::SocialBond[grnSocialBond] extends [greenfinanceBase]: Relational
+   {
+      ~filter [store::DB]GrnSocialBondRows
+   }
+
+   greenfinance::SustainabilityBond[grnSustainabilityBond] extends [greenfinanceBase]: Relational
+   {
+      ~filter [store::DB]GrnSustainabilityBondRows
+   }
+
+   greenfinance::SustainabilityLinkedBond[grnSustainabilityLinkedBond] extends [greenfinanceBase]: Relational
+   {
+      ~filter [store::DB]GrnSustainabilityLinkedBondRows
+   }
+
+   greenfinance::TransitionBond[grnTransitionBond] extends [greenfinanceBase]: Relational
+   {
+      ~filter [store::DB]GrnTransitionBondRows
+   }
+
+   greenfinance::SustainabilityLinkedLoan[grnSustainabilityLinkedLoan] extends [greenfinanceBase]: Relational
+   {
+      ~filter [store::DB]GrnSustainabilityLinkedLoanRows
+   }
+
+   greenfinance::UseOfProceedsReport[grnUseOfProceedsReport] extends [greenfinanceBase]: Relational
+   {
+      ~filter [store::DB]GrnUseOfProceedsReportRows
+   }
+
+   greenfinance::SecondPartyOpinion[grnSecondPartyOpinion] extends [greenfinanceBase]: Relational
+   {
+      ~filter [store::DB]GrnSecondPartyOpinionRows
+   }
+
+   greenfinance::EuGreenBondStandard[grnEuGreenBondStandard] extends [greenfinanceBase]: Relational
+   {
+      ~filter [store::DB]GrnEuGreenBondStandardRows
+   }
+
+   greenfinance::TaxonomyAlignedActivity[grnTaxonomyAligned] extends [greenfinanceBase]: Relational
+   {
+      ~filter [store::DB]GrnTaxonomyAlignedRows
+   }
+
+   greenfinance::TaxonomyEligibleActivity[grnTaxonomyEligible] extends [greenfinanceBase]: Relational
+   {
+      ~filter [store::DB]GrnTaxonomyEligibleRows
+   }
+
+   greenfinance::SustainabilityPerformanceTarget[grnKpiTarget] extends [greenfinanceBase]: Relational
+   {
+      ~filter [store::DB]GrnKpiTargetRows
+   }
+
+   greenfinance::VerificationReport[grnVerificationReport] extends [greenfinanceBase]: Relational
+   {
+      ~filter [store::DB]GrnVerificationReportRows
+   }
+
+   greenfinance::GreenwashingConcernFlag[grnGreenwashingFlag] extends [greenfinanceBase]: Relational
+   {
+      ~filter [store::DB]GrnGreenwashingFlagRows
+   }
+
+   greenfinance::CarbonCreditHolding[grnCarbonCredit] extends [greenfinanceBase]: Relational
+   {
+      ~filter [store::DB]GrnCarbonCreditRows
+   }
+
+   greenfinance::FinancedEmissionsItem[grnFinancedEmissions] extends [greenfinanceBase]: Relational
+   {
+      ~filter [store::DB]GrnFinancedEmissionsRows
+   }
+)

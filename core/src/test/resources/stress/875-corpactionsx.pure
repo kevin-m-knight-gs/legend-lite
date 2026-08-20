@@ -1,0 +1,211 @@
+###Pure
+// Corporate events, and what each does to a position.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class corpactionsx::CorporateEventType
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The common case, and still full of tax detail.
+Class corpactionsx::CashDividend extends corpactionsx::CorporateEventType
+{
+}
+
+// Paid in shares, and dilutive.
+Class corpactionsx::StockDividend extends corpactionsx::CorporateEventType
+{
+}
+
+// Large enough that options get adjusted.
+Class corpactionsx::SpecialDividend extends corpactionsx::CorporateEventType
+{
+}
+
+// More shares, same value, and every derived price changes.
+Class corpactionsx::StockSplit extends corpactionsx::CorporateEventType
+{
+}
+
+// Fewer shares, often to stay listed.
+Class corpactionsx::ReverseSplit extends corpactionsx::CorporateEventType
+{
+}
+
+// Tradable rights, and a theoretical ex-rights price to compute.
+Class corpactionsx::RightsIssue extends corpactionsx::CorporateEventType
+{
+}
+
+// Free shares from reserves.
+Class corpactionsx::BonusIssue extends corpactionsx::CorporateEventType
+{
+}
+
+// A new line item appears, and the cost basis has to be split.
+Class corpactionsx::SpinOff extends corpactionsx::CorporateEventType
+{
+}
+
+// The position becomes money on a date.
+Class corpactionsx::CashMerger extends corpactionsx::CorporateEventType
+{
+}
+
+// It becomes a different position instead.
+Class corpactionsx::StockMerger extends corpactionsx::CorporateEventType
+{
+}
+
+// Elective, with a deadline and a proration risk.
+Class corpactionsx::TenderOffer extends corpactionsx::CorporateEventType
+{
+}
+
+// A court-approved merger, with a different mechanism and timetable.
+Class corpactionsx::SchemeOfArrangement extends corpactionsx::CorporateEventType
+{
+}
+
+// The issuer redeems early, at a price set years ago.
+Class corpactionsx::CallRedemption extends corpactionsx::CorporateEventType
+{
+}
+
+// Some of it, allocated by lottery.
+Class corpactionsx::PartialCall extends corpactionsx::CorporateEventType
+{
+}
+
+// Nothing happens, and every static record must be updated.
+Class corpactionsx::NameChange extends corpactionsx::CorporateEventType
+{
+}
+
+// The position survives and the price does not.
+Class corpactionsx::Delisting extends corpactionsx::CorporateEventType
+{
+}
+
+###Mapping
+Mapping corpactionsx::CorpactionsxMapping
+(
+   *corpactionsx::CorporateEventType[corpactionsxBase]: Relational
+   {
+      ~primaryKey ( [store::DB]CORPORATE_EVENT_TYPE.RECORD_ID )
+      ~mainTable [store::DB]CORPORATE_EVENT_TYPE
+      recordId: [store::DB]CORPORATE_EVENT_TYPE.RECORD_ID,
+      recordType: [store::DB]CORPORATE_EVENT_TYPE.RECORD_TYPE,
+      bookId: [store::DB]CORPORATE_EVENT_TYPE.BOOK_ID,
+      notional: [store::DB]CORPORATE_EVENT_TYPE.NOTIONAL,
+      currency: [store::DB]CORPORATE_EVENT_TYPE.CURRENCY,
+      tradeDate: [store::DB]CORPORATE_EVENT_TYPE.TRADE_DATE,
+      maturityDate: [store::DB]CORPORATE_EVENT_TYPE.MATURITY_DATE,
+      status: [store::DB]CORPORATE_EVENT_TYPE.STATUS,
+      isActive: [store::DB]CORPORATE_EVENT_TYPE.IS_ACTIVE,
+      riskScore: [store::DB]CORPORATE_EVENT_TYPE.RISK_SCORE
+   }
+
+   corpactionsx::CashDividend[cevCashDividend] extends [corpactionsxBase]: Relational
+   {
+      ~filter [store::DB]CevCashDividendRows
+   }
+
+   corpactionsx::StockDividend[cevStockDividend] extends [corpactionsxBase]: Relational
+   {
+      ~filter [store::DB]CevStockDividendRows
+   }
+
+   corpactionsx::SpecialDividend[cevSpecialDividend] extends [corpactionsxBase]: Relational
+   {
+      ~filter [store::DB]CevSpecialDividendRows
+   }
+
+   corpactionsx::StockSplit[cevStockSplit] extends [corpactionsxBase]: Relational
+   {
+      ~filter [store::DB]CevStockSplitRows
+   }
+
+   corpactionsx::ReverseSplit[cevReverseSplit] extends [corpactionsxBase]: Relational
+   {
+      ~filter [store::DB]CevReverseSplitRows
+   }
+
+   corpactionsx::RightsIssue[cevRightsIssue] extends [corpactionsxBase]: Relational
+   {
+      ~filter [store::DB]CevRightsIssueRows
+   }
+
+   corpactionsx::BonusIssue[cevBonusIssue] extends [corpactionsxBase]: Relational
+   {
+      ~filter [store::DB]CevBonusIssueRows
+   }
+
+   corpactionsx::SpinOff[cevSpinOff] extends [corpactionsxBase]: Relational
+   {
+      ~filter [store::DB]CevSpinOffRows
+   }
+
+   corpactionsx::CashMerger[cevMergerCash] extends [corpactionsxBase]: Relational
+   {
+      ~filter [store::DB]CevMergerCashRows
+   }
+
+   corpactionsx::StockMerger[cevMergerStock] extends [corpactionsxBase]: Relational
+   {
+      ~filter [store::DB]CevMergerStockRows
+   }
+
+   corpactionsx::TenderOffer[cevTenderOffer] extends [corpactionsxBase]: Relational
+   {
+      ~filter [store::DB]CevTenderOfferRows
+   }
+
+   corpactionsx::SchemeOfArrangement[cevSchemeOfArrangement] extends [corpactionsxBase]: Relational
+   {
+      ~filter [store::DB]CevSchemeOfArrangementRows
+   }
+
+   corpactionsx::CallRedemption[cevCallRedemption] extends [corpactionsxBase]: Relational
+   {
+      ~filter [store::DB]CevCallRedemptionRows
+   }
+
+   corpactionsx::PartialCall[cevPartialCall] extends [corpactionsxBase]: Relational
+   {
+      ~filter [store::DB]CevPartialCallRows
+   }
+
+   corpactionsx::NameChange[cevNameChange] extends [corpactionsxBase]: Relational
+   {
+      ~filter [store::DB]CevNameChangeRows
+   }
+
+   corpactionsx::Delisting[cevDelisting] extends [corpactionsxBase]: Relational
+   {
+      ~filter [store::DB]CevDelistingRows
+   }
+)

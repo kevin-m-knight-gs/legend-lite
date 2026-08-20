@@ -1,0 +1,211 @@
+###Pure
+// Third parties: what has been outsourced, and what cannot be.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class outsourcing::OutsourcingArrangement
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Failure would materially impair the firm, so the register is regulated.
+Class outsourcing::CriticalOutsourcing extends outsourcing::OutsourcingArrangement
+{
+}
+
+// Recorded, and reviewed less often.
+Class outsourcing::NonCriticalOutsourcing extends outsourcing::OutsourcingArrangement
+{
+}
+
+// Where concentration risk is a supervisory topic.
+Class outsourcing::CloudInfrastructureService extends outsourcing::OutsourcingArrangement
+{
+}
+
+// The same, with less control over the stack.
+Class outsourcing::CloudSoftwareService extends outsourcing::OutsourcingArrangement
+{
+}
+
+// Still outsourcing, and still on the register.
+Class outsourcing::IntragroupOutsourcing extends outsourcing::OutsourcingArrangement
+{
+}
+
+// The provider's provider, and the visibility problem again.
+Class outsourcing::SubOutsourcingChain extends outsourcing::OutsourcingArrangement
+{
+}
+
+// Where the data actually is.
+Class outsourcing::OffshoreServiceLocation extends outsourcing::OutsourcingArrangement
+{
+}
+
+// Required to be credible, which is a high bar.
+Class outsourcing::OutsourcingExitPlan extends outsourcing::OutsourcingArrangement
+{
+}
+
+// Including the regulator's right of access.
+Class outsourcing::ContractualAuditRight extends outsourcing::OutsourcingArrangement
+{
+}
+
+// With credits that never cover the actual loss.
+Class outsourcing::ServiceLevelAgreement extends outsourcing::OutsourcingArrangement
+{
+}
+
+// At the firm level and across the market.
+Class outsourcing::ConcentrationRiskAssessment extends outsourcing::OutsourcingArrangement
+{
+}
+
+// Before signing, and documented.
+Class outsourcing::PreContractDueDiligence extends outsourcing::OutsourcingArrangement
+{
+}
+
+// After signing, which is where it usually lapses.
+Class outsourcing::OngoingProviderMonitoring extends outsourcing::OutsourcingArrangement
+{
+}
+
+// Contractual, and with a clock.
+Class outsourcing::ProviderIncidentNotification extends outsourcing::OutsourcingArrangement
+{
+}
+
+// The record supervisors ask for first.
+Class outsourcing::OutsourcingRegisterEntry extends outsourcing::OutsourcingArrangement
+{
+}
+
+// What lets the firm leave, and how quickly.
+Class outsourcing::TerminationTrigger extends outsourcing::OutsourcingArrangement
+{
+}
+
+###Mapping
+Mapping outsourcing::OutsourcingMapping
+(
+   *outsourcing::OutsourcingArrangement[outsourcingBase]: Relational
+   {
+      ~primaryKey ( [store::DB]OUTSOURCING_ARRANGEMENT.RECORD_ID )
+      ~mainTable [store::DB]OUTSOURCING_ARRANGEMENT
+      recordId: [store::DB]OUTSOURCING_ARRANGEMENT.RECORD_ID,
+      recordType: [store::DB]OUTSOURCING_ARRANGEMENT.RECORD_TYPE,
+      bookId: [store::DB]OUTSOURCING_ARRANGEMENT.BOOK_ID,
+      notional: [store::DB]OUTSOURCING_ARRANGEMENT.NOTIONAL,
+      currency: [store::DB]OUTSOURCING_ARRANGEMENT.CURRENCY,
+      tradeDate: [store::DB]OUTSOURCING_ARRANGEMENT.TRADE_DATE,
+      maturityDate: [store::DB]OUTSOURCING_ARRANGEMENT.MATURITY_DATE,
+      status: [store::DB]OUTSOURCING_ARRANGEMENT.STATUS,
+      isActive: [store::DB]OUTSOURCING_ARRANGEMENT.IS_ACTIVE,
+      riskScore: [store::DB]OUTSOURCING_ARRANGEMENT.RISK_SCORE
+   }
+
+   outsourcing::CriticalOutsourcing[outCriticalOutsourcing] extends [outsourcingBase]: Relational
+   {
+      ~filter [store::DB]OutCriticalOutsourcingRows
+   }
+
+   outsourcing::NonCriticalOutsourcing[outNonCritical] extends [outsourcingBase]: Relational
+   {
+      ~filter [store::DB]OutNonCriticalRows
+   }
+
+   outsourcing::CloudInfrastructureService[outCloudIaas] extends [outsourcingBase]: Relational
+   {
+      ~filter [store::DB]OutCloudIaasRows
+   }
+
+   outsourcing::CloudSoftwareService[outCloudSaas] extends [outsourcingBase]: Relational
+   {
+      ~filter [store::DB]OutCloudSaasRows
+   }
+
+   outsourcing::IntragroupOutsourcing[outIntragroupOutsourcing] extends [outsourcingBase]: Relational
+   {
+      ~filter [store::DB]OutIntragroupOutsourcingRows
+   }
+
+   outsourcing::SubOutsourcingChain[outSubOutsourcing] extends [outsourcingBase]: Relational
+   {
+      ~filter [store::DB]OutSubOutsourcingRows
+   }
+
+   outsourcing::OffshoreServiceLocation[outOffshoreLocation] extends [outsourcingBase]: Relational
+   {
+      ~filter [store::DB]OutOffshoreLocationRows
+   }
+
+   outsourcing::OutsourcingExitPlan[outExitPlan] extends [outsourcingBase]: Relational
+   {
+      ~filter [store::DB]OutExitPlanRows
+   }
+
+   outsourcing::ContractualAuditRight[outAuditRight] extends [outsourcingBase]: Relational
+   {
+      ~filter [store::DB]OutAuditRightRows
+   }
+
+   outsourcing::ServiceLevelAgreement[outServiceLevel] extends [outsourcingBase]: Relational
+   {
+      ~filter [store::DB]OutServiceLevelRows
+   }
+
+   outsourcing::ConcentrationRiskAssessment[outConcentrationAssessment] extends [outsourcingBase]: Relational
+   {
+      ~filter [store::DB]OutConcentrationAssessmentRows
+   }
+
+   outsourcing::PreContractDueDiligence[outDueDiligencePre] extends [outsourcingBase]: Relational
+   {
+      ~filter [store::DB]OutDueDiligencePreRows
+   }
+
+   outsourcing::OngoingProviderMonitoring[outOngoingMonitoring] extends [outsourcingBase]: Relational
+   {
+      ~filter [store::DB]OutOngoingMonitoringRows
+   }
+
+   outsourcing::ProviderIncidentNotification[outIncidentNotification] extends [outsourcingBase]: Relational
+   {
+      ~filter [store::DB]OutIncidentNotificationRows
+   }
+
+   outsourcing::OutsourcingRegisterEntry[outRegisterEntry] extends [outsourcingBase]: Relational
+   {
+      ~filter [store::DB]OutRegisterEntryRows
+   }
+
+   outsourcing::TerminationTrigger[outTerminationTrigger] extends [outsourcingBase]: Relational
+   {
+      ~filter [store::DB]OutTerminationTriggerRows
+   }
+)

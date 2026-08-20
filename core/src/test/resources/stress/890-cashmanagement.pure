@@ -1,0 +1,211 @@
+###Pure
+// Corporate cash management: the products that move a treasurer's balances.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class cashmanagement::CashManagementItem
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Balances actually swept to a header account.
+Class cashmanagement::PhysicalCashPool extends cashmanagement::CashManagementItem
+{
+}
+
+// Interest calculated as if they were, and they were not.
+Class cashmanagement::NotionalCashPool extends cashmanagement::CashManagementItem
+{
+}
+
+// Swept to nil daily, so the subsidiary never holds cash.
+Class cashmanagement::ZeroBalanceAccount extends cashmanagement::CashManagementItem
+{
+}
+
+// Swept to a level rather than to zero.
+Class cashmanagement::TargetBalanceAccount extends cashmanagement::CashManagementItem
+{
+}
+
+// Where exchange controls and thin capitalisation rules apply.
+Class cashmanagement::CrossBorderSweep extends cashmanagement::CashManagementItem
+{
+}
+
+// Several currencies, one interest calculation, and an FX exposure.
+Class cashmanagement::MultiCurrencyPool extends cashmanagement::CashManagementItem
+{
+}
+
+// What a pool actually creates, whatever it is called.
+Class cashmanagement::IntercompanyLoanItem extends cashmanagement::CashManagementItem
+{
+}
+
+// The treasury acting as the group's bank.
+Class cashmanagement::InHouseBankAccount extends cashmanagement::CashManagementItem
+{
+}
+
+// One entity paying on behalf of all the others.
+Class cashmanagement::PaymentFactory extends cashmanagement::CashManagementItem
+{
+}
+
+// The same, inbound, and harder to reconcile.
+Class cashmanagement::CollectionsOnBehalfOf extends cashmanagement::CashManagementItem
+{
+}
+
+// A reference rather than an account, used to identify the payer.
+Class cashmanagement::VirtualAccount extends cashmanagement::CashManagementItem
+{
+}
+
+// Where cheques still arrive.
+Class cashmanagement::LockboxService extends cashmanagement::CashManagementItem
+{
+}
+
+// The treasurer's actual product, and the hardest to get right.
+Class cashmanagement::LiquidityForecastItem extends cashmanagement::CashManagementItem
+{
+}
+
+// Allocating pool benefit back to participants defensibly.
+Class cashmanagement::InterestOptimisationItem extends cashmanagement::CashManagementItem
+{
+}
+
+// A second pool above the bank-level ones.
+Class cashmanagement::OverlayPoolStructure extends cashmanagement::CashManagementItem
+{
+}
+
+// The tax that makes several of the above unattractive.
+Class cashmanagement::WithholdingOnPoolInterest extends cashmanagement::CashManagementItem
+{
+}
+
+###Mapping
+Mapping cashmanagement::CashmanagementMapping
+(
+   *cashmanagement::CashManagementItem[cashmanagementBase]: Relational
+   {
+      ~primaryKey ( [store::DB]CASH_MANAGEMENT_ITEM.RECORD_ID )
+      ~mainTable [store::DB]CASH_MANAGEMENT_ITEM
+      recordId: [store::DB]CASH_MANAGEMENT_ITEM.RECORD_ID,
+      recordType: [store::DB]CASH_MANAGEMENT_ITEM.RECORD_TYPE,
+      bookId: [store::DB]CASH_MANAGEMENT_ITEM.BOOK_ID,
+      notional: [store::DB]CASH_MANAGEMENT_ITEM.NOTIONAL,
+      currency: [store::DB]CASH_MANAGEMENT_ITEM.CURRENCY,
+      tradeDate: [store::DB]CASH_MANAGEMENT_ITEM.TRADE_DATE,
+      maturityDate: [store::DB]CASH_MANAGEMENT_ITEM.MATURITY_DATE,
+      status: [store::DB]CASH_MANAGEMENT_ITEM.STATUS,
+      isActive: [store::DB]CASH_MANAGEMENT_ITEM.IS_ACTIVE,
+      riskScore: [store::DB]CASH_MANAGEMENT_ITEM.RISK_SCORE
+   }
+
+   cashmanagement::PhysicalCashPool[cshPhysicalPooling] extends [cashmanagementBase]: Relational
+   {
+      ~filter [store::DB]CshPhysicalPoolingRows
+   }
+
+   cashmanagement::NotionalCashPool[cshNotionalPooling] extends [cashmanagementBase]: Relational
+   {
+      ~filter [store::DB]CshNotionalPoolingRows
+   }
+
+   cashmanagement::ZeroBalanceAccount[cshZeroBalanceAccount] extends [cashmanagementBase]: Relational
+   {
+      ~filter [store::DB]CshZeroBalanceAccountRows
+   }
+
+   cashmanagement::TargetBalanceAccount[cshTargetBalance] extends [cashmanagementBase]: Relational
+   {
+      ~filter [store::DB]CshTargetBalanceRows
+   }
+
+   cashmanagement::CrossBorderSweep[cshCrossBorderSweep] extends [cashmanagementBase]: Relational
+   {
+      ~filter [store::DB]CshCrossBorderSweepRows
+   }
+
+   cashmanagement::MultiCurrencyPool[cshMulticurrencyPool] extends [cashmanagementBase]: Relational
+   {
+      ~filter [store::DB]CshMulticurrencyPoolRows
+   }
+
+   cashmanagement::IntercompanyLoanItem[cshIntercompanyLoan] extends [cashmanagementBase]: Relational
+   {
+      ~filter [store::DB]CshIntercompanyLoanRows
+   }
+
+   cashmanagement::InHouseBankAccount[cshInHouseBank] extends [cashmanagementBase]: Relational
+   {
+      ~filter [store::DB]CshInHouseBankRows
+   }
+
+   cashmanagement::PaymentFactory[cshPaymentFactory] extends [cashmanagementBase]: Relational
+   {
+      ~filter [store::DB]CshPaymentFactoryRows
+   }
+
+   cashmanagement::CollectionsOnBehalfOf[cshCollectionFactory] extends [cashmanagementBase]: Relational
+   {
+      ~filter [store::DB]CshCollectionFactoryRows
+   }
+
+   cashmanagement::VirtualAccount[cshVirtualAccount] extends [cashmanagementBase]: Relational
+   {
+      ~filter [store::DB]CshVirtualAccountRows
+   }
+
+   cashmanagement::LockboxService[cshLockbox] extends [cashmanagementBase]: Relational
+   {
+      ~filter [store::DB]CshLockboxRows
+   }
+
+   cashmanagement::LiquidityForecastItem[cshLiquidityForecast] extends [cashmanagementBase]: Relational
+   {
+      ~filter [store::DB]CshLiquidityForecastRows
+   }
+
+   cashmanagement::InterestOptimisationItem[cshInterestOptimisation] extends [cashmanagementBase]: Relational
+   {
+      ~filter [store::DB]CshInterestOptimisationRows
+   }
+
+   cashmanagement::OverlayPoolStructure[cshOverlayStructure] extends [cashmanagementBase]: Relational
+   {
+      ~filter [store::DB]CshOverlayStructureRows
+   }
+
+   cashmanagement::WithholdingOnPoolInterest[cshWithholdingOnInterest] extends [cashmanagementBase]: Relational
+   {
+      ~filter [store::DB]CshWithholdingOnInterestRows
+   }
+)

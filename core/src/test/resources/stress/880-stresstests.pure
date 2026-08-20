@@ -1,0 +1,211 @@
+###Pure
+// Stress testing: the scenarios, and what each is meant to prove.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class stresstests::StressTestItem
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The supervisor's scenario, run on the supervisor's calendar.
+Class stresstests::RegulatoryAdverseScenario extends stresstests::StressTestItem
+{
+}
+
+// The comparison it is scored against.
+Class stresstests::RegulatoryBaselineScenario extends stresstests::StressTestItem
+{
+}
+
+// The bank's own, usually more severe and less publicised.
+Class stresstests::InternalSevereScenario extends stresstests::StressTestItem
+{
+}
+
+// Start from failure and work back to what caused it.
+Class stresstests::ReverseStressTest extends stresstests::StressTestItem
+{
+}
+
+// A repeat of a move that actually happened.
+Class stresstests::HistoricalCrisisScenario extends stresstests::StressTestItem
+{
+}
+
+// Fast, correlated, and with a policy response in the middle.
+Class stresstests::PandemicScenario extends stresstests::StressTestItem
+{
+}
+
+// Two hundred basis points, and the deposit assumptions do the work.
+Class stresstests::ParallelRateShockUp extends stresstests::StressTestItem
+{
+}
+
+// Where a parallel shock hides the risk.
+Class stresstests::SteepenerShock extends stresstests::StressTestItem
+{
+}
+
+// By rating band, with a liquidity component.
+Class stresstests::CreditSpreadWidening extends stresstests::StressTestItem
+{
+}
+
+// And the correlation going to one on the way down.
+Class stresstests::EquityCrashScenario extends stresstests::StressTestItem
+{
+}
+
+// Usually paired with a country-risk scenario.
+Class stresstests::CurrencyDevaluationScenario extends stresstests::StressTestItem
+{
+}
+
+// Deposits leaving at a rate the LCR assumes they cannot.
+Class stresstests::LiquidityRunScenario extends stresstests::StressTestItem
+{
+}
+
+// Only this bank is in trouble, which is the harder case.
+Class stresstests::IdiosyncraticScenario extends stresstests::StressTestItem
+{
+}
+
+// Policy moving faster than the balance sheet can.
+Class stresstests::ClimateTransitionScenario extends stresstests::StressTestItem
+{
+}
+
+// Damage rather than repricing, over a longer horizon.
+Class stresstests::ClimatePhysicalScenario extends stresstests::StressTestItem
+{
+}
+
+// Operational, and increasingly the binding one.
+Class stresstests::CyberOperationalScenario extends stresstests::StressTestItem
+{
+}
+
+###Mapping
+Mapping stresstests::StresstestsMapping
+(
+   *stresstests::StressTestItem[stresstestsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]STRESS_TEST_ITEM.RECORD_ID )
+      ~mainTable [store::DB]STRESS_TEST_ITEM
+      recordId: [store::DB]STRESS_TEST_ITEM.RECORD_ID,
+      recordType: [store::DB]STRESS_TEST_ITEM.RECORD_TYPE,
+      bookId: [store::DB]STRESS_TEST_ITEM.BOOK_ID,
+      notional: [store::DB]STRESS_TEST_ITEM.NOTIONAL,
+      currency: [store::DB]STRESS_TEST_ITEM.CURRENCY,
+      tradeDate: [store::DB]STRESS_TEST_ITEM.TRADE_DATE,
+      maturityDate: [store::DB]STRESS_TEST_ITEM.MATURITY_DATE,
+      status: [store::DB]STRESS_TEST_ITEM.STATUS,
+      isActive: [store::DB]STRESS_TEST_ITEM.IS_ACTIVE,
+      riskScore: [store::DB]STRESS_TEST_ITEM.RISK_SCORE
+   }
+
+   stresstests::RegulatoryAdverseScenario[sttRegulatoryAdverse] extends [stresstestsBase]: Relational
+   {
+      ~filter [store::DB]SttRegulatoryAdverseRows
+   }
+
+   stresstests::RegulatoryBaselineScenario[sttRegulatoryBaseline] extends [stresstestsBase]: Relational
+   {
+      ~filter [store::DB]SttRegulatoryBaselineRows
+   }
+
+   stresstests::InternalSevereScenario[sttInternalSevere] extends [stresstestsBase]: Relational
+   {
+      ~filter [store::DB]SttInternalSevereRows
+   }
+
+   stresstests::ReverseStressTest[sttReverseStress] extends [stresstestsBase]: Relational
+   {
+      ~filter [store::DB]SttReverseStressRows
+   }
+
+   stresstests::HistoricalCrisisScenario[sttHistorical2008] extends [stresstestsBase]: Relational
+   {
+      ~filter [store::DB]SttHistorical2008Rows
+   }
+
+   stresstests::PandemicScenario[sttHistoricalCovid] extends [stresstestsBase]: Relational
+   {
+      ~filter [store::DB]SttHistoricalCovidRows
+   }
+
+   stresstests::ParallelRateShockUp[sttRatesShockUp] extends [stresstestsBase]: Relational
+   {
+      ~filter [store::DB]SttRatesShockUpRows
+   }
+
+   stresstests::SteepenerShock[sttRatesShockSteepener] extends [stresstestsBase]: Relational
+   {
+      ~filter [store::DB]SttRatesShockSteepenerRows
+   }
+
+   stresstests::CreditSpreadWidening[sttCreditSpreadWidening] extends [stresstestsBase]: Relational
+   {
+      ~filter [store::DB]SttCreditSpreadWideningRows
+   }
+
+   stresstests::EquityCrashScenario[sttEquityCrash] extends [stresstestsBase]: Relational
+   {
+      ~filter [store::DB]SttEquityCrashRows
+   }
+
+   stresstests::CurrencyDevaluationScenario[sttFxDevaluation] extends [stresstestsBase]: Relational
+   {
+      ~filter [store::DB]SttFxDevaluationRows
+   }
+
+   stresstests::LiquidityRunScenario[sttLiquidityRun] extends [stresstestsBase]: Relational
+   {
+      ~filter [store::DB]SttLiquidityRunRows
+   }
+
+   stresstests::IdiosyncraticScenario[sttIdiosyncratic] extends [stresstestsBase]: Relational
+   {
+      ~filter [store::DB]SttIdiosyncraticRows
+   }
+
+   stresstests::ClimateTransitionScenario[sttClimateTransition] extends [stresstestsBase]: Relational
+   {
+      ~filter [store::DB]SttClimateTransitionRows
+   }
+
+   stresstests::ClimatePhysicalScenario[sttClimatePhysical] extends [stresstestsBase]: Relational
+   {
+      ~filter [store::DB]SttClimatePhysicalRows
+   }
+
+   stresstests::CyberOperationalScenario[sttCyberScenario] extends [stresstestsBase]: Relational
+   {
+      ~filter [store::DB]SttCyberScenarioRows
+   }
+)
