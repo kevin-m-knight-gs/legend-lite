@@ -1,0 +1,211 @@
+###Pure
+// Audit and control findings, and how overdue they are.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class auditfindings::AuditFinding
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Escalated to the board and fixed before anything else.
+Class auditfindings::CriticalFinding extends auditfindings::AuditFinding
+{
+}
+
+// A real control gap with a date attached.
+Class auditfindings::HighRiskFinding extends auditfindings::AuditFinding
+{
+}
+
+// Where most findings live.
+Class auditfindings::MediumRiskFinding extends auditfindings::AuditFinding
+{
+}
+
+// Worth fixing, rarely urgent.
+Class auditfindings::LowRiskFinding extends auditfindings::AuditFinding
+{
+}
+
+// Raised by a supervisor rather than by internal audit.
+Class auditfindings::MatterRequiringAttention extends auditfindings::AuditFinding
+{
+}
+
+// Found by the business, which counts for something.
+Class auditfindings::SelfIdentifiedIssue extends auditfindings::AuditFinding
+{
+}
+
+// Raised before, closed, and back -- the worst category there is.
+Class auditfindings::RepeatFinding extends auditfindings::AuditFinding
+{
+}
+
+// Past its date, with a reason nobody is happy with.
+Class auditfindings::OverdueRemediationAction extends auditfindings::AuditFinding
+{
+}
+
+// Re-dated, once, with approval.
+Class auditfindings::ExtendedRemediationAction extends auditfindings::AuditFinding
+{
+}
+
+// Fixed and independently checked.
+Class auditfindings::ClosedVerifiedFinding extends auditfindings::AuditFinding
+{
+}
+
+// Fixed according to the business, and not yet checked.
+Class auditfindings::ClosedUnverifiedFinding extends auditfindings::AuditFinding
+{
+}
+
+// Not being fixed, on the record, by someone senior enough.
+Class auditfindings::RiskAcceptedFinding extends auditfindings::AuditFinding
+{
+}
+
+// Across several businesses, so no one owner.
+Class auditfindings::ThematicReviewFinding extends auditfindings::AuditFinding
+{
+}
+
+// The control would not work even if it were followed.
+Class auditfindings::ControlDesignDeficiency extends auditfindings::AuditFinding
+{
+}
+
+// The control is fine and was not followed.
+Class auditfindings::ControlOperatingDeficiency extends auditfindings::AuditFinding
+{
+}
+
+// The numbers were wrong, which is a control failure like any other.
+Class auditfindings::DataQualityFinding extends auditfindings::AuditFinding
+{
+}
+
+###Mapping
+Mapping auditfindings::AuditfindingsMapping
+(
+   *auditfindings::AuditFinding[auditfindingsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]AUDIT_FINDING.RECORD_ID )
+      ~mainTable [store::DB]AUDIT_FINDING
+      recordId: [store::DB]AUDIT_FINDING.RECORD_ID,
+      recordType: [store::DB]AUDIT_FINDING.RECORD_TYPE,
+      bookId: [store::DB]AUDIT_FINDING.BOOK_ID,
+      notional: [store::DB]AUDIT_FINDING.NOTIONAL,
+      currency: [store::DB]AUDIT_FINDING.CURRENCY,
+      tradeDate: [store::DB]AUDIT_FINDING.TRADE_DATE,
+      maturityDate: [store::DB]AUDIT_FINDING.MATURITY_DATE,
+      status: [store::DB]AUDIT_FINDING.STATUS,
+      isActive: [store::DB]AUDIT_FINDING.IS_ACTIVE,
+      riskScore: [store::DB]AUDIT_FINDING.RISK_SCORE
+   }
+
+   auditfindings::CriticalFinding[audCriticalFinding] extends [auditfindingsBase]: Relational
+   {
+      ~filter [store::DB]AudCriticalFindingRows
+   }
+
+   auditfindings::HighRiskFinding[audHighFinding] extends [auditfindingsBase]: Relational
+   {
+      ~filter [store::DB]AudHighFindingRows
+   }
+
+   auditfindings::MediumRiskFinding[audMediumFinding] extends [auditfindingsBase]: Relational
+   {
+      ~filter [store::DB]AudMediumFindingRows
+   }
+
+   auditfindings::LowRiskFinding[audLowFinding] extends [auditfindingsBase]: Relational
+   {
+      ~filter [store::DB]AudLowFindingRows
+   }
+
+   auditfindings::MatterRequiringAttention[audRegulatoryMra] extends [auditfindingsBase]: Relational
+   {
+      ~filter [store::DB]AudRegulatoryMraRows
+   }
+
+   auditfindings::SelfIdentifiedIssue[audSelfIdentified] extends [auditfindingsBase]: Relational
+   {
+      ~filter [store::DB]AudSelfIdentifiedRows
+   }
+
+   auditfindings::RepeatFinding[audRepeatFinding] extends [auditfindingsBase]: Relational
+   {
+      ~filter [store::DB]AudRepeatFindingRows
+   }
+
+   auditfindings::OverdueRemediationAction[audOverdueAction] extends [auditfindingsBase]: Relational
+   {
+      ~filter [store::DB]AudOverdueActionRows
+   }
+
+   auditfindings::ExtendedRemediationAction[audExtendedAction] extends [auditfindingsBase]: Relational
+   {
+      ~filter [store::DB]AudExtendedActionRows
+   }
+
+   auditfindings::ClosedVerifiedFinding[audClosedVerified] extends [auditfindingsBase]: Relational
+   {
+      ~filter [store::DB]AudClosedVerifiedRows
+   }
+
+   auditfindings::ClosedUnverifiedFinding[audClosedUnverified] extends [auditfindingsBase]: Relational
+   {
+      ~filter [store::DB]AudClosedUnverifiedRows
+   }
+
+   auditfindings::RiskAcceptedFinding[audRiskAccepted] extends [auditfindingsBase]: Relational
+   {
+      ~filter [store::DB]AudRiskAcceptedRows
+   }
+
+   auditfindings::ThematicReviewFinding[audThematicReview] extends [auditfindingsBase]: Relational
+   {
+      ~filter [store::DB]AudThematicReviewRows
+   }
+
+   auditfindings::ControlDesignDeficiency[audControlDesign] extends [auditfindingsBase]: Relational
+   {
+      ~filter [store::DB]AudControlDesignRows
+   }
+
+   auditfindings::ControlOperatingDeficiency[audControlOperation] extends [auditfindingsBase]: Relational
+   {
+      ~filter [store::DB]AudControlOperationRows
+   }
+
+   auditfindings::DataQualityFinding[audDataQualityFinding] extends [auditfindingsBase]: Relational
+   {
+      ~filter [store::DB]AudDataQualityFindingRows
+   }
+)

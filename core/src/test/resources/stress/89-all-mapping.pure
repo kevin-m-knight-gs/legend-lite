@@ -34,6 +34,18 @@ Mapping stress::AllMapping
     include risk::MarketRiskMapping
     include middleoffice::MiddleOfficeMapping
     include backoffice::BackOfficeMapping
+    include hedgeaccounting::HedgeaccountingMapping
+    include incidents::IncidentsMapping
+    include clientaccess::ClientaccessMapping
+    include employeeroles::EmployeerolesMapping
+    include bookinglocations::BookinglocationsMapping
+    include regimes::RegimesMapping
+    include dataquality::DataqualityMapping
+    include auditfindings::AuditfindingsMapping
+    include modelrisk::ModelriskMapping
+    include impairment::ImpairmentMapping
+    include balancesheet::BalancesheetMapping
+    include fundingsources::FundingsourcesMapping
     include surveillance::SurveillanceMapping
     include settlementfails::SettlementfailsMapping
     include paymenttypes::PaymenttypesMapping

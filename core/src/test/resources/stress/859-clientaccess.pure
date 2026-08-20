@@ -1,0 +1,211 @@
+###Pure
+// How a client reaches a market, and whose membership they are using.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class clientaccess::ClientAccessArrangement
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The client is a member in their own right.
+Class clientaccess::DirectExchangeMembership extends clientaccess::ClientAccessArrangement
+{
+}
+
+// The firm's membership, the client's order, the firm's controls.
+Class clientaccess::DirectMarketAccess extends clientaccess::ClientAccessArrangement
+{
+}
+
+// The client's order reaches the venue without touching the firm's systems.
+Class clientaccess::SponsoredAccess extends clientaccess::ClientAccessArrangement
+{
+}
+
+// The client runs their own algorithm through the firm.
+Class clientaccess::AlgorithmicAccessArrangement extends clientaccess::ClientAccessArrangement
+{
+}
+
+// Worked by a human on the client's behalf.
+Class clientaccess::CareOrderArrangement extends clientaccess::ClientAccessArrangement
+{
+}
+
+// The firm takes the other side rather than routing it.
+Class clientaccess::PrincipalFillArrangement extends clientaccess::ClientAccessArrangement
+{
+}
+
+// Matched principal, which is a different regulatory animal.
+Class clientaccess::RiskFreePrincipalCross extends clientaccess::ClientAccessArrangement
+{
+}
+
+// Clearing other members' business as well as one's own.
+Class clientaccess::GeneralClearingMemberService extends clientaccess::ClientAccessArrangement
+{
+}
+
+// The client's collateral held apart from everyone else's.
+Class clientaccess::IndividuallySegregatedAccount extends clientaccess::ClientAccessArrangement
+{
+}
+
+// Held apart from the firm's and mixed with other clients'.
+Class clientaccess::OmnibusSegregatedAccount extends clientaccess::ClientAccessArrangement
+{
+}
+
+// Netted across clients, which is cheaper and offers less protection.
+Class clientaccess::NetOmnibusAccount extends clientaccess::ClientAccessArrangement
+{
+}
+
+// A client of a client, and one more layer to unwind.
+Class clientaccess::IndirectClearingArrangement extends clientaccess::ClientAccessArrangement
+{
+}
+
+// Where the positions go if the clearing member defaults.
+Class clientaccess::PortingArrangement extends clientaccess::ClientAccessArrangement
+{
+}
+
+// Executed with one broker and given up to another.
+Class clientaccess::GiveUpArrangement extends clientaccess::ClientAccessArrangement
+{
+}
+
+// Reaching a venue the client's own regulator has views about.
+Class clientaccess::CrossBorderAccessArrangement extends clientaccess::ClientAccessArrangement
+{
+}
+
+// Turned off, for a reason that is usually credit.
+Class clientaccess::SuspendedAccessArrangement extends clientaccess::ClientAccessArrangement
+{
+}
+
+###Mapping
+Mapping clientaccess::ClientaccessMapping
+(
+   *clientaccess::ClientAccessArrangement[clientaccessBase]: Relational
+   {
+      ~primaryKey ( [store::DB]CLIENT_ACCESS_ARRANGEMENT.RECORD_ID )
+      ~mainTable [store::DB]CLIENT_ACCESS_ARRANGEMENT
+      recordId: [store::DB]CLIENT_ACCESS_ARRANGEMENT.RECORD_ID,
+      recordType: [store::DB]CLIENT_ACCESS_ARRANGEMENT.RECORD_TYPE,
+      bookId: [store::DB]CLIENT_ACCESS_ARRANGEMENT.BOOK_ID,
+      notional: [store::DB]CLIENT_ACCESS_ARRANGEMENT.NOTIONAL,
+      currency: [store::DB]CLIENT_ACCESS_ARRANGEMENT.CURRENCY,
+      tradeDate: [store::DB]CLIENT_ACCESS_ARRANGEMENT.TRADE_DATE,
+      maturityDate: [store::DB]CLIENT_ACCESS_ARRANGEMENT.MATURITY_DATE,
+      status: [store::DB]CLIENT_ACCESS_ARRANGEMENT.STATUS,
+      isActive: [store::DB]CLIENT_ACCESS_ARRANGEMENT.IS_ACTIVE,
+      riskScore: [store::DB]CLIENT_ACCESS_ARRANGEMENT.RISK_SCORE
+   }
+
+   clientaccess::DirectExchangeMembership[accDirectMembership] extends [clientaccessBase]: Relational
+   {
+      ~filter [store::DB]AccDirectMembershipRows
+   }
+
+   clientaccess::DirectMarketAccess[accDirectMarketAccess] extends [clientaccessBase]: Relational
+   {
+      ~filter [store::DB]AccDirectMarketAccessRows
+   }
+
+   clientaccess::SponsoredAccess[accSponsoredAccess] extends [clientaccessBase]: Relational
+   {
+      ~filter [store::DB]AccSponsoredAccessRows
+   }
+
+   clientaccess::AlgorithmicAccessArrangement[accAlgorithmicAccess] extends [clientaccessBase]: Relational
+   {
+      ~filter [store::DB]AccAlgorithmicAccessRows
+   }
+
+   clientaccess::CareOrderArrangement[accCareOrder] extends [clientaccessBase]: Relational
+   {
+      ~filter [store::DB]AccCareOrderRows
+   }
+
+   clientaccess::PrincipalFillArrangement[accPrincipalFill] extends [clientaccessBase]: Relational
+   {
+      ~filter [store::DB]AccPrincipalFillRows
+   }
+
+   clientaccess::RiskFreePrincipalCross[accRiserlessCross] extends [clientaccessBase]: Relational
+   {
+      ~filter [store::DB]AccRiserlessCrossRows
+   }
+
+   clientaccess::GeneralClearingMemberService[accGeneralClearing] extends [clientaccessBase]: Relational
+   {
+      ~filter [store::DB]AccGeneralClearingRows
+   }
+
+   clientaccess::IndividuallySegregatedAccount[accIndividualSegregated] extends [clientaccessBase]: Relational
+   {
+      ~filter [store::DB]AccIndividualSegregatedRows
+   }
+
+   clientaccess::OmnibusSegregatedAccount[accOmnibusSegregated] extends [clientaccessBase]: Relational
+   {
+      ~filter [store::DB]AccOmnibusSegregatedRows
+   }
+
+   clientaccess::NetOmnibusAccount[accNetOmnibus] extends [clientaccessBase]: Relational
+   {
+      ~filter [store::DB]AccNetOmnibusRows
+   }
+
+   clientaccess::IndirectClearingArrangement[accIndirectClearing] extends [clientaccessBase]: Relational
+   {
+      ~filter [store::DB]AccIndirectClearingRows
+   }
+
+   clientaccess::PortingArrangement[accPortingArrangement] extends [clientaccessBase]: Relational
+   {
+      ~filter [store::DB]AccPortingArrangementRows
+   }
+
+   clientaccess::GiveUpArrangement[accPrimeBrokerGiveUp] extends [clientaccessBase]: Relational
+   {
+      ~filter [store::DB]AccPrimeBrokerGiveUpRows
+   }
+
+   clientaccess::CrossBorderAccessArrangement[accCrossBorderAccess] extends [clientaccessBase]: Relational
+   {
+      ~filter [store::DB]AccCrossBorderAccessRows
+   }
+
+   clientaccess::SuspendedAccessArrangement[accSuspendedAccess] extends [clientaccessBase]: Relational
+   {
+      ~filter [store::DB]AccSuspendedAccessRows
+   }
+)

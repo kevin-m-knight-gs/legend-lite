@@ -1,0 +1,211 @@
+###Pure
+// Operational incidents, and what makes one reportable.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class incidents::OperationalIncident
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The service was down, and the clock starts at the first symptom.
+Class incidents::SystemOutageIncident extends incidents::OperationalIncident
+{
+}
+
+// Up and too slow to use, which counts.
+Class incidents::DegradedServiceIncident extends incidents::OperationalIncident
+{
+}
+
+// Something is gone, and the question is what and whose.
+Class incidents::DataLossIncident extends incidents::OperationalIncident
+{
+}
+
+// Something left, which is a different regulator and a shorter clock.
+Class incidents::DataBreachIncident extends incidents::OperationalIncident
+{
+}
+
+// Someone was inside, and the investigation outlasts the outage.
+Class incidents::CyberIntrusionIncident extends incidents::OperationalIncident
+{
+}
+
+// Available, encrypted, and a decision nobody wants to make.
+Class incidents::RansomwareIncident extends incidents::OperationalIncident
+{
+}
+
+// The provider's incident and the firm's obligation.
+Class incidents::ThirdPartyFailureIncident extends incidents::OperationalIncident
+{
+}
+
+// Sent twice, and recoverable only sometimes.
+Class incidents::DuplicatePaymentIncident extends incidents::OperationalIncident
+{
+}
+
+// A fat finger, and a venue that may or may not cancel it.
+Class incidents::ErroneousTradeIncident extends incidents::OperationalIncident
+{
+}
+
+// Found late, provisioned for, and expensive.
+Class incidents::MisSellingIncident extends incidents::OperationalIncident
+{
+}
+
+// Reported wrongly or not at all, which is separately punishable.
+Class incidents::RegulatoryReportingFailure extends incidents::OperationalIncident
+{
+}
+
+// The market moved between the failure and the fix.
+Class incidents::SettlementIncident extends incidents::OperationalIncident
+{
+}
+
+// Access to a building rather than to a system.
+Class incidents::PhysicalSecurityIncident extends incidents::OperationalIncident
+{
+}
+
+// Nothing happened, and the control that stopped it is now known.
+Class incidents::NearMissIncident extends incidents::OperationalIncident
+{
+}
+
+// Above the threshold, so the supervisor is told within hours.
+Class incidents::MajorReportableIncident extends incidents::OperationalIncident
+{
+}
+
+// What was promised afterwards, tracked like an audit finding.
+Class incidents::PostIncidentAction extends incidents::OperationalIncident
+{
+}
+
+###Mapping
+Mapping incidents::IncidentsMapping
+(
+   *incidents::OperationalIncident[incidentsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]OPS_INCIDENT_EVENT.RECORD_ID )
+      ~mainTable [store::DB]OPS_INCIDENT_EVENT
+      recordId: [store::DB]OPS_INCIDENT_EVENT.RECORD_ID,
+      recordType: [store::DB]OPS_INCIDENT_EVENT.RECORD_TYPE,
+      bookId: [store::DB]OPS_INCIDENT_EVENT.BOOK_ID,
+      notional: [store::DB]OPS_INCIDENT_EVENT.NOTIONAL,
+      currency: [store::DB]OPS_INCIDENT_EVENT.CURRENCY,
+      tradeDate: [store::DB]OPS_INCIDENT_EVENT.TRADE_DATE,
+      maturityDate: [store::DB]OPS_INCIDENT_EVENT.MATURITY_DATE,
+      status: [store::DB]OPS_INCIDENT_EVENT.STATUS,
+      isActive: [store::DB]OPS_INCIDENT_EVENT.IS_ACTIVE,
+      riskScore: [store::DB]OPS_INCIDENT_EVENT.RISK_SCORE
+   }
+
+   incidents::SystemOutageIncident[incSystemOutage] extends [incidentsBase]: Relational
+   {
+      ~filter [store::DB]IncSystemOutageRows
+   }
+
+   incidents::DegradedServiceIncident[incDegradedService] extends [incidentsBase]: Relational
+   {
+      ~filter [store::DB]IncDegradedServiceRows
+   }
+
+   incidents::DataLossIncident[incDataLoss] extends [incidentsBase]: Relational
+   {
+      ~filter [store::DB]IncDataLossRows
+   }
+
+   incidents::DataBreachIncident[incDataBreach] extends [incidentsBase]: Relational
+   {
+      ~filter [store::DB]IncDataBreachRows
+   }
+
+   incidents::CyberIntrusionIncident[incCyberIntrusion] extends [incidentsBase]: Relational
+   {
+      ~filter [store::DB]IncCyberIntrusionRows
+   }
+
+   incidents::RansomwareIncident[incRansomware] extends [incidentsBase]: Relational
+   {
+      ~filter [store::DB]IncRansomwareRows
+   }
+
+   incidents::ThirdPartyFailureIncident[incThirdPartyFailure] extends [incidentsBase]: Relational
+   {
+      ~filter [store::DB]IncThirdPartyFailureRows
+   }
+
+   incidents::DuplicatePaymentIncident[incPaymentDuplication] extends [incidentsBase]: Relational
+   {
+      ~filter [store::DB]IncPaymentDuplicationRows
+   }
+
+   incidents::ErroneousTradeIncident[incErroneousTrade] extends [incidentsBase]: Relational
+   {
+      ~filter [store::DB]IncErroneousTradeRows
+   }
+
+   incidents::MisSellingIncident[incMisSelling] extends [incidentsBase]: Relational
+   {
+      ~filter [store::DB]IncMisSellingRows
+   }
+
+   incidents::RegulatoryReportingFailure[incReportingFailure] extends [incidentsBase]: Relational
+   {
+      ~filter [store::DB]IncReportingFailureRows
+   }
+
+   incidents::SettlementIncident[incSettlementIncident] extends [incidentsBase]: Relational
+   {
+      ~filter [store::DB]IncSettlementIncidentRows
+   }
+
+   incidents::PhysicalSecurityIncident[incPhysicalSecurity] extends [incidentsBase]: Relational
+   {
+      ~filter [store::DB]IncPhysicalSecurityRows
+   }
+
+   incidents::NearMissIncident[incNearMiss] extends [incidentsBase]: Relational
+   {
+      ~filter [store::DB]IncNearMissRows
+   }
+
+   incidents::MajorReportableIncident[incReportableMajor] extends [incidentsBase]: Relational
+   {
+      ~filter [store::DB]IncReportableMajorRows
+   }
+
+   incidents::PostIncidentAction[incPostIncidentAction] extends [incidentsBase]: Relational
+   {
+      ~filter [store::DB]IncPostIncidentActionRows
+   }
+)

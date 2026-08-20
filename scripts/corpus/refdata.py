@@ -63,6 +63,14 @@ def emit(*, table: str, pkg: str, base: str, discriminator: str, tag: str,
                       f'TABLES: dict[str, list[dict]] = {{\n    "{table}": {table},', 1)
         p.write_text(t)
 
+    # 2. the store: one table and one filter per type.
+    #
+    # `p` and `t` are REBOUND here. Moving the collision guard out of this block took these
+    # two lines with it, and the store edit then ran against seed.py's text -- finding
+    # neither anchor, changing nothing, and writing seed.py back unchanged. Ten taxonomies
+    # emitted their classes and mappings against tables that were never declared.
+    p = STRESS / "30-store.pure"
+    t = p.read_text()
     if f"Table {table} (" not in t:
         cols = ", ".join(f"{c} {SQL[ty]}" + (" PRIMARY KEY" if i == 0 else "")
                          for i, (_p, c, ty, _m) in enumerate(fields))

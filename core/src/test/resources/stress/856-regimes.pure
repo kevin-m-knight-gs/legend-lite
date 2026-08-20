@@ -1,0 +1,211 @@
+###Pure
+// The rulebooks a trade can fall under, often several at once.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class regimes::RegulatoryRegime
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// European conduct and transparency, and a very large reporting surface.
+Class regimes::MifidTwoRegime extends regimes::RegulatoryRegime
+{
+}
+
+// European derivatives: clearing, margin and reporting.
+Class regimes::EmirRegime extends regimes::RegulatoryRegime
+{
+}
+
+// The US equivalent, with its own definitions of almost everything.
+Class regimes::DoddFrankRegime extends regimes::RegulatoryRegime
+{
+}
+
+// Securities financing, reported at a level of detail nobody expected.
+Class regimes::SftrRegime extends regimes::RegulatoryRegime
+{
+}
+
+// The output floor and the end of most internal models.
+Class regimes::BaselThreePointOne extends regimes::RegulatoryRegime
+{
+}
+
+// Market risk, rebuilt around desks and P&L attribution.
+Class regimes::FrtbRegime extends regimes::RegulatoryRegime
+{
+}
+
+// Interest rate risk in the banking book, and six prescribed shocks.
+Class regimes::IrrbbRegime extends regimes::RegulatoryRegime
+{
+}
+
+// Thirty days of stress, and a year of stable funding.
+Class regimes::LiquidityRatioRegime extends regimes::RegulatoryRegime
+{
+}
+
+// Surveillance, disclosure and the insider list.
+Class regimes::MarketAbuseRegulation extends regimes::RegulatoryRegime
+{
+}
+
+// Settlement discipline, and a penalty per day per fail.
+Class regimes::CsdrRegime extends regimes::RegulatoryRegime
+{
+}
+
+// Initial margin for bilateral derivatives, phased in by size.
+Class regimes::UnclearedMarginRules extends regimes::RegulatoryRegime
+{
+}
+
+// Who may administer an index and who may use one.
+Class regimes::BenchmarksRegulation extends regimes::RegulatoryRegime
+{
+}
+
+// The retail disclosure document, and its performance scenarios.
+Class regimes::PriipsRegime extends regimes::RegulatoryRegime
+{
+}
+
+// Sustainability disclosure, and the classification arguments that follow.
+Class regimes::SfdrRegime extends regimes::RegulatoryRegime
+{
+}
+
+// Operational resilience, including the third parties.
+Class regimes::DoraRegime extends regimes::RegulatoryRegime
+{
+}
+
+// How the bank would be taken apart, planned in advance.
+Class regimes::RecoveryResolutionRegime extends regimes::RegulatoryRegime
+{
+}
+
+###Mapping
+Mapping regimes::RegimesMapping
+(
+   *regimes::RegulatoryRegime[regimesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]REGULATORY_REGIME.RECORD_ID )
+      ~mainTable [store::DB]REGULATORY_REGIME
+      recordId: [store::DB]REGULATORY_REGIME.RECORD_ID,
+      recordType: [store::DB]REGULATORY_REGIME.RECORD_TYPE,
+      bookId: [store::DB]REGULATORY_REGIME.BOOK_ID,
+      notional: [store::DB]REGULATORY_REGIME.NOTIONAL,
+      currency: [store::DB]REGULATORY_REGIME.CURRENCY,
+      tradeDate: [store::DB]REGULATORY_REGIME.TRADE_DATE,
+      maturityDate: [store::DB]REGULATORY_REGIME.MATURITY_DATE,
+      status: [store::DB]REGULATORY_REGIME.STATUS,
+      isActive: [store::DB]REGULATORY_REGIME.IS_ACTIVE,
+      riskScore: [store::DB]REGULATORY_REGIME.RISK_SCORE
+   }
+
+   regimes::MifidTwoRegime[rgmMifid2] extends [regimesBase]: Relational
+   {
+      ~filter [store::DB]RgmMifid2Rows
+   }
+
+   regimes::EmirRegime[rgmEmir] extends [regimesBase]: Relational
+   {
+      ~filter [store::DB]RgmEmirRows
+   }
+
+   regimes::DoddFrankRegime[rgmDoddFrank] extends [regimesBase]: Relational
+   {
+      ~filter [store::DB]RgmDoddFrankRows
+   }
+
+   regimes::SftrRegime[rgmSftr] extends [regimesBase]: Relational
+   {
+      ~filter [store::DB]RgmSftrRows
+   }
+
+   regimes::BaselThreePointOne[rgmBasel31] extends [regimesBase]: Relational
+   {
+      ~filter [store::DB]RgmBasel31Rows
+   }
+
+   regimes::FrtbRegime[rgmFrtb] extends [regimesBase]: Relational
+   {
+      ~filter [store::DB]RgmFrtbRows
+   }
+
+   regimes::IrrbbRegime[rgmIrrbb] extends [regimesBase]: Relational
+   {
+      ~filter [store::DB]RgmIrrbbRows
+   }
+
+   regimes::LiquidityRatioRegime[rgmLcrNsfr] extends [regimesBase]: Relational
+   {
+      ~filter [store::DB]RgmLcrNsfrRows
+   }
+
+   regimes::MarketAbuseRegulation[rgmMar] extends [regimesBase]: Relational
+   {
+      ~filter [store::DB]RgmMarRows
+   }
+
+   regimes::CsdrRegime[rgmCsdr] extends [regimesBase]: Relational
+   {
+      ~filter [store::DB]RgmCsdrRows
+   }
+
+   regimes::UnclearedMarginRules[rgmUmr] extends [regimesBase]: Relational
+   {
+      ~filter [store::DB]RgmUmrRows
+   }
+
+   regimes::BenchmarksRegulation[rgmBenchmarkReg] extends [regimesBase]: Relational
+   {
+      ~filter [store::DB]RgmBenchmarkRegRows
+   }
+
+   regimes::PriipsRegime[rgmPriips] extends [regimesBase]: Relational
+   {
+      ~filter [store::DB]RgmPriipsRows
+   }
+
+   regimes::SfdrRegime[rgmSfdr] extends [regimesBase]: Relational
+   {
+      ~filter [store::DB]RgmSfdrRows
+   }
+
+   regimes::DoraRegime[rgmDora] extends [regimesBase]: Relational
+   {
+      ~filter [store::DB]RgmDoraRows
+   }
+
+   regimes::RecoveryResolutionRegime[rgmRecoveryResolution] extends [regimesBase]: Relational
+   {
+      ~filter [store::DB]RgmRecoveryResolutionRows
+   }
+)

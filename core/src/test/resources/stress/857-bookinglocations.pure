@@ -1,0 +1,211 @@
+###Pure
+// Where a trade is booked, which decides the tax, the capital and the regulator.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class bookinglocations::BookingLocation
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Part of the same legal entity, with a host supervisor.
+Class bookinglocations::UkBranch extends bookinglocations::BookingLocation
+{
+}
+
+// Separately capitalised, separately resolvable.
+Class bookinglocations::UkSubsidiary extends bookinglocations::BookingLocation
+{
+}
+
+// The structure required of large foreign banks in the US.
+Class bookinglocations::UsIntermediateHoldingCompany extends bookinglocations::BookingLocation
+{
+}
+
+// Federally or state licensed, and not separately capitalised.
+Class bookinglocations::UsBranch extends bookinglocations::BookingLocation
+{
+}
+
+// The post-Brexit booking centre for a great deal of business.
+Class bookinglocations::EuSubsidiary extends bookinglocations::BookingLocation
+{
+}
+
+// The Asian hub for rates and FX.
+Class bookinglocations::SingaporeBranch extends bookinglocations::BookingLocation
+{
+}
+
+// The other one, for equities and China access.
+Class bookinglocations::HongKongBranch extends bookinglocations::BookingLocation
+{
+}
+
+// Where the yen book has to be.
+Class bookinglocations::JapanBranch extends bookinglocations::BookingLocation
+{
+}
+
+// Private banking, and its own capital regime.
+Class bookinglocations::SwissEntity extends bookinglocations::BookingLocation
+{
+}
+
+// Funds and depositary business.
+Class bookinglocations::IrelandEntity extends bookinglocations::BookingLocation
+{
+}
+
+// Funds and holding structures.
+Class bookinglocations::LuxembourgEntity extends bookinglocations::BookingLocation
+{
+}
+
+// Issuance vehicles, and nothing else.
+Class bookinglocations::CaymanSpecialPurposeVehicle extends bookinglocations::BookingLocation
+{
+}
+
+// Traded in one place and booked in another, which supervisors dislike.
+Class bookinglocations::RemoteBookingArrangement extends bookinglocations::BookingLocation
+{
+}
+
+// Risk transferred internally to the hub, leaving a hedged pair.
+Class bookinglocations::BackToBackBooking extends bookinglocations::BookingLocation
+{
+}
+
+// The same trade recorded twice for reporting rather than for risk.
+Class bookinglocations::MirrorBooking extends bookinglocations::BookingLocation
+{
+}
+
+// Closed to new business, with a book that outlives the decision.
+Class bookinglocations::RunOffEntity extends bookinglocations::BookingLocation
+{
+}
+
+###Mapping
+Mapping bookinglocations::BookinglocationsMapping
+(
+   *bookinglocations::BookingLocation[bookinglocationsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]BOOKING_LOCATION.RECORD_ID )
+      ~mainTable [store::DB]BOOKING_LOCATION
+      recordId: [store::DB]BOOKING_LOCATION.RECORD_ID,
+      recordType: [store::DB]BOOKING_LOCATION.RECORD_TYPE,
+      bookId: [store::DB]BOOKING_LOCATION.BOOK_ID,
+      notional: [store::DB]BOOKING_LOCATION.NOTIONAL,
+      currency: [store::DB]BOOKING_LOCATION.CURRENCY,
+      tradeDate: [store::DB]BOOKING_LOCATION.TRADE_DATE,
+      maturityDate: [store::DB]BOOKING_LOCATION.MATURITY_DATE,
+      status: [store::DB]BOOKING_LOCATION.STATUS,
+      isActive: [store::DB]BOOKING_LOCATION.IS_ACTIVE,
+      riskScore: [store::DB]BOOKING_LOCATION.RISK_SCORE
+   }
+
+   bookinglocations::UkBranch[bklUkBranch] extends [bookinglocationsBase]: Relational
+   {
+      ~filter [store::DB]BklUkBranchRows
+   }
+
+   bookinglocations::UkSubsidiary[bklUkSubsidiary] extends [bookinglocationsBase]: Relational
+   {
+      ~filter [store::DB]BklUkSubsidiaryRows
+   }
+
+   bookinglocations::UsIntermediateHoldingCompany[bklUsIhc] extends [bookinglocationsBase]: Relational
+   {
+      ~filter [store::DB]BklUsIhcRows
+   }
+
+   bookinglocations::UsBranch[bklUsBranch] extends [bookinglocationsBase]: Relational
+   {
+      ~filter [store::DB]BklUsBranchRows
+   }
+
+   bookinglocations::EuSubsidiary[bklEuSubsidiary] extends [bookinglocationsBase]: Relational
+   {
+      ~filter [store::DB]BklEuSubsidiaryRows
+   }
+
+   bookinglocations::SingaporeBranch[bklSingaporeBranch] extends [bookinglocationsBase]: Relational
+   {
+      ~filter [store::DB]BklSingaporeBranchRows
+   }
+
+   bookinglocations::HongKongBranch[bklHongKongBranch] extends [bookinglocationsBase]: Relational
+   {
+      ~filter [store::DB]BklHongKongBranchRows
+   }
+
+   bookinglocations::JapanBranch[bklJapanBranch] extends [bookinglocationsBase]: Relational
+   {
+      ~filter [store::DB]BklJapanBranchRows
+   }
+
+   bookinglocations::SwissEntity[bklSwissEntity] extends [bookinglocationsBase]: Relational
+   {
+      ~filter [store::DB]BklSwissEntityRows
+   }
+
+   bookinglocations::IrelandEntity[bklIrelandEntity] extends [bookinglocationsBase]: Relational
+   {
+      ~filter [store::DB]BklIrelandEntityRows
+   }
+
+   bookinglocations::LuxembourgEntity[bklLuxembourgEntity] extends [bookinglocationsBase]: Relational
+   {
+      ~filter [store::DB]BklLuxembourgEntityRows
+   }
+
+   bookinglocations::CaymanSpecialPurposeVehicle[bklCaymanSpv] extends [bookinglocationsBase]: Relational
+   {
+      ~filter [store::DB]BklCaymanSpvRows
+   }
+
+   bookinglocations::RemoteBookingArrangement[bklRemoteBooking] extends [bookinglocationsBase]: Relational
+   {
+      ~filter [store::DB]BklRemoteBookingRows
+   }
+
+   bookinglocations::BackToBackBooking[bklBackToBack] extends [bookinglocationsBase]: Relational
+   {
+      ~filter [store::DB]BklBackToBackRows
+   }
+
+   bookinglocations::MirrorBooking[bklMirrorBook] extends [bookinglocationsBase]: Relational
+   {
+      ~filter [store::DB]BklMirrorBookRows
+   }
+
+   bookinglocations::RunOffEntity[bklRunOffEntity] extends [bookinglocationsBase]: Relational
+   {
+      ~filter [store::DB]BklRunOffEntityRows
+   }
+)

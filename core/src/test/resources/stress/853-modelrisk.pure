@@ -1,0 +1,211 @@
+###Pure
+// The model inventory: what is in production, and how well it is understood.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class modelrisk::ModelInventoryItem
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Values a trade, and is validated against market prices.
+Class modelrisk::PricingModel extends modelrisk::ModelInventoryItem
+{
+}
+
+// Produces a sensitivity or a VaR, and is backtested.
+Class modelrisk::RiskMeasurementModel extends modelrisk::ModelInventoryItem
+{
+}
+
+// Feeds a capital number, so a regulator approves it.
+Class modelrisk::RegulatoryCapitalModel extends modelrisk::ModelInventoryItem
+{
+}
+
+// Decides who gets lent to, and is tested for bias.
+Class modelrisk::CreditScorecard extends modelrisk::ModelInventoryItem
+{
+}
+
+// Feeds the accounts, so the auditor tests it too.
+Class modelrisk::ExpectedCreditLossModel extends modelrisk::ModelInventoryItem
+{
+}
+
+// Flags transactions, and is measured on false positives.
+Class modelrisk::AmlDetectionModel extends modelrisk::ModelInventoryItem
+{
+}
+
+// The same, faster, and with a worse cost of being wrong.
+Class modelrisk::FraudDetectionModel extends modelrisk::ModelInventoryItem
+{
+}
+
+// Places orders, and is governed as a model and as a system.
+Class modelrisk::ExecutionAlgorithm extends modelrisk::ModelInventoryItem
+{
+}
+
+// Where explainability stops being a nicety.
+Class modelrisk::MachineLearningModel extends modelrisk::ModelInventoryItem
+{
+}
+
+// Someone else's code, and the same accountability.
+Class modelrisk::VendorSuppliedModel extends modelrisk::ModelInventoryItem
+{
+}
+
+// Still installed, no longer used, and still in the inventory.
+Class modelrisk::DeprecatedModel extends modelrisk::ModelInventoryItem
+{
+}
+
+// High materiality, annual validation, board visibility.
+Class modelrisk::TierOneMaterialModel extends modelrisk::ModelInventoryItem
+{
+}
+
+// Low materiality, and reviewed when something changes.
+Class modelrisk::TierThreeLowMaterialityModel extends modelrisk::ModelInventoryItem
+{
+}
+
+// What the independent review found, and by when it must be fixed.
+Class modelrisk::ValidationFinding extends modelrisk::ModelInventoryItem
+{
+}
+
+// Run alongside the production model to disagree with it.
+Class modelrisk::BenchmarkChallengerModel extends modelrisk::ModelInventoryItem
+{
+}
+
+// A known weakness, documented and accepted rather than fixed.
+Class modelrisk::AcceptedModelLimitation extends modelrisk::ModelInventoryItem
+{
+}
+
+###Mapping
+Mapping modelrisk::ModelriskMapping
+(
+   *modelrisk::ModelInventoryItem[modelriskBase]: Relational
+   {
+      ~primaryKey ( [store::DB]MODEL_INVENTORY_ITEM.RECORD_ID )
+      ~mainTable [store::DB]MODEL_INVENTORY_ITEM
+      recordId: [store::DB]MODEL_INVENTORY_ITEM.RECORD_ID,
+      recordType: [store::DB]MODEL_INVENTORY_ITEM.RECORD_TYPE,
+      bookId: [store::DB]MODEL_INVENTORY_ITEM.BOOK_ID,
+      notional: [store::DB]MODEL_INVENTORY_ITEM.NOTIONAL,
+      currency: [store::DB]MODEL_INVENTORY_ITEM.CURRENCY,
+      tradeDate: [store::DB]MODEL_INVENTORY_ITEM.TRADE_DATE,
+      maturityDate: [store::DB]MODEL_INVENTORY_ITEM.MATURITY_DATE,
+      status: [store::DB]MODEL_INVENTORY_ITEM.STATUS,
+      isActive: [store::DB]MODEL_INVENTORY_ITEM.IS_ACTIVE,
+      riskScore: [store::DB]MODEL_INVENTORY_ITEM.RISK_SCORE
+   }
+
+   modelrisk::PricingModel[mdlPricingModel] extends [modelriskBase]: Relational
+   {
+      ~filter [store::DB]MdlPricingModelRows
+   }
+
+   modelrisk::RiskMeasurementModel[mdlRiskModel] extends [modelriskBase]: Relational
+   {
+      ~filter [store::DB]MdlRiskModelRows
+   }
+
+   modelrisk::RegulatoryCapitalModel[mdlCapitalModel] extends [modelriskBase]: Relational
+   {
+      ~filter [store::DB]MdlCapitalModelRows
+   }
+
+   modelrisk::CreditScorecard[mdlCreditScorecard] extends [modelriskBase]: Relational
+   {
+      ~filter [store::DB]MdlCreditScorecardRows
+   }
+
+   modelrisk::ExpectedCreditLossModel[mdlEclModel] extends [modelriskBase]: Relational
+   {
+      ~filter [store::DB]MdlEclModelRows
+   }
+
+   modelrisk::AmlDetectionModel[mdlAmlDetection] extends [modelriskBase]: Relational
+   {
+      ~filter [store::DB]MdlAmlDetectionRows
+   }
+
+   modelrisk::FraudDetectionModel[mdlFraudModel] extends [modelriskBase]: Relational
+   {
+      ~filter [store::DB]MdlFraudModelRows
+   }
+
+   modelrisk::ExecutionAlgorithm[mdlAlgoExecution] extends [modelriskBase]: Relational
+   {
+      ~filter [store::DB]MdlAlgoExecutionRows
+   }
+
+   modelrisk::MachineLearningModel[mdlMachineLearning] extends [modelriskBase]: Relational
+   {
+      ~filter [store::DB]MdlMachineLearningRows
+   }
+
+   modelrisk::VendorSuppliedModel[mdlVendorModel] extends [modelriskBase]: Relational
+   {
+      ~filter [store::DB]MdlVendorModelRows
+   }
+
+   modelrisk::DeprecatedModel[mdlDeprecatedModel] extends [modelriskBase]: Relational
+   {
+      ~filter [store::DB]MdlDeprecatedModelRows
+   }
+
+   modelrisk::TierOneMaterialModel[mdlTier1Material] extends [modelriskBase]: Relational
+   {
+      ~filter [store::DB]MdlTier1MaterialRows
+   }
+
+   modelrisk::TierThreeLowMaterialityModel[mdlTier3Low] extends [modelriskBase]: Relational
+   {
+      ~filter [store::DB]MdlTier3LowRows
+   }
+
+   modelrisk::ValidationFinding[mdlValidationFinding] extends [modelriskBase]: Relational
+   {
+      ~filter [store::DB]MdlValidationFindingRows
+   }
+
+   modelrisk::BenchmarkChallengerModel[mdlBenchmarkModel] extends [modelriskBase]: Relational
+   {
+      ~filter [store::DB]MdlBenchmarkModelRows
+   }
+
+   modelrisk::AcceptedModelLimitation[mdlModelLimitation] extends [modelriskBase]: Relational
+   {
+      ~filter [store::DB]MdlModelLimitationRows
+   }
+)

@@ -1,0 +1,211 @@
+###Pure
+// Where the balance sheet is funded from, and how quickly it can leave.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class fundingsources::FundingSource
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Sticky, insured, and cheap -- the funding everyone wants.
+Class fundingsources::RetailDeposit extends fundingsources::FundingSource
+{
+}
+
+// Larger, less sticky, and priced off the market.
+Class fundingsources::CorporateDeposit extends fundingsources::FundingSource
+{
+}
+
+// Held for clearing and custody, so it cannot leave without the business.
+Class fundingsources::OperationalDeposit extends fundingsources::FundingSource
+{
+}
+
+// The same client, the excess balance, and a 100% outflow assumption.
+Class fundingsources::NonOperationalDeposit extends fundingsources::FundingSource
+{
+}
+
+// Interbank and corporate paper, gone in a crisis.
+Class fundingsources::WholesaleUnsecuredFunding extends fundingsources::FundingSource
+{
+}
+
+// Cheaper because it is collateralised, and it still runs.
+Class fundingsources::SecuredRepoFunding extends fundingsources::FundingSource
+{
+}
+
+// Dual recourse -- to the issuer and to the cover pool.
+Class fundingsources::CoveredBondFunding extends fundingsources::FundingSource
+{
+}
+
+// Term funding, and the benchmark everything else prices off.
+Class fundingsources::SeniorUnsecuredIssue extends fundingsources::FundingSource
+{
+}
+
+// Under a year, rolled constantly, and the first thing to close.
+Class fundingsources::CommercialPaperProgramme extends fundingsources::FundingSource
+{
+}
+
+// Negotiable, so the holder can sell rather than withdraw.
+Class fundingsources::CertificateOfDeposit extends fundingsources::FundingSource
+{
+}
+
+// The backstop, and the one nobody wants to be seen using.
+Class fundingsources::CentralBankFacility extends fundingsources::FundingSource
+{
+}
+
+// From elsewhere in the group, and ring-fenced by regulators who assume it will not come.
+Class fundingsources::IntragroupFunding extends fundingsources::FundingSource
+{
+}
+
+// Funding raised against a pool rather than against the bank.
+Class fundingsources::SecuritisationFunding extends fundingsources::FundingSource
+{
+}
+
+// Term central bank funding conditional on lending.
+Class fundingsources::TargetedLongTermOperation extends fundingsources::FundingSource
+{
+}
+
+// The most expensive and the only one that cannot run.
+Class fundingsources::EquityFunding extends fundingsources::FundingSource
+{
+}
+
+// On the balance sheet since IFRS 16, and funding in every sense that matters.
+Class fundingsources::LeaseLiability extends fundingsources::FundingSource
+{
+}
+
+###Mapping
+Mapping fundingsources::FundingsourcesMapping
+(
+   *fundingsources::FundingSource[fundingsourcesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]FUNDING_SOURCE.RECORD_ID )
+      ~mainTable [store::DB]FUNDING_SOURCE
+      recordId: [store::DB]FUNDING_SOURCE.RECORD_ID,
+      recordType: [store::DB]FUNDING_SOURCE.RECORD_TYPE,
+      bookId: [store::DB]FUNDING_SOURCE.BOOK_ID,
+      notional: [store::DB]FUNDING_SOURCE.NOTIONAL,
+      currency: [store::DB]FUNDING_SOURCE.CURRENCY,
+      tradeDate: [store::DB]FUNDING_SOURCE.TRADE_DATE,
+      maturityDate: [store::DB]FUNDING_SOURCE.MATURITY_DATE,
+      status: [store::DB]FUNDING_SOURCE.STATUS,
+      isActive: [store::DB]FUNDING_SOURCE.IS_ACTIVE,
+      riskScore: [store::DB]FUNDING_SOURCE.RISK_SCORE
+   }
+
+   fundingsources::RetailDeposit[funRetailDeposit] extends [fundingsourcesBase]: Relational
+   {
+      ~filter [store::DB]FunRetailDepositRows
+   }
+
+   fundingsources::CorporateDeposit[funCorporateDeposit] extends [fundingsourcesBase]: Relational
+   {
+      ~filter [store::DB]FunCorporateDepositRows
+   }
+
+   fundingsources::OperationalDeposit[funOperationalDeposit] extends [fundingsourcesBase]: Relational
+   {
+      ~filter [store::DB]FunOperationalDepositRows
+   }
+
+   fundingsources::NonOperationalDeposit[funNonOperational] extends [fundingsourcesBase]: Relational
+   {
+      ~filter [store::DB]FunNonOperationalRows
+   }
+
+   fundingsources::WholesaleUnsecuredFunding[funWholesaleUnsecured] extends [fundingsourcesBase]: Relational
+   {
+      ~filter [store::DB]FunWholesaleUnsecuredRows
+   }
+
+   fundingsources::SecuredRepoFunding[funSecuredRepoFunding] extends [fundingsourcesBase]: Relational
+   {
+      ~filter [store::DB]FunSecuredRepoFundingRows
+   }
+
+   fundingsources::CoveredBondFunding[funCoveredBond] extends [fundingsourcesBase]: Relational
+   {
+      ~filter [store::DB]FunCoveredBondRows
+   }
+
+   fundingsources::SeniorUnsecuredIssue[funSeniorUnsecuredIssue] extends [fundingsourcesBase]: Relational
+   {
+      ~filter [store::DB]FunSeniorUnsecuredIssueRows
+   }
+
+   fundingsources::CommercialPaperProgramme[funCommercialPaper] extends [fundingsourcesBase]: Relational
+   {
+      ~filter [store::DB]FunCommercialPaperRows
+   }
+
+   fundingsources::CertificateOfDeposit[funCertificateOfDeposit] extends [fundingsourcesBase]: Relational
+   {
+      ~filter [store::DB]FunCertificateOfDepositRows
+   }
+
+   fundingsources::CentralBankFacility[funCentralBankFacility] extends [fundingsourcesBase]: Relational
+   {
+      ~filter [store::DB]FunCentralBankFacilityRows
+   }
+
+   fundingsources::IntragroupFunding[funIntragroupFunding] extends [fundingsourcesBase]: Relational
+   {
+      ~filter [store::DB]FunIntragroupFundingRows
+   }
+
+   fundingsources::SecuritisationFunding[funSecuritisationFunding] extends [fundingsourcesBase]: Relational
+   {
+      ~filter [store::DB]FunSecuritisationFundingRows
+   }
+
+   fundingsources::TargetedLongTermOperation[funTltro] extends [fundingsourcesBase]: Relational
+   {
+      ~filter [store::DB]FunTltroRows
+   }
+
+   fundingsources::EquityFunding[funEquityFunding] extends [fundingsourcesBase]: Relational
+   {
+      ~filter [store::DB]FunEquityFundingRows
+   }
+
+   fundingsources::LeaseLiability[funLeaseLiability] extends [fundingsourcesBase]: Relational
+   {
+      ~filter [store::DB]FunLeaseLiabilityRows
+   }
+)

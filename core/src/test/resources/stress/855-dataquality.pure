@@ -1,0 +1,211 @@
+###Pure
+// Data quality rules: what is checked, and what a break means.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class dataquality::DataQualityRule
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The field is populated at all.
+Class dataquality::CompletenessRule extends dataquality::DataQualityRule
+{
+}
+
+// It matches the pattern an ISIN or an LEI has to match.
+Class dataquality::FormatValidityRule extends dataquality::DataQualityRule
+{
+}
+
+// The value is one of the ones the field allows.
+Class dataquality::DomainValidityRule extends dataquality::DataQualityRule
+{
+}
+
+// No duplicate keys, which is checked because it happens.
+Class dataquality::UniquenessRule extends dataquality::DataQualityRule
+{
+}
+
+// The foreign key points at a row that exists.
+Class dataquality::ReferentialIntegrityRule extends dataquality::DataQualityRule
+{
+}
+
+// It arrived before the cut-off.
+Class dataquality::TimelinessRule extends dataquality::DataQualityRule
+{
+}
+
+// Maturity after issue, quantity and price consistent with notional.
+Class dataquality::CrossFieldConsistencyRule extends dataquality::DataQualityRule
+{
+}
+
+// The same fact agrees in two places.
+Class dataquality::CrossSystemConsistencyRule extends dataquality::DataQualityRule
+{
+}
+
+// The totals agree with an independent source.
+Class dataquality::ReconciliationRule extends dataquality::DataQualityRule
+{
+}
+
+// Agrees, but not closely enough.
+Class dataquality::ToleranceBreachRule extends dataquality::DataQualityRule
+{
+}
+
+// The value has not changed for longer than it should not have.
+Class dataquality::StalenessRule extends dataquality::DataQualityRule
+{
+}
+
+// Far enough from the distribution to be worth a look.
+Class dataquality::StatisticalOutlierRule extends dataquality::DataQualityRule
+{
+}
+
+// Technically valid and obviously wrong.
+Class dataquality::PlausibilityRule extends dataquality::DataQualityRule
+{
+}
+
+// Nobody can say where the value came from.
+Class dataquality::LineageGapRule extends dataquality::DataQualityRule
+{
+}
+
+// A field the regulator has named, so the bar is higher.
+Class dataquality::CriticalDataElementRule extends dataquality::DataQualityRule
+{
+}
+
+// Turned off, with an owner and an expiry, which is how they accumulate.
+Class dataquality::SuppressedRule extends dataquality::DataQualityRule
+{
+}
+
+###Mapping
+Mapping dataquality::DataqualityMapping
+(
+   *dataquality::DataQualityRule[dataqualityBase]: Relational
+   {
+      ~primaryKey ( [store::DB]DATA_QUALITY_RULE.RECORD_ID )
+      ~mainTable [store::DB]DATA_QUALITY_RULE
+      recordId: [store::DB]DATA_QUALITY_RULE.RECORD_ID,
+      recordType: [store::DB]DATA_QUALITY_RULE.RECORD_TYPE,
+      bookId: [store::DB]DATA_QUALITY_RULE.BOOK_ID,
+      notional: [store::DB]DATA_QUALITY_RULE.NOTIONAL,
+      currency: [store::DB]DATA_QUALITY_RULE.CURRENCY,
+      tradeDate: [store::DB]DATA_QUALITY_RULE.TRADE_DATE,
+      maturityDate: [store::DB]DATA_QUALITY_RULE.MATURITY_DATE,
+      status: [store::DB]DATA_QUALITY_RULE.STATUS,
+      isActive: [store::DB]DATA_QUALITY_RULE.IS_ACTIVE,
+      riskScore: [store::DB]DATA_QUALITY_RULE.RISK_SCORE
+   }
+
+   dataquality::CompletenessRule[dqrCompleteness] extends [dataqualityBase]: Relational
+   {
+      ~filter [store::DB]DqrCompletenessRows
+   }
+
+   dataquality::FormatValidityRule[dqrValidityFormat] extends [dataqualityBase]: Relational
+   {
+      ~filter [store::DB]DqrValidityFormatRows
+   }
+
+   dataquality::DomainValidityRule[dqrValidityDomain] extends [dataqualityBase]: Relational
+   {
+      ~filter [store::DB]DqrValidityDomainRows
+   }
+
+   dataquality::UniquenessRule[dqrUniqueness] extends [dataqualityBase]: Relational
+   {
+      ~filter [store::DB]DqrUniquenessRows
+   }
+
+   dataquality::ReferentialIntegrityRule[dqrReferential] extends [dataqualityBase]: Relational
+   {
+      ~filter [store::DB]DqrReferentialRows
+   }
+
+   dataquality::TimelinessRule[dqrTimeliness] extends [dataqualityBase]: Relational
+   {
+      ~filter [store::DB]DqrTimelinessRows
+   }
+
+   dataquality::CrossFieldConsistencyRule[dqrConsistencyCross] extends [dataqualityBase]: Relational
+   {
+      ~filter [store::DB]DqrConsistencyCrossRows
+   }
+
+   dataquality::CrossSystemConsistencyRule[dqrConsistencySystem] extends [dataqualityBase]: Relational
+   {
+      ~filter [store::DB]DqrConsistencySystemRows
+   }
+
+   dataquality::ReconciliationRule[dqrReconciliationRule] extends [dataqualityBase]: Relational
+   {
+      ~filter [store::DB]DqrReconciliationRuleRows
+   }
+
+   dataquality::ToleranceBreachRule[dqrToleranceBreach] extends [dataqualityBase]: Relational
+   {
+      ~filter [store::DB]DqrToleranceBreachRows
+   }
+
+   dataquality::StalenessRule[dqrStaleness] extends [dataqualityBase]: Relational
+   {
+      ~filter [store::DB]DqrStalenessRows
+   }
+
+   dataquality::StatisticalOutlierRule[dqrOutlierStatistical] extends [dataqualityBase]: Relational
+   {
+      ~filter [store::DB]DqrOutlierStatisticalRows
+   }
+
+   dataquality::PlausibilityRule[dqrBusinessPlausibility] extends [dataqualityBase]: Relational
+   {
+      ~filter [store::DB]DqrBusinessPlausibilityRows
+   }
+
+   dataquality::LineageGapRule[dqrLineageMissing] extends [dataqualityBase]: Relational
+   {
+      ~filter [store::DB]DqrLineageMissingRows
+   }
+
+   dataquality::CriticalDataElementRule[dqrCriticalDataElement] extends [dataqualityBase]: Relational
+   {
+      ~filter [store::DB]DqrCriticalDataElementRows
+   }
+
+   dataquality::SuppressedRule[dqrRuleSuppressed] extends [dataqualityBase]: Relational
+   {
+      ~filter [store::DB]DqrRuleSuppressedRows
+   }
+)

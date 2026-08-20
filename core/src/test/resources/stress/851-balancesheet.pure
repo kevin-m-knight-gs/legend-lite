@@ -1,0 +1,211 @@
+###Pure
+// Balance sheet lines, and which regime each is measured under.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class balancesheet::BalanceSheetItem
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Held to collect, so impairment rather than fair value.
+Class balancesheet::LoansAtAmortisedCost extends balancesheet::BalanceSheetItem
+{
+}
+
+// Held to collect and sell, so both.
+Class balancesheet::LoansAtFvoci extends balancesheet::BalanceSheetItem
+{
+}
+
+// Fair value through profit and loss, marked daily.
+Class balancesheet::TradingAssets extends balancesheet::BalanceSheetItem
+{
+}
+
+// Positive replacement cost, before any netting.
+Class balancesheet::DerivativeAsset extends balancesheet::BalanceSheetItem
+{
+}
+
+// The same trades from the other side of zero.
+Class balancesheet::DerivativeLiability extends balancesheet::BalanceSheetItem
+{
+}
+
+// Cash lent against collateral, and rarely as safe as it looks.
+Class balancesheet::ReverseRepoAsset extends balancesheet::BalanceSheetItem
+{
+}
+
+// No haircut, no cap, and the core of the liquidity buffer.
+Class balancesheet::HighQualityLiquidAssetLevel1 extends balancesheet::BalanceSheetItem
+{
+}
+
+// Fifteen percent haircut and a cap on how much counts.
+Class balancesheet::HighQualityLiquidAssetLevel2a extends balancesheet::BalanceSheetItem
+{
+}
+
+// Deducted from capital in full, whatever the accounts say.
+Class balancesheet::GoodwillAsset extends balancesheet::BalanceSheetItem
+{
+}
+
+// An asset in the accounts and a deduction in the capital.
+Class balancesheet::CapitalisedSoftware extends balancesheet::BalanceSheetItem
+{
+}
+
+// Worth something only if there are future profits to use it against.
+Class balancesheet::DeferredTaxAsset extends balancesheet::BalanceSheetItem
+{
+}
+
+// The lease, capitalised.
+Class balancesheet::RightOfUseAsset extends balancesheet::BalanceSheetItem
+{
+}
+
+// The largest line on most retail balance sheets.
+Class balancesheet::CustomerDepositLiability extends balancesheet::BalanceSheetItem
+{
+}
+
+// An estimate of what has not been settled yet.
+Class balancesheet::LitigationProvision extends balancesheet::BalanceSheetItem
+{
+}
+
+// An asset the bank may not be able to access.
+Class balancesheet::PensionSchemeSurplus extends balancesheet::BalanceSheetItem
+{
+}
+
+// Somebody else's share of a subsidiary.
+Class balancesheet::NonControllingInterest extends balancesheet::BalanceSheetItem
+{
+}
+
+###Mapping
+Mapping balancesheet::BalancesheetMapping
+(
+   *balancesheet::BalanceSheetItem[balancesheetBase]: Relational
+   {
+      ~primaryKey ( [store::DB]BALANCE_SHEET_ITEM.RECORD_ID )
+      ~mainTable [store::DB]BALANCE_SHEET_ITEM
+      recordId: [store::DB]BALANCE_SHEET_ITEM.RECORD_ID,
+      recordType: [store::DB]BALANCE_SHEET_ITEM.RECORD_TYPE,
+      bookId: [store::DB]BALANCE_SHEET_ITEM.BOOK_ID,
+      notional: [store::DB]BALANCE_SHEET_ITEM.NOTIONAL,
+      currency: [store::DB]BALANCE_SHEET_ITEM.CURRENCY,
+      tradeDate: [store::DB]BALANCE_SHEET_ITEM.TRADE_DATE,
+      maturityDate: [store::DB]BALANCE_SHEET_ITEM.MATURITY_DATE,
+      status: [store::DB]BALANCE_SHEET_ITEM.STATUS,
+      isActive: [store::DB]BALANCE_SHEET_ITEM.IS_ACTIVE,
+      riskScore: [store::DB]BALANCE_SHEET_ITEM.RISK_SCORE
+   }
+
+   balancesheet::LoansAtAmortisedCost[bsiLoansAmortised] extends [balancesheetBase]: Relational
+   {
+      ~filter [store::DB]BsiLoansAmortisedRows
+   }
+
+   balancesheet::LoansAtFvoci[bsiLoansFvoci] extends [balancesheetBase]: Relational
+   {
+      ~filter [store::DB]BsiLoansFvociRows
+   }
+
+   balancesheet::TradingAssets[bsiTradingAssets] extends [balancesheetBase]: Relational
+   {
+      ~filter [store::DB]BsiTradingAssetsRows
+   }
+
+   balancesheet::DerivativeAsset[bsiDerivativeAsset] extends [balancesheetBase]: Relational
+   {
+      ~filter [store::DB]BsiDerivativeAssetRows
+   }
+
+   balancesheet::DerivativeLiability[bsiDerivativeLiability] extends [balancesheetBase]: Relational
+   {
+      ~filter [store::DB]BsiDerivativeLiabilityRows
+   }
+
+   balancesheet::ReverseRepoAsset[bsiReverseRepoAsset] extends [balancesheetBase]: Relational
+   {
+      ~filter [store::DB]BsiReverseRepoAssetRows
+   }
+
+   balancesheet::HighQualityLiquidAssetLevel1[bsiHqlaLevel1] extends [balancesheetBase]: Relational
+   {
+      ~filter [store::DB]BsiHqlaLevel1Rows
+   }
+
+   balancesheet::HighQualityLiquidAssetLevel2a[bsiHqlaLevel2a] extends [balancesheetBase]: Relational
+   {
+      ~filter [store::DB]BsiHqlaLevel2aRows
+   }
+
+   balancesheet::GoodwillAsset[bsiGoodwillAsset] extends [balancesheetBase]: Relational
+   {
+      ~filter [store::DB]BsiGoodwillAssetRows
+   }
+
+   balancesheet::CapitalisedSoftware[bsiIntangibleSoftware] extends [balancesheetBase]: Relational
+   {
+      ~filter [store::DB]BsiIntangibleSoftwareRows
+   }
+
+   balancesheet::DeferredTaxAsset[bsiDeferredTaxAsset] extends [balancesheetBase]: Relational
+   {
+      ~filter [store::DB]BsiDeferredTaxAssetRows
+   }
+
+   balancesheet::RightOfUseAsset[bsiRightOfUse] extends [balancesheetBase]: Relational
+   {
+      ~filter [store::DB]BsiRightOfUseRows
+   }
+
+   balancesheet::CustomerDepositLiability[bsiCustomerDepositLiab] extends [balancesheetBase]: Relational
+   {
+      ~filter [store::DB]BsiCustomerDepositLiabRows
+   }
+
+   balancesheet::LitigationProvision[bsiProvisionLitigation] extends [balancesheetBase]: Relational
+   {
+      ~filter [store::DB]BsiProvisionLitigationRows
+   }
+
+   balancesheet::PensionSchemeSurplus[bsiPensionSurplus] extends [balancesheetBase]: Relational
+   {
+      ~filter [store::DB]BsiPensionSurplusRows
+   }
+
+   balancesheet::NonControllingInterest[bsiNonControlling] extends [balancesheetBase]: Relational
+   {
+      ~filter [store::DB]BsiNonControllingRows
+   }
+)

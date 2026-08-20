@@ -1,0 +1,211 @@
+###Pure
+// Regulated roles, and what each one is personally accountable for.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class employeeroles::EmployeeRole
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Named, approved, and personally accountable under the regime.
+Class employeeroles::SeniorManagerChair extends employeeroles::EmployeeRole
+{
+}
+
+// The same, for everything the firm does.
+Class employeeroles::SeniorManagerChiefExecutive extends employeeroles::EmployeeRole
+{
+}
+
+// Accountable for the risk framework rather than for the risks.
+Class employeeroles::SeniorManagerChiefRiskOfficer extends employeeroles::EmployeeRole
+{
+}
+
+// Accountable for the compliance function.
+Class employeeroles::SeniorManagerCompliance extends employeeroles::EmployeeRole
+{
+}
+
+// The named person who files the report.
+Class employeeroles::MoneyLaunderingReportingOfficer extends employeeroles::EmployeeRole
+{
+}
+
+// Not approved by the regulator, and certified annually by the firm.
+Class employeeroles::CertifiedTrader extends employeeroles::EmployeeRole
+{
+}
+
+// Certified because the algorithm can move a market.
+Class employeeroles::CertifiedAlgorithmDeveloper extends employeeroles::EmployeeRole
+{
+}
+
+// Identified for remuneration purposes, with deferral and clawback.
+Class employeeroles::MaterialRiskTaker extends employeeroles::EmployeeRole
+{
+}
+
+// Independent of the business they oversee, and paid independently.
+Class employeeroles::ControlFunctionStaff extends employeeroles::EmployeeRole
+{
+}
+
+// Under the old regime, and still on some records.
+Class employeeroles::LegacyApprovedPerson extends employeeroles::EmployeeRole
+{
+}
+
+// Challenge without management responsibility.
+Class employeeroles::NonExecutiveDirector extends employeeroles::EmployeeRole
+{
+}
+
+// Almost everyone, subject to the individual conduct rules.
+Class employeeroles::ConductRulesStaff extends employeeroles::EmployeeRole
+{
+}
+
+// Performed by a third party, and still the firm's responsibility.
+Class employeeroles::OutsourcedFunctionRole extends employeeroles::EmployeeRole
+{
+}
+
+// Employed by one entity and working for another.
+Class employeeroles::IntragroupSecondee extends employeeroles::EmployeeRole
+{
+}
+
+// Not an employee, and inside the perimeter anyway.
+Class employeeroles::ContractorRole extends employeeroles::EmployeeRole
+{
+}
+
+// Access still live, notice served -- the highest-risk category in the list.
+Class employeeroles::PendingLeaver extends employeeroles::EmployeeRole
+{
+}
+
+###Mapping
+Mapping employeeroles::EmployeerolesMapping
+(
+   *employeeroles::EmployeeRole[employeerolesBase]: Relational
+   {
+      ~primaryKey ( [store::DB]EMPLOYEE_ROLE.RECORD_ID )
+      ~mainTable [store::DB]EMPLOYEE_ROLE
+      recordId: [store::DB]EMPLOYEE_ROLE.RECORD_ID,
+      recordType: [store::DB]EMPLOYEE_ROLE.RECORD_TYPE,
+      bookId: [store::DB]EMPLOYEE_ROLE.BOOK_ID,
+      notional: [store::DB]EMPLOYEE_ROLE.NOTIONAL,
+      currency: [store::DB]EMPLOYEE_ROLE.CURRENCY,
+      tradeDate: [store::DB]EMPLOYEE_ROLE.TRADE_DATE,
+      maturityDate: [store::DB]EMPLOYEE_ROLE.MATURITY_DATE,
+      status: [store::DB]EMPLOYEE_ROLE.STATUS,
+      isActive: [store::DB]EMPLOYEE_ROLE.IS_ACTIVE,
+      riskScore: [store::DB]EMPLOYEE_ROLE.RISK_SCORE
+   }
+
+   employeeroles::SeniorManagerChair[empSmfChair] extends [employeerolesBase]: Relational
+   {
+      ~filter [store::DB]EmpSmfChairRows
+   }
+
+   employeeroles::SeniorManagerChiefExecutive[empSmfCeo] extends [employeerolesBase]: Relational
+   {
+      ~filter [store::DB]EmpSmfCeoRows
+   }
+
+   employeeroles::SeniorManagerChiefRiskOfficer[empSmfCro] extends [employeerolesBase]: Relational
+   {
+      ~filter [store::DB]EmpSmfCroRows
+   }
+
+   employeeroles::SeniorManagerCompliance[empSmfCompliance] extends [employeerolesBase]: Relational
+   {
+      ~filter [store::DB]EmpSmfComplianceRows
+   }
+
+   employeeroles::MoneyLaunderingReportingOfficer[empSmfMlro] extends [employeerolesBase]: Relational
+   {
+      ~filter [store::DB]EmpSmfMlroRows
+   }
+
+   employeeroles::CertifiedTrader[empCertifiedTrader] extends [employeerolesBase]: Relational
+   {
+      ~filter [store::DB]EmpCertifiedTraderRows
+   }
+
+   employeeroles::CertifiedAlgorithmDeveloper[empCertifiedAlgoDev] extends [employeerolesBase]: Relational
+   {
+      ~filter [store::DB]EmpCertifiedAlgoDevRows
+   }
+
+   employeeroles::MaterialRiskTaker[empMaterialRiskTaker] extends [employeerolesBase]: Relational
+   {
+      ~filter [store::DB]EmpMaterialRiskTakerRows
+   }
+
+   employeeroles::ControlFunctionStaff[empControlFunction] extends [employeerolesBase]: Relational
+   {
+      ~filter [store::DB]EmpControlFunctionRows
+   }
+
+   employeeroles::LegacyApprovedPerson[empApprovedPersonLegacy] extends [employeerolesBase]: Relational
+   {
+      ~filter [store::DB]EmpApprovedPersonLegacyRows
+   }
+
+   employeeroles::NonExecutiveDirector[empNonExecutive] extends [employeerolesBase]: Relational
+   {
+      ~filter [store::DB]EmpNonExecutiveRows
+   }
+
+   employeeroles::ConductRulesStaff[empConductRulesOnly] extends [employeerolesBase]: Relational
+   {
+      ~filter [store::DB]EmpConductRulesOnlyRows
+   }
+
+   employeeroles::OutsourcedFunctionRole[empOutsourcedRole] extends [employeerolesBase]: Relational
+   {
+      ~filter [store::DB]EmpOutsourcedRoleRows
+   }
+
+   employeeroles::IntragroupSecondee[empSecondee] extends [employeerolesBase]: Relational
+   {
+      ~filter [store::DB]EmpSecondeeRows
+   }
+
+   employeeroles::ContractorRole[empContractor] extends [employeerolesBase]: Relational
+   {
+      ~filter [store::DB]EmpContractorRows
+   }
+
+   employeeroles::PendingLeaver[empLeaverPending] extends [employeerolesBase]: Relational
+   {
+      ~filter [store::DB]EmpLeaverPendingRows
+   }
+)

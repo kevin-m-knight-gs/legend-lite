@@ -1,0 +1,211 @@
+###Pure
+// Hedge accounting: the designations, and what breaks them.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class hedgeaccounting::HedgeRelationship
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Both sides through profit and loss, so the volatility offsets.
+Class hedgeaccounting::FairValueHedge extends hedgeaccounting::HedgeRelationship
+{
+}
+
+// The effective part sits in reserves until the flow happens.
+Class hedgeaccounting::CashFlowHedge extends hedgeaccounting::HedgeRelationship
+{
+}
+
+// Hedging a foreign subsidiary's translation exposure.
+Class hedgeaccounting::NetInvestmentHedge extends hedgeaccounting::HedgeRelationship
+{
+}
+
+// A macro hedge of interest rate risk, on a portfolio basis.
+Class hedgeaccounting::PortfolioFairValueHedge extends hedgeaccounting::HedgeRelationship
+{
+}
+
+// The model banks actually run, which the standard is still catching up with.
+Class hedgeaccounting::DynamicRiskManagementHedge extends hedgeaccounting::HedgeRelationship
+{
+}
+
+// Expected to offset, tested before the fact.
+Class hedgeaccounting::ProspectiveEffectivenessTest extends hedgeaccounting::HedgeRelationship
+{
+}
+
+// Did offset, tested after.
+Class hedgeaccounting::RetrospectiveEffectivenessTest extends hedgeaccounting::HedgeRelationship
+{
+}
+
+// The part that did not offset, straight to profit and loss.
+Class hedgeaccounting::HedgeIneffectiveness extends hedgeaccounting::HedgeRelationship
+{
+}
+
+// Adjusting the ratio without discontinuing the relationship.
+Class hedgeaccounting::HedgeRebalancing extends hedgeaccounting::HedgeRelationship
+{
+}
+
+// No longer wanted, and not always permitted.
+Class hedgeaccounting::VoluntaryDiscontinuation extends hedgeaccounting::HedgeRelationship
+{
+}
+
+// The criteria stopped being met.
+Class hedgeaccounting::ForcedDiscontinuation extends hedgeaccounting::HedgeRelationship
+{
+}
+
+// The hedged flow will not happen, so the reserve recycles immediately.
+Class hedgeaccounting::ForecastNoLongerExpected extends hedgeaccounting::HedgeRelationship
+{
+}
+
+// The reserve folded into the carrying amount of the hedged item.
+Class hedgeaccounting::BasisAdjustment extends hedgeaccounting::HedgeRelationship
+{
+}
+
+// The forward points and the cross-currency basis, held separately.
+Class hedgeaccounting::CostOfHedgingReserve extends hedgeaccounting::HedgeRelationship
+{
+}
+
+// A derivative and a non-derivative designated together.
+Class hedgeaccounting::AggregatedExposureHedge extends hedgeaccounting::HedgeRelationship
+{
+}
+
+// A commodity contract for actual delivery, and outside the standard entirely.
+Class hedgeaccounting::OwnUseContract extends hedgeaccounting::HedgeRelationship
+{
+}
+
+###Mapping
+Mapping hedgeaccounting::HedgeaccountingMapping
+(
+   *hedgeaccounting::HedgeRelationship[hedgeaccountingBase]: Relational
+   {
+      ~primaryKey ( [store::DB]HEDGE_RELATIONSHIP.RECORD_ID )
+      ~mainTable [store::DB]HEDGE_RELATIONSHIP
+      recordId: [store::DB]HEDGE_RELATIONSHIP.RECORD_ID,
+      recordType: [store::DB]HEDGE_RELATIONSHIP.RECORD_TYPE,
+      bookId: [store::DB]HEDGE_RELATIONSHIP.BOOK_ID,
+      notional: [store::DB]HEDGE_RELATIONSHIP.NOTIONAL,
+      currency: [store::DB]HEDGE_RELATIONSHIP.CURRENCY,
+      tradeDate: [store::DB]HEDGE_RELATIONSHIP.TRADE_DATE,
+      maturityDate: [store::DB]HEDGE_RELATIONSHIP.MATURITY_DATE,
+      status: [store::DB]HEDGE_RELATIONSHIP.STATUS,
+      isActive: [store::DB]HEDGE_RELATIONSHIP.IS_ACTIVE,
+      riskScore: [store::DB]HEDGE_RELATIONSHIP.RISK_SCORE
+   }
+
+   hedgeaccounting::FairValueHedge[hdgFairValueHedge] extends [hedgeaccountingBase]: Relational
+   {
+      ~filter [store::DB]HdgFairValueHedgeRows
+   }
+
+   hedgeaccounting::CashFlowHedge[hdgCashFlowHedge] extends [hedgeaccountingBase]: Relational
+   {
+      ~filter [store::DB]HdgCashFlowHedgeRows
+   }
+
+   hedgeaccounting::NetInvestmentHedge[hdgNetInvestmentHedge] extends [hedgeaccountingBase]: Relational
+   {
+      ~filter [store::DB]HdgNetInvestmentHedgeRows
+   }
+
+   hedgeaccounting::PortfolioFairValueHedge[hdgPortfolioFairValue] extends [hedgeaccountingBase]: Relational
+   {
+      ~filter [store::DB]HdgPortfolioFairValueRows
+   }
+
+   hedgeaccounting::DynamicRiskManagementHedge[hdgDynamicRiskManagement] extends [hedgeaccountingBase]: Relational
+   {
+      ~filter [store::DB]HdgDynamicRiskManagementRows
+   }
+
+   hedgeaccounting::ProspectiveEffectivenessTest[hdgEffectivenessProspective] extends [hedgeaccountingBase]: Relational
+   {
+      ~filter [store::DB]HdgEffectivenessProspectiveRows
+   }
+
+   hedgeaccounting::RetrospectiveEffectivenessTest[hdgEffectivenessRetrospective] extends [hedgeaccountingBase]: Relational
+   {
+      ~filter [store::DB]HdgEffectivenessRetrospectiveRows
+   }
+
+   hedgeaccounting::HedgeIneffectiveness[hdgIneffectiveness] extends [hedgeaccountingBase]: Relational
+   {
+      ~filter [store::DB]HdgIneffectivenessRows
+   }
+
+   hedgeaccounting::HedgeRebalancing[hdgRebalancing] extends [hedgeaccountingBase]: Relational
+   {
+      ~filter [store::DB]HdgRebalancingRows
+   }
+
+   hedgeaccounting::VoluntaryDiscontinuation[hdgDiscontinuationVoluntary] extends [hedgeaccountingBase]: Relational
+   {
+      ~filter [store::DB]HdgDiscontinuationVoluntaryRows
+   }
+
+   hedgeaccounting::ForcedDiscontinuation[hdgDiscontinuationForced] extends [hedgeaccountingBase]: Relational
+   {
+      ~filter [store::DB]HdgDiscontinuationForcedRows
+   }
+
+   hedgeaccounting::ForecastNoLongerExpected[hdgForecastNoLonger] extends [hedgeaccountingBase]: Relational
+   {
+      ~filter [store::DB]HdgForecastNoLongerRows
+   }
+
+   hedgeaccounting::BasisAdjustment[hdgBasisAdjustment] extends [hedgeaccountingBase]: Relational
+   {
+      ~filter [store::DB]HdgBasisAdjustmentRows
+   }
+
+   hedgeaccounting::CostOfHedgingReserve[hdgCostOfHedging] extends [hedgeaccountingBase]: Relational
+   {
+      ~filter [store::DB]HdgCostOfHedgingRows
+   }
+
+   hedgeaccounting::AggregatedExposureHedge[hdgAggregatedExposure] extends [hedgeaccountingBase]: Relational
+   {
+      ~filter [store::DB]HdgAggregatedExposureRows
+   }
+
+   hedgeaccounting::OwnUseContract[hdgOwnUseExemption] extends [hedgeaccountingBase]: Relational
+   {
+      ~filter [store::DB]HdgOwnUseExemptionRows
+   }
+)

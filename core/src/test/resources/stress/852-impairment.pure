@@ -1,0 +1,211 @@
+###Pure
+// Expected credit loss: which stage a facility is in, and what that costs.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class impairment::ImpairmentStage
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Performing, so twelve months of expected loss.
+Class impairment::StageOneTwelveMonth extends impairment::ImpairmentStage
+{
+}
+
+// Significantly deteriorated, so lifetime loss and a large step up.
+Class impairment::StageTwoLifetime extends impairment::ImpairmentStage
+{
+}
+
+// Defaulted, with interest recognised on the net carrying amount.
+Class impairment::StageThreeCreditImpaired extends impairment::ImpairmentStage
+{
+}
+
+// Impaired when bought, so it never enters stage one.
+Class impairment::PurchasedCreditImpaired extends impairment::ImpairmentStage
+{
+}
+
+// The rating moved enough to force stage two.
+Class impairment::QuantitativeSicrTrigger extends impairment::ImpairmentStage
+{
+}
+
+// A watch-list flag did the same thing without a rating change.
+Class impairment::QualitativeSicrTrigger extends impairment::ImpairmentStage
+{
+}
+
+// Thirty days past due, which forces stage two whatever the model says.
+Class impairment::ThirtyDayBackstop extends impairment::ImpairmentStage
+{
+}
+
+// Ninety days, and the presumption of default.
+Class impairment::NinetyDayBackstop extends impairment::ImpairmentStage
+{
+}
+
+// Terms changed because the borrower could not meet the old ones.
+Class impairment::ForborneExposure extends impairment::ImpairmentStage
+{
+}
+
+// Back to performing, after a probation period nobody enjoys.
+Class impairment::CuredExposure extends impairment::ImpairmentStage
+{
+}
+
+// Some of it accepted as unrecoverable.
+Class impairment::PartialWriteOff extends impairment::ImpairmentStage
+{
+}
+
+// All of it, though the legal claim usually survives.
+Class impairment::FullWriteOff extends impairment::ImpairmentStage
+{
+}
+
+// The overlay applied when the model plainly does not fit the world.
+Class impairment::PostModelAdjustment extends impairment::ImpairmentStage
+{
+}
+
+// Probability-weighted across macro scenarios, as the standard requires.
+Class impairment::ScenarioWeightedEcl extends impairment::ImpairmentStage
+{
+}
+
+// Loss measured off the collateral rather than off the cash flows.
+Class impairment::CollateralDependentExposure extends impairment::ImpairmentStage
+{
+}
+
+// A judgement, documented, and the first thing an auditor reads.
+Class impairment::ManagementOverlay extends impairment::ImpairmentStage
+{
+}
+
+###Mapping
+Mapping impairment::ImpairmentMapping
+(
+   *impairment::ImpairmentStage[impairmentBase]: Relational
+   {
+      ~primaryKey ( [store::DB]IMPAIRMENT_STAGE.RECORD_ID )
+      ~mainTable [store::DB]IMPAIRMENT_STAGE
+      recordId: [store::DB]IMPAIRMENT_STAGE.RECORD_ID,
+      recordType: [store::DB]IMPAIRMENT_STAGE.RECORD_TYPE,
+      bookId: [store::DB]IMPAIRMENT_STAGE.BOOK_ID,
+      notional: [store::DB]IMPAIRMENT_STAGE.NOTIONAL,
+      currency: [store::DB]IMPAIRMENT_STAGE.CURRENCY,
+      tradeDate: [store::DB]IMPAIRMENT_STAGE.TRADE_DATE,
+      maturityDate: [store::DB]IMPAIRMENT_STAGE.MATURITY_DATE,
+      status: [store::DB]IMPAIRMENT_STAGE.STATUS,
+      isActive: [store::DB]IMPAIRMENT_STAGE.IS_ACTIVE,
+      riskScore: [store::DB]IMPAIRMENT_STAGE.RISK_SCORE
+   }
+
+   impairment::StageOneTwelveMonth[impStage112m] extends [impairmentBase]: Relational
+   {
+      ~filter [store::DB]ImpStage112mRows
+   }
+
+   impairment::StageTwoLifetime[impStage2Lifetime] extends [impairmentBase]: Relational
+   {
+      ~filter [store::DB]ImpStage2LifetimeRows
+   }
+
+   impairment::StageThreeCreditImpaired[impStage3CreditImpaired] extends [impairmentBase]: Relational
+   {
+      ~filter [store::DB]ImpStage3CreditImpairedRows
+   }
+
+   impairment::PurchasedCreditImpaired[impPoci] extends [impairmentBase]: Relational
+   {
+      ~filter [store::DB]ImpPociRows
+   }
+
+   impairment::QuantitativeSicrTrigger[impSicrQuantitative] extends [impairmentBase]: Relational
+   {
+      ~filter [store::DB]ImpSicrQuantitativeRows
+   }
+
+   impairment::QualitativeSicrTrigger[impSicrQualitative] extends [impairmentBase]: Relational
+   {
+      ~filter [store::DB]ImpSicrQualitativeRows
+   }
+
+   impairment::ThirtyDayBackstop[impBackstop30dpd] extends [impairmentBase]: Relational
+   {
+      ~filter [store::DB]ImpBackstop30dpdRows
+   }
+
+   impairment::NinetyDayBackstop[impBackstop90dpd] extends [impairmentBase]: Relational
+   {
+      ~filter [store::DB]ImpBackstop90dpdRows
+   }
+
+   impairment::ForborneExposure[impForbearance] extends [impairmentBase]: Relational
+   {
+      ~filter [store::DB]ImpForbearanceRows
+   }
+
+   impairment::CuredExposure[impCuredExposure] extends [impairmentBase]: Relational
+   {
+      ~filter [store::DB]ImpCuredExposureRows
+   }
+
+   impairment::PartialWriteOff[impWriteOffPartial] extends [impairmentBase]: Relational
+   {
+      ~filter [store::DB]ImpWriteOffPartialRows
+   }
+
+   impairment::FullWriteOff[impWriteOffFull] extends [impairmentBase]: Relational
+   {
+      ~filter [store::DB]ImpWriteOffFullRows
+   }
+
+   impairment::PostModelAdjustment[impPostModelAdjustment] extends [impairmentBase]: Relational
+   {
+      ~filter [store::DB]ImpPostModelAdjustmentRows
+   }
+
+   impairment::ScenarioWeightedEcl[impScenarioWeighted] extends [impairmentBase]: Relational
+   {
+      ~filter [store::DB]ImpScenarioWeightedRows
+   }
+
+   impairment::CollateralDependentExposure[impCollateralDependent] extends [impairmentBase]: Relational
+   {
+      ~filter [store::DB]ImpCollateralDependentRows
+   }
+
+   impairment::ManagementOverlay[impManagementOverlay] extends [impairmentBase]: Relational
+   {
+      ~filter [store::DB]ImpManagementOverlayRows
+   }
+)
