@@ -39,6 +39,31 @@ final class Numerics {
         return null;
     }
 
+    /** Real Compare.java's KIND ordering: Numbers < Dates < Booleans <
+     * Strings; -1 = not a primitive kind (moved from Scalars at the
+     * shape limit — the cross-kind comparison vocabulary). */
+    static int compareKind(com.legend.compiler.element.type.Type t) {
+        if (t == com.legend.compiler.element.type.Type.Primitive.INTEGER
+                || t == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                || t == com.legend.compiler.element.type.Type.Primitive.NUMBER
+                || t == com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                || t instanceof com.legend.compiler.element.type.Type.PrecisionDecimal) {
+            return 0;
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive.DATE
+                || t == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE
+                || t == com.legend.compiler.element.type.Type.Primitive.DATE_TIME) {
+            return 1;
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive.BOOLEAN) {
+            return 2;
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive.STRING) {
+            return 3;
+        }
+        return -1;
+    }
+
     /** The mixed-number VARIANT carrier's literal array unwraps to raw
      * numerics for aggregates/reductions (sum(JSON) does not bind). */
     static SqlExpr numList(SqlExpr e) {

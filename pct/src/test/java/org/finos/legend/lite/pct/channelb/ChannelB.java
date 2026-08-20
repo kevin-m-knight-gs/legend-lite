@@ -179,6 +179,7 @@ public final class ChannelB {
     private static Outcome runOne(FunctionDefinition fd,
             Compiler.ParsedModule module, ModelContext ctx) {
         String fqn = fd.qualifiedName();
+        com.legend.lowering.StampCensus.CONTEXT.set(fqn);
         if (fd.parameters().size() != 1) {
             return new Outcome(fqn, Status.DECLINED,
                     "non-adapter signature (" + fd.parameters().size()

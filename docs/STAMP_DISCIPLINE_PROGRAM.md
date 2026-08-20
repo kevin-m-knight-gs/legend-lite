@@ -56,14 +56,32 @@ Unique patterns: ~13 corpus + ~13 PCT — the worklist is FINITE and small.
    still OPEN there stays, and the census keeps counting it). Census
    37 → 0; core 4166/0; all five PCT suites unchanged. PCT census
    304 → 267 (all remaining = C1/C3).
-2. **C2/C3** (one seam): `toOne`/value-collection lowerings emit the
-   explicit unwrap (or re-stamp) at the count-change point instead of
-   passing the list through under a scalar stamp.
-3. **C1** (biggest, mostly mechanical): scalar-stamped collection
+2. **C2 — MEASURED NEGATIVE RESULT (2026-08-20), redesigned**: the
+   blanket toOne unwrap (`list[1]` when the operand is definitely
+   list-shaped) was built and run against the FULL corpus: functions
+   referee byte-identical, but milestoning −16 / union −23. Diagnosis:
+   the ScalarSubquery witnesses are values-reader lists whose FULL list
+   downstream consumes — the `[1]` stamp is the lie, not the shape, and
+   many of those `toOne`s are resolver-SYNTHESIZED conformance markers
+   (the conform-by-emission family), not user value-ops. REVERTED; the
+   correct C2 decomposes by PROVENANCE (the TypedJoin.userCondition
+   pattern):
+   - (a) USER-written toOne over a genuinely-single sloppy shape →
+     explicit unwrap at the seam;
+   - (b) SYNTHESIZED conformance toOne → ride-through BY DESIGN, marked,
+     and the census stops counting it as a lie;
+   - (c) values-reader subquery stamps → fixed at their PRODUCER
+     (the stamp becomes `[*]`), which is the real C2 residue.
+   Attribution instrument upgraded first (census lines carry
+   `test=<fqn>` via StampCensus.CONTEXT) — the (a)/(b)/(c) split needs
+   per-witness provenance, which is the next slice's first step.
+3. **C3** (same seam family): value-collection `sort`/`distinct`
+   one-stamped lowerings — adjudicate with the same provenance split.
+4. **C1** (biggest, mostly mechanical): scalar-stamped collection
    literals lower to their element (singleton) or the designed empty —
    the 29 consumer-side isToOne guards then start deleting.
-4. **C5**: the one many-stamped scalar read — fix at its resolver site.
-5. **Flip the instrument to an INVARIANT**: census == 0 on full sweep →
+5. **C5**: the one many-stamped scalar read — fix at its resolver site.
+6. **Flip the instrument to an INVARIANT**: census == 0 on full sweep →
    `LL_STAMP_COUNT` check becomes a failing gate; then DELETE the
    shape-sniffing (ListShapes' runtime arms) as consumers stop needing it.
 

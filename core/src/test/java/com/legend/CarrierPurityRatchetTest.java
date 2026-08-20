@@ -51,7 +51,13 @@ class CarrierPurityRatchetTest {
             // unwraps from its singleton transform; Phase 4 channel B),
             // not a new ad-hoc idiom. 138→137 (2026-08-19 Clause-2c
             // redesign): Scalars.emptinessOf's static-empty arm DELETED —
-            // verdicts moved to World 1.
+            // verdicts moved to World 1. (A 2026-08-20 C2 toOne-unwrap
+            // 137→138 was built, MEASURED against the full corpus —
+            // milestoning −16 / union −23 — and REVERTED same day: the
+            // list-shaped toOne operands are mostly synthesized
+            // conformance markers whose list downstream consumes;
+            // STAMP_DISCIPLINE_PROGRAM records the provenance-split
+            // design that replaces the blanket emission.)
             "SqlFn\\.LIST_", 137,
             "SqlFn\\.UNNEST", 12,
             // the collect-carrier reducer (R1 recognizes it for fusion;

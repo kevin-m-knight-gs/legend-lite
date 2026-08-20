@@ -29,13 +29,19 @@ import com.legend.sql.SqlType;
  * (column reads, opaque calls) are never reported — absence of a line
  * is not proof of health, presence IS proof of a lie.
  */
-final class StampCensus {
+public final class StampCensus {
 
     private StampCensus() {
     }
 
     private static final boolean ON =
             System.getenv("LL_STAMP_COUNT") != null;
+
+    /** The test/query currently compiling — set by harness runners so a
+     * census line names its witness (the H2Verify.CURRENT_TEST pattern;
+     * main-scope holder because the lowering cannot see test classes). */
+    public static final ThreadLocal<String> CONTEXT =
+            ThreadLocal.withInitial(() -> "<unattributed>");
 
     /** The scalar-funnel hook: spec's stamp vs the lowered expression's
      * provable shape. */
@@ -48,7 +54,7 @@ final class StampCensus {
             // a VARIABLE stamp surviving to lowering is its own finding —
             // lowering should only ever see concrete bounds
             System.err.println("[stamp] VAR-STAMP-AT-LOWERING "
-                    + digest(spec));
+                    + digest(spec) + " test=" + CONTEXT.get());
             return;
         }
         boolean scalarStamp = b.upper() != null && b.upper() <= 1;
@@ -62,14 +68,15 @@ final class StampCensus {
         if (scalarStamp && ListShapes.listShaped(e)) {
             System.err.println("[stamp] ONE-STAMP/LIST-SHAPE mult=["
                     + b.lower() + ".." + b.upper() + "] sql="
-                    + e.getClass().getSimpleName() + " " + digest(spec));
+                    + e.getClass().getSimpleName() + " " + digest(spec)
+                    + " test=" + CONTEXT.get());
             return;
         }
         if (!scalarStamp && definitelyScalar(e)) {
             System.err.println("[stamp] MANY-STAMP/SCALAR-SHAPE mult=["
                     + b.lower() + ".." + (b.upper() == null ? "*" : b.upper())
                     + "] sql=" + e.getClass().getSimpleName() + " "
-                    + digest(spec));
+                    + digest(spec) + " test=" + CONTEXT.get());
         }
     }
 

@@ -386,7 +386,16 @@ final class Scalars {
         family(SqlFn.UPPER, "toUpper");
         family(SqlFn.LOWER, "toLower");
 
-        // toOne erases in SQL (MUST-honor: multiplicity narrowing is a no-op value-wise).
+        // toOne erases in SQL (MUST-honor: multiplicity narrowing is a
+        // no-op value-wise). C2 (STAMP_DISCIPLINE_PROGRAM) MEASURED the
+        // blanket unwrap alternative and it REGRESSED milestoning −16 /
+        // union −23: the list-shaped operands here are mostly resolver-
+        // SYNTHESIZED conformance toOnes over values-reader subqueries
+        // whose LIST downstream genuinely consumes — the [1] stamp is
+        // the lie, not the shape. The C2 fix is provenance-split
+        // (user toOne = unwrap; synthesized conformance = ride-through
+        // by design; values-reader stamps fixed at their producer),
+        // recorded in the program doc — not a blanket emission.
         for (String f : Pure.nativeKeysAt("toOne")) {
             RULES.put(f, (n, args) -> args.get(0));
         }
@@ -732,8 +741,8 @@ final class Scalars {
                 // CROSS-KIND compare is a CONSTANT: real Compare.java orders
                 // Numbers < Dates < Booleans < Strings and never coerces —
                 // SQL's coercion made compare(5, '5') zero.
-                int k0 = compareKind(n.args().get(0).info().type());
-                int k1 = compareKind(n.args().get(1).info().type());
+                int k0 = Numerics.compareKind(n.args().get(0).info().type());
+                int k1 = Numerics.compareKind(n.args().get(1).info().type());
                 if (k0 >= 0 && k1 >= 0 && k0 != k1) {
                     return new SqlExpr.IntLit(Integer.compare(k0, k1));
                 }
@@ -2420,26 +2429,6 @@ final class Scalars {
                                 SqlExpr.Call.of(SqlFn.LIST_POSITION, list,
                                         new SqlExpr.Column(null, "_ddx")),
                                 new SqlExpr.Column(null, "_ddi"))))));
-    }
-
-    /** Real Compare.java's KIND ordering: Numbers < Dates < Booleans < Strings; -1 = not a primitive kind. */
-    private static int compareKind(Type t) {
-        if (t == Type.Primitive.INTEGER || t == Type.Primitive.FLOAT
-                || t == Type.Primitive.NUMBER || t == Type.Primitive.DECIMAL
-                || t instanceof Type.PrecisionDecimal) {
-            return 0;
-        }
-        if (t == Type.Primitive.DATE || t == Type.Primitive.STRICT_DATE
-                || t == Type.Primitive.DATE_TIME) {
-            return 1;
-        }
-        if (t == Type.Primitive.BOOLEAN) {
-            return 2;
-        }
-        if (t == Type.Primitive.STRING) {
-            return 3;
-        }
-        return -1;
     }
 
     /** The MIXED-ELEMENT two-channel encoding — DATABASE-EXECUTED.
