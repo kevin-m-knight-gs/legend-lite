@@ -176,9 +176,13 @@ final class Scalars {
         // The EMPTY collection takes each reduction's IDENTITY (and([]) is
         // true, or([]) is false — list_aggregate over [] is NULL; audit).
         for (String f : Pure.nativeKeysAt("and")) {
+            // DELETION LEG (invariant live): the ArrayLit escape was a
+            // shape sniff — a to-one BOOLEAN operand cannot carry a
+            // designed ArrayLit (List/instance/relation carriers never
+            // type Boolean), and any other list would have THROWN at
+            // the funnel. The stamp alone decides.
             RULES.put(f, (n, args) -> args.size() == 1
                     ? (isToOne(n.args().get(0))
-                            && !(args.get(0) instanceof SqlExpr.ArrayLit)
                             ? args.get(0)
                             : SqlExpr.Call.of(SqlFn.COALESCE,
                                     new SqlExpr.Call(SqlFn.LIST_BOOL_AND, args),
@@ -188,7 +192,6 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("or")) {
             RULES.put(f, (n, args) -> args.size() == 1
                     ? (isToOne(n.args().get(0))
-                            && !(args.get(0) instanceof SqlExpr.ArrayLit)
                             ? args.get(0)
                             : SqlExpr.Call.of(SqlFn.COALESCE,
                                     new SqlExpr.Call(SqlFn.LIST_BOOL_OR, args),
@@ -219,9 +222,8 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("plus")) {
             RULES.put(f, (n, rawArgs) -> {
                 var args = decimalJoin(rawArgs);
-                if (args.size() == 1 && isToOne(n.args().get(0))
-                        && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
-                    return args.get(0);   // unary +x
+                if (args.size() == 1 && isToOne(n.args().get(0))) {
+                    return args.get(0);   // unary +x (stamp decides)
                 }
                 // plus<T>(values:T[*]) is the COLLECTION SUM (real pure) —
                 // the infix renderer would emit a lone list bare (audit).
@@ -238,8 +240,7 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("times")) {
             RULES.put(f, (n, rawArgs) -> {
                 var args = decimalJoin(rawArgs);
-                if (args.size() == 1 && isToOne(n.args().get(0))
-                        && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
+                if (args.size() == 1 && isToOne(n.args().get(0))) {
                     return args.get(0);
                 }
                 // times<T>(values:T[*]) is the COLLECTION PRODUCT (real
@@ -282,8 +283,7 @@ final class Scalars {
                 // [10,3,2] -> 5); the seed is the first element. A SINGLETON
                 // LIST LITERAL is a list (the reduction of [x] is x, via the
                 // fold), not a unary negate (audit).
-                if (!isToOne(n.args().get(0))
-                        || args.get(0) instanceof SqlExpr.ArrayLit) {
+                if (!isToOne(n.args().get(0))) {
                     // numList: the mixed-number VARIANT carrier unwraps
                     // for the reduction (-(JSON, JSON) does not bind;
                     // witness testDecimalMinus); a DECIMAL-bearing
@@ -946,8 +946,7 @@ final class Scalars {
                 // comparator — no list carrier minted.
                 if (n.args().get(0).info().multiplicity()
                                 instanceof Multiplicity.Bounded sb
-                        && sb.upper() != null && sb.upper() <= 1
-                        && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
+                        && sb.upper() != null && sb.upper() <= 1) {
                     return args.get(0);
                 }
                 if (n.args().size() == 1) {
@@ -1788,7 +1787,6 @@ final class Scalars {
             RULES.put(f, (n, args) -> n.args().get(0).info().multiplicity()
                             instanceof Multiplicity.Bounded rb
                             && rb.upper() != null && rb.upper() <= 1
-                            && !(args.get(0) instanceof SqlExpr.ArrayLit)
                     ? args.get(0)
                     : new SqlExpr.Call(SqlFn.LIST_REVERSE, args));
         }
