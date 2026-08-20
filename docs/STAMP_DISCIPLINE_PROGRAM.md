@@ -235,10 +235,18 @@ synthesizes `[to_json(cell)]` singleton collections (the Any-cell
 variant-in-list carrier, itself C1-class-shaped); under flip+re-box the
 SQL VALUES stay mathematically identical (flatten([[j]])=[j]) but the
 at(0) egress DECODE (JsonNode→String, Executor.decodeAny) stops firing —
-an OutputCol-metadata gate lost on the at(0)-over-values path. NEXT
-SESSION: print the at(0) query's OutputCol metadata on both jars at
-Executor egress, restore the variant marker on whichever builder drops
-it. ONE metadata fix from landing.
+LOCALIZED WITH GROUND TRUTH (same night, egress trace):
+on HEAD the value exits via Executor.cell() with anyRoot=true (sqlType
+JSON) and decodes; under the flip NO cell() call fires — the at(0)
+evaluation egresses TABULAR instead of Scalar, and the tabular/flatten
+route has no JsonNode decode arm. TWO candidate fixes, pick by reading
+the result-shape decision fresh: (i) the SHAPE — a [0..1]-stamped at(0)
+root must egress Scalar (find why the skip-path plan flips the frame
+kind); (ii) the chartered decode — a JsonNode ELEMENT under an
+Any-element context decodes at the ONE-CARRIER flatten (the same
+argument audit 22 accepted for cell()'s arm). (i) is the honest
+default; (ii) only if the tabular shape is itself correct. Parked as
+stash C1-flip-v3.
 
 MASKING TRAP #2 (cost hours): never compute family regressions by
 diffing two RUN FILES — one may be from a mid-experiment jar. The
