@@ -47,9 +47,12 @@ class HarnessDisciplineTest {
      *  SQL pipeline);
      *  LineageForm 1 — want.sort on the property-name existence check
      *  (two-sided: both lists sorted before compare);
-     *  Runner 2 / RelationalCorpusRunner 14 — rcorpus orchestration and
+     *  Runner 2 / RelationalCorpusRunner 15 — rcorpus orchestration and
      *  scoreboard-RENDER ordering (deterministic output, not result
-     *  comparison) — in scope so comparison sorts cannot hide here. */
+     *  comparison) — in scope so comparison sorts cannot hide here.
+     *  The 15th (2026-08-20): the h2-verdicts.txt roster dump sorts by
+     *  key for a DIFFABLE diagnostic file (the floor-attribution
+     *  instrument) — deterministic output, never comparison. */
     private static final Map<String, Integer> ALLOWED = Map.of(
             // F4.3 ratchet-DOWN 5 -> 3: the harness RENDERER died (the
             // platform's RENDER lowerings produce the text; the probe and
@@ -60,7 +63,7 @@ class HarnessDisciplineTest {
             "JsonAssertCanon.java", 1,
             "LineageForm.java", 1,
             "Runner.java", 2,
-            "RelationalCorpusRunner.java", 14,
+            "RelationalCorpusRunner.java", 15,
             // PX.1: TreeSet as a deterministic-iteration REGISTRY
             // (workspace names), not a result reorder
             "DuckWorkspaces.java", 1);

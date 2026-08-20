@@ -860,18 +860,12 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 SqlExpr sep = args.size() == 2 ? args.get(1)
                         : args.size() == 4 ? args.get(2) : new SqlExpr.StringLit("");
-                // LIST position: wrap-by-PROOF — MEASURED twice. The
-                // wrap-by-stamp conversion was RE-TRIED under the live
-                // invariant (deletion leg, 2026-08-20) and the h2 floor
-                // caught it again (320→301) — but for a DIFFERENT
-                // reason than the original 129-test collapse: the
-                // stamps are true now, and the stamped wrap emits list
-                // forms the H2 dialect cannot yet render ("LIST_SUM
-                // reached a dialect without a list encoding"). The
-                // blocker is DIALECT CAPABILITY, not stamp distrust —
-                // this converts when the h2 list encodings land.
+                // LIST position, WRAP-BY-STAMP (burn-to-zero): stamps
+                // are enforced-true; the h2 side is carried by the
+                // CarrierStrategies list encodings (the 320 floor is
+                // the referee).
                 SqlExpr coll = ListShapes.asList(args.get(0),
-                        !ListShapes.definitelyScalar(args.get(0)));
+                        !isToOne(n.args().get(0)));
                 SqlExpr strs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, coll,
                         new SqlExpr.Lambda(List.of("x"),
                                 SqlExpr.Call.of(SqlFn.COALESCE,
@@ -2312,11 +2306,11 @@ final class Scalars {
                             && al.elements().stream().noneMatch(e ->
                                     e instanceof SqlExpr.Call c2
                                             && c2.fn() == SqlFn.TO_VARIANT))
-                    // a PROVABLY-scalar RHS (C1: a singleton literal IS
-                    // its element) compares PLAIN — one plain element,
+                    // a SCALAR-STAMPED RHS compares PLAIN — one element,
                     // no variant harmonization (to_json(needle) IN
-                    // ('John') did not bind)
-                    && !ListShapes.definitelyScalar(args.get(1));
+                    // ('John') did not bind). Stamp-read (burn-to-zero;
+                    // was wrap-by-proof).
+                    && !isToOne(n.args().get(1));
             SqlExpr raw = CastPolicy.comparisonWireOperand(n.args().get(0), args.get(0),
                     n.args().get(1));
             SqlExpr needle = collVariant

@@ -1144,6 +1144,7 @@ public final class EngineTestExecutor {
                         runtimeFqn, conn);
                 if (h2rows == null) {
                     H2Verify.M1_VERIFIED.increment();
+                    H2Verify.verdict("textmatch");
                     return null;
                 }
                 if (java.util.Objects.equals(h2rows, ADVISORY_MARKER)) {
@@ -1162,6 +1163,9 @@ public final class EngineTestExecutor {
             if (rows != ADVISORY_MARKER) {
                 if (rows == null) {
                     H2Verify.M1_RESCUED.increment();
+                    H2Verify.verdict("rescued");
+                } else {
+                    H2Verify.verdict("execfail");
                 }
                 return rows;
             }

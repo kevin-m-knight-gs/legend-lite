@@ -80,6 +80,22 @@ public final class H2Verify {
     public static final java.util.concurrent.atomic.LongAdder M1_UNVERIFIABLE =
             new java.util.concurrent.atomic.LongAdder();
 
+    /** Per-test M1 verdict attribution (the UNVERIFIABLE_CENSUS
+     * pattern extended to the PASS side): every text-match/rescue/
+     * exec-fail records its test, and the corpus runner dumps the
+     * sorted roster to {@code target/h2-verdicts.txt} UNCONDITIONALLY
+     * every sweep (the query-histogram idiom — no env flags). Built
+     * because a 19-test floor drop was UNATTRIBUTABLE: the counters
+     * said how many, nothing said which. */
+    public static final java.util.concurrent.ConcurrentHashMap<String,
+            java.util.concurrent.atomic.LongAdder> VERDICT_ROSTER =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    public static void verdict(String kind) {
+        VERDICT_ROSTER.computeIfAbsent(kind + " " + CURRENT_TEST.get(),
+                k -> new java.util.concurrent.atomic.LongAdder()).increment();
+    }
+
     /** Per-reason UNVERIFIABLE census (H2_BACKEND.md §12 step 13): every
      * replay decline funnels through {@link #decline}, keyed by a
      * CANONICAL bucket — the declared-gap registry asserts against these

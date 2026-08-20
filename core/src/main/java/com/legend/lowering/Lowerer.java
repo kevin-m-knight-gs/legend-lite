@@ -2676,32 +2676,32 @@ public final class Lowerer {
      * {@link #scalarRelationalArms}; sequential order preserved). */
     private SqlExpr scalarValueTailArms(TypedSpec spec, ColumnResolver columns) {
         return switch (spec) {
-            // makeString/joinStrings over TDS ROW CELLS (the Typer's
-            // row-var $r.values synthesis: per-column reads off ONE row
-            // variable): stringify each element HERE — the engine's TDSRow
-            // print convention, 'TDSNull' for an empty cell — so the list
-            // never takes the Any-collection JSON carrier (whose VARCHAR
-            // cast quotes strings). Keyed to the CELLS SHAPE (audit 9): an
-            // arbitrary user collection must not print 'TDSNull'.
+            // makeString/joinStrings over the $r.values TDSRow-cells
+            // synthesis (full-roster reads — isRowCells): stringify each
+            // cell (TDSNull print convention, audit 9); hand-written
+            // cell lists never match the roster test.
             case TypedNativeCall n
                     when (isFamily(n, "makeString") || isFamily(n, "joinStrings"))
                     && !n.args().isEmpty()
                     && n.args().get(0)
                             instanceof TypedCollection tc
                     && ValueCollections.isRowCells(tc) -> {
-                List<SqlExpr> elems = new ArrayList<>(tc.elements().size());
+                // Statically-enumerated cells: a static CONCAT interleave
+                // (ValueCollections.rowCellsJoin) — no list machinery
+                // (burn-to-zero: the old ArrayLit-and-delegate form had
+                // TWO owners for one encoding).
+                List<SqlExpr> cells = new ArrayList<>(tc.elements().size());
                 for (TypedSpec e : tc.elements()) {
-                    elems.add(SqlExpr.Call.of(SqlFn.COALESCE,
+                    cells.add(SqlExpr.Call.of(SqlFn.COALESCE,
                             Fold.cellText(e.info().type(), scalar(e, columns)),
                             new SqlExpr.StringLit(com.legend.compiler.element.type
                                         .PlatformTypes.TDS_NULL_CELL)));
                 }
-                List<SqlExpr> args = new ArrayList<>();
-                args.add(new SqlExpr.ArrayLit(elems));
+                List<SqlExpr> rest = new ArrayList<>();
                 for (int i = 1; i < n.args().size(); i++) {
-                    args.add(scalar(n.args().get(i), columns));
+                    rest.add(scalar(n.args().get(i), columns));
                 }
-                yield Scalars.lower(n, args);
+                yield ValueCollections.rowCellsJoin(cells, rest);
             }
             // statically-decided instanceOf folds (Scalars owns the rule)
             case TypedNativeCall n

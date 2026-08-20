@@ -444,12 +444,18 @@ verdicts (parked-until-zero: UNPARKED), then the burn-downs (corpus
   ArrayLit passthrough flattened designed to-one carriers into
   enclosing lists (wrong pure semantics), NULL-as-empty stays.
 - Slice 4: makeString wrap-by-stamp RE-MEASURED under the live
-  invariant — the h2 floor caught it again (320→301) but for a NEW
-  reason: stamps are true now, and the stamped wrap emits list forms
-  the H2 DIALECT cannot render ("LIST_SUM reached a dialect without a
-  list encoding"). Reverted with the finding recorded in-code: the
-  blocker is DIALECT CAPABILITY (h2 list encodings — the
-  single-compiler/dialect-strategies leg), not stamp distrust.
+  invariant — the h2 floor caught it (320→301) and the run was
+  reverted with a "dialect capability" diagnosis. **THAT DIAGNOSIS WAS
+  WRONG** (corrected slice 6, user push: "burn the whole thing to
+  zero"): the per-test verdict roster (target/h2-verdicts.txt, built
+  for exactly this) attributed the drop to the rowCells makeString arm
+  DOUBLE-ENCODING (it pre-built an ArrayLit and delegated to the
+  generic rule — two owners for one encoding), plus isRowCells
+  over-matching hand-written cell lists once the honest getter desugar
+  stopped toOne-wrapping [1..1] cells (the wraps had been an
+  ACCIDENTAL provenance marker; testHashFunctions witness — the
+  engine's append-form spelling lives in EngineStyleH2.joinStringsFlat
+  keyed on the STRING_AGG shape).
 
 **ListShapes end state ruled**: the file DISSOLVES — its founding
 thesis is dead (header rewritten). The shape provers
@@ -460,6 +466,35 @@ helpers move to their consumers. THREE surviving frame dispatches
 (ScalarStats reducer-vs-list, sort's per-row-frame wrap, the IN
 variant harmonization) are designed-pair-#4 residue — they delete when
 lowering carries explicit frame context, not before.
+
+## SLICE 6 — BURN-TO-ZERO (user: "no way to abuse"): the wrap-by-proof holdouts FALL
+
+- **Per-test h2 verdict roster** (H2Verify.VERDICT_ROSTER →
+  target/h2-verdicts.txt, unconditional every sweep — the
+  query-histogram idiom; sort site listed in the HarnessDiscipline
+  charter): floor moves are now attributable by diffing two files. A
+  first attempt at this instrument used an env-gated print placed in
+  TEST sources because the observability guardrail scans only main —
+  the user caught it; the getenv hack was reverted and the lesson
+  recorded ([[guardrail-intent-binds-not-letter]]).
+- **makeString rowCells arm rebuilt**: statically-enumerated cells
+  join as a STATIC CONCAT interleave (ValueCollections.rowCellsJoin) —
+  no list machinery, no delegation, ONE owner. isRowCells now requires
+  the FULL row-column roster in order (the $r.values synthesis
+  signature) — hand-written cell lists take the engine joinStrings
+  channels (the old toOne wraps had carried that distinction by
+  accident).
+- **makeString wrap-by-stamp LANDED** (the 129-test-collapse claim and
+  the slice-4 dialect claim both retired by measurement): h2 floor
+  exact at 320/632, verdict roster BYTE-IDENTICAL to baseline.
+- **IN harmonization stamp-read LANDED**: !isToOne(RHS) replaces
+  !definitelyScalar(RHS).
+- **definitelyScalar has ZERO production consumers**; listShaped has
+  TWO (ScalarStats, sort per-row fallback — the genuine frame
+  dispatches, pair #4). Remaining abuse surface = pair #4's
+  property-read skip in the invariant + those two dispatches; both die
+  together when the map-binder/aggregation channels model the per-row
+  frame explicitly (the rows.get auto-map precedent).
 
 Slice 5 (8625eeab): minus NEGATES a runtime size-1 collection
 (LIST_LENGTH=1 guard → 0−l[1]; both reference runtimes; the last

@@ -429,6 +429,21 @@ public class RelationalCorpusRunner {
                 + com.legend.harness.H2Verify.M1_DIVERGED.sum() + " diverged, "
                 + com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum()
                 + " unverifiable");
+        // Per-test M1 verdict roster — UNCONDITIONAL dump (the
+        // query-histogram idiom): target/h2-verdicts.txt, one sorted
+        // "kind test xN" line each, so a floor move is attributable by
+        // diffing two sweeps' files.
+        try {
+            java.nio.file.Files.writeString(
+                    java.nio.file.Path.of("target", "h2-verdicts.txt"),
+                    com.legend.harness.H2Verify.VERDICT_ROSTER.entrySet()
+                            .stream().sorted(java.util.Map.Entry.comparingByKey())
+                            .map(e -> e.getKey() + " x" + e.getValue().sum())
+                            .collect(java.util.stream.Collectors.joining("\n"))
+                    + "\n");
+        } catch (java.io.IOException ignore) {
+            // best-effort diagnostic (histogram precedent)
+        }
         // step 13 registry feed: the per-reason unverifiable census
         com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS.entrySet().stream()
                 .sorted((a, b) -> Long.compare(b.getValue().sum(),
