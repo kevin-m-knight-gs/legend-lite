@@ -221,3 +221,32 @@ The irreducible set proper, after the full 36-row adjudication:
 identity) and expression-tree reflection (testMatchWithMixedReturnType ×1).**
 Everything else is fixable, upstream-defect, or already B-FIXES-A (8 rows,
 including the null-vs-empty joinStrings wire case).
+
+### F.1 Carrier-domain: adjustBy BigNumber ×4 (probed + ratified 2026-08-19)
+
+`testAdjustBy{Hours,Days,Weeks,Months}BigNumber` target years 1,410,404 /
+33,803,336 / 236,611,261 / 800,002,016. DuckDB 1.5.0 probe (every
+construction route into a wide timestamp, all FAIL):
+
+- `TIMESTAMP_S '<literal>'` string parse: capped at the µs-TIMESTAMP range —
+  year 290000 parses, year 300000 dies (`Could not convert string to INT64`),
+  so TIMESTAMP_S's int64-seconds STORAGE range is unreachable from strings;
+- `CAST(BIGINT AS TIMESTAMP_S)`: `Unimplemented type for cast`;
+- `to_timestamp(bigint)` / `make_timestamp(bigint)`: µs-domain results,
+  capped ~294247;
+- `strptime` with an 8-digit year: parse error;
+- interval arithmetic: `to_days(12345678912)` overflows the INT32 days field
+  (and the months case needs 9.6e9 months, also INT32-overflow);
+- `epoch()` returns DOUBLE (precision loss at these magnitudes), and
+  `CAST(DOUBLE AS TIMESTAMP_S)` is also unimplemented.
+
+There is NO DuckDB date/datetime construct that can materialize a value
+beyond year ~294,247. Under tenet #1 (the database executes; no host-side
+date carrier), these four rows are **carrier-domain irreducible**. Ratified
+by the user 2026-08-19 ("if there is no date/datetime construct that works
+in duckdb ... we add that to irreducible").
+
+**The locked irreducible census (14):** index-base upstream-defect ×7
+(sortWithKey/sortWithFunctionVariables ride substring's base, collection
+indexOf ×1, string substring ×2, string indexOf ×2), object identity ×2,
+match/deactivate ×1, BigNumber carrier-domain ×4. Ceiling: 1036/1050.

@@ -186,6 +186,15 @@ final class AssertVerdicts {
                 String d = PureAsserts.assertInstanceOf(v, type);
                 return d == null ? ok() : fail(d);
             }
+            case "assertIs" -> {
+                // is() = IDENTITY (real pure is.pure:23, PCT.platformOnly).
+                // World-1 adjudication for statically-identified operands
+                // only; message overloads have no witness — fall through.
+                if (args.size() != 2) {
+                    return null;
+                }
+                return isVerdict(args.get(0), args.get(1));
+            }
             case "assertEmpty", "assertNotEmpty" -> {
                 if (args.isEmpty()) {
                     return null;
@@ -205,6 +214,124 @@ final class AssertVerdicts {
                 return null;
             }
         }
+    }
+
+    /** The IDENTITY verdict ({@code assertIs} → {@code is()}, real pure
+     * is.pure:23 "pointer equality"): adjudicable in World 1 ONLY when
+     * both operands are STATICALLY identified — a type reference (bare
+     * element, {@code type(x)->toOne()}, {@code genericType(x).rawType})
+     * or the same let-bound instance by construction provenance. Any
+     * other shape returns null: the legacy path then walls loudly on
+     * {@code is}'s missing SQL rule — a wire carries values, never
+     * reference identity (the eq/equalNonPrimitive irreducible ruling). */
+    private static @com.legend.Nullable ExecutionResult isVerdict(
+            TypedSpec left, TypedSpec right) throws java.sql.SQLException {
+        String lt = typeIdentityOf(left);
+        String rt = typeIdentityOf(right);
+        if (lt != null && rt != null) {
+            return lt.equals(rt) ? ok()
+                    : fail("\nexpected: " + lt + "\nactual:   " + rt);
+        }
+        TypedSpec l = instanceOrigin(left);
+        TypedSpec r = instanceOrigin(right);
+        if (l instanceof com.legend.compiler.spec.typed.TypedVariable lv
+                && r instanceof com.legend.compiler.spec.typed.TypedVariable rv
+                && lv.name().equals(rv.name())) {
+            // the same let-bound variable in one frame IS the same object
+            return ok();
+        }
+        return null;
+    }
+
+    /** The statically-known TYPE a value expression identifies, or null.
+     * {@code type()}/{@code genericType().rawType} resolve to the STATIC
+     * type of their argument — sound exactly when that type is concrete
+     * (a literal or constructed instance), which is what the witnesses
+     * pass ({@code type(+1)}, {@code genericType(^LA_Person(...))}). */
+    private static @com.legend.Nullable String typeIdentityOf(TypedSpec t) {
+        TypedSpec s = peel(t);
+        if (s instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr) {
+            return canonicalTypeFqn(pr.fullPath());
+        }
+        if (s instanceof com.legend.compiler.spec.typed.TypedTypeRef tr) {
+            return canonicalTypeFqn(tr.target().typeName());
+        }
+        if (s instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                && c.callee().qualifiedName().equals(
+                        "meta::pure::functions::meta::type")
+                && !c.args().isEmpty()) {
+            return staticTypeName(c.args().get(0));
+        }
+        if (s instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && pa.property().equals("rawType")
+                && peel(pa.source())
+                        instanceof com.legend.compiler.spec.typed
+                                .TypedNativeCall gt
+                && gt.callee().qualifiedName().equals(
+                        "meta::pure::functions::meta::genericType")
+                && !gt.args().isEmpty()) {
+            return staticTypeName(gt.args().get(0));
+        }
+        return null;
+    }
+
+    private static @com.legend.Nullable String staticTypeName(TypedSpec arg) {
+        // concrete static identification only: a literal's primitive or a
+        // constructed/class-typed value — never an Any/generic stamp
+        var ty = peel(arg).info().type();
+        if (ty instanceof com.legend.compiler.element.type.Type.ClassType ct) {
+            return ct.fqn();
+        }
+        String n = ty.typeName();
+        return switch (n) {
+            case "Integer", "Float", "Decimal", "String", "Boolean", "Date",
+                    "StrictDate", "DateTime", "StrictTime" ->
+                    canonicalTypeFqn(n);
+            default -> null;
+        };
+    }
+
+    /** ONE spelling for a type identity: PRIMITIVES canonicalize to their
+     * M3 FQN so all three resolution arms agree (bare {@code Integer},
+     * {@code @Integer}, and {@code type(1)} name the same element).
+     * Anything else — including packageless user test classes — keeps
+     * its resolved spelling untouched. */
+    private static String canonicalTypeFqn(String name) {
+        return switch (name) {
+            case "Integer", "Float", "Decimal", "String", "Boolean", "Date",
+                    "StrictDate", "DateTime", "StrictTime", "Number" ->
+                    "meta::pure::metamodel::type::" + name;
+            default -> name;
+        };
+    }
+
+    /** Peel value-preserving wrappers ({@code toOne}) and fold a property
+     * read over a constructed instance to its constructor argument — the
+     * provenance chain the OneToOne witness rides. */
+    private static TypedSpec peel(TypedSpec t) {
+        TypedSpec s = t;
+        while (true) {
+            if (s instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                    && c.callee().qualifiedName().equals(
+                            "meta::pure::functions::multiplicity::toOne")
+                    && !c.args().isEmpty()) {
+                s = c.args().get(0);
+                continue;
+            }
+            return s;
+        }
+    }
+
+    private static TypedSpec instanceOrigin(TypedSpec t) {
+        TypedSpec s = peel(t);
+        if (s instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && peel(pa.source())
+                        instanceof com.legend.compiler.spec.typed
+                                .TypedNewInstance ni
+                && ni.properties().get(pa.property()) != null) {
+            return instanceOrigin(ni.properties().get(pa.property()));
+        }
+        return s;
     }
 
     /** The QUANTIFIED verdict: {@code xs->map(f|assert(pred[, 'msg']))}

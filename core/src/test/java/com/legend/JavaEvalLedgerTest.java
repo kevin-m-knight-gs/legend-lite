@@ -157,7 +157,17 @@ class JavaEvalLedgerTest {
             // as driver temporals; java.time is the platform convention
             // (the invisible-diff bug: a Timestamp reprs identically to
             // the LocalDateTime it never equals). Decode, not evaluation.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 304),
+            // 304→398 (2026-08-20 slice 11): the assertIs IDENTITY verdict
+            // (is.pure:23 "pointer equality", PCT.platformOnly). Identity
+            // is NOT DB-computable by definition — a wire carries values,
+            // never references (the eq/equalNonPrimitive irreducible
+            // ruling) — so the K-arm adjudicates the STATICALLY-identified
+            // cases in World 1: type refs (bare element / type() /
+            // genericType().rawType, one canonical spelling) and same
+            // let-bound instance provenance. Verdict adjudication of
+            // compile-time facts, never value evaluation; every other
+            // shape falls through to is()'s missing SQL rule and walls.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 398),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

@@ -265,9 +265,59 @@ public final class ChannelB {
                     }
                 }
             }
+            // INLINE multi-statement eval bodies get the same hoist as the
+            // named form ({@code let res = $f->eval(|let v='x'; $v;)} —
+            // the letFn suite's shape): leading statements join the
+            // enclosing body; the eval site splices the LAST statement.
+            for (LambdaFunction lam : inlineEvalLambdas(stmt, fParam)) {
+                for (int i = 0; i < lam.body().size() - 1; i++) {
+                    out.add(rewrite(lam.body().get(i), fParam, lets));
+                }
+            }
             out.add(rewrite(stmt, fParam, lets));
         }
         return out;
+    }
+
+    /** Inline {@code $f->eval(|...)} lambdas in this statement with MORE
+     * than one body statement, in occurrence order (their leading
+     * statements hoist into the enclosing body). */
+    private static List<LambdaFunction> inlineEvalLambdas(
+            ValueSpecification n, String fParam) {
+        List<LambdaFunction> found = new ArrayList<>();
+        collectInlineEvalLambdas(n, fParam, found);
+        return found;
+    }
+
+    private static void collectInlineEvalLambdas(ValueSpecification n,
+            String fParam, List<LambdaFunction> found) {
+        if (shadowsAdapterParam(n, fParam)) {
+            return;
+        }
+        if (n instanceof AppliedFunction af
+                && simpleName(af.function()).equals("eval")
+                && af.parameters().size() == 2
+                && af.parameters().get(0) instanceof Variable v
+                && v.name().equals(fParam)
+                && af.parameters().get(1) instanceof LambdaFunction lam
+                && lam.parameters().isEmpty()
+                && lam.body().size() > 1) {
+            found.add(lam);
+        }
+        for (ValueSpecification k : n.children()) {
+            collectInlineEvalLambdas(k, fParam, found);
+        }
+    }
+
+    /** SHADOW-STOP (the lambda-walkers trap): a lambda whose OWN parameter
+     * is named like the adapter param rebinds {@code $f} inside its body
+     * ({@code exists(f | $f.legalName == ...)} — the exists suite); every
+     * inner reference is the iteration variable, never the adapter. */
+    private static boolean shadowsAdapterParam(ValueSpecification n,
+            String fParam) {
+        return n instanceof LambdaFunction l
+                && l.parameters().stream()
+                        .anyMatch(p -> p.name().equals(fParam));
     }
 
     /** The let-bound zero-param lambda names this statement applies the
@@ -282,6 +332,9 @@ public final class ChannelB {
     private static void collectEvalledVars(ValueSpecification n,
             String fParam, java.util.Map<String, LambdaFunction> lets,
             List<String> found) {
+        if (shadowsAdapterParam(n, fParam)) {
+            return;
+        }
         if (n instanceof AppliedFunction af
                 && simpleName(af.function()).equals("eval")
                 && af.parameters().size() == 2
@@ -299,6 +352,11 @@ public final class ChannelB {
 
     private static ValueSpecification rewrite(ValueSpecification n,
             String fParam, java.util.Map<String, LambdaFunction> lets) {
+        // SHADOW-STOP: inside a lambda that rebinds the adapter param,
+        // $f is the lambda's own variable — nothing to rewrite or decline
+        if (shadowsAdapterParam(n, fParam)) {
+            return n;
+        }
         if (n instanceof AppliedFunction af
                 && simpleName(af.function()).equals("eval")
                 && af.parameters().size() == 2
@@ -306,8 +364,12 @@ public final class ChannelB {
                 && v.name().equals(fParam)
                 && af.parameters().get(1) instanceof LambdaFunction lam
                 && lam.parameters().isEmpty()
-                && lam.body().size() == 1) {
-            return rewrite(lam.body().get(0), fParam, lets);
+                && !lam.body().isEmpty()) {
+            // single-statement: the body IS the value; multi-statement:
+            // the leading statements were HOISTED (inlineEvalLambdas) —
+            // splice the LAST statement, same as the named form
+            return rewrite(lam.body().get(lam.body().size() - 1),
+                    fParam, lets);
         }
         if (n instanceof AppliedFunction af2
                 && simpleName(af2.function()).equals("eval")

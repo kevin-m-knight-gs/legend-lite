@@ -1258,6 +1258,12 @@ public final class Pure {
     // of the contract (identity/primitive/collection/model-defined equality).
     public static final NativeFunctionDefinition EQUAL__ANY_MANY__ANY_MANY = signature("native function meta::pure::functions::boolean::equal(left:meta::pure::metamodel::type::Any[*], right:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition EQ__ANY_1__ANY_1 = signature("native function meta::pure::functions::boolean::eq(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
+    // Identity (pointer equality) — real pure essential/boolean/equality/
+    // is.pure:23 (<<PCT.platformOnly>>). NO SQL lowering: the assertIs
+    // K-arm adjudicates identity in World 1 for statically-identified
+    // operands (type refs, folded instance provenance); any other use
+    // walls loudly at lowering — a wire carries values, not references.
+    public static final NativeFunctionDefinition IS__ANY_1__ANY_1 = signature("native function meta::pure::functions::boolean::is(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
     // VERBATIM real pure (platform/pure/essential/lang/eval/eval.pure),
     // arities 1-3 (real pure goes to 8; add on demand). Typed via the
     // kernel's FunctionType unification for function VALUES; lambda-literal
@@ -2161,7 +2167,9 @@ public final class Pure {
     public static final NativeFunctionDefinition TO_VARIANT__ANY_MANY = signature("native function meta::pure::functions::variant::convert::toVariant(source:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::variant::Variant[1];");
     public static final NativeFunctionDefinition TO__T_0_1__V_0_1 = signature("native function meta::pure::functions::variant::convert::to<T,V>(source:T[0..1], type:V[0..1]):V[0..1];");
     public static final NativeFunctionDefinition TRIM__STRING_1 = signature("native function meta::pure::functions::string::trim(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
-    public static final NativeFunctionDefinition TYPE__ANY_1 = signature("native function meta::pure::functions::meta::type(any:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Type[1];");
+    // real pure essential/meta/type/type.pure:18 — any:Any[*], NOT [1]
+    // (the [1] port broke testConcatenateTypeInference's type([*]) call)
+    public static final NativeFunctionDefinition TYPE__ANY_1 = signature("native function meta::pure::functions::meta::type(any:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Type[1];");
     public static final NativeFunctionDefinition UNBOUNDED = signature("native function meta::pure::functions::relation::unbounded():meta::pure::functions::relation::UnboundedFrameValue[1];");
     public static final NativeFunctionDefinition VARIANCE_POPULATION__NUMBER_MANY = signature("native function meta::pure::functions::math::variancePopulation(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1];");
     public static final NativeFunctionDefinition VARIANCE_SAMPLE__NUMBER_MANY = signature("native function meta::pure::functions::math::varianceSample(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1];");

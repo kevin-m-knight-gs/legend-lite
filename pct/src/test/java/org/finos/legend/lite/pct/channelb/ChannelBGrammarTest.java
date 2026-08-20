@@ -59,8 +59,11 @@ class ChannelBGrammarTest {
         // census shrinks-only; TRUE pinned at ZERO like essential.
         assertTrue(out.size() == 137,
                 "grammar discovery moved: " + out.size() + " != 137");
-        assertTrue(c.pass() >= 123, "grammar PASS fell: " + c.pass());
-        assertTrue(c.wireBug() <= 5,
+        // 128 (slice 11): letFn ×2 (inline multi-statement hoist),
+        // testSingle{Plus,Minus}Type + OneToOne (is/assertIs World-1
+        // identity: type refs canonicalized, instance provenance)
+        assertTrue(c.pass() >= 128, "grammar PASS fell: " + c.pass());
+        assertTrue(c.wireBug() <= 3,
                 "grammar WIRE-BUG census grew: " + c.wireBug());
         assertTrue(c.trueWireBug() == 0,
                 "a TRUE wire bug appeared (both oracles corroborate the"

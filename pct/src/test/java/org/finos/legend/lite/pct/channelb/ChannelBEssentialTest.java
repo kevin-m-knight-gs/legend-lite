@@ -49,7 +49,10 @@ class ChannelBEssentialTest {
         assertTrue(out.size() == 327,
                 "essential discovery moved: " + out.size() + " != 327");
         int pass = census.getOrDefault(ChannelB.Status.PASS, 0);
-        assertTrue(pass >= 290,
+        // 293 (slice 11): exists ×2 (adapter shadow-stop), concatenate
+        // (type() sig [1]→[*] per real type.pure:18), + the is/assertIs
+        // World-1 identity leg
+        assertTrue(pass >= 293,
                 "channel-B essential PASS fell below the pinned floor: "
                         + pass + " < 290");
 
@@ -124,8 +127,8 @@ class ChannelBEssentialTest {
         // (source position is unobservable from database errors; channel
         // A cannot pass them either). Wire-bug census SHRINKS only;
         // agreement GROWS only.
-        assertTrue(agreePass >= 286, "AGREE-PASS fell: " + agreePass);
-        assertTrue(wireBug <= 14, "WIRE-BUG census grew: " + wireBug);
+        assertTrue(agreePass >= 288, "AGREE-PASS fell: " + agreePass);
+        assertTrue(wireBug <= 13, "WIRE-BUG census grew: " + wireBug);
         // THE PHASE-4 MILESTONE NUMBER: rows OUR platform fails that BOTH
         // reference channels pass. ZERO (2026-08-19) — every remaining
         // failure is corroborated by a reference channel. Stays zero.
