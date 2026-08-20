@@ -355,8 +355,11 @@ public final class Render {
                 tdsString(inner, relCols, alias));
     }
 
-    /** Whether the select tree contains a dynamic PIVOT (keys discovered
-     * at execution — {@code in()} empty). */
+    /** Whether the select tree contains a PIVOT — static or dynamic:
+     * either way the pivot's output columns are absent from the
+     * lowered outputs (witness test_Static_Pivot_Filter, whose '#TDS'
+     * lost the pivot columns exactly like the dynamic case), so the
+     * composition defers to the boundary probe. */
     private static boolean hasDynamicPivot(SqlQuery q) {
         if (!(q instanceof SqlSelect sel)) {
             return q instanceof com.legend.sql.SqlUnion u
@@ -367,8 +370,7 @@ public final class Render {
 
     private static boolean sourceHasDynamicPivot(SqlSource s) {
         return switch (s) {
-            case SqlSource.Pivot p -> p.in().isEmpty()
-                    || sourceHasDynamicPivot(p.source());
+            case SqlSource.Pivot p -> true;
             case SqlSource.Subselect sub -> hasDynamicPivot(sub.inner());
             case SqlSource.Join j -> sourceHasDynamicPivot(j.left())
                     || sourceHasDynamicPivot(j.right());

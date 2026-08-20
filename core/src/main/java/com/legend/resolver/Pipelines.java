@@ -430,7 +430,8 @@ final class Pipelines {
                                 new ExprType(new Type.EnumType(JOIN_KIND_FQN),
                                         Multiplicity.Bounded.ONE)),
                         cond, Optional.of(prefix), js.frameName(),
-                        new ExprType(new Type.RelationType(cols), Multiplicity.Bounded.ONE));
+                        new ExprType(new Type.RelationType(cols), Multiplicity.Bounded.ONE),
+                false /* resolver-synth */);
                 }
 
     /** ENGINE ON-FORM (memory milestoning-onclause-seam): the temporal
@@ -564,7 +565,8 @@ final class Pipelines {
                                 new ExprType(new Type.EnumType(JOIN_KIND_FQN),
                                         Multiplicity.Bounded.ONE)),
                         cond, Optional.of(prefix), nav.frameName(),
-                        new ExprType(new Type.RelationType(cols), Multiplicity.Bounded.ONE));
+                        new ExprType(new Type.RelationType(cols), Multiplicity.Bounded.ONE),
+                false /* resolver-synth */);
             }
             case TypedFilter f -> {
                 TypedSpec src = walk(f.source(), demanded, demandedNavs, targets, prefixes, stripped, classFqn);

@@ -196,7 +196,8 @@ public final class StoreResolver {
             if (r[0] != j.right()) {
                 return new TypedJoin(j.left(), (TypedSpec) r[0], j.kind(),
                         (com.legend.compiler.spec.typed.TypedLambda) r[1],
-                        j.prefix(), j.frameName(), j.info());
+                        j.prefix(), j.frameName(), j.info(),
+                j.userCondition() /* rebuild */);
             }
         }
         return n;
@@ -838,7 +839,8 @@ public final class StoreResolver {
                 Optional.of(aj.prefix()),
                 // a VIEW-backed target joins as a frame NAMED BY THE VIEW
                 // (legalentity_view_0, never the physical table's group)
-                ViewFrames.frameNameOf(ctx, aj.target()), rowInfo);
+                ViewFrames.frameNameOf(ctx, aj.target()), rowInfo,
+                false /* resolver-synth */);
         Map<String, TypedSpec> bindings = new LinkedHashMap<>();
         for (var e : aj.target().bindings().entrySet()) {
             // scalar-through-slot bindings flatten onto the MATERIALIZED
@@ -1936,7 +1938,8 @@ public final class StoreResolver {
                     ViewFrames.frameNameOf(ctx, aj.target()),
                     new ExprType(
                             new Type.RelationType(cols),
-                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE),
+                false /* resolver-synth */);
         }
         // 2c. AGGREGATED navigations (the engine's subAggregation shape):
         // per to-many head, ONE grouped subselect — the target pipeline
@@ -2054,7 +2057,8 @@ public final class StoreResolver {
                     new ExprType(
                             new Type.RelationType(cols),
                             com.legend.compiler.element.type.Multiplicity
-                                    .Bounded.ONE));
+                                    .Bounded.ONE),
+                false /* resolver-synth */);
             ord = 0;
             for (AggDemand d : entry.getValue()) {
                 aggReads.put(d.node(), new Substitution.AggRead(

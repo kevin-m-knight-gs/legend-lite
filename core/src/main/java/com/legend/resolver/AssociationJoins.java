@@ -1076,7 +1076,8 @@ final class AssociationJoins {
                     java.util.Optional.of(pfx), null,
                     new ExprType(new Type.RelationType(wcols),
                             com.legend.compiler.element.type.Multiplicity
-                                    .Bounded.ONE));
+                                    .Bounded.ONE),
+                false /* resolver-synth */);
             nestedPrefixByProp.put(ne.getKey(), pfx);
         }
         final Pipelines.Materialized tMat = new Pipelines.Materialized(

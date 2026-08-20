@@ -184,7 +184,8 @@ final class ChainedExists {
                         new Type.Param(Type.Primitive.BOOLEAN, one)), one));
         TypedSpec composite = new TypedJoin(leafPipe, midPipe,
                 StoreResolver.leftKind(), joinCond, Optional.of(pfx), null,
-                new ExprType(compRow, one));
+                new ExprType(compRow, one),
+                false /* resolver-synth */);
         // oriented (parent, chain-row) condition: the MID-hop condition
         // with its target-side reads re-pointed at the prefixed columns.
         String pv = midCond.parameters().get(0);

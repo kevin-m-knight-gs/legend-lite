@@ -586,6 +586,24 @@ G4 artifact read as an 18-test regression until the scoped re-run proved
 23/23 (never pkill broad patterns; stop tasks by id). Referee byte-identical;
 core 4166; ALLGATES GREEN.
 
+*BURN QUEUE SLICE 8 (2026-08-19 — the null-semantics leg):* (1) TDS-literal
+columns whose DATA carries null cells now type honestly as [0..1] — the [1] lie
+had hidden every null-safe arm downstream. (2) A USER join lambda's ON lowers in
+FILTER POSITION (engine nullSafeEqualsOperation: [0..1]==[0..1] pure equality is
+IS NOT DISTINCT FROM; witness testJoinOnNullKey — pure joins null keys, the
+engine's own DuckDB manifest corroborates). (3) The provenance split done RIGHT:
+`TypedJoin.userCondition` — the relation-surface lambda gets the grant, a
+RESOLVER-SYNTHESIZED navigation join stays verbatim '=' (the mapping's own
+definition; slotDemandJoins' golden pinned the distinction). A defaulting
+constructor first dropped the flag at a rebuild site EXACTLY as the record's own
+T2.2 comment warned — removed; all 31 construction sites name the field
+(rebuilds preserve, synthesis false). JoinTortureTest re-pinned 5→6 (its "NULL
+joins nothing" was OUR SQL intuition; both upstream executors join the null
+pair). Also en route: STATIC pivots defer the '#TDS' composition too (their
+outputs are equally absent at lower time — test_Static_Pivot_Filter's grid had
+LOST its pivot columns). Relation **PASS=282/287 (TRUE 5)**. Referee
+byte-identical; core 4166; ALLGATES GREEN.
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine

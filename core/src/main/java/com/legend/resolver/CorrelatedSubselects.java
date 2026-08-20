@@ -174,7 +174,8 @@ final class CorrelatedSubselects {
                 Optional.of(midPrefix), frameName,
                 new ExprType(midJoinedRow,
                         com.legend.compiler.element.type.Multiplicity
-                                .Bounded.ONE));
+                                .Bounded.ONE),
+                false /* resolver-synth */);
         TypedLambda finCond = java.util.Objects.requireNonNull(
                 aj.condition(), "chain-final association condition");
         String lpChain = finCond.parameters().get(0);
@@ -238,7 +239,8 @@ final class CorrelatedSubselects {
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         TypedSpec joinedSub = new TypedJoin(pc.mat().pipeline(),
                 aj.targetPipeline(), StoreResolver.leftKind(), java.util.Objects.requireNonNull(aj.condition()),
-                Optional.of(corrTp), null, jInfo);
+                Optional.of(corrTp), null, jInfo,
+                false /* resolver-synth */);
         String corrRowVar = "_cj";
         // audit 23: a user lambda variable named _cj would shadow-stop the
         // rewriters — bump until fresh against the pred's own names
@@ -321,7 +323,8 @@ final class CorrelatedSubselects {
                         .Bounded.ONE);
         TypedSpec joinedSub = new TypedJoin(pc.mat().pipeline(),
                 aj.targetPipeline(), StoreResolver.leftKind(), java.util.Objects.requireNonNull(aj.condition()),
-                Optional.of(corrTp), null, jInfo);
+                Optional.of(corrTp), null, jInfo,
+                false /* resolver-synth */);
         // audit 23: same _cj freshness bump as corrAggSubSource
         String cjVar = "_cj";
         Set<String> cjTaken2 = new LinkedHashSet<>();
@@ -807,7 +810,8 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
                 StoreResolver.leftKind(), cond, Optional.of(corrTp), null,
                 new ExprType(jRow,
                         com.legend.compiler.element.type.Multiplicity
-                                .Bounded.ONE));
+                                .Bounded.ONE),
+                false /* resolver-synth */);
         return new CorrAggSub(joined, keyCols, jRow, corrTp, "_cj", jRow, null);
     }
 
@@ -1202,7 +1206,8 @@ private static boolean referencesVar(TypedSpec n, String var) {
             pipe = new TypedJoin(pipe, aj2.targetPipeline(), StoreResolver.leftKind(),
                     java.util.Objects.requireNonNull(aj2.condition()), Optional.of(aj2.prefix()), null,
                     new ExprType(widened,
-                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE),
+                false /* resolver-synth */);
             nestedAssocs.put(h, new Substitution.AssocSub(aj2.prefix(),
                     aj2.target().rowVar(), aj2.target().bindings(),
                     aj2.target().classFqn(),
@@ -1313,7 +1318,8 @@ private static boolean referencesVar(TypedSpec n, String var) {
                         Optional.of(chainPrefix), null,
                         new ExprType(new Type.RelationType(cols3),
                                 com.legend.compiler.element.type.Multiplicity
-                                        .Bounded.ONE));
+                                        .Bounded.ONE),
+                false /* resolver-synth */);
                 AssociationJoins.AssocJoin stored =
                         new AssociationJoins.AssocJoin(chainPrefix,
                                 aj3.target(), aj3.targetPipeline(),
@@ -1519,7 +1525,8 @@ record CompositeChain(TypedSpec pipeline,
                             new Type.Param(Type.Primitive.BOOLEAN, one)), one));
             composite = new TypedJoin(composite, slotTarget,
                     StoreResolver.leftKind(), joinCond, Optional.of(pfx), null,
-                    new ExprType(newRow, one));
+                    new ExprType(newRow, one),
+                false /* resolver-synth */);
             compRow = newRow;
         }
         final Type.RelationType finalRow = compRow;

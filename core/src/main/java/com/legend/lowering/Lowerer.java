@@ -1708,7 +1708,8 @@ public final class Lowerer {
                 "meta::pure::functions::relation::JoinKind", "LEFT", nav.info());
         return join(new TypedJoin(nav.source(),
                 nav.target(), leftKind, nav.predicate(),
-                Optional.of(navSlotPrefix(alias)), null, flatInfo));
+                Optional.of(navSlotPrefix(alias)), null, flatInfo,
+                false /* nav-slot synth */));
     }
 
     /** THE navigate flat-column convention ({@code slot_COL}): mint and
@@ -1756,7 +1757,19 @@ public final class Lowerer {
         SqlSelect rightSel = relation(j.right());
         SqlSource right = asRightSide(rightSel,
                 unionFramed(rightSel) ? "unionAlias" : j.frameName());
-        SqlExpr on = sideCondition(j.condition(), left, right, leftCarry);
+        // a USER join lambda's ON lowers in FILTER POSITION (engine
+        // nullSafeEqualsOperation: [0..1]==[0..1] pure equality is
+        // null-safe; witness testJoinOnNullKey — pure joins null keys).
+        // A RESOLVER-SYNTHESIZED navigation join is the MAPPING's own
+        // definition — verbatim plain '=' (slotDemandJoins' golden).
+        SqlExpr on;
+        if (j.userCondition()) {
+            try (var ignored = NullSemantics.enterFilter()) {
+                on = sideCondition(j.condition(), left, right, leftCarry);
+            }
+        } else {
+            on = sideCondition(j.condition(), left, right, leftCarry);
+        }
         SqlSource.Join.Kind kind = switch (j.kind().value()) {
             case "INNER" -> SqlSource.Join.Kind.INNER;
             case "LEFT" -> SqlSource.Join.Kind.LEFT;
