@@ -1,0 +1,211 @@
+###Pure
+// Legal and regulatory matters, and what has to be disclosed about them.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class litigation::LegalMatter
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Ongoing, and rarely commented on.
+Class litigation::RegulatoryInvestigation extends litigation::LegalMatter
+{
+}
+
+// Concluded, with a penalty and a published notice.
+Class litigation::EnforcementAction extends litigation::LegalMatter
+{
+}
+
+// With conditions and a monitor.
+Class litigation::DeferredProsecutionAgreement extends litigation::LegalMatter
+{
+}
+
+// Where the exposure is the class definition.
+Class litigation::ClassActionClaim extends litigation::LegalMatter
+{
+}
+
+// Smaller, more numerous, and often settled quietly.
+Class litigation::IndividualClaim extends litigation::LegalMatter
+{
+}
+
+// Private, and increasingly common in cross-border disputes.
+Class litigation::ArbitrationProceeding extends litigation::LegalMatter
+{
+}
+
+// Provided for once it is probable and estimable.
+Class litigation::RegulatoryFine extends litigation::LegalMatter
+{
+}
+
+// Proactive repayment, and usually cheaper than the alternative.
+Class litigation::CustomerRedressScheme extends litigation::LegalMatter
+{
+}
+
+// Commissioned by the regulator and paid for by the firm.
+Class litigation::SkilledPersonReview extends litigation::LegalMatter
+{
+}
+
+// Reporting to the authority rather than to the board.
+Class litigation::IndependentMonitor extends litigation::LegalMatter
+{
+}
+
+// A promise instead of a penalty.
+Class litigation::RegulatoryUndertaking extends litigation::LegalMatter
+{
+}
+
+// Disclosed and not provided for, which is a judgement.
+Class litigation::ContingentLiabilityItem extends litigation::LegalMatter
+{
+}
+
+// Provided for, and the number is itself sensitive.
+Class litigation::LegalProvisionItem extends litigation::LegalMatter
+{
+}
+
+// Recognised separately, and only when virtually certain.
+Class litigation::InsuranceRecoveryItem extends litigation::LegalMatter
+{
+}
+
+// Usually without admission, and with a confidentiality clause.
+Class litigation::SettlementAgreement extends litigation::LegalMatter
+{
+}
+
+// Which keeps the matter open on the balance sheet.
+Class litigation::AppealPending extends litigation::LegalMatter
+{
+}
+
+###Mapping
+Mapping litigation::LitigationMapping
+(
+   *litigation::LegalMatter[litigationBase]: Relational
+   {
+      ~primaryKey ( [store::DB]LEGAL_MATTER.RECORD_ID )
+      ~mainTable [store::DB]LEGAL_MATTER
+      recordId: [store::DB]LEGAL_MATTER.RECORD_ID,
+      recordType: [store::DB]LEGAL_MATTER.RECORD_TYPE,
+      bookId: [store::DB]LEGAL_MATTER.BOOK_ID,
+      notional: [store::DB]LEGAL_MATTER.NOTIONAL,
+      currency: [store::DB]LEGAL_MATTER.CURRENCY,
+      tradeDate: [store::DB]LEGAL_MATTER.TRADE_DATE,
+      maturityDate: [store::DB]LEGAL_MATTER.MATURITY_DATE,
+      status: [store::DB]LEGAL_MATTER.STATUS,
+      isActive: [store::DB]LEGAL_MATTER.IS_ACTIVE,
+      riskScore: [store::DB]LEGAL_MATTER.RISK_SCORE
+   }
+
+   litigation::RegulatoryInvestigation[litRegulatoryInvestigation] extends [litigationBase]: Relational
+   {
+      ~filter [store::DB]LitRegulatoryInvestigationRows
+   }
+
+   litigation::EnforcementAction[litEnforcementAction] extends [litigationBase]: Relational
+   {
+      ~filter [store::DB]LitEnforcementActionRows
+   }
+
+   litigation::DeferredProsecutionAgreement[litDeferredProsecution] extends [litigationBase]: Relational
+   {
+      ~filter [store::DB]LitDeferredProsecutionRows
+   }
+
+   litigation::ClassActionClaim[litClassAction] extends [litigationBase]: Relational
+   {
+      ~filter [store::DB]LitClassActionRows
+   }
+
+   litigation::IndividualClaim[litIndividualClaim] extends [litigationBase]: Relational
+   {
+      ~filter [store::DB]LitIndividualClaimRows
+   }
+
+   litigation::ArbitrationProceeding[litArbitration] extends [litigationBase]: Relational
+   {
+      ~filter [store::DB]LitArbitrationRows
+   }
+
+   litigation::RegulatoryFine[litRegulatoryFine] extends [litigationBase]: Relational
+   {
+      ~filter [store::DB]LitRegulatoryFineRows
+   }
+
+   litigation::CustomerRedressScheme[litRedressScheme] extends [litigationBase]: Relational
+   {
+      ~filter [store::DB]LitRedressSchemeRows
+   }
+
+   litigation::SkilledPersonReview[litSkilledPersonReview] extends [litigationBase]: Relational
+   {
+      ~filter [store::DB]LitSkilledPersonReviewRows
+   }
+
+   litigation::IndependentMonitor[litMonitorAppointment] extends [litigationBase]: Relational
+   {
+      ~filter [store::DB]LitMonitorAppointmentRows
+   }
+
+   litigation::RegulatoryUndertaking[litUndertaking] extends [litigationBase]: Relational
+   {
+      ~filter [store::DB]LitUndertakingRows
+   }
+
+   litigation::ContingentLiabilityItem[litContingentLiability] extends [litigationBase]: Relational
+   {
+      ~filter [store::DB]LitContingentLiabilityRows
+   }
+
+   litigation::LegalProvisionItem[litProvisionRecognised] extends [litigationBase]: Relational
+   {
+      ~filter [store::DB]LitProvisionRecognisedRows
+   }
+
+   litigation::InsuranceRecoveryItem[litInsuranceRecovery] extends [litigationBase]: Relational
+   {
+      ~filter [store::DB]LitInsuranceRecoveryRows
+   }
+
+   litigation::SettlementAgreement[litSettlementAgreed] extends [litigationBase]: Relational
+   {
+      ~filter [store::DB]LitSettlementAgreedRows
+   }
+
+   litigation::AppealPending[litAppealPending] extends [litigationBase]: Relational
+   {
+      ~filter [store::DB]LitAppealPendingRows
+   }
+)

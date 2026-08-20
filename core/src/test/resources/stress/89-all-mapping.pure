@@ -34,6 +34,18 @@ Mapping stress::AllMapping
     include risk::MarketRiskMapping
     include middleoffice::MiddleOfficeMapping
     include backoffice::BackOfficeMapping
+    include marketevents::MarketeventsMapping
+    include clientlifecycle::ClientlifecycleMapping
+    include bookclosure::BookclosureMapping
+    include nettingsets::NettingsetsMapping
+    include agencylending::AgencylendingMapping
+    include mifidfields::MifidfieldsMapping
+    include yearendprocess::YearendprocessMapping
+    include entitlements::EntitlementsMapping
+    include apidistribution::ApidistributionMapping
+    include litigation::LitigationMapping
+    include securitieslending::SecuritieslendingMapping
+    include collateraltransform::CollateraltransformMapping
     include greenfinance::GreenfinanceMapping
     include appetitemetrics::AppetitemetricsMapping
     include benchmarkreform::BenchmarkreformMapping

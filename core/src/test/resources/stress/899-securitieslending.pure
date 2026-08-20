@@ -1,0 +1,211 @@
+###Pure
+// Securities lending, from the beneficial owner's side to the borrower's.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class securitieslending::SecLendingItem
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The custodian lends on the owner's behalf and shares the fee.
+Class securitieslending::AgencyLendingArrangement extends securitieslending::SecLendingItem
+{
+}
+
+// The intermediary takes the position itself.
+Class securitieslending::PrincipalLendingArrangement extends securitieslending::SecLendingItem
+{
+}
+
+// A whole portfolio, to one borrower, for a fixed fee.
+Class securitieslending::ExclusiveLendingArrangement extends securitieslending::SecLendingItem
+{
+}
+
+// Reinvested, and where the 2008 losses actually were.
+Class securitieslending::CashCollateralLoan extends securitieslending::SecLendingItem
+{
+}
+
+// Simpler, and a fee rather than a rebate.
+Class securitieslending::NonCashCollateralLoan extends securitieslending::SecLendingItem
+{
+}
+
+// Paid back on cash collateral, and negative for a hot stock.
+Class securitieslending::RebateRateItem extends securitieslending::SecLendingItem
+{
+}
+
+// Lending only the specials, and not the general collateral.
+Class securitieslending::IntrinsicValueLoan extends securitieslending::SecLendingItem
+{
+}
+
+// The agent's guarantee, and its capital cost.
+Class securitieslending::BorrowerDefaultIndemnity extends securitieslending::SecLendingItem
+{
+}
+
+// Where the cash collateral goes, and the risk the owner did not price.
+Class securitieslending::CashReinvestmentPool extends securitieslending::SecLendingItem
+{
+}
+
+// The owner wants it back, usually to vote or to sell.
+Class securitieslending::LendingRecall extends securitieslending::SecLendingItem
+{
+}
+
+// The consequence of not returning it.
+Class securitieslending::LendingBuyIn extends securitieslending::SecLendingItem
+{
+}
+
+// Paid by the borrower in lieu, and taxed differently.
+Class securitieslending::ManufacturedDividend extends securitieslending::SecLendingItem
+{
+}
+
+// Around dividend dates, and the reason several markets changed the rules.
+Class securitieslending::TaxArbitrageFlag extends securitieslending::SecLendingItem
+{
+}
+
+// Fixed period, so the borrower knows the borrow will not vanish.
+Class securitieslending::TermSecuritiesLoan extends securitieslending::SecLendingItem
+{
+}
+
+// Terminable daily, and cheaper for it.
+Class securitieslending::OpenSecuritiesLoan extends securitieslending::SecLendingItem
+{
+}
+
+// How much of the lendable pool is out, and the squeeze indicator.
+Class securitieslending::UtilisationRateItem extends securitieslending::SecLendingItem
+{
+}
+
+###Mapping
+Mapping securitieslending::SecuritieslendingMapping
+(
+   *securitieslending::SecLendingItem[securitieslendingBase]: Relational
+   {
+      ~primaryKey ( [store::DB]SEC_LENDING_ITEM.RECORD_ID )
+      ~mainTable [store::DB]SEC_LENDING_ITEM
+      recordId: [store::DB]SEC_LENDING_ITEM.RECORD_ID,
+      recordType: [store::DB]SEC_LENDING_ITEM.RECORD_TYPE,
+      bookId: [store::DB]SEC_LENDING_ITEM.BOOK_ID,
+      notional: [store::DB]SEC_LENDING_ITEM.NOTIONAL,
+      currency: [store::DB]SEC_LENDING_ITEM.CURRENCY,
+      tradeDate: [store::DB]SEC_LENDING_ITEM.TRADE_DATE,
+      maturityDate: [store::DB]SEC_LENDING_ITEM.MATURITY_DATE,
+      status: [store::DB]SEC_LENDING_ITEM.STATUS,
+      isActive: [store::DB]SEC_LENDING_ITEM.IS_ACTIVE,
+      riskScore: [store::DB]SEC_LENDING_ITEM.RISK_SCORE
+   }
+
+   securitieslending::AgencyLendingArrangement[sleAgencyLending] extends [securitieslendingBase]: Relational
+   {
+      ~filter [store::DB]SleAgencyLendingRows
+   }
+
+   securitieslending::PrincipalLendingArrangement[slePrincipalLending] extends [securitieslendingBase]: Relational
+   {
+      ~filter [store::DB]SlePrincipalLendingRows
+   }
+
+   securitieslending::ExclusiveLendingArrangement[sleExclusiveArrangement] extends [securitieslendingBase]: Relational
+   {
+      ~filter [store::DB]SleExclusiveArrangementRows
+   }
+
+   securitieslending::CashCollateralLoan[sleCashCollateral] extends [securitieslendingBase]: Relational
+   {
+      ~filter [store::DB]SleCashCollateralRows
+   }
+
+   securitieslending::NonCashCollateralLoan[sleNonCashCollateral] extends [securitieslendingBase]: Relational
+   {
+      ~filter [store::DB]SleNonCashCollateralRows
+   }
+
+   securitieslending::RebateRateItem[sleRebateRate] extends [securitieslendingBase]: Relational
+   {
+      ~filter [store::DB]SleRebateRateRows
+   }
+
+   securitieslending::IntrinsicValueLoan[sleIntrinsicValue] extends [securitieslendingBase]: Relational
+   {
+      ~filter [store::DB]SleIntrinsicValueRows
+   }
+
+   securitieslending::BorrowerDefaultIndemnity[sleIndemnification] extends [securitieslendingBase]: Relational
+   {
+      ~filter [store::DB]SleIndemnificationRows
+   }
+
+   securitieslending::CashReinvestmentPool[sleReinvestmentPool] extends [securitieslendingBase]: Relational
+   {
+      ~filter [store::DB]SleReinvestmentPoolRows
+   }
+
+   securitieslending::LendingRecall[sleRecallLending] extends [securitieslendingBase]: Relational
+   {
+      ~filter [store::DB]SleRecallLendingRows
+   }
+
+   securitieslending::LendingBuyIn[sleBuyInLending] extends [securitieslendingBase]: Relational
+   {
+      ~filter [store::DB]SleBuyInLendingRows
+   }
+
+   securitieslending::ManufacturedDividend[sleDividendManufactured] extends [securitieslendingBase]: Relational
+   {
+      ~filter [store::DB]SleDividendManufacturedRows
+   }
+
+   securitieslending::TaxArbitrageFlag[sleTaxArbitrageFlag] extends [securitieslendingBase]: Relational
+   {
+      ~filter [store::DB]SleTaxArbitrageFlagRows
+   }
+
+   securitieslending::TermSecuritiesLoan[sleTermLoanSl] extends [securitieslendingBase]: Relational
+   {
+      ~filter [store::DB]SleTermLoanSlRows
+   }
+
+   securitieslending::OpenSecuritiesLoan[sleOpenLoan] extends [securitieslendingBase]: Relational
+   {
+      ~filter [store::DB]SleOpenLoanRows
+   }
+
+   securitieslending::UtilisationRateItem[sleUtilisationRate] extends [securitieslendingBase]: Relational
+   {
+      ~filter [store::DB]SleUtilisationRateRows
+   }
+)

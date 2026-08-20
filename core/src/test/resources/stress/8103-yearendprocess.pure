@@ -1,0 +1,211 @@
+###Pure
+// Period end: the tasks that only run monthly, quarterly or once a year.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class yearendprocess::PeriodEndTask
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The ledger is shut and cannot be reopened without approval.
+Class yearendprocess::HardCloseTask extends yearendprocess::PeriodEndTask
+{
+}
+
+// An estimate, produced before the real one.
+Class yearendprocess::SoftCloseTask extends yearendprocess::PeriodEndTask
+{
+}
+
+// For what has happened and not been invoiced.
+Class yearendprocess::AccrualPosting extends yearendprocess::PeriodEndTask
+{
+}
+
+// For what was paid and not yet used.
+Class yearendprocess::PrepaymentRelease extends yearendprocess::PeriodEndTask
+{
+}
+
+// Every foreign-currency balance, at the closing rate.
+Class yearendprocess::FxRevaluationRun extends yearendprocess::PeriodEndTask
+{
+}
+
+// Marks checked against sources the desk does not control.
+Class yearendprocess::IndependentPriceVerificationRun extends yearendprocess::PeriodEndTask
+{
+}
+
+// Bid-offer, model and concentration, recalculated.
+Class yearendprocess::ReserveCalculationTask extends yearendprocess::PeriodEndTask
+{
+}
+
+// So the group does not consolidate its own trades.
+Class yearendprocess::IntercompanyElimination extends yearendprocess::PeriodEndTask
+{
+}
+
+// Every entity, every currency, one set of accounts.
+Class yearendprocess::ConsolidationRun extends yearendprocess::PeriodEndTask
+{
+}
+
+// Current and deferred, and the last thing to finalise.
+Class yearendprocess::TaxProvisionCalculation extends yearendprocess::PeriodEndTask
+{
+}
+
+// The notes, which take longer than the numbers.
+Class yearendprocess::DisclosurePackPreparation extends yearendprocess::PeriodEndTask
+{
+}
+
+// Arriving at the least convenient moment by design.
+Class yearendprocess::AuditSampleRequest extends yearendprocess::PeriodEndTask
+{
+}
+
+// On a deadline that does not move.
+Class yearendprocess::RegulatoryReturnSubmission extends yearendprocess::PeriodEndTask
+{
+}
+
+// Estimated all year and settled once.
+Class yearendprocess::BonusAccrualTask extends yearendprocess::PeriodEndTask
+{
+}
+
+// Annual for goodwill, whatever the triggers say.
+Class yearendprocess::ImpairmentReviewTask extends yearendprocess::PeriodEndTask
+{
+}
+
+// Twelve months forward, and signed by the board.
+Class yearendprocess::GoingConcernAssessment extends yearendprocess::PeriodEndTask
+{
+}
+
+###Mapping
+Mapping yearendprocess::YearendprocessMapping
+(
+   *yearendprocess::PeriodEndTask[yearendprocessBase]: Relational
+   {
+      ~primaryKey ( [store::DB]PERIOD_END_TASK.RECORD_ID )
+      ~mainTable [store::DB]PERIOD_END_TASK
+      recordId: [store::DB]PERIOD_END_TASK.RECORD_ID,
+      recordType: [store::DB]PERIOD_END_TASK.RECORD_TYPE,
+      bookId: [store::DB]PERIOD_END_TASK.BOOK_ID,
+      notional: [store::DB]PERIOD_END_TASK.NOTIONAL,
+      currency: [store::DB]PERIOD_END_TASK.CURRENCY,
+      tradeDate: [store::DB]PERIOD_END_TASK.TRADE_DATE,
+      maturityDate: [store::DB]PERIOD_END_TASK.MATURITY_DATE,
+      status: [store::DB]PERIOD_END_TASK.STATUS,
+      isActive: [store::DB]PERIOD_END_TASK.IS_ACTIVE,
+      riskScore: [store::DB]PERIOD_END_TASK.RISK_SCORE
+   }
+
+   yearendprocess::HardCloseTask[peiHardClose] extends [yearendprocessBase]: Relational
+   {
+      ~filter [store::DB]PeiHardCloseRows
+   }
+
+   yearendprocess::SoftCloseTask[peiSoftClose] extends [yearendprocessBase]: Relational
+   {
+      ~filter [store::DB]PeiSoftCloseRows
+   }
+
+   yearendprocess::AccrualPosting[peiAccrualPosting] extends [yearendprocessBase]: Relational
+   {
+      ~filter [store::DB]PeiAccrualPostingRows
+   }
+
+   yearendprocess::PrepaymentRelease[peiPrepaymentRelease] extends [yearendprocessBase]: Relational
+   {
+      ~filter [store::DB]PeiPrepaymentReleaseRows
+   }
+
+   yearendprocess::FxRevaluationRun[peiFxRevaluation] extends [yearendprocessBase]: Relational
+   {
+      ~filter [store::DB]PeiFxRevaluationRows
+   }
+
+   yearendprocess::IndependentPriceVerificationRun[peiIpvRun] extends [yearendprocessBase]: Relational
+   {
+      ~filter [store::DB]PeiIpvRunRows
+   }
+
+   yearendprocess::ReserveCalculationTask[peiReserveCalculation] extends [yearendprocessBase]: Relational
+   {
+      ~filter [store::DB]PeiReserveCalculationRows
+   }
+
+   yearendprocess::IntercompanyElimination[peiIntercompanyElimination] extends [yearendprocessBase]: Relational
+   {
+      ~filter [store::DB]PeiIntercompanyEliminationRows
+   }
+
+   yearendprocess::ConsolidationRun[peiConsolidationRun] extends [yearendprocessBase]: Relational
+   {
+      ~filter [store::DB]PeiConsolidationRunRows
+   }
+
+   yearendprocess::TaxProvisionCalculation[peiTaxProvision] extends [yearendprocessBase]: Relational
+   {
+      ~filter [store::DB]PeiTaxProvisionRows
+   }
+
+   yearendprocess::DisclosurePackPreparation[peiDisclosurePack] extends [yearendprocessBase]: Relational
+   {
+      ~filter [store::DB]PeiDisclosurePackRows
+   }
+
+   yearendprocess::AuditSampleRequest[peiAuditSample] extends [yearendprocessBase]: Relational
+   {
+      ~filter [store::DB]PeiAuditSampleRows
+   }
+
+   yearendprocess::RegulatoryReturnSubmission[peiRegulatoryReturn] extends [yearendprocessBase]: Relational
+   {
+      ~filter [store::DB]PeiRegulatoryReturnRows
+   }
+
+   yearendprocess::BonusAccrualTask[peiBonusAccrual] extends [yearendprocessBase]: Relational
+   {
+      ~filter [store::DB]PeiBonusAccrualRows
+   }
+
+   yearendprocess::ImpairmentReviewTask[peiImpairmentReview] extends [yearendprocessBase]: Relational
+   {
+      ~filter [store::DB]PeiImpairmentReviewRows
+   }
+
+   yearendprocess::GoingConcernAssessment[peiGoingConcern] extends [yearendprocessBase]: Relational
+   {
+      ~filter [store::DB]PeiGoingConcernRows
+   }
+)

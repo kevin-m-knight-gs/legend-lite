@@ -1,0 +1,211 @@
+###Pure
+// P&L attribution: where the day's money came from, line by line.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class bookclosure::PnlExplainItem
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The first-order market move, and usually most of it.
+Class bookclosure::DeltaPnl extends bookclosure::PnlExplainItem
+{
+}
+
+// The convexity, which is the market maker's actual business.
+Class bookclosure::GammaPnl extends bookclosure::PnlExplainItem
+{
+}
+
+// Implied volatility moved, whatever the underlying did.
+Class bookclosure::VegaPnl extends bookclosure::PnlExplainItem
+{
+}
+
+// Time passed, which is the only certain component.
+Class bookclosure::ThetaPnl extends bookclosure::PnlExplainItem
+{
+}
+
+// Rates moved, and it matters more than it used to.
+Class bookclosure::RhoPnl extends bookclosure::PnlExplainItem
+{
+}
+
+// Two underlyings moving together, and hard to hedge.
+Class bookclosure::CrossGammaPnl extends bookclosure::PnlExplainItem
+{
+}
+
+// The day's business, at the price it was done.
+Class bookclosure::NewTradePnl extends bookclosure::PnlExplainItem
+{
+}
+
+// Corrections, which should be small and are worth watching.
+Class bookclosure::AmendedTradePnl extends bookclosure::PnlExplainItem
+{
+}
+
+// Accrual and funding, and the reason a flat book is not flat.
+Class bookclosure::CarryPnl extends bookclosure::PnlExplainItem
+{
+}
+
+// The desk's charge for the balance sheet it uses.
+Class bookclosure::FundingPnl extends bookclosure::PnlExplainItem
+{
+}
+
+// A change in a reserve, not in a market.
+Class bookclosure::ReserveMovementPnl extends bookclosure::PnlExplainItem
+{
+}
+
+// Reporting the same position in a different currency.
+Class bookclosure::FxTranslationPnl extends bookclosure::PnlExplainItem
+{
+}
+
+// The residual, and the number risk management actually reads.
+Class bookclosure::UnexplainedPnl extends bookclosure::PnlExplainItem
+{
+}
+
+// Yesterday's book at today's prices, for the backtest.
+Class bookclosure::HypotheticalPnl extends bookclosure::PnlExplainItem
+{
+}
+
+// What the risk model says should have happened -- the FRTB comparison.
+Class bookclosure::RiskTheoreticalPnl extends bookclosure::PnlExplainItem
+{
+}
+
+// A different model, the same book, and a jump nobody traded for.
+Class bookclosure::ModelChangePnl extends bookclosure::PnlExplainItem
+{
+}
+
+###Mapping
+Mapping bookclosure::BookclosureMapping
+(
+   *bookclosure::PnlExplainItem[bookclosureBase]: Relational
+   {
+      ~primaryKey ( [store::DB]PNL_EXPLAIN_ITEM.RECORD_ID )
+      ~mainTable [store::DB]PNL_EXPLAIN_ITEM
+      recordId: [store::DB]PNL_EXPLAIN_ITEM.RECORD_ID,
+      recordType: [store::DB]PNL_EXPLAIN_ITEM.RECORD_TYPE,
+      bookId: [store::DB]PNL_EXPLAIN_ITEM.BOOK_ID,
+      notional: [store::DB]PNL_EXPLAIN_ITEM.NOTIONAL,
+      currency: [store::DB]PNL_EXPLAIN_ITEM.CURRENCY,
+      tradeDate: [store::DB]PNL_EXPLAIN_ITEM.TRADE_DATE,
+      maturityDate: [store::DB]PNL_EXPLAIN_ITEM.MATURITY_DATE,
+      status: [store::DB]PNL_EXPLAIN_ITEM.STATUS,
+      isActive: [store::DB]PNL_EXPLAIN_ITEM.IS_ACTIVE,
+      riskScore: [store::DB]PNL_EXPLAIN_ITEM.RISK_SCORE
+   }
+
+   bookclosure::DeltaPnl[pnlDeltaPnl] extends [bookclosureBase]: Relational
+   {
+      ~filter [store::DB]PnlDeltaPnlRows
+   }
+
+   bookclosure::GammaPnl[pnlGammaPnl] extends [bookclosureBase]: Relational
+   {
+      ~filter [store::DB]PnlGammaPnlRows
+   }
+
+   bookclosure::VegaPnl[pnlVegaPnl] extends [bookclosureBase]: Relational
+   {
+      ~filter [store::DB]PnlVegaPnlRows
+   }
+
+   bookclosure::ThetaPnl[pnlThetaPnl] extends [bookclosureBase]: Relational
+   {
+      ~filter [store::DB]PnlThetaPnlRows
+   }
+
+   bookclosure::RhoPnl[pnlRhoPnl] extends [bookclosureBase]: Relational
+   {
+      ~filter [store::DB]PnlRhoPnlRows
+   }
+
+   bookclosure::CrossGammaPnl[pnlCrossGammaPnl] extends [bookclosureBase]: Relational
+   {
+      ~filter [store::DB]PnlCrossGammaPnlRows
+   }
+
+   bookclosure::NewTradePnl[pnlNewTradePnl] extends [bookclosureBase]: Relational
+   {
+      ~filter [store::DB]PnlNewTradePnlRows
+   }
+
+   bookclosure::AmendedTradePnl[pnlAmendedTradePnl] extends [bookclosureBase]: Relational
+   {
+      ~filter [store::DB]PnlAmendedTradePnlRows
+   }
+
+   bookclosure::CarryPnl[pnlCarryPnl] extends [bookclosureBase]: Relational
+   {
+      ~filter [store::DB]PnlCarryPnlRows
+   }
+
+   bookclosure::FundingPnl[pnlFundingPnl] extends [bookclosureBase]: Relational
+   {
+      ~filter [store::DB]PnlFundingPnlRows
+   }
+
+   bookclosure::ReserveMovementPnl[pnlReserveMovement] extends [bookclosureBase]: Relational
+   {
+      ~filter [store::DB]PnlReserveMovementRows
+   }
+
+   bookclosure::FxTranslationPnl[pnlFxTranslationPnl] extends [bookclosureBase]: Relational
+   {
+      ~filter [store::DB]PnlFxTranslationPnlRows
+   }
+
+   bookclosure::UnexplainedPnl[pnlUnexplainedPnl] extends [bookclosureBase]: Relational
+   {
+      ~filter [store::DB]PnlUnexplainedPnlRows
+   }
+
+   bookclosure::HypotheticalPnl[pnlHypotheticalPnl] extends [bookclosureBase]: Relational
+   {
+      ~filter [store::DB]PnlHypotheticalPnlRows
+   }
+
+   bookclosure::RiskTheoreticalPnl[pnlRiskTheoreticalPnl] extends [bookclosureBase]: Relational
+   {
+      ~filter [store::DB]PnlRiskTheoreticalPnlRows
+   }
+
+   bookclosure::ModelChangePnl[pnlModelChangePnl] extends [bookclosureBase]: Relational
+   {
+      ~filter [store::DB]PnlModelChangePnlRows
+   }
+)

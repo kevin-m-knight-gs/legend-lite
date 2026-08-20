@@ -1,0 +1,211 @@
+###Pure
+// Netting sets: the unit exposure is measured on, and what breaks one.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class nettingsets::NettingSetItem
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// One master agreement, one counterparty, one number.
+Class nettingsets::BilateralNettingSet extends nettingsets::NettingSetItem
+{
+}
+
+// Derivatives and repo under one agreement, where the opinion allows.
+Class nettingsets::CrossProductNettingSet extends nettingsets::NettingSetItem
+{
+}
+
+// At the CCP, and usually per account rather than per member.
+Class nettingsets::ClearedNettingSet extends nettingsets::NettingSetItem
+{
+}
+
+// With a CSA, so exposure is the margin period of risk.
+Class nettingsets::MarginedNettingSet extends nettingsets::NettingSetItem
+{
+}
+
+// Without one, and the exposure is the whole life.
+Class nettingsets::UnmarginedNettingSet extends nettingsets::NettingSetItem
+{
+}
+
+// Only one side posts, which is a credit decision in disguise.
+Class nettingsets::OneWayCsaSet extends nettingsets::NettingSetItem
+{
+}
+
+// Unsecured up to a level, and secured above it.
+Class nettingsets::ThresholdNettingSet extends nettingsets::NettingSetItem
+{
+}
+
+// An over-collateralisation unrelated to current exposure.
+Class nettingsets::IndependentAmountSet extends nettingsets::NettingSetItem
+{
+}
+
+// Netting assumed to fail, so exposure is gross.
+Class nettingsets::UnopinionedJurisdiction extends nettingsets::NettingSetItem
+{
+}
+
+// Split by product where the agreement requires it.
+Class nettingsets::SubNettingSet extends nettingsets::NettingSetItem
+{
+}
+
+// Several branches under one agreement, and several insolvency regimes.
+Class nettingsets::MultiBranchNettingSet extends nettingsets::NettingSetItem
+{
+}
+
+// Where the eligibility schedule attaches.
+Class nettingsets::CollateralisedNettingSet extends nettingsets::NettingSetItem
+{
+}
+
+// The provision that makes any of this work.
+Class nettingsets::CloseOutNettingItem extends nettingsets::NettingSetItem
+{
+}
+
+// Against other obligations, which is broader and less reliable.
+Class nettingsets::SetOffRight extends nettingsets::NettingSetItem
+{
+}
+
+// Where the two sides do not agree on the population.
+Class nettingsets::DisputedNettingSet extends nettingsets::NettingSetItem
+{
+}
+
+// Signed, unamended, and no longer matching what is traded.
+Class nettingsets::StaleAgreementItem extends nettingsets::NettingSetItem
+{
+}
+
+###Mapping
+Mapping nettingsets::NettingsetsMapping
+(
+   *nettingsets::NettingSetItem[nettingsetsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]NETTING_SET_ITEM.RECORD_ID )
+      ~mainTable [store::DB]NETTING_SET_ITEM
+      recordId: [store::DB]NETTING_SET_ITEM.RECORD_ID,
+      recordType: [store::DB]NETTING_SET_ITEM.RECORD_TYPE,
+      bookId: [store::DB]NETTING_SET_ITEM.BOOK_ID,
+      notional: [store::DB]NETTING_SET_ITEM.NOTIONAL,
+      currency: [store::DB]NETTING_SET_ITEM.CURRENCY,
+      tradeDate: [store::DB]NETTING_SET_ITEM.TRADE_DATE,
+      maturityDate: [store::DB]NETTING_SET_ITEM.MATURITY_DATE,
+      status: [store::DB]NETTING_SET_ITEM.STATUS,
+      isActive: [store::DB]NETTING_SET_ITEM.IS_ACTIVE,
+      riskScore: [store::DB]NETTING_SET_ITEM.RISK_SCORE
+   }
+
+   nettingsets::BilateralNettingSet[netBilateralNettingSet] extends [nettingsetsBase]: Relational
+   {
+      ~filter [store::DB]NetBilateralNettingSetRows
+   }
+
+   nettingsets::CrossProductNettingSet[netCrossProductNetting] extends [nettingsetsBase]: Relational
+   {
+      ~filter [store::DB]NetCrossProductNettingRows
+   }
+
+   nettingsets::ClearedNettingSet[netClearedNettingSet] extends [nettingsetsBase]: Relational
+   {
+      ~filter [store::DB]NetClearedNettingSetRows
+   }
+
+   nettingsets::MarginedNettingSet[netMarginedSet] extends [nettingsetsBase]: Relational
+   {
+      ~filter [store::DB]NetMarginedSetRows
+   }
+
+   nettingsets::UnmarginedNettingSet[netUnmarginedSet] extends [nettingsetsBase]: Relational
+   {
+      ~filter [store::DB]NetUnmarginedSetRows
+   }
+
+   nettingsets::OneWayCsaSet[netOneWayCsa] extends [nettingsetsBase]: Relational
+   {
+      ~filter [store::DB]NetOneWayCsaRows
+   }
+
+   nettingsets::ThresholdNettingSet[netThresholdSet] extends [nettingsetsBase]: Relational
+   {
+      ~filter [store::DB]NetThresholdSetRows
+   }
+
+   nettingsets::IndependentAmountSet[netIndependentAmountSet] extends [nettingsetsBase]: Relational
+   {
+      ~filter [store::DB]NetIndependentAmountSetRows
+   }
+
+   nettingsets::UnopinionedJurisdiction[netNoNettingOpinion] extends [nettingsetsBase]: Relational
+   {
+      ~filter [store::DB]NetNoNettingOpinionRows
+   }
+
+   nettingsets::SubNettingSet[netSubNettingSet] extends [nettingsetsBase]: Relational
+   {
+      ~filter [store::DB]NetSubNettingSetRows
+   }
+
+   nettingsets::MultiBranchNettingSet[netMultiBranchSet] extends [nettingsetsBase]: Relational
+   {
+      ~filter [store::DB]NetMultiBranchSetRows
+   }
+
+   nettingsets::CollateralisedNettingSet[netCollateralEligibleSet] extends [nettingsetsBase]: Relational
+   {
+      ~filter [store::DB]NetCollateralEligibleSetRows
+   }
+
+   nettingsets::CloseOutNettingItem[netCloseOutNetting] extends [nettingsetsBase]: Relational
+   {
+      ~filter [store::DB]NetCloseOutNettingRows
+   }
+
+   nettingsets::SetOffRight[netSetOffRight] extends [nettingsetsBase]: Relational
+   {
+      ~filter [store::DB]NetSetOffRightRows
+   }
+
+   nettingsets::DisputedNettingSet[netDisputedNetting] extends [nettingsetsBase]: Relational
+   {
+      ~filter [store::DB]NetDisputedNettingRows
+   }
+
+   nettingsets::StaleAgreementItem[netStaleAgreement] extends [nettingsetsBase]: Relational
+   {
+      ~filter [store::DB]NetStaleAgreementRows
+   }
+)

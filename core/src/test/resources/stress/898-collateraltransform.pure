@@ -1,0 +1,211 @@
+###Pure
+// Collateral transformation: turning what you have into what you must post.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class collateraltransform::CollateralTransformation
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Equities in, government bonds out, for a fee.
+Class collateraltransform::CollateralUpgradeTrade extends collateraltransform::CollateralTransformation
+{
+}
+
+// The other side, taken by someone with a use for the equities.
+Class collateraltransform::CollateralDowngradeTrade extends collateraltransform::CollateralTransformation
+{
+}
+
+// For a fixed period, so the liquidity risk is known.
+Class collateraltransform::TermCollateralUpgrade extends collateraltransform::CollateralTransformation
+{
+}
+
+// Rolling with notice, which is where the maturity mismatch hides.
+Class collateraltransform::EvergreenCollateralUpgrade extends collateraltransform::CollateralTransformation
+{
+}
+
+// Structured as a pledge so title does not move.
+Class collateraltransform::PledgeTransformation extends collateraltransform::CollateralTransformation
+{
+}
+
+// The point of the exercise: something the clearing house accepts.
+Class collateraltransform::CcpEligibleCollateral extends collateraltransform::CollateralTransformation
+{
+}
+
+// The spread the transformer earns, and the risk they run.
+Class collateraltransform::HaircutDifferential extends collateraltransform::CollateralTransformation
+{
+}
+
+// A cap on any one issuer in the output.
+Class collateraltransform::TransformationConcentrationLimit extends collateraltransform::CollateralTransformation
+{
+}
+
+// Whether the received collateral can be used again.
+Class collateraltransform::RehypothecationRight extends collateraltransform::CollateralTransformation
+{
+}
+
+// It cannot, which costs more.
+Class collateraltransform::SegregatedTransformationOutput extends collateraltransform::CollateralTransformation
+{
+}
+
+// Swapping the input during the life of the trade.
+Class collateraltransform::SubstitutionRight extends collateraltransform::CollateralTransformation
+{
+}
+
+// Short funding against a long requirement, and the reason regulators watch this.
+Class collateraltransform::MaturityMismatchItem extends collateraltransform::CollateralTransformation
+{
+}
+
+// How the trade reads in the LCR, which is often why it exists.
+Class collateraltransform::LiquidityCoverageImpact extends collateraltransform::CollateralTransformation
+{
+}
+
+// Daily, on the notional, and small per day.
+Class collateraltransform::TransformationFeeAccrual extends collateraltransform::CollateralTransformation
+{
+}
+
+// The input is wanted back, and the output must be replaced.
+Class collateraltransform::TransformationRecall extends collateraltransform::CollateralTransformation
+{
+}
+
+// Everything rolls on the same day, which nobody notices until it does not.
+Class collateraltransform::TransformationCliffRisk extends collateraltransform::CollateralTransformation
+{
+}
+
+###Mapping
+Mapping collateraltransform::CollateraltransformMapping
+(
+   *collateraltransform::CollateralTransformation[collateraltransformBase]: Relational
+   {
+      ~primaryKey ( [store::DB]COLLATERAL_TRANSFORMATION.RECORD_ID )
+      ~mainTable [store::DB]COLLATERAL_TRANSFORMATION
+      recordId: [store::DB]COLLATERAL_TRANSFORMATION.RECORD_ID,
+      recordType: [store::DB]COLLATERAL_TRANSFORMATION.RECORD_TYPE,
+      bookId: [store::DB]COLLATERAL_TRANSFORMATION.BOOK_ID,
+      notional: [store::DB]COLLATERAL_TRANSFORMATION.NOTIONAL,
+      currency: [store::DB]COLLATERAL_TRANSFORMATION.CURRENCY,
+      tradeDate: [store::DB]COLLATERAL_TRANSFORMATION.TRADE_DATE,
+      maturityDate: [store::DB]COLLATERAL_TRANSFORMATION.MATURITY_DATE,
+      status: [store::DB]COLLATERAL_TRANSFORMATION.STATUS,
+      isActive: [store::DB]COLLATERAL_TRANSFORMATION.IS_ACTIVE,
+      riskScore: [store::DB]COLLATERAL_TRANSFORMATION.RISK_SCORE
+   }
+
+   collateraltransform::CollateralUpgradeTrade[ctfUpgradeTrade] extends [collateraltransformBase]: Relational
+   {
+      ~filter [store::DB]CtfUpgradeTradeRows
+   }
+
+   collateraltransform::CollateralDowngradeTrade[ctfDowngradeTrade] extends [collateraltransformBase]: Relational
+   {
+      ~filter [store::DB]CtfDowngradeTradeRows
+   }
+
+   collateraltransform::TermCollateralUpgrade[ctfTermUpgrade] extends [collateraltransformBase]: Relational
+   {
+      ~filter [store::DB]CtfTermUpgradeRows
+   }
+
+   collateraltransform::EvergreenCollateralUpgrade[ctfEvergreenUpgrade] extends [collateraltransformBase]: Relational
+   {
+      ~filter [store::DB]CtfEvergreenUpgradeRows
+   }
+
+   collateraltransform::PledgeTransformation[ctfPledgeTransformation] extends [collateraltransformBase]: Relational
+   {
+      ~filter [store::DB]CtfPledgeTransformationRows
+   }
+
+   collateraltransform::CcpEligibleCollateral[ctfCcpEligibleOutput] extends [collateraltransformBase]: Relational
+   {
+      ~filter [store::DB]CtfCcpEligibleOutputRows
+   }
+
+   collateraltransform::HaircutDifferential[ctfHaircutDifferential] extends [collateraltransformBase]: Relational
+   {
+      ~filter [store::DB]CtfHaircutDifferentialRows
+   }
+
+   collateraltransform::TransformationConcentrationLimit[ctfConcentrationLimitCt] extends [collateraltransformBase]: Relational
+   {
+      ~filter [store::DB]CtfConcentrationLimitCtRows
+   }
+
+   collateraltransform::RehypothecationRight[ctfRehypothecationRight] extends [collateraltransformBase]: Relational
+   {
+      ~filter [store::DB]CtfRehypothecationRightRows
+   }
+
+   collateraltransform::SegregatedTransformationOutput[ctfSegregatedOutput] extends [collateraltransformBase]: Relational
+   {
+      ~filter [store::DB]CtfSegregatedOutputRows
+   }
+
+   collateraltransform::SubstitutionRight[ctfSubstitutionRightCt] extends [collateraltransformBase]: Relational
+   {
+      ~filter [store::DB]CtfSubstitutionRightCtRows
+   }
+
+   collateraltransform::MaturityMismatchItem[ctfMaturityMismatch] extends [collateraltransformBase]: Relational
+   {
+      ~filter [store::DB]CtfMaturityMismatchRows
+   }
+
+   collateraltransform::LiquidityCoverageImpact[ctfLiquidityCoverageImpact] extends [collateraltransformBase]: Relational
+   {
+      ~filter [store::DB]CtfLiquidityCoverageImpactRows
+   }
+
+   collateraltransform::TransformationFeeAccrual[ctfFeeAccrualCt] extends [collateraltransformBase]: Relational
+   {
+      ~filter [store::DB]CtfFeeAccrualCtRows
+   }
+
+   collateraltransform::TransformationRecall[ctfRecallTransformation] extends [collateraltransformBase]: Relational
+   {
+      ~filter [store::DB]CtfRecallTransformationRows
+   }
+
+   collateraltransform::TransformationCliffRisk[ctfCliffRisk] extends [collateraltransformBase]: Relational
+   {
+      ~filter [store::DB]CtfCliffRiskRows
+   }
+)

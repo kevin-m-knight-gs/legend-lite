@@ -1,0 +1,211 @@
+###Pure
+// Transaction reporting fields, and the ones that are actually hard.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class mifidfields::TransactionReportField
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The LEI of whoever executed, which is not always obvious.
+Class mifidfields::ExecutingEntityIdentifier extends mifidfields::TransactionReportField
+{
+}
+
+// An LEI or a national identifier, per a priority table.
+Class mifidfields::BuyerIdentification extends mifidfields::TransactionReportField
+{
+}
+
+// The same, and a mismatch is the commonest rejection.
+Class mifidfields::SellerIdentification extends mifidfields::TransactionReportField
+{
+}
+
+// A person or an algorithm, identified either way.
+Class mifidfields::InvestmentDecisionMaker extends mifidfields::TransactionReportField
+{
+}
+
+// Often a different person, and often the same field wrongly.
+Class mifidfields::ExecutionDecisionMaker extends mifidfields::TransactionReportField
+{
+}
+
+// Dealing on own account, matched principal, or any other capacity.
+Class mifidfields::TradingCapacityField extends mifidfields::TransactionReportField
+{
+}
+
+// To the microsecond for some venues, and clock-synchronised.
+Class mifidfields::TradingDateTimeField extends mifidfields::TransactionReportField
+{
+}
+
+// A MIC, or XOFF, or XXXX, and the distinction matters.
+Class mifidfields::VenueField extends mifidfields::TransactionReportField
+{
+}
+
+// With a currency, or a percentage, or a yield, or pending.
+Class mifidfields::PriceField extends mifidfields::TransactionReportField
+{
+}
+
+// In units or in nominal, per instrument type.
+Class mifidfields::QuantityField extends mifidfields::TransactionReportField
+{
+}
+
+// Which the executing firm often cannot know.
+Class mifidfields::ShortSellingIndicator extends mifidfields::TransactionReportField
+{
+}
+
+// Which pre-trade transparency waiver applied.
+Class mifidfields::WaiverIndicator extends mifidfields::TransactionReportField
+{
+}
+
+// The flags that qualify a printed trade.
+Class mifidfields::OtcPostTradeIndicator extends mifidfields::TransactionReportField
+{
+}
+
+// For the position limits regime.
+Class mifidfields::CommodityDerivativeIndicator extends mifidfields::TransactionReportField
+{
+}
+
+// Reported under SFTR instead, so excluded here.
+Class mifidfields::SecuritiesFinancingIndicator extends mifidfields::TransactionReportField
+{
+}
+
+// The regulator's response file, and the queue it creates.
+Class mifidfields::RejectionFeedbackItem extends mifidfields::TransactionReportField
+{
+}
+
+###Mapping
+Mapping mifidfields::MifidfieldsMapping
+(
+   *mifidfields::TransactionReportField[mifidfieldsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]TRANSACTION_REPORT_FIELD.RECORD_ID )
+      ~mainTable [store::DB]TRANSACTION_REPORT_FIELD
+      recordId: [store::DB]TRANSACTION_REPORT_FIELD.RECORD_ID,
+      recordType: [store::DB]TRANSACTION_REPORT_FIELD.RECORD_TYPE,
+      bookId: [store::DB]TRANSACTION_REPORT_FIELD.BOOK_ID,
+      notional: [store::DB]TRANSACTION_REPORT_FIELD.NOTIONAL,
+      currency: [store::DB]TRANSACTION_REPORT_FIELD.CURRENCY,
+      tradeDate: [store::DB]TRANSACTION_REPORT_FIELD.TRADE_DATE,
+      maturityDate: [store::DB]TRANSACTION_REPORT_FIELD.MATURITY_DATE,
+      status: [store::DB]TRANSACTION_REPORT_FIELD.STATUS,
+      isActive: [store::DB]TRANSACTION_REPORT_FIELD.IS_ACTIVE,
+      riskScore: [store::DB]TRANSACTION_REPORT_FIELD.RISK_SCORE
+   }
+
+   mifidfields::ExecutingEntityIdentifier[trfExecutingEntityId] extends [mifidfieldsBase]: Relational
+   {
+      ~filter [store::DB]TrfExecutingEntityIdRows
+   }
+
+   mifidfields::BuyerIdentification[trfBuyerId] extends [mifidfieldsBase]: Relational
+   {
+      ~filter [store::DB]TrfBuyerIdRows
+   }
+
+   mifidfields::SellerIdentification[trfSellerId] extends [mifidfieldsBase]: Relational
+   {
+      ~filter [store::DB]TrfSellerIdRows
+   }
+
+   mifidfields::InvestmentDecisionMaker[trfInvestmentDecisionMaker] extends [mifidfieldsBase]: Relational
+   {
+      ~filter [store::DB]TrfInvestmentDecisionMakerRows
+   }
+
+   mifidfields::ExecutionDecisionMaker[trfExecutionDecisionMaker] extends [mifidfieldsBase]: Relational
+   {
+      ~filter [store::DB]TrfExecutionDecisionMakerRows
+   }
+
+   mifidfields::TradingCapacityField[trfTradingCapacity] extends [mifidfieldsBase]: Relational
+   {
+      ~filter [store::DB]TrfTradingCapacityRows
+   }
+
+   mifidfields::TradingDateTimeField[trfTradingDateTime] extends [mifidfieldsBase]: Relational
+   {
+      ~filter [store::DB]TrfTradingDateTimeRows
+   }
+
+   mifidfields::VenueField[trfVenueField] extends [mifidfieldsBase]: Relational
+   {
+      ~filter [store::DB]TrfVenueFieldRows
+   }
+
+   mifidfields::PriceField[trfPriceField] extends [mifidfieldsBase]: Relational
+   {
+      ~filter [store::DB]TrfPriceFieldRows
+   }
+
+   mifidfields::QuantityField[trfQuantityField] extends [mifidfieldsBase]: Relational
+   {
+      ~filter [store::DB]TrfQuantityFieldRows
+   }
+
+   mifidfields::ShortSellingIndicator[trfShortSellingIndicator] extends [mifidfieldsBase]: Relational
+   {
+      ~filter [store::DB]TrfShortSellingIndicatorRows
+   }
+
+   mifidfields::WaiverIndicator[trfWaiverIndicator] extends [mifidfieldsBase]: Relational
+   {
+      ~filter [store::DB]TrfWaiverIndicatorRows
+   }
+
+   mifidfields::OtcPostTradeIndicator[trfOtcPostTradeFlag] extends [mifidfieldsBase]: Relational
+   {
+      ~filter [store::DB]TrfOtcPostTradeFlagRows
+   }
+
+   mifidfields::CommodityDerivativeIndicator[trfCommodityDerivativeInd] extends [mifidfieldsBase]: Relational
+   {
+      ~filter [store::DB]TrfCommodityDerivativeIndRows
+   }
+
+   mifidfields::SecuritiesFinancingIndicator[trfSecuritiesFinancingFlag] extends [mifidfieldsBase]: Relational
+   {
+      ~filter [store::DB]TrfSecuritiesFinancingFlagRows
+   }
+
+   mifidfields::RejectionFeedbackItem[trfRejectionFeedback] extends [mifidfieldsBase]: Relational
+   {
+      ~filter [store::DB]TrfRejectionFeedbackRows
+   }
+)

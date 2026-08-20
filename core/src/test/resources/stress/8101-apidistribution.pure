@@ -1,0 +1,211 @@
+###Pure
+// How a price or a product reaches a client, which decides most of the technology.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class apidistribution::DistributionChannel
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The bank's own screen, and its own rules.
+Class apidistribution::SingleDealerPlatform extends apidistribution::DistributionChannel
+{
+}
+
+// Competing quotes, and a much thinner margin.
+Class apidistribution::MultiDealerPlatform extends apidistribution::DistributionChannel
+{
+}
+
+// Request and response, and the easiest to integrate.
+Class apidistribution::RestApiChannel extends apidistribution::DistributionChannel
+{
+}
+
+// The industry protocol, session-based and stateful.
+Class apidistribution::FixSessionChannel extends apidistribution::DistributionChannel
+{
+}
+
+// Prices pushed rather than polled.
+Class apidistribution::StreamingChannel extends apidistribution::DistributionChannel
+{
+}
+
+// For latency, and a much smaller audience.
+Class apidistribution::BinaryProtocolChannel extends apidistribution::DistributionChannel
+{
+}
+
+// Batch, overnight, and still carrying enormous volume.
+Class apidistribution::FileTransferChannel extends apidistribution::DistributionChannel
+{
+}
+
+// An axe list, and the least automated thing on it.
+Class apidistribution::EmailIndicationChannel extends apidistribution::DistributionChannel
+{
+}
+
+// Recorded, surveilled, and where relationships still live.
+Class apidistribution::ChatNegotiationChannel extends apidistribution::DistributionChannel
+{
+}
+
+// For size and for complexity, and a compliance recording.
+Class apidistribution::VoiceTradeChannel extends apidistribution::DistributionChannel
+{
+}
+
+// Another firm's client, the bank's price.
+Class apidistribution::WhiteLabelChannel extends apidistribution::DistributionChannel
+{
+}
+
+// One connection, many liquidity providers, and last look.
+Class apidistribution::AggregatorFeedChannel extends apidistribution::DistributionChannel
+{
+}
+
+// Retail, and with its own suitability constraints.
+Class apidistribution::MobileAppChannel extends apidistribution::DistributionChannel
+{
+}
+
+// The intermediary's screen rather than the client's.
+Class apidistribution::AdviserPortalChannel extends apidistribution::DistributionChannel
+{
+}
+
+// For integration testing, with synthetic data and real credentials.
+Class apidistribution::SandboxChannel extends apidistribution::DistributionChannel
+{
+}
+
+// Announced, still used, and the migration is nobody's priority.
+Class apidistribution::DeprecatedChannel extends apidistribution::DistributionChannel
+{
+}
+
+###Mapping
+Mapping apidistribution::ApidistributionMapping
+(
+   *apidistribution::DistributionChannel[apidistributionBase]: Relational
+   {
+      ~primaryKey ( [store::DB]DISTRIBUTION_CHANNEL.RECORD_ID )
+      ~mainTable [store::DB]DISTRIBUTION_CHANNEL
+      recordId: [store::DB]DISTRIBUTION_CHANNEL.RECORD_ID,
+      recordType: [store::DB]DISTRIBUTION_CHANNEL.RECORD_TYPE,
+      bookId: [store::DB]DISTRIBUTION_CHANNEL.BOOK_ID,
+      notional: [store::DB]DISTRIBUTION_CHANNEL.NOTIONAL,
+      currency: [store::DB]DISTRIBUTION_CHANNEL.CURRENCY,
+      tradeDate: [store::DB]DISTRIBUTION_CHANNEL.TRADE_DATE,
+      maturityDate: [store::DB]DISTRIBUTION_CHANNEL.MATURITY_DATE,
+      status: [store::DB]DISTRIBUTION_CHANNEL.STATUS,
+      isActive: [store::DB]DISTRIBUTION_CHANNEL.IS_ACTIVE,
+      riskScore: [store::DB]DISTRIBUTION_CHANNEL.RISK_SCORE
+   }
+
+   apidistribution::SingleDealerPlatform[disSingleDealerPlatform] extends [apidistributionBase]: Relational
+   {
+      ~filter [store::DB]DisSingleDealerPlatformRows
+   }
+
+   apidistribution::MultiDealerPlatform[disMultiDealerPlatform] extends [apidistributionBase]: Relational
+   {
+      ~filter [store::DB]DisMultiDealerPlatformRows
+   }
+
+   apidistribution::RestApiChannel[disRestApi] extends [apidistributionBase]: Relational
+   {
+      ~filter [store::DB]DisRestApiRows
+   }
+
+   apidistribution::FixSessionChannel[disFixSession] extends [apidistributionBase]: Relational
+   {
+      ~filter [store::DB]DisFixSessionRows
+   }
+
+   apidistribution::StreamingChannel[disStreamingWebsocket] extends [apidistributionBase]: Relational
+   {
+      ~filter [store::DB]DisStreamingWebsocketRows
+   }
+
+   apidistribution::BinaryProtocolChannel[disBinaryProtocol] extends [apidistributionBase]: Relational
+   {
+      ~filter [store::DB]DisBinaryProtocolRows
+   }
+
+   apidistribution::FileTransferChannel[disFileTransfer] extends [apidistributionBase]: Relational
+   {
+      ~filter [store::DB]DisFileTransferRows
+   }
+
+   apidistribution::EmailIndicationChannel[disEmailIndication] extends [apidistributionBase]: Relational
+   {
+      ~filter [store::DB]DisEmailIndicationRows
+   }
+
+   apidistribution::ChatNegotiationChannel[disChatNegotiation] extends [apidistributionBase]: Relational
+   {
+      ~filter [store::DB]DisChatNegotiationRows
+   }
+
+   apidistribution::VoiceTradeChannel[disVoiceTrade] extends [apidistributionBase]: Relational
+   {
+      ~filter [store::DB]DisVoiceTradeRows
+   }
+
+   apidistribution::WhiteLabelChannel[disWhiteLabel] extends [apidistributionBase]: Relational
+   {
+      ~filter [store::DB]DisWhiteLabelRows
+   }
+
+   apidistribution::AggregatorFeedChannel[disAggregatorFeed] extends [apidistributionBase]: Relational
+   {
+      ~filter [store::DB]DisAggregatorFeedRows
+   }
+
+   apidistribution::MobileAppChannel[disMobileApp] extends [apidistributionBase]: Relational
+   {
+      ~filter [store::DB]DisMobileAppRows
+   }
+
+   apidistribution::AdviserPortalChannel[disAdviserPortal] extends [apidistributionBase]: Relational
+   {
+      ~filter [store::DB]DisAdviserPortalRows
+   }
+
+   apidistribution::SandboxChannel[disSandboxAccess] extends [apidistributionBase]: Relational
+   {
+      ~filter [store::DB]DisSandboxAccessRows
+   }
+
+   apidistribution::DeprecatedChannel[disDeprecatedChannel] extends [apidistributionBase]: Relational
+   {
+      ~filter [store::DB]DisDeprecatedChannelRows
+   }
+)

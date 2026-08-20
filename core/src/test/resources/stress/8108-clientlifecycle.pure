@@ -1,0 +1,211 @@
+###Pure
+// The client lifecycle, which is longer and more expensive than anyone expects.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class clientlifecycle::ClientLifecycleStage
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Before anything is signed, and before most of the cost.
+Class clientlifecycle::ProspectStage extends clientlifecycle::ClientLifecycleStage
+{
+}
+
+// Sanctions and adverse media, before effort is spent.
+Class clientlifecycle::InitialScreeningStage extends clientlifecycle::ClientLifecycleStage
+{
+}
+
+// Documents, and the reason onboarding takes months.
+Class clientlifecycle::KycCollectionStage extends clientlifecycle::ClientLifecycleStage
+{
+}
+
+// Through the structure to the people, which is the hard part.
+Class clientlifecycle::BeneficialOwnershipStage extends clientlifecycle::ClientLifecycleStage
+{
+}
+
+// Which decides how much of the rest is required.
+Class clientlifecycle::ClientRiskRatingStage extends clientlifecycle::ClientLifecycleStage
+{
+}
+
+// Limits set before the first trade.
+Class clientlifecycle::CreditApprovalStage extends clientlifecycle::ClientLifecycleStage
+{
+}
+
+// The ISDA and the CSA, and months more.
+Class clientlifecycle::DocumentationNegotiationStage extends clientlifecycle::ClientLifecycleStage
+{
+}
+
+// Static data, SSIs, and the entitlements.
+Class clientlifecycle::AccountOpeningStage extends clientlifecycle::ClientLifecycleStage
+{
+}
+
+// Where everything above is tested at once.
+Class clientlifecycle::FirstTradeStage extends clientlifecycle::ClientLifecycleStage
+{
+}
+
+// Risk-rated frequency, and a queue that never empties.
+Class clientlifecycle::PeriodicReviewStage extends clientlifecycle::ClientLifecycleStage
+{
+}
+
+// Something changed, so the file is reopened.
+Class clientlifecycle::TriggerEventReviewStage extends clientlifecycle::ClientLifecycleStage
+{
+}
+
+// No activity, and still costing to maintain.
+Class clientlifecycle::DormantClientStage extends clientlifecycle::ClientLifecycleStage
+{
+}
+
+// Which often needs the whole file refreshed.
+Class clientlifecycle::ReactivationStage extends clientlifecycle::ClientLifecycleStage
+{
+}
+
+// Notice given, positions to unwind.
+Class clientlifecycle::OffboardingNoticeStage extends clientlifecycle::ClientLifecycleStage
+{
+}
+
+// The part that determines when the relationship really ends.
+Class clientlifecycle::PositionUnwindStage extends clientlifecycle::ClientLifecycleStage
+{
+}
+
+// Years after the last trade, and legally required.
+Class clientlifecycle::RecordRetentionStage extends clientlifecycle::ClientLifecycleStage
+{
+}
+
+###Mapping
+Mapping clientlifecycle::ClientlifecycleMapping
+(
+   *clientlifecycle::ClientLifecycleStage[clientlifecycleBase]: Relational
+   {
+      ~primaryKey ( [store::DB]CLIENT_LIFECYCLE_STAGE.RECORD_ID )
+      ~mainTable [store::DB]CLIENT_LIFECYCLE_STAGE
+      recordId: [store::DB]CLIENT_LIFECYCLE_STAGE.RECORD_ID,
+      recordType: [store::DB]CLIENT_LIFECYCLE_STAGE.RECORD_TYPE,
+      bookId: [store::DB]CLIENT_LIFECYCLE_STAGE.BOOK_ID,
+      notional: [store::DB]CLIENT_LIFECYCLE_STAGE.NOTIONAL,
+      currency: [store::DB]CLIENT_LIFECYCLE_STAGE.CURRENCY,
+      tradeDate: [store::DB]CLIENT_LIFECYCLE_STAGE.TRADE_DATE,
+      maturityDate: [store::DB]CLIENT_LIFECYCLE_STAGE.MATURITY_DATE,
+      status: [store::DB]CLIENT_LIFECYCLE_STAGE.STATUS,
+      isActive: [store::DB]CLIENT_LIFECYCLE_STAGE.IS_ACTIVE,
+      riskScore: [store::DB]CLIENT_LIFECYCLE_STAGE.RISK_SCORE
+   }
+
+   clientlifecycle::ProspectStage[clsProspect] extends [clientlifecycleBase]: Relational
+   {
+      ~filter [store::DB]ClsProspectRows
+   }
+
+   clientlifecycle::InitialScreeningStage[clsInitialScreening] extends [clientlifecycleBase]: Relational
+   {
+      ~filter [store::DB]ClsInitialScreeningRows
+   }
+
+   clientlifecycle::KycCollectionStage[clsKycCollection] extends [clientlifecycleBase]: Relational
+   {
+      ~filter [store::DB]ClsKycCollectionRows
+   }
+
+   clientlifecycle::BeneficialOwnershipStage[clsBeneficialOwnership] extends [clientlifecycleBase]: Relational
+   {
+      ~filter [store::DB]ClsBeneficialOwnershipRows
+   }
+
+   clientlifecycle::ClientRiskRatingStage[clsRiskRating] extends [clientlifecycleBase]: Relational
+   {
+      ~filter [store::DB]ClsRiskRatingRows
+   }
+
+   clientlifecycle::CreditApprovalStage[clsCreditApproval] extends [clientlifecycleBase]: Relational
+   {
+      ~filter [store::DB]ClsCreditApprovalRows
+   }
+
+   clientlifecycle::DocumentationNegotiationStage[clsDocumentationNegotiation] extends [clientlifecycleBase]: Relational
+   {
+      ~filter [store::DB]ClsDocumentationNegotiationRows
+   }
+
+   clientlifecycle::AccountOpeningStage[clsAccountOpening] extends [clientlifecycleBase]: Relational
+   {
+      ~filter [store::DB]ClsAccountOpeningRows
+   }
+
+   clientlifecycle::FirstTradeStage[clsFirstTrade] extends [clientlifecycleBase]: Relational
+   {
+      ~filter [store::DB]ClsFirstTradeRows
+   }
+
+   clientlifecycle::PeriodicReviewStage[clsPeriodicReview] extends [clientlifecycleBase]: Relational
+   {
+      ~filter [store::DB]ClsPeriodicReviewRows
+   }
+
+   clientlifecycle::TriggerEventReviewStage[clsTriggerReview] extends [clientlifecycleBase]: Relational
+   {
+      ~filter [store::DB]ClsTriggerReviewRows
+   }
+
+   clientlifecycle::DormantClientStage[clsDormancy] extends [clientlifecycleBase]: Relational
+   {
+      ~filter [store::DB]ClsDormancyRows
+   }
+
+   clientlifecycle::ReactivationStage[clsReactivation] extends [clientlifecycleBase]: Relational
+   {
+      ~filter [store::DB]ClsReactivationRows
+   }
+
+   clientlifecycle::OffboardingNoticeStage[clsOffboardingNotice] extends [clientlifecycleBase]: Relational
+   {
+      ~filter [store::DB]ClsOffboardingNoticeRows
+   }
+
+   clientlifecycle::PositionUnwindStage[clsPositionUnwind] extends [clientlifecycleBase]: Relational
+   {
+      ~filter [store::DB]ClsPositionUnwindRows
+   }
+
+   clientlifecycle::RecordRetentionStage[clsRecordRetention] extends [clientlifecycleBase]: Relational
+   {
+      ~filter [store::DB]ClsRecordRetentionRows
+   }
+)

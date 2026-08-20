@@ -1,0 +1,211 @@
+###Pure
+// Entitlements: who may see and do what, and what must never be combined.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class entitlements::AccessEntitlement
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The default, and still enough to leak a book.
+Class entitlements::ReadOnlyEntitlement extends entitlements::AccessEntitlement
+{
+}
+
+// May book a trade, within limits.
+Class entitlements::TradeCaptureEntitlement extends entitlements::AccessEntitlement
+{
+}
+
+// May change one, which is the more sensitive right.
+Class entitlements::TradeAmendEntitlement extends entitlements::AccessEntitlement
+{
+}
+
+// And the most sensitive of the three.
+Class entitlements::TradeCancelEntitlement extends entitlements::AccessEntitlement
+{
+}
+
+// Where a wrong SSI does more damage than a wrong trade.
+Class entitlements::StaticDataMaintenance extends entitlements::AccessEntitlement
+{
+}
+
+// Segregated from payment creation, always.
+Class entitlements::PaymentReleaseEntitlement extends entitlements::AccessEntitlement
+{
+}
+
+// Rare, logged, and reviewed.
+Class entitlements::LimitOverrideEntitlement extends entitlements::AccessEntitlement
+{
+}
+
+// For a mark the model got wrong, with a reason.
+Class entitlements::PriceOverrideEntitlement extends entitlements::AccessEntitlement
+{
+}
+
+// Held outside the business that uses the model.
+Class entitlements::ModelApprovalEntitlement extends entitlements::AccessEntitlement
+{
+}
+
+// Two rights one person must not hold together.
+Class entitlements::SegregationOfDutiesConflict extends entitlements::AccessEntitlement
+{
+}
+
+// Time-boxed, and the box is usually not enforced.
+Class entitlements::TemporaryElevatedAccess extends entitlements::AccessEntitlement
+{
+}
+
+// Emergency, alarmed, and reviewed the next morning.
+Class entitlements::BreakGlassAccess extends entitlements::AccessEntitlement
+{
+}
+
+// Non-human, and the hardest to recertify.
+Class entitlements::ServiceAccountEntitlement extends entitlements::AccessEntitlement
+{
+}
+
+// Periodic, and where dormant access is meant to be found.
+Class entitlements::AccessRecertification extends entitlements::AccessEntitlement
+{
+}
+
+// Movers are the risk: rights accumulate and nothing is removed.
+Class entitlements::JoinerMoverLeaverItem extends entitlements::AccessEntitlement
+{
+}
+
+// No owner, still enabled, and a finding waiting to happen.
+Class entitlements::OrphanedAccount extends entitlements::AccessEntitlement
+{
+}
+
+###Mapping
+Mapping entitlements::EntitlementsMapping
+(
+   *entitlements::AccessEntitlement[entitlementsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]ACCESS_ENTITLEMENT.RECORD_ID )
+      ~mainTable [store::DB]ACCESS_ENTITLEMENT
+      recordId: [store::DB]ACCESS_ENTITLEMENT.RECORD_ID,
+      recordType: [store::DB]ACCESS_ENTITLEMENT.RECORD_TYPE,
+      bookId: [store::DB]ACCESS_ENTITLEMENT.BOOK_ID,
+      notional: [store::DB]ACCESS_ENTITLEMENT.NOTIONAL,
+      currency: [store::DB]ACCESS_ENTITLEMENT.CURRENCY,
+      tradeDate: [store::DB]ACCESS_ENTITLEMENT.TRADE_DATE,
+      maturityDate: [store::DB]ACCESS_ENTITLEMENT.MATURITY_DATE,
+      status: [store::DB]ACCESS_ENTITLEMENT.STATUS,
+      isActive: [store::DB]ACCESS_ENTITLEMENT.IS_ACTIVE,
+      riskScore: [store::DB]ACCESS_ENTITLEMENT.RISK_SCORE
+   }
+
+   entitlements::ReadOnlyEntitlement[entReadOnly] extends [entitlementsBase]: Relational
+   {
+      ~filter [store::DB]EntReadOnlyRows
+   }
+
+   entitlements::TradeCaptureEntitlement[entTradeCapture] extends [entitlementsBase]: Relational
+   {
+      ~filter [store::DB]EntTradeCaptureRows
+   }
+
+   entitlements::TradeAmendEntitlement[entTradeAmend] extends [entitlementsBase]: Relational
+   {
+      ~filter [store::DB]EntTradeAmendRows
+   }
+
+   entitlements::TradeCancelEntitlement[entTradeCancel] extends [entitlementsBase]: Relational
+   {
+      ~filter [store::DB]EntTradeCancelRows
+   }
+
+   entitlements::StaticDataMaintenance[entStaticDataMaintain] extends [entitlementsBase]: Relational
+   {
+      ~filter [store::DB]EntStaticDataMaintainRows
+   }
+
+   entitlements::PaymentReleaseEntitlement[entPaymentRelease] extends [entitlementsBase]: Relational
+   {
+      ~filter [store::DB]EntPaymentReleaseRows
+   }
+
+   entitlements::LimitOverrideEntitlement[entLimitOverride] extends [entitlementsBase]: Relational
+   {
+      ~filter [store::DB]EntLimitOverrideRows
+   }
+
+   entitlements::PriceOverrideEntitlement[entPriceOverride] extends [entitlementsBase]: Relational
+   {
+      ~filter [store::DB]EntPriceOverrideRows
+   }
+
+   entitlements::ModelApprovalEntitlement[entModelApproval] extends [entitlementsBase]: Relational
+   {
+      ~filter [store::DB]EntModelApprovalRows
+   }
+
+   entitlements::SegregationOfDutiesConflict[entSegregationConflict] extends [entitlementsBase]: Relational
+   {
+      ~filter [store::DB]EntSegregationConflictRows
+   }
+
+   entitlements::TemporaryElevatedAccess[entTemporaryElevation] extends [entitlementsBase]: Relational
+   {
+      ~filter [store::DB]EntTemporaryElevationRows
+   }
+
+   entitlements::BreakGlassAccess[entBreakGlass] extends [entitlementsBase]: Relational
+   {
+      ~filter [store::DB]EntBreakGlassRows
+   }
+
+   entitlements::ServiceAccountEntitlement[entServiceAccount] extends [entitlementsBase]: Relational
+   {
+      ~filter [store::DB]EntServiceAccountRows
+   }
+
+   entitlements::AccessRecertification[entRecertification] extends [entitlementsBase]: Relational
+   {
+      ~filter [store::DB]EntRecertificationRows
+   }
+
+   entitlements::JoinerMoverLeaverItem[entJoinerMoverLeaver] extends [entitlementsBase]: Relational
+   {
+      ~filter [store::DB]EntJoinerMoverLeaverRows
+   }
+
+   entitlements::OrphanedAccount[entOrphanedAccount] extends [entitlementsBase]: Relational
+   {
+      ~filter [store::DB]EntOrphanedAccountRows
+   }
+)

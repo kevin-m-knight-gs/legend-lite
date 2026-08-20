@@ -1,0 +1,211 @@
+###Pure
+// Market disruption: the events contracts define in advance because they happen.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class marketevents::MarketDisruptionEvent
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// The venue stops, and every derivative on it has to say what that means.
+Class marketevents::ExchangeTradingHalt extends marketevents::MarketDisruptionEvent
+{
+}
+
+// Trading confined to a band, which is a halt by degrees.
+Class marketevents::LimitUpLimitDownEvent extends marketevents::MarketDisruptionEvent
+{
+}
+
+// The close is delayed, and so is every mark that uses it.
+Class marketevents::AuctionExtensionEvent extends marketevents::MarketDisruptionEvent
+{
+}
+
+// Announced or not, and the contracts distinguish.
+Class marketevents::EarlyClosureEvent extends marketevents::MarketDisruptionEvent
+{
+}
+
+// The fixing was not published.
+Class marketevents::PriceSourceDisruption extends marketevents::MarketDisruptionEvent
+{
+}
+
+// The currency cannot be exchanged, whatever the screen shows.
+Class marketevents::InconvertibilityEvent extends marketevents::MarketDisruptionEvent
+{
+}
+
+// It can be exchanged and not moved.
+Class marketevents::NonTransferabilityEvent extends marketevents::MarketDisruptionEvent
+{
+}
+
+// The underlying now belongs to a government.
+Class marketevents::NationalisationEvent extends marketevents::MarketDisruptionEvent
+{
+}
+
+// Which is a disruption for equity derivatives and a credit event elsewhere.
+Class marketevents::InsolvencyFilingEvent extends marketevents::MarketDisruptionEvent
+{
+}
+
+// No listed price, and a fallback valuation method.
+Class marketevents::DelistingDisruption extends marketevents::MarketDisruptionEvent
+{
+}
+
+// The underlying becomes something else.
+Class marketevents::MergerDisruptionEvent extends marketevents::MarketDisruptionEvent
+{
+}
+
+// Enough of it does.
+Class marketevents::TenderOfferDisruption extends marketevents::MarketDisruptionEvent
+{
+}
+
+// The dealer can no longer hedge, which is a defined event for a reason.
+Class marketevents::HedgingDisruption extends marketevents::MarketDisruptionEvent
+{
+}
+
+// It can, and not at the assumed price.
+Class marketevents::IncreasedCostOfHedging extends marketevents::MarketDisruptionEvent
+{
+}
+
+// Performance becomes illegal or materially more expensive.
+Class marketevents::ChangeInLawEvent extends marketevents::MarketDisruptionEvent
+{
+}
+
+// Someone decides, in good faith, and is usually one of the parties.
+Class marketevents::CalculationAgentDetermination extends marketevents::MarketDisruptionEvent
+{
+}
+
+###Mapping
+Mapping marketevents::MarketeventsMapping
+(
+   *marketevents::MarketDisruptionEvent[marketeventsBase]: Relational
+   {
+      ~primaryKey ( [store::DB]MARKET_DISRUPTION_EVENT.RECORD_ID )
+      ~mainTable [store::DB]MARKET_DISRUPTION_EVENT
+      recordId: [store::DB]MARKET_DISRUPTION_EVENT.RECORD_ID,
+      recordType: [store::DB]MARKET_DISRUPTION_EVENT.RECORD_TYPE,
+      bookId: [store::DB]MARKET_DISRUPTION_EVENT.BOOK_ID,
+      notional: [store::DB]MARKET_DISRUPTION_EVENT.NOTIONAL,
+      currency: [store::DB]MARKET_DISRUPTION_EVENT.CURRENCY,
+      tradeDate: [store::DB]MARKET_DISRUPTION_EVENT.TRADE_DATE,
+      maturityDate: [store::DB]MARKET_DISRUPTION_EVENT.MATURITY_DATE,
+      status: [store::DB]MARKET_DISRUPTION_EVENT.STATUS,
+      isActive: [store::DB]MARKET_DISRUPTION_EVENT.IS_ACTIVE,
+      riskScore: [store::DB]MARKET_DISRUPTION_EVENT.RISK_SCORE
+   }
+
+   marketevents::ExchangeTradingHalt[mdeExchangeHalt] extends [marketeventsBase]: Relational
+   {
+      ~filter [store::DB]MdeExchangeHaltRows
+   }
+
+   marketevents::LimitUpLimitDownEvent[mdeLimitUpLimitDown] extends [marketeventsBase]: Relational
+   {
+      ~filter [store::DB]MdeLimitUpLimitDownRows
+   }
+
+   marketevents::AuctionExtensionEvent[mdeAuctionExtension] extends [marketeventsBase]: Relational
+   {
+      ~filter [store::DB]MdeAuctionExtensionRows
+   }
+
+   marketevents::EarlyClosureEvent[mdeEarlyClosure] extends [marketeventsBase]: Relational
+   {
+      ~filter [store::DB]MdeEarlyClosureRows
+   }
+
+   marketevents::PriceSourceDisruption[mdePriceSourceDisruption] extends [marketeventsBase]: Relational
+   {
+      ~filter [store::DB]MdePriceSourceDisruptionRows
+   }
+
+   marketevents::InconvertibilityEvent[mdeFxInconvertibility] extends [marketeventsBase]: Relational
+   {
+      ~filter [store::DB]MdeFxInconvertibilityRows
+   }
+
+   marketevents::NonTransferabilityEvent[mdeFxNonTransferability] extends [marketeventsBase]: Relational
+   {
+      ~filter [store::DB]MdeFxNonTransferabilityRows
+   }
+
+   marketevents::NationalisationEvent[mdeNationalisation] extends [marketeventsBase]: Relational
+   {
+      ~filter [store::DB]MdeNationalisationRows
+   }
+
+   marketevents::InsolvencyFilingEvent[mdeInsolvencyFiling] extends [marketeventsBase]: Relational
+   {
+      ~filter [store::DB]MdeInsolvencyFilingRows
+   }
+
+   marketevents::DelistingDisruption[mdeDelistingEvent] extends [marketeventsBase]: Relational
+   {
+      ~filter [store::DB]MdeDelistingEventRows
+   }
+
+   marketevents::MergerDisruptionEvent[mdeMergerEvent] extends [marketeventsBase]: Relational
+   {
+      ~filter [store::DB]MdeMergerEventRows
+   }
+
+   marketevents::TenderOfferDisruption[mdeTenderOfferEvent] extends [marketeventsBase]: Relational
+   {
+      ~filter [store::DB]MdeTenderOfferEventRows
+   }
+
+   marketevents::HedgingDisruption[mdeHedgingDisruption] extends [marketeventsBase]: Relational
+   {
+      ~filter [store::DB]MdeHedgingDisruptionRows
+   }
+
+   marketevents::IncreasedCostOfHedging[mdeIncreasedCostHedging] extends [marketeventsBase]: Relational
+   {
+      ~filter [store::DB]MdeIncreasedCostHedgingRows
+   }
+
+   marketevents::ChangeInLawEvent[mdeChangeInLaw] extends [marketeventsBase]: Relational
+   {
+      ~filter [store::DB]MdeChangeInLawRows
+   }
+
+   marketevents::CalculationAgentDetermination[mdeCalculationAgentDetermination] extends [marketeventsBase]: Relational
+   {
+      ~filter [store::DB]MdeCalculationAgentDeterminationRows
+   }
+)

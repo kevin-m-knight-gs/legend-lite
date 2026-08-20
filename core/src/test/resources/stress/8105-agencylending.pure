@@ -1,0 +1,211 @@
+###Pure
+// Eligibility schedules: what may be posted, at what haircut, and up to how much.
+//
+// 16 types over one table. A reference-data taxonomy is where discriminated
+// subtypes earn their keep: the types differ in what they MEAN rather than in what columns
+// they carry, so one table with a discriminator is the honest shape and 16 tables
+// would be ceremony.
+//
+// Not every type carries rows. The rest are types the firm can process and does not have
+// today, which is the normal state of reference data and the sharpest test of a ~filter --
+// an empty result is only correct if the filter works, and the failure mode is returning the
+// whole table.
+Class agencylending::CollateralScheduleItem
+{
+   recordId: String[1];
+   recordType: String[1];
+   bookId: String[1];
+   notional: Float[1];
+   currency: String[1];
+   tradeDate: StrictDate[1];
+   maturityDate: StrictDate[0..1];
+   status: String[1];
+   isActive: Boolean[1];
+   riskScore: Float[1];
+
+   // Notional per unit of risk score -- the crude size-versus-danger number a
+   // supervisor asks for first. Division, so the engine is in double from here.
+   notionalPerRiskPoint() { $this.notional / $this.riskScore } : Float[1];
+   // A qualified property: the notional converted at a rate the caller supplies.
+   notionalIn(fxRate: Float[1]) { $this.notional * $fxRate } : Float[1];
+}
+
+// Zero or near-zero haircut, and unlimited.
+Class agencylending::SovereignAaaEligible extends agencylending::CollateralScheduleItem
+{
+}
+
+// Ineligible under most schedules and posted anyway under some.
+Class agencylending::SovereignSubInvestmentGrade extends agencylending::CollateralScheduleItem
+{
+}
+
+// Treated as sovereign, with a small add-on.
+Class agencylending::SupranationalEligible extends agencylending::CollateralScheduleItem
+{
+}
+
+// With a haircut reflecting prepayment rather than credit.
+Class agencylending::AgencyMortgageBackedEligible extends agencylending::CollateralScheduleItem
+{
+}
+
+// Capped by issuer and by sector.
+Class agencylending::CorporateInvestmentGradeEligible extends agencylending::CollateralScheduleItem
+{
+}
+
+// Rarely eligible, and heavily haircut where it is.
+Class agencylending::CorporateHighYieldEligible extends agencylending::CollateralScheduleItem
+{
+}
+
+// Constituents of a named index only.
+Class agencylending::MainIndexEquityEligible extends agencylending::CollateralScheduleItem
+{
+}
+
+// Where the lookthrough rules do the work.
+Class agencylending::EtfEligible extends agencylending::CollateralScheduleItem
+{
+}
+
+// By currency, and with an interest rate attached.
+Class agencylending::CashEligible extends agencylending::CollateralScheduleItem
+{
+}
+
+// Same-day redemption, or it is not eligible.
+Class agencylending::MoneyMarketFundEligible extends agencylending::CollateralScheduleItem
+{
+}
+
+// Accepted by some CCPs, at a large haircut.
+Class agencylending::GoldEligible extends agencylending::CollateralScheduleItem
+{
+}
+
+// No more than a percentage from one name.
+Class agencylending::IssuerConcentrationCap extends agencylending::CollateralScheduleItem
+{
+}
+
+// Nor from one class.
+Class agencylending::AssetClassCap extends agencylending::CollateralScheduleItem
+{
+}
+
+// Not the counterparty's own paper, nor its group's.
+Class agencylending::WrongWayCollateralExclusion extends agencylending::CollateralScheduleItem
+{
+}
+
+// Where the collateral currency differs from the exposure's.
+Class agencylending::CurrencyMismatchHaircut extends agencylending::CollateralScheduleItem
+{
+}
+
+// Renegotiated, and always slower than the market moves.
+Class agencylending::ScheduleAmendment extends agencylending::CollateralScheduleItem
+{
+}
+
+###Mapping
+Mapping agencylending::AgencylendingMapping
+(
+   *agencylending::CollateralScheduleItem[agencylendingBase]: Relational
+   {
+      ~primaryKey ( [store::DB]COLLATERAL_SCHEDULE_ITEM.RECORD_ID )
+      ~mainTable [store::DB]COLLATERAL_SCHEDULE_ITEM
+      recordId: [store::DB]COLLATERAL_SCHEDULE_ITEM.RECORD_ID,
+      recordType: [store::DB]COLLATERAL_SCHEDULE_ITEM.RECORD_TYPE,
+      bookId: [store::DB]COLLATERAL_SCHEDULE_ITEM.BOOK_ID,
+      notional: [store::DB]COLLATERAL_SCHEDULE_ITEM.NOTIONAL,
+      currency: [store::DB]COLLATERAL_SCHEDULE_ITEM.CURRENCY,
+      tradeDate: [store::DB]COLLATERAL_SCHEDULE_ITEM.TRADE_DATE,
+      maturityDate: [store::DB]COLLATERAL_SCHEDULE_ITEM.MATURITY_DATE,
+      status: [store::DB]COLLATERAL_SCHEDULE_ITEM.STATUS,
+      isActive: [store::DB]COLLATERAL_SCHEDULE_ITEM.IS_ACTIVE,
+      riskScore: [store::DB]COLLATERAL_SCHEDULE_ITEM.RISK_SCORE
+   }
+
+   agencylending::SovereignAaaEligible[csiSovereignAaa] extends [agencylendingBase]: Relational
+   {
+      ~filter [store::DB]CsiSovereignAaaRows
+   }
+
+   agencylending::SovereignSubInvestmentGrade[csiSovereignSubIg] extends [agencylendingBase]: Relational
+   {
+      ~filter [store::DB]CsiSovereignSubIgRows
+   }
+
+   agencylending::SupranationalEligible[csiSupranationalElig] extends [agencylendingBase]: Relational
+   {
+      ~filter [store::DB]CsiSupranationalEligRows
+   }
+
+   agencylending::AgencyMortgageBackedEligible[csiAgencyMbsElig] extends [agencylendingBase]: Relational
+   {
+      ~filter [store::DB]CsiAgencyMbsEligRows
+   }
+
+   agencylending::CorporateInvestmentGradeEligible[csiCorporateIgElig] extends [agencylendingBase]: Relational
+   {
+      ~filter [store::DB]CsiCorporateIgEligRows
+   }
+
+   agencylending::CorporateHighYieldEligible[csiCorporateHyElig] extends [agencylendingBase]: Relational
+   {
+      ~filter [store::DB]CsiCorporateHyEligRows
+   }
+
+   agencylending::MainIndexEquityEligible[csiEquityIndexElig] extends [agencylendingBase]: Relational
+   {
+      ~filter [store::DB]CsiEquityIndexEligRows
+   }
+
+   agencylending::EtfEligible[csiEtfElig] extends [agencylendingBase]: Relational
+   {
+      ~filter [store::DB]CsiEtfEligRows
+   }
+
+   agencylending::CashEligible[csiCashElig] extends [agencylendingBase]: Relational
+   {
+      ~filter [store::DB]CsiCashEligRows
+   }
+
+   agencylending::MoneyMarketFundEligible[csiMoneyMarketFundElig] extends [agencylendingBase]: Relational
+   {
+      ~filter [store::DB]CsiMoneyMarketFundEligRows
+   }
+
+   agencylending::GoldEligible[csiGoldElig] extends [agencylendingBase]: Relational
+   {
+      ~filter [store::DB]CsiGoldEligRows
+   }
+
+   agencylending::IssuerConcentrationCap[csiConcentrationIssuer] extends [agencylendingBase]: Relational
+   {
+      ~filter [store::DB]CsiConcentrationIssuerRows
+   }
+
+   agencylending::AssetClassCap[csiConcentrationAssetClass] extends [agencylendingBase]: Relational
+   {
+      ~filter [store::DB]CsiConcentrationAssetClassRows
+   }
+
+   agencylending::WrongWayCollateralExclusion[csiWrongWayExclusion] extends [agencylendingBase]: Relational
+   {
+      ~filter [store::DB]CsiWrongWayExclusionRows
+   }
+
+   agencylending::CurrencyMismatchHaircut[csiFxHaircutAddOn] extends [agencylendingBase]: Relational
+   {
+      ~filter [store::DB]CsiFxHaircutAddOnRows
+   }
+
+   agencylending::ScheduleAmendment[csiScheduleAmendment] extends [agencylendingBase]: Relational
+   {
+      ~filter [store::DB]CsiScheduleAmendmentRows
+   }
+)
