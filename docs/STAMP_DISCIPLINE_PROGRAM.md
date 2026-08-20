@@ -304,3 +304,48 @@ KNOWN RESIDUE (pre-existing, out of C1 scope): the minus LIST arm
 many-stamped list — real pure would negate; needs a len()-guarded
 CASE when the sniffer-deletion leg rebuilds these arms.
 
+## FRAME-HONEST COLUMN STAMPS (2026-08-20, C2c producer fix — census 191 → 92)
+
+The census's biggest surviving class was NOT resolver union synthesis:
+dissected with LL_DUMP_RESOLVED on the union witness, the toOne(x_pk)
+LIST-collect events are the ASSERT-side rows.get('COL') desugar — the
+Typer minted toOne([1..1]) around a column read that lowers as the
+whole-column LIST collect. Root cause one level down: the property-
+access rule composed a standalone relation's mult like a scalar
+object's ([1..1] relation ∘ [0..1] cell = [0..1]) — the frame
+conflation baked into the NODE. Three changes, all producer-side:
+
+1. **Frame-honest column stamp** (Typer.accessProperty): a column read
+   whose receiver ROOTS at a row variable (walk through navigate slots
+   + from()) or at a call whose RESOLVED CALLEE returns a naked type
+   variable (real pure's own signature line — lead/lag/first/nth/at
+   return T = a ROW; filter/project return Relation<T>) keeps the
+   per-cell mult; a STANDALONE relation receiver stamps the read
+   [0..*] — the auto-mapped cell collection it lowers as. First cut
+   (instanceof TypedVariable) broke mapping navigate slots
+   (calendarAggregations) and window offset chains (lead($r).id, 21
+   core tests) — the root-walk + TypeVar-return rule is the honest
+   line, and the core suite was again the audit the corpus alone
+   could not be.
+2. **TDS getter desugar** (rows.get('COL') over a standalone
+   relation): the engine getter is TDSNull-TOTAL and COUNT-PRESERVING
+   (sqlQueryMerging pins ['8',^TDSNull(),'8',^TDSNull()]; a declared-
+   [1] property still yields NULL cells through union threads), and
+   TDS cells carry the STORE's kind, not the model's (p3:String[1]
+   over an INT column asserts 2222). Desugar = explicit map whose
+   per-row body is if(isEmpty(cell), 'TDSNull', toOne(cell)->cast(
+   @Any)) — every frame honest, toOne inside the guard, the Any
+   upcast puts the whole if on the variant carrier.
+3. **Any-LUB if discipline** (MixedEncoding.lubCase): an Any-LUB if
+   with differing branch kinds rides TO_VARIANT on both branches (a
+   raw CASE cannot even type: 'TDSNull' vs INT32); NULL stays bare.
+
+Guardrail splits paid en route: Typer.tdsGetterDesugars +
+Typer.tdsColumnsMetaRead extracted (both parents were over 250);
+MixedEncoding grew lubCase. Corpus green ledger-byte-identical, core
+4166/0. Census 92 = resultSourcing 54 + dataType 18 + groupBy 10 +
+tdsRestrictDistinct 8 (C3) + tails — the union-family events are GONE
+without touching UnionSynthesis: the shims' [1..1] alignment lies
+remain (invisible to the census; the arm-factory leg still owns them),
+but the C2c producer class is closed for union/milestoning families.
+

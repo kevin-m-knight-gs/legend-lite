@@ -2259,12 +2259,9 @@ public final class Lowerer {
                     && !PlatformTypes.isVariant(ct)
                     && !PlatformTypes.isNil(ct)
                     && classLayout.apply(ct).isEmpty() -> {
-                // C1: a SCALAR-STAMPED singleton IS its element here too —
-                // this arm fired BEFORE the generic C1 rule and kept the
-                // list box the stamp-trusting consumers no longer expect
-                // (witness in::H2Test: at(0) extracted [json] not json).
-                // The VARIANT carrier stays (Any-position scalars are
-                // self-describing JSON — cell()'s anyRoot contract).
+                // C1: a SCALAR-STAMPED singleton IS its element here too
+                // (witness in::H2Test); the VARIANT carrier stays — only
+                // the list box goes (cell()'s anyRoot contract).
                 if (c.elements().size() == 1
                         && c.info().multiplicity()
                                 instanceof Multiplicity.Bounded ab
@@ -2313,9 +2310,8 @@ public final class Lowerer {
                                 .toList());
                     }
                 }
-                // C1 (STAMP_DISCIPLINE_PROGRAM): a SCALAR-STAMPED singleton
-                // literal IS its element ([x] = x); the ArrayLit box was the
-                // census's biggest class. Consumers read stamps honestly.
+                // C1: a SCALAR-STAMPED singleton literal IS its element
+                // ([x] = x); consumers read stamps honestly.
                 if (c.elements().size() == 1
                         && c.info().multiplicity()
                                 instanceof Multiplicity.Bounded cb
@@ -2584,12 +2580,18 @@ public final class Lowerer {
             // If-chains (the mapping enum decode emission) render as NESTED
             // CASE expressions in the otherwise slot — correct; single-CASE
             // flattening is a cosmetic peephole if ever demanded.
-            case TypedIf i -> new SqlExpr.Case(
-                    List.of(new SqlExpr.Case.When(
-                            scalar(i.condition(), columns),
-                            scalar(ListShapes.thunkBody(i.thenBranch()), columns))),
-                    i.elseBranch().map(e -> scalar(ListShapes.thunkBody(e), columns))
-                            .orElse(new SqlExpr.NullLit()));
+            case TypedIf i -> {
+                TypedSpec thenB = ListShapes.thunkBody(i.thenBranch());
+                TypedSpec elseB = i.elseBranch()
+                        .map(ListShapes::thunkBody).orElse(null);
+                // Any-LUB branch alignment (variant carrier) lives in
+                // MixedEncoding.lubCase — the mixed-kind discipline.
+                yield MixedEncoding.lubCase(i.info().type(), thenB, elseB,
+                        scalar(i.condition(), columns),
+                        scalar(thenB, columns),
+                        elseB == null ? new SqlExpr.NullLit()
+                                : scalar(elseB, columns));
+            }
 
             // An enum VALUE in scalar position renders as its name string
             // (plangen :2591 parity; the mapping decode CASE compares against
@@ -2632,9 +2634,8 @@ public final class Lowerer {
             case TypedNativeCall n when (isFamily(n, "equal") || isFamily(n, "eq"))
                     && enumTypeMismatch(n.args()) -> new SqlExpr.BoolLit(false);
 
-            // COLLECTION-VALUED relation nodes in scalar position: the list
-            // encodings ([1,2,3]->filter/slice/drop/take over a value, not a
-            // table). Relation-typed sources take the relation() arms.
+            // COLLECTION-VALUED relation nodes in scalar position (the
+            // list encodings; relation-typed sources take relation()).
             // C1: a scalar-stamped source conforms by EMISSION (asList).
             case TypedFilter f when !(f.source().info().type() instanceof Type.RelationType) ->
                     SqlExpr.Call.of(SqlFn.LIST_FILTER,
@@ -3332,8 +3333,7 @@ public final class Lowerer {
         if (collect != null) {
             return scalar(collect, columns);
         }
-        // C1: the source conforms to the fold machinery's list
-        // contract by EMISSION (asList reads the stamp).
+        // C1: the source conforms by EMISSION (asList, stamp-read).
         SqlExpr source = ListShapes.asList(scalar(f.source(), columns),
                 isMany(f.source()));
         SqlExpr init = scalar(f.init(), columns);

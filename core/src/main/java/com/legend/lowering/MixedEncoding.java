@@ -202,6 +202,27 @@ final class MixedEncoding {
         return SqlExpr.Call.of(SqlFn.MAKE_TIMESTAMP, year, month, day, zero, zero, zero);
     }
 
+    /** An Any-LUB {@code if} with DIFFERING branch kinds rides the
+     * VARIANT carrier (the mixed-list discipline: a raw CASE cannot even
+     * type — 'TDSNull' vs INT32, the TDS-getter witness); NULL stays the
+     * bare empty carrier. Same-kind or non-Any ifs emit raw branches. */
+    static SqlExpr lubCase(Type lub, TypedSpec thenB,
+            @com.legend.Nullable TypedSpec elseB, SqlExpr cond,
+            SqlExpr thenS, SqlExpr elseS) {
+        boolean mixed = lub instanceof Type.ClassType ifCt
+                && PlatformTypes.isAny(ifCt)
+                && elseB != null
+                && !thenB.info().type().equals(elseB.info().type());
+        return new SqlExpr.Case(
+                List.of(new SqlExpr.Case.When(cond,
+                        mixed && !(thenS instanceof SqlExpr.NullLit)
+                                ? SqlExpr.Call.of(SqlFn.TO_VARIANT, thenS)
+                                : thenS)),
+                mixed && !(elseS instanceof SqlExpr.NullLit)
+                        ? SqlExpr.Call.of(SqlFn.TO_VARIANT, elseS)
+                        : elseS);
+    }
+
     /**
      * A primitive needle against class-typed elements (or vice versa) can
      * never be a member — the kinds are disjoint in pure's type system.

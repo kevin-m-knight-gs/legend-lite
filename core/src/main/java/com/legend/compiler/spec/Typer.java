@@ -294,46 +294,11 @@ final class Typer {
      * a core construct dispatches through the exhaustive {@code switch} in
      * {@link #applyCore}, anything else is a library call on the generic path.
      */
-    private TypedSpec applyFunction(AppliedFunction af, Env env) {
-        // The engine-shaped variadic spelling of infix arithmetic — one
-        // collection parameter holding the whole same-op run. The compiler's
-        // internal convention (and Pure.java's registered binary signatures)
-        // is pairwise; desugar by LEFT FOLD (InfixArith.binarize). Wire
-        // fidelity is unaffected: the model keeps the n-ary node; this
-        // rewrite exists only inside typing.
-        if (InfixArith.isNaryCarrier(af)) {
-            return synth(InfixArith.binarize(af), env);
-        }
-        // Legacy TDS surface desugars (engine's TDS-era spellings):
-        // col(fn, 'name') is the function-column spec — the modern ~name:fn
-        if (af.function().equals("col") && af.parameters().size() == 2
-                && af.parameters().get(0) instanceof LambdaFunction fn
-                && af.parameters().get(1) instanceof CString name) {
-            return synth(new ColSpec(name.value(), fn, null), env);
-        }
-        TypedSpec tdsSchema = tdsSchemaDesugars(af, env);
-        if (tdsSchema != null) {
-            return tdsSchema;
-        }
-        // tdsRows(tds) = $tds.rows (real tds.pure:301) — the rows-marker
-        // read; emptiness et al. compose over it like any rows access
-        if ((af.function().equals("tdsRows")
-                    || af.function().equals("meta::pure::tds::tdsRows"))
-                && af.parameters().size() == 1) {
-            return synth(new AppliedProperty(af.parameters().get(0),
-                    com.legend.compiler.element.type.PlatformTypes.ROWS_MARKER),
-                    env);
-        }
-        // $r.getString('COL') / Row.value('COL') — the typed row-cell
-        // accessors (TDSRow + the ResultSet Row twin, one owner below)
-        if ((TDS_ROW_GETTERS.contains(af.function())
-                    || af.function().equals("getNullableString"))
-                && af.parameters().size() == 2
-                && literalColName(af.parameters().get(1)) != null
-                && synth(af.parameters().get(0), env).info().type()
-                        instanceof Type.RelationType) {
-            return rowCellRead(af, env);
-        }
+    /** The TDS GETTER surface (engine tds.pure spellings):
+     * isNull/isNotNull cell tests, get()->toString() TDSNull print,
+     * and the untyped $r.get('COL') getter (row frame: toOne cell;
+     * relation frame: TDSNull-total auto-map). Null = not one of these. */
+    private @com.legend.Nullable TypedSpec tdsGetterDesugars(AppliedFunction af, Env env) {
         // $r.isNotNull('COL') / isNull — TDSRow null tests on the named
         // cell (tds.pure); the cell read is optional-typed, so the tests
         // ARE emptiness (same conform-by-emission as the dynafunction
@@ -383,13 +348,106 @@ final class Typer {
             if (grecv.info().type() instanceof Type.RelationType) {
                 TypedSpec gcell = synth(new AppliedProperty(
                         af.parameters().get(0), gcol.value()), env);
-                if (gcell.info().multiplicity() instanceof Multiplicity.Bounded gb
-                        && Integer.valueOf(1).equals(gb.upper()) && gb.lower() == 1) {
-                    return gcell;
+                // Exactly-[1] cell: the read IS the getter. MANY-stamped
+                // (a STANDALONE relation receiver — frame-honest column
+                // stamp, C2c): rows.get('COL') is the engine TDS getter
+                // auto-mapped over the rows, and the engine getter is
+                // TOTAL — an empty cell IS ^TDSNull() (tds.pure:131-133),
+                // COUNT-PRESERVING (sqlQueryMerging pins ['8',^TDSNull(),
+                // '8',^TDSNull()]). Desugar to the explicit map whose
+                // per-row body is the TDSNull-if-empty read — every frame
+                // stamped honestly (the toOne sits INSIDE the isEmpty
+                // guard; a [1..1]-per-row column skips the guard). The
+                // old toOne wrap stamped [1..1] on a whole-column LIST
+                // collect — the census's union-family events.
+                if (gcell.info().multiplicity() instanceof Multiplicity.Bounded gb) {
+                    if (Integer.valueOf(1).equals(gb.upper()) && gb.lower() == 1) {
+                        return gcell;
+                    }
+                    if (gb.isMany()) {
+                        // ALWAYS guarded — a declared-[1] property still
+                        // yields NULL cells through union threads and
+                        // left-join misses (sqlQueryMerging: p1:String[1],
+                        // data ['8',^TDSNull(),...]); the engine getter is
+                        // TDSNull-total regardless of the declaration. The
+                        // value branch upcasts to Any: TDS cells carry the
+                        // STORE's kind, not the model's (same witness:
+                        // p3:String[1] over an INT column asserts 2222) —
+                        // the Any LUB puts the whole if on the variant
+                        // carrier so sentinel and cell always co-type.
+                        var rv = new Variable("_tg0");
+                        var cell = new AppliedProperty(rv, gcol.value());
+                        ValueSpecification body =
+                                new AppliedFunction("if", List.of(
+                                        new AppliedFunction("isEmpty", List.of(cell)),
+                                        new LambdaFunction(List.of(),
+                                                List.of(new CString(
+                                                        com.legend.compiler.element.type
+                                                                .PlatformTypes.TDS_NULL_CELL))),
+                                        new LambdaFunction(List.of(),
+                                                List.of(new AppliedFunction("cast", List.of(
+                                                        new AppliedFunction("toOne",
+                                                                List.of(cell)),
+                                                        new com.legend.protocol.spec
+                                                                .TypeAnnotation.Named(
+                                                                new com.legend.protocol
+                                                                        .TypeExpression.NameRef(
+                                                                        "meta::pure::metamodel::type::Any"))))))));
+                        return synth(new AppliedFunction("map", List.of(
+                                af.parameters().get(0),
+                                new LambdaFunction(List.of(rv), List.of(body)))), env);
+                    }
                 }
                 return synth(new AppliedFunction("toOne", List.of(
                         new AppliedProperty(af.parameters().get(0), gcol.value()))), env);
             }
+        }
+        return null;
+    }
+
+    private TypedSpec applyFunction(AppliedFunction af, Env env) {
+        // The engine-shaped variadic spelling of infix arithmetic — one
+        // collection parameter holding the whole same-op run. The compiler's
+        // internal convention (and Pure.java's registered binary signatures)
+        // is pairwise; desugar by LEFT FOLD (InfixArith.binarize). Wire
+        // fidelity is unaffected: the model keeps the n-ary node; this
+        // rewrite exists only inside typing.
+        if (InfixArith.isNaryCarrier(af)) {
+            return synth(InfixArith.binarize(af), env);
+        }
+        // Legacy TDS surface desugars (engine's TDS-era spellings):
+        // col(fn, 'name') is the function-column spec — the modern ~name:fn
+        if (af.function().equals("col") && af.parameters().size() == 2
+                && af.parameters().get(0) instanceof LambdaFunction fn
+                && af.parameters().get(1) instanceof CString name) {
+            return synth(new ColSpec(name.value(), fn, null), env);
+        }
+        TypedSpec tdsSchema = tdsSchemaDesugars(af, env);
+        if (tdsSchema != null) {
+            return tdsSchema;
+        }
+        // tdsRows(tds) = $tds.rows (real tds.pure:301) — the rows-marker
+        // read; emptiness et al. compose over it like any rows access
+        if ((af.function().equals("tdsRows")
+                    || af.function().equals("meta::pure::tds::tdsRows"))
+                && af.parameters().size() == 1) {
+            return synth(new AppliedProperty(af.parameters().get(0),
+                    com.legend.compiler.element.type.PlatformTypes.ROWS_MARKER),
+                    env);
+        }
+        // $r.getString('COL') / Row.value('COL') — the typed row-cell
+        // accessors (TDSRow + the ResultSet Row twin, one owner below)
+        if ((TDS_ROW_GETTERS.contains(af.function())
+                    || af.function().equals("getNullableString"))
+                && af.parameters().size() == 2
+                && literalColName(af.parameters().get(1)) != null
+                && synth(af.parameters().get(0), env).info().type()
+                        instanceof Type.RelationType) {
+            return rowCellRead(af, env);
+        }
+        TypedSpec tdsGetter = tdsGetterDesugars(af, env);
+        if (tdsGetter != null) {
+            return tdsGetter;
         }
         TypedSpec rowCell = tdsRowCellIndexRead(af, env);
         if (rowCell != null) {
@@ -2456,7 +2514,10 @@ final class Typer {
                 ? n.substring(1, n.length() - 1) : n;
     }
 
-    private TypedSpec accessProperty(AppliedProperty ap, Env env) {
+    /** TDS COLUMN-METADATA folds ({@code .columns.name/.type/
+     * .documentation} — static facts of the typed relation); null when
+     * the access is not one of these. */
+    private @com.legend.Nullable TypedSpec tdsColumnsMetaRead(AppliedProperty ap, Env env) {
         // TDS COLUMN METADATA — engine TabularDataSet.columns.name/.type.
         // Column names and pure type names are STATIC FACTS of the typed
         // relation (no execution): they fold to string collections here.
@@ -2507,6 +2568,14 @@ final class Typer {
                                 com.legend.compiler.element.type.Multiplicity
                                         .Bounded.ZERO_MANY));
             }
+        }
+        return null;
+    }
+
+    private TypedSpec accessProperty(AppliedProperty ap, Env env) {
+        TypedSpec colsMeta = tdsColumnsMetaRead(ap, env);
+        if (colsMeta != null) {
+            return colsMeta;
         }
         TypedSpec source = synth(ap.receiver(), env);
         if (source.info().type() instanceof Type.RelationType rt2) {
@@ -2683,7 +2752,18 @@ final class Typer {
                 // QUOTE-BEARING column identity (the pivot rule's sibling):
                 Type.Column col = relationColumn(rel, ap.property());
                 relColName = col.name();
-                yield new ExprType(col.type(), col.multiplicity());
+                // FRAME-HONEST stamp (C2c, STAMP_DISCIPLINE_PROGRAM): a
+                // column read whose receiver chain roots at a ROW
+                // VARIABLE ($r.COL, $r.joinSlot.COL — mapping navigate
+                // slots included) is one cell; off a standalone RELATION
+                // value it is the AUTO-MAPPED cell COLLECTION (N rows —
+                // the same frame line the .values arm draws). The old
+                // per-cell compose stamped [0..1] on reads that lower as
+                // whole-column LIST collects — the census's biggest
+                // surviving toOne class rode it.
+                yield new ExprType(col.type(), rowRooted(source)
+                        ? col.multiplicity()
+                        : Multiplicity.Bounded.ZERO_MANY);
             }
             default -> throw new TypeInferenceException("cannot access '" + ap.property()
                     + "' on " + source.info().type().typeName());
@@ -2698,6 +2778,29 @@ final class Typer {
         return new TypedPropertyAccess(source,
                 relColName != null ? relColName : ap.property(),
                 new ExprType(member.type(), mult));
+    }
+
+    /** The PER-ROW frame test: the receiver chain bottoms out at (a) a
+     * variable (a lambda's row binding — directly, or through navigate
+     * slots / from() rescopes), or (b) a call whose RESOLVED CALLEE
+     * returns a naked type variable — real pure's own signature line: an
+     * element-of-relation value (lead/lag/first/nth/at return T, a ROW)
+     * vs a relation value (filter/project return Relation&lt;T&gt;).
+     * Standalone relation VALUES root at literal/raw-sql/relation-op
+     * nodes instead: their column reads are the auto-mapped cell
+     * collection. */
+    private static boolean rowRooted(TypedSpec s) {
+        while (true) {
+            if (s instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa) {
+                s = pa.source();
+            } else if (s instanceof com.legend.compiler.spec.typed.TypedFrom f) {
+                s = f.source();
+            } else if (s instanceof TypedNativeCall nc) {
+                return nc.callee().returnType() instanceof Type.TypeVar;
+            } else {
+                return s instanceof com.legend.compiler.spec.typed.TypedVariable;
+            }
+        }
     }
 
     /** Store-declared column lookup: a quoted "FIRST NAME" carries its
