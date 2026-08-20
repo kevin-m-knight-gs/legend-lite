@@ -461,3 +461,33 @@ helpers move to their consumers. THREE surviving frame dispatches
 variant harmonization) are designed-pair-#4 residue — they delete when
 lowering carries explicit frame context, not before.
 
+Slice 5 (8625eeab): minus NEGATES a runtime size-1 collection
+(LIST_LENGTH=1 guard → 0−l[1]; both reference runtimes; the last
+recorded C1 residue). Deletion leg's UNBLOCKED portion complete —
+remainder gated on the h2 list-encodings and frame-context legs by
+design.
+
+## NEXT LEG CHARTER: canonical-render verdicts (HOST_LOGIC_AUDIT fix queue 3–4, UNPARKED)
+
+The ratified design (*compiler knows, database computes AND
+serializes, harness compares bytes*) now stands on enforced-true
+stamps. Slice order:
+1. **Compile-through equality** (queue #3, the headline): the K-arm
+   lowers `equal(e,a)`/`eq` to ONE SQL boolean when both operands are
+   DB-expressible; static cross-kind folds to constant FALSE at
+   compile time; float emission gains the `NOT isnan` guard; failure
+   messages fetch DB-rendered reprs ON FAILURE ONLY. PureAsserts
+   equal/sorted/repr arms shrink to the definitional residue
+   (identity/compile-time facts). The verdict-channel ledger rows
+   SHRINK — that shrinkage is the leg's own census.
+2. **Grid compile-through** (queue #4): GridCompare.grids ordered →
+   row_number zip; multiset → `(a EXCEPT ALL b) UNION ALL
+   (b EXCEPT ALL a)` empty; tdsEquivalent deltas → per-cell
+   `abs(x−y) <= delta`; ONE boolean fetch each.
+3. **Tolerance census re-read** (queue #5) after 1–2 land.
+Prereqs all in place: stamps enforced (082f8692), guard-emission
+probes green both backends, NullSemantics/verbatim channels honest.
+Measure every slice by the verdict-channel register + full chain; the
+canonical-serialization spelling table is COMPILER metadata (the
+audit's isVerdict ruling), never host formatting.
+
