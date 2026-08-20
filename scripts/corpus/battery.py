@@ -1606,6 +1606,60 @@ def _curve_specs():
     cat.sort = ("curveId", False)
     out.append(cat)
 
+    # ~distinct doing real work: twelve pillars per (curve, date), so 16 rows out of 192.
+    # If the ~distinct were dropped the query still runs and returns 192 rows of perfectly
+    # correct data, which is why a distinct with nothing to collapse tests nothing.
+    dates = Spec("stress::CV8_CurveDates", "/stress/cv8",
+                 "The (curve, date) pairs a curve exists for, read ~distinct off the pillar "
+                 "table. Twelve pillars collapse to one row, so 192 become 16 -- and the "
+                 "label beside them is built by a dynafunction in the mapping rather than "
+                 "stored, which is the transform ~distinct has to collapse ACROSS.",
+                 "curves::CurveDate")
+    dates.projections = [Proj("curveId", ["curveId"]),
+                         Proj("cobDate", ["cobDate"]),
+                         Proj("curveLabel", ["curveLabel"])]
+    dates.sort = [("curveId", False), ("cobDate", False)]
+    out.append(dates)
+
+    # The VIEW. Its own aggregation happens in the store rather than in the query, so the
+    # numbers here have to agree with CV4's group-by over the same rows by two different
+    # routes -- one through a ~groupBy view, one through a query-level groupBy.
+    summary = Spec("stress::CV9_CurveSummaries", "/stress/cv9",
+                   "Per curve and date, read from a VIEW whose ~groupBy aggregates in the "
+                   "store. CV4 computes the same highest and lowest rate with a query-level "
+                   "groupBy over the pillars; these must agree, and they are arrived at by "
+                   "completely different routes. The curve is navigated back from the "
+                   "summary, so a view row reaches a table row.",
+                   "curves::CurveSummary")
+    summary.projections = [Proj("curveId", ["curveId"]),
+                           Proj("cobDate", ["cobDate"]),
+                           Proj("pillarCount", ["pillarCount"]),
+                           Proj("highestRate", ["highestRate"]),
+                           Proj("lowestRate", ["lowestRate"]),
+                           Proj("curveName", ["summarised", "curveName"]),
+                           Proj("interpolation", ["summarised", "interpolation"])]
+    summary.sort = [("curveId", False), ("cobDate", False)]
+    out.append(summary)
+
+    # A join CHAIN and a join with OR, both from a composite-key root, plus the local
+    # property declared with `+` in the mapping.
+    bench = Spec("stress::CV10_PillarBenchmark", "/stress/cv10",
+                 "Each pillar, the series it was fitted to, and the series it EFFECTIVELY "
+                 "uses -- its own where one is recorded and the curve's benchmark where none "
+                 "is, which is a fallback and so an `or` in the join. Beside them, the "
+                 "curve's benchmark reached the long way: pillar to curve to series, two "
+                 "hops from a three-column key.",
+                 "curves::CurvePoint")
+    bench.projections = [Proj("curveId", ["curveId"]),
+                         Proj("cobDate", ["cobDate"]),
+                         Proj("tenorLabel", ["tenorLabel"]),
+                         Proj("ownSeries", ["sourceSeriesId"]),
+                         Proj("effectiveSeries", ["effectiveSeries", "seriesId"]),
+                         Proj("effectiveName", ["effectiveSeries", "seriesName"]),
+                         Proj("curveBenchmark", ["curve", "benchmarkSeries", "seriesId"])]
+    bench.sort = [("curveId", False), ("cobDate", False), ("tenorLabel", False)]
+    out.append(bench)
+
     return out
 
 

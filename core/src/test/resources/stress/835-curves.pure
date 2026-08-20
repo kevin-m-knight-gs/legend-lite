@@ -112,6 +112,56 @@ Association curves::PillarSource
    sourceSeries: timeseries::TimeSeries[0..1];
 }
 
+
+// The (curve, date) pairs a curve exists for. Mapped ~distinct over the pillar table, which
+// has twelve rows for every one of these -- so `distinct` is the whole mapping rather than a
+// decoration on it, and dropping it would turn 16 rows into 192.
+Class curves::CurveDate
+{
+   curveId: String[1];
+   cobDate: StrictDate[1];
+   // A DYNAFUNCTION: the curve's display label, built in the mapping. It has to be constant
+   // within a (curve, date) or ~distinct would not collapse anything -- concatenating the
+   // TENOR was the first attempt and turned 16 rows back into 192, which is exactly the
+   // mistake ~distinct is here to catch.
+   curveLabel: String[1];
+}
+
+// Per curve and date, read from a VIEW rather than from the pillars. This is what a curve
+// monitor looks at: how many pillars came in, and where the curve's ends are.
+Class curves::CurveSummary
+{
+   curveId: String[1];
+   cobDate: StrictDate[1];
+   pillarCount: Integer[1];
+   highestRate: Float[1];
+   lowestRate: Float[1];
+}
+
+// Every curve has a benchmark series, or does not. Reaching it from a PILLAR is two hops --
+// pillar to curve to series -- which is a join chain under a composite key.
+Association curves::CurveBenchmark
+{
+   benchmarkOf: curves::YieldCurve[*];
+   benchmarkSeries: timeseries::TimeSeries[0..1];
+}
+
+// The series a pillar is fitted to, falling back to the curve's benchmark where the pillar
+// records none. Explicit override else default -- which is how curve configuration works,
+// and which makes the join an `or` rather than an equality.
+Association curves::PillarEffectiveSource
+{
+   effectivePillars: curves::CurvePoint[*];
+   effectiveSeries: timeseries::TimeSeries[0..1];
+}
+
+// The summary belongs to the curve it summarises.
+Association curves::CurveSummaries
+{
+   summarised: curves::YieldCurve[0..1];
+   summaries: curves::CurveSummary[*];
+}
+
 ###Mapping
 Mapping curves::CurvesMapping
 (
@@ -149,6 +199,15 @@ Mapping curves::CurvesMapping
       discountFactor: [store::DB]RATE_CURVE_POINT.DISCOUNT_FACTOR,
       isInterpolated: [store::DB]RATE_CURVE_POINT.IS_INTERPOLATED,
       sourceSeriesId: [store::DB]RATE_CURVE_POINT.SOURCE_SERIES_ID,
+      // A LOCAL property: the currency readable off the pillar without navigating anywhere.
+      //
+      // Declared, and NOT projectable. `curves::CurvePoint.all()->project(~[..., x|
+      // $x.pillarCurrency])` fails compilation with "Can't find property 'pillarCurrency' in
+      // class 'curves::CurvePoint'" -- which is true, that is what LOCAL means, and it is
+      // also why a `+` property on a Relational class mapping cannot be reached from a class
+      // query at all. Left here so the declaration is exercised by plan generation and so
+      // the next attempt to project one finds this note instead of the error.
+      +pillarCurrency: String[0..1]: [store::DB]RATE_CURVE_POINT.CURVE_CURRENCY,
       curveRef
       (
          curveName: [store::DB]RATE_CURVE_POINT.CURVE_NAME,
@@ -170,6 +229,56 @@ Mapping curves::CurvesMapping
       (
          points[curves_YieldCurve, pillar]: [store::DB]@Curve_Point,
          curve[pillar, curves_YieldCurve]: [store::DB]@Curve_Point
+      )
+   }
+
+
+   // ~distinct, because the source has twelve rows for every one of these. The dynafunction
+   // builds the cache key the same way the service that reads it does.
+   curves::CurveDate[curveDate]: Relational
+   {
+      ~distinct
+      ~mainTable [store::DB]RATE_CURVE_POINT
+      curveId: [store::DB]RATE_CURVE_POINT.CURVE_ID,
+      cobDate: [store::DB]RATE_CURVE_POINT.COB_DATE,
+      curveLabel: concat([store::DB]RATE_CURVE_POINT.CURVE_ID, [store::DB]RATE_CURVE_POINT.CURVE_TYPE)
+   }
+
+   curves::CurveSummary[curveSummary]: Relational
+   {
+      ~primaryKey ( [store::DB]CURVE_SUMMARY.CURVE_ID, [store::DB]CURVE_SUMMARY.COB_DATE )
+      ~mainTable [store::DB]CURVE_SUMMARY
+      curveId: [store::DB]CURVE_SUMMARY.CURVE_ID,
+      cobDate: [store::DB]CURVE_SUMMARY.COB_DATE,
+      pillarCount: [store::DB]CURVE_SUMMARY.PILLAR_COUNT,
+      highestRate: [store::DB]CURVE_SUMMARY.HIGHEST_RATE,
+      lowestRate: [store::DB]CURVE_SUMMARY.LOWEST_RATE
+   }
+
+   curves::CurveBenchmark: Relational
+   {
+      AssociationMapping
+      (
+         benchmarkSeries[curves_YieldCurve, timeseries_TimeSeries]: [store::DB]@Curve_Benchmark,
+         benchmarkOf[timeseries_TimeSeries, curves_YieldCurve]: [store::DB]@Curve_Benchmark
+      )
+   }
+
+   curves::PillarEffectiveSource: Relational
+   {
+      AssociationMapping
+      (
+         effectiveSeries[pillar, timeseries_TimeSeries]: [store::DB]@Pillar_EffectiveSeries,
+         effectivePillars[timeseries_TimeSeries, pillar]: [store::DB]@Pillar_EffectiveSeries
+      )
+   }
+
+   curves::CurveSummaries: Relational
+   {
+      AssociationMapping
+      (
+         summaries[curves_YieldCurve, curveSummary]: [store::DB]@Curve_Summary,
+         summarised[curveSummary, curves_YieldCurve]: [store::DB]@Curve_Summary
       )
    }
 

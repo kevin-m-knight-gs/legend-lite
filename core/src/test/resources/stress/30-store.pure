@@ -278,7 +278,8 @@ Database store::DB
     // ---- Yield curves: the composite-key domain ----
     Table RATE_CURVE (CURVE_ID VARCHAR(20) PRIMARY KEY, CURVE_NAME VARCHAR(40),
                        CURRENCY VARCHAR(4), CURVE_TYPE VARCHAR(12),
-                       INTERPOLATION VARCHAR(16), DAY_COUNT_BASIS VARCHAR(10), IS_ACTIVE BIT)
+                       INTERPOLATION VARCHAR(16), DAY_COUNT_BASIS VARCHAR(10), IS_ACTIVE BIT,
+                      BENCHMARK_SERIES_ID VARCHAR(20))
 
     // Keyed by all three of CURVE_ID, COB_DATE and TENOR_LABEL. The last three columns are
     // the curve's own, denormalized onto the point so the embedded mapping has something to
@@ -288,7 +289,7 @@ Database store::DB
                        ZERO_RATE DECIMAL(18,4), DISCOUNT_FACTOR DECIMAL(18,8),
                        IS_INTERPOLATED BIT, SOURCE_SERIES_ID VARCHAR(20),
                        CURVE_NAME VARCHAR(40), CURVE_CURRENCY VARCHAR(4),
-                       CURVE_TYPE VARCHAR(12))
+                       CURVE_TYPE VARCHAR(12), CURVE_BENCHMARK_ID VARCHAR(20))
 
     // ---- Back office: where cash actually moves ----
     //
@@ -1407,8 +1408,29 @@ Database store::DB
     Join Series_Observation(TIME_SERIES.SERIES_ID = TS_OBSERVATION.SERIES_ID)
     Join Series_Revision(TIME_SERIES.SERIES_ID = TS_REVISION_BI.SERIES_ID)
 
+    // What a curve monitor reads: one row per curve and date, over the twelve pillars.
+    View CURVE_SUMMARY
+    (
+      ~groupBy
+      (
+        RATE_CURVE_POINT.CURVE_ID,
+        RATE_CURVE_POINT.COB_DATE
+      )
+      CURVE_ID: RATE_CURVE_POINT.CURVE_ID PRIMARY KEY,
+      COB_DATE: RATE_CURVE_POINT.COB_DATE PRIMARY KEY,
+      PILLAR_COUNT: count(RATE_CURVE_POINT.TENOR_LABEL),
+      HIGHEST_RATE: max(RATE_CURVE_POINT.ZERO_RATE),
+      LOWEST_RATE: min(RATE_CURVE_POINT.ZERO_RATE)
+    )
+
     Filter QuotedPillarRows(RATE_CURVE_POINT.IS_INTERPOLATED = 0)
 
+    Join Curve_Benchmark(RATE_CURVE.BENCHMARK_SERIES_ID = TIME_SERIES.SERIES_ID)
+    Join Curve_Summary(RATE_CURVE.CURVE_ID = CURVE_SUMMARY.CURVE_ID)
+    // Explicit override else default: the pillar's own series where it has
+    // one, the curve's benchmark where it does not. An `or`, because that
+    // is what a fallback is.
+    Join Pillar_EffectiveSeries(RATE_CURVE_POINT.SOURCE_SERIES_ID = TIME_SERIES.SERIES_ID or RATE_CURVE_POINT.CURVE_BENCHMARK_ID = TIME_SERIES.SERIES_ID)
     Join Curve_Point(RATE_CURVE.CURVE_ID = RATE_CURVE_POINT.CURVE_ID)
     Join Pillar_Series(RATE_CURVE_POINT.SOURCE_SERIES_ID = TIME_SERIES.SERIES_ID)
     // Same curve, same date, longer tenor. Three columns and the third

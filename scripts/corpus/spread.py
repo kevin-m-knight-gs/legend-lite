@@ -319,7 +319,17 @@ def _shape_variants(c: model.Corpus, t: Spec, seeded: set[str],
 
     # Graph fetch over the same reach: a different retrieval path entirely, and one no
     # rare-construct service uses.
-    if not getattr(t, "graph", None):
+    if not getattr(t, "graph", None) and root not in c.distinct_sets:
+        # Not over a ~distinct set: graph fetch refuses one outright with "Store distinct not
+        # allowed in graph fetch flow", which is a stated restriction rather than a defect --
+        # there is nothing to pin and a generated service asserting it would only re-state
+        # the assertion the engine already makes.
+        #
+        # It is worth excluding rather than quarantining because the failure is fatal to the
+        # PROCESS: the exception leaves the test session half-initialised and the batch runs
+        # to its one-hour timeout instead of reporting an error, taking forty unrelated
+        # services with it.
+        #
         # Only real ASSOCIATION hops become branches. An embedded property is a sub-object
         # on the same row, and graph fetch treats a branch as an association -- feeding it an
         # embedded hop fails the build with "combo::C9.nested is not an association".

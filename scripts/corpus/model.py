@@ -330,6 +330,14 @@ class Corpus:
     # broken chain yields NULL and the row survives.
     class_filter_chain: dict[str, tuple[list[str], str]] = field(default_factory=dict)
 
+    # (class, property) pairs declared in a MAPPING with `+` rather than on the class.
+    local_props: set = field(default_factory=set)
+
+    # Classes whose set implementation carries ~distinct. The reader skipped the directive
+    # as noise for a long time and the oracle never deduped, which was invisible while the
+    # only ~distinct set in the corpus read a table whose rows were already unique.
+    distinct_sets: set = field(default_factory=set)
+
     # -------------------------------------------------------- resolution
 
     def resolve(self, root: str, path: list[str]):
@@ -604,6 +612,16 @@ _UNION = re.compile(r"(?:special_|)(?:union|inheritance)"
                     r"_OperationSetImplementation_1__SetImplementation_MANY_"
                     r"\s*\(([^)]*)\)")
 _COLMAP = re.compile(r'(\w+)\s*:\s*\[[\w:]+\]\s*(?:\w+\.)?(\w+|"[^"]+")\.(\w+|"[^"]+")')
+# `+name: Type[mult]: [db]TABLE.COL` -- a LOCAL property, declared in the mapping rather than
+# on the class. Three of them were in the corpus and the reader recorded none: not as a
+# column, not as a chain, not even in `unparsed`. So nothing could project one, and nothing
+# said so -- the construct scored as present on a text-matching meter while being invisible
+# to every generator and to the oracle.
+#
+# Only the COLUMN form. `+localTag: String[0..1]: \'from-m2m\'` binds a constant rather than a
+# column and has no column to record; it is left alone rather than guessed at.
+_LOCALPROP = re.compile(
+    r'\+\s*(\w+)\s*:\s*\w+\s*\[[^\]]+\]\s*:\s*\[[\w:]+\]\s*(?:\w+\.)?(\w+)\.(\w+)')
 # `prop: concat([db]T.A, [db]T.B)` -- a DYNAFUNCTION property mapping. Like _ENUMCOLMAP this
 # must be stripped BEFORE _COLMAP runs, or _COLMAP matches the first column inside the
 # parentheses and records the property as a plain column mapping -- silently turning a
@@ -1227,6 +1245,13 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                 f"{cur}: ~filter form not modelled by this reader -- {line.strip()!r}. "
                 f"Extend the reader deliberately; ignoring it would change what all() "
                 f"returns for {cur} with nothing pointing at the cause.")
+        # ~distinct on a class mapping. Recorded here, before the column parsing, because
+        # the property-shaped catch-all further down never sees a bare directive line -- so
+        # the construct was skipped as noise and the oracle never deduped. Invisible until a
+        # ~distinct set finally read a table with twelve rows per output row.
+        if line.strip() == "~distinct" and cur:
+            c.distinct_sets.add(cur)
+            continue
         m = _MAIN.match(line)
         if m and cur:
             # For a union member, the per-id table is what the union needs; the class's
@@ -1342,6 +1367,15 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                             and (child, sub) not in c.dyna):
                         c.unparsed.append((cur, f"{name}.{sub}"))
                 continue
+            # LOCAL properties first: their tail is a plain column mapping preceded by a
+            # type and a multiplicity, so _COLMAP left to itself reads the TYPE as the
+            # property name.
+            for prop, l_tbl, col in _LOCALPROP.findall(line):
+                if l_tbl != tbl:
+                    raise ValueError(f"{cur}.+{prop} maps to {l_tbl}, not mainTable {tbl}")
+                c.columns.setdefault(cur, {})[prop] = col
+                c.local_props.add((cur, prop))
+            line = _LOCALPROP.sub("", line)
             for prop, mapping, t, col in _ENUMCOLMAP.findall(line):
                 if t != tbl:
                     raise ValueError(f"{cur}.{prop} maps to {t}, not mainTable {tbl}")

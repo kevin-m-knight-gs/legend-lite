@@ -2389,6 +2389,21 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
             for p in spec.projections}
            for r in kept]
 
+    if spec.root in c.distinct_sets:
+        # ~distinct on the class mapping: the SET is the distinct rows, so all() sees 16
+        # (curve, date) pairs rather than the 192 pillar rows they were read from. Deduped
+        # on the projected values, which is what the mapping's own columns amount to here.
+        #
+        # Applied after projection and before grouping and sorting, in that order, because
+        # a distinct that ran after a limit would be deduping an already-truncated set.
+        seen, deduped = set(), []
+        for r in out:
+            k = tuple(sorted(r.items(), key=lambda kv: kv[0]))
+            if k in seen:
+                continue
+            seen.add(k)
+            deduped.append(r)
+        out = deduped
     if spec.group_by:
         out = _group(spec, out)
     keys = ([] if not spec.sort

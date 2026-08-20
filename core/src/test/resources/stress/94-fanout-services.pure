@@ -4180,6 +4180,182 @@ Service stress::CV5_CurveCatalogue
   ]
 }
 
+Service stress::CV8_CurveDates
+{
+    pattern: '/stress/cv8';
+    documentation: 'The (curve, date) pairs a curve exists for, read ~distinct off the pillar table. Twelve pillars collapse to one row, so 192 become 16 -- and the label beside them is built by a dynafunction in the mapping rather than stored, which is the transform ~distinct has to collapse ACROSS.';
+    execution: Single
+    {
+    query: |curves::CurveDate.all()
+        ->project(~[
+            curveId:x|$x.curveId,
+            cobDate:x|$x.cobDate,
+            curveLabel:x|$x.curveLabel
+        ])
+        ->sort([~curveId->ascending(), ~cobDate->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CV8_CurveDates_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 16 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","curveLabel":"EUR.DBR.GOVTGOVT"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","curveLabel":"EUR.DBR.GOVTGOVT"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","curveLabel":"EUR.ESTR.OISOIS"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","curveLabel":"EUR.ESTR.OISOIS"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","curveLabel":"EUR.EURIBOR.6MIBOR_SWAP"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","curveLabel":"EUR.EURIBOR.6MIBOR_SWAP"},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","curveLabel":"GBP.SONIA.OISOIS"},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","curveLabel":"GBP.SONIA.OISOIS"},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","curveLabel":"JPY.TONA.OISOIS"},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","curveLabel":"JPY.TONA.OISOIS"},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","curveLabel":"USD.LIBOR.3MIBOR_SWAP"},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","curveLabel":"USD.LIBOR.3MIBOR_SWAP"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","curveLabel":"USD.SOFR.OISOIS"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","curveLabel":"USD.SOFR.OISOIS"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","curveLabel":"USD.UST.GOVTGOVT"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","curveLabel":"USD.UST.GOVTGOVT"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CV9_CurveSummaries
+{
+    pattern: '/stress/cv9';
+    documentation: 'Per curve and date, read from a VIEW whose ~groupBy aggregates in the store. CV4 computes the same highest and lowest rate with a query-level groupBy over the pillars; these must agree, and they are arrived at by completely different routes. The curve is navigated back from the summary, so a view row reaches a table row.';
+    execution: Single
+    {
+    query: |curves::CurveSummary.all()
+        ->project(~[
+            curveId:x|$x.curveId,
+            cobDate:x|$x.cobDate,
+            pillarCount:x|$x.pillarCount,
+            highestRate:x|$x.highestRate,
+            lowestRate:x|$x.lowestRate,
+            curveName:x|$x.summarised.curveName,
+            interpolation:x|$x.summarised.interpolation
+        ])
+        ->sort([~curveId->ascending(), ~cobDate->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CV9_CurveSummaries_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 16 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","pillarCount":12,"highestRate":3.61,"lowestRate":2.51,"curveName":"German Bund Zero Curve","interpolation":"BOOTSTRAP"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","pillarCount":12,"highestRate":3.6,"lowestRate":2.46,"curveName":"German Bund Zero Curve","interpolation":"BOOTSTRAP"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":3.66,"lowestRate":2.5,"curveName":"EUR Euro Short Term Rate OIS","interpolation":"LINEAR_ZERO"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":3.65,"lowestRate":2.47,"curveName":"EUR Euro Short Term Rate OIS","interpolation":"LINEAR_ZERO"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","pillarCount":12,"highestRate":3.79,"lowestRate":2.73,"curveName":"EUR 6M Euribor Swap","interpolation":"CUBIC_SPLINE"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","pillarCount":12,"highestRate":3.78,"lowestRate":2.7,"curveName":"EUR 6M Euribor Swap","interpolation":"CUBIC_SPLINE"},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.19,"lowestRate":3.55,"curveName":"GBP SONIA Overnight Index Swap","interpolation":"LINEAR_ZERO"},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.19,"lowestRate":3.58,"curveName":"GBP SONIA Overnight Index Swap","interpolation":"LINEAR_ZERO"},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":1.87,"lowestRate":0.08,"curveName":"JPY TONA Overnight Index Swap","interpolation":"LINEAR_ZERO"},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":1.96,"lowestRate":0.08,"curveName":"JPY TONA Overnight Index Swap","interpolation":"LINEAR_ZERO"},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.6,"lowestRate":4.21,"curveName":"USD 3M LIBOR Swap (legacy)","interpolation":"CUBIC_SPLINE"},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.59,"lowestRate":4.23,"curveName":"USD 3M LIBOR Swap (legacy)","interpolation":"CUBIC_SPLINE"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.34,"lowestRate":3.96,"curveName":"USD SOFR Overnight Index Swap","interpolation":"LINEAR_ZERO"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.34,"lowestRate":3.98,"curveName":"USD SOFR Overnight Index Swap","interpolation":"LINEAR_ZERO"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.42,"lowestRate":4.29,"curveName":"US Treasury Zero Curve","interpolation":"BOOTSTRAP"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.43,"lowestRate":4.26,"curveName":"US Treasury Zero Curve","interpolation":"BOOTSTRAP"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CV10_PillarBenchmark
+{
+    pattern: '/stress/cv10';
+    documentation: 'Each pillar, the series it was fitted to, and the series it EFFECTIVELY uses -- its own where one is recorded and the curve\'s benchmark where none is, which is a fallback and so an `or` in the join. Beside them, the curve\'s benchmark reached the long way: pillar to curve to series, two hops from a three-column key.';
+    execution: Single
+    {
+    query: |curves::CurvePoint.all()
+        ->project(~[
+            curveId:x|$x.curveId,
+            cobDate:x|$x.cobDate,
+            tenorLabel:x|$x.tenorLabel,
+            ownSeries:x|$x.sourceSeriesId,
+            effectiveSeries:x|$x.effectiveSeries.seriesId,
+            effectiveName:x|$x.effectiveSeries.seriesName,
+            curveBenchmark:x|$x.curve.benchmarkSeries.seriesId
+        ])
+        ->sort([~curveId->ascending(), ~cobDate->ascending(), ~tenorLabel->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CV10_PillarBenchmark_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 192 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"10Y","ownSeries":"DBR.10Y","effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"15Y","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"1M","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"1Y","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"20Y","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"2Y","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"30Y","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"3M","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"3Y","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"5Y","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"6M","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"7Y","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"10Y","ownSeries":"DBR.10Y","effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"15Y","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"1M","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"1Y","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"20Y","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"2Y","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"30Y","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"3M","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"3Y","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"5Y","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"6M","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"7Y","ownSeries":null,"effectiveSeries":"DBR.10Y","effectiveName":"German Bund 10 Year Yield","curveBenchmark":"DBR.10Y"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","tenorLabel":"10Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","tenorLabel":"15Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","tenorLabel":"1M","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","tenorLabel":"1Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","tenorLabel":"20Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","tenorLabel":"2Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","tenorLabel":"30Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","tenorLabel":"3M","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","tenorLabel":"3Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","tenorLabel":"5Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","tenorLabel":"6M","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","tenorLabel":"7Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","tenorLabel":"10Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","tenorLabel":"15Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","tenorLabel":"1M","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","tenorLabel":"1Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","tenorLabel":"20Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","tenorLabel":"2Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","tenorLabel":"30Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","tenorLabel":"3M","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","tenorLabel":"3Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","tenorLabel":"5Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","tenorLabel":"6M","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","tenorLabel":"7Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","tenorLabel":"10Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","tenorLabel":"15Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","tenorLabel":"1M","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","tenorLabel":"1Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","tenorLabel":"20Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","tenorLabel":"2Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","tenorLabel":"30Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","tenorLabel":"3M","ownSeries":"EURIBOR.3M","effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","tenorLabel":"3Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","tenorLabel":"5Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","tenorLabel":"6M","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","tenorLabel":"7Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","tenorLabel":"10Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","tenorLabel":"15Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","tenorLabel":"1M","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","tenorLabel":"1Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","tenorLabel":"20Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","tenorLabel":"2Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","tenorLabel":"30Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","tenorLabel":"3M","ownSeries":"EURIBOR.3M","effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","tenorLabel":"3Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","tenorLabel":"5Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","tenorLabel":"6M","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","tenorLabel":"7Y","ownSeries":null,"effectiveSeries":"EURIBOR.3M","effectiveName":"Euribor 3 Month","curveBenchmark":"EURIBOR.3M"},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","tenorLabel":"10Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","tenorLabel":"15Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","tenorLabel":"1M","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","tenorLabel":"1Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","tenorLabel":"20Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","tenorLabel":"2Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","tenorLabel":"30Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","tenorLabel":"3M","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","tenorLabel":"3Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","tenorLabel":"5Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","tenorLabel":"6M","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","tenorLabel":"7Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","tenorLabel":"10Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","tenorLabel":"15Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","tenorLabel":"1M","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","tenorLabel":"1Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","tenorLabel":"20Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","tenorLabel":"2Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","tenorLabel":"30Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","tenorLabel":"3M","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","tenorLabel":"3Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","tenorLabel":"5Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","tenorLabel":"6M","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","tenorLabel":"7Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","tenorLabel":"10Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","tenorLabel":"15Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","tenorLabel":"1M","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","tenorLabel":"1Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","tenorLabel":"20Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","tenorLabel":"2Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","tenorLabel":"30Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","tenorLabel":"3M","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","tenorLabel":"3Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","tenorLabel":"5Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","tenorLabel":"6M","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","tenorLabel":"7Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","tenorLabel":"10Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","tenorLabel":"15Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","tenorLabel":"1M","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","tenorLabel":"1Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","tenorLabel":"20Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","tenorLabel":"2Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","tenorLabel":"30Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","tenorLabel":"3M","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","tenorLabel":"3Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","tenorLabel":"5Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","tenorLabel":"6M","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","tenorLabel":"7Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","tenorLabel":"10Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","tenorLabel":"15Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","tenorLabel":"1M","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","tenorLabel":"1Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","tenorLabel":"20Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","tenorLabel":"2Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","tenorLabel":"30Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","tenorLabel":"3M","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","tenorLabel":"3Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","tenorLabel":"5Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","tenorLabel":"6M","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","tenorLabel":"7Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","tenorLabel":"10Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","tenorLabel":"15Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","tenorLabel":"1M","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","tenorLabel":"1Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","tenorLabel":"20Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","tenorLabel":"2Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","tenorLabel":"30Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","tenorLabel":"3M","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","tenorLabel":"3Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","tenorLabel":"5Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","tenorLabel":"6M","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","tenorLabel":"7Y","ownSeries":null,"effectiveSeries":null,"effectiveName":null,"curveBenchmark":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","tenorLabel":"10Y","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","tenorLabel":"15Y","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","tenorLabel":"1M","ownSeries":"SOFR.ON","effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","tenorLabel":"1Y","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","tenorLabel":"20Y","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","tenorLabel":"2Y","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","tenorLabel":"30Y","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","tenorLabel":"3M","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","tenorLabel":"3Y","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","tenorLabel":"5Y","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","tenorLabel":"6M","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","tenorLabel":"7Y","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","tenorLabel":"10Y","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","tenorLabel":"15Y","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","tenorLabel":"1M","ownSeries":"SOFR.ON","effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","tenorLabel":"1Y","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","tenorLabel":"20Y","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","tenorLabel":"2Y","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","tenorLabel":"30Y","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","tenorLabel":"3M","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","tenorLabel":"3Y","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","tenorLabel":"5Y","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","tenorLabel":"6M","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","tenorLabel":"7Y","ownSeries":null,"effectiveSeries":"SOFR.ON","effectiveName":"SOFR Overnight Financing Rate","curveBenchmark":"SOFR.ON"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","tenorLabel":"10Y","ownSeries":"UST.10Y","effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","tenorLabel":"15Y","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","tenorLabel":"1M","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","tenorLabel":"1Y","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","tenorLabel":"20Y","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","tenorLabel":"2Y","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","tenorLabel":"30Y","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","tenorLabel":"3M","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","tenorLabel":"3Y","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","tenorLabel":"5Y","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","tenorLabel":"6M","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","tenorLabel":"7Y","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","tenorLabel":"10Y","ownSeries":"UST.10Y","effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","tenorLabel":"15Y","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","tenorLabel":"1M","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","tenorLabel":"1Y","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","tenorLabel":"20Y","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","tenorLabel":"2Y","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","tenorLabel":"30Y","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","tenorLabel":"3M","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","tenorLabel":"3Y","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","tenorLabel":"5Y","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","tenorLabel":"6M","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","tenorLabel":"7Y","ownSeries":null,"effectiveSeries":"UST.10Y","effectiveName":"US Treasury 10 Year Yield","curveBenchmark":"UST.10Y"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::F10_RatingsAsOf2019
 {
     pattern: '/stress/t10';
@@ -10755,6 +10931,107 @@ Service stress::GG_DailyPnLTree
   ]
 }
 
+Service stress::GG_CurvePointTree
+{
+    pattern: '/stress/gg_curvepoint';
+    documentation: 'Generated graph fetch on curves::CurvePoint: 6 keys, 2 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
+    execution: Single
+    {
+    query: |curves::CurvePoint.all()
+        ->graphFetch(#{
+  curves::CurvePoint
+  {
+    curveId,
+    cobDate,
+    discountFactor,
+    isInterpolated,
+    curve
+    {
+      curveId,
+      currency,
+      curveName,
+      benchmarkSeries
+      {
+        seriesId,
+        assetClass
+      }
+    },
+    effectiveSeries
+    {
+      seriesId,
+      assetClass,
+      currency
+    }
+  }
+}#)
+        ->serialize(#{
+  curves::CurvePoint
+  {
+    curveId,
+    cobDate,
+    discountFactor,
+    isInterpolated,
+    curve
+    {
+      curveId,
+      currency,
+      curveName,
+      benchmarkSeries
+      {
+        seriesId,
+        assetClass
+      }
+    },
+    effectiveSeries
+    {
+      seriesId,
+      assetClass,
+      currency
+    }
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    GG_CurvePointTree_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 192 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.99562058,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.98679941,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.97406445,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.9503737,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.91155805,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.87686696,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.81211447,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.75042743,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.66409095,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.53555275,"isInterpolated":true,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.43580147,"isInterpolated":true,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.30456585,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.99562058,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.98682401,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.97416159,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.95075393,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.91265258,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.87844674,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.81414841,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.7520056,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.66542156,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.53555275,"isInterpolated":true,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.43493014,"isInterpolated":true,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.3027426,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap","benchmarkSeries":{"seriesId":"SOFR.ON","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.99541602,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.98613537,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.97280245,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.94800074,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.90701164,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.87031506,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.80202073,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.73740414,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.64768118,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.51582729,"isInterpolated":true,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.41453298,"isInterpolated":true,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.28254351,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.99541602,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.98615995,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.97289947,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.94838001,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.9081007,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.87188303,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.80402939,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.73895492,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.6489789,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.51582729,"isInterpolated":true,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.41370418,"isInterpolated":true,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.28085209,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.9969963,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.9910154,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.98269935,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.96811926,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.94440517,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.92274717,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.88023192,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.83646562,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.77165874,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.66677949,"isInterpolated":true,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.58486916,"isInterpolated":true,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.47210779,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.9970045,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.99106482,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.98284636,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.96860344,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.94591743,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.92524196,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.88376183,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.84057597,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.77630644,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.67079513,"isInterpolated":true,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.58839134,"isInterpolated":true,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.47495104,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.99688978,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.99064486,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.98167088,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.96550886,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.93969493,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.91612725,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.87016175,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.82310116,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.75409888,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.64415165,"isInterpolated":true,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.55855699,"isInterpolated":true,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.44060859,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.99689797,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.99069425,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.98181774,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.96599174,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.94119964,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.91860414,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.87365128,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.82714584,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.75864081,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.64803102,"isInterpolated":true,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.56192071,"isInterpolated":true,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.44326213,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap","benchmarkSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.99574333,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.98719313,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.97513357,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.95351512,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.91851228,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.88638844,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.82398247,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.76368072,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.67887512,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.55436571,"isInterpolated":true,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.464625,"isInterpolated":true,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.34445973,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.99574333,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.98719313,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.97518219,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.95370584,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.91906356,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.88718655,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.82480731,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.7642157,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.67887512,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.55353418,"isInterpolated":true,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.46276894,"isInterpolated":true,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.34137126,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.99993425,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.99972579,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.99910287,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.9969048,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.99123861,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.98452105,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.96897423,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.94883482,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.91021244,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.82271744,"isInterpolated":true,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.73329124,"isInterpolated":true,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.5704043,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.99993425,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.99970087,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.99905305,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.99670544,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.99064404,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.98334033,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.9665535,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.94485652,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.903858,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.8128967,"isInterpolated":true,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.72164404,"isInterpolated":true,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.55519849,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap","benchmarkSeries":null},"effectiveSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.99555511,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.9867256,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.97416159,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.9503737,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.91010072,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.87345384,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.80604309,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.74050897,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.65093037,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.51505356,"isInterpolated":true,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.40876603,"isInterpolated":true,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.26607779,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.99554693,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.9867256,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.97421017,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.95065886,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.91101128,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.874765,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.80765767,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.74206628,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.6522346,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.51505356,"isInterpolated":true,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.40794876,"isInterpolated":true,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.26448494,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve","benchmarkSeries":{"seriesId":"UST.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.99703727,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.99118837,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.9829934,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.96811926,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.94289533,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.92081144,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.88023192,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.83763795,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.77786188,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.67382273,"isInterpolated":true,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.58721493,"isInterpolated":true,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.44727243,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.99704547,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.99121308,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.98309143,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.96850658,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.94421631,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.92302404,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.88331982,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.84116481,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.78176414,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.67686399,"isInterpolated":true,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.5895701,"isInterpolated":true,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.44861725,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve","benchmarkSeries":{"seriesId":"DBR.10Y","assetClass":"RATES"}},"effectiveSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::GG_PositionTree
 {
     pattern: '/stress/gg_position';
@@ -11683,97 +11960,6 @@ Service stress::GG_MarginCallTree
                   #{
                     contentType: 'application/json';
                     data: '{"builder":{"_type":"json"},"values":[{"marginCallId":"MC-0001","agreedAmount":1450.0,"disputeReason":"none","disputedAmount":1450.0,"agreement":null,"counterparty":null},{"marginCallId":"MC-0002","agreedAmount":1487.5,"disputeReason":"late data","disputedAmount":1487.5,"agreement":null,"counterparty":null},{"marginCallId":"MC-0003","agreedAmount":1525.0,"disputeReason":null,"disputedAmount":1525.0,"agreement":{"agreementId":"CSA-0001","agreementType":"CSA","currency":"USD","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER"}},"counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}}},{"marginCallId":"MC-0004","agreedAmount":null,"disputeReason":"none","disputedAmount":1562.5,"agreement":{"agreementId":"CSA-0002","agreementType":"CSA","currency":"GBP","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER"}},"counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}}},{"marginCallId":"MC-0005","agreedAmount":1600.0,"disputeReason":"reconciled","disputedAmount":null,"agreement":{"agreementId":"CSA-0003","agreementType":"GMRA","currency":"EUR","counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND"}},"counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND","creditRating":"BBB","country":{"countryCode":"DE","capitalCity":"Berlin"}}}]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::GG_CurvePointTree
-{
-    pattern: '/stress/gg_curvepoint';
-    documentation: 'Generated graph fetch on curves::CurvePoint: 6 keys, 2 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
-    execution: Single
-    {
-    query: |curves::CurvePoint.all()
-        ->graphFetch(#{
-  curves::CurvePoint
-  {
-    curveId,
-    cobDate,
-    discountFactor,
-    isInterpolated,
-    curve
-    {
-      curveId,
-      currency,
-      curveName
-    },
-    sourceSeries
-    {
-      seriesId,
-      assetClass,
-      currency
-    }
-  }
-}#)
-        ->serialize(#{
-  curves::CurvePoint
-  {
-    curveId,
-    cobDate,
-    discountFactor,
-    isInterpolated,
-    curve
-    {
-      curveId,
-      currency,
-      curveName
-    },
-    sourceSeries
-    {
-      seriesId,
-      assetClass,
-      currency
-    }
-  }
-}#);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    GG_CurvePointTree_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 192 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.99562058,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.98679941,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.97406445,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.9503737,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.91155805,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.87686696,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.81211447,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.75042743,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.66409095,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.53555275,"isInterpolated":true,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.43580147,"isInterpolated":true,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","discountFactor":0.30456585,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.99562058,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":{"seriesId":"SOFR.ON","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.98682401,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.97416159,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.95075393,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.91265258,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.87844674,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.81414841,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.7520056,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.66542156,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.53555275,"isInterpolated":true,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.43493014,"isInterpolated":true,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","discountFactor":0.3027426,"isInterpolated":false,"curve":{"curveId":"USD.SOFR.OIS","currency":"USD","curveName":"USD SOFR Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.99541602,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.98613537,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.97280245,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.94800074,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.90701164,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.87031506,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.80202073,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.73740414,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.64768118,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.51582729,"isInterpolated":true,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.41453298,"isInterpolated":true,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","discountFactor":0.28254351,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.99541602,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.98615995,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.97289947,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.94838001,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.9081007,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.87188303,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.80402939,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.73895492,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.6489789,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.51582729,"isInterpolated":true,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.41370418,"isInterpolated":true,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","discountFactor":0.28085209,"isInterpolated":false,"curve":{"curveId":"USD.LIBOR.3M","currency":"USD","curveName":"USD 3M LIBOR Swap (legacy)"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.9969963,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.9910154,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.98269935,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.96811926,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.94440517,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.92274717,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.88023192,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.83646562,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.77165874,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.66677949,"isInterpolated":true,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.58486916,"isInterpolated":true,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","discountFactor":0.47210779,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.9970045,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.99106482,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.98284636,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.96860344,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.94591743,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.92524196,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.88376183,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.84057597,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.77630644,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.67079513,"isInterpolated":true,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.58839134,"isInterpolated":true,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","discountFactor":0.47495104,"isInterpolated":false,"curve":{"curveId":"EUR.ESTR.OIS","currency":"EUR","curveName":"EUR Euro Short Term Rate OIS"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.99688978,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.99064486,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.98167088,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.96550886,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.93969493,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.91612725,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.87016175,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.82310116,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.75409888,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.64415165,"isInterpolated":true,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.55855699,"isInterpolated":true,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","discountFactor":0.44060859,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.99689797,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.99069425,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":{"seriesId":"EURIBOR.3M","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.98181774,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.96599174,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.94119964,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.91860414,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.87365128,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.82714584,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.75864081,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.64803102,"isInterpolated":true,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.56192071,"isInterpolated":true,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","discountFactor":0.44326213,"isInterpolated":false,"curve":{"curveId":"EUR.EURIBOR.6M","currency":"EUR","curveName":"EUR 6M Euribor Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.99574333,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.98719313,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.97513357,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.95351512,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.91851228,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.88638844,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.82398247,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.76368072,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.67887512,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.55436571,"isInterpolated":true,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.464625,"isInterpolated":true,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","discountFactor":0.34445973,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.99574333,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.98719313,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.97518219,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.95370584,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.91906356,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.88718655,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.82480731,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.7642157,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.67887512,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.55353418,"isInterpolated":true,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.46276894,"isInterpolated":true,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","discountFactor":0.34137126,"isInterpolated":false,"curve":{"curveId":"GBP.SONIA.OIS","currency":"GBP","curveName":"GBP SONIA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.99993425,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.99972579,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.99910287,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.9969048,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.99123861,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.98452105,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.96897423,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.94883482,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.91021244,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.82271744,"isInterpolated":true,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.73329124,"isInterpolated":true,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","discountFactor":0.5704043,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.99993425,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.99970087,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.99905305,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.99670544,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.99064404,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.98334033,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.9665535,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.94485652,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.903858,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.8128967,"isInterpolated":true,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.72164404,"isInterpolated":true,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","discountFactor":0.55519849,"isInterpolated":false,"curve":{"curveId":"JPY.TONA.OIS","currency":"JPY","curveName":"JPY TONA Overnight Index Swap"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.99555511,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.9867256,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.97416159,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.9503737,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.91010072,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.87345384,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.80604309,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.74050897,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.65093037,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.51505356,"isInterpolated":true,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.40876603,"isInterpolated":true,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","discountFactor":0.26607779,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.99554693,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.9867256,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.97421017,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.95065886,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.91101128,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.874765,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.80765767,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.74206628,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.6522346,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":{"seriesId":"UST.10Y","assetClass":"RATES","currency":"USD"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.51505356,"isInterpolated":true,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.40794876,"isInterpolated":true,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","discountFactor":0.26448494,"isInterpolated":false,"curve":{"curveId":"USD.UST.GOVT","currency":"USD","curveName":"US Treasury Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.99703727,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.99118837,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.9829934,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.96811926,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.94289533,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.92081144,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.88023192,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.83763795,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.77786188,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.67382273,"isInterpolated":true,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.58721493,"isInterpolated":true,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","discountFactor":0.44727243,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.99704547,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.99121308,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.98309143,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.96850658,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.94421631,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.92302404,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.88331982,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.84116481,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.78176414,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":{"seriesId":"DBR.10Y","assetClass":"RATES","currency":"EUR"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.67686399,"isInterpolated":true,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.5895701,"isInterpolated":true,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","discountFactor":0.44861725,"isInterpolated":false,"curve":{"curveId":"EUR.DBR.GOVT","currency":"EUR","curveName":"German Bund Zero Curve"},"sourceSeries":null}]}';
                   }#;
               }#
           ]
@@ -14928,6 +15114,62 @@ Service stress::GG_AgreementTree
   ]
 }
 
+Service stress::AA_CurvesYieldCurveCounts
+{
+    pattern: '/stress/aa_curvesyieldcurve';
+    documentation: 'Generated aggregate on curves::YieldCurve: 2 count(s) over to-many associations, every parent of which HAS children. This is the non-empty half of the property the F-series pins on the empty half -- F6 makes count() over an empty to-many return 1, so an end with any childless parent is excluded here rather than quarantined. Several counts on one root so the outer joins interact; a single-aggregate probe cannot show that. Generated by scripts/corpus/aggregates.py.';
+    execution: Single
+    {
+    query: |curves::YieldCurve.all()
+        ->project(~[
+            curveId:x|$x.curveId,
+            pointsCount:x|$x.points->count(),
+            summariesCount:x|$x.summaries->count()
+        ])
+        ->sort(~curveId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    AA_CurvesYieldCurveCounts_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 8 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"curveId":"EUR.DBR.GOVT","pointsCount":24,"summariesCount":2},{"curveId":"EUR.ESTR.OIS","pointsCount":24,"summariesCount":2},{"curveId":"EUR.EURIBOR.6M","pointsCount":24,"summariesCount":2},{"curveId":"GBP.SONIA.OIS","pointsCount":24,"summariesCount":2},{"curveId":"JPY.TONA.OIS","pointsCount":24,"summariesCount":2},{"curveId":"USD.LIBOR.3M","pointsCount":24,"summariesCount":2},{"curveId":"USD.SOFR.OIS","pointsCount":24,"summariesCount":2},{"curveId":"USD.UST.GOVT","pointsCount":24,"summariesCount":2}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::AA_TraderCounts
 {
     pattern: '/stress/aa_trader';
@@ -15031,61 +15273,6 @@ Service stress::AA_PortfolioCounts
                   #{
                     contentType: 'application/json';
                     data: '[{"portfolioId":"PF-MAIN","positionsCount":6,"varResultsCount":3}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::AA_CurvesYieldCurveCounts
-{
-    pattern: '/stress/aa_curvesyieldcurve';
-    documentation: 'Generated aggregate on curves::YieldCurve: 1 count(s) over to-many associations, every parent of which HAS children. This is the non-empty half of the property the F-series pins on the empty half -- F6 makes count() over an empty to-many return 1, so an end with any childless parent is excluded here rather than quarantined. Several counts on one root so the outer joins interact; a single-aggregate probe cannot show that. Generated by scripts/corpus/aggregates.py.';
-    execution: Single
-    {
-    query: |curves::YieldCurve.all()
-        ->project(~[
-            curveId:x|$x.curveId,
-            pointsCount:x|$x.points->count()
-        ])
-        ->sort(~curveId->ascending());
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    AA_CurvesYieldCurveCounts_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 8 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"curveId":"EUR.DBR.GOVT","pointsCount":24},{"curveId":"EUR.ESTR.OIS","pointsCount":24},{"curveId":"EUR.EURIBOR.6M","pointsCount":24},{"curveId":"GBP.SONIA.OIS","pointsCount":24},{"curveId":"JPY.TONA.OIS","pointsCount":24},{"curveId":"USD.LIBOR.3M","pointsCount":24},{"curveId":"USD.SOFR.OIS","pointsCount":24},{"curveId":"USD.UST.GOVT","pointsCount":24}]';
                   }#;
               }#
           ]
@@ -55413,6 +55600,71 @@ Service stress::SP_ComboC9Group
   ]
 }
 
+Service stress::SP_defCurveSummaryGroup
+{
+    pattern: '/stress/sp_defcurvesummarygroup';
+    documentation: 'Coverage-directed stack on curves::CurveSummary (Group), reusing the reach of CV9_CurveSummaries and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |curves::CurveSummary.all()
+        ->filter({x|($x.curveId > ' ')})
+        ->project(~[
+            curveId:x|$x.curveId,
+            cobDate:x|$x.cobDate,
+            pillarCount:x|$x.pillarCount,
+            highestRate:x|$x.highestRate,
+            lowestRate:x|$x.lowestRate,
+            curveName:x|$x.summarised.curveName,
+            interpolation:x|$x.summarised.interpolation,
+            summarisedBenchmarkSeriesIsDaily:x|$x.summarised.benchmarkSeries.isDaily
+        ])
+        ->groupBy(~[curveId], ~[
+            n: x|$x.pillarCount : agg|$agg->count(),
+            tot: x|$x.pillarCount : agg|$agg->sum()
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defCurveSummaryGroup_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 8 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"curveId":"USD.SOFR.OIS","n":2,"tot":24},{"curveId":"USD.LIBOR.3M","n":2,"tot":24},{"curveId":"EUR.ESTR.OIS","n":2,"tot":24},{"curveId":"EUR.EURIBOR.6M","n":2,"tot":24},{"curveId":"GBP.SONIA.OIS","n":2,"tot":24},{"curveId":"JPY.TONA.OIS","n":2,"tot":24},{"curveId":"USD.UST.GOVT","n":2,"tot":24},{"curveId":"EUR.DBR.GOVT","n":2,"tot":24}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::SP_defDailyPnLEmpty
 {
     pattern: '/stress/sp_defdailypnlempty';
@@ -55475,141 +55727,6 @@ Service stress::SP_defDailyPnLEmpty
   ]
 }
 
-Service stress::SP_InlineFlatTradeGroup
-{
-    pattern: '/stress/sp_inlineflattradegroup';
-    documentation: 'Coverage-directed stack on trading::Trade (Group), reusing the reach of N3_TradeInlineFlat and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |trading::Trade.all()
-        ->filter({x|($x.tradeId > ' ')})
-        ->project(~[
-            tradeId:x|$x.tradeId,
-            tradeDate:x|$x.tradeDate,
-            quantity:x|$x.quantity,
-            price:x|$x.price,
-            notional:x|$x.notional,
-            side:x|$x.side,
-            status:x|$x.status,
-            currency:x|$x.currency,
-            grossAmount:x|$x.grossAmount,
-            instrName:x|$x.instrument.name,
-            instrTicker:x|$x.instrument.ticker,
-            instrIsin:x|$x.instrument.isin,
-            bookName:x|$x.book.name,
-            cptyName:x|$x.counterparty.legalName,
-            cptyLei:x|$x.counterparty.lei,
-            traderLast:x|$x.trader.lastName
-        ])
-        ->groupBy(~[tradeId], ~[
-            n: x|$x.quantity : agg|$agg->count(),
-            tot: x|$x.quantity : agg|$agg->sum()
-        ]);
-        mapping: reporting::InlineFlatMapping;
-        runtime: stress::InlineFlatRT;
-    }
-  testSuites:
-  [
-    SP_InlineFlatTradeGroup_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"tradeId":"TRD-0001","n":1,"tot":1000.0},{"tradeId":"TRD-0002","n":1,"tot":2500.0},{"tradeId":"TRD-0003","n":1,"tot":500.0},{"tradeId":"TRD-0004","n":1,"tot":1250.0},{"tradeId":"TRD-0005","n":1,"tot":2000.0},{"tradeId":"TRD-0006","n":1,"tot":800.0},{"tradeId":"TRD-0007","n":1,"tot":1500.0},{"tradeId":"TRD-0008","n":1,"tot":100.0},{"tradeId":"TRD-0009","n":1,"tot":3000.0},{"tradeId":"TRD-0010","n":1,"tot":1200.0},{"tradeId":"TRD-0011","n":1,"tot":400.0},{"tradeId":"TRD-0012","n":1,"tot":900.0},{"tradeId":"TRD-0013","n":1,"tot":25000.0},{"tradeId":"TRD-0014","n":1,"tot":10000.0},{"tradeId":"TRD-0015","n":1,"tot":5000.0},{"tradeId":"TRD-0016","n":1,"tot":1500.0},{"tradeId":"TRD-0017","n":1,"tot":2200.0},{"tradeId":"TRD-0018","n":1,"tot":5000000.0},{"tradeId":"TRD-0019","n":1,"tot":2000000.0},{"tradeId":"TRD-0020","n":1,"tot":1000000.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::SP_JoinTradeGroup
-{
-    pattern: '/stress/sp_jointradegroup';
-    documentation: 'Coverage-directed stack on trading::Trade (Group), reusing the reach of J0_TradeBookModelJoin and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |trading::Trade.all()
-        ->filter({x|($x.tradeId > ' ')})
-        ->project(~[
-            tradeId:x|$x.tradeId,
-            notional:x|$x.notional,
-            status:x|$x.status,
-            bookName:x|$x.book.name,
-            bookCurrency:x|$x.book.currency
-        ])
-        ->groupBy(~[tradeId], ~[
-            n: x|$x.notional : agg|$agg->count(),
-            tot: x|$x.notional : agg|$agg->sum()
-        ]);
-        mapping: modeljoin::JoinMapping;
-        runtime: stress::ModelJoinRT;
-    }
-  testSuites:
-  [
-    SP_JoinTradeGroup_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"tradeId":"TRD-0001","n":1,"tot":190500.0},{"tradeId":"TRD-0002","n":1,"tot":477500.0},{"tradeId":"TRD-0003","n":1,"tot":250000.0},{"tradeId":"TRD-0004","n":1,"tot":250000.0},{"tradeId":"TRD-0005","n":1,"tot":250000.0},{"tradeId":"TRD-0006","n":1,"tot":250000.0},{"tradeId":"TRD-0007","n":1,"tot":282000.0},{"tradeId":"TRD-0008","n":1,"tot":18975.0},{"tradeId":"TRD-0009","n":1,"tot":576750.0},{"tradeId":"TRD-0010","n":1,"tot":498000.0},{"tradeId":"TRD-0011","n":1,"tot":167300.0},{"tradeId":"TRD-0012","n":1,"tot":369000.0},{"tradeId":"TRD-0013","n":1,"tot":171250.0},{"tradeId":"TRD-0014","n":1,"tot":69000.0},{"tradeId":"TRD-0015","n":1,"tot":35000.0},{"tradeId":"TRD-0016","n":1,"tot":264600.0},{"tradeId":"TRD-0017","n":1,"tot":385000.0},{"tradeId":"TRD-0018","n":1,"tot":4912500.0},{"tradeId":"TRD-0019","n":1,"tot":1960000.0},{"tradeId":"TRD-0020","n":1,"tot":975000.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
 Service stress::SP_defYieldCurveEmpty
 {
     pattern: '/stress/sp_defyieldcurveempty';
@@ -55620,6 +55737,8 @@ Service stress::SP_defYieldCurveEmpty
         ->filter({x|($x.curveId > ' ')})
         ->project(~[
             curveId:x|$x.curveId,
+            benchmarkSeriesCurrency:x|$x.benchmarkSeries.currency,
+            benchmarkSeriesIsDaily:x|$x.benchmarkSeries.isDaily,
             hasNone:x|$x.points->isEmpty()
         ])
         ->sort(~curveId->ascending())
@@ -55657,7 +55776,7 @@ Service stress::SP_defYieldCurveEmpty
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"curveId":"EUR.DBR.GOVT","hasNone":false},{"curveId":"EUR.ESTR.OIS","hasNone":false},{"curveId":"EUR.EURIBOR.6M","hasNone":false},{"curveId":"GBP.SONIA.OIS","hasNone":false},{"curveId":"JPY.TONA.OIS","hasNone":false},{"curveId":"USD.LIBOR.3M","hasNone":false},{"curveId":"USD.SOFR.OIS","hasNone":false},{"curveId":"USD.UST.GOVT","hasNone":false}]';
+                    data: '[{"curveId":"EUR.DBR.GOVT","benchmarkSeriesCurrency":"EUR","benchmarkSeriesIsDaily":true,"hasNone":false},{"curveId":"EUR.ESTR.OIS","benchmarkSeriesCurrency":"EUR","benchmarkSeriesIsDaily":true,"hasNone":false},{"curveId":"EUR.EURIBOR.6M","benchmarkSeriesCurrency":"EUR","benchmarkSeriesIsDaily":true,"hasNone":false},{"curveId":"GBP.SONIA.OIS","benchmarkSeriesCurrency":null,"benchmarkSeriesIsDaily":null,"hasNone":false},{"curveId":"JPY.TONA.OIS","benchmarkSeriesCurrency":null,"benchmarkSeriesIsDaily":null,"hasNone":false},{"curveId":"USD.LIBOR.3M","benchmarkSeriesCurrency":null,"benchmarkSeriesIsDaily":null,"hasNone":false},{"curveId":"USD.SOFR.OIS","benchmarkSeriesCurrency":"USD","benchmarkSeriesIsDaily":true,"hasNone":false},{"curveId":"USD.UST.GOVT","benchmarkSeriesCurrency":"USD","benchmarkSeriesIsDaily":true,"hasNone":false}]';
                   }#;
               }#
           ]
@@ -55667,42 +55786,42 @@ Service stress::SP_defYieldCurveEmpty
   ]
 }
 
-Service stress::SP_defTradeGroup
+Service stress::SP_InlineFlatTradeGroup
 {
-    pattern: '/stress/sp_deftradegroup';
-    documentation: 'Coverage-directed stack on trading::Trade (Group), reusing the reach of F30_TradeEverything and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    pattern: '/stress/sp_inlineflattradegroup';
+    documentation: 'Coverage-directed stack on trading::Trade (Group), reusing the reach of N3_TradeInlineFlat and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
     execution: Single
     {
     query: |trading::Trade.all()
         ->filter({x|($x.tradeId > ' ')})
         ->project(~[
             tradeId:x|$x.tradeId,
-            side:x|$x.side,
-            status:x|$x.status,
+            tradeDate:x|$x.tradeDate,
             quantity:x|$x.quantity,
             price:x|$x.price,
-            sectorName:x|$x.instrument.sector.name,
-            sectorGics:x|$x.instrument.sector.gicsCode,
-            deskName:x|$x.book.desk.name,
-            deskRegion:x|$x.book.desk.region,
-            cptyCountry:x|$x.counterparty.country.name,
-            cptyRegion:x|$x.counterparty.country.region,
-            traderDesk:x|$x.trader.desk.name,
+            notional:x|$x.notional,
+            side:x|$x.side,
+            status:x|$x.status,
+            currency:x|$x.currency,
             grossAmount:x|$x.grossAmount,
-            grossGbp:x|$x.grossAmountIn(0.79),
-            grossEur:x|$x.grossAmountIn(0.92),
-            isLarge:x|$x->stress::rules::isLargeTrade()
+            instrName:x|$x.instrument.name,
+            instrTicker:x|$x.instrument.ticker,
+            instrIsin:x|$x.instrument.isin,
+            bookName:x|$x.book.name,
+            cptyName:x|$x.counterparty.legalName,
+            cptyLei:x|$x.counterparty.lei,
+            traderLast:x|$x.trader.lastName
         ])
         ->groupBy(~[tradeId], ~[
             n: x|$x.quantity : agg|$agg->count(),
             tot: x|$x.quantity : agg|$agg->sum()
         ]);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
+        mapping: reporting::InlineFlatMapping;
+        runtime: stress::InlineFlatRT;
     }
   testSuites:
   [
-    SP_defTradeGroup_suite:
+    SP_InlineFlatTradeGroup_suite:
     {
       data:
       [
@@ -55869,33 +55988,31 @@ Service stress::SP_defDebtSecurityCount
   ]
 }
 
-Service stress::SP_defCurvePointGroup
+Service stress::SP_JoinTradeGroup
 {
-    pattern: '/stress/sp_defcurvepointgroup';
-    documentation: 'Coverage-directed stack on curves::CurvePoint (Group), reusing the reach of CV3_PillarNeighbours and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    pattern: '/stress/sp_jointradegroup';
+    documentation: 'Coverage-directed stack on trading::Trade (Group), reusing the reach of J0_TradeBookModelJoin and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
     execution: Single
     {
-    query: |curves::CurvePoint.all()
-        ->filter({x|($x.curveId > ' ')})
+    query: |trading::Trade.all()
+        ->filter({x|($x.tradeId > ' ')})
         ->project(~[
-            curveId:x|$x.curveId,
-            cobDate:x|$x.cobDate,
-            tenorLabel:x|$x.tenorLabel,
-            tenorDays:x|$x.tenorDays,
-            zeroRate:x|$x.zeroRate,
-            curveCurrency:x|$x.curve.currency,
-            tenorYears:x|$x.tenorYears
+            tradeId:x|$x.tradeId,
+            notional:x|$x.notional,
+            status:x|$x.status,
+            bookName:x|$x.book.name,
+            bookCurrency:x|$x.book.currency
         ])
-        ->groupBy(~[curveId], ~[
-            n: x|$x.tenorDays : agg|$agg->count(),
-            tot: x|$x.tenorDays : agg|$agg->sum()
+        ->groupBy(~[tradeId], ~[
+            n: x|$x.notional : agg|$agg->count(),
+            tot: x|$x.notional : agg|$agg->sum()
         ]);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
+        mapping: modeljoin::JoinMapping;
+        runtime: stress::ModelJoinRT;
     }
   testSuites:
   [
-    SP_defCurvePointGroup_suite:
+    SP_JoinTradeGroup_suite:
     {
       data:
       [
@@ -55910,7 +56027,7 @@ Service stress::SP_defCurvePointGroup
       ]
       tests:
       [
-        // 8 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -55923,69 +56040,7 @@ Service stress::SP_defCurvePointGroup
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"curveId":"USD.SOFR.OIS","n":24,"tot":68540},{"curveId":"USD.LIBOR.3M","n":24,"tot":68540},{"curveId":"EUR.ESTR.OIS","n":24,"tot":68540},{"curveId":"EUR.EURIBOR.6M","n":24,"tot":68540},{"curveId":"GBP.SONIA.OIS","n":24,"tot":68540},{"curveId":"JPY.TONA.OIS","n":24,"tot":68540},{"curveId":"USD.UST.GOVT","n":24,"tot":68540},{"curveId":"EUR.DBR.GOVT","n":24,"tot":68540}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::SP_defBookCount
-{
-    pattern: '/stress/sp_defbookcount';
-    documentation: 'Coverage-directed stack on positions::Book (Count), reusing the reach of D_BookDense and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |positions::Book.all()
-        ->filter({x|($x.bookId > ' ')})
-        ->project(~[
-            bookId:x|$x.bookId,
-            rollupBookRollupBookId:x|$x.rollup.book.rollup.bookId,
-            rollupBookDeskName:x|$x.rollup.book.desk.name,
-            deskBusinessUnitLegalEntityJurisdiction:x|$x.desk.businessUnit.legalEntity.jurisdiction,
-            rollupBookCurrency:x|$x.rollup.book.currency,
-            deskBusinessUnitName:x|$x.desk.businessUnit.name,
-            positionsCount:x|$x.positions->count()
-        ])
-        ->sort(~bookId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    SP_defBookCount_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"bookId":"BK-CASH-EU","rollupBookRollupBookId":"BK-CASH-EU","rollupBookDeskName":"Cash Equities","deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":"EUR","deskBusinessUnitName":null,"positionsCount":2},{"bookId":"BK-CASH-US","rollupBookRollupBookId":"BK-CASH-US","rollupBookDeskName":"Cash Equities","deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":"USD","deskBusinessUnitName":null,"positionsCount":2},{"bookId":"BK-LEGACY","rollupBookRollupBookId":null,"rollupBookDeskName":null,"deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":null,"deskBusinessUnitName":null,"positionsCount":1},{"bookId":"BK-VOL-01","rollupBookRollupBookId":"BK-VOL-01","rollupBookDeskName":"Equity Derivatives","deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":"USD","deskBusinessUnitName":null,"positionsCount":1}]';
+                    data: '[{"tradeId":"TRD-0001","n":1,"tot":190500.0},{"tradeId":"TRD-0002","n":1,"tot":477500.0},{"tradeId":"TRD-0003","n":1,"tot":250000.0},{"tradeId":"TRD-0004","n":1,"tot":250000.0},{"tradeId":"TRD-0005","n":1,"tot":250000.0},{"tradeId":"TRD-0006","n":1,"tot":250000.0},{"tradeId":"TRD-0007","n":1,"tot":282000.0},{"tradeId":"TRD-0008","n":1,"tot":18975.0},{"tradeId":"TRD-0009","n":1,"tot":576750.0},{"tradeId":"TRD-0010","n":1,"tot":498000.0},{"tradeId":"TRD-0011","n":1,"tot":167300.0},{"tradeId":"TRD-0012","n":1,"tot":369000.0},{"tradeId":"TRD-0013","n":1,"tot":171250.0},{"tradeId":"TRD-0014","n":1,"tot":69000.0},{"tradeId":"TRD-0015","n":1,"tot":35000.0},{"tradeId":"TRD-0016","n":1,"tot":264600.0},{"tradeId":"TRD-0017","n":1,"tot":385000.0},{"tradeId":"TRD-0018","n":1,"tot":4912500.0},{"tradeId":"TRD-0019","n":1,"tot":1960000.0},{"tradeId":"TRD-0020","n":1,"tot":975000.0}]';
                   }#;
               }#
           ]
@@ -56200,32 +56255,33 @@ Service stress::SP_ComboSummaryGroup
   ]
 }
 
-Service stress::SP_defBookRollupGroup
+Service stress::SP_defCurvePointGroup
 {
-    pattern: '/stress/sp_defbookrollupgroup';
-    documentation: 'Coverage-directed stack on reporting::BookRollup (Group), reusing the reach of F20_NotionalByBook and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    pattern: '/stress/sp_defcurvepointgroup';
+    documentation: 'Coverage-directed stack on curves::CurvePoint (Group), reusing the reach of CV3_PillarNeighbours and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
     execution: Single
     {
-    query: |reporting::BookRollup.all()
-        ->filter({x|($x.bookId > ' ')})
+    query: |curves::CurvePoint.all()
+        ->filter({x|($x.curveId > ' ')})
         ->project(~[
-            bookId:x|$x.bookId,
-            tradeCount:x|$x.tradeCount,
-            totalNotional:x|$x.totalNotional,
-            maxNotional:x|$x.maxNotional,
-            bookRollupBookCurrency:x|$x.book.rollup.book.currency,
-            bookDeskBusinessUnitName:x|$x.book.desk.businessUnit.name
+            curveId:x|$x.curveId,
+            cobDate:x|$x.cobDate,
+            tenorLabel:x|$x.tenorLabel,
+            tenorDays:x|$x.tenorDays,
+            zeroRate:x|$x.zeroRate,
+            curveBenchmarkSeriesCurrency:x|$x.curve.benchmarkSeries.currency,
+            tenorYears:x|$x.tenorYears
         ])
-        ->groupBy(~[bookId], ~[
-            n: x|$x.tradeCount : agg|$agg->count(),
-            tot: x|$x.tradeCount : agg|$agg->sum()
+        ->groupBy(~[curveId], ~[
+            n: x|$x.tenorDays : agg|$agg->count(),
+            tot: x|$x.tenorDays : agg|$agg->sum()
         ]);
         mapping: stress::AllMapping;
         runtime: stress::RT;
     }
   testSuites:
   [
-    SP_defBookRollupGroup_suite:
+    SP_defCurvePointGroup_suite:
     {
       data:
       [
@@ -56240,7 +56296,7 @@ Service stress::SP_defBookRollupGroup
       ]
       tests:
       [
-        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        // 8 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -56253,7 +56309,200 @@ Service stress::SP_defBookRollupGroup
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"bookId":"BK-CASH-US","n":1,"tot":10},{"bookId":"BK-VOL-01","n":1,"tot":5},{"bookId":"BK-CASH-EU","n":1,"tot":5}]';
+                    data: '[{"curveId":"USD.SOFR.OIS","n":24,"tot":68540},{"curveId":"USD.LIBOR.3M","n":24,"tot":68540},{"curveId":"EUR.ESTR.OIS","n":24,"tot":68540},{"curveId":"EUR.EURIBOR.6M","n":24,"tot":68540},{"curveId":"GBP.SONIA.OIS","n":24,"tot":68540},{"curveId":"JPY.TONA.OIS","n":24,"tot":68540},{"curveId":"USD.UST.GOVT","n":24,"tot":68540},{"curveId":"EUR.DBR.GOVT","n":24,"tot":68540}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::SP_defTradeGroup
+{
+    pattern: '/stress/sp_deftradegroup';
+    documentation: 'Coverage-directed stack on trading::Trade (Group), reusing the reach of F30_TradeEverything and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->filter({x|($x.tradeId > ' ')})
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            side:x|$x.side,
+            status:x|$x.status,
+            quantity:x|$x.quantity,
+            price:x|$x.price,
+            sectorName:x|$x.instrument.sector.name,
+            sectorGics:x|$x.instrument.sector.gicsCode,
+            deskName:x|$x.book.desk.name,
+            deskRegion:x|$x.book.desk.region,
+            cptyCountry:x|$x.counterparty.country.name,
+            cptyRegion:x|$x.counterparty.country.region,
+            traderDesk:x|$x.trader.desk.name,
+            grossAmount:x|$x.grossAmount,
+            grossGbp:x|$x.grossAmountIn(0.79),
+            grossEur:x|$x.grossAmountIn(0.92),
+            isLarge:x|$x->stress::rules::isLargeTrade()
+        ])
+        ->groupBy(~[tradeId], ~[
+            n: x|$x.quantity : agg|$agg->count(),
+            tot: x|$x.quantity : agg|$agg->sum()
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defTradeGroup_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","n":1,"tot":1000.0},{"tradeId":"TRD-0002","n":1,"tot":2500.0},{"tradeId":"TRD-0003","n":1,"tot":500.0},{"tradeId":"TRD-0004","n":1,"tot":1250.0},{"tradeId":"TRD-0005","n":1,"tot":2000.0},{"tradeId":"TRD-0006","n":1,"tot":800.0},{"tradeId":"TRD-0007","n":1,"tot":1500.0},{"tradeId":"TRD-0008","n":1,"tot":100.0},{"tradeId":"TRD-0009","n":1,"tot":3000.0},{"tradeId":"TRD-0010","n":1,"tot":1200.0},{"tradeId":"TRD-0011","n":1,"tot":400.0},{"tradeId":"TRD-0012","n":1,"tot":900.0},{"tradeId":"TRD-0013","n":1,"tot":25000.0},{"tradeId":"TRD-0014","n":1,"tot":10000.0},{"tradeId":"TRD-0015","n":1,"tot":5000.0},{"tradeId":"TRD-0016","n":1,"tot":1500.0},{"tradeId":"TRD-0017","n":1,"tot":2200.0},{"tradeId":"TRD-0018","n":1,"tot":5000000.0},{"tradeId":"TRD-0019","n":1,"tot":2000000.0},{"tradeId":"TRD-0020","n":1,"tot":1000000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::SP_defBookCount
+{
+    pattern: '/stress/sp_defbookcount';
+    documentation: 'Coverage-directed stack on positions::Book (Count), reusing the reach of D_BookDense and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |positions::Book.all()
+        ->filter({x|($x.bookId > ' ')})
+        ->project(~[
+            bookId:x|$x.bookId,
+            rollupBookRollupBookId:x|$x.rollup.book.rollup.bookId,
+            rollupBookDeskName:x|$x.rollup.book.desk.name,
+            deskBusinessUnitLegalEntityJurisdiction:x|$x.desk.businessUnit.legalEntity.jurisdiction,
+            rollupBookCurrency:x|$x.rollup.book.currency,
+            deskBusinessUnitName:x|$x.desk.businessUnit.name,
+            positionsCount:x|$x.positions->count()
+        ])
+        ->sort(~bookId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defBookCount_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"bookId":"BK-CASH-EU","rollupBookRollupBookId":"BK-CASH-EU","rollupBookDeskName":"Cash Equities","deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":"EUR","deskBusinessUnitName":null,"positionsCount":2},{"bookId":"BK-CASH-US","rollupBookRollupBookId":"BK-CASH-US","rollupBookDeskName":"Cash Equities","deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":"USD","deskBusinessUnitName":null,"positionsCount":2},{"bookId":"BK-LEGACY","rollupBookRollupBookId":null,"rollupBookDeskName":null,"deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":null,"deskBusinessUnitName":null,"positionsCount":1},{"bookId":"BK-VOL-01","rollupBookRollupBookId":"BK-VOL-01","rollupBookDeskName":"Equity Derivatives","deskBusinessUnitLegalEntityJurisdiction":null,"rollupBookCurrency":"USD","deskBusinessUnitName":null,"positionsCount":1}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::SP_defCurveDateFilter
+{
+    pattern: '/stress/sp_defcurvedatefilter';
+    documentation: 'Coverage-directed stack on curves::CurveDate (Filter), reusing the reach of CV8_CurveDates and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |curves::CurveDate.all()
+        ->filter({x|($x.curveId > ' ')})
+        ->project(~[
+            curveId:x|$x.curveId,
+            cobDate:x|$x.cobDate,
+            curveLabel:x|$x.curveLabel
+        ])
+        ->sort(~curveId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defCurveDateFilter_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 16 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","curveLabel":"EUR.DBR.GOVTGOVT"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","curveLabel":"EUR.DBR.GOVTGOVT"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","curveLabel":"EUR.ESTR.OISOIS"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","curveLabel":"EUR.ESTR.OISOIS"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","curveLabel":"EUR.EURIBOR.6MIBOR_SWAP"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","curveLabel":"EUR.EURIBOR.6MIBOR_SWAP"},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","curveLabel":"GBP.SONIA.OISOIS"},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","curveLabel":"GBP.SONIA.OISOIS"},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","curveLabel":"JPY.TONA.OISOIS"},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","curveLabel":"JPY.TONA.OISOIS"},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","curveLabel":"USD.LIBOR.3MIBOR_SWAP"},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","curveLabel":"USD.LIBOR.3MIBOR_SWAP"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","curveLabel":"USD.SOFR.OISOIS"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","curveLabel":"USD.SOFR.OISOIS"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","curveLabel":"USD.UST.GOVTGOVT"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","curveLabel":"USD.UST.GOVTGOVT"}]';
                   }#;
               }#
           ]
@@ -56338,32 +56587,28 @@ Service stress::SP_ExecutedExecutedTradeGraph
   ]
 }
 
-Service stress::SP_defClearedTradeEmpty
+Service stress::SP_defYieldCurveCount
 {
-    pattern: '/stress/sp_defclearedtradeempty';
-    documentation: 'Coverage-directed stack on clearing::ClearedTrade (Empty), reusing the reach of D_ClearedTradeDense and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    pattern: '/stress/sp_defyieldcurvecount';
+    documentation: 'Coverage-directed stack on curves::YieldCurve (Count), reusing the reach of AA_CurvesYieldCurveCounts and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
     execution: Single
     {
-    query: |clearing::ClearedTrade.all()
-        ->filter({x|($x.clearedTradeId > ' ')})
+    query: |curves::YieldCurve.all()
+        ->filter({x|($x.curveId > ' ')})
         ->project(~[
-            clearedTradeId:x|$x.clearedTradeId,
-            tradeInstrumentInstrumentCurrencyName:x|$x.trade.instrument.instrumentCurrency.name,
-            tradeInstrumentExchangeName:x|$x.trade.instrument.exchange.name,
-            tradeBookRollupBookId:x|$x.trade.book.rollup.bookId,
-            tradeSide:x|$x.trade.side,
-            tradeGrossAmount:x|$x.trade.grossAmount,
-            tradeGrossAmountInQ:x|$x.trade.grossAmountIn(0.5),
-            hasNone:x|$x.novationRequests->isEmpty()
+            curveId:x|$x.curveId,
+            benchmarkSeriesCurrency:x|$x.benchmarkSeries.currency,
+            benchmarkSeriesIsDaily:x|$x.benchmarkSeries.isDaily,
+            pointsCount:x|$x.points->count()
         ])
-        ->sort(~clearedTradeId->ascending())
+        ->sort(~curveId->ascending())
         ->limit(25);
         mapping: stress::AllMapping;
         runtime: stress::RT;
     }
   testSuites:
   [
-    SP_defClearedTradeEmpty_suite:
+    SP_defYieldCurveCount_suite:
     {
       data:
       [
@@ -56378,7 +56623,7 @@ Service stress::SP_defClearedTradeEmpty
       ]
       tests:
       [
-        // 5 rows; 3 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        // 8 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -56391,7 +56636,7 @@ Service stress::SP_defClearedTradeEmpty
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"clearedTradeId":"CT-0001","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeGrossAmount":null,"tradeGrossAmountInQ":null,"hasNone":false},{"clearedTradeId":"CT-0002","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeGrossAmount":null,"tradeGrossAmountInQ":null,"hasNone":false},{"clearedTradeId":"CT-0003","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0,"hasNone":false},{"clearedTradeId":"CT-0004","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":477500.0,"tradeGrossAmountInQ":238750.0,"hasNone":true},{"clearedTradeId":"CT-0005","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0,"hasNone":true}]';
+                    data: '[{"curveId":"EUR.DBR.GOVT","benchmarkSeriesCurrency":"EUR","benchmarkSeriesIsDaily":true,"pointsCount":24},{"curveId":"EUR.ESTR.OIS","benchmarkSeriesCurrency":"EUR","benchmarkSeriesIsDaily":true,"pointsCount":24},{"curveId":"EUR.EURIBOR.6M","benchmarkSeriesCurrency":"EUR","benchmarkSeriesIsDaily":true,"pointsCount":24},{"curveId":"GBP.SONIA.OIS","benchmarkSeriesCurrency":null,"benchmarkSeriesIsDaily":null,"pointsCount":24},{"curveId":"JPY.TONA.OIS","benchmarkSeriesCurrency":null,"benchmarkSeriesIsDaily":null,"pointsCount":24},{"curveId":"USD.LIBOR.3M","benchmarkSeriesCurrency":null,"benchmarkSeriesIsDaily":null,"pointsCount":24},{"curveId":"USD.SOFR.OIS","benchmarkSeriesCurrency":"USD","benchmarkSeriesIsDaily":true,"pointsCount":24},{"curveId":"USD.UST.GOVT","benchmarkSeriesCurrency":"USD","benchmarkSeriesIsDaily":true,"pointsCount":24}]';
                   }#;
               }#
           ]
@@ -56588,6 +56833,148 @@ Service stress::SP_ComboScopedGraph
                   #{
                     contentType: 'application/json';
                     data: '{"builder":{"_type":"json"},"values":[{"r_b_nl1":false,"r_b_nn1":false,"r_bi_nl1":31,"r_bi_nn1":31,"r_c_nl1":"R-C-NL1-001","r_c_nn1":"R-C-NN1-001","r_de_nl1":212.5,"r_de_nn1":212.5,"r_dt_nl1":"2024-04-04","r_dt_nn1":"2024-04-04","r_f_nl1":212.5,"r_f_nn1":212.5,"r_i_nl1":31,"r_i_nn1":31,"r_s_nl1":"R-S-NL1-001","r_s_nn1":"R-S-NN1-001","r_si_nl1":null,"r_si_nn1":31,"rootId":"CR-0001"},{"r_b_nl1":null,"r_b_nn1":true,"r_bi_nl1":38,"r_bi_nn1":38,"r_c_nl1":"R-C-NL1-002","r_c_nn1":"R-C-NN1-002","r_de_nl1":250.0,"r_de_nn1":250.0,"r_dt_nl1":"2024-05-05","r_dt_nn1":"2024-05-05","r_f_nl1":250.0,"r_f_nn1":250.0,"r_i_nl1":null,"r_i_nn1":38,"r_s_nl1":"R-S-NL1-002","r_s_nn1":"R-S-NN1-002","r_si_nl1":38,"r_si_nn1":38,"rootId":"CR-0002"},{"r_b_nl1":true,"r_b_nn1":true,"r_bi_nl1":45,"r_bi_nn1":45,"r_c_nl1":"R-C-NL1-003","r_c_nn1":"R-C-NN1-003","r_de_nl1":287.5,"r_de_nn1":287.5,"r_dt_nl1":"2024-06-06","r_dt_nn1":"2024-06-06","r_f_nl1":null,"r_f_nn1":287.5,"r_i_nl1":45,"r_i_nn1":45,"r_s_nl1":null,"r_s_nn1":"R-S-NN1-003","r_si_nl1":45,"r_si_nn1":45,"rootId":"CR-0003"},{"r_b_nl1":false,"r_b_nn1":false,"r_bi_nl1":null,"r_bi_nn1":52,"r_c_nl1":"R-C-NL1-004","r_c_nn1":"R-C-NN1-004","r_de_nl1":325.0,"r_de_nn1":325.0,"r_dt_nl1":null,"r_dt_nn1":"2024-07-07","r_f_nl1":325.0,"r_f_nn1":325.0,"r_i_nl1":52,"r_i_nn1":52,"r_s_nl1":"R-S-NL1-004","r_s_nn1":"R-S-NN1-004","r_si_nl1":52,"r_si_nn1":52,"rootId":"CR-0004"},{"r_b_nl1":true,"r_b_nn1":true,"r_bi_nl1":59,"r_bi_nn1":59,"r_c_nl1":null,"r_c_nn1":"R-C-NN1-005","r_de_nl1":null,"r_de_nn1":362.5,"r_dt_nl1":"2024-08-08","r_dt_nn1":"2024-08-08","r_f_nl1":362.5,"r_f_nn1":362.5,"r_i_nl1":59,"r_i_nn1":59,"r_s_nl1":"R-S-NL1-005","r_s_nn1":"R-S-NN1-005","r_si_nl1":59,"r_si_nn1":59,"rootId":"CR-0005"}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::SP_defCurveSummaryGraph
+{
+    pattern: '/stress/sp_defcurvesummarygraph';
+    documentation: 'Coverage-directed stack on curves::CurveSummary (Graph), reusing the reach of CV9_CurveSummaries and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |curves::CurveSummary.all()
+        ->graphFetch(#{
+  curves::CurveSummary
+  {
+    curveId,
+    cobDate,
+    pillarCount,
+    highestRate,
+    lowestRate,
+    summarised
+    {
+      curveName,
+      interpolation
+    }
+  }
+}#)
+        ->serialize(#{
+  curves::CurveSummary
+  {
+    curveId,
+    cobDate,
+    pillarCount,
+    highestRate,
+    lowestRate,
+    summarised
+    {
+      curveName,
+      interpolation
+    }
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defCurveSummaryGraph_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 16 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.34,"lowestRate":3.96,"summarised":{"curveName":"USD SOFR Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.34,"lowestRate":3.98,"summarised":{"curveName":"USD SOFR Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.6,"lowestRate":4.21,"summarised":{"curveName":"USD 3M LIBOR Swap (legacy)","interpolation":"CUBIC_SPLINE"}},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.59,"lowestRate":4.23,"summarised":{"curveName":"USD 3M LIBOR Swap (legacy)","interpolation":"CUBIC_SPLINE"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":3.66,"lowestRate":2.5,"summarised":{"curveName":"EUR Euro Short Term Rate OIS","interpolation":"LINEAR_ZERO"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":3.65,"lowestRate":2.47,"summarised":{"curveName":"EUR Euro Short Term Rate OIS","interpolation":"LINEAR_ZERO"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","pillarCount":12,"highestRate":3.79,"lowestRate":2.73,"summarised":{"curveName":"EUR 6M Euribor Swap","interpolation":"CUBIC_SPLINE"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","pillarCount":12,"highestRate":3.78,"lowestRate":2.7,"summarised":{"curveName":"EUR 6M Euribor Swap","interpolation":"CUBIC_SPLINE"}},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.19,"lowestRate":3.55,"summarised":{"curveName":"GBP SONIA Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.19,"lowestRate":3.58,"summarised":{"curveName":"GBP SONIA Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":1.87,"lowestRate":0.08,"summarised":{"curveName":"JPY TONA Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":1.96,"lowestRate":0.08,"summarised":{"curveName":"JPY TONA Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.42,"lowestRate":4.29,"summarised":{"curveName":"US Treasury Zero Curve","interpolation":"BOOTSTRAP"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.43,"lowestRate":4.26,"summarised":{"curveName":"US Treasury Zero Curve","interpolation":"BOOTSTRAP"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","pillarCount":12,"highestRate":3.61,"lowestRate":2.51,"summarised":{"curveName":"German Bund Zero Curve","interpolation":"BOOTSTRAP"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","pillarCount":12,"highestRate":3.6,"lowestRate":2.46,"summarised":{"curveName":"German Bund Zero Curve","interpolation":"BOOTSTRAP"}}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::SP_defClearedTradeEmpty
+{
+    pattern: '/stress/sp_defclearedtradeempty';
+    documentation: 'Coverage-directed stack on clearing::ClearedTrade (Empty), reusing the reach of D_ClearedTradeDense and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |clearing::ClearedTrade.all()
+        ->filter({x|($x.clearedTradeId > ' ')})
+        ->project(~[
+            clearedTradeId:x|$x.clearedTradeId,
+            tradeInstrumentInstrumentCurrencyName:x|$x.trade.instrument.instrumentCurrency.name,
+            tradeInstrumentExchangeName:x|$x.trade.instrument.exchange.name,
+            tradeBookRollupBookId:x|$x.trade.book.rollup.bookId,
+            tradeSide:x|$x.trade.side,
+            tradeGrossAmount:x|$x.trade.grossAmount,
+            tradeGrossAmountInQ:x|$x.trade.grossAmountIn(0.5),
+            hasNone:x|$x.novationRequests->isEmpty()
+        ])
+        ->sort(~clearedTradeId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defClearedTradeEmpty_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 3 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"clearedTradeId":"CT-0001","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeGrossAmount":null,"tradeGrossAmountInQ":null,"hasNone":false},{"clearedTradeId":"CT-0002","tradeInstrumentInstrumentCurrencyName":null,"tradeInstrumentExchangeName":null,"tradeBookRollupBookId":null,"tradeSide":null,"tradeGrossAmount":null,"tradeGrossAmountInQ":null,"hasNone":false},{"clearedTradeId":"CT-0003","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":190500.0,"tradeGrossAmountInQ":95250.0,"hasNone":false},{"clearedTradeId":"CT-0004","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":477500.0,"tradeGrossAmountInQ":238750.0,"hasNone":true},{"clearedTradeId":"CT-0005","tradeInstrumentInstrumentCurrencyName":"US Dollar","tradeInstrumentExchangeName":"Nasdaq Stock Market","tradeBookRollupBookId":"BK-CASH-US","tradeSide":"BUY","tradeGrossAmount":250000.0,"tradeGrossAmountInQ":125000.0,"hasNone":true}]';
                   }#;
               }#
           ]
