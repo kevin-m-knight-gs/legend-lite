@@ -41,8 +41,10 @@ class CarrierPurityRatchetTest {
             // rule (scalar sources wrap; [0..1] empties stay empty),
             // not new ad-hoc idioms. 37→36 (2026-08-19 Clause-2c
             // redesign): equalityWireOperand's dual wrap DELETED —
-            // verdicts moved to World 1.
-            "new SqlExpr\\.ArrayLit\\(", 36,
+            // verdicts moved to World 1. 36→37 (slice 9): the static-
+            // pivot IN-membership pre-filter — the ENGINE's own
+            // row-restriction semantics, a semantic emission.
+            "new SqlExpr\\.ArrayLit\\(", 37,
             "new SqlExpr\\.OrderedListAgg\\(", 1,
             // 136→137 (2026-08-19): ListEncodings.map's LIST_GET — the
             // map SEMANTIC NODE's wire-shape rule (a to-one result

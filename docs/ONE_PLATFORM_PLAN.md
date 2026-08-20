@@ -604,6 +604,20 @@ outputs are equally absent at lower time — test_Static_Pivot_Filter's grid had
 LOST its pivot columns). Relation **PASS=282/287 (TRUE 5)**. Referee
 byte-identical; core 4166; ALLGATES GREEN.
 
+*BURN QUEUE SLICE 9 (2026-08-19):* (1) null-safe equality is POSITION-BLIND
+(engine case 5 has no filter gate; witness testProjectEqualityOnNullableColumns)
+with an `enterVerbatimEquality` suppression scope for resolver-synthesized join
+conditions — the mapping golden re-pinned the split, and the error-shape guard
+forced the scope type clean (no broad catch). (2) SPLIT joined LIST_PRODUCERS
+(witness testExtendJoinStringOnNull). (3) the STATIC-pivot IN pre-filter — the
+engine excludes rows outside the value list (9 groups → 3; witness
+testStaticPivot_SingleSingle_StringPivotValue); G7 caught the wrapper's stale
+alias (H2's staticized-pivot emulation references columns through the ORIGINAL
+source alias — preserved now; errors 28→22, back at the ceiling). (4) the shape
+guard forced the PIVOT lowering into its own owner (`Pivots`). Relation
+**PASS=285/287 (TRUE 2 — the DESC range-null pair)**. Channel-B totals:
+**995/1,050**. Referee byte-identical; core 4166; ALLGATES GREEN.
+
 ### Phase 5 — Walk-family end-state and the last harness semantics
 
 **What, plainly:** `MetamodelWalk`/`MetamodelSteps` (~1,500 lines) re-implement engine

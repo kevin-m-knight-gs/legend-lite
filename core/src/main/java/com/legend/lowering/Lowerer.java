@@ -292,7 +292,7 @@ public final class Lowerer {
                         PureSql.nullable(spec.info().multiplicity()))));
     }
 
-    private String nextAlias() {
+    String nextAlias() {
         return "t" + aliasCounter++;
     }
 
@@ -501,7 +501,7 @@ public final class Lowerer {
 
             case TypedFlatten fl -> flatten(fl);
 
-            case TypedPivot pv -> pivot(pv);
+            case TypedPivot pv -> Pivots.lower(this, pv);
 
             // the Typer's `.rows` MARKER (identity over a relation value —
             // the K result frame's row-index/envelope disambiguator): the
@@ -871,7 +871,7 @@ public final class Lowerer {
      * lambda's resolved overload names the SQL reducer. A bare-row map
      * ({@code x|$x}) is COUNT(*)-style — no value argument.
      */
-    private SqlAgg.Reducer aggExpr(SqlSelect base, TypedAggCol a) {
+    SqlAgg.Reducer aggExpr(SqlSelect base, TypedAggCol a) {
         SqlExpr e = aggValue(base, a);
         if (!(e instanceof SqlAgg.Reducer r)) {
             throw new IllegalStateException("aggregate '" + a.name()
@@ -1768,7 +1768,11 @@ public final class Lowerer {
                 on = sideCondition(j.condition(), left, right, leftCarry);
             }
         } else {
-            on = sideCondition(j.condition(), left, right, leftCarry);
+            // synthesized navigation join: the mapping's definition —
+            // VERBATIM '=' (suppresses the position-blind null-safe arm)
+            try (var ignored = NullSemantics.enterVerbatimEquality()) {
+                on = sideCondition(j.condition(), left, right, leftCarry);
+            }
         }
         SqlSource.Join.Kind kind = switch (j.kind().value()) {
             case "INNER" -> SqlSource.Join.Kind.INNER;
@@ -1902,7 +1906,7 @@ public final class Lowerer {
      * A join's RIGHT side (also pivot's source): a bare select unwraps ONLY
      * to a non-join source — a join tree on the right would re-associate.
      */
-    private SqlSource asRightSide(SqlSelect side) {
+    SqlSource asRightSide(SqlSelect side) {
         return asRightSide(side, null);
     }
 
@@ -2192,7 +2196,7 @@ public final class Lowerer {
     // ==================================================================
 
     /** {@code columns} resolves (lambda variable, property) to a SQL expression in scope. */
-    private SqlExpr scalar(TypedSpec spec, ColumnResolver columns) {
+    SqlExpr scalar(TypedSpec spec, ColumnResolver columns) {
         return switch (spec) {
             // A literal BEYOND long (the parser kept it a BigInteger)
             // renders as a plain numeric literal — DuckDB reads HUGEINT.
@@ -3010,72 +3014,6 @@ public final class Lowerer {
      * (multi-column key synthesis is a later slice); aggregates via the same
      * reduce-overload dispatch as groupBy.
      */
-    private SqlSelect pivot(TypedPivot pv) {
-        SqlSelect src = relation(pv.source());
-        SqlSource inner = asRightSide(src);
-        List<SqlExpr> on;
-        if (pv.pivotColumns().size() == 1) {
-            on = List.of(Fold.sourceColumn(inner, pv.pivotColumns().get(0)));
-        } else {
-            // MULTI-column pivot: synthesize the COMPOSITE KEY — the pivot
-            // columns concatenated with the '__|__' separator (the same
-            // separator the dynamic-column templates carry), the originals
-            // EXCLUDE'd — then pivot the single synthetic key.
-            String keyName = nextAlias();
-            SqlExpr key = null;
-            for (String c : pv.pivotColumns()) {
-                SqlExpr col = new SqlExpr.Cast(
-                        Objects.requireNonNull(Fold.sourceColumn(inner, c), c),
-                        SqlType.Scalar.VARCHAR);
-                key = key == null ? col
-                        : SqlExpr.Call.of(SqlFn.CONCAT,
-                                SqlExpr.Call.of(SqlFn.CONCAT, key,
-                                        new SqlExpr.StringLit(com.legend.compiler.element.type
-                                                .Type.RelationType.PIVOT_SEPARATOR)),
-                                col);
-            }
-            List<OutputCol> keyedOutputs = new ArrayList<>();
-            for (OutputCol oc : inner.outputs()) {
-                if (!pv.pivotColumns().contains(oc.name())) {
-                    keyedOutputs.add(oc);
-                }
-            }
-            keyedOutputs.add(new OutputCol(keyName,
-                    SqlType.Scalar.VARCHAR, false));
-            SqlSelect keyed = SqlSelect.starOf(inner).withProjections(
-                    List.of(new SqlSelect.Projection(
-                                    new SqlExpr.StarExcept(inner.alias(), pv.pivotColumns()), null),
-                            new SqlSelect.Projection(
-                                    Objects.requireNonNull(key,
-                                            "pivot requires a key column"),
-                                    keyName)),
-                    keyedOutputs);
-            inner = new SqlSource.Subselect(keyed, nextAlias(), null);
-            on = List.of(Fold.sourceColumn(inner, keyName));
-        }
-        List<SqlSource.Pivot.Using> usings = new ArrayList<>();
-        SqlSelect forAgg = SqlSelect.starOf(inner);
-        for (TypedAggCol a : pv.aggs()) {
-            // the using carries its LOWERING-typed result slot — the
-            // typed fact pivot-generated columns inherit (E1)
-            Type aggT = a.reduce().info().type()
-                    instanceof Type.FunctionType ft
-                    ? ft.result().type() : Type.Primitive.STRING;
-            usings.add(new SqlSource.Pivot.Using(aggExpr(forAgg, a),
-                    a.name(), PureSql.type(aggT)));
-        }
-        // Static pivot values pin the output columns via PIVOT ... IN (v…).
-        List<SqlExpr> in = pv.values().stream()
-                .map(v -> scalar(v, (var, name) -> {
-                    throw new IllegalStateException(
-                            "pivot values must be literal, referenced column: " + name);
-                }))
-                .toList();
-        // Fully-qualified refs; a dialect whose PIVOT forbids qualifiers in
-        // USING (DuckDB) strips them AT RENDER TIME.
-        return SqlSelect.starOf(new SqlSource.Pivot(inner, on, in, usings, nextAlias(),
-                outputsOf(pv.info())));
-    }
 
     /**
      * flatten(~col): the column explodes via UNNEST in the select list —
@@ -3453,7 +3391,7 @@ public final class Lowerer {
         return (Type.RelationType) spec.info().type();
     }
 
-    private List<OutputCol> outputsOf(ExprType info) {
+    List<OutputCol> outputsOf(ExprType info) {
         if (!(info.type() instanceof Type.RelationType rt)) {
             return List.of();
         }
