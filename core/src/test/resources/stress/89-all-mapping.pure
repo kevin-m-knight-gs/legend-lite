@@ -35,6 +35,7 @@ Mapping stress::AllMapping
     include middleoffice::MiddleOfficeMapping
     include backoffice::BackOfficeMapping
     include brokerage::BrokerageMapping
+    include schedule::ScheduleMapping
     include curves::CurvesMapping
     include timeseries::TimeSeriesMapping
     include margincalls::MargincallsMapping

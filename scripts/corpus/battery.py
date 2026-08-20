@@ -1758,9 +1758,56 @@ def _brokerage_specs():
 BROKERAGE = _brokerage_specs()
 
 
+def _schedule_specs():
+    """The versioned fee schedule: milestoning next to a range join and a composite key.
+
+    Milestoning had 13 uncovered pairs for the reason every isolated construct has them --
+    the two milestoned classes in the corpus carry three properties each and navigate to
+    almost nothing, so there was nothing for milestoning to co-occur WITH. A schedule is
+    versioned for real, its table has a composite key by construction, and reaching a trade
+    from a band is a range join. One navigation, four constructs.
+    """
+    out = []
+
+    for n, (as_of, doc) in enumerate([
+        ("2024-06-01",
+         "The schedule in force in June: the rates as they stand after the April cut. Read "
+         "at a business date, from a milestoned table with a composite key, and joined to "
+         "the trades in each band by RANGE -- which band a trade falls in is a property of "
+         "its notional, so there is no key to join on and none possible."),
+        ("2024-02-01",
+         "The SAME query at a business date before the cut. Every band holds the same "
+         "trades and charges more for them, which is what a client asking 'what would this "
+         "have cost in February' is asking. Nothing about the query changes except the date "
+         "-- and if milestoning were not applied, nothing about the ANSWER would change "
+         "either, which is exactly the failure this pins."),
+        ("2023-06-01",
+         "Before the schedule existed at all. The milestoning predicate excludes every row, "
+         "so the result is empty -- absent, not null, and not the earliest version.")]):
+        s = Spec(f"stress::SC{n}_ScheduleAsOf", f"/stress/sc{n}", doc,
+                 "schedule::TierVersion")
+        s.as_of = as_of
+        s.projections = [Proj("tierId", ["tierId"]),
+                         Proj("tierName", ["tierName"]),
+                         Proj("minNotional", ["minNotional"]),
+                         Proj("maxNotional", ["maxNotional"]),
+                         Proj("bpsRate", ["bpsRate"]),
+                         Proj("minimumFee", ["minimumFee"]),
+                         Proj("rateFraction", ["rateFraction"]),
+                         Proj("feeOnMillion", ["feeOn"], args=[1000000.0]),
+                         Proj("feeOnFiveMillion", ["feeOn"], args=[5000000.0])]
+        s.sort = ("tierId", False)
+        out.append(s)
+
+    return out
+
+
+SCHEDULE = _schedule_specs()
+
+
 SPECS = (STACK + INVARIANCE + AGGREGATION
          + [XSTORE, XSTORE_PROJECTION, MODELJOIN, MEASURE,
-            CANONICAL_WITH_ENUM, OTHERWISE, CONFLUENCE]) + FIXED_INCOME + OTC + RISK + MIDDLE_OFFICE + BACK_OFFICE + MARKET_DATA + CURVES + BROKERAGE + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
+            CANONICAL_WITH_ENUM, OTHERWISE, CONFLUENCE]) + FIXED_INCOME + OTC + RISK + MIDDLE_OFFICE + BACK_OFFICE + MARKET_DATA + CURVES + BROKERAGE + SCHEDULE + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

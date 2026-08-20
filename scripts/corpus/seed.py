@@ -5004,7 +5004,43 @@ CLEARING_ROUTE = [
 ]
 
 
+
+# The brokerage schedule, versioned: rates were cut on 1 April 2024 and the
+# bands were left alone.
+BROKERAGE_TIER_MS = [
+    # The old rate, closed on the day of the cut.
+    dict(TIER_ID="TIER-RETAIL", FROM_Z=_iso(2024, 1, 1), THRU_Z="2024-04-01",
+         TIER_NAME="Retail", MIN_NOTIONAL=0.0, MAX_NOTIONAL=100000.0,
+         BPS_RATE=15.0, MINIMUM_FEE=30.0),
+    dict(TIER_ID="TIER-RETAIL", FROM_Z="2024-04-01", THRU_Z=INFINITY,
+         TIER_NAME="Retail", MIN_NOTIONAL=0.0, MAX_NOTIONAL=100000.0,
+         BPS_RATE=12.5, MINIMUM_FEE=25.0),
+    # The old rate, closed on the day of the cut.
+    dict(TIER_ID="TIER-SMALL", FROM_Z=_iso(2024, 1, 1), THRU_Z="2024-04-01",
+         TIER_NAME="Small Institutional", MIN_NOTIONAL=100000.0, MAX_NOTIONAL=500000.0,
+         BPS_RATE=10.0, MINIMUM_FEE=50.0),
+    dict(TIER_ID="TIER-SMALL", FROM_Z="2024-04-01", THRU_Z=INFINITY,
+         TIER_NAME="Small Institutional", MIN_NOTIONAL=100000.0, MAX_NOTIONAL=500000.0,
+         BPS_RATE=8.0, MINIMUM_FEE=40.0),
+    # The old rate, closed on the day of the cut.
+    dict(TIER_ID="TIER-MID", FROM_Z=_iso(2024, 1, 1), THRU_Z="2024-04-01",
+         TIER_NAME="Mid Institutional", MIN_NOTIONAL=500000.0, MAX_NOTIONAL=2000000.0,
+         BPS_RATE=7.0, MINIMUM_FEE=175.0),
+    dict(TIER_ID="TIER-MID", FROM_Z="2024-04-01", THRU_Z=INFINITY,
+         TIER_NAME="Mid Institutional", MIN_NOTIONAL=500000.0, MAX_NOTIONAL=2000000.0,
+         BPS_RATE=5.5, MINIMUM_FEE=150.0),
+    # The old rate, closed on the day of the cut.
+    dict(TIER_ID="TIER-LARGE", FROM_Z=_iso(2024, 1, 1), THRU_Z="2024-04-01",
+         TIER_NAME="Large Block", MIN_NOTIONAL=2000000.0, MAX_NOTIONAL=100000000.0,
+         BPS_RATE=4.0, MINIMUM_FEE=600.0),
+    dict(TIER_ID="TIER-LARGE", FROM_Z="2024-04-01", THRU_Z=INFINITY,
+         TIER_NAME="Large Block", MIN_NOTIONAL=2000000.0, MAX_NOTIONAL=100000000.0,
+         BPS_RATE=3.25, MINIMUM_FEE=500.0),
+]
+
+
 TABLES: dict[str, list[dict]] = {
+    "BROKERAGE_TIER_MS": BROKERAGE_TIER_MS,
     "BROKERAGE_TIER": BROKERAGE_TIER,
     "CLEARING_ROUTE": CLEARING_ROUTE,
     "RATE_CURVE": RATE_CURVE,

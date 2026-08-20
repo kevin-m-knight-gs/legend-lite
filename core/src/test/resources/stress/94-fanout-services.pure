@@ -4594,6 +4594,192 @@ Service stress::BK3_RoutingRules
   ]
 }
 
+Service stress::SC0_ScheduleAsOf
+{
+    pattern: '/stress/sc0';
+    documentation: 'The schedule in force in June: the rates as they stand after the April cut. Read at a business date, from a milestoned table with a composite key, and joined to the trades in each band by RANGE -- which band a trade falls in is a property of its notional, so there is no key to join on and none possible.';
+    execution: Single
+    {
+    query: |schedule::TierVersion.all(%2024-06-01)
+        ->project(~[
+            tierId:x|$x.tierId,
+            tierName:x|$x.tierName,
+            minNotional:x|$x.minNotional,
+            maxNotional:x|$x.maxNotional,
+            bpsRate:x|$x.bpsRate,
+            minimumFee:x|$x.minimumFee,
+            rateFraction:x|$x.rateFraction,
+            feeOnMillion:x|$x.feeOn(1000000.0),
+            feeOnFiveMillion:x|$x.feeOn(5000000.0)
+        ])
+        ->sort(~tierId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SC0_ScheduleAsOf_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tierId":"TIER-LARGE","tierName":"Large Block","minNotional":2000000.0,"maxNotional":100000000.0,"bpsRate":3.25,"minimumFee":500.0,"rateFraction":0.000325,"feeOnMillion":325.0,"feeOnFiveMillion":1625.0},{"tierId":"TIER-MID","tierName":"Mid Institutional","minNotional":500000.0,"maxNotional":2000000.0,"bpsRate":5.5,"minimumFee":150.0,"rateFraction":0.00055,"feeOnMillion":550.0,"feeOnFiveMillion":2750.0},{"tierId":"TIER-RETAIL","tierName":"Retail","minNotional":0.0,"maxNotional":100000.0,"bpsRate":12.5,"minimumFee":25.0,"rateFraction":0.00125,"feeOnMillion":1250.0,"feeOnFiveMillion":6250.0},{"tierId":"TIER-SMALL","tierName":"Small Institutional","minNotional":100000.0,"maxNotional":500000.0,"bpsRate":8.0,"minimumFee":40.0,"rateFraction":0.0008,"feeOnMillion":800.0,"feeOnFiveMillion":4000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::SC1_ScheduleAsOf
+{
+    pattern: '/stress/sc1';
+    documentation: 'The SAME query at a business date before the cut. Every band holds the same trades and charges more for them, which is what a client asking \'what would this have cost in February\' is asking. Nothing about the query changes except the date -- and if milestoning were not applied, nothing about the ANSWER would change either, which is exactly the failure this pins.';
+    execution: Single
+    {
+    query: |schedule::TierVersion.all(%2024-02-01)
+        ->project(~[
+            tierId:x|$x.tierId,
+            tierName:x|$x.tierName,
+            minNotional:x|$x.minNotional,
+            maxNotional:x|$x.maxNotional,
+            bpsRate:x|$x.bpsRate,
+            minimumFee:x|$x.minimumFee,
+            rateFraction:x|$x.rateFraction,
+            feeOnMillion:x|$x.feeOn(1000000.0),
+            feeOnFiveMillion:x|$x.feeOn(5000000.0)
+        ])
+        ->sort(~tierId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SC1_ScheduleAsOf_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tierId":"TIER-LARGE","tierName":"Large Block","minNotional":2000000.0,"maxNotional":100000000.0,"bpsRate":4.0,"minimumFee":600.0,"rateFraction":0.0004,"feeOnMillion":400.0,"feeOnFiveMillion":2000.0},{"tierId":"TIER-MID","tierName":"Mid Institutional","minNotional":500000.0,"maxNotional":2000000.0,"bpsRate":7.0,"minimumFee":175.0,"rateFraction":0.0007,"feeOnMillion":700.0,"feeOnFiveMillion":3500.0},{"tierId":"TIER-RETAIL","tierName":"Retail","minNotional":0.0,"maxNotional":100000.0,"bpsRate":15.0,"minimumFee":30.0,"rateFraction":0.0015,"feeOnMillion":1500.0,"feeOnFiveMillion":7500.0},{"tierId":"TIER-SMALL","tierName":"Small Institutional","minNotional":100000.0,"maxNotional":500000.0,"bpsRate":10.0,"minimumFee":50.0,"rateFraction":0.001,"feeOnMillion":1000.0,"feeOnFiveMillion":5000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::SC2_ScheduleAsOf
+{
+    pattern: '/stress/sc2';
+    documentation: 'Before the schedule existed at all. The milestoning predicate excludes every row, so the result is empty -- absent, not null, and not the earliest version.';
+    execution: Single
+    {
+    query: |schedule::TierVersion.all(%2023-06-01)
+        ->project(~[
+            tierId:x|$x.tierId,
+            tierName:x|$x.tierName,
+            minNotional:x|$x.minNotional,
+            maxNotional:x|$x.maxNotional,
+            bpsRate:x|$x.bpsRate,
+            minimumFee:x|$x.minimumFee,
+            rateFraction:x|$x.rateFraction,
+            feeOnMillion:x|$x.feeOn(1000000.0),
+            feeOnFiveMillion:x|$x.feeOn(5000000.0)
+        ])
+        ->sort(~tierId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SC2_ScheduleAsOf_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 0 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::F10_RatingsAsOf2019
 {
     pattern: '/stress/t10';
