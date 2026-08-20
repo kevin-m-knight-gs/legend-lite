@@ -988,15 +988,11 @@ final class Scalars {
                                 null, null, List.of());
                         return new SqlExpr.ScalarSubquery(outer);
                     }
-                    // FRAME dispatch (not stamp distrust): a many-
-                    // stamped operand in a PER-ROW frame lowers scalar
-                    // (designed pair #4) — the wrap restores the row's
-                    // singleton; value-frame lists pass. Dies when
-                    // lowering carries explicit frame context.
-                    SqlExpr sa = args.get(0);
-                    return new SqlExpr.Call(SqlFn.LIST_SORT, List.of(
-                            ListShapes.listShaped(sa) ? sa
-                                    : new SqlExpr.ArrayLit(List.of(sa))));
+                    // STAMP-read (pair-#4 eliminated): only many-
+                    // stamped operands reach here, and a many-stamped
+                    // value's SQL is a list (the invariant's contract).
+                    return new SqlExpr.Call(SqlFn.LIST_SORT,
+                            List.of(args.get(0)));
                 }
                 Boolean asc = Comparators.direction(
                         n.args().get(n.args().size() - 1));

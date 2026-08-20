@@ -912,7 +912,12 @@ public final class StoreResolver {
      * read over instances. {@code valueMult} is the ORIGINAL expression's
      * multiplicity — a to-many read is a VALUE COLLECTION and the scalar
      * lowering must LIST-aggregate it (contains/in consumers), while a
-     * to-one read stays the bare scalar subquery. */
+     * to-one read stays the bare scalar subquery. The COLLECTION fact
+     * rides the relation's ExprType (valueMult); the COLUMN declares the
+     * PER-CELL multiplicity — each row holds ONE cell (pair-#4
+     * elimination, STAMP_DISCIPLINE_PROGRAM: copying the collection
+     * mult onto the column stamped every per-row read many — the C5
+     * u_map__active witness and the invariant's one abusable skip). */
     private static TypedProject scalarMapAsProject(TypedSpec source, TypedLambda mapper,
             com.legend.compiler.element.type.Multiplicity valueMult) {
         TypedSpec body = mapper.body().get(mapper.body().size() - 1);
@@ -921,10 +926,15 @@ public final class StoreResolver {
                         ? bpa.property() : "value");
         Type.Param result =
                 ((Type.FunctionType) mapper.info().type()).result();
+        com.legend.compiler.element.type.Multiplicity cellMult =
+                result.multiplicity() instanceof com.legend.compiler.element
+                        .type.Multiplicity.Bounded rb
+                        && rb.upper() != null && rb.upper() <= 1
+                ? result.multiplicity()
+                : com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE;
         Type.RelationType row =
                 new Type.RelationType(List.of(
-                        new Type.Column(
-                                name, result.type(), result.multiplicity())));
+                        new Type.Column(name, result.type(), cellMult)));
         return new TypedProject(source,
                 List.of(new TypedFuncCol(name, mapper)),
                 new ExprType(row, valueMult));

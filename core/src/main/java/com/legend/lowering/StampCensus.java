@@ -79,10 +79,12 @@ public final class StampCensus {
         //    (STRUCT_VALUES design).
         // 3. A platform List<T> object is ONE value carried as the SQL
         //    array (list() — engine List semantics).
-        // 4. A MANY-stamped property read with scalar SQL is the PER-ROW
-        //    frame of the same read (C5 adjudication: the collection
-        //    stamp describes the pure value, the scalar Cast the row
-        //    frame — both true in their own frame).
+        // (A former row 4 — many-stamped property reads with scalar
+        // SQL, "the per-row frame of the same read" — is DELETED: the
+        // one producer of that pair was scalarMapAsProject copying the
+        // collection mult onto the u_map__ COLUMN; the column now
+        // declares the per-cell mult and property reads are checked in
+        // BOTH arms like every other node.)
         if (spec.info().type()
                 instanceof com.legend.compiler.element.type.Type.RelationType) {
             return;
@@ -92,9 +94,6 @@ public final class StampCensus {
             return;
         }
         if (com.legend.compiler.element.type.PlatformTypes.isListCarrier(spec.info().type())) {
-            return;
-        }
-        if (!scalarStamp && spec instanceof TypedPropertyAccess) {
             return;
         }
         if (scalarStamp && ListShapes.listShaped(e)) {
