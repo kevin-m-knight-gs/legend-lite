@@ -90,6 +90,29 @@ final class ListShapes {
                 && b.isToOne();
     }
 
+    /** PROVABLY a single scalar value at SQL level — literals, scalar
+     * casts, and a NON-list-valued plain scalar subquery (SQL semantics:
+     * such a subquery yields exactly one cell). Column reads and opaque
+     * calls are UNKNOWABLE and never claimed — a consumer that wraps on
+     * this predicate cannot double-wrap a runtime list (the makeString
+     * asList experiment collapsed 129 tests out of the h2 compare by
+     * wrapping unknowables; measured 2026-08-20). */
+    static boolean definitelyScalar(SqlExpr e) {
+        return switch (e) {
+            case SqlExpr.IntLit ignored -> true;
+            case SqlExpr.FloatLit ignored -> true;
+            case SqlExpr.DecimalLit ignored -> true;
+            case SqlExpr.StringLit ignored -> true;
+            case SqlExpr.BoolLit ignored -> true;
+            case SqlExpr.DateLit ignored -> true;
+            case SqlExpr.TimestampLit ignored -> true;
+            case SqlExpr.Cast c ->
+                    c.target() instanceof com.legend.sql.SqlType.Scalar;
+            case SqlExpr.ScalarSubquery sq -> !listValuedSubquery(sq);
+            default -> false;
+        };
+    }
+
     /** A value in LIST position: singleton-wrap unless it is already a
      * list (or NULL = empty). */
     static SqlExpr asList(SqlExpr e, boolean many) {

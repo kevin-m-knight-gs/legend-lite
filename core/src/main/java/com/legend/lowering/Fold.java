@@ -352,6 +352,29 @@ final class Fold {
         return ascending ? null : SqlSelect.SortKey.NullOrder.NULLS_FIRST;
     }
 
+    /** A ≤1-ROW PROOF for a select (C2-i, STAMP_DISCIPLINE_PROGRAM): an
+     * explicit LIMIT 0/1, a constant (Dual) source, or a select over an
+     * already-proven subselect — projections, WHERE, DISTINCT and
+     * GROUP BY never ADD rows; a join source could, so anything else is
+     * unprovable. Used to lower a provably-single cell read as a PLAIN
+     * scalar subquery instead of the LIST collect (the shape lie the
+     * stamp census measured; DB-native scalar-subquery semantics even
+     * enforce the row bound at runtime). */
+    static boolean provablySingleRow(com.legend.sql.SqlQuery q) {
+        if (!(q instanceof SqlSelect s)) {
+            return false;
+        }
+        if (s.limit() != null && s.limit() <= 1) {
+            return true;
+        }
+        return switch (s.from()) {
+            case com.legend.sql.SqlSource.Subselect ss ->
+                    provablySingleRow(ss.inner());
+            case com.legend.sql.SqlSource.Dual ignored -> true;
+            default -> false;
+        };
+    }
+
     /** Sort folds iff ORDER BY is free (a second sort re-orders; last wins only via isolation). */
     static boolean sortFolds(SqlSelect s) {
         // LIMIT/OFFSET guard: within ONE select ORDER BY applies BEFORE

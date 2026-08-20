@@ -822,11 +822,17 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 SqlExpr sep = args.size() == 2 ? args.get(1)
                         : args.size() == 4 ? args.get(2) : new SqlExpr.StringLit("");
-                SqlExpr strs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, args.get(0),
+                // LIST position: wrap ONLY the provably-scalar value
+                // (C2-i's plain scalar subquery included) — unknowable
+                // shapes stay unwrapped (the unconditional asList wrap
+                // collapsed 129 tests out of the h2 compare; measured)
+                SqlExpr coll = ListShapes.asList(args.get(0),
+                        !ListShapes.definitelyScalar(args.get(0)));
+                SqlExpr strs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, coll,
                         new SqlExpr.Lambda(List.of("x"),
                                 SqlExpr.Call.of(SqlFn.COALESCE,
                                         PureSql.elementText(n.args().get(0),
-                                                args.get(0), new SqlExpr.Column(null, "x")),
+                                                coll, new SqlExpr.Column(null, "x")),
                                         new SqlExpr.StringLit(PlatformTypes.TDS_NULL_CELL))));
                 SqlExpr joined = SqlExpr.Call.of(SqlFn.COALESCE,
                         new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG, strs,

@@ -2719,6 +2719,18 @@ public final class Lowerer {
                                         new Type.RelationType.Column("value",
                                                 m2.info().type(), colMult2))),
                                 Multiplicity.Bounded.ONE)));
+                // pure map FLATTENS collection-valued mappers ($r.values):
+                // the list-of-cell-arrays flattens one level
+                boolean collMapper = ValueCollections.isCollectionMapper(ml2);
+                // C2-i (STAMP_DISCIPLINE_PROGRAM): a PROVABLY single-row
+                // source (a LIMIT<=1 chain or Dual) with a scalar mapper
+                // reads its cell as a PLAIN scalar subquery — the LIST
+                // collect was the census's shape lie; zero rows stay SQL
+                // NULL in both forms, and the scalar form carries the
+                // DB-native single-row semantics.
+                if (!collMapper && Fold.provablySingleRow(proj)) {
+                    yield new SqlExpr.ScalarSubquery(proj);
+                }
                 String sub = nextAlias();
                 SqlSelect agg = SqlSelect.starOf(new SqlSource.Subselect(proj, sub, null))
                         .withProjections(List.of(new SqlSelect.Projection(
@@ -2728,9 +2740,6 @@ public final class Lowerer {
                                 List.of(new OutputCol("value",
                                         SqlType.Scalar.VARCHAR, true)));
                 SqlExpr listed = new SqlExpr.ScalarSubquery(agg);
-                // pure map FLATTENS collection-valued mappers ($r.values):
-                // the list-of-cell-arrays flattens one level
-                boolean collMapper = ValueCollections.isCollectionMapper(ml2);
                 yield collMapper
                         ? SqlExpr.Call.of(SqlFn.LIST_FLATTEN, listed)
                         : listed;

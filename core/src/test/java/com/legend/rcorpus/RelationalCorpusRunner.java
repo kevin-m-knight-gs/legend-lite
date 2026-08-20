@@ -495,14 +495,16 @@ public class RelationalCorpusRunner {
         // verified count must hold its floor (289 at c43, 296 after the
         // c46 enum-decode rung, 309 after slice 10's engine-text NULLS
         // suppression — 13 rows had diverged from golden text only by a
-        // nulls clause; ratchet on deliberate gains).
+        // nulls clause; ratchet on deliberate gains). 309→320
+        // (2026-08-20 stamp C2-i): provably-single cell reads lower as
+        // PLAIN scalar subqueries — 11 more texts byte-match.
         if (onlyFilters.isEmpty()) {
             org.junit.jupiter.api.Assertions.assertEquals(0,
                     com.legend.harness.H2Verify.M1_DIVERGED.sum(),
                     "M1 h2-exec divergences on a full sweep");
             org.junit.jupiter.api.Assertions.assertTrue(
-                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 309,
-                    "M1 h2-exec verified fell below the 309 floor: "
+                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 320,
+                    "M1 h2-exec verified fell below the 320 floor: "
                     + com.legend.harness.H2Verify.M1_VERIFIED.sum());
         }
         System.out.println("[rcorpus] seed replay: "

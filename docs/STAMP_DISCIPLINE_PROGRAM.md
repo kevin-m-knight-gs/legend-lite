@@ -145,3 +145,21 @@ upstream interpreted-vs-relational family, same as index-base.
   the TypedJoin.userCondition route).
 - C2-i landed meanwhile: provably-single sources (LIMIT≤1 chains, Dual)
   lower cell reads as plain scalar subqueries (Fold.provablySingleRow).
+
+## C2-i LANDED (2026-08-20 night, third attempt — fix train green)
+
+- Fold.provablySingleRow (LIMIT<=1 chains + Dual, recursion through
+  subselects; joins unprovable) + the map-collect arm's scalar route:
+  provably-single cell reads lower as PLAIN scalar subqueries.
+- makeString's latent hole fixed shape-true: the operand wraps as a
+  singleton ONLY when PROVABLY scalar (ListShapes.definitelyScalar —
+  literals, scalar casts, non-list-valued plain scalar subqueries);
+  unknowable shapes stay unwrapped. The intermediate unconditional
+  asList wrap collapsed 129 tests out of the h2 compare (measured,
+  bisected, replaced) — wrap-by-proof, never wrap-by-doubt.
+- Full corpus GREEN incl. testOptionalLimit_WithValue; h2-exec
+  text-matched 309→320 (floor ratcheted); PCT all suites unchanged;
+  core 4166/0. Census unchanged (1021/267 — the counted events are
+  data-single filters, not provably-single; they wait on the
+  synthesis/producer legs), but the SHAPES the provable rule touches
+  are now honest and 11 more SQL texts byte-match engine goldens.
