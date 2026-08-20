@@ -333,10 +333,21 @@ public final class PureAsserts {
     }
 
     private static boolean temporalEquals(String s, Object t) {
-        // wire temporals are NAIVE (UTC-normalized); strip a UTC-zero
-        // offset/zone suffix from the string form
-        String v = s.trim().replaceFirst("(Z|\\+00(:?00)?|\\+0000)$", "")
-                .replace('T', ' ').trim();
+        // Pure DateTime equality is INSTANT-based and a bare (naive)
+        // DateTime means UTC (parseDate.pure's own expectations:
+        // %...T10:01:35.231 == parse('...T10:01:35.231Z') and
+        // %...T10:01-0500 == %...T15:01+0000). Normalize BOTH sides to
+        // a UTC-local before comparing; wire temporals without offsets
+        // are already UTC-normalized.
+        String v = s.trim().replaceFirst("Z$", "+0000").replace(' ', 'T');
+        java.time.ZoneOffset zo = null;
+        java.util.regex.Matcher off = java.util.regex.Pattern
+                .compile("([+-])(\\d{2}):?(\\d{2})$").matcher(v);
+        if (off.find()) {
+            zo = java.time.ZoneOffset.of(
+                    off.group(1) + off.group(2) + ":" + off.group(3));
+            v = v.substring(0, off.start());
+        }
         try {
             if (t instanceof java.sql.Date d) {
                 return java.time.LocalDate.parse(v).equals(d.toLocalDate());
@@ -348,12 +359,18 @@ public final class PureAsserts {
                     ? ts.toLocalDateTime()
                     : t instanceof java.time.LocalDateTime ldt ? ldt
                     : t instanceof java.time.OffsetDateTime odt
-                            ? odt.toLocalDateTime() : null;
+                            ? odt.withOffsetSameInstant(
+                                    java.time.ZoneOffset.UTC).toLocalDateTime()
+                            : null;
             if (other == null) {
                 return false;
             }
-            String norm = v.contains(" ") ? v.replace(' ', 'T') : v + "T00:00";
-            return java.time.LocalDateTime.parse(norm).equals(other);
+            String norm = v.contains("T") ? v : v + "T00:00";
+            java.time.LocalDateTime lit = java.time.LocalDateTime.parse(norm);
+            java.time.LocalDateTime litUtc = zo == null ? lit
+                    : lit.atOffset(zo).withOffsetSameInstant(
+                            java.time.ZoneOffset.UTC).toLocalDateTime();
+            return litUtc.equals(other);
         } catch (java.time.format.DateTimeParseException ex) {
             return false;
         }

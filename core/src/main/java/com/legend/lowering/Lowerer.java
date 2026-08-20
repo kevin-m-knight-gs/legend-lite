@@ -2202,6 +2202,13 @@ public final class Lowerer {
 
     /** {@code columns} resolves (lambda variable, property) to a SQL expression in scope. */
     SqlExpr scalar(TypedSpec spec, ColumnResolver columns) {
+        SqlExpr r = scalarInner(spec, columns);
+        // stamp-vs-shape inspector (measurement only, LL_STAMP_COUNT)
+        StampCensus.check(spec, r);
+        return r;
+    }
+
+    private SqlExpr scalarInner(TypedSpec spec, ColumnResolver columns) {
         return switch (spec) {
             // A literal BEYOND long (the parser kept it a BigInteger)
             // renders as a plain numeric literal — DuckDB reads HUGEINT.

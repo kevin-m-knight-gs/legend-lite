@@ -136,7 +136,17 @@ class JavaEvalLedgerTest {
             // decode table). Spec witness testHashCode; the pure body is
             // unportable m3 reflection (elementToPath). Adjudication over
             // a DB-produced value, never evaluation.
-            Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 298),
+            // 298→311 (2026-08-20 host-logic audit): temporalEquals
+            // restructured to SPEC instant equality — pure DateTime
+            // equality is instant-based and a naive DateTime means UTC
+            // (parseDate.pure's own expectations), so an offset-bearing
+            // EXPECTED literal string compares by instant against the
+            // naive-UTC wire carrier. World-2 consistent BY CONSTRUCTION
+            // now: parseDate normalizes to the same convention AT
+            // EMISSION (the compensating utcLocal arm was deleted the
+            // same day). On the audit's compile-through eviction path
+            // (docs/HOST_LOGIC_AUDIT_2026_08_20.md fix queue 3).
+            Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 311),
             // NEW ROW (2026-08-19 Clause-2c redesign): the K-arm —
             // assert-family VERDICT dispatch (World 1). Arguments execute
             // in the database (StatementExecutor.evalValue); this file

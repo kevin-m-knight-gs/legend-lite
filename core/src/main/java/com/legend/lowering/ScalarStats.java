@@ -34,7 +34,7 @@ final class ScalarStats {
             for (String f : Pure.nativeKeysAt(e.getKey())) {
                 rules.put(f, (n, args) -> ListShapes.listShaped(args.get(0))
                         ? new SqlExpr.ReduceCollection(e.getValue(),
-                                Scalars.numList(args.get(0)),
+                                Numerics.numList(args.get(0)),
                                 java.util.List.of())
                         : new SqlAgg.Reducer(e.getValue(),
                                 List.of(args.get(0)), false, java.util.List.of()));

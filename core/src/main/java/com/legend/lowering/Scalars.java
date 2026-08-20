@@ -230,7 +230,7 @@ final class Scalars {
                 // Binder error; grammar witness testPlusNumber).
                 if (args.size() == 1) {
                     return new SqlExpr.Call(SqlFn.LIST_SUM,
-                            List.of(numList(args.get(0))));
+                            List.of(Numerics.numList(args.get(0))));
                 }
                 return new SqlExpr.Call(SqlFn.PLUS, hugeWiden(args));
             });
@@ -247,9 +247,29 @@ final class Scalars {
                 // class as plus — the aggregate needs raw numerics).
                 if (args.size() == 1) {
                     return new SqlExpr.Call(SqlFn.LIST_PRODUCT,
-                            List.of(numList(args.get(0))));
+                            List.of(Numerics.numList(args.get(0))));
                 }
                 return new SqlExpr.Call(SqlFn.TIMES, hugeWiden(args));
+            });
+        }
+        for (String f : Pure.nativeKeysAt("times")) {
+            // DECIMAL-bearing LITERAL product: DuckDB's LIST_PRODUCT
+            // degrades to DOUBLE (probed 2026-08-20: [19.905,17774] ->
+            // 353791.47000000003) while BINARY decimal arithmetic is
+            // exact (353791.470, witness testDecimalTimes) — fold the
+            // literal list to a times chain BEFORE the aggregate.
+            var base = java.util.Objects.requireNonNull(RULES.get(f),
+                    "times rule registered above");
+            RULES.put(f, (n, rawArgs) -> {
+                var args = decimalJoin(rawArgs);
+                if (args.size() == 1) {
+                    SqlExpr chain = Numerics.decimalChain(Numerics.numList(args.get(0)),
+                            SqlFn.TIMES);
+                    if (chain != null) {
+                        return chain;
+                    }
+                }
+                return base.apply(n, rawArgs);
             });
         }
         for (String f : Pure.nativeKeysAt("minus")) {
@@ -264,7 +284,17 @@ final class Scalars {
                 // fold), not a unary negate (audit).
                 if (!isToOne(n.args().get(0))
                         || args.get(0) instanceof SqlExpr.ArrayLit) {
-                    return SqlExpr.Call.of(SqlFn.LIST_REDUCE, args.get(0),
+                    // numList: the mixed-number VARIANT carrier unwraps
+                    // for the reduction (-(JSON, JSON) does not bind;
+                    // witness testDecimalMinus); a DECIMAL-bearing
+                    // literal list folds to the exact BINARY chain
+                    // (LIST_REDUCE, like the aggregates, runs DOUBLE)
+                    SqlExpr list = Numerics.numList(args.get(0));
+                    SqlExpr chain = Numerics.decimalChain(list, SqlFn.MINUS);
+                    if (chain != null) {
+                        return chain;
+                    }
+                    return SqlExpr.Call.of(SqlFn.LIST_REDUCE, list,
                             new SqlExpr.Lambda(List.of("_ma", "_mb"),
                                     SqlExpr.Call.of(SqlFn.MINUS,
                                             new SqlExpr.Column(null, "_ma"),
@@ -1094,7 +1124,7 @@ final class Scalars {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0))
                     && !(args.get(0) instanceof SqlExpr.ArrayLit)
                     ? args.get(0)
-                    : SqlExpr.Call.of(SqlFn.LIST_SUM, numList(args.get(0))));
+                    : SqlExpr.Call.of(SqlFn.LIST_SUM, Numerics.numList(args.get(0))));
         }
         // round(Number[1]) RETURNS Integer (real pure) — banker's round,
         // then the integral cast the signature promises; round(x, scale)
@@ -1194,7 +1224,7 @@ final class Scalars {
                 RULES.put(f, (n, args) -> isToOne(n.args().get(0))
                         && !(args.get(0) instanceof SqlExpr.ArrayLit)
                         ? new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE)
-                        : SqlExpr.Call.of(SqlFn.LIST_AVG, numList(args.get(0))));
+                        : SqlExpr.Call.of(SqlFn.LIST_AVG, Numerics.numList(args.get(0))));
             }
         }
         // median overrides its plain-family registration: the mixed-Number
@@ -1204,7 +1234,7 @@ final class Scalars {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0))
                     && !(args.get(0) instanceof SqlExpr.ArrayLit)
                     ? args.get(0)
-                    : SqlExpr.Call.of(SqlFn.LIST_MEDIAN, numList(args.get(0))));
+                    : SqlExpr.Call.of(SqlFn.LIST_MEDIAN, Numerics.numList(args.get(0))));
         }
         ScalarStats.register(RULES);   // stat reductions
         // variance(list, isBiasCorrected): true => sample, false => population.
@@ -1214,7 +1244,7 @@ final class Scalars {
                         || boolLiteral(n.args().get(1), "variance isBiasCorrected");
                 return new SqlExpr.ReduceCollection(
                         sample ? SqlAgg.Fn.VAR_SAMP : SqlAgg.Fn.VAR_POP,
-                        numList(args.get(0)), List.of());
+                        Numerics.numList(args.get(0)), List.of());
             });
         }
         // first/head/last over a TO-ONE value are the IDENTITY — the list
@@ -1809,10 +1839,10 @@ final class Scalars {
                     }
                     // A TO-ONE side is the single-element list ([1] fits
                     // Number[*]) — unnest needs the list shape.
-                    SqlExpr xs = numList(n.args().get(0).info().multiplicity().isMany()
+                    SqlExpr xs = Numerics.numList(n.args().get(0).info().multiplicity().isMany()
                             || args.get(0) instanceof SqlExpr.ArrayLit
                             ? args.get(0) : new SqlExpr.ArrayLit(List.of(args.get(0))));
-                    SqlExpr ys = numList(n.args().get(1).info().multiplicity().isMany()
+                    SqlExpr ys = Numerics.numList(n.args().get(1).info().multiplicity().isMany()
                             || args.get(1) instanceof SqlExpr.ArrayLit
                             ? args.get(1) : new SqlExpr.ArrayLit(List.of(args.get(1))));
                     var inner = new SqlSelect(List.of(
@@ -2100,12 +2130,18 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 SqlExpr in = args.get(0);
                 if (in instanceof SqlExpr.StringLit lit) {
-                    // A ZONE-carrying literal keeps its instant: TIMESTAMPTZ
-                    // (the JDBC cell is an OffsetDateTime — real pure's
-                    // parseDate preserves the offset).
+                    // A ZONE-carrying input keeps its INSTANT, normalized
+                    // to naive UTC — the platform's ONE temporal carrier
+                    // (PureDateLiteral mirrors the engine: timezones
+                    // normalise to GMT at parse, offset discarded; a
+                    // TIMESTAMPTZ egress here leaked OffsetDateTime cells
+                    // the verdict channel then had to absorb — the
+                    // compensation smell, 2026-08-20).
                     if (lit.value().matches(".*([+-]\\d{4}|[+-]\\d{2}:\\d{2}|Z)$")) {
-                        return new SqlExpr.Cast(in,
-                                SqlType.Scalar.TIMESTAMPTZ);
+                        return SqlExpr.Call.of(SqlFn.TIMEZONE,
+                                new SqlExpr.StringLit("UTC"),
+                                new SqlExpr.Cast(in,
+                                        SqlType.Scalar.TIMESTAMPTZ));
                     }
                     String v = lit.value().replace('T', ' ');
                     if (v.matches("\\d{4}-\\d{2}-\\d{2} \\d{2}")) {
@@ -2431,25 +2467,10 @@ final class Scalars {
         }
     }
 
-    /** The NUMBER-LUB literal carrier ({@code [to_json(1), to_json(2.5)]}
-     * — the Lowerer's identity-preserving mixed-literal arm) UNWRAPS for
-     * NUMERIC consumption: aggregation math needs the raw values (the
-     * mixed raw array then coerces 1 -> 1.0, exactly pure's numeric
-     * promotion), while identity consumers rebuild element identity from
-     * the TYPED elements (encodeMixed), never from the carrier.
+    /** Identity consumers of the NUMBER-LUB literal carrier rebuild
+     * element identity from the TYPED elements (encodeMixed), never from
+     * the carrier (the numeric UNWRAP is {@link Numerics#numList}).
      * Non-carrier shapes pass through untouched. */
-    static SqlExpr numList(SqlExpr e) {
-        if (e instanceof SqlExpr.ArrayLit la && !la.elements().isEmpty()
-                && la.elements().stream().allMatch(x ->
-                        x instanceof SqlExpr.Call c
-                        && c.fn() == SqlFn.TO_VARIANT)) {
-            return new SqlExpr.ArrayLit(la.elements().stream()
-                    .map(x -> (SqlExpr) ((SqlExpr.Call) x).args().get(0))
-                    .toList());
-        }
-        return e;
-    }
-
     static @com.legend.Nullable MixedElems mixedElems(TypedSpec arg,
                                  SqlExpr lowered) {
         if (!(arg instanceof TypedCollection c)

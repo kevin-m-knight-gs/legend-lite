@@ -2396,17 +2396,21 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testParseDateWithTimezone() throws SQLException {
-                // '2014-02-27T10:01:35.231-0500'->parseDate() returns OffsetDateTime preserving
-                // TZ
+                // '2014-02-27T10:01:35.231-0500'->parseDate(): the ONE
+                // temporal carrier is NAIVE UTC (host-logic audit
+                // 2026-08-20 — the offset shifts the instant to GMT at
+                // EMISSION via timezone('UTC', ...); PureDateLiteral
+                // documents the same normalize-to-GMT rule for literals).
+                // The old TIMESTAMPTZ carrier leaked OffsetDateTime cells
+                // the verdict channel then had to absorb.
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|'2014-02-27T10:01:35.231-0500'->meta::pure::functions::string::parseDate()",
                                 "test::TestRuntime", connection);
                 Object value = result.rows().get(0).get(0);
-            assertInstanceOf(OffsetDateTime.class, value, "Expected OffsetDateTime but got: " + value.getClass().getName());
-                java.time.OffsetDateTime odt = (java.time.OffsetDateTime) value;
-                // Convert to UTC and verify the instant is correct
-                java.time.OffsetDateTime utc = odt.withOffsetSameInstant(java.time.ZoneOffset.UTC);
+            assertInstanceOf(java.time.LocalDateTime.class, value,
+                    "Expected naive-UTC LocalDateTime but got: " + value.getClass().getName());
+                java.time.LocalDateTime utc = (java.time.LocalDateTime) value;
                 assertEquals(15, utc.getHour(), "Expected UTC hour 15 but got: " + utc);
                 assertEquals(1, utc.getMinute());
                 assertEquals(35, utc.getSecond());

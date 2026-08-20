@@ -52,7 +52,11 @@ class ChannelBEssentialTest {
         // 293 (slice 11): exists ×2 (adapter shadow-stop), concatenate
         // (type() sig [1]→[*] per real type.pure:18), + the is/assertIs
         // World-1 identity leg
-        assertTrue(pass >= 293,
+        // 295 (host-logic audit slice): parseDate zone inputs normalize to
+        // the naive-UTC carrier AT EMISSION (timezone('UTC',...)) — the
+        // compensation-free fix passed the rows the deleted verdict
+        // patch was written for
+        assertTrue(pass >= 295,
                 "channel-B essential PASS fell below the pinned floor: "
                         + pass + " < 290");
 
@@ -128,7 +132,7 @@ class ChannelBEssentialTest {
         // A cannot pass them either). Wire-bug census SHRINKS only;
         // agreement GROWS only.
         assertTrue(agreePass >= 288, "AGREE-PASS fell: " + agreePass);
-        assertTrue(wireBug <= 13, "WIRE-BUG census grew: " + wireBug);
+        assertTrue(wireBug <= 11, "WIRE-BUG census grew: " + wireBug);
         // THE PHASE-4 MILESTONE NUMBER: rows OUR platform fails that BOTH
         // reference channels pass. ZERO (2026-08-19) — every remaining
         // failure is corroborated by a reference channel. Stays zero.

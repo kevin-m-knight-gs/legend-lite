@@ -62,8 +62,11 @@ class ChannelBGrammarTest {
         // 128 (slice 11): letFn ×2 (inline multi-statement hoist),
         // testSingle{Plus,Minus}Type + OneToOne (is/assertIs World-1
         // identity: type refs canonicalized, instance provenance)
-        assertTrue(c.pass() >= 128, "grammar PASS fell: " + c.pass());
-        assertTrue(c.wireBug() <= 3,
+        // 130 (host-logic audit slice): Decimal literal-list arithmetic
+        // folds to exact BINARY DECIMAL chains at emission (DuckDB list
+        // aggregates run DOUBLE — probed)
+        assertTrue(c.pass() >= 130, "grammar PASS fell: " + c.pass());
+        assertTrue(c.wireBug() <= 1,
                 "grammar WIRE-BUG census grew: " + c.wireBug());
         assertTrue(c.trueWireBug() == 0,
                 "a TRUE wire bug appeared (both oracles corroborate the"
