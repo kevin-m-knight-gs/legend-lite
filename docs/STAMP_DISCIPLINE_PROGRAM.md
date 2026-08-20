@@ -215,3 +215,39 @@ name operation. Both pieces = the union arm-factory redesign leg
 (RELATIONAL_FEATURE_MAP), now census-guided. Remaining program order:
 arm-factory (C2-union + C3 ride along) → C1 literals → frame-aware
 invariant flip → sniffer deletion.
+
+## C1 flip — 95% PROVEN, PARKED as stash 'C1-flip-wip' (2026-08-21)
+
+The producer flip (a SCALAR-STAMPED singleton literal lowers as its
+element) burned the census 1021→193 (−81%) with h2 at the 320 floor,
+plus FOUR consumer fixes landed inside the stash: the flatten cell
+re-box (ArrayLit ratchet 37→38 justified), the IN variant-needle
+proof-gate, the collection-root skip-UNNEST for scalar cells, and the
+REDUCER trial-signal (Scalars.lower miss for a reducer callee throws
+UnfoldableRef — the Resolution.attempt contract; the loud IllegalState
+escaped the trial and killed fallbacks).
+
+ONE witness remains: testSubAggregationWithDeepAndOverlap — pre-C1 the
+resolver's sub-aggregation synthesis replaced `2 + place->count()` with
+the engine's group-by-subselect join; post-flip count SURVIVES to
+lowering (stack: project→computedColumns→trial→Scalars.lower miss), and
+the trial's fallback chain has NO sub-agg arm (attempt→isolate-once→
+loud). The recognizer that claimed it pre-C1 is UNTOUCHED resolver code
+— the leading hypothesis is a RESOLVER-SIDE LOWERING PROBE (the
+pivot-precedent/demand-probe pattern; CorrelatedSubselects imports
+lowering.Aggregates) whose behavior the flip changed, silently flipping
+the claim decision. NEXT SESSION: instrument the sub-agg recognizer's
+claim decision (one temp print at its accept/decline), run the single
+test on both jars, diff the decision path. Do NOT weaken the family
+baseline; do NOT re-register count in scalar rules (measured wrong:
+7 rows → 13 — the group-by-subselect shape is the semantics).
+
+Sibling note: testSubAggregationWithDeepAndOverlap_WithColVar's
+"project expects ~[…] column specifications" is ALSO flip-correlated
+(a `let cols = [col,col,col]` + project($cols) shape) — same
+investigation.
+
+MASKING TRAP (bit twice tonight): the corpus runner's assertion ORDER
+(h2 floor at :505 before family baselines at :569) hides family
+regressions whenever the floor fails — always grep the family FAIL rows
+directly, never trust "only the floor fell".
