@@ -99,3 +99,49 @@ Unique patterns: ~13 corpus + ~13 PCT — the worklist is FINITE and small.
 Everything downstream (the canonical-render/byte-compare verdict design,
 HOST_LOGIC_AUDIT fix queue items 3-4) builds on stamps being
 enforced-true; it stays parked until the census is zero.
+
+## Guard-emission probe (2026-08-20, both backends — CLEARS the checked toOne emission)
+
+P1 filter-before-projection, P2 dead-branch constant-fold, P3 CASE
+per-row laziness, P4 AND short-circuit, P5 subquery under pushdown: NO
+spurious guard firings on DuckDB or H2. Must-fire: DuckDB `error(...)`
+raises with the message under the standard prefix; H2 via
+`CREATE ALIAS RAISE_ERROR` (source-code alias; enabled by default per
+H2_BACKEND.md) raises with the message embedded and as the cause.
+Emission design: ONE semantic node (checked narrowing) with per-dialect
+spellings; engine-text channel renders the inner value (engine-verbatim
+noOp view, the NULLS-suppression precedent). ORDERING (the blanket-
+unwrap lesson): the guard lands ONLY AFTER synthesized conformance
+toOnes are replaced and producer stamps honest — guarding a fake toOne
+whose list downstream consumes regresses identically to the revert.
+
+DISCOVERED FORK to rule on separately (out of C2's census scope): toOne
+over an EMPTY scalar carrier ([0..1] → SQL NULL). Pure throws ("size
+0"); engine's processNoOp lets NULL flow, and the corpus (drop-in
+surface) pins NULL-flow behavior broadly. The census never counted this
+(NullLit is the designed empty carrier). Needs its own adjudication —
+upstream interpreted-vs-relational family, same as index-base.
+
+## C2 emitter map (2026-08-20, fingerprinted via arg0 digests + SQL dumps)
+
+- dataType/projection cell reads: `toOne(prop)` over `SELECT LIST(col)
+  FROM (filtered scan)` — single by DATA (filter on a unique key), never
+  provable. KEY INSIGHT: dropping the LIST agg yields SQL's NATIVE
+  scalar-subquery semantics — >1 row raises, 1 row yields the value,
+  0 rows NULL — i.e. the DB-native form IS pure's checked toOne for
+  subquery operands, no error() emission needed (message parity vs
+  pure's "Cannot cast..." wording is the only residue).
+- union `toOne(x_pk/y_pk/...)`: per-member PK collects whose LIST the
+  merge genuinely consumes — the agg-strip would raise at runtime here;
+  the union synthesis must become an honest [*] flow + explicit merge
+  BEFORE the strip can be unconditional. ONE LEG, sequenced:
+  synthesis-fix then agg-strip.
+- Typer TDS-getter desugars (5 sites): STAMPS ARE HONEST (toOne sits
+  inside an isEmpty-guarded branch); their shape rides the same
+  LIST-collect and heals with the strip.
+- GraphEmission.toOneJoinEquals: a TYPE-LIE used as a lowering
+  side-channel (make [0..1]==[0..1] verbatim) — replace with the honest
+  mechanism that already exists (NullSemantics.enterVerbatimEquality /
+  the TypedJoin.userCondition route).
+- C2-i landed meanwhile: provably-single sources (LIMIT≤1 chains, Dual)
+  lower cell reads as plain scalar subqueries (Fold.provablySingleRow).

@@ -43,6 +43,7 @@ public final class StampCensus {
     public static final ThreadLocal<String> CONTEXT =
             ThreadLocal.withInitial(() -> "<unattributed>");
 
+
     /** The scalar-funnel hook: spec's stamp vs the lowered expression's
      * provable shape. */
     static void check(TypedSpec spec, SqlExpr e) {
@@ -103,6 +104,17 @@ public final class StampCensus {
                 .append(spec.getClass().getSimpleName());
         if (spec instanceof TypedNativeCall c) {
             sb.append(" callee=").append(c.callee().qualifiedName());
+            if (!c.args().isEmpty()) {
+                TypedSpec a0 = c.args().get(0);
+                sb.append(" arg0=").append(a0.getClass().getSimpleName());
+                if (a0 instanceof TypedNativeCall ic) {
+                    sb.append('(').append(ic.callee().qualifiedName()
+                            .substring(ic.callee().qualifiedName()
+                                    .lastIndexOf(':') + 1)).append(')');
+                } else if (a0 instanceof TypedPropertyAccess ip) {
+                    sb.append('(').append(ip.property()).append(')');
+                }
+            }
         } else if (spec instanceof TypedPropertyAccess p) {
             sb.append(" prop=").append(p.property());
         } else if (spec instanceof TypedVariable v) {
