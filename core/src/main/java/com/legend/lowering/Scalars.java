@@ -294,11 +294,25 @@ final class Scalars {
                     if (chain != null) {
                         return chain;
                     }
-                    return SqlExpr.Call.of(SqlFn.LIST_REDUCE, list,
-                            new SqlExpr.Lambda(List.of("_ma", "_mb"),
+                    // RUNTIME size-1 NEGATES (real pure: interpreted
+                    // Minus.java case-1 seeds 0, compiled delegates to
+                    // unary — the first-element-seed fold returned +x
+                    // for [x]; residue recorded at the C1 landing, fixed
+                    // at the deletion-leg rebuild).
+                    return new SqlExpr.Case(
+                            List.of(new SqlExpr.Case.When(
+                                    SqlExpr.Call.of(SqlFn.EQUAL,
+                                            SqlExpr.Call.of(SqlFn.LIST_LENGTH, list),
+                                            new SqlExpr.IntLit(1)),
                                     SqlExpr.Call.of(SqlFn.MINUS,
-                                            new SqlExpr.Column(null, "_ma"),
-                                            new SqlExpr.Column(null, "_mb"))));
+                                            new SqlExpr.IntLit(0),
+                                            SqlExpr.Call.of(SqlFn.LIST_GET, list,
+                                                    new SqlExpr.IntLit(1))))),
+                            SqlExpr.Call.of(SqlFn.LIST_REDUCE, list,
+                                    new SqlExpr.Lambda(List.of("_ma", "_mb"),
+                                            SqlExpr.Call.of(SqlFn.MINUS,
+                                                    new SqlExpr.Column(null, "_ma"),
+                                                    new SqlExpr.Column(null, "_mb")))));
                 }
                 return switch (args.get(0)) {
                     case SqlExpr.IntLit i -> new SqlExpr.IntLit(-i.value());

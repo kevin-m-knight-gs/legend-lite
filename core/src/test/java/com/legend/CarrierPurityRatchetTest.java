@@ -72,7 +72,11 @@ class CarrierPurityRatchetTest {
             // operands it would have broken were healed first — C2c +
             // frame-honest stamps); the checked-narrowing SEMANTIC NODE
             // (guard-emission design) re-absorbs both sites when built.
-            "SqlFn\\.LIST_", 139,
+            // 139→141 (deletion-leg rebuild): the minus LIST arm's
+            // runtime-size-1 negate guard (LIST_LENGTH + LIST_GET) —
+            // real pure negates a size-1 collection; the first-element
+            // seed returned +x (residue recorded at the C1 landing).
+            "SqlFn\\.LIST_", 141,
             "SqlFn\\.UNNEST", 12,
             // the collect-carrier reducer (R1 recognizes it for fusion;
             // burns with R3/R4 when sources/values migrate)
