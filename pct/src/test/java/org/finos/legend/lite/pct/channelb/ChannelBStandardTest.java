@@ -69,13 +69,15 @@ class ChannelBStandardTest {
         // slices.
         assertTrue(out.size() == 204,
                 "standard discovery moved: " + out.size() + " != 204");
-        assertTrue(c.pass() >= 202, "standard PASS fell: " + c.pass());
+        // 100% (2026-08-19): the columns() compile-time fold burned the
+        // reflection pair
+        assertTrue(c.pass() >= 204, "standard PASS fell: " + c.pass());
         // 24→20→17→5→2 (slice 5: the ONE-OWNER print-form unification
         // restored the DateTime arm the tdsCell/pctCell drift had
         // dropped). Remaining: the columns() reflection pair only.
-        assertTrue(c.wireBug() <= 2,
+        assertTrue(c.wireBug() == 0,
                 "standard WIRE-BUG census grew: " + c.wireBug());
-        assertTrue(c.trueWireBug() <= 1,
+        assertTrue(c.trueWireBug() == 0,
                 "standard TRUE wire-bug census grew: " + c.trueWireBug());
     }
 }

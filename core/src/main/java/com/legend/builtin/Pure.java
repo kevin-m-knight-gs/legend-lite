@@ -531,6 +531,10 @@ public final class Pure {
     // Pure exposes the metaclass as `Class<T>` (parameterized over the
     // class it describes); used by signatures like `getAll(Class<T>):T[*]`.
     public static final ClassDefinition CLASS = nativeClass("native Class meta::pure::metamodel::type::Class<T> extends meta::pure::metamodel::type::Type {}");
+    // the m3 relation COLUMN metaclass (columns() reflection — the
+    // witnessed surface is .name; real m3 Column<T,X|z>'s multiplicity
+    // param drops per the ratified single-divergence convention)
+    public static final ClassDefinition RELATION_COLUMN = nativeClass("native Class meta::pure::metamodel::relation::Column<T,X> extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[0..1]; }");
     // The enumeration metaclass (real m3: Class Enumeration<T> extends Type) —
     // a bare enumeration reference (STR_GeographicEntityType->toString()) is a
     // value of this type.
@@ -1990,6 +1994,13 @@ public final class Pure {
     // walls loudly (no lowering — verdicts never compute in SQL).
     public static final NativeFunctionDefinition ASSERT_INSTANCE_OF__ANY_1__TYPE_1 = signature("native function meta::pure::functions::asserts::assertInstanceOf(instance:meta::pure::metamodel::type::Any[1], type:meta::pure::metamodel::type::Type[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition ASSERT_INSTANCE_OF__ANY_1__TYPE_1__STRING_1 = signature("native function meta::pure::functions::asserts::assertInstanceOf(instance:meta::pure::metamodel::type::Any[1], type:meta::pure::metamodel::type::Type[1], message:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
+
+    // columns (REAL core_functions_relation columns.pure-adjacent
+    // declaration, PCT.platformOnly): relation COLUMN METADATA — the
+    // schema is STATIC at compile time, so the checker FOLDS the call
+    // to a literal collection of Column instances (ColumnsChecker);
+    // witnesses testGenerateGuidWithRelation, testHashCodeAggregate.
+    public static final NativeFunctionDefinition COLUMNS__REL_1 = signature("native function meta::pure::functions::relation::columns<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Column<meta::pure::metamodel::type::Nil,meta::pure::metamodel::type::Any>[*];");
 
     // assertTdsEquivalent (REAL core_functions_relation
     // relation/functions/tdsEquivalent.pure:26/:31, signatures verbatim;

@@ -64,13 +64,15 @@ class ChannelBRelationTest {
         // pivot column orders, chunk, temporal precision.
         assertTrue(out.size() == 287,
                 "relation discovery moved: " + out.size() + " != 287");
-        assertTrue(c.pass() >= 285, "relation PASS fell: " + c.pass());
+        // 100% (2026-08-19): the DESC nulls-first sort burned the last
+        // pair — pure null ordering is NULL-IS-LARGEST
+        assertTrue(c.pass() >= 287, "relation PASS fell: " + c.pass());
         // 33→28 (slice 1: singleton extremes, carrier norm, chunk)
         // →24 (slice 4: CANONICAL variant text — to_json over the
         // JSON-cast value, compact with leaf quoting preserved)
-        assertTrue(c.wireBug() <= 2,
+        assertTrue(c.wireBug() == 0,
                 "relation WIRE-BUG census grew: " + c.wireBug());
-        assertTrue(c.trueWireBug() <= 2,
+        assertTrue(c.trueWireBug() == 0,
                 "relation TRUE wire-bug census grew: " + c.trueWireBug());
     }
 }

@@ -1610,7 +1610,8 @@ public final class Lowerer {
             }
             // engine TEXT spells the OUTPUT column (order by "name" asc);
             // execution renders e — sortBy stays physical in both
-            keys.add(new SqlSelect.SortKey(e, k.ascending(), Fold.sortNulls(k.ascending()),
+            keys.add(new SqlSelect.SortKey(e, k.ascending(),
+                    s.pureNullOrder() ? Fold.sortNulls(k.ascending()) : null,
                     k.column()));
         }
         return base.withOrderBy(keys);
@@ -1630,13 +1631,15 @@ public final class Lowerer {
         SqlSelect fin1 = base;
         if (attempt(() -> scalar(last(sb.key()), (v, name) -> resolveOrThrow(fin1, name)))
                 instanceof Resolution.Resolved r) {
+            // TDS/collection sortBy = the engine-drop-in surface: NO null
+            // placement (backend default), per the corpus expected values
             return base.withOrderBy(List.of(
-                    new SqlSelect.SortKey(r.expr(), sb.ascending(), Fold.sortNulls(sb.ascending()), null)));
+                    new SqlSelect.SortKey(r.expr(), sb.ascending(), null, null)));
         }
         SqlSelect iso = isolate(base);
         SqlExpr key = scalar(last(sb.key()), (v, name) -> resolveOrThrow(iso, name));
         return iso.withOrderBy(List.of(
-                new SqlSelect.SortKey(key, sb.ascending(), Fold.sortNulls(sb.ascending()), null)));
+                new SqlSelect.SortKey(key, sb.ascending(), null, null)));
     }
 
     private SqlSelect sortOnto(SqlSelect base, TypedSort s) {
@@ -1647,7 +1650,9 @@ public final class Lowerer {
                 throw new IllegalStateException("sort key '" + k.column()
                         + "' cannot be resolved after isolation");
             }
-            keys.add(new SqlSelect.SortKey(e, k.ascending(), Fold.sortNulls(k.ascending()), null));
+            keys.add(new SqlSelect.SortKey(e, k.ascending(),
+                    s.pureNullOrder() ? Fold.sortNulls(k.ascending()) : null,
+                    null));
         }
         return base.withOrderBy(keys);
     }

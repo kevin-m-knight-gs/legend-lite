@@ -486,7 +486,9 @@ class NativeFunctionTest {
         //     ElementOverride (M3 Any.elementOverride, folded empty).
         // 199: -_Traversal (2026-08-14 — the old engine-lite traverse
         // machinery deleted; navigate subsumed it)
-        assertEquals(199, Pure.allNativeClasses().size(),
+        // 200: +relation::Column (2026-08-19 — the columns() reflection
+        //     surface; real M3 class, m3.pure:3530)
+        assertEquals(200, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -894,6 +896,14 @@ class NativeFunctionTest {
                 assertEquals(List.of("values"),
                         c.properties().stream().map(p -> p.name()).toList(),
                         "List declares exactly values (real pure anonymousCollections.pure:33-35)");
+            } else if (c.qualifiedName().equals(
+                    "meta::pure::metamodel::relation::Column")) {
+                // real M3 Column (m3.pure:3530): name is String[0..1]
+                // (elementToPath.pure:24 reads $c.name->toOne());
+                // nameWildCard omitted until a witness needs it
+                assertEquals(List.of("name"),
+                        c.properties().stream().map(p -> p.name()).toList(),
+                        "Column declares exactly name (real M3 surface)");
             } else if (TDS_SURFACE_PROPERTIES.containsKey(c.qualifiedName())) {
                 assertEquals(TDS_SURFACE_PROPERTIES.get(c.qualifiedName()),
                         c.properties().stream().map(p -> p.name()).toList(),

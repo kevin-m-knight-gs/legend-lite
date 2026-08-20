@@ -1204,6 +1204,7 @@ final class Typer {
             case SOURCE_URL -> SourceUrlChecker.check(this, af, env);
             case FLATTEN -> FlattenChecker.check(this, af, env);
             case PIVOT -> PivotChecker.check(this, af, env);
+            case COLUMNS -> ColumnsChecker.check(this, af, env);
             case TABLE_REFERENCE -> TableReferenceChecker.check(this, af);
             case TABLE_TO_TDS -> TableReferenceChecker.checkTableToTds(this, af, env);
             case PROJECT -> ProjectChecker.check(this, af, env);

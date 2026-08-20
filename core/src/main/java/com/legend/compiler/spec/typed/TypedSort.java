@@ -14,10 +14,23 @@ import java.util.List;
  *
  * @param source the relation being sorted
  * @param keys   the ordered sort columns (validated against {@code source}'s schema)
+ * @param pureNullOrder PROVENANCE (slice 10, the TypedJoin.userCondition
+ *               precedent — no defaulting constructor): {@code true} for the
+ *               modern colspec relation API ({@code sort(asc/desc(~col))}) and
+ *               value-collection sorts, whose observable is PURE semantics —
+ *               null is LARGEST, so lowering stamps explicit null placement
+ *               (DESC NULLS FIRST; witness PCT testRange_..._WithOrderByDESC).
+ *               {@code false} for the legacy TDS string-key shapes
+ *               ({@code sort('COL', Dir)} / {@code sort(desc('COL'))} /
+ *               {@code sort(['A','B'])}) — the engine-drop-in surface, where
+ *               the engine emits NO null-order clause and the corpus expected
+ *               values pin backend-default placement (witness
+ *               tds::groupBy::simpleGroupBySum: null group LAST on desc)
  * @param info   the result type &mdash; the source {@code RelationType[1]} (G-&alpha;), sourced
  *               from the sort signature's {@code Relation<T>[1]} return
  */
-public record TypedSort(TypedSpec source, List<TypedSortKey> keys, ExprType info) implements TypedSpec {
+public record TypedSort(TypedSpec source, List<TypedSortKey> keys,
+        boolean pureNullOrder, ExprType info) implements TypedSpec {
 
     public TypedSort {
         keys = List.copyOf(keys);
@@ -35,6 +48,6 @@ public record TypedSort(TypedSpec source, List<TypedSortKey> keys, ExprType info
     @Override
     public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
         TypedSpec.expectChildren(kids, 1, "TypedSort");
-        return new TypedSort(kids.get(0), keys, info);
+        return new TypedSort(kids.get(0), keys, pureNullOrder, info);
     }
 }

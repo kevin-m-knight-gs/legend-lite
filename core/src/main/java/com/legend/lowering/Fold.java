@@ -343,7 +343,13 @@ final class Fold {
      * that needs explicit placement for cross-target row parity says
      * so in ITS sortKey (H2 does). */
     static SqlSelect.SortKey.@com.legend.Nullable NullOrder sortNulls(boolean ascending) {
-        return null;
+        // PURE null ordering: null is LARGEST — ASC nulls last (DuckDB's
+        // default, no clause emitted), DESC nulls FIRST (DuckDB defaults
+        // LAST both ways — probed 2026-08-19; witness
+        // testRange_..._WithOrderByDESC, whose comparison sort placed
+        // nulls last). The window ORDER emission already carries the
+        // same rule (Lowerer's over() keys).
+        return ascending ? null : SqlSelect.SortKey.NullOrder.NULLS_FIRST;
     }
 
     /** Sort folds iff ORDER BY is free (a second sort re-orders; last wins only via isolation). */
