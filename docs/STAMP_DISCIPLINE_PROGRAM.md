@@ -73,8 +73,19 @@ Unique patterns: ~13 corpus + ~13 PCT — the worklist is FINITE and small.
    - (c) values-reader subquery stamps → fixed at their PRODUCER
      (the stamp becomes `[*]`), which is the real C2 residue.
    Attribution instrument upgraded first (census lines carry
-   `test=<fqn>` via StampCensus.CONTEXT) — the (a)/(b)/(c) split needs
-   per-witness provenance, which is the next slice's first step.
+   `test=<fqn>` via StampCensus.CONTEXT); witness verified: the biggest
+   C2 test (testSimpleTypeMappingProject, 18 events) has NO user toOne —
+   all synthesized. SIZED (2026-08-20): the provenance mechanism is a
+   `Pure.Lite.conformToOne` internal native (provenance = FQN, the
+   internal-natives partition governs it; zero field churn) — but
+   synthesized toOnes come from TWO layers (17 protocol-level
+   `AppliedFunction("toOne", ...)` sites in the normalizer's
+   UnionSynthesis + the typed-level GraphEmission/JsonSourceFrame
+   family) and 89 recognizer sites reference the toOne name/FQN and
+   need the audit for whether they must also match conformToOne
+   (peelers yes, others per-site). A full slice with full-corpus
+   verification — NOT a quick tail (the blanket-unwrap regression is
+   the caution).
 3. **C3** (same seam family): value-collection `sort`/`distinct`
    one-stamped lowerings — adjudicate with the same provenance split.
 4. **C1** (biggest, mostly mechanical): scalar-stamped collection
