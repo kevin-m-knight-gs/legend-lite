@@ -757,31 +757,31 @@ final class ArchitectureTest {
      * (pattern-matching, dispatch) is fine anywhere: the executor
      * consumes the tree; it must not grow it.
      *
-     * <p>The pinned exceptions are today's census (2026-08-21), each with
-     * a standing justification, and the list only SHRINKS — never add a
-     * row without a necessity proof on OUR tenets (a runtime fact that
-     * cannot exist at compile time), recorded here:
+     * <p>The pinned exceptions (census 2026-08-21, four; two already
+     * evicted the same day) each carry a standing justification, and the
+     * list only SHRINKS — never add a row without a necessity proof on
+     * OUR tenets (a runtime fact that cannot exist at compile time). The
+     * END STATE (user directive: zero exceptions, no exception
+     * mechanism) deletes the {@code doNotBelongToAnyOf} clause entirely:
      * <ul>
-     *   <li>{@code StatementExecutor} — slice 1 of the splice-ownership
-     *       leg moved the splice RULES to
-     *       {@code compiler.spec.ResultEnvelopeSplice} and the β-binds
-     *       to {@code UserCallInliner}; the REMAINING mints are
-     *       buildFrame's chain assembly (β-expansion, the
-     *       concatenateTemporalTdsQueries fold-by-emission, from-
-     *       attachment) plus two staging TypedLets — slice 2 extracts
-     *       the chain assembly and deletes this pin.</li>
+     *   <li>{@code StatementExecutor} — EVICTED (slices 1+2): splice
+     *       rules → {@code ResultEnvelopeSplice}; β-binds + call frame →
+     *       {@code UserCallInliner}; chain assembly →
+     *       {@code ExecuteChainAssembly}; seedable-let prefix →
+     *       {@code Lowerer.withSeedableLetPrefix}.</li>
+     *   <li>{@code validation.DriverPkAppend} — EVICTED: a pure
+     *       tree→tree pass, moved under {@code resolver/}.</li>
      *   <li>{@code AssertVerdicts} — the K-arm verdict-query synthesis
      *       (Phase-4 redesign, ratified): builds the predicate-vector
-     *       query from the assert's own typed arguments. Candidate for a
-     *       compiler-owned builder; pinned with that follow-up.</li>
+     *       query from the assert's own typed arguments. DIES with the
+     *       canonical-render verdicts leg (synthesis becomes
+     *       compiler-owned emission; the surviving host half is a byte
+     *       compare that mints nothing).</li>
      *   <li>{@code exec.RawGridSchema} — Phase 1c late-bound raw-grid
      *       schema: the column roster is a RUNTIME fact (probed over the
-     *       connection); the boundary resolver owns the schema stamp by
-     *       ratified design.</li>
-     *   <li>{@code validation.DriverPkAppend} — the engine's
-     *       addDriverTablePkForProject execution-context flag (#45); a
-     *       pure tree→tree pass with no runtime facts — candidate to
-     *       move under resolver/, which would delete the pin.</li>
+     *       connection). Route out: staged compilation — a
+     *       compiler-owned resolve-with-schema phase taking the probed
+     *       roster as INPUT; the executor keeps only the probe.</li>
      * </ul>
      */
     @Test
@@ -793,10 +793,8 @@ final class ArchitectureTest {
                     "com.legend.normalizer..",
                     "com.legend.lowering..")
             .and().doNotBelongToAnyOf(
-                    com.legend.StatementExecutor.class,
                     com.legend.AssertVerdicts.class,
-                    com.legend.exec.RawGridSchema.class,
-                    com.legend.validation.DriverPkAppend.class)
+                    com.legend.exec.RawGridSchema.class)
             .should().callCodeUnitWhere(
                     com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
                             com.tngtech.archunit.core.domain.properties.HasName

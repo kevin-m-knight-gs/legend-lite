@@ -357,7 +357,7 @@ final class StatementExecutor {
                 // the engine's addDriverTablePkForProject option (#45):
                 // projections gain driver-table PK columns; non-projection
                 // statements pass through unchanged
-                body = com.legend.validation.DriverPkAppend.apply(
+                body = com.legend.resolver.DriverPkAppend.apply(
                         body, env.ctx());
             }
             result = executeTyped(body, frameReplaceEnv(stmt, execFrames,
@@ -1824,145 +1824,26 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedNativeCall ec,
             java.util.List<TypedSpec> letPrefix, boolean eager,
             SpecCompiler specs, ExecEnv env) throws java.sql.SQLException {
-        TypedSpec q = letBound(ec.args().get(0), letPrefix);
-        // a LAMBDA-BUILDING user call in query position (corpus
-        // buildQuery(value) returning FunctionDefinition<{->Person[*]}>):
-        // β-inline it — the body's single expression IS the lambda literal
-        if (q instanceof com.legend.compiler.spec.typed.TypedUserCall) {
-            q = new com.legend.compiler.spec.UserCallInliner(specs)
-                    .inlineBody(java.util.List.of(q)).get(0);
-        }
-        // preval(query, extensions) / withFeatureFlags(query, flags):
-        // plan-time wrappers, IDENTITY for row semantics — read through
-        // to the wrapped query lambda.
-        while (q instanceof com.legend.compiler.spec.typed.TypedNativeCall pv
-                && ("meta::pure::router::preeval::preval"
-                        .equals(pv.callee().qualifiedName())
-                    || "meta::pure::executionPlan::featureFlag::withFeatureFlags"
-                        .equals(pv.callee().qualifiedName()))) {
-            q = letBound(pv.args().get(0), letPrefix);
-        }
-        // concatenateTemporalTdsQueries(lfs): the real body folds the
-        // queries into concatenate SFEs (reflection metamodel) — the SAME
-        // semantics BY EMISSION: fold the lambdas' result expressions
-        // into a TypedConcatenate chain under one zero-arg lambda.
-        if (q instanceof com.legend.compiler.spec.typed.TypedNativeCall cq
-                && "meta::relational::milestoning::concatenateTemporalTdsQueries"
-                        .equals(cq.callee().qualifiedName())) {
-            TypedSpec lfsArg = letBound(cq.args().get(0), letPrefix);
-            // evaluateAndDeactivate may wrap the WHOLE collection
-            // ([...]->evaluateAndDeactivate()) — identity, peel first
-            while (lfsArg instanceof com.legend.compiler.spec.typed
-                    .TypedNativeCall ow
-                    && ow.args().size() == 1
-                    && "meta::pure::functions::meta::evaluateAndDeactivate"
-                            .equals(ow.callee().qualifiedName())) {
-                lfsArg = letBound(ow.args().get(0), letPrefix);
-            }
-            // MAP-BUILT collections ($bds->map(bd|{|...}->eAD())): β-expand
-            // the map over the literal elements — one TypedEval per element,
-            // reduced by the inliner (the full β-substitution engine)
-            if (lfsArg instanceof com.legend.compiler.spec.typed
-                            .TypedMap mapC
-                    && letBound(mapC.mapper(), letPrefix)
-                            instanceof com.legend.compiler.spec.typed
-                                    .TypedLambda mapLam
-                    && mapLam.parameters().size() == 1
-                    && letBound(mapC.source(), letPrefix)
-                            instanceof com.legend.compiler.spec.typed
-                                    .TypedCollection dc) {
-                java.util.List<TypedSpec> expanded =
-                        new java.util.ArrayList<>(dc.elements().size());
-                for (TypedSpec d : dc.elements()) {
-                    expanded.add(new com.legend.compiler.spec.UserCallInliner(
-                            specs).inlineBody(java.util.List.of(
-                                    new com.legend.compiler.spec.typed.TypedEval(
-                                            mapLam, java.util.List.of(d),
-                                            mapLam.body().get(
-                                                    mapLam.body().size() - 1)
-                                                    .info())))
-                            .get(0));
-                }
-                lfsArg = new com.legend.compiler.spec.typed.TypedCollection(
-                        expanded, lfsArg.info());
-            }
-            java.util.List<TypedSpec> els =
-                    lfsArg instanceof com.legend.compiler.spec.typed
-                            .TypedCollection tc
-                    ? tc.elements() : java.util.List.of(lfsArg);
-            java.util.List<TypedSpec> queries = new java.util.ArrayList<>();
-            for (TypedSpec e : els) {
-                TypedSpec le = letBound(e, letPrefix);
-                while (le instanceof com.legend.compiler.spec.typed
-                        .TypedNativeCall w
-                        && w.args().size() == 1
-                        && "meta::pure::functions::meta::evaluateAndDeactivate"
-                                .equals(w.callee().qualifiedName())) {
-                    le = letBound(w.args().get(0), letPrefix);
-                }
-                if (!(le instanceof com.legend.compiler.spec.typed
-                        .TypedLambda ql) || !ql.parameters().isEmpty()) {
-                    throw new com.legend.error.NotImplementedException(
-                            "concatenateTemporalTdsQueries over a non-literal"
-                            + " lambda collection is not supported yet"
-                            + " (element " + le.getClass().getSimpleName()
-                            + ", carrier " + lfsArg.getClass().getSimpleName()
-                            + ")");
-                }
-                queries.add(ql.body().get(ql.body().size() - 1));
-            }
-            TypedSpec folded = queries.get(0);
-            for (int qi = 1; qi < queries.size(); qi++) {
-                folded = new com.legend.compiler.spec.typed.TypedConcatenate(
-                        folded, queries.get(qi), folded.info());
-            }
-            q = new com.legend.compiler.spec.typed.TypedLambda(
-                    java.util.List.of(), java.util.List.of(folded),
-                    new com.legend.compiler.element.type.ExprType(
-                            new com.legend.compiler.element.type.Type
-                                    .FunctionType(java.util.List.of(),
-                                    new com.legend.compiler.element.type.Type
-                                            .Param(folded.info().type(),
-                                            folded.info().multiplicity())),
-                            com.legend.compiler.element.type.Multiplicity
-                                    .Bounded.ONE));
-        }
-        if (!(q instanceof com.legend.compiler.spec.typed.TypedLambda lam)
-                || !lam.parameters().isEmpty()) {
-            throw new com.legend.error.NotImplementedException(
-                    "execute() whose query argument is not a lambda");
-        }
-        TypedSpec mArg = letBound(ec.args().get(1), letPrefix);
-        // the EMPTY-MAPPING SENTINEL ^Mapping(name='') (testFrom.pure:30):
-        // every branch carries its own ->from() — no explicit mapping to
-        // attach; the chain's from() walls stay the honest failure
-        boolean sentinelMapping = mArg
-                instanceof com.legend.compiler.spec.typed.TypedNewInstance sni
-                && "meta::pure::mapping::Mapping".equals(sni.classFqn());
-        com.legend.compiler.spec.typed.TypedPackageableRef mref = null;
-        if (!sentinelMapping) {
-            if (!(mArg instanceof
-                    com.legend.compiler.spec.typed.TypedPackageableRef mr)) {
-                throw new com.legend.error.NotImplementedException(
-                        "execute() mapping argument must be a mapping reference");
-            }
-            mref = mr;
-        }
+        var prepared = com.legend.compiler.spec.ExecuteChainAssembly
+                .prepare(ec, letPrefix, specs);
         // the RUNTIME ARGUMENT's effectful user calls (the corpus's
         // createDbAndGetConnection: DDL + seed, returns the handle) run
         // ONCE here — engine order: runtime construction precedes
         // execution; the value itself stays an opaque handle (re-running
         // on a non-eager chain build would double the DDL)
         if (eager && ec.args().size() >= 3) {
-            runRuntimeArgEffects(letBound(ec.args().get(2), letPrefix),
-                    letPrefix, specs, env);
+            runRuntimeArgEffects(com.legend.compiler.spec
+                    .ExecuteChainAssembly.letBound(ec.args().get(2),
+                            letPrefix), letPrefix, specs, env);
         }
         // connection POST-PROCESSOR hooks ride the runtime argument
         // (sqlQueryPostProcessorsConnectionAware): inline the runtime
         // helper, recognize the replaceTables shape, thread the rename
         // map to the lowering seam (applied over OUR SQL IR)
         if (ec.args().size() >= 3) {
-            TypedSpec rtArg = letBound(ec.args().get(2), letPrefix);
+            TypedSpec rtArg = com.legend.compiler.spec
+                    .ExecuteChainAssembly.letBound(
+                            ec.args().get(2), letPrefix);
             if (rtArg instanceof com.legend.compiler.spec.typed.TypedUserCall) {
                 rtArg = new com.legend.compiler.spec.UserCallInliner(specs)
                         .inlineBody(java.util.List.of(rtArg)).get(0);
@@ -1976,40 +1857,9 @@ final class StatementExecutor {
                         env.addDriverTablePk(), env.queryLets(), tr);
             }
         }
-        java.util.List<TypedSpec> qb = new java.util.ArrayList<>(letPrefix);
-        qb.addAll(lam.body());
-        var inliner = new com.legend.compiler.spec.UserCallInliner(specs);
-        TypedSpec chain = inliner.inlineBody(qb).get(0);
-        env.queryLets().putAll(inliner.queryLets());
-        if (!containsTypedFrom(chain)) {
-            if (mref == null) {
-                throw new com.legend.error.NotImplementedException(
-                        "execute() with the empty-mapping sentinel requires"
-                        + " ->from() context inside the query");
-            }
-            java.util.Optional<com.legend.compiler.spec.typed.TypedPackageableRef>
-                    runtime = env.runtimeFqn() == null ? java.util.Optional.empty()
-                            : java.util.Optional.of(
-                                    new com.legend.compiler.spec.typed.TypedPackageableRef(
-                                            env.runtimeFqn(), mref.info()));
-            // the execute() RUNTIME ARGUMENT's connection content is
-            // harness-ambient EXCEPT ModelChainConnection mappings — the
-            // XStore chain: an M2M mapping's ~src classes resolve THROUGH
-            // them (same rule as FromChecker's instance-runtime arm)
-            java.util.List<String> chainMappings = ec.args().size() >= 3
-                    ? com.legend.compiler.spec.typed.TypedFrom.chainMappingsIn(
-                            letBound(ec.args().get(2), letPrefix))
-                    : java.util.List.of();
-            java.util.Map<String, String> jsonSources = ec.args().size() >= 3
-                    ? com.legend.compiler.spec.typed.TypedFrom.jsonSourcesIn(
-                            letBound(ec.args().get(2), letPrefix))
-                    : java.util.Map.of();
-            chain = new com.legend.compiler.spec.typed.TypedFrom(chain,
-                    java.util.Optional.of(mref), runtime, chainMappings,
-                    jsonSources, chain.info());
-        }
-        boolean relationRooted = com.legend.compiler.element.type.Type
-                .isRelation(chain.info().type());
+        var assembled = com.legend.compiler.spec.ExecuteChainAssembly
+                .chain(prepared, ec, letPrefix, specs, env.runtimeFqn(),
+                        env.queryLets());
         ExecutionResult run = null;
         if (eager) {
             // the inliner consumed the query's lets; graph-tree date args
@@ -2018,17 +1868,18 @@ final class StatementExecutor {
             java.util.List<TypedSpec> body =
                     new com.legend.resolver.StoreResolver(env.ctx(), specs)
                             .withLetBindings(env.queryLets())
-                            .resolve(java.util.List.of(chain), env.runtimeFqn());
+                            .resolve(java.util.List.of(assembled.chain()),
+                                    env.runtimeFqn());
             // the engine's RelationalExecutionContext option: driver-table
             // PK columns join every projection (#45 validation)
             if (env.addDriverTablePk()) {
-                body = com.legend.validation.DriverPkAppend.apply(
+                body = com.legend.resolver.DriverPkAppend.apply(
                         body, env.ctx());
             }
             run = executeTyped(body, env);
         }
-        return new ExecFrame(chain, relationRooted, run,
-                env.tableReplace());
+        return new ExecFrame(assembled.chain(),
+                assembled.relationRooted(), run, env.tableReplace());
     }
 
     /** Effectful user calls inside an execute() RUNTIME argument run once
@@ -2077,39 +1928,6 @@ final class StatementExecutor {
         }
     }
 
-    /** A let-bound argument resolves through the caller's let prefix
-     * ({@code let q = |...|; execute($q, ...)}). */
-
-    /** Inliner-consumed lets prefix the lowering as TypedLet statements
-     * (the classic lower(List) path records them as letBindings) so a
-     * surviving $let read — a graph-tree qualifier ARG, engine
-     * inScopeVars — resolves at the leaf. A let whose value has no
-     * scalar lowering (runtime handles, relation frames) is not seeded:
-     * its reads keep their existing loud walls. */
-    private static java.util.List<com.legend.compiler.spec.typed.TypedSpec>
-            withQueryLetPrefix(
-                    java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
-                    ExecEnv env, com.legend.compiler.element.ModelContext ctx) {
-        java.util.List<com.legend.compiler.spec.typed.TypedSpec> out =
-                new java.util.ArrayList<>();
-        for (var qe : env.queryLets().entrySet()) {
-            var let = new com.legend.compiler.spec.typed.TypedLet(
-                    qe.getKey(), qe.getValue(), qe.getValue().info());
-            try {
-                new com.legend.lowering.Lowerer(
-                        t -> com.legend.compiler.element.ClassLayouts
-                                .layoutOf(ctx, t),
-                        f -> ctx.findClass(f).isPresent())
-                        .lower(java.util.List.of(let, qe.getValue()));
-                out.add(let);
-            } catch (RuntimeException notScalar) {
-                // not seedable — reads of this let keep their loud walls
-            }
-        }
-        out.addAll(body);
-        return out;
-    }
-
     /** pair(a, b).first/.second folds STRUCTURALLY (the datetime
      * helpers thread plan + plan-text through a pair) — pure data
      * selection, no evaluation order. */
@@ -2126,32 +1944,6 @@ final class StatementExecutor {
             n = pc2.args().get("first".equals(pp2.property()) ? 0 : 1);
         }
         return n;
-    }
-
-    private static TypedSpec letBound(TypedSpec arg,
-            java.util.List<TypedSpec> letPrefix) {
-        if (arg instanceof com.legend.compiler.spec.typed.TypedVariable v) {
-            for (int i = letPrefix.size() - 1; i >= 0; i--) {
-                if (letPrefix.get(i)
-                        instanceof com.legend.compiler.spec.typed.TypedLet let
-                        && let.name().equals(v.name())) {
-                    return let.value();
-                }
-            }
-        }
-        return arg;
-    }
-
-    private static boolean containsTypedFrom(TypedSpec n) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedFrom) {
-            return true;
-        }
-        for (TypedSpec c : n.children()) {
-            if (containsTypedFrom(c)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -2352,29 +2144,10 @@ final class StatementExecutor {
         }
         frames.push(key);
         try {
-            java.util.List<TypedSpec> frame = new java.util.ArrayList<>();
-            for (int p = 0; p < call.callee().parameters().size(); p++) {
-                java.util.List<TypedSpec> argBody = new java.util.ArrayList<>(letPrefix);
-                argBody.add(call.args().get(p));
-                TypedSpec argValue = new com.legend.compiler.spec.UserCallInliner(specs)
-                        .inlineBody(argBody).get(0);
-                if (containsEffectfulNode(java.util.List.of(argValue))) {
-                    // same rule as the effectful-let guard: the frame binds
-                    // arguments as lets, and β-substitution drops an unused
-                    // one (or doubles a twice-used one) — refuse loudly
-                    // (audit 17: ignore(executeInDb(...)) silently lost the
-                    // insert)
-                    throw new IllegalStateException("effectful argument to '"
-                            + call.callee().qualifiedName()
-                            + "' (parameter '"
-                            + call.callee().parameters().get(p).name()
-                            + "' binds an executeInDb-family call) is not"
-                            + " supported");
-                }
-                frame.add(new com.legend.compiler.spec.typed.TypedLet(
-                        call.callee().parameters().get(p).name(), argValue,
-                        argValue.info()));
-            }
+            java.util.List<TypedSpec> frame =
+                    com.legend.compiler.spec.UserCallInliner.callArgumentFrame(
+                            call, letPrefix, specs,
+                            v -> containsEffectfulNode(java.util.List.of(v)));
             return executeStatements(specs.compile(call.callee()).body(), frame,
                     specs, env, frames);
         } finally {
@@ -2501,7 +2274,8 @@ final class StatementExecutor {
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent()).withEngineExistsJoinForm();
         com.legend.sql.SqlQuery plan =
-                lowerer.lower(withQueryLetPrefix(body, env, ctx));
+                lowerer.lower(com.legend.lowering.SeedableLets
+                        .withSeedableLetPrefix(body, env.queryLets(), ctx));
         // post-process, then two-phase dynamic pivot (DynamicPivot doc)
         plan = com.legend.exec.DynamicPivot.staticize(
                 com.legend.lowering.SqlPostProcessors.apply(plan,

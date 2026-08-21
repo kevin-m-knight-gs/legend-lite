@@ -626,6 +626,37 @@ public final class UserCallInliner {
         return node;
     }
 
+    /** The executor's staged CALL FRAME: each argument β-inlines against
+     * the caller's let prefix and binds as a {@link TypedLet} (β-reduction
+     * by environment — the callee's body statements then execute over the
+     * frame). An EFFECTFUL argument refuses loudly: the frame would drop
+     * an unused one or double a twice-used one (audit 17:
+     * {@code ignore(executeInDb(...))} silently lost the insert). */
+    public static List<TypedSpec> callArgumentFrame(
+            com.legend.compiler.spec.typed.TypedUserCall call,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            java.util.function.Predicate<TypedSpec> effectful) {
+        List<TypedSpec> frame = new ArrayList<>();
+        for (int p = 0; p < call.callee().parameters().size(); p++) {
+            List<TypedSpec> argBody = new ArrayList<>(letPrefix);
+            argBody.add(call.args().get(p));
+            TypedSpec argValue = new UserCallInliner(specs)
+                    .inlineBody(argBody).get(0);
+            if (effectful.test(argValue)) {
+                throw new IllegalStateException("effectful argument to '"
+                        + call.callee().qualifiedName()
+                        + "' (parameter '"
+                        + call.callee().parameters().get(p).name()
+                        + "' binds an executeInDb-family call) is not"
+                        + " supported");
+            }
+            frame.add(new TypedLet(
+                    call.callee().parameters().get(p).name(), argValue,
+                    argValue.info()));
+        }
+        return frame;
+    }
+
     /** Whether {@code node} (transitively) reads the variable. */
     public static boolean referencesVar(TypedSpec node, String name) {
         if (node instanceof TypedVariable tv && tv.name().equals(name)) {
