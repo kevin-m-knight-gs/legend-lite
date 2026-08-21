@@ -656,14 +656,6 @@ public final class TestDataGenerator {
         String temp = "tdg_" + temps.size() + "_"
                 + table.replaceAll("[^A-Za-z0-9_]", "_");
         st.execute("CREATE TEMPORARY TABLE " + temp + " AS " + sql);
-        if (System.getenv("LL_TMP_DEBUG") != null) {
-            try (var rs = st.executeQuery(
-                    "SELECT COUNT(*) FROM " + temp)) {
-                rs.next();
-                System.err.println("[tdg] " + rs.getLong(1) + " rows <- "
-                        + sql);
-            }
-        }
         temps.add(temp);
         return temp;
     }
@@ -1177,9 +1169,10 @@ public final class TestDataGenerator {
                         + ") union all (select * from " + ta
                         + " except select * from " + te + "))")) {
                     rs.next();
-                    if (rs.getLong(1) != 0) {
+                    long asymmetric = rs.getLong(1);
+                    if (asymmetric != 0) {
                         return "assertTestData: rows of '" + table
-                                + "' differ (" + rs.getLong(1)
+                                + "' differ (" + asymmetric
                                 + " asymmetric rows)\nexpected:\n"
                                 + side(e) + "got:\n" + side(a);
                     }
@@ -1342,6 +1335,26 @@ public final class TestDataGenerator {
                 "testDataGen: row identifier value " + v.getClass());
     }
 
+    /** The engine's {@code toRepresentation()} (platform
+     * toRepresentation.pure): row-identifier cells are PURE SOURCE, so
+     * strings take BACKSLASH escapes, dates the {@code %} form,
+     * decimals the {@code D} suffix. (Audit 2026-08-18 finding E: the
+     * old inline speller had NO escaping and JDBC-default spellings;
+     * the fix is this spec port, not the SQL {@code lit()} speller —
+     * SQL doubles quotes, Pure backslash-escapes them.)
+     * Package-private for the Tier-1 regression pin (PureReprTest). */
+    static String pureRepr(@com.legend.Nullable Object v) {
+        // Phase 2a: toRepresentation has ONE owner (PureAsserts.repr —
+        // this port generalized there); only the row-identifier NULL
+        // contract stays local (a pk cell must have produced a value)
+        if (v == null) {
+            throw new NotImplementedException(
+                    "testDataGen: NULL row-identifier cell — a primary"
+                    + " key produced no value");
+        }
+        return com.legend.exec.PureAsserts.repr(v);
+    }
+
     /** The engine's generateSeedDataString: execute the demanded
      * columns (pks first) of each tree table and format every row as
      * createRowIdentifier SOURCE CODE — column names spelled by their
@@ -1391,9 +1404,7 @@ public final class TestDataGenerator {
                     while (rs.next()) {
                         List<String> vals = new ArrayList<>();
                         for (int i = 1; i <= n; i++) {
-                            Object v = rs.getObject(i);
-                            vals.add(v instanceof String str
-                                    ? "'" + str + "'" : String.valueOf(v));
+                            vals.add(pureRepr(rs.getObject(i)));
                         }
                         rows.add("       meta::relational::"
                                 + "testDataGeneration::createRowIdentifier(["

@@ -58,16 +58,70 @@ and belongs in the database:
   rules live in the SQL emission path (`Scalars.floatRepr`, `DateFmt`) and render in the
   database (Phase 4). The only exception is Clause 4.
 
+## Clause 2b — Platform natives (ratified 2026-08-18)
+
+Tenet #1 governs DATA evaluation: any value derived from stored data reaches the user
+through SQL. It does NOT require pushing every Pure construct into the database. A
+legend-pure semantic may be implemented as a NATIVE JAVA PLATFORM FUNCTION where pushing
+it down is senseless or wrong — asserts, unordered/multiset checks, metamodel operations,
+comparison policies over already-produced results. Three conditions make such a native
+legitimate rather than a shadow implementation: (1) ONE owner, in the platform
+({@code com.legend}), on the compiled surface — never a harness-private copy; (2) the
+engine/legend-pure {@code .pure} source is the SPEC it is ported from and verified
+against; (3) it is registered — the eval ledger distinguishes "platform native" from
+"evaluation residue awaiting eviction". This is how legend-pure itself is built (the
+reference interpreter's natives are Java); an implementation of Pure is not un-Pure for
+having Java natives. What remains banned: data-derived values computed host-side, and
+SECOND implementations of semantics the platform already owns (the harness's private
+equality/envelope/decode copies are migration targets, not exemplars).
+
+## Clause 2c — Two worlds, one spec (ratified 2026-08-19, phase-2 deep audit)
+
+Equality (and every value semantic) necessarily exists in TWO worlds: **World 1 — the
+host adjudication layer** (`PureAsserts`/`GridCompare`/`JsonCompare`: comparing an
+EXPECTED value against a FETCHED result to produce a test verdict), and **World 2 — the
+compiler** (an in-query `x == y` must lower to SQL; the lowering rules ARE that world).
+World 2 cannot not exist — it is the compiler; World 1 is Clause 2b's adjudication
+grant. The doctrine: **verdicts are World 1's job, in-query computation is World 2's,
+and NEITHER world reimplements the other's job.** Compiling the assert library's pure
+bodies into SQL to produce verdicts violates this clause exactly as a harness-private
+comparator does (the Phase-4 seam arms were this violation's cost, witnessed). Both
+worlds cite the same legend-pure spec; their agreement on shared ground — and every
+DECLARED divergence (SQL null-vs-pure-true, dialect coercions) — is pinned by the
+`EqualityWorldsConformanceTest` fixture: drift in either world is a red test, never a
+discovery made three phases later.
+
+**Z2 ruling — verdict-channel scope (ratified 2026-08-19).** World 1's equality
+(`PureAsserts.equalScalar`/`equal`) carries three kinds of arm, adjudicated separately:
+**SPEC** arms (integral×Decimal numeric equality, scale-blind Decimal, IEEE
+non-finite — witnessed pure semantics, sound for any caller); **CARRIER-DECODE**
+bridges (the temporal string carrier — the platform's designed wire representation,
+sound for any consumer of the wire); and **TEST-CHANNEL TOLERANCES** (the TDSNull
+sentinel, the 2-ULP dialect-arithmetic leniency — sound ONLY because every caller is
+an adjudicator). The ruling: `PureAsserts` equality is the VERDICT CHANNEL and nothing
+else. Product equality is World 2 — an in-query `equal()` lowers to SQL and the
+database is the authority — so no product surface may route value equality through
+`PureAsserts`; if a genuine product host-side equality need ever appears, it gets its
+own SPEC-ONLY comparator (no tolerance arms) as a witnessed design leg. Enforced
+mechanically: `VerdictChannelRegisterTest` pins the caller file set (comment-stripped
+source scan) to the adjudication cluster — a new caller is a red build until
+consciously registered here with its tenet argument.
+
 ## Clause 3 — Provenance, not arms (the host channel)
 
-**No `ResultSet`-derived value may reach `HostEval.eval()`.** The invariant is on the
-PROVENANCE of the value, never on the interpreter's arm list: audit §8 proved a ~6-line
-dispatch edge reclassified all 47 existing arms at once — 18 are dual-use (`fold`, `map`,
-`at`, `size`, `eq`, `in`, `filter`…) and become execution the moment a data-space value
-flows through them. An arm charter would not have caught it; the provenance rule does.
-`HostEval` exists for ORCHESTRATION VALUES (config, test scaffolding, model-space reads)
-and its production reach is measured by the F0.3 census. Enforcement: F1.5's
-`HostChannelPredicateTest`.
+**No `ResultSet`-derived value may be EVALUATED in Java on the host channel.** The
+invariant is on the PROVENANCE of the value, never on an interpreter arm list: audit §8
+proved a ~6-line dispatch edge reclassified all 47 then-existing arms at once — 18 were
+dual-use (`fold`, `map`, `at`, `size`, `eq`, `in`, `filter`…) and became execution the
+moment a data-space value flowed through them. *(Re-scoped 2026-08-18,
+`ADVERSARIAL_TENET_AUDIT_2026_08_18.md` §5: `HostEval.eval()` no longer exists — the
+interpreter was DELETED under the oracle-not-runtime principle.)* Today the host channel
+is `GridReads.tryLower` (grid chains COMPILE to SQL; DB values flow only through carriage
+into results, never through computation) and `StoreNav` (compiled-model reads, no DB
+values), and everything else walls loudly. Enforcement: the interpreter's nonexistence,
+`ArchitectureTest.theInterpreterPerformsNoJdbc`, and the `JavaEvalLedgerTest` register.
+Known enforcement limits are recorded in the audit's §3 — the guards catch drift, not
+adversaries; residue DELETION (the relation-typed `fetchDb` leg) is the durable fix.
 
 ## Clause 4 — The literal exception, once (the LiteralFold rule)
 
@@ -108,6 +162,7 @@ Ingress obeys the same split in reverse:
 |---|---|
 | C1/C2 boundary | F1.3 `java.sql` funnel (+ F1.3b root class-list pin); F1.10 tenet ratchet over ResultSet-consumption sites outside the C1.2/C1.5/Clause-4 seam |
 | C2.3 | F1.4 positive harness rule (`sortedChain()`-gated, enumerated allowlist) |
+| Clause 2c Z2 | `VerdictChannelRegisterTest` (caller file-set pin over `PureAsserts.equal*`) |
 | Clause 3 | F1.5 `HostChannelPredicateTest` |
 | Clause 4 | `ConstantPlanParityTest` (exists); Phase 4 render arm cites it |
 | C5.2 | F1.6 R0 ledger (shrink-only) → F7.4 makes the contract true |

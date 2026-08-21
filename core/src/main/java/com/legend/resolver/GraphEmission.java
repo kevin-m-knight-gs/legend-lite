@@ -63,56 +63,6 @@ final class GraphEmission {
         this.freshVar = freshVar;
     }
 
-    /**
-     * Conform-by-emission toOne over a CORRELATION condition: mapping
-     * {@code @join} equalities carry SQL semantics — NULL keys never
-     * match. Every correlation here lowers as a filter predicate, where
-     * a bare optional==optional pair takes the null-safe filter-equal
-     * arm ({@code NullSemantics.equalNullArms}, the engine's
-     * isEqualsFromFilter) and MATCHES null keys (a NULL FK acquires the
-     * NULL-keyed row's children — the toOneChild Ghost pin;
-     * testNestedUnionCrossStore's scalar-subquery explosion). {@code
-     * toOne} makes the operands {@code [1]} and lowers as erasure — the
-     * SQL is unchanged, the arm's gate goes inert. Applied by EVERY
-     * correlation-lambda mint (the one emission rule; sites must not
-     * hand-build their own wraps).
-     */
-    private TypedSpec toOneJoinEquals(TypedSpec n) {
-        if (n instanceof TypedNativeCall nc
-                && nc.args().size() == 2
-                && "meta::pure::functions::boolean::equal"
-                        .equals(nc.callee().qualifiedName())
-                && isOptional(nc.args().get(0).info().multiplicity())
-                && isOptional(nc.args().get(1).info().multiplicity())) {
-            var one = com.legend.compiler.element.type.Multiplicity
-                    .Bounded.ONE;
-            List<TypedSpec> wrapped = new ArrayList<>(2);
-            for (TypedSpec a : nc.args()) {
-                wrapped.add(new TypedNativeCall(toOneFn(), List.of(a),
-                        new ExprType(a.info().type(), one)));
-            }
-            return new TypedNativeCall(nc.callee(), wrapped, nc.info());
-        }
-        return n.mapChildren(this::toOneJoinEquals);
-    }
-
-    private static boolean isOptional(
-            com.legend.compiler.element.type.Multiplicity m) {
-        return m instanceof com.legend.compiler.element.type
-                .Multiplicity.Bounded b
-                && b.lower() == 0 && Integer.valueOf(1).equals(b.upper());
-    }
-
-    private com.legend.compiler.element.TypedFunction toOneFn() {
-        var fns = ctx.findFunction(
-                "meta::pure::functions::multiplicity::toOne")
-                .stream().filter(f -> f.parameters().size() == 1).toList();
-        if (fns.size() != 1) {
-            throw new IllegalStateException("resolver bug: expected one"
-                    + " 1-arg toOne in the catalog");
-        }
-        return fns.get(0);
-    }
 
     /**
      * The implicit-serialize tree for a BARE class root: one leaf per
@@ -708,22 +658,27 @@ final class GraphEmission {
             String tVar = st.predicate().parameters().get(1);
             var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
             List<TypedSpec> corrBody = st.predicate().body().stream().map(x ->
-                    toOneJoinEquals(
-                            Pipelines.rewriteRowReads(x, pVar, Map.of(), Set.of(),
-                                    v2 -> new TypedVariable(rowVar,
-                                            new ExprType(rowType, one))))).toList();
+                    Pipelines.rewriteRowReads(x, pVar, Map.of(), Set.of(),
+                            v2 -> new TypedVariable(rowVar,
+                                    new ExprType(rowType, one)))).toList();
             TypedLambda corr = new TypedLambda(List.of(tVar), corrBody,
                     new ExprType(new Type.FunctionType(
                             List.of(new Type.Param(tRow, one)),
                             new Type.Param(Type.Primitive.BOOLEAN, one)), one));
             rewrote[0] = true;
-            return new TypedFilter(tPipe, corr, new ExprType(tRow, one));
+            // CORRELATION stamp = the HONEST provenance (the deleted
+            // toOneJoinEquals fake-[1] wraps existed only to defeat the
+            // null-safe equality arm; the lowering now enters the
+            // verbatim-equality scope on this stamp — C2,
+            // STAMP_DISCIPLINE_PROGRAM)
+            return new TypedFilter(tPipe, corr, new ExprType(tRow, one),
+                    TypedFilter.Stamp.CORRELATION);
         }
         if (n instanceof TypedNativeCall c) {
             List<TypedSpec> args = c.args().stream().map(a ->
                     rewriteNavReads(a, cs, rowVar, rowType, stripped,
                             navSteps, context, rewrote)).toList();
-            return new TypedNativeCall(c.callee(), args, c.info());
+            return c.withChildren(args);
         }
         return n;
     }
@@ -833,12 +788,11 @@ final class GraphEmission {
         String pVar = cond.parameters().get(0);
         String tVar = cond.parameters().get(1);
         List<TypedSpec> corrBody = cond.body().stream().map(x ->
-                toOneJoinEquals(
-                        Pipelines.rewriteRowReads(x, pVar, Map.of(), Set.of(),
-                                v -> new TypedVariable(parentRowVar,
-                                        new ExprType(parentRowType,
-                                                com.legend.compiler.element.type
-                                                        .Multiplicity.Bounded.ONE)))))
+                Pipelines.rewriteRowReads(x, pVar, Map.of(), Set.of(),
+                        v -> new TypedVariable(parentRowVar,
+                                new ExprType(parentRowType,
+                                        com.legend.compiler.element.type
+                                                .Multiplicity.Bounded.ONE))))
                 .toList();
         TypedLambda corr = new TypedLambda(List.of(tVar), corrBody,
                 new ExprType(
@@ -851,7 +805,7 @@ final class GraphEmission {
                                                 .Multiplicity.Bounded.ONE)),
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
         TypedSpec childRel = new TypedFilter(targetPipeline, corr,
-                targetPipeline.info());
+                targetPipeline.info(), TypedFilter.Stamp.CORRELATION);
         // same freshness guard as correlatedGraphChild (audit 23 #75 —
         // this mint lacked it): bump past any name the child value or
         // the correlation could capture
@@ -1360,11 +1314,10 @@ final class GraphEmission {
         String pVar = cond.parameters().get(0);
         String tVar = cond.parameters().get(1);
         List<TypedSpec> corrBody = cond.body().stream().map(b ->
-                toOneJoinEquals(
-                        Pipelines.rewriteRowReads(b, pVar, Map.of(), Set.of(),
-                                v -> new TypedVariable(parentRowVar,
-                                        new ExprType(parentRowType,
-                                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE)))))
+                Pipelines.rewriteRowReads(b, pVar, Map.of(), Set.of(),
+                        v -> new TypedVariable(parentRowVar,
+                                new ExprType(parentRowType,
+                                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE))))
                 .toList();
         TypedLambda corr = new TypedLambda(List.of(tVar), corrBody,
                 new ExprType(
@@ -1377,7 +1330,7 @@ final class GraphEmission {
                                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
         TypedSpec childRel = new TypedFilter(targetPipeline, corr,
-                targetPipeline.info());
+                targetPipeline.info(), TypedFilter.Stamp.CORRELATION);
         return childFromRel(target, childRel,
                 new LinkedHashSet<>(cond.parameters()), toMany, node,
                 context, slotPrefixes);
@@ -1653,12 +1606,13 @@ final class GraphEmission {
         // lambda keeps ONLY the mid<->child link, so the exists
         // emission chooser sees exactly one cross-row predicate
         List<TypedSpec> midConj = new ArrayList<>();
+        TypedSpec userConj = null;
         for (TypedSpec cb : c1.body()) {
             TypedSpec b = Pipelines.rewriteRowReads(cb,
                     c1.parameters().get(0), Map.of(), Set.of(),
                     v -> parentRead);
             b = substVars(b, Map.of(c1.parameters().get(1), midRead));
-            midConj.add(toOneJoinEquals(b));
+            midConj.add(b);
         }
         if (midPred != null) {
             // the predicate reads BOTH rows: the mid instance through
@@ -1670,22 +1624,35 @@ final class GraphEmission {
             mb = inlineThis(mb, thisVar, Map.of(), cs.bindings(),
                     cs.classFqn(), node.property());
             mb = substVars(mb, Map.of(cs.rowVar(), parentRead));
-            midConj.add(mb);
+            userConj = mb;
         }
         var midFn = new Type.FunctionType(
                 List.of(new Type.Param(midRow, one)),
                 new Type.Param(Type.Primitive.BOOLEAN, one));
-        TypedSpec midRel = new TypedFilter(j1.targetPipeline(),
+        // LAYERED filters (the Substitution membership idiom): the USER
+        // predicate (midPred) keeps ordinary pure equality in its own
+        // NONE-stamped layer; the mapping-join correlation conjuncts ride
+        // a CORRELATION-stamped layer (verbatim '=' — engine @join
+        // semantics; the deleted per-conjunct toOne wraps were the old,
+        // type-lying spelling of the same split)
+        TypedSpec midBase = j1.targetPipeline();
+        if (userConj != null) {
+            midBase = new TypedFilter(midBase,
+                    new TypedLambda(List.of(midName), List.of(userConj),
+                            new ExprType(midFn, one)),
+                    midBase.info());
+        }
+        TypedSpec midRel = new TypedFilter(midBase,
                 new TypedLambda(List.of(midName), List.of(andFold(midConj)),
                         new ExprType(midFn, one)),
-                j1.targetPipeline().info());
+                midBase.info(), TypedFilter.Stamp.CORRELATION);
         List<TypedSpec> conj = new ArrayList<>();
         for (TypedSpec cb : c2.body()) {
             TypedSpec b = substVars(cb,
                     Map.of(c2.parameters().get(0), midRead));
             b = substVars(b, Map.of(c2.parameters().get(1),
                     new TypedVariable(tName, new ExprType(targetRow, one))));
-            conj.add(toOneJoinEquals(b));
+            conj.add(b);
         }
         var existsFn = new Type.FunctionType(
                 List.of(new Type.Param(midRow, one)),
@@ -1702,7 +1669,7 @@ final class GraphEmission {
         TypedSpec childRel = new TypedFilter(j2.targetPipeline(),
                 new TypedLambda(List.of(tName), List.of(existsCall),
                         new ExprType(childFn, one)),
-                j2.targetPipeline().info());
+                j2.targetPipeline().info(), TypedFilter.Stamp.CORRELATION);
         Set<String> extraParams = new LinkedHashSet<>();
         extraParams.add(tName);
         extraParams.add(midName);
@@ -1889,11 +1856,11 @@ final class GraphEmission {
                         new Type.Param(tRow, one)),
                 new Type.Param(Type.Primitive.BOOLEAN, one));
         // the union arms' key columns are NULL by construction outside
-        // their own arm and must NEVER pair — the shared correlation
-        // emission (toOneJoinEquals) keeps them SQL-semantics
+        // their own arm and must NEVER pair — the CORRELATION filter
+        // stamp keeps them SQL-semantics (verbatim '=' at lowering)
         TypedLambda condL = new TypedLambda(List.of(pv, tv),
-                List.of(toOneJoinEquals(java.util.Objects.requireNonNull(cond,
-                        "mixed-union child needs at least one key pair"))),
+                List.of(java.util.Objects.requireNonNull(cond,
+                        "mixed-union child needs at least one key pair")),
                 new ExprType(fnT, one));
         return correlatedGraphChild(mc.target(), mc.target().pipeline(), tRow,
                 condL, mixedChildToMany(cs.classFqn(), node.property()), node,
@@ -2218,8 +2185,7 @@ final class GraphEmission {
                             TypedSpec out2 = v0;
                             for (int wi = wraps2.size() - 1; wi >= 0; wi--) {
                                 TypedNativeCall w3 = wraps2.get(wi);
-                                out2 = new TypedNativeCall(w3.callee(),
-                                        List.of(out2), w3.info());
+                                out2 = w3.withChildren(List.of(out2));
                             }
                             return out2;
                         };
@@ -2387,7 +2353,7 @@ final class GraphEmission {
                 new ExprType(oneCol,
                         com.legend.compiler.element.type
                                 .Multiplicity.Bounded.ZERO_MANY));
-        return new TypedNativeCall(agg.callee(), List.of(proj), agg.info());
+        return agg.withChildren(List.of(proj));
     }
 
     /** Each maximal row-var-rooted navigation CHAIN sub-expression
@@ -2582,12 +2548,11 @@ final class GraphEmission {
         String pVar = java.util.Objects.requireNonNull(cond, "cond").parameters().get(0);
         String tVar = cond.parameters().get(1);
         List<TypedSpec> corrBody = cond.body().stream().map(cb ->
-                toOneJoinEquals(
-                        Pipelines.rewriteRowReads(cb, pVar, Map.of(), Set.of(),
-                                v -> new TypedVariable(env.rowVar(),
-                                        new ExprType(env.rowType(),
-                                                com.legend.compiler.element.type
-                                                        .Multiplicity.Bounded.ONE)))))
+                Pipelines.rewriteRowReads(cb, pVar, Map.of(), Set.of(),
+                        v -> new TypedVariable(env.rowVar(),
+                                new ExprType(env.rowType(),
+                                        com.legend.compiler.element.type
+                                                .Multiplicity.Bounded.ONE))))
                 .toList();
         var boolFn = new Type.FunctionType(
                 List.of(new Type.Param(targetRow,
@@ -2960,7 +2925,7 @@ final class GraphEmission {
             for (TypedSpec a : c.args()) {
                 args.add(inlineThis(a, thisVar, binds, bindings, classFqn, prop, env));
             }
-            return new TypedNativeCall(c.callee(), args, c.info());
+            return c.withChildren(args);
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedIf i) {
             return new com.legend.compiler.spec.typed.TypedIf(
@@ -3434,9 +3399,7 @@ final class GraphEmission {
                             ma.dates().stream().map(d2 -> substVars(d2, sub))
                                     .toList(),
                             ma.sweep(), ma.info());
-            case TypedNativeCall c -> new TypedNativeCall(c.callee(),
-                    c.args().stream().map(a -> substVars(a, sub)).toList(),
-                    c.info());
+            case TypedNativeCall c -> c.withChildren(c.args().stream().map(a -> substVars(a, sub)).toList());
             case TypedFilter f -> new TypedFilter(substVars(f.source(), sub),
                     (TypedLambda) substVars(f.predicate(), sub), f.info());
             case TypedLambda l -> {

@@ -229,8 +229,12 @@ class JoinTortureTest {
                 + "->join(" + P + ", JoinKind.INNER, {a, b | $a.FIRM == $b.FIRM}, 'o_')");
         assertTrue(sql.contains("T_PERSON AS t0") && sql.contains("T_PERSON AS t1"),
                 "two scans, two aliases: " + sql);
-        // ACME has 2 people -> 2x2 pairs; Widget 1 -> 1; Dan's NULL firm never matches.
-        assertEquals(5, exec(sql).size(), "2*2 + 1*1 pairs, NULL joins nothing");
+        // RE-PINNED 2026-08-19: pure equality in a USER join lambda is
+        // NULL-SAFE (engine nullSafeEqualsOperation; both upstream
+        // executors pass testJoinOnNullKey) — Dan's NULL firm joins
+        // Dan's NULL firm: 2*2 + 1*1 + the null self-pair = 6.
+        assertEquals(6, exec(sql).size(),
+                "2*2 + 1*1 pairs + the null-key self-pair");
         assertEquals(List.of("Ann|25|ACME|o_Bob", "Bob|35|ACME|o_Bob"),
                 exec("SELECT NAME, AGE, FIRM, 'o_' || o_NAME AS pair FROM (" + sql
                         + ") WHERE o_NAME = 'Bob' ORDER BY AGE"));

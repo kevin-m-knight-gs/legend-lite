@@ -28,7 +28,7 @@ final class IfChecker {
     private IfChecker() {
     }
 
-    static TypedIf check(Typer t, AppliedFunction af, Env env) {
+    static TypedSpec check(Typer t, AppliedFunction af, Env env) {
         List<ValueSpecification> args = af.parameters();
         // The CONDLIST overload (real if.pure: if(condList:Pair<Function<
         // {->Boolean}>, Function<{->T}>>[*], last)) — its real-pure body

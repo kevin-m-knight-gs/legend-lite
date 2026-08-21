@@ -216,40 +216,82 @@ class CodeShapeGuardrailTest {
     private static List<Path> mainSources() throws IOException {
         Path root = Path.of("src/main/java");
         try (Stream<Path> s = Files.walk(root)) {
-            return s.filter(p -> p.toString().endsWith(".java")).toList();
+            List<Path> out = s.filter(p -> p.toString().endsWith(".java"))
+                    .toList();
+            GuardCoverage.assertFloor(/* 499->498: HostEval DELETED, Phase 1 batch 2 */ "CodeShapeGuardrailTest",
+                    out.size(), 498);
+            return out;
         }
     }
 
-    // F1.8: unreferenced private methods, seeded at the F0.1-baseline
-    // measurement (9 sites). Counting rule: a private method whose name
-    // is referenced no more often than it is DECLARED (call sites +
-    // method references `::name`, comments stripped) is dead — private
-    // scope makes the file the whole universe. Shrink-only.
-    private static final int DEAD_PRIVATE_METHODS = 9;
+    // F1.8: unreferenced private methods. Counting rule (Tier-2 audit
+    // 2026-08-18): a private method group is dead when its name has
+    // ZERO mentions outside its own declaration+body spans — masking
+    // the spans makes RECURSION invisible to the count (the audit's
+    // probe: a dead recursive method was green because `uses` counted
+    // its own self-call). The sound scanner + span rule found 11 dead
+    // methods (the 9 backlogged F0.1 sites plus 2 the old rule could
+    // not see); ALL were deleted the same day — the pin is ZERO and
+    // stays there: dead private code is deleted, never backlogged.
+    private static final int DEAD_PRIVATE_METHODS = 0;
 
     @Test
     void deadPrivateMethodsOnlyShrink() throws IOException {
         List<String> dead = new ArrayList<>();
         for (Path p : mainSources()) {
             String cls = p.getFileName().toString();
-            String code = Files.readString(p)
-                    .replaceAll("//.*", "")
-                    .replaceAll("(?s)/\\*.*?\\*/", "");
+            // strip comments AND string/char literals with a real
+            // scanner — brace-walking must not see a "{" inside a
+            // string, and regex-order stripping mangles quotes ('"'
+            // char literals, // inside string URLs) into unbalanced
+            // braces (Tier-2 audit: the first cut false-flagged 25
+            // live methods exactly this way)
+            String code = blankNonCode(Files.readString(p));
+            // each declaration's span = signature through matching
+            // close-brace; a self-call sits INSIDE the span, so masking
+            // the spans makes recursion invisible to the use count
+            // (ADVERSARIAL_TENET_AUDIT §3 probe: a dead RECURSIVE
+            // method was green — `uses` counted its own self-call)
             Matcher d = Pattern.compile(
                     "(?m)^\\s*private\\s+(?:static\\s+|final\\s+"
                     + "|synchronized\\s+|@[\\w.]+\\s+|<[^>]+>\\s+)*"
                     + "[\\w.<>\\[\\], ?@]+\\s+(\\w+)\\(")
                     .matcher(code);
-            java.util.Map<String, Integer> decls = new java.util.HashMap<>();
+            java.util.Map<String, List<int[]>> spans =
+                    new java.util.HashMap<>();
             while (d.find()) {
-                decls.merge(d.group(1), 1, Integer::sum);
+                int open = code.indexOf('{', d.end());
+                int semi = code.indexOf(';', d.end());
+                if (open < 0 || (semi >= 0 && semi < open)) {
+                    continue;
+                }
+                int depth = 1;
+                int i = open + 1;
+                while (i < code.length() && depth > 0) {
+                    char ch = code.charAt(i);
+                    if (ch == '{') {
+                        depth++;
+                    } else if (ch == '}') {
+                        depth--;
+                    }
+                    i++;
+                }
+                spans.computeIfAbsent(d.group(1),
+                        k -> new ArrayList<>()).add(new int[]{d.start(), i});
             }
-            for (var e : decls.entrySet()) {
-                int uses = countMatches(code,
+            for (var e : spans.entrySet()) {
+                StringBuilder masked = new StringBuilder(code);
+                for (int[] s : e.getValue()) {
+                    for (int i = s[0]; i < s[1]; i++) {
+                        masked.setCharAt(i, ' ');
+                    }
+                }
+                String outside = masked.toString();
+                int uses = countMatches(outside,
                         "\\b" + Pattern.quote(e.getKey()) + "\\s*\\(");
-                int refs = countMatches(code,
+                int refs = countMatches(outside,
                         "::" + Pattern.quote(e.getKey()) + "\\b");
-                if (uses + refs <= e.getValue()) {
+                if (uses + refs == 0) {
                     dead.add(cls + "." + e.getKey());
                 }
             }
@@ -258,6 +300,78 @@ class CodeShapeGuardrailTest {
                 "unreferenced private methods grew to " + dead.size()
                 + " (pinned at " + DEAD_PRIVATE_METHODS + "): " + dead
                 + " — delete the dead code or reference it");
+    }
+
+    /** Comments, string literals (incl. text blocks), and char
+     * literals become spaces (newlines kept); code text and its brace
+     * structure survive exactly. A single state-machine pass — regex
+     * stripping cannot handle {@code '"'} or {@code //} inside a
+     * string without corrupting quote balance. */
+    private static String blankNonCode(String src) {
+        StringBuilder out = new StringBuilder(src.length());
+        int i = 0;
+        int n = src.length();
+        while (i < n) {
+            char c = src.charAt(i);
+            char c1 = i + 1 < n ? src.charAt(i + 1) : '\0';
+            if (c == '/' && c1 == '/') {
+                while (i < n && src.charAt(i) != '\n') {
+                    out.append(' ');
+                    i++;
+                }
+            } else if (c == '/' && c1 == '*') {
+                out.append("  ");
+                i += 2;
+                while (i < n && !(src.charAt(i) == '*' && i + 1 < n
+                        && src.charAt(i + 1) == '/')) {
+                    out.append(src.charAt(i) == '\n' ? '\n' : ' ');
+                    i++;
+                }
+                if (i < n) {
+                    out.append("  ");
+                    i += 2;
+                }
+            } else if (c == '"' && c1 == '"' && i + 2 < n
+                    && src.charAt(i + 2) == '"') {
+                out.append("   ");
+                i += 3;
+                while (i < n && !(src.charAt(i) == '"' && i + 2 < n
+                        && src.charAt(i + 1) == '"'
+                        && src.charAt(i + 2) == '"')) {
+                    if (src.charAt(i) == '\\') {
+                        out.append("  ");
+                        i += 2;
+                    } else {
+                        out.append(src.charAt(i) == '\n' ? '\n' : ' ');
+                        i++;
+                    }
+                }
+                if (i < n) {
+                    out.append("   ");
+                    i += 3;
+                }
+            } else if (c == '"' || c == '\'') {
+                out.append(' ');
+                i++;
+                while (i < n && src.charAt(i) != c) {
+                    if (src.charAt(i) == '\\') {
+                        out.append("  ");
+                        i += 2;
+                    } else {
+                        out.append(' ');
+                        i++;
+                    }
+                }
+                if (i < n) {
+                    out.append(' ');
+                    i++;
+                }
+            } else {
+                out.append(c);
+                i++;
+            }
+        }
+        return out.toString();
     }
 
     private static int countMatches(String code, String regex) {

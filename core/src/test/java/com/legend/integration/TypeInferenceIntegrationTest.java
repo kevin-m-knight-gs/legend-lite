@@ -1031,10 +1031,12 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "|%2024-01-31T00:32:34+0000->timeBucket(1, meta::pure::functions::date::DurationUnit.DAYS)",
                                 "test::TestRuntime", connection);
                 Object value = result.rows().get(0).get(0);
-                assertEquals(java.sql.Timestamp.valueOf("2024-01-31 00:00:00"), value);
+                // one-carrier rule (documented-debts 2026-08-18):
+                // timestamp cells arrive as java.time
+                assertEquals(java.time.LocalDateTime.of(2024, 1, 31, 0, 0), value);
                 // Verify nanosecond precision is preserved (TIMESTAMP_NS)
-                assertInstanceOf(java.sql.Timestamp.class, value);
-                assertEquals(0, ((java.sql.Timestamp) value).getNanos(),
+                assertInstanceOf(java.time.LocalDateTime.class, value);
+                assertEquals(0, ((java.time.LocalDateTime) value).getNano(),
                                 "timeBucket should use TIMESTAMP_NS for nanosecond precision");
         }
 
@@ -1056,7 +1058,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|%2024-01-31T00:32:34+0000->timeBucket(2, meta::pure::functions::date::DurationUnit.WEEKS)",
                                 "test::TestRuntime", connection);
-                assertEquals(java.sql.Timestamp.valueOf("2024-01-29 00:00:00"), result.rows().get(0).get(0));
+                assertEquals(java.time.LocalDateTime.of(2024, 1, 29, 0, 0),
+                                result.rows().get(0).get(0));
         }
 
         // ==================== GenerateGuid ====================
@@ -1496,12 +1499,21 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testIndexOfOneElement() throws SQLException {
-                // PCT: |['a']->indexOf('a') => 0
+                // CORRECTED (stamp C1): ['a'] is String[1] — resolution
+                // picks string::indexOf over collection::indexOf<T[*]>
+                // (concrete beats generic; real pure resolves the same),
+                // and the platform's string indexOf follows the ENGINE's
+                // 1-based locate() convention (the ledgered relational
+                // divergence from pure's 0-based interpreted answer —
+                // "expected: 4 actual: 5" in the reference DuckDB PCT
+                // adapter). The old 0 expectation rode the ArrayLit shape
+                // sniff: the SAME resolved function answered 0 for ['a']
+                // and 1 for 'a'. One callee, one convention: 1.
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|['a']->indexOf('a')",
                                 "test::TestRuntime", connection);
-                assertEquals(0, ((Number) result.rows().get(0).get(0)).intValue());
+                assertEquals(1, ((Number) result.rows().get(0).get(0)).intValue());
         }
 
         // --- PCT: DateTime toString format ---
@@ -2393,17 +2405,21 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testParseDateWithTimezone() throws SQLException {
-                // '2014-02-27T10:01:35.231-0500'->parseDate() returns OffsetDateTime preserving
-                // TZ
+                // '2014-02-27T10:01:35.231-0500'->parseDate(): the ONE
+                // temporal carrier is NAIVE UTC (host-logic audit
+                // 2026-08-20 — the offset shifts the instant to GMT at
+                // EMISSION via timezone('UTC', ...); PureDateLiteral
+                // documents the same normalize-to-GMT rule for literals).
+                // The old TIMESTAMPTZ carrier leaked OffsetDateTime cells
+                // the verdict channel then had to absorb.
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
                                 "|'2014-02-27T10:01:35.231-0500'->meta::pure::functions::string::parseDate()",
                                 "test::TestRuntime", connection);
                 Object value = result.rows().get(0).get(0);
-            assertInstanceOf(OffsetDateTime.class, value, "Expected OffsetDateTime but got: " + value.getClass().getName());
-                java.time.OffsetDateTime odt = (java.time.OffsetDateTime) value;
-                // Convert to UTC and verify the instant is correct
-                java.time.OffsetDateTime utc = odt.withOffsetSameInstant(java.time.ZoneOffset.UTC);
+            assertInstanceOf(java.time.LocalDateTime.class, value,
+                    "Expected naive-UTC LocalDateTime but got: " + value.getClass().getName());
+                java.time.LocalDateTime utc = (java.time.LocalDateTime) value;
                 assertEquals(15, utc.getHour(), "Expected UTC hour 15 but got: " + utc);
                 assertEquals(1, utc.getMinute());
                 assertEquals(35, utc.getSecond());

@@ -47,9 +47,12 @@ class HarnessDisciplineTest {
      *  SQL pipeline);
      *  LineageForm 1 — want.sort on the property-name existence check
      *  (two-sided: both lists sorted before compare);
-     *  Runner 2 / RelationalCorpusRunner 14 — rcorpus orchestration and
+     *  Runner 2 / RelationalCorpusRunner 15 — rcorpus orchestration and
      *  scoreboard-RENDER ordering (deterministic output, not result
-     *  comparison) — in scope so comparison sorts cannot hide here. */
+     *  comparison) — in scope so comparison sorts cannot hide here.
+     *  The 15th (2026-08-20): the h2-verdicts.txt roster dump sorts by
+     *  key for a DIFFABLE diagnostic file (the floor-attribution
+     *  instrument) — deterministic output, never comparison. */
     private static final Map<String, Integer> ALLOWED = Map.of(
             // F4.3 ratchet-DOWN 5 -> 3: the harness RENDERER died (the
             // platform's RENDER lowerings produce the text; the probe and
@@ -60,19 +63,27 @@ class HarnessDisciplineTest {
             "JsonAssertCanon.java", 1,
             "LineageForm.java", 1,
             "Runner.java", 2,
-            "RelationalCorpusRunner.java", 14,
+            "RelationalCorpusRunner.java", 15,
             // PX.1: TreeSet as a deterministic-iteration REGISTRY
             // (workspace names), not a result reorder
             "DuckWorkspaces.java", 1);
 
+    /** Extremum spellings joined 2026-08-18 (Tier-2 audit; the
+     * original audit's probe 12 — {@code Collections.max} in the
+     * harness — landed GREEN). Zero sites today; a new one registers
+     * like any reorder. */
     private static final Pattern SITE = Pattern.compile(
             "Collections\\.sort\\(|\\.sorted\\(|\\.distinct\\(\\)"
-            + "|\\.sort\\(|new TreeSet|new TreeMap");
+            + "|\\.sort\\(|new TreeSet|new TreeMap"
+            + "|Collections\\.max\\(|Collections\\.min\\("
+            + "|new PriorityQueue|\\.stream\\(\\)\\.max\\("
+            + "|\\.stream\\(\\)\\.min\\(");
 
     @Test
     void resultReorderingIsEnumeratedComparisonPolicyOnly()
             throws IOException {
         Map<String, Integer> found = new TreeMap<>();
+        int scanned = 0;
         for (Path root : new Path[] {
                 Path.of("src/test/java/com/legend/harness"),
                 Path.of("src/test/java/com/legend/rcorpus")}) {
@@ -80,6 +91,7 @@ class HarnessDisciplineTest {
                 for (Path f : files
                         .filter(p -> p.toString().endsWith(".java"))
                         .toList()) {
+                    scanned++;
                     Matcher m = SITE.matcher(Files.readString(f));
                     int n = 0;
                     while (m.find()) {
@@ -91,6 +103,7 @@ class HarnessDisciplineTest {
                 }
             }
         }
+        GuardCoverage.assertFloor("HarnessDisciplineTest", scanned, 22);
         assertEquals(new TreeMap<>(ALLOWED), found,
                 "harness sort/distinct sites moved — a NEW site must be"
                 + " two-sided comparison policy, gated on a compile-time"

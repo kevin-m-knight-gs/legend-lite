@@ -1,0 +1,352 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.exec;
+
+import com.legend.compiler.element.type.ExprType;
+import com.legend.compiler.element.type.Multiplicity;
+import com.legend.compiler.element.type.PlatformTypes;
+import com.legend.compiler.element.type.Type;
+import com.legend.compiler.spec.typed.TypedCollection;
+import com.legend.compiler.spec.typed.TypedCString;
+import com.legend.compiler.spec.typed.TypedFilter;
+import com.legend.compiler.spec.typed.TypedFold;
+import com.legend.compiler.spec.typed.TypedLambda;
+import com.legend.compiler.spec.typed.TypedMap;
+import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedPropertyAccess;
+import com.legend.compiler.spec.typed.TypedRawSqlRelation;
+import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.spec.typed.TypedVariable;
+import com.legend.sql.SqlSelect;
+import com.legend.sql.SqlSource;
+
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * The EXECUTION-BOUNDARY schema resolver (One-Platform Plan Phase 1c —
+ * the dynamic-pivot rule): a raw-SQL grid's columns first exist where a
+ * session exists, so the compiler types them LATE-BOUND
+ * ({@link Type.RelationType#lateBound()}) and this pass resolves them
+ * here — one LIMIT-0 metadata read per distinct grid (schema, never
+ * values; the E1 probe discipline), exactly where pivot resolves its
+ * data-derived names ({@code DynamicPivot.staticize}'s first-query
+ * model). The compiler never probes.
+ *
+ * <p>TWO duties, both TYPE-directed (marker nodes the Typer left, never
+ * user-spelling recognition):
+ * <ol>
+ * <li><b>STAMP</b> — every late-bound {@link TypedRawSqlRelation} gets
+ * its real column names ({@code Any[0..1]} cells: the SQL layer needs
+ * NAMES for its outputs invariant; cell types stay the database's own,
+ * decoded at egress).</li>
+ * <li><b>RESOLVE</b> — the reads that could not resolve statically
+ * resolve against the now-known schema: {@code .columnNames} becomes
+ * the string collection; {@code .values} over the grid becomes the
+ * row-major cell stream ({@code map(_r | [cells...])}, the existing
+ * collection-mapper flatten channel); {@code $binder.values} inside a
+ * fold/map/filter over a stamped grid becomes the binder's cell
+ * collection (the TDS row-var rule applied late); {@code at(cells, k)}
+ * over a resolved cell collection picks statically.</li>
+ * </ol>
+ */
+public final class RawGridSchema {
+
+    private RawGridSchema() {
+    }
+
+    /** The tree with every late-bound raw grid stamped and its
+     * late-bound reads resolved.
+     *
+     * <p>SINGLE-QUERY RULE (P3-2): the LIMIT-0 probe runs ONLY when the
+     * tree DEMANDS the schema statically — a {@code columnNames} or
+     * {@code values} read, whose resolution needs the column names at
+     * compile time. An undemanded grid stays late-bound through lowering
+     * (a zero-output star-select) and the ONE executed query is its own
+     * schema authority: the egress adopts the result-set headers
+     * ({@code Executor.resolveColumns}' late-bound arm, gated on
+     * {@code schema.isLateBound()}). Two queries only when the second
+     * is genuinely needed. */
+    public static List<TypedSpec> stamp(List<TypedSpec> body,
+            Connection conn, com.legend.sql.dialect.SqlDialect dialect)
+            throws SQLException {
+        if (!demandsSchema(body)) {
+            return body;
+        }
+        List<TypedSpec> out = new ArrayList<>(body.size());
+        boolean changed = false;
+        Map<String, Type.RelationType> binders = new HashMap<>();
+        for (TypedSpec n : body) {
+            TypedSpec s = resolve(n, conn, dialect, binders);
+            changed |= s != n;
+            out.add(s);
+        }
+        return changed ? out : body;
+    }
+
+    /** Whether any node statically demands a late-bound grid's schema:
+     * a {@code columnNames}/{@code values} property read anywhere in the
+     * tree (lambda bodies included — children() recursion enters them).
+     * Conservative on purpose: a values-read over a NON-grid source
+     * still triggers the probe (old behavior, never wrong); absence is
+     * PROOF no resolution needs names before execution. */
+    private static boolean demandsSchema(List<TypedSpec> body) {
+        for (TypedSpec n : body) {
+            if (demands(n)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean demands(TypedSpec n) {
+        if (n instanceof TypedPropertyAccess pa
+                && (pa.property().equals("columnNames")
+                        || pa.property().equals("values"))) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (demands(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static TypedSpec resolve(TypedSpec n, Connection conn,
+            com.legend.sql.dialect.SqlDialect dialect,
+            Map<String, Type.RelationType> binders) throws SQLException {
+        // STAMP the grid leaf
+        if (n instanceof TypedRawSqlRelation raw
+                && raw.info().type() instanceof Type.RelationType rt
+                && rt.isLateBound()) {
+            List<Type.Column> cols = new ArrayList<>();
+            for (String nm : probeNames(raw.sql(), conn, dialect)) {
+                cols.add(Type.RelationType.trustedColumn(nm));
+            }
+            return new TypedRawSqlRelation(raw.sql(),
+                    new ExprType(new Type.RelationType(cols, List.of()),
+                            raw.info().multiplicity()));
+        }
+        // BINDER SCOPE: a lambda over a (recursively stamped) grid binds
+        // its row variable to the stamped schema for the body walk
+        // (enter through the body — the shadow-stop discipline)
+        TypedSpec scoped = resolveLambdaOwner(n, conn, dialect, binders);
+        if (scoped != null) {
+            return scoped;
+        }
+        // generic recursion, children first
+        n = recurse(n, conn, dialect, binders);
+        // RESOLVE the late-bound reads against known schema
+        if (n instanceof TypedPropertyAccess pa) {
+            Type.RelationType schema = stampedSchemaOf(pa.source(), binders);
+            if (schema != null && pa.property().equals("columnNames")) {
+                List<TypedSpec> lits = new ArrayList<>(schema.columns().size());
+                ExprType s1 = ExprType.one(Type.Primitive.STRING);
+                for (Type.Column c : schema.columns()) {
+                    lits.add(new TypedCString(c.name(), s1));
+                }
+                return new TypedCollection(lits,
+                        new ExprType(Type.Primitive.STRING,
+                                new Multiplicity.Bounded(lits.size(),
+                                        lits.size())));
+            }
+            if (schema != null && pa.property().equals("values")) {
+                if (pa.source() instanceof TypedVariable v) {
+                    // $binder.values — the row's cells (TDS row-var rule)
+                    return cells(v.name(), schema);
+                }
+                // grid .values — the row-major cell stream: map each row
+                // to its cell list; the collection-mapper channel
+                // flattens one level (the existing rule)
+                String b = "_gvr";
+                TypedSpec mapper = cells(b, schema);
+                Multiplicity one = Multiplicity.Bounded.ONE;
+                TypedLambda lam = new TypedLambda(List.of(b),
+                        List.of(mapper),
+                        ExprType.one(new Type.FunctionType(
+                                List.of(new Type.Param(schema, one)),
+                                new Type.Param(new Type.ClassType(
+                                        PlatformTypes.ANY),
+                                        Multiplicity.Bounded.ZERO_MANY))));
+                return new TypedMap(pa.source(), lam,
+                        new ExprType(new Type.ClassType(PlatformTypes.ANY),
+                                Multiplicity.Bounded.ZERO_MANY));
+            }
+        }
+        return n;
+    }
+
+    /** The row's cells as a typed collection of per-column reads over
+     * the named binder — the TDS row-var {@code .values} rule applied
+     * at the boundary, where the schema first exists. */
+    private static TypedSpec cells(String binder, Type.RelationType schema) {
+        List<TypedSpec> reads = new ArrayList<>(schema.columns().size());
+        for (Type.Column c : schema.columns()) {
+            reads.add(new TypedPropertyAccess(
+                    new TypedVariable(binder, ExprType.one(schema)),
+                    c.name(), new ExprType(c.type(), c.multiplicity())));
+        }
+        return new TypedCollection(reads,
+                new ExprType(new Type.ClassType(PlatformTypes.ANY),
+                        new Multiplicity.Bounded(reads.size(), reads.size())));
+    }
+
+    /** Fold/map/filter over a stamped grid: resolve the source first,
+     * bind the row binder to its schema, walk the lambda body under the
+     * binding (restored after). Null = not such a node. */
+    private static @com.legend.Nullable TypedSpec resolveLambdaOwner(
+            TypedSpec n, Connection conn,
+            com.legend.sql.dialect.SqlDialect dialect,
+            Map<String, Type.RelationType> binders) throws SQLException {
+        TypedSpec src;
+        TypedLambda lam;
+        if (n instanceof TypedFold f) {
+            src = f.source();
+            lam = f.reducer();
+        } else if (n instanceof TypedMap m) {
+            src = m.source();
+            lam = m.mapper();
+        } else if (n instanceof TypedFilter fl) {
+            src = fl.source();
+            lam = fl.predicate();
+        } else {
+            return null;
+        }
+        TypedSpec src2 = resolve(src, conn, dialect, binders);
+        Type.RelationType schema = stampedSchemaOf(src2, binders);
+        if (schema == null || lam.parameters().isEmpty()) {
+            if (src2 == src) {
+                return null;   // nothing to do — generic recursion handles
+            }
+            return n.withChildren(replaceFirst(n.children(), src, src2));
+        }
+        String rowVar = lam.parameters().get(0);
+        Type.RelationType prev = binders.put(rowVar, schema);
+        try {
+            List<TypedSpec> body2 = new ArrayList<>(lam.body().size());
+            boolean changed = false;
+            for (TypedSpec st : lam.body()) {
+                TypedSpec r = resolve(st, conn, dialect, binders);
+                changed |= r != st;
+                body2.add(r);
+            }
+            if (!changed && src2 == src) {
+                return n;
+            }
+            TypedLambda lam2 = changed
+                    ? new TypedLambda(lam.parameters(), body2, lam.info())
+                    : lam;
+            List<TypedSpec> kids = new ArrayList<>(n.children());
+            for (int i = 0; i < kids.size(); i++) {
+                if (kids.get(i) == src) {
+                    kids.set(i, src2);
+                } else if (kids.get(i) == lam) {
+                    kids.set(i, lam2);
+                }
+            }
+            return n.withChildren(kids);
+        } finally {
+            if (prev == null) {
+                binders.remove(rowVar);
+            } else {
+                binders.put(rowVar, prev);
+            }
+        }
+    }
+
+    /** The STAMPED schema behind an expression: a stamped raw grid
+     * (directly, or under the {@code .rows} marker), or a bound lambda
+     * row variable. Null = not a stamped-grid read. */
+    private static Type.@com.legend.Nullable RelationType stampedSchemaOf(
+            TypedSpec source, Map<String, Type.RelationType> binders) {
+        TypedSpec s = source;
+        while (s instanceof TypedPropertyAccess p
+                && p.property().equals(PlatformTypes.ROWS_MARKER)) {
+            s = p.source();
+        }
+        if (s instanceof TypedRawSqlRelation r
+                && r.info().type() instanceof Type.RelationType rt
+                && !rt.isLateBound()) {
+            return rt;
+        }
+        if (s instanceof TypedVariable v) {
+            return binders.get(v.name());
+        }
+        return null;
+    }
+
+    /** The LIMIT-0 metadata probe (moved from ResultNav at its Phase 1c
+     * deletion): the grid's projection NAMES — a schema read, never
+     * values (the E1 probe discipline). The one {@code new
+     * SqlSource.RawSql} here is a chartered construction site
+     * (RawSqlLedgerTest register); the text is the AUTHORED statement,
+     * MIR-rendered through the dialect like every query. */
+    static List<String> probeNames(String sql, Connection conn,
+            com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
+        SqlSelect probe = SqlSelect.starOf(
+                new SqlSource.RawSql(sql, "_p", List.of()))
+                .withLimit(0L);
+        try (var st = conn.createStatement();
+                var rs = st.executeQuery(dialect.render(probe))) {
+            var md = rs.getMetaData();
+            List<String> names = new ArrayList<>(md.getColumnCount());
+            for (int i = 1; i <= md.getColumnCount(); i++) {
+                names.add(md.getColumnLabel(i));
+            }
+            return names;
+        }
+    }
+
+    private static TypedSpec recurse(TypedSpec n, Connection conn,
+            com.legend.sql.dialect.SqlDialect dialect,
+            Map<String, Type.RelationType> binders) throws SQLException {
+        // SHADOWING (audit T1.1): a lambda's parameters hide any
+        // same-named outer grid binder for its whole subtree — a nested
+        // lambda over a NON-grid source must never see the outer row
+        // schema (the substitution would be silently wrong data)
+        if (n instanceof TypedLambda lam && !binders.isEmpty()) {
+            Map<String, Type.RelationType> shadowed = null;
+            for (String p : lam.parameters()) {
+                if (binders.containsKey(p)) {
+                    if (shadowed == null) {
+                        shadowed = new HashMap<>(binders);
+                    }
+                    shadowed.remove(p);
+                }
+            }
+            if (shadowed != null) {
+                binders = shadowed;
+            }
+        }
+        List<TypedSpec> kids = n.children();
+        if (kids.isEmpty()) {
+            return n;
+        }
+        List<TypedSpec> out = new ArrayList<>(kids.size());
+        boolean changed = false;
+        for (TypedSpec k : kids) {
+            TypedSpec s = resolve(k, conn, dialect, binders);
+            changed |= s != k;
+            out.add(s);
+        }
+        return changed ? n.withChildren(out) : n;
+    }
+
+    private static List<TypedSpec> replaceFirst(List<TypedSpec> kids,
+            TypedSpec from, TypedSpec to) {
+        List<TypedSpec> out = new ArrayList<>(kids);
+        for (int i = 0; i < out.size(); i++) {
+            if (out.get(i) == from) {
+                out.set(i, to);
+                break;
+            }
+        }
+        return out;
+    }
+}

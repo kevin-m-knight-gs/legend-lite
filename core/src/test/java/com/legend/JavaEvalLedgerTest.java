@@ -16,26 +16,29 @@ import java.util.regex.Pattern;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * THE TENET RATCHET (JAVA_EVICTION_PLAN E0; program CLOSED 2026-08-18):
+ * THE TENET RATCHET (JAVA_EVICTION_PLAN E0; program CLOSED 2026-08-18;
+ * claim recalibrated by docs/ADVERSARIAL_TENET_AUDIT_2026_08_18.md):
  * tenet #1 — "Java orchestrates, the DATABASE executes" — enforced as a
- * shrink-only ledger instead of prose. The EVICTION is COMPLETE: every
- * value a test assertion or product consumer observes as the result of
- * executing a Pure expression is DATABASE-PRODUCED (PCT wire, product
+ * shrink-only ledger instead of prose. The honest, measurable claim: NO
+ * host interpreter remains; the QUERY COMPILER executes no values; the
+ * egress boundary is a small set of irreducible carriage sites plus the
+ * NAMED, SHRINKING residue registered below (PCT wire, product
  * CSV/JSON, corpus rows, metadata grids, JSON-source frames, testdatagen
- * text, grid-read chains). The rows below are the REGISTER — the
- * adjudicated residue, each class justified, still shrink-only: growth
- * is a new Java-evaluation site and needs a deliberate pin bump with a
- * written justification.
+ * text, grid-read chains are all DATABASE-PRODUCED). Growth is a new
+ * Java-evaluation site and needs a deliberate pin bump with a written
+ * justification.
  *
- * <p>THE METAMODEL CHANNEL (ratified adjudication, JAVA_EVICTION_PLAN):
- * HostEval/MetamodelWalk/MetamodelSteps/PlanText/AggAwareActivities
+ * <p>THE METAMODEL CHANNEL (ratified adjudication, JAVA_EVICTION_PLAN;
+ * HostEval evicted whole with Phase 1 — row deleted 2026-08-19 audit):
+ * MetamodelWalk/MetamodelSteps/PlanText/AggAwareActivities
  * evaluate MODEL CONSTANTS (instance construction from {@code ^Class}
  * literals), replicate engine metamodel TRANSFORMATIONS under test
  * (convertElement, wrapH2Boolean — node-to-node assertions, no text),
  * and compose engine-parity TEXT through single-owner spellings (the
  * Ddl ENGINE_TEXT flavor, dataTypeToSqlText, the plan-text envelope).
- * NO DATABASE VALUE can enter the channel: grids pre-fetch at the seam
- * ({@code GridReads.preResolve} — the one JDBC pass) and
+ * NO DATABASE VALUE can enter the channel: grid chains are typed
+ * relations the ordinary pipeline compiles (GridReads DIED with Phase 1;
+ * its ledger rows were deleted with it) and
  * {@code ArchitectureTest.theInterpreterPerformsNoJdbc} makes the
  * boundary mechanical (the channel cannot reach a connection).
  *
@@ -50,39 +53,162 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class JavaEvalLedgerTest {
 
-    /** SIZE rows — the METAMODEL-CHANNEL register: pinned MAX line
-     * count, shrink-only (growth needs a pin bump with a written
-     * justification — the code-shape-guard convention). The PCT
-     * extension row is the E1 adapter-contract residue (ingress
-     * splicing, the scalar bridge, the H4 message remap). */
-    private static final Map<String, Integer> EVICT_SIZE = Map.of(
-            "pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java", 1101,
-            // the INTERPRETER IS DELETED (oracle-not-runtime principle,
-            // user-ratified 2026-08-18): HostEval is the routing
-            // predicate only — grid chains compile into SQL (GridReads),
-            // store nav resolves against the compiled model (StoreNav),
-            // everything else walls with the principle's name
-            "core/src/main/java/com/legend/exec/HostEval.java", 181,
-            "core/src/main/java/com/legend/exec/MetamodelWalk.java", 1580,
-            "core/src/main/java/com/legend/MetamodelSteps.java", 234,
-            // pin bumped 888 -> 943 -> 957 (2026-08-18, burn batches
-            // 1-2): the temp-table IN protocol's engine-envelope
-            // emitters (RelationalBlockExecutionNode /
-            // CreateAndPopulateTempTable /
-            // FreeMarkerConditionalExecutionNode / bare Constant) plus
-            // the PureExp let-allocation emitter — engine-parity plan
-            // TEXT, the register's own class
-            "core/src/main/java/com/legend/plan/PlanText.java", 957,
-            "core/src/main/java/com/legend/AggAwareActivities.java", 265);
+    /** SIZE rows — the METAMODEL-CHANNEL register: pinned MAX count of
+     * COMMENT-STRIPPED NON-BLANK lines, shrink-only (growth needs a pin
+     * bump with a written justification — the code-shape-guard
+     * convention). Stripped counting is the Tier-2 audit's answer to
+     * the ADVERSARIAL_TENET_AUDIT §3.1 probe: with raw line counts,
+     * deleting comments funded new evaluation code under a green pin —
+     * stripped, only CODE moves the number. The PCT extension row is
+     * the E1 adapter-contract residue (ingress splicing, the scalar
+     * bridge, the H4 message remap). */
+    private static final Map<String, Integer> EVICT_SIZE = Map.ofEntries(
+            // 844 -> 850 (documented-debts 2026-08-18): the emptyCell
+            // single-owner helper (six scattered null-drops now route
+            // through ONE argued rule) and the LocalDateTime arm's
+            // declared-type consult (the one-carrier Executor change
+            // exposed the missing StrictDate narrowing) — both shrink
+            // ambiguity, not evaluation
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java", 850),
+            Map.entry("core/src/main/java/com/legend/exec/MetamodelWalk.java", 1307),
+            Map.entry("core/src/main/java/com/legend/MetamodelSteps.java", 195),
+            // raw-line history: 888 -> 943 -> 957 (burn batches 1-2:
+            // temp-table IN envelope emitters + PureExp let-allocation —
+            // engine-parity plan TEXT, the register's own class);
+            // re-seeded stripped 2026-08-18
+            // 749 -> 750 (Phase 1 dialect-blind fix: spliceLeftVar takes
+            // a render FUNCTION instead of the AnsiSqlRenderer type)
+            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 750),
+            Map.entry("core/src/main/java/com/legend/AggAwareActivities.java", 225),
+            // ADVERSARIAL_TENET_AUDIT_2026_08_18 §5: the grid egress was
+            // "the sixth class the JDBC guard doesn't name" — these four
+            // rows pin it until the relation-typed fetchDb leg DELETES
+            // GridReads + DbMetaData's carrier wholesale (delete the
+            // rows with the files, never bump them)
+            // Phase 1 (One-Platform Plan): GridReads is DELETED — its
+            // recognition survives as ResultNav's navigation-to-relation
+            // mapping; the string SQL, HostResultSet carrier, and hand
+            // shaping DIED (execution rides MIR + the standard Executor)
+            // +77 (Phase 1 batch 2): HostEval's fold-in — owns()/chainBottom
+            // moved to their owner (the shim's 132 lines net -30)
+            // Phase 1c ENDGAME: ResultNav is DELETED WHOLESALE — grid
+            // chains are typed relations the pipeline serves; the probe
+            // moved to RawGridSchema, chainBottom to StoreNav (its row
+            // below absorbs the walker)
+            // +25 (Phase 1 batch 2): owns() + the curated construction set
+            // +~50 (Phase 1c endgame): chainBottom moved in from deleted
+            // ResultNav (this predicate is the walker's last consumer)
+            Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 196),
+            Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 118),
+            // Phase 1c endgame: the boundary resolver (stamp + marker
+            // substitution over stamped schema — the DynamicPivot model;
+            // audit 2026-08-18 Tier-3: size-pinned so the resolver never
+            // silently grows back into a recognizer)
+            // 248→237 (2026-08-19 P3-1): the static at-pick DELETED — a
+            // resolver-side duplicate of the lowering's collection-at rule
+            // (one owner: the compiler lowers at()); referee identical.
+            // 237→261 (2026-08-19 P3-2 single-query): the DEMAND GATE —
+            // the LIMIT-0 probe now runs ONLY when a columnNames/values
+            // read statically demands the schema; an undemanded grid is
+            // ONE query (egress adopts result headers). The growth is
+            // demand ANALYSIS (a tree scan), not evaluation — it exists
+            // to DELETE a whole query from the common path.
+            Map.entry("core/src/main/java/com/legend/exec/RawGridSchema.java", 261),
+            // Phase 2: the comparison layer, size-pinned at its landing
+            // 212 -> 221: assertEqWithinTolerance MIGRATED IN from the
+            // harness arm (net move, not new evaluation)
+            // 221→250 (2026-08-19 phase-2 deep audit): EXACT-arithmetic
+            // tolerance (P2-1 — the double round-trip silently widened
+            // it), temporal sort BY INSTANT (P2-2 — contract said
+            // instant, code said text), assertEq with LOUD non-primitive
+            // refusal (P2-5 — eq is identity, unobservable on a wire),
+            // tree arms delegate to JsonCompare (P2-4/P2-6).
+            // Adjudication-layer correctness, not new evaluation surface.
+            // 250→264 (2026-08-19 Clause-2c redesign — the K-arm's honest
+            // wire crossing exposed World-1 completeness gaps): integral×
+            // Decimal equality is NUMERIC (spec witness testIntToDecimal),
+            // the temporal string-carrier bridge is SYMMETRIC (the
+            // designed partial-precision carrier sits on either side),
+            // OffsetDateTime joins repr. Adjudication-layer correctness.
+            // 264→298 (2026-08-19 standard-suite burn): assertInstanceOf's
+            // World-1 adjudicator — the RUNTIME carrier kind against the
+            // named type up the m3 value lattice (carrierTypeName is the
+            // decode table). Spec witness testHashCode; the pure body is
+            // unportable m3 reflection (elementToPath). Adjudication over
+            // a DB-produced value, never evaluation.
+            // 298→311 (2026-08-20 host-logic audit): temporalEquals
+            // restructured to SPEC instant equality — pure DateTime
+            // equality is instant-based and a naive DateTime means UTC
+            // (parseDate.pure's own expectations), so an offset-bearing
+            // EXPECTED literal string compares by instant against the
+            // naive-UTC wire carrier. World-2 consistent BY CONSTRUCTION
+            // now: parseDate normalizes to the same convention AT
+            // EMISSION (the compensating utcLocal arm was deleted the
+            // same day). On the audit's compile-through eviction path
+            // (docs/HOST_LOGIC_AUDIT_2026_08_20.md fix queue 3).
+            Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 311),
+            // NEW ROW (2026-08-19 Clause-2c redesign): the K-arm —
+            // assert-family VERDICT dispatch (World 1). Arguments execute
+            // in the database (StatementExecutor.evalValue); this file
+            // only routes members to PureAsserts and judges the quantified
+            // boolean vector. Adjudication orchestration, never evaluation.
+            // 221→246 (2026-08-19 standard-suite burn): the assertInstanceOf
+            // arm — the RUNTIME carrier kind adjudicated against the named
+            // type (spec witness testHashCode; the spec body needs
+            // elementToPath, unportable m3 reflection). Verdict dispatch,
+            // never evaluation — the instance still computes in the DB.
+            // 246→300 (2026-08-19 relation-suite landing): the GRID VERDICT
+            // arm — assertTdsEquivalent executes BOTH relations in the
+            // database and cell-zips host-side via GridCompare (Clause
+            // 2c's chartered route; the 79-row relation witness). Verdict
+            // orchestration over DB-produced frames, never evaluation.
+            // 300→304 (2026-08-19 burn slice 1): the side-flatten's
+            // ONE-CARRIER normalization — raw JDBC array elements arrive
+            // as driver temporals; java.time is the platform convention
+            // (the invisible-diff bug: a Timestamp reprs identically to
+            // the LocalDateTime it never equals). Decode, not evaluation.
+            // 304→398 (2026-08-20 slice 11): the assertIs IDENTITY verdict
+            // (is.pure:23 "pointer equality", PCT.platformOnly). Identity
+            // is NOT DB-computable by definition — a wire carries values,
+            // never references (the eq/equalNonPrimitive irreducible
+            // ruling) — so the K-arm adjudicates the STATICALLY-identified
+            // cases in World 1: type refs (bare element / type() /
+            // genericType().rawType, one canonical spelling) and same
+            // let-bound instance provenance. Verdict adjudication of
+            // compile-time facts, never value evaluation; every other
+            // shape falls through to is()'s missing SQL rule and walls.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 398),
+            // NEW ROW (2026-08-19 cross-phase audit E.2): the
+            // K-ORCHESTRATOR itself. Not host evaluation — statement
+            // routing, session plumbing, verdict dispatch — but it
+            // absorbs by design, and absorption that should have been
+            // COMPILATION is exactly what a silent-growth watch catches.
+            // Shrink-only like every row; bump with written justification.
+            // 2695→2724 (2026-08-19 deferred-TDS): the orchestrator's share
+            // of the dynamic-pivot toString — supplies the LIMIT-0 probe
+            // to the LOWERING-owned composition pass (invariant 6d kept
+            // the layers honest: exec never calls the middle-end, so the
+            // orchestrator bridges with a probe function). Plumbing, not
+            // evaluation — the '#TDS' text still composes IN SQL.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2724),
+            // NEW (same audit): the structural tree walker — replaces the
+            // harness's private copy; verification CONSUMES two produced
+            // sides, never produces a result
+            Map.entry("core/src/main/java/com/legend/exec/JsonCompare.java", 70),
+            Map.entry("core/src/main/java/com/legend/exec/GridCompare.java", 295));
+    // Phase 1c: DbMetaData MOVED OUT of the evaluator surface — its
+    // content was always pure catalog-SQL composition (zero JDBC), now
+    // compiler/spec/CatalogGrids (the Typer's fetchDb retype needs the
+    // registered catalog SQL; Invariant 6e forbids compiler->exec)
     // E4.b LANDED (2026-08-17): DbMetaData's row is RETIRED — the
     // shadow-H2 replay is DELETED and every metadata VALUE is now
     // database-produced (catalog queries over the AMBIENT session's
     // information_schema, F6.6's rule; identifier columns upper()'d in
     // SQL for the H2 engine-parity spelling). The residual file is
     // catalog-query ORCHESTRATION + egress decode by contract — the
-    // decision rule's permitted classes. The grid VALUES still flow
-    // into interpreter arms (fold/at chains) — that residue is E4.e's,
-    // pinned by the HostEval rows above.
+    // decision rule's permitted classes. (E4.e's fold/at interpreter
+    // residue DIED with HostEval's Phase-1 eviction — grids are typed
+    // relations now; its stale ledger row was deleted 2026-08-19.)
     // E5 wire rows LANDED (2026-08-17): the product wire is
     // PLAN-RENDERED (Compiler.executeWire → WireRender → Render
     // csvWire/jsonWire — the DB composes the bytes through the ONE
@@ -164,21 +290,111 @@ class JavaEvalLedgerTest {
                         0});
     }
 
+    /** The EXEC PACKAGE is a CLOSED REGISTER (Tier-2 audit 2026-08-18;
+     * ADVERSARIAL_TENET_AUDIT §3 probe: "new class in com.legend.exec
+     * hashing a live cell" landed GREEN — exec had no class-list pin).
+     * The egress boundary lives here; a NEW class is a new egress
+     * surface and registers consciously. Exact in both directions. */
+    private static final java.util.Set<String> EXEC_CLASSES =
+            java.util.Set.of(
+                    "Column.java", "CsvSeed.java",
+                    "Ddl.java", "DynamicPivot.java",
+                    "ExecutionResult.java", "Executor.java",
+                    // Phase 2 (One-Platform Plan): THE COMPARISON LAYER —
+                    // the platform assert family (spec = legend-pure's
+                    // essential/tests/*.pure) + the TDS-grid compare
+                    // policies. Verification CONSUMES two produced sides,
+                    // never produces a result (the permanent-allowed
+                    // decision rule); wireEquals' private copy DIED here.
+                    "PureAsserts.java", "GridCompare.java",
+                    // 2026-08-19 phase-2 deep audit: the ONE structural
+                    // tree walker (wire-value trees + parsed JSON
+                    // documents) — the harness's private jsonDeepEquals
+                    // copy DIED here (its claimed ledger exception had
+                    // never been registered)
+                    "JsonCompare.java",
+                    "H2Settings.java",
+                    "MetamodelWalk.java", "PctProbe.java",
+                    "PctRenderOption.java", "PostProcessBoundary.java",
+                    "QueryPlan.java",
+                    // Phase 1c: the execution-boundary schema stamp — the
+                    // DynamicPivot.staticize model (a FIRST query pins a
+                    // late-bound raw grid's columns; schema read only,
+                    // through ResultNav's chartered probe, never values)
+                    "RawGridSchema.java",
+                    "ResultShape.java", "Row.java", "StoreNav.java",
+                    "TimingLedger.java", "package-info.java");
+
+    /** The other two funnel packages (documented-debts 2026-08-18,
+     * audit item 9's remainder): server and testdatagen may touch JDBC
+     * per F1.3, so their class lists close the same way exec's does. */
+    private static final java.util.Map<String, java.util.Set<String>>
+            FUNNEL_PACKAGE_REGISTERS = java.util.Map.of(
+                    "core/src/main/java/com/legend/exec", EXEC_CLASSES,
+                    "core/src/main/java/com/legend/server",
+                    java.util.Set.of("ConnectionResolver.java",
+                            "DiagramService.java", "Json.java",
+                            "LegendHttpServer.java", "OutputFormat.java",
+                            "PureLspServer.java", "QueryService.java"),
+                    "core/src/main/java/com/legend/testdatagen",
+                    java.util.Set.of("TestDataGenerator.java"));
+
+    @Test
+    void theFunnelPackagesAreClosedRegisters() throws IOException {
+        StringBuilder drift = new StringBuilder();
+        for (var e : FUNNEL_PACKAGE_REGISTERS.entrySet()) {
+            Path dir = Path.of("..", e.getKey());
+            java.util.Set<String> actual = new java.util.TreeSet<>();
+            try (var s = Files.list(dir)) {
+                s.map(p -> p.getFileName().toString())
+                        .filter(n -> n.endsWith(".java"))
+                        .forEach(actual::add);
+            }
+            for (String f : actual) {
+                if (!e.getValue().contains(f)) {
+                    drift.append("\n  NEW class in ").append(e.getKey())
+                            .append(": ").append(f)
+                            .append(" — a new funnel-package surface"
+                                    + " registers consciously with its"
+                                    + " tenet argument");
+                }
+            }
+            for (String f : e.getValue()) {
+                if (!actual.contains(f)) {
+                    drift.append("\n  ").append(f).append(" in ")
+                            .append(e.getKey())
+                            .append(" is GONE — delete its register row");
+                }
+            }
+        }
+        assertTrue(drift.length() == 0,
+                "funnel class-register drift (Tier-2 audit):" + drift);
+    }
+
     @Test
     void javaEvaluationSurfaceOnlyShrinks() throws IOException {
         StringBuilder drift = new StringBuilder();
         for (var e : EVICT_SIZE.entrySet()) {
             Path p = Path.of("..", e.getKey());
             if (!Files.exists(p)) {
-                continue;   // evicted whole — delete the row when seen
+                drift.append("\n  ").append(e.getKey())
+                        .append(": EVICTED WHOLE — delete this ledger row"
+                                + " (a stale row is a register lying about"
+                                + " what exists; found live once:"
+                                + " HostEval.java, 2026-08-19 audit)");
+                continue;
             }
-            long lines = Files.readAllLines(p).size();
+            long lines = Files.readString(p)
+                    .replaceAll("(?s)/\\*.*?\\*/", "")
+                    .replaceAll("//.*", "")
+                    .lines().filter(l -> !l.isBlank()).count();
             if (lines > e.getValue()) {
                 drift.append("\n  ").append(e.getKey()).append(": ")
                         .append(lines).append(" > ").append(e.getValue())
-                        .append(" lines — the evaluator GREW (tenet #1:"
-                                + " the database executes; evict, or bump"
-                                + " the pin with a written justification)");
+                        .append(" stripped code lines — the evaluator"
+                                + " GREW (tenet #1: the database"
+                                + " executes; evict, or bump the pin"
+                                + " with a written justification)");
             }
         }
         for (var e : EVICT_NAMES.entrySet()) {

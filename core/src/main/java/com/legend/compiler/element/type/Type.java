@@ -350,6 +350,93 @@ public sealed interface Type permits
         /** Separator between a pivoted data value and its aggregate-template name. */
         public static final String PIVOT_SEPARATOR = "__|__";
 
+        /** The LATE-BOUND schema wildcard (One-Platform Plan Phase 1c):
+         * a raw-SQL grid's columns first exist at execution — the
+         * dynamic-pivot rule ({@link #dynamicColumns()} carry names the
+         * static schema cannot enumerate). One template named {@code *}
+         * typed {@code Any[0..1]} marks the WHOLE schema late-bound:
+         * by-name reads trust their name (the pivot claim-any rule),
+         * and the execution boundary stamps the real columns before
+         * lowering. */
+        public static final String LATE_BOUND_WILDCARD = "*";
+
+        /** A relation whose columns are late-bound (raw-SQL grids). */
+        public static RelationType lateBound() {
+            return new RelationType(java.util.List.of(), java.util.List.of(
+                    new Column(LATE_BOUND_WILDCARD,
+                            new ClassType(PlatformTypes.ANY),
+                            Multiplicity.Bounded.ZERO_ONE)));
+        }
+
+        /** True iff this schema is the late-bound wildcard (columns
+         * unknown until the execution boundary stamps them). */
+        public boolean isLateBound() {
+            return columns().isEmpty() && dynamicColumns().size() == 1
+                    && dynamicColumns().get(0).name()
+                            .equals(LATE_BOUND_WILDCARD);
+        }
+
+        /** THE PIVOT-COLUMN MATCHING RULE (one owner — the exec egress
+         * and the lowering's deferred-TDS resolver both consume it): a
+         * statically known name matches by NAME; a
+         * {@code <value>__|__<template>} name inherits its aggregate
+         * TEMPLATE's type; a suffixed name matching NO template while
+         * templates are present is a naming-contract bug — loud, never
+         * guessed. Null = no static/template match (each caller owns
+         * its fallback: the egress decodes the SQL type, the deferred
+         * resolver walls). */
+        /** ENGINE-VERBATIM presentation (pureToSQLQuery.pure:2985
+         * mayQuotePivotColNames): a column name containing the pivot
+         * separator that is not already quote-wrapped presents WITH
+         * literal single quotes as part of the NAME — the physical SQL
+         * column stays bare (Fold.pivotIdentity is the reference-side
+         * inverse). */
+        public static String presentPivotName(String physical) {
+            return physical.contains(PIVOT_SEPARATOR)
+                    && !(physical.startsWith("'") && physical.endsWith("'"))
+                    ? "'" + physical + "'"
+                    : physical;
+        }
+
+        public @com.legend.Nullable Type pivotColumnType(String rawName) {
+            // quote-tolerant: the PRESENTED name carries literal quotes
+            // (presentPivotName); matching runs on the bare spelling
+            String name = rawName.length() >= 2 && rawName.startsWith("'")
+                    && rawName.endsWith("'")
+                    && rawName.contains(PIVOT_SEPARATOR)
+                    ? rawName.substring(1, rawName.length() - 1)
+                    : rawName;
+            var byName = columns().stream()
+                    .filter(c -> c.name().equals(name)
+                            || c.name().equals(rawName)).findFirst();
+            if (byName.isPresent()) {
+                return byName.get().type();
+            }
+            int sep = name.lastIndexOf(PIVOT_SEPARATOR);
+            if (sep >= 0 && !dynamicColumns().isEmpty()) {
+                String template = name.substring(
+                        sep + PIVOT_SEPARATOR.length());
+                return dynamicColumns().stream()
+                        .filter(c -> c.name().equals(template)).findFirst()
+                        .map(Column::type)
+                        .orElseThrow(() -> new IllegalStateException(
+                                "pivot column '" + name + "' matches no"
+                                + " aggregate template "
+                                + dynamicColumns().stream()
+                                        .map(Column::name).toList()));
+            }
+            return null;
+        }
+
+        /** THE TRUST-NAME RULE (the one place it is defined): a by-name
+         * read over a late-bound schema is trusted — typed
+         * {@code Any[0..1]}, resolved by the database (pivot's claim-any
+         * rule). Callers gate on {@link #isLateBound()}. */
+        public static Column trustedColumn(String name) {
+            return new Column(name, new ClassType(PlatformTypes.ANY),
+                    Multiplicity.Bounded.ZERO_ONE);
+        }
+
         public RelationType(List<Column> columns) {
             this(columns, List.of());
         }

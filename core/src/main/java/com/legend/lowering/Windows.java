@@ -141,6 +141,8 @@ final class Windows {
             // never over this window. Already-windowed calls keep their spec.
             case SqlExpr.Exists x -> x;
             case SqlExpr.ScalarSubquery s -> s;
+            case SqlExpr.CheckedOne co -> co;
+            case SqlExpr.DeferredTdsString dtds -> dtds;
             case SqlExpr.WindowCall w -> w;
             case SqlExpr.Lambda l -> l;
             case SqlExpr.Group g -> new SqlExpr.Group(
@@ -165,4 +167,62 @@ final class Windows {
         };
     }
 
+
+    /** The checker-classified frame, mapped 1:1 to the SQL IR shape.
+     * LITERAL bound validation lives HERE (moved from the checker —
+     * the spec observes the error lazily at eval via assertError; a
+     * bad frame still never renders). */
+    static SqlExpr.WindowCall.Frame sqlFrame(
+            com.legend.compiler.spec.typed.WindowFrame f) {
+        Double from = numericOf(f.from());
+        Double to = numericOf(f.to());
+        if (from != null && to != null && from > to) {
+            // real rows()/_range() assert text verbatim (PCT parity)
+            throw new com.legend.error.ModelException(
+                    com.legend.error.LegendCompileException.Phase.TYPE,
+                    "Invalid window frame boundary - lower bound of window"
+                            + " frame cannot be greater than the upper"
+                            + " bound!");
+        }
+        return new SqlExpr.WindowCall.Frame(
+                f.kind() == com.legend.compiler.spec.typed.WindowFrame.Kind.ROWS
+                        ? SqlExpr.WindowCall.Frame.Kind.ROWS
+                        : SqlExpr.WindowCall.Frame.Kind.RANGE,
+                sqlBound(f.from()), sqlBound(f.to()));
+    }
+
+    /** The bound's SIGNED numeric offset (Preceding negative,
+     * Following positive, CurrentRow zero); null = unbounded. */
+    static @com.legend.Nullable Double numericOf(
+            com.legend.compiler.spec.typed.WindowFrame.Bound b) {
+        return switch (b) {
+            case com.legend.compiler.spec.typed.WindowFrame.Bound
+                    .Preceding p -> -Math.abs(p.n().doubleValue());
+            case com.legend.compiler.spec.typed.WindowFrame.Bound
+                    .Following fo -> Math.abs(fo.n().doubleValue());
+            case com.legend.compiler.spec.typed.WindowFrame.Bound
+                    .CurrentRow ignored -> 0.0;
+            default -> null;
+        };
+    }
+
+    static SqlExpr.WindowCall.Frame.Bound sqlBound(
+            com.legend.compiler.spec.typed.WindowFrame.Bound b) {
+        return switch (b) {
+            case com.legend.compiler.spec.typed.WindowFrame.Bound.UnboundedPreceding ignored ->
+                    new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding();
+            case com.legend.compiler.spec.typed.WindowFrame.Bound.Preceding p ->
+                    new SqlExpr.WindowCall.Frame.Bound.Preceding(p.n());
+            case com.legend.compiler.spec.typed.WindowFrame.Bound.CurrentRow ignored ->
+                    new SqlExpr.WindowCall.Frame.Bound.CurrentRow();
+            case com.legend.compiler.spec.typed.WindowFrame.Bound.Following fo ->
+                    new SqlExpr.WindowCall.Frame.Bound.Following(fo.n());
+            case com.legend.compiler.spec.typed.WindowFrame.Bound.UnboundedFollowing ignored ->
+                    new SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing();
+            case com.legend.compiler.spec.typed.WindowFrame.Bound.IntervalPreceding ip ->
+                    new SqlExpr.WindowCall.Frame.Bound.IntervalPreceding(ip.n(), ip.unit());
+            case com.legend.compiler.spec.typed.WindowFrame.Bound.IntervalFollowing ifo ->
+                    new SqlExpr.WindowCall.Frame.Bound.IntervalFollowing(ifo.n(), ifo.unit());
+        };
+    }
 }

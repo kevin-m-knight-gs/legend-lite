@@ -17,7 +17,8 @@ import java.util.List;
  * @param args   the type-checked argument expressions, in source order
  * @param info   the resolved result type
  */
-public record TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprType info) implements TypedSpec {
+public record TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprType info)
+        implements TypedSpec {
     public TypedNativeCall {
         args = List.copyOf(args);
     }

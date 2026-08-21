@@ -96,7 +96,14 @@ public class CorpusSweepTest {
      *  2d: the population was unbounded — every row classifies, but
      *  nothing stopped the TOTAL from growing silently). Shrink-only;
      *  measured 2026-08-14. */
-    private static final int MAX_PLATFORM_CATALOG = 1517;   // 2026-08-15 doc-string burn: +47 adjudicated rows (PURE-DIALECT-doc-string=40 + members), A5 gap 273->226
+    private static final int MAX_PLATFORM_CATALOG = 1559;   // 2026-08-15 doc-string burn: +47 adjudicated rows (PURE-DIALECT-doc-string=40 + members), A5 gap 273->226
+    // 2026-08-19 Phase-4 entry-gate m3 burn: +42 adjudicated rows — the
+    // PCT test-file surface (236/236 now parses at LEGEND_PLATFORM):
+    // tagged-value string concatenation, negative-year date literals,
+    // class multiplicity-params (<|m>), m3 range literals ([a:b:c] ->
+    // range), and the (?:?) column-type wildcard. All platform-dialect
+    // acceptances classifying into the existing PURE-DIALECT-* families;
+    // the exact-engine surface is untouched (byte/rejection parity green).
 
     /** M3 second-reference agreement floor on oracle-accepted
      *  section-free sources — below this the "m3-corroborated"

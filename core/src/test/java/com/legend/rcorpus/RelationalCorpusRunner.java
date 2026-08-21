@@ -429,6 +429,21 @@ public class RelationalCorpusRunner {
                 + com.legend.harness.H2Verify.M1_DIVERGED.sum() + " diverged, "
                 + com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum()
                 + " unverifiable");
+        // Per-test M1 verdict roster — UNCONDITIONAL dump (the
+        // query-histogram idiom): target/h2-verdicts.txt, one sorted
+        // "kind test xN" line each, so a floor move is attributable by
+        // diffing two sweeps' files.
+        try {
+            java.nio.file.Files.writeString(
+                    java.nio.file.Path.of("target", "h2-verdicts.txt"),
+                    com.legend.harness.H2Verify.VERDICT_ROSTER.entrySet()
+                            .stream().sorted(java.util.Map.Entry.comparingByKey())
+                            .map(e -> e.getKey() + " x" + e.getValue().sum())
+                            .collect(java.util.stream.Collectors.joining("\n"))
+                    + "\n");
+        } catch (java.io.IOException ignore) {
+            // best-effort diagnostic (histogram precedent)
+        }
         // step 13 registry feed: the per-reason unverifiable census
         com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS.entrySet().stream()
                 .sorted((a, b) -> Long.compare(b.getValue().sum(),
@@ -493,14 +508,18 @@ public class RelationalCorpusRunner {
         // any divergence fails the build (they already FAIL per-test —
         // this pins the aggregate against silent scoring drift), and the
         // verified count must hold its floor (289 at c43, 296 after the
-        // c46 enum-decode rung; ratchet on deliberate gains).
+        // c46 enum-decode rung, 309 after slice 10's engine-text NULLS
+        // suppression — 13 rows had diverged from golden text only by a
+        // nulls clause; ratchet on deliberate gains). 309→320
+        // (2026-08-20 stamp C2-i): provably-single cell reads lower as
+        // PLAIN scalar subqueries — 11 more texts byte-match.
         if (onlyFilters.isEmpty()) {
             org.junit.jupiter.api.Assertions.assertEquals(0,
                     com.legend.harness.H2Verify.M1_DIVERGED.sum(),
                     "M1 h2-exec divergences on a full sweep");
             org.junit.jupiter.api.Assertions.assertTrue(
-                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 296,
-                    "M1 h2-exec verified fell below the 296 floor: "
+                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 320,
+                    "M1 h2-exec verified fell below the 320 floor: "
                     + com.legend.harness.H2Verify.M1_VERIFIED.sum());
         }
         System.out.println("[rcorpus] seed replay: "
@@ -514,7 +533,7 @@ public class RelationalCorpusRunner {
         System.out.println("[rcorpus] golden channel: "
                 + (com.legend.harness.H2Verify.GOLDEN_NANOS.get() / 1_000_000)
                 + " ms; xlate: "
-                + (com.legend.exec.RawSqlBoundary.XLATE_NANOS.get() / 1_000_000)
+                + (com.legend.sql.dialect.RawSqlBoundary.XLATE_NANOS.get() / 1_000_000)
                 + " ms");
         System.out.println("[rcorpus] h2-mirror verify: "
                 + (com.legend.harness.H2Verify.MIRROR_NANOS.get() / 1_000_000)

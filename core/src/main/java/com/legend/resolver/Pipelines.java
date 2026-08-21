@@ -430,7 +430,8 @@ final class Pipelines {
                                 new ExprType(new Type.EnumType(JOIN_KIND_FQN),
                                         Multiplicity.Bounded.ONE)),
                         cond, Optional.of(prefix), js.frameName(),
-                        new ExprType(new Type.RelationType(cols), Multiplicity.Bounded.ONE));
+                        new ExprType(new Type.RelationType(cols), Multiplicity.Bounded.ONE),
+                false /* resolver-synth */);
                 }
 
     /** ENGINE ON-FORM (memory milestoning-onclause-seam): the temporal
@@ -564,7 +565,8 @@ final class Pipelines {
                                 new ExprType(new Type.EnumType(JOIN_KIND_FQN),
                                         Multiplicity.Bounded.ONE)),
                         cond, Optional.of(prefix), nav.frameName(),
-                        new ExprType(new Type.RelationType(cols), Multiplicity.Bounded.ONE));
+                        new ExprType(new Type.RelationType(cols), Multiplicity.Bounded.ONE),
+                false /* resolver-synth */);
             }
             case TypedFilter f -> {
                 TypedSpec src = walk(f.source(), demanded, demandedNavs, targets, prefixes, stripped, classFqn);
@@ -1163,13 +1165,6 @@ final class Pipelines {
         }
     }
 
-    private static Set<String> slotAliasUniverse(Set<String> stripped,
-                                                 Map<String, String> prefixes) {
-        Set<String> all = new LinkedHashSet<>(stripped);
-        all.addAll(prefixes.keySet());
-        return all;
-    }
-
     /**
      * THE single row-read rewriter — shared by slot conditions (via
      * {@link #materialize}) and binding expressions
@@ -1217,10 +1212,9 @@ final class Pipelines {
             case TypedPropertyAccess pa -> new TypedPropertyAccess(
                     rewriteRowReads(pa.source(), rowVar, prefixes, stripped, varRewrite),
                     pa.property(), pa.info());
-            case TypedNativeCall c -> new TypedNativeCall(c.callee(),
-                    c.args().stream().map(a ->
+            case TypedNativeCall c -> c.withChildren(c.args().stream().map(a ->
                             rewriteRowReads(a, rowVar, prefixes, stripped, varRewrite))
-                            .toList(), c.info());
+                            .toList());
             case TypedCollection c ->
                     new TypedCollection(
                             c.elements().stream().map(e ->
@@ -1319,9 +1313,8 @@ final class Pipelines {
             case TypedPropertyAccess pa -> new TypedPropertyAccess(
                     prefixColumns(pa.source(), rowVar, colPrefix, varRewrite),
                     pa.property(), pa.info());
-            case TypedNativeCall c -> new TypedNativeCall(c.callee(),
-                    c.args().stream().map(a -> prefixColumns(a, rowVar, colPrefix, varRewrite))
-                            .toList(), c.info());
+            case TypedNativeCall c -> c.withChildren(c.args().stream().map(a -> prefixColumns(a, rowVar, colPrefix, varRewrite))
+                            .toList());
             case TypedCollection c ->
                     new TypedCollection(
                             c.elements().stream().map(e ->
@@ -1453,8 +1446,8 @@ final class Pipelines {
                         instanceof Type.ClassType ct)) {
             return nc;
         }
-        return new TypedNativeCall(nc.callee(),
-                List.of(constantProjectOver(nc.args().get(0), ct)), nc.info());
+        return (TypedNativeCall) nc.withChildren(
+                List.of(constantProjectOver(nc.args().get(0), ct)));
     }
 
     /** {@code chain->project([_e|1],['c'])} — the RELATION form of a class

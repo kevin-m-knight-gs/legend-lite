@@ -1,5 +1,66 @@
 # Adversarial audit — testing the claim "legend-lite is 100% Java-orchestrates / DB-executes"
 
+> **Remediation status (2026-08-18, adopted onto main the same day):** verdict ACCEPTED;
+> the honest restatement now stands in `AGENTS.md`, the eval ledger, and Charter Clause 3.
+> Batch A landed: Tier 1 (B, D, E, F, N fixed; G adjudicated — the Integer→Float widening
+> was DEAD compensation, deleted against a green 1110; the Decimal arm is an exactness
+> RELABEL for the reference's decimal-exact Floats, reinstated with the argument in place),
+> Tier 3 in full, Tier 2 items 6/7/10 (`JdbcSurfaceCensusTest`, `GuardCoverage` floors in
+> every walker, `SqlTextRatchetTest`, `CorpusSoftCeilingTest`, TenetRatchet precondition +
+> accessors, PctDiscipline `.pure` + adapter pin). Item 9's remaining regex list and §7's
+> re-seed are deliberately deferred: guards catch drift, not adversaries. Tier 4 is
+> REPLACED by the relation-typed `fetchDb` leg — GridReads/HostEval/`HostResultSet` are
+> DELETED wholesale rather than taught MIR (Batch B).
+>
+> **Tier-1 remediation audit (2026-08-18, user-directed):** each fix re-verified
+> adversarially, with regression pins that FAIL on the old code (`AuditTier1PipelineTest`,
+> `DynamicPivotKeyLiteralTest`, `PureReprTest` — the full-corpus byte-match proves only
+> non-regression; none of the fixed behaviors had prior coverage, which is why they were
+> live).
+> **B** — pipeline-pinned: a NULL grid cell through `->toString()` is EMPTY, never the text
+> `"null"`; control chain still reads. Audit found two arms (ROWS, CELLS-stream) that
+> silently IGNORED the peel — both now fall through to the wall instead.
+> **D** — REAL keys pin to the float's printed value (the old widen spliced
+> `3.140000104904175`); timestamp keys keep `:00` seconds and exact subseconds; the
+> `DateLit` arm audited safe (`LocalDate.toString` is always ISO).
+> **E** — the correct spec is the engine's `toRepresentation()` (platform pure), NOT this
+> report's suggested `lit()` — `lit()` is the SQL speller and doubles quotes where Pure
+> source backslash-escapes. Ported with the spec's replace order; NULL pk cells wall.
+> **F** — the wall fires on a `[1..*]` shrink and a satisfied bound flows (pipeline pins).
+> Residuals recorded: the SCALAR zero-row path is pre-existing behavior outside F's scope;
+> and integer egress is driver-kinded (`Integer` vs `Long` by path — adjudicated looseness,
+> all consumers compare numerically) — a candidate row for the carrier lane, noted so it
+> cannot vanish into a passing test.
+> **N** — no dedicated unit pin (a walk needs a full plan model); verified by the
+> executionPlan family byte-match plus the read that `info().type()` is the element type by
+> construction. Recorded as reasoning-plus-referee, not test-pinned.
+> **G** — the interpreted `ToFloat` re-wraps the Decimal's exact `BigDecimal` (verified in
+> legend-pure source): the relabel preserves the value. Suite totals confirmed; the commit
+> touched no expected-failure registry, so the green deletion of the Integer branch is
+> genuine.
+>
+> **Tier-2 guard audit (2026-08-18, user-directed):** the guard layer re-probed with NINE
+> deliberate violations on a clean baseline, each reverted after firing — **9/9 RED**:
+> new exec class (closed register), driver-native `org.sqlite` string in resolver (census),
+> `getNString` accessor (extended ratchet), shadow SQL literal (text ratchet), dead
+> RECURSIVE private method (span-masked rule), reflection growth inside pardoned
+> `server/Json` (F1.11b site count), soft-ceiling bump, adapter `->sort(` spelling, and the
+> §3.1 cheapest-green itself — comments deleted AND `gridMax` added, ledger RED at 142>132
+> because stripped counting means comment deletion funds nothing. Bonus fence found:
+> NullAway rejected the naive `gridMax` before any guard ran. Structural changes: stripped
+> non-blank ledger counts (all rows re-seeded), the exec class register, the sound
+> state-machine source stripper for the dead-method rule (the regex version false-flagged
+> 25 live methods via `'"'`/URL-quote mangling — a guard-correctness bug found BY auditing
+> the guard), whose honest count then found and deleted ALL TWELVE dead private methods
+> (pin now ZERO), pardoned-reflection site pins, extremum spellings in both discipline
+> guards, and the `default ->` adjudication (numeric fabricators pinned at zero; the 22
+> predicate booleans and 59 not-found nulls ruled out of C2.4 with reasoning in the rule).
+> **Residual limits, recorded**: the census is FILE-grained (code added to an
+> already-registered file is the ledger pins' job); pure-Java aggregation over
+> project-typed carriers with zero JDBC spellings remains statically invisible — deletion
+> (Batch B) is the durable fix; the GuardCoverage floors are logic-reviewed but not
+> probe-tested (probing requires moving source roots).
+
 > **Method.** Eight auditors, null hypothesis = *the claim is false*, rubric = `TENET_REMEDIATION.md`
 > §6, adjudication authority = `docs/TENET_CHARTER.md`. One auditor was permitted to build and
 > **ran 15 deliberate-violation probes against the guards**, reverting each. Tree verified clean

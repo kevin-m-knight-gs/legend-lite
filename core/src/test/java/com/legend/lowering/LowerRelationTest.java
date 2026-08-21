@@ -120,7 +120,7 @@ class LowerRelationTest {
                 SELECT t0.NAME, t0.AGE
                 FROM T_PERSON AS t0
                 WHERE t0.AGE > 30
-                ORDER BY t0.AGE DESC
+                ORDER BY t0.AGE DESC NULLS FIRST
                 LIMIT 2""", sql);
         assertEquals(List.of("Dan|55", "Cat|45"), exec(sql));
     }

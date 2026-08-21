@@ -74,10 +74,11 @@ final class ValueCollectionOps {
                     n.args().get(0).info());
         }
         if (Pure.nativeNamed("sort", key)) {
+            // value-collection sort observes PURE semantics (null largest)
             return new TypedSort(n.args().get(0),
                     List.of(new TypedSort.TypedSortKey(
                             rt.columns().get(0).name(), true)),
-                    n.args().get(0).info());
+                    true, n.args().get(0).info());
         }
         return null;
     }

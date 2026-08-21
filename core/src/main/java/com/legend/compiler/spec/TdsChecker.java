@@ -58,6 +58,14 @@ final class TdsChecker {
             String c = cell.strip();
             int colon = c.indexOf(':');
             String name = colon > 0 ? c.substring(0, colon).strip() : c;
+            // ENGINE presentation (pureToSQLQuery.pure:2985): a
+            // separator-bearing pivot-shaped header presents with its
+            // literal quotes as part of the NAME — splitCells stripped
+            // the source quotes; re-present so a TDS-literal expectation
+            // names pivot columns exactly like the pivot output does
+            // (witness testPivot_MultipleSingle's assertTdsEquivalent)
+            name = com.legend.compiler.element.type.Type.RelationType
+                    .presentPivotName(name);
             if (names.contains(name)) {
                 throw new SchemaInvariantException("duplicate column '" + name + "' in TDS header");
             }
@@ -85,7 +93,22 @@ final class TdsChecker {
         List<Type.Column> columns = new ArrayList<>(names.size());
         for (int c = 0; c < names.size(); c++) {
             Type type = types.get(c) != null ? types.get(c) : inferredType(rows, c);
-            columns.add(new Type.Column(names.get(c), type, Multiplicity.Bounded.ONE));
+            // HONEST multiplicity: a column whose DATA carries null cells
+            // is [0..1] — typing it [1] hid the null-safe equality arms
+            // (engine nullSafeEqualsOperation: [0..1]==[0..1] joins/
+            // filters are IS NOT DISTINCT FROM; witness testJoinOnNullKey,
+            // where pure joins null keys to null keys)
+            boolean nullable = false;
+            for (List<String> row : rows) {
+                String cell = c < row.size() ? row.get(c).strip() : "";
+                if (cell.isEmpty() || cell.equals("null")) {
+                    nullable = true;
+                    break;
+                }
+            }
+            columns.add(new Type.Column(names.get(c), type,
+                    nullable ? Multiplicity.Bounded.ZERO_ONE
+                            : Multiplicity.Bounded.ONE));
         }
         return new TypedTds(rows,
                 new ExprType(new Type.RelationType(columns), sig.output().multiplicity()));

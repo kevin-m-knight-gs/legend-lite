@@ -1746,10 +1746,6 @@ public final class NameResolver {
         return changed ? List.copyOf(out) : in;
     }
 
-    private static List<PackageableElement> resolveElementList(List<PackageableElement> els, Scope scope) {
-        return resolveList(els, NameResolver::resolveElement, scope);
-    }
-
     private static List<TypeExpression> resolveTypeList(List<TypeExpression> types, Scope scope) {
         return resolveList(types,
                 (x, sc) -> Objects.requireNonNull(resolveType(x, sc), "resolveType(x, sc)"), scope);

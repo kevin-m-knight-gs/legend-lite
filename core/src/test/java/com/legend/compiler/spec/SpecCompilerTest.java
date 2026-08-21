@@ -411,6 +411,11 @@ class SpecCompilerTest {
 
     @Test
     void if_bothBranchesSameType() {
+        // USER-AUTHORED ifs keep both branches even with a literal
+        // condition (engine parity: the plan generator emits CASE WHEN
+        // TRUE with both joins — testIfIncludingQualifiers pins it).
+        // Only INLINED platform-function bodies fold
+        // (NormalizeFolds.foldInlined at the inliner).
         TypedSpec n = infer("if(true, |1, |2)");
         assertInstanceOf(TypedIf.class, n);
         assertEquals(one(Type.Primitive.INTEGER), n.info());
@@ -427,8 +432,8 @@ class SpecCompilerTest {
         // corpus getSchema (testRelationalMapper.pure): a branch thunk
         // carrying lets — |let x = 1; $x + 1; — folds through the shared
         // SourceSubst.inlineLets funnel (the #85 rule) and types normally
+        // (the literal-cond fold takes the branch; the value survives)
         TypedSpec n = infer("if(true, |let x = 1; $x + 1;, |2)");
-        assertInstanceOf(TypedIf.class, n);
         assertEquals(one(Type.Primitive.INTEGER), n.info());
     }
 

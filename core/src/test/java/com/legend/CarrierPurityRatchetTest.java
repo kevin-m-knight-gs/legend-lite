@@ -30,15 +30,63 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * §4 definition. LIST_* / UNNEST SqlFn references upstream are counted
  * because those functions presuppose the list carrier itself.
  */
-class CarrierPurityRatchetTest {
+class   CarrierPurityRatchetTest {
 
     /** Pattern -> R0 census pin (2026-08-01, main @ 85ff6c8a; raw
      * occurrences, comment mentions included — the instrument's own
      * counting semantics). */
     private static final Map<String, Integer> PINS = Map.of(
+            // 34→36 (2026-08-19): ListEncodings.map's singleton-wrap and
+            // empty-list spellings — the map SEMANTIC NODE's wire-shape
+            // rule (scalar sources wrap; [0..1] empties stay empty),
+            // not new ad-hoc idioms. 37→36 (2026-08-19 Clause-2c
+            // redesign): equalityWireOperand's dual wrap DELETED —
+            // verdicts moved to World 1. 36→37 (slice 9): the static-
+            // pivot IN-membership pre-filter — the ENGINE's own
+            // row-restriction semantics, a semantic emission.
+            // 37→38 (2026-08-21 stamp C1): the collection-mapper cell
+            // RE-BOX — scalar-STAMPED cells wrap [cell] so the flatten
+            // contract holds once singleton literals lower as their
+            // element (the box moved from the literal to the ONE
+            // consumer whose contract needs it; net honest).
+            // 38→34 (burn slice 8, ListShapes dissolution): the dead
+            // listArg/definitelyScalar wraps and the shape-decided
+            // ArrayLit escapes are GONE; wrap helpers are stamp-read.
             "new SqlExpr\\.ArrayLit\\(", 34,
             "new SqlExpr\\.OrderedListAgg\\(", 1,
-            "SqlFn\\.LIST_", 136,
+            // 136→137 (2026-08-19): ListEncodings.map's LIST_GET — the
+            // map SEMANTIC NODE's wire-shape rule (a to-one result
+            // unwraps from its singleton transform; Phase 4 channel B),
+            // not a new ad-hoc idiom. 138→137 (2026-08-19 Clause-2c
+            // redesign): Scalars.emptinessOf's static-empty arm DELETED —
+            // verdicts moved to World 1. (A 2026-08-20 C2 toOne-unwrap
+            // 137→138 was built, MEASURED against the full corpus —
+            // milestoning −16 / union −23 — and REVERTED same day: the
+            // list-shaped toOne operands are mostly synthesized
+            // conformance markers whose list downstream consumes;
+            // STAMP_DISCIPLINE_PROGRAM records the provenance-split
+            // design that replaces the blanket emission.)
+            // 137→139 (2026-08-20 stamp endgame): Scalars.
+            // checkedExtract — the CHECKED toOne over a definite
+            // list-producing CALL (LIST_LENGTH guard + LIST_GET), the
+            // agg-strip's semantics spelled directly. UNLIKE the
+            // reverted blanket unwrap this landed corpus-green with the
+            // ledger byte-identical (the synthesized-conformance
+            // operands it would have broken were healed first — C2c +
+            // frame-honest stamps); the checked-narrowing SEMANTIC NODE
+            // (guard-emission design) re-absorbs both sites when built.
+            // 139→141 (deletion-leg rebuild): the minus LIST arm's
+            // runtime-size-1 negate guard (LIST_LENGTH + LIST_GET) —
+            // real pure negates a size-1 collection; the first-element
+            // seed returned +x (residue recorded at the C1 landing).
+            // 141→129 (burn slice 8): LIST_PRODUCERS became SqlFn
+            // metadata (function facts live on the enum, outside the
+            // pre-dialect ban zone) and the dissolved ListShapes' dead
+            // arms took their references with them.
+            // 129→127 (D1): checkedExtract's guard spelling moved INTO the
+            // renderer behind the CheckedOne SEMANTIC NODE — the exact
+            // re-absorption its justification promised.
+            "SqlFn\\.LIST_", 127,
             "SqlFn\\.UNNEST", 12,
             // the collect-carrier reducer (R1 recognizes it for fusion;
             // burns with R3/R4 when sources/values migrate)
@@ -80,7 +128,8 @@ class CarrierPurityRatchetTest {
     private static java.util.List<Path> preDialectSources()
             throws IOException {
         try (Stream<Path> s = Files.walk(Path.of("src/main/java/com/legend"))) {
-            return s.filter(f -> f.toString().endsWith(".java"))
+            java.util.List<Path> out = s
+                    .filter(f -> f.toString().endsWith(".java"))
                     .filter(f -> {
                         String path = f.toString();
                         return (path.contains("/lowering/")
@@ -89,6 +138,9 @@ class CarrierPurityRatchetTest {
                                 && !path.contains("/sql/dialect/");
                     })
                     .toList();
+            GuardCoverage.assertFloor("CarrierPurityRatchetTest",
+                    out.size(), 74);
+            return out;
         }
     }
 }

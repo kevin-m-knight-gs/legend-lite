@@ -112,7 +112,15 @@ public final class Ddl {
      * lexicon — the ONE H2 list. */
     private static String processColumnName(String name) {
         // processIdentifierWithQuoteChar: pre-quoted, reserved, or
-        // space-bearing identifiers quote (embedded quotes stripped)
+        // space-bearing identifiers quote (embedded quotes stripped).
+        // Audit §11 "three inconsistent quoting rules", adjudicated
+        // (documented-debts 2026-08-18): the strip is the ENGINE'S OWN
+        // rule verbatim (extensionDefaults.pure:559 —
+        // identifier->replace('"','') inside the quote chars), and this
+        // method serves ONLY the ENGINE_TEXT byte-parity flavor.
+        // AnsiSqlRenderer.ident DOUBLES because execution-correct SQL
+        // must; two contracts, not one behavior with two owners. The
+        // third copy (GridReads.q) DIED with Phase 1 (grids are typed relations).
         if (name.startsWith("\"")
                 || com.legend.sql.dialect.Lexicon.H2_ENGINE_TEXT
                         .reservedWords()

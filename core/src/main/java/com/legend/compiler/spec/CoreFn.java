@@ -98,6 +98,8 @@ public enum CoreFn {
     FLATTEN("flatten"),
     /** Relation {@code pivot(~cols, ~agg)} &mdash; static group columns + data-dependent pivoted columns. */
     PIVOT("pivot"),
+    /** Relation {@code columns()} &mdash; static column METADATA folded at compile time. */
+    COLUMNS("columns"),
     /** Collection {@code sortBy(key)} &mdash; ascending sort by a key lambda. */
     SORT_BY("sortBy"),
     /** Collection {@code sortByReversed(key)} &mdash; descending sort by a key lambda. */

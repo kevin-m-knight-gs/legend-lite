@@ -31,10 +31,116 @@ public final class StoreNav {
     private StoreNav() {
     }
 
+    /** Collection natives a read chain walks THROUGH to its bottom. */
+    private static final java.util.Set<String> READ_CHAIN_FNS =
+            java.util.Set.of(
+                    "meta::pure::functions::collection::fold",
+                    "meta::pure::functions::collection::map",
+                    "meta::pure::functions::collection::concatenate",
+                    "meta::pure::functions::collection::at",
+                    "meta::pure::functions::collection::first",
+                    "meta::pure::functions::collection::size",
+                    "meta::pure::functions::collection::indexOf",
+                    "meta::pure::functions::multiplicity::toOne",
+                    "meta::pure::functions::string::toString");
+
+    /** Walk the primary source chain (property access sources, fold/map
+     * sources, READ-shaped collection-native first args, user-call and
+     * match receivers, let-bound variables) to the expression's root
+     * (moved from ResultNav at its Phase 1c deletion — this predicate
+     * is the walker's last consumer). */
+    static com.legend.compiler.spec.typed.TypedSpec chainBottom(
+            com.legend.compiler.spec.typed.TypedSpec n,
+            java.util.Map<String,
+                    com.legend.compiler.spec.typed.TypedSpec> lets) {
+        while (true) {
+            switch (n) {
+                case com.legend.compiler.spec.typed.TypedPropertyAccess pa ->
+                        n = pa.source();
+                case com.legend.compiler.spec.typed.TypedFold f ->
+                        n = f.source();
+                case com.legend.compiler.spec.typed.TypedMap m ->
+                        n = m.source();
+                case com.legend.compiler.spec.typed.TypedUserCall uc -> {
+                    if (uc.args().isEmpty()) {
+                        return uc;
+                    }
+                    n = uc.args().get(0);
+                }
+                case com.legend.compiler.spec.typed.TypedMatchRuntime mr ->
+                        n = mr.input();
+                case com.legend.compiler.spec.typed.TypedCast tc ->
+                        n = tc.source();
+                case com.legend.compiler.spec.typed.TypedLet l ->
+                        n = l.value();
+                case com.legend.compiler.spec.typed.TypedVariable v -> {
+                    com.legend.compiler.spec.typed.TypedSpec bound =
+                            lets.get(v.name());
+                    if (bound == null) {
+                        return v;
+                    }
+                    n = bound;
+                }
+                case com.legend.compiler.spec.typed.TypedNativeCall nc -> {
+                    String fqn = nc.callee().qualifiedName();
+                    if (com.legend.compiler.element.type.PlatformTypes
+                            .isStoreNavFn(fqn)) {
+                        return nc;
+                    }
+                    if (nc.args().isEmpty()
+                            || !READ_CHAIN_FNS.contains(fqn)) {
+                        return nc;
+                    }
+                    n = nc.args().get(0);
+                }
+                default -> {
+                    return n;
+                }
+            }
+        }
+    }
+
     /** A found schema, carrying its include-closure-merged tables. */
     public record SchemaHandle(String name,
             List<DatabaseDefinition.TableDefinition> tables) {
     }
+
+    /** The STORE-NAV channel's admission predicate (HostEval's
+     * fold-in, Phase 1 batch 2): chains bottoming at the store-nav
+     * natives, plus the five CURATED metamodel constructions — those
+     * route to the host channel so the SEAM's wall declines them with
+     * the oracle-not-runtime verdict instead of the SQL pipeline
+     * mangling them ("any native class" once stole 21 passing
+     * constructions; the pinned set is the fix). */
+    public static boolean owns(
+            com.legend.compiler.spec.typed.TypedSpec root,
+            java.util.Map<String,
+                    com.legend.compiler.spec.typed.TypedSpec> lets) {
+        com.legend.compiler.spec.typed.TypedSpec bottom =
+                chainBottom(root, lets);
+        if (bottom instanceof com.legend.compiler.spec.typed
+                .TypedNativeCall b
+                && com.legend.compiler.element.type.PlatformTypes
+                        .isStoreNavFn(b.callee().qualifiedName())) {
+            return true;
+        }
+        return root instanceof com.legend.compiler.spec.typed
+                .TypedNewInstance ni
+                && HOST_CONSTRUCTION_CLASSES.contains(ni.classFqn());
+    }
+
+    /** The ^Class(...) constructions the host channel owns — a CURATED
+     * set that grows deliberately per slice (pinned by
+     * HostChannelPredicateTest). */
+    static final java.util.Set<String> HOST_CONSTRUCTION_CLASSES =
+            java.util.Set.of(
+                    "meta::relational::metamodel::DynaFunction",
+                    "meta::relational::metamodel::Literal",
+                    "meta::relational::metamodel::Alias",
+                    "meta::relational::functions::pureToSqlQuery::metamodel"
+                            + "::FreeMarkerOperationHolder",
+                    "meta::relational::functions::pureToSqlQuery::metamodel"
+                            + "::VarPlaceHolder");
 
     public static @com.legend.Nullable ExecutionResult tryEval(
             TypedSpec root, Map<String, TypedSpec> lets, ModelContext ctx) {

@@ -14,7 +14,8 @@ public sealed interface SqlExpr
                 SqlExpr.DateLit, SqlExpr.TimestampLit, SqlExpr.FormatLit, SqlExpr.ArrayLit,
                 SqlExpr.OrderedListAgg,
                 SqlExpr.StructLit, SqlExpr.StructGet, SqlExpr.Call,
-                SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.WindowCall,
+                SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.CheckedOne,
+                SqlExpr.DeferredTdsString, SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
                 SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group,
                 SqlExpr.RowOrder, SqlExpr.ReduceCollection, SqlExpr.Membership,
@@ -75,6 +76,8 @@ public sealed interface SqlExpr
             }
             case Exists ignored -> List.of();
             case ScalarSubquery ignored -> List.of();
+            case CheckedOne co -> List.of(co.list());
+            case DeferredTdsString ignored -> List.of();
             case WindowCall w -> {
                 java.util.List<SqlExpr> out = new java.util.ArrayList<>();
                 if (w.fn() instanceof SqlExpr fe) {
@@ -136,6 +139,8 @@ public sealed interface SqlExpr
             case TempTableInSplice ignored -> this;
             case Exists ignored -> this;
             case ScalarSubquery ignored -> this;
+            case CheckedOne ignored -> new CheckedOne(cs.get(0));
+            case DeferredTdsString ignored -> this;
             case Group ignored -> new Group(cs.get(0));
             case ArrayLit ignored -> new ArrayLit(cs);
             case OrderedListAgg ignored ->
@@ -390,6 +395,28 @@ public sealed interface SqlExpr
 
     /** A single-value subquery in scalar position. */
     record ScalarSubquery(SqlQuery subquery) implements SqlExpr {
+    }
+
+    /** CHECKED NARROWING over a definite list value — pure's toOne as
+     * ONE semantic node with per-dialect spellings (the guard-emission
+     * design, STAMP_DISCIPLINE_PROGRAM D1): execution dialects spell
+     * the size guard (>1 raises pure's "Cannot cast a collection of
+     * size N to multiplicity [1]", 1 yields the element, 0/NULL flows
+     * the engine-noOp empty); the engine-TEXT channel renders the
+     * INNER value verbatim (the engine's processNoOp view — the
+     * NULLS-suppression precedent). */
+    record CheckedOne(SqlExpr list) implements SqlExpr {
+    }
+
+    /** A relation-toString whose COLUMN LIST is dynamic (a pivot with
+     * runtime-discovered keys): the '#TDS' text cannot compose at
+     * lowering — the EXECUTION BOUNDARY resolves it (DynamicPivot's
+     * two-phase discipline; the lowering layer records the typed
+     * schema by {@code id}). Types-free by design — the sql package
+     * never carries compiler types. A node reaching a renderer is a
+     * routing bug and walls loudly there. */
+    record DeferredTdsString(SqlSelect inner, String alias, int id)
+            implements SqlExpr {
     }
 
     /**

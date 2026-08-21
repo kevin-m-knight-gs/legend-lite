@@ -256,15 +256,23 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
                         | if(!$rawT->isEmpty() && $rawT->toOne()->instanceOf(Enumeration) && $single->instanceOf(String),
                             | // enum results travel as their NAME
                               $rawT->toOne()->cast(@Enumeration<Any>)->extractEnumValue($single->cast(@String))->cast(@X)->toMultiplicity(@[o]);,
-                            | if(!$rawT->isEmpty() && $rawT->toOne() == Float && $single->instanceOf(Integer),
-                                | // numeric WIDENING: DuckDB aggregates fold
-                                  // integral results (AVG(1) = 1) — the
-                                  // declared Float wins
-                                  $single->cast(@Integer)->toFloat()->cast(@X)->toMultiplicity(@[o]);,
-                                | if(!$rawT->isEmpty() && $rawT->toOne() == Float && $single->instanceOf(Decimal),
-                                    | $single->cast(@Decimal)->toFloat()->cast(@X)->toMultiplicity(@[o]);,
-                                    | $single->cast(@X)->toMultiplicity(@[o]);
-                                  );
+                            | // audit 2026-08-18 finding G, adjudicated:
+                              // the Integer->Float WIDENING branch is
+                              // DELETED — the full suite (1110) proved
+                              // it dead compensation. The Decimal arm
+                              // below is an ADAPTER-CONTRACT RELABEL,
+                              // not computation: the reference keeps
+                              // Float literals decimal-exact
+                              // (testBigFloatAbs asserts the exact
+                              // digits; SpecParser's oracle-verified
+                              // promotion mirrors it), so the platform
+                              // returns the exact Decimal VALUE and
+                              // only its TYPE LABEL moves to the
+                              // declared Float — no value is produced
+                              // or changed here
+                              if(!$rawT->isEmpty() && $rawT->toOne() == Float && $single->instanceOf(Decimal),
+                                | $single->cast(@Decimal)->toFloat()->cast(@X)->toMultiplicity(@[o]);,
+                                | $single->cast(@X)->toMultiplicity(@[o]);
                               );
                           );
                       );

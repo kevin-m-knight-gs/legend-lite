@@ -433,7 +433,7 @@ final class TemporalFrame {
                     changed |= inner != null;
                 }
             }
-            return changed ? new TypedNativeCall(c.callee(), args, c.info())
+            return changed ? c.withChildren(args)
                     : null;
         }
         return null;
@@ -553,7 +553,8 @@ final class TemporalFrame {
                         outerCol, headDate),
                 j.prefix(), j.frameName(),
                 new ExprType(new Type.RelationType(headCols),
-                        Multiplicity.Bounded.ONE));
+                        Multiplicity.Bounded.ONE),
+                j.userCondition() /* rebuild */);
         for (int i = 0; i < pfxs.size(); i++) {
             String pfx = pfxs.get(i);
             TypedJoin sj = subJoins.get(i);
@@ -598,7 +599,8 @@ final class TemporalFrame {
             out = new TypedJoin(out, sj.right(), sj.kind(), c,
                     java.util.Optional.of(headPfx + pfx), sj.frameName(),
                     new ExprType(new Type.RelationType(cols),
-                            Multiplicity.Bounded.ONE));
+                            Multiplicity.Bounded.ONE),
+                sj.userCondition() /* rebuild */);
         }
         return out;
     }
@@ -1704,7 +1706,8 @@ final class TemporalFrame {
                                     navPrefixToChain, midPrefixToChain,
                                     midPrefixToDim),
                                     biRight, j.kind(), bi, j.prefix(),
-                                    j.frameName(), j.info());
+                                    j.frameName(), j.info(),
+                j.userCondition() /* rebuild */);
                         }
                     }
                     String outerCol = outerColumnDate(specs.get(chainHead), cs,
@@ -1732,7 +1735,8 @@ final class TemporalFrame {
                                                         : null),
                                         j.left(), right, chainHead, outerCol,
                                         navClass),
-                                j.prefix(), j.frameName(), j.info());
+                                j.prefix(), j.frameName(), j.info(),
+                j.userCondition() /* rebuild */);
                     }
                     filtered = temporalTargetPipe(cs,
                             sources.get(cs.mappingFqn(), navClass), chainHead, right);
@@ -1746,7 +1750,8 @@ final class TemporalFrame {
                 yield new TypedJoin(
                         applyJoinTemporalFilters(j.left(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
                         filtered, j.kind(), j.condition(), j.prefix(),
-                        j.frameName(), j.info());
+                        j.frameName(), j.info(),
+                j.userCondition() /* rebuild */);
             }
             case TypedFilter f -> new TypedFilter(
                     applyJoinTemporalFilters(f.source(), cs, navPrefixToClass, navPrefixToChain, midPrefixToChain, midPrefixToDim),
@@ -1828,7 +1833,8 @@ final class TemporalFrame {
                                     .TypedTableReference rt
                                     ? wrap.apply(rt) : j.right(),
                             j.kind(), j.condition(), j.prefix(),
-                            j.frameName(), j.info());
+                            j.frameName(), j.info(),
+                j.userCondition() /* rebuild */);
             case TypedJoinSlot js ->
                     new TypedJoinSlot(
                             replaceScan(js.source(), wrap), js.alias(), js.target(),
@@ -2372,7 +2378,8 @@ final class TemporalFrame {
             return new TypedJoin(
                     filterMilestonedJoinTargets(j.left(), c, chainPrefix),
                     right, j.kind(), j.condition(), j.prefix(),
-                    j.frameName(), j.info());
+                    j.frameName(), j.info(),
+                j.userCondition() /* rebuild */);
         }
         // SLOT form of the same rule (the view-propagation golden): an
         // UNEXPANDED slot's raw table target stamps by its own blocks —
@@ -2710,7 +2717,8 @@ final class TemporalFrame {
         TypedSpec joined = new com.legend.compiler.spec.typed.TypedJoin(
                 datesRel, base, kind, onTrue, java.util.Optional.empty(),
                 null, new ExprType(joinedRow,
-                        Multiplicity.Bounded.ZERO_MANY));
+                        Multiplicity.Bounded.ZERO_MANY),
+                false /* stamp-join synth */);
         TypedSpec dateRead = new TypedPropertyAccess(
                 new com.legend.compiler.spec.typed.TypedVariable(
                         STAMP_ROW_VAR, new ExprType(joinedRow, one)),

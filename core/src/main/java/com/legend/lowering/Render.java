@@ -9,6 +9,7 @@ import com.legend.sql.OutputCol;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
+import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
@@ -312,7 +313,8 @@ public final class Render {
             com.legend.compiler.spec.typed.TypedNativeCall tc,
             java.util.function.Function<
                     com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation,
-            String alias) {
+            String alias,
+            java.util.Map<Integer, Type.RelationType> deferredTds) {
         if (tc.args().size() == 2
                 && (!(tc.args().get(1) instanceof
                         com.legend.compiler.spec.typed.TypedCBoolean b)
@@ -322,6 +324,17 @@ public final class Render {
                     + " the literal-false form");
         }
         SqlSelect inner = relation.apply(tc.args().get(0));
+        // DYNAMIC-PIVOT inner: the column list only exists at the
+        // execution boundary (DynamicPivot's two-phase discipline) —
+        // DEFER the '#TDS' composition; the boundary resolver rebuilds
+        // it from the LIMIT-0 probe + this typed schema.
+        if (hasDynamicPivot(inner)
+                && tc.args().get(0).info().type()
+                        instanceof Type.RelationType drt) {
+            int id = deferredTds.size();
+            deferredTds.put(id, drt);
+            return new SqlExpr.DeferredTdsString(inner, alias, id);
+        }
         java.util.Map<String, Type.Column> byName = new java.util.HashMap<>();
         if (tc.args().get(0).info().type() instanceof Type.RelationType rt) {
             for (Type.Column col : rt.columns()) {
@@ -340,6 +353,116 @@ public final class Render {
                 }).toList();
         return new SqlExpr.ScalarSubquery(
                 tdsString(inner, relCols, alias));
+    }
+
+    /** Whether the select tree contains a PIVOT — static or dynamic:
+     * either way the pivot's output columns are absent from the
+     * lowered outputs (witness test_Static_Pivot_Filter, whose '#TDS'
+     * lost the pivot columns exactly like the dynamic case), so the
+     * composition defers to the boundary probe. */
+    private static boolean hasDynamicPivot(SqlQuery q) {
+        if (!(q instanceof SqlSelect sel)) {
+            return q instanceof com.legend.sql.SqlUnion u
+                    && u.branches().stream().anyMatch(Render::hasDynamicPivot);
+        }
+        return sourceHasDynamicPivot(sel.from());
+    }
+
+    private static boolean sourceHasDynamicPivot(SqlSource s) {
+        return switch (s) {
+            case SqlSource.Pivot p -> true;
+            case SqlSource.Subselect sub -> hasDynamicPivot(sub.inner());
+            case SqlSource.Join j -> sourceHasDynamicPivot(j.left())
+                    || sourceHasDynamicPivot(j.right());
+            default -> false;
+        };
+    }
+
+    /** The WHOLE-PLAN deferred-TDS pass (called by the K-orchestrator
+     * after staticize — the dynamic-pivot two-phase discipline's second
+     * consumer): every {@link SqlExpr.DeferredTdsString} resolves via
+     * the supplied LIMIT-0 probe (a SCHEMA read the exec layer
+     * performs; THIS layer owns the composition — invariant 6d: exec
+     * never calls the middle-end, so the middle-end hosts the pass and
+     * takes the probe as a function). */
+    public static SqlQuery resolveAllDeferredTds(SqlQuery plan,
+            java.util.Map<Integer, Type.RelationType> registry,
+            java.util.function.Function<SqlSelect,
+                    com.legend.sql.PlanProbe> probe,
+            java.util.function.Function<String, Type> sqlTypeToPure) {
+        return new com.legend.sql.SqlRewriter() {
+            @Override
+            protected SqlExpr expr(SqlExpr e) {
+                if (!(e instanceof SqlExpr.DeferredTdsString d)) {
+                    return e;
+                }
+                com.legend.sql.PlanProbe p = probe.apply(d.inner());
+                Type.RelationType schema = java.util.Objects.requireNonNull(
+                        registry.get(d.id()), "deferred-TDS id " + d.id()
+                                + " has no registered schema");
+                return resolveDeferredTds(d, p.outs(), name -> {
+                    Type t = schema.pivotColumnType(name);
+                    // downstream-rebuilt schemas drop the pivot
+                    // templates (filter/select over the pivot) — the
+                    // probe's SQL type decodes, the PctTdsWrap pattern
+                    return t != null ? t
+                            : sqlTypeToPure.apply(String.valueOf(
+                                    p.typeNames().get(name)));
+                });
+            }
+        }.rewrite(plan);
+    }
+
+    /** THE BOUNDARY RESOLUTION of a deferred relation-toString: the
+     * probe's concrete outputs (pivot names included) become the column
+     * list; per-column pure types come from the typed schema via
+     * {@code colType} (static name match, else the pivot TEMPLATE —
+     * {@code Executor.pivotColumnType}'s rule). The inner is wrapped
+     * with the concrete projections so {@link #tdsString}'s own
+     * outputs-driven composition sees a fully-stamped relation. */
+    public static SqlExpr resolveDeferredTds(SqlExpr.DeferredTdsString d,
+            List<OutputCol> probed,
+            java.util.function.Function<String, Type> colType) {
+        String wrapAlias = d.alias() + "_c";
+        List<SqlSelect.Projection> projs = new ArrayList<>();
+        List<Type.Column> relCols = new ArrayList<>();
+        List<OutputCol> presentedOuts = new ArrayList<>();
+        for (OutputCol oc : probed) {
+            // ENGINE presentation: quote-wrap separator-bearing pivot
+            // names (the REFERENCE stays physical — the projection
+            // reads the bare SQL column, labeled with the presented name)
+            String presented = Type.RelationType.presentPivotName(oc.name());
+            projs.add(new SqlSelect.Projection(
+                    new SqlExpr.Column(wrapAlias, oc.name()), presented));
+            Type t = colType.apply(presented);
+            relCols.add(new Type.Column(presented, t,
+                    com.legend.compiler.element.type.Multiplicity
+                            .Bounded.ZERO_ONE));
+            presentedOuts.add(new OutputCol(presented, oc.type(),
+                    oc.nullable()));
+        }
+        SqlSelect concrete = SqlSelect.starOf(
+                        new SqlSource.Subselect(d.inner(), wrapAlias, null))
+                .withProjections(projs, presentedOuts);
+        // ROW ORDER: an ordered inner keeps plain-column keys on the
+        // wrapper so tdsString's hoist sees them; anything else stays
+        // loud in the hoist itself.
+        if (!d.inner().orderBy().isEmpty()) {
+            List<SqlSelect.SortKey> keys = new ArrayList<>();
+            for (SqlSelect.SortKey k : d.inner().orderBy()) {
+                String out = k.outputName() != null ? k.outputName()
+                        : k.expr() instanceof SqlExpr.Column c
+                                ? c.name() : null;
+                if (out != null) {
+                    keys.add(new SqlSelect.SortKey(
+                            new SqlExpr.Column(wrapAlias, out),
+                            k.ascending(), k.nullOrder(), out));
+                }
+            }
+            concrete = concrete.withOrderBy(keys);
+        }
+        return new SqlExpr.ScalarSubquery(
+                tdsString(concrete, relCols, d.alias() + "_r"));
     }
 
     /** The '#TDS' text (engine toString.pure:24-35): {@code #TDS\n} +
@@ -401,6 +524,40 @@ public final class Render {
     }
 
     /** The engine {@code s()} cell (s.pure:23-38). */
+    /** THE per-type cell PRINT FORMS — one owner (audit 2026-08-19:
+     * tdsCell and pctCell were drifting twins; tdsCell lacked the
+     * DateTime arm pctCell carried — the third-implementation disease
+     * in miniature). Channel-specific QUOTING/ESCAPING stays with each
+     * renderer; the SPELLING of a value lives here once. */
+    private static SqlExpr dateTimeText(SqlExpr c) {
+        // fixed THREE millisecond digits + '+0000' — the engine's own
+        // DateTime wire spelling (measured in the F4.4 attempt)
+        return cat(
+                SqlExpr.Call.of(SqlFn.STRFTIME, c,
+                        new SqlExpr.FormatLit(
+                                com.legend.sql.DateFmt.ISO_DOT)),
+                SqlExpr.Call.of(SqlFn.SUBSTRING,
+                        SqlExpr.Call.of(SqlFn.STRFTIME, c,
+                                new SqlExpr.FormatLit(List.of(
+                                        com.legend.sql.DateFmt.Part
+                                                .SUBSEC_MICRO))),
+                        new SqlExpr.IntLit(1), new SqlExpr.IntLit(3)),
+                new SqlExpr.StringLit("+0000"));
+    }
+
+    private static SqlExpr strictDateText(SqlExpr c) {
+        return SqlExpr.Call.of(SqlFn.STRFTIME, c,
+                new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE));
+    }
+
+    /** Whether the DATE-family value prints date-only (a DATE slot) or
+     * as a full DateTime. */
+    private static boolean dateOnly(Type t, @com.legend.Nullable SqlType slot) {
+        return t == Type.Primitive.STRICT_DATE
+                || (t == Type.Primitive.DATE
+                        && slot == SqlType.Scalar.DATE);
+    }
+
     private static SqlExpr tdsCell(SqlExpr c, Type t, SqlType slot) {
         boolean variant = t instanceof Type.ClassType vc
                 && com.legend.compiler.element.type.PlatformTypes
@@ -429,11 +586,28 @@ public final class Render {
                                     new SqlExpr.StringLit("\\'")),
                             new SqlExpr.StringLit("'")))),
                     c);
-        } else if (t == Type.Primitive.STRICT_DATE
-                || (t == Type.Primitive.DATE
-                        && slot == SqlType.Scalar.DATE)) {
-            rendered = SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                    new SqlExpr.FormatLit(DateFmt.DATE));
+        } else if (dateOnly(t, slot)) {
+            rendered = strictDateText(c);
+        } else if (t == Type.Primitive.DATE_TIME
+                || t == Type.Primitive.DATE) {
+            // the missing arm the drift hid (witness testExtendMax/
+            // MinDate: raw '2026-01-07 00:00:00' where pure prints the
+            // ISO+ms+0000 form)
+            rendered = dateTimeText(c);
+        } else if ((t == Type.Primitive.NUMBER
+                        || t == Type.Primitive.FLOAT)
+                && (slot == null
+                        || slot instanceof SqlType.Decimal
+                        || slot == SqlType.Scalar.DOUBLE)) {
+            // a Number/Float cell on a FRACTION-KIND wire (a DECIMAL an
+            // aggregate collapsed to, or a DOUBLE): the pure print form
+            // is the Float spelling — a DECIMAL cast's fixed scale
+            // fabricates trailing zeros (81.180 where pure prints 81.18;
+            // witness testMax_Floats/Numbers_Relation_Aggregate).
+            // INTEGER slots (an all-int Number column) and the VARCHAR
+            // mixed-identity carrier keep their own spellings.
+            rendered = Scalars.pureToString(Type.Primitive.FLOAT,
+                    new SqlExpr.Cast(c, SqlType.Scalar.DOUBLE));
         } else {
             rendered = Scalars.pureToString(t, c);
         }
@@ -668,26 +842,11 @@ public final class Render {
                             new SqlExpr.StringLit("\""),
                             new SqlExpr.StringLit("\"\"")),
                     new SqlExpr.StringLit("\""));
-        } else if (t == Type.Primitive.STRICT_DATE
-                || (t == Type.Primitive.DATE
-                        && slot == SqlType.Scalar.DATE)) {
-            rendered = SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                    new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE));
+        } else if (dateOnly(t, slot)) {
+            rendered = strictDateText(c);
         } else if (t == Type.Primitive.DATE_TIME
                 || t == Type.Primitive.DATE) {
-            // fixed THREE millisecond digits + '+0000' (the deephaven
-            // parser's accepted form — measured in the F4.4 attempt)
-            rendered = cat(
-                    SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                            new SqlExpr.FormatLit(
-                                    com.legend.sql.DateFmt.ISO_DOT)),
-                    SqlExpr.Call.of(SqlFn.SUBSTRING,
-                            SqlExpr.Call.of(SqlFn.STRFTIME, c,
-                                    new SqlExpr.FormatLit(List.of(
-                                            com.legend.sql.DateFmt.Part
-                                                    .SUBSEC_MICRO))),
-                            new SqlExpr.IntLit(1), new SqlExpr.IntLit(3)),
-                    new SqlExpr.StringLit("+0000"));
+            rendered = dateTimeText(c);
         } else if (t == Type.Primitive.FLOAT) {
             rendered = Scalars.pureToString(Type.Primitive.FLOAT, c);
         } else if (t == Type.Primitive.STRING

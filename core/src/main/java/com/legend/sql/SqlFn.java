@@ -82,5 +82,22 @@ public enum SqlFn {
     // Variant construction
     TO_VARIANT, BOOL_TO_TEXT,
     // Variant navigation: logical JSON access; text-extraction idioms are rendering
-    VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE
+    VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE;
+
+    /** Whether this function's RESULT is a list value — function
+     * METADATA (moved here from the dissolved ListShapes): read by the
+     * stamp invariant's shape prover and the toOne emission-form
+     * dispatch. Never the LIST_AGG family (list_aggregate reduces to a
+     * scalar). MAP_KEYS/MAP_VALUES, REGEXP_EXTRACT_ALL and SPLIT
+     * produce lists (witnesses in the corpus: values()->sort(),
+     * chunk()->sort(), split(':')->sort()->joinStrings). */
+    public boolean producesList() {
+        return switch (this) {
+            case LIST_CONCAT, LIST_TRANSFORM, LIST_SORT, LIST_FILTER,
+                    LIST_TAIL, LIST_INIT, LIST_SLICE, LIST_APPEND,
+                    LIST_FLATTEN, LIST_DISTINCT, LIST_REVERSE, LIST_ZIP,
+                    MAP_KEYS, MAP_VALUES, REGEXP_EXTRACT_ALL, SPLIT -> true;
+            default -> false;
+        };
+    }
 }

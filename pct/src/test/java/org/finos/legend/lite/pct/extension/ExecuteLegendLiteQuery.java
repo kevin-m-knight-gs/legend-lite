@@ -246,7 +246,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             // individually; the pure side wraps them back into ^List
             var elems = new ArrayList<CoreInstance>();
             for (Object v : list) {
-                if (v != null) {
+                if (!emptyCell(v)) {
                     elems.add(toCoreInstance(v, result.returnType(), ps));
                 }
             }
@@ -261,11 +261,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         Type elementType = result.returnType();
         var coreInstances = new ArrayList<CoreInstance>();
         for (Object value : result.values()) {
-            // CHANNEL-SCOPED null-drop (F5.5, d0f3a356 precedent): a NULL
-            // element of a COLLECTION result is a pure EMPTY, and no pure
-            // collection holds empties — same convention as the
-            // Executor's COLLECTION shaping. Not a fallback.
-            if (value != null) {
+            if (!emptyCell(value)) {
                 coreInstances.add(toCoreInstance(value, elementType, ps));
             }
         }
@@ -313,8 +309,8 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         }
         for (var en : struct.entrySet()) {
             Object v = en.getValue();
-            if (v == null) {
-                continue;
+            if (emptyCell(v)) {
+                continue;   // an absent property, not a value
             }
             String prop = String.valueOf(en.getKey());
             // NESTED class-typed properties resolve their REAL type from
@@ -328,7 +324,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 // multi-valued property: EVERY element reconstructs
                 var cis = new java.util.ArrayList<CoreInstance>();
                 for (Object e : lv) {
-                    if (e != null) {
+                    if (!emptyCell(e)) {
                         cis.add(toCoreInstance(e, pt, ps));
                     }
                 }
@@ -446,6 +442,22 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         return "meta::pure::functions::collection::Map".equals(classFqnOf(t));
     }
 
+
+    /** THE channel-scoped empty rule — ONE owner (documented-debts
+     * 2026-08-18; the audit counted six scattered unconditional drops
+     * that had only been re-commented). A NULL element is a pure EMPTY:
+     * pure collections and properties hold no empties, so SQL NULL and
+     * JSON-null decay both vanish here — the same convention as the
+     * Executor's COLLECTION shaping. The COUNTED case is not at risk:
+     * a top-level Collection result reaching this bridge has ALREADY
+     * passed the Executor's declared-lower-bound wall, and the
+     * per-element sites (list elements, struct properties) have no
+     * declared bound to violate; a defect manufacturing spurious NULLs
+     * surfaces in the reference asserts, which compare VALUES. */
+    private static boolean emptyCell(Object v) {
+        return v == null;
+    }
+
     private CoreInstance toCoreInstance(Object value, Type type, ProcessorSupport ps) {
         if (value instanceof java.util.Map<?, ?> struct && classFqnOf(type) != null
                 && !isMapReturn(type)) {
@@ -505,6 +517,13 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             return toPureDateTimeInstance(ts.toLocalDateTime());
         }
         if (value instanceof LocalDateTime ldt) {
+            // the SAME declared-type narrowing as the Timestamp arm
+            // (documented-debts 2026-08-18: the Executor now carries all
+            // timestamp cells as java.time — this arm silently skipped
+            // the consult and re-classified StrictDates as DateTime)
+            if (type instanceof Type.Primitive p && p == Type.Primitive.STRICT_DATE) {
+                return toPureDateInstance(ldt.toLocalDate());
+            }
             return toPureDateTimeInstance(ldt);
         }
         if (value instanceof OffsetDateTime odt) {
@@ -542,6 +561,13 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             // Precision-faithful date STRINGS (the wire's date convention:
             // partial dates, subsecond digit counts beyond the TIMESTAMP
             // carrier) — parse preserving every written digit.
+            // Audit finding M, adjudicated (documented-debts 2026-08-18):
+            // reading precision from the TEXT here is VALUE DECODING, not
+            // magnitude classification — the declared type below is the
+            // Date UNION, where precision is part of the value itself
+            // (parseDate('2014-02-27') IS a StrictDate; the wire text
+            // carries exactly that fact). Non-union declared types never
+            // reach this classifier with a contradicting precision.
             if (type instanceof Type.Primitive p
                     && (p == Type.Primitive.DATE || p == Type.Primitive.DATE_TIME
                             || p == Type.Primitive.STRICT_DATE)
@@ -576,9 +602,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             Type elemType = type;
             var coreInstances = new ArrayList<CoreInstance>();
             for (Object elem : list) {
-                // CHANNEL-SCOPED null-drop (F5.5): list elements — the
-                // same pure-collections-hold-no-empties convention
-                if (elem != null) {
+                if (!emptyCell(elem)) {
                     coreInstances.add(toCoreInstance(elem, elemType, ps));
                 }
             }
@@ -1041,7 +1065,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                         java.util.regex.Pattern.DOTALL)
                 .matcher(message);
         if (m.matches()) {
-            return m.group(1);
+            message = m.group(1);
         }
         return message;
     }

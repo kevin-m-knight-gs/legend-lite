@@ -284,6 +284,10 @@ class TypedSpecChildrenTest {
             return new com.legend.compiler.spec.typed.TypedMatchRuntime.Arm(
                     "test::T", "p", leaf());
         }
+        if (type == com.legend.protocol.SourceInfo.class) {
+            // the span component (TypedNativeCall.pos — Phase 4)
+            return new com.legend.protocol.SourceInfo("test.pure", 1, 1, 1, 2);
+        }
         throw new IllegalStateException("TypedSpecChildrenTest needs a dummy rule for "
                 + type.getName() + " — add one when introducing new node component types");
     }

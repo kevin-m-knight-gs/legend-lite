@@ -29,26 +29,71 @@ class PctDisciplineTest {
 
     private static final Pattern SITE = Pattern.compile(
             "Collections\\.sort\\(|\\.sorted\\(|\\.distinct\\(\\)"
-            + "|\\.sort\\(|Math\\.abs\\(.*<|new TreeSet|new TreeMap");
+            + "|\\.sort\\(|Math\\.abs\\(.*<|new TreeSet|new TreeMap"
+            + "|Collections\\.max\\(|Collections\\.min\\("
+            + "|new PriorityQueue|\\.stream\\(\\)\\.max\\("
+            + "|\\.stream\\(\\)\\.min\\(");
+
+    /** The same discipline for the module's PURE sources — the audit's
+     * theater #9: the walk visited the directory holding
+     * {@code pct_adapter.pure} and excluded it one line later with
+     * {@code .endsWith(".java")}, so the ONE guard in the module could
+     * not see the file holding finding G. Adapter-side reordering or
+     * dedup would dodge a rendering problem exactly the same way. */
+    private static final Pattern PURE_SITE = Pattern.compile(
+            "->sort\\(|->distinct\\(|->removeDuplicates\\(");
+
+    /** pct_adapter.pure size pin (the eval-ledger convention): the
+     * adapter is the CONTRACT surface — growth is new adapter
+     * compensation and needs a pin bump with a written justification.
+     * Seeded 2026-08-18 (audit finding G resolution: dead widening
+     * deleted, exactness relabel documented in place). */
+    private static final int ADAPTER_MAX_LINES = 320;
 
     @Test
     void noJavaSideComparisonInPct() throws IOException {
         List<String> bad = new ArrayList<>();
+        int javaScanned = 0;
+        int pureScanned = 0;
         try (Stream<Path> files = Files.walk(Path.of("src"))) {
-            for (Path f : files.filter(p -> p.toString().endsWith(".java"))
+            for (Path f : files
+                    .filter(p -> p.toString().endsWith(".java")
+                            || p.toString().endsWith(".pure"))
                     .filter(p -> !p.getFileName().toString()
                             .equals("PctDisciplineTest.java"))
                     .toList()) {
-                Matcher m = SITE.matcher(Files.readString(f));
+                boolean pure = f.toString().endsWith(".pure");
+                if (pure) {
+                    pureScanned++;
+                } else {
+                    javaScanned++;
+                }
+                String src = Files.readString(f);
+                Matcher m = (pure ? PURE_SITE : SITE).matcher(src);
                 while (m.find()) {
                     bad.add(f.getFileName() + ": " + m.group());
                 }
+                if (f.getFileName().toString().equals("pct_adapter.pure")) {
+                    long lines = src.lines().count();
+                    assertTrue(lines <= ADAPTER_MAX_LINES,
+                            "pct_adapter.pure grew to " + lines
+                            + " lines (pinned " + ADAPTER_MAX_LINES
+                            + ") — new adapter compensation needs a"
+                            + " deliberate pin bump with a written"
+                            + " justification (audit finding G)");
+                }
             }
         }
+        // audit item 7: the guard asserts its own coverage
+        assertTrue(javaScanned >= 9 && pureScanned >= 3,
+                "PctDisciplineTest coverage DROPPED: scanned "
+                + javaScanned + " java + " + pureScanned + " pure files"
+                + " (floors 9/3) — the walk root or filters rotted");
         assertTrue(bad.isEmpty(),
-                "Java-side comparison/ordering machinery appeared in the"
+                "comparison/ordering machinery appeared in the"
                 + " PCT module: " + bad + " — comparison stays in"
                 + " interpreted Pure (audit §4.3.1); do not dodge a"
-                + " rendering problem by comparing in Java");
+                + " rendering problem by comparing or reordering"
+                + " elsewhere");
     }
 }

@@ -884,9 +884,6 @@ public final class MappingNormalizer {
             LegacyMappingDefinition defining, ClassMapping.Relational rcm,
             ModelBuilder model) {
         ClassDefinition owner = model.findClass(rcm.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#1 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + rcm.className()));
-        if (owner == null) {
-            return false;
-        }
         for (PropertyMapping pm : rcm.propertyMappings()) {
             if (!(pm instanceof PropertyMapping.Join j)
                     || j.targetSetId() == null) {
@@ -1273,31 +1270,6 @@ public final class MappingNormalizer {
                         SynthHat.ASSOC, md.qualifiedName(), mj.associationName()));
     }
 
-    /**
-     * The Relation-function class mapping for {@code classFqn} in {@code md}
-     * — by SET ID when the association line names one; otherwise the class's
-     * sole set (two sets without an id is ambiguous — loud, never first-wins).
-     */
-    private static ClassMapping.RelationFunction relationFunctionMappingOf(
-            LegacyMappingDefinition md, String classFqn, String setId) {
-        List<ClassMapping.RelationFunction> hits = new ArrayList<>();
-        for (ClassMapping cm : md.classMappings()) {
-            if (cm instanceof ClassMapping.RelationFunction rf
-                    && rf.className().equals(classFqn)
-                    && (setId == null || setId.equals(setIdOf(rf)))) {
-                hits.add(rf);
-            }
-        }
-        if (hits.size() != 1) {
-            throw new NotImplementedException(
-                    "XStore/ModelJoin association end class '" + classFqn
-                    + "' resolves to " + hits.size() + " Relation(~func) set(s)"
-                    + (setId != null ? " for set id '" + setId + "'" : "")
-                    + " in '" + md.qualifiedName() + "'");
-        }
-        return hits.get(0);
-    }
-
 
     // ====================================================================
     // M2M (ClassMapping.Pure)  —  doc §5.5
@@ -1505,9 +1477,6 @@ public final class MappingNormalizer {
             return false;
         }
         ClassDefinition cd = model.findClass(classFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#3 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + classFqn));
-        if (cd == null) {
-            return false;
-        }
         for (var st : cd.stereotypes()) {
             if (com.legend.compiler.element.MilestoningStrategy.ofStereotypeOrNull(
                     st.profileName(), st.stereotypeName())
@@ -1535,9 +1504,6 @@ public final class MappingNormalizer {
             return false;   // superclass cycle guard
         }
         ClassDefinition cd = model.findClass(classFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at MappingNormalizer#4 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + classFqn));
-        if (cd == null) {
-            return false;
-        }
         for (var st : cd.stereotypes()) {
             if (com.legend.compiler.element.MilestoningStrategy.ofStereotypeOrNull(
                     st.profileName(), st.stereotypeName()) != null) {

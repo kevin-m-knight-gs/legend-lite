@@ -1,51 +1,87 @@
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.exec;
+package com.legend.compiler.spec;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The {@code fetchDb*MetaData} K-native backend (E4.b,
- * JAVA_EVICTION_PLAN): catalog queries over the AMBIENT session's
- * {@code information_schema} — the database the raw writes actually
- * seeded (the F6.6 rule; the throwaway shadow-H2 replay is DELETED).
- * Grids carry the JDBC {@code DatabaseMetaData} column names and
- * ordinals the engine tests index into; identifier columns project
- * {@code upper(...)} — the engine-parity spelling (H2 uppercases
- * unquoted DDL identifiers, which is exactly what the corpus goldens
- * assert; the ambient store is case-preserving). Every VALUE is
- * database-produced; Java composes the catalog query (orchestration)
- * and decodes the result by contract (egress).
+ * The {@code fetchDb*MetaData} catalog-grid SQL (E4.b,
+ * JAVA_EVICTION_PLAN; moved from {@code exec.DbMetaData} in Phase 1c —
+ * this is PURE composition, no JDBC): catalog queries over the AMBIENT
+ * session's {@code information_schema} — the database the raw writes
+ * actually seeded (the F6.6 rule). Grids carry the JDBC
+ * {@code DatabaseMetaData} column names and ordinals the engine tests
+ * index into; identifier columns project {@code upper(...)} — the
+ * engine-parity spelling (H2 uppercases unquoted DDL identifiers,
+ * which is exactly what the corpus goldens assert; the ambient store
+ * is case-preserving). Every VALUE is database-produced; the compiler
+ * composes the catalog query TEXT (the registered catalog SQL the
+ * RawSql charter admits) and the Typer types the grid as its relation
+ * ({@code TypedRawSqlRelation}, late-bound like every raw grid).
  */
-public final class DbMetaData {
+public final class CatalogGrids {
 
-    private DbMetaData() {
+    private CatalogGrids() {
     }
 
-    /** One fetched grid: column names + row values, a HOST value (the
-     * orchestration channel never lowers these to SQL). */
-    public record HostResultSet(List<String> columnNames,
-            List<List<Object>> rows) {
+    /** The catalog grid's SQL for a {@code fetchDb*} call with LITERAL
+     * patterns — the Typer's retype gate (Phase 1c: the call types as
+     * its relation, late-bound like every raw grid). Null = not
+     * compile-time recognizable (a variable pattern, or a PK grid whose
+     * connection carries no database reference at typing) — the call
+     * keeps its declared type and WALLS loudly at the pipeline. */
+    public static @com.legend.Nullable String sql(
+            com.legend.compiler.spec.typed.TypedNativeCall nc,
+            com.legend.compiler.element.ModelContext ctx) {
+        String fqn = nc.callee().qualifiedName();
+        var kind = com.legend.compiler.element.type.PlatformTypes
+                .fetchDbKind(fqn);
+        String a1 = literalPattern(nc, 1);
+        String a2 = nc.args().size() > 2 ? literalPattern(nc, 2) : null;
+        String a3 = nc.args().size() > 3 ? literalPattern(nc, 3) : null;
+        if (bad(a1) || bad(a2) || bad(a3)) {
+            return null;
+        }
+        try {
+            return switch (kind) {
+                case SCHEMAS -> fetchSql(fqn, a1, null, null);
+                case TABLES -> fetchSql(fqn, a1, a2, null);
+                case COLUMNS -> fetchSql(fqn, a1, a2, a3);
+                case PRIMARY_KEYS -> pkSql(
+                        pkFacts(ctx, nc.args().get(0), java.util.Map.of()),
+                        a1, a2);
+            };
+        } catch (com.legend.error.NotImplementedException e) {
+            return null;   // no db ref at typing — the seam's case
+        }
+    }
+
+    /** Sentinel-based literal pattern: null = empty ([]), the string =
+     * a literal, {@link #BAD} = not compile-time recognizable. */
+    private static final String BAD = " bad";
+
+    private static boolean bad(@com.legend.Nullable String s) {
+        return BAD.equals(s);
+    }
+
+    private static @com.legend.Nullable String literalPattern(
+            com.legend.compiler.spec.typed.TypedNativeCall nc, int i) {
+        var a = nc.args().get(i);
+        if (a instanceof com.legend.compiler.spec.typed.TypedCString cs) {
+            return cs.value();
+        }
+        if (a instanceof com.legend.compiler.spec.typed.TypedCollection col
+                && col.elements().isEmpty()) {
+            return null;
+        }
+        return BAD;
     }
 
     /** System schemas the catalog queries exclude — the tests navigate
      * the corpus's own DDL, never the engine's internals. */
     private static final String NOT_SYSTEM =
             " NOT IN ('information_schema','pg_catalog')";
-
-    public static HostResultSet fetch(String nativeFqn,
-            @com.legend.Nullable String schemaPattern,
-            @com.legend.Nullable String tablePattern,
-            @com.legend.Nullable String columnPattern,
-            Connection ambient) throws SQLException {
-        return query(fetchSql(nativeFqn, schemaPattern, tablePattern,
-                columnPattern), ambient);
-    }
 
     /** The catalog query TEXT alone — the E4.e grid-read compiler
      * composes further SQL over it (the chain projection). */
@@ -97,19 +133,6 @@ public final class DbMetaData {
      * milestoned re-seeds), composed as literal rows and
      * existence-filtered against the LIVE catalog in SQL; the database
      * produces every value, uppercased by the same engine-parity rule. */
-    public static HostResultSet fetchPrimaryKeys(
-            List<String[]> facts,
-            @com.legend.Nullable String schemaPattern,
-            @com.legend.Nullable String tablePattern,
-            Connection ambient) throws SQLException {
-        String sql = pkSql(facts, schemaPattern, tablePattern);
-        return sql == null
-                ? new HostResultSet(List.of("TABLE_CAT", "TABLE_SCHEM",
-                        "TABLE_NAME", "COLUMN_NAME", "KEY_SEQ", "PK_NAME"),
-                        List.of())
-                : query(sql, ambient);
-    }
-
     /** The PK catalog query TEXT alone (null = no facts → empty grid) —
      * the E4.e grid-read compiler composes over it. */
     public static @com.legend.Nullable String pkSql(List<String[]> facts,
@@ -275,29 +298,4 @@ public final class DbMetaData {
      * run against the database the raw writes actually seeded — CSV
      * loads and generator inserts included. The caller owns the
      * connection's lifecycle. */
-    public static HostResultSet query(String sql, Connection ambient)
-            throws SQLException {
-        try (Statement st = ambient.createStatement()) {
-            return grid(st.executeQuery(sql));
-        }
-    }
-
-    private static HostResultSet grid(ResultSet rs) throws SQLException {
-        try (rs) {
-            int n = rs.getMetaData().getColumnCount();
-            List<String> names = new ArrayList<>(n);
-            for (int i = 1; i <= n; i++) {
-                names.add(rs.getMetaData().getColumnName(i));
-            }
-            List<List<Object>> rows = new ArrayList<>();
-            while (rs.next()) {
-                List<Object> row = new ArrayList<>(n);
-                for (int i = 1; i <= n; i++) {
-                    row.add(rs.getObject(i));
-                }
-                rows.add(row);
-            }
-            return new HostResultSet(names, rows);
-        }
-    }
 }

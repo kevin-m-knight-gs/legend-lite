@@ -254,6 +254,15 @@ Every other family is byte-identical to the F0.1 baseline through ~20 green full
 
 ### 9.2 The five §0.2 metrics
 
+> **Correction (2026-08-18, `ADVERSARIAL_TENET_AUDIT_2026_08_18.md` §5):** two closing
+> claims below were FALSE as written when re-audited. "Falsified self-claims → 0" — the
+> audit found ≥8 live, most created by the closing sessions themselves (including the
+> `preResolve` citations, corrected 2026-08-18). "Duplicates → one owner" — identifier
+> quoting had THREE mutually inconsistent rules (`AnsiSqlRenderer.ident` doubles,
+> `Ddl.processColumnName` strips — lossy, `GridReads.q` doubles); the GridReads copy
+> retires with the fetchDb deletion leg, the Ddl/renderer divergence is an open row. Read
+> the table as the state CLAIMED at closing, not the state verified since.
+
 | Metric | At F0.1 | Closing |
 |---|---|---|
 | **Unexplained rows** | unknown — inexpressible | **0, mechanically gated**: the scoreboard's soft-pass columns (F2.1) make passing-with-unverified-elements expressible; every non-passing row carries a verdict (adjudication ledger + BURNDOWN_EXPLANATIONS for §0.4 deltas); the regression assert refuses any undeclared red; the five pardon ledgers assert staleness and totals (F3.7/F3.7b) |

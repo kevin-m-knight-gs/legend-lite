@@ -35,7 +35,14 @@ class ObservabilityGuardrailTest {
             "LEGEND_LITE_RAW_EXPAND_TRACE", "LEGEND_LITE_SPLIT_TRACE",
             "LEGEND_LITE_STACKS", "LEGEND_LITE_STAMP_TRACE",
             "LL_DUMP_RESOLVED", "LL_FNLR_DEBUG", "LL_LINEAGE_DEBUG",
-            "LL_ORD_COUNT", "LL_SQLTEXT_DEBUG", "LL_TDG_DEBUG",
+            "LL_ORD_COUNT", "LL_SQLTEXT_DEBUG",
+            // the multiplicity-stamp census instrument (STAMP_DISCIPLINE
+            // _PROGRAM.md, 2026-08-20) — the LL_TOL/ORD_COUNT family:
+            // a counting instrument destined to FLIP into the failing
+            // post-lowering invariant at census zero, then this flag
+            // retires. (LEGEND_LITE_STAMP_TRACE is a DIFFERENT stamp —
+            // TemporalFrame's milestoning-date trace.)
+            "LL_STAMP_COUNT", "LL_TDG_DEBUG",
             "LL_TMP_DEBUG", "LL_TMP_SQL", "LL_TOL_COUNT",
             // deployment config for the HTTP server entrypoint (moved in
             // with the engine-module deletion) — not a debug flag
@@ -45,7 +52,11 @@ class ObservabilityGuardrailTest {
     // engine-module deletion (DiagramHandler crash report, the two
     // invalid-PORT warnings in main) — process-boundary operational
     // logging, not debug traces. Shrink-only from here.
-    private static final int STDERR_PRINTS = 32;   // E4 census instrument removed at program close (was 33); re-pinned 2026-08-16 F1.2: harness left src/main (was 43)
+    // 32→34 (2026-08-20, measured): StampCensus's [stamp] report lines — the
+    // stamp-discipline census instrument (counting family, same as the
+    // [tol]/[ord] prints); both retire when the census flips to the
+    // failing invariant at zero.
+    private static final int STDERR_PRINTS = 34;   // E4 census instrument removed at program close (was 33); re-pinned 2026-08-16 F1.2: harness left src/main (was 43)
     // 111: ObjectRefs' extraction-plumbing recognizers (raw-AST harness
     // vocabulary — generateObjectReferences/decodePkMaps idioms match
     // engine test spellings structurally; reviewed)
@@ -104,7 +115,11 @@ class ObservabilityGuardrailTest {
     private static java.util.List<Path> mainSources() throws IOException {
         Path root = Path.of("src/main/java");
         try (Stream<Path> s = Files.walk(root)) {
-            return s.filter(f -> f.toString().endsWith(".java")).toList();
+            java.util.List<Path> out = s
+                    .filter(f -> f.toString().endsWith(".java")).toList();
+            GuardCoverage.assertFloor(/* 499->498: HostEval DELETED, Phase 1 batch 2 */ "ObservabilityGuardrailTest",
+                    out.size(), 498);
+            return out;
         }
     }
 }

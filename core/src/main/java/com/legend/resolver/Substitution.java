@@ -671,7 +671,7 @@ final class Substitution {
             for (TypedSpec a : c2.args()) {
                 args.add(crossCellSubst(a, aVar, bVar, outerById, tRow, tv));
             }
-            return new TypedNativeCall(c2.callee(), args, c2.info());
+            return c2.withChildren(args);
         }
         if (e instanceof TypedVariable v
                 && (v.name().equals(aVar) || v.name().equals(bVar))) {
@@ -1094,8 +1094,7 @@ final class Substitution {
                                             oc2.callee().signatureKey())
                                     || Pure.nativeNamed("greaterThanEqual",
                                             oc2.callee().signatureKey()))) {
-                        return new TypedNativeCall(lc.callee(),
-                                rewriteAll(lc.args()), lc.info());
+                        return lc.withChildren(rewriteAll(lc.args()));
                     }
                     throw new NotImplementedException("negated '"
                             + (lc.args().get(0) instanceof TypedNativeCall ic
@@ -1106,8 +1105,7 @@ final class Substitution {
                             + " operator's emission is not transcribed yet");
                 }
                 TypedSpec readInner = rewrite(read);
-                TypedSpec notInner = new TypedNativeCall(lc.callee(),
-                        rewriteAll(lc.args()), lc.info());
+                TypedSpec notInner = lc.withChildren(rewriteAll(lc.args()));
                 // a FILTER-LIFTED head ('#f' synthetic): the engine parks
                 // the chain filter in the outer WHERE — a parent with NO
                 // MATCHING child FAILS the enclosing filter (audit 14 pin:
@@ -2457,9 +2455,8 @@ final class Substitution {
             }
         }
         if (n instanceof TypedNativeCall c) {
-            return new TypedNativeCall(c.callee(),
-                    c.args().stream().map(a -> substEmbeddedReads(a, var, partial))
-                            .toList(), c.info());
+            return c.withChildren(c.args().stream().map(a -> substEmbeddedReads(a, var, partial))
+                            .toList());
         }
         if (n instanceof TypedPropertyAccess pa) {
             return new TypedPropertyAccess(
@@ -3016,7 +3013,7 @@ final class Substitution {
                     inner.body().stream().map(this::rewrite).toList(),
                     inner.info()));
         }
-        return new TypedNativeCall(call.callee(), newArgs, call.info());
+        return call.withChildren(newArgs);
     }
 
     /** The project-over-instance rewrite (constraint 1c): each col fn
@@ -3046,20 +3043,6 @@ final class Substitution {
                     c.documentation()));
         }
         return new TypedProject(ct.rel(), cols, tp.info());
-    }
-
-    /**
-     * {@code and}/{@code or} distribute over the per-leaf implicit EXISTS;
-     * {@code not} does NOT (&not; is not &exist;-distributive): {@code !=}
-     * is real pure's {@code not(equal(...))}, and hoisting the negation
-     * outside would turn "has an address with a different city" into "has
-     * no address with that city" — {@code not(X)} wraps as a WHOLE leaf,
-     * &exist;(&not;X), the engine's ANY-semantics.
-     */
-    private static boolean isBooleanConnective(TypedNativeCall c) {
-        String key = c.callee().signatureKey();
-        return Pure.nativeNamed("and", key)
-                || Pure.nativeNamed("or", key);
     }
 
     /**

@@ -140,13 +140,22 @@ class AuditRound3Test {
     // ---- lowering values ----
 
     @Test
-    @DisplayName("audit: singleton list literals take the COLLECTION reductions, not the to-one identity")
+    @DisplayName("audit: singleton reductions follow real pure — minus NEGATES a size-1 collection")
     void singletonListReductions() throws Exception {
         assertEquals(5L, ((Number) scalar("|[5]->plus()")).longValue());
         assertEquals(Boolean.TRUE, scalar("|[true]->and()"));
         assertEquals(Boolean.FALSE, scalar("|[false]->or()"));
-        assertEquals(1.5, ((Number) scalar("|[1.5]->minus()")).doubleValue(), 1e-9);
+        // CORRECTED vs real pure (stamp C1, 2026-08-20): pure cannot
+        // distinguish minus(1.5) from minus([1.5]) — auto-collection —
+        // and BOTH reference runtimes negate a size-1 collection
+        // (interpreted Minus.java case 1 seeds the accumulator with 0;
+        // compiled CompiledSupport.minus case 1 delegates to unary
+        // minus; PCT testSingleMinus pins minus(1) == -1). The old
+        // 1.5 expectation pinned a first-element-seed fold that no
+        // reference runtime implements for size 1.
+        assertEquals(-1.5, ((Number) scalar("|[1.5]->minus()")).doubleValue(), 1e-9);
         assertEquals(6L, ((Number) scalar("|[1,2,3]->plus()")).longValue());
+        assertEquals(5L, ((Number) scalar("|[10,3,2]->minus()")).longValue());
     }
 
     @Test

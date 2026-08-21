@@ -209,14 +209,30 @@ class ErrorShapeGuardrailTest {
                 + " banned (F1.11)");
     }
 
+    /** Tier-2 audit adjudication (2026-08-18, ADVERSARIAL_TENET_AUDIT
+     * probe 9): the rule's SCOPE is defaults that fabricate a DATA
+     * VALUE — string literals and numeric literals standing in for a
+     * cell/type/count. Measured and ruled OUT of scope: {@code default
+     * -> false/true} (22 sites — predicate methods, where the default
+     * IS the total answer for unmatched kinds) and {@code default ->
+     * null} (59 sites — the not-found idiom the null-policy decision
+     * procedure governs; e.g. GridReads' "not a shape this compiler
+     * owns" contract). Numeric fabricators measured ZERO and pin
+     * there. */
     @Test
     void defaultLiteralFallbacksOnlyShrink() throws IOException {
         int n = 0;
+        int numeric = 0;
         for (Path p : mainSources()) {
-            Matcher m = Pattern.compile("default -> \"")
-                    .matcher(Files.readString(p));
+            String src = Files.readString(p);
+            Matcher m = Pattern.compile("default -> \"").matcher(src);
             while (m.find()) {
                 n++;
+            }
+            Matcher num = Pattern.compile(
+                    "default -> \\d[\\dxXlLfF_.]*[,;)]").matcher(src);
+            while (num.find()) {
+                numeric++;
             }
         }
         assertTrue(n <= DEFAULT_LITERAL_FALLBACKS,
@@ -224,6 +240,10 @@ class ErrorShapeGuardrailTest {
                 + " (pinned at " + DEFAULT_LITERAL_FALLBACKS
                 + ") — an unmatched kind must THROW, never become a"
                 + " plausible literal (Charter C2.4)");
+        assertTrue(numeric == 0,
+                "default->NUMERIC fabricators appeared (" + numeric
+                + ", pinned at 0) — an unmatched kind must THROW, never"
+                + " become a plausible number (Charter C2.4)");
     }
 
     @Test
@@ -299,7 +319,11 @@ class ErrorShapeGuardrailTest {
     private static List<Path> mainSources() throws IOException {
         Path root = Path.of("src/main/java");
         try (Stream<Path> s = Files.walk(root)) {
-            return s.filter(p -> p.toString().endsWith(".java")).toList();
+            List<Path> out = s.filter(p -> p.toString().endsWith(".java"))
+                    .toList();
+            GuardCoverage.assertFloor(/* 499->498: HostEval DELETED, Phase 1 batch 2 */ "ErrorShapeGuardrailTest",
+                    out.size(), 498);
+            return out;
         }
     }
 

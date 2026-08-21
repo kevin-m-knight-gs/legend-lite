@@ -531,6 +531,10 @@ public final class Pure {
     // Pure exposes the metaclass as `Class<T>` (parameterized over the
     // class it describes); used by signatures like `getAll(Class<T>):T[*]`.
     public static final ClassDefinition CLASS = nativeClass("native Class meta::pure::metamodel::type::Class<T> extends meta::pure::metamodel::type::Type {}");
+    // the m3 relation COLUMN metaclass (columns() reflection — the
+    // witnessed surface is .name; real m3 Column<T,X|z>'s multiplicity
+    // param drops per the ratified single-divergence convention)
+    public static final ClassDefinition RELATION_COLUMN = nativeClass("native Class meta::pure::metamodel::relation::Column<T,X> extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[0..1]; }");
     // The enumeration metaclass (real m3: Class Enumeration<T> extends Type) —
     // a bare enumeration reference (STR_GeographicEntityType->toString()) is a
     // value of this type.
@@ -1254,6 +1258,12 @@ public final class Pure {
     // of the contract (identity/primitive/collection/model-defined equality).
     public static final NativeFunctionDefinition EQUAL__ANY_MANY__ANY_MANY = signature("native function meta::pure::functions::boolean::equal(left:meta::pure::metamodel::type::Any[*], right:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition EQ__ANY_1__ANY_1 = signature("native function meta::pure::functions::boolean::eq(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
+    // Identity (pointer equality) — real pure essential/boolean/equality/
+    // is.pure:23 (<<PCT.platformOnly>>). NO SQL lowering: the assertIs
+    // K-arm adjudicates identity in World 1 for statically-identified
+    // operands (type refs, folded instance provenance); any other use
+    // walls loudly at lowering — a wire carries values, not references.
+    public static final NativeFunctionDefinition IS__ANY_1__ANY_1 = signature("native function meta::pure::functions::boolean::is(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
     // VERBATIM real pure (platform/pure/essential/lang/eval/eval.pure),
     // arities 1-3 (real pure goes to 8; add on demand). Typed via the
     // kernel's FunctionType unification for function VALUES; lambda-literal
@@ -1542,6 +1552,12 @@ public final class Pure {
     // connectionByElement type the connection-resolution chains
     // (execution-context elements are Any[1] — the from() convention).
     public static final NativeFunctionDefinition EXECUTE_IN_DB__STRING_1__CONN_1__INTEGER_1__INTEGER_1 = signature("native function meta::relational::metamodel::execute::executeInDb(sql:meta::pure::metamodel::type::String[1], databaseConnection:meta::external::store::relational::runtime::DatabaseConnection[1], timeOutInSeconds:meta::pure::metamodel::type::Integer[1], fetchSize:meta::pure::metamodel::type::Integer[1]):meta::relational::metamodel::execute::ResultSet[1];");
+    // the 2-arg overload — REAL pure's wrapper (relationalExtension.pure:31,
+    // executeInDb($sql, $conn, 0, 1000)) as a platform native (Clause 2b:
+    // engine pure is the spec, the platform's definition is Java): same FQN,
+    // user definitions suppress; the K dispatch and the Phase 1c retype key
+    // on the FQN and the sql literal, indifferent to arity
+    public static final NativeFunctionDefinition EXECUTE_IN_DB__STRING_1__CONN_1 = signature("native function meta::relational::metamodel::execute::executeInDb(sql:meta::pure::metamodel::type::String[1], databaseConnection:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::relational::metamodel::execute::ResultSet[1];");
     // JDBC DatabaseMetaData reads (REAL platform_store_relational/
     // functions.pure:34-41) — evaluated HOST-SIDE against the H2 second
     // target (engine-parity metadata casing), never lowered
@@ -1950,7 +1966,57 @@ public final class Pure {
     // spirit; see IfChecker.thunkBody)
     public static final NativeFunctionDefinition FAIL = signature("native function meta::pure::functions::asserts::fail():meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition FAIL__STRING_1 = signature("native function meta::pure::functions::asserts::fail(message:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
+    // toRepresentation (REAL essential/string/toString/toRepresentation.pure)
+    // — the pure-source spelling of a value. A PLATFORM NATIVE (Phase 4:
+    // the pure body is m3-reflective — match over PackageableElement/
+    // elementToPath — and cannot compile in our model; PureAsserts.repr
+    // is the host owner, the Scalars rule the SQL owner). Platform-owned:
+    // parsed/corpus pure definitions suppress.
+    // chunk (REAL core_functions_unclassified string/split/chunk.pure:
+    // declared native there, called by the relation suite): fixed-size
+    // string chunking — SQL owner is the regexp engine.
+    public static final NativeFunctionDefinition CHUNK__STRING_1__INTEGER_1 = signature("native function meta::pure::functions::string::chunk(source:meta::pure::metamodel::type::String[1], val:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[*];");
+
+    public static final NativeFunctionDefinition TO_REPRESENTATION__ANY_1 = signature("native function meta::pure::functions::string::toRepresentation(any:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition ASSERT_EQ_WITHIN_TOLERANCE__NUMBER_1__NUMBER_1__NUMBER_1 = signature("native function meta::pure::functions::asserts::assertEqWithinTolerance(expected:meta::pure::metamodel::type::Number[1], actual:meta::pure::metamodel::type::Number[1], delta:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Boolean[1];");
+    // assertError (REAL essential/tests/assertError.pure:21/:30 — the
+    // message forms; the matcher-lambda native at :18 is PCT.platformOnly
+    // and needs a SourceInformation VALUE our model does not carry, so
+    // the message forms ARE the platform natives). PLATFORM natives
+    // (Phase 4): run f in the database, the K-orchestrator catches the
+    // database error and adjudicates message + line/column against the
+    // error's embedded source-info channel — the interpreted
+    // AssertError.java contract. Platform-owned: the parsed pure bodies
+    // (which call the matcher native) suppress.
+    public static final NativeFunctionDefinition ASSERT_ERROR__FN_1__STRING_1 = signature("native function meta::pure::functions::asserts::assertError(f:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], message:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_ERROR__FN_1__STRING_1__INTEGER_01__INTEGER_01 = signature("native function meta::pure::functions::asserts::assertError(f:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], message:meta::pure::metamodel::type::String[1], line:meta::pure::metamodel::type::Integer[0..1], column:meta::pure::metamodel::type::Integer[0..1]):meta::pure::metamodel::type::Boolean[1];");
+
+    // assertInstanceOf (REAL essential/tests/assertInstanceOf.pure:17/:22,
+    // signatures verbatim): PLATFORM natives on the assertError pattern —
+    // the parsed pure body needs elementToPath (m3 reflection, unportable),
+    // so the K-arm adjudicates the RUNTIME carrier kind against the named
+    // type host-side (PureAsserts.assertInstanceOf, the m3 value lattice).
+    // Platform-owned: the parsed bodies suppress; a value-position use
+    // walls loudly (no lowering — verdicts never compute in SQL).
+    public static final NativeFunctionDefinition ASSERT_INSTANCE_OF__ANY_1__TYPE_1 = signature("native function meta::pure::functions::asserts::assertInstanceOf(instance:meta::pure::metamodel::type::Any[1], type:meta::pure::metamodel::type::Type[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_INSTANCE_OF__ANY_1__TYPE_1__STRING_1 = signature("native function meta::pure::functions::asserts::assertInstanceOf(instance:meta::pure::metamodel::type::Any[1], type:meta::pure::metamodel::type::Type[1], message:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
+
+    // columns (REAL core_functions_relation columns.pure-adjacent
+    // declaration, PCT.platformOnly): relation COLUMN METADATA — the
+    // schema is STATIC at compile time, so the checker FOLDS the call
+    // to a literal collection of Column instances (ColumnsChecker);
+    // witnesses testGenerateGuidWithRelation, testHashCodeAggregate.
+    public static final NativeFunctionDefinition COLUMNS__REL_1 = signature("native function meta::pure::functions::relation::columns<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Column<meta::pure::metamodel::type::Nil,meta::pure::metamodel::type::Any>[*];");
+
+    // assertTdsEquivalent (REAL core_functions_relation
+    // relation/functions/tdsEquivalent.pure:26/:31, signatures verbatim;
+    // stereotyped PCT.platformOnly there): the GRID VERDICT — Clause 2c's
+    // chartered GridCompare route. The pure body is m3-reflective
+    // (columns(), classifierGenericType); the K-arm executes both
+    // relations IN THE DATABASE and cell-zips host-side with the spec's
+    // numeric-delta + temporal-seconds policies (GridCompare, one owner).
+    public static final NativeFunctionDefinition ASSERT_TDS_EQUIVALENT__REL_1__REL_1__NUMBER_1 = signature("native function meta::pure::functions::relation::assertTdsEquivalent<T,Z>(one:meta::pure::metamodel::relation::Relation<T>[1], two:meta::pure::metamodel::relation::Relation<Z>[1], delta:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition ASSERT_TDS_EQUIVALENT__REL_1__REL_1__NUMBER_1__NUMBER_1 = signature("native function meta::pure::functions::relation::assertTdsEquivalent<T,Z>(one:meta::pure::metamodel::relation::Relation<T>[1], two:meta::pure::metamodel::relation::Relation<Z>[1], delta:meta::pure::metamodel::type::Number[1], timeDeltaInSeconds:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Boolean[1];");
 
     public static final NativeFunctionDefinition GET_STRING__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getString(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
 
@@ -2101,7 +2167,9 @@ public final class Pure {
     public static final NativeFunctionDefinition TO_VARIANT__ANY_MANY = signature("native function meta::pure::functions::variant::convert::toVariant(source:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::variant::Variant[1];");
     public static final NativeFunctionDefinition TO__T_0_1__V_0_1 = signature("native function meta::pure::functions::variant::convert::to<T,V>(source:T[0..1], type:V[0..1]):V[0..1];");
     public static final NativeFunctionDefinition TRIM__STRING_1 = signature("native function meta::pure::functions::string::trim(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
-    public static final NativeFunctionDefinition TYPE__ANY_1 = signature("native function meta::pure::functions::meta::type(any:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Type[1];");
+    // real pure essential/meta/type/type.pure:18 — any:Any[*], NOT [1]
+    // (the [1] port broke testConcatenateTypeInference's type([*]) call)
+    public static final NativeFunctionDefinition TYPE__ANY_1 = signature("native function meta::pure::functions::meta::type(any:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Type[1];");
     public static final NativeFunctionDefinition UNBOUNDED = signature("native function meta::pure::functions::relation::unbounded():meta::pure::functions::relation::UnboundedFrameValue[1];");
     public static final NativeFunctionDefinition VARIANCE_POPULATION__NUMBER_MANY = signature("native function meta::pure::functions::math::variancePopulation(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1];");
     public static final NativeFunctionDefinition VARIANCE_SAMPLE__NUMBER_MANY = signature("native function meta::pure::functions::math::varianceSample(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1];");

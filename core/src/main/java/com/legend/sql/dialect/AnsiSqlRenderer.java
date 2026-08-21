@@ -226,6 +226,10 @@ public class AnsiSqlRenderer implements SqlDialect {
                     .append(vp.varName()).append("}) as ")
                     .append(ident(vp.alias()));
             case SqlSource.Values v -> valuesSource(sb, v);
+            // corpus-authored raw SQL as a relation source (Phase 1:
+            // the typed executeInDb grid) — carried text, parenthesized
+            case SqlSource.RawSql r -> sb.append("(").append(r.sql())
+                    .append(") AS ").append(ident(r.alias()));
             case SqlSource.SourceUrl u -> {
                 sb.append("(");
                 nl(sb, depth + 1).append(sourceUrl(u.url()));
@@ -284,6 +288,28 @@ public class AnsiSqlRenderer implements SqlDialect {
     // Expressions
     // ==================================================================
 
+    /** The CHECKED-NARROWING spelling (D1, the one semantic node):
+     * execution dialects emit pure's toOne size guard; the engine-TEXT
+     * subclasses override to the verbatim inner value (processNoOp). */
+    protected String checkedOne(SqlExpr.CheckedOne co, int parentPrec) {
+        SqlExpr len = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_LENGTH,
+                co.list());
+        return expr(new SqlExpr.Case(
+                java.util.List.of(new SqlExpr.Case.When(
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.GREATER, len,
+                                new SqlExpr.IntLit(1)),
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
+                                SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
+                                        new SqlExpr.StringLit(
+                                                "Cannot cast a collection of size "),
+                                        new SqlExpr.Cast(len,
+                                                com.legend.sql.SqlType.Scalar.VARCHAR),
+                                        new SqlExpr.StringLit(
+                                                " to multiplicity [1]"))))),
+                SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_GET,
+                        co.list(), new SqlExpr.IntLit(1))), parentPrec);
+    }
+
     protected String expr(SqlExpr e, int parentPrec) {
         return switch (e) {
             case SqlExpr.Group g -> "(" + expr(g.inner(), 0) + ")";
@@ -326,6 +352,16 @@ public class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.Case c -> caseExpr(c);
             case SqlExpr.Exists ex -> "EXISTS (" + inline(ex.subquery()) + ")";
             case SqlExpr.ScalarSubquery sq -> "(" + inline(sq.subquery()) + ")";
+            // CHECKED NARROWING (the ONE semantic node, D1): execution
+            // dialects spell pure's toOne size guard — >1 raises pure's
+            // message, 1 extracts, 0/NULL flows the engine-noOp empty.
+            // Engine-TEXT renderers override with the verbatim inner
+            // value (processNoOp view).
+            case SqlExpr.CheckedOne co -> checkedOne(co, parentPrec);
+            case SqlExpr.DeferredTdsString d -> throw new IllegalStateException(
+                    "deferred relation-toString reached the renderer — the"
+                    + " execution boundary must resolve the dynamic column"
+                    + " list first (DeferredTdsString id " + d.id() + ")");
             case SqlExpr.WindowCall w -> windowCall(w);
             case SqlExpr.Lambda l -> lambda(l);
             case SqlExpr.Cast c -> variantAwareCast(c);

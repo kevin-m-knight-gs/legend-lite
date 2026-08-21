@@ -18,7 +18,13 @@ import java.util.List;
 /**
  * Executes rendered SQL and shapes the rows per the ROOT's classification.
  * Cell values are raw JDBC objects; column Pure types come from the query's
- * typed outputs (never from JDBC metadata — the no-sniffing contract).
+ * typed outputs. ONE registered exception (documented-debts 2026-08-18 —
+ * the audit's §5 caught this header claiming "never" while the exception
+ * lived below it): a schema rebuilt DOWNSTREAM of a dynamic pivot loses
+ * the aggregate templates, and {@code pivotColumnType}'s last fallback
+ * derives the Pure type from the JDBC type name through the exact-match
+ * {@code pureOfSqlType} table (loud on unknown names). Everywhere else,
+ * JDBC metadata never types a column.
  */
 public final class Executor {
 
@@ -267,10 +273,27 @@ public final class Executor {
                                 rootType.type());
                         // a NULL cell is a pure EMPTY, and no pure collection
                         // holds empties — Person.all().middleName over a row
-                        // with no middle name contributes nothing, not null
+                        // with no middle name contributes nothing, not null.
+                        // The compile-time gate (audit 2026-08-18 finding F):
+                        // no Pure VALUE of a non-variant type is carried as
+                        // Java null (variant roots keep driver carriers, and
+                        // an Any root's JSON null decays to empty by variant-
+                        // decay semantics), so null here can only MEAN empty
                         if (v != null) {
                             values.add(v);
                         }
+                    }
+                    // the declared lower bound is the fact with teeth: a
+                    // drop that shrinks a [1..*]-typed collection below its
+                    // bound is a mapping/lowering defect, never a quiet count
+                    long lower = rootType.multiplicity()
+                            .requireBounded("COLLECTION shaping").lower();
+                    if (values.size() < lower) {
+                        throw new IllegalStateException("collection-shaped"
+                                + " result holds " + values.size()
+                                + " values, below its declared lower bound "
+                                + lower + " — NULL cells were dropped past"
+                                + " the type's own contract");
                     }
                     yield new ExecutionResult.Collection(values, rootType.type());
                 }
@@ -364,8 +387,15 @@ public final class Executor {
      */
     private static @com.legend.Nullable Object decodeAny(@com.legend.Nullable Object v) {
         // Drivers hand JSON cells back as their own node type (DuckDB:
-        // org.duckdb.JsonNode) or as text — matched by FULL class name so the
-        // executor needs no driver import; the node's toString IS the JSON text.
+        // org.duckdb.JsonNode) or as text — matched by FULL class name.
+        // The REASON is optional-dependency isolation, not guard-dodging
+        // (documented-debts 2026-08-18; the audit read the old comment as
+        // compliance-avoidance policy): exec MAY import driver packages
+        // (F1.3 funnel), but a hard `instanceof org.duckdb.JsonNode`
+        // links a class that is ABSENT on H2/SQLite-only deployments —
+        // NoClassDefFoundError at first result read. The full-FQN string
+        // is the exact-match, no-sniffing form of the same test; the
+        // node's toString IS the JSON text.
         String s;
         if (v instanceof String str) {
             s = str;
@@ -429,11 +459,16 @@ public final class Executor {
         if (o instanceof java.sql.Timestamp) {
             // (a TIMESTAMP-typed output may still surface a VARCHAR cell —
             // the precision-faithful string convention — so gate on the
-            // actual driver object, not the declared type)
-            java.time.LocalDateTime ldt = rs.getObject(i, java.time.LocalDateTime.class);
-            if (ldt != null && ldt.getYear() < 1) {
-                return ldt;
-            }
+            // actual driver object, not the declared type.)
+            // ONE carrier, chosen by KIND, never by value (documented-
+            // debts 2026-08-18; the old `getYear() < 1` read a value's
+            // MAGNITUDE to pick the box — C2.2's shape, the surviving
+            // sibling of the deleted midnight heuristic): every
+            // timestamp cell re-fetches as java.time, the BC-faithful
+            // carrier — Timestamp's epoch is WRONG for BC years
+            java.time.LocalDateTime ldt =
+                    rs.getObject(i, java.time.LocalDateTime.class);
+            return ldt != null ? ldt : o;
         }
         return o;
     }
@@ -478,6 +513,14 @@ public final class Executor {
             }
             return out;
         }
+        // the ONE-CARRIER rule at every LEAF (documented-debts
+        // 2026-08-18): array elements and struct attributes arrive as
+        // raw driver objects that never pass fetch() — the timestamp
+        // box converts here so NO egress path can leak
+        // java.sql.Timestamp beside the java.time carrier
+        if (v instanceof java.sql.Timestamp ts) {
+            v = ts.toLocalDateTime();
+        }
         return dialect.normalize(v, type);
     }
 
@@ -514,12 +557,27 @@ public final class Executor {
     private static List<Column> resolveColumns(ResultSet rs, SqlQuery plan,
             Type.RelationType schema, int n) throws SQLException {
         List<Column> columns = new ArrayList<>();
+        if (schema.isLateBound()) {
+            // SINGLE-QUERY RULE (P3-2): an UNDEMANDED raw grid skipped
+            // the LIMIT-0 probe — the ONE executed query is its own
+            // schema authority. Adopt the result-set headers as trusted
+            // columns (Any[0..1], the trust-name rule); the wire KIND
+            // drives cell decode (the plan carries no outputs to
+            // consult). Gate is the TYPE (schema.isLateBound()), never
+            // an outputs.isEmpty() proxy.
+            for (int i = 1; i <= n; i++) {
+                Type.Column tc = Type.RelationType.trustedColumn(
+                        rs.getMetaData().getColumnName(i));
+                columns.add(new Column(tc.name(), tc.type(),
+                        tc.multiplicity()));
+            }
+            return columns;
+        }
         if (n == schema.columns().size()) {
             // POSITIONAL on both sides (schemas are ordered); no null types.
             for (int i = 1; i <= n; i++) {
                 Type.Column sc = schema.columns().get(i - 1);
-                columns.add(new Column(sc.name(),
-                        rs.getMetaData().getColumnTypeName(i), sc.type(),
+                columns.add(new Column(sc.name(), sc.type(),
                         sc.multiplicity()));
             }
         } else if (hasPivot(plan)) {
@@ -533,9 +591,13 @@ public final class Executor {
             // only for schemas rebuilt downstream of the pivot, where the
             // templates no longer ride.
             for (int i = 1; i <= n; i++) {
-                String name = rs.getMetaData().getColumnName(i);
+                // ENGINE presentation: a separator-bearing pivot name
+                // presents quote-wrapped (Type.RelationType
+                // .presentPivotName — the physical SQL column stays bare)
+                String name = Type.RelationType.presentPivotName(
+                        rs.getMetaData().getColumnName(i));
                 String sqlType = rs.getMetaData().getColumnTypeName(i);
-                columns.add(new Column(name, sqlType, pivotColumnType(schema, name, sqlType)));
+                columns.add(new Column(name, pivotColumnType(schema, name, sqlType)));
             }
         } else {
             throw new IllegalStateException("result has " + n + " columns but the typed"
@@ -552,9 +614,10 @@ public final class Executor {
             com.legend.sql.dialect.SqlDialect dialect, Type.RelationType schema,
             List<Column> columns) throws SQLException {
         List<Object> cells = new ArrayList<>(n);
+        boolean lateBound = schema.isLateBound();
         for (int i = 1; i <= n; i++) {
-            Object cell = unwrap(fetch(rs, i, sqlTypeOf(plan, i - 1)),
-                    sqlTypeOf(plan, i - 1), dialect);
+            Object cell = unwrap(fetch(rs, i, sqlTypeOf(plan, i - 1, lateBound)),
+                    sqlTypeOf(plan, i - 1, lateBound), dialect);
             // E2 (JAVA_EVICTION_PLAN): the host-side row explosion is
             // DEAD — the scalar-stream projection explodes IN SQL
             // (LEFT LATERAL UNNEST at project lowering; probe: zero
@@ -562,7 +625,7 @@ public final class Executor {
             // matches the emitted one. A list cell in a primitive
             // schema slot is a lowering defect, never repaired here.
             if ((cell instanceof List<?> || cell instanceof java.sql.Array)
-                    && schema.columns().get(i - 1).type()
+                    && columns.get(i - 1).pureType()
                             instanceof Type.Primitive) {
                 throw new IllegalStateException("a many-valued cell"
                         + " reached a scalar TDS slot ('"
@@ -576,8 +639,21 @@ public final class Executor {
     }
 
     private static com.legend.sql.@com.legend.Nullable SqlType sqlTypeOf(SqlQuery plan, int index) {
+        return sqlTypeOf(plan, index, false);
+    }
+
+    /** {@code lateBound} is threaded from the TYPED schema
+     * ({@code schema.isLateBound()} — P3-2's explicit gate, never an
+     * outputs-emptiness proxy): an undemanded raw grid's zero-output
+     * star-select has no static SQL type per column, and the wire KIND
+     * drives decode. */
+    private static com.legend.sql.@com.legend.Nullable SqlType sqlTypeOf(SqlQuery plan, int index,
+            boolean lateBound) {
         List<OutputCol> outputs = plan.outputs();
         if (index >= outputs.size()) {
+            if (lateBound) {
+                return null; // late-bound grid column: the wire kind decides
+            }
             if (hasPivot(plan)) {
                 return null; // dynamic pivot column: no static SQL type exists
             }
@@ -608,22 +684,12 @@ public final class Executor {
      * templates are present is a naming-contract bug — loud, never guessed.
      */
     private static Type pivotColumnType(Type.RelationType schema, String name, String sqlType) {
-        var byName = schema.columns().stream()
-                .filter(c -> c.name().equals(name)).findFirst();
-        if (byName.isPresent()) {
-            return byName.get().type();
-        }
-        int sep = name.lastIndexOf(Type.RelationType.PIVOT_SEPARATOR);
-        if (sep >= 0 && !schema.dynamicColumns().isEmpty()) {
-            String template = name.substring(sep + Type.RelationType.PIVOT_SEPARATOR.length());
-            return schema.dynamicColumns().stream()
-                    .filter(c -> c.name().equals(template)).findFirst()
-                    .map(Type.Column::type)
-                    .orElseThrow(() -> new IllegalStateException("pivot column '" + name
-                            + "' matches no aggregate template " + schema.dynamicColumns().stream()
-                                    .map(Type.Column::name).toList()));
-        }
-        return pureOfSqlType(sqlType);
+        // the ONE matching rule lives on Type.RelationType (the
+        // deferred-TDS resolver shares it); the SQL-type decode is THIS
+        // caller's fallback — schemas rebuilt downstream of the pivot,
+        // where the templates no longer ride
+        Type t = schema.pivotColumnType(name);
+        return t != null ? t : pureOfSqlType(sqlType);
     }
 
     /** The Pure primitive a DYNAMIC (pivot-generated) SQL column carries.

@@ -74,6 +74,14 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * 1-arg form desugars to three {@code ''}). Recognizes the lowered
      * COALESCE(STRING_AGG)+CONCAT wrappers; non-literal collections fall
      * through to the honest wall. */
+    /** Engine-TEXT view of checked narrowing: the VERBATIM inner value
+     * — the engine translates toOne to processNoOp in SQL (D1; the
+     * NULLS-suppression precedent for engine-verbatim views). */
+    @Override
+    protected String checkedOne(SqlExpr.CheckedOne co, int parentPrec) {
+        return expr(co.list(), parentPrec);
+    }
+
     private @com.legend.Nullable String joinStringsFlat(SqlExpr.Call c) {
         // 4-arg forms: CONCAT(CONCAT(prefix, J), suffix) [list-value arm]
         // or CONCAT(prefix, CONCAT(J, suffix)) [pure-value arm]
@@ -1256,19 +1264,18 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 : k.expr() instanceof SqlExpr.Column c && c.table() == null
                         ? '"' + c.name() + '"'
                         : expr(k.expr(), 0);
-        String s = e + (k.ascending() ? " asc" : " desc");
-        // H2 sorts null SMALLEST by default (ASC first / DESC last) and
-        // the engine never spells a NULLS clause — suppress a placement
-        // that just restates that default (C1.2 puts it in the IR so
-        // DuckDB, whose default differs, can render it explicitly)
-        var h2Default = k.ascending()
-                ? com.legend.sql.SqlSelect.SortKey.NullOrder.NULLS_FIRST
-                : com.legend.sql.SqlSelect.SortKey.NullOrder.NULLS_LAST;
-        if (k.nullOrder() != null && k.nullOrder() != h2Default) {
-            s += k.nullOrder() == com.legend.sql.SqlSelect.SortKey
-                    .NullOrder.NULLS_FIRST ? " nulls first" : " nulls last";
-        }
-        return s;
+        // ENGINE-VERBATIM: the engine never spells a NULLS clause in
+        // ORDER BY (every studied golden) — this TEXT channel suppresses
+        // the IR's semantic null-order stamp ENTIRELY. Slice 10 made
+        // Fold stamp pure's null-is-largest (DESC → NULLS_FIRST), which
+        // the old restates-the-default filter printed here, dropping 5
+        // corpus rows out of text-matched (h2-exec floor 296 → 291;
+        // rows still verified — the EXECUTION renderers keep the stamp,
+        // so H2 exec and DuckDB agree). Engine-on-H2 rides H2's default
+        // placement instead — the same per-backend upstream divergence
+        // class as the index-base fork; drop-in text wins on this
+        // surface.
+        return e + (k.ascending() ? " asc" : " desc");
     }
 
     /** Engine window text is lowercase: {@code sum(...) over (partition

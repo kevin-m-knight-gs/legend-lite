@@ -67,10 +67,28 @@ final class ValueCollections {
                                 true)));
     }
 
-    /** Every element is a property read off the SAME row variable — the
-     * Typer's TDSRow cells synthesis, the one shape that prints TDSNull. */
+    /** The C1 SINGLETON-COLLAPSE predicate — one statement of the rule
+     * both collection arms share (D4: it was restated inline in each):
+     * a one-element collection whose stamp admits at most one value IS
+     * its element; only the CARRIER differs per arm (plain vs the
+     * Any-LUB variant wrap). */
+    static boolean c1Singleton(TypedCollection tc) {
+        return tc.elements().size() == 1 && Stamps.atMostOne(tc);
+    }
+
+    /** The Typer's {@code $r.values} TDSRow-cells synthesis — the one
+     * shape that prints TDSNull: every element a property read off the
+     * SAME row variable, AND the reads cover the row's FULL column
+     * roster in order. The roster requirement is the synthesis
+     * SIGNATURE: it distinguishes {@code $r.values} from a HAND-WRITTEN
+     * cell list ({@code [$r.getString(a), $r.getString(b)]} — engine
+     * joinStrings semantics, bare columns, no TDSNull) — a distinction
+     * the old toOne getter-desugar wraps carried by ACCIDENT until the
+     * honest desugar made hand-written reads bare too (stamp program,
+     * testHashFunctions witness). */
     static boolean isRowCells(TypedCollection tc) {
         String var = null;
+        TypedVariable rowVar = null;
         for (TypedSpec e : tc.elements()) {
             if (!(e instanceof TypedPropertyAccess pa
                     && pa.source()
@@ -79,11 +97,54 @@ final class ValueCollections {
             }
             if (var == null) {
                 var = v.name();
+                rowVar = v;
             } else if (!var.equals(v.name())) {
                 return false;
             }
         }
-        return !tc.elements().isEmpty();
+        if (tc.elements().isEmpty() || rowVar == null
+                || !(rowVar.info().type()
+                        instanceof Type.RelationType rt)) {
+            return false;
+        }
+        java.util.List<Type.RelationType.Column> cols = rt.columns();
+        if (cols.size() != tc.elements().size()) {
+            return false;
+        }
+        for (int i = 0; i < cols.size(); i++) {
+            if (!cols.get(i).name().equals(
+                    ((TypedPropertyAccess) tc.elements().get(i)).property())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** The rowCells makeString/joinStrings join as a STATIC CONCAT
+     * interleave: (start?) c1 (sep c2 …) (end?) — args beyond the
+     * collection arrive lowered in order ([sep] or [start, sep, end]). */
+    static com.legend.sql.SqlExpr rowCellsJoin(
+            java.util.List<com.legend.sql.SqlExpr> cells,
+            java.util.List<com.legend.sql.SqlExpr> rest) {
+        com.legend.sql.SqlExpr sep = rest.size() == 1 ? rest.get(0)
+                : rest.size() == 3 ? rest.get(1) : null;
+        java.util.List<com.legend.sql.SqlExpr> parts = new ArrayList<>();
+        if (rest.size() == 3) {
+            parts.add(rest.get(0));
+        }
+        for (int i = 0; i < cells.size(); i++) {
+            if (i > 0 && sep != null) {
+                parts.add(sep);
+            }
+            parts.add(cells.get(i));
+        }
+        if (rest.size() == 3) {
+            parts.add(rest.get(2));
+        }
+        return parts.size() == 1 ? parts.get(0)
+                : parts.isEmpty() ? new com.legend.sql.SqlExpr.StringLit("")
+                : new com.legend.sql.SqlExpr.Call(
+                        com.legend.sql.SqlFn.CONCAT, parts);
     }
 
     static boolean isCollectionMapper(TypedLambda ml) {

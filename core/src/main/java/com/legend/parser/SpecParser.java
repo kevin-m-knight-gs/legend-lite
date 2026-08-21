@@ -1001,7 +1001,7 @@ public final class SpecParser implements TokenStreamCursor {
      * Trailing commas are <em>not</em> permitted &mdash; engine rejects
      * them and C.1 follows suit so corpora remain byte-comparable.
      */
-    private PureCollection parseCollection() {
+    private ValueSpecification parseCollection() {
         int openTok = pos;
         pos++; // consume '['
         boundedDepth++;
@@ -1012,17 +1012,45 @@ public final class SpecParser implements TokenStreamCursor {
         }
     }
 
-    private PureCollection parseCollectionBody(int openTok) {
+    private ValueSpecification parseCollectionBody(int openTok) {
         List<ValueSpecification> values = new ArrayList<>();
         if (!atEnd() && peek() == TokenType.BRACKET_CLOSE) {
             pos++;
             return new PureCollection(values, spanOf(openTok, pos - 1));
+        }
+        // M3 RANGE LITERAL (platform dialect; PCT range.pure):
+        // [start:stop(:step)] and [:stop] desugar at parse to the
+        // range(...) natives they mean — grammar sugar, not a node.
+        if (!dialect.refusesPlatformDialect()
+                && peek() == TokenType.COLON) {
+            pos++;   // ':'  — the [:stop] form, start defaults 0
+            ValueSpecification stop = parseCombinedExpression();
+            expect(TokenType.BRACKET_CLOSE,
+                    "expected ']' to close range literal");
+            return new AppliedFunction("range", List.of(
+                    new CInteger(0L), stop), List.of(),
+                    spanOf(openTok, pos - 1), false, false, true);
         }
         // STRICT surfaces use the engine's expressionsArray production —
         // `expression`, which has no top-level arithmetic/boolean parts:
         // [1 + 2] refuses there (adversarial audit 1c, oracle-verified).
         // The pure dialect keeps the wider combinedExpression.
         values.add(dialect.refusesPlatformDialect() ? parseExpression() : parseCombinedExpression());
+        if (!dialect.refusesPlatformDialect()
+                && peek() == TokenType.COLON) {
+            pos++;   // ':' — [start:stop(:step)]
+            List<ValueSpecification> args = new ArrayList<>();
+            args.add(values.get(0));
+            args.add(parseCombinedExpression());
+            if (peek() == TokenType.COLON) {
+                pos++;
+                args.add(parseCombinedExpression());
+            }
+            expect(TokenType.BRACKET_CLOSE,
+                    "expected ']' to close range literal");
+            return new AppliedFunction("range", args, List.of(),
+                    spanOf(openTok, pos - 1), false, false, true);
+        }
         while (!atEnd() && peek() == TokenType.COMMA) {
             pos++; // consume ','
             if (!atEnd() && peek() == TokenType.BRACKET_CLOSE) {

@@ -772,12 +772,6 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         return dbFqn.isEmpty() ? null : dbFqn;
     }
 
-    /** An atom resolved under {@code db} — a bracket-nav element inherits
-     *  the bracket's db even when the ambient parse has none. */
-    private Protocol.PRelOp atomUnder(String db, String schemaCtx) {
-        return under(db, schemaCtx, false);
-    }
-
     /** A WHOLE operation resolved under {@code db} — the post-pipe
      *  terminal of a join navigation (engine: {@code booleanOperation}). */
     private Protocol.PRelOp operationUnder(String db, String schemaCtx) {

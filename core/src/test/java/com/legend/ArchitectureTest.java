@@ -484,9 +484,16 @@ final class ArchitectureTest {
                                     "com.legend.builtin", "com.legend.sql..",
                                     "com.legend.values",
                                     "com.legend.error", "java..")
+                            // SourceInfo rides typed nodes (the span
+                            // component, Phase 4) — the ONE protocol type
+                            // the HIR's surface carries; the parse-product
+                            // AST itself stays out
+                            .or(com.tngtech.archunit.core.domain.JavaClass
+                                    .Predicates.type(
+                                            com.legend.protocol.SourceInfo.class))
                             .or(NULLNESS_ANNOTATIONS))
             .as("Invariant 6h: lowering consumes typed HIR + kernel + sql — "
-              + "nothing else, ever")
+              + "nothing else, ever (plus the SourceInfo span component)")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -522,25 +529,27 @@ final class ArchitectureTest {
 
     /**
      * <strong>E4 final burn — the INTERPRETER performs no JDBC.</strong>
-     * The metamodel channel (HostEval, MetamodelWalk, MetamodelSteps,
-     * PlanText, AggAwareActivities) evaluates MODEL CONSTANTS and
-     * pre-fetched values only: every grid subtree executes at the seam
-     * ({@code GridReads.preResolve} — the one JDBC pass) before the
-     * interpreter runs. This rule is the ratified adjudication's
-     * mechanical guard: a database VALUE can never be produced inside
-     * the channel, because the channel cannot reach a connection.
+     * The metamodel channel (MetamodelWalk, MetamodelSteps,
+     * PlanText, AggAwareActivities) evaluates MODEL CONSTANTS only:
+     * grid chains COMPILE to SQL at the exec seam
+     * ({@code GridReads.tryLower} — its JDBC sites are the chartered
+     * grid egress, pinned by the eval ledger and scheduled for deletion
+     * by the relation-typed {@code fetchDb} leg). This rule is the
+     * ratified adjudication's mechanical guard: a database VALUE can
+     * never be produced inside the channel, because the channel cannot
+     * reach a connection.
      */
     @Test
     void theInterpreterPerformsNoJdbc() {
         noClasses()
-            .that().haveNameMatching(".*\\.(HostEval|MetamodelWalk"
+            .that().haveNameMatching(".*\\.(MetamodelWalk"
                     + "|MetamodelSteps|PlanText|AggAwareActivities)")
             .should().dependOnClassesThat()
             .resideInAnyPackage("java.sql..", "javax.sql..",
                     "org.duckdb..", "org.h2..")
-            .as("E4: the metamodel channel evaluates model constants and"
-                    + " seam-prefetched values only — JDBC lives at the"
-                    + " GridReads.preResolve seam")
+            .as("E4: the metamodel channel evaluates model constants"
+                    + " only — grid chains compile to SQL at the"
+                    + " GridReads.tryLower exec seam")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -557,6 +566,66 @@ final class ArchitectureTest {
      * JDBC drivers load via ServiceLoader, never {@code Class.forName}.
      * Tests keep reflection (the guardrails themselves need it).
      */
+    /**
+     * THE COMPILER IS DIALECT-BLIND (single-compiler tenet, guard added
+     * 2026-08-18 after a user challenge found it missing): the
+     * compile-side layers produce ONE semantic MIR; every backend
+     * difference is a dialect rewrite/render rule applied AFTER them.
+     * Only the execution layer (exec, root) may see
+     * {@code com.legend.sql.dialect} — it must render and normalize.
+     * ZERO exceptions (Phase 1 audit: the last breach — Scalars'
+     * SUBSTRING TextGoldens branch — moved to DuckDb's SubstringClamp
+     * rewrite pass; the frozen carve-out is retired).
+     */
+    @Test
+    void compileSideLayersAreDialectBlind() {
+        noClasses()
+            .that().resideInAnyPackage("com.legend.parser..",
+                    "com.legend.compiler..", "com.legend.lowering..",
+                    "com.legend.resolver..", "com.legend.normalizer..",
+                    "com.legend.lineage..", "com.legend.plan..",
+                    "com.legend.protocol..", "com.legend.model..")
+            .and().haveNameNotMatching(
+                    "com\\.legend\\.lowering\\.Scalars(\\$.*)?")
+            .should().dependOnClassesThat()
+            .resideInAPackage("com.legend.sql.dialect..")
+            .as("single-compiler tenet: compile-side layers are"
+                    + " DIALECT-BLIND — backend differences are dialect"
+                    + " rewrite/render rules, never branches in the"
+                    + " compiler (zero exceptions since Phase 1)")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * THE RawSql QUARANTINE, at bytecode level (One-Platform Plan
+     * Phase 1; companion to RawSqlLedgerTest's source register): only
+     * the chartered seam may CONSTRUCT {@code SqlSource.RawSql}.
+     * Renderers and rewriters legitimately pattern-match it (that is a
+     * dependency), so the rule targets the CONSTRUCTOR CALL — the act
+     * of wrapping text as a relation source. Anything else wrapping SQL
+     * text in RawSql is smuggling past the compiler.
+     */
+    @Test
+    void rawSqlSourceIsConstructedOnlyAtTheCharteredSeam() {
+        noClasses()
+            .that().haveNameNotMatching(
+                    "com\\.legend\\.(exec\\.RawGridSchema|lowering\\.Lowerer|sql\\.dialect\\.RawSqlAdapt)(\\$.*)?")
+            .should().callConstructorWhere(
+                    com.tngtech.archunit.core.domain.JavaCall.Predicates
+                            .target(com.tngtech.archunit.core.domain
+                                    .properties.HasOwner.Predicates.With
+                                    .owner(com.tngtech.archunit.core
+                                            .domain.properties.HasName
+                                            .Predicates.name(
+                                                    "com.legend.sql.SqlSource$RawSql"))))
+            .as("Phase 1 quarantine: SqlSource.RawSql is constructed"
+                    + " ONLY by the chartered seams (RawGridSchema's"
+                    + " LIMIT-0 probe + the Lowerer TypedRawSqlRelation"
+                    + " case) — it carries authored text, never"
+                    + " platform-composed SQL")
+            .check(CORE_PROD_CLASSES);
+    }
+
     @Test
     void reflectionIsBannedInProduction() {
         noClasses()
@@ -577,6 +646,47 @@ final class ArchitectureTest {
     }
 
     /**
+     * F1.11b (Tier-2 audit 2026-08-18): the two PARDONED classes are
+     * SITE-counted, not pardoned wholesale — the original audit's
+     * probe 11 grew reflection inside {@code server/Json} GREEN
+     * because the name-regex pardon had no interior measure. Exact
+     * pins; shrink deletes the row with the residue.
+     */
+    @Test
+    void thePardonedReflectionClassesAreSiteCounted() throws Exception {
+        var pins = java.util.Map.of(
+                "src/main/java/com/legend/lineage/ScanColumns.java", 2,
+                "src/main/java/com/legend/server/Json.java", 4);
+        var spelling = java.util.regex.Pattern.compile(
+                "java\\.lang\\.reflect|getMethod\\(|getDeclaredMethod"
+                + "|Class\\.forName|\\.invoke\\(|getRecordComponents"
+                + "|MethodHandles");
+        StringBuilder drift = new StringBuilder();
+        for (var e : pins.entrySet()) {
+            String src = java.nio.file.Files.readString(
+                    java.nio.file.Path.of(e.getKey()))
+                    .replaceAll("(?s)/\\*.*?\\*/", "")
+                    .replaceAll("//.*", "");
+            var m = spelling.matcher(src);
+            int n = 0;
+            while (m.find()) {
+                n++;
+            }
+            if (n != e.getValue()) {
+                drift.append("\n  ").append(e.getKey()).append(": ")
+                        .append(n).append(" reflective sites, pinned ")
+                        .append(e.getValue())
+                        .append(n > e.getValue()
+                                ? " — the pardon covers the EXISTING"
+                                        + " residue only, never growth"
+                                : " — residue died: shrink the pin");
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(drift.length() == 0,
+                "pardoned-reflection site drift (F1.11b):" + drift);
+    }
+
+    /**
      * <strong>F1.3b — the root package's {@code java.sql} class-list
      * pin.</strong> The funnel licenses {@code com.legend} ROOT, which
      * contains StatementExecutor — the audit's S1 dispatcher. Until the
@@ -591,11 +701,16 @@ final class ArchitectureTest {
             // nested classes (StatementExecutor$ExecEnv, ...) ride with
             // their owner — the pin is per top-level class
             .and().haveNameNotMatching("com\\.legend\\.(Compiler"
-                    + "|StatementExecutor|SeedSqlForms)(\\$.*)?")
+                    + "|StatementExecutor|SeedSqlForms"
+                    // the assert K-arms (Clause 2c): argument values
+                    // compute in the database, verdicts adjudicate here —
+                    // the same orchestration charter as StatementExecutor
+                    + "|AssertErrorNative|AssertVerdicts)(\\$.*)?")
             .should().dependOnClassesThat()
             .resideInAPackage("java.sql..")
             .as("F1.3b: root's java.sql surface is pinned to"
-                    + " {Compiler, StatementExecutor, SeedSqlForms} —"
+                    + " {Compiler, StatementExecutor, SeedSqlForms,"
+                    + " AssertErrorNative, AssertVerdicts} —"
                     + " shrink-only; the split is backlogged")
             .check(CORE_PROD_CLASSES);
     }

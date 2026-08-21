@@ -1236,7 +1236,13 @@ public interface TokenStreamCursor {
         int nameTok = pos();
         String colName = match(TokenType.QUESTION) ? "?" : parseIdentifier();
         expect(TokenType.COLON);
-        TypeExpression colType = parseType();
+        // the column TYPE may be the '?' wildcard too — m3's
+        // schema-algebra column patterns ((?:?)⊆T, PCT over.pure);
+        // position-bounded to the relation-column production
+        int qTok = pos();
+        TypeExpression colType = match(TokenType.QUESTION)
+                ? new TypeExpression.NameRef("?", spanOf(qTok, qTok))
+                : parseType();
         // wire span = name token (quotes included) .. TYPE end, extended through a
         // DECLARED multiplicity (ProbeWireShapes "relation type sigs", "declared col
         // mult and relation shape")

@@ -1248,6 +1248,7 @@ public final class Runner {
 
     private Outcome run0(ParsedTest t) {
         com.legend.harness.H2Verify.CURRENT_TEST.set(t.fqn());
+        com.legend.lowering.StampCensus.CONTEXT.set(t.fqn());
         // #67: record every raw corpus statement this test executes —
         // the H2 advisory second target replays them verbatim to verify
         // golden-SQL asserts by ROWS. Under a FAMILY session (#112) the
@@ -1255,7 +1256,7 @@ public final class Runner {
         // seeds and mutations are part of this test's visible state);
         // after the run the ledger becomes the recording.
         List<String> recording = new ArrayList<>();
-        com.legend.exec.RawSqlBoundary.record(recording);
+        com.legend.sql.dialect.RawSqlBoundary.record(recording);
         lastRunShared = false;
         try {
             return run0(t, recording);
@@ -1961,7 +1962,7 @@ public final class Runner {
             try (var st = conn.prepareStatement(stmt)) {
                 st.execute();
                 if (!H2_BACKEND) {
-                    var mirror = com.legend.exec.RawSqlBoundary.recording();
+                    var mirror = com.legend.sql.dialect.RawSqlBoundary.recording();
                     if (mirror != null) {
                         mirror.add(unit.createSql());
                     }

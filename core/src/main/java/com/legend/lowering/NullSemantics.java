@@ -111,10 +111,34 @@ final class NullSemantics {
         return () -> FILTER_POS.set(prev);
     }
 
+    private static final ThreadLocal<Boolean> VERBATIM_EQ =
+            ThreadLocal.withInitial(() -> Boolean.FALSE);
+
+    /** Scope for RESOLVER-SYNTHESIZED join conditions: the mapping's own
+     * definition lowers verbatim '=' — the null-safe grant is for USER
+     * pure equality only (TypedJoin.userCondition; slotDemandJoins'
+     * golden pins the distinction). */
+    static Scope enterVerbatimEquality() {
+        boolean prev = VERBATIM_EQ.get();
+        VERBATIM_EQ.set(Boolean.TRUE);
+        return () -> VERBATIM_EQ.set(prev);
+    }
+
+    /** The no-op scope (a conditional try-with-resources' other arm). */
+    static Scope keep() {
+        return () -> {
+        };
+    }
+
     static SqlExpr equalNullArms(
             com.legend.compiler.spec.typed.TypedNativeCall n,
             java.util.List<SqlExpr> ops) {
-        if (FILTER_POS.get()
+        // POSITION-BLIND (engine nullSafeEqualsOperation case 5: both
+        // lower bounds 0 → nullSafeEqual, no position gate — witness
+        // testProjectEqualityOnNullableColumns, where the equality sits
+        // in a PROJECT column). The FILTER_POS scope still gates OTHER
+        // arms; this one keys on the operands' own multiplicities.
+        if (!VERBATIM_EQ.get()
                 && ops.size() == 2
                 && ops.get(0) instanceof SqlExpr.Column
                 && ops.get(1) instanceof SqlExpr.Column

@@ -76,6 +76,7 @@ public abstract class SqlRewriter {
             case SqlSource.Table t -> t;
             case SqlSource.SourceUrl u -> u;
             case SqlSource.VarSetPlaceholder vp -> vp;
+            case SqlSource.RawSql r -> r;   // carried text: a leaf
             case SqlSource.Subselect sub -> {
                 SqlQuery i = rewrite(sub.inner());
                 yield i == sub.inner() ? sub
@@ -189,10 +190,20 @@ public abstract class SqlRewriter {
                 SqlQuery sub = rewrite(ex.subquery());
                 yield sub == ex.subquery() ? ex : new SqlExpr.Exists(sub);
             }
+            case SqlExpr.CheckedOne co -> {
+                SqlExpr in = expr(co.list());
+                yield in == co.list() ? co : new SqlExpr.CheckedOne(in);
+            }
             case SqlExpr.ScalarSubquery sq -> {
                 SqlQuery sub = rewrite(sq.subquery());
                 yield sub == sq.subquery() ? sq
                         : new SqlExpr.ScalarSubquery(sub);
+            }
+            case SqlExpr.DeferredTdsString d -> {
+                SqlQuery sub = rewrite(d.inner());
+                yield sub == d.inner() ? d
+                        : new SqlExpr.DeferredTdsString((SqlSelect) sub,
+                                d.alias(), d.id());
             }
             case SqlExpr.JsonObject j -> {
                 List<SqlExpr> kv = mapList(j.kv(), this::rewriteExpr);

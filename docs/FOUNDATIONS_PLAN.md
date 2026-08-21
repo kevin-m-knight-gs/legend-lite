@@ -6,6 +6,15 @@
 > **Decision (2026-08-16):** corpus burn-down is **paused as a goal**. It continues to run
 > **every cycle as a referee**. We fix foundations, guards, and duplication first, then resume
 > burn-down on a baseline that means what it says.
+>
+> **Status update (2026-08-18):** the 2026-08-16 pause ENDED on 2026-08-17 by user
+> directive (burn-to-zero resumed; net corpus 2347→2332 with the interpreter-deletion
+> declines recorded in `BURNDOWN_EXPLANATIONS.md` §0.4) — this file was not told at the
+> time, a §5 honesty finding in `ADVERSARIAL_TENET_AUDIT_2026_08_18.md`. On 2026-08-18
+> the user re-prioritized foundations ("not in a rush on the burn-down — lay the right
+> foundations"): burn-down is again PAUSED AS A GOAL and continues as the referee, while
+> the audit's remediation (Tier 1 live bugs, Tier 3 honesty, guard coverage
+> self-assertion, SQL-string ratchet) and the relation-typed `fetchDb` deletion leg land.
 
 ---
 

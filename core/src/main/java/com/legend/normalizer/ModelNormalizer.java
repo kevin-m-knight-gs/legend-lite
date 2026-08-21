@@ -216,11 +216,6 @@ public final class ModelNormalizer {
         };
     }
 
-    private static String simpleName(String fqn) {
-        int i = fqn.lastIndexOf("::");
-        return i < 0 ? fqn : fqn.substring(i + 2);
-    }
-
     /**
      * E.2 &mdash; for each {@code DerivedPropertyDefinition}, lift a
      * {@code <owner>$prop$<name>(this:Owner[1], <params>):T[m]} function

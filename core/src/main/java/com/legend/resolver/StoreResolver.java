@@ -196,7 +196,8 @@ public final class StoreResolver {
             if (r[0] != j.right()) {
                 return new TypedJoin(j.left(), (TypedSpec) r[0], j.kind(),
                         (com.legend.compiler.spec.typed.TypedLambda) r[1],
-                        j.prefix(), j.frameName(), j.info());
+                        j.prefix(), j.frameName(), j.info(),
+                j.userCondition() /* rebuild */);
             }
         }
         return n;
@@ -500,38 +501,6 @@ public final class StoreResolver {
      * reassembles — no field can be re-founded by hand. */
     private TypedSpec structural(TypedSpec n, Context context) {
         return n.mapChildren(k -> resolveNode(k, context));
-    }
-
-    /** An op whose source chain is still in OBJECT space (class-typed). */
-
-    /** INTERIM temporal-propagation wall (audit S1): engine dates EVERY
-     * milestoned table; lite only the root — navigation to an UNFILTERED
-     * temporal extent would multiply rows, so it stays loud. */
-
-    /**
-     * Any colspec body reading its row parameter? A constant-only project
-     * (the synthetic count column) is NOT a function of the row — mapping
-     * {@code ~distinct} must not defer past it.
-     */
-    private static boolean projectReadsRow(TypedProject p) {
-        for (var fc : p.columns()) {
-            TypedLambda l = fc.fn();
-            String param = l.parameters().isEmpty() ? null : l.parameters().get(0);
-            if (param == null) {
-                return true;    // shape surprise: keep the verified behavior
-            }
-            for (TypedSpec b : l.body()) {
-                if (readsVar(b, param)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    /** {@code $var} read anywhere beneath {@code n}; shadowing lambdas stop the walk. */
-    private static boolean readsVar(TypedSpec n, String var) {
-        return com.legend.compiler.spec.typed.VarUse.reads(n, var);
     }
 
     /** The element CLASS of an object-space chain (for synthetic lambdas). */
@@ -870,7 +839,8 @@ public final class StoreResolver {
                 Optional.of(aj.prefix()),
                 // a VIEW-backed target joins as a frame NAMED BY THE VIEW
                 // (legalentity_view_0, never the physical table's group)
-                ViewFrames.frameNameOf(ctx, aj.target()), rowInfo);
+                ViewFrames.frameNameOf(ctx, aj.target()), rowInfo,
+                false /* resolver-synth */);
         Map<String, TypedSpec> bindings = new LinkedHashMap<>();
         for (var e : aj.target().bindings().entrySet()) {
             // scalar-through-slot bindings flatten onto the MATERIALIZED
@@ -942,7 +912,12 @@ public final class StoreResolver {
      * read over instances. {@code valueMult} is the ORIGINAL expression's
      * multiplicity — a to-many read is a VALUE COLLECTION and the scalar
      * lowering must LIST-aggregate it (contains/in consumers), while a
-     * to-one read stays the bare scalar subquery. */
+     * to-one read stays the bare scalar subquery. The COLLECTION fact
+     * rides the relation's ExprType (valueMult); the COLUMN declares the
+     * PER-CELL multiplicity — each row holds ONE cell (pair-#4
+     * elimination, STAMP_DISCIPLINE_PROGRAM: copying the collection
+     * mult onto the column stamped every per-row read many — the C5
+     * u_map__active witness and the invariant's one abusable skip). */
     private static TypedProject scalarMapAsProject(TypedSpec source, TypedLambda mapper,
             com.legend.compiler.element.type.Multiplicity valueMult) {
         TypedSpec body = mapper.body().get(mapper.body().size() - 1);
@@ -951,10 +926,15 @@ public final class StoreResolver {
                         ? bpa.property() : "value");
         Type.Param result =
                 ((Type.FunctionType) mapper.info().type()).result();
+        com.legend.compiler.element.type.Multiplicity cellMult =
+                result.multiplicity() instanceof com.legend.compiler.element
+                        .type.Multiplicity.Bounded rb
+                        && rb.upper() != null && rb.upper() <= 1
+                ? result.multiplicity()
+                : com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE;
         Type.RelationType row =
                 new Type.RelationType(List.of(
-                        new Type.Column(
-                                name, result.type(), result.multiplicity())));
+                        new Type.Column(name, result.type(), cellMult)));
         return new TypedProject(source,
                 List.of(new TypedFuncCol(name, mapper)),
                 new ExprType(row, valueMult));
@@ -1968,7 +1948,8 @@ public final class StoreResolver {
                     ViewFrames.frameNameOf(ctx, aj.target()),
                     new ExprType(
                             new Type.RelationType(cols),
-                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE),
+                false /* resolver-synth */);
         }
         // 2c. AGGREGATED navigations (the engine's subAggregation shape):
         // per to-many head, ONE grouped subselect — the target pipeline
@@ -2086,7 +2067,8 @@ public final class StoreResolver {
                     new ExprType(
                             new Type.RelationType(cols),
                             com.legend.compiler.element.type.Multiplicity
-                                    .Bounded.ONE));
+                                    .Bounded.ONE),
+                false /* resolver-synth */);
             ord = 0;
             for (AggDemand d : entry.getValue()) {
                 aggReads.put(d.node(), new Substitution.AggRead(

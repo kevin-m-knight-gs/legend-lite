@@ -198,7 +198,8 @@ public final class UserCallInliner {
                     widened = true;
                 }
             }
-            TypedSpec reduced = reduceStatements(body, callEnv);
+            TypedSpec reduced = deepFoldInlined(
+                    reduceStatements(body, callEnv));
             if (widened && call.info().type()
                     instanceof com.legend.compiler.element.type.Type.RelationType rt) {
                 reduced = new com.legend.compiler.spec.typed.TypedSelect(reduced,
@@ -300,6 +301,26 @@ public final class UserCallInliner {
     // The rewriter — exhaustive over the sealed vocabulary (javac-enforced)
     // =====================================================================
 
+    /** Deep literal-if prune over an INLINED body (see
+     * NormalizeFolds.foldInlined — engine parity keeps user-authored
+     * query ifs; inlined platform plumbing folds). */
+    private static TypedSpec deepFoldInlined(TypedSpec n) {
+        java.util.List<TypedSpec> kids = n.children();
+        if (!kids.isEmpty()) {
+            java.util.List<TypedSpec> out = new java.util.ArrayList<>(kids.size());
+            boolean changed = false;
+            for (TypedSpec k : kids) {
+                TypedSpec f = deepFoldInlined(k);
+                changed |= f != k;
+                out.add(f);
+            }
+            if (changed) {
+                n = n.withChildren(out);
+            }
+        }
+        return NormalizeFolds.foldInlined(n);
+    }
+
     private TypedSpec rewrite(TypedSpec n, Map<String, TypedSpec> env) {
         if (hook != null) {
             TypedSpec h = hook.apply(n, bound.keySet());
@@ -307,6 +328,10 @@ public final class UserCallInliner {
                 return rewrite(h, env);
             }
         }
+        return rewriteSwitch(n, env);
+    }
+
+    private TypedSpec rewriteSwitch(TypedSpec n, Map<String, TypedSpec> env) {
         return switch (n) {
             case TypedUserCall uc -> inlineCall(uc, env);
 
@@ -429,7 +454,7 @@ public final class UserCallInliner {
                         keepRt.add(i == 2 ? c.args().get(i)
                                 : rewrite(c.args().get(i), env));
                     }
-                    yield new TypedNativeCall(c.callee(), keepRt, c.info());
+                    yield c.withChildren(keepRt);
                 }
                 List<TypedSpec> args = list(c.args(), env);
                 // HIGHER-ORDER map: substitution revealed a literal lambda
@@ -465,7 +490,7 @@ public final class UserCallInliner {
                     }
                     yield new TypedMap(args.get(0), lam, c.info());
                 }
-                yield new TypedNativeCall(c.callee(), args, c.info());
+                yield c.withChildren(args);
             }
             // Resolver OUTPUT vocabulary — never present pre-H; fails loud
             // here on a pipeline reordering rather than silently rebuilding.

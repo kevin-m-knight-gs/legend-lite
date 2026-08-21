@@ -77,6 +77,8 @@ final class UnqualifyPivotArgs extends SqlRewriter {
             // leaves carry no qualifier (audit 15: exhaustive, no default)
             case SqlExpr.Exists x -> x;
             case SqlExpr.ScalarSubquery ss -> ss;
+            case SqlExpr.CheckedOne co -> co;
+            case SqlExpr.DeferredTdsString dtds -> dtds;
             case SqlExpr.Lambda l -> l;
             case SqlExpr.Star st -> st;
             case SqlExpr.StarExcept se -> se;

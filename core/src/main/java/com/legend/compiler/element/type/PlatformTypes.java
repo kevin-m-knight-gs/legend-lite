@@ -219,8 +219,26 @@ public final class PlatformTypes {
      *  M3-reflective body never joins the overload set. */
     public static final String TO_CSV = "meta::relational::tests::csv::toCSV";
 
+    /** toRepresentation: the platform native (Phase 4 — the pure body is
+     * m3-reflective and unportable; the native is the definition). */
+    public static final String TO_REPRESENTATION =
+            "meta::pure::functions::string::toRepresentation";
+
+    /** assertError: the platform native (Phase 4 — the pure /2 and /4
+     * bodies delegate to a PCT.platformOnly matcher native over a
+     * SourceInformation value our model does not carry; the K-orchestrated
+     * catch IS the definition). */
+    public static final String ASSERT_INSTANCE_OF =
+            "meta::pure::functions::asserts::assertInstanceOf";
+
+    public static final String ASSERT_ERROR =
+            "meta::pure::functions::asserts::assertError";
+
     public static boolean isPlatformOwnedFunction(String fqn) {
         return DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
+                || TO_REPRESENTATION.equals(fqn)
+                || ASSERT_ERROR.equals(fqn)
+                || ASSERT_INSTANCE_OF.equals(fqn)
                 || TO_CSV.equals(fqn)
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
                 || isDdlStatementFn(fqn)

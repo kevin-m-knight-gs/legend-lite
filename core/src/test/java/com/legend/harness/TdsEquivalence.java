@@ -41,58 +41,8 @@ final class TdsEquivalence {
         double timeDelta = args.size() == 4 ? asNumber(EngineTestExecutor.eval(
                 EngineTestExecutor.subst(args.get(3), lets), lets, execStmts, execVars,
                 execChains, ctx, imports, runtimeFqn, conn).values()) : 0.0;
-        return compare(exp.values(), got.values(), delta, timeDelta);
-    }
-
-    static @com.legend.Nullable String compare(List<Object> expected,
-            List<Object> got, double delta, double timeDeltaSeconds) {
-        if (expected.size() != got.size()) {
-            return "assertTdsEquivalent: expected " + expected.size()
-                    + " cells, got " + got.size();
-        }
-        for (int i = 0; i < expected.size(); i++) {
-            Object x = expected.get(i);
-            Object y = got.get(i);
-            if (x == null && y == null) {
-                continue;
-            }
-            if (x instanceof Number nx && y instanceof Number ny) {
-                if (Math.abs(nx.doubleValue() - ny.doubleValue())
-                        <= Math.abs(delta)) {
-                    continue;
-                }
-            } else {
-                Double ex = epochSeconds(x);
-                Double ey = epochSeconds(y);
-                if (ex != null && ey != null) {
-                    if (Math.abs(ex - ey) <= Math.abs(timeDeltaSeconds)) {
-                        continue;
-                    }
-                } else if (java.util.Objects.equals(x, y)) {
-                    // F6.5: same KIND, same value — the old
-                    // String.valueOf collapse equated VARCHAR '7' with
-                    // INTEGER 7, a cross-kind bridge the primary
-                    // wireEquals explicitly refuses
-                    continue;
-                }
-            }
-            return "assertTdsEquivalent: cell " + i + " expected " + x
-                    + ", got " + y;
-        }
-        return null;
-    }
-
-    private static @com.legend.Nullable Double epochSeconds(@com.legend.Nullable Object v) {
-        return switch (v) {
-            case java.time.LocalDate d ->
-                    (double) d.toEpochDay() * 86400.0;
-            case java.time.LocalDateTime dt ->
-                    (double) dt.toEpochSecond(java.time.ZoneOffset.UTC);
-            case java.time.Instant in -> (double) in.getEpochSecond();
-            case java.sql.Timestamp ts -> ts.getTime() / 1000.0;
-            case java.sql.Date d -> d.getTime() / 1000.0;
-            case null, default -> null;
-        };
+        return com.legend.exec.GridCompare.tdsEquivalent(
+                exp.values(), got.values(), delta, timeDelta);
     }
 
     /** First value as a double — the delta operands are literal numbers. */

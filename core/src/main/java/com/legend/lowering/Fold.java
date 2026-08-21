@@ -343,7 +343,36 @@ final class Fold {
      * that needs explicit placement for cross-target row parity says
      * so in ITS sortKey (H2 does). */
     static SqlSelect.SortKey.@com.legend.Nullable NullOrder sortNulls(boolean ascending) {
-        return null;
+        // PURE null ordering: null is LARGEST — ASC nulls last (DuckDB's
+        // default, no clause emitted), DESC nulls FIRST (DuckDB defaults
+        // LAST both ways — probed 2026-08-19; witness
+        // testRange_..._WithOrderByDESC, whose comparison sort placed
+        // nulls last). The window ORDER emission already carries the
+        // same rule (Lowerer's over() keys).
+        return ascending ? null : SqlSelect.SortKey.NullOrder.NULLS_FIRST;
+    }
+
+    /** A ≤1-ROW PROOF for a select (C2-i, STAMP_DISCIPLINE_PROGRAM): an
+     * explicit LIMIT 0/1, a constant (Dual) source, or a select over an
+     * already-proven subselect — projections, WHERE, DISTINCT and
+     * GROUP BY never ADD rows; a join source could, so anything else is
+     * unprovable. Used to lower a provably-single cell read as a PLAIN
+     * scalar subquery instead of the LIST collect (the shape lie the
+     * stamp census measured; DB-native scalar-subquery semantics even
+     * enforce the row bound at runtime). */
+    static boolean provablySingleRow(com.legend.sql.SqlQuery q) {
+        if (!(q instanceof SqlSelect s)) {
+            return false;
+        }
+        if (s.limit() != null && s.limit() <= 1) {
+            return true;
+        }
+        return switch (s.from()) {
+            case com.legend.sql.SqlSource.Subselect ss ->
+                    provablySingleRow(ss.inner());
+            case com.legend.sql.SqlSource.Dual ignored -> true;
+            default -> false;
+        };
     }
 
     /** Sort folds iff ORDER BY is free (a second sort re-orders; last wins only via isolation). */
@@ -397,6 +426,13 @@ final class Fold {
                     + " did not name its column");
         }
         SqlExpr r = resolveIntoExact(s, column);
+        if (r == null && s.projections().isEmpty() && s.from()
+                instanceof com.legend.sql.SqlSource.RawSql raw) {
+            // Phase 1c: an authored-SQL grid's columns are LATE-BOUND —
+            // a by-name read trusts the written name (the database
+            // adjudicates unknown names at execution, as in any SQL)
+            return new SqlExpr.Column(raw.alias(), column);
+        }
         if (r == null) {
             // A pivot dynamic column's PURE identity carries quotes
             // ('2011__|__newCol'); its SQL name is the bare inner text —
@@ -504,6 +540,7 @@ final class Fold {
             case SqlSource.Join j -> physicallyRenderable(j.left(), c)
                     || physicallyRenderable(j.right(), c);
             case SqlSource.VarSetPlaceholder vp -> false;
+            case SqlSource.RawSql raw -> false;
             case SqlSource.Values v -> v.alias().equals(c.table())
                     && v.columns().contains(c.name());
             case SqlSource.Table t -> t.alias().equals(c.table());
@@ -576,6 +613,57 @@ final class Fold {
                         .equals(nc.callee().qualifiedName());
     }
 
+    /** The column-collect fold over relation rows as the MAP it is
+     * (Phase 1c; the recognizer is
+     * {@code TypedFold.columnCollectBody}): {@code fold({e,a|
+     * concatenate(elemExpr, $a)}, [])} = per-row elemExpr collection.
+     * Null = not that shape. */
+    static com.legend.compiler.spec.typed.@com.legend.Nullable TypedSpec
+            columnCollectAsMap(com.legend.compiler.spec.typed.TypedFold f) {
+        com.legend.compiler.spec.typed.TypedSpec body = f.columnCollectBody();
+        if (body == null) {
+            return null;
+        }
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        var anyMany = new com.legend.compiler.element.type.ExprType(
+                new com.legend.compiler.element.type.Type.ClassType(
+                        com.legend.compiler.element.type.PlatformTypes.ANY),
+                com.legend.compiler.element.type.Multiplicity.Bounded
+                        .ZERO_MANY);
+        var lam = new com.legend.compiler.spec.typed.TypedLambda(
+                List.of(f.reducer().parameters().get(0)), List.of(body),
+                com.legend.compiler.element.type.ExprType.one(
+                        new com.legend.compiler.element.type.Type.FunctionType(
+                                List.of(new com.legend.compiler.element.type
+                                        .Type.Param(
+                                                f.source().info().type(), one)),
+                                new com.legend.compiler.element.type.Type.Param(
+                                        anyMany.type(),
+                                        anyMany.multiplicity()))));
+        return new com.legend.compiler.spec.typed.TypedMap(
+                f.source(), lam, anyMany);
+    }
+
+    /** The named column of a relation consumed by a SCALAR read — or,
+     * over a LATE-BOUND raw grid (Phase 1c), the trust-name rule
+     * ({@code Type.RelationType.trustedColumn}: the stamped source
+     * resolves the name in SQL). */
+    static com.legend.compiler.element.type.Type.RelationType.Column
+            scalarReadColumn(com.legend.compiler.element.type.Type
+                    .RelationType prt, String name) {
+        return prt.columns().stream()
+                .filter(x -> x.name().equals(name)).findFirst()
+                .orElseGet(() -> {
+                    if (prt.isLateBound()) {
+                        return com.legend.compiler.element.type.Type
+                                .RelationType.trustedColumn(name);
+                    }
+                    throw new com.legend.error.NotImplementedException(
+                            "relation has no column '" + name
+                                    + "' in scalar read");
+                });
+    }
+
     static SqlExpr.@com.legend.Nullable Column sourceColumn(SqlSource src, String column) {
         // A quote-bearing pivot IDENTITY ('2011__|__newCol') strips to its
         // bare SQL name ONLY when the source does not claim the exact name —
@@ -588,8 +676,18 @@ final class Fold {
             case SqlSource.Table t -> claims(t.outputs(), column)
                     ? new SqlExpr.Column(t.alias(), column) : null;
             case SqlSource.VarSetPlaceholder vp -> null;
-            case SqlSource.Subselect sub -> claims(sub.outputs(), column)
-                    ? new SqlExpr.Column(sub.alias(), column) : null;
+            // LATE-BOUND grid (P3-2 single-query): an undemanded raw
+            // grid skipped the schema probe, so its outputs are empty
+            // BY DESIGN — the trust-name rule applies (pivot's
+            // claim-any precedent): a by-name read claims its name and
+            // the database resolves it. A STAMPED grid keeps the old
+            // behavior (never claims — resolution rides its subselect).
+            case SqlSource.RawSql raw -> raw.outputs().isEmpty()
+                    ? new SqlExpr.Column(raw.alias(), column) : null;
+            case SqlSource.Subselect sub -> lateBoundGrid(sub)
+                    ? new SqlExpr.Column(sub.alias(), column)
+                    : claims(sub.outputs(), column)
+                            ? new SqlExpr.Column(sub.alias(), column) : null;
             case SqlSource.Values v -> claims(v.outputs(), column)
                     ? new SqlExpr.Column(v.alias(), column) : null;
             case SqlSource.SourceUrl u -> claims(u.outputs(), column)
@@ -612,6 +710,23 @@ final class Fold {
      * every source; an UNSTAMPED source is a construction bug and fails
      * loudly rather than silently claiming everything.
      */
+    /** P3-2 SINGLE-QUERY: a source is a LATE-BOUND grid frame when its
+     * (empty) outputs trace to a raw-SQL leaf that skipped the schema
+     * probe. Empty outputs anywhere ELSE remain {@code claims}' loud
+     * construction wall — this predicate is the only exemption. */
+    private static boolean lateBoundGrid(com.legend.sql.SqlSource src) {
+        return switch (src) {
+            case com.legend.sql.SqlSource.RawSql raw ->
+                    raw.outputs().isEmpty();
+            case com.legend.sql.SqlSource.Subselect sub ->
+                    sub.outputs().isEmpty()
+                            && sub.inner() instanceof
+                                    com.legend.sql.SqlSelect ss
+                            && lateBoundGrid(ss.from());
+            default -> false;
+        };
+    }
+
     private static boolean claims(List<OutputCol> outputs, String column) {
         if (outputs.isEmpty()) {
             throw new IllegalStateException(

@@ -424,18 +424,6 @@ final class AssociationJoins {
                 List.of(merged), cond.info()));
     }
 
-    private static boolean filterFree(TypedSpec p) {
-        if (p instanceof com.legend.compiler.spec.typed.TypedFilter) {
-            return false;
-        }
-        for (TypedSpec c : p.children()) {
-            if (!filterFree(c)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     private static TypedSpec renameCondVar(TypedSpec n, String from,
             String to, ExprType rowInfo) {
         if (n instanceof com.legend.compiler.spec.typed.TypedVariable v
@@ -525,7 +513,7 @@ final class AssociationJoins {
         if (n instanceof TypedNativeCall c) {
             List<TypedSpec> args = c.args().stream()
                     .map(a -> rewriteTwoHop(a, var, byAliasCol, hit)).toList();
-            return new TypedNativeCall(c.callee(), args, c.info());
+            return c.withChildren(args);
         }
         return n;
     }
@@ -1088,7 +1076,8 @@ final class AssociationJoins {
                     java.util.Optional.of(pfx), null,
                     new ExprType(new Type.RelationType(wcols),
                             com.legend.compiler.element.type.Multiplicity
-                                    .Bounded.ONE));
+                                    .Bounded.ONE),
+                false /* resolver-synth */);
             nestedPrefixByProp.put(ne.getKey(), pfx);
         }
         final Pipelines.Materialized tMat = new Pipelines.Materialized(
@@ -1937,7 +1926,7 @@ final class AssociationJoins {
             for (TypedSpec a : c2.args()) {
                 args.add(nestedCondRead(a, tgtVar, pfx, row));
             }
-            return new TypedNativeCall(c2.callee(), args, c2.info());
+            return c2.withChildren(args);
         }
         return n;
     }

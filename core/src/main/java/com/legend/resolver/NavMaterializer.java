@@ -586,7 +586,8 @@ final class NavMaterializer {
                             new com.legend.compiler.element.type.Type
                                     .RelationType(cols),
                             com.legend.compiler.element.type
-                                    .Multiplicity.Bounded.ONE));
+                                    .Multiplicity.Bounded.ONE),
+                false /* resolver-synth */);
             subTree.put(prop, new Substitution.SubNav(aj.prefix(),
                     aj.target().rowVar(), aj.target().bindings(), Map.of()));
         }
@@ -650,7 +651,8 @@ final class NavMaterializer {
                             new com.legend.compiler.element.type.Type
                                     .RelationType(xCols),
                             com.legend.compiler.element.type
-                                    .Multiplicity.Bounded.ONE));
+                                    .Multiplicity.Bounded.ONE),
+                false /* resolver-synth */);
             subTree.put(prop, new Substitution.SubNav(xPrefix,
                     xCs.rowVar(), xCs.bindings(),
                     composeSubNavPrefixes(xPrefix, xMat.subNavs())));
@@ -742,7 +744,8 @@ final class NavMaterializer {
                             new com.legend.compiler.element.type.Type
                                     .RelationType(cols),
                             com.legend.compiler.element.type
-                                    .Multiplicity.Bounded.ONE));
+                                    .Multiplicity.Bounded.ONE),
+                false /* resolver-synth */);
             ClassSource subCs = sources.get(mappingFqn,
                     java.util.Objects.requireNonNull(subClsByAlias.get(na)));
             subTree.put(prop + "#p", new Substitution.SubNav(prefix2,

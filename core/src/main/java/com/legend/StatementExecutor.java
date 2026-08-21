@@ -169,9 +169,22 @@ final class StatementExecutor {
             // a trailing let IS its value (real pure)
             TypedSpec bare = stmt instanceof com.legend.compiler.spec.typed.TypedLet l
                     ? l.value() : stmt;
+            // (Phase 1c: a grid VALUE READ never reaches here as a user
+            // call — the Typer types it as a relation property read; the
+            // TYPE decides, no recognizer needed)
             if (bare instanceof com.legend.compiler.spec.typed.TypedUserCall call
                     && containsEffect(call, specs, effectMemo)) {
                 result = executeCallStatement(call, letPrefix, specs, env, frames);
+                continue;
+            }
+            // Clause 2c: a STATEMENT-ROOT assert-family call is a
+            // VERDICT — arguments execute in the database, the judgment
+            // is World 1's (AssertVerdicts; pre-inline so the assert
+            // library's pure bodies never β-inline into SQL)
+            ExecutionResult verdict = AssertVerdicts.tryAdjudicate(
+                    bare, letPrefix, specs, env);
+            if (verdict != null) {
+                result = verdict;
                 continue;
             }
             ExecutionResult hosted = hostChannel(bare, letPrefix, specs, env);
@@ -272,7 +285,7 @@ final class StatementExecutor {
                         com.legend.plan.PlanSupportFunctions
                                 .relationalPlanSupportFunctions(
                                         pep.args().size() > 2
-                                                ? timeZoneOf(
+                                                ? ConnectionFlags.timeZoneOf(
                                                         pep.args().get(2))
                                                 : null));
                 // enum-typed plan parameters ADD their dynamic enum-map
@@ -311,7 +324,18 @@ final class StatementExecutor {
             // own plan API): evaluate over the PLAN NODE MODEL
             Object walked = planWalk(preRoot, specs, env);
             if (walked != null) {
-                result = walkResult(walked);
+                result = walkResult(walked, preRoot.info().type());
+                continue;
+            }
+            // assertError(f, msg[, line, col]) — the PCT.platformOnly
+            // native's K-arm: f's body runs in the database through this
+            // same pipeline; the orchestrator catches the database error
+            // and adjudicates (AssertErrorNative owns the contract)
+            if (preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall aec
+                    && com.legend.compiler.element.type.PlatformTypes
+                            .ASSERT_ERROR.equals(aec.callee().qualifiedName())) {
+                result = AssertErrorNative.run(aec, letPrefix, specs, env,
+                        frames);
                 continue;
             }
             // execute() in RESULT position: the eager frame run IS the value
@@ -388,7 +412,7 @@ final class StatementExecutor {
         TypedSpec dbArg = call.args().get(2);
         String db = dbArg instanceof com.legend.compiler.spec.typed.TypedEnumValue
                 ? typedEnumTail(dbArg)
-                : String.valueOf(databaseTypeOf(dbArg));
+                : String.valueOf(ConnectionFlags.databaseTypeOf(dbArg));
         com.legend.sql.dialect.EngineStyleH2 renderer = switch (db) {
             case "H2" -> new com.legend.sql.dialect.EngineStyleH2();
             case "DB2" -> new com.legend.sql.dialect.EngineStyleDB2();
@@ -504,18 +528,18 @@ final class StatementExecutor {
     }
 
     /** The host-channel dispatch (oracle-not-runtime principle,
-     * user-ratified): recognized grid-read chains COMPILE INTO SQL
-     * (GridReads), store navigation resolves against the COMPILED MODEL
-     * (StoreNav), and anything else walls with the principle's name —
-     * the interpreter that executed engine compiler source is DELETED. */
-    private static ExecutionResult hostEvalAtSeam(TypedSpec root,
+     * user-ratified): recognized grid-read chains lower to MIR and
+     * execute through the standard Executor (typed relations since
+     * Phase 1c), store navigation resolves against the COMPILED
+     * MODEL (StoreNav), and anything else walls with the principle's
+     * name — the interpreter that executed engine compiler source is
+     * DELETED. */
+    private static @com.legend.Nullable ExecutionResult hostEvalAtSeam(TypedSpec root,
             java.util.Map<String, TypedSpec> lets, ExecEnv env)
             throws java.sql.SQLException {
-        ExecutionResult lowered = com.legend.exec.GridReads.tryLower(
-                root, lets, env.ctx(), env.connection(), env.dialect());
-        if (lowered != null) {
-            return lowered;
-        }
+        // (Phase 1c grid endgame: ResultNav is DELETED — grid chains are
+        // typed relations the ordinary pipeline serves; the seam is
+        // StoreNav's model-fact channel alone)
         ExecutionResult nav = com.legend.exec.StoreNav.tryEval(
                 root, lets, env.ctx());
         if (nav != null) {
@@ -525,7 +549,7 @@ final class StatementExecutor {
                 "host channel: this chain would need interpreted engine"
                 + " code — engine/legend-pure source is ORACLE material,"
                 + " never our runtime (user-ratified 2026-08-18); build"
-                + " the feature natively (GridReads/StoreNav/walk family)"
+                + " the feature natively (typed relations/StoreNav/walk family)"
                 + " or decline the test with a verdict"
                 + (System.getenv("LL_TMP_DEBUG") != null
                         ? " [root=" + root + "]" : ""));
@@ -556,7 +580,7 @@ final class StatementExecutor {
                 hostLets.put(hl.name(), hl.value());
             }
         }
-        if (!com.legend.exec.HostEval.wantsHostEval(bare, hostLets)) {
+        if (!com.legend.exec.StoreNav.owns(bare, hostLets)) {
             return null;
         }
         return hostEvalAtSeam(bare, hostLets, env);
@@ -639,17 +663,17 @@ final class StatementExecutor {
                         .inlineBody(java.util.List.of(ep.args().get(2)))
                         .get(0)
                 : null;
-        boolean quote = rtArg != null && quoteIdentifiersOf(rtArg);
-        String tz = rtArg != null ? timeZoneOf(rtArg) : null;
+        boolean quote = rtArg != null && ConnectionFlags.quoteIdentifiersOf(rtArg);
+        String tz = rtArg != null ? ConnectionFlags.timeZoneOf(rtArg) : null;
         String fromConn = rtArg == null
                 ? firstFromConnectionName(
                         lam.body().get(lam.body().size() - 1))
                 : null;
         String connName = rtArg != null
-                ? connectionNameOf(rtArg)
+                ? ConnectionFlags.connectionNameOf(rtArg)
                 : fromConn != null ? fromConn
                 : "TestDatabaseConnection(type = \"H2\")";
-        String dbType = rtArg != null ? databaseTypeOf(rtArg) : "H2";
+        String dbType = rtArg != null ? ConnectionFlags.databaseTypeOf(rtArg) : "H2";
         if (!lam.parameters().isEmpty() || lam.body().size() > 1
                 // a lone LET is a sequence too (E2E §4.4 cluster 1):
                 // the engine prints Allocation, never bare Relational
@@ -774,7 +798,8 @@ final class StatementExecutor {
                     java.util.function.UnaryOperator.identity(), chainMaps);
             String aSql = prevVar == null ? aEs.sql()
                     : com.legend.plan.PlanText.spliceLeftVar(aEs.plan(),
-                            prevVar, planDialect(dbType, quote, tz));
+                            prevVar,
+                            planDialect(dbType, quote, tz)::render);
             if (aSql == null) { return null; }
             String[] aImpl = com.legend.lineage.ScanRelations.rootImpl(
                     env.ctx(), mappingFqn, aRoot, chainMaps);
@@ -792,7 +817,7 @@ final class StatementExecutor {
                 java.util.function.UnaryOperator.identity(), chainMaps);
         String splicedSql = com.legend.plan.PlanText.spliceLeftVar(
                 fullEs.plan(), java.util.Objects.requireNonNull(prevVar),
-                planDialect(dbType, quote, tz));
+                planDialect(dbType, quote, tz)::render);
         if (splicedSql == null) { return null; }
         String terminal = com.legend.plan.PlanText.single(env.ctx(),
                 rootClass, mappingFqn, fullEs.plan(), splicedSql,
@@ -981,162 +1006,6 @@ final class StatementExecutor {
                 "plan: multiplicity spelling for " + m + " pending");
     }
 
-    /** The engine connection's quoteIdentifiers flag, read off the
-     * executionPlan call's RUNTIME argument (a Runtime instance literal
-     * carrying a TestDatabaseConnection(quoteIdentifiers=true)). */
-    private static boolean quoteIdentifiersOf(TypedSpec runtimeArg) {
-        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
-        work.add(runtimeArg);
-        while (!work.isEmpty()) {
-            TypedSpec t = work.poll();
-            if (t instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
-                    && ni.properties().get("quoteIdentifiers")
-                            instanceof TypedSpec qv) {
-                Boolean b2 = staticBool(qv);
-                if (b2 != null) {
-                    return b2;
-                }
-            }
-            // the PLATFORM-NATIVE testRuntime(quoteIdentifiers:Boolean[1])
-            // overload (relationalSetUp.pure:1223 is the corpus contract;
-            // the user body is platform-suppressed, so the flag rides the
-            // call's own argument)
-            if (t instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                    && nc.callee().qualifiedName().equals(
-                            "meta::external::store::relational::tests::testRuntime")
-                    && nc.args().size() == 1
-                    && nc.args().get(0) instanceof
-                            com.legend.compiler.spec.typed.TypedCBoolean fb) {
-                return fb.value();
-            }
-            work.addAll(t.children());
-        }
-        return false;
-    }
-
-    /** Bounded constant-fold of the corpus connection-builder idiom
-     * ({@code if($q->isEmpty(), |false, |$q->toOne())} over an INLINED
-     * literal — relationalSetUp.pure testDatabaseConnection). Null =
-     * not statically known; never guesses. */
-    private static @com.legend.Nullable Boolean staticBool(TypedSpec t) {
-        return switch (t) {
-            case com.legend.compiler.spec.typed.TypedCBoolean b -> b.value();
-            case com.legend.compiler.spec.typed.TypedNativeCall nc
-                    when nc.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")
-                    && nc.args().size() >= 1 -> staticBool(nc.args().get(0));
-            case com.legend.compiler.spec.typed.TypedIf i -> {
-                Boolean empt = staticIsEmpty(i.condition());
-                if (empt == null) {
-                    yield null;
-                }
-                TypedSpec branch = empt ? i.thenBranch()
-                        : i.elseBranch().orElse(null);
-                if (branch instanceof
-                        com.legend.compiler.spec.typed.TypedLambda l
-                        && !l.body().isEmpty()) {
-                    branch = l.body().get(l.body().size() - 1);
-                }
-                yield branch == null ? null : staticBool(branch);
-            }
-            default -> null;
-        };
-    }
-
-    /** {@code isEmpty(x)} over a statically known operand; null else. */
-    private static @com.legend.Nullable Boolean staticIsEmpty(TypedSpec cond) {
-        if (!(cond instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && nc.callee().qualifiedName().equals(
-                "meta::pure::functions::collection::isEmpty")
-                && nc.args().size() == 1)) {
-            return null;
-        }
-        TypedSpec x = nc.args().get(0);
-        if (x instanceof com.legend.compiler.spec.typed.TypedCollection c) {
-            return c.elements().isEmpty();
-        }
-        // any scalar LITERAL is a one-element collection: not empty
-        if (x instanceof com.legend.compiler.spec.typed.TypedCBoolean
-                || x instanceof com.legend.compiler.spec.typed.TypedCString
-                || x instanceof com.legend.compiler.spec.typed.TypedCInteger) {
-            return false;
-        }
-        return null;
-    }
-
-    /** The engine connection's timeZone, read off the RUNTIME argument
-     * (an inline DatabaseConnection(timeZone='US/Arizona')). Null when
-     * absent — the default-zone connection. */
-    private static @com.legend.Nullable String timeZoneOf(TypedSpec runtimeArg) {
-        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
-        work.add(runtimeArg);
-        while (!work.isEmpty()) {
-            TypedSpec t = work.poll();
-            if (t instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
-                    && ni.properties().get("timeZone")
-                            instanceof com.legend.compiler.spec.typed
-                                    .TypedCString tzs) {
-                return tzs.value();
-            }
-            work.addAll(t.children());
-        }
-        return null;
-    }
-
-    /** The runtime connection's plan spelling — the instance's own CLASS
-     * simple name (exact-FQN dispatch) with its declared DatabaseType
-     * ({@code DatabaseConnection(type = "DB2")}). */
-    private static @com.legend.Nullable String connectionNameOf(TypedSpec runtimeArg) {
-        var ni = connectionInstanceOf(runtimeArg);
-        if (ni == null) {
-            return "TestDatabaseConnection(type = \"H2\")";
-        }
-        String simple = switch (ni.classFqn()) {
-            case "meta::external::store::relational::runtime"
-                    + "::DatabaseConnection" -> "DatabaseConnection";
-            case "meta::external::store::relational::runtime"
-                    + "::RelationalDatabaseConnection" ->
-                    "RelationalDatabaseConnection";
-            default -> "TestDatabaseConnection";
-        };
-        return simple + "(type = \"" + dbTypeOf(ni) + "\")";
-    }
-
-    /** The FIRST connection instance under {@code runtimeArg} (exact-FQN
-     * dispatch), or null. */
-    private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedNewInstance
-            connectionInstanceOf(TypedSpec runtimeArg) {
-        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
-        work.add(runtimeArg);
-        while (!work.isEmpty()) {
-            TypedSpec t = work.poll();
-            if (t instanceof com.legend.compiler.spec.typed
-                            .TypedNewInstance ni
-                    && ("meta::external::store::relational::runtime::DatabaseConnection"
-                                    .equals(ni.classFqn())
-                        || "meta::external::store::relational::runtime::TestDatabaseConnection"
-                                    .equals(ni.classFqn())
-                        || "meta::external::store::relational::runtime::RelationalDatabaseConnection"
-                                    .equals(ni.classFqn()))) {
-                return ni;
-            }
-            work.addAll(t.children());
-        }
-        return null;
-    }
-
-    private static @com.legend.Nullable String dbTypeOf(
-            com.legend.compiler.spec.typed.TypedNewInstance ni) {
-        return ni.properties().get("type") instanceof
-                com.legend.compiler.spec.typed.TypedEnumValue ev
-                ? String.valueOf(ev.value()) : "H2";
-    }
-
-    /** The runtime connection's DatabaseType name ("H2" when absent). */
-    private static @com.legend.Nullable String databaseTypeOf(TypedSpec runtimeArg) {
-        var ni = connectionInstanceOf(runtimeArg);
-        return ni == null ? "H2" : dbTypeOf(ni);
-    }
 
     /** The plan connection handle (cluster 60): the engine's generated
      * plan carries the runtime connection on SQLExecutionNode, with
@@ -1152,7 +1021,7 @@ final class StatementExecutor {
                     "TestDatabaseConnection", "H2", null,
                     java.util.List.of(), null);
         }
-        var ni = connectionInstanceOf(rtArg);
+        var ni = ConnectionFlags.connectionInstanceOf(rtArg);
         String storeFqn = connectionStoreElementOf(rtArg);
         com.legend.model.DatabaseDefinition db = storeFqn == null ? null
                 : env.ctx().findDatabase(storeFqn).orElse(null);
@@ -1176,7 +1045,7 @@ final class StatementExecutor {
                     "plan connection: unmatched connection class "
                     + ni.classFqn());
         };
-        String type = String.valueOf(dbTypeOf(ni));
+        String type = String.valueOf(ConnectionFlags.dbTypeOf(ni));
         String csv = ni.properties().get("testDataSetupCsv")
                 instanceof com.legend.compiler.spec.typed.TypedCString c
                 ? c.value() : null;
@@ -1807,22 +1676,18 @@ final class StatementExecutor {
         return null;
     }
 
-    private static ExecutionResult walkResult(Object w) {
+    /** Walk results carry the TYPER's declared type — never a type
+     * inferred from runtime classes (audit 2026-08-18 finding N: the
+     * old {@code allMatch} inference typed an EMPTY list BOOLEAN
+     * vacuously and coerced unknown scalars through
+     * {@code String.valueOf}). */
+    private static ExecutionResult walkResult(Object w,
+            com.legend.compiler.element.type.Type declared) {
         if (w instanceof java.util.List<?> l) {
-            java.util.List<Object> vals = new java.util.ArrayList<>(l);
-            return new ExecutionResult.Collection(vals,
-                    vals.stream().allMatch(x -> x instanceof Boolean)
-                            ? com.legend.compiler.element.type.Type
-                                    .Primitive.BOOLEAN
-                            : com.legend.compiler.element.type.Type
-                                    .Primitive.STRING);
+            return new ExecutionResult.Collection(
+                    new java.util.ArrayList<>(l), declared);
         }
-        if (w instanceof Boolean b3) {
-            return new ExecutionResult.Scalar(b3,
-                    com.legend.compiler.element.type.Type.Primitive.BOOLEAN);
-        }
-        return new ExecutionResult.Scalar(String.valueOf(w),
-                com.legend.compiler.element.type.Type.Primitive.STRING);
+        return new ExecutionResult.Scalar(w, declared);
     }
 
     /** The PLAN NODE MODEL for an executionPlan call — same shapes the
@@ -1855,8 +1720,8 @@ final class StatementExecutor {
                         .inlineBody(java.util.List.of(ep.args().get(2)))
                         .get(0)
                 : null;
-        boolean quote = rtArg2 != null && quoteIdentifiersOf(rtArg2);
-        String tz = rtArg2 != null ? timeZoneOf(rtArg2) : null;
+        boolean quote = rtArg2 != null && ConnectionFlags.quoteIdentifiersOf(rtArg2);
+        String tz = rtArg2 != null ? ConnectionFlags.timeZoneOf(rtArg2) : null;
         var fnType = (com.legend.compiler.element.type.Type.FunctionType)
                 lam.info().type();
         java.util.LinkedHashMap<String, com.legend.sql.SqlExpr.PlanParam>
@@ -2935,12 +2800,74 @@ final class StatementExecutor {
                     Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
                 } catch (java.sql.SQLException e) {
                     if (!env.dialect().rawH2IsNative()) {
-                        com.legend.exec.RawSqlBoundary.unrecordLast();
+                        com.legend.sql.dialect.RawSqlBoundary.unrecordLast();
                     }
                     throw e;
                 }
             }
         }
+    }
+
+    /** ONE VALUE expression through the ordinary back half (G½ inline →
+     * H resolve → lower/execute) — the assert-verdict arm's side
+     * evaluator. The same sequence as the generic statement tail. */
+    /** LOWER → post-process → two-phase dynamic pivot → deferred
+     * relation-toString resolution: the whole plan-preparation ladder
+     * (split from executeTyped at the 250-line shape guard). */
+    private static com.legend.sql.SqlQuery lowerAndPrepare(
+            java.util.List<TypedSpec> body, ExecEnv env, ModelContext ctx,
+            com.legend.sql.dialect.SqlDialect dialect,
+            java.sql.Connection connection) throws java.sql.SQLException {
+        com.legend.lowering.Lowerer lowerer = new com.legend.lowering.Lowerer(
+                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
+                f -> ctx.findClass(f).isPresent()).withEngineExistsJoinForm();
+        com.legend.sql.SqlQuery plan =
+                lowerer.lower(withQueryLetPrefix(body, env, ctx));
+        // post-process, then two-phase dynamic pivot (DynamicPivot doc)
+        plan = com.legend.exec.DynamicPivot.staticize(
+                com.legend.lowering.SqlPostProcessors.apply(plan,
+                        env.tableReplace()), dialect, connection);
+        // DEFERRED relation-toString (dynamic-pivot inners): the column
+        // list exists only NOW, post-staticize. The LOWERING layer owns
+        // the composition pass (invariant 6d — exec never calls the
+        // middle-end); THIS orchestrator supplies the LIMIT-0 probe
+        // (a SCHEMA read, DynamicPivot's two-phase discipline).
+        if (!lowerer.deferredTds().isEmpty()) {
+            final var fDialect = dialect;
+            final var fConn = connection;
+            class ProbeFailed extends RuntimeException {
+                ProbeFailed(java.sql.SQLException c) { super(c); }
+            }
+            try {
+                plan = com.legend.lowering.Render.resolveAllDeferredTds(
+                        plan, lowerer.deferredTds(), inner -> {
+                            try {
+                                return com.legend.exec.PctProbe.probe(
+                                        inner, fDialect, fConn);
+                            } catch (java.sql.SQLException ex) {
+                                throw new ProbeFailed(ex);
+                            }
+                        }, com.legend.exec.Executor::pureOfSqlType);
+            } catch (ProbeFailed pf) {
+                throw (java.sql.SQLException) pf.getCause();
+            }
+        }
+        return plan;
+    }
+
+    static @com.legend.Nullable ExecutionResult evalValue(TypedSpec value,
+            java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env)
+            throws java.sql.SQLException {
+        java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
+        single.add(value);
+        var inliner = new com.legend.compiler.spec.UserCallInliner(specs);
+        java.util.List<TypedSpec> body = inliner.inlineBody(single);
+        env.queryLets().putAll(inliner.queryLets());
+        body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
+                .withLetBindings(env.queryLets())
+                .resolve(body, env.runtimeFqn());
+        return executeTyped(body, env);
     }
 
     static ExecutionResult executeTyped(
@@ -2949,6 +2876,8 @@ final class StatementExecutor {
         ModelContext ctx = env.ctx();
         String runtimeFqn = env.runtimeFqn();
         java.sql.Connection connection = env.connection();
+        body = com.legend.exec.RawGridSchema.stamp(body, connection,
+                env.dialect());   // late-bound grids: FIRST-query schema pin
         TypedSpec root = body.get(body.size() - 1);
         // from() is context-only, but its info is the PRE-RESOLUTION
         // declared type — kept: a primitive-many declared root whose
@@ -2973,10 +2902,12 @@ final class StatementExecutor {
                         .equals(nc.callee().qualifiedName())) {
             return executeInDb(body, nc, env);
         }
-        // ORCHESTRATION-VALUE channel: fetchDb* metadata reads evaluate
-        // HOST-SIDE against the H2 second target (task #43 slice B2)
-        if (com.legend.exec.HostEval.wantsHostEval(root)) {
-            return hostEvalAtSeam(root, java.util.Map.of(), env);
+        // ORCHESTRATION-VALUE channel: store navigation resolves against
+        // the compiled model (grid reads are typed relations now —
+        // Phase 1c endgame; ResultNav deleted)
+        if (com.legend.exec.StoreNav.owns(root, java.util.Map.of())) {
+            ExecutionResult hosted = hostEvalAtSeam(root, java.util.Map.of(), env);
+            if (hosted != null) { return hosted; }
         }
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall dc
                 && com.legend.compiler.element.type.PlatformTypes.DROP_AND_CREATE_TABLE_IN_DB
@@ -3154,15 +3085,9 @@ final class StatementExecutor {
         if (System.getenv("LL_DUMP_RESOLVED") != null) {
             System.err.println("[resolved] " + body);
         }
-        com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer(
-                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
-                f -> ctx.findClass(f).isPresent()).withEngineExistsJoinForm()
-                .lower(withQueryLetPrefix(body, env, ctx));
         com.legend.sql.dialect.SqlDialect dialect = env.dialect();
-        // post-process, then two-phase dynamic pivot (DynamicPivot doc)
-        plan = com.legend.exec.DynamicPivot.staticize(
-                com.legend.lowering.SqlPostProcessors.apply(plan,
-                        env.tableReplace()), dialect, connection);
+        com.legend.sql.SqlQuery plan = lowerAndPrepare(body, env, ctx,
+                dialect, connection);
         boolean collectionDeclared = declaredInfo != null
                 && declaredInfo.type()
                         instanceof com.legend.compiler.element.type.Type.Primitive
@@ -3252,7 +3177,7 @@ final class StatementExecutor {
      * is a DuckDB-target adaptation, never generic). */
     private static String adaptRaw(String sql, ExecEnv env) {
         return env.dialect().rawH2IsNative() ? sql
-                : com.legend.exec.RawSqlBoundary.h2ToDuckDb(sql);
+                : com.legend.sql.dialect.RawSqlBoundary.h2ToDuckDb(sql);
     }
 
     static ExecutionResult executeInDb(
@@ -3270,7 +3195,7 @@ final class StatementExecutor {
                 // the recording must mirror EXECUTED reality — a failed
                 // statement leaves the H2-replay ledger (task #112)
                 if (!env.dialect().rawH2IsNative()) {
-                    com.legend.exec.RawSqlBoundary.unrecordLast();
+                    com.legend.sql.dialect.RawSqlBoundary.unrecordLast();
                 }
                 throw e;
             }
@@ -3293,7 +3218,7 @@ final class StatementExecutor {
         String schemaDdl = "Create schema if not exists "
                 + evalStringArg(body, sc.args().get(0), env);
         Executor.executeRaw(env.connection(), schemaDdl);
-        com.legend.exec.RawSqlBoundary.recordMeta(schemaDdl);
+        com.legend.sql.dialect.RawSqlBoundary.recordMeta(schemaDdl);
         return new ExecutionResult.Scalar(true, sc.info().type());
     }
 
@@ -3338,7 +3263,7 @@ final class StatementExecutor {
         Executor.executeRaw(connection,
                 Ddl.createTable(def, schema, !rawH2));
         java.util.List<String> mirror =
-                com.legend.exec.RawSqlBoundary.recording();
+                com.legend.sql.dialect.RawSqlBoundary.recording();
         if (!rawH2 && mirror != null) {
             mirror.add(drop);
             mirror.add(Ddl.createTable(def, schema));
@@ -3358,10 +3283,10 @@ final class StatementExecutor {
                     : schema + "." + table;
             for (String pk : pks) {
                 // H2 2.x requires PK columns NOT NULL before the ALTER
-                com.legend.exec.RawSqlBoundary.recordMeta("Alter table "
+                com.legend.sql.dialect.RawSqlBoundary.recordMeta("Alter table "
                         + qn + " alter column " + pk + " set not null");
             }
-            com.legend.exec.RawSqlBoundary.recordMeta("Alter table " + qn
+            com.legend.sql.dialect.RawSqlBoundary.recordMeta("Alter table " + qn
                     + " add primary key (" + String.join(", ", pks) + ")");
         }
         return new ExecutionResult.Scalar(true, call.info().type());

@@ -476,9 +476,8 @@ final class SyntheticHeads {
                     l.body().stream().map(b -> liftFilteredHeads(b, enabled))
                             .toList(), l.info());
             case TypedNativeCall c ->
-                    new TypedNativeCall(c.callee(),
-                            c.args().stream().map(a -> liftFilteredHeads(a, enabled))
-                                    .toList(), c.info());
+                    c.withChildren(c.args().stream().map(a -> liftFilteredHeads(a, enabled))
+                                    .toList());
             case TypedPropertyAccess pa ->
                     new TypedPropertyAccess(
                             liftFilteredHeads(pa.source(), enabled),
@@ -575,7 +574,7 @@ final class SyntheticHeads {
         for (int i = 1; i < newArgs.size(); i++) {
             newArgs.set(i, liftFilteredHeads(newArgs.get(i), enabled));
         }
-        return new TypedNativeCall(agg.callee(), newArgs, agg.info());
+        return agg.withChildren(newArgs);
     }
 
     /**
@@ -889,9 +888,7 @@ final class SyntheticHeads {
                 && ex.args().get(1) instanceof TypedLambda exp
                 && exp.parameters().size() == 1
                 && exp.body().size() == 1) {
-            return new TypedNativeCall(ex.callee(),
-                    List.of(fx.source(), andMerge(fx.predicate(), exp)),
-                    ex.info());
+            return ex.withChildren(List.of(fx.source(), andMerge(fx.predicate(), exp)));
         }
         if (n instanceof TypedPropertyAccess paw
                 && !(filterBehindToOne(paw.source())
@@ -1088,7 +1085,8 @@ final class SyntheticHeads {
                     sb.keyAlias(), sb.info());
             case com.legend.compiler.spec.typed.TypedSort so ->
                     new com.legend.compiler.spec.typed.TypedSort(
-                            f.apply(so.source()), so.keys(), so.info());
+                            f.apply(so.source()), so.keys(),
+                            so.pureNullOrder(), so.info());
             case TypedLimit l -> new TypedLimit(f.apply(l.source()),
                     l.count(), l.info());
             case TypedDrop d -> new TypedDrop(f.apply(d.source()),
@@ -1102,8 +1100,7 @@ final class SyntheticHeads {
             case TypedLambda l -> new TypedLambda(l.parameters(),
                     l.body().stream().map(f).toList(), l.info());
             case TypedNativeCall c ->
-                    new TypedNativeCall(c.callee(),
-                            c.args().stream().map(f).toList(), c.info());
+                    c.withChildren(c.args().stream().map(f).toList());
             case TypedPropertyAccess pa ->
                     new TypedPropertyAccess(
                             f.apply(pa.source()), pa.property(), pa.info());
