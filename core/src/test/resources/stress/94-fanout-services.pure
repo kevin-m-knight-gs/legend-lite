@@ -5442,6 +5442,289 @@ Service stress::PL4_PillarsPerBand
   ]
 }
 
+Service stress::PL5_ConvertedNotional
+{
+    pattern: '/stress/pl5';
+    documentation: 'Each trade\'s notional converted through a PROJECT\'s FX rate by a PROJECT\'s function, and converted back. The round trip is the assertion: a wrong rate or a wrong lowering gives a number that does not return to where it started, where a single conversion would just look plausible.';
+    execution: Single
+    {
+    query: |projectlink::PricedTrade.all()
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            notional:x|$x.notional,
+            fxMid:x|$x.fxMid,
+            notionalConverted:x|$x.notionalConverted,
+            backConverted:x|$x.backConverted
+        ])
+        ->sort(~tradeId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    PL5_ConvertedNotional_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","notional":190500.0,"fxMid":1.0709,"notionalConverted":204006.44999999998,"backConverted":190500.0},{"tradeId":"TRD-0002","notional":477500.0,"fxMid":1.2661,"notionalConverted":604562.75,"backConverted":477500.0},{"tradeId":"TRD-0003","notional":250000.0,"fxMid":160.87,"notionalConverted":40217500.0,"backConverted":250000.0},{"tradeId":"TRD-0004","notional":250000.0,"fxMid":0.8965,"notionalConverted":224125.0,"backConverted":250000.0},{"tradeId":"TRD-0005","notional":250000.0,"fxMid":1.0704,"notionalConverted":267600.0,"backConverted":250000.0},{"tradeId":"TRD-0006","notional":250000.0,"fxMid":1.2661,"notionalConverted":316525.0,"backConverted":250000.0},{"tradeId":"TRD-0007","notional":282000.0,"fxMid":160.87,"notionalConverted":45365340.0,"backConverted":282000.0},{"tradeId":"TRD-0008","notional":18975.0,"fxMid":0.8965,"notionalConverted":17011.087499999998,"backConverted":18974.999999999996},{"tradeId":"TRD-0009","notional":576750.0,"fxMid":1.0709,"notionalConverted":617641.575,"backConverted":576750.0},{"tradeId":"TRD-0010","notional":498000.0,"fxMid":1.2661,"notionalConverted":630517.8,"backConverted":498000.00000000006},{"tradeId":"TRD-0011","notional":167300.0,"fxMid":160.87,"notionalConverted":26913551.0,"backConverted":167300.0},{"tradeId":"TRD-0012","notional":369000.0,"fxMid":0.8965,"notionalConverted":330808.5,"backConverted":369000.0},{"tradeId":"TRD-0013","notional":171250.0,"fxMid":1.0704,"notionalConverted":183306.0,"backConverted":171250.0},{"tradeId":"TRD-0014","notional":69000.0,"fxMid":1.2661,"notionalConverted":87360.9,"backConverted":69000.0},{"tradeId":"TRD-0015","notional":35000.0,"fxMid":160.87,"notionalConverted":5630450.0,"backConverted":35000.0},{"tradeId":"TRD-0016","notional":264600.0,"fxMid":0.8965,"notionalConverted":237213.9,"backConverted":264600.0},{"tradeId":"TRD-0017","notional":385000.0,"fxMid":1.0709,"notionalConverted":412296.5,"backConverted":385000.0},{"tradeId":"TRD-0018","notional":4912500.0,"fxMid":1.2661,"notionalConverted":6219716.25,"backConverted":4912500.0},{"tradeId":"TRD-0019","notional":1960000.0,"fxMid":160.87,"notionalConverted":315305200.0,"backConverted":1960000.0},{"tradeId":"TRD-0020","notional":975000.0,"fxMid":0.8965,"notionalConverted":874087.5,"backConverted":975000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::PL6_RatingsAsOf
+{
+    pattern: '/stress/pl6';
+    documentation: 'Ratings as at 1 February, read from a MILESTONED class in another project. CP-0001 is A and CP-0003 is still investment grade at BBB-.';
+    execution: Single
+    {
+    query: |core_ratings::RatingVersion.all(%2024-02-01)
+        ->project(~[
+            entityId:x|$x.entityId,
+            rating:x|$x.rating,
+            agency:x|$x.agency
+        ])
+        ->sort(~entityId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    PL6_RatingsAsOf_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"entityId":"CP-0001","rating":"A","agency":"SPGI"},{"entityId":"CP-0002","rating":"AA+","agency":"SPGI"},{"entityId":"CP-0003","rating":"BBB-","agency":"SPGI"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::PL7_RatingsAsOf
+{
+    pattern: '/stress/pl7';
+    documentation: 'The SAME query six months later: CP-0001 is A- and CP-0003 has fallen to BB+. Nothing about the query changes but the date -- and if the boundary dropped the milestoning predicate, nothing about the ANSWER would change either, which is exactly what this pins.';
+    execution: Single
+    {
+    query: |core_ratings::RatingVersion.all(%2024-08-01)
+        ->project(~[
+            entityId:x|$x.entityId,
+            rating:x|$x.rating,
+            agency:x|$x.agency
+        ])
+        ->sort(~entityId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    PL7_RatingsAsOf_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"entityId":"CP-0001","rating":"A-","agency":"SPGI"},{"entityId":"CP-0002","rating":"AA+","agency":"SPGI"},{"entityId":"CP-0003","rating":"BB+","agency":"SPGI"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::PL8_RatingsAsOf
+{
+    pattern: '/stress/pl8';
+    documentation: 'Before any of these ratings existed. Every row is excluded by the temporal predicate, so the result is empty -- absent, not null.';
+    execution: Single
+    {
+    query: |core_ratings::RatingVersion.all(%2023-06-01)
+        ->project(~[
+            entityId:x|$x.entityId,
+            rating:x|$x.rating,
+            agency:x|$x.agency
+        ])
+        ->sort(~entityId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    PL8_RatingsAsOf_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 0 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::PL9_CounterpartyRatingCount
+{
+    pattern: '/stress/pl9';
+    documentation: 'How many rating versions each counterparty has ever had, reaching a MILESTONED class in another project from a CORPUS root. Counted rather than projected because the navigation is to-many; two counterparties have no rating at all, which is F6\'s empty-set case and why they are filtered out rather than shown as zero.';
+    execution: Single
+    {
+    query: |counterparty::Counterparty.all()
+        ->filter({x|($x.counterpartyId < 'CP-0004')})
+        ->project(~[
+            counterpartyId:x|$x.counterpartyId,
+            legalName:x|$x.legalName,
+            versions:x|$x.ratingVersions(%2024-08-01)->count()
+        ])
+        ->sort(~counterpartyId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    PL9_CounterpartyRatingCount_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"counterpartyId":"CP-0001","legalName":"Meridian Asset Management","versions":1},{"counterpartyId":"CP-0002","legalName":"Halberd Securities","versions":1},{"counterpartyId":"CP-0003","legalName":"O\'Neill Capital Partners","versions":1}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::F10_RatingsAsOf2019
 {
     pattern: '/stress/t10';
@@ -15364,6 +15647,85 @@ Service stress::GG_VariationMarginTree
   ]
 }
 
+Service stress::GG_CrRatingActionTree
+{
+    pattern: '/stress/gg_crratingaction';
+    documentation: 'Generated graph fetch on core_ratings::CrRatingAction: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
+    execution: Single
+    {
+    query: |core_ratings::CrRatingAction.all()
+        ->graphFetch(#{
+  core_ratings::CrRatingAction
+  {
+    actionId,
+    actionType,
+    entityId,
+    newRating,
+    actionAgency
+    {
+      agencyId,
+      agencyName,
+      scaleFamily
+    }
+  }
+}#)
+        ->serialize(#{
+  core_ratings::CrRatingAction
+  {
+    actionId,
+    actionType,
+    entityId,
+    newRating,
+    actionAgency
+    {
+      agencyId,
+      agencyName,
+      scaleFamily
+    }
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    GG_CrRatingActionTree_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"actionId":"ACT-0001","actionType":"DOWNGRADE","entityId":"CP-0001","newRating":"A-","actionAgency":{"agencyId":"SPGI","agencyName":"S&P Global Ratings","scaleFamily":"ALPHA"}},{"actionId":"ACT-0002","actionType":"DOWNGRADE","entityId":"CP-0003","newRating":"BB+","actionAgency":{"agencyId":"SPGI","agencyName":"S&P Global Ratings","scaleFamily":"ALPHA"}},{"actionId":"ACT-0003","actionType":"AFFIRM","entityId":"CP-0002","newRating":"AA+","actionAgency":{"agencyId":"SPGI","agencyName":"S&P Global Ratings","scaleFamily":"ALPHA"}}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::GG_CtnTenorBucketTree
 {
     pattern: '/stress/gg_ctntenorbucket';
@@ -15434,95 +15796,6 @@ Service stress::GG_CtnTenorBucketTree
                   #{
                     contentType: 'application/json';
                     data: '{"builder":{"_type":"json"},"values":[{"bucketId":"CTN-01","label":"0-7d","maxDays":8,"minDays":0,"ladder":{"ladderId":"LDR-SWAP","dayCountConvention":"ACT/365","isDefault":true}},{"bucketId":"CTN-02","label":"8-30d","maxDays":31,"minDays":8,"ladder":{"ladderId":"LDR-SWAP","dayCountConvention":"ACT/365","isDefault":true}},{"bucketId":"CTN-03","label":"1-3m","maxDays":92,"minDays":31,"ladder":{"ladderId":"LDR-SWAP","dayCountConvention":"ACT/365","isDefault":true}},{"bucketId":"CTN-04","label":"3-6m","maxDays":184,"minDays":92,"ladder":{"ladderId":"LDR-SWAP","dayCountConvention":"ACT/365","isDefault":true}},{"bucketId":"CTN-05","label":"6-12m","maxDays":366,"minDays":184,"ladder":{"ladderId":"LDR-SWAP","dayCountConvention":"ACT/365","isDefault":true}},{"bucketId":"CTN-06","label":"1-3y","maxDays":1096,"minDays":366,"ladder":{"ladderId":"LDR-SWAP","dayCountConvention":"ACT/365","isDefault":true}},{"bucketId":"CTN-07","label":"3-5y","maxDays":1827,"minDays":1096,"ladder":{"ladderId":"LDR-SWAP","dayCountConvention":"ACT/365","isDefault":true}},{"bucketId":"CTN-08","label":"5-10y","maxDays":3654,"minDays":1827,"ladder":{"ladderId":"LDR-SWAP","dayCountConvention":"ACT/365","isDefault":true}},{"bucketId":"CTN-09","label":"10y+","maxDays":40000,"minDays":3654,"ladder":{"ladderId":"LDR-SWAP","dayCountConvention":"ACT/365","isDefault":true}}]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::GG_AccountTree
-{
-    pattern: '/stress/gg_account';
-    documentation: 'Generated graph fetch on counterparty::Account: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
-    execution: Single
-    {
-    query: |counterparty::Account.all()
-        ->graphFetch(#{
-  counterparty::Account
-  {
-    accountId,
-    brokerId,
-    clearingMemberId,
-    closeDate,
-    counterparty
-    {
-      counterpartyId,
-      counterpartyType,
-      creditRating,
-      country
-      {
-        countryCode,
-        capitalCity
-      }
-    }
-  }
-}#)
-        ->serialize(#{
-  counterparty::Account
-  {
-    accountId,
-    brokerId,
-    clearingMemberId,
-    closeDate,
-    counterparty
-    {
-      counterpartyId,
-      counterpartyType,
-      creditRating,
-      country
-      {
-        countryCode,
-        capitalCity
-      }
-    }
-  }
-}#);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    GG_AccountTree_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"accountId":"A-0001","brokerId":"BROKER-ID-001","clearingMemberId":"CLEARING-MEMBE-001","closeDate":"2024-01-01","counterparty":null},{"accountId":"A-0002","brokerId":"BROKER-ID-002","clearingMemberId":"CLEARING-MEMBE-002","closeDate":null,"counterparty":null},{"accountId":"A-0003","brokerId":"BROKER-ID-003","clearingMemberId":"CLEARING-MEMBE-003","closeDate":"2024-03-03","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}}},{"accountId":"A-0004","brokerId":null,"clearingMemberId":"CLEARING-MEMBE-004","closeDate":"2024-04-04","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}}},{"accountId":"A-0005","brokerId":"BROKER-ID-005","clearingMemberId":null,"closeDate":"2024-05-05","counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND","creditRating":"BBB","country":{"countryCode":"DE","capitalCity":"Berlin"}}}]}';
                   }#;
               }#
           ]
@@ -15801,6 +16074,61 @@ Service stress::AA_ClearingRouteCounts
                   #{
                     contentType: 'application/json';
                     data: '[{"routeId":"RTE-AGENCY","routedTradesCount":17},{"routeId":"RTE-BATS","routedTradesCount":4},{"routeId":"RTE-IEXG","routedTradesCount":4},{"routeId":"RTE-PRINCIPAL","routedTradesCount":3},{"routeId":"RTE-XLON","routedTradesCount":3},{"routeId":"RTE-XNAS","routedTradesCount":4},{"routeId":"RTE-XNYS","routedTradesCount":4}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::AA_CfxRateCounts
+{
+    pattern: '/stress/aa_cfxrate';
+    documentation: 'Generated aggregate on core_fx::CfxRate: 1 count(s) over to-many associations, every parent of which HAS children. This is the non-empty half of the property the F-series pins on the empty half -- F6 makes count() over an empty to-many return 1, so an end with any childless parent is excluded here rather than quarantined. Several counts on one root so the outer joins interact; a single-aggregate probe cannot show that. Generated by scripts/corpus/aggregates.py.';
+    execution: Single
+    {
+    query: |core_fx::CfxRate.all()
+        ->project(~[
+            pairCode:x|$x.pairCode,
+            pricedTradesCount:x|$x.pricedTrades->count()
+        ])
+        ->sort(~pairCode->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    AA_CfxRateCounts_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"pairCode":"EURUSD","pricedTradesCount":2},{"pairCode":"EURUSD","pricedTradesCount":3},{"pairCode":"GBPUSD","pricedTradesCount":5},{"pairCode":"USDCHF","pricedTradesCount":5},{"pairCode":"USDJPY","pricedTradesCount":5}]';
                   }#;
               }#
           ]
@@ -131927,6 +132255,70 @@ Service stress::SP_defYieldCurveEmpty
   ]
 }
 
+Service stress::SP_defPricedTradeGroup
+{
+    pattern: '/stress/sp_defpricedtradegroup';
+    documentation: 'Coverage-directed stack on projectlink::PricedTrade (Group), reusing the reach of PL5_ConvertedNotional and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |projectlink::PricedTrade.all()
+        ->filter({x|($x.tradeId > ' ')})
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            notional:x|$x.notional,
+            fxMid:x|$x.fxMid,
+            notionalConverted:x|$x.notionalConverted,
+            backConverted:x|$x.backConverted,
+            fxRatePairCode:x|$x.fxRate.pairCode,
+            fxRateSpread:x|$x.fxRate.spread
+        ])
+        ->groupBy(~[tradeId], ~[
+            n: x|$x.notional : agg|$agg->count(),
+            tot: x|$x.notional : agg|$agg->sum()
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defPricedTradeGroup_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","n":1,"tot":190500.0},{"tradeId":"TRD-0002","n":1,"tot":477500.0},{"tradeId":"TRD-0003","n":1,"tot":250000.0},{"tradeId":"TRD-0004","n":1,"tot":250000.0},{"tradeId":"TRD-0005","n":1,"tot":250000.0},{"tradeId":"TRD-0006","n":1,"tot":250000.0},{"tradeId":"TRD-0007","n":1,"tot":282000.0},{"tradeId":"TRD-0008","n":1,"tot":18975.0},{"tradeId":"TRD-0009","n":1,"tot":576750.0},{"tradeId":"TRD-0010","n":1,"tot":498000.0},{"tradeId":"TRD-0011","n":1,"tot":167300.0},{"tradeId":"TRD-0012","n":1,"tot":369000.0},{"tradeId":"TRD-0013","n":1,"tot":171250.0},{"tradeId":"TRD-0014","n":1,"tot":69000.0},{"tradeId":"TRD-0015","n":1,"tot":35000.0},{"tradeId":"TRD-0016","n":1,"tot":264600.0},{"tradeId":"TRD-0017","n":1,"tot":385000.0},{"tradeId":"TRD-0018","n":1,"tot":4912500.0},{"tradeId":"TRD-0019","n":1,"tot":1960000.0},{"tradeId":"TRD-0020","n":1,"tot":975000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::SP_InlineFlatTradeGroup
 {
     pattern: '/stress/sp_inlineflattradegroup';
@@ -132062,71 +132454,6 @@ Service stress::SP_defDailyPnLEmpty
   ]
 }
 
-Service stress::SP_defExposureLineGroup
-{
-    pattern: '/stress/sp_defexposurelinegroup';
-    documentation: 'Coverage-directed stack on largeexp::ExposureLine (Group), reusing the reach of LE1_BandedExposures and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |largeexp::ExposureLine.all()
-        ->filter({x|($x.reportId > ' ')})
-        ->project(~[
-            reportId:x|$x.reportId,
-            cobDate:x|$x.cobDate,
-            lineNumber:x|$x.lineNumber,
-            pctOfCapital:x|$x.pctOfCapital,
-            bandId:x|$x.thresholdBand.bandId,
-            bandName:x|$x.thresholdBand.bandName,
-            isReportable:x|$x.thresholdBand.isReportable,
-            isBreach:x|$x.thresholdBand.isBreach
-        ])
-        ->groupBy(~[reportId], ~[
-            n: x|$x.lineNumber : agg|$agg->count(),
-            tot: x|$x.lineNumber : agg|$agg->sum()
-        ]);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    SP_defExposureLineGroup_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"reportId":"LE-2024Q2-01","n":6,"tot":21},{"reportId":"LE-2024Q1-01","n":3,"tot":6},{"reportId":"LE-2024Q2-02","n":3,"tot":6}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
 Service stress::SP_defTradeGroup
 {
     pattern: '/stress/sp_deftradegroup';
@@ -132191,6 +132518,71 @@ Service stress::SP_defTradeGroup
                   #{
                     contentType: 'application/json';
                     data: '[{"tradeId":"TRD-0001","n":1,"tot":1000.0},{"tradeId":"TRD-0002","n":1,"tot":2500.0},{"tradeId":"TRD-0003","n":1,"tot":500.0},{"tradeId":"TRD-0004","n":1,"tot":1250.0},{"tradeId":"TRD-0005","n":1,"tot":2000.0},{"tradeId":"TRD-0006","n":1,"tot":800.0},{"tradeId":"TRD-0007","n":1,"tot":1500.0},{"tradeId":"TRD-0008","n":1,"tot":100.0},{"tradeId":"TRD-0009","n":1,"tot":3000.0},{"tradeId":"TRD-0010","n":1,"tot":1200.0},{"tradeId":"TRD-0011","n":1,"tot":400.0},{"tradeId":"TRD-0012","n":1,"tot":900.0},{"tradeId":"TRD-0013","n":1,"tot":25000.0},{"tradeId":"TRD-0014","n":1,"tot":10000.0},{"tradeId":"TRD-0015","n":1,"tot":5000.0},{"tradeId":"TRD-0016","n":1,"tot":1500.0},{"tradeId":"TRD-0017","n":1,"tot":2200.0},{"tradeId":"TRD-0018","n":1,"tot":5000000.0},{"tradeId":"TRD-0019","n":1,"tot":2000000.0},{"tradeId":"TRD-0020","n":1,"tot":1000000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::SP_defExposureLineGroup
+{
+    pattern: '/stress/sp_defexposurelinegroup';
+    documentation: 'Coverage-directed stack on largeexp::ExposureLine (Group), reusing the reach of LE1_BandedExposures and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |largeexp::ExposureLine.all()
+        ->filter({x|($x.reportId > ' ')})
+        ->project(~[
+            reportId:x|$x.reportId,
+            cobDate:x|$x.cobDate,
+            lineNumber:x|$x.lineNumber,
+            pctOfCapital:x|$x.pctOfCapital,
+            bandId:x|$x.thresholdBand.bandId,
+            bandName:x|$x.thresholdBand.bandName,
+            isReportable:x|$x.thresholdBand.isReportable,
+            isBreach:x|$x.thresholdBand.isBreach
+        ])
+        ->groupBy(~[reportId], ~[
+            n: x|$x.lineNumber : agg|$agg->count(),
+            tot: x|$x.lineNumber : agg|$agg->sum()
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defExposureLineGroup_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"reportId":"LE-2024Q2-01","n":6,"tot":21},{"reportId":"LE-2024Q1-01","n":3,"tot":6},{"reportId":"LE-2024Q2-02","n":3,"tot":6}]';
                   }#;
               }#
           ]
@@ -132914,71 +133306,6 @@ Service stress::SP_ComboScopedGraph
                   #{
                     contentType: 'application/json';
                     data: '{"builder":{"_type":"json"},"values":[{"r_b_nl1":false,"r_b_nn1":false,"r_bi_nl1":31,"r_bi_nn1":31,"r_c_nl1":"R-C-NL1-001","r_c_nn1":"R-C-NN1-001","r_de_nl1":212.5,"r_de_nn1":212.5,"r_dt_nl1":"2024-04-04","r_dt_nn1":"2024-04-04","r_f_nl1":212.5,"r_f_nn1":212.5,"r_i_nl1":31,"r_i_nn1":31,"r_s_nl1":"R-S-NL1-001","r_s_nn1":"R-S-NN1-001","r_si_nl1":null,"r_si_nn1":31,"rootId":"CR-0001"},{"r_b_nl1":null,"r_b_nn1":true,"r_bi_nl1":38,"r_bi_nn1":38,"r_c_nl1":"R-C-NL1-002","r_c_nn1":"R-C-NN1-002","r_de_nl1":250.0,"r_de_nn1":250.0,"r_dt_nl1":"2024-05-05","r_dt_nn1":"2024-05-05","r_f_nl1":250.0,"r_f_nn1":250.0,"r_i_nl1":null,"r_i_nn1":38,"r_s_nl1":"R-S-NL1-002","r_s_nn1":"R-S-NN1-002","r_si_nl1":38,"r_si_nn1":38,"rootId":"CR-0002"},{"r_b_nl1":true,"r_b_nn1":true,"r_bi_nl1":45,"r_bi_nn1":45,"r_c_nl1":"R-C-NL1-003","r_c_nn1":"R-C-NN1-003","r_de_nl1":287.5,"r_de_nn1":287.5,"r_dt_nl1":"2024-06-06","r_dt_nn1":"2024-06-06","r_f_nl1":null,"r_f_nn1":287.5,"r_i_nl1":45,"r_i_nn1":45,"r_s_nl1":null,"r_s_nn1":"R-S-NN1-003","r_si_nl1":45,"r_si_nn1":45,"rootId":"CR-0003"},{"r_b_nl1":false,"r_b_nn1":false,"r_bi_nl1":null,"r_bi_nn1":52,"r_c_nl1":"R-C-NL1-004","r_c_nn1":"R-C-NN1-004","r_de_nl1":325.0,"r_de_nn1":325.0,"r_dt_nl1":null,"r_dt_nn1":"2024-07-07","r_f_nl1":325.0,"r_f_nn1":325.0,"r_i_nl1":52,"r_i_nn1":52,"r_s_nl1":"R-S-NL1-004","r_s_nn1":"R-S-NN1-004","r_si_nl1":52,"r_si_nn1":52,"rootId":"CR-0004"},{"r_b_nl1":true,"r_b_nn1":true,"r_bi_nl1":59,"r_bi_nn1":59,"r_c_nl1":null,"r_c_nn1":"R-C-NN1-005","r_de_nl1":null,"r_de_nn1":362.5,"r_dt_nl1":"2024-08-08","r_dt_nn1":"2024-08-08","r_f_nl1":362.5,"r_f_nn1":362.5,"r_i_nl1":59,"r_i_nn1":59,"r_s_nl1":"R-S-NL1-005","r_s_nn1":"R-S-NN1-005","r_si_nl1":59,"r_si_nn1":59,"rootId":"CR-0005"}]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::SP_defRiskMeasureGroup
-{
-    pattern: '/stress/sp_defriskmeasuregroup';
-    documentation: 'Coverage-directed stack on risk::RiskMeasure (Group), reusing the reach of MR1_FirmVar and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |risk::RiskMeasure.all()
-        ->filter({x|($x.measureId > ' ')})
-        ->project(~[
-            measureId:x|$x.measureId,
-            measureType:x|$x.measureType,
-            confidence:x|$x.confidence,
-            horizonDays:x|$x.horizonDays,
-            measureValue:x|$x.measureValue,
-            modelName:x|$x.modelName,
-            valueEur:x|$x.valueIn(0.92),
-            cobDate:x|$x.measureRun.cobDate
-        ])
-        ->groupBy(~[measureId], ~[
-            n: x|$x.confidence : agg|$agg->count(),
-            tot: x|$x.confidence : agg|$agg->sum()
-        ]);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    SP_defRiskMeasureGroup_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 11 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"measureId":"MEAS-00001","n":1,"tot":0.99},{"measureId":"MEAS-00002","n":1,"tot":0.99},{"measureId":"MEAS-00003","n":1,"tot":0.99},{"measureId":"MEAS-00004","n":1,"tot":0.975},{"measureId":"MEAS-00005","n":1,"tot":0.99},{"measureId":"MEAS-00006","n":0,"tot":null},{"measureId":"MEAS-00007","n":0,"tot":null},{"measureId":"MEAS-00008","n":0,"tot":null},{"measureId":"MEAS-00009","n":1,"tot":0.95},{"measureId":"MEAS-00010","n":1,"tot":0.99},{"measureId":"MEAS-00011","n":1,"tot":0.99}]';
                   }#;
               }#
           ]

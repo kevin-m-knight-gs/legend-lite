@@ -44,7 +44,16 @@ PROJECTS = Path(__file__).resolve().parents[2] / "projects"
 # named list rather than the whole graph because every project added here is 200 more
 # services to run, and the point is to prove the boundary executes rather than to re-test
 # each project's content.
-LINKED_PROJECTS = ["core-tenor"]
+#
+# Each one is here for a construct that can only fail at EXECUTION, which is the whole
+# argument for linking anything at all:
+#
+#   core-tenor    a RANGE join across the boundary. A key equality that lowers wrongly
+#                 returns nothing and is obvious; a range returns the wrong band.
+#   core-fx       FUNCTIONS called across the boundary from a corpus derived property.
+#   core-ratings  MILESTONING across the boundary -- `all(%date)` on a class that lives in
+#                 another project, which projects/ could only ever compile.
+LINKED_PROJECTS = ["core-tenor", "core-fx", "core-ratings"]
 
 
 # Section order within a project, not alphabetical. A .pure file with no `###` header

@@ -948,6 +948,28 @@ IMPL = {
     # to the engine's answer; it is that a cube root computed as a cube root is right and a
     # cube root computed as a fractional power is approximately right.
     "cbrt": _propagating(math.cbrt, 1),
+
+    # ---- functions belonging to a LINKED PROJECT ----
+    #
+    # Implemented here from the project's own source, not read back from the engine -- the
+    # same rule every other entry follows, and the reason the registry refuses an unknown
+    # name rather than guessing. A cross-project call is exactly where reading the engine's
+    # answer would be most tempting and most circular: the thing under test IS whether the
+    # call lowers correctly across the boundary.
+    #
+    # `core_fx::convert(amount, rate) { $amount * $rate }`
+    #
+    # PLAIN float multiply, not the exact-decimal one the corpus uses for column arithmetic.
+    # The exactness rule follows the COLUMN type: a DECIMAL column multiplies exactly, and
+    # these operands come from DOUBLE columns through a function whose parameters are
+    # declared Float. Multiplying exactly gave 204006.45 against the engine's
+    # 204006.44999999998 -- the oracle being more precise than the thing it models.
+    "core_fx::convert": _propagating(lambda a, r: a * r, 2),
+    # `core_fx::invert(rate) { 1.0 / $rate }`
+    "core_fx::invert": _propagating(lambda r: None if r == 0 else _Dbl(1.0 / r), 1),
+    # `core_fx::midOf(bid, ask) { ($bid + $ask) / 2.0 }`
+    "core_fx::midOf": _propagating(
+        lambda b, a: _Dbl(float(_exact_addsub("+", b, a)) / 2.0), 2),
     # Trigonometry: total over the reals, so no domain guard is needed.
     # Well defined on part of the domain, refusing only outside it -- see _guarded.
     "sqrt": _guarded(math.sqrt, lambda v: v >= 0,
@@ -1880,7 +1902,12 @@ _TOKEN = re.compile(
     r"|[\w:]+::\w+\.\w+"                      # enum literal, e.g. trading::Side.BUY
     r"|\$\w+(?:\.\w+)*"                        # $var, $var.path.to.prop
     r"|'[^']*'"                                  # string literal
-    r"|\w+(?=\()"                                # a FUNCTION name, e.g. dateDiff(
+    # A function name, e.g. `dateDiff(`. The `[\w:]*::` prefix admits a PACKAGE-QUALIFIED
+    # one -- `core_fx::convert(` -- which only became reachable when a corpus class started
+    # calling a linked project's function. Unqualified names still match, since the prefix is
+    # optional; without it the tokeniser stopped dead at the `::` and reported the whole
+    # expression as untokenisable, naming no function.
+    r"|(?:[\w:]*::)?\w+(?=\()"                    # a FUNCTION name, e.g. dateDiff(
     r"|<=|>=|==|!=|<|>"
     r"|[-+*/(),|]|-?\d+\.\d+|-?\d+)")
 
@@ -1993,7 +2020,11 @@ class _Eval:
         # such property was Unsupported and its class could carry no derived property at all.
         # Dispatched into the same registry every other function goes through, so a function
         # the oracle refuses is refused here too rather than quietly evaluated differently.
-        if tok and re.fullmatch(r"\w+", tok) and not tok[0].isdigit() \
+        # `[\w:]+` rather than `\w+`, so a PACKAGE-QUALIFIED call is recognised here as a
+        # call. Unqualified, `core_fx::convert` fell through to the enum-literal branch below
+        # -- which splits on "." and raised IndexError on a name that has none, naming
+        # neither the function nor the class whose derived property called it.
+        if tok and re.fullmatch(r"[\w:]+", tok) and not tok[0].isdigit() \
                 and self.peek() == "(":
             self.take()                                   # '('
             # A `|` before an argument is Pure's lambda marker, as in
@@ -2104,8 +2135,29 @@ def _derived(c: Corpus, data, row, root: str, path: list[str], hit, args=()):
     def lookup(prop: str):
         col = c.columns.get(cls, {}).get(prop)
         if col is None:
-            raise Unsupported(f"{cls}.{prop} referenced by derived property "
-                              f"{d.name!r} is not a mapped column")
+            # A property mapped through a JOIN CHAIN rather than as a column of the main
+            # table -- `prop: [db]@Join | [db]OTHER.COL`. The derived evaluator only ever
+            # looked at columns, because until a corpus class reached across a project
+            # boundary for a value, no derived property had referenced a chained one. The
+            # error named the property as "not a mapped column", which was true and unhelpful.
+            chain = c.chains.get((cls, prop))
+            if chain is None:
+                # Another DERIVED property on the same class. `backConverted` calls
+                # `notionalConverted`, which is not a column and not a chain -- it is the
+                # class's own arithmetic, and evaluating it is a recursive call into this
+                # same function. Cheap, and it terminates because a derived property that
+                # referenced itself would not compile in the first place.
+                own = c.classes[cls].derived.get(prop) if cls in c.classes else None
+                if own is not None and not own.params:
+                    return _derived(c, data, landed, cls, [prop], ([], cls, own), [])
+                raise Unsupported(f"{cls}.{prop} referenced by derived property "
+                                  f"{d.name!r} is not a column, a join chain, or a "
+                                  f"no-argument derived property of the same class")
+            # _chain_value, not a hand-rolled walk: it is the same helper the projection
+            # path uses, so a chained property reads identically whether a query projects it
+            # or a derived property references it. Rolling a second walk here produced hop
+            # tuples the general-join branch could not use, and would have drifted anyway.
+            return _chain_value(c, data, landed, cls, [prop], chain)
         raw = landed.get(col)
         mapping = c.enum_props.get((cls, prop))
         return c.enum_maps[mapping].get(raw) if mapping and raw is not None else raw
@@ -2146,6 +2198,13 @@ def _reverse_hops(c: Corpus, root: str, path: list[str]) -> set[int]:
 def _agg(c: Corpus, data, row, root: str, proj):
     hops, _target = c.resolve_assoc(root, proj.path)
     landed = walk_many(c, data, row, hops, _reverse_hops(c, root, proj.path))
+    # A navigation onto a MILESTONED class carries a date, and the date has to narrow the
+    # landed rows the same way it narrows a temporal root. Without this the count is of every
+    # version ever recorded rather than of the one in force -- a number that looks like an
+    # answer and is not.
+    if proj.args and c.classes.get(_target) is not None \
+            and c.classes[_target].temporal is not None:
+        landed = _milestone_rows(c, _target, landed, list(proj.args))
     if proj.agg == "count":
         # An entity with no children counts 0. Stated plainly because this is the
         # assertion, not an implementation detail.
@@ -2232,6 +2291,41 @@ def _mapping_filtered(c: Corpus, root: str, rows: list[dict],
                 f"~filter chain on {root} ends at {landed_table}, but filter {fname} tests "
                 f"{ftable}")
         rows = [r for r in rows if _filter_holds(c, fname, walk(c, data, r, hops))]
+    return rows
+
+
+def _milestone_rows(c: Corpus, cls: str, rows: list[dict], dates) -> list[dict]:
+    """The business/processing predicate for `cls`, applied to `rows` at `dates`.
+
+    Split out of _milestoned so a NAVIGATION can use it too. A milestoned property requires a
+    date -- the engine refuses the undated form outright -- and the oracle was applying the
+    predicate only at the ROOT, so a navigated to-many returned every version ever recorded.
+    Two versions of a rating came back where the engine correctly returned the one in force.
+    """
+    klass = c.classes.get(cls)
+    temporal = klass.temporal if klass else None
+    if temporal is None:
+        return rows
+    table = c.tables.get(c.main_table.get(cls, ""))
+    wanted = {"businesstemporal": ["business"],
+              "processingtemporal": ["processing"],
+              "bitemporal": ["processing", "business"]}.get(temporal)
+    if table is None or wanted is None:
+        raise Unsupported(f"{cls}: {temporal} milestoning is not modelled")
+    if len(dates) != len(wanted) or any(d is None for d in dates):
+        raise Unsupported(f"{cls} is {temporal}, so a navigation to it needs "
+                          f"{len(wanted)} date(s) ({', '.join(wanted)}), got {dates!r}")
+    for kind, at in zip(wanted, dates):
+        ms = table.milestone(kind)
+        if ms is None:
+            raise Unsupported(f"{cls} is {temporal} but {table.name} declares no "
+                              f"{kind} milestoning columns")
+        if at == "latest":
+            rows = [r for r in rows if r.get(ms.thru) == INFINITY]
+        else:
+            rows = [r for r in rows
+                    if r.get(ms.frm) is not None and r.get(ms.frm) <= at
+                    and (r.get(ms.thru) is None or at < r.get(ms.thru))]
     return rows
 
 

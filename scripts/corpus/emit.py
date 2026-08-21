@@ -281,8 +281,14 @@ VAR = "x"
 
 
 def _literal(v) -> str:
+    import query
+
     if isinstance(v, bool):
         return "true" if v else "false"
+    # Before the plain-string branch: DateArg IS a str, and quoting it would produce
+    # `'2024-02-01'` where Pure wants `%2024-02-01`.
+    if isinstance(v, query.DateArg):
+        return f"%{v}"
     if isinstance(v, str):
         return f"'{_pure_str(v)}'"
     return repr(v)

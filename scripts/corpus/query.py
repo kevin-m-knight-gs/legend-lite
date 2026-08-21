@@ -25,6 +25,15 @@ from pathlib import Path
 from model import STRESS
 
 
+class DateArg(str):
+    """A Pure DATE literal argument: `%2024-02-01`, not `'2024-02-01'`.
+
+    A milestoned property REQUIRES a business date -- "The property 'x' is milestoned with
+    stereotypes: [businesstemporal] and requires date parameters: [businessDate]" -- and a
+    date is the one argument type whose Pure literal is not its quoted string.
+    """
+
+
 @dataclass
 class Pred:
     path: list[str]

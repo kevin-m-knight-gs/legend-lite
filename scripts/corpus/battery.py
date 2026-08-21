@@ -26,7 +26,7 @@ carries several independent assertions and a defect in any one of them reddens t
 """
 from __future__ import annotations
 
-from query import Pred, Proj, Spec
+from query import DateArg, Pred, Proj, Spec
 
 PREFIX = "stress::F"
 
@@ -2054,6 +2054,74 @@ def _project_link_specs():
                    ("lowestRate", "zeroRate", "min")]
     byband.sort = ("bandCode", False)
     out.append(byband)
+
+    # ---- core-fx: a cross-project FUNCTION CALL, executed ----
+    #
+    # projects/ compiles function calls across a boundary and has never run one. Both
+    # derived properties here call `core_fx::convert`, which lives in another project, on a
+    # rate reached across the boundary -- and the second one converts back, so a wrong
+    # lowering shows up as a number that does not round-trip rather than as a plausible one.
+    priced = Spec("stress::PL5_ConvertedNotional", "/stress/pl5",
+                  "Each trade's notional converted through a PROJECT's FX rate by a PROJECT's "
+                  "function, and converted back. The round trip is the assertion: a wrong "
+                  "rate or a wrong lowering gives a number that does not return to where it "
+                  "started, where a single conversion would just look plausible.",
+                  "projectlink::PricedTrade")
+    priced.projections = [Proj("tradeId", ["tradeId"]),
+                          Proj("notional", ["notional"]),
+                          Proj("fxMid", ["fxMid"]),
+                          Proj("notionalConverted", ["notionalConverted"]),
+                          Proj("backConverted", ["backConverted"])]
+    priced.sort = ("tradeId", False)
+    out.append(priced)
+
+    # ---- core-ratings: MILESTONING across the boundary ----
+    #
+    # `all(%date)` on a class in another project. Three dates, three answers, and the middle
+    # one is the whole point -- CP-0001 is A before 1 May and A- after, so a boundary that
+    # dropped the temporal predicate would return both rows on every date and look busy.
+    for n, (as_of, doc) in enumerate([
+        ("2024-02-01",
+         "Ratings as at 1 February, read from a MILESTONED class in another project. CP-0001 "
+         "is A and CP-0003 is still investment grade at BBB-."),
+        ("2024-08-01",
+         "The SAME query six months later: CP-0001 is A- and CP-0003 has fallen to BB+. "
+         "Nothing about the query changes but the date -- and if the boundary dropped the "
+         "milestoning predicate, nothing about the ANSWER would change either, which is "
+         "exactly what this pins."),
+        ("2023-06-01",
+         "Before any of these ratings existed. Every row is excluded by the temporal "
+         "predicate, so the result is empty -- absent, not null.")]):
+        r = Spec(f"stress::PL{6 + n}_RatingsAsOf", f"/stress/pl{6 + n}", doc,
+                 "core_ratings::RatingVersion")
+        r.as_of = as_of
+        r.projections = [Proj("entityId", ["entityId"]),
+                         Proj("rating", ["rating"]),
+                         Proj("agency", ["agency"])]
+        r.sort = ("entityId", False)
+        out.append(r)
+
+    # The same milestoned class reached FROM a corpus class. Two of the five counterparties
+    # are unrated, so the navigation lands on nothing for them -- asked as a count, since
+    # every counterparty here has at least one rating or the F6 empty-set case would apply.
+    rated = Spec("stress::PL9_CounterpartyRatingCount", "/stress/pl9",
+                 "How many rating versions each counterparty has ever had, reaching a "
+                 "MILESTONED class in another project from a CORPUS root. Counted rather "
+                 "than projected because the navigation is to-many; two counterparties have "
+                 "no rating at all, which is F6's empty-set case and why they are filtered "
+                 "out rather than shown as zero.",
+                 "counterparty::Counterparty")
+    # The date is REQUIRED, not optional: navigating a milestoned property without one
+    # fails at compile with "requires date parameters: [businessDate]". credit-core reported
+    # that from projects/, where it could only be compiled; this is the same rule holding at
+    # execution, across a project boundary.
+    rated.projections = [Proj("counterpartyId", ["counterpartyId"]),
+                         Proj("legalName", ["legalName"]),
+                         Proj("versions", ["ratingVersions"], agg="count",
+                              args=[DateArg("2024-08-01")])]
+    rated.filters = [Pred(["counterpartyId"], "<", "CP-0004")]
+    rated.sort = ("counterpartyId", False)
+    out.append(rated)
 
     return out
 

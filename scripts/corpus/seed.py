@@ -19860,7 +19860,170 @@ CTN_DATED_ITEM: list[dict] = []
 CTN_BUCKET_PROFILE: list[dict] = []
 
 
+# ---- the linked project: core-fx ----
+#
+# Real June 2024 levels for four majors. The corpus's own trades are all USD, so what the
+# boundary tests is a corpus row reaching a rate BY CURRENCY and calling core-fx's own
+# conversion function on it -- a cross-project function call at execution, which the
+# compile-only graph could never exercise.
+CFX_CURRENCY_PAIR = [
+    dict(PAIR_CODE="EURUSD", BASE_CCY="EUR", QUOTE_CCY="USD", QUOTED_INVERTED=False,
+         PIP_FACTOR=10000.0, QUOTE_PRECISION=5, IS_MAJOR=True),
+    dict(PAIR_CODE="GBPUSD", BASE_CCY="GBP", QUOTE_CCY="USD", QUOTED_INVERTED=False,
+         PIP_FACTOR=10000.0, QUOTE_PRECISION=5, IS_MAJOR=True),
+    # USD on the base side, so a foreign amount valued into USD goes through invert().
+    dict(PAIR_CODE="USDJPY", BASE_CCY="USD", QUOTE_CCY="JPY", QUOTED_INVERTED=True,
+         PIP_FACTOR=100.0, QUOTE_PRECISION=3, IS_MAJOR=True),
+    dict(PAIR_CODE="USDCHF", BASE_CCY="USD", QUOTE_CCY="CHF", QUOTED_INVERTED=True,
+         PIP_FACTOR=10000.0, QUOTE_PRECISION=5, IS_MAJOR=True),
+]
+
+CFX_FIXING_SOURCE = [
+    dict(SOURCE_CODE="WMR16", SOURCE_NAME="WM/Refinitiv 16:00 London", FIXING_TIME="16:00",
+         TIME_ZONE="Europe/London", IS_REGULATED=True),
+    dict(SOURCE_CODE="ECB", SOURCE_NAME="European Central Bank reference", FIXING_TIME="14:15",
+         TIME_ZONE="Europe/Frankfurt", IS_REGULATED=False),
+]
+
+# SPOT and FIXING for one cob date. Same pair, same day, two different numbers -- which is
+# why RATE_TYPE is part of the key.
+CFX_RATE = [
+    dict(PAIR_CODE="EURUSD", COB_DATE=_iso(2024, 6, 28), RATE_TYPE="SPOT",
+         BID=1.0703, ASK=1.0705, MID=1.0704, TENOR=None, FORWARD_POINTS=None,
+         SOURCE_CODE="WMR16", IS_OFFICIAL=True),
+    dict(PAIR_CODE="EURUSD", COB_DATE=_iso(2024, 6, 28), RATE_TYPE="FIXING",
+         BID=1.0708, ASK=1.0710, MID=1.0709, TENOR=None, FORWARD_POINTS=None,
+         SOURCE_CODE="ECB", IS_OFFICIAL=True),
+    dict(PAIR_CODE="GBPUSD", COB_DATE=_iso(2024, 6, 28), RATE_TYPE="SPOT",
+         BID=1.2660, ASK=1.2662, MID=1.2661, TENOR=None, FORWARD_POINTS=None,
+         SOURCE_CODE="WMR16", IS_OFFICIAL=True),
+    dict(PAIR_CODE="USDJPY", COB_DATE=_iso(2024, 6, 28), RATE_TYPE="SPOT",
+         BID=160.85, ASK=160.89, MID=160.87, TENOR=None, FORWARD_POINTS=None,
+         SOURCE_CODE="WMR16", IS_OFFICIAL=True),
+    # A FORWARD, so TENOR and FORWARD_POINTS are populated on exactly one row and null on
+    # the rest -- the optional-column case, seeded rather than asserted.
+    dict(PAIR_CODE="USDCHF", COB_DATE=_iso(2024, 6, 28), RATE_TYPE="FORWARD",
+         BID=0.8963, ASK=0.8967, MID=0.8965, TENOR="3M", FORWARD_POINTS=-38.5,
+         SOURCE_CODE="WMR16", IS_OFFICIAL=False),
+]
+
+# Triangulated through USD: EURJPY is EURUSD x USDJPY, which is what core_fx::cross does.
+CFX_CROSS_RATE = [
+    dict(CROSS_CODE="EURJPY", COB_DATE=_iso(2024, 6, 28), VEHICLE_CCY="USD",
+         LEG_ONE_CODE="EURUSD", LEG_TWO_CODE="USDJPY", CROSS_MID=172.20),
+    dict(CROSS_CODE="GBPCHF", COB_DATE=_iso(2024, 6, 28), VEHICLE_CCY="USD",
+         LEG_ONE_CODE="GBPUSD", LEG_TWO_CODE="USDCHF", CROSS_MID=1.1350),
+]
+
+
+# ---- the linked project: core-ratings ----
+#
+# MILESTONED, and keyed on the corpus's own counterparty ids so `all(%date)` crosses the
+# project boundary onto rows the corpus can reach. CP-0001 is downgraded mid-year, which is
+# the whole point: `all(%2024-02-01)` and `all(%2024-08-01)` must differ.
+CR_AGENCY = [
+    dict(AGENCY_ID="SPGI", AGENCY_NAME="S&P Global Ratings", SCALE_FAMILY="ALPHA"),
+    dict(AGENCY_ID="MOODYS", AGENCY_NAME="Moody's Investors Service", SCALE_FAMILY="ALPHANUM"),
+    dict(AGENCY_ID="FITCH", AGENCY_NAME="Fitch Ratings", SCALE_FAMILY="ALPHA"),
+]
+
+CR_SCALE = [
+    dict(AGENCY_ID="SPGI", SYMBOL="AAA", NOTCH=1, IS_INVESTMENT_GRADE=True),
+    dict(AGENCY_ID="SPGI", SYMBOL="AA+", NOTCH=2, IS_INVESTMENT_GRADE=True),
+    dict(AGENCY_ID="SPGI", SYMBOL="A", NOTCH=6, IS_INVESTMENT_GRADE=True),
+    dict(AGENCY_ID="SPGI", SYMBOL="A-", NOTCH=7, IS_INVESTMENT_GRADE=True),
+    dict(AGENCY_ID="SPGI", SYMBOL="BBB", NOTCH=9, IS_INVESTMENT_GRADE=True),
+    # The investment-grade line: BBB- is the last one above it.
+    dict(AGENCY_ID="SPGI", SYMBOL="BBB-", NOTCH=10, IS_INVESTMENT_GRADE=True),
+    dict(AGENCY_ID="SPGI", SYMBOL="BB+", NOTCH=11, IS_INVESTMENT_GRADE=False),
+    dict(AGENCY_ID="MOODYS", SYMBOL="Aa3", NOTCH=4, IS_INVESTMENT_GRADE=True),
+    dict(AGENCY_ID="MOODYS", SYMBOL="Baa3", NOTCH=10, IS_INVESTMENT_GRADE=True),
+]
+
+# Business-temporal. CP-0001 was A until 1 May and A- after; CP-0002 has one version that
+# has never changed; CP-0003 was downgraded out of investment grade. The rest of the
+# corpus's counterparties are deliberately UNRATED, so a navigation from them lands on
+# nothing -- which is the case a rated-only seed would never show.
+CR_RATING_MS = [
+    dict(ENTITY_ID="CP-0001", FROM_Z=_iso(2024, 1, 1), THRU_Z=_iso(2024, 5, 1),
+         RATING="A", AGENCY="SPGI"),
+    dict(ENTITY_ID="CP-0001", FROM_Z=_iso(2024, 5, 1), THRU_Z=INFINITY,
+         RATING="A-", AGENCY="SPGI"),
+    dict(ENTITY_ID="CP-0002", FROM_Z=_iso(2024, 1, 1), THRU_Z=INFINITY,
+         RATING="AA+", AGENCY="SPGI"),
+    dict(ENTITY_ID="CP-0003", FROM_Z=_iso(2024, 1, 1), THRU_Z=_iso(2024, 3, 15),
+         RATING="BBB-", AGENCY="SPGI"),
+    dict(ENTITY_ID="CP-0003", FROM_Z=_iso(2024, 3, 15), THRU_Z=INFINITY,
+         RATING="BB+", AGENCY="SPGI"),
+]
+
+CR_ACTION = [
+    dict(ACTION_ID="ACT-0001", ENTITY_ID="CP-0001", AGENCY_ID="SPGI", ACTION_TYPE="DOWNGRADE",
+         ACTION_DATE=_iso(2024, 5, 1), PRIOR_RATING="A", NEW_RATING="A-"),
+    dict(ACTION_ID="ACT-0002", ENTITY_ID="CP-0003", AGENCY_ID="SPGI", ACTION_TYPE="DOWNGRADE",
+         ACTION_DATE=_iso(2024, 3, 15), PRIOR_RATING="BBB-", NEW_RATING="BB+"),
+    dict(ACTION_ID="ACT-0003", ENTITY_ID="CP-0002", AGENCY_ID="SPGI", ACTION_TYPE="AFFIRM",
+         ACTION_DATE=_iso(2024, 2, 20), PRIOR_RATING="AA+", NEW_RATING="AA+"),
+]
+
+
+# One pricing instruction per trade: which pair, which date, which rate type. The rate
+# type varies so the third key column of the cross-project join is doing work rather
+# than being a constant -- one trade prices at the FIXING and four at a FORWARD.
+PROJECTLINK_TRADE_FX = [
+    dict(TRADE_ID="TRD-0001", PAIR_CODE="EURUSD",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="FIXING"),
+    dict(TRADE_ID="TRD-0002", PAIR_CODE="GBPUSD",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="SPOT"),
+    dict(TRADE_ID="TRD-0003", PAIR_CODE="USDJPY",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="SPOT"),
+    dict(TRADE_ID="TRD-0004", PAIR_CODE="USDCHF",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="FORWARD"),
+    dict(TRADE_ID="TRD-0005", PAIR_CODE="EURUSD",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="SPOT"),
+    dict(TRADE_ID="TRD-0006", PAIR_CODE="GBPUSD",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="SPOT"),
+    dict(TRADE_ID="TRD-0007", PAIR_CODE="USDJPY",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="SPOT"),
+    dict(TRADE_ID="TRD-0008", PAIR_CODE="USDCHF",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="FORWARD"),
+    dict(TRADE_ID="TRD-0009", PAIR_CODE="EURUSD",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="FIXING"),
+    dict(TRADE_ID="TRD-0010", PAIR_CODE="GBPUSD",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="SPOT"),
+    dict(TRADE_ID="TRD-0011", PAIR_CODE="USDJPY",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="SPOT"),
+    dict(TRADE_ID="TRD-0012", PAIR_CODE="USDCHF",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="FORWARD"),
+    dict(TRADE_ID="TRD-0013", PAIR_CODE="EURUSD",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="SPOT"),
+    dict(TRADE_ID="TRD-0014", PAIR_CODE="GBPUSD",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="SPOT"),
+    dict(TRADE_ID="TRD-0015", PAIR_CODE="USDJPY",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="SPOT"),
+    dict(TRADE_ID="TRD-0016", PAIR_CODE="USDCHF",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="FORWARD"),
+    dict(TRADE_ID="TRD-0017", PAIR_CODE="EURUSD",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="FIXING"),
+    dict(TRADE_ID="TRD-0018", PAIR_CODE="GBPUSD",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="SPOT"),
+    dict(TRADE_ID="TRD-0019", PAIR_CODE="USDJPY",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="SPOT"),
+    dict(TRADE_ID="TRD-0020", PAIR_CODE="USDCHF",
+         COB_DATE=_iso(2024, 6, 28), RATE_TYPE="FORWARD"),
+]
+
+
 TABLES: dict[str, list[dict]] = {
+    "PROJECTLINK_TRADE_FX": PROJECTLINK_TRADE_FX,
+    "CFX_CURRENCY_PAIR": CFX_CURRENCY_PAIR,
+    "CFX_FIXING_SOURCE": CFX_FIXING_SOURCE,
+    "CFX_RATE": CFX_RATE,
+    "CFX_CROSS_RATE": CFX_CROSS_RATE,
+    "CR_AGENCY": CR_AGENCY,
+    "CR_SCALE": CR_SCALE,
+    "CR_RATING_MS": CR_RATING_MS,
+    "CR_ACTION": CR_ACTION,
     "CTN_TENOR_LADDER": CTN_TENOR_LADDER,
     "CTN_BUCKET": CTN_BUCKET,
     "CTN_DATED_ITEM": CTN_DATED_ITEM,

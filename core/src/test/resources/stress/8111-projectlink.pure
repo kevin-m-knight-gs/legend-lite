@@ -23,7 +23,60 @@
 //
 // core-tenor was chosen because its join is a RANGE. A key equality that lowers wrongly
 // usually returns nothing and is obvious; a range that lowers wrongly returns the wrong
-// BAND, which is a plausible number in the right shape.
+// BAND, which is a plausible number in the right shape. core-fx and core-ratings followed,
+// for a cross-project FUNCTION CALL and for MILESTONING across the boundary.
+//
+// Note the set ids on the CORPUS side of each association below are the DEFAULT ones --
+// `counterparty_Counterparty` -- because that mapping names no id. Every
+// project in projects/ names its ids explicitly, so the two sides of one association here
+// follow opposite conventions, and neither is guessable from the class name alone.
+// A corpus counterparty reaching a MILESTONED class in another project. `all(%date)` on
+// core_ratings::RatingVersion is a question projects/ could only ever compile -- the graph
+// has no data and no runtime -- and the dated form is enforced rather than conventional, so
+// the boundary either carries the temporal obligation across or it does not.
+//
+// Two of the five seeded counterparties are deliberately UNRATED, so a navigation from them
+// lands on nothing. A seed where everything is rated would never show that.
+Association projectlink::CounterpartyRatings
+{
+   ratedCounterparty: counterparty::Counterparty[0..1];
+   ratingVersions: core_ratings::RatingVersion[*];
+}
+
+// A corpus pricing row reaching a project FX rate on the rate's FULL three-column key. The
+// rate is only half of it: the point is that a corpus DERIVED PROPERTY calls core_fx's own
+// function on what it finds, which is a cross-project function call at execution.
+//
+// The owner is projectlink::PricedTrade rather than trading::Trade, because the trade alone
+// does not say which pair or which rate type to value it at -- and joining on currency alone
+// is not to-one, which the oracle refused rather than silently picking a row.
+Association projectlink::TradeFxRate
+{
+   pricedTrades: projectlink::PricedTrade[*];
+   fxRate: core_fx::CfxRate[0..1];
+}
+
+// A CORPUS class whose derived property calls a PROJECT's function on a value reached
+// across the boundary. Declared here rather than on trading::Trade itself, because a corpus
+// class should not need editing to gain a dependency -- and because an extension class is
+// what a project consumer would actually write.
+Class projectlink::PricedTrade
+{
+   tradeId: String[1];
+   pairCode: String[1];
+   notional: Float[1];
+   fxMid: Float[1];
+
+   // The cross-project function call, at EXECUTION. `core_fx::convert` lives in another
+   // project entirely; nothing in projects/ has ever run one.
+   notionalConverted() { core_fx::convert($this.notional, $this.fxMid) } : Float[1];
+   // And its inverse, so a wrong lowering shows up as a number that does not round-trip.
+   // `$this.notionalConverted` without parentheses: a no-argument derived property is
+   // referenced like a property, and the parenthesised form is not what this corpus
+   // writes elsewhere.
+   backConverted() { core_fx::convert($this.notionalConverted, core_fx::invert($this.fxMid)) } : Float[1];
+}
+
 Association projectlink::PillarTenorBucket
 {
    // A curve pillar's tenor in days decides which bucket it falls in. The bucket table
@@ -36,6 +89,36 @@ Association projectlink::PillarTenorBucket
 Mapping projectlink::ProjectLinkMapping
 (
    include core_tenor::Mapping
+   include core_fx::Mapping
+   include core_ratings::Mapping
+
+   projectlink::CounterpartyRatings: Relational
+   {
+      AssociationMapping
+      (
+         ratingVersions[counterparty_Counterparty, crRatingVersion]: [store::DB]@Counterparty_RatingVersion,
+         ratedCounterparty[crRatingVersion, counterparty_Counterparty]: [store::DB]@Counterparty_RatingVersion
+      )
+   }
+
+   projectlink::TradeFxRate: Relational
+   {
+      AssociationMapping
+      (
+         fxRate[projectlinkPricedTrade, cfxRate]: [store::DB]@Trade_FxRate,
+         pricedTrades[cfxRate, projectlinkPricedTrade]: [store::DB]@Trade_FxRate
+      )
+   }
+
+   projectlink::PricedTrade[projectlinkPricedTrade]: Relational
+   {
+      ~primaryKey ( [store::DB]PROJECTLINK_TRADE_FX.TRADE_ID )
+      ~mainTable [store::DB]PROJECTLINK_TRADE_FX
+      tradeId: [store::DB]PROJECTLINK_TRADE_FX.TRADE_ID,
+      pairCode: [store::DB]PROJECTLINK_TRADE_FX.PAIR_CODE,
+      notional: [store::DB]@PricedTrade_Trade | [store::DB]TRADE.NOTIONAL,
+      fxMid: [store::DB]@Trade_FxRate | [store::DB]CFX_RATE.MID
+   }
 
    projectlink::PillarTenorBucket: Relational
    {
