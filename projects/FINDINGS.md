@@ -84,6 +84,19 @@ corrections rather than quietly dropping:
   one property BOTH ways — which is what happens when a project copies the shape of a
   dependency that chose the other style. Two projects hit this, and neither could have known
   without reading the other's source rather than its manifest.
+* **A multi-hop navigation across the boundary into a plain-property edge fails.** Attempted
+  and REVERTED, so this is an observation rather than a result. Linking core-calendar and
+  core-units and then navigating `corpusExchange.projectMarket.calendar.calendarId` -- two
+  hops, the second onto a property mapped as `prop[setId]: [db]@Join` rather than as an
+  Association -- fails at test-suite initialisation with `Void not supported!`, the same
+  anonymous assertion as F49. A ONE-hop navigation of the same edge style works: PL1 does it
+  and passes. Rooting at a class whose table lives in a project SCHEMA fails the same way.
+
+  Not reported as a finding, because two candidate causes are still tangled -- hop count and
+  the schema -- and separating them is a probe nobody has written yet. Recorded because the
+  next person to link a project with a schema or a plain-property edge will hit it, and the
+  message names nothing.
+
 * **The same column is two widths on either side of a join.** `INSTRUMENT_ID` is `VARCHAR(60)`
   in position-keeping and `VARCHAR(20)` in valuation-core; the join across them compiles.
   Whichever side is narrower is the one that truncates, and nothing says so at compile time.
