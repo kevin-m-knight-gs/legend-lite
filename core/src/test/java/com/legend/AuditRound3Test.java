@@ -39,7 +39,10 @@ class AuditRound3Test {
     @Test
     @DisplayName("audit: [] never satisfies a required [1] slot (Nil is a type bottom, not a value)")
     void emptyIntoRequiredSlotIsLoud() {
-        assertTrue(rejects("|abs([])").getMessage().contains("at least one"));
+        // strict-containment message (multiplicity audit slice 2):
+        // the [0..0] literal fails the lower bound of the [1] slot
+        assertTrue(rejects("|abs([])").getMessage()
+                .contains("[0] is not compatible with [1]"));
         // Function bodies compile at INLINE time (the execute path) — the
         // return-position check fires there; compileQuery types calls from
         // signatures alone.
@@ -49,7 +52,8 @@ class AuditRound3Test {
                         "|test::f()", c);
             }
         });
-        assertTrue(String.valueOf(ex.getMessage()).contains("at least one"), ex.getMessage());
+        assertTrue(String.valueOf(ex.getMessage())
+                .contains("[0] is not compatible with [1]"), ex.getMessage());
     }
 
     @Test

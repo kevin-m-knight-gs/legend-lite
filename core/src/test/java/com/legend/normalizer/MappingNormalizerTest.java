@@ -2506,9 +2506,18 @@ class MappingNormalizerTest {
      * the wrap said at emission).
      */
     private static ValueSpecification unwrapToString(ValueSpecification v) {
-        // Peels the cast(..., @String) coercion around every concat argument
-        // (SQL concat coerces via the DATABASE's VARCHAR cast — audit: pure
-        // toString's ISO datetime form diverged from SQL-concat semantics).
+        // Peels the toOne(...) trust wrap (multiplicity audit slice 2:
+        // dyna operands are SQL-lane null-propagating; pure's plus is
+        // strict [1], so the translator wraps each optional read — the
+        // 'position' idiom made uniform) ...
+        if (v instanceof AppliedFunction t1 && t1.function().equals("toOne")
+                && t1.parameters().size() == 1) {
+            v = t1.parameters().get(0);
+        }
+        // ... then the cast(..., @String) coercion around every concat
+        // argument (SQL concat coerces via the DATABASE's VARCHAR cast —
+        // audit: pure toString's ISO datetime form diverged from
+        // SQL-concat semantics).
         return v instanceof AppliedFunction af && af.function().equals("cast")
                 && af.parameters().size() == 2 ? af.parameters().get(0) : v;
     }
@@ -2870,7 +2879,10 @@ class MappingNormalizerTest {
         AppliedFunction upperCall = (AppliedFunction) eq.parameters().get(0);
         assertEquals("upper", upperCall.function(),
                 "Function call wrapper around source column is preserved in the condition");
-        AppliedProperty inner = (AppliedProperty) upperCall.parameters().get(0);
+        // the dyna fallback wraps its SQL-lane operand in toOne
+        // (multiplicity audit slice 2) — peel it, then the column read
+        AppliedProperty inner = (AppliedProperty) unwrapToString(
+                upperCall.parameters().get(0));
         assertEquals("NAME", inner.property());
         assertEquals("s", ((Variable) inner.receiver()).name(),
                 "Inner source ColumnRef reads $s.<col> INSIDE the function call");
@@ -2915,8 +2927,11 @@ class MappingNormalizerTest {
         AppliedFunction eq = (AppliedFunction) navCondBody(srcFn);
         AppliedFunction plusCall = (AppliedFunction) eq.parameters().get(0);
         assertEquals("plus", plusCall.function());
-        AppliedProperty arg0 = (AppliedProperty) plusCall.parameters().get(0);
-        AppliedProperty arg1 = (AppliedProperty) plusCall.parameters().get(1);
+        // dyna operands carry the SQL-lane toOne wrap (audit slice 2)
+        AppliedProperty arg0 = (AppliedProperty) unwrapToString(
+                plusCall.parameters().get(0));
+        AppliedProperty arg1 = (AppliedProperty) unwrapToString(
+                plusCall.parameters().get(1));
         assertEquals("A", arg0.property(),
                 "Source-side arg of mixed function reads $s.<col>");
         assertEquals("s", ((Variable) arg0.receiver()).name());

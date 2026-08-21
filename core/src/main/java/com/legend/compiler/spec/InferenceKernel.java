@@ -210,8 +210,39 @@ public final class InferenceKernel {
                     b.exitContravariant();
                 }
                 unify(f.result().type(), af.result().type(), b);
-                unifyMult(f.result().multiplicity(), af.result().multiplicity(),
-                        af.result().type(), b);
+                // FUNCTION-VALUE RESULT slots are lenient on the LOWER
+                // bound: the engine's own corpus compiles sortBy over
+                // optional association paths — a {T[1]->String[0..1]}
+                // key against sortBy's declared {T[1]->U[1]} (the
+                // reference's observed lambda-result covariance; the
+                // UPPER bound stays checked — a [*] result cannot take
+                // a to-one slot, the earlier audit's interior-result
+                // fix). VALUE slots keep full strict containment.
+                unifyMultResult(f.result().multiplicity(),
+                        af.result().multiplicity(), af.result().type(), b);
+            }
+        }
+    }
+
+    /** Result-slot multiplicity conformance: upper bound only (see the
+     * FunctionType arm — engine-observed lambda-result covariance; the
+     * Typer's lambda-LITERAL body check routes here too). */
+    void unifyMultResult(Multiplicity formal, Multiplicity actual,
+            Type actualType, Bindings b) {
+        if (formal instanceof Multiplicity.Var) {
+            unifyMult(formal, actual, actualType, b);
+            return;
+        }
+        if (formal instanceof Multiplicity.Bounded fb
+                && actual instanceof Multiplicity.Bounded ab
+                && !Type.isRelation(actualType)
+                && !com.legend.compiler.element.type.PlatformTypes
+                        .isVariant(actualType)) {
+            boolean upperOk = fb.upper() == null
+                    || (ab.upper() != null && ab.upper() <= fb.upper());
+            if (!upperOk) {
+                throw new TypeInferenceException("multiplicity " + ab.text()
+                        + " is not compatible with result " + fb.text());
             }
         }
     }
@@ -584,10 +615,19 @@ public final class InferenceKernel {
 
     /**
      * Unify an actual argument's multiplicity against a parameter's: binds a
-     * multiplicity variable, otherwise validates compatibility. Following engine
-     * convention, only the {@code [*] -> [1]} case is rejected, and validation is
-     * <strong>skipped for relation sources</strong> (§3.2 &mdash; relation ops are
-     * typed {@code [*]} but their signatures say {@code [1]}).
+     * multiplicity variable, otherwise validates FULL covariant containment
+     * &mdash; real pure's {@code MultiplicityMatch} (legend-pure
+     * {@code m3/navigation/multiplicity/MultiplicityMatch.java:273-279}):
+     * {@code [a..b]} conforms to {@code [c..d]} iff {@code c <= a} and
+     * {@code b <= d}. In particular {@code [0..1]} does NOT conform to
+     * {@code [1]} &mdash; that is precisely why {@code toOne()} exists.
+     * (The earlier claim here that "engine convention" rejects only
+     * {@code [*] -> [1]} was FALSE &mdash; multiplicity audit
+     * docs/MULTIPLICITY_AUDIT_2026_08_20.md §1: it manufactured a false
+     * {@code [1]} on the most common expression shape in Legend.)
+     * Validation is <strong>skipped for relation sources</strong> (§3.2
+     * &mdash; relation ops are typed {@code [*]} but their signatures say
+     * {@code [1]}).
      */
     public void unifyMult(Multiplicity formal, Multiplicity actual, Type actualType, Bindings b) {
         unifyMult(formal, actual, actualType, b, false);
@@ -621,30 +661,34 @@ public final class InferenceKernel {
                 }
             }
             case Multiplicity.Bounded fb -> {
-                // Only [*] -> [1] is rejected, and relation sources skip validation (§3.2).
-                // A Variant MANY additionally conforms: a collection of
-                // variants IS a variant (one JSON array value) — the
-                // carrier's own semantics (toMany(@Variant) results flow
-                // into to-one column/argument slots as array cells).
+                // FULL covariant containment (MultiplicityMatch): both
+                // bounds. Carve-outs, each with its own doctrine:
+                // relation sources skip (§3.2); CONTRAVARIANT position (a
+                // function value's parameters) accepts a wider actual —
+                // equal(Any[*],Any[*]) is a legal {T[1],T[1]->Boolean}
+                // comparator in real pure; a Variant MANY conforms to a
+                // to-one slot — a collection of variants IS one JSON
+                // array value (toMany(@Variant) results flow into to-one
+                // column/argument slots as array cells).
                 boolean relationSource = Type.isRelation(actualType);
-                // CONTRAVARIANT position (a function value's parameters): a
-                // WIDER actual accepts — equal(Any[*],Any[*]) is a legal
-                // {T[1],T[1]->Boolean} comparator in real pure.
-                if (!relationSource && fb.isToOne() && actual.isMany()
-                        && !contravariantSlot
-                        && !com.legend.compiler.element.type.PlatformTypes.isVariant(actualType)) {
-                    throw new TypeInferenceException(
-                            "expected at most one value, got many (" + actual.text() + ")");
-                }
-                // A STATICALLY EMPTY actual ([0..0], the [] literal) never
-                // satisfies a required slot — Nil-as-bottom conforms on the
-                // TYPE lattice, but multiplicity still binds (abs([]) and
-                // f():Integer[1]{[]} are real-pure errors; audit).
-                if (!relationSource && fb.lower() >= 1
-                        && actual instanceof Multiplicity.Bounded ab
-                        && ab.upper() != null && ab.upper() == 0) {
-                    throw new TypeInferenceException(
-                            "expected at least one value, got none ([0])");
+                if (!relationSource && !contravariantSlot
+                        && actual instanceof Multiplicity.Bounded ab) {
+                    boolean variantCarrier = com.legend.compiler.element
+                            .type.PlatformTypes.isVariant(actualType);
+                    boolean upperOk = fb.upper() == null
+                            || (ab.upper() != null && ab.upper() <= fb.upper())
+                            || variantCarrier;
+                    // the LOWER bound: [0..1] into [1] is a REAL pure
+                    // error (that is why toOne() exists). Nil-as-bottom
+                    // conforms on the TYPE lattice, but multiplicity
+                    // still binds (abs([]) and f():Integer[1]{[]} are
+                    // real-pure errors).
+                    boolean lowerOk = fb.lower() <= ab.lower();
+                    if (!upperOk || !lowerOk) {
+                        throw new TypeInferenceException("multiplicity "
+                                + ab.text() + " is not compatible with "
+                                + fb.text());
+                    }
                 }
             }
         }
@@ -1040,7 +1084,7 @@ public final class InferenceKernel {
                         yield -1;
                     }
                     if (ff.result().multiplicity() instanceof Multiplicity.Bounded fb
-                            && paramMultScore(fb, af.result().multiplicity(),
+                            && resultMultScore(fb, af.result().multiplicity(),
                                     af.result().type()) < 0) {
                         yield -1;
                     }
@@ -1063,7 +1107,7 @@ public final class InferenceKernel {
                 // check the tighter-VALUE overload won the score and died at
                 // unification (testUsingFunctionInMapLambdaTakingAParameter).
                 if (ff.result().multiplicity() instanceof Multiplicity.Bounded fb
-                        && paramMultScore(fb, af.result().multiplicity(),
+                        && resultMultScore(fb, af.result().multiplicity(),
                                 af.result().type()) < 0) {
                     yield -1;
                 }
@@ -1088,6 +1132,25 @@ public final class InferenceKernel {
      * concrete overload and loses only to an exact concrete match — real
      * pure picks map's {T[m]->V[m]} over {T[0..1]->V[0..1]} for a [1]
      * source), then tightness 8/6/4/2; {@code -1} rejects {@code [*]->[1]}. */
+    /** Result-slot scoring twin of {@link #unifyMultResult}: upper bound
+     * only — scoring and unification must agree (the kernel-halves rule),
+     * and lambda results widen [0..1] into [1] slots per the reference's
+     * observed covariance. */
+    private int resultMultScore(Multiplicity.Bounded formal, Multiplicity actual,
+            Type actualType) {
+        if (actual instanceof Multiplicity.Bounded ab
+                && !Type.isRelation(actualType)
+                && !com.legend.compiler.element.type.PlatformTypes
+                        .isVariant(actualType)) {
+            boolean upperOk = formal.upper() == null
+                    || (ab.upper() != null && ab.upper() <= formal.upper());
+            if (!upperOk) {
+                return -1;
+            }
+        }
+        return multiplicityTightness(formal);
+    }
+
     private int paramMultScore(Multiplicity formal, Multiplicity actual, Type actualType) {
         return switch (formal) {
             case Multiplicity.Var ignored -> 9;
@@ -1095,18 +1158,22 @@ public final class InferenceKernel {
                 if (fb.equals(actual)) {
                     yield 10;
                 }
-                if (fb.isToOne() && actual.isMany() && !Type.isRelation(actualType)) {
-                    yield -1;   // [*] cannot satisfy a to-one slot (unless a relation source, §3.2)
-                }
-                // [0] never satisfies a REQUIRED slot — scoring must agree
-                // with resolveChosen's rejection, or selection picks the
-                // [1]-param overload over a [0..1] sibling and the check
-                // then rejects a program the sibling accepts (audit:
-                // coalesce('x', [])).
-                if (fb.lower() >= 1 && actual instanceof Multiplicity.Bounded ab
-                        && ab.upper() != null && ab.upper() == 0
+                // FULL covariant containment, mirroring unifyMult (the
+                // two kernel halves must agree, or selection picks an
+                // overload the check then rejects). This is also HOW
+                // real pure disambiguates [0..1]-vs-[1] overload pairs:
+                // a [0..1] actual structurally cannot take the [1]
+                // overload. Relation sources skip (§3.2); a Variant
+                // MANY conforms to a to-one slot (the carrier rule).
+                if (actual instanceof Multiplicity.Bounded ab
                         && !Type.isRelation(actualType)) {
-                    yield -1;
+                    boolean upperOk = fb.upper() == null
+                            || (ab.upper() != null && ab.upper() <= fb.upper())
+                            || com.legend.compiler.element.type.PlatformTypes
+                                    .isVariant(actualType);
+                    if (!upperOk || fb.lower() > ab.lower()) {
+                        yield -1;
+                    }
                 }
                 yield multiplicityTightness(fb);
             }

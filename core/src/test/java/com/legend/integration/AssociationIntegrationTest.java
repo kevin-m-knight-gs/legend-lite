@@ -630,7 +630,7 @@ class AssociationIntegrationTest {
         @Test
         @DisplayName("Extend with computed from association")
         void testExtendFromAssociation() throws SQLException {
-            var r = exec(fullModel(), "test::Person.all()->project(~[name:x|$x.name, firm:x|$x.firm.legalName])->extend(~upper:x|$x.firm->toUpper())->sort(~name->ascending())->limit(2)");
+            var r = exec(fullModel(), "test::Person.all()->project(~[name:x|$x.name, firm:x|$x.firm.legalName])->extend(~upper:x|$x.firm->toOne()->toUpper())->sort(~name->ascending())->limit(2)");
             assertEquals(2, r.rowCount());
             assertEquals("ACME", colStr(r, 2).get(0));
             assertEquals("ACME", colStr(r, 2).get(1));
@@ -1300,7 +1300,7 @@ class AssociationIntegrationTest {
         @DisplayName("Association property in string computation: extend with toUpper on firm name")
         void testAssociationInComputation() throws SQLException {
             var r = exec(fullModel(),
-                "test::Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:x|$x.name, firm:x|$x.firm.legalName])->extend(~upper:x|$x.firm->toUpper())");
+                "test::Person.all()->filter({p|$p.name == 'Alice'})->project(~[name:x|$x.name, firm:x|$x.firm.legalName])->extend(~upper:x|$x.firm->toOne()->toUpper())");
             assertEquals(1, r.rowCount());
             assertEquals("Alice", colStr(r, 0).get(0));
             assertEquals("Acme", colStr(r, 1).get(0));

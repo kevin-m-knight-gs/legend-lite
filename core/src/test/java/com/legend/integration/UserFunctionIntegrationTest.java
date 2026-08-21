@@ -1322,11 +1322,14 @@ class UserFunctionIntegrationTest {
         @Test
         @DisplayName("Multiplicity: [0..1] param accepts scalar [1] argument")
         void testMultiplicityOptionalAcceptsOne() throws SQLException {
-            // Integer[0..1] param — passing [1] is valid (narrower range fits)
+            // Integer[0..1] param — passing [1] is valid (narrower range fits).
+            // The body spells ->toOne(): real pure REJECTS [0..1] into
+            // plus's [1] slot (MultiplicityMatch; multiplicity audit
+            // slice 2 made the kernel strict).
             String model = modelWith("""
                     function test::maybeAdd(x: Integer[0..1]):Integer[1]
                     {
-                        $x + 1
+                        $x->toOne() + 1
                     }
                     """);
             var result = exec(model, "|test::maybeAdd(5)");

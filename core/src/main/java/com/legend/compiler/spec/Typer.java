@@ -526,8 +526,19 @@ final class Typer {
                                     af.withParameters(inner))))),
                             env);
                 }
+                // [0..1] receivers run like [1] (the engine's no-guard
+                // qualifier doctrine, ledger cluster 48) — spell the
+                // conformance with toOne at this synth site.
+                java.util.List<ValueSpecification> qargs =
+                        new ArrayList<>(af.parameters());
+                if (!(recv.info().multiplicity()
+                        instanceof Multiplicity.Bounded rb1
+                        && rb1.lower() == 1)) {
+                    qargs.set(0, new AppliedFunction("toOne",
+                            List.of(qargs.get(0))));
+                }
                 return applyGeneric(new AppliedFunction(d.bodyFunctionFqn(),
-                        af.parameters()), env);
+                        qargs), env);
             }
             // MILESTONED property functions (real pure GENERATES these on
             // ends targeting a temporal class): prop(date) — point access;
@@ -2075,6 +2086,10 @@ final class Typer {
         // The body's MULTIPLICITY must satisfy the declared return too — a many-valued
         // body cannot serve a to-one slot (engine rejects sortBy on a to-many key:
         // {T[1]->U[1]} with a [*] body is a type error, not a silent acceptance).
+        // LOWER bound stays LENIENT for lambda results — the reference's
+        // observed covariance (its own corpus compiles sortBy over
+        // optional association paths, a [0..1] body against U[1]);
+        // kernel.unifyMultResult is the one owner of that rule.
         // EXCEPT a NIL-typed body (println side effects: Nil[0] is the
         // bottom VALUE and conforms to any return slot — real pure
         // compiles rows->map(r|println(...)); corpus testWithFilterGroupBy).
@@ -2083,8 +2098,8 @@ final class Typer {
                 && com.legend.compiler.element.type.PlatformTypes.NIL
                         .equals(nbc.fqn());
         if (!nilBody) {
-            kernel.unifyMult(ftype.result().multiplicity(), body.info().multiplicity(),
-                    body.info().type(), b);
+            kernel.unifyMultResult(ftype.result().multiplicity(),
+                    body.info().multiplicity(), body.info().type(), b);
         }
 
         ExprType info = new ExprType(
@@ -2690,8 +2705,17 @@ final class Typer {
             // (testQualifierWithInThroughJoin: cat='B' for a trade whose
             // account row is absent). The null-strict whitelist encoded
             // the opposite belief and is deleted with its helpers.
+            // A [0..1] receiver β-inlines like [1] (ledger cluster 48:
+            // engine processQualifiedProperty runs with NO presence
+            // guard) — the strict kernel demands the conformance be
+            // SPELLED: the receiver wraps in toOne at this synth site
+            // (SQL null-propagates through the inlined body, which IS
+            // the engine's no-guard behavior).
             return applyGeneric(new AppliedFunction(d.bodyFunctionFqn(),
-                    List.of(ap.receiver())), env);
+                    List.of(exactlyOne
+                            ? ap.receiver()
+                            : new AppliedFunction("toOne",
+                                    List.of(ap.receiver())))), env);
         }
         // the AllVersions PROPERTY spelling (no parens): a version-sweep
         // navigation — normalized to the same TypedMilestonedAccess the

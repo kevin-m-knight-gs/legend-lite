@@ -117,6 +117,11 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/lowering/MapOptionalSourceTest.java",
             "core/src/test/java/com/legend/JdbcSurfaceCensusTest.java",
             "core/src/test/java/com/legend/AuditRound3Test.java",
+            // multiplicity audit slice 2: the strictness negative
+            // fixtures — declared-return checks fire at INLINE time
+            // (the execute path), and the positive controls run their
+            // SQL in the database (tenet: no Java evaluation involved)
+            "core/src/test/java/com/legend/compiler/spec/MultiplicityStrictnessTest.java",
             "core/src/test/java/com/legend/AuditRound5Test.java",
             "core/src/test/java/com/legend/ConstantPlanParityTest.java",
             "core/src/test/java/com/legend/TenetRatchetTest.java",

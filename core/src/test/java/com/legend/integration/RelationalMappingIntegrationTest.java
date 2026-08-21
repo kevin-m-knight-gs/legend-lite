@@ -1125,7 +1125,7 @@ class RelationalMappingIntegrationTest {
 
         @Test @DisplayName("Relation extend (computed column)")
         void testRelationExtend() throws SQLException {
-            var r = exec(relModel(), "#>{store::DB.T_DATA}#->extend(~doubled:x|$x.VAL * 2)->select(~[VAL, doubled])->from(test::RT)");
+            var r = exec(relModel(), "#>{store::DB.T_DATA}#->extend(~doubled:x|$x.VAL->toOne() * 2)->select(~[VAL, doubled])->from(test::RT)");
             assertEquals(3, r.rowCount());
         }
 

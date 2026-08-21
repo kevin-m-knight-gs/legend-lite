@@ -2444,7 +2444,10 @@ public final class MappingNormalizer {
                 default -> null;
             };
             if (parseFn != null) {
-                return new AppliedFunction(parseFn, List.of(read));
+                // parse natives are strict String[1]; the column read is
+                // SQL-lane [0..1] — the toOne trust wrap (audit slice 2)
+                return new AppliedFunction(parseFn, List.of(
+                        new AppliedFunction("toOne", List.of(read))));
             }
         }
         return read;

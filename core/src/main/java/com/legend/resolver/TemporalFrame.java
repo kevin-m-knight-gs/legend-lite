@@ -1511,7 +1511,15 @@ final class TemporalFrame {
                 // datePart (engine golden: snapshotDate = cast(truncate(ts)
                 // as date)) — a raw timestamp equality silently matches
                 // nothing
-                var dpFns = ctx.findFunction("meta::pure::functions::date::datePart");
+                // the strict [1] overload (audit slice 2 registered the
+                // real [0..1] sibling; this synth site's operand is [1])
+                var dpFns = ctx.findFunction("meta::pure::functions::date::datePart")
+                        .stream()
+                        .filter(f2 -> f2.parameters().size() == 1
+                                && f2.parameters().get(0).multiplicity()
+                                        .equals(com.legend.compiler.element
+                                                .type.Multiplicity.Bounded.ONE))
+                        .toList();
                 if (dpFns.size() != 1) {
                     throw new IllegalStateException("resolver bug: datePart"
                             + " resolves to " + dpFns.size() + " overloads —"

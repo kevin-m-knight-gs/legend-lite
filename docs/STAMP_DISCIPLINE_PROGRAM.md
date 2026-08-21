@@ -837,3 +837,55 @@ ZERO tests pinned any copy). Prose corrections landed: StampCensus
 header states the consistency-not-soundness scope, the false
 "production code never consults shape" claim corrected, the Stamps
 fork's fictional "PCT lane" owner repointed to slice 4.
+
+### SLICE 2 LANDED — the strict lower-bound flip (audit §1 root cause)
+
+unifyMult now enforces FULL covariant containment — real pure's
+MultiplicityMatch ([a..b] into [c..d] iff c<=a and b<=d): [0..1] into a
+[1] slot REJECTS, exactly like real pure (that is why toOne exists).
+The false "engine convention rejects only [*]->[1]" comment is deleted
+with a citation of MultiplicityMatch.java:273-279. Scoring mirrors the
+containment (the kernel-halves agreement — and it is HOW real pure
+disambiguates [0..1]-vs-[1] overload pairs). Carve-outs each carry
+their doctrine: relation sources (§3.2), contravariant function-value
+params, the Variant carrier, and — NEW, evidence-based — FUNCTION-VALUE
+RESULT slots are lenient on the LOWER bound only (unifyMultResult /
+resultMultScore, one owner): the reference's own corpus compiles
+sortBy over optional association paths ({T[1]->String[0..1]} against
+declared {T[1]->U[1]}). Audit §1b rides along: declared-return-vs-body
+now strict (f(a:String[0..1]):String[1]{$a} and f():String[3]{['a','b']}
+both REJECT, pinned).
+
+PROBE-FIRST, measured: 68 core failures -> 0 in 8 rings; corpus 356
+non-pass -> ZERO regressions, scoreboard byte-stable but for one
+standing row's MESSAGE text. The fallout decomposed exactly as
+conform-by-emission predicted:
+- FALSE REGISTRATIONS exposed: variant navigation get was registered
+  (Variant[1], Any[1]) — the REAL get.pure is (Variant[0..1],
+  String[1]) + (Variant[0..1], Integer[1]), [0..1] BY DESIGN (nested
+  get chains compose). Real [0..1] overload families registered for
+  startsWith/endsWith (stringExtension.pure:26/31), the date family
+  (year/monthNumber/weekOfYear/datePart/dateDiff — dateExtension), and
+  the legacy TDS optional-size limit (tds.pure:394). The lite dyna
+  comparisons widened to Any[0..1] (the SQL lane's own nullability,
+  mirroring real pure's [0..1] inequality families).
+- SQL-LANE EMISSION made uniform: RelOpTranslator's 'position' toOne
+  idiom now covers add/sub/concat/hash/adjust/dayOfWeekNumber/splitPart
+  AND the generic dyna fallback (COLLECTION operands exempt — the
+  stamp invariant itself caught the in-list over-wrap: toOne over an
+  ArrayLit fired ONE-STAMP/LIST-SHAPE, working exactly as designed).
+  MappingNormalizer's parse-coercion (parseInteger/Float/Decimal over
+  VARCHAR columns) wraps its read; the derived-property β-inline
+  spells toOne on non-[1] receivers (the engine's no-guard qualifier
+  doctrine, ledger cluster 48 — UserCallInliner's local patch is now
+  the sanctioned spelling at the source).
+- OUR non-compliant test spellings fixed to engine-true pure
+  (->toOne() before to-one natives) — the sortBy-directive precedent.
+MultiplicityStrictnessTest pins the rejections end-to-end (the audit
+counted ZERO such fixtures). All eight gates green, correct oracle
+roots.
+
+Slice 3 note: the trust-toOnes this slice emitted at SYNTH sites
+(translator, normalizer coercion, qualifier β-inline) are exactly the
+provenance-split population — user-toOne becomes CHECKED there while
+these stay SQL-lane erasures (the C2 provenance note in Scalars).

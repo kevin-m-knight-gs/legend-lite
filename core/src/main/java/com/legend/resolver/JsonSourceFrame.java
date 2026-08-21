@@ -177,8 +177,18 @@ final class JsonSourceFrame {
         TypedSpec data = new TypedPropertyAccess(
                 new TypedVariable(rowVar, rowInfo), "data",
                 new ExprType(variant, one));
-        TypedFunction getFn = fn(ctx,
-                "meta::pure::functions::variant::navigation::get", 2);
+        // the STRING-key overload (real get.pure has two 2-arg forms:
+        // String key and Integer index — audit slice 2 registered both)
+        TypedFunction getFn = ctx.findFunction(
+                        "meta::pure::functions::variant::navigation::get")
+                .stream()
+                .filter(f -> f.parameters().size() == 2
+                        && f.parameters().get(1).type()
+                                == com.legend.compiler.element.type
+                                        .Type.Primitive.STRING)
+                .findFirst().orElseThrow(() -> new IllegalStateException(
+                        "resolver bug: the String-key variant get overload"
+                        + " is not in the catalog"));
         TypedFunction toOneFn = fn(ctx,
                 "meta::pure::functions::multiplicity::toOne", 1);
         Map<String, TypedSpec> bindings = new LinkedHashMap<>();
