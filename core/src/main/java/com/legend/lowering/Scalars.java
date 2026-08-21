@@ -2308,8 +2308,7 @@ final class Scalars {
                     ? SqlExpr.Call.of(SqlFn.TO_VARIANT, raw) : raw;
             // A RELATION-shaped collection = LIST-aggregated subquery;
             // membership is list containment (NULL list = empty = FALSE).
-            if (n.args().get(1).info().type()
-                    instanceof Type.RelationType) {
+            if (Type.relationValued(n.args().get(1).info())) {
                 return SqlExpr.Call.of(SqlFn.COALESCE,
                         new SqlExpr.Membership(needle, args.get(1)),
                         new SqlExpr.BoolLit(false));
@@ -2413,7 +2412,7 @@ final class Scalars {
                 && (actual instanceof Type.ClassType a && a.fqn().equals(target)
                     || com.legend.compiler.element.type.PlatformTypes
                             .TABULAR_DATA_SET.equals(target)
-                       && actual instanceof Type.RelationType);
+                       && Type.isRelation(actual));
         if (!sure) {
             throw new NotImplementedException(
                     "instanceOf undecidable statically: " + actual
@@ -2603,7 +2602,7 @@ final class Scalars {
         // a SINGLE-scalar-column relation in scalar position IS its cell
         // (the scalar-subquery collapse) — the cast is that cell's
         // toString and stays; anything wider is fabrication
-        boolean scalarCell = t instanceof Type.RelationType rt
+        boolean scalarCell = Type.schemaView(t) instanceof Type.RelationType rt
                 && rt.columns().size() == 1
                 && rt.dynamicColumns().isEmpty()
                 && (rt.columns().get(0).type() instanceof Type.Primitive
@@ -2633,7 +2632,7 @@ final class Scalars {
                     new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.JSON)),
                     com.legend.sql.SqlType.Scalar.VARCHAR);
         }
-        if ((t instanceof Type.RelationType && !scalarCell)
+        if ((Type.schemaView(t) != null && !scalarCell)
                 || t instanceof Type.FunctionType
                 || t instanceof Type.SchemaAlgebra
                 || (t instanceof Type.ClassType tc
@@ -3227,9 +3226,13 @@ final class Scalars {
     }
 
     static boolean isClassish(Type t) {
+        // a WRAPPED RELATION is a GenericType but NOT an instance kind —
+        // a relation-valued collection's containment is real membership
+        // over its column values (Row-vs-Relation: the wrapped table
+        // must classify exactly like the bare struct always did).
         return (t instanceof Type.ClassType && !PlatformTypes.isVariant(t)
                         && !PlatformTypes.isAny(t) && !PlatformTypes.isNil(t))
-                || t instanceof Type.GenericType;
+                || (t instanceof Type.GenericType && !Type.isRelation(t));
     }
 
     /**

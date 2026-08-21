@@ -113,7 +113,11 @@ class JavaEvalLedgerTest {
             // ONE query (egress adopts result headers). The growth is
             // demand ANALYSIS (a tree scan), not evaluation — it exists
             // to DELETE a whole query from the common path.
-            Map.entry("core/src/main/java/com/legend/exec/RawGridSchema.java", 261),
+            // 261→263 (2026-08-20 Row-vs-Relation model B): the grid's
+            // TABLE type is now the wrapped Relation<schema> — reads
+            // spell relationSchema(...) instead of a bare instanceof
+            // (two lines of type-spelling, zero new evaluation).
+            Map.entry("core/src/main/java/com/legend/exec/RawGridSchema.java", 263),
             // Phase 2: the comparison layer, size-pinned at its landing
             // 212 -> 221: assertEqWithinTolerance MIGRATED IN from the
             // harness arm (net move, not new evaluation)
@@ -190,7 +194,10 @@ class JavaEvalLedgerTest {
             // the layers honest: exec never calls the middle-end, so the
             // orchestrator bridges with a probe function). Plumbing, not
             // evaluation — the '#TDS' text still composes IN SQL.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2724),
+            // 2724→2728 (2026-08-20 Row-vs-Relation model B): table
+            // tests spell Type.isRelation/relationSchema on the wrapped
+            // form — multiline type-spelling only, zero new evaluation.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2728),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

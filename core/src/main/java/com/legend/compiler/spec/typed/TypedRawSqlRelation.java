@@ -53,7 +53,8 @@ public record TypedRawSqlRelation(String sql, ExprType info)
             n = w.args().get(0);
         }
         return n instanceof TypedPropertyAccess pa
-                && pa.source().info().type() instanceof
+                && com.legend.compiler.element.type.Type
+                        .schemaView(pa.source().info().type()) instanceof
                         com.legend.compiler.element.type.Type.RelationType rt
                 && rt.isLateBound() ? pa : null;
     }

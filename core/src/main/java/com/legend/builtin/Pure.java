@@ -1792,6 +1792,14 @@ public final class Pure {
     // PRESERVING overload (to-one body over T[m] yields V[m]; the corpus's
     // $cs.connection->cast(...)->map(x|^$x(...)) needs [1]·[1]→[1] so the
     // copy's connection:[1] property conformance holds).
+    /** The RELATION map (engine core_functions_relation map.pure:18 —
+     * verified against the real checkout): the ROW-lambda overload.
+     * Registered at the Row-vs-Relation split: under the G-α erasure
+     * the collection overload accidentally served relation sources
+     * (bare struct = table = row, one spelling); with the wrapped
+     * Relation<schema> table type, relation sources must bind T to the
+     * ROW (the bare schema struct) — this signature is how. */
+    public static final NativeFunctionDefinition MAP__RELATION_1__FUNCTION_1 = signature("native function meta::pure::functions::relation::map<T,V>(rel:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::metamodel::function::Function<{T[1]->V[*]}>[1]):V[*];");
     public static final NativeFunctionDefinition MAP__T_M__FUNCTION_1 = signature("native function meta::pure::functions::collection::map<T,V|m>(value:T[m], func:meta::pure::metamodel::function::Function<{T[1]->V[1]}>[1]):V[m];");
     public static final NativeFunctionDefinition MAP__T_0_1__FUNCTION_1 = signature("native function meta::pure::functions::collection::map<T,V>(value:T[0..1], func:meta::pure::metamodel::function::Function<{T[1]->V[0..1]}>[1]):V[0..1];");
     public static final NativeFunctionDefinition MAP__T_MANY__FUNCTION_1 = signature("native function meta::pure::functions::collection::map<T,V>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->V[*]}>[1]):V[*];");

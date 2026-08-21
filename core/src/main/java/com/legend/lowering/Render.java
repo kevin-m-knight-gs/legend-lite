@@ -79,7 +79,8 @@ public final class Render {
         };
         SqlSelect inner = relation.apply(tc.args().get(0));
         java.util.Map<String, Type.Column> byName = new java.util.HashMap<>();
-        if (tc.args().get(0).info().type() instanceof Type.RelationType rt) {
+        if (Type.relationSchema(tc.args().get(0).info().type())
+                instanceof Type.RelationType rt) {
             for (Type.Column col : rt.columns()) {
                 byName.put(col.name(), col);
             }
@@ -329,14 +330,15 @@ public final class Render {
         // DEFER the '#TDS' composition; the boundary resolver rebuilds
         // it from the LIMIT-0 probe + this typed schema.
         if (hasDynamicPivot(inner)
-                && tc.args().get(0).info().type()
+                && Type.relationSchema(tc.args().get(0).info().type())
                         instanceof Type.RelationType drt) {
             int id = deferredTds.size();
             deferredTds.put(id, drt);
             return new SqlExpr.DeferredTdsString(inner, alias, id);
         }
         java.util.Map<String, Type.Column> byName = new java.util.HashMap<>();
-        if (tc.args().get(0).info().type() instanceof Type.RelationType rt) {
+        if (Type.relationSchema(tc.args().get(0).info().type())
+                instanceof Type.RelationType rt) {
             for (Type.Column col : rt.columns()) {
                 byName.put(col.name(), col);
             }

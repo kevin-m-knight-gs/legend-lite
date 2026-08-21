@@ -125,7 +125,8 @@ final class ChainedExists {
                     tgtReads);
         }
         leafPipe = Pipelines.widenConcatenateForKeys(leafPipe, tgtReads);
-        if (!(leafPipe.info().type() instanceof Type.RelationType leafRow)) {
+        Type.RelationType leafRow = Type.relationSchema(leafPipe.info().type());
+        if (leafRow == null) {
             return null;
         }
         // MID pipeline (slot-undemanded: its condition reads base
@@ -141,7 +142,8 @@ final class ChainedExists {
             Pipelines.collectVarReads(b, leafCond.parameters().get(0), midKeys);
         }
         midPipe = Pipelines.widenConcatenateForKeys(midPipe, midKeys);
-        if (!(midPipe.info().type() instanceof Type.RelationType midRow)) {
+        Type.RelationType midRow = Type.relationSchema(midPipe.info().type());
+        if (midRow == null) {
             return null;
         }
         String pfx = midHead + "_";
@@ -184,7 +186,7 @@ final class ChainedExists {
                         new Type.Param(Type.Primitive.BOOLEAN, one)), one));
         TypedSpec composite = new TypedJoin(leafPipe, midPipe,
                 StoreResolver.leftKind(), joinCond, Optional.of(pfx), null,
-                new ExprType(compRow, one),
+                new ExprType(Type.relation(compRow), one),
                 false /* resolver-synth */);
         // oriented (parent, chain-row) condition: the MID-hop condition
         // with its target-side reads re-pointed at the prefixed columns.

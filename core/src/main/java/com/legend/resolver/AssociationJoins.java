@@ -239,7 +239,7 @@ final class AssociationJoins {
         TypedLambda cond0 = withOuterDatedWindow(temporal, cs, t, head,
                 nav.predicate(), tPipe0);
         return new AssocJoin(prefixFor(head, cs), t, tPipe0,
-                (Type.RelationType) tPipe0.info().type(), cond0,
+                Type.requireRelationSchema(tPipe0.info().type()), cond0,
                 tMat.slotPrefixes(), tSubNavs, null,
                 onFormOf(tPipe0, cond0));
     }
@@ -323,7 +323,8 @@ final class AssociationJoins {
             tPipe = slot.target();
             stepCond = slot.condition();
         }
-        if (!(tPipe.info().type() instanceof Type.RelationType tRow)) {
+        Type.RelationType tRow = Type.relationSchema(tPipe.info().type());
+        if (tRow == null) {
             return null;
         }
         String tv = "_embt";
@@ -353,7 +354,7 @@ final class AssociationJoins {
         TypedLambda cond0 = withOuterDatedWindow(temporal, cs, t, head,
                 stepCond, tPipe0);
         return new AssocJoin(prefixFor(head, cs), t, tPipe0,
-                (Type.RelationType) tPipe0.info().type(), cond0,
+                Type.requireRelationSchema(tPipe0.info().type()), cond0,
                 Map.of(), Map.of(), null, onFormOf(tPipe0, cond0));
     }
 
@@ -569,7 +570,7 @@ final class AssociationJoins {
             ClassSource parent, AssocJoin aj, String head, String chainKey,
             StoreResolver.Context context, Set<String> leaves) {
         TypedLambda paired = memberPairedCondition(java.util.Objects.requireNonNull(aj.condition()),
-                (Type.RelationType) parent.pipeline().info().type(),
+                Type.requireRelationSchema(parent.pipeline().info().type()),
                 aj.targetRow());
         if (paired != null) {
             return aj.withCondition(paired);
@@ -589,7 +590,7 @@ final class AssociationJoins {
     AssocJoin pairChainedUnionHop(AssocJoin aj, ClassSource parent,
             String chainKey) {
         TypedLambda paired = memberPairedCondition(java.util.Objects.requireNonNull(aj.condition()),
-                (Type.RelationType) parent.pipeline().info().type(),
+                Type.requireRelationSchema(parent.pipeline().info().type()),
                 aj.targetRow());
         if (paired == null) {
             throw new NotImplementedException("chained association hop '"
@@ -773,7 +774,7 @@ final class AssociationJoins {
 
         AssocJoin withTargetPipeline(TypedSpec pipe) {
             return new AssocJoin(prefix, target, pipe,
-                    (Type.RelationType) pipe.info().type(), condition,
+                    Type.requireRelationSchema(pipe.info().type()), condition,
                     targetSlotPrefixes, targetSubNavs, corrSubPred, null);
         }
     }
@@ -1062,8 +1063,7 @@ final class AssociationJoins {
             AssocJoin aj2 = aggJoinMaterial(temporal, target, ne.getKey(),
                     context, ne.getValue(), java.util.Set.of());
             String pfx = ne.getKey() + "_";
-            Type.RelationType curRow = (Type.RelationType)
-                    basePipe.info().type();
+            Type.RelationType curRow = Type.requireRelationSchema(basePipe.info().type());
             java.util.List<Type.Column> wcols =
                     new java.util.ArrayList<>(curRow.columns());
             for (Type.Column c : aj2.targetRow().columns()) {
@@ -1074,7 +1074,7 @@ final class AssociationJoins {
                     basePipe, aj2.targetPipeline(),
                     StoreResolver.leftKind(), java.util.Objects.requireNonNull(aj2.condition()),
                     java.util.Optional.of(pfx), null,
-                    new ExprType(new Type.RelationType(wcols),
+                    new ExprType(Type.relation(new Type.RelationType(wcols)),
                             com.legend.compiler.element.type.Multiplicity
                                     .Bounded.ONE),
                 false /* resolver-synth */);
@@ -1091,13 +1091,13 @@ final class AssociationJoins {
             // to the column-space emission (leftRow=PARENT, rightRow=TARGET)
             oriented = propertyCondToColumns(pm.cond(), pm.reverse(), cs,
                     target, tMat.slotPrefixes(),
-                    (Type.RelationType) tMat.pipeline().info().type(),
+                    Type.requireRelationSchema(tMat.pipeline().info().type()),
                     temporal, context);
         } else {
             TypedLambda cond = pm.cond();
             oriented = rewriteNestedAssocCondReads(cond, condTgtVar,
                     nestedPrefixByProp,
-                    (Type.RelationType) tMat.pipeline().info().type());
+                    Type.requireRelationSchema(tMat.pipeline().info().type()));
             if (pm.reverse()) {
                 var ft = (Type.FunctionType)
                         cond.info().type();
@@ -1155,8 +1155,7 @@ final class AssociationJoins {
                     pfx3, sub3.rowVar(), sub3.bindings()));
         }
         return new AssocJoin(prefixFor(head, cs), target, tPipe,
-                (Type.RelationType)
-                        tPipe.info().type(),
+                Type.requireRelationSchema(tPipe.info().type()),
                 withOuterDatedWindow(temporal, cs, target, chainKey, oriented, tPipe),
                 tMat.slotPrefixes(), tailSubNavs, corrSub, null);
     }
@@ -2084,6 +2083,7 @@ final class AssociationJoins {
 
     private static Type.RelationType rowOr(Type t,
             Type.RelationType fallback) {
-        return t instanceof Type.RelationType rt ? rt : fallback;
+        Type.RelationType rt = Type.schemaView(t);
+        return rt != null ? rt : fallback;
     }
 }

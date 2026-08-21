@@ -74,7 +74,8 @@ final class ProjectChecker {
      * downstream cell reads, e.g. isEmpty as list-length).
      */
     private static ExprType clampTdsCells(ExprType out) {
-        if (!(out.type() instanceof Type.RelationType rt)) {
+        Type.RelationType rt = Type.relationSchema(out.type());
+        if (rt == null) {
             return out;
         }
         List<Type.Column> cols = new java.util.ArrayList<>(rt.columns().size());
@@ -89,7 +90,7 @@ final class ProjectChecker {
             }
         }
         return changed ? new ExprType(
-                new Type.RelationType(cols, rt.dynamicColumns()),
+                Type.relation(new Type.RelationType(cols, rt.dynamicColumns())),
                 out.multiplicity()) : out;
     }
 

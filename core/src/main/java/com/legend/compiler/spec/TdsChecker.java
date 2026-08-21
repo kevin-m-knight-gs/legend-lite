@@ -111,7 +111,8 @@ final class TdsChecker {
                             : Multiplicity.Bounded.ONE));
         }
         return new TypedTds(rows,
-                new ExprType(new Type.RelationType(columns), sig.output().multiplicity()));
+                new ExprType(Type.relation(new Type.RelationType(columns)),
+                        sig.output().multiplicity()));
     }
 
     /**

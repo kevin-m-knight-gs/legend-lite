@@ -70,9 +70,9 @@ public final class PlanText {
         String[] impl = ScanRelations.rootImpl(ctx, mappingFqn,
                 rootClassFqn, chainMappings);
         com.legend.compiler.element.type.Type.RelationType rrt =
-                !body.isEmpty() && body.get(body.size() - 1).info().type()
-                        instanceof com.legend.compiler.element.type
-                                .Type.RelationType r2 ? r2 : null;
+                body.isEmpty() ? null
+                        : com.legend.compiler.element.type.Type.relationSchema(
+                                body.get(body.size() - 1).info().type());
         String cols;
         if (rrt == null && !body.isEmpty()
                 && body.get(body.size() - 1).info().type()
@@ -111,7 +111,7 @@ public final class PlanText {
             @com.legend.Nullable String mappingFqn) {
         com.legend.compiler.spec.typed.TypedSpec last =
                 body.get(body.size() - 1);
-        if (last.info().type()
+        if (com.legend.compiler.element.type.Type.relationSchema(last.info().type())
                 instanceof com.legend.compiler.element.type.Type.RelationType rt) {
             // TDS plans: per-column (name, PureType, DBTYPE, "doc")
             // tuples and NO resultSizeRange line; the engine quotes the

@@ -508,7 +508,8 @@ final class StatementExecutor {
         // engine plans keep enum columns RAW (host-side decode) — the
         // plan-text form of enum-mapped columns/parameters
         if (plan instanceof com.legend.sql.SqlSelect sel
-                && body.get(body.size() - 1).info().type()
+                && com.legend.compiler.element.type.Type.relationSchema(
+                        body.get(body.size() - 1).info().type())
                         instanceof com.legend.compiler.element.type.Type
                                 .RelationType rt) {
             plan = com.legend.plan.PlanEnumForm.apply(sel, rt);
@@ -746,8 +747,8 @@ final class StatementExecutor {
             }
             work.addAll(t.children());
         }
-        if (xj == null || !(xj.left().info().type()
-                instanceof com.legend.compiler.element.type.Type.RelationType)) {
+        if (xj == null || !com.legend.compiler.element.type.Type
+                .isRelation(xj.left().info().type())) {
             return null;
         }
         // the LEFT SPINE of nested cross-store joins, outermost first:
@@ -2016,8 +2017,8 @@ final class StatementExecutor {
                     java.util.Optional.of(mref), runtime, chainMappings,
                     jsonSources, chain.info());
         }
-        boolean relationRooted = chain.info().type()
-                instanceof com.legend.compiler.element.type.Type.RelationType;
+        boolean relationRooted = com.legend.compiler.element.type.Type
+                .isRelation(chain.info().type());
         ExecutionResult run = null;
         if (eager) {
             // the inliner consumed the query's lets; graph-tree date args
@@ -2241,7 +2242,8 @@ final class StatementExecutor {
                     && szr.args().get(0) instanceof
                             com.legend.compiler.spec.typed.TypedPropertyAccess rp0
                     && rp0.property().equals("rows")
-                    && rp0.source().info().type() instanceof
+                    && com.legend.compiler.element.type.Type.relationSchema(
+                            rp0.source().info().type()) instanceof
                             com.legend.compiler.element.type.Type.RelationType rrt) {
                 var one1 = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
                 var intT = com.legend.compiler.element.type.Type.Primitive.INTEGER;
@@ -2265,7 +2267,9 @@ final class StatementExecutor {
                         rp0.source(),
                         java.util.List.of(new com.legend.compiler.spec.typed
                                 .TypedFuncCol("cnt", lam)),
-                        new com.legend.compiler.element.type.ExprType(cntRow, one1));
+                        new com.legend.compiler.element.type.ExprType(
+                                com.legend.compiler.element.type.Type
+                                        .relation(cntRow), one1));
                 return new com.legend.compiler.spec.typed.TypedNativeCall(
                         szr.callee(), java.util.List.of(proj), szr.info());
             }
@@ -2275,8 +2279,8 @@ final class StatementExecutor {
             // ($r.values->at(k)) — once seen, it erases to its source.
             if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess rp
                     && rp.property().equals("rows")
-                    && rp.source().info().type() instanceof
-                            com.legend.compiler.element.type.Type.RelationType) {
+                    && com.legend.compiler.element.type.Type
+                            .isRelation(rp.source().info().type())) {
                 return rp.source();
             }
             // the Typer's `.columns.documentation` MARKER: the receiver is
@@ -2295,9 +2299,8 @@ final class StatementExecutor {
                     } else if (un instanceof com.legend.compiler.spec.typed
                             .TypedNativeCall w2
                             && !w2.args().isEmpty()
-                            && w2.args().get(0).info().type() instanceof
-                                    com.legend.compiler.element.type
-                                            .Type.RelationType) {
+                            && com.legend.compiler.element.type.Type
+                                    .isRelation(w2.args().get(0).info().type())) {
                         un = w2.args().get(0);
                         walked = true;
                     } else if (un instanceof com.legend.compiler.spec.typed
@@ -2367,8 +2370,8 @@ final class StatementExecutor {
                         execFrames, letPrefix, specs, env);
                 if (spliced != null) {
                     // relation-rootedness IS the spliced chain's root type
-                    boolean relation = spliced.info().type() instanceof
-                            com.legend.compiler.element.type.Type.RelationType;
+                    boolean relation = com.legend.compiler.element.type.Type
+                            .relationValued(spliced.info());
                     if (relation) {
                         if (AT_FQN.equals(w.callee().qualifiedName())
                                 && !(w.args().size() == 2 && w.args().get(1)
@@ -3093,15 +3096,16 @@ final class StatementExecutor {
                         instanceof com.legend.compiler.element.type.Type.Primitive
                 && declaredInfo.multiplicity()
                         .requireBounded("result shape").isMany()
-                && root.info().type()
-                        instanceof com.legend.compiler.element.type.Type.RelationType;
+                && com.legend.compiler.element.type.Type
+                        .isRelation(root.info().type());
         if (System.getenv("LL_TMP_SQL") != null) {
             System.err.println("[exec-sql] " + dialect.render(plan));
         }
         // E1 (JAVA_EVICTION_PLAN): post-staticize wrap — the plan
         // emits the PCT wire text as one Scalar String
-        if (com.legend.exec.PctRenderOption.enabled() && root.info().type()
-                instanceof com.legend.compiler.element.type.Type.RelationType) {
+        if (com.legend.exec.PctRenderOption.enabled()
+                && com.legend.compiler.element.type.Type
+                        .isRelation(root.info().type())) {
             return executePctTds(plan, root, dialect, connection);
         }
         ExecutionResult res = Executor.execute(
@@ -3126,8 +3130,8 @@ final class StatementExecutor {
                                 connection);
         com.legend.sql.SqlQuery rendered =
                 com.legend.lowering.PctTdsWrap.wrap(plan,
-                        (com.legend.compiler.element.type.Type.RelationType)
-                                root.info().type(),
+                        com.legend.compiler.element.type.Type
+                                .requireRelationSchema(root.info().type()),
                         probe, com.legend.exec.Executor::pureOfSqlType);
         com.legend.exec.PctRenderOption.markRendered();
         return Executor.execute(dialect.render(rendered), rendered,
@@ -3148,8 +3152,8 @@ final class StatementExecutor {
                 && "meta::pure::functions::multiplicity::toOne"
                         .equals(tw.callee().qualifiedName())
                 && !tw.args().isEmpty()
-                && tw.args().get(0).info().type()
-                        instanceof com.legend.compiler.element.type.Type.RelationType
+                && com.legend.compiler.element.type.Type
+                        .isRelation(tw.args().get(0).info().type())
                 && res instanceof ExecutionResult.Tabular tab
                 && tab.rows().size() != 1) {
             throw new IllegalStateException("toOne() over a relation returned "

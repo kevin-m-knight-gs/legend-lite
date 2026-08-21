@@ -198,8 +198,7 @@ final class GraphEmission {
             Map<String, String> slotPrefixes, Set<String> stripped, String rowVar,
             List<TypedGraphTree> tree, StoreResolver.Context context, boolean arrayWrap,
             ExprType info, boolean checked) {
-        var rowType = (Type.RelationType)
-                pipeline.info().type();
+        var rowType = Type.requireRelationSchema(pipeline.info().type());
         java.util.function.Function<@com.legend.Nullable TypedSpec, TypedSpec> toRow = v -> new TypedVariable(
                 rowVar, new ExprType(rowType,
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
@@ -653,7 +652,7 @@ final class GraphEmission {
                     dispatch.apply(context, ng.classFqn()), ng.classFqn());
             TypedSpec tPipe = Pipelines.materialize(t.pipeline(),
                     Set.of(), t.classFqn()).pipeline();
-            Type.RelationType tRow = (Type.RelationType) tPipe.info().type();
+            Type.RelationType tRow = Type.requireRelationSchema(tPipe.info().type());
             String pVar = st.predicate().parameters().get(0);
             String tVar = st.predicate().parameters().get(1);
             var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
@@ -671,7 +670,8 @@ final class GraphEmission {
             // null-safe equality arm; the lowering now enters the
             // verbatim-equality scope on this stamp — C2,
             // STAMP_DISCIPLINE_PROGRAM)
-            return new TypedFilter(tPipe, corr, new ExprType(tRow, one),
+            return new TypedFilter(tPipe, corr,
+                    new ExprType(Type.relation(tRow), one),
                     TypedFilter.Stamp.CORRELATION);
         }
         if (n instanceof TypedNativeCall c) {
@@ -784,7 +784,7 @@ final class GraphEmission {
             String parentRowVar, Type.RelationType parentRowType,
             java.util.function.UnaryOperator<TypedSpec> valueWrap) {
         Type.RelationType targetRow =
-                (Type.RelationType) targetPipeline.info().type();
+                Type.requireRelationSchema(targetPipeline.info().type());
         String pVar = cond.parameters().get(0);
         String tVar = cond.parameters().get(1);
         List<TypedSpec> corrBody = cond.body().stream().map(x ->
@@ -1158,8 +1158,7 @@ final class GraphEmission {
             }
         }
         return correlatedGraphChild(child, childPipe,
-                (Type.RelationType)
-                        childPipe.info().type(),
+                Type.requireRelationSchema(childPipe.info().type()),
                 navCond,
                 toMany, node, parentRowVar, parentRowType, context,
                 cMat.slotPrefixes());
@@ -1212,8 +1211,7 @@ final class GraphEmission {
                         ecs.pipeline(), java.util.Set.of(), ccFqn);
                 var one0 = com.legend.compiler.element.type
                         .Multiplicity.Bounded.ONE;
-                Type.RelationType eRow = (Type.RelationType)
-                        eMat.pipeline().info().type();
+                Type.RelationType eRow = Type.requireRelationSchema(eMat.pipeline().info().type());
                 TypedLambda never = new TypedLambda(
                         java.util.List.of("p_ec", "t_ec"),
                         java.util.List.of(new com.legend.compiler.spec.typed
@@ -1270,8 +1268,7 @@ final class GraphEmission {
         Pipelines.Materialized cMat = Pipelines.materialize(
                 child.pipeline(), leafSlotDemand(child, node), childCls.fqn());
         return correlatedGraphChild(child, cMat.pipeline(),
-                (Type.RelationType)
-                        cMat.pipeline().info().type(),
+                Type.requireRelationSchema(cMat.pipeline().info().type()),
                 java.util.Objects.requireNonNull(aj.condition()), toMany, node, parentRowVar, parentRowType,
                 context, cMat.slotPrefixes());
     }
@@ -1733,7 +1730,7 @@ final class GraphEmission {
         TypedSpec targetPipeline = temporal.temporalTargetPipe(src, target,
                 prop, cMat.pipeline());
         return new HopJoin(target, targetPipeline,
-                (Type.RelationType) targetPipeline.info().type(),
+                Type.requireRelationSchema(targetPipeline.info().type()),
                 nav.pairedPredicate().orElse(nav.predicate()));
     }
 
@@ -1918,8 +1915,7 @@ final class GraphEmission {
                 ? sources.get(cs.mappingFqn(), cast.classFqn(),
                         cast.targetSetId(), null, "")
                 : sources.get(cs.mappingFqn(), cast.classFqn());
-        Type.RelationType rowT = (Type.RelationType)
-                parentPipeline.info().type();
+        Type.RelationType rowT = Type.requireRelationSchema(parentPipeline.info().type());
         // audit 24 F4: SOURCE-CLASS identity is the real same-frame check —
         // two frames can share every column NAME (S_Trade vs S_Trade2) and
         // a name-subset proxy alone would silently serve the parent's rows
@@ -2035,8 +2031,7 @@ final class GraphEmission {
                         .map(k -> new TypedGraphTree(k, List.of()))
                         .toList()
                 : node.children();
-        Type.RelationType rowT = (Type.RelationType)
-                parentPipeline.info().type();
+        Type.RelationType rowT = Type.requireRelationSchema(parentPipeline.info().type());
         var rowInfo = new ExprType(rowT,
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         List<TypedFuncCol> leaves = new ArrayList<>();
@@ -2350,7 +2345,7 @@ final class GraphEmission {
                         new TypedLambda(List.of(hr.target().rowVar()),
                                 List.of(leafBind),
                                 new ExprType(leafFn, one)))),
-                new ExprType(oneCol,
+                new ExprType(Type.relation(oneCol),
                         com.legend.compiler.element.type
                                 .Multiplicity.Bounded.ZERO_MANY));
         return agg.withChildren(List.of(proj));
@@ -2542,7 +2537,7 @@ final class GraphEmission {
                     target.pipeline(), Set.of(), rawTarget);
             targetPipeline = tf.temporalTargetPipe(cs, target, headProp,
                     cMat.pipeline());
-            targetRow = (Type.RelationType) targetPipeline.info().type();
+            targetRow = Type.requireRelationSchema(targetPipeline.info().type());
             cond = nav.pairedPredicate().orElse(nav.predicate());
         }
         String pVar = java.util.Objects.requireNonNull(cond, "cond").parameters().get(0);
@@ -2721,13 +2716,13 @@ final class GraphEmission {
                                     new ExprType(nFn,
                                             com.legend.compiler.element.type
                                                     .Multiplicity.Bounded.ONE)))),
-                    new ExprType(nCol,
+                    new ExprType(Type.relation(nCol),
                             com.legend.compiler.element.type
                                     .Multiplicity.Bounded.ZERO_MANY));
             return new com.legend.compiler.spec.typed.TypedLimit(nProj,
                     new com.legend.compiler.spec.typed.TypedCInteger(1L,
                             ExprType.one(Type.Primitive.INTEGER)),
-                    new ExprType(nCol,
+                    new ExprType(Type.relation(nCol),
                             com.legend.compiler.element.type
                                     .Multiplicity.Bounded.ZERO_ONE));
         }
@@ -2788,13 +2783,13 @@ final class GraphEmission {
                                 new ExprType(leafFn,
                                         com.legend.compiler.element.type
                                                 .Multiplicity.Bounded.ONE)))),
-                new ExprType(oneCol,
+                new ExprType(Type.relation(oneCol),
                         com.legend.compiler.element.type
                                 .Multiplicity.Bounded.ZERO_MANY));
         return new com.legend.compiler.spec.typed.TypedLimit(proj,
                 new com.legend.compiler.spec.typed.TypedCInteger(1L,
                         ExprType.one(Type.Primitive.INTEGER)),
-                new ExprType(oneCol,
+                new ExprType(Type.relation(oneCol),
                         com.legend.compiler.element.type
                                 .Multiplicity.Bounded.ZERO_ONE));
     }

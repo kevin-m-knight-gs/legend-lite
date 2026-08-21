@@ -64,8 +64,11 @@ public final class RelationalRootForm {
             root = fr.source();
         }
         if (!(root instanceof TypedSerializeGraph g)
-                || !g.nested().isEmpty() || g.bareValue()
-                || !(g.source().info().type() instanceof Type.RelationType rowType)) {
+                || !g.nested().isEmpty() || g.bareValue()) {
+            return body;
+        }
+        Type.RelationType rowType = Type.relationSchema(g.source().info().type());
+        if (rowType == null) {
             return body;
         }
         var one = Multiplicity.Bounded.ONE;
@@ -134,7 +137,7 @@ public final class RelationalRootForm {
             outCols.add(new Type.Column(c.name(), last.type(),
                     last.multiplicity()));
         }
-        var outInfo = new ExprType(new Type.RelationType(outCols),
+        var outInfo = new ExprType(Type.relation(new Type.RelationType(outCols)),
                 g.source().info().multiplicity());
         // Scalar projection COMMUTES with truncation: project BENEATH a
         // trailing limit/slice so the fold keeps TOP/OFFSET-FETCH in the

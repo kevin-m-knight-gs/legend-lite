@@ -41,7 +41,7 @@ class CompilerFacadeTest {
     void compileQueryCarriesAQueryThroughPhaseG() {
         TypedSpec typed = Compiler.compileQuery(MODEL,
                 "#>{test::DB.T_PERSON}#->filter(x|$x.AGE > 30)->select(~NAME)");
-        Type.RelationType rt = (Type.RelationType) typed.info().type();
+        Type.RelationType rt = Type.requireRelationSchema(typed.info().type());
         assertEquals(1, rt.columns().size());
         assertEquals("NAME", rt.columns().get(0).name());
         assertEquals(Type.Primitive.STRING, rt.columns().get(0).type());
@@ -61,7 +61,8 @@ class CompilerFacadeTest {
         TypedSpec typed = Compiler.compileQuery(MODEL,
                 "#>{test::DB.T_PERSON}#->join(#>{test::DB.T_PERSON}#,"
                         + " JoinKind.INNER, {a, b | $a.AGE == $b.AGE}, 'r_')");
-        assertEquals(4, ((Type.RelationType) typed.info().type()).columns().size(),
+        assertEquals(4, Type.requireRelationSchema(typed.info().type())
+                        .columns().size(),
                 "NAME, AGE + prefixed r_NAME, r_AGE");
     }
 

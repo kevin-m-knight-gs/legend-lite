@@ -47,8 +47,9 @@ final class Checkers {
      */
     static Type.RelationType prefixedUnion(TypedSpec left, TypedSpec right, String prefix,
                                            Predicate<Type.Column> renameWhen) {
-        if (!(left.info().type() instanceof Type.RelationType lr)
-                || !(right.info().type() instanceof Type.RelationType rr)) {
+        Type.RelationType lr = Type.relationSchema(left.info().type());
+        Type.RelationType rr = Type.relationSchema(right.info().type());
+        if (lr == null || rr == null) {
             throw new TypeInferenceException("both join sides must be relations");
         }
         List<Type.Column> cols = new ArrayList<>(lr.columns());

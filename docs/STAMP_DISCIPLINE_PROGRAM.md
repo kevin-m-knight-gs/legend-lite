@@ -702,3 +702,90 @@ slots still type bare RelationType where they mean rows — move those
 producers to RowType, then rowRooted DELETES (its env consultation for
 relation receivers and the TypeVar heuristic both), the frame read off
 the type everywhere.
+
+## MODEL B — THE REFERENCE-FAITHFUL RE-ORIENTATION (user: "are you
+## sure the shortcut you took is the right thing? ... do it")
+
+The RowType split was audited before landing anything on top of it and
+REVERSED IN ORIENTATION. Unbiased finding, user-ratified: real pure has
+no RowType — the bare struct (metamodel RelationType) IS the row/schema
+(the T of Relation<T>), and a TABLE is ALWAYS the wrapped
+GenericType(Relation, [schema]). My split had kept the inverted meaning
+(bare = table) because 121 sites assumed it and had invented RowType
+for rows — two distinct types (conflation gone) but BACKWARDS relative
+to the reference: every future type-rendering leg (canonical-render
+verdicts prints engine text), every signature port, and every reader
+would pay a permanent translation layer, and two transitional shims
+(binding coherence, the late-bound row guard whose absence stack-
+overflowed) existed only because of the inversion.
+
+MODEL B, landed: bare Type.RelationType = the SCHEMA STRUCT; as a
+value, ONE ROW (pure's pun — schema IS row type). A table =
+Type.relation(schema) = GenericType(Relation, [schema]), preserved
+through resolution — THE G-ALPHA ERASURE IS DELETED, NOT INVERTED.
+Type.RowType DELETED. Both transitional shims DELETED (RowType.of
+guard, kernel coherence). Env's row-param bit DELETED — binding kind
+carries nothing the type doesn't. NavigateChecker's unify-rebind hack
+replaced by the explicit special-form b.bindType (JoinChecker's own Z
+idiom). .rows typed as the ROW COLLECTION (engine TDSRow[*]: bare
+struct, many stamp) — at(0) over rows is a row BY TYPE, the getter
+auto-map/per-cell frames dispatch on Type.relationValued (wrapped, or
+bare+many) with ZERO tree walking.
+
+ONE OWNER for the representation: Type.relation / Type.isRelation /
+Type.relationSchema (wrapped-only reader) / Type.schemaView (wrapped-
+or-bare) / Type.requireRelationSchema (loud pipeline read) /
+Type.relationValued (relation-rooted value BY TYPE+STAMP).
+
+Migration mechanics: ~200 sites over 33 files classified table-vs-row
+(mints wrap; schema/row sites stay bare), suites as referee in 8 rings
+(297 -> 90 -> 37 -> 13 -> 0). TRAP RECORDED: silent-fallback keying
+(`if (!(x instanceof RelationType)) return default;`) DEGRADES instead
+of failing when the spelling flips — RenameChecker's position-
+preserving rebuild silently fell back to append-order; Compiler.wire-
+Schema fell back to the value-column; ExecutionResult.envelopeCarriers
+misclassified TDS as splat. Every such site now reads through the
+owner helpers. Second trap: FQ-spelled `instanceof com.….Type
+.RelationType` hid ~40 sites from the short-spelling grep — census
+both spellings, and multiline `instanceof\n Type` needs an awk pass.
+Ledger pins bumped with justification (type-spelling growth, zero new
+evaluation); Lowerer split Sorts.java out whole (real split, the
+Pivots collaborator pattern) to return under the 3500 cap.
+
+Core 4166/0. Corpus/PCT/gates: recorded below at commit.
+
+### Model-B corpus endgame (rings 9-14) and the stale-oracle rediscovery
+
+The full-corpus referee ran through SIX more rings after the unit
+suite went green (297→90→37→13→0 unit rings; then 70→23→1→0 corpus
+deltas vs a same-day HEAD baseline A/B):
+- StoreResolver's anchored dispatch: per-cell reads over ROW-typed
+  picks and maps over the rows view resolve STRUCTURALLY
+  (schemaView/relationValued, not wrapped-only).
+- .values over a PICK-rooted row is IDENTITY (wire flatten keeps
+  TDSNull; the cells channel is for lambda ROW VARIABLES only — a
+  lexical binding fact; the collection channel's null-drop plus the
+  lower-bound honesty guard caught the difference).
+- lower()'s ROOT dispatch: any schemaView-carrying root (table, rows,
+  one row) lowers through the relation pipeline (matches ResultShape).
+- NavMaterializer: a FOURTH spelling escape — casts written
+  `(com.legend...Type.RelationType)` over a LINE BREAK evaded every
+  census pattern; three pipe casts → requireRelationSchema, three
+  TypedJoin infos wrapped.
+- zipPairProject's ExprType.one(row) — the ExprType.one(...) mint
+  spelling was a FIFTH census gap.
+- Scalars.isClassish counted ANY GenericType as an instance kind — the
+  wrapped relation made containment statically FALSE (exists family,
+  8 tests). Relation types are excluded by name.
+- ValueCollectionOps recognizers + DistinctChecker + Args.outputColumns
+  accept the bare rows view (schemaView/relationValued).
+
+THE BLOCKING SCARE THAT WASN'T: the full corpus first showed 19
+regressions PLUS an h2-floor drop — and a HEAD checkout showed the
+IDENTICAL failure set, as did the very commit that wrote the ledger.
+Controlled A/B (same oracle both sides) kept the migration honest
+while the "drift" was chased — and it was the RECORDED trap:
+$HOME/legend/legend-engine is the STALE checkout; the ledger's
+baselines come from /Users/neemsandv/legend. Against the correct
+roots: G4 zero regressions, scoreboard byte-stable, ALL EIGHT GATES
+GREEN (G1 4166/0, G4 DuckDB corpus, G5 h2, G6/G7 PCT, G8 parser).

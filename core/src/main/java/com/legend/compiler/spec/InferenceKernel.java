@@ -30,13 +30,14 @@ import java.util.Set;
  * scoring and the bidirectional body checker build on top of this and live
  * elsewhere.
  *
- * <h2>Relation representation (G-&alpha;)</h2>
- * A relation type appears two ways: as the signature form
- * {@code GenericType(Relation, [row])} and as the computed-value form &mdash; a
- * <strong>bare</strong> {@link Type.RelationType} row-struct. The dedicated
- * relation case in {@link #unify} bridges the two (binding the schema variable
- * to the bare row-struct), and {@link #resolve} <em>unwraps</em>
- * {@code Relation<row>} back to the bare row-struct value form.
+ * <h2>Relation representation (reference-faithful; ex-G-&alpha;)</h2>
+ * A TABLE value's type is {@code GenericType(Relation, [schema])} &mdash; pure's
+ * own signature spelling, preserved through resolution (the historical G-&alpha;
+ * erasure to a bare struct is deleted). A bare {@link Type.RelationType} is the
+ * SCHEMA STRUCT and, as a value type, ONE ROW &mdash; pure's pun: the {@code T}
+ * of {@code Relation<T>} is the schema AND the row type. {@link #unify} binds
+ * the schema variable to the bare struct; {@link #resolve} substitutes it back
+ * under the wrapper untouched.
  */
 public final class InferenceKernel {
 
@@ -92,7 +93,7 @@ public final class InferenceKernel {
             // corpus module's own m3 class): same schema-erasing nominal.
             case Type.ClassType c
                     when c.fqn().equals(PlatformTypes.TABULAR_DATA_SET)
-                    && relationRow(actual) != null -> { }
+                    && Type.isRelation(actual) -> { }
             // TDSRow is the ERASED row nominal of the legacy TDS API: any
             // bare row-struct conforms — the callee is then monomorphized
             // at its call site (TDSRow params are schema-erased, Typer).
@@ -117,21 +118,20 @@ public final class InferenceKernel {
                 }
             }
 
-            // Dedicated relation case (Row-vs-Relation PROBE): bind the
-            // schema var to the actual's ROW TYPE — the signatures'
-            // declared distinction (Relation<T> the container, T the
-            // ROW) stops being erased. Late-bound schemas keep the
-            // transitional bare binding (RowType carries no dynamic
-            // columns yet).
+            // Dedicated relation case (Row-vs-Relation): a table actual
+            // is WRAPPED — the schema variable binds the bare schema
+            // struct inside it (pure's T = the schema = the row type).
+            // A bare struct actual is a ROW and does NOT conform to a
+            // Relation<T> formal (the type distinction the split
+            // exists to enforce).
             case Type.GenericType g when g.rawFqn().equals(RELATION_FQN) -> {
-                Type row = relationRow(actual);
-                if (row == null) {
+                if (!(actual instanceof Type.GenericType ag
+                        && (ag.rawFqn().equals(RELATION_FQN)
+                                || ctx.isSubtype(ag.rawFqn(), RELATION_FQN))
+                        && ag.arguments().size() == 1)) {
                     throw new TypeInferenceException("expected a Relation, got " + actual.typeName());
                 }
-                Type bound = row instanceof Type.RelationType rr
-                        && rr.dynamicColumns().isEmpty()
-                        ? new Type.RowType(rr.columns()) : row;
-                unify(g.arguments().get(0), bound, b);
+                unify(g.arguments().get(0), ag.arguments().get(0), b);
             }
             // TabularDataSet is the SCHEMA-ERASING nominal over the relation
             // carrier (CastChecker's cast(@TabularDataSet) doctrine): any
@@ -139,7 +139,7 @@ public final class InferenceKernel {
             // over TDS receives the platform's typed row-struct).
             case Type.GenericType g
                     when g.rawFqn().equals(PlatformTypes.TABULAR_DATA_SET)
-                    && relationRow(actual) != null -> { }
+                    && Type.isRelation(actual) -> { }
             // Function<Any> is the universal function bound (real m3:
             // every function instance is a Function; Any covers all
             // function types) — a bare FunctionType actual conforms
@@ -161,25 +161,15 @@ public final class InferenceKernel {
                 }
             }
 
+            // A bare STRUCT formal (a declared inline row/schema param,
+            // or a colspec row): unify by columns against the actual's
+            // schema view (a row's own struct, or a table's schema —
+            // struct-spelled table params are legacy-tolerated).
             case Type.RelationType r -> {
-                if (!(relationRow(actual) instanceof Type.RelationType ar)) {
+                if (!(Type.schemaView(actual) instanceof Type.RelationType ar)) {
                     throw fail(formal, actual);
                 }
                 unifyColumns(r, ar, b);
-            }
-
-            // ROW formal (Row-vs-Relation split): a row actual unifies by
-            // schema; a bare RelationType actual is accepted
-            // TRANSITIONALLY (pre-split producers) via its schema.
-            case Type.RowType row -> {
-                Type.RelationType ar = actual instanceof Type.RowType r2
-                        ? r2.relation()
-                        : relationRow(actual) instanceof Type.RelationType rr
-                                ? rr : null;
-                if (ar == null) {
-                    throw fail(formal, actual);
-                }
-                unifyColumns(row.relation(), ar, b);
             }
 
             // A schema-algebra CONSTRAINT in parameter position (`Z⊆T`, `Z=(?:K)⊆T`,
@@ -252,18 +242,13 @@ public final class InferenceKernel {
      * </ul>
      */
     private void unifyConstraint(Type.SchemaAlgebra sa, Type actual, Bindings b) {
-        if (!(relationRow(actual) instanceof Type.RelationType actualRow)) {
+        if (!(Type.schemaView(actual) instanceof Type.RelationType actualRow)) {
             throw new TypeInferenceException("expected a column specification (a row-struct), got "
                     + actual.typeName());
         }
         switch (sa.op()) {
             case SUBSET -> {
                 Type right = resolve(sa.right(), b);   // param order guarantees T is bound
-                // a ROW's schema serves the subset check (Row-vs-Relation:
-                // T now binds the row; ⊆ constrains its columns)
-                if (right instanceof Type.RowType rrow) {
-                    right = rrow.relation();
-                }
                 if (!(right instanceof Type.RelationType schema)) {
                     throw new TypeInferenceException("⊆ right-hand side is not a relation schema: "
                             + right.typeName());
@@ -481,25 +466,8 @@ public final class InferenceKernel {
                     b.bindType(v.name(), valueLub(existing, actual));
                     return;
                 }
-                // TRANSITIONAL coherence (Row-vs-Relation probe): a var
-                // bound to the ROW may meet the SAME columns as a bare
-                // relation from a pre-split producer — one schema, one
-                // binding (the ROW form wins; deleted when producers
-                // all speak Row).
-                Type.RelationType exSchema = existing instanceof Type.RowType exr
-                        ? exr.relation()
-                        : existing instanceof Type.RelationType err ? err : null;
-                Type.RelationType acSchema = actual instanceof Type.RowType acr
-                        ? acr.relation()
-                        : actual instanceof Type.RelationType arr ? arr : null;
-                if (exSchema != null && acSchema != null
-                        && exSchema.columns().equals(acSchema.columns())) {
-                    if (existing instanceof Type.RelationType
-                            && actual instanceof Type.RowType) {
-                        b.bindType(v.name(), actual);
-                    }
-                    return;
-                }
+                Type.RelationType exSchema = Type.schemaView(existing);
+                Type.RelationType acSchema = Type.schemaView(actual);
                 if (exSchema != null && acSchema != null) {
                     throw new TypeInferenceException("column mismatch: type variable "
                             + v.name() + " bound to relation "
@@ -569,7 +537,6 @@ public final class InferenceKernel {
             case Type.TypeVar v -> !isUnknown(v) && !b.hasType(v.name());
             case Type.GenericType g -> g.arguments().stream().anyMatch(a -> hasFreeTypeVars(a, b));
             case Type.RelationType r -> r.columns().stream().anyMatch(c -> hasFreeTypeVars(c.type(), b));
-            case Type.RowType row -> row.columns().stream().anyMatch(c -> hasFreeTypeVars(c.type(), b));
             case Type.SchemaAlgebra sa -> hasFreeTypeVars(sa.left(), b) || hasFreeTypeVars(sa.right(), b);
             case Type.FunctionType ignored -> false;
             case Type.Primitive ignored -> false;
@@ -661,7 +628,7 @@ public final class InferenceKernel {
                 // variants IS a variant (one JSON array value) — the
                 // carrier's own semantics (toMany(@Variant) results flow
                 // into to-one column/argument slots as array cells).
-                boolean relationSource = relationRow(actualType) != null;
+                boolean relationSource = Type.isRelation(actualType);
                 // CONTRAVARIANT position (a function value's parameters): a
                 // WIDER actual accepts — equal(Any[*],Any[*]) is a legal
                 // {T[1],T[1]->Boolean} comparator in real pure.
@@ -702,15 +669,10 @@ public final class InferenceKernel {
             case Type.TypeVar v -> b.type(v.name()).orElseThrow(() ->
                     new TypeInferenceException("unbound type variable " + v.name()));
 
-            // Relation<T> -> the bare TABLE value (Row-vs-Relation: T
-            // binds the ROW; the container resolves to the relation
-            // over that row's schema — G-alpha, now round-tripping the
-            // distinction instead of erasing it).
-            case Type.GenericType g when g.rawFqn().equals(RELATION_FQN) && g.arguments().size() == 1 -> {
-                Type inner = resolve(g.arguments().get(0), b);
-                yield inner instanceof Type.RowType row
-                        ? row.relation() : inner;
-            }
+            // Relation<T> stays WRAPPED (the G-α erasure is deleted): T
+            // resolves to the bound schema struct and the container
+            // rides through the generic descent below — a table type
+            // leaves resolution as GenericType(Relation, [schema]).
             case Type.GenericType g -> new Type.GenericType(g.rawFqn(),
                     g.arguments().stream().map(a -> resolve(a, b)).toList());
 
@@ -720,8 +682,6 @@ public final class InferenceKernel {
             // to SQL-type derivation (audit finding).
             case Type.RelationType r -> new Type.RelationType(
                     resolveColumns(r.columns(), b), r.dynamicColumns());
-            case Type.RowType row -> new Type.RowType(
-                    resolveColumns(row.columns(), b));
 
             // A function-typed OUTPUT carries solved variables inside its
             // params/result (preval's Function<{->T[*]}> — the identity
@@ -775,20 +735,11 @@ public final class InferenceKernel {
     /** {@code T+V} (union of schemas) and {@code T-Z} (drop named columns). */
     private Type resolveSchemaAlgebra(Type.SchemaAlgebra sa, Bindings b) {
         Type left = resolve(sa.left(), b);
-        // a ROW operand contributes its SCHEMA (Row-vs-Relation: T binds
-        // the row; T+Z / T-Z compute over its columns, and the algebra's
-        // result stays a relation SCHEMA for the signature's container)
-        if (left instanceof Type.RowType lrow) {
-            left = lrow.relation();
-        }
         if (!(left instanceof Type.RelationType lr)) {
             throw new TypeInferenceException(
                     "schema-algebra left operand is not a relation: " + left.typeName());
         }
         Type right = resolve(sa.right(), b);
-        if (right instanceof Type.RowType rrow) {
-            right = rrow.relation();   // a ROW contributes its schema
-        }
         switch (sa.op()) {
             case UNION -> {
                 List<Type.Column> cols = new ArrayList<>(lr.columns());
@@ -1054,7 +1005,7 @@ public final class InferenceKernel {
 
             case Type.ClassType fc
                     when fc.fqn().equals(PlatformTypes.TABULAR_DATA_SET)
-                    && relationRow(actual) != null -> 1;
+                    && Type.isRelation(actual) -> 1;
             case Type.ClassType fc -> {
                 if (!(actual instanceof Type.ClassType ac)) {
                     yield -1;
@@ -1065,12 +1016,12 @@ public final class InferenceKernel {
                     (actual instanceof Type.EnumType ae && ae.fqn().equals(fe.fqn())) ? 2 : -1;
 
             case Type.GenericType g when g.rawFqn().equals(RELATION_FQN) ->
-                    relationRow(actual) != null ? 1 : -1;
+                    Type.isRelation(actual) ? 1 : -1;
             // TDS = schema-erasing relation nominal (must agree with the
             // unify arm; score as a subtype-grade match).
             case Type.GenericType g
                     when g.rawFqn().equals(PlatformTypes.TABULAR_DATA_SET)
-                    && relationRow(actual) != null -> 1;
+                    && Type.isRelation(actual) -> 1;
             case Type.GenericType g -> {
                 if (!(actual instanceof Type.GenericType ag)
                         || !ag.rawFqn().equals(g.rawFqn())) {
@@ -1099,11 +1050,7 @@ public final class InferenceKernel {
                 yield 1;
             }
 
-            case Type.RelationType ignored -> (relationRow(actual) instanceof Type.RelationType) ? 1 : -1;
-            // ROW formal: a row actual matches; a bare relation actual
-            // matches TRANSITIONALLY (pre-split producers).
-            case Type.RowType ignored -> actual instanceof Type.RowType
-                    || relationRow(actual) instanceof Type.RelationType ? 1 : -1;
+            case Type.RelationType ignored -> Type.schemaView(actual) != null ? 1 : -1;
             case Type.FunctionType ff -> {
                 if (!(actual instanceof Type.FunctionType af)) {
                     yield -1;
@@ -1150,7 +1097,7 @@ public final class InferenceKernel {
                 if (fb.equals(actual)) {
                     yield 10;
                 }
-                if (fb.isToOne() && actual.isMany() && relationRow(actualType) == null) {
+                if (fb.isToOne() && actual.isMany() && !Type.isRelation(actualType)) {
                     yield -1;   // [*] cannot satisfy a to-one slot (unless a relation source, §3.2)
                 }
                 // [0] never satisfies a REQUIRED slot — scoring must agree
@@ -1160,7 +1107,7 @@ public final class InferenceKernel {
                 // coalesce('x', [])).
                 if (fb.lower() >= 1 && actual instanceof Multiplicity.Bounded ab
                         && ab.upper() != null && ab.upper() == 0
-                        && relationRow(actualType) == null) {
+                        && !Type.isRelation(actualType)) {
                     yield -1;
                 }
                 yield multiplicityTightness(fb);
@@ -1232,14 +1179,16 @@ public final class InferenceKernel {
         // correlated scalar subquery) meeting a bare scalar in a branch or
         // collection LUB: the LUB is over the COLUMN's type — the
         // encoding's declared value semantics. Multi-column relations stay
-        // at the loud non-nominal wall below.
-        if (a instanceof Type.RelationType r1 && r1.columns().size() == 1
-                && !(b instanceof Type.RelationType)) {
-            return commonSupertype(r1.columns().get(0).type(), b);
+        // at the loud non-nominal wall below. (Row-vs-Relation: the
+        // encoding may arrive wrapped — a table — or as a bare
+        // single-column row; both take the column's-type view.)
+        Type.RelationType sv1 = Type.schemaView(a);
+        Type.RelationType sv2 = Type.schemaView(b);
+        if (sv1 != null && sv1.columns().size() == 1 && sv2 == null) {
+            return commonSupertype(sv1.columns().get(0).type(), b);
         }
-        if (b instanceof Type.RelationType r2 && r2.columns().size() == 1
-                && !(a instanceof Type.RelationType)) {
-            return commonSupertype(a, r2.columns().get(0).type());
+        if (sv2 != null && sv2.columns().size() == 1 && sv1 == null) {
+            return commonSupertype(a, sv2.columns().get(0).type());
         }
         String fa = nominalFqn(a), fb = nominalFqn(b);
         if (fa == null || fb == null) {
@@ -1341,24 +1290,6 @@ public final class InferenceKernel {
     // Helpers
     // =====================================================================
 
-    /** The bare row-struct of a relation value, whether wrapped {@code Relation<row>} or already bare. */
-    private static @com.legend.Nullable Type relationRow(Type actual) {
-        if (actual instanceof Type.GenericType g
-                && g.rawFqn().equals(RELATION_FQN)
-                && g.arguments().size() == 1) {
-            return g.arguments().get(0);
-        }
-        if (actual instanceof Type.RelationType) {
-            return actual;
-        }
-        // a ROW presents its schema (Row-vs-Relation: bare row-struct
-        // spellings in declared signatures accept row actuals)
-        if (actual instanceof Type.RowType row) {
-            return row.relation();
-        }
-        return null;
-    }
-
     /** Subtype check over the primitive lattice (precision/width-agnostic, §3.2). */
     private boolean isPrimitiveSubtype(Type actual, Type formal) {
         String actualFqn = primitiveFqn(actual);
@@ -1393,11 +1324,7 @@ public final class InferenceKernel {
         // already-bound row: compatible iff its column names all exist there — this is how
         // over(~city)'s _Window<(city:?)> meets extend's _Window<T> with T bound to the
         // source row, and the containment check IS the partition/sort-column validation.
-        // (Row-vs-Relation: the bound row now IS a RowType; its schema
-        // serves the same containment.)
-        Type.RelationType exView = existing instanceof Type.RowType exr
-                ? exr.relation()
-                : existing instanceof Type.RelationType err ? err : null;
+        Type.RelationType exView = Type.schemaView(existing);
         if (exView != null && actual instanceof Type.RelationType ar
                 && isUnknownFragment(ar)) {
             return ar.columns().stream().allMatch(c ->
@@ -1406,8 +1333,16 @@ public final class InferenceKernel {
         // Relation identity is the COLUMNS — dynamicColumns (pivot templates)
         // are executor metadata; a template-carrying schema re-binding against
         // its template-less rebuild must not spuriously conflict (audit).
+        // Applies to bare schemas and wrapped tables alike (schema view);
+        // a ROW never silently rebinds against a TABLE — same columns or
+        // not, the kinds differ (loud at the caller).
         if (existing instanceof Type.RelationType er2 && actual instanceof Type.RelationType ar2) {
             return er2.columns().equals(ar2.columns());
+        }
+        Type.RelationType ew = Type.relationSchema(existing);
+        Type.RelationType aw = Type.relationSchema(actual);
+        if (ew != null && aw != null) {
+            return ew.columns().equals(aw.columns());
         }
         return existing.equals(actual);
     }

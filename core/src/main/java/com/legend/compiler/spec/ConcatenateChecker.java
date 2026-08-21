@@ -18,8 +18,7 @@ final class ConcatenateChecker {
         Application a = t.checkGeneric(af, env);
         // The COLLECTION overload (set1:T[*], set2:T[*]) is a plain value
         // operation (SQL list concat), not the relation set-op node.
-        if (!(a.out().type()
-                instanceof com.legend.compiler.element.type.Type.RelationType)) {
+        if (!com.legend.compiler.element.type.Type.isRelation(a.out().type())) {
             return Typer.emitCall(a.chosen(), a.args(), a.out());
         }
         // n-ary TDS concatenate (ledger cluster 22): p1->concatenate(
@@ -32,9 +31,9 @@ final class ConcatenateChecker {
         if (a.args().get(1) instanceof
                         com.legend.compiler.spec.typed.TypedCollection tc
                 && !tc.elements().isEmpty()
-                && tc.elements().stream().allMatch(e -> e.info().type()
-                        instanceof com.legend.compiler.element.type
-                                .Type.RelationType)) {
+                && tc.elements().stream().allMatch(e ->
+                        com.legend.compiler.element.type.Type
+                                .isRelation(e.info().type()))) {
             var one = new com.legend.compiler.element.type.ExprType(
                     a.out().type(),
                     com.legend.compiler.element.type.Multiplicity

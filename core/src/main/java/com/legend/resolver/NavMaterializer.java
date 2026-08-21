@@ -563,8 +563,8 @@ final class NavMaterializer {
             AssociationJoins.AssocJoin aj = assocs.associationJoin(temporal,
                     t, prop, StoreResolver.Context.NONE, false,
                     e.getValue(), subChain);
-            var leftRow = (com.legend.compiler.element.type.Type.RelationType)
-                    pipe.info().type();
+            var leftRow = com.legend.compiler.element.type.Type
+                    .requireRelationSchema(pipe.info().type());
             List<com.legend.compiler.element.type.Type.Column> cols =
                     new ArrayList<>(leftRow.columns());
             for (var c : aj.targetRow().columns()) {
@@ -583,8 +583,9 @@ final class NavMaterializer {
                     ajPipe, StoreResolver.leftKind(),
                     ajCond, java.util.Optional.of(aj.prefix()), null,
                     new com.legend.compiler.element.type.ExprType(
-                            new com.legend.compiler.element.type.Type
-                                    .RelationType(cols),
+                            com.legend.compiler.element.type.Type.relation(
+                                    new com.legend.compiler.element.type.Type
+                                            .RelationType(cols)),
                             com.legend.compiler.element.type
                                     .Multiplicity.Bounded.ONE),
                 false /* resolver-synth */);
@@ -634,10 +635,10 @@ final class NavMaterializer {
                     + (prop.indexOf('#') >= 0
                             ? prop.substring(prop.indexOf('#') + 1)
                             : prop) + "_";
-            var xLeftRow = (com.legend.compiler.element.type.Type.RelationType)
-                    pipe.info().type();
-            var xRow = (com.legend.compiler.element.type.Type.RelationType)
-                    xPipe.info().type();
+            var xLeftRow = com.legend.compiler.element.type.Type
+                    .requireRelationSchema(pipe.info().type());
+            var xRow = com.legend.compiler.element.type.Type
+                    .requireRelationSchema(xPipe.info().type());
             List<com.legend.compiler.element.type.Type.Column> xCols =
                     new ArrayList<>(xLeftRow.columns());
             for (var c : xRow.columns()) {
@@ -648,8 +649,9 @@ final class NavMaterializer {
                     xPipe, StoreResolver.leftKind(),
                     step.predicate(), java.util.Optional.of(xPrefix), null,
                     new com.legend.compiler.element.type.ExprType(
-                            new com.legend.compiler.element.type.Type
-                                    .RelationType(xCols),
+                            com.legend.compiler.element.type.Type.relation(
+                                    new com.legend.compiler.element.type.Type
+                                            .RelationType(xCols)),
                             com.legend.compiler.element.type
                                     .Multiplicity.Bounded.ONE),
                 false /* resolver-synth */);
@@ -727,10 +729,10 @@ final class NavMaterializer {
                 continue;
             }
             String prefix2 = na + "_p_";
-            var leftRow = (com.legend.compiler.element.type.Type.RelationType)
-                    pipe.info().type();
-            var subRow = (com.legend.compiler.element.type.Type.RelationType)
-                    sub2.info().type();
+            var leftRow = com.legend.compiler.element.type.Type
+                    .requireRelationSchema(pipe.info().type());
+            var subRow = com.legend.compiler.element.type.Type
+                    .requireRelationSchema(sub2.info().type());
             List<com.legend.compiler.element.type.Type.Column> cols =
                     new ArrayList<>(leftRow.columns());
             for (var c : subRow.columns()) {
@@ -741,8 +743,9 @@ final class NavMaterializer {
                     StoreResolver.leftKind(), firstJoin.condition(),
                     java.util.Optional.of(prefix2), null,
                     new com.legend.compiler.element.type.ExprType(
-                            new com.legend.compiler.element.type.Type
-                                    .RelationType(cols),
+                            com.legend.compiler.element.type.Type.relation(
+                                    new com.legend.compiler.element.type.Type
+                                            .RelationType(cols)),
                             com.legend.compiler.element.type
                                     .Multiplicity.Bounded.ONE),
                 false /* resolver-synth */);

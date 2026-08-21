@@ -225,7 +225,7 @@ final class StaticFold {
     private @com.legend.Nullable List<Object> relationColumns(ValueSpecification receiver) {
         try {
             var typed = typer.synth(receiver, env);
-            if (typed.info().type() instanceof Type.RelationType rt) {
+            if (Type.schemaView(typed.info().type()) instanceof Type.RelationType rt) {
                 List<Object> cols = new ArrayList<>(rt.columns().size());
                 for (Type.RelationType.Column c : rt.columns()) {
                     cols.add(new Col(c.name(), simple(c.type().typeName())));

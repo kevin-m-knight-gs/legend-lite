@@ -73,7 +73,8 @@ final class Args {
      * selection.
      */
     static List<String> outputColumns(Application a) {
-        if (a.out().type() instanceof Type.RelationType rt) {
+        // wrapped table OR the bare rows view (Row-vs-Relation)
+        if (Type.schemaView(a.out().type()) instanceof Type.RelationType rt) {
             return rt.columns().stream().map(Type.Column::name).toList();
         }
         throw new TypeInferenceException("expected a relation result, got " + a.out().type().typeName());

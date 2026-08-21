@@ -539,17 +539,15 @@ final class InnerDemand {
                 && com.legend.builtin.Pure.nativeNamed("distinct",
                         dc.callee().signatureKey())) {
             var rel0 = peelInChain(dc.args().get(0), rawResolver);
-            return rel0 == null || !(rel0.info().type()
-                            instanceof com.legend.compiler.element.type
-                                    .Type.RelationType) ? null
+            return rel0 == null || !com.legend.compiler.element.type.Type
+                            .isRelation(rel0.info().type()) ? null
                     : new com.legend.compiler.spec.typed.TypedDistinct(
                             rel0, java.util.List.of(), rel0.info());
         }
         if (chain instanceof com.legend.compiler.spec.typed.TypedLimit tl) {
             var rel0 = peelInChain(tl.source(), rawResolver);
-            return rel0 == null || !(rel0.info().type()
-                            instanceof com.legend.compiler.element.type
-                                    .Type.RelationType) ? null
+            return rel0 == null || !com.legend.compiler.element.type.Type
+                            .isRelation(rel0.info().type()) ? null
                     : new com.legend.compiler.spec.typed.TypedLimit(
                             rel0, tl.count(), rel0.info());
         }
@@ -654,8 +652,8 @@ final class InnerDemand {
                     tc.args().get(tc.args().size() == 3 ? 2 : 3);
             com.legend.compiler.spec.typed.TypedSpec rel =
                     resolver.apply(tdsArg);
-            if (rel != null && rel.info().type() instanceof
-                    com.legend.compiler.element.type.Type.RelationType) {
+            if (rel != null && com.legend.compiler.element.type.Type
+                    .isRelation(rel.info().type())) {
                 out.put(tc, new Substitution.InQueryRead(rel, null));
             }
         }
@@ -669,12 +667,13 @@ final class InnerDemand {
                 com.legend.compiler.spec.typed.TypedSpec coll =
                         isContains ? c.args().get(0) : c.args().get(1);
                 if (rootsAtGetAll(coll)
-                        && !(coll.info().type()
-                                instanceof com.legend.compiler.element.type
-                                        .Type.RelationType)) {
+                        && !com.legend.compiler.element.type.Type
+                                .isRelation(coll.info().type())) {
                     com.legend.compiler.spec.typed.TypedSpec rel =
                             resolver.apply(coll);
-                    if (rel != null && rel.info().type()
+                    if (rel != null
+                            && com.legend.compiler.element.type.Type
+                                    .relationSchema(rel.info().type())
                             instanceof com.legend.compiler.element.type
                                     .Type.RelationType rt
                             && rt.columns().size() == 1) {

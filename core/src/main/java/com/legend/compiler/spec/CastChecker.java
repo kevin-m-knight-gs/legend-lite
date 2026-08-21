@@ -33,8 +33,8 @@ final class CastChecker {
         if (ref.target() instanceof com.legend.compiler.element.type.Type.GenericType g
                 && com.legend.compiler.element.type.PlatformTypes.TABULAR_DATA_SET
                         .equals(g.rawFqn())
-                && a.args().get(0).info().type()
-                        instanceof com.legend.compiler.element.type.Type.RelationType) {
+                && com.legend.compiler.element.type.Type
+                        .isRelation(a.args().get(0).info().type())) {
             return a.args().get(0);
         }
         return new TypedCast(a.args().get(0), ref.target(), a.out(), false);

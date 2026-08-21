@@ -47,8 +47,8 @@ public record TypedFold(TypedSpec source, TypedLambda reducer, TypedSpec init,
      * semantically the per-row map, which is how it lowers). Null
      * otherwise. */
     public @com.legend.Nullable TypedSpec columnCollectBody() {
-        if (!(source.info().type() instanceof
-                        com.legend.compiler.element.type.Type.RelationType)
+        if (!com.legend.compiler.element.type.Type
+                        .relationValued(source.info())
                 || reducer.parameters().size() != 2
                 || reducer.body().isEmpty()
                 || !(init instanceof TypedCollection ic)

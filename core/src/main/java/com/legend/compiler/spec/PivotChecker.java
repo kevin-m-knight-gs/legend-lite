@@ -38,7 +38,8 @@ final class PivotChecker {
             throw new TypeInferenceException("pivot expects (source, ~cols, ~agg:map:reduce)");
         }
         TypedSpec source = args.get(0);
-        if (!(source.info().type() instanceof Type.RelationType schema)) {
+        Type.RelationType schema = Type.relationSchema(source.info().type());
+        if (schema == null) {
             throw new TypeInferenceException("pivot requires a relation source");
         }
         List<String> pivotCols = pivotColumns(args.get(1));
@@ -76,7 +77,8 @@ final class PivotChecker {
                 })
                 .toList();
         return new TypedPivot(source, pivotCols, values, aggs,
-                new ExprType(new Type.RelationType(groupCols, templates), a.out().multiplicity()));
+                new ExprType(Type.relation(new Type.RelationType(groupCols, templates)),
+                        a.out().multiplicity()));
     }
 
     private static List<String> pivotColumns(TypedSpec arg) {

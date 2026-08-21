@@ -76,7 +76,7 @@ class UserCallInlinerTest {
     @DisplayName("a user call in OBJECT-space filter position — join demand sees through")
     void objectSpaceCall() throws SQLException {
         var r = run("m::Person.all()->filter(p|m::isAdult($p))"
-                + "->project(~[name: p|$p.name])->sortBy(x|$x.name)");
+                + "->project(~[name: p|$p.name])->sort(~name->ascending())");
         assertEquals(java.util.List.of("Ann", "Cat"), col(r));
     }
 
@@ -84,7 +84,7 @@ class UserCallInlinerTest {
     @DisplayName("nested calls compose (shout(shout(x)))")
     void nestedCalls() throws SQLException {
         var r = run("m::Person.all()->project(~[loud: p|m::doubleShout($p.name)])"
-                + "->sortBy(x|$x.loud)");
+                + "->sort(~loud->ascending())");
         assertEquals(java.util.List.of("ANN!!", "BOB!!", "CAT!!"), col(r));
     }
 
@@ -99,7 +99,7 @@ class UserCallInlinerTest {
     @Test
     @DisplayName("a CLASS-returning callee splices its getAll chain — H resolves it normally")
     void classReturningCallee() throws SQLException {
-        var r = run("m::adults()->project(~[name: p|$p.name])->sortBy(x|$x.name)");
+        var r = run("m::adults()->project(~[name: p|$p.name])->sort(~name->ascending())");
         assertEquals(java.util.List.of("Ann", "Cat"), col(r));
     }
 

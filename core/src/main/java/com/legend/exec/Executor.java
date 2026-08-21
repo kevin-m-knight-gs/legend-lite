@@ -544,11 +544,10 @@ public final class Executor {
 
     /** The relation schema of a TABULAR root, struct columns flattened. */
     private static Type.RelationType tabularSchema(ExprType rootType) {
-        // a ROW root reads through its schema (one-row table view)
-        if (rootType.type() instanceof Type.RowType row) {
-            return row.relation();
-        }
-        if (!(rootType.type() instanceof Type.RelationType typedSchema)) {
+        // a wrapped table's schema, or a bare struct (a ROW root reads
+        // as a one-row table view) — Row-vs-Relation
+        Type.RelationType typedSchema = Type.schemaView(rootType.type());
+        if (typedSchema == null) {
             throw new IllegalStateException("TABULAR result without a relation root type: "
                     + rootType.type().typeName());
         }
@@ -729,12 +728,16 @@ public final class Executor {
 
     /** Expand row-struct columns (navigate slots) to their prefixed flat set. */
     private static Type.RelationType flattenStructColumns(Type.RelationType schema) {
-        if (schema.columns().stream().noneMatch(c -> c.type() instanceof Type.RelationType)) {
+        if (schema.columns().stream().noneMatch(c ->
+                c.type() instanceof Type.RelationType)) {
             return schema;
         }
         List<Type.Column> flat = new ArrayList<>();
         for (Type.Column c : schema.columns()) {
-            if (c.type() instanceof Type.RelationType sub) {
+            // a slot column types the target's bare row-struct
+            Type.RelationType sub =
+                    c.type() instanceof Type.RelationType r0 ? r0 : null;
+            if (sub != null) {
                 for (Type.Column sc : sub.columns()) {
                     flat.add(new Type.Column(c.name() + "_" + sc.name(),
                             sc.type(), sc.multiplicity()));

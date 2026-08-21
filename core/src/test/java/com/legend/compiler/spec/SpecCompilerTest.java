@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -506,9 +507,10 @@ class SpecCompilerTest {
         // model::Person.all()->project([p|$p.name, p|$p.age], ['nm','ag']) : Relation(nm:String[1], ag:Integer[1])[1]
         TypedSpec n = query("model::Person.all()->project([p|$p.name, p|$p.age], ['nm', 'ag'])");
         assertInstanceOf(TypedProject.class, n);
-        assertInstanceOf(Type.RelationType.class, n.info().type());
-
-        Type.RelationType rel = (Type.RelationType) n.info().type();
+        // Row-vs-Relation: a table value carries pure's own wrapped
+        // spelling — Relation<schema>; a bare struct is a ROW.
+        Type.RelationType rel = Type.relationSchema(n.info().type());
+        assertNotNull(rel, "a table value must be Relation<schema>");
         assertEquals(List.of(
                         new Type.Column("nm", Type.Primitive.STRING, Multiplicity.Bounded.ONE),
                         new Type.Column("ag", Type.Primitive.INTEGER, Multiplicity.Bounded.ONE)),
@@ -520,7 +522,8 @@ class SpecCompilerTest {
     void project_columnFromMultiHopNavigation() {
         // a projected column can be any object-graph expression: $p.home.street : String[0..1]
         TypedSpec n = query("model::Person.all()->project([p|$p.home.street], ['st'])");
-        Type.RelationType rel = (Type.RelationType) n.info().type();
+        Type.RelationType rel = Type.relationSchema(n.info().type());
+        assertNotNull(rel, "a table value must be Relation<schema>");
         assertEquals(new Type.Column("st", Type.Primitive.STRING, Multiplicity.Bounded.ZERO_ONE),
                 rel.columns().get(0));
     }
@@ -555,8 +558,8 @@ class SpecCompilerTest {
         TypedSpec n = query("model::Person.all()"
                 + "->project([p|$p.name, p|$p.age], ['nm', 'ag'])"
                 + "->filter(r | lessThanEqual($r.ag, 5))");
-        assertInstanceOf(Type.RelationType.class, n.info().type());
-        Type.RelationType rel = (Type.RelationType) n.info().type();
+        Type.RelationType rel = Type.relationSchema(n.info().type());
+        assertNotNull(rel, "a table value must be Relation<schema>");
         assertEquals(List.of(
                         new Type.Column("nm", Type.Primitive.STRING, Multiplicity.Bounded.ONE),
                         new Type.Column("ag", Type.Primitive.INTEGER, Multiplicity.Bounded.ONE)),

@@ -200,7 +200,8 @@ public final class UserCallInliner {
             }
             TypedSpec reduced = deepFoldInlined(
                     reduceStatements(body, callEnv));
-            if (widened && call.info().type()
+            if (widened && com.legend.compiler.element.type.Type
+                    .relationSchema(call.info().type())
                     instanceof com.legend.compiler.element.type.Type.RelationType rt) {
                 reduced = new com.legend.compiler.spec.typed.TypedSelect(reduced,
                         rt.columns().stream()

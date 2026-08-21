@@ -89,8 +89,8 @@ public final class StampCensus {
         // column now declares the per-cell mult and property reads are
         // checked in BOTH arms like every other node.)
         boolean designedListCarrier =
-                spec.info().type() instanceof
-                        com.legend.compiler.element.type.Type.RelationType
+                com.legend.compiler.element.type.Type
+                        .schemaView(spec.info().type()) != null
                 || (spec instanceof com.legend.compiler.spec.typed.TypedNewInstance
                         && e instanceof SqlExpr.ArrayLit)
                 || com.legend.compiler.element.type.PlatformTypes

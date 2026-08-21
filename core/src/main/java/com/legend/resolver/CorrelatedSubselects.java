@@ -160,7 +160,7 @@ final class CorrelatedSubselects {
             midPrefix = AssociationJoins.prefixFor(midBase + "_" + mOrd++, cs);
         }
         Type.RelationType leftRowM =
-                (Type.RelationType) withJoins.info().type();
+                Type.requireRelationSchema(withJoins.info().type());
         List<Type.Column> colsM = new ArrayList<>(leftRowM.columns());
         for (Type.Column c : midAj.targetRow().columns()) {
             colsM.add(new Type.Column(midPrefix + c.name(),
@@ -172,7 +172,7 @@ final class CorrelatedSubselects {
                 java.util.Objects.requireNonNull(midAj.condition(),
                         "mid-hop association condition"),
                 Optional.of(midPrefix), frameName,
-                new ExprType(midJoinedRow,
+                new ExprType(Type.relation(midJoinedRow),
                         com.legend.compiler.element.type.Multiplicity
                                 .Bounded.ONE),
                 false /* resolver-synth */);
@@ -220,8 +220,7 @@ final class CorrelatedSubselects {
         List<String> keyCols = parentEquiKeys(aj.condition(), head);
         ParentCopy pc = java.util.Objects.requireNonNull(
                 parentCopyFor(cs, corrAgg));
-        Type.RelationType pcRow = (Type.RelationType)
-                pc.mat().pipeline().info().type();
+        Type.RelationType pcRow = Type.requireRelationSchema(pc.mat().pipeline().info().type());
         String corrTp = AssociationJoins.prefixFor(head + "_t", cs);
         // audit 23 B7: the joined row is the PARENT COPY (extra
         // slot-prefixed columns beyond cs.rowType()) — collision-check
@@ -235,7 +234,7 @@ final class CorrelatedSubselects {
                     corrTp + c.name(), c.type(), c.multiplicity()));
         }
         Type.RelationType corrJoinedRow = new Type.RelationType(jCols);
-        var jInfo = new ExprType(corrJoinedRow,
+        var jInfo = new ExprType(Type.relation(corrJoinedRow),
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         TypedSpec joinedSub = new TypedJoin(pc.mat().pipeline(),
                 aj.targetPipeline(), StoreResolver.leftKind(), java.util.Objects.requireNonNull(aj.condition()),
@@ -306,8 +305,7 @@ final class CorrelatedSubselects {
         }
         ParentCopy pc = java.util.Objects.requireNonNull(
                 parentCopyFor(cs, allCorrs));
-        Type.RelationType pcRow = (Type.RelationType)
-                pc.mat().pipeline().info().type();
+        Type.RelationType pcRow = Type.requireRelationSchema(pc.mat().pipeline().info().type());
         String corrTp = aj.prefix() + "t_";
         while (hasColPrefixed(pcRow, corrTp)) {
             corrTp = "_" + corrTp;
@@ -318,7 +316,7 @@ final class CorrelatedSubselects {
                     corrTp + c.name(), c.type(), c.multiplicity()));
         }
         Type.RelationType jRow = new Type.RelationType(jCols);
-        var jInfo = new ExprType(jRow,
+        var jInfo = new ExprType(Type.relation(jRow),
                 com.legend.compiler.element.type.Multiplicity
                         .Bounded.ONE);
         TypedSpec joinedSub = new TypedJoin(pc.mat().pipeline(),
@@ -398,7 +396,7 @@ final class CorrelatedSubselects {
         }
         Type.RelationType subRowX = new Type.RelationType(subColsX);
         TypedSpec subPipe = new TypedProject(filtered, pCols,
-                new ExprType(subRowX,
+                new ExprType(Type.relation(subRowX),
                         com.legend.compiler.element.type.Multiplicity
                                 .Bounded.ONE));
         return new ExplodingSub(subPipe, subRowX,
@@ -594,7 +592,8 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
         TypedProject proj = new TypedProject((TypedSpec) a[0],
                 List.of(new TypedFuncCol("first", fa),
                         new TypedFuncCol("second", fb)),
-                com.legend.compiler.element.type.ExprType.one(row));
+                com.legend.compiler.element.type.ExprType.one(
+                        Type.relation(row)));
         return resolver.apply(proj);
     }
 
@@ -779,7 +778,7 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
                     (al, tc) -> aj.targetPipeline());
             String corrTp = mat2.slotPrefixes().get(headAlias);
             Type.RelationType joinedRow =
-                    (Type.RelationType) mat2.pipeline().info().type();
+                    Type.requireRelationSchema(mat2.pipeline().info().type());
             return new CorrAggSub(mat2.pipeline(), keyCols, joinedRow,
                     corrTp, "_cj", joinedRow, null);
         }
@@ -795,7 +794,7 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
         Pipelines.Materialized pMat = Pipelines.materialize(
                 cs.pipeline(), java.util.Set.of(), cs.classFqn());
         Type.RelationType pRow =
-                (Type.RelationType) pMat.pipeline().info().type();
+                Type.requireRelationSchema(pMat.pipeline().info().type());
         String corrTp = AssociationJoins.prefixFor(head + "_t", cs);
         while (hasColPrefixed(pRow, corrTp)) {
             corrTp = "_" + corrTp;
@@ -808,7 +807,7 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
         Type.RelationType jRow = new Type.RelationType(jCols);
         TypedSpec joined = new TypedJoin(pMat.pipeline(), aj.targetPipeline(),
                 StoreResolver.leftKind(), cond, Optional.of(corrTp), null,
-                new ExprType(jRow,
+                new ExprType(Type.relation(jRow),
                         com.legend.compiler.element.type.Multiplicity
                                 .Bounded.ONE),
                 false /* resolver-synth */);
@@ -1197,7 +1196,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
             AssociationJoins.AssocJoin aj2 = assocMaterial.aggJoinMaterial(
                     temporal, t, h, context, hLeaves, hNavTails);
             List<Type.Column> cols = new ArrayList<>(
-                    ((Type.RelationType) pipe.info().type()).columns());
+                    (Type.requireRelationSchema(pipe.info().type())).columns());
             for (Type.Column c : aj2.targetRow().columns()) {
                 cols.add(new Type.Column(aj2.prefix() + c.name(),
                         c.type(), c.multiplicity()));
@@ -1205,7 +1204,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
             Type.RelationType widened = new Type.RelationType(cols);
             pipe = new TypedJoin(pipe, aj2.targetPipeline(), StoreResolver.leftKind(),
                     java.util.Objects.requireNonNull(aj2.condition()), Optional.of(aj2.prefix()), null,
-                    new ExprType(widened,
+                    new ExprType(Type.relation(widened),
                             com.legend.compiler.element.type.Multiplicity.Bounded.ONE),
                 false /* resolver-synth */);
             nestedAssocs.put(h, new Substitution.AssocSub(aj2.prefix(),
@@ -1308,7 +1307,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
                 cond3 = new TypedLambda(cond3.parameters(), List.of(body3),
                         cond3.info());
                 List<Type.Column> cols3 = new ArrayList<>(
-                        ((Type.RelationType) pipe.info().type()).columns());
+                        (Type.requireRelationSchema(pipe.info().type())).columns());
                 for (Type.Column c : aj3.targetRow().columns()) {
                     cols3.add(new Type.Column(chainPrefix + c.name(),
                             c.type(), c.multiplicity()));
@@ -1316,7 +1315,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
                 pipe = new TypedJoin(pipe, aj3.targetPipeline(),
                         StoreResolver.leftKind(), cond3,
                         Optional.of(chainPrefix), null,
-                        new ExprType(new Type.RelationType(cols3),
+                        new ExprType(Type.relation(new Type.RelationType(cols3)),
                                 com.legend.compiler.element.type.Multiplicity
                                         .Bounded.ONE),
                 false /* resolver-synth */);
@@ -1377,7 +1376,8 @@ record CompositeChain(TypedSpec pipeline,
         if (!anySlot) {
             return null;
         }
-        if (!(targetPipe.info().type() instanceof Type.RelationType tgtRow0)) {
+        Type.RelationType tgtRow0 = Type.relationSchema(targetPipe.info().type());
+        if (tgtRow0 == null) {
             return null;
         }
         // audit 23 #75: a multi-statement join condition would silently
@@ -1431,8 +1431,7 @@ record CompositeChain(TypedSpec pipeline,
         var joinSlots = Pipelines.joinSlots(cs.pipeline());
         for (String sl : bySlot.keySet()) {
             var js = joinSlots.get(sl);
-            if (js == null || !(js.target().info().type()
-                    instanceof Type.RelationType)) {
+            if (js == null || !Type.isRelation(js.target().info().type())) {
                 // NOT walled (audit 23 B6 probe): a sibling that is a
                 // NAVIGATE step (not a joinSlot) degrades to the flat
                 // form, which the chained-union V2 family pins as
@@ -1463,7 +1462,7 @@ record CompositeChain(TypedSpec pipeline,
                         Set.of(), cs.classFqn()).pipeline();
             }
             Type.RelationType optRow =
-                    (Type.RelationType) slotTarget.info().type();
+                    Type.requireRelationSchema(slotTarget.info().type());
             TypedLambda c1 = js.condition();
             // GUARD (loud, never silent): hop-1's own condition must not
             // read further slots.
@@ -1525,7 +1524,7 @@ record CompositeChain(TypedSpec pipeline,
                             new Type.Param(Type.Primitive.BOOLEAN, one)), one));
             composite = new TypedJoin(composite, slotTarget,
                     StoreResolver.leftKind(), joinCond, Optional.of(pfx), null,
-                    new ExprType(newRow, one),
+                    new ExprType(Type.relation(newRow), one),
                 false /* resolver-synth */);
             compRow = newRow;
         }
@@ -1665,7 +1664,7 @@ static TypedSpec predFilteredPipe(TypedSpec tPipe, ClassSource target,
         Set<String> unconverted = new LinkedHashSet<>(
                 Pipelines.slotAliases(target.pipeline()));
         unconverted.removeAll(slotPrefixes.keySet());
-        Type.RelationType rowT = (Type.RelationType) tPipe.info().type();
+        Type.RelationType rowT = Type.requireRelationSchema(tPipe.info().type());
         Map<String, Substitution.AssocSub> navAssocs = new LinkedHashMap<>();
         for (var e : subNavs.entrySet()) {
             var sn = e.getValue();

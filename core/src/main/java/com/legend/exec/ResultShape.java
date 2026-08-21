@@ -35,12 +35,10 @@ public enum ResultShape {
     }
 
     public static ResultShape of(ExprType root) {
-        // a ROW root is a one-row TABLE at the boundary (engine: at(0)
-        // over a TDS returns a TDS — Row-vs-Relation split)
-        if (root.type() instanceof Type.RowType) {
-            return TABULAR;
-        }
-        if (root.type() instanceof Type.RelationType rt) {
+        // a wrapped table, or a bare struct — a ROW root is a one-row
+        // TABLE at the boundary (engine: at(0) over a TDS returns a
+        // TDS — Row-vs-Relation split)
+        if (Type.schemaView(root.type()) instanceof Type.RelationType rt) {
             // F6.2 (audit A2): the map-binder channel (single synthetic
             // u_map__ column) IS a VALUE COLLECTION — pure collections
             // hold no empties, and the COLLECTION shaping's existing

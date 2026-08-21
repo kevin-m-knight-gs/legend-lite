@@ -171,7 +171,8 @@ final class JsonSourceFrame {
                 new Type.Column("data", variant, one),
                 new Type.Column(FRAME_ORDINAL, Type.Primitive.INTEGER, one)));
         ExprType rowInfo = new ExprType(rowType, one);
-        TypedSpec pipeline = new TypedTds(rows, rowInfo);
+        TypedSpec pipeline = new TypedTds(rows,
+                new ExprType(Type.relation(rowType), one));
         String rowVar = "src_json";
         TypedSpec data = new TypedPropertyAccess(
                 new TypedVariable(rowVar, rowInfo), "data",

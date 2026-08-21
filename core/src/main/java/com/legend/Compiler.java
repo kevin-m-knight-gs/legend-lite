@@ -444,8 +444,9 @@ public final class Compiler {
      *  scalarRoot contract). */
     private static com.legend.compiler.element.type.Type.RelationType
             wireSchema(com.legend.compiler.element.type.ExprType info) {
-        return info.type() instanceof
-                com.legend.compiler.element.type.Type.RelationType rt ? rt
+        com.legend.compiler.element.type.Type.RelationType rt =
+                com.legend.compiler.element.type.Type.schemaView(info.type());
+        return rt != null ? rt
                 : new com.legend.compiler.element.type.Type.RelationType(
                         java.util.List.of(
                                 new com.legend.compiler.element.type.Type.Column(

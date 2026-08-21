@@ -123,14 +123,15 @@ public final class RawGridSchema {
             Map<String, Type.RelationType> binders) throws SQLException {
         // STAMP the grid leaf
         if (n instanceof TypedRawSqlRelation raw
-                && raw.info().type() instanceof Type.RelationType rt
+                && Type.relationSchema(raw.info().type())
+                        instanceof Type.RelationType rt
                 && rt.isLateBound()) {
             List<Type.Column> cols = new ArrayList<>();
             for (String nm : probeNames(raw.sql(), conn, dialect)) {
                 cols.add(Type.RelationType.trustedColumn(nm));
             }
             return new TypedRawSqlRelation(raw.sql(),
-                    new ExprType(new Type.RelationType(cols, List.of()),
+                    new ExprType(Type.relation(new Type.RelationType(cols, List.of())),
                             raw.info().multiplicity()));
         }
         // BINDER SCOPE: a lambda over a (recursively stamped) grid binds
@@ -271,7 +272,8 @@ public final class RawGridSchema {
             s = p.source();
         }
         if (s instanceof TypedRawSqlRelation r
-                && r.info().type() instanceof Type.RelationType rt
+                && Type.relationSchema(r.info().type())
+                        instanceof Type.RelationType rt
                 && !rt.isLateBound()) {
             return rt;
         }
