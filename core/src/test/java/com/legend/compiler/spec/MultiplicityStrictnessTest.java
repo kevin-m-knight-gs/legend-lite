@@ -121,6 +121,63 @@ class MultiplicityStrictnessTest {
     }
 
     @Test
+    @DisplayName("egress slice A: a [1]-declared scalar result with ZERO rows raises (the engine's resultSizeRange)")
+    void scalarEgressLowerBoundRaisesOnZeroRows() throws Exception {
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+            // relation lane: the in-expression toOne FLOWS (row-lane
+            // adjudication), so the FINISH-LINE check is what catches a
+            // broken exactly-one promise — engine parity, egress-side
+            Exception e = assertThrows(Exception.class, () -> Compiler.execute(
+                    "",
+                    "{| #TDS\n  x:Integer\n  1\n#"
+                            + "->filter(r|$r.x > 5)->map(r|$r.x)->toOne() }",
+                    c));
+            assertTrue(String.valueOf(e.getMessage())
+                            .contains("Cannot cast a collection of size 0"),
+                    e.getMessage());
+            // control: a satisfied promise still flows
+            var ok = Compiler.execute("",
+                    "{| #TDS\n  x:Integer\n  7\n#"
+                            + "->filter(r|$r.x > 5)->map(r|$r.x)->toOne() }", c);
+            assertEquals(7L, ((Number) ((com.legend.exec.ExecutionResult
+                    .Scalar) ok).value()).longValue());
+            // TWO rows at the root raise PURE's size message, not the
+            // backend's bare more-than-one-row subquery error
+            Exception e2 = assertThrows(Exception.class, () -> Compiler.execute(
+                    "",
+                    "{| #TDS\n  x:Integer\n  1\n  2\n#"
+                            + "->map(r|$r.x)->toOne() }", c));
+            assertTrue(String.valueOf(e2.getMessage())
+                            .contains("Cannot cast a collection of size 2"
+                                    + " to multiplicity [1]"),
+                    e2.getMessage());
+        }
+    }
+
+    @Test
+    @DisplayName("egress slice A: a [1..*]-declared collection result with ZERO rows raises")
+    void collectionEgressLowerBoundRaisesOnZeroRows() throws Exception {
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+            Exception e = assertThrows(Exception.class, () -> Compiler.execute(
+                    "",
+                    "{| #TDS\n  x:Integer\n  1\n#"
+                            + "->filter(r|$r.x > 5)->map(r|$r.x)"
+                            + "->toOneMany() }", c));
+            assertTrue(String.valueOf(e.getMessage())
+                            .contains("Cannot cast a collection of size 0"),
+                    e.getMessage());
+            // control: satisfied [1..*] still yields the collection
+            var ok = Compiler.execute("",
+                    "{| #TDS\n  x:Integer\n  7\n  9\n#"
+                            + "->map(r|$r.x)->toOneMany() }", c);
+            assertEquals(java.util.List.of(7L, 9L),
+                    ((com.legend.exec.ExecutionResult.Collection) ok)
+                            .values().stream().map(v -> ((Number) v)
+                                    .longValue()).toList());
+        }
+    }
+
+    @Test
     @DisplayName("audit §4: runtime-empty [0..1] takes PURE's empty identities — and/or/joinStrings/makeString")
     void emptyIdentityForkIsClosed() throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {

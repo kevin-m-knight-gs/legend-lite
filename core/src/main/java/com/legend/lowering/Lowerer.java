@@ -284,10 +284,13 @@ public final class Lowerer {
      * class roots (COLLECTION/GRAPH shapes) are still honestly unbuilt.
      */
     private SqlSelect scalarRoot(TypedSpec spec) {
-        SqlExpr e = scalar(spec, (var, name) -> {
-            throw new IllegalStateException("a scalar query has no row scope for $"
-                    + var + "." + name);
-        });
+        SqlExpr e = requiredOneEgress(spec);
+        if (e == null) {
+            e = scalar(spec, (var, name) -> {
+                throw new IllegalStateException("a scalar query has no row scope for $"
+                        + var + "." + name);
+            });
+        }
         // COLLECTION roots explode to N rows (the result-shape contract:
         // Executor reads a collection as N rows x 1 column).
         if (isMany(spec)) {
@@ -299,6 +302,45 @@ public final class Lowerer {
                 null, List.of(), null, null, List.of(), null, null,
                 List.of(new OutputCol("value", sqlTypeOf(spec.info().type()),
                         PureSql.nullable(spec.info().multiplicity()))));
+    }
+
+    /**
+     * EGRESS lower bound (multiplicity audit follow-up, slice A): the
+     * engine's Java executor checks the FINISHED result's row count
+     * against the declared multiplicity ({@code resultSizeRange}) — the
+     * one enforcement its in-expression {@code processNoOp} lane never
+     * does. Mid-expression, a row-lane {@code toOne} strips to the bare
+     * scalar subquery (empty &rarr; NULL, the ADJUDICATED flow); at the
+     * STATEMENT ROOT the row count is still visible in the LIST carrier,
+     * so a user {@code toOne} over a MANY-stamped operand keeps the list
+     * and guards it: 0 rows raises pure's size-0 cast, 1 row holding
+     * NULL extracts NULL (the engine counts rows, not values), N rows
+     * raises size-N — all with pure's own message. {@code trustOne}
+     * (synthesized conformance) never guards, and [0..1]-stamped
+     * operands stay flow-adjudicated (a NULL cell and an empty are
+     * indistinguishable there, and the engine flows the NULL cell).
+     *
+     * @return the guarded root expression, or {@code null} when this is
+     *         not the required-one egress shape (caller lowers normally)
+     */
+    private @com.legend.Nullable SqlExpr requiredOneEgress(TypedSpec spec) {
+        if (!(spec instanceof com.legend.compiler.spec.typed.TypedNativeCall tc
+                // the recognizer minus its trustOne member: conformance
+                // wraps never guard (the C2 provenance split)
+                && Pure.isToOneCall(tc.callee().qualifiedName())
+                && !Pure.Lite.TRUST_ONE.equals(tc.callee().qualifiedName())
+                && !tc.args().isEmpty()
+                && tc.args().get(0).info().multiplicity().isMany())) {
+            return null;
+        }
+        SqlExpr op = scalar(tc.args().get(0), (var, name) -> {
+            throw new IllegalStateException("a scalar query has no row scope for $"
+                    + var + "." + name);
+        });
+        // only the exact LIST-collecting shape carries an honest row
+        // count; anything else (value-lane lists already CheckedOne'd
+        // inside the rule, opaque calls) lowers through the normal path
+        return Scalars.aggStrip(op) != null ? new SqlExpr.CheckedOne(op) : null;
     }
 
     String nextAlias() {

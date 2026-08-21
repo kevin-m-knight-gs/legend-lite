@@ -3367,8 +3367,10 @@ final class Scalars {
      * raises, 1 yields the value, 0 rows NULL, the engine-noOp empty
      * the corpus pins). Only the EXACT plain single-projection
      * non-distinct no-groupBy shape strips. Moved from the dissolved
-     * ListShapes. */
-    private static @com.legend.Nullable SqlExpr aggStrip(SqlExpr e) {
+     * ListShapes. Package-private: {@code Lowerer#scalarRoot} uses the
+     * recognizer half to spot the SAME shape at the statement root,
+     * where it keeps the LIST instead (egress slice A). */
+    static @com.legend.Nullable SqlExpr aggStrip(SqlExpr e) {
         if (!(e instanceof SqlExpr.ScalarSubquery sq
                 && sq.subquery() instanceof SqlSelect ss
                 && ss.projections().size() == 1

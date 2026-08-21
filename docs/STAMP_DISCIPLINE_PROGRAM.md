@@ -991,3 +991,76 @@ the feared disease was already structurally cured; the honest close is
 the ruling and the naming, not a migration. Any FUTURE matcher that
 pattern-matches a navigation spelling instead of asking pathOf is a
 review defect against this section.
+
+## ENGINE-PARITY RUNTIME CHECKS (user: "Let's try these two")
+
+The two lanes where the engine was still ahead (its finish-line
+resultSizeRange row-count check; its FunctionParametersValidation of
+provided parameter values), assessed and executed as slices.
+
+### EGRESS SLICE A LANDED — the finish-line lower bound
+
+The engine's Java executor checks the FINISHED result's row count
+against the declared multiplicity (resultSizeRange) — the one
+enforcement its in-expression processNoOp lane never performs. Ours
+now does the same, at three seams, all row-count-honest:
+
+- **Root toOne over a MANY operand** (`Lowerer#requiredOneEgress`):
+  the mid-expression lane strips to the bare scalar subquery (empty →
+  NULL, the ADJUDICATED row-lane flow — untouched), but at the
+  STATEMENT ROOT the row count is still visible in the LIST carrier,
+  so the collapse keeps the list and wraps `CheckedOne`: 0 rows raises
+  pure's size-0 cast message, 1 row holding NULL extracts NULL (the
+  engine counts rows, not values — the NULL-cell case must FLOW), N
+  rows raises size-N with pure's message instead of DuckDB's bare
+  more-than-one-row subquery error. Recognizer = `Scalars.aggStrip`'s
+  exact LIST-collect shape (now package-private); trustOne
+  (synthesized conformance) and [0..1]-stamped operands are excluded
+  by design — for the latter a NULL cell and an empty are genuinely
+  indistinguishable post-collapse and the engine flows the NULL cell,
+  so guarding would FALSELY raise.
+- **SCALAR egress** (`Executor` SCALAR arm): zero JDBC rows under a
+  declared lower ≥ 1 raises pure's message (distinct from
+  one-row-holding-NULL, so the TDSNull convention is untouched).
+- **COLLECTION egress** (`Executor` COLLECTION arm): zero JDBC ROWS
+  under a declared lower ≥ 1 raises pure's message as a USER error;
+  the pre-existing values-below-bound guard (NULL cells dropped past
+  the contract) stays as the DEFECT arm behind it. Row count, not
+  value count — a row holding NULL passes the bound, matching the
+  engine.
+
+Ring recorded: the first attempt put the check ONLY in the SCALAR arm
+and the pin didn't fire — the root collapse lowers to
+`SELECT (scalar subquery)`, which ALWAYS returns one JDBC row with
+emptiness encoded as a NULL cell. The row count had to be preserved in
+the SQL (the LIST carrier), not inspected after the collapse erased
+it. Second ring: `Pure.nativeKeysAt` returns signature-qualified KEYS,
+not bare FQNs — the recognizer is `Pure.isToOneCall` minus its
+trustOne member (exact FQNs, never contains/suffix).
+
+Pins: MultiplicityStrictnessTest egress trio (zero-rows scalar raise +
+satisfied-promise control + size-2-at-root pure message;
+zero-rows [1..*] collection raise + satisfied control).
+
+### EGRESS SLICE B — RULED VACUOUS ON THIS SURFACE (no code)
+
+The engine's FunctionParametersParametersValidation
+(missing-mandatory + per-value type validation + stream-size
+processing) exists because the engine has an EXTERNAL ingress: HTTP
+JSON parameter values that arrive untyped at runtime. legend-lite has
+no such seam — `Compiler.execute` takes no parameter map, every
+function argument is a statically-typed Pure expression, and the
+inliner's β-substitution splices KERNEL-CHECKED typed specs, not raw
+values. The pre-adoption framing ("the splice is blind") was WRONG:
+after the strict-kernel slice, splice-time size violations would
+require a stamp to lie, which is the whole program's invariant. Our
+compile-time strict kernel IS FunctionParametersValidation, run
+earlier — the "better than engine" lane the user asked about.
+`FunctionParametersValidationNode` exists in this tree only as plan
+TEXT (PlanText/PlanNode/Pure class def), which the corpus pins
+byte-exactly; executing it with no ingress would be host logic with no
+call site — a necessity-proof failure. RULING: the validation
+semantics land WITH the future ingress that creates the
+Java-holds-value moment — the prepared-statements program (JDBC
+setObject binding), which is chartered separately and owns injection
+safety, statement caching, and wire type fidelity as its payoffs.

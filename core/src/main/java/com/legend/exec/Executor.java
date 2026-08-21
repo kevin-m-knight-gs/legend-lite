@@ -251,7 +251,21 @@ public final class Executor {
             return switch (shape) {
                 case TABULAR -> tabular(rs, plan, rootType, dialect);
                 case SCALAR -> {
-                    Object v = rs.next()
+                    boolean hasRow = rs.next();
+                    // ZERO ROWS under a REQUIRED declared bound raises —
+                    // the engine's resultSizeRange enforcement (its Java
+                    // executor checks the finished result's row count;
+                    // multiplicity audit follow-up, egress slice A).
+                    // Distinguishable from one-row-holding-NULL, so the
+                    // TDSNull mapping-lane convention is untouched.
+                    if (!hasRow && rootType.multiplicity()
+                            .requireBounded("SCALAR shaping").lower() >= 1) {
+                        throw new IllegalStateException(
+                                "Cannot cast a collection of size 0 to"
+                                + " multiplicity "
+                                + rootType.multiplicity().text());
+                    }
+                    Object v = hasRow
                             ? latticeKind(cell(rs, plan, dialect, anyRoot, variantRoot),
                                     rootType.type())
                             : null;
@@ -268,7 +282,9 @@ public final class Executor {
                 }
                 case COLLECTION -> {
                     List<Object> values = new ArrayList<>();
+                    boolean anyRow = false;
                     while (rs.next()) {
+                        anyRow = true;
                         Object v = latticeKind(cell(rs, plan, dialect, anyRoot, variantRoot),
                                 rootType.type());
                         // a NULL cell is a pure EMPTY, and no pure collection
@@ -283,11 +299,21 @@ public final class Executor {
                             values.add(v);
                         }
                     }
+                    long lower = rootType.multiplicity()
+                            .requireBounded("COLLECTION shaping").lower();
+                    // ZERO ROWS under a required lower bound is the
+                    // engine's finish-line resultSizeRange check (egress
+                    // slice A) — a USER error with pure's own message,
+                    // not a defect: the query legitimately emptied.
+                    if (!anyRow && lower >= 1) {
+                        throw new IllegalStateException(
+                                "Cannot cast a collection of size 0 to"
+                                + " multiplicity "
+                                + rootType.multiplicity().text());
+                    }
                     // the declared lower bound is the fact with teeth: a
                     // drop that shrinks a [1..*]-typed collection below its
                     // bound is a mapping/lowering defect, never a quiet count
-                    long lower = rootType.multiplicity()
-                            .requireBounded("COLLECTION shaping").lower();
                     if (values.size() < lower) {
                         throw new IllegalStateException("collection-shaped"
                                 + " result holds " + values.size()
