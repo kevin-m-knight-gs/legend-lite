@@ -71,6 +71,9 @@ class ErrorShapeGuardrailTest {
             // compile crash into published diagnostics
             Map.entry("PureLspServer.java", 2),
             Map.entry("ScanRelations.java", 1),
+            // the seedability trial-lowering probe — broad by design,
+            // reviewed 2026-08-21 (see the catch-site comment)
+            Map.entry("SeedableLets.java", 1),
             Map.entry("StatementExecutor.java", 1),
             Map.entry("StaticFold.java", 1),
             Map.entry("EngineTestExecutor.java", 3),

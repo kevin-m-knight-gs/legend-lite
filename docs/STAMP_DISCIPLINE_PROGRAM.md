@@ -1116,3 +1116,40 @@ boundary), DriverPkAppend (pure tree→tree pass — just MOVE it under
 resolver/) each carry their route out in the rule javadoc.
 
 Referee: suite 4185/0, corpus scoreboard byte-identical.
+
+### SLICE 2 LANDED — buildFrame assembly + the last executor mints; pins 4→2
+
+User directive: ZERO exceptions, and ultimately no exception mechanism
+at all (the `doNotBelongToAnyOf` clause dies with the last pin).
+
+- `compiler.spec.ExecuteChainAssembly`: buildFrame's compiler half —
+  `prepare` (query peel: letBound, β-inline of lambda-building calls,
+  preval/withFeatureFlags read-through, concatenateTemporalTdsQueries
+  fold-by-emission; lambda + mapping-ref validation) and `chain`
+  (body inline, ->from() attachment with XStore chain mappings/JSON
+  sources, relation-rootedness). The executor interleaves its
+  execution-bound steps BETWEEN the two calls, order-preserved:
+  runtime-arg effects, tableReplace recording, the eager run.
+- `UserCallInliner.callArgumentFrame`: the staged call frame
+  (arguments β-inline and bind as TypedLets; effectful arguments
+  refuse loudly — audit 17) joins the β-engine's file.
+- `lowering.SeedableLets`: the seedability TRIAL-LOWERING probe (was
+  withQueryLetPrefix, which instantiated a Lowerer inside the
+  executor — the second bonus find). Guardrails PAID with real
+  splits: the Lowerer file-size limit forced the probe into its own
+  file (not a limit bump), and its broad catch is reviewed+documented
+  at the site with an ErrorShapeGuardrail pin row.
+- `DriverPkAppend` MOVED verbatim to `resolver/` — it was a pure
+  tree→tree pass misfiled in validation/.
+- StatementExecutor now mints ZERO typed nodes — dropped from the
+  Invariant 7 pin list; letBound/containsTypedFrom deleted from the
+  executor (they moved with the assembly).
+
+Remaining pins (2): AssertVerdicts (dies with the canonical-render
+verdicts leg — synthesis becomes compiler-owned emission, the
+surviving host half is a byte compare that mints nothing) and
+RawGridSchema (route out = staged compilation: a compiler-owned
+resolve-with-schema phase taking the PROBED column roster as input;
+the executor keeps only the JDBC probe).
+
+Referee: suite 4185/0, corpus scoreboard byte-identical.
