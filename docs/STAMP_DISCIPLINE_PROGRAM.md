@@ -1390,6 +1390,86 @@ The guards now cover the code they claim to govern:
   CorpusSoftCeilingTest — which read the committed markdown and could
   never go red in CI — is DELETED.
 
+### R1 LANDED (2026-08-21): the World-2 paired-probe guard
+
+`VerdictWorld2ConsistencyTest` — chartered in HOST_LOGIC_AUDIT ("the
+guard that keeps it fixed") and unbuilt until the shortcut audit called
+it out; ratified item d, WIDENED to the egress arms. The pairwise
+equality lattice stays with its OWNER (`EqualityWorldsConformanceTest`,
+the Clause-2c two-worlds fixture — R1 extended it with the
+integral×Decimal agree row and the 2-ULP declared-divergence row
+rather than duplicating). The new test owns: total order (host sort
+canonicalization vs compiled sort), the §6 decodeAny egress probe
+(Decimal-through-Any precision loss made VISIBLE, pinned to flip when
+the carrier heals), and the §5 cross-notion seal
+(collection/size/at/indexOf/toOne must tell ONE story over a carrier
+holding empties).
+
+**The instrument caught two live inconsistencies on its first run**:
+size()=2 and indexOf mis-based over `[[]->first(),'a']` while at(0)
+extracted correctly — the §5 rule missing at the counting/positional
+consumers. Fixed via `CollectionLanes.compactIfValueLane` at the
+size/at/indexOf rules (identity on definite lists, engine-TEXT
+verbatim — zero golden movement). Divergence rows are two-sided: AGREE
+rows fail on divergence, KNOWN rows fail when they START agreeing.
+
+### BURN LANE LANDED (2026-08-21): §3a + §3b + cast — ratified item e
+
+- **§3a exists-dedupe**: the DISTINCT-key projection dedupes by
+  TABLE+NAME identity (bare-name dedupe collapsed T_PERSON.NAME and
+  T_DEPT.NAME onto one projection and the ON compared the outer against
+  the WRONG side — 0 rows where 1 was right). Colliding names get
+  disambiguated output aliases; single-table stays golden-stable.
+- **§3b joinStrings ordering**: the CONCATENATE order obligation sees
+  through wrapping Calls (`Fold.orderUnionAggregateExpr`) — the 3-arg
+  joinStrings' CONCAT(prefix, string_agg, suffix) now mints u_ord like
+  the bare reducer; one extra argument no longer drops pure's order.
+- **cast**: impossible CROSS-KIND casts raise pure's "Cast exception"
+  in the database (`CastPolicy.crossKindRaise`). ADJUDICATED SCOPE the
+  referee set: string<->numeric/temporal conversions are the standing
+  PRODUCT contract — `TypeConversionCheckerTest$StringToInteger` IS the
+  String->Integer pin and the view family pins Integer->String, so the
+  audit's `1->cast(@String)` row lands in the conversion contract, and
+  the raise covers the uncontested classes (boolean<->anything,
+  temporal<->numeric). Mapping WIRE coercions exempt. The whole cast
+  arm moved to CastPolicy (ONE cast owner; Lowerer keeps a 3-line
+  delegator).
+
+Pins: `BurnLaneTest` (§3a and §3b at the IR seam, cast e2e over
+DuckDB, census-registered).
+
+### §7b ADJUDICATION (2026-08-21, ratified item f — witnesses, no reflex fix)
+
+**Question 1 — TRUST_ONE wrapping user `[1]` declarations / the
+"audit R3" pin (`ResolveNavigationTest:215`, user `->toOne()` over a
+zero-row association yielding "null"): ADJUDICATED ENGINE-FAITHFUL,
+pin STANDS.** Engine witness (decisive, golden SQL in the reference's
+own test): `testTwoAssociationsToOneBranchWithQuery`
+(projection/testAssociationToOne.pure:40-43) compiles a USER-written
+`$p.firm->toOne().legalName` to a bare unguarded
+`left outer join firmTable` — no row-count guard exists anywhere in
+the engine's relational compilation of user toOne (processNoOp, the
+same lane our flow convention mirrors). A missing association row
+produces a NULL cell in the engine's own TDS, exactly the pin's
+"null". PROVENANCE CORRECTION owed: the behavior is engine-relational
+parity, not "pure toOne semantics" as GraphEmission's comment claims —
+reword at next touch. The audit's demand ("a user's [1] declaration is
+trusted, never verified") describes the ENGINE's relational lane too;
+enforcement would be a deliberate DIVERGENCE, adjudicated NO for now.
+
+**Question 2 — GraphEmission's `TypedLimit(proj, 1)` on to-one nav
+leaves suppressing the backend's own more-than-one-row error: OPEN.**
+No multiplicity enforcement found in the engine's relational
+graph-fetch executor plugin (RelationalExecutionNodeExecutor /
+RelationalGraphFetchUtils — no check/validate/error arms on child
+cardinality); the decisive witness lives in the engine's GENERATED
+graph-node classes' to-one setters (last-wins vs throw), not yet
+decoded. Until then the LIMIT 1 stays AS PINNED — but its comment's
+"pure toOne semantics" claim is wrong on any reading (pure raises on
+2); reword with the honest OPEN status at next touch. Follow-up
+witness location recorded: legend-engine-executionPlan-execution
+generated GraphFetch class setters.
+
 ### AUDIT OF BLOCKERS 1+2 (2026-08-21, user-directed post-landing pass)
 
 Method: executable probes + walker sweep, evidence = code and

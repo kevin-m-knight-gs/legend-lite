@@ -92,17 +92,34 @@ final class ExistsJoinForm {
                 continue;
             }
             // DISTINCT key subselect: one projection per correlation's
-            // INNER side (deduped by name), outputs carry the schema
+            // INNER side. Identity is TABLE+NAME (audit §3a: dedupe by
+            // bare name collapsed T_PERSON.NAME and T_DEPT.NAME into
+            // one projection and the ON below then compared the outer
+            // against the WRONG side's column — 0 rows where 1 was
+            // right, on every main path). A name carried by two inner
+            // tables gets a DISAMBIGUATED output alias; the common
+            // single-table case keeps the bare name (golden-stable).
             List<SqlSelect.Projection> projs = new ArrayList<>();
             List<OutputCol> outs = new ArrayList<>();
-            Set<String> seen = new LinkedHashSet<>();
+            java.util.Map<String, String> aliasFor = new java.util.LinkedHashMap<>();
+            Set<String> usedNames = new LinkedHashSet<>();
             for (CorrPair p2 : corr) {
                 SqlExpr.Column in = p2.inner();
-                if (!seen.add(in.name())) {
+                String key2 = in.table() + " " + in.name();
+                if (aliasFor.containsKey(key2)) {
                     continue;
                 }
-                projs.add(new SqlSelect.Projection(in, null));
-                outs.add(outputColOf(sub.from(), in));
+                String outName = in.name();
+                int k = 1;
+                while (!usedNames.add(outName)) {
+                    outName = in.name() + "_" + k++;
+                }
+                aliasFor.put(key2, outName);
+                projs.add(new SqlSelect.Projection(in,
+                        outName.equals(in.name()) ? null : outName));
+                OutputCol oc = outputColOf(sub.from(), in);
+                outs.add(outName.equals(oc.name()) ? oc
+                        : new OutputCol(outName, oc.type(), oc.nullable()));
             }
             SqlSelect keys = new SqlSelect(projs, true, sub.from(),
                     keysWhere(local, sub.where() == null ? null
@@ -114,12 +131,19 @@ final class ExistsJoinForm {
             List<SqlExpr> on = new ArrayList<>();
             for (CorrPair p2 : corr) {
                 on.add(SqlExpr.Call.of(SqlFn.EQUAL, p2.outer(),
-                        new SqlExpr.Column(side.alias(), p2.inner().name())));
+                        new SqlExpr.Column(side.alias(),
+                        java.util.Objects.requireNonNull(aliasFor.get(
+                                p2.inner().table() + " "
+                                        + p2.inner().name()),
+                                "exists key alias missing"))));
             }
             from = new SqlSource.Join(from, side, SqlSource.Join.Kind.LEFT,
                     Fold.mergeAnd(on.toArray(SqlExpr[]::new)));
-            SqlExpr key = new SqlExpr.Column(
-                    side.alias(), corr.get(0).inner().name());
+            SqlExpr key = new SqlExpr.Column(side.alias(),
+                    java.util.Objects.requireNonNull(
+                            aliasFor.get(corr.get(0).inner().table() + " "
+                                    + corr.get(0).inner().name()),
+                            "exists key alias missing"));
             keep.add(SqlExpr.Call.of(
                     negated ? SqlFn.IS_NULL : SqlFn.IS_NOT_NULL, key));
             outerAliases.add(side.alias());

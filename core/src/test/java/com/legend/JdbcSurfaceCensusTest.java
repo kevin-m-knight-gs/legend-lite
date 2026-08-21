@@ -131,6 +131,12 @@ class JdbcSurfaceCensusTest {
             // size errors IN THE DATABASE — the assertion is the DB's
             // own error message, so the session is the test subject
             "core/src/test/java/com/legend/lowering/ToOneLaneTest.java",
+            // R1: the World-2 paired-probe guard runs the SAME
+            // computation through SQL — the DuckDB session IS World 1
+            "core/src/test/java/com/legend/exec/VerdictWorld2ConsistencyTest.java",
+            // burn lane: the cast cross-kind raise is the DATABASE's
+            // error — the session is the assertion subject
+            "core/src/test/java/com/legend/lowering/BurnLaneTest.java",
             "core/src/test/java/com/legend/JdbcSurfaceCensusTest.java",
             "core/src/test/java/com/legend/AuditRound3Test.java",
             // multiplicity audit slice 2: the strictness negative

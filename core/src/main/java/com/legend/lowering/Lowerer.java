@@ -918,11 +918,11 @@ public final class Lowerer {
         List<SqlSelect.Projection> ps = new ArrayList<>(aggs.size());
         for (TypedAggCol a : aggs) {
             SqlExpr av = aggValue(base, a, cal == null ? null : cal.get(a));
-            if (av instanceof SqlAgg.Reducer red
-                    && Fold.orderUnionAggregate(base, red)
-                            instanceof Fold.OrderedAgg oa) {
+            // §3b: the obligation sees through wrapping Calls
+            if (Fold.orderUnionAggregateExpr(base, av)
+                    instanceof Fold.OrderedAggExpr oa) {
                 base = oa.base();
-                av = oa.reducer();
+                av = oa.expr();
             }
             ps.add(new SqlSelect.Projection(av, a.name()));
         }
@@ -977,7 +977,7 @@ public final class Lowerer {
                     new TypedLambda(a.reduce().parameters(),
                             List.of(rc.source()), a.reduce().info()),
                     a.orderKey(), a.orderAsc()));
-            return CastPolicy.castByPolicy(inner, rc.source().info().type(), rc.target());
+            return CastPolicy.castByPolicy(inner, rc.source().info().type(), rc.target(), rc.wire());
         }
         if (!(reduceBody instanceof TypedNativeCall call)) {
             throw new IllegalStateException("aggregate reduce must be a native reducer call, got "
@@ -1143,7 +1143,8 @@ public final class Lowerer {
         }
         SqlExpr value = scalar(mapBody, (v, name) -> resolveOrThrow(base, name));
         if (valueCast != null) {
-            value = CastPolicy.castByPolicy(value, valueCast.source().info().type(), valueCast.target());
+            value = CastPolicy.castByPolicy(value,
+                    valueCast.source().info().type(), valueCast.target(), valueCast.wire());
         }
         // isDistinct over a group: COUNT(DISTINCT x) = COUNT(x) — no single
         // SQL reducer (engine testGroupByIsDistinct golden).
@@ -3141,76 +3142,10 @@ public final class Lowerer {
         return cast(c, scalar(c.source(), columns));
     }
 
-    /** The cast policy over an ALREADY-LOWERED source (scalar or window channel). */
+    /** The cast policy over an ALREADY-LOWERED source — CastPolicy owns
+     * every arm (one cast owner); only isMany stays here. */
     private SqlExpr cast(TypedCast c, SqlExpr value) {
-        if (c.wire() && EngineTextBoundary.active()) {
-            // the mapping's WIRE coercion — the engine runtime converts on
-            // the wire and its SQL/plan text never spells it; execution
-            // (boundary inactive) keeps the SQL cast (DuckDB does not
-            // wire-convert — audit 19 F7)
-            return value;
-        }
-        boolean variantSource = c.source().info().type()
-                instanceof Type.ClassType ct && PlatformTypes.isVariant(ct);
-        if (!variantSource) {
-            // A CONVERTING primitive cast (String->@Integer) must reach
-            // SQL (bare return left VARCHAR arithmetic); a WIDENING cast
-            // is a type ASSERTION — converting corrupts (42 -> 42.0).
-            // DELIBERATE divergence: pure's cast never converts; the
-            // corpus contract (engine-lite lineage) is SQL-style
-            // conversion, so a NARROWING cast converts here.
-            Type src = c.source().info().type();
-            if (CastPolicy.isSqlPrimitive(c.target()) && CastPolicy.isSqlPrimitive(src)
-                    && !CastPolicy.isWidening(src, c.target())
-                    && !PureSql.type(src).equals(PureSql.type(c.target()))) {
-                // A converting cast over a COLLECTION is ELEMENT-WISE — the
-                // scalar channel carries collections as LISTs and DuckDB has
-                // no LIST->scalar cast (calendar DateRange family: row-var
-                // .values is an ArrayLit even at bounded-1 multiplicity).
-                if (value instanceof SqlExpr.ArrayLit lit) {
-                    return new SqlExpr.ArrayLit(lit.elements().stream()
-                            .map(e -> (SqlExpr) new SqlExpr.Cast(
-                                    e, PureSql.type(c.target())))
-                            .toList());
-                }
-                return isMany(c)
-                        ? SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, value,
-                                new SqlExpr.Lambda(List.of("x"),
-                                        new SqlExpr.Cast(
-                                                new SqlExpr.Column(null, "x"),
-                                                PureSql.type(c.target()))))
-                        : new SqlExpr.Cast(value, PureSql.type(c.target()));
-            }
-            return value;
-        }
-        boolean many = isMany(c);
-        if (many) {
-            boolean variantTarget = c.target() instanceof Type.ClassType t
-                    && PlatformTypes.isVariant(t);
-            return variantTarget
-                    ? SqlExpr.Call.of(SqlFn.VARIANT_ELEMENTS, value)
-                    // A to-many cast targets an ARRAY of the element type —
-                    // expressed in the TYPE (SqlType.Array). JSON null stays
-                    // SQL NULL (real relation-land pins toVariant(NULL) =
-                    // 'null' vs toVariant([]) = '[]'); the list CONSUMERS
-                    // (contains/isEmpty/joinStrings) are null-safe instead.
-                    : new SqlExpr.Cast(value,
-                            new SqlType.Array(PureSql.type(c.target())));
-        }
-        if (c.target() instanceof Type.ClassType tc
-                && !PlatformTypes.isVariant(tc)
-                && !PlatformTypes.isAny(tc)) {
-            // to(@ModelClass) MATERIALIZED as a value: the real relation
-            // runtime rejects class-typed columns — message verbatim
-            // (property reads through the cast never come here; the
-            // extraction arm in scalar() fields them).
-            throw new ModelException(
-                    LegendCompileException.Phase.LOWER,
-                    "The type " + tc.fqn() + " is not supported yet!");
-        }
-        // The dialect may render this cast through its text-extraction idiom
-        // (DuckDB ->>) — that is RENDERING knowledge; the IR keeps the access.
-        return new SqlExpr.Cast(value, PureSql.type(c.target()));
+        return CastPolicy.lower(c, value, isMany(c));
     }
 
     /** A Pure type with a direct scalar SQL carrier (primitives and sized decimals). */
