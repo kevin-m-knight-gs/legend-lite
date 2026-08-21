@@ -375,6 +375,25 @@ public class RelationalCorpusRunner {
                     + com.legend.exec.Executor.RAW_CALLS.get() + " stmts, "
                     + (com.legend.exec.Executor.RAW_NANOS.get() / 1_000_000)
                     + " ms");
+            // THE H2 LANE ASSERTS (DEEP_AUDIT §11c: gate 5 swept 2,575
+            // tests and asserted NOTHING — "1362 could become 1 without
+            // moving the verdict"). Floors measured 2026-08-21; pass
+            // RATCHETS UP (raise the floor when earned), seeds and the
+            // capability budget only shrink.
+            if (onlyFilters.isEmpty()) {
+                org.junit.jupiter.api.Assertions.assertAll(
+                        () -> org.junit.jupiter.api.Assertions.assertTrue(
+                                p >= 1361, "h2 sweep pass fell: " + p
+                                        + " < floor 1361"),
+                        () -> org.junit.jupiter.api.Assertions.assertTrue(
+                                seedFails.size() <= 6,
+                                "h2 failed seeds grew: " + seedFails.size()
+                                        + " > 6"),
+                        () -> org.junit.jupiter.api.Assertions.assertTrue(
+                                u <= 945, "h2 capability walls grew: " + u
+                                        + " > 945 — a renderer gap widened"
+                                        + " silently"));
+            }
             return;
         }
         if (onlyFilters.isEmpty() && Runner.INCLUDE_EXCLUDED) {

@@ -31,6 +31,15 @@ class ProtocolRosterCensusTest {
 
     @Test
     void completeCensus() throws Exception {
+        materializeRoster();
+    }
+
+    /** The census body, callable — PmcdReachabilityCensusTest depends
+     * on the roster this writes; SELF-SUFFICIENCY (user ruling
+     * 2026-08-21: a class that always skips inside a gate is roster
+     * theater) means the reader materializes it itself instead of
+     * skipping on ordering. */
+    static void materializeRoster() throws Exception {
         // ---- roster: every @JsonSubTypes in protocol packages ----
         Map<String, String> tagToClass = new TreeMap<>();
         String cp = System.getProperty("java.class.path");
@@ -50,7 +59,7 @@ class ProtocolRosterCensusTest {
                             .replace('/', '.');
                     try {
                         Class<?> c = Class.forName(cls, false,
-                                getClass().getClassLoader());
+                                ProtocolRosterCensusTest.class.getClassLoader());
                         JsonSubTypes st = c.getAnnotation(JsonSubTypes.class);
                         if (st != null) {
                             for (JsonSubTypes.Type t : st.value()) {

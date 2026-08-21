@@ -1506,6 +1506,29 @@ property reads) keeps its NULL cells, because TDSNull is DATA on the
 grid convention (the engine's tdsNull channel). The first draft
 compacted any literal with a lower-0 element and ate a grid cell.
 
+### D3 LANDED: gate integrity (DEEP_AUDIT §11c) — two user rulings
+
+- **Tripwire**: PX.1 now `exit 1`s (it printed FAILED then exit 0 — the
+  one branch detecting a poisoned certification reported success) and
+  runs UNCONDITIONALLY (it only ran on all-green chains, so a
+  failed-gate chain never checked tree mutation).
+- **Gate 5 asserts**: the H2 sweep gains its first assertions — pass
+  floor 1361 (ratchets UP), failed-seeds ≤ 6, capability walls ≤ 945
+  (measured 2026-08-21). "1362 could become 1 without moving the
+  verdict" is dead.
+- **Gate 8 roster** (USER RULING: surgical, not restructure): the
+  allowlist + rename-goes-red discipline stays; the 7 previously
+  invisible classes append to BOTH lists (27 total — the module was
+  RED at HEAD while the gate was green).
+- **No skipping class on a gate roster** (USER RULING): the strict
+  skipped() detector STAYS (any fully-skipped class marks the gate);
+  PmcdReachabilityCensusTest became SELF-SUFFICIENT instead — it
+  materializes the protocol roster itself
+  (ProtocolRosterCensusTest.materializeRoster) rather than skipping on
+  class order; its SkipCensus registration removed (census SHRANK).
+- **manifest.regen** now produces a loud SKIP, never a fake PASS
+  (it reported a genuine PASS having asserted nothing).
+
 ### D2 LANDED: the c1-singleton binder leaks (DEEP_AUDIT §3)
 
 The six hard crashes fixed — a C1-COLLAPSED LITERAL ([7]) reaching a
