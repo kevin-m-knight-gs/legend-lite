@@ -1,0 +1,349 @@
+###Mapping
+// ============================================================
+// index_core::Mapping -- twelve class sets, fifteen association sets, two dependencies
+// ============================================================
+// Both dependency mappings are INCLUDED. That is not a convenience: an association end that
+// points at core_instrument::Instrument has to name the set that class is mapped in, and
+// [ciBase] only exists here because core_instrument::Mapping is included. Same for
+// [cgCountry].
+//
+// Every set id is explicit and idx-prefixed. A set id is a GLOBAL namespace across the
+// compiled graph, so an unprefixed `constituent` here would fail forty other projects with a
+// message naming the id and not this file.
+//
+// Every association end names [sourceSetId, targetSetId]. For the four crossing associations
+// it is mandatory -- core-instrument names its sets explicitly, so the default id
+// `core_instrument_Instrument` does not exist and the bare `prop: [db]@Join` form has nothing
+// to resolve against. For the internal ones it is merely correct, and costs nothing.
+Mapping index_core::Mapping
+(
+   include core_instrument::Mapping
+   include core_geo::Mapping
+
+   // ---- who publishes -------------------------------------------------------------------
+   *index_core::IdxProvider[idxProvider]: Relational
+   {
+      ~primaryKey ( [index_core::Store]IDX_PROVIDER.PROVIDER_ID )
+      ~mainTable [index_core::Store]IDX_PROVIDER
+      providerId: [index_core::Store]IDX_PROVIDER.PROVIDER_ID,
+      name: [index_core::Store]IDX_PROVIDER.NAME,
+      shortName: [index_core::Store]IDX_PROVIDER.SHORT_NAME,
+      homeCountryCode: [index_core::Store]IDX_PROVIDER.HOME_COUNTRY_CODE,
+      isAuthorisedAdministrator: [index_core::Store]IDX_PROVIDER.IS_AUTHORISED_ADMINISTRATOR,
+      methodologyUrl: [index_core::Store]IDX_PROVIDER.METHODOLOGY_URL
+   }
+
+   *index_core::IdxIndexFamily[idxIndexFamily]: Relational
+   {
+      ~primaryKey ( [index_core::Store]IDX_INDEX_FAMILY.FAMILY_ID )
+      ~mainTable [index_core::Store]IDX_INDEX_FAMILY
+      familyId: [index_core::Store]IDX_INDEX_FAMILY.FAMILY_ID,
+      name: [index_core::Store]IDX_INDEX_FAMILY.NAME,
+      assetClassScope: [index_core::Store]IDX_INDEX_FAMILY.ASSET_CLASS_SCOPE,
+      weightingPhilosophy: [index_core::Store]IDX_INDEX_FAMILY.WEIGHTING_PHILOSOPHY,
+      launchYear: [index_core::Store]IDX_INDEX_FAMILY.LAUNCH_YEAR,
+      isFlagship: [index_core::Store]IDX_INDEX_FAMILY.IS_FLAGSHIP
+   }
+
+   // ---- the index and its rulebook --------------------------------------------------------
+   *index_core::IdxIndex[idxIndex]: Relational
+   {
+      ~primaryKey ( [index_core::Store]IDX_INDEX.INDEX_ID )
+      ~mainTable [index_core::Store]IDX_INDEX
+      indexId: [index_core::Store]IDX_INDEX.INDEX_ID,
+      code: [index_core::Store]IDX_INDEX.CODE,
+      name: [index_core::Store]IDX_INDEX.NAME,
+      currency: [index_core::Store]IDX_INDEX.CURRENCY,
+      baseDate: [index_core::Store]IDX_INDEX.BASE_DATE,
+      baseLevel: [index_core::Store]IDX_INDEX.BASE_LEVEL,
+      weightingScheme: [index_core::Store]IDX_INDEX.WEIGHTING_SCHEME,
+      rebalanceFrequency: [index_core::Store]IDX_INDEX.REBALANCE_FREQUENCY,
+      targetConstituentCount: [index_core::Store]IDX_INDEX.TARGET_CONSTITUENT_COUNT,
+      isActive: [index_core::Store]IDX_INDEX.IS_ACTIVE
+   }
+
+   *index_core::IdxEligibilityRule[idxEligibilityRule]: Relational
+   {
+      ~primaryKey ( [index_core::Store]IDX_ELIGIBILITY_RULE.RULE_ID )
+      ~mainTable [index_core::Store]IDX_ELIGIBILITY_RULE
+      ruleId: [index_core::Store]IDX_ELIGIBILITY_RULE.RULE_ID,
+      ruleCode: [index_core::Store]IDX_ELIGIBILITY_RULE.RULE_CODE,
+      description: [index_core::Store]IDX_ELIGIBILITY_RULE.DESCRIPTION,
+      thresholdValue: [index_core::Store]IDX_ELIGIBILITY_RULE.THRESHOLD_VALUE,
+      thresholdUnit: [index_core::Store]IDX_ELIGIBILITY_RULE.THRESHOLD_UNIT,
+      appliesFrom: [index_core::Store]IDX_ELIGIBILITY_RULE.APPLIES_FROM,
+      isHardScreen: [index_core::Store]IDX_ELIGIBILITY_RULE.IS_HARD_SCREEN
+   }
+
+   *index_core::IdxWeightCap[idxWeightCap]: Relational
+   {
+      ~primaryKey ( [index_core::Store]IDX_WEIGHT_CAP.CAP_ID )
+      ~mainTable [index_core::Store]IDX_WEIGHT_CAP
+      capId: [index_core::Store]IDX_WEIGHT_CAP.CAP_ID,
+      capType: [index_core::Store]IDX_WEIGHT_CAP.CAP_TYPE,
+      singleNameCapPct: [index_core::Store]IDX_WEIGHT_CAP.SINGLE_NAME_CAP_PCT,
+      groupCapPct: [index_core::Store]IDX_WEIGHT_CAP.GROUP_CAP_PCT,
+      effectiveFrom: [index_core::Store]IDX_WEIGHT_CAP.EFFECTIVE_FROM,
+      regulation: [index_core::Store]IDX_WEIGHT_CAP.REGULATION
+   }
+
+   // ---- the dated event ---------------------------------------------------------------------
+   *index_core::IdxRebalance[idxRebalance]: Relational
+   {
+      ~primaryKey ( [index_core::Store]IDX_REBALANCE.REBALANCE_ID )
+      ~mainTable [index_core::Store]IDX_REBALANCE
+      rebalanceId: [index_core::Store]IDX_REBALANCE.REBALANCE_ID,
+      announcementDate: [index_core::Store]IDX_REBALANCE.ANNOUNCEMENT_DATE,
+      effectiveDate: [index_core::Store]IDX_REBALANCE.EFFECTIVE_DATE,
+      reviewType: [index_core::Store]IDX_REBALANCE.REVIEW_TYPE,
+      status: [index_core::Store]IDX_REBALANCE.STATUS,
+      constituentCount: [index_core::Store]IDX_REBALANCE.CONSTITUENT_COUNT,
+      additionCount: [index_core::Store]IDX_REBALANCE.ADDITION_COUNT,
+      deletionCount: [index_core::Store]IDX_REBALANCE.DELETION_COUNT,
+      turnoverPct: [index_core::Store]IDX_REBALANCE.TURNOVER_PCT
+   }
+
+   // The grain of the project. No instrument column is mapped onto a property here: the ISIN
+   // and the issuer name are reached through `instrument`, which is the whole point of
+   // depending on core-instrument rather than copying it.
+   *index_core::IdxConstituent[idxConstituent]: Relational
+   {
+      ~primaryKey ( [index_core::Store]IDX_CONSTITUENT.CONSTITUENT_ID )
+      ~mainTable [index_core::Store]IDX_CONSTITUENT
+      constituentId: [index_core::Store]IDX_CONSTITUENT.CONSTITUENT_ID,
+      weightPct: [index_core::Store]IDX_CONSTITUENT.WEIGHT_PCT,
+      uncappedWeightPct: [index_core::Store]IDX_CONSTITUENT.UNCAPPED_WEIGHT_PCT,
+      sharesInIndex: [index_core::Store]IDX_CONSTITUENT.SHARES_IN_INDEX,
+      freeFloatFactor: [index_core::Store]IDX_CONSTITUENT.FREE_FLOAT_FACTOR,
+      cappingFactor: [index_core::Store]IDX_CONSTITUENT.CAPPING_FACTOR,
+      isAddition: [index_core::Store]IDX_CONSTITUENT.IS_ADDITION,
+      isDeletion: [index_core::Store]IDX_CONSTITUENT.IS_DELETION,
+      rankByWeight: [index_core::Store]IDX_CONSTITUENT.RANK_BY_WEIGHT,
+      regionCode: [index_core::Store]IDX_CONSTITUENT.REGION_CODE
+   }
+
+   // ---- what the index does -------------------------------------------------------------------
+   *index_core::IdxIndexLevel[idxIndexLevel]: Relational
+   {
+      ~primaryKey
+      (
+         [index_core::Store]IDX_INDEX_LEVEL.INDEX_ID,
+         [index_core::Store]IDX_INDEX_LEVEL.LEVEL_DATE
+      )
+      ~mainTable [index_core::Store]IDX_INDEX_LEVEL
+      indexId: [index_core::Store]IDX_INDEX_LEVEL.INDEX_ID,
+      levelDate: [index_core::Store]IDX_INDEX_LEVEL.LEVEL_DATE,
+      priceLevel: [index_core::Store]IDX_INDEX_LEVEL.PRICE_LEVEL,
+      grossReturnLevel: [index_core::Store]IDX_INDEX_LEVEL.GROSS_RETURN_LEVEL,
+      netReturnLevel: [index_core::Store]IDX_INDEX_LEVEL.NET_RETURN_LEVEL,
+      divisor: [index_core::Store]IDX_INDEX_LEVEL.DIVISOR,
+      marketCapUsd: [index_core::Store]IDX_INDEX_LEVEL.MARKET_CAP_USD
+   }
+
+   *index_core::IdxTrackingFund[idxTrackingFund]: Relational
+   {
+      ~primaryKey ( [index_core::Store]IDX_TRACKING_FUND.FUND_ID )
+      ~mainTable [index_core::Store]IDX_TRACKING_FUND
+      fundId: [index_core::Store]IDX_TRACKING_FUND.FUND_ID,
+      name: [index_core::Store]IDX_TRACKING_FUND.NAME,
+      legalStructure: [index_core::Store]IDX_TRACKING_FUND.LEGAL_STRUCTURE,
+      domicileCountryCode: [index_core::Store]IDX_TRACKING_FUND.DOMICILE_COUNTRY_CODE,
+      aumUsd: [index_core::Store]IDX_TRACKING_FUND.AUM_USD,
+      totalExpenseRatioBps: [index_core::Store]IDX_TRACKING_FUND.TOTAL_EXPENSE_RATIO_BPS,
+      replicationMethod: [index_core::Store]IDX_TRACKING_FUND.REPLICATION_METHOD,
+      trackingErrorBps: [index_core::Store]IDX_TRACKING_FUND.TRACKING_ERROR_BPS,
+      inceptionDate: [index_core::Store]IDX_TRACKING_FUND.INCEPTION_DATE
+   }
+
+   *index_core::IdxFundHolding[idxFundHolding]: Relational
+   {
+      ~primaryKey ( [index_core::Store]IDX_FUND_HOLDING.HOLDING_ID )
+      ~mainTable [index_core::Store]IDX_FUND_HOLDING
+      holdingId: [index_core::Store]IDX_FUND_HOLDING.HOLDING_ID,
+      holdingDate: [index_core::Store]IDX_FUND_HOLDING.HOLDING_DATE,
+      weightPct: [index_core::Store]IDX_FUND_HOLDING.WEIGHT_PCT,
+      shares: [index_core::Store]IDX_FUND_HOLDING.SHARES,
+      marketValueUsd: [index_core::Store]IDX_FUND_HOLDING.MARKET_VALUE_USD,
+      activeWeightBps: [index_core::Store]IDX_FUND_HOLDING.ACTIVE_WEIGHT_BPS
+   }
+
+   // ---- THE AGGREGATION ------------------------------------------------------------------------
+   // Both sets have a VIEW as their main table, so reading either class is a GROUP BY the
+   // engine folds into one statement. The grouping columns are the primary key, which is what
+   // gives each row an identity and lets the association mappings below join back to the
+   // rebalance and out to the country.
+   *index_core::IdxRegionWeight[idxRegionWeight]: Relational
+   {
+      ~primaryKey
+      (
+         [index_core::Store]IDX_REGION_WEIGHT.REBALANCE_ID,
+         [index_core::Store]IDX_REGION_WEIGHT.REGION_CODE
+      )
+      ~mainTable [index_core::Store]IDX_REGION_WEIGHT
+      rebalanceId: [index_core::Store]IDX_REGION_WEIGHT.REBALANCE_ID,
+      regionCode: [index_core::Store]IDX_REGION_WEIGHT.REGION_CODE,
+      totalWeightPct: [index_core::Store]IDX_REGION_WEIGHT.TOTAL_WEIGHT_PCT,
+      constituentCount: [index_core::Store]IDX_REGION_WEIGHT.CONSTITUENT_COUNT
+   }
+
+   *index_core::IdxCountryWeight[idxCountryWeight]: Relational
+   {
+      ~primaryKey
+      (
+         [index_core::Store]IDX_COUNTRY_WEIGHT.REBALANCE_ID,
+         [index_core::Store]IDX_COUNTRY_WEIGHT.ISSUER_COUNTRY_CODE
+      )
+      ~mainTable [index_core::Store]IDX_COUNTRY_WEIGHT
+      rebalanceId: [index_core::Store]IDX_COUNTRY_WEIGHT.REBALANCE_ID,
+      issuerCountryCode: [index_core::Store]IDX_COUNTRY_WEIGHT.ISSUER_COUNTRY_CODE,
+      totalWeightPct: [index_core::Store]IDX_COUNTRY_WEIGHT.TOTAL_WEIGHT_PCT,
+      constituentCount: [index_core::Store]IDX_COUNTRY_WEIGHT.CONSTITUENT_COUNT
+   }
+
+   // ---- associations, internal --------------------------------------------------------------
+   // The AssociationMapping(...) wrapper is mandatory; without it the grammar reads the block
+   // as a class mapping and complains that it cannot find a class of that name. Both ends use
+   // the SAME join -- the engine reverses it for the end walking against the declared
+   // direction.
+   index_core::IdxFamilyProvider: Relational
+   {
+      AssociationMapping
+      (
+         provider[idxIndexFamily, idxProvider]: [index_core::Store]@Idx_FamilyProvider,
+         families[idxProvider, idxIndexFamily]: [index_core::Store]@Idx_FamilyProvider
+      )
+   }
+
+   index_core::IdxIndexInFamily: Relational
+   {
+      AssociationMapping
+      (
+         family[idxIndex, idxIndexFamily]: [index_core::Store]@Idx_IndexFamily,
+         indices[idxIndexFamily, idxIndex]: [index_core::Store]@Idx_IndexFamily
+      )
+   }
+
+   index_core::IdxIndexRebalance: Relational
+   {
+      AssociationMapping
+      (
+         index[idxRebalance, idxIndex]: [index_core::Store]@Idx_IndexRebalance,
+         rebalances[idxIndex, idxRebalance]: [index_core::Store]@Idx_IndexRebalance
+      )
+   }
+
+   index_core::IdxRebalanceConstituent: Relational
+   {
+      AssociationMapping
+      (
+         rebalance[idxConstituent, idxRebalance]: [index_core::Store]@Idx_RebalanceConstituent,
+         constituents[idxRebalance, idxConstituent]: [index_core::Store]@Idx_RebalanceConstituent
+      )
+   }
+
+   index_core::IdxIndexEligibility: Relational
+   {
+      AssociationMapping
+      (
+         index[idxEligibilityRule, idxIndex]: [index_core::Store]@Idx_IndexRule,
+         eligibilityRules[idxIndex, idxEligibilityRule]: [index_core::Store]@Idx_IndexRule
+      )
+   }
+
+   index_core::IdxIndexCap: Relational
+   {
+      AssociationMapping
+      (
+         index[idxWeightCap, idxIndex]: [index_core::Store]@Idx_IndexCap,
+         weightCaps[idxIndex, idxWeightCap]: [index_core::Store]@Idx_IndexCap
+      )
+   }
+
+   index_core::IdxIndexLevelHistory: Relational
+   {
+      AssociationMapping
+      (
+         index[idxIndexLevel, idxIndex]: [index_core::Store]@Idx_IndexLevel,
+         levels[idxIndex, idxIndexLevel]: [index_core::Store]@Idx_IndexLevel
+      )
+   }
+
+   index_core::IdxFundBenchmark: Relational
+   {
+      AssociationMapping
+      (
+         index[idxTrackingFund, idxIndex]: [index_core::Store]@Idx_IndexFund,
+         trackingFunds[idxIndex, idxTrackingFund]: [index_core::Store]@Idx_IndexFund
+      )
+   }
+
+   index_core::IdxFundHoldingLine: Relational
+   {
+      AssociationMapping
+      (
+         fund[idxFundHolding, idxTrackingFund]: [index_core::Store]@Idx_FundHolding,
+         holdings[idxTrackingFund, idxFundHolding]: [index_core::Store]@Idx_FundHolding
+      )
+   }
+
+   // The aggregation, navigable from the review it aggregates.
+   index_core::IdxRebalanceRegionWeight: Relational
+   {
+      AssociationMapping
+      (
+         rebalance[idxRegionWeight, idxRebalance]: [index_core::Store]@Idx_RebalanceRegionWeight,
+         regionWeights[idxRebalance, idxRegionWeight]: [index_core::Store]@Idx_RebalanceRegionWeight
+      )
+   }
+
+   index_core::IdxRebalanceCountryWeight: Relational
+   {
+      AssociationMapping
+      (
+         rebalance[idxCountryWeight, idxRebalance]: [index_core::Store]@Idx_RebalanceCountryWeight,
+         countryWeights[idxRebalance, idxCountryWeight]: [index_core::Store]@Idx_RebalanceCountryWeight
+      )
+   }
+
+   // ---- associations, crossing ------------------------------------------------------------------
+   // The four ends that leave the project. Each names an upstream set id -- [ciBase] and
+   // [cgCountry] -- which is why both dependency mappings are included at the top of this
+   // file, and each uses a join declared in index_core::Store, which is why that store
+   // includes both dependency stores. Either omission fails with a message that names the
+   // set id or the table and not the cause.
+   index_core::IdxConstituentInstrument: Relational
+   {
+      AssociationMapping
+      (
+         instrument[idxConstituent, ciBase]: [index_core::Store]@Idx_ConstituentInstrument,
+         indexMemberships[ciBase, idxConstituent]: [index_core::Store]@Idx_ConstituentInstrument
+      )
+   }
+
+   index_core::IdxFundHoldingInstrument: Relational
+   {
+      AssociationMapping
+      (
+         instrument[idxFundHolding, ciBase]: [index_core::Store]@Idx_HoldingInstrument,
+         fundHoldings[ciBase, idxFundHolding]: [index_core::Store]@Idx_HoldingInstrument
+      )
+   }
+
+   index_core::IdxConstituentIssuerCountry: Relational
+   {
+      AssociationMapping
+      (
+         issuerCountry[idxConstituent, cgCountry]: [index_core::Store]@Idx_ConstituentCountry,
+         issuedConstituents[cgCountry, idxConstituent]: [index_core::Store]@Idx_ConstituentCountry
+      )
+   }
+
+   index_core::IdxCountryWeightCountry: Relational
+   {
+      AssociationMapping
+      (
+         country[idxCountryWeight, cgCountry]: [index_core::Store]@Idx_CountryWeightCountry,
+         indexCountryWeights[cgCountry, idxCountryWeight]: [index_core::Store]@Idx_CountryWeightCountry
+      )
+   }
+)

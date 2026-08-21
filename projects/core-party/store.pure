@@ -1,0 +1,186 @@
+###Relational
+// The party master's tables. Layer 0: no `include`, nothing outside CP_.
+//
+// Eight of the thirteen tables carry a multi-column PRIMARY KEY, and they are the eight
+// where a surrogate id would have been a lie about the grain. CP_ENTITY_IDENTIFIER is
+// the one that matters: (ENTITY_ID, SCHEME_CODE), because an entity holds one identifier
+// per scheme and several identifiers overall.
+//
+// Every join name is Cp_ prefixed and every table CP_ prefixed, since neither namespace is
+// per-project in Legend.
+Database core_party::Store
+(
+   Table CP_LEGAL_ENTITY
+   (
+      ENTITY_ID VARCHAR(40) PRIMARY KEY,
+      LEGAL_NAME VARCHAR(200) NOT NULL,
+      ENTITY_CATEGORY VARCHAR(32),
+      INCORPORATION_DATE DATE,
+      DISSOLUTION_DATE DATE,
+      IS_ACTIVE BIT,
+      IS_BRANCH BIT,
+      // The two columns the legal form is reached by. Both, because one is not enough.
+      JURISDICTION_CODE VARCHAR(8),
+      FORM_CODE VARCHAR(16)
+   )
+
+   Table CP_JURISDICTION
+   (
+      JURISDICTION_CODE VARCHAR(8) PRIMARY KEY,
+      JURISDICTION_NAME VARCHAR(120) NOT NULL,
+      SOVEREIGN_CODE VARCHAR(3),
+      COMPANY_REGISTER_NAME VARCHAR(120),
+      IS_OFFSHORE_CENTRE BIT
+   )
+
+   // COMPOSITE KEY. A form code is unique within a legal system and nowhere wider:
+   // ('FR','SA') and ('ES','SA') are different instruments with the same code.
+   Table CP_LEGAL_FORM
+   (
+      JURISDICTION_CODE VARCHAR(8) PRIMARY KEY,
+      FORM_CODE VARCHAR(16) PRIMARY KEY,
+      FORM_NAME VARCHAR(120) NOT NULL,
+      HAS_LIMITED_LIABILITY BIT,
+      CAN_BE_LISTED BIT
+   )
+
+   Table CP_REGISTRATION_AUTHORITY
+   (
+      AUTHORITY_ID VARCHAR(24) PRIMARY KEY,
+      AUTHORITY_NAME VARCHAR(160) NOT NULL,
+      JURISDICTION_CODE VARCHAR(8),
+      AUTHORITY_KIND VARCHAR(32),
+      REGISTER_URL VARCHAR(200)
+   )
+
+   Table CP_IDENTIFIER_SCHEME
+   (
+      SCHEME_CODE VARCHAR(16) PRIMARY KEY,
+      SCHEME_NAME VARCHAR(120) NOT NULL,
+      ISSUING_BODY VARCHAR(120),
+      IS_GLOBAL BIT,
+      IS_UNIQUE_PER_ENTITY BIT,
+      EXPECTED_LENGTH INTEGER,
+      CHECKSUM_RULE VARCHAR(40)
+   )
+
+   // THE COMPOSITE KEY this project exists to carry.
+   //
+   // Neither half is droppable. ENTITY_ID alone holds one identifier per entity, which is
+   // the bug -- an entity has an LEI and a BIC and four tax numbers. SCHEME_CODE alone is
+   // the scheme's whole population. IDENTIFIER_VALUE is not a candidate key either: it is
+   // restated when an LEI is re-issued, and it collides across schemes.
+   Table CP_ENTITY_IDENTIFIER
+   (
+      ENTITY_ID VARCHAR(40) PRIMARY KEY,
+      SCHEME_CODE VARCHAR(16) PRIMARY KEY,
+      IDENTIFIER_VALUE VARCHAR(64) NOT NULL,
+      STATUS VARCHAR(16),
+      IS_PREFERRED BIT,
+      ISSUED_DATE DATE,
+      LAST_VERIFIED_DATE DATE,
+      SUPERSEDED_VALUE VARCHAR(64)
+   )
+
+   Table CP_ENTITY_NAME
+   (
+      ENTITY_ID VARCHAR(40) PRIMARY KEY,
+      NAME_TYPE VARCHAR(24) PRIMARY KEY,
+      NAME_VALUE VARCHAR(200) NOT NULL,
+      LANGUAGE_CODE VARCHAR(8),
+      VALID_FROM DATE
+   )
+
+   Table CP_ENTITY_ADDRESS
+   (
+      ENTITY_ID VARCHAR(40) PRIMARY KEY,
+      ADDRESS_TYPE VARCHAR(24) PRIMARY KEY,
+      ADDRESS_LINE VARCHAR(240) NOT NULL,
+      CITY VARCHAR(80),
+      POSTAL_CODE VARCHAR(24),
+      COUNTRY_CODE VARCHAR(3)
+   )
+
+   Table CP_ENTITY_REGISTRATION
+   (
+      ENTITY_ID VARCHAR(40) PRIMARY KEY,
+      AUTHORITY_ID VARCHAR(24) PRIMARY KEY,
+      REGISTRATION_NUMBER VARCHAR(64) NOT NULL,
+      REGISTRATION_STATUS VARCHAR(24),
+      REGISTERED_ON DATE,
+      LAST_FILING_DATE DATE
+   )
+
+   // Three columns, because the same shareholding is read more than one way and each
+   // reading is a row: direct parent, ultimate parent, branch-of.
+   Table CP_ENTITY_RELATIONSHIP
+   (
+      PARENT_ENTITY_ID VARCHAR(40) PRIMARY KEY,
+      CHILD_ENTITY_ID VARCHAR(40) PRIMARY KEY,
+      RELATIONSHIP_TYPE VARCHAR(24) PRIMARY KEY,
+      OWNERSHIP_PERCENTAGE DOUBLE,
+      IS_CONSOLIDATED BIT,
+      ACCOUNTING_STANDARD VARCHAR(16),
+      START_DATE DATE,
+      END_DATE DATE
+   )
+
+   Table CP_ENTITY_GROUP
+   (
+      GROUP_ID VARCHAR(32) PRIMARY KEY,
+      GROUP_NAME VARCHAR(160) NOT NULL,
+      GROUP_TYPE VARCHAR(32),
+      HEAD_ENTITY_ID VARCHAR(40),
+      AS_OF_DATE DATE
+   )
+
+   Table CP_GROUP_MEMBERSHIP
+   (
+      GROUP_ID VARCHAR(32) PRIMARY KEY,
+      ENTITY_ID VARCHAR(40) PRIMARY KEY,
+      MEMBER_ROLE VARCHAR(24),
+      IS_FULLY_CONSOLIDATED BIT,
+      INCLUDED_FROM DATE
+   )
+
+   Table CP_ENTITY_CLASSIFICATION
+   (
+      ENTITY_ID VARCHAR(40) PRIMARY KEY,
+      TAXONOMY_CODE VARCHAR(16) PRIMARY KEY,
+      CLASSIFICATION_CODE VARCHAR(32) NOT NULL,
+      CLASSIFICATION_LABEL VARCHAR(160),
+      IS_PRIMARY BIT,
+      ASSIGNED_DATE DATE,
+      ASSIGNED_BY VARCHAR(80)
+   )
+
+   // Both halves of the identifier key, each navigable on its own.
+   Join Cp_Entity_Identifier(CP_LEGAL_ENTITY.ENTITY_ID = CP_ENTITY_IDENTIFIER.ENTITY_ID)
+   Join Cp_Scheme_Identifier(CP_IDENTIFIER_SCHEME.SCHEME_CODE = CP_ENTITY_IDENTIFIER.SCHEME_CODE)
+
+   Join Cp_Entity_Name(CP_LEGAL_ENTITY.ENTITY_ID = CP_ENTITY_NAME.ENTITY_ID)
+   Join Cp_Entity_Address(CP_LEGAL_ENTITY.ENTITY_ID = CP_ENTITY_ADDRESS.ENTITY_ID)
+   Join Cp_Entity_Classification(CP_LEGAL_ENTITY.ENTITY_ID = CP_ENTITY_CLASSIFICATION.ENTITY_ID)
+   Join Cp_Entity_Registration(CP_LEGAL_ENTITY.ENTITY_ID = CP_ENTITY_REGISTRATION.ENTITY_ID)
+   Join Cp_Authority_Registration(CP_REGISTRATION_AUTHORITY.AUTHORITY_ID = CP_ENTITY_REGISTRATION.AUTHORITY_ID)
+
+   // The hierarchy, reached twice from the same table by different columns. Two joins and
+   // not one: an entity is the parent on some edges and the child on others, and the
+   // direction is which COLUMN the entity id matches, not a flag on the row.
+   Join Cp_Parent_Relationship(CP_LEGAL_ENTITY.ENTITY_ID = CP_ENTITY_RELATIONSHIP.PARENT_ENTITY_ID)
+   Join Cp_Child_Relationship(CP_LEGAL_ENTITY.ENTITY_ID = CP_ENTITY_RELATIONSHIP.CHILD_ENTITY_ID)
+
+   Join Cp_Group_Membership(CP_ENTITY_GROUP.GROUP_ID = CP_GROUP_MEMBERSHIP.GROUP_ID)
+   Join Cp_Entity_Membership(CP_LEGAL_ENTITY.ENTITY_ID = CP_GROUP_MEMBERSHIP.ENTITY_ID)
+
+   Join Cp_Entity_Jurisdiction(CP_LEGAL_ENTITY.JURISDICTION_CODE = CP_JURISDICTION.JURISDICTION_CODE)
+   Join Cp_Jurisdiction_LegalForm(CP_JURISDICTION.JURISDICTION_CODE = CP_LEGAL_FORM.JURISDICTION_CODE)
+   Join Cp_Jurisdiction_Authority(CP_JURISDICTION.JURISDICTION_CODE = CP_REGISTRATION_AUTHORITY.JURISDICTION_CODE)
+
+   // TWO columns, because CP_LEGAL_FORM's key is two columns. Matching on FORM_CODE alone
+   // returns every jurisdiction's form of that name.
+   Join Cp_Entity_LegalForm(CP_LEGAL_ENTITY.JURISDICTION_CODE = CP_LEGAL_FORM.JURISDICTION_CODE and CP_LEGAL_ENTITY.FORM_CODE = CP_LEGAL_FORM.FORM_CODE)
+
+   // Entities that legally still exist. Declared for downstream use; nothing here needs a narrowed set.
+   Filter CpActiveEntities(CP_LEGAL_ENTITY.DISSOLUTION_DATE is null)
+)

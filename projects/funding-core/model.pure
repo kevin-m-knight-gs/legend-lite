@@ -1,0 +1,225 @@
+###Pure
+
+// funding-core -- L1, depends on core-account and core-tenor.
+//
+// Internal funds transfer pricing. Treasury publishes a funding curve: a transfer rate per
+// tenor bucket, which is what a business unit is charged for term money and credited for term
+// deposits. Two facts about that shape everything here.
+//
+// FIRST, a curve is not a fact, it is a fact WITH A DATE. Treasury re-cuts the curve -- daily
+// at the short end, on committee days at the long end -- and last month's charge has to be
+// reproducible next year when someone disputes it. So `FndCurveVersion` carries the
+// <<temporal.businesstemporal>> stereotype and `all()` on it takes a date:
+// funding_core::FndCurveVersion.all(%2024-03-31). There are deliberately NO from/thru
+// properties on it; the milestoning columns live on FND_CURVE_MS and the engine supplies the
+// predicate.
+//
+// SECOND, a cashflow does not know which bucket it is in. It knows its days to maturity, and
+// which bucket that lands in is a property of the number, not of the cashflow. So the store
+// resolves it with a RANGE join on the half-open interval [MIN_DAYS, MAX_DAYS) -- once
+// against this project's own FND_CURVE_POINT, to reach the priced point, and once across the
+// project boundary against core_tenor's CTN_BUCKET, to reach the standard band.
+
+// FOR: naming the treasury unit that owns a curve. Curves are cut per desk as well as per
+// currency -- the money-market desk and the term funding desk publish different numbers for
+// the same currency -- so ownership is a first-class row, not a string on the curve.
+Class funding_core::FndFundingDesk
+{
+  deskId: String[1];
+  deskName: String[1];
+  legalEntityCode: String[0..1];
+  regionCode: String[0..1];
+  isActive: Boolean[0..1];
+}
+
+// FOR: the external index a curve is quoted as a spread to -- SOFR, ESTR, SONIA, TONA. A
+// transfer rate is only interpretable once you know what it is a spread over and what its
+// compounding convention is.
+Class funding_core::FndBenchmarkIndex
+{
+  indexCode: String[1];
+  indexName: String[1];
+  currencyCode: String[1];
+  compounding: String[0..1];
+  dayCountConvention: String[0..1];
+}
+
+// FOR: the STABLE identity of a funding curve -- the thing `curveId` names, which outlives
+// every re-cut of it. This row does not change when treasury moves the numbers; that is what
+// FndCurveVersion is for. Keeping the identity separate from the history is what lets a
+// cashflow hold a plain CURVE_ID and still be priced against whatever version was in force.
+Class funding_core::FndCurveDefinition
+{
+  curveId: String[1];
+  curveName: String[1];
+  currencyCode: String[1];
+  curveType: String[0..1];
+  ladderId: String[0..1];
+  desk: funding_core::FndFundingDesk[0..1];
+  benchmark: funding_core::FndBenchmarkIndex[0..1];
+  points: funding_core::FndCurvePoint[*];
+}
+
+// FOR: what the curve SAID between two dates -- the versioned body of the definition above.
+// This is the milestoned class: `all(%2024-03-31)` returns the cut that was in force on that
+// day, `all(%latest)` the current one.
+//
+// There are no from/thru properties on purpose. FROM_Z and THRU_Z exist on FND_CURVE_MS and
+// in the mapping's ~primaryKey and nowhere else; exposing them here would let a query filter
+// on them by hand and quietly bypass the mechanism the class exists to provide.
+Class <<temporal.businesstemporal>> funding_core::FndCurveVersion
+{
+  curveId: String[1];
+  curveName: String[0..1];
+  currencyCode: String[0..1];
+  methodology: String[0..1];
+  benchmarkCode: String[0..1];
+  baseRateBps: Integer[0..1];
+  status: String[0..1];
+  approvedBy: String[0..1];
+}
+
+// FOR: one tenor bucket's transfer price on one curve -- the actual number a business unit is
+// charged. This is the right-hand side of the RANGE join: it carries the two day bounds and
+// a rate, and a cashflow finds it by falling inside [minDays, maxDays).
+//
+// It also carries bucketId, so the same point is reachable by KEY from core_tenor's standard
+// bucket table. Both routes exist on purpose: the range one is how pricing works, the key one
+// is how reporting rolls up.
+Class funding_core::FndCurvePoint
+{
+  curveId: String[1];
+  pointSeq: Integer[1];
+  bucketId: String[0..1];
+  minDays: Integer[1];
+  maxDays: Integer[1];
+  transferRateBps: Integer[1];
+  liquiditySpreadBps: Integer[0..1];
+  curve: funding_core::FndCurveDefinition[0..1];
+  bucket: core_tenor::CtnTenorBucket[0..1];
+  cashflows: funding_core::FndCashflow[*];
+
+  // How wide this point's interval is, which is the only arithmetic two bounds support alone.
+  spanDays() { $this.maxDays - $this.minDays } : Integer[1];
+
+  // Bps back to a decimal rate. Float[1] and not Integer[1]: `/` widens even when both
+  // operands are Integer.
+  transferRate() { $this.transferRateBps / 10000.0 } : Float[1];
+}
+
+// FOR: the add-on charged for holding a bucket open -- the term liquidity premium, which is
+// set per curve and per bucket independently of the base transfer rate because it is governed
+// by a different committee. Keyed by (curveId, bucketId, fundingClass).
+Class funding_core::FndLiquidityPremium
+{
+  curveId: String[1];
+  bucketId: String[1];
+  fundingClass: String[1];
+  premiumBps: Integer[0..1];
+  haircutPct: Float[0..1];
+  bucket: core_tenor::CtnTenorBucket[0..1];
+}
+
+// FOR: the thing being priced -- a dated funding cashflow on an account. It carries
+// daysToMaturity and NO bucket id and NO point id, because there is none to carry: both
+// `point` and `bucket` are resolved by range joins, and both are [0..1] because the
+// intervals do not overlap.
+Class funding_core::FndCashflow
+{
+  cashflowId: String[1];
+  institutionId: String[0..1];
+  accountNo: String[0..1];
+  curveId: String[0..1];
+  flowType: String[0..1];
+  valueDate: Date[0..1];
+  maturityDate: Date[0..1];
+  daysToMaturity: Integer[1];
+  notional: Float[0..1];
+  currencyCode: String[0..1];
+  account: core_account::Account[0..1];
+  curve: funding_core::FndCurveDefinition[0..1];
+  point: funding_core::FndCurvePoint[0..1];
+  bucket: core_tenor::CtnTenorBucket[0..1];
+}
+
+// FOR: the priced outcome -- the rate that was actually applied to a cashflow, and the date
+// whose curve version supplied it. This row is why the milestoning matters: `pricedAsOf` is
+// the argument someone will pass to FndCurveVersion.all(...) to reproduce the charge.
+Class funding_core::FndTransferPrice
+{
+  priceId: String[1];
+  cashflowId: String[0..1];
+  curveId: String[0..1];
+  pricedAsOf: Date[0..1];
+  appliedRateBps: Integer[0..1];
+  premiumBps: Integer[0..1];
+  chargeAmount: Float[0..1];
+  cashflow: funding_core::FndCashflow[0..1];
+
+  // The all-in rate as a decimal: base plus premium, both held in basis points.
+  allInRate() { ($this.appliedRateBps->toOne() + $this.premiumBps->toOne()) / 10000.0 } : Float[1];
+}
+
+// FOR: a business unit asking treasury for term money -- the demand side, before any of it is
+// priced. Reaches core_account::Account by the composite key that project insists on.
+Class funding_core::FndFundingRequest
+{
+  requestId: String[1];
+  institutionId: String[0..1];
+  accountNo: String[0..1];
+  deskId: String[0..1];
+  requestedOn: Date[0..1];
+  tenorDays: Integer[0..1];
+  requestedAmount: Float[0..1];
+  currencyCode: String[0..1];
+  status: String[0..1];
+  account: core_account::Account[0..1];
+  desk: funding_core::FndFundingDesk[0..1];
+}
+
+// FOR: which curve an account is priced off, and on what terms. An account does not get to
+// choose its curve per trade; the assignment is standing data, keyed by the account's
+// composite key so there is exactly one profile per account.
+Class funding_core::FndAccountFundingProfile
+{
+  institutionId: String[1];
+  accountNo: String[1];
+  curveId: String[0..1];
+  fundingClass: String[0..1];
+  effectiveFrom: Date[0..1];
+  isExempt: Boolean[0..1];
+  account: core_account::Account[0..1];
+  curve: funding_core::FndCurveDefinition[0..1];
+}
+
+// FOR: the treasury sign-off that explains WHY the milestoned history has a boundary on a
+// given day. FND_CURVE_MS says the curve changed; this says who moved it, at what meeting,
+// and under which mandate. Kept off the milestoned table on purpose -- an approval is an
+// event with one date, not a state with a span.
+Class funding_core::FndCurveApproval
+{
+  approvalId: String[1];
+  curveId: String[0..1];
+  approvedOn: Date[0..1];
+  approvedBy: String[0..1];
+  committee: String[0..1];
+  changeReason: String[0..1];
+  curve: funding_core::FndCurveDefinition[0..1];
+  desk: funding_core::FndFundingDesk[0..1];
+}
+
+// FOR: the per-bucket rollup a funding gap report is made of -- how much notional sits in
+// each band on a given day, and what it costs. Unlike FndCashflow this one DOES carry a
+// bucket id, so the graph holds both the ranged and the keyed route to the same bucket class.
+Class funding_core::FndBucketRollup
+{
+  rollupId: String[1];
+  curveId: String[0..1];
+  bucketId: String[0..1];
+  asOfDate: Date[0..1];
+  cashflowCount: Integer[0..1];
+  totalNotional: Float[0..1];
+  weightedRateBps: Integer[0..1];
+  bucket: core_tenor::CtnTenorBucket[0..1];
+  curve: funding_core::FndCurveDefinition[0..1];
+}

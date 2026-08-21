@@ -1,0 +1,332 @@
+###Pure
+// core-party -- legal entities, the identifiers they are known by, and how they own each
+// other.
+//
+// The shape worth stating once, because every class below is a consequence of it: a legal
+// entity has no single identifier. It has an LEI from GLEIF, a BIC from SWIFT, a tax number
+// from each revenue authority it files with, and an internal number from whichever system
+// onboarded it first. None of those is THE key, and any model that picks one of them as the
+// key is a model that cannot record the second one. So identity here is always a pair --
+// the entity, and the SCHEME the identifier was issued under -- and the composite primary
+// key on CP_ENTITY_IDENTIFIER is that fact spelled in SQL rather than a normalisation trick.
+//
+// Layer 0: this project refers to nothing outside core_party::.
+
+// The registered legal person: the thing that signs, owns and is sued.
+//
+// Deliberately NOT the counterparty, the client or the trading book -- those are roles a
+// legal entity plays, they belong to whoever is modelling that role, and folding them in
+// here is how a party master becomes unmaintainable. A dissolved entity stays in the table
+// forever, because contracts it signed outlive it.
+Class core_party::LegalEntity
+{
+   entityId: String[1];
+   // The name on the incorporation certificate. Every other spelling -- transliterated,
+   // trading, former -- lives in EntityName, because there can be many and this is the one
+   // a court would recognise.
+   legalName: String[1];
+   entityCategory: String[1];
+   incorporationDate: StrictDate[0..1];
+   dissolutionDate: StrictDate[0..1];
+   isActive: Boolean[1];
+   isBranch: Boolean[1];
+
+   // Dissolution is recorded by a date, not by clearing isActive: an entity can be inactive
+   // for onboarding purposes and still legally exist.
+   isDissolved() { $this.dissolutionDate->isNotEmpty() } : Boolean[1];
+}
+
+// The legal system an entity is incorporated under, which is what decides its available
+// legal forms, its register and its filing obligations.
+//
+// Coarser than a country on purpose: Delaware and Jersey are the entries that matter, and
+// both are subdivisions rather than sovereign states, so the code is not an ISO country
+// code even where it happens to look like one.
+Class core_party::Jurisdiction
+{
+   jurisdictionCode: String[1];
+   jurisdictionName: String[1];
+   sovereignCode: String[1];
+   companyRegisterName: String[0..1];
+   isOffshoreCentre: Boolean[1];
+}
+
+// A form of incorporation -- GmbH, Ltd, Inc, KK -- and what it implies about liability.
+//
+// Keyed by jurisdiction as well as by code, because form codes are only unique inside a
+// legal system: "SA" is a societe anonyme in France and a sociedad anonima in Spain, and
+// they are not the same instrument.
+Class core_party::LegalForm
+{
+   jurisdictionCode: String[1];
+   formCode: String[1];
+   formName: String[1];
+   hasLimitedLiability: Boolean[1];
+   canBeListed: Boolean[1];
+}
+
+// A company register, tax office or regulator that an entity is on the books of.
+//
+// This is the body, not the identifier it hands out -- Companies House is the authority,
+// the company number is the identifier, and separating them is what lets one entity hold
+// registrations in six countries without six columns.
+Class core_party::RegistrationAuthority
+{
+   authorityId: String[1];
+   authorityName: String[1];
+   jurisdictionCode: String[1];
+   authorityKind: String[1];
+   registerUrl: String[0..1];
+}
+
+// A namespace that identifiers are issued in, and the rules for reading one.
+//
+// The scheme is what makes an identifier comparable: two strings are the same identifier
+// only if they came from the same scheme, so this class is half of every key in the
+// project. isUniquePerEntity is the flag that matters -- an entity has one LEI but many
+// tax numbers, and the composite key permits both because it constrains neither.
+Class core_party::IdentifierScheme
+{
+   schemeCode: String[1];
+   schemeName: String[1];
+   issuingBody: String[0..1];
+   isGlobal: Boolean[1];
+   isUniquePerEntity: Boolean[1];
+   expectedLength: Integer[0..1];
+   checksumRule: String[0..1];
+}
+
+// One identifier an entity is known by, in one scheme. The composite-key class.
+//
+// (entityId, schemeCode) and nothing shorter: entityId alone loses every identifier but
+// one, and identifierValue alone collides across schemes -- a BIC and a local tax number
+// can be the same eight characters. The value is NOT the key precisely because it changes:
+// an LEI is re-issued, a tax number is superseded, and the row survives both.
+Class core_party::EntityIdentifier
+{
+   entityId: String[1];
+   schemeCode: String[1];
+   identifierValue: String[1];
+   status: String[1];
+   isPreferred: Boolean[1];
+   issuedDate: StrictDate[0..1];
+   lastVerifiedDate: StrictDate[0..1];
+   supersededValue: String[0..1];
+}
+
+// A name the entity is written as, other than in one canonical spelling.
+//
+// Keyed by (entity, nameType) because the interesting question is always "what is its
+// trading name" rather than "list its names": one slot per type, and a rename overwrites
+// rather than appends.
+Class core_party::EntityName
+{
+   entityId: String[1];
+   nameType: String[1];
+   nameValue: String[1];
+   languageCode: String[0..1];
+   validFrom: StrictDate[0..1];
+}
+
+// A postal address the entity holds in one capacity.
+//
+// The registered address is a legal fact -- it is where service of process lands -- and is
+// frequently a law firm rather than anywhere the business sits, which is why it must not be
+// collapsed with the headquarters address.
+Class core_party::EntityAddress
+{
+   entityId: String[1];
+   addressType: String[1];
+   addressLine: String[1];
+   city: String[0..1];
+   postalCode: String[0..1];
+   countryCode: String[1];
+}
+
+// The entity's standing on one authority's register.
+//
+// Keyed by (entity, authority): a company is on its home register once, and a branch is on
+// the host register too, so the same entity legitimately holds several registration numbers
+// that are all current at once.
+Class core_party::EntityRegistration
+{
+   entityId: String[1];
+   authorityId: String[1];
+   registrationNumber: String[1];
+   registrationStatus: String[1];
+   registeredOn: StrictDate[0..1];
+   lastFilingDate: StrictDate[0..1];
+}
+
+// One edge of the ownership graph: who owns whom, how much, and under what reading.
+//
+// Type is part of the key, not a detail on it. The same pair of entities is simultaneously
+// a direct-parent edge and an ultimate-parent edge when there is nothing in between, and
+// the accounting and regulatory readings of the same shareholding routinely disagree -- so
+// (parent, child, type) is the grain, and dropping type silently merges answers that were
+// never the same answer.
+Class core_party::EntityRelationship
+{
+   parentEntityId: String[1];
+   childEntityId: String[1];
+   relationshipType: String[1];
+   ownershipPercentage: Float[0..1];
+   isConsolidated: Boolean[1];
+   accountingStandard: String[0..1];
+   startDate: StrictDate[0..1];
+   endDate: StrictDate[0..1];
+
+   // An edge with no end date is still in force. Ownership history is kept, so the absence
+   // of the end date is the live-ness test rather than the row's presence.
+   isCurrent() { $this.endDate->isEmpty() } : Boolean[1];
+}
+
+// A set of entities treated as one for some purpose -- consolidation, credit, reporting.
+//
+// A group is not the top of the ownership tree. It is a decision about which subset of the
+// tree gets aggregated, and different functions draw the line in different places over the
+// same shareholdings, so groups are enumerated rather than derived from relationships.
+Class core_party::EntityGroup
+{
+   groupId: String[1];
+   groupName: String[1];
+   groupType: String[1];
+   headEntityId: String[0..1];
+   asOfDate: StrictDate[0..1];
+}
+
+// One entity's place in one group.
+//
+// Keyed by (group, entity): the same entity sits in an accounting group and a credit group
+// with different roles and different consolidation treatment, and neither key half is
+// droppable.
+Class core_party::GroupMembership
+{
+   groupId: String[1];
+   entityId: String[1];
+   memberRole: String[1];
+   isFullyConsolidated: Boolean[1];
+   includedFrom: StrictDate[0..1];
+}
+
+// What an entity does, according to one taxonomy.
+//
+// Keyed by (entity, taxonomy) because NACE, SIC and the MiFID counterparty categories
+// answer different questions and are maintained by different people; the reconciliation
+// between them is a downstream problem and is not attempted here.
+Class core_party::EntityClassification
+{
+   entityId: String[1];
+   taxonomyCode: String[1];
+   classificationCode: String[1];
+   classificationLabel: String[0..1];
+   isPrimary: Boolean[1];
+   assignedDate: StrictDate[0..1];
+   assignedBy: String[0..1];
+}
+
+
+// ---------------------------------------------------------------- associations
+// Navigation, not containment. Every end below is reachable by a join on the store, so a
+// downstream project can walk entity -> identifier -> scheme without repeating the keys.
+
+// An entity to everything it is called in a scheme. The to-many end is the point: any
+// model where this is [0..1] has already lost an identifier.
+Association core_party::EntityIdentifiers
+{
+   identifiedEntity: core_party::LegalEntity[1];
+   identifiers: core_party::EntityIdentifier[*];
+}
+
+// The other half of the composite key, navigable. "Every LEI we hold" is a scheme-side
+// question, and it is asked more often than the entity-side one.
+Association core_party::SchemeIdentifiers
+{
+   scheme: core_party::IdentifierScheme[1];
+   issuedIdentifiers: core_party::EntityIdentifier[*];
+}
+
+Association core_party::EntityNames
+{
+   namedEntity: core_party::LegalEntity[1];
+   names: core_party::EntityName[*];
+}
+
+Association core_party::EntityAddresses
+{
+   addressedEntity: core_party::LegalEntity[1];
+   addresses: core_party::EntityAddress[*];
+}
+
+Association core_party::EntityClassifications
+{
+   classifiedEntity: core_party::LegalEntity[1];
+   classifications: core_party::EntityClassification[*];
+}
+
+Association core_party::EntityRegistrations
+{
+   registeredEntity: core_party::LegalEntity[1];
+   registrations: core_party::EntityRegistration[*];
+}
+
+Association core_party::AuthorityRegistrations
+{
+   authority: core_party::RegistrationAuthority[1];
+   authorityRegistrations: core_party::EntityRegistration[*];
+}
+
+// The downward half of the hierarchy: an entity to the edges where it is the PARENT.
+// Separate from the upward half because the same table is reached by a different column,
+// and one association cannot be two joins.
+Association core_party::ParentEdges
+{
+   parentEntity: core_party::LegalEntity[1];
+   subsidiaryEdges: core_party::EntityRelationship[*];
+}
+
+// The upward half. To-many, not [0..1]: an entity has one direct parent but several
+// ultimate parents once regulatory and accounting readings are both recorded.
+Association core_party::ChildEdges
+{
+   childEntity: core_party::LegalEntity[1];
+   parentEdges: core_party::EntityRelationship[*];
+}
+
+Association core_party::GroupMemberships
+{
+   group: core_party::EntityGroup[1];
+   memberships: core_party::GroupMembership[*];
+}
+
+Association core_party::EntityMemberships
+{
+   memberEntity: core_party::LegalEntity[1];
+   entityMemberships: core_party::GroupMembership[*];
+}
+
+Association core_party::EntityIncorporation
+{
+   jurisdiction: core_party::Jurisdiction[0..1];
+   incorporatedEntities: core_party::LegalEntity[*];
+}
+
+// Reached by a TWO-column join, since a legal form is only identified with its
+// jurisdiction. The join is where that composite key stops being a comment.
+Association core_party::EntityForm
+{
+   legalForm: core_party::LegalForm[0..1];
+   entitiesOfForm: core_party::LegalEntity[*];
+}
+
+Association core_party::JurisdictionForms
+{
+   formJurisdiction: core_party::Jurisdiction[1];
+   legalForms: core_party::LegalForm[*];
+}
+
+Association core_party::JurisdictionAuthorities
+{
+   authorityJurisdiction: core_party::Jurisdiction[1];
+   authorities: core_party::RegistrationAuthority[*];
+}

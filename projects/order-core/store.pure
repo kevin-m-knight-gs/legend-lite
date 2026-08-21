@@ -1,0 +1,183 @@
+###Relational
+// The order-core database. It INCLUDES the two upstream databases so that the joins from
+// ORD_ORDER out to CI_INSTRUMENT and CB_BOOK can be declared here, in the only database
+// that can see all three sets of tables.
+//
+// Tables are ORD_-prefixed, joins Ord_-prefixed and the filter Ord-prefixed, because set
+// ids, join names and filter names are GLOBAL namespaces in Legend.
+Database order_core::Store
+(
+   include core_instrument::Store
+   include core_book::Store
+
+   // The recursive table. PARENT_ORDER_ID points back into this same table's ORDER_ID and
+   // is nullable, because a client order has no parent -- only the slices do.
+   Table ORD_ORDER
+   (
+      ORDER_ID VARCHAR(64) PRIMARY KEY,
+      CLIENT_ORDER_ID VARCHAR(64),
+      PARENT_ORDER_ID VARCHAR(64),
+      ROOT_ORDER_ID VARCHAR(64),
+      INSTRUMENT_ID VARCHAR(64),
+      BOOK_ID VARCHAR(64),
+      TRADER_ID VARCHAR(64),
+      SOURCE_ID VARCHAR(64),
+      ALGORITHM_ID VARCHAR(64),
+      VENUE_ID VARCHAR(64),
+      SIDE VARCHAR(16) NOT NULL,
+      ORDER_TYPE VARCHAR(16) NOT NULL,
+      TIME_IN_FORCE VARCHAR(8) NOT NULL,
+      ORDER_STATE VARCHAR(24) NOT NULL,
+      CAPACITY VARCHAR(24),
+      QUANTITY INTEGER NOT NULL,
+      FILLED_QUANTITY INTEGER NOT NULL,
+      REMAINING_QUANTITY INTEGER NOT NULL,
+      LIMIT_PRICE DOUBLE,
+      STOP_PRICE DOUBLE,
+      PEG_OFFSET DOUBLE,
+      CURRENCY VARCHAR(16) NOT NULL,
+      SLICE_NUMBER INTEGER,
+      CREATED_AT TIMESTAMP NOT NULL,
+      LAST_UPDATED_AT TIMESTAMP,
+      EXPIRY_DATE DATE,
+      CANCEL_REASON VARCHAR(400)
+   )
+
+   Table ORD_EXECUTION
+   (
+      EXECUTION_ID VARCHAR(64) PRIMARY KEY,
+      ORDER_ID VARCHAR(64),
+      VENUE_ID VARCHAR(64),
+      VENUE_EXECUTION_REF VARCHAR(64),
+      EXECUTED_QUANTITY INTEGER NOT NULL,
+      EXECUTED_PRICE DOUBLE NOT NULL,
+      EXECUTED_AT TIMESTAMP NOT NULL,
+      LIQUIDITY_FLAG VARCHAR(16),
+      COMMISSION DOUBLE,
+      IS_BUSTED BIT NOT NULL
+   )
+
+   Table ORD_VENUE
+   (
+      VENUE_ID VARCHAR(64) PRIMARY KEY,
+      MIC VARCHAR(16) NOT NULL,
+      NAME VARCHAR(200) NOT NULL,
+      VENUE_TYPE VARCHAR(32) NOT NULL,
+      COUNTRY_CODE VARCHAR(8),
+      IS_LIT BIT NOT NULL,
+      IS_ACTIVE BIT NOT NULL
+   )
+
+   Table ORD_ROUTING_INSTRUCTION
+   (
+      ROUTING_ID VARCHAR(64) PRIMARY KEY,
+      ORDER_ID VARCHAR(64),
+      VENUE_ID VARCHAR(64),
+      SEQUENCE_NUMBER INTEGER NOT NULL,
+      STRATEGY_CODE VARCHAR(64) NOT NULL,
+      MIN_QUANTITY INTEGER,
+      MAX_PARTICIPATION_RATE DOUBLE,
+      IS_ACTIVE BIT NOT NULL
+   )
+
+   Table ORD_STATE_CHANGE
+   (
+      STATE_CHANGE_ID VARCHAR(64) PRIMARY KEY,
+      ORDER_ID VARCHAR(64),
+      FROM_STATE VARCHAR(24),
+      TO_STATE VARCHAR(24) NOT NULL,
+      CHANGED_AT TIMESTAMP NOT NULL,
+      REASON_CODE VARCHAR(64),
+      CHANGED_BY VARCHAR(200)
+   )
+
+   Table ORD_ALLOCATION
+   (
+      ALLOCATION_ID VARCHAR(64) PRIMARY KEY,
+      ORDER_ID VARCHAR(64),
+      ACCOUNT_REF VARCHAR(64) NOT NULL,
+      ALLOCATED_QUANTITY INTEGER NOT NULL,
+      AVERAGE_PRICE DOUBLE NOT NULL,
+      ALLOCATION_DATE DATE NOT NULL,
+      STATUS VARCHAR(32) NOT NULL
+   )
+
+   Table ORD_AMENDMENT
+   (
+      AMENDMENT_ID VARCHAR(64) PRIMARY KEY,
+      ORDER_ID VARCHAR(64),
+      AMENDMENT_TYPE VARCHAR(32) NOT NULL,
+      FIELD_NAME VARCHAR(64) NOT NULL,
+      OLD_VALUE VARCHAR(200),
+      NEW_VALUE VARCHAR(200),
+      REQUESTED_AT TIMESTAMP NOT NULL,
+      IS_ACCEPTED BIT NOT NULL
+   )
+
+   Table ORD_TRADER
+   (
+      TRADER_ID VARCHAR(64) PRIMARY KEY,
+      FIRST_NAME VARCHAR(100) NOT NULL,
+      LAST_NAME VARCHAR(100) NOT NULL,
+      DESK_CODE VARCHAR(64),
+      EMAIL VARCHAR(200),
+      IS_ACTIVE BIT NOT NULL
+   )
+
+   Table ORD_ORDER_SOURCE
+   (
+      SOURCE_ID VARCHAR(64) PRIMARY KEY,
+      CODE VARCHAR(64) NOT NULL,
+      NAME VARCHAR(200) NOT NULL,
+      CHANNEL VARCHAR(64) NOT NULL,
+      IS_ELECTRONIC BIT NOT NULL
+   )
+
+   Table ORD_ALGORITHM
+   (
+      ALGORITHM_ID VARCHAR(64) PRIMARY KEY,
+      CODE VARCHAR(64) NOT NULL,
+      NAME VARCHAR(200) NOT NULL,
+      VENDOR VARCHAR(200),
+      DEFAULT_PARTICIPATION_RATE DOUBLE,
+      IS_ACTIVE BIT NOT NULL
+   )
+
+   Table ORD_RESTRICTION
+   (
+      RESTRICTION_ID VARCHAR(64) PRIMARY KEY,
+      ORDER_ID VARCHAR(64),
+      RESTRICTION_TYPE VARCHAR(64) NOT NULL,
+      DESCRIPTION VARCHAR(400),
+      EFFECTIVE_DATE DATE NOT NULL,
+      EXPIRY_DATE DATE
+   )
+
+   // ---- The self-join ----
+   // Both sides are ORD_ORDER. {target} names the far side of the same table; without it
+   // the condition would compare a row's PARENT_ORDER_ID with its own ORDER_ID and match
+   // nothing. Must stay on ONE line -- a wrapped join condition is not parsed.
+   Join Ord_ParentOrder(ORD_ORDER.PARENT_ORDER_ID = {target}.ORDER_ID)
+
+   // ---- Cross-project joins, reachable because the two stores are included above ----
+   Join Ord_OrderInstrument(ORD_ORDER.INSTRUMENT_ID = CI_INSTRUMENT.INSTRUMENT_ID)
+   Join Ord_OrderBook(ORD_ORDER.BOOK_ID = CB_BOOK.BOOK_ID)
+
+   // ---- Ordinary joins inside order-core ----
+   Join Ord_OrderExecution(ORD_EXECUTION.ORDER_ID = ORD_ORDER.ORDER_ID)
+   Join Ord_ExecutionVenue(ORD_EXECUTION.VENUE_ID = ORD_VENUE.VENUE_ID)
+   Join Ord_OrderVenue(ORD_ORDER.VENUE_ID = ORD_VENUE.VENUE_ID)
+   Join Ord_OrderRouting(ORD_ROUTING_INSTRUCTION.ORDER_ID = ORD_ORDER.ORDER_ID)
+   Join Ord_RoutingVenue(ORD_ROUTING_INSTRUCTION.VENUE_ID = ORD_VENUE.VENUE_ID)
+   Join Ord_OrderStateChange(ORD_STATE_CHANGE.ORDER_ID = ORD_ORDER.ORDER_ID)
+   Join Ord_OrderAllocation(ORD_ALLOCATION.ORDER_ID = ORD_ORDER.ORDER_ID)
+   Join Ord_OrderAmendment(ORD_AMENDMENT.ORDER_ID = ORD_ORDER.ORDER_ID)
+   Join Ord_OrderTrader(ORD_ORDER.TRADER_ID = ORD_TRADER.TRADER_ID)
+   Join Ord_OrderSource(ORD_ORDER.SOURCE_ID = ORD_ORDER_SOURCE.SOURCE_ID)
+   Join Ord_OrderAlgorithm(ORD_ORDER.ALGORITHM_ID = ORD_ALGORITHM.ALGORITHM_ID)
+   Join Ord_OrderRestriction(ORD_RESTRICTION.ORDER_ID = ORD_ORDER.ORDER_ID)
+
+   // Orders that were never cancelled. A Filter will not take a boolean literal, so this
+   // is written as a null test.
+   Filter OrdUncancelledOrders(ORD_ORDER.CANCEL_REASON is null)
+)

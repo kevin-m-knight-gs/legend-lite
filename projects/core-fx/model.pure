@@ -1,0 +1,179 @@
+###Pure
+
+// core-fx -- FX rates keyed by pair and date, plus the conversion arithmetic that
+// downstream projects (valuation-core and everything above it) call rather than
+// re-implement.
+//
+// The one idea worth stating up front, because every class below encodes it: an FX rate
+// is NOT keyed by the pair alone, and not even by pair and date. On a single cob date the
+// same pair has a SPOT rate, a set of FORWARD outrights and an official FIXING, and they
+// are different numbers -- a 4pm WM/R fixing is not the 17:00 close spot, and a 3M
+// forward is spot plus points. So the key is (pair, cob date, rate type), which is the
+// composite primary key this project exists to exercise.
+
+// What a currency pair IS in the market, as opposed to two currency codes in some order.
+// The market quotes EURUSD, never USDEUR, and the rate means "quote currency per ONE unit
+// of base currency" -- so EURUSD 1.0850 is 1.0850 USD per EUR.
+//
+// `quotedInverted` records which side of that convention USD lands on, because it decides
+// whether a downstream valuation multiplies or divides:
+//
+//   EURUSD, GBPUSD   USD is the QUOTE currency. A EUR amount * rate is already USD.
+//                    quotedInverted = false.
+//   USDJPY, USDCHF   USD is the BASE currency. A JPY amount must be divided by the rate
+//                    (or multiplied by core_fx::invert of it) to reach USD.
+//                    quotedInverted = true.
+//
+// Getting this backwards is the classic FX bug: it does not throw, it just returns a
+// number roughly 1/x^2 away from the right one and looks plausible on USDCHF.
+Class core_fx::CfxCurrencyPair
+{
+   // The six-character market code, e.g. EURUSD. Base then quote, always in the order
+   // the market actually quotes it.
+   pairCode: String[1];
+   // ISO 4217 of the currency ONE unit of which the rate prices, e.g. EUR in EURUSD.
+   baseCurrency: String[1];
+   // ISO 4217 of the currency the rate is expressed in, e.g. USD in EURUSD.
+   quoteCurrency: String[1];
+   // True when the market quotes USD as the BASE (USDJPY, USDCHF), so valuing a
+   // foreign-currency amount in USD needs core_fx::invert first.
+   quotedInverted: Boolean[1];
+   // Pips per unit of the quote currency: 10000 for EURUSD/GBPUSD/USDCHF, 100 for the
+   // JPY pairs. Forward points are quoted in pips, so this is what turns them into rate.
+   pipFactor: Float[1];
+   // Decimal places a quote is published to: 5 for EURUSD, 3 for USDJPY.
+   quotePrecision: Integer[1];
+   // True for the G10 majors -- EURUSD, USDJPY, GBPUSD, USDCHF all are.
+   isMajor: Boolean[1];
+   // Reads the convention out loud, for a report header that should not have to know it.
+   convention() { $this.quoteCurrency + ' per 1 ' + $this.baseCurrency } : String[1];
+}
+
+// One published rate for one pair, on one cob date, of one type -- the grain of this
+// project and the row a downstream valuation looks up. Identity is the triple
+// (pairCode, cobDate, rateType); dropping any of the three collapses distinct market
+// observations onto each other.
+//
+// rateType is one of SPOT, FORWARD, FIXING:
+//   SPOT     the T+2 rate at the close snap
+//   FORWARD  an outright for a tenor -- spot plus forwardPoints / pipFactor
+//   FIXING   the official published benchmark (WM/R 16:00 London, ECB 14:15 CET)
+Class core_fx::CfxRate
+{
+   // Part 1 of the key: which pair, in market convention order.
+   pairCode: String[1];
+   // Part 2 of the key: the close-of-business date the rate belongs to.
+   cobDate: StrictDate[1];
+   // Part 3 of the key: SPOT, FORWARD or FIXING. Same pair, same day, three numbers.
+   rateType: String[1];
+   // Bid: what the market pays for the base currency.
+   bid: Float[1];
+   // Ask: what the market sells the base currency for. Always >= bid.
+   ask: Float[1];
+   // Mid: the number carried into valuation when no side is specified.
+   mid: Float[1];
+   // Present only on FORWARD rows: 1W, 1M, 3M, 6M, 1Y.
+   tenor: String[0..1];
+   // Present only on FORWARD rows: the outright's premium over spot, quoted in PIPS,
+   // so it must be divided by pipFactor before being added to spot.
+   forwardPoints: Float[0..1];
+   // Which publisher this came from -- joins to CfxFixingSource.
+   sourceCode: String[1];
+   // True when this is the golden rate the firm books against, rather than an indication.
+   isOfficial: Boolean[1];
+   // The dealing spread in rate terms, for a data-quality screen that should not have to
+   // re-derive it.
+   spread() { $this.ask - $this.bid } : Float[1];
+}
+
+// Where a rate came from, and at what instant. Two firms disagreeing on "the" EURUSD rate
+// for a date are almost always reading different sources, so the source is part of the
+// answer and not a footnote.
+Class core_fx::CfxFixingSource
+{
+   // Short code carried on every rate row, e.g. WMR, ECB, CME.
+   sourceCode: String[1];
+   // Human name, e.g. 'WM/Refinitiv Closing Spot Rate'.
+   sourceName: String[1];
+   // The snap instant as published, e.g. '16:00' for WM/R, '14:15' for the ECB.
+   fixingTime: String[1];
+   // The zone that instant is stated in -- 'Europe/London' for WM/R, 'Europe/Berlin' for
+   // the ECB. Without it the fixing time is ambiguous twice a year.
+   timeZone: String[1];
+   // True when the source is an authorised benchmark administrator under EU BMR.
+   isRegulated: Boolean[1];
+}
+
+// A cross rate that is not quoted directly and must be triangulated through a vehicle
+// currency. EURJPY has no primary market quote; it is EURUSD * USDJPY, USD being the
+// vehicle. This class records which two legs a given cross is built from, so the
+// derivation is data rather than a hard-coded rule in each downstream project.
+Class core_fx::CfxCrossRate
+{
+   // The cross being built, e.g. EURJPY.
+   crossCode: String[1];
+   // The cob date the two legs are taken from -- both legs must be the same date.
+   cobDate: StrictDate[1];
+   // The currency triangulated through, USD for essentially every G10 cross.
+   vehicleCurrency: String[1];
+   // First leg, e.g. EURUSD. Its quote currency is the vehicle.
+   legOneCode: String[1];
+   // Second leg, e.g. USDJPY. Its base currency is the vehicle.
+   legTwoCode: String[1];
+   // The triangulated mid, i.e. core_fx::cross(legOneMid, legTwoMid).
+   crossMid: Float[1];
+}
+
+// ------------------------------------------------------------------ exported functions
+// These are the reason core-fx is a dependency rather than a table. Downstream projects
+// call them by path; the signatures below are the contract.
+
+// Value an amount in the rate's quote currency. THE conversion function -- valuation-core
+// calls this from a derived property, and everything above it inherits the result.
+// Direction is the caller's problem: pass a rate already pointing the way you want, using
+// core_fx::invert if the pair is quotedInverted.
+function core_fx::convert(amount: Float[1], rate: Float[1]): Float[1]
+{
+   $amount * $rate
+}
+
+// Flip a quote to the other direction: USDJPY 157.20 becomes JPY-per-USD's reciprocal,
+// 0.00636..., which is what a JPY amount must be multiplied by to reach USD. Needed for
+// exactly the pairs where quotedInverted is true.
+function core_fx::invert(rate: Float[1]): Float[1]
+{
+   1.0 / $rate
+}
+
+// Triangulate a cross through a vehicle currency: EURJPY = EURUSD * USDJPY. Requires the
+// first leg's quote currency and the second leg's base currency to both be the vehicle,
+// which is what CfxCrossRate records.
+function core_fx::cross(legOne: Float[1], legTwo: Float[1]): Float[1]
+{
+   $legOne * $legTwo
+}
+
+// Build a forward outright from spot and forward points. Points are quoted in pips, so
+// they are scaled by the pair's pipFactor -- 10000 for EURUSD, 100 for USDJPY. Passing
+// the wrong factor is off by 100x and is why pipFactor is on the pair and not assumed.
+function core_fx::forwardOutright(spot: Float[1], forwardPoints: Float[1], pipFactor: Float[1]): Float[1]
+{
+   $spot + ($forwardPoints / $pipFactor)
+}
+
+// Convert while respecting the pair's quoting convention, so the caller does not have to
+// remember which of the four majors puts USD on the base side. This is convert() and
+// invert() composed, and is the safe entry point for anything valuing into USD.
+function core_fx::convertQuoted(amount: Float[1], rate: Float[1], quotedInverted: Boolean[1]): Float[1]
+{
+   if($quotedInverted,
+      | core_fx::convert($amount, core_fx::invert($rate)),
+      | core_fx::convert($amount, $rate))
+}
+
+// The mid of a two-way price. Trivial, and worth exporting anyway: every downstream
+// project otherwise writes ($bid + $ask) / 2.0 itself and one of them writes it wrong.
+function core_fx::midOf(bid: Float[1], ask: Float[1]): Float[1]
+{
+   ($bid + $ask) / 2.0
+}

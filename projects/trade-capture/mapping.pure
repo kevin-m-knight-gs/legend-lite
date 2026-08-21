@@ -1,0 +1,738 @@
+###Mapping
+// The trade-capture mapping.
+//
+// It INCLUDES all three dependency mappings, which is what makes the cross-project
+// association ends below resolvable: `trades[ciBase, tcTrade]` names a set id that belongs
+// to core_instrument::Mapping, and a set id can only be named if the mapping that declares
+// it is in scope.
+//
+// Every set id is stated explicitly and tc-prefixed. Two consequences worth knowing:
+//   * the DEFAULT ids (`trade_capture_Trade`) therefore do not exist, so a downstream
+//     project extending one of these sets must name the tc id;
+//   * every AssociationMapping end must carry [sourceSetId, targetSetId], because the bare
+//     `prop: [db]@Join` form resolves only against default ids -- and half the ends here
+//     have a far side whose id was declared in another project entirely.
+Mapping trade_capture::Mapping
+(
+   include core_instrument::Mapping
+   include core_party::Mapping
+   include core_book::Mapping
+
+   // ---- ENUM TRANSFORMERS ----
+   // The database stores codes and the model exposes enums. These seven blocks are the only
+   // place the physical strings live, so when an upstream feed changes 'BUY' to 'B' the
+   // change is one line and not a search across the mapping.
+   trade_capture::TradeSide: EnumerationMapping TcTradeSideMapping
+   {
+      BUY:          ['B', 'BUY', 'BOT'],
+      SELL:         ['S', 'SELL', 'SLD'],
+      BUY_TO_COVER: ['BC', 'BUY_TO_COVER'],
+      SELL_SHORT:   ['SS', 'SELL_SHORT']
+   }
+
+   trade_capture::TradeStatus: EnumerationMapping TcTradeStatusMapping
+   {
+      NEW:       ['N', 'NEW'],
+      VERIFIED:  ['V', 'VERIFIED'],
+      CONFIRMED: ['C', 'CONFIRMED'],
+      ALLOCATED: ['AL', 'ALLOCATED'],
+      SETTLED:   ['ST', 'SETTLED'],
+      CANCELLED: ['X', 'CANCELLED'],
+      AMENDED:   ['AM', 'AMENDED']
+   }
+
+   trade_capture::ConfirmationMethod: EnumerationMapping TcConfirmationMethodMapping
+   {
+      ELECTRONIC: ['ELEC', 'ELECTRONIC'],
+      SWIFT:      ['SWFT', 'SWIFT'],
+      EMAIL:      ['MAIL', 'EMAIL'],
+      FAX:        ['FAX'],
+      PAPER:      ['PAPR', 'PAPER']
+   }
+
+   trade_capture::AllocationStatus: EnumerationMapping TcAllocationStatusMapping
+   {
+      PENDING:   ['P', 'PENDING'],
+      PARTIAL:   ['PT', 'PARTIAL'],
+      ALLOCATED: ['A', 'ALLOCATED'],
+      REJECTED:  ['R', 'REJECTED']
+   }
+
+   trade_capture::VenueType: EnumerationMapping TcVenueTypeMapping
+   {
+      EXCHANGE:                ['XCHG', 'EXCHANGE'],
+      MTF:                     ['MTF'],
+      OTF:                     ['OTF'],
+      SYSTEMATIC_INTERNALISER: ['SI', 'SYSTEMATIC_INTERNALISER'],
+      OTC:                     ['OTC'],
+      DARK_POOL:               ['DARK', 'DARK_POOL']
+   }
+
+   trade_capture::ChargeType: EnumerationMapping TcChargeTypeMapping
+   {
+      COMMISSION:      ['COMM', 'COMMISSION'],
+      EXCHANGE_FEE:    ['EXFE', 'EXCHANGE_FEE'],
+      CLEARING_FEE:    ['CLFE', 'CLEARING_FEE'],
+      SETTLEMENT_FEE:  ['STFE', 'SETTLEMENT_FEE'],
+      STAMP_DUTY:      ['STMP', 'STAMP_DUTY'],
+      TRANSACTION_TAX: ['FTT', 'TRANSACTION_TAX'],
+      RESEARCH:        ['RSCH', 'RESEARCH']
+   }
+
+   trade_capture::MatchStatus: EnumerationMapping TcMatchStatusMapping
+   {
+      UNMATCHED: ['U', 'UNMATCHED'],
+      MATCHED:   ['M', 'MATCHED'],
+      DISPUTED:  ['D', 'DISPUTED'],
+      RESOLVED:  ['RS', 'RESOLVED']
+   }
+
+   // ---- class sets ----
+   // The foreign-key columns (INSTRUMENT_ID, BOOK_ID, COUNTERPARTY_ID ...) appear in the
+   // joins and nowhere in these sets: the model reaches those things by association, and a
+   // duplicated key property would be a second answer to the same question.
+   *trade_capture::Trade[tcTrade]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_TRADE.TRADE_ID )
+      ~mainTable [trade_capture::Store]TC_TRADE
+      tradeId: [trade_capture::Store]TC_TRADE.TRADE_ID,
+      tradeVersion: [trade_capture::Store]TC_TRADE.TRADE_VERSION,
+      externalTradeRef: [trade_capture::Store]TC_TRADE.EXTERNAL_TRADE_REF,
+      side: EnumerationMapping TcTradeSideMapping: [trade_capture::Store]TC_TRADE.SIDE,
+      status: EnumerationMapping TcTradeStatusMapping: [trade_capture::Store]TC_TRADE.STATUS,
+      quantity: [trade_capture::Store]TC_TRADE.QUANTITY,
+      price: [trade_capture::Store]TC_TRADE.PRICE,
+      notional: [trade_capture::Store]TC_TRADE.NOTIONAL,
+      currency: [trade_capture::Store]TC_TRADE.CURRENCY,
+      settlementCurrency: [trade_capture::Store]TC_TRADE.SETTLEMENT_CURRENCY,
+      tradeDate: [trade_capture::Store]TC_TRADE.TRADE_DATE,
+      settlementDate: [trade_capture::Store]TC_TRADE.SETTLEMENT_DATE,
+      executionTime: [trade_capture::Store]TC_TRADE.EXECUTION_TIME,
+      captureTime: [trade_capture::Store]TC_TRADE.CAPTURE_TIME,
+      isBlock: [trade_capture::Store]TC_TRADE.IS_BLOCK,
+      isCancelled: [trade_capture::Store]TC_TRADE.IS_CANCELLED,
+      accruedInterest: [trade_capture::Store]TC_TRADE.ACCRUED_INTEREST,
+      comment: [trade_capture::Store]TC_TRADE.COMMENT_TEXT
+   }
+
+   *trade_capture::TradeLeg[tcTradeLeg]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_TRADE_LEG.LEG_ID )
+      ~mainTable [trade_capture::Store]TC_TRADE_LEG
+      legId: [trade_capture::Store]TC_TRADE_LEG.LEG_ID,
+      legNumber: [trade_capture::Store]TC_TRADE_LEG.LEG_NUMBER,
+      legType: [trade_capture::Store]TC_TRADE_LEG.LEG_TYPE,
+      legSide: EnumerationMapping TcTradeSideMapping: [trade_capture::Store]TC_TRADE_LEG.LEG_SIDE,
+      legQuantity: [trade_capture::Store]TC_TRADE_LEG.LEG_QUANTITY,
+      legPrice: [trade_capture::Store]TC_TRADE_LEG.LEG_PRICE,
+      legCurrency: [trade_capture::Store]TC_TRADE_LEG.LEG_CURRENCY,
+      legStartDate: [trade_capture::Store]TC_TRADE_LEG.LEG_START_DATE,
+      legEndDate: [trade_capture::Store]TC_TRADE_LEG.LEG_END_DATE,
+      payReceive: [trade_capture::Store]TC_TRADE_LEG.PAY_RECEIVE,
+      fixedRate: [trade_capture::Store]TC_TRADE_LEG.FIXED_RATE,
+      floatingIndex: [trade_capture::Store]TC_TRADE_LEG.FLOATING_INDEX,
+      spread: [trade_capture::Store]TC_TRADE_LEG.SPREAD
+   }
+
+   *trade_capture::BlockTrade[tcBlockTrade]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_BLOCK_TRADE.BLOCK_ID )
+      ~mainTable [trade_capture::Store]TC_BLOCK_TRADE
+      blockId: [trade_capture::Store]TC_BLOCK_TRADE.BLOCK_ID,
+      blockRef: [trade_capture::Store]TC_BLOCK_TRADE.BLOCK_REF,
+      blockQuantity: [trade_capture::Store]TC_BLOCK_TRADE.BLOCK_QUANTITY,
+      filledQuantity: [trade_capture::Store]TC_BLOCK_TRADE.FILLED_QUANTITY,
+      averagePrice: [trade_capture::Store]TC_BLOCK_TRADE.AVERAGE_PRICE,
+      allocationStatus: EnumerationMapping TcAllocationStatusMapping: [trade_capture::Store]TC_BLOCK_TRADE.ALLOCATION_STATUS,
+      blockDate: [trade_capture::Store]TC_BLOCK_TRADE.BLOCK_DATE,
+      isComplete: [trade_capture::Store]TC_BLOCK_TRADE.IS_COMPLETE
+   }
+
+   *trade_capture::Allocation[tcAllocation]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_ALLOCATION.ALLOCATION_ID )
+      ~mainTable [trade_capture::Store]TC_ALLOCATION
+      allocationId: [trade_capture::Store]TC_ALLOCATION.ALLOCATION_ID,
+      allocationRef: [trade_capture::Store]TC_ALLOCATION.ALLOCATION_REF,
+      allocatedQuantity: [trade_capture::Store]TC_ALLOCATION.ALLOCATED_QUANTITY,
+      allocatedPrice: [trade_capture::Store]TC_ALLOCATION.ALLOCATED_PRICE,
+      allocatedNotional: [trade_capture::Store]TC_ALLOCATION.ALLOCATED_NOTIONAL,
+      allocationStatus: EnumerationMapping TcAllocationStatusMapping: [trade_capture::Store]TC_ALLOCATION.ALLOCATION_STATUS,
+      accountNumber: [trade_capture::Store]TC_ALLOCATION.ACCOUNT_NUMBER,
+      allocationTime: [trade_capture::Store]TC_ALLOCATION.ALLOCATION_TIME,
+      isConfirmed: [trade_capture::Store]TC_ALLOCATION.IS_CONFIRMED,
+      rejectionReason: [trade_capture::Store]TC_ALLOCATION.REJECTION_REASON
+   }
+
+   *trade_capture::AllocationInstruction[tcAllocationInstruction]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_ALLOCATION_INSTRUCTION.INSTRUCTION_ID )
+      ~mainTable [trade_capture::Store]TC_ALLOCATION_INSTRUCTION
+      instructionId: [trade_capture::Store]TC_ALLOCATION_INSTRUCTION.INSTRUCTION_ID,
+      instructionRef: [trade_capture::Store]TC_ALLOCATION_INSTRUCTION.INSTRUCTION_REF,
+      splitPercentage: [trade_capture::Store]TC_ALLOCATION_INSTRUCTION.SPLIT_PERCENTAGE,
+      basis: [trade_capture::Store]TC_ALLOCATION_INSTRUCTION.BASIS,
+      receivedTime: [trade_capture::Store]TC_ALLOCATION_INSTRUCTION.RECEIVED_TIME,
+      isStanding: [trade_capture::Store]TC_ALLOCATION_INSTRUCTION.IS_STANDING,
+      effectiveFrom: [trade_capture::Store]TC_ALLOCATION_INSTRUCTION.EFFECTIVE_FROM,
+      effectiveTo: [trade_capture::Store]TC_ALLOCATION_INSTRUCTION.EFFECTIVE_TO
+   }
+
+   *trade_capture::Confirmation[tcConfirmation]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_CONFIRMATION.CONFIRMATION_ID )
+      ~mainTable [trade_capture::Store]TC_CONFIRMATION
+      confirmationId: [trade_capture::Store]TC_CONFIRMATION.CONFIRMATION_ID,
+      confirmationRef: [trade_capture::Store]TC_CONFIRMATION.CONFIRMATION_REF,
+      method: EnumerationMapping TcConfirmationMethodMapping: [trade_capture::Store]TC_CONFIRMATION.METHOD,
+      sentTime: [trade_capture::Store]TC_CONFIRMATION.SENT_TIME,
+      acknowledgedTime: [trade_capture::Store]TC_CONFIRMATION.ACKNOWLEDGED_TIME,
+      isAffirmed: [trade_capture::Store]TC_CONFIRMATION.IS_AFFIRMED,
+      affirmedBy: [trade_capture::Store]TC_CONFIRMATION.AFFIRMED_BY,
+      documentUrl: [trade_capture::Store]TC_CONFIRMATION.DOCUMENT_URL,
+      failureReason: [trade_capture::Store]TC_CONFIRMATION.FAILURE_REASON
+   }
+
+   *trade_capture::Amendment[tcAmendment]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_AMENDMENT.AMENDMENT_ID )
+      ~mainTable [trade_capture::Store]TC_AMENDMENT
+      amendmentId: [trade_capture::Store]TC_AMENDMENT.AMENDMENT_ID,
+      amendmentSequence: [trade_capture::Store]TC_AMENDMENT.AMENDMENT_SEQUENCE,
+      amendedField: [trade_capture::Store]TC_AMENDMENT.AMENDED_FIELD,
+      oldValue: [trade_capture::Store]TC_AMENDMENT.OLD_VALUE,
+      newValue: [trade_capture::Store]TC_AMENDMENT.NEW_VALUE,
+      amendedBy: [trade_capture::Store]TC_AMENDMENT.AMENDED_BY,
+      amendedTime: [trade_capture::Store]TC_AMENDMENT.AMENDED_TIME,
+      reasonCode: [trade_capture::Store]TC_AMENDMENT.REASON_CODE,
+      isEconomic: [trade_capture::Store]TC_AMENDMENT.IS_ECONOMIC
+   }
+
+   *trade_capture::Cancellation[tcCancellation]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_CANCELLATION.CANCELLATION_ID )
+      ~mainTable [trade_capture::Store]TC_CANCELLATION
+      cancellationId: [trade_capture::Store]TC_CANCELLATION.CANCELLATION_ID,
+      cancelledBy: [trade_capture::Store]TC_CANCELLATION.CANCELLED_BY,
+      cancelledTime: [trade_capture::Store]TC_CANCELLATION.CANCELLED_TIME,
+      reasonCode: [trade_capture::Store]TC_CANCELLATION.REASON_CODE,
+      reasonText: [trade_capture::Store]TC_CANCELLATION.REASON_TEXT,
+      isRebookExpected: [trade_capture::Store]TC_CANCELLATION.IS_REBOOK_EXPECTED
+   }
+
+   *trade_capture::TradeVersion[tcTradeVersion]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_TRADE_VERSION.VERSION_ID )
+      ~mainTable [trade_capture::Store]TC_TRADE_VERSION
+      versionId: [trade_capture::Store]TC_TRADE_VERSION.VERSION_ID,
+      versionNumber: [trade_capture::Store]TC_TRADE_VERSION.VERSION_NUMBER,
+      versionQuantity: [trade_capture::Store]TC_TRADE_VERSION.VERSION_QUANTITY,
+      versionPrice: [trade_capture::Store]TC_TRADE_VERSION.VERSION_PRICE,
+      versionStatus: EnumerationMapping TcTradeStatusMapping: [trade_capture::Store]TC_TRADE_VERSION.VERSION_STATUS,
+      validFrom: [trade_capture::Store]TC_TRADE_VERSION.VALID_FROM,
+      validTo: [trade_capture::Store]TC_TRADE_VERSION.VALID_TO,
+      changedBy: [trade_capture::Store]TC_TRADE_VERSION.CHANGED_BY
+   }
+
+   *trade_capture::TradeIdentifier[tcTradeIdentifier]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_TRADE_XREF.TRADE_IDENTIFIER_ID )
+      ~mainTable [trade_capture::Store]TC_TRADE_XREF
+      tradeIdentifierId: [trade_capture::Store]TC_TRADE_XREF.TRADE_IDENTIFIER_ID,
+      scheme: [trade_capture::Store]TC_TRADE_XREF.SCHEME,
+      identifierValue: [trade_capture::Store]TC_TRADE_XREF.IDENTIFIER_VALUE,
+      assignedBy: [trade_capture::Store]TC_TRADE_XREF.ASSIGNED_BY,
+      assignedTime: [trade_capture::Store]TC_TRADE_XREF.ASSIGNED_TIME,
+      isPrimary: [trade_capture::Store]TC_TRADE_XREF.IS_PRIMARY
+   }
+
+   *trade_capture::TradeCharge[tcTradeCharge]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_TRADE_CHARGE.CHARGE_ID )
+      ~mainTable [trade_capture::Store]TC_TRADE_CHARGE
+      chargeId: [trade_capture::Store]TC_TRADE_CHARGE.CHARGE_ID,
+      chargeType: EnumerationMapping TcChargeTypeMapping: [trade_capture::Store]TC_TRADE_CHARGE.CHARGE_TYPE,
+      chargeAmount: [trade_capture::Store]TC_TRADE_CHARGE.CHARGE_AMOUNT,
+      chargeCurrency: [trade_capture::Store]TC_TRADE_CHARGE.CHARGE_CURRENCY,
+      chargeRate: [trade_capture::Store]TC_TRADE_CHARGE.CHARGE_RATE,
+      isIncludedInNet: [trade_capture::Store]TC_TRADE_CHARGE.IS_INCLUDED_IN_NET,
+      isClientBearing: [trade_capture::Store]TC_TRADE_CHARGE.IS_CLIENT_BEARING,
+      calculatedTime: [trade_capture::Store]TC_TRADE_CHARGE.CALCULATED_TIME
+   }
+
+   *trade_capture::CommissionSchedule[tcCommissionSchedule]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_COMMISSION_SCHEDULE.SCHEDULE_ID )
+      ~mainTable [trade_capture::Store]TC_COMMISSION_SCHEDULE
+      scheduleId: [trade_capture::Store]TC_COMMISSION_SCHEDULE.SCHEDULE_ID,
+      scheduleName: [trade_capture::Store]TC_COMMISSION_SCHEDULE.SCHEDULE_NAME,
+      basisPoints: [trade_capture::Store]TC_COMMISSION_SCHEDULE.BASIS_POINTS,
+      minimumCharge: [trade_capture::Store]TC_COMMISSION_SCHEDULE.MINIMUM_CHARGE,
+      maximumCharge: [trade_capture::Store]TC_COMMISSION_SCHEDULE.MAXIMUM_CHARGE,
+      scheduleCurrency: [trade_capture::Store]TC_COMMISSION_SCHEDULE.SCHEDULE_CURRENCY,
+      appliesFrom: [trade_capture::Store]TC_COMMISSION_SCHEDULE.APPLIES_FROM,
+      appliesTo: [trade_capture::Store]TC_COMMISSION_SCHEDULE.APPLIES_TO
+   }
+
+   *trade_capture::SettlementInstruction[tcSettlementInstruction]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_SETTLEMENT_INSTRUCTION.INSTRUCTION_ID )
+      ~mainTable [trade_capture::Store]TC_SETTLEMENT_INSTRUCTION
+      instructionId: [trade_capture::Store]TC_SETTLEMENT_INSTRUCTION.INSTRUCTION_ID,
+      deliveryType: [trade_capture::Store]TC_SETTLEMENT_INSTRUCTION.DELIVERY_TYPE,
+      custodianBic: [trade_capture::Store]TC_SETTLEMENT_INSTRUCTION.CUSTODIAN_BIC,
+      accountNumber: [trade_capture::Store]TC_SETTLEMENT_INSTRUCTION.ACCOUNT_NUMBER,
+      placeOfSettlement: [trade_capture::Store]TC_SETTLEMENT_INSTRUCTION.PLACE_OF_SETTLEMENT,
+      settlementAmount: [trade_capture::Store]TC_SETTLEMENT_INSTRUCTION.SETTLEMENT_AMOUNT,
+      settlementCurrency: [trade_capture::Store]TC_SETTLEMENT_INSTRUCTION.SETTLEMENT_CURRENCY,
+      valueDate: [trade_capture::Store]TC_SETTLEMENT_INSTRUCTION.VALUE_DATE,
+      isDvp: [trade_capture::Store]TC_SETTLEMENT_INSTRUCTION.IS_DVP
+   }
+
+   *trade_capture::ExecutionVenue[tcVenue]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_VENUE.VENUE_ID )
+      ~mainTable [trade_capture::Store]TC_VENUE
+      venueId: [trade_capture::Store]TC_VENUE.VENUE_ID,
+      mic: [trade_capture::Store]TC_VENUE.MIC,
+      venueName: [trade_capture::Store]TC_VENUE.VENUE_NAME,
+      venueType: EnumerationMapping TcVenueTypeMapping: [trade_capture::Store]TC_VENUE.VENUE_TYPE,
+      countryCode: [trade_capture::Store]TC_VENUE.COUNTRY_CODE,
+      operatingMic: [trade_capture::Store]TC_VENUE.OPERATING_MIC,
+      timezone: [trade_capture::Store]TC_VENUE.TIMEZONE,
+      isActive: [trade_capture::Store]TC_VENUE.IS_ACTIVE
+   }
+
+   *trade_capture::Trader[tcTrader]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_TRADER.TRADER_ID )
+      ~mainTable [trade_capture::Store]TC_TRADER
+      traderId: [trade_capture::Store]TC_TRADER.TRADER_ID,
+      firstName: [trade_capture::Store]TC_TRADER.FIRST_NAME,
+      lastName: [trade_capture::Store]TC_TRADER.LAST_NAME,
+      email: [trade_capture::Store]TC_TRADER.EMAIL,
+      badgeId: [trade_capture::Store]TC_TRADER.BADGE_ID,
+      deskName: [trade_capture::Store]TC_TRADER.DESK_NAME,
+      isActive: [trade_capture::Store]TC_TRADER.IS_ACTIVE,
+      startDate: [trade_capture::Store]TC_TRADER.START_DATE
+   }
+
+   *trade_capture::Salesperson[tcSalesperson]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_SALESPERSON.SALESPERSON_ID )
+      ~mainTable [trade_capture::Store]TC_SALESPERSON
+      salespersonId: [trade_capture::Store]TC_SALESPERSON.SALESPERSON_ID,
+      firstName: [trade_capture::Store]TC_SALESPERSON.FIRST_NAME,
+      lastName: [trade_capture::Store]TC_SALESPERSON.LAST_NAME,
+      email: [trade_capture::Store]TC_SALESPERSON.EMAIL,
+      coverageRegion: [trade_capture::Store]TC_SALESPERSON.COVERAGE_REGION,
+      isActive: [trade_capture::Store]TC_SALESPERSON.IS_ACTIVE
+   }
+
+   *trade_capture::SalesCredit[tcSalesCredit]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_SALES_CREDIT.CREDIT_ID )
+      ~mainTable [trade_capture::Store]TC_SALES_CREDIT
+      creditId: [trade_capture::Store]TC_SALES_CREDIT.CREDIT_ID,
+      creditPercentage: [trade_capture::Store]TC_SALES_CREDIT.CREDIT_PERCENTAGE,
+      creditAmount: [trade_capture::Store]TC_SALES_CREDIT.CREDIT_AMOUNT,
+      creditCurrency: [trade_capture::Store]TC_SALES_CREDIT.CREDIT_CURRENCY,
+      creditDate: [trade_capture::Store]TC_SALES_CREDIT.CREDIT_DATE,
+      isFinal: [trade_capture::Store]TC_SALES_CREDIT.IS_FINAL
+   }
+
+   *trade_capture::Counterparty[tcCounterparty]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_COUNTERPARTY.COUNTERPARTY_ID )
+      ~mainTable [trade_capture::Store]TC_COUNTERPARTY
+      counterpartyId: [trade_capture::Store]TC_COUNTERPARTY.COUNTERPARTY_ID,
+      shortName: [trade_capture::Store]TC_COUNTERPARTY.SHORT_NAME,
+      counterpartyType: [trade_capture::Store]TC_COUNTERPARTY.COUNTERPARTY_TYPE,
+      tradingAccountRef: [trade_capture::Store]TC_COUNTERPARTY.TRADING_ACCOUNT_REF,
+      defaultSettlementDays: [trade_capture::Store]TC_COUNTERPARTY.DEFAULT_SETTLEMENT_DAYS,
+      isClearingEligible: [trade_capture::Store]TC_COUNTERPARTY.IS_CLEARING_ELIGIBLE,
+      isActive: [trade_capture::Store]TC_COUNTERPARTY.IS_ACTIVE,
+      onboardedDate: [trade_capture::Store]TC_COUNTERPARTY.ONBOARDED_DATE
+   }
+
+   *trade_capture::ClearingBroker[tcClearingBroker]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_CLEARING_BROKER.BROKER_ID )
+      ~mainTable [trade_capture::Store]TC_CLEARING_BROKER
+      brokerId: [trade_capture::Store]TC_CLEARING_BROKER.BROKER_ID,
+      brokerCode: [trade_capture::Store]TC_CLEARING_BROKER.BROKER_CODE,
+      clearingMemberCode: [trade_capture::Store]TC_CLEARING_BROKER.CLEARING_MEMBER_CODE,
+      clearingHouse: [trade_capture::Store]TC_CLEARING_BROKER.CLEARING_HOUSE,
+      isActive: [trade_capture::Store]TC_CLEARING_BROKER.IS_ACTIVE
+   }
+
+   *trade_capture::GiveUp[tcGiveUp]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_GIVE_UP.GIVE_UP_ID )
+      ~mainTable [trade_capture::Store]TC_GIVE_UP
+      giveUpId: [trade_capture::Store]TC_GIVE_UP.GIVE_UP_ID,
+      giveUpRef: [trade_capture::Store]TC_GIVE_UP.GIVE_UP_REF,
+      giveUpTime: [trade_capture::Store]TC_GIVE_UP.GIVE_UP_TIME,
+      isAccepted: [trade_capture::Store]TC_GIVE_UP.IS_ACCEPTED,
+      acceptedTime: [trade_capture::Store]TC_GIVE_UP.ACCEPTED_TIME,
+      rejectionReason: [trade_capture::Store]TC_GIVE_UP.REJECTION_REASON
+   }
+
+   *trade_capture::TradeMatch[tcTradeMatch]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_TRADE_MATCH.MATCH_ID )
+      ~mainTable [trade_capture::Store]TC_TRADE_MATCH
+      matchId: [trade_capture::Store]TC_TRADE_MATCH.MATCH_ID,
+      matchStatus: EnumerationMapping TcMatchStatusMapping: [trade_capture::Store]TC_TRADE_MATCH.MATCH_STATUS,
+      counterpartyRef: [trade_capture::Store]TC_TRADE_MATCH.COUNTERPARTY_REF,
+      matchedTime: [trade_capture::Store]TC_TRADE_MATCH.MATCHED_TIME,
+      matchScore: [trade_capture::Store]TC_TRADE_MATCH.MATCH_SCORE,
+      matchedBy: [trade_capture::Store]TC_TRADE_MATCH.MATCHED_BY
+   }
+
+   *trade_capture::TradeBreak[tcTradeBreak]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_TRADE_BREAK.BREAK_ID )
+      ~mainTable [trade_capture::Store]TC_TRADE_BREAK
+      breakId: [trade_capture::Store]TC_TRADE_BREAK.BREAK_ID,
+      breakField: [trade_capture::Store]TC_TRADE_BREAK.BREAK_FIELD,
+      ourValue: [trade_capture::Store]TC_TRADE_BREAK.OUR_VALUE,
+      theirValue: [trade_capture::Store]TC_TRADE_BREAK.THEIR_VALUE,
+      raisedTime: [trade_capture::Store]TC_TRADE_BREAK.RAISED_TIME,
+      resolvedTime: [trade_capture::Store]TC_TRADE_BREAK.RESOLVED_TIME,
+      assignedTo: [trade_capture::Store]TC_TRADE_BREAK.ASSIGNED_TO,
+      severity: [trade_capture::Store]TC_TRADE_BREAK.SEVERITY
+   }
+
+   *trade_capture::TradeApproval[tcTradeApproval]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_TRADE_APPROVAL.APPROVAL_ID )
+      ~mainTable [trade_capture::Store]TC_TRADE_APPROVAL
+      approvalId: [trade_capture::Store]TC_TRADE_APPROVAL.APPROVAL_ID,
+      approvalType: [trade_capture::Store]TC_TRADE_APPROVAL.APPROVAL_TYPE,
+      approvedBy: [trade_capture::Store]TC_TRADE_APPROVAL.APPROVED_BY,
+      approvedTime: [trade_capture::Store]TC_TRADE_APPROVAL.APPROVED_TIME,
+      isGranted: [trade_capture::Store]TC_TRADE_APPROVAL.IS_GRANTED,
+      approvalComment: [trade_capture::Store]TC_TRADE_APPROVAL.APPROVAL_COMMENT
+   }
+
+   *trade_capture::TradeNote[tcTradeNote]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_TRADE_NOTE.NOTE_ID )
+      ~mainTable [trade_capture::Store]TC_TRADE_NOTE
+      noteId: [trade_capture::Store]TC_TRADE_NOTE.NOTE_ID,
+      noteText: [trade_capture::Store]TC_TRADE_NOTE.NOTE_TEXT,
+      authoredBy: [trade_capture::Store]TC_TRADE_NOTE.AUTHORED_BY,
+      authoredTime: [trade_capture::Store]TC_TRADE_NOTE.AUTHORED_TIME,
+      isInternal: [trade_capture::Store]TC_TRADE_NOTE.IS_INTERNAL
+   }
+
+   *trade_capture::CaptureSource[tcCaptureSource]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_CAPTURE_SOURCE.SOURCE_ID )
+      ~mainTable [trade_capture::Store]TC_CAPTURE_SOURCE
+      sourceId: [trade_capture::Store]TC_CAPTURE_SOURCE.SOURCE_ID,
+      sourceCode: [trade_capture::Store]TC_CAPTURE_SOURCE.SOURCE_CODE,
+      sourceName: [trade_capture::Store]TC_CAPTURE_SOURCE.SOURCE_NAME,
+      sourceType: [trade_capture::Store]TC_CAPTURE_SOURCE.SOURCE_TYPE,
+      isRealTime: [trade_capture::Store]TC_CAPTURE_SOURCE.IS_REAL_TIME,
+      isActive: [trade_capture::Store]TC_CAPTURE_SOURCE.IS_ACTIVE
+   }
+
+   *trade_capture::TradeTag[tcTradeTag]: Relational
+   {
+      ~primaryKey ( [trade_capture::Store]TC_TRADE_TAG.TAG_ID )
+      ~mainTable [trade_capture::Store]TC_TRADE_TAG
+      tagId: [trade_capture::Store]TC_TRADE_TAG.TAG_ID,
+      tagKey: [trade_capture::Store]TC_TRADE_TAG.TAG_KEY,
+      tagValue: [trade_capture::Store]TC_TRADE_TAG.TAG_VALUE,
+      taggedBy: [trade_capture::Store]TC_TRADE_TAG.TAGGED_BY,
+      taggedTime: [trade_capture::Store]TC_TRADE_TAG.TAGGED_TIME
+   }
+
+   // ---- CROSS-PROJECT association mappings ----
+   // The far set id in each pair -- ciBase, cbBook, cpLegalEntity -- was declared in
+   // another project and read out of its MANIFEST. Naming it is mandatory: those projects
+   // give their sets explicit ids, so the default ids (core_instrument_Instrument and so
+   // on) do not exist at all. The store qualifier is trade_capture::Store because that is
+   // where the join is declared, even though one end of it is a foreign table.
+   trade_capture::TradeInstrument: Relational
+   {
+      AssociationMapping
+      (
+         instrument[tcTrade, ciBase]: [trade_capture::Store]@Tc_TradeInstrument,
+         trades[ciBase, tcTrade]: [trade_capture::Store]@Tc_TradeInstrument
+      )
+   }
+
+   trade_capture::LegInstrument: Relational
+   {
+      AssociationMapping
+      (
+         legInstrument[tcTradeLeg, ciBase]: [trade_capture::Store]@Tc_LegInstrument,
+         instrumentLegs[ciBase, tcTradeLeg]: [trade_capture::Store]@Tc_LegInstrument
+      )
+   }
+
+   trade_capture::TradeBook: Relational
+   {
+      AssociationMapping
+      (
+         book[tcTrade, cbBook]: [trade_capture::Store]@Tc_TradeBook,
+         bookedTrades[cbBook, tcTrade]: [trade_capture::Store]@Tc_TradeBook
+      )
+   }
+
+   trade_capture::CounterpartyEntity: Relational
+   {
+      AssociationMapping
+      (
+         legalEntity[tcCounterparty, cpLegalEntity]: [trade_capture::Store]@Tc_CounterpartyEntity,
+         counterpartyRoles[cpLegalEntity, tcCounterparty]: [trade_capture::Store]@Tc_CounterpartyEntity
+      )
+   }
+
+   trade_capture::AllocationEntity: Relational
+   {
+      AssociationMapping
+      (
+         allocationEntity[tcAllocation, cpLegalEntity]: [trade_capture::Store]@Tc_AllocationEntity,
+         entityAllocations[cpLegalEntity, tcAllocation]: [trade_capture::Store]@Tc_AllocationEntity
+      )
+   }
+
+   trade_capture::ClearingBrokerEntity: Relational
+   {
+      AssociationMapping
+      (
+         brokerEntity[tcClearingBroker, cpLegalEntity]: [trade_capture::Store]@Tc_ClearingBrokerEntity,
+         brokerRoles[cpLegalEntity, tcClearingBroker]: [trade_capture::Store]@Tc_ClearingBrokerEntity
+      )
+   }
+
+   // ---- association mappings within this project ----
+   trade_capture::TradeTrader: Relational
+   {
+      AssociationMapping
+      (
+         trader[tcTrade, tcTrader]: [trade_capture::Store]@Tc_TradeTrader,
+         tradedTrades[tcTrader, tcTrade]: [trade_capture::Store]@Tc_TradeTrader
+      )
+   }
+
+   trade_capture::TradeVenueLink: Relational
+   {
+      AssociationMapping
+      (
+         venue[tcTrade, tcVenue]: [trade_capture::Store]@Tc_TradeVenue,
+         venueTrades[tcVenue, tcTrade]: [trade_capture::Store]@Tc_TradeVenue
+      )
+   }
+
+   trade_capture::TradeCounterpartyLink: Relational
+   {
+      AssociationMapping
+      (
+         counterparty[tcTrade, tcCounterparty]: [trade_capture::Store]@Tc_TradeCounterparty,
+         counterpartyTrades[tcCounterparty, tcTrade]: [trade_capture::Store]@Tc_TradeCounterparty
+      )
+   }
+
+   trade_capture::TradeLegs: Relational
+   {
+      AssociationMapping
+      (
+         legs[tcTrade, tcTradeLeg]: [trade_capture::Store]@Tc_TradeLeg,
+         legTrade[tcTradeLeg, tcTrade]: [trade_capture::Store]@Tc_TradeLeg
+      )
+   }
+
+   trade_capture::TradeBlockLink: Relational
+   {
+      AssociationMapping
+      (
+         block[tcTrade, tcBlockTrade]: [trade_capture::Store]@Tc_TradeBlock,
+         blockTrades[tcBlockTrade, tcTrade]: [trade_capture::Store]@Tc_TradeBlock
+      )
+   }
+
+   trade_capture::TradeAllocations: Relational
+   {
+      AssociationMapping
+      (
+         allocations[tcTrade, tcAllocation]: [trade_capture::Store]@Tc_TradeAllocation,
+         allocationTrade[tcAllocation, tcTrade]: [trade_capture::Store]@Tc_TradeAllocation
+      )
+   }
+
+   trade_capture::InstructedAllocations: Relational
+   {
+      AssociationMapping
+      (
+         instruction[tcAllocation, tcAllocationInstruction]: [trade_capture::Store]@Tc_AllocationInstruction,
+         instructedAllocations[tcAllocationInstruction, tcAllocation]: [trade_capture::Store]@Tc_AllocationInstruction
+      )
+   }
+
+   trade_capture::TradeConfirmations: Relational
+   {
+      AssociationMapping
+      (
+         confirmations[tcTrade, tcConfirmation]: [trade_capture::Store]@Tc_TradeConfirmation,
+         confirmationTrade[tcConfirmation, tcTrade]: [trade_capture::Store]@Tc_TradeConfirmation
+      )
+   }
+
+   trade_capture::TradeAmendments: Relational
+   {
+      AssociationMapping
+      (
+         amendments[tcTrade, tcAmendment]: [trade_capture::Store]@Tc_TradeAmendment,
+         amendmentTrade[tcAmendment, tcTrade]: [trade_capture::Store]@Tc_TradeAmendment
+      )
+   }
+
+   trade_capture::TradeCancellationLink: Relational
+   {
+      AssociationMapping
+      (
+         cancellations[tcTrade, tcCancellation]: [trade_capture::Store]@Tc_TradeCancellation,
+         cancelledTrade[tcCancellation, tcTrade]: [trade_capture::Store]@Tc_TradeCancellation
+      )
+   }
+
+   trade_capture::TradeVersions: Relational
+   {
+      AssociationMapping
+      (
+         versions[tcTrade, tcTradeVersion]: [trade_capture::Store]@Tc_TradeVersionLink,
+         versionTrade[tcTradeVersion, tcTrade]: [trade_capture::Store]@Tc_TradeVersionLink
+      )
+   }
+
+   trade_capture::TradeIdentifiers: Relational
+   {
+      AssociationMapping
+      (
+         tradeIdentifiers[tcTrade, tcTradeIdentifier]: [trade_capture::Store]@Tc_TradeIdentifier,
+         identifiedTrade[tcTradeIdentifier, tcTrade]: [trade_capture::Store]@Tc_TradeIdentifier
+      )
+   }
+
+   trade_capture::TradeCharges: Relational
+   {
+      AssociationMapping
+      (
+         charges[tcTrade, tcTradeCharge]: [trade_capture::Store]@Tc_TradeCharge,
+         chargeTrade[tcTradeCharge, tcTrade]: [trade_capture::Store]@Tc_TradeCharge
+      )
+   }
+
+   trade_capture::CounterpartyCommission: Relational
+   {
+      AssociationMapping
+      (
+         commissionSchedule[tcCounterparty, tcCommissionSchedule]: [trade_capture::Store]@Tc_CounterpartyCommission,
+         scheduleCounterparties[tcCommissionSchedule, tcCounterparty]: [trade_capture::Store]@Tc_CounterpartyCommission
+      )
+   }
+
+   trade_capture::TradeSettlementInstructions: Relational
+   {
+      AssociationMapping
+      (
+         settlementInstructions[tcTrade, tcSettlementInstruction]: [trade_capture::Store]@Tc_TradeSettlement,
+         settlementTrade[tcSettlementInstruction, tcTrade]: [trade_capture::Store]@Tc_TradeSettlement
+      )
+   }
+
+   trade_capture::TradeGiveUps: Relational
+   {
+      AssociationMapping
+      (
+         giveUps[tcTrade, tcGiveUp]: [trade_capture::Store]@Tc_TradeGiveUp,
+         giveUpTrade[tcGiveUp, tcTrade]: [trade_capture::Store]@Tc_TradeGiveUp
+      )
+   }
+
+   trade_capture::BrokerGiveUps: Relational
+   {
+      AssociationMapping
+      (
+         clearingBroker[tcGiveUp, tcClearingBroker]: [trade_capture::Store]@Tc_BrokerGiveUp,
+         brokerGiveUps[tcClearingBroker, tcGiveUp]: [trade_capture::Store]@Tc_BrokerGiveUp
+      )
+   }
+
+   trade_capture::TradeMatches: Relational
+   {
+      AssociationMapping
+      (
+         matches[tcTrade, tcTradeMatch]: [trade_capture::Store]@Tc_TradeMatch,
+         matchTrade[tcTradeMatch, tcTrade]: [trade_capture::Store]@Tc_TradeMatch
+      )
+   }
+
+   trade_capture::MatchBreaks: Relational
+   {
+      AssociationMapping
+      (
+         breaks[tcTradeMatch, tcTradeBreak]: [trade_capture::Store]@Tc_MatchBreak,
+         breakMatch[tcTradeBreak, tcTradeMatch]: [trade_capture::Store]@Tc_MatchBreak
+      )
+   }
+
+   trade_capture::TradeApprovals: Relational
+   {
+      AssociationMapping
+      (
+         approvals[tcTrade, tcTradeApproval]: [trade_capture::Store]@Tc_TradeApproval,
+         approvalTrade[tcTradeApproval, tcTrade]: [trade_capture::Store]@Tc_TradeApproval
+      )
+   }
+
+   trade_capture::TradeNotes: Relational
+   {
+      AssociationMapping
+      (
+         notes[tcTrade, tcTradeNote]: [trade_capture::Store]@Tc_TradeNote,
+         noteTrade[tcTradeNote, tcTrade]: [trade_capture::Store]@Tc_TradeNote
+      )
+   }
+
+   trade_capture::TradeCaptureSourceLink: Relational
+   {
+      AssociationMapping
+      (
+         captureSource[tcTrade, tcCaptureSource]: [trade_capture::Store]@Tc_TradeSource,
+         sourceTrades[tcCaptureSource, tcTrade]: [trade_capture::Store]@Tc_TradeSource
+      )
+   }
+
+   trade_capture::TradeTags: Relational
+   {
+      AssociationMapping
+      (
+         tags[tcTrade, tcTradeTag]: [trade_capture::Store]@Tc_TradeTag,
+         tagTrade[tcTradeTag, tcTrade]: [trade_capture::Store]@Tc_TradeTag
+      )
+   }
+
+   trade_capture::TradeSalesCredits: Relational
+   {
+      AssociationMapping
+      (
+         salesCredits[tcTrade, tcSalesCredit]: [trade_capture::Store]@Tc_TradeSalesCredit,
+         creditTrade[tcSalesCredit, tcTrade]: [trade_capture::Store]@Tc_TradeSalesCredit
+      )
+   }
+
+   trade_capture::SalespersonCredits: Relational
+   {
+      AssociationMapping
+      (
+         salesperson[tcSalesCredit, tcSalesperson]: [trade_capture::Store]@Tc_SalespersonCredit,
+         personCredits[tcSalesperson, tcSalesCredit]: [trade_capture::Store]@Tc_SalespersonCredit
+      )
+   }
+)

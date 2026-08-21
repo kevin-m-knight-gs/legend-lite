@@ -1,0 +1,393 @@
+###Pure
+// The product taxonomy.
+//
+// An INSTRUMENT is what the market trades. A PRODUCT is what the firm sells: the same row
+// seen by product control rather than by reference data. So every class here extends
+// core_instrument::Instrument -- a product IS an instrument, it does not merely point at
+// one -- and adds the facts product control owns and reference data does not: who approved
+// it, who it may be sold to, what it charges, and whether the client can lose their
+// principal.
+//
+// The taxonomy is cut on the questions a product-control desk is actually asked:
+//
+//    vanilla or structured?      is the payoff linear, or engineered from derivatives?
+//    listed or OTC?              did a venue set the terms, or did we negotiate them?
+//    capital-protected or not?   can the client get back less than they put in?
+//    which regulatory category?  MiFID complexity, PRIIPs scope, target market
+//
+// Five families sit directly under product_core::Product, and seventeen concrete products
+// sit under those. The class hierarchy and the mapping hierarchy are the same shape: every
+// set in product_core::Mapping extends core_instrument::Mapping's base set [ciBase],
+// directly (prdProduct) or through its family, and narrows it with a ~filter. The physical
+// rows all live in core_instrument::Store's CI_INSTRUMENT; the product-control columns live
+// in this project's PRD_PRODUCT and are reached by the Prd_ProductInstrument join.
+//
+// Which is why the subtype properties are all [0..1] and the family properties are not: a
+// participation rate means nothing for a repo, and the type is the honest place to say so.
+
+// ---------------------------------------------------------------- the root of the taxonomy
+
+// An instrument that product control has catalogued and cleared for sale -- the thing the
+// firm can put in front of a client. What distinguishes it from a bare instrument is
+// governance: an approval, a target market, a charge, a risk indicator and a date after
+// which it may not be sold. Everything below narrows this; nothing below repeats it.
+Class <<core_types::CtGovernance.reviewed>>
+      {core_types::CtGovernance.owner = 'product-control',
+       core_types::CtGovernance.since = '2024-03-01'}
+      product_core::Product extends core_instrument::Instrument
+{
+   // The catalogue key. Distinct from instrumentId: one instrument can be sold under two
+   // product codes (two share classes, two distribution channels) and the charge differs.
+   productCode: String[1];
+   // Which of the five families this is. Denormalised from the type so that a report can
+   // group by family without walking the class hierarchy.
+   productFamily: String[1];
+   catalogueStatus: String[1];
+   manufacturerName: String[0..1];
+   manufacturerCountry: core_types::CtCountry[0..1];
+   settlementCurrency: core_types::CtCurrency[0..1];
+   regulatoryCategoryCode: String[0..1];
+   // RETAIL, PROFESSIONAL or ELIGIBLE_COUNTERPARTY. The single fact that decides whether a
+   // salesperson may show this to a client at all.
+   targetMarket: String[0..1];
+   isComplexProduct: Boolean[1];
+   isCapitalProtected: Boolean[1];
+   isListedProduct: Boolean[1];
+   minimumInvestment: Float[0..1];
+   minimumIncrement: Float[0..1];
+   launchDate: StrictDate[0..1];
+   withdrawalDate: StrictDate[0..1];
+   // PRIIPs summary risk indicator, 1 to 7. Carried on the product because the KID quotes
+   // it, not on the observation, which is the history behind it.
+   summaryRiskIndicator: Integer[0..1];
+   ongoingChargeBasisPoints: Float[0..1];
+   entryChargeBasisPoints: Float[0..1];
+   distributionChannel: String[0..1];
+   bookingDesk: String[0..1];
+   // Restricted: this names a person and drives escalation, not display.
+   <<core_types::CtGovernance.restricted>> productOwner: String[0..1];
+
+   approvals: product_core::ProductApproval[*];
+   regulatoryCategory: product_core::RegulatoryCategory[0..1];
+   riskIndicators: product_core::ProductRiskIndicator[*];
+
+   // The charge as a rate, so two projects quoting the same fee agree on the scale.
+   ongoingChargeRate() { core_types::ctBasisPointsToRate($this.ongoingChargeBasisPoints->toOne()) } : Float[1];
+   // Whether it may still be sold today. A withdrawn product stays in the catalogue for
+   // ever, because clients still hold it and it still has to be reported.
+   isOnSale() { $this.withdrawalDate->isEmpty() } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- the five families
+
+// A product whose payoff is linear in its underlying and carries no embedded optionality.
+// What distinguishes it: it can be priced from the underlying's price alone, needs no
+// model, and the client's loss is bounded by what the underlying does -- which is why it
+// is the only family a retail client may buy without an appropriateness test.
+Class product_core::VanillaProduct extends product_core::Product
+{
+   payoffIsLinear: Boolean[1];
+   hasEmbeddedOption: Boolean[1];
+   standardTermsReference: String[0..1];
+   quotationConvention: String[0..1];
+}
+
+// A product whose payoff is engineered by embedding derivatives in a wrapper. What
+// distinguishes it: the return is a formula, not a price, so it needs a model to value and
+// a key information document to sell, and the client's downside is a term of the contract
+// rather than a property of the underlying.
+Class product_core::StructuredProduct extends product_core::Product
+{
+   payoffType: String[1];
+   // NOTE, CERTIFICATE, DEPOSIT or FUND. The wrapper decides the client's credit exposure
+   // and the tax treatment; the payoff inside it can be identical across all four.
+   wrapperType: String[0..1];
+   issuanceProgramme: String[0..1];
+   embeddedDerivativeType: String[0..1];
+   underlyingReference: String[0..1];
+   strikeLevelPercent: Float[0..1];
+   barrierLevelPercent: Float[0..1];
+   hasKeyInformationDocument: Boolean[1];
+}
+
+// A pooled vehicle: the client buys units in a portfolio someone else manages. What
+// distinguishes it from every other family is that the firm's credit is not in the trade --
+// the client owns a share of assets, so the questions are liquidity, fees and mandate.
+Class product_core::FundProduct extends product_core::Product
+{
+   legalVehicle: String[1];
+   domicileCountry: core_types::CtCountry[0..1];
+   navFrequency: String[0..1];
+   isUcits: Boolean[1];
+   managementFeeBasisPoints: Float[0..1];
+   performanceFeeBasisPoints: Float[0..1];
+   dealingCutOff: String[0..1];
+}
+
+// Cash or securities lent against collateral. What distinguishes it: there is no payoff at
+// all -- the economics are a spread over a term and a haircut on the collateral, and the
+// risk is the counterparty's, not the market's.
+Class product_core::FinancingProduct extends product_core::Product
+{
+   collateralType: String[0..1];
+   haircutPercent: Float[0..1];
+   termDays: Integer[0..1];
+   isTriparty: Boolean[1];
+   rateBasis: String[0..1];
+   counterpartyLimitReference: String[0..1];
+}
+
+// The client's money on the firm's books, repayable. What distinguishes it: it is a
+// balance-sheet LIABILITY rather than something the firm sells and forgets, so deposit
+// insurance, break terms and liquidity treatment are the facts that matter.
+Class product_core::DepositProduct extends product_core::Product
+{
+   depositTermDays: Integer[0..1];
+   isDepositInsured: Boolean[1];
+   insuranceScheme: String[0..1];
+   earlyBreakAllowed: Boolean[1];
+   breakFeeBasisPoints: Float[0..1];
+}
+
+// ---------------------------------------------------------------- vanilla, by venue
+
+// A vanilla product whose terms were set by an exchange and whose performance is cleared.
+// What distinguishes it: nothing about it is negotiable, so there is no confirmation and no
+// bilateral credit -- the venue's rulebook is the contract.
+Class product_core::ListedVanillaProduct extends product_core::VanillaProduct
+{
+   listingVenueMic: String[0..1];
+   exchangeProductCode: String[0..1];
+   blockTradeThreshold: Float[0..1];
+   clearingHouseName: String[0..1];
+}
+
+// A vanilla product negotiated bilaterally under a master agreement. What distinguishes it:
+// every term is a term of the confirmation, so the documentation reference IS the product
+// definition, and the client carries the firm's credit until it settles.
+Class product_core::OtcVanillaProduct extends product_core::VanillaProduct
+{
+   masterAgreementType: String[0..1];
+   collateralAnnexReference: String[0..1];
+   confirmationTemplate: String[0..1];
+   isCompressionEligible: Boolean[1];
+}
+
+// A synthetic wrapper giving one-for-one exposure to an asset the client never owns. What
+// distinguishes it: the payoff is vanilla but the replication is not -- the firm funds and
+// hedges a basket, so the funding spread is the product's real price.
+Class product_core::DeltaOneProduct extends product_core::VanillaProduct
+{
+   syntheticWrapper: String[0..1];
+   fundingSpreadBasisPoints: Float[0..1];
+   replicationBasketReference: String[0..1];
+   isFullyFunded: Boolean[1];
+}
+
+// ---------------------------------------------------------------- structured, by payoff
+
+// Returns at least a stated percentage of principal at maturity whatever the underlying
+// does. What distinguishes it: the protection is the product -- it is bought with a
+// zero-coupon bond, so the upside is only whatever the remaining premium can buy.
+Class product_core::CapitalProtectedNote extends product_core::StructuredProduct
+{
+   protectionLevelPercent: Float[1];
+   protectionProvider: String[0..1];
+   // Conditional protection lapses if a barrier is breached -- which is exactly the case
+   // clients believe cannot happen, so it is modelled as its own fact.
+   protectionIsConditional: Boolean[1];
+   zeroCouponFundingRate: Float[0..1];
+}
+
+// Pays an above-market coupon bought by selling the client's downside. What distinguishes
+// it: the client is short a put -- the coupon is certain and the principal is not, which is
+// the mirror image of a capital-protected note.
+Class product_core::YieldEnhancementProduct extends product_core::StructuredProduct
+{
+   enhancedCouponPercent: Float[1];
+   couponIsConditional: Boolean[1];
+   downsideBarrierPercent: Float[0..1];
+   autocallTriggerPercent: Float[0..1];
+}
+
+// Tracks the underlying's upside at a stated rate, capped or not. What distinguishes it:
+// there is no coupon and no barrier -- the whole product is the participation rate, so it
+// is the family's simplest member and the one most often mis-sold as a fund.
+Class product_core::ParticipationProduct extends product_core::StructuredProduct
+{
+   participationRatePercent: Float[1];
+   capLevelPercent: Float[0..1];
+   isUncapped: Boolean[1];
+   hasCurrencyHedge: Boolean[1];
+}
+
+// Geared exposure that terminates when a barrier is touched. What distinguishes it: the
+// knock-out -- the client can lose the entire premium intraday and there is no recovery,
+// so it is never appropriate for a retail target market.
+Class product_core::LeveragedProduct extends product_core::StructuredProduct
+{
+   leverageFactor: Float[1];
+   knockOutLevel: Float[0..1];
+   stopLossLevel: Float[0..1];
+   isOpenEnded: Boolean[1];
+}
+
+// Coupon and principal ride on a reference entity's credit rather than the issuer's. What
+// distinguishes it: the client is short protection -- a credit event, not a price move, is
+// what takes the money, so the credit event set is the product definition.
+Class product_core::CreditLinkedNote extends product_core::StructuredProduct
+{
+   referenceEntityName: String[1];
+   creditEventSet: String[0..1];
+   recoveryAssumptionPercent: Float[0..1];
+   isTranched: Boolean[1];
+}
+
+// ---------------------------------------------------------------- funds, by liquidity
+
+// Daily-dealt and retail-distributed, priced at a single NAV. What distinguishes it: every
+// investor gets the same price on the same day, so the operational fact that matters is the
+// dealing cut-off and the share class the client is put into.
+Class product_core::MutualFundProduct extends product_core::FundProduct
+{
+   shareClassCode: String[0..1];
+   isAccumulating: Boolean[1];
+   benchmarkName: String[0..1];
+   subscriptionSettlementDays: Integer[0..1];
+}
+
+// Limited liquidity and a performance fee. What distinguishes it: the lock-up -- the client
+// cannot leave when they want to, so redemption terms, not performance, are what the
+// product-control file is about.
+Class product_core::HedgeFundProduct extends product_core::FundProduct
+{
+   strategyStyle: String[0..1];
+   lockUpMonths: Integer[0..1];
+   redemptionNoticeDays: Integer[0..1];
+   hasHighWaterMark: Boolean[1];
+}
+
+// A fund that trades intraday on exchange and is kept near NAV by authorised participants
+// creating and redeeming in kind. What distinguishes it: it has two prices -- the market
+// price and the NAV -- and the arbitrage between them is the product's design.
+Class product_core::ExchangeTradedFundProduct extends product_core::FundProduct
+{
+   replicationStyle: String[0..1];
+   primaryListingMic: String[0..1];
+   creationUnitSize: Float[0..1];
+   authorisedParticipantCount: Integer[0..1];
+}
+
+// A cash equivalent: short maturity, a daily liquidity floor and a regulated NAV type. What
+// distinguishes it: it is bought to be boring -- treasury holds it INSTEAD of cash, so
+// weighted average maturity and the liquidity floor are regulatory limits, not preferences.
+Class product_core::MoneyMarketFundProduct extends product_core::FundProduct
+{
+   // CNAV, LVNAV or VNAV -- the regulatory NAV regime, which decides whether the client can
+   // treat the holding as cash at all.
+   navType: String[0..1];
+   weightedAverageMaturityDays: Integer[0..1];
+   dailyLiquidityFloorPercent: Float[0..1];
+   isGovernmentOnly: Boolean[1];
+}
+
+// ---------------------------------------------------------------- financing, by mechanism
+
+// Sale and repurchase: legal title to the collateral passes and comes back at a fixed
+// price. What distinguishes it: title transfer -- the firm can re-use the collateral, which
+// is why it is cheaper than a secured loan and why it is treated differently in resolution.
+Class product_core::RepoProduct extends product_core::FinancingProduct
+{
+   repoRatePercent: Float[0..1];
+   isOpenRepo: Boolean[1];
+   generalCollateralBasket: String[0..1];
+   repurchaseDate: StrictDate[0..1];
+}
+
+// Securities lent against collateral for a fee, recallable at any time. What distinguishes
+// it from repo: the lender wants the SECURITY back, not the cash -- the fee is driven by
+// how hard the name is to borrow, not by a funding rate.
+Class product_core::SecuritiesLendingProduct extends product_core::FinancingProduct
+{
+   lendingFeeBasisPoints: Float[0..1];
+   isExclusive: Boolean[1];
+   recallNoticeDays: Integer[0..1];
+   isCollateralCashPooled: Boolean[1];
+}
+
+// Cash lent against a portfolio the client keeps. What distinguishes it: the collateral is
+// a whole portfolio rather than a named security, so the product is defined by the advance
+// rate and the trigger at which the firm calls for more.
+Class product_core::MarginLoanProduct extends product_core::FinancingProduct
+{
+   advanceRatePercent: Float[0..1];
+   marginCallTriggerPercent: Float[0..1];
+   isCommitted: Boolean[1];
+   facilityLimit: Float[0..1];
+}
+
+// ---------------------------------------------------------------- deposits, by return
+
+// Fixed rate, fixed term, no market risk. What distinguishes it: the return is known when
+// the client signs, so the only product questions are the break terms and whether the
+// deposit is insured.
+Class product_core::TermDepositProduct extends product_core::DepositProduct
+{
+   fixedRatePercent: Float[1];
+   rolloverInstruction: String[0..1];
+   isNegotiable: Boolean[1];
+}
+
+// Principal repayable like a deposit, return linked to an index. What distinguishes it: it
+// is a structured payoff wearing a deposit's clothes -- it looks insured and the return is
+// not, which is precisely why it sits in the deposit family and carries a KID.
+Class product_core::StructuredDepositProduct extends product_core::DepositProduct
+{
+   linkedIndexName: String[1];
+   minimumReturnPercent: Float[0..1];
+   maximumReturnPercent: Float[0..1];
+   indexParticipationPercent: Float[0..1];
+}
+
+// ---------------------------------------------------------------- the governance side
+
+// One committee decision about one product. Separate from the product because a product is
+// approved repeatedly -- new market, new channel, annual re-attestation -- and the firm has
+// to be able to show which decision was in force on a given day.
+Class product_core::ProductApproval
+{
+   productCode: String[1];
+   approvalReference: String[1];
+   committee: String[0..1];
+   approvedBy: String[0..1];
+   approvedOn: StrictDate[0..1];
+   expiresOn: StrictDate[0..1];
+   conditions: String[0..1];
+   approvalStatus: String[0..1];
+}
+
+// The regulatory classification code table. Exists as its own class so that a downstream
+// project can label a category without hard-coding the regime's strings, and so that a
+// change of regime is one row rather than a search across every product.
+Class product_core::RegulatoryCategory
+{
+   categoryCode: String[1];
+   displayName: String[0..1];
+   mifidCategory: String[0..1];
+   isPriipsInScope: Boolean[1];
+   isComplexUnderMifid: Boolean[1];
+   appropriatenessTestRequired: Boolean[1];
+}
+
+// One periodic PRIIPs risk-indicator observation for one product. Separate from the
+// product's own summaryRiskIndicator, which is what the current KID says: this is the
+// history that shows when it moved and why.
+Class product_core::ProductRiskIndicator
+{
+   productCode: String[1];
+   asOfDate: StrictDate[1];
+   riskScore: Integer[0..1];
+   marketRiskMeasure: Integer[0..1];
+   creditRiskMeasure: Integer[0..1];
+   liquidityNote: String[0..1];
+}

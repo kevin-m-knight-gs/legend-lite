@@ -1,0 +1,240 @@
+###Relational
+// The product-control store.
+//
+// It INCLUDES core_instrument::Store, because a product is an instrument: the rows are
+// CI_INSTRUMENT rows and this project does not get to copy them. What it adds is one wide
+// overlay table, PRD_PRODUCT, keyed by the same INSTRUMENT_ID, carrying the columns product
+// control owns and reference data does not.
+//
+// Why an overlay and not more columns on CI_INSTRUMENT: the two tables are written by two
+// different systems on two different cycles. Reference data loads an instrument the day it
+// is listed; product control catalogues it weeks later, or never. A catalogued product is
+// exactly the inner join, which is what the Prd_ProductInstrument join and the
+// PrdCatalogueRows filter say.
+//
+// The filters are the discriminator, and they read TWO columns that belong to the
+// dependency: CI_INSTRUMENT.INSTRUMENT_TYPE for the five families and
+// CI_INSTRUMENT.INSTRUMENT_SUBTYPE for the seventeen concrete products. Every value used
+// here is new -- core-instrument's MANIFEST lists the ones it has taken, and none of them
+// appear below.
+Database product_core::Store
+(
+   include core_instrument::Store
+
+   // The product-control overlay. One row per catalogued product, keyed by the instrument
+   // it is a product of. Wide for the same reason CI_INSTRUMENT is wide: the families
+   // differ in which columns carry meaning, not in where the row lives.
+   Table PRD_PRODUCT
+   (
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      PRODUCT_CODE VARCHAR(40),
+      PRODUCT_FAMILY VARCHAR(40),
+      CATALOGUE_STATUS VARCHAR(20),
+      MANUFACTURER_NAME VARCHAR(200),
+      MANUFACTURER_COUNTRY VARCHAR(2),
+      SETTLEMENT_CURRENCY VARCHAR(3),
+      REGULATORY_CATEGORY VARCHAR(40),
+      TARGET_MARKET VARCHAR(40),
+      IS_COMPLEX BIT,
+      IS_CAPITAL_PROTECTED BIT,
+      IS_LISTED_PRODUCT BIT,
+      MIN_INVESTMENT DOUBLE,
+      MIN_INCREMENT DOUBLE,
+      LAUNCH_DATE DATE,
+      WITHDRAWAL_DATE DATE,
+      SUMMARY_RISK_INDICATOR INTEGER,
+      ONGOING_CHARGE_BPS DOUBLE,
+      ENTRY_CHARGE_BPS DOUBLE,
+      DISTRIBUTION_CHANNEL VARCHAR(40),
+      BOOKING_DESK VARCHAR(60),
+      PRODUCT_OWNER VARCHAR(60),
+
+      // vanilla
+      PAYOFF_IS_LINEAR BIT,
+      HAS_EMBEDDED_OPTION BIT,
+      STANDARD_TERMS_REF VARCHAR(60),
+      QUOTATION_CONVENTION VARCHAR(40),
+      LISTING_VENUE_MIC VARCHAR(4),
+      EXCHANGE_PRODUCT_CODE VARCHAR(40),
+      BLOCK_TRADE_THRESHOLD DOUBLE,
+      CLEARING_HOUSE_NAME VARCHAR(60),
+      MASTER_AGREEMENT_TYPE VARCHAR(40),
+      COLLATERAL_ANNEX_REF VARCHAR(60),
+      CONFIRMATION_TEMPLATE VARCHAR(60),
+      IS_COMPRESSION_ELIGIBLE BIT,
+      SYNTHETIC_WRAPPER VARCHAR(40),
+      FUNDING_SPREAD_BPS DOUBLE,
+      REPLICATION_BASKET_REF VARCHAR(60),
+      IS_FULLY_FUNDED BIT,
+
+      // structured
+      PAYOFF_TYPE VARCHAR(40),
+      WRAPPER_TYPE VARCHAR(20),
+      ISSUANCE_PROGRAMME VARCHAR(60),
+      EMBEDDED_DERIVATIVE_TYPE VARCHAR(40),
+      UNDERLYING_REFERENCE VARCHAR(60),
+      STRIKE_LEVEL_PCT DOUBLE,
+      BARRIER_LEVEL_PCT DOUBLE,
+      HAS_KID BIT,
+      PROTECTION_LEVEL_PCT DOUBLE,
+      PROTECTION_PROVIDER VARCHAR(200),
+      PROTECTION_IS_CONDITIONAL BIT,
+      ZERO_COUPON_FUNDING_RATE DOUBLE,
+      ENHANCED_COUPON_PCT DOUBLE,
+      COUPON_IS_CONDITIONAL BIT,
+      DOWNSIDE_BARRIER_PCT DOUBLE,
+      AUTOCALL_TRIGGER_PCT DOUBLE,
+      PARTICIPATION_RATE_PCT DOUBLE,
+      CAP_LEVEL_PCT DOUBLE,
+      IS_UNCAPPED BIT,
+      HAS_CURRENCY_HEDGE BIT,
+      LEVERAGE_FACTOR DOUBLE,
+      KNOCK_OUT_LEVEL DOUBLE,
+      STOP_LOSS_LEVEL DOUBLE,
+      IS_OPEN_ENDED BIT,
+      REFERENCE_ENTITY_NAME VARCHAR(200),
+      CREDIT_EVENT_SET VARCHAR(120),
+      RECOVERY_ASSUMPTION_PCT DOUBLE,
+      IS_TRANCHED BIT,
+
+      // funds
+      LEGAL_VEHICLE VARCHAR(40),
+      DOMICILE_COUNTRY VARCHAR(2),
+      NAV_FREQUENCY VARCHAR(20),
+      IS_UCITS BIT,
+      MANAGEMENT_FEE_BPS DOUBLE,
+      PERFORMANCE_FEE_BPS DOUBLE,
+      DEALING_CUT_OFF VARCHAR(20),
+      SHARE_CLASS_CODE VARCHAR(20),
+      IS_ACCUMULATING BIT,
+      BENCHMARK_NAME VARCHAR(120),
+      SUBSCRIPTION_SETTLEMENT_DAYS INTEGER,
+      STRATEGY_STYLE VARCHAR(60),
+      LOCK_UP_MONTHS INTEGER,
+      REDEMPTION_NOTICE_DAYS INTEGER,
+      HAS_HIGH_WATER_MARK BIT,
+      REPLICATION_STYLE VARCHAR(30),
+      PRIMARY_LISTING_MIC VARCHAR(4),
+      CREATION_UNIT_SIZE DOUBLE,
+      AUTHORISED_PARTICIPANT_COUNT INTEGER,
+      NAV_TYPE VARCHAR(10),
+      WEIGHTED_AVG_MATURITY_DAYS INTEGER,
+      DAILY_LIQUIDITY_FLOOR_PCT DOUBLE,
+      IS_GOVERNMENT_ONLY BIT,
+
+      // financing
+      COLLATERAL_TYPE VARCHAR(40),
+      HAIRCUT_PCT DOUBLE,
+      TERM_DAYS INTEGER,
+      IS_TRIPARTY BIT,
+      RATE_BASIS VARCHAR(30),
+      COUNTERPARTY_LIMIT_REF VARCHAR(60),
+      REPO_RATE_PCT DOUBLE,
+      IS_OPEN_REPO BIT,
+      GC_BASKET VARCHAR(40),
+      REPURCHASE_DATE DATE,
+      LENDING_FEE_BPS DOUBLE,
+      IS_EXCLUSIVE BIT,
+      RECALL_NOTICE_DAYS INTEGER,
+      IS_COLLATERAL_CASH_POOLED BIT,
+      ADVANCE_RATE_PCT DOUBLE,
+      MARGIN_CALL_TRIGGER_PCT DOUBLE,
+      IS_COMMITTED BIT,
+      FACILITY_LIMIT DOUBLE,
+
+      // deposits
+      DEPOSIT_TERM_DAYS INTEGER,
+      IS_DEPOSIT_INSURED BIT,
+      INSURANCE_SCHEME VARCHAR(60),
+      EARLY_BREAK_ALLOWED BIT,
+      BREAK_FEE_BPS DOUBLE,
+      FIXED_RATE_PCT DOUBLE,
+      ROLLOVER_INSTRUCTION VARCHAR(40),
+      IS_NEGOTIABLE BIT,
+      LINKED_INDEX_NAME VARCHAR(120),
+      MIN_RETURN_PCT DOUBLE,
+      MAX_RETURN_PCT DOUBLE,
+      INDEX_PARTICIPATION_PCT DOUBLE
+   )
+
+   // A product is approved more than once, so this is not a column on PRD_PRODUCT.
+   Table PRD_APPROVAL
+   (
+      PRODUCT_CODE VARCHAR(40) PRIMARY KEY,
+      APPROVAL_REF VARCHAR(40) PRIMARY KEY,
+      COMMITTEE VARCHAR(60),
+      APPROVED_BY VARCHAR(60),
+      APPROVED_ON DATE,
+      EXPIRES_ON DATE,
+      CONDITIONS VARCHAR(400),
+      APPROVAL_STATUS VARCHAR(20)
+   )
+
+   // The regulatory classification code table.
+   Table PRD_REG_CATEGORY
+   (
+      CATEGORY_CODE VARCHAR(40) PRIMARY KEY,
+      DISPLAY_NAME VARCHAR(60),
+      MIFID_CATEGORY VARCHAR(40),
+      IS_PRIIPS_IN_SCOPE BIT,
+      IS_COMPLEX_UNDER_MIFID BIT,
+      APPROPRIATENESS_TEST_REQUIRED BIT
+   )
+
+   // The risk-indicator history behind PRD_PRODUCT.SUMMARY_RISK_INDICATOR.
+   Table PRD_RISK_INDICATOR
+   (
+      PRODUCT_CODE VARCHAR(40) PRIMARY KEY,
+      AS_OF_DATE DATE PRIMARY KEY,
+      RISK_SCORE INTEGER,
+      MARKET_RISK_MEASURE INTEGER,
+      CREDIT_RISK_MEASURE INTEGER,
+      LIQUIDITY_NOTE VARCHAR(200)
+   )
+
+   // The join that makes the overlay reachable from the instrument row. Every product
+   // property in product_core::Mapping is mapped through it, because the main table of
+   // every set below [ciBase] is CI_INSTRUMENT.
+   Join Prd_ProductInstrument(CI_INSTRUMENT.INSTRUMENT_ID = PRD_PRODUCT.INSTRUMENT_ID)
+   Join Prd_ProductApproval(PRD_PRODUCT.PRODUCT_CODE = PRD_APPROVAL.PRODUCT_CODE)
+   Join Prd_ProductRegCategory(PRD_PRODUCT.REGULATORY_CATEGORY = PRD_REG_CATEGORY.CATEGORY_CODE)
+   Join Prd_ProductRiskIndicator(PRD_PRODUCT.PRODUCT_CODE = PRD_RISK_INDICATOR.PRODUCT_CODE)
+
+   // ---- the discriminator ----
+   // Level 0: catalogued at all. Reached from CI_INSTRUMENT through the overlay join, which
+   // is why the root set writes `~filter [product_core::Store]@Prd_ProductInstrument | ...`.
+   // A string comparison rather than a BIT test, because a Filter will not take a boolean
+   // literal.
+   Filter PrdCatalogueRows(PRD_PRODUCT.CATALOGUE_STATUS = 'CATALOGUED')
+
+   // Level 1: the family, on the dependency's INSTRUMENT_TYPE column. These five values are
+   // new; core-instrument uses EQUITY, BOND, FUTURE, OPTION, SWAP, ETF, WARRANT and
+   // DEPOSITARY_RECEIPT, and a manufactured product is its own instrument row with its own
+   // ISIN, so it does not compete with any of them.
+   Filter PrdVanillaProductRows(CI_INSTRUMENT.INSTRUMENT_TYPE = 'VANILLA_PRODUCT')
+   Filter PrdStructuredProductRows(CI_INSTRUMENT.INSTRUMENT_TYPE = 'STRUCTURED_PRODUCT')
+   Filter PrdFundProductRows(CI_INSTRUMENT.INSTRUMENT_TYPE = 'FUND_PRODUCT')
+   Filter PrdFinancingProductRows(CI_INSTRUMENT.INSTRUMENT_TYPE = 'FINANCING_PRODUCT')
+   Filter PrdDepositProductRows(CI_INSTRUMENT.INSTRUMENT_TYPE = 'DEPOSIT_PRODUCT')
+
+   // Level 2: the concrete product, on INSTRUMENT_SUBTYPE. None of these seventeen values
+   // is one of core-instrument's ten (COMMON, PREFERRED, GOVERNMENT, CORPORATE,
+   // CONVERTIBLE, COMMODITY, EQUITY_INDEX, IRS, CDS, TRS).
+   Filter PrdListedVanillaRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'LISTED_VANILLA')
+   Filter PrdOtcVanillaRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'OTC_VANILLA')
+   Filter PrdDeltaOneRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'DELTA_ONE')
+   Filter PrdCapitalProtectedRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'CAPITAL_PROTECTED')
+   Filter PrdYieldEnhancementRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'YIELD_ENHANCEMENT')
+   Filter PrdParticipationRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'PARTICIPATION')
+   Filter PrdLeveragedRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'LEVERAGED')
+   Filter PrdCreditLinkedRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'CREDIT_LINKED')
+   Filter PrdMutualFundRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'MUTUAL_FUND')
+   Filter PrdHedgeFundRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'HEDGE_FUND')
+   Filter PrdEtfProductRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'ETF_PRODUCT')
+   Filter PrdMoneyMarketFundRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'MONEY_MARKET_FUND')
+   Filter PrdRepoRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'REPO')
+   Filter PrdSecuritiesLendingRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'SEC_LENDING')
+   Filter PrdMarginLoanRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'MARGIN_LOAN')
+   Filter PrdTermDepositRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'TERM_DEPOSIT')
+   Filter PrdStructuredDepositRows(CI_INSTRUMENT.INSTRUMENT_SUBTYPE = 'STRUCTURED_DEPOSIT')
+)

@@ -1,0 +1,568 @@
+###Mapping
+// The risk mapping.
+//
+// It INCLUDES both dependencies' mappings, which is what lets a property typed
+// core_instrument::Instrument or core_price::CprConsensusPrice resolve to the upstream set
+// that already maps it -- [ciBase] and [cprConsensus] respectively. Nothing upstream is
+// re-mapped.
+//
+// Two sets read the store VIEW, and they are doing different jobs:
+//
+//   [rskFactorTotal]     is ROOTED at RSK_FACTOR_TOTAL. A query that names
+//                        risk_core::RskFactorTotal reads the GROUP BY directly. That is a
+//                        view used as a table.
+//
+//   [rskFactorExposure]  is AggregationAware: its ~mainMapping is the leg table and its one
+//                        aggregate view is the same store view. Nothing names it; a query
+//                        over RskFactorExposure that groups by factor and date and sums the
+//                        delta gets REWRITTEN onto the pre-aggregate. That is a view used as
+//                        an index.
+//
+// Every set id is explicit and starts `rsk`, so a downstream project extends the id it reads
+// in MANIFEST.md rather than the default one, which does not exist here.
+Mapping risk_core::Mapping
+(
+   include core_instrument::Mapping
+   include core_price::Mapping
+
+   // ---- the factor master ----
+   // The root set: every row of RSK_RISK_FACTOR, whatever type it turns out to be.
+   *risk_core::RskRiskFactor[rskFactor]: Relational
+   {
+      ~primaryKey ( [risk_core::Store]RSK_RISK_FACTOR.FACTOR_ID )
+      ~mainTable [risk_core::Store]RSK_RISK_FACTOR
+      factorId: [risk_core::Store]RSK_RISK_FACTOR.FACTOR_ID,
+      factorType: [risk_core::Store]RSK_RISK_FACTOR.FACTOR_TYPE,
+      factorName: [risk_core::Store]RSK_RISK_FACTOR.FACTOR_NAME,
+      currency: [risk_core::Store]RSK_RISK_FACTOR.CURRENCY,
+      curveName: [risk_core::Store]RSK_RISK_FACTOR.CURVE_NAME,
+      underlyingInstrumentId: [risk_core::Store]RSK_RISK_FACTOR.UNDERLYING_INSTRUMENT_ID,
+      quotationUnit: [risk_core::Store]RSK_RISK_FACTOR.QUOTATION_UNIT,
+      shockUnit: [risk_core::Store]RSK_RISK_FACTOR.SHOCK_UNIT,
+      decimals: [risk_core::Store]RSK_RISK_FACTOR.DECIMALS,
+      isActive: [risk_core::Store]RSK_RISK_FACTOR.IS_ACTIVE,
+      startDate: [risk_core::Store]RSK_RISK_FACTOR.START_DATE,
+      // Across the boundary into core-instrument: the join lands on CI_INSTRUMENT and the
+      // instance comes out of the upstream root set.
+      underlying: [risk_core::Store]@Rsk_FactorInstrument,
+      // And into core-price: every consensus mark on the underlying.
+      driverPrices: [risk_core::Store]@Rsk_FactorPrice,
+      curvePoints: [risk_core::Store]@Rsk_FactorCurvePoint,
+      sensitivities: [risk_core::Store]@Rsk_SensitivityFactor,
+      // Into the VIEW. Navigating a factor to its totals crosses a join into a GROUP BY and
+      // never touches a leg row.
+      dailyTotals: [risk_core::Store]@Rsk_FactorTotal,
+      shocks: [risk_core::Store]@Rsk_ShockFactor
+   }
+
+   // ---- the six factor types ----
+   // The SAME table, narrowed by the discriminator, plus the columns that only mean
+   // something once the row is known to be of this type. The key, the main table and the
+   // eleven base property mappings all come from [rskFactor].
+
+   risk_core::RskRatesFactor[rskRatesFactor] extends [rskFactor]: Relational
+   {
+      ~filter [risk_core::Store]RskRatesFactorRows
+      curveConvention: [risk_core::Store]RSK_RISK_FACTOR.CURVE_CONVENTION,
+      compounding: [risk_core::Store]RSK_RISK_FACTOR.COMPOUNDING,
+      indexTenor: [risk_core::Store]RSK_RISK_FACTOR.INDEX_TENOR,
+      isOvernightIndex: [risk_core::Store]RSK_RISK_FACTOR.IS_OVERNIGHT_INDEX
+   }
+
+   risk_core::RskCreditSpreadFactor[rskCreditSpreadFactor] extends [rskFactor]: Relational
+   {
+      ~filter [risk_core::Store]RskCreditSpreadFactorRows
+      referenceEntityId: [risk_core::Store]RSK_RISK_FACTOR.REFERENCE_ENTITY_ID,
+      seniority: [risk_core::Store]RSK_RISK_FACTOR.SENIORITY,
+      restructuringClause: [risk_core::Store]RSK_RISK_FACTOR.RESTRUCTURING_CLAUSE,
+      recoveryRate: [risk_core::Store]RSK_RISK_FACTOR.RECOVERY_RATE
+   }
+
+   risk_core::RskEquityFactor[rskEquityFactor] extends [rskFactor]: Relational
+   {
+      ~filter [risk_core::Store]RskEquityFactorRows
+      issuerTicker: [risk_core::Store]RSK_RISK_FACTOR.ISSUER_TICKER,
+      gicsSector: [risk_core::Store]RSK_RISK_FACTOR.GICS_SECTOR,
+      indexName: [risk_core::Store]RSK_RISK_FACTOR.INDEX_NAME,
+      isBasket: [risk_core::Store]RSK_RISK_FACTOR.IS_BASKET
+   }
+
+   risk_core::RskFxFactor[rskFxFactor] extends [rskFactor]: Relational
+   {
+      ~filter [risk_core::Store]RskFxFactorRows
+      baseCurrency: [risk_core::Store]RSK_RISK_FACTOR.BASE_CURRENCY,
+      quoteCurrency: [risk_core::Store]RSK_RISK_FACTOR.QUOTE_CURRENCY,
+      isPegged: [risk_core::Store]RSK_RISK_FACTOR.IS_PEGGED
+   }
+
+   risk_core::RskCommodityFactor[rskCommodityFactor] extends [rskFactor]: Relational
+   {
+      ~filter [risk_core::Store]RskCommodityFactorRows
+      commodityGroup: [risk_core::Store]RSK_RISK_FACTOR.COMMODITY_GROUP,
+      deliveryLocation: [risk_core::Store]RSK_RISK_FACTOR.DELIVERY_LOCATION,
+      contractMonth: [risk_core::Store]RSK_RISK_FACTOR.CONTRACT_MONTH,
+      grade: [risk_core::Store]RSK_RISK_FACTOR.GRADE
+   }
+
+   risk_core::RskVolatilityFactor[rskVolatilityFactor] extends [rskFactor]: Relational
+   {
+      ~filter [risk_core::Store]RskVolatilityFactorRows
+      surfaceName: [risk_core::Store]RSK_RISK_FACTOR.SURFACE_NAME,
+      moneyness: [risk_core::Store]RSK_RISK_FACTOR.MONEYNESS,
+      expiryTenor: [risk_core::Store]RSK_RISK_FACTOR.EXPIRY_TENOR,
+      isSmileAware: [risk_core::Store]RSK_RISK_FACTOR.IS_SMILE_AWARE
+   }
+
+   // ---- factor levels and correlations ----
+
+   risk_core::RskFactorCurvePoint[rskCurvePoint]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_core::Store]RSK_FACTOR_CURVE_POINT.FACTOR_ID,
+         [risk_core::Store]RSK_FACTOR_CURVE_POINT.COB_DATE,
+         [risk_core::Store]RSK_FACTOR_CURVE_POINT.TENOR_CODE
+      )
+      ~mainTable [risk_core::Store]RSK_FACTOR_CURVE_POINT
+      factorId: [risk_core::Store]RSK_FACTOR_CURVE_POINT.FACTOR_ID,
+      cobDate: [risk_core::Store]RSK_FACTOR_CURVE_POINT.COB_DATE,
+      tenorCode: [risk_core::Store]RSK_FACTOR_CURVE_POINT.TENOR_CODE,
+      tenorDays: [risk_core::Store]RSK_FACTOR_CURVE_POINT.TENOR_DAYS,
+      level: [risk_core::Store]RSK_FACTOR_CURVE_POINT.LEVEL_VALUE,
+      isInterpolated: [risk_core::Store]RSK_FACTOR_CURVE_POINT.IS_INTERPOLATED,
+      sourceName: [risk_core::Store]RSK_FACTOR_CURVE_POINT.SOURCE_NAME
+   }
+
+   risk_core::RskFactorCorrelation[rskCorrelation]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_core::Store]RSK_FACTOR_CORRELATION.FACTOR_ID_A,
+         [risk_core::Store]RSK_FACTOR_CORRELATION.FACTOR_ID_B,
+         [risk_core::Store]RSK_FACTOR_CORRELATION.COB_DATE,
+         [risk_core::Store]RSK_FACTOR_CORRELATION.WINDOW_DAYS
+      )
+      ~mainTable [risk_core::Store]RSK_FACTOR_CORRELATION
+      factorIdA: [risk_core::Store]RSK_FACTOR_CORRELATION.FACTOR_ID_A,
+      factorIdB: [risk_core::Store]RSK_FACTOR_CORRELATION.FACTOR_ID_B,
+      cobDate: [risk_core::Store]RSK_FACTOR_CORRELATION.COB_DATE,
+      windowDays: [risk_core::Store]RSK_FACTOR_CORRELATION.WINDOW_DAYS,
+      correlation: [risk_core::Store]RSK_FACTOR_CORRELATION.CORRELATION,
+      methodCode: [risk_core::Store]RSK_FACTOR_CORRELATION.METHOD_CODE,
+      isStressed: [risk_core::Store]RSK_FACTOR_CORRELATION.IS_STRESSED
+   }
+
+   risk_core::RskGreekMeasure[rskGreekMeasure]: Relational
+   {
+      ~primaryKey ( [risk_core::Store]RSK_GREEK_MEASURE.MEASURE_CODE )
+      ~mainTable [risk_core::Store]RSK_GREEK_MEASURE
+      measureCode: [risk_core::Store]RSK_GREEK_MEASURE.MEASURE_CODE,
+      measureName: [risk_core::Store]RSK_GREEK_MEASURE.MEASURE_NAME,
+      derivativeOrder: [risk_core::Store]RSK_GREEK_MEASURE.DERIVATIVE_ORDER,
+      perUnit: [risk_core::Store]RSK_GREEK_MEASURE.PER_UNIT,
+      isSecondOrder: [risk_core::Store]RSK_GREEK_MEASURE.IS_SECOND_ORDER,
+      description: [risk_core::Store]RSK_GREEK_MEASURE.DESCRIPTION
+   }
+
+   // ---- the legs ----
+
+   risk_core::RskSensitivity[rskSensitivity]: Relational
+   {
+      ~primaryKey ( [risk_core::Store]RSK_SENSITIVITY.SENSITIVITY_ID )
+      ~mainTable [risk_core::Store]RSK_SENSITIVITY
+      sensitivityId: [risk_core::Store]RSK_SENSITIVITY.SENSITIVITY_ID,
+      cobDate: [risk_core::Store]RSK_SENSITIVITY.COB_DATE,
+      factorId: [risk_core::Store]RSK_SENSITIVITY.FACTOR_ID,
+      portfolioId: [risk_core::Store]RSK_SENSITIVITY.PORTFOLIO_ID,
+      positionId: [risk_core::Store]RSK_SENSITIVITY.POSITION_ID,
+      instrumentId: [risk_core::Store]RSK_SENSITIVITY.INSTRUMENT_ID,
+      currency: [risk_core::Store]RSK_SENSITIVITY.CURRENCY,
+      deltaValue: [risk_core::Store]RSK_SENSITIVITY.DELTA_VALUE,
+      gammaValue: [risk_core::Store]RSK_SENSITIVITY.GAMMA_VALUE,
+      vegaValue: [risk_core::Store]RSK_SENSITIVITY.VEGA_VALUE,
+      thetaValue: [risk_core::Store]RSK_SENSITIVITY.THETA_VALUE,
+      rhoValue: [risk_core::Store]RSK_SENSITIVITY.RHO_VALUE,
+      shockSize: [risk_core::Store]RSK_SENSITIVITY.SHOCK_SIZE,
+      calcMethod: [risk_core::Store]RSK_SENSITIVITY.CALC_METHOD,
+      tenorCode: [risk_core::Store]RSK_SENSITIVITY.TENOR_CODE,
+      tenorDays: [risk_core::Store]RSK_SENSITIVITY.TENOR_DAYS,
+      isMaterial: [risk_core::Store]RSK_SENSITIVITY.IS_MATERIAL,
+      calculatedAt: [risk_core::Store]RSK_SENSITIVITY.CALCULATED_AT,
+      factor: [risk_core::Store]@Rsk_SensitivityFactor,
+      portfolio: [risk_core::Store]@Rsk_SensitivityPortfolio,
+      instrument: [risk_core::Store]@Rsk_SensitivityInstrument,
+      consensusPrice: [risk_core::Store]@Rsk_SensitivityPrice
+   }
+
+   // The material legs: the same table and the same key, narrowed by a ~filter. Everything
+   // else is inherited from [rskSensitivity].
+   risk_core::RskMaterialSensitivity[rskMaterialSensitivity] extends [rskSensitivity]: Relational
+   {
+      ~filter [risk_core::Store]RskMaterialRows
+   }
+
+   risk_core::RskCrossGamma[rskCrossGamma]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_core::Store]RSK_CROSS_GAMMA.COB_DATE,
+         [risk_core::Store]RSK_CROSS_GAMMA.PORTFOLIO_ID,
+         [risk_core::Store]RSK_CROSS_GAMMA.FACTOR_ID_A,
+         [risk_core::Store]RSK_CROSS_GAMMA.FACTOR_ID_B
+      )
+      ~mainTable [risk_core::Store]RSK_CROSS_GAMMA
+      cobDate: [risk_core::Store]RSK_CROSS_GAMMA.COB_DATE,
+      portfolioId: [risk_core::Store]RSK_CROSS_GAMMA.PORTFOLIO_ID,
+      factorIdA: [risk_core::Store]RSK_CROSS_GAMMA.FACTOR_ID_A,
+      factorIdB: [risk_core::Store]RSK_CROSS_GAMMA.FACTOR_ID_B,
+      crossValue: [risk_core::Store]RSK_CROSS_GAMMA.CROSS_VALUE,
+      shockA: [risk_core::Store]RSK_CROSS_GAMMA.SHOCK_A,
+      shockB: [risk_core::Store]RSK_CROSS_GAMMA.SHOCK_B,
+      currency: [risk_core::Store]RSK_CROSS_GAMMA.CURRENCY,
+      isMaterial: [risk_core::Store]RSK_CROSS_GAMMA.IS_MATERIAL
+   }
+
+   // ---- the two ways the VIEW is read ----
+
+   // ONE: the view as a table. The primary key is the grouping, so one instance of this
+   // class is one factor-date group, and a report reads it by name.
+   risk_core::RskFactorTotal[rskFactorTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_core::Store]RSK_FACTOR_TOTAL.FACTOR_ID,
+         [risk_core::Store]RSK_FACTOR_TOTAL.COB_DATE
+      )
+      ~mainTable [risk_core::Store]RSK_FACTOR_TOTAL
+      factorId: [risk_core::Store]RSK_FACTOR_TOTAL.FACTOR_ID,
+      cobDate: [risk_core::Store]RSK_FACTOR_TOTAL.COB_DATE,
+      totalDelta: [risk_core::Store]RSK_FACTOR_TOTAL.TOTAL_DELTA,
+      legCount: [risk_core::Store]RSK_FACTOR_TOTAL.LEG_COUNT,
+      factor: [risk_core::Store]@Rsk_FactorTotal
+   }
+
+   // TWO: the view as an index. The AGGREGATION shape.
+   //
+   // ~mainMapping is the truth -- one instance per leg, straight off RSK_SENSITIVITY. The
+   // one aggregate view says: if a query groups these by factorId and cobDate and asks for
+   // sum(deltaValue), the same answer is available from RSK_FACTOR_TOTAL, one row per group
+   // instead of one per leg. The engine rewrites onto it; the query never says so.
+   //
+   // ~canAggregate true because the pre-aggregate is summable: a report grouping by factor
+   // ALONE can add the per-date totals up rather than falling back to the legs. It would be
+   // false if the aggregate held something that cannot be re-aggregated, an average or a
+   // distinct count.
+   //
+   // The class has three properties and no more, because both mappings have to supply every
+   // one of them -- a fourth that only the leg table has would make the rewrite unsound.
+   risk_core::RskFactorExposure[rskFactorExposure]: AggregationAware
+   {
+      Views:
+      [
+         (
+            ~modelOperation:
+            {
+               ~canAggregate true,
+               ~groupByFunctions
+               (
+                  $this.factorId,
+                  $this.cobDate
+               ),
+               ~aggregateValues
+               (
+                  ( ~mapFn: $this.deltaValue, ~aggregateFn: $mapped->sum() )
+               )
+            },
+            ~aggregateMapping: Relational
+            {
+               ~primaryKey
+               (
+                  [risk_core::Store]RSK_FACTOR_TOTAL.FACTOR_ID,
+                  [risk_core::Store]RSK_FACTOR_TOTAL.COB_DATE
+               )
+               ~mainTable [risk_core::Store]RSK_FACTOR_TOTAL
+               factorId: [risk_core::Store]RSK_FACTOR_TOTAL.FACTOR_ID,
+               cobDate: [risk_core::Store]RSK_FACTOR_TOTAL.COB_DATE,
+               deltaValue: [risk_core::Store]RSK_FACTOR_TOTAL.TOTAL_DELTA
+            }
+         )
+      ],
+      ~mainMapping: Relational
+      {
+         ~primaryKey
+         (
+            [risk_core::Store]RSK_SENSITIVITY.SENSITIVITY_ID
+         )
+         ~mainTable [risk_core::Store]RSK_SENSITIVITY
+         factorId: [risk_core::Store]RSK_SENSITIVITY.FACTOR_ID,
+         cobDate: [risk_core::Store]RSK_SENSITIVITY.COB_DATE,
+         deltaValue: [risk_core::Store]RSK_SENSITIVITY.DELTA_VALUE
+      }
+   }
+
+   // ---- ladders ----
+
+   risk_core::RskSensitivityLadder[rskLadder]: Relational
+   {
+      ~primaryKey ( [risk_core::Store]RSK_LADDER.LADDER_ID )
+      ~mainTable [risk_core::Store]RSK_LADDER
+      ladderId: [risk_core::Store]RSK_LADDER.LADDER_ID,
+      cobDate: [risk_core::Store]RSK_LADDER.COB_DATE,
+      portfolioId: [risk_core::Store]RSK_LADDER.PORTFOLIO_ID,
+      factorId: [risk_core::Store]RSK_LADDER.FACTOR_ID,
+      ladderType: [risk_core::Store]RSK_LADDER.LADDER_TYPE,
+      measureCode: [risk_core::Store]RSK_LADDER.MEASURE_CODE,
+      bucketCount: [risk_core::Store]RSK_LADDER.BUCKET_COUNT,
+      totalValue: [risk_core::Store]RSK_LADDER.TOTAL_VALUE,
+      currency: [risk_core::Store]RSK_LADDER.CURRENCY,
+      isComplete: [risk_core::Store]RSK_LADDER.IS_COMPLETE,
+      buckets: [risk_core::Store]@Rsk_LadderBucket,
+      factor: [risk_core::Store]@Rsk_LadderFactor,
+      greek: [risk_core::Store]@Rsk_LadderGreek
+   }
+
+   risk_core::RskLadderBucket[rskLadderBucket]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_core::Store]RSK_LADDER_BUCKET.LADDER_ID,
+         [risk_core::Store]RSK_LADDER_BUCKET.BUCKET_SEQ
+      )
+      ~mainTable [risk_core::Store]RSK_LADDER_BUCKET
+      ladderId: [risk_core::Store]RSK_LADDER_BUCKET.LADDER_ID,
+      bucketSeq: [risk_core::Store]RSK_LADDER_BUCKET.BUCKET_SEQ,
+      bucketLabel: [risk_core::Store]RSK_LADDER_BUCKET.BUCKET_LABEL,
+      tenorCode: [risk_core::Store]RSK_LADDER_BUCKET.TENOR_CODE,
+      tenorDays: [risk_core::Store]RSK_LADDER_BUCKET.TENOR_DAYS,
+      strikeLevel: [risk_core::Store]RSK_LADDER_BUCKET.STRIKE_LEVEL,
+      bucketValue: [risk_core::Store]RSK_LADDER_BUCKET.BUCKET_VALUE,
+      weightPct: [risk_core::Store]RSK_LADDER_BUCKET.WEIGHT_PCT,
+      isPillar: [risk_core::Store]RSK_LADDER_BUCKET.IS_PILLAR,
+      ladder: [risk_core::Store]@Rsk_LadderBucket
+   }
+
+   // ---- portfolios and their measures ----
+
+   risk_core::RskRiskPortfolio[rskPortfolio]: Relational
+   {
+      ~primaryKey ( [risk_core::Store]RSK_PORTFOLIO.PORTFOLIO_ID )
+      ~mainTable [risk_core::Store]RSK_PORTFOLIO
+      portfolioId: [risk_core::Store]RSK_PORTFOLIO.PORTFOLIO_ID,
+      portfolioName: [risk_core::Store]RSK_PORTFOLIO.PORTFOLIO_NAME,
+      deskCode: [risk_core::Store]RSK_PORTFOLIO.DESK_CODE,
+      baseCurrency: [risk_core::Store]RSK_PORTFOLIO.BASE_CURRENCY,
+      riskOwner: [risk_core::Store]RSK_PORTFOLIO.RISK_OWNER,
+      parentPortfolioId: [risk_core::Store]RSK_PORTFOLIO.PARENT_PORTFOLIO_ID,
+      hierarchyLevel: [risk_core::Store]RSK_PORTFOLIO.HIERARCHY_LEVEL,
+      isTrading: [risk_core::Store]RSK_PORTFOLIO.IS_TRADING,
+      openDate: [risk_core::Store]RSK_PORTFOLIO.OPEN_DATE,
+      sensitivities: [risk_core::Store]@Rsk_SensitivityPortfolio,
+      varMeasures: [risk_core::Store]@Rsk_PortfolioVar,
+      limits: [risk_core::Store]@Rsk_LimitPortfolio
+   }
+
+   // Five key columns, which is what it takes to identify a VaR number.
+   risk_core::RskValueAtRisk[rskVar]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_core::Store]RSK_VAR_MEASURE.PORTFOLIO_ID,
+         [risk_core::Store]RSK_VAR_MEASURE.COB_DATE,
+         [risk_core::Store]RSK_VAR_MEASURE.CONFIDENCE_PCT,
+         [risk_core::Store]RSK_VAR_MEASURE.HORIZON_DAYS,
+         [risk_core::Store]RSK_VAR_MEASURE.METHOD_CODE
+      )
+      ~mainTable [risk_core::Store]RSK_VAR_MEASURE
+      portfolioId: [risk_core::Store]RSK_VAR_MEASURE.PORTFOLIO_ID,
+      cobDate: [risk_core::Store]RSK_VAR_MEASURE.COB_DATE,
+      confidencePct: [risk_core::Store]RSK_VAR_MEASURE.CONFIDENCE_PCT,
+      horizonDays: [risk_core::Store]RSK_VAR_MEASURE.HORIZON_DAYS,
+      methodCode: [risk_core::Store]RSK_VAR_MEASURE.METHOD_CODE,
+      varAmount: [risk_core::Store]RSK_VAR_MEASURE.VAR_AMOUNT,
+      priorVarAmount: [risk_core::Store]RSK_VAR_MEASURE.PRIOR_VAR_AMOUNT,
+      currency: [risk_core::Store]RSK_VAR_MEASURE.CURRENCY,
+      scenarioCount: [risk_core::Store]RSK_VAR_MEASURE.SCENARIO_COUNT,
+      isApproved: [risk_core::Store]RSK_VAR_MEASURE.IS_APPROVED,
+      computedAt: [risk_core::Store]RSK_VAR_MEASURE.COMPUTED_AT,
+      portfolio: [risk_core::Store]@Rsk_PortfolioVar,
+      expectedShortfall: [risk_core::Store]@Rsk_VarShortfall
+   }
+
+   risk_core::RskExpectedShortfall[rskExpectedShortfall]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_core::Store]RSK_EXPECTED_SHORTFALL.PORTFOLIO_ID,
+         [risk_core::Store]RSK_EXPECTED_SHORTFALL.COB_DATE,
+         [risk_core::Store]RSK_EXPECTED_SHORTFALL.CONFIDENCE_PCT,
+         [risk_core::Store]RSK_EXPECTED_SHORTFALL.HORIZON_DAYS
+      )
+      ~mainTable [risk_core::Store]RSK_EXPECTED_SHORTFALL
+      portfolioId: [risk_core::Store]RSK_EXPECTED_SHORTFALL.PORTFOLIO_ID,
+      cobDate: [risk_core::Store]RSK_EXPECTED_SHORTFALL.COB_DATE,
+      confidencePct: [risk_core::Store]RSK_EXPECTED_SHORTFALL.CONFIDENCE_PCT,
+      horizonDays: [risk_core::Store]RSK_EXPECTED_SHORTFALL.HORIZON_DAYS,
+      esAmount: [risk_core::Store]RSK_EXPECTED_SHORTFALL.ES_AMOUNT,
+      tailScenarioCount: [risk_core::Store]RSK_EXPECTED_SHORTFALL.TAIL_SCENARIO_COUNT,
+      liquidityHorizonDays: [risk_core::Store]RSK_EXPECTED_SHORTFALL.LIQUIDITY_HORIZON_DAYS,
+      stressPeriodStart: [risk_core::Store]RSK_EXPECTED_SHORTFALL.STRESS_PERIOD_START,
+      stressPeriodEnd: [risk_core::Store]RSK_EXPECTED_SHORTFALL.STRESS_PERIOD_END,
+      currency: [risk_core::Store]RSK_EXPECTED_SHORTFALL.CURRENCY,
+      isStressedCalibration: [risk_core::Store]RSK_EXPECTED_SHORTFALL.IS_STRESSED_CALIBRATION
+   }
+
+   risk_core::RskVarBacktest[rskVarBacktest]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_core::Store]RSK_VAR_BACKTEST.PORTFOLIO_ID,
+         [risk_core::Store]RSK_VAR_BACKTEST.COB_DATE
+      )
+      ~mainTable [risk_core::Store]RSK_VAR_BACKTEST
+      portfolioId: [risk_core::Store]RSK_VAR_BACKTEST.PORTFOLIO_ID,
+      cobDate: [risk_core::Store]RSK_VAR_BACKTEST.COB_DATE,
+      varAmount: [risk_core::Store]RSK_VAR_BACKTEST.VAR_AMOUNT,
+      actualPnl: [risk_core::Store]RSK_VAR_BACKTEST.ACTUAL_PNL,
+      isException: [risk_core::Store]RSK_VAR_BACKTEST.IS_EXCEPTION,
+      exceptionCount250d: [risk_core::Store]RSK_VAR_BACKTEST.EXCEPTION_COUNT_250D,
+      zoneCode: [risk_core::Store]RSK_VAR_BACKTEST.ZONE_CODE,
+      currency: [risk_core::Store]RSK_VAR_BACKTEST.CURRENCY
+   }
+
+   // ---- stress ----
+
+   risk_core::RskStressScenario[rskScenario]: Relational
+   {
+      ~primaryKey ( [risk_core::Store]RSK_STRESS_SCENARIO.SCENARIO_ID )
+      ~mainTable [risk_core::Store]RSK_STRESS_SCENARIO
+      scenarioId: [risk_core::Store]RSK_STRESS_SCENARIO.SCENARIO_ID,
+      scenarioName: [risk_core::Store]RSK_STRESS_SCENARIO.SCENARIO_NAME,
+      scenarioType: [risk_core::Store]RSK_STRESS_SCENARIO.SCENARIO_TYPE,
+      severity: [risk_core::Store]RSK_STRESS_SCENARIO.SEVERITY,
+      referencePeriod: [risk_core::Store]RSK_STRESS_SCENARIO.REFERENCE_PERIOD,
+      horizonDays: [risk_core::Store]RSK_STRESS_SCENARIO.HORIZON_DAYS,
+      isRegulatory: [risk_core::Store]RSK_STRESS_SCENARIO.IS_REGULATORY,
+      ownerTeam: [risk_core::Store]RSK_STRESS_SCENARIO.OWNER_TEAM,
+      approvedOn: [risk_core::Store]RSK_STRESS_SCENARIO.APPROVED_ON,
+      shocks: [risk_core::Store]@Rsk_ScenarioShock,
+      results: [risk_core::Store]@Rsk_ScenarioResult
+   }
+
+   risk_core::RskScenarioShock[rskScenarioShock]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_core::Store]RSK_SCENARIO_SHOCK.SCENARIO_ID,
+         [risk_core::Store]RSK_SCENARIO_SHOCK.FACTOR_ID
+      )
+      ~mainTable [risk_core::Store]RSK_SCENARIO_SHOCK
+      scenarioId: [risk_core::Store]RSK_SCENARIO_SHOCK.SCENARIO_ID,
+      factorId: [risk_core::Store]RSK_SCENARIO_SHOCK.FACTOR_ID,
+      shockType: [risk_core::Store]RSK_SCENARIO_SHOCK.SHOCK_TYPE,
+      shockValue: [risk_core::Store]RSK_SCENARIO_SHOCK.SHOCK_VALUE,
+      shockUnit: [risk_core::Store]RSK_SCENARIO_SHOCK.SHOCK_UNIT,
+      isRelative: [risk_core::Store]RSK_SCENARIO_SHOCK.IS_RELATIVE,
+      scenario: [risk_core::Store]@Rsk_ScenarioShock,
+      factor: [risk_core::Store]@Rsk_ShockFactor
+   }
+
+   risk_core::RskStressResult[rskStressResult]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_core::Store]RSK_STRESS_RESULT.SCENARIO_ID,
+         [risk_core::Store]RSK_STRESS_RESULT.PORTFOLIO_ID,
+         [risk_core::Store]RSK_STRESS_RESULT.COB_DATE
+      )
+      ~mainTable [risk_core::Store]RSK_STRESS_RESULT
+      scenarioId: [risk_core::Store]RSK_STRESS_RESULT.SCENARIO_ID,
+      portfolioId: [risk_core::Store]RSK_STRESS_RESULT.PORTFOLIO_ID,
+      cobDate: [risk_core::Store]RSK_STRESS_RESULT.COB_DATE,
+      pnlImpact: [risk_core::Store]RSK_STRESS_RESULT.PNL_IMPACT,
+      baseValue: [risk_core::Store]RSK_STRESS_RESULT.BASE_VALUE,
+      stressedValue: [risk_core::Store]RSK_STRESS_RESULT.STRESSED_VALUE,
+      worstFactorId: [risk_core::Store]RSK_STRESS_RESULT.WORST_FACTOR_ID,
+      currency: [risk_core::Store]RSK_STRESS_RESULT.CURRENCY,
+      isBreach: [risk_core::Store]RSK_STRESS_RESULT.IS_BREACH,
+      computedAt: [risk_core::Store]RSK_STRESS_RESULT.COMPUTED_AT,
+      scenario: [risk_core::Store]@Rsk_ScenarioResult,
+      portfolio: [risk_core::Store]@Rsk_ResultPortfolio
+   }
+
+   // ---- limits ----
+
+   risk_core::RskRiskLimit[rskLimit]: Relational
+   {
+      ~primaryKey ( [risk_core::Store]RSK_RISK_LIMIT.LIMIT_ID )
+      ~mainTable [risk_core::Store]RSK_RISK_LIMIT
+      limitId: [risk_core::Store]RSK_RISK_LIMIT.LIMIT_ID,
+      portfolioId: [risk_core::Store]RSK_RISK_LIMIT.PORTFOLIO_ID,
+      factorId: [risk_core::Store]RSK_RISK_LIMIT.FACTOR_ID,
+      limitType: [risk_core::Store]RSK_RISK_LIMIT.LIMIT_TYPE,
+      measureCode: [risk_core::Store]RSK_RISK_LIMIT.MEASURE_CODE,
+      limitAmount: [risk_core::Store]RSK_RISK_LIMIT.LIMIT_AMOUNT,
+      warningPct: [risk_core::Store]RSK_RISK_LIMIT.WARNING_PCT,
+      currency: [risk_core::Store]RSK_RISK_LIMIT.CURRENCY,
+      effectiveFrom: [risk_core::Store]RSK_RISK_LIMIT.EFFECTIVE_FROM,
+      effectiveTo: [risk_core::Store]RSK_RISK_LIMIT.EFFECTIVE_TO,
+      ownerTeam: [risk_core::Store]RSK_RISK_LIMIT.OWNER_TEAM,
+      isHard: [risk_core::Store]RSK_RISK_LIMIT.IS_HARD,
+      portfolio: [risk_core::Store]@Rsk_LimitPortfolio,
+      utilisations: [risk_core::Store]@Rsk_LimitUtilisation,
+      breaches: [risk_core::Store]@Rsk_LimitBreach
+   }
+
+   risk_core::RskLimitUtilisation[rskLimitUtilisation]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_core::Store]RSK_LIMIT_UTILISATION.LIMIT_ID,
+         [risk_core::Store]RSK_LIMIT_UTILISATION.COB_DATE
+      )
+      ~mainTable [risk_core::Store]RSK_LIMIT_UTILISATION
+      limitId: [risk_core::Store]RSK_LIMIT_UTILISATION.LIMIT_ID,
+      cobDate: [risk_core::Store]RSK_LIMIT_UTILISATION.COB_DATE,
+      usedAmount: [risk_core::Store]RSK_LIMIT_UTILISATION.USED_AMOUNT,
+      limitAmount: [risk_core::Store]RSK_LIMIT_UTILISATION.LIMIT_AMOUNT,
+      utilisationPct: [risk_core::Store]RSK_LIMIT_UTILISATION.UTILISATION_PCT,
+      headroom: [risk_core::Store]RSK_LIMIT_UTILISATION.HEADROOM,
+      isWarning: [risk_core::Store]RSK_LIMIT_UTILISATION.IS_WARNING,
+      isBreach: [risk_core::Store]RSK_LIMIT_UTILISATION.IS_BREACH,
+      limit: [risk_core::Store]@Rsk_LimitUtilisation
+   }
+
+   risk_core::RskLimitBreach[rskLimitBreach]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_core::Store]RSK_LIMIT_BREACH.LIMIT_ID,
+         [risk_core::Store]RSK_LIMIT_BREACH.COB_DATE,
+         [risk_core::Store]RSK_LIMIT_BREACH.BREACH_SEQ
+      )
+      ~mainTable [risk_core::Store]RSK_LIMIT_BREACH
+      limitId: [risk_core::Store]RSK_LIMIT_BREACH.LIMIT_ID,
+      cobDate: [risk_core::Store]RSK_LIMIT_BREACH.COB_DATE,
+      breachSeq: [risk_core::Store]RSK_LIMIT_BREACH.BREACH_SEQ,
+      breachAmount: [risk_core::Store]RSK_LIMIT_BREACH.BREACH_AMOUNT,
+      excessPct: [risk_core::Store]RSK_LIMIT_BREACH.EXCESS_PCT,
+      raisedAt: [risk_core::Store]RSK_LIMIT_BREACH.RAISED_AT,
+      status: [risk_core::Store]RSK_LIMIT_BREACH.STATUS,
+      approvedBy: [risk_core::Store]RSK_LIMIT_BREACH.APPROVED_BY,
+      closedOn: [risk_core::Store]RSK_LIMIT_BREACH.CLOSED_ON,
+      limit: [risk_core::Store]@Rsk_LimitBreach
+   }
+
+   // ---- the instrument, extended across the boundary ----
+   // Extends the UPSTREAM set [ciBase], so the key, the main table and all twenty base
+   // property mappings come from core-instrument. The five risk-only columns live in this
+   // project's own table and are reached through a join -- the `@Join | TABLE.COLUMN` form,
+   // which is how a set gets a scalar from somewhere other than its main table.
+   risk_core::RskRiskInstrument[rskRiskInstrument] extends [ciBase]: Relational
+   {
+      riskModel: [risk_core::Store]@Rsk_InstrumentRiskAttr | [risk_core::Store]RSK_INSTRUMENT_RISK.RISK_MODEL,
+      pricingLibrary: [risk_core::Store]@Rsk_InstrumentRiskAttr | [risk_core::Store]RSK_INSTRUMENT_RISK.PRICING_LIBRARY,
+      isVolSensitive: [risk_core::Store]@Rsk_InstrumentRiskAttr | [risk_core::Store]RSK_INSTRUMENT_RISK.IS_VOL_SENSITIVE,
+      defaultShockBp: [risk_core::Store]@Rsk_InstrumentRiskAttr | [risk_core::Store]RSK_INSTRUMENT_RISK.DEFAULT_SHOCK_BP,
+      factorCount: [risk_core::Store]@Rsk_InstrumentRiskAttr | [risk_core::Store]RSK_INSTRUMENT_RISK.FACTOR_COUNT
+   }
+)

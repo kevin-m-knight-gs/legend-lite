@@ -1,0 +1,204 @@
+###Relational
+// The documentation tables. `include core_party::Store` brings CP_LEGAL_ENTITY and
+// CP_JURISDICTION into scope so the three cross-project joins below can be declared here --
+// the join has to live in the database that both tables are visible from, and that is this one.
+//
+// Nine of the twelve tables carry a multi-column PRIMARY KEY, and each one is a grain that a
+// surrogate id would have flattened: (agreement, role), (agreement, annex),
+// (agreement, annex, asset), (jurisdiction, form, counterparty type).
+//
+// Every table LGL_ prefixed and every join Lgl_ prefixed, since neither namespace is
+// per-project in Legend.
+Database legal_core::Store
+(
+   include core_party::Store
+
+   Table LGL_MASTER_AGREEMENT
+   (
+      AGREEMENT_ID VARCHAR(40) PRIMARY KEY,
+      TYPE_CODE VARCHAR(24) NOT NULL,
+      LAW_CODE VARCHAR(16) NOT NULL,
+      AGREEMENT_REFERENCE VARCHAR(160) NOT NULL,
+      EXECUTION_DATE DATE,
+      EFFECTIVE_DATE DATE,
+      TERMINATION_DATE DATE,
+      TERMINATION_CURRENCY VARCHAR(3),
+      DOCUMENT_STATUS VARCHAR(24),
+      IS_MULTIBRANCH BIT,
+      IS_UMBRELLA BIT
+   )
+
+   Table LGL_AGREEMENT_TYPE
+   (
+      TYPE_CODE VARCHAR(24) PRIMARY KEY,
+      FORM_NAME VARCHAR(160) NOT NULL,
+      PUBLISHER VARCHAR(40),
+      PUBLICATION_YEAR INTEGER,
+      PRODUCT_SCOPE VARCHAR(80),
+      IS_MASTER_FORM BIT,
+      HAS_SINGLE_AGREEMENT_CLAUSE BIT
+   )
+
+   Table LGL_GOVERNING_LAW
+   (
+      LAW_CODE VARCHAR(16) PRIMARY KEY,
+      LAW_NAME VARCHAR(120) NOT NULL,
+      FORUM_CLAUSE VARCHAR(240),
+      IS_COMMON_LAW BIT,
+      RECOGNISES_CLOSE_OUT_NETTING BIT
+   )
+
+   // COMPOSITE. (agreement, role), not (agreement, entity): the same entity can be Party A on
+   // one master and its affiliate's credit support provider on another, and can hold two roles
+   // on the same one.
+   Table LGL_AGREEMENT_PARTY
+   (
+      AGREEMENT_ID VARCHAR(40) PRIMARY KEY,
+      PARTY_ROLE VARCHAR(32) PRIMARY KEY,
+      // The reach into the party master. Never accompanied by a copy of the legal name.
+      ENTITY_ID VARCHAR(40) NOT NULL,
+      BOOKING_BRANCH VARCHAR(40),
+      IS_CALCULATION_AGENT BIT,
+      SIGNED_ON DATE,
+      SIGNATORY_NAME VARCHAR(120),
+      NOTICE_ADDRESS_REF VARCHAR(80)
+   )
+
+   // COMPOSITE. One master, several annexes: a VM CSA and a regulatory IM CSD are separate
+   // documents with separate thresholds and separate custody.
+   Table LGL_CREDIT_SUPPORT_ANNEX
+   (
+      AGREEMENT_ID VARCHAR(40) PRIMARY KEY,
+      ANNEX_CODE VARCHAR(24) PRIMARY KEY,
+      ANNEX_FORM VARCHAR(120) NOT NULL,
+      MARGIN_TYPE VARCHAR(8),
+      IS_TITLE_TRANSFER BIT,
+      BASE_CURRENCY VARCHAR(3),
+      THRESHOLD DOUBLE,
+      MINIMUM_TRANSFER_AMOUNT DOUBLE,
+      ROUNDING_AMOUNT DOUBLE,
+      INDEPENDENT_AMOUNT DOUBLE,
+      VALUATION_AGENT VARCHAR(80),
+      NOTIFICATION_TIME VARCHAR(24),
+      IS_REGULATORY_MARGIN BIT
+   )
+
+   // THREE key columns. The same bond is eligible under the VM annex and ineligible under the
+   // IM annex of the same master, so the annex stays in the key alongside the asset.
+   Table LGL_ELIGIBLE_COLLATERAL
+   (
+      AGREEMENT_ID VARCHAR(40) PRIMARY KEY,
+      ANNEX_CODE VARCHAR(24) PRIMARY KEY,
+      ASSET_CODE VARCHAR(32) PRIMARY KEY,
+      ASSET_DESCRIPTION VARCHAR(200) NOT NULL,
+      VALUATION_PERCENTAGE DOUBLE,
+      COLLATERAL_CURRENCY VARCHAR(3),
+      IS_CASH_EQUIVALENT BIT,
+      MINIMUM_RATING VARCHAR(16),
+      MAXIMUM_RESIDUAL_MATURITY_YEARS INTEGER,
+      CONCENTRATION_LIMIT DOUBLE
+   )
+
+   // THREE key columns, and the reason capital relief is a lookup rather than a flag: an
+   // opinion covers one jurisdiction, one master form and one counterparty type.
+   Table LGL_NETTING_OPINION
+   (
+      JURISDICTION_CODE VARCHAR(8) PRIMARY KEY,
+      TYPE_CODE VARCHAR(24) PRIMARY KEY,
+      COUNTERPARTY_TYPE VARCHAR(24) PRIMARY KEY,
+      OPINION_PROVIDER VARCHAR(120) NOT NULL,
+      OPINION_DATE DATE,
+      IS_CLEAN_OPINION BIT,
+      SUPPORTS_CLOSE_OUT_NETTING BIT,
+      SUPPORTS_COLLATERAL_ENFORCEABILITY BIT,
+      LAST_REVIEWED_DATE DATE,
+      QUALIFICATION VARCHAR(400)
+   )
+
+   Table LGL_CLOSE_OUT_TERMS
+   (
+      AGREEMENT_ID VARCHAR(40) PRIMARY KEY,
+      PAYMENT_MEASURE VARCHAR(24) NOT NULL,
+      PAYER_BASIS VARCHAR(24),
+      AUTOMATIC_EARLY_TERMINATION BIT,
+      SET_OFF_ELECTED BIT,
+      TERMINATION_CURRENCY VARCHAR(3),
+      GRACE_PERIOD_DAYS INTEGER,
+      CALCULATION_AGENT_ROLE VARCHAR(32)
+   )
+
+   Table LGL_ELECTION_TERM
+   (
+      AGREEMENT_ID VARCHAR(40) PRIMARY KEY,
+      ELECTION_CODE VARCHAR(40) PRIMARY KEY,
+      ELECTION_NAME VARCHAR(160) NOT NULL,
+      ELECTED_VALUE VARCHAR(400),
+      THRESHOLD_AMOUNT DOUBLE,
+      THRESHOLD_CURRENCY VARCHAR(3),
+      APPLIES_TO_PARTY_ROLE VARCHAR(32),
+      SCHEDULE_REFERENCE VARCHAR(80)
+   )
+
+   // COMPOSITE, and append-only: amendment 3 does not overwrite amendment 2, because what the
+   // terms were on a past date is a question that gets asked.
+   Table LGL_AMENDMENT
+   (
+      AGREEMENT_ID VARCHAR(40) PRIMARY KEY,
+      AMENDMENT_NUMBER INTEGER PRIMARY KEY,
+      AMENDMENT_TYPE VARCHAR(32) NOT NULL,
+      EFFECTIVE_DATE DATE,
+      AMENDED_SECTION VARCHAR(80),
+      DESCRIPTION VARCHAR(400),
+      IS_TEMPLATE_DEVIATION BIT,
+      EXECUTED_BY VARCHAR(120)
+   )
+
+   Table LGL_PROTOCOL
+   (
+      PROTOCOL_CODE VARCHAR(32) PRIMARY KEY,
+      PROTOCOL_NAME VARCHAR(160) NOT NULL,
+      PUBLISHER VARCHAR(40),
+      PUBLICATION_DATE DATE,
+      ADHERENCE_CUTOFF_DATE DATE,
+      SUBJECT_MATTER VARCHAR(120),
+      IS_MULTILATERAL BIT
+   )
+
+   // COMPOSITE, keyed by protocol and ENTITY -- not by agreement. That is the mechanism: one
+   // adherence amends every agreement the entity has with every other adherent.
+   Table LGL_PROTOCOL_ADHERENCE
+   (
+      PROTOCOL_CODE VARCHAR(32) PRIMARY KEY,
+      ENTITY_ID VARCHAR(40) PRIMARY KEY,
+      ADHERENCE_DATE DATE,
+      ADHERENCE_LETTER_REF VARCHAR(80),
+      ADHERING_CAPACITY VARCHAR(40),
+      IS_REVOKED BIT,
+      REVOCATION_DATE DATE
+   )
+
+   // ------------------------------------------------------------- joins inside legal-core
+   Join Lgl_Agreement_Form(LGL_MASTER_AGREEMENT.TYPE_CODE = LGL_AGREEMENT_TYPE.TYPE_CODE)
+   Join Lgl_Agreement_Law(LGL_MASTER_AGREEMENT.LAW_CODE = LGL_GOVERNING_LAW.LAW_CODE)
+   Join Lgl_Agreement_Party(LGL_MASTER_AGREEMENT.AGREEMENT_ID = LGL_AGREEMENT_PARTY.AGREEMENT_ID)
+   Join Lgl_Agreement_Annex(LGL_MASTER_AGREEMENT.AGREEMENT_ID = LGL_CREDIT_SUPPORT_ANNEX.AGREEMENT_ID)
+   Join Lgl_Agreement_CloseOut(LGL_MASTER_AGREEMENT.AGREEMENT_ID = LGL_CLOSE_OUT_TERMS.AGREEMENT_ID)
+   Join Lgl_Agreement_Election(LGL_MASTER_AGREEMENT.AGREEMENT_ID = LGL_ELECTION_TERM.AGREEMENT_ID)
+   Join Lgl_Agreement_Amendment(LGL_MASTER_AGREEMENT.AGREEMENT_ID = LGL_AMENDMENT.AGREEMENT_ID)
+   Join Lgl_Protocol_Adherence(LGL_PROTOCOL.PROTOCOL_CODE = LGL_PROTOCOL_ADHERENCE.PROTOCOL_CODE)
+   Join Lgl_Type_Opinion(LGL_AGREEMENT_TYPE.TYPE_CODE = LGL_NETTING_OPINION.TYPE_CODE)
+
+   // TWO columns, because LGL_CREDIT_SUPPORT_ANNEX's key is two columns. Matching on
+   // ANNEX_CODE alone returns every master's annex of that name -- 'VM-2016' is not unique.
+   Join Lgl_Annex_Collateral(LGL_CREDIT_SUPPORT_ANNEX.AGREEMENT_ID = LGL_ELIGIBLE_COLLATERAL.AGREEMENT_ID and LGL_CREDIT_SUPPORT_ANNEX.ANNEX_CODE = LGL_ELIGIBLE_COLLATERAL.ANNEX_CODE)
+
+   // ------------------------------------------------------------- joins into core-party
+   // These are why the store includes core_party::Store rather than merely repeating its keys.
+   Join Lgl_Entity_AgreementParty(CP_LEGAL_ENTITY.ENTITY_ID = LGL_AGREEMENT_PARTY.ENTITY_ID)
+   Join Lgl_Entity_Adherence(CP_LEGAL_ENTITY.ENTITY_ID = LGL_PROTOCOL_ADHERENCE.ENTITY_ID)
+   Join Lgl_Jurisdiction_Opinion(CP_JURISDICTION.JURISDICTION_CODE = LGL_NETTING_OPINION.JURISDICTION_CODE)
+
+   // Agreements still in force. A null test rather than a status literal, deliberately: the
+   // date is the legal fact and DOCUMENT_STATUS is an operational summary of it.
+   Filter LglLiveAgreements(LGL_MASTER_AGREEMENT.TERMINATION_DATE is null)
+)

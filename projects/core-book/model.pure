@@ -1,0 +1,228 @@
+###Pure
+// core-book -- L0, no dependencies.
+//
+// The firm's book hierarchy. A trading book rolls up into another trading book, that book
+// into a desk-level book, and so on, which is why the single interesting construct here is
+// a {target} SELF-JOIN: the parent of a CB_BOOK row is another CB_BOOK row, and the join
+// condition has to name the far side of the same table explicitly.
+//
+// Everything else in this project exists so the hierarchy has somewhere to terminate:
+// desks, business units, divisions, and the attributes a book carries on the way up.
+
+// A trading book: the atomic unit positions and P&L are booked against. It reports to
+// another book, so the class is recursive through the BookParent association.
+Class core_book::Book
+{
+   bookId: String[1];
+   code: String[1];
+   name: String[1];
+   parentBookId: String[0..1];
+   baseCurrency: String[1];
+   isActive: Boolean[1];
+   openDate: StrictDate[1];
+   closeDate: StrictDate[0..1];
+   depth: Integer[0..1];
+   description: String[0..1];
+}
+
+// A trading desk: the organisational owner of a set of top-level books. This is where the
+// book hierarchy stops being recursive and becomes the org chart.
+Class core_book::Desk
+{
+   deskId: String[1];
+   name: String[1];
+   assetClass: String[1];
+   regionCode: String[1];
+   headTrader: String[0..1];
+   isActive: Boolean[1];
+}
+
+// A business unit: a group of desks reported as one P&L line to the division above it.
+Class core_book::BusinessUnit
+{
+   businessUnitId: String[1];
+   name: String[1];
+   head: String[0..1];
+   headcount: Integer[0..1];
+   isActive: Boolean[1];
+}
+
+// A division: the top of the roll-up, the level the firm publishes segment results at.
+Class core_book::Division
+{
+   divisionId: String[1];
+   name: String[1];
+   head: String[0..1];
+   isActive: Boolean[1];
+}
+
+// The person accountable for a book's positions -- who is called when the book breaches.
+Class core_book::BookOwner
+{
+   ownerId: String[1];
+   firstName: String[1];
+   lastName: String[1];
+   email: String[1];
+   badge: String[0..1];
+   isActive: Boolean[1];
+}
+
+// The trading strategy a book runs, so books can be grouped by intent rather than by
+// where they happen to sit in the org chart.
+Class core_book::Strategy
+{
+   strategyId: String[1];
+   name: String[1];
+   style: String[1];
+   benchmark: String[0..1];
+   isActive: Boolean[1];
+}
+
+// How a book is classified for reporting: banking book vs trading book, and the
+// regulatory bucket that follows from it.
+Class core_book::BookClassification
+{
+   classificationId: String[1];
+   code: String[1];
+   name: String[1];
+   regulatoryBucket: String[0..1];
+   isTradingBook: Boolean[1];
+}
+
+// A risk limit set on a book. Books inherit limits from their parent in practice, so this
+// hangs off the same hierarchy the self-join walks.
+Class core_book::BookLimit
+{
+   limitId: String[1];
+   limitType: String[1];
+   limitAmount: Float[1];
+   currency: String[1];
+   effectiveDate: StrictDate[1];
+   expiryDate: StrictDate[0..1];
+   isActive: Boolean[1];
+}
+
+// The cost centre a desk charges to, so the book hierarchy can be reconciled against the
+// finance hierarchy, which is never quite the same shape.
+Class core_book::CostCentre
+{
+   costCentreId: String[1];
+   code: String[1];
+   name: String[1];
+   fiscalYear: Integer[1];
+   budgetAmount: Float[0..1];
+   currency: String[1];
+}
+
+// The mandate a book trades under: what it is permitted to hold, and how much of it.
+Class core_book::BookMandate
+{
+   mandateId: String[1];
+   mandateType: String[1];
+   permittedAssetClasses: String[0..1];
+   maxNotional: Float[0..1];
+   approvedDate: StrictDate[0..1];
+   isActive: Boolean[1];
+}
+
+// The governance record for opening, amending or closing a book -- the audit trail the
+// hierarchy is only trustworthy because of.
+Class core_book::BookApproval
+{
+   approvalId: String[1];
+   approvalType: String[1];
+   status: String[1];
+   requestedBy: String[1];
+   approvedBy: String[0..1];
+   requestDate: StrictDate[1];
+   decisionDate: StrictDate[0..1];
+}
+
+// A record of a book moving from one desk to another. Reorganisations are what make the
+// hierarchy a moving target, so they are modelled rather than assumed away.
+Class core_book::BookTransfer
+{
+   transferId: String[1];
+   fromDeskId: String[0..1];
+   toDeskId: String[1];
+   transferDate: StrictDate[1];
+   reason: String[0..1];
+   isReversed: Boolean[1];
+}
+
+// ---- Associations ----
+
+// THE self-join association. Both ends are core_book::Book, which is exactly why the
+// underlying join needs {target}: CB_BOOK.PARENT_BOOK_ID = CB_BOOK.BOOK_ID would be a
+// tautology matching every row against itself.
+Association core_book::BookParent
+{
+   parentBook: core_book::Book[0..1];
+   childBooks: core_book::Book[*];
+}
+
+Association core_book::BookDesk
+{
+   desk: core_book::Desk[0..1];
+   books: core_book::Book[*];
+}
+
+Association core_book::DeskBusinessUnit
+{
+   businessUnit: core_book::BusinessUnit[0..1];
+   desks: core_book::Desk[*];
+}
+
+Association core_book::BusinessUnitDivision
+{
+   division: core_book::Division[0..1];
+   businessUnits: core_book::BusinessUnit[*];
+}
+
+Association core_book::BookOwnership
+{
+   owner: core_book::BookOwner[0..1];
+   ownedBooks: core_book::Book[*];
+}
+
+Association core_book::BookStrategyLink
+{
+   strategy: core_book::Strategy[0..1];
+   strategyBooks: core_book::Book[*];
+}
+
+Association core_book::BookClassificationLink
+{
+   classification: core_book::BookClassification[0..1];
+   classifiedBooks: core_book::Book[*];
+}
+
+Association core_book::BookLimitLink
+{
+   limits: core_book::BookLimit[*];
+   limitBook: core_book::Book[0..1];
+}
+
+Association core_book::DeskCostCentre
+{
+   costCentre: core_book::CostCentre[0..1];
+   costCentreDesks: core_book::Desk[*];
+}
+
+Association core_book::BookMandateLink
+{
+   mandates: core_book::BookMandate[*];
+   mandateBook: core_book::Book[0..1];
+}
+
+Association core_book::BookApprovalLink
+{
+   approvals: core_book::BookApproval[*];
+   approvalBook: core_book::Book[0..1];
+}
+
+Association core_book::BookTransferLink
+{
+   transfers: core_book::BookTransfer[*];
+   transferBook: core_book::Book[0..1];
+}

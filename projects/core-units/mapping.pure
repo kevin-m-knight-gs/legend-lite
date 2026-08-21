@@ -1,0 +1,69 @@
+###Mapping
+
+// Every table reference here is SCHEMA-QUALIFIED -- [core_units::Store]uom.TABLE.COLUMN --
+// because the tables are declared inside the `uom` Schema block and there is no shorthand.
+Mapping core_units::Mapping
+(
+   core_units::CuQuantityKind[cuQuantityKind]: Relational
+   {
+      ~primaryKey ( [core_units::Store]uom.CU_QUANTITY_KIND.KIND_CODE )
+      ~mainTable [core_units::Store]uom.CU_QUANTITY_KIND
+      kindCode: [core_units::Store]uom.CU_QUANTITY_KIND.KIND_CODE,
+      kindName: [core_units::Store]uom.CU_QUANTITY_KIND.KIND_NAME,
+      baseUnitCode: [core_units::Store]uom.CU_QUANTITY_KIND.BASE_UNIT_CODE,
+      isRatioScale: [core_units::Store]uom.CU_QUANTITY_KIND.IS_RATIO_SCALE
+   }
+
+   core_units::CuUnit[cuUnit]: Relational
+   {
+      ~primaryKey ( [core_units::Store]uom.CU_UNIT.UNIT_CODE )
+      ~mainTable [core_units::Store]uom.CU_UNIT
+      unitCode: [core_units::Store]uom.CU_UNIT.UNIT_CODE,
+      unitName: [core_units::Store]uom.CU_UNIT.UNIT_NAME,
+      symbol: [core_units::Store]uom.CU_UNIT.SYMBOL,
+      kindCode: [core_units::Store]uom.CU_UNIT.KIND_CODE,
+      decimals: [core_units::Store]uom.CU_UNIT.DECIMALS,
+      factorToBase: [core_units::Store]uom.CU_UNIT.FACTOR_TO_BASE,
+      isSiUnit: [core_units::Store]uom.CU_UNIT.IS_SI_UNIT,
+      quantityKind: [core_units::Store]@Cu_UnitKind
+   }
+
+   // The composite key: the pair, and nothing shorter. FROM_UNIT alone collides across
+   // every unit it converts to.
+   core_units::CuConversion[cuConversion]: Relational
+   {
+      ~primaryKey
+      (
+         [core_units::Store]uom.CU_CONVERSION.FROM_UNIT,
+         [core_units::Store]uom.CU_CONVERSION.TO_UNIT
+      )
+      ~mainTable [core_units::Store]uom.CU_CONVERSION
+      fromUnitCode: [core_units::Store]uom.CU_CONVERSION.FROM_UNIT,
+      toUnitCode: [core_units::Store]uom.CU_CONVERSION.TO_UNIT,
+      factor: [core_units::Store]uom.CU_CONVERSION.FACTOR,
+      offsetValue: [core_units::Store]uom.CU_CONVERSION.OFFSET_VALUE,
+      sourceName: [core_units::Store]uom.CU_CONVERSION.SOURCE_NAME,
+      revision: [core_units::Store]uom.CU_CONVERSION.REVISION,
+      effectiveFrom: [core_units::Store]uom.CU_CONVERSION.EFFECTIVE_FROM,
+      tolerancePct: [core_units::Store]uom.CU_CONVERSION.TOLERANCE_PCT,
+      fromUnit: [core_units::Store]@Cu_ConversionFrom,
+      toUnit: [core_units::Store]@Cu_ConversionTo
+   }
+
+   core_units::CuUnitPrecision[cuUnitPrecision]: Relational
+   {
+      ~primaryKey
+      (
+         [core_units::Store]uom.CU_UNIT_PRECISION.UNIT_CODE,
+         [core_units::Store]uom.CU_UNIT_PRECISION.CONTEXT_CODE
+      )
+      ~mainTable [core_units::Store]uom.CU_UNIT_PRECISION
+      unitCode: [core_units::Store]uom.CU_UNIT_PRECISION.UNIT_CODE,
+      contextCode: [core_units::Store]uom.CU_UNIT_PRECISION.CONTEXT_CODE,
+      decimals: [core_units::Store]uom.CU_UNIT_PRECISION.DECIMALS,
+      minIncrement: [core_units::Store]uom.CU_UNIT_PRECISION.MIN_INCREMENT,
+      roundingMode: [core_units::Store]uom.CU_UNIT_PRECISION.ROUNDING_MODE,
+      lotSize: [core_units::Store]uom.CU_UNIT_PRECISION.LOT_SIZE,
+      unit: [core_units::Store]@Cu_PrecisionUnit
+   }
+)

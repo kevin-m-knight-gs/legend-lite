@@ -1,0 +1,223 @@
+###Relational
+
+// The valuation store. It INCLUDES both of this project's dependencies, so the VC_* tables
+// can be joined straight onto core-price's observations and core-fx's rates without either
+// project knowing this one exists.
+//
+// Datatypes are chosen rather than defaulted, and the choice is the same one core-price
+// made for the same reason:
+//
+//   NUMERIC(20,6)  money and prices -- a value that must add up exactly
+//   FLOAT          rates, ratios and percentages -- quantities that are allowed to be
+//                  approximate, and are compared against a tolerance rather than for equality
+//   SMALLINT       counts bounded by construction (a sequence, a severity, an age in days)
+//
+// REAL is not used anywhere: it parses and then cannot be read back at execution
+// (docs/UPSTREAM_FINDINGS.md F53). FX_RATE is FLOAT because it lands on the Float[1]
+// property that core_fx::convert takes as its second argument.
+Database valuation_core::Store
+(
+   // The two dependencies, brought into scope so the joins below can name their tables.
+   include core_price::Store
+   include core_fx::Store
+
+   // The centre of the project. Three-column primary key: a run, an instrument, a date.
+   // The three price columns are NUMERIC because they are money and must reconcile;
+   // FX_RATE is FLOAT because it is a ratio.
+   //
+   // UNPRICED_REASON and CARRIED_FORWARD are nullable and belong to the unpriced subset
+   // only -- they are mapped on VcUnpricedValuation, not on VcValuation.
+   Table VC_VALUATION
+   (
+      RUN_ID VARCHAR(20) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(20) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      QUANTITY NUMERIC(20,6),
+      CLEAN_PRICE NUMERIC(20,6),
+      ACCRUED_INTEREST NUMERIC(20,6),
+      DIRTY_PRICE NUMERIC(20,6),
+      MARKET_VALUE NUMERIC(20,6),
+      INSTRUMENT_CCY CHAR(3),
+      REPORTING_CCY CHAR(3),
+      FX_PAIR_CODE VARCHAR(6),
+      FX_RATE_TYPE VARCHAR(10),
+      FX_RATE FLOAT,
+      PRICE_SOURCE_ID VARCHAR(12),
+      IS_PRICED BIT,
+      UNPRICED_REASON VARCHAR(20),
+      CARRIED_FORWARD BIT
+   )
+
+   // One batch. Keyed by RUN_ID alone -- the run is what makes the valuation key unique,
+   // so it cannot itself be keyed by anything below it.
+   Table VC_VALUATION_RUN
+   (
+      RUN_ID VARCHAR(20) PRIMARY KEY,
+      COB_DATE DATE NOT NULL,
+      REPORTING_CCY CHAR(3),
+      RUN_TYPE VARCHAR(10),
+      STATUS VARCHAR(10),
+      VALUATION_COUNT SMALLINT,
+      UNPRICED_COUNT SMALLINT,
+      STARTED_AT TIMESTAMP,
+      IS_SIGNED_OFF BIT
+   )
+
+   // Interest accrual, keyed by instrument and date -- independent of the run, because two
+   // runs on the same date accrue the same amount.
+   Table VC_ACCRUAL
+   (
+      INSTRUMENT_ID VARCHAR(20) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      PERIOD_START_DATE DATE,
+      PERIOD_END_DATE DATE,
+      COUPON_RATE FLOAT,
+      NOTIONAL NUMERIC(20,6),
+      DAY_COUNT_FRACTION FLOAT,
+      DAY_COUNT_BASIS CHAR(7),
+      ACCRUED_AMOUNT NUMERIC(20,6)
+   )
+
+   // The valuation methods and their tolerances.
+   Table VC_VALUATION_METHOD
+   (
+      METHOD_CODE VARCHAR(10) PRIMARY KEY,
+      METHOD_NAME VARCHAR(60) NOT NULL,
+      IS_MODEL_BASED BIT,
+      REQUIRES_IPV BIT,
+      TOLERANCE_PCT FLOAT,
+      FAIR_VALUE_LEVEL SMALLINT
+   )
+
+   // Net exposure per run and currency. FX_RATE is FLOAT, EXPOSURE_AMOUNT is NUMERIC:
+   // the amount is money, the rate is not.
+   Table VC_FX_EXPOSURE
+   (
+      RUN_ID VARCHAR(20) PRIMARY KEY,
+      CURRENCY_CODE CHAR(3) PRIMARY KEY,
+      FX_PAIR_CODE VARCHAR(6),
+      EXPOSURE_AMOUNT NUMERIC(20,6),
+      FX_RATE FLOAT,
+      QUOTED_INVERTED BIT,
+      REPORTING_CCY CHAR(3),
+      IS_WITHIN_LIMIT BIT
+   )
+
+   // Manual adjustments, keyed by run, instrument and a sequence -- adjustments stack.
+   Table VC_MARK_ADJUSTMENT
+   (
+      RUN_ID VARCHAR(20) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(20) PRIMARY KEY,
+      ADJUSTMENT_SEQ SMALLINT PRIMARY KEY,
+      ADJUSTMENT_TYPE VARCHAR(12),
+      ADJUSTMENT_AMOUNT NUMERIC(20,6),
+      FX_RATE FLOAT,
+      REASON VARCHAR(120),
+      APPROVED_BY VARCHAR(40),
+      IS_APPROVED BIT
+   )
+
+   // Tolerance breaks. DIFFERENCE_AMOUNT is money and NUMERIC; DIFFERENCE_PCT is the ratio
+   // the tolerance is actually stated in and is FLOAT.
+   Table VC_VALUATION_BREAK
+   (
+      RUN_ID VARCHAR(20) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(20) PRIMARY KEY,
+      BREAK_SEQ SMALLINT PRIMARY KEY,
+      BREAK_CODE VARCHAR(16),
+      SEVERITY SMALLINT,
+      DIFFERENCE_AMOUNT NUMERIC(20,6),
+      DIFFERENCE_PCT FLOAT,
+      RAISED_AT TIMESTAMP,
+      IS_RESOLVED BIT
+   )
+
+   // Which vendor and method to use for an asset class, and how stale a price may be.
+   Table VC_PRICING_POLICY
+   (
+      POLICY_CODE VARCHAR(24) PRIMARY KEY,
+      ASSET_CLASS VARCHAR(12),
+      METHOD_CODE VARCHAR(10),
+      PREFERRED_SOURCE_ID VARCHAR(12),
+      MAX_PRICE_AGE_DAYS SMALLINT,
+      TOLERANCE_PCT FLOAT,
+      IS_DEFAULT BIT
+   )
+
+   // Reporting currencies, keyed by the CHAR(3) ISO code itself.
+   Table VC_REPORTING_CURRENCY
+   (
+      CURRENCY_CODE CHAR(3) PRIMARY KEY,
+      CURRENCY_NAME VARCHAR(40) NOT NULL,
+      ROUNDING_DECIMALS SMALLINT,
+      BASE_PAIR_CODE VARCHAR(6),
+      IS_FIRM_BASE BIT
+   )
+
+   // Per-run, per-currency subtotals.
+   Table VC_VALUATION_SUMMARY
+   (
+      RUN_ID VARCHAR(20) PRIMARY KEY,
+      CURRENCY_CODE CHAR(3) PRIMARY KEY,
+      TOTAL_MARKET_VALUE NUMERIC(20,6),
+      FX_RATE FLOAT,
+      POSITION_COUNT SMALLINT,
+      UNPRICED_COUNT SMALLINT
+   )
+
+   // The price the run actually chose, with the two-way quote it came from.
+   Table VC_PRICE_INPUT
+   (
+      RUN_ID VARCHAR(20) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(20) PRIMARY KEY,
+      SOURCE_ID VARCHAR(12),
+      PRICE_USED NUMERIC(20,6),
+      BID_PRICE NUMERIC(20,6),
+      ASK_PRICE NUMERIC(20,6),
+      PRICE_CURRENCY CHAR(3),
+      PRICE_AGE_DAYS SMALLINT,
+      IS_CONSENSUS BIT
+   )
+
+   // ---- joins into core-price --------------------------------------------------------
+   // The full three-column key of core-price's observation. Matching on fewer columns
+   // would fan a valuation out across every vendor's price for the day.
+   Join Vc_ValuationObservation(VC_VALUATION.INSTRUMENT_ID = CPR_PRICE_OBSERVATION.INSTRUMENT_ID and VC_VALUATION.COB_DATE = CPR_PRICE_OBSERVATION.OBS_DATE and VC_VALUATION.PRICE_SOURCE_ID = CPR_PRICE_OBSERVATION.SOURCE_ID)
+   // A chosen price input to the vendor that published it, in the other project.
+   Join Vc_PriceInputSource(VC_PRICE_INPUT.SOURCE_ID = CPR_PRICE_SOURCE.SOURCE_ID)
+   // A pricing policy to the vendor it prefers.
+   Join Vc_PolicySource(VC_PRICING_POLICY.PREFERRED_SOURCE_ID = CPR_PRICE_SOURCE.SOURCE_ID)
+
+   // ---- joins into core-fx -----------------------------------------------------------
+   // The full three-column key of core-fx's rate: pair, date AND type. Dropping RATE_TYPE
+   // would match a day's SPOT, its FORWARDs and its FIXING all at once.
+   Join Vc_ValuationFxRate(VC_VALUATION.FX_PAIR_CODE = CFX_RATE.PAIR_CODE and VC_VALUATION.COB_DATE = CFX_RATE.COB_DATE and VC_VALUATION.FX_RATE_TYPE = CFX_RATE.RATE_TYPE)
+   // An exposure to the pair DEFINITION, which is what says whether the quote is inverted.
+   Join Vc_ExposurePair(VC_FX_EXPOSURE.FX_PAIR_CODE = CFX_CURRENCY_PAIR.PAIR_CODE)
+   // A reporting currency to the pair it is quoted against the firm's base on.
+   Join Vc_ReportingCurrencyPair(VC_REPORTING_CURRENCY.BASE_PAIR_CODE = CFX_CURRENCY_PAIR.PAIR_CODE)
+
+   // ---- joins within this project ----------------------------------------------------
+   // A valuation to the run that produced it.
+   Join Vc_ValuationRun(VC_VALUATION.RUN_ID = VC_VALUATION_RUN.RUN_ID)
+   // A valuation to its accrual, on instrument and date -- the run is not part of it.
+   Join Vc_ValuationAccrual(VC_VALUATION.INSTRUMENT_ID = VC_ACCRUAL.INSTRUMENT_ID and VC_VALUATION.COB_DATE = VC_ACCRUAL.COB_DATE)
+   // A valuation to the price the run chose for it.
+   Join Vc_ValuationPriceInput(VC_VALUATION.RUN_ID = VC_PRICE_INPUT.RUN_ID and VC_VALUATION.INSTRUMENT_ID = VC_PRICE_INPUT.INSTRUMENT_ID)
+   // A valuation to every adjustment stacked on it -- to-many, the sequence is not here.
+   Join Vc_ValuationAdjustment(VC_VALUATION.RUN_ID = VC_MARK_ADJUSTMENT.RUN_ID and VC_VALUATION.INSTRUMENT_ID = VC_MARK_ADJUSTMENT.INSTRUMENT_ID)
+   // A valuation to the breaks raised on it -- to-many for the same reason.
+   Join Vc_ValuationBreak(VC_VALUATION.RUN_ID = VC_VALUATION_BREAK.RUN_ID and VC_VALUATION.INSTRUMENT_ID = VC_VALUATION_BREAK.INSTRUMENT_ID)
+   // A run to its per-currency subtotals.
+   Join Vc_RunSummary(VC_VALUATION_RUN.RUN_ID = VC_VALUATION_SUMMARY.RUN_ID)
+   // A run to the currency it reports in.
+   Join Vc_RunReportingCurrency(VC_VALUATION_RUN.REPORTING_CCY = VC_REPORTING_CURRENCY.CURRENCY_CODE)
+   // A policy to the method it names.
+   Join Vc_PolicyMethod(VC_PRICING_POLICY.METHOD_CODE = VC_VALUATION_METHOD.METHOD_CODE)
+
+   // The rows a run could not price. A BIT compared to 0, not to a boolean literal: a
+   // Filter will not take `false` and fails with `Unexpected token 'false'`.
+   Filter VcUnpricedRows(VC_VALUATION.IS_PRICED = 0)
+   // Adjustments that count towards reported value.
+   Filter VcApprovedAdjustments(VC_MARK_ADJUSTMENT.IS_APPROVED = 1)
+)

@@ -1,0 +1,257 @@
+###Mapping
+
+// The valuation mapping. It INCLUDES both dependencies' mappings, which is what makes the
+// cross-project property mappings below resolvable: `priceObservation[cprObservation]` names
+// a set id that lives in core-price, and it only exists here because core_price::Mapping was
+// included.
+//
+// Every set id is prefixed `vc`. Set ids are a GLOBAL namespace across the whole graph, not
+// scoped to a mapping, and one collision fails every project at once with a message that
+// names the id and not the project that introduced it.
+//
+// Both dependencies name their set ids explicitly -- there is no `core_price_CprPriceObservation`
+// default id to fall back on -- so every property mapping that crosses the boundary names the
+// upstream id from that project's MANIFEST rather than guessing a default.
+//
+// Note what is NOT mapped: `valueInReporting()`, `cleanValueInReporting()` and the rest are
+// derived properties whose bodies call core_fx functions, and a derived property needs no
+// mapping at all. The FX conversion crosses the project boundary in the model, not here.
+Mapping valuation_core::Mapping
+(
+   include core_price::Mapping
+   include core_fx::Mapping
+
+   // The three-column key: run, instrument and date. Drop the run and a re-run of a date
+   // overwrites the overnight answer instead of sitting beside it.
+   valuation_core::VcValuation[vcValuation]: Relational
+   {
+      ~primaryKey
+      (
+         [valuation_core::Store]VC_VALUATION.RUN_ID,
+         [valuation_core::Store]VC_VALUATION.INSTRUMENT_ID,
+         [valuation_core::Store]VC_VALUATION.COB_DATE
+      )
+      ~mainTable [valuation_core::Store]VC_VALUATION
+      runId: [valuation_core::Store]VC_VALUATION.RUN_ID,
+      instrumentId: [valuation_core::Store]VC_VALUATION.INSTRUMENT_ID,
+      cobDate: [valuation_core::Store]VC_VALUATION.COB_DATE,
+      scope([valuation_core::Store]VC_VALUATION)
+      (
+         quantity: QUANTITY,
+         cleanPrice: CLEAN_PRICE,
+         accruedInterest: ACCRUED_INTEREST,
+         dirtyPrice: DIRTY_PRICE,
+         marketValue: MARKET_VALUE,
+         instrumentCurrency: INSTRUMENT_CCY,
+         reportingCurrency: REPORTING_CCY,
+         fxPairCode: FX_PAIR_CODE,
+         fxRateType: FX_RATE_TYPE,
+         fxRate: FX_RATE,
+         priceSourceId: PRICE_SOURCE_ID,
+         isPriced: IS_PRICED
+      ),
+      // Across the boundary into core-price, on its full three-column key.
+      priceObservation[cprObservation]: [valuation_core::Store]@Vc_ValuationObservation,
+      // Across the boundary into core-fx, on its full three-column key.
+      fxRateRow[cfxRate]: [valuation_core::Store]@Vc_ValuationFxRate,
+      // Within this project.
+      run[vcRun]: [valuation_core::Store]@Vc_ValuationRun,
+      accrual[vcAccrual]: [valuation_core::Store]@Vc_ValuationAccrual,
+      priceInput[vcPriceInput]: [valuation_core::Store]@Vc_ValuationPriceInput,
+      adjustments[vcAdjustment]: [valuation_core::Store]@Vc_ValuationAdjustment,
+      breaks[vcBreak]: [valuation_core::Store]@Vc_ValuationBreak
+   }
+
+   // The unpriced subset: same table, same key, one filter. `extends` rather than repeating
+   // seventeen columns, and the two extra columns are the ones that only mean anything on a
+   // row the run could not price.
+   valuation_core::VcUnpricedValuation[vcUnpriced] extends [vcValuation]: Relational
+   {
+      ~filter [valuation_core::Store]VcUnpricedRows
+      unpricedReason: [valuation_core::Store]VC_VALUATION.UNPRICED_REASON,
+      carriedForward: [valuation_core::Store]VC_VALUATION.CARRIED_FORWARD
+   }
+
+   // The runs. Keyed by RUN_ID alone.
+   valuation_core::VcValuationRun[vcRun]: Relational
+   {
+      ~primaryKey ( [valuation_core::Store]VC_VALUATION_RUN.RUN_ID )
+      ~mainTable [valuation_core::Store]VC_VALUATION_RUN
+      runId: [valuation_core::Store]VC_VALUATION_RUN.RUN_ID,
+      cobDate: [valuation_core::Store]VC_VALUATION_RUN.COB_DATE,
+      reportingCurrency: [valuation_core::Store]VC_VALUATION_RUN.REPORTING_CCY,
+      runType: [valuation_core::Store]VC_VALUATION_RUN.RUN_TYPE,
+      status: [valuation_core::Store]VC_VALUATION_RUN.STATUS,
+      valuationCount: [valuation_core::Store]VC_VALUATION_RUN.VALUATION_COUNT,
+      unpricedCount: [valuation_core::Store]VC_VALUATION_RUN.UNPRICED_COUNT,
+      startedAt: [valuation_core::Store]VC_VALUATION_RUN.STARTED_AT,
+      isSignedOff: [valuation_core::Store]VC_VALUATION_RUN.IS_SIGNED_OFF,
+      summaries[vcSummary]: [valuation_core::Store]@Vc_RunSummary,
+      reportingCurrencyRef[vcReportingCurrency]: [valuation_core::Store]@Vc_RunReportingCurrency
+   }
+
+   // Accruals, keyed by instrument and date -- deliberately without the run, because the
+   // accrual is a fact about the instrument and not about who read it.
+   valuation_core::VcAccrual[vcAccrual]: Relational
+   {
+      ~primaryKey
+      (
+         [valuation_core::Store]VC_ACCRUAL.INSTRUMENT_ID,
+         [valuation_core::Store]VC_ACCRUAL.COB_DATE
+      )
+      ~mainTable [valuation_core::Store]VC_ACCRUAL
+      instrumentId: [valuation_core::Store]VC_ACCRUAL.INSTRUMENT_ID,
+      cobDate: [valuation_core::Store]VC_ACCRUAL.COB_DATE,
+      periodStartDate: [valuation_core::Store]VC_ACCRUAL.PERIOD_START_DATE,
+      periodEndDate: [valuation_core::Store]VC_ACCRUAL.PERIOD_END_DATE,
+      couponRate: [valuation_core::Store]VC_ACCRUAL.COUPON_RATE,
+      notional: [valuation_core::Store]VC_ACCRUAL.NOTIONAL,
+      dayCountFraction: [valuation_core::Store]VC_ACCRUAL.DAY_COUNT_FRACTION,
+      dayCountBasis: [valuation_core::Store]VC_ACCRUAL.DAY_COUNT_BASIS,
+      accruedAmount: [valuation_core::Store]VC_ACCRUAL.ACCRUED_AMOUNT
+   }
+
+   // The methods and their tolerances.
+   valuation_core::VcValuationMethod[vcMethod]: Relational
+   {
+      ~primaryKey ( [valuation_core::Store]VC_VALUATION_METHOD.METHOD_CODE )
+      ~mainTable [valuation_core::Store]VC_VALUATION_METHOD
+      methodCode: [valuation_core::Store]VC_VALUATION_METHOD.METHOD_CODE,
+      methodName: [valuation_core::Store]VC_VALUATION_METHOD.METHOD_NAME,
+      isModelBased: [valuation_core::Store]VC_VALUATION_METHOD.IS_MODEL_BASED,
+      requiresIpv: [valuation_core::Store]VC_VALUATION_METHOD.REQUIRES_IPV,
+      tolerancePct: [valuation_core::Store]VC_VALUATION_METHOD.TOLERANCE_PCT,
+      fairValueLevel: [valuation_core::Store]VC_VALUATION_METHOD.FAIR_VALUE_LEVEL
+   }
+
+   // Per-currency exposure. `quotedInverted` is a BIT on this row and the authority for it
+   // is core-fx's pair definition, reached through `pair`.
+   valuation_core::VcFxExposure[vcFxExposure]: Relational
+   {
+      ~primaryKey
+      (
+         [valuation_core::Store]VC_FX_EXPOSURE.RUN_ID,
+         [valuation_core::Store]VC_FX_EXPOSURE.CURRENCY_CODE
+      )
+      ~mainTable [valuation_core::Store]VC_FX_EXPOSURE
+      runId: [valuation_core::Store]VC_FX_EXPOSURE.RUN_ID,
+      currencyCode: [valuation_core::Store]VC_FX_EXPOSURE.CURRENCY_CODE,
+      fxPairCode: [valuation_core::Store]VC_FX_EXPOSURE.FX_PAIR_CODE,
+      exposureAmount: [valuation_core::Store]VC_FX_EXPOSURE.EXPOSURE_AMOUNT,
+      fxRate: [valuation_core::Store]VC_FX_EXPOSURE.FX_RATE,
+      quotedInverted: [valuation_core::Store]VC_FX_EXPOSURE.QUOTED_INVERTED,
+      reportingCurrency: [valuation_core::Store]VC_FX_EXPOSURE.REPORTING_CCY,
+      isWithinLimit: [valuation_core::Store]VC_FX_EXPOSURE.IS_WITHIN_LIMIT,
+      pair[cfxCurrencyPair]: [valuation_core::Store]@Vc_ExposurePair
+   }
+
+   // Manual adjustments, keyed by run, instrument and sequence.
+   valuation_core::VcMarkAdjustment[vcAdjustment]: Relational
+   {
+      ~primaryKey
+      (
+         [valuation_core::Store]VC_MARK_ADJUSTMENT.RUN_ID,
+         [valuation_core::Store]VC_MARK_ADJUSTMENT.INSTRUMENT_ID,
+         [valuation_core::Store]VC_MARK_ADJUSTMENT.ADJUSTMENT_SEQ
+      )
+      ~mainTable [valuation_core::Store]VC_MARK_ADJUSTMENT
+      runId: [valuation_core::Store]VC_MARK_ADJUSTMENT.RUN_ID,
+      instrumentId: [valuation_core::Store]VC_MARK_ADJUSTMENT.INSTRUMENT_ID,
+      adjustmentSeq: [valuation_core::Store]VC_MARK_ADJUSTMENT.ADJUSTMENT_SEQ,
+      adjustmentType: [valuation_core::Store]VC_MARK_ADJUSTMENT.ADJUSTMENT_TYPE,
+      adjustmentAmount: [valuation_core::Store]VC_MARK_ADJUSTMENT.ADJUSTMENT_AMOUNT,
+      fxRate: [valuation_core::Store]VC_MARK_ADJUSTMENT.FX_RATE,
+      reason: [valuation_core::Store]VC_MARK_ADJUSTMENT.REASON,
+      approvedBy: [valuation_core::Store]VC_MARK_ADJUSTMENT.APPROVED_BY,
+      isApproved: [valuation_core::Store]VC_MARK_ADJUSTMENT.IS_APPROVED
+   }
+
+   // Tolerance breaks, keyed by run, instrument and sequence.
+   valuation_core::VcValuationBreak[vcBreak]: Relational
+   {
+      ~primaryKey
+      (
+         [valuation_core::Store]VC_VALUATION_BREAK.RUN_ID,
+         [valuation_core::Store]VC_VALUATION_BREAK.INSTRUMENT_ID,
+         [valuation_core::Store]VC_VALUATION_BREAK.BREAK_SEQ
+      )
+      ~mainTable [valuation_core::Store]VC_VALUATION_BREAK
+      runId: [valuation_core::Store]VC_VALUATION_BREAK.RUN_ID,
+      instrumentId: [valuation_core::Store]VC_VALUATION_BREAK.INSTRUMENT_ID,
+      breakSeq: [valuation_core::Store]VC_VALUATION_BREAK.BREAK_SEQ,
+      breakCode: [valuation_core::Store]VC_VALUATION_BREAK.BREAK_CODE,
+      severity: [valuation_core::Store]VC_VALUATION_BREAK.SEVERITY,
+      differenceAmount: [valuation_core::Store]VC_VALUATION_BREAK.DIFFERENCE_AMOUNT,
+      differencePct: [valuation_core::Store]VC_VALUATION_BREAK.DIFFERENCE_PCT,
+      raisedAt: [valuation_core::Store]VC_VALUATION_BREAK.RAISED_AT,
+      isResolved: [valuation_core::Store]VC_VALUATION_BREAK.IS_RESOLVED
+   }
+
+   // Pricing policies. `preferredSource` reaches core-price's vendor set across the
+   // boundary, which is why the target id is `cprSource` and not a local one.
+   valuation_core::VcPricingPolicy[vcPolicy]: Relational
+   {
+      ~primaryKey ( [valuation_core::Store]VC_PRICING_POLICY.POLICY_CODE )
+      ~mainTable [valuation_core::Store]VC_PRICING_POLICY
+      policyCode: [valuation_core::Store]VC_PRICING_POLICY.POLICY_CODE,
+      assetClass: [valuation_core::Store]VC_PRICING_POLICY.ASSET_CLASS,
+      methodCode: [valuation_core::Store]VC_PRICING_POLICY.METHOD_CODE,
+      preferredSourceId: [valuation_core::Store]VC_PRICING_POLICY.PREFERRED_SOURCE_ID,
+      maxPriceAgeDays: [valuation_core::Store]VC_PRICING_POLICY.MAX_PRICE_AGE_DAYS,
+      tolerancePct: [valuation_core::Store]VC_PRICING_POLICY.TOLERANCE_PCT,
+      isDefault: [valuation_core::Store]VC_PRICING_POLICY.IS_DEFAULT,
+      method[vcMethod]: [valuation_core::Store]@Vc_PolicyMethod,
+      preferredSource[cprSource]: [valuation_core::Store]@Vc_PolicySource
+   }
+
+   // Reporting currencies, keyed by the CHAR(3) code itself.
+   valuation_core::VcReportingCurrency[vcReportingCurrency]: Relational
+   {
+      ~primaryKey ( [valuation_core::Store]VC_REPORTING_CURRENCY.CURRENCY_CODE )
+      ~mainTable [valuation_core::Store]VC_REPORTING_CURRENCY
+      currencyCode: [valuation_core::Store]VC_REPORTING_CURRENCY.CURRENCY_CODE,
+      currencyName: [valuation_core::Store]VC_REPORTING_CURRENCY.CURRENCY_NAME,
+      roundingDecimals: [valuation_core::Store]VC_REPORTING_CURRENCY.ROUNDING_DECIMALS,
+      basePairCode: [valuation_core::Store]VC_REPORTING_CURRENCY.BASE_PAIR_CODE,
+      isFirmBase: [valuation_core::Store]VC_REPORTING_CURRENCY.IS_FIRM_BASE,
+      basePair[cfxCurrencyPair]: [valuation_core::Store]@Vc_ReportingCurrencyPair
+   }
+
+   // Per-run, per-currency subtotals.
+   valuation_core::VcValuationSummary[vcSummary]: Relational
+   {
+      ~primaryKey
+      (
+         [valuation_core::Store]VC_VALUATION_SUMMARY.RUN_ID,
+         [valuation_core::Store]VC_VALUATION_SUMMARY.CURRENCY_CODE
+      )
+      ~mainTable [valuation_core::Store]VC_VALUATION_SUMMARY
+      runId: [valuation_core::Store]VC_VALUATION_SUMMARY.RUN_ID,
+      currencyCode: [valuation_core::Store]VC_VALUATION_SUMMARY.CURRENCY_CODE,
+      totalMarketValue: [valuation_core::Store]VC_VALUATION_SUMMARY.TOTAL_MARKET_VALUE,
+      fxRate: [valuation_core::Store]VC_VALUATION_SUMMARY.FX_RATE,
+      positionCount: [valuation_core::Store]VC_VALUATION_SUMMARY.POSITION_COUNT,
+      unpricedCount: [valuation_core::Store]VC_VALUATION_SUMMARY.UNPRICED_COUNT
+   }
+
+   // The chosen price and the two-way quote behind it.
+   valuation_core::VcPriceInput[vcPriceInput]: Relational
+   {
+      ~primaryKey
+      (
+         [valuation_core::Store]VC_PRICE_INPUT.RUN_ID,
+         [valuation_core::Store]VC_PRICE_INPUT.INSTRUMENT_ID
+      )
+      ~mainTable [valuation_core::Store]VC_PRICE_INPUT
+      runId: [valuation_core::Store]VC_PRICE_INPUT.RUN_ID,
+      instrumentId: [valuation_core::Store]VC_PRICE_INPUT.INSTRUMENT_ID,
+      sourceId: [valuation_core::Store]VC_PRICE_INPUT.SOURCE_ID,
+      priceUsed: [valuation_core::Store]VC_PRICE_INPUT.PRICE_USED,
+      bidPrice: [valuation_core::Store]VC_PRICE_INPUT.BID_PRICE,
+      askPrice: [valuation_core::Store]VC_PRICE_INPUT.ASK_PRICE,
+      priceCurrency: [valuation_core::Store]VC_PRICE_INPUT.PRICE_CURRENCY,
+      priceAgeDays: [valuation_core::Store]VC_PRICE_INPUT.PRICE_AGE_DAYS,
+      isConsensus: [valuation_core::Store]VC_PRICE_INPUT.IS_CONSENSUS,
+      source[cprSource]: [valuation_core::Store]@Vc_PriceInputSource
+   }
+)

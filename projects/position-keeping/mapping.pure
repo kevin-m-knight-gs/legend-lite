@@ -1,0 +1,324 @@
+###Mapping
+// The position-keeping mapping. It INCLUDES both upstream mappings, so the sets this
+// project's joins land on -- `caAccount` for an account, `ciBase` for an instrument --
+// already exist and are not redefined here.
+//
+// Every ~primaryKey below names between two and six columns; not one of them is a single
+// column, because nothing in this project is identified by one. The four position tables'
+// keys all start with the same four columns, and PK_LOT_CLOSURE's runs to six.
+//
+// Every property mapping that crosses to another set names that set explicitly --
+// `account[caAccount]`, `instrument[ciBase]` -- because both upstream projects give their
+// sets explicit ids, which means the default ids (`core_account_Account`,
+// `core_instrument_Instrument`) do not exist to fall back on.
+//
+// The last four sets are rooted on VIEWS. Their primary key is the view's ~groupBy, so
+// one instance of AccountDayTotal is one account-day GROUP and never a position.
+Mapping position_keeping::Mapping
+(
+   include core_account::Mapping
+   include core_instrument::Mapping
+
+   // The grain. Four key columns, and the two cross-project property mappings.
+   position_keeping::Position[pkPosition]: Relational
+   {
+      ~primaryKey
+      (
+         [position_keeping::Store]PK_POSITION.INSTITUTION_ID,
+         [position_keeping::Store]PK_POSITION.ACCOUNT_NO,
+         [position_keeping::Store]PK_POSITION.INSTRUMENT_ID,
+         [position_keeping::Store]PK_POSITION.COB_DATE
+      )
+      ~mainTable [position_keeping::Store]PK_POSITION
+      institutionId: [position_keeping::Store]PK_POSITION.INSTITUTION_ID,
+      accountNo: [position_keeping::Store]PK_POSITION.ACCOUNT_NO,
+      instrumentId: [position_keeping::Store]PK_POSITION.INSTRUMENT_ID,
+      cobDate: [position_keeping::Store]PK_POSITION.COB_DATE,
+      openingQuantity: [position_keeping::Store]PK_POSITION.OPENING_QUANTITY,
+      closingQuantity: [position_keeping::Store]PK_POSITION.CLOSING_QUANTITY,
+      settledQuantity: [position_keeping::Store]PK_POSITION.SETTLED_QUANTITY,
+      pendingQuantity: [position_keeping::Store]PK_POSITION.PENDING_QUANTITY,
+      averageCost: [position_keeping::Store]PK_POSITION.AVERAGE_COST,
+      costCurrency: [position_keeping::Store]PK_POSITION.COST_CURRENCY,
+      costBasisAmount: [position_keeping::Store]PK_POSITION.COST_BASIS_AMOUNT,
+      marketPrice: [position_keeping::Store]PK_POSITION.MARKET_PRICE,
+      marketValue: [position_keeping::Store]PK_POSITION.MARKET_VALUE,
+      realisedPnl: [position_keeping::Store]PK_POSITION.REALISED_PNL,
+      unrealisedPnl: [position_keeping::Store]PK_POSITION.UNREALISED_PNL,
+      pnlCurrency: [position_keeping::Store]PK_POSITION.PNL_CURRENCY,
+      positionStatus: [position_keeping::Store]PK_POSITION.POSITION_STATUS,
+      isShort: [position_keeping::Store]PK_POSITION.IS_SHORT,
+      lastMovementDate: [position_keeping::Store]PK_POSITION.LAST_MOVEMENT_DATE,
+      runSeq: [position_keeping::Store]PK_POSITION.RUN_SEQ,
+      // Cross-project. The join carries both account columns; the set id is upstream's.
+      account[caAccount]: [position_keeping::Store]@Pk_PositionAccount,
+      instrument[ciBase]: [position_keeping::Store]@Pk_PositionInstrument,
+      run[pkPositionRun]: [position_keeping::Store]@Pk_PositionRun,
+      movements[pkPositionMovement]: [position_keeping::Store]@Pk_PositionMovements,
+      lots[pkPositionLot]: [position_keeping::Store]@Pk_PositionLots,
+      adjustments[pkPositionAdjustment]: [position_keeping::Store]@Pk_PositionAdjustments,
+      ladder[pkSettlementLadderEntry]: [position_keeping::Store]@Pk_PositionLadder,
+      breaks[pkPositionBreak]: [position_keeping::Store]@Pk_PositionBreaks,
+      // Into the aggregations.
+      movementTotal[pkMovementTotal]: [position_keeping::Store]@Pk_PositionMovementTotal,
+      accountDayTotal[pkAccountDayTotal]: [position_keeping::Store]@Pk_PositionAccountDayTotal,
+      instrumentDayTotal[pkInstrumentDayTotal]: [position_keeping::Store]@Pk_PositionInstrumentDayTotal,
+      lifetime[pkAccountInstrumentLifetime]: [position_keeping::Store]@Pk_PositionLifetime
+   }
+
+   position_keeping::PositionMovement[pkPositionMovement]: Relational
+   {
+      ~primaryKey
+      (
+         [position_keeping::Store]PK_POSITION_MOVEMENT.INSTITUTION_ID,
+         [position_keeping::Store]PK_POSITION_MOVEMENT.ACCOUNT_NO,
+         [position_keeping::Store]PK_POSITION_MOVEMENT.INSTRUMENT_ID,
+         [position_keeping::Store]PK_POSITION_MOVEMENT.COB_DATE,
+         [position_keeping::Store]PK_POSITION_MOVEMENT.MOVEMENT_SEQ
+      )
+      ~mainTable [position_keeping::Store]PK_POSITION_MOVEMENT
+      institutionId: [position_keeping::Store]PK_POSITION_MOVEMENT.INSTITUTION_ID,
+      accountNo: [position_keeping::Store]PK_POSITION_MOVEMENT.ACCOUNT_NO,
+      instrumentId: [position_keeping::Store]PK_POSITION_MOVEMENT.INSTRUMENT_ID,
+      cobDate: [position_keeping::Store]PK_POSITION_MOVEMENT.COB_DATE,
+      movementSeq: [position_keeping::Store]PK_POSITION_MOVEMENT.MOVEMENT_SEQ,
+      movementType: [position_keeping::Store]PK_POSITION_MOVEMENT.MOVEMENT_TYPE,
+      tradeReference: [position_keeping::Store]PK_POSITION_MOVEMENT.TRADE_REFERENCE,
+      quantityDelta: [position_keeping::Store]PK_POSITION_MOVEMENT.QUANTITY_DELTA,
+      signedCash: [position_keeping::Store]PK_POSITION_MOVEMENT.SIGNED_CASH,
+      price: [position_keeping::Store]PK_POSITION_MOVEMENT.PRICE,
+      settlementDate: [position_keeping::Store]PK_POSITION_MOVEMENT.SETTLEMENT_DATE,
+      sourceSystem: [position_keeping::Store]PK_POSITION_MOVEMENT.SOURCE_SYSTEM,
+      position[pkPosition]: [position_keeping::Store]@Pk_PositionMovements
+   }
+
+   position_keeping::PositionLot[pkPositionLot]: Relational
+   {
+      ~primaryKey
+      (
+         [position_keeping::Store]PK_POSITION_LOT.INSTITUTION_ID,
+         [position_keeping::Store]PK_POSITION_LOT.ACCOUNT_NO,
+         [position_keeping::Store]PK_POSITION_LOT.INSTRUMENT_ID,
+         [position_keeping::Store]PK_POSITION_LOT.COB_DATE,
+         [position_keeping::Store]PK_POSITION_LOT.LOT_ID
+      )
+      ~mainTable [position_keeping::Store]PK_POSITION_LOT
+      institutionId: [position_keeping::Store]PK_POSITION_LOT.INSTITUTION_ID,
+      accountNo: [position_keeping::Store]PK_POSITION_LOT.ACCOUNT_NO,
+      instrumentId: [position_keeping::Store]PK_POSITION_LOT.INSTRUMENT_ID,
+      cobDate: [position_keeping::Store]PK_POSITION_LOT.COB_DATE,
+      lotId: [position_keeping::Store]PK_POSITION_LOT.LOT_ID,
+      openDate: [position_keeping::Store]PK_POSITION_LOT.OPEN_DATE,
+      openQuantity: [position_keeping::Store]PK_POSITION_LOT.OPEN_QUANTITY,
+      remainingQuantity: [position_keeping::Store]PK_POSITION_LOT.REMAINING_QUANTITY,
+      unitCost: [position_keeping::Store]PK_POSITION_LOT.UNIT_COST,
+      lotCurrency: [position_keeping::Store]PK_POSITION_LOT.LOT_CURRENCY,
+      closedOn: [position_keeping::Store]PK_POSITION_LOT.CLOSED_ON,
+      position[pkPosition]: [position_keeping::Store]@Pk_PositionLots,
+      closures[pkLotClosure]: [position_keeping::Store]@Pk_LotClosures
+   }
+
+   // Six key columns.
+   position_keeping::LotClosure[pkLotClosure]: Relational
+   {
+      ~primaryKey
+      (
+         [position_keeping::Store]PK_LOT_CLOSURE.INSTITUTION_ID,
+         [position_keeping::Store]PK_LOT_CLOSURE.ACCOUNT_NO,
+         [position_keeping::Store]PK_LOT_CLOSURE.INSTRUMENT_ID,
+         [position_keeping::Store]PK_LOT_CLOSURE.COB_DATE,
+         [position_keeping::Store]PK_LOT_CLOSURE.LOT_ID,
+         [position_keeping::Store]PK_LOT_CLOSURE.CLOSURE_SEQ
+      )
+      ~mainTable [position_keeping::Store]PK_LOT_CLOSURE
+      institutionId: [position_keeping::Store]PK_LOT_CLOSURE.INSTITUTION_ID,
+      accountNo: [position_keeping::Store]PK_LOT_CLOSURE.ACCOUNT_NO,
+      instrumentId: [position_keeping::Store]PK_LOT_CLOSURE.INSTRUMENT_ID,
+      cobDate: [position_keeping::Store]PK_LOT_CLOSURE.COB_DATE,
+      lotId: [position_keeping::Store]PK_LOT_CLOSURE.LOT_ID,
+      closureSeq: [position_keeping::Store]PK_LOT_CLOSURE.CLOSURE_SEQ,
+      closedQuantity: [position_keeping::Store]PK_LOT_CLOSURE.CLOSED_QUANTITY,
+      closePrice: [position_keeping::Store]PK_LOT_CLOSURE.CLOSE_PRICE,
+      realisedAmount: [position_keeping::Store]PK_LOT_CLOSURE.REALISED_AMOUNT,
+      matchingMethod: [position_keeping::Store]PK_LOT_CLOSURE.MATCHING_METHOD,
+      movementSeq: [position_keeping::Store]PK_LOT_CLOSURE.MOVEMENT_SEQ,
+      lot[pkPositionLot]: [position_keeping::Store]@Pk_LotClosures
+   }
+
+   position_keeping::PositionAdjustment[pkPositionAdjustment]: Relational
+   {
+      ~primaryKey
+      (
+         [position_keeping::Store]PK_POSITION_ADJUSTMENT.INSTITUTION_ID,
+         [position_keeping::Store]PK_POSITION_ADJUSTMENT.ACCOUNT_NO,
+         [position_keeping::Store]PK_POSITION_ADJUSTMENT.INSTRUMENT_ID,
+         [position_keeping::Store]PK_POSITION_ADJUSTMENT.COB_DATE,
+         [position_keeping::Store]PK_POSITION_ADJUSTMENT.ADJUSTMENT_SEQ
+      )
+      ~mainTable [position_keeping::Store]PK_POSITION_ADJUSTMENT
+      institutionId: [position_keeping::Store]PK_POSITION_ADJUSTMENT.INSTITUTION_ID,
+      accountNo: [position_keeping::Store]PK_POSITION_ADJUSTMENT.ACCOUNT_NO,
+      instrumentId: [position_keeping::Store]PK_POSITION_ADJUSTMENT.INSTRUMENT_ID,
+      cobDate: [position_keeping::Store]PK_POSITION_ADJUSTMENT.COB_DATE,
+      adjustmentSeq: [position_keeping::Store]PK_POSITION_ADJUSTMENT.ADJUSTMENT_SEQ,
+      adjustmentType: [position_keeping::Store]PK_POSITION_ADJUSTMENT.ADJUSTMENT_TYPE,
+      quantityDelta: [position_keeping::Store]PK_POSITION_ADJUSTMENT.QUANTITY_DELTA,
+      amountDelta: [position_keeping::Store]PK_POSITION_ADJUSTMENT.AMOUNT_DELTA,
+      reason: [position_keeping::Store]PK_POSITION_ADJUSTMENT.REASON,
+      raisedBy: [position_keeping::Store]PK_POSITION_ADJUSTMENT.RAISED_BY,
+      approvedBy: [position_keeping::Store]PK_POSITION_ADJUSTMENT.APPROVED_BY,
+      raisedOn: [position_keeping::Store]PK_POSITION_ADJUSTMENT.RAISED_ON,
+      position[pkPosition]: [position_keeping::Store]@Pk_PositionAdjustments
+   }
+
+   position_keeping::SettlementLadderEntry[pkSettlementLadderEntry]: Relational
+   {
+      ~primaryKey
+      (
+         [position_keeping::Store]PK_SETTLEMENT_LADDER.INSTITUTION_ID,
+         [position_keeping::Store]PK_SETTLEMENT_LADDER.ACCOUNT_NO,
+         [position_keeping::Store]PK_SETTLEMENT_LADDER.INSTRUMENT_ID,
+         [position_keeping::Store]PK_SETTLEMENT_LADDER.COB_DATE,
+         [position_keeping::Store]PK_SETTLEMENT_LADDER.SETTLEMENT_DATE
+      )
+      ~mainTable [position_keeping::Store]PK_SETTLEMENT_LADDER
+      institutionId: [position_keeping::Store]PK_SETTLEMENT_LADDER.INSTITUTION_ID,
+      accountNo: [position_keeping::Store]PK_SETTLEMENT_LADDER.ACCOUNT_NO,
+      instrumentId: [position_keeping::Store]PK_SETTLEMENT_LADDER.INSTRUMENT_ID,
+      cobDate: [position_keeping::Store]PK_SETTLEMENT_LADDER.COB_DATE,
+      settlementDate: [position_keeping::Store]PK_SETTLEMENT_LADDER.SETTLEMENT_DATE,
+      expectedQuantity: [position_keeping::Store]PK_SETTLEMENT_LADDER.EXPECTED_QUANTITY,
+      expectedCash: [position_keeping::Store]PK_SETTLEMENT_LADDER.EXPECTED_CASH,
+      ladderCurrency: [position_keeping::Store]PK_SETTLEMENT_LADDER.LADDER_CURRENCY,
+      isOverdue: [position_keeping::Store]PK_SETTLEMENT_LADDER.IS_OVERDUE,
+      position[pkPosition]: [position_keeping::Store]@Pk_PositionLadder
+   }
+
+   position_keeping::PositionBreak[pkPositionBreak]: Relational
+   {
+      ~primaryKey
+      (
+         [position_keeping::Store]PK_POSITION_BREAK.INSTITUTION_ID,
+         [position_keeping::Store]PK_POSITION_BREAK.ACCOUNT_NO,
+         [position_keeping::Store]PK_POSITION_BREAK.INSTRUMENT_ID,
+         [position_keeping::Store]PK_POSITION_BREAK.COB_DATE,
+         [position_keeping::Store]PK_POSITION_BREAK.BREAK_CODE
+      )
+      ~mainTable [position_keeping::Store]PK_POSITION_BREAK
+      institutionId: [position_keeping::Store]PK_POSITION_BREAK.INSTITUTION_ID,
+      accountNo: [position_keeping::Store]PK_POSITION_BREAK.ACCOUNT_NO,
+      instrumentId: [position_keeping::Store]PK_POSITION_BREAK.INSTRUMENT_ID,
+      cobDate: [position_keeping::Store]PK_POSITION_BREAK.COB_DATE,
+      breakCode: [position_keeping::Store]PK_POSITION_BREAK.BREAK_CODE,
+      breakQuantity: [position_keeping::Store]PK_POSITION_BREAK.BREAK_QUANTITY,
+      breakAmount: [position_keeping::Store]PK_POSITION_BREAK.BREAK_AMOUNT,
+      severity: [position_keeping::Store]PK_POSITION_BREAK.SEVERITY,
+      detectedOn: [position_keeping::Store]PK_POSITION_BREAK.DETECTED_ON,
+      resolvedOn: [position_keeping::Store]PK_POSITION_BREAK.RESOLVED_ON,
+      assignedTo: [position_keeping::Store]PK_POSITION_BREAK.ASSIGNED_TO,
+      position[pkPosition]: [position_keeping::Store]@Pk_PositionBreaks
+   }
+
+   position_keeping::PositionRun[pkPositionRun]: Relational
+   {
+      ~primaryKey
+      (
+         [position_keeping::Store]PK_RUN.COB_DATE,
+         [position_keeping::Store]PK_RUN.RUN_SEQ
+      )
+      ~mainTable [position_keeping::Store]PK_RUN
+      cobDate: [position_keeping::Store]PK_RUN.COB_DATE,
+      runSeq: [position_keeping::Store]PK_RUN.RUN_SEQ,
+      runType: [position_keeping::Store]PK_RUN.RUN_TYPE,
+      runStatus: [position_keeping::Store]PK_RUN.RUN_STATUS,
+      startedOn: [position_keeping::Store]PK_RUN.STARTED_ON,
+      completedOn: [position_keeping::Store]PK_RUN.COMPLETED_ON,
+      positionCount: [position_keeping::Store]PK_RUN.POSITION_COUNT,
+      triggeredBy: [position_keeping::Store]PK_RUN.TRIGGERED_BY,
+      positions[pkPosition]: [position_keeping::Store]@Pk_PositionRun
+   }
+
+   // ------------------------------------------------------------ the aggregate sets
+   //
+   // Rooted on views. The primary key IS the ~groupBy, so an instance is a group.
+
+   position_keeping::AccountDayTotal[pkAccountDayTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [position_keeping::Store]PK_ACCOUNT_DAY_TOTAL.INSTITUTION_ID,
+         [position_keeping::Store]PK_ACCOUNT_DAY_TOTAL.ACCOUNT_NO,
+         [position_keeping::Store]PK_ACCOUNT_DAY_TOTAL.COB_DATE
+      )
+      ~mainTable [position_keeping::Store]PK_ACCOUNT_DAY_TOTAL
+      institutionId: [position_keeping::Store]PK_ACCOUNT_DAY_TOTAL.INSTITUTION_ID,
+      accountNo: [position_keeping::Store]PK_ACCOUNT_DAY_TOTAL.ACCOUNT_NO,
+      cobDate: [position_keeping::Store]PK_ACCOUNT_DAY_TOTAL.COB_DATE,
+      positionCount: [position_keeping::Store]PK_ACCOUNT_DAY_TOTAL.POSITION_COUNT,
+      totalMarketValue: [position_keeping::Store]PK_ACCOUNT_DAY_TOTAL.TOTAL_MARKET_VALUE,
+      totalCostBasis: [position_keeping::Store]PK_ACCOUNT_DAY_TOTAL.TOTAL_COST_BASIS,
+      totalRealisedPnl: [position_keeping::Store]PK_ACCOUNT_DAY_TOTAL.TOTAL_REALISED_PNL,
+      totalUnrealisedPnl: [position_keeping::Store]PK_ACCOUNT_DAY_TOTAL.TOTAL_UNREALISED_PNL,
+      account[caAccount]: [position_keeping::Store]@Pk_AccountDayTotalAccount,
+      positions[pkPosition]: [position_keeping::Store]@Pk_PositionAccountDayTotal
+   }
+
+   position_keeping::InstrumentDayTotal[pkInstrumentDayTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [position_keeping::Store]PK_INSTRUMENT_DAY_TOTAL.INSTRUMENT_ID,
+         [position_keeping::Store]PK_INSTRUMENT_DAY_TOTAL.COB_DATE
+      )
+      ~mainTable [position_keeping::Store]PK_INSTRUMENT_DAY_TOTAL
+      instrumentId: [position_keeping::Store]PK_INSTRUMENT_DAY_TOTAL.INSTRUMENT_ID,
+      cobDate: [position_keeping::Store]PK_INSTRUMENT_DAY_TOTAL.COB_DATE,
+      accountCount: [position_keeping::Store]PK_INSTRUMENT_DAY_TOTAL.ACCOUNT_COUNT,
+      netQuantity: [position_keeping::Store]PK_INSTRUMENT_DAY_TOTAL.NET_QUANTITY,
+      longestQuantity: [position_keeping::Store]PK_INSTRUMENT_DAY_TOTAL.LONGEST_QUANTITY,
+      totalMarketValue: [position_keeping::Store]PK_INSTRUMENT_DAY_TOTAL.TOTAL_MARKET_VALUE,
+      instrument[ciBase]: [position_keeping::Store]@Pk_InstrumentDayTotalInstrument,
+      positions[pkPosition]: [position_keeping::Store]@Pk_PositionInstrumentDayTotal
+   }
+
+   position_keeping::MovementTotal[pkMovementTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [position_keeping::Store]PK_MOVEMENT_TOTAL.INSTITUTION_ID,
+         [position_keeping::Store]PK_MOVEMENT_TOTAL.ACCOUNT_NO,
+         [position_keeping::Store]PK_MOVEMENT_TOTAL.INSTRUMENT_ID,
+         [position_keeping::Store]PK_MOVEMENT_TOTAL.COB_DATE
+      )
+      ~mainTable [position_keeping::Store]PK_MOVEMENT_TOTAL
+      institutionId: [position_keeping::Store]PK_MOVEMENT_TOTAL.INSTITUTION_ID,
+      accountNo: [position_keeping::Store]PK_MOVEMENT_TOTAL.ACCOUNT_NO,
+      instrumentId: [position_keeping::Store]PK_MOVEMENT_TOTAL.INSTRUMENT_ID,
+      cobDate: [position_keeping::Store]PK_MOVEMENT_TOTAL.COB_DATE,
+      movementCount: [position_keeping::Store]PK_MOVEMENT_TOTAL.MOVEMENT_COUNT,
+      netQuantityDelta: [position_keeping::Store]PK_MOVEMENT_TOTAL.NET_QUANTITY_DELTA,
+      netCash: [position_keeping::Store]PK_MOVEMENT_TOTAL.NET_CASH,
+      position[pkPosition]: [position_keeping::Store]@Pk_PositionMovementTotal
+   }
+
+   position_keeping::AccountInstrumentLifetime[pkAccountInstrumentLifetime]: Relational
+   {
+      ~primaryKey
+      (
+         [position_keeping::Store]PK_POSITION_LIFETIME.INSTITUTION_ID,
+         [position_keeping::Store]PK_POSITION_LIFETIME.ACCOUNT_NO,
+         [position_keeping::Store]PK_POSITION_LIFETIME.INSTRUMENT_ID
+      )
+      ~mainTable [position_keeping::Store]PK_POSITION_LIFETIME
+      institutionId: [position_keeping::Store]PK_POSITION_LIFETIME.INSTITUTION_ID,
+      accountNo: [position_keeping::Store]PK_POSITION_LIFETIME.ACCOUNT_NO,
+      instrumentId: [position_keeping::Store]PK_POSITION_LIFETIME.INSTRUMENT_ID,
+      dayCount: [position_keeping::Store]PK_POSITION_LIFETIME.DAY_COUNT,
+      firstCobDate: [position_keeping::Store]PK_POSITION_LIFETIME.FIRST_COB_DATE,
+      lastCobDate: [position_keeping::Store]PK_POSITION_LIFETIME.LAST_COB_DATE,
+      lifetimeRealisedPnl: [position_keeping::Store]PK_POSITION_LIFETIME.LIFETIME_REALISED_PNL,
+      account[caAccount]: [position_keeping::Store]@Pk_LifetimeAccount,
+      instrument[ciBase]: [position_keeping::Store]@Pk_LifetimeInstrument,
+      positions[pkPosition]: [position_keeping::Store]@Pk_PositionLifetime
+   }
+)

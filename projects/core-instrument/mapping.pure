@@ -1,0 +1,313 @@
+###Mapping
+// The instrument master mapping.
+//
+// [ciBase] is the ROOT set (`*`), so an unqualified core_instrument::Instrument.all() reads
+// the whole table. Every subtype set `extends [ciBase]` and adds nothing but a ~filter and
+// its own columns: the inherited property mappings, the primary key and the main table all
+// come from the set it extends, which is what makes one table serve nineteen types without
+// nineteen copies of the same twenty column mappings.
+//
+// [ciBase] is the id downstream projects extend. Adding a subtype somewhere else is a
+// three-line set: a class extending core_instrument::Instrument, a Filter in
+// core_instrument::Store, and `extends [ciBase]` here.
+Mapping core_instrument::Mapping
+(
+   // ---- the enum transformers ----
+   // The database stores codes; the model exposes enums. Each of these is the one place
+   // the physical code strings appear, so a code change is one line and not a search.
+   core_instrument::AssetClass: EnumerationMapping CiAssetClassMapping
+   {
+      EQUITY:            ['EQ', 'EQUITY'],
+      FIXED_INCOME:      ['FI', 'FIXED_INCOME'],
+      LISTED_DERIVATIVE: ['LD', 'LISTED_DERIV'],
+      OTC_DERIVATIVE:    ['OTC', 'OTC_DERIV'],
+      FUND:              ['FND', 'FUND'],
+      STRUCTURED:        ['STR', 'STRUCTURED']
+   }
+
+   core_instrument::InstrumentStatus: EnumerationMapping CiInstrumentStatusMapping
+   {
+      ACTIVE:    ['A', 'ACTIVE'],
+      SUSPENDED: ['S', 'SUSPENDED'],
+      MATURED:   ['M', 'MATURED'],
+      DELISTED:  ['D', 'DELISTED']
+   }
+
+   core_instrument::OptionStyle: EnumerationMapping CiOptionStyleMapping
+   {
+      AMERICAN: ['AMER', 'AMERICAN'],
+      EUROPEAN: ['EURO', 'EUROPEAN'],
+      BERMUDAN: ['BERM', 'BERMUDAN']
+   }
+
+   core_instrument::SettlementMethod: EnumerationMapping CiSettlementMethodMapping
+   {
+      CASH:     ['C', 'CASH'],
+      PHYSICAL: ['P', 'PHYSICAL']
+   }
+
+   core_instrument::CouponType: EnumerationMapping CiCouponTypeMapping
+   {
+      FIXED:    ['FIX', 'FIXED'],
+      FLOATING: ['FLT', 'FLOATING'],
+      ZERO:     ['ZC', 'ZERO'],
+      STEP_UP:  ['STEP', 'STEP_UP']
+   }
+
+   // ---- the root set: every row of CI_INSTRUMENT, whatever it turns out to be ----
+   *core_instrument::Instrument[ciBase]: Relational
+   {
+      ~primaryKey ( [core_instrument::Store]CI_INSTRUMENT.INSTRUMENT_ID )
+      ~mainTable [core_instrument::Store]CI_INSTRUMENT
+      instrumentId: [core_instrument::Store]CI_INSTRUMENT.INSTRUMENT_ID,
+      instrumentType: [core_instrument::Store]CI_INSTRUMENT.INSTRUMENT_TYPE,
+      instrumentSubType: [core_instrument::Store]CI_INSTRUMENT.INSTRUMENT_SUBTYPE,
+      name: [core_instrument::Store]CI_INSTRUMENT.NAME,
+      assetClass: EnumerationMapping CiAssetClassMapping: [core_instrument::Store]CI_INSTRUMENT.ASSET_CLASS,
+      status: EnumerationMapping CiInstrumentStatusMapping: [core_instrument::Store]CI_INSTRUMENT.STATUS,
+      currency: [core_instrument::Store]CI_INSTRUMENT.CURRENCY,
+      isin: [core_instrument::Store]CI_INSTRUMENT.ISIN,
+      cusip: [core_instrument::Store]CI_INSTRUMENT.CUSIP,
+      sedol: [core_instrument::Store]CI_INSTRUMENT.SEDOL,
+      figi: [core_instrument::Store]CI_INSTRUMENT.FIGI,
+      issuerName: [core_instrument::Store]CI_INSTRUMENT.ISSUER_NAME,
+      countryOfIssue: [core_instrument::Store]CI_INSTRUMENT.COUNTRY_OF_ISSUE,
+      primaryExchangeMic: [core_instrument::Store]CI_INSTRUMENT.PRIMARY_EXCHANGE_MIC,
+      lotSize: [core_instrument::Store]CI_INSTRUMENT.LOT_SIZE,
+      listingDate: [core_instrument::Store]CI_INSTRUMENT.LISTING_DATE,
+      maturityDate: [core_instrument::Store]CI_INSTRUMENT.MATURITY_DATE,
+      isActive: [core_instrument::Store]CI_INSTRUMENT.IS_ACTIVE,
+      description: [core_instrument::Store]CI_INSTRUMENT.DESCRIPTION,
+      identifiers: [core_instrument::Store]@Ci_InstrumentIdentifier
+   }
+
+   // ---- the eight asset classes ----
+   // Each one: the SAME table, narrowed by the discriminator, plus the columns that only
+   // mean something once the row is known to be of this type.
+
+   core_instrument::Equity[ciEquity] extends [ciBase]: Relational
+   {
+      ~filter [core_instrument::Store]CiEquityRows
+      shareClass: [core_instrument::Store]CI_INSTRUMENT.SHARE_CLASS,
+      sharesOutstanding: [core_instrument::Store]CI_INSTRUMENT.SHARES_OUTSTANDING,
+      votingRightsPerShare: [core_instrument::Store]CI_INSTRUMENT.VOTING_RIGHTS_PER_SHARE,
+      dividendYield: [core_instrument::Store]CI_INSTRUMENT.DIVIDEND_YIELD,
+      freeFloatPercent: [core_instrument::Store]CI_INSTRUMENT.FREE_FLOAT_PCT,
+      gicsSector: [core_instrument::Store]CI_INSTRUMENT.GICS_SECTOR
+   }
+
+   core_instrument::Bond[ciBond] extends [ciBase]: Relational
+   {
+      ~filter [core_instrument::Store]CiBondRows
+      couponRate: [core_instrument::Store]CI_INSTRUMENT.COUPON_RATE,
+      couponType: EnumerationMapping CiCouponTypeMapping: [core_instrument::Store]CI_INSTRUMENT.COUPON_TYPE,
+      couponFrequency: [core_instrument::Store]CI_INSTRUMENT.COUPON_FREQUENCY,
+      faceValue: [core_instrument::Store]CI_INSTRUMENT.FACE_VALUE,
+      dayCountConvention: [core_instrument::Store]CI_INSTRUMENT.DAY_COUNT_CONVENTION,
+      seniority: [core_instrument::Store]CI_INSTRUMENT.SENIORITY,
+      creditRating: [core_instrument::Store]CI_INSTRUMENT.CREDIT_RATING,
+      issueDate: [core_instrument::Store]CI_INSTRUMENT.ISSUE_DATE,
+      isCallable: [core_instrument::Store]CI_INSTRUMENT.IS_CALLABLE,
+      firstCallDate: [core_instrument::Store]CI_INSTRUMENT.FIRST_CALL_DATE
+   }
+
+   core_instrument::Future[ciFuture] extends [ciBase]: Relational
+   {
+      ~filter [core_instrument::Store]CiFutureRows
+      contractMonth: [core_instrument::Store]CI_INSTRUMENT.CONTRACT_MONTH,
+      contractSize: [core_instrument::Store]CI_INSTRUMENT.CONTRACT_SIZE,
+      tickSize: [core_instrument::Store]CI_INSTRUMENT.TICK_SIZE,
+      tickValue: [core_instrument::Store]CI_INSTRUMENT.TICK_VALUE,
+      lastTradingDate: [core_instrument::Store]CI_INSTRUMENT.LAST_TRADING_DATE,
+      firstNoticeDate: [core_instrument::Store]CI_INSTRUMENT.FIRST_NOTICE_DATE,
+      settlementMethod: EnumerationMapping CiSettlementMethodMapping: [core_instrument::Store]CI_INSTRUMENT.SETTLEMENT_METHOD,
+      initialMargin: [core_instrument::Store]CI_INSTRUMENT.INITIAL_MARGIN,
+      underlyingInstrumentId: [core_instrument::Store]CI_INSTRUMENT.UNDERLYING_INSTRUMENT_ID
+   }
+
+   core_instrument::Option[ciOption] extends [ciBase]: Relational
+   {
+      ~filter [core_instrument::Store]CiOptionRows
+      strikePrice: [core_instrument::Store]CI_INSTRUMENT.STRIKE_PRICE,
+      expiryDate: [core_instrument::Store]CI_INSTRUMENT.EXPIRY_DATE,
+      optionStyle: EnumerationMapping CiOptionStyleMapping: [core_instrument::Store]CI_INSTRUMENT.OPTION_STYLE,
+      settlementMethod: EnumerationMapping CiSettlementMethodMapping: [core_instrument::Store]CI_INSTRUMENT.SETTLEMENT_METHOD,
+      contractSize: [core_instrument::Store]CI_INSTRUMENT.CONTRACT_SIZE,
+      underlyingInstrumentId: [core_instrument::Store]CI_INSTRUMENT.UNDERLYING_INSTRUMENT_ID,
+      putCall: [core_instrument::Store]CI_INSTRUMENT.PUT_CALL
+   }
+
+   core_instrument::Swap[ciSwap] extends [ciBase]: Relational
+   {
+      ~filter [core_instrument::Store]CiSwapRows
+      notional: [core_instrument::Store]CI_INSTRUMENT.NOTIONAL,
+      fixedRate: [core_instrument::Store]CI_INSTRUMENT.FIXED_RATE,
+      floatingIndex: [core_instrument::Store]CI_INSTRUMENT.FLOATING_INDEX,
+      floatingSpread: [core_instrument::Store]CI_INSTRUMENT.FLOATING_SPREAD,
+      effectiveDate: [core_instrument::Store]CI_INSTRUMENT.EFFECTIVE_DATE,
+      terminationDate: [core_instrument::Store]CI_INSTRUMENT.TERMINATION_DATE,
+      paymentFrequency: [core_instrument::Store]CI_INSTRUMENT.PAYMENT_FREQUENCY,
+      dayCountConvention: [core_instrument::Store]CI_INSTRUMENT.DAY_COUNT_CONVENTION,
+      isCleared: [core_instrument::Store]CI_INSTRUMENT.IS_CLEARED,
+      clearingHouse: [core_instrument::Store]CI_INSTRUMENT.CLEARING_HOUSE
+   }
+
+   core_instrument::ExchangeTradedFund[ciEtf] extends [ciBase]: Relational
+   {
+      ~filter [core_instrument::Store]CiEtfRows
+      fundName: [core_instrument::Store]CI_INSTRUMENT.FUND_NAME,
+      trackingIndexName: [core_instrument::Store]CI_INSTRUMENT.TRACKING_INDEX_NAME,
+      expenseRatio: [core_instrument::Store]CI_INSTRUMENT.EXPENSE_RATIO,
+      netAssetValue: [core_instrument::Store]CI_INSTRUMENT.NET_ASSET_VALUE,
+      trackingError: [core_instrument::Store]CI_INSTRUMENT.TRACKING_ERROR,
+      replicationMethod: [core_instrument::Store]CI_INSTRUMENT.REPLICATION_METHOD,
+      isLeveraged: [core_instrument::Store]CI_INSTRUMENT.IS_LEVERAGED,
+      leverageMultiple: [core_instrument::Store]CI_INSTRUMENT.LEVERAGE_MULTIPLE,
+      assetsUnderManagement: [core_instrument::Store]CI_INSTRUMENT.AUM
+   }
+
+   core_instrument::Warrant[ciWarrant] extends [ciBase]: Relational
+   {
+      ~filter [core_instrument::Store]CiWarrantRows
+      strikePrice: [core_instrument::Store]CI_INSTRUMENT.STRIKE_PRICE,
+      expiryDate: [core_instrument::Store]CI_INSTRUMENT.EXPIRY_DATE,
+      exerciseRatio: [core_instrument::Store]CI_INSTRUMENT.EXERCISE_RATIO,
+      underlyingInstrumentId: [core_instrument::Store]CI_INSTRUMENT.UNDERLYING_INSTRUMENT_ID,
+      isCovered: [core_instrument::Store]CI_INSTRUMENT.IS_COVERED,
+      isDilutive: [core_instrument::Store]CI_INSTRUMENT.IS_DILUTIVE,
+      noticePeriodDays: [core_instrument::Store]CI_INSTRUMENT.NOTICE_PERIOD_DAYS
+   }
+
+   core_instrument::DepositaryReceipt[ciDepositaryReceipt] extends [ciBase]: Relational
+   {
+      ~filter [core_instrument::Store]CiDepositaryReceiptRows
+      underlyingInstrumentId: [core_instrument::Store]CI_INSTRUMENT.UNDERLYING_INSTRUMENT_ID,
+      ratioToUnderlying: [core_instrument::Store]CI_INSTRUMENT.RATIO_TO_UNDERLYING,
+      depositaryBank: [core_instrument::Store]CI_INSTRUMENT.DEPOSITARY_BANK,
+      homeMarketMic: [core_instrument::Store]CI_INSTRUMENT.HOME_MARKET_MIC,
+      isSponsored: [core_instrument::Store]CI_INSTRUMENT.IS_SPONSORED,
+      programmeLevel: [core_instrument::Store]CI_INSTRUMENT.PROGRAMME_LEVEL
+   }
+
+   // ---- the second level ----
+   // These extend the ASSET-CLASS set rather than [ciBase], so each inherits both the
+   // base columns and its parent's, and narrows the parent's filter further.
+
+   core_instrument::CommonStock[ciCommonStock] extends [ciEquity]: Relational
+   {
+      ~filter [core_instrument::Store]CiCommonStockRows
+   }
+
+   core_instrument::PreferredStock[ciPreferredStock] extends [ciEquity]: Relational
+   {
+      ~filter [core_instrument::Store]CiPreferredStockRows
+      preferredDividendRate: [core_instrument::Store]CI_INSTRUMENT.PREFERRED_DIVIDEND_RATE,
+      isCumulative: [core_instrument::Store]CI_INSTRUMENT.IS_CUMULATIVE,
+      liquidationPreference: [core_instrument::Store]CI_INSTRUMENT.LIQUIDATION_PREFERENCE,
+      isConvertibleToCommon: [core_instrument::Store]CI_INSTRUMENT.IS_CONVERTIBLE_TO_COMMON
+   }
+
+   core_instrument::GovernmentBond[ciGovernmentBond] extends [ciBond]: Relational
+   {
+      ~filter [core_instrument::Store]CiGovernmentBondRows
+      issuingSovereign: [core_instrument::Store]CI_INSTRUMENT.ISSUING_SOVEREIGN,
+      isInflationLinked: [core_instrument::Store]CI_INSTRUMENT.IS_INFLATION_LINKED,
+      inflationIndexName: [core_instrument::Store]CI_INSTRUMENT.INFLATION_INDEX_NAME,
+      auctionDate: [core_instrument::Store]CI_INSTRUMENT.AUCTION_DATE
+   }
+
+   core_instrument::CorporateBond[ciCorporateBond] extends [ciBond]: Relational
+   {
+      ~filter [core_instrument::Store]CiCorporateBondRows
+      issuerTicker: [core_instrument::Store]CI_INSTRUMENT.ISSUER_TICKER,
+      industrySector: [core_instrument::Store]CI_INSTRUMENT.INDUSTRY_SECTOR,
+      isSecured: [core_instrument::Store]CI_INSTRUMENT.IS_SECURED,
+      covenantPackage: [core_instrument::Store]CI_INSTRUMENT.COVENANT_PACKAGE
+   }
+
+   core_instrument::ConvertibleBond[ciConvertibleBond] extends [ciBond]: Relational
+   {
+      ~filter [core_instrument::Store]CiConvertibleBondRows
+      conversionRatio: [core_instrument::Store]CI_INSTRUMENT.CONVERSION_RATIO,
+      conversionPrice: [core_instrument::Store]CI_INSTRUMENT.CONVERSION_PRICE,
+      underlyingEquityId: [core_instrument::Store]CI_INSTRUMENT.UNDERLYING_EQUITY_ID,
+      isMandatory: [core_instrument::Store]CI_INSTRUMENT.IS_MANDATORY
+   }
+
+   core_instrument::CommodityFuture[ciCommodityFuture] extends [ciFuture]: Relational
+   {
+      ~filter [core_instrument::Store]CiCommodityFutureRows
+      deliveryLocation: [core_instrument::Store]CI_INSTRUMENT.DELIVERY_LOCATION,
+      gradeSpecification: [core_instrument::Store]CI_INSTRUMENT.GRADE_SPECIFICATION,
+      storageCostPerUnit: [core_instrument::Store]CI_INSTRUMENT.STORAGE_COST_PER_UNIT
+   }
+
+   core_instrument::EquityIndexFuture[ciEquityIndexFuture] extends [ciFuture]: Relational
+   {
+      ~filter [core_instrument::Store]CiEquityIndexFutureRows
+      underlyingIndexName: [core_instrument::Store]CI_INSTRUMENT.UNDERLYING_INDEX_NAME,
+      indexMultiplier: [core_instrument::Store]CI_INSTRUMENT.INDEX_MULTIPLIER
+   }
+
+   core_instrument::CallOption[ciCallOption] extends [ciOption]: Relational
+   {
+      ~filter [core_instrument::Store]CiCallOptionRows
+   }
+
+   core_instrument::PutOption[ciPutOption] extends [ciOption]: Relational
+   {
+      ~filter [core_instrument::Store]CiPutOptionRows
+   }
+
+   core_instrument::InterestRateSwap[ciInterestRateSwap] extends [ciSwap]: Relational
+   {
+      ~filter [core_instrument::Store]CiInterestRateSwapRows
+      resetFrequency: [core_instrument::Store]CI_INSTRUMENT.RESET_FREQUENCY,
+      indexTenor: [core_instrument::Store]CI_INSTRUMENT.INDEX_TENOR
+   }
+
+   core_instrument::CreditDefaultSwap[ciCreditDefaultSwap] extends [ciSwap]: Relational
+   {
+      ~filter [core_instrument::Store]CiCreditDefaultSwapRows
+      referenceEntity: [core_instrument::Store]CI_INSTRUMENT.REFERENCE_ENTITY,
+      referenceObligation: [core_instrument::Store]CI_INSTRUMENT.REFERENCE_OBLIGATION,
+      recoveryRate: [core_instrument::Store]CI_INSTRUMENT.RECOVERY_RATE,
+      restructuringClause: [core_instrument::Store]CI_INSTRUMENT.RESTRUCTURING_CLAUSE
+   }
+
+   core_instrument::TotalReturnSwap[ciTotalReturnSwap] extends [ciSwap]: Relational
+   {
+      ~filter [core_instrument::Store]CiTotalReturnSwapRows
+      referenceAssetId: [core_instrument::Store]CI_INSTRUMENT.REFERENCE_ASSET_ID,
+      fundingSpread: [core_instrument::Store]CI_INSTRUMENT.FUNDING_SPREAD,
+      returnPayerName: [core_instrument::Store]CI_INSTRUMENT.RETURN_PAYER_NAME
+   }
+
+   // ---- supporting reference, on their own tables ----
+
+   core_instrument::InstrumentIdentifier[ciInstrumentIdentifier]: Relational
+   {
+      ~primaryKey
+      (
+         [core_instrument::Store]CI_INSTRUMENT_XREF.INSTRUMENT_ID,
+         [core_instrument::Store]CI_INSTRUMENT_XREF.SCHEME
+      )
+      ~mainTable [core_instrument::Store]CI_INSTRUMENT_XREF
+      instrumentId: [core_instrument::Store]CI_INSTRUMENT_XREF.INSTRUMENT_ID,
+      scheme: [core_instrument::Store]CI_INSTRUMENT_XREF.SCHEME,
+      identifierValue: [core_instrument::Store]CI_INSTRUMENT_XREF.IDENTIFIER_VALUE,
+      isPrimary: [core_instrument::Store]CI_INSTRUMENT_XREF.IS_PRIMARY,
+      assignedDate: [core_instrument::Store]CI_INSTRUMENT_XREF.ASSIGNED_DATE
+   }
+
+   core_instrument::AssetClassDefinition[ciAssetClassDefinition]: Relational
+   {
+      ~primaryKey ( [core_instrument::Store]CI_ASSET_CLASS.CODE )
+      ~mainTable [core_instrument::Store]CI_ASSET_CLASS
+      code: [core_instrument::Store]CI_ASSET_CLASS.CODE,
+      assetClass: EnumerationMapping CiAssetClassMapping: [core_instrument::Store]CI_ASSET_CLASS.CODE,
+      displayName: [core_instrument::Store]CI_ASSET_CLASS.DISPLAY_NAME,
+      regulatoryCategory: [core_instrument::Store]CI_ASSET_CLASS.REGULATORY_CATEGORY,
+      isDerivative: [core_instrument::Store]CI_ASSET_CLASS.IS_DERIVATIVE
+   }
+)

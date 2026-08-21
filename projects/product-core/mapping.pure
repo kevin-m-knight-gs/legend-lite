@@ -1,0 +1,339 @@
+###Mapping
+// The product-control mapping.
+//
+// It INCLUDES core_instrument::Mapping, and every product set `extends [ciBase]` -- the
+// base set id that project exports -- directly for product_core::Product and through a
+// family for everything else. Extending is what makes this work at all: the primary key,
+// the main table CI_INSTRUMENT and the twenty inherited column mappings come from [ciBase],
+// so a set here is a ~filter plus the columns that only mean something once the row is
+// known to be this product.
+//
+// Two things about the shape are worth stating once, here, rather than being inferred from
+// two hundred lines below:
+//
+//  * Every product column is reached through @Prd_ProductInstrument. The main table is the
+//    dependency's CI_INSTRUMENT and the overlay is this project's PRD_PRODUCT, so a
+//    property mapping is `[product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.COL`.
+//  * The root set's ~filter is itself reached through that join, because "is this
+//    catalogued" is a fact about the overlay. The filter form is
+//    `~filter [db]@Join | [db]FilterName`; both database pointers are required.
+//
+// The two EnumerationMappings are this project's own, because core-types exports enums and
+// deliberately no mapping: the physical code strings belong to whoever owns the column.
+Mapping product_core::Mapping
+(
+   include core_instrument::Mapping
+
+   core_types::CtCurrency: EnumerationMapping PrdCurrencyMapping
+   {
+      USD: ['USD'], EUR: ['EUR'], GBP: ['GBP'], CHF: ['CHF'], CAD: ['CAD'],
+      AUD: ['AUD'], SEK: ['SEK'], NOK: ['NOK'], CNY: ['CNY'], SGD: ['SGD'],
+      HKD: ['HKD'], INR: ['INR'], BRL: ['BRL'], MXN: ['MXN'], ZAR: ['ZAR'],
+      JPY: ['JPY'], KRW: ['KRW'], CLP: ['CLP'], ISK: ['ISK'], VND: ['VND'],
+      KWD: ['KWD'], BHD: ['BHD'], JOD: ['JOD'], OMR: ['OMR'], TND: ['TND']
+   }
+
+   core_types::CtCountry: EnumerationMapping PrdCountryMapping
+   {
+      US: ['US'], GB: ['GB'], DE: ['DE'], FR: ['FR'], CH: ['CH'], CA: ['CA'],
+      AU: ['AU'], SE: ['SE'], NO: ['NO'], CN: ['CN'], SG: ['SG'], HK: ['HK'],
+      IN: ['IN'], BR: ['BR'], MX: ['MX'], ZA: ['ZA'], JP: ['JP'], KR: ['KR'],
+      CL: ['CL'], IS: ['IS'], VN: ['VN'], KW: ['KW'], BH: ['BH'], JO: ['JO'],
+      OM: ['OM'], TN: ['TN']
+   }
+
+   // ---- the root: an instrument the catalogue has admitted ----
+   // Not the root of the graph -- [ciBase] still is -- but the root of this taxonomy. It
+   // adds no primary key and no main table, only the join to the overlay and the filter
+   // that says the overlay row exists and is live.
+   product_core::Product[prdProduct] extends [ciBase]: Relational
+   {
+      ~filter [product_core::Store]@Prd_ProductInstrument | [product_core::Store]PrdCatalogueRows
+      productCode: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.PRODUCT_CODE,
+      productFamily: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.PRODUCT_FAMILY,
+      catalogueStatus: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.CATALOGUE_STATUS,
+      manufacturerName: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.MANUFACTURER_NAME,
+      manufacturerCountry: EnumerationMapping PrdCountryMapping: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.MANUFACTURER_COUNTRY,
+      settlementCurrency: EnumerationMapping PrdCurrencyMapping: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.SETTLEMENT_CURRENCY,
+      regulatoryCategoryCode: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.REGULATORY_CATEGORY,
+      targetMarket: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.TARGET_MARKET,
+      isComplexProduct: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.IS_COMPLEX,
+      isCapitalProtected: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.IS_CAPITAL_PROTECTED,
+      isListedProduct: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.IS_LISTED_PRODUCT,
+      minimumInvestment: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.MIN_INVESTMENT,
+      minimumIncrement: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.MIN_INCREMENT,
+      launchDate: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.LAUNCH_DATE,
+      withdrawalDate: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.WITHDRAWAL_DATE,
+      summaryRiskIndicator: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.SUMMARY_RISK_INDICATOR,
+      ongoingChargeBasisPoints: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.ONGOING_CHARGE_BPS,
+      entryChargeBasisPoints: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.ENTRY_CHARGE_BPS,
+      distributionChannel: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.DISTRIBUTION_CHANNEL,
+      bookingDesk: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.BOOKING_DESK,
+      productOwner: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.PRODUCT_OWNER,
+      approvals: [product_core::Store]@Prd_ProductInstrument > @Prd_ProductApproval,
+      regulatoryCategory: [product_core::Store]@Prd_ProductInstrument > @Prd_ProductRegCategory,
+      riskIndicators: [product_core::Store]@Prd_ProductInstrument > @Prd_ProductRiskIndicator
+   }
+
+   // ---- the five families, on INSTRUMENT_TYPE ----
+
+   product_core::VanillaProduct[prdVanilla] extends [prdProduct]: Relational
+   {
+      ~filter [product_core::Store]PrdVanillaProductRows
+      payoffIsLinear: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.PAYOFF_IS_LINEAR,
+      hasEmbeddedOption: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.HAS_EMBEDDED_OPTION,
+      standardTermsReference: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.STANDARD_TERMS_REF,
+      quotationConvention: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.QUOTATION_CONVENTION
+   }
+
+   product_core::StructuredProduct[prdStructured] extends [prdProduct]: Relational
+   {
+      ~filter [product_core::Store]PrdStructuredProductRows
+      payoffType: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.PAYOFF_TYPE,
+      wrapperType: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.WRAPPER_TYPE,
+      issuanceProgramme: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.ISSUANCE_PROGRAMME,
+      embeddedDerivativeType: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.EMBEDDED_DERIVATIVE_TYPE,
+      underlyingReference: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.UNDERLYING_REFERENCE,
+      strikeLevelPercent: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.STRIKE_LEVEL_PCT,
+      barrierLevelPercent: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.BARRIER_LEVEL_PCT,
+      hasKeyInformationDocument: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.HAS_KID
+   }
+
+   product_core::FundProduct[prdFund] extends [prdProduct]: Relational
+   {
+      ~filter [product_core::Store]PrdFundProductRows
+      legalVehicle: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.LEGAL_VEHICLE,
+      domicileCountry: EnumerationMapping PrdCountryMapping: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.DOMICILE_COUNTRY,
+      navFrequency: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.NAV_FREQUENCY,
+      isUcits: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.IS_UCITS,
+      managementFeeBasisPoints: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.MANAGEMENT_FEE_BPS,
+      performanceFeeBasisPoints: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.PERFORMANCE_FEE_BPS,
+      dealingCutOff: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.DEALING_CUT_OFF
+   }
+
+   product_core::FinancingProduct[prdFinancing] extends [prdProduct]: Relational
+   {
+      ~filter [product_core::Store]PrdFinancingProductRows
+      collateralType: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.COLLATERAL_TYPE,
+      haircutPercent: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.HAIRCUT_PCT,
+      termDays: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.TERM_DAYS,
+      isTriparty: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.IS_TRIPARTY,
+      rateBasis: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.RATE_BASIS,
+      counterpartyLimitReference: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.COUNTERPARTY_LIMIT_REF
+   }
+
+   product_core::DepositProduct[prdDeposit] extends [prdProduct]: Relational
+   {
+      ~filter [product_core::Store]PrdDepositProductRows
+      depositTermDays: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.DEPOSIT_TERM_DAYS,
+      isDepositInsured: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.IS_DEPOSIT_INSURED,
+      insuranceScheme: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.INSURANCE_SCHEME,
+      earlyBreakAllowed: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.EARLY_BREAK_ALLOWED,
+      breakFeeBasisPoints: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.BREAK_FEE_BPS
+   }
+
+   // ---- the seventeen concrete products, on INSTRUMENT_SUBTYPE ----
+   // Each extends its FAMILY set, not [ciBase], so the chain to the base is three links
+   // long: concrete -> family -> prdProduct -> ciBase, across a project boundary at the
+   // last hop.
+
+   product_core::ListedVanillaProduct[prdListedVanilla] extends [prdVanilla]: Relational
+   {
+      ~filter [product_core::Store]PrdListedVanillaRows
+      listingVenueMic: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.LISTING_VENUE_MIC,
+      exchangeProductCode: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.EXCHANGE_PRODUCT_CODE,
+      blockTradeThreshold: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.BLOCK_TRADE_THRESHOLD,
+      clearingHouseName: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.CLEARING_HOUSE_NAME
+   }
+
+   product_core::OtcVanillaProduct[prdOtcVanilla] extends [prdVanilla]: Relational
+   {
+      ~filter [product_core::Store]PrdOtcVanillaRows
+      masterAgreementType: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.MASTER_AGREEMENT_TYPE,
+      collateralAnnexReference: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.COLLATERAL_ANNEX_REF,
+      confirmationTemplate: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.CONFIRMATION_TEMPLATE,
+      isCompressionEligible: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.IS_COMPRESSION_ELIGIBLE
+   }
+
+   product_core::DeltaOneProduct[prdDeltaOne] extends [prdVanilla]: Relational
+   {
+      ~filter [product_core::Store]PrdDeltaOneRows
+      syntheticWrapper: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.SYNTHETIC_WRAPPER,
+      fundingSpreadBasisPoints: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.FUNDING_SPREAD_BPS,
+      replicationBasketReference: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.REPLICATION_BASKET_REF,
+      isFullyFunded: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.IS_FULLY_FUNDED
+   }
+
+   product_core::CapitalProtectedNote[prdCapitalProtected] extends [prdStructured]: Relational
+   {
+      ~filter [product_core::Store]PrdCapitalProtectedRows
+      protectionLevelPercent: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.PROTECTION_LEVEL_PCT,
+      protectionProvider: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.PROTECTION_PROVIDER,
+      protectionIsConditional: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.PROTECTION_IS_CONDITIONAL,
+      zeroCouponFundingRate: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.ZERO_COUPON_FUNDING_RATE
+   }
+
+   product_core::YieldEnhancementProduct[prdYieldEnhancement] extends [prdStructured]: Relational
+   {
+      ~filter [product_core::Store]PrdYieldEnhancementRows
+      enhancedCouponPercent: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.ENHANCED_COUPON_PCT,
+      couponIsConditional: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.COUPON_IS_CONDITIONAL,
+      downsideBarrierPercent: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.DOWNSIDE_BARRIER_PCT,
+      autocallTriggerPercent: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.AUTOCALL_TRIGGER_PCT
+   }
+
+   product_core::ParticipationProduct[prdParticipation] extends [prdStructured]: Relational
+   {
+      ~filter [product_core::Store]PrdParticipationRows
+      participationRatePercent: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.PARTICIPATION_RATE_PCT,
+      capLevelPercent: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.CAP_LEVEL_PCT,
+      isUncapped: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.IS_UNCAPPED,
+      hasCurrencyHedge: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.HAS_CURRENCY_HEDGE
+   }
+
+   product_core::LeveragedProduct[prdLeveraged] extends [prdStructured]: Relational
+   {
+      ~filter [product_core::Store]PrdLeveragedRows
+      leverageFactor: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.LEVERAGE_FACTOR,
+      knockOutLevel: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.KNOCK_OUT_LEVEL,
+      stopLossLevel: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.STOP_LOSS_LEVEL,
+      isOpenEnded: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.IS_OPEN_ENDED
+   }
+
+   product_core::CreditLinkedNote[prdCreditLinked] extends [prdStructured]: Relational
+   {
+      ~filter [product_core::Store]PrdCreditLinkedRows
+      referenceEntityName: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.REFERENCE_ENTITY_NAME,
+      creditEventSet: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.CREDIT_EVENT_SET,
+      recoveryAssumptionPercent: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.RECOVERY_ASSUMPTION_PCT,
+      isTranched: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.IS_TRANCHED
+   }
+
+   product_core::MutualFundProduct[prdMutualFund] extends [prdFund]: Relational
+   {
+      ~filter [product_core::Store]PrdMutualFundRows
+      shareClassCode: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.SHARE_CLASS_CODE,
+      isAccumulating: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.IS_ACCUMULATING,
+      benchmarkName: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.BENCHMARK_NAME,
+      subscriptionSettlementDays: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.SUBSCRIPTION_SETTLEMENT_DAYS
+   }
+
+   product_core::HedgeFundProduct[prdHedgeFund] extends [prdFund]: Relational
+   {
+      ~filter [product_core::Store]PrdHedgeFundRows
+      strategyStyle: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.STRATEGY_STYLE,
+      lockUpMonths: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.LOCK_UP_MONTHS,
+      redemptionNoticeDays: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.REDEMPTION_NOTICE_DAYS,
+      hasHighWaterMark: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.HAS_HIGH_WATER_MARK
+   }
+
+   product_core::ExchangeTradedFundProduct[prdEtfProduct] extends [prdFund]: Relational
+   {
+      ~filter [product_core::Store]PrdEtfProductRows
+      replicationStyle: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.REPLICATION_STYLE,
+      primaryListingMic: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.PRIMARY_LISTING_MIC,
+      creationUnitSize: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.CREATION_UNIT_SIZE,
+      authorisedParticipantCount: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.AUTHORISED_PARTICIPANT_COUNT
+   }
+
+   product_core::MoneyMarketFundProduct[prdMoneyMarketFund] extends [prdFund]: Relational
+   {
+      ~filter [product_core::Store]PrdMoneyMarketFundRows
+      navType: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.NAV_TYPE,
+      weightedAverageMaturityDays: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.WEIGHTED_AVG_MATURITY_DAYS,
+      dailyLiquidityFloorPercent: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.DAILY_LIQUIDITY_FLOOR_PCT,
+      isGovernmentOnly: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.IS_GOVERNMENT_ONLY
+   }
+
+   product_core::RepoProduct[prdRepo] extends [prdFinancing]: Relational
+   {
+      ~filter [product_core::Store]PrdRepoRows
+      repoRatePercent: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.REPO_RATE_PCT,
+      isOpenRepo: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.IS_OPEN_REPO,
+      generalCollateralBasket: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.GC_BASKET,
+      repurchaseDate: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.REPURCHASE_DATE
+   }
+
+   product_core::SecuritiesLendingProduct[prdSecuritiesLending] extends [prdFinancing]: Relational
+   {
+      ~filter [product_core::Store]PrdSecuritiesLendingRows
+      lendingFeeBasisPoints: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.LENDING_FEE_BPS,
+      isExclusive: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.IS_EXCLUSIVE,
+      recallNoticeDays: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.RECALL_NOTICE_DAYS,
+      isCollateralCashPooled: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.IS_COLLATERAL_CASH_POOLED
+   }
+
+   product_core::MarginLoanProduct[prdMarginLoan] extends [prdFinancing]: Relational
+   {
+      ~filter [product_core::Store]PrdMarginLoanRows
+      advanceRatePercent: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.ADVANCE_RATE_PCT,
+      marginCallTriggerPercent: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.MARGIN_CALL_TRIGGER_PCT,
+      isCommitted: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.IS_COMMITTED,
+      facilityLimit: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.FACILITY_LIMIT
+   }
+
+   product_core::TermDepositProduct[prdTermDeposit] extends [prdDeposit]: Relational
+   {
+      ~filter [product_core::Store]PrdTermDepositRows
+      fixedRatePercent: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.FIXED_RATE_PCT,
+      rolloverInstruction: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.ROLLOVER_INSTRUCTION,
+      isNegotiable: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.IS_NEGOTIABLE
+   }
+
+   product_core::StructuredDepositProduct[prdStructuredDeposit] extends [prdDeposit]: Relational
+   {
+      ~filter [product_core::Store]PrdStructuredDepositRows
+      linkedIndexName: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.LINKED_INDEX_NAME,
+      minimumReturnPercent: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.MIN_RETURN_PCT,
+      maximumReturnPercent: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.MAX_RETURN_PCT,
+      indexParticipationPercent: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.INDEX_PARTICIPATION_PCT
+   }
+
+   // ---- the governance side, on this project's own tables ----
+
+   product_core::ProductApproval[prdApproval]: Relational
+   {
+      ~primaryKey
+      (
+         [product_core::Store]PRD_APPROVAL.PRODUCT_CODE,
+         [product_core::Store]PRD_APPROVAL.APPROVAL_REF
+      )
+      ~mainTable [product_core::Store]PRD_APPROVAL
+      productCode: [product_core::Store]PRD_APPROVAL.PRODUCT_CODE,
+      approvalReference: [product_core::Store]PRD_APPROVAL.APPROVAL_REF,
+      committee: [product_core::Store]PRD_APPROVAL.COMMITTEE,
+      approvedBy: [product_core::Store]PRD_APPROVAL.APPROVED_BY,
+      approvedOn: [product_core::Store]PRD_APPROVAL.APPROVED_ON,
+      expiresOn: [product_core::Store]PRD_APPROVAL.EXPIRES_ON,
+      conditions: [product_core::Store]PRD_APPROVAL.CONDITIONS,
+      approvalStatus: [product_core::Store]PRD_APPROVAL.APPROVAL_STATUS
+   }
+
+   product_core::RegulatoryCategory[prdRegulatoryCategory]: Relational
+   {
+      ~primaryKey ( [product_core::Store]PRD_REG_CATEGORY.CATEGORY_CODE )
+      ~mainTable [product_core::Store]PRD_REG_CATEGORY
+      categoryCode: [product_core::Store]PRD_REG_CATEGORY.CATEGORY_CODE,
+      displayName: [product_core::Store]PRD_REG_CATEGORY.DISPLAY_NAME,
+      mifidCategory: [product_core::Store]PRD_REG_CATEGORY.MIFID_CATEGORY,
+      isPriipsInScope: [product_core::Store]PRD_REG_CATEGORY.IS_PRIIPS_IN_SCOPE,
+      isComplexUnderMifid: [product_core::Store]PRD_REG_CATEGORY.IS_COMPLEX_UNDER_MIFID,
+      appropriatenessTestRequired: [product_core::Store]PRD_REG_CATEGORY.APPROPRIATENESS_TEST_REQUIRED
+   }
+
+   product_core::ProductRiskIndicator[prdRiskIndicator]: Relational
+   {
+      ~primaryKey
+      (
+         [product_core::Store]PRD_RISK_INDICATOR.PRODUCT_CODE,
+         [product_core::Store]PRD_RISK_INDICATOR.AS_OF_DATE
+      )
+      ~mainTable [product_core::Store]PRD_RISK_INDICATOR
+      productCode: [product_core::Store]PRD_RISK_INDICATOR.PRODUCT_CODE,
+      asOfDate: [product_core::Store]PRD_RISK_INDICATOR.AS_OF_DATE,
+      riskScore: [product_core::Store]PRD_RISK_INDICATOR.RISK_SCORE,
+      marketRiskMeasure: [product_core::Store]PRD_RISK_INDICATOR.MARKET_RISK_MEASURE,
+      creditRiskMeasure: [product_core::Store]PRD_RISK_INDICATOR.CREDIT_RISK_MEASURE,
+      liquidityNote: [product_core::Store]PRD_RISK_INDICATOR.LIQUIDITY_NOTE
+   }
+)

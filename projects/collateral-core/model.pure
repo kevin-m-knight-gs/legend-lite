@@ -1,0 +1,460 @@
+###Pure
+// collateral-core -- what is pledged under a collateral agreement, and whether it is allowed
+// to be there.
+//
+// The shape this project exists to carry is a DISJUNCTION. An eligibility rule in a Credit
+// Support Annex is written one of two ways: "obligations of the French Republic" (an ISSUER
+// rule) or "G10 government bonds" (an ASSET CLASS rule). A rule is one or the other and never
+// both -- Schedule A is a list of separately negotiated lines -- but a piece of collateral is
+// eligible if it matches on EITHER axis. That is an `or` in the join condition, not two joins
+// and not a union, because the two disjuncts are not disjoint: a French government bond
+// matches the issuer line AND the asset-class line, and both lines have to be returned so the
+// tightest haircut and the tightest concentration cap can be taken.
+//
+// The consequence, stated honestly in the cardinalities below: an unqualified `or` matches
+// EVERY rule that applies, so the association over it is to-MANY on both ends. A [0..1] there
+// would be a lie the engine would happily compile.
+//
+// Layer 1. Depends on core-party (issuers, counterparties, custodians) and core-instrument
+// (what the collateral actually is, and the asset-class code table the other axis is drawn
+// from). Refers to nothing else.
+
+// The Credit Support Annex itself: the contract that says collateral must be posted, between
+// which two legal entities, and on what terms.
+//
+// The thresholds are on the agreement rather than on the call because they are negotiated
+// once and applied every day; a call that ignores them is a call that gets disputed.
+Class collateral_core::ColCollateralAgreement
+{
+   agreementId: String[1];
+   agreementType: String[1];
+   principalEntityId: String[1];
+   counterpartyEntityId: String[1];
+   governingLaw: String[0..1];
+   baseCurrency: String[1];
+   // Exposure below which no call is made at all.
+   thresholdAmount: Float[1];
+   // The smallest transfer worth moving, once the threshold is breached.
+   minimumTransferAmount: Float[1];
+   // Posted regardless of exposure -- initial margin by another name.
+   independentAmount: Float[0..1];
+   roundingAmount: Float[0..1];
+   isBilateral: Boolean[1];
+   allowsRehypothecation: Boolean[1];
+   effectiveDate: StrictDate[1];
+   terminationDate: StrictDate[0..1];
+   eligibilityScheduleId: String[0..1];
+   haircutScheduleId: String[0..1];
+
+   // Terminated is a date, not a flag: an agreement that has ended still governs the
+   // collateral posted under it until that collateral is returned.
+   isTerminated() { $this.terminationDate->isNotEmpty() } : Boolean[1];
+   // The amount of exposure that has to build up before anything moves.
+   callTrigger() { $this.thresholdAmount + $this.minimumTransferAmount } : Float[1];
+}
+
+// Schedule A: the named, versioned list of eligibility rules an agreement points at.
+//
+// Separate from the agreement because one negotiated schedule is reused across dozens of
+// agreements, and a downstream question is almost always "which agreements use this list".
+Class collateral_core::ColEligibilitySchedule
+{
+   scheduleId: String[1];
+   scheduleName: String[1];
+   scheduleVersion: String[1];
+   effectiveDate: StrictDate[1];
+   reviewDate: StrictDate[0..1];
+   approvedBy: String[0..1];
+   isRegulatory: Boolean[1];
+   note: String[0..1];
+}
+
+// ONE LINE of Schedule A, and the reason this project exists.
+//
+// Exactly one of `eligibleIssuerId` and `eligibleAssetClass` is populated -- the line is
+// negotiated against a named issuer or against a class of assets, never against both at
+// once. `ruleBasis` records which axis was used, so the intent survives even where a column
+// is null for a boring reason.
+Class collateral_core::ColEligibilityRule
+{
+   ruleId: String[1];
+   scheduleId: String[1];
+   // ISSUER or ASSET_CLASS -- which of the two columns below is the live one.
+   ruleBasis: String[1];
+   // The issuer axis. An entity id from core-party, or empty on an asset-class rule.
+   eligibleIssuerId: String[0..1];
+   // The asset-class axis. A code from core-instrument, or empty on an issuer rule.
+   eligibleAssetClass: String[0..1];
+   minRating: String[0..1];
+   maxResidualYears: Float[0..1];
+   // The worst haircut this line will tolerate; the haircut grid supplies the actual number.
+   maxHaircutPct: Float[0..1];
+   currencyRestriction: String[0..1];
+   // A rule can carve something OUT of a broader line as easily as it can let it in.
+   isExclusion: Boolean[1];
+   effectiveDate: StrictDate[1];
+   expiryDate: StrictDate[0..1];
+
+   // The two halves of the disjunction, asked of a single rule.
+   isIssuerRule() { $this.eligibleIssuerId->isNotEmpty() } : Boolean[1];
+   isAssetClassRule() { $this.eligibleAssetClass->isNotEmpty() } : Boolean[1];
+   // A rule that names neither axis matches nothing and is a data error worth seeing.
+   isUnscoped() { $this.eligibleIssuerId->isEmpty() && $this.eligibleAssetClass->isEmpty() } : Boolean[1];
+}
+
+// A cap on how much of one thing the collateral portfolio may hold -- and it is scoped the
+// same disjunctive way a rule is, by issuer or by asset class.
+//
+// Kept apart from the eligibility rule because a limit is breached by the PORTFOLIO while a
+// rule is failed by a PIECE: the same collateral can be perfectly eligible and still be the
+// piece that tips a 10% issuer cap.
+Class collateral_core::ColConcentrationLimit
+{
+   limitId: String[1];
+   scheduleId: String[1];
+   limitBasis: String[1];
+   limitIssuerId: String[0..1];
+   limitAssetClass: String[0..1];
+   maxPctOfPortfolio: Float[1];
+   maxNotional: Float[0..1];
+   currency: String[0..1];
+   // A hard limit blocks the posting; a soft one raises an exception and lets it through.
+   isHardLimit: Boolean[1];
+   breachAction: String[0..1];
+}
+
+// The named haircut grid an agreement applies -- regulatory (BIPRU/UCITS) or house.
+Class collateral_core::ColHaircutSchedule
+{
+   haircutScheduleId: String[1];
+   scheduleName: String[1];
+   methodology: String[1];
+   isRegulatory: Boolean[1];
+   effectiveDate: StrictDate[1];
+   reviewFrequency: String[0..1];
+}
+
+// One cell of the grid: the discount applied to collateral of a given asset class, rating
+// band and residual maturity band.
+//
+// Keyed by all three, because a haircut is meaningless without them: 0.5% on a short AAA
+// government bond and 25% on a long unrated equity are the same schedule.
+Class collateral_core::ColHaircutBand
+{
+   haircutScheduleId: String[1];
+   assetClass: String[1];
+   ratingBand: String[1];
+   minResidualYears: Float[1];
+   maxResidualYears: Float[1];
+   haircutPct: Float[1];
+   // Applied on top when the collateral currency is not the agreement's base currency.
+   fxHaircutPct: Float[0..1];
+   isFloor: Boolean[1];
+
+   // What a unit of market value is actually worth after the discount.
+   valueRetainedPct() { 100.0 - $this.haircutPct } : Float[1];
+}
+
+// Where collateral physically sits: a segregated, omnibus or triparty account at a custodian.
+Class collateral_core::ColCollateralAccount
+{
+   accountId: String[1];
+   accountName: String[1];
+   agreementId: String[1];
+   custodianEntityId: String[0..1];
+   accountType: String[1];
+   currency: String[1];
+   isSegregated: Boolean[1];
+   isTriparty: Boolean[1];
+   openedDate: StrictDate[1];
+   closedDate: StrictDate[0..1];
+}
+
+// A PIECE of collateral: one security lot posted or received under one agreement.
+//
+// It carries `issuerId` and `assetClass` as its own columns rather than reaching them through
+// the instrument, because those two columns are the left-hand side of the or-join and a join
+// condition cannot hop through another table to get there. They are the collateral's copy of
+// the two axes eligibility is negotiated on.
+Class collateral_core::ColCollateral
+{
+   collateralId: String[1];
+   agreementId: String[1];
+   accountId: String[0..1];
+   instrumentId: String[0..1];
+   // Axis one of the disjunction.
+   issuerId: String[0..1];
+   // Axis two of the disjunction.
+   assetClass: String[1];
+   direction: String[1];
+   quantity: Float[1];
+   nominalAmount: Float[1];
+   currency: String[1];
+   marketValue: Float[1];
+   ratingBand: String[0..1];
+   residualYears: Float[0..1];
+   postedDate: StrictDate[1];
+   returnDate: StrictDate[0..1];
+   isRehypothecated: Boolean[1];
+
+   // Still held: collateral is returned by a date, never by deleting the row.
+   isHeld() { $this.returnDate->isEmpty() } : Boolean[1];
+   // Market value per unit. `/` widens to Float even where both sides are Integer, so the
+   // return type has to be Float.
+   unitValue() { $this.marketValue / $this.quantity } : Float[1];
+}
+
+// The daily mark of one piece: what it is worth, and what it is worth AFTER the haircut.
+//
+// Keyed by (collateral, date) -- a piece is valued once a day and the history is the point.
+Class collateral_core::ColCollateralValuation
+{
+   collateralId: String[1];
+   valuationDate: StrictDate[1];
+   cleanPrice: Float[1];
+   accruedInterest: Float[0..1];
+   marketValue: Float[1];
+   haircutPct: Float[1];
+   // Market value less the haircut, as agreed -- the number the margin call is made on.
+   collateralValue: Float[1];
+   fxRate: Float[0..1];
+   valuationSource: String[0..1];
+   isDisputed: Boolean[1];
+
+   // The haircut restated as money rather than as a rate.
+   haircutAmount() { $this.marketValue - $this.collateralValue } : Float[1];
+}
+
+// A margin call under an agreement: the exposure, the collateral already held, and the
+// difference somebody has to move.
+Class collateral_core::ColMarginCall
+{
+   callId: String[1];
+   agreementId: String[1];
+   callDate: StrictDate[1];
+   // VM or IM; they net differently and are called separately.
+   callType: String[1];
+   exposureAmount: Float[1];
+   collateralHeldValue: Float[1];
+   callAmount: Float[1];
+   currency: String[1];
+   callStatus: String[1];
+   issuedByEntityId: String[0..1];
+   agreedDate: StrictDate[0..1];
+   settledDate: StrictDate[0..1];
+
+   // Open until it settles. Stated as a null test, not a flag.
+   isOpen() { $this.settledDate->isEmpty() } : Boolean[1];
+   // How much of the exposure the collateral already covers.
+   coveragePct() { ($this.collateralHeldValue * 100.0) / $this.exposureAmount } : Float[1];
+}
+
+// The allocation of one piece of collateral against one margin call.
+//
+// Keyed by both, because a call is met out of several pieces and a piece is split across
+// several calls -- neither id alone is the grain.
+Class collateral_core::ColAllocation
+{
+   callId: String[1];
+   collateralId: String[1];
+   allocatedQuantity: Float[1];
+   allocatedMarketValue: Float[1];
+   appliedHaircutPct: Float[1];
+   allocatedCollateralValue: Float[1];
+   allocationDate: StrictDate[1];
+   isPending: Boolean[1];
+}
+
+// A substitution: one piece pulled back out and another put in its place, which is the right
+// the poster keeps and the reason collateral is not simply a payment.
+Class collateral_core::ColSubstitution
+{
+   substitutionId: String[1];
+   agreementId: String[1];
+   outgoingCollateralId: String[1];
+   incomingCollateralId: String[0..1];
+   requestDate: StrictDate[1];
+   settlementDate: StrictDate[0..1];
+   substitutionStatus: String[1];
+   reason: String[0..1];
+   valueDifference: Float[0..1];
+}
+
+// ---------------------------------------------------------------- the disjunction
+
+// THE OR-JOIN ASSOCIATION.
+//
+// A piece of collateral is eligible under a rule if its issuer matches the rule's issuer OR
+// its asset class matches the rule's asset class. Both ends are to-MANY and that is not
+// laziness: one rule ("French Republic") matches every French government line in the box, and
+// one piece (a French government bond) matches both the issuer rule and the G10-govvies rule.
+// Declaring either end [0..1] would compile and then return one arbitrary row.
+Association collateral_core::ColEligibilityMatch
+{
+   matchingRules: collateral_core::ColEligibilityRule[*];
+   eligibleCollateral: collateral_core::ColCollateral[*];
+}
+
+// The same disjunction on the limit side: a cap scoped to an issuer or to an asset class
+// bites on a piece that matches on either axis. To-many both ways for the same reason.
+Association collateral_core::ColConcentrationScope
+{
+   applicableLimits: collateral_core::ColConcentrationLimit[*];
+   limitedCollateral: collateral_core::ColCollateral[*];
+}
+
+// The haircut grid reached on the asset-class axis alone. Many-to-many because a band is
+// keyed by schedule, class and rating band, so one class has a band in every schedule.
+Association collateral_core::ColCollateralHaircutBands
+{
+   candidateBands: collateral_core::ColHaircutBand[*];
+   bandedCollateral: collateral_core::ColCollateral[*];
+}
+
+// ---------------------------------------------------------------- within this project
+
+// An agreement points at one negotiated schedule; a schedule serves many agreements.
+Association collateral_core::ColAgreementSchedule
+{
+   eligibilitySchedule: collateral_core::ColEligibilitySchedule[0..1];
+   agreements: collateral_core::ColCollateralAgreement[*];
+}
+
+Association collateral_core::ColScheduleRules
+{
+   ruleSchedule: collateral_core::ColEligibilitySchedule[1];
+   rules: collateral_core::ColEligibilityRule[*];
+}
+
+// The caps travel with the schedule, not with the agreement: they are part of Schedule A.
+Association collateral_core::ColScheduleLimits
+{
+   limitSchedule: collateral_core::ColEligibilitySchedule[1];
+   concentrationLimits: collateral_core::ColConcentrationLimit[*];
+}
+
+Association collateral_core::ColAgreementHaircutSchedule
+{
+   haircutSchedule: collateral_core::ColHaircutSchedule[0..1];
+   haircutAgreements: collateral_core::ColCollateralAgreement[*];
+}
+
+Association collateral_core::ColHaircutBands
+{
+   bandSchedule: collateral_core::ColHaircutSchedule[1];
+   bands: collateral_core::ColHaircutBand[*];
+}
+
+Association collateral_core::ColAgreementCollateral
+{
+   agreement: collateral_core::ColCollateralAgreement[1];
+   collateral: collateral_core::ColCollateral[*];
+}
+
+Association collateral_core::ColAgreementAccounts
+{
+   accountAgreement: collateral_core::ColCollateralAgreement[1];
+   accounts: collateral_core::ColCollateralAccount[*];
+}
+
+Association collateral_core::ColAccountCollateral
+{
+   account: collateral_core::ColCollateralAccount[0..1];
+   accountCollateral: collateral_core::ColCollateral[*];
+}
+
+Association collateral_core::ColCollateralValuations
+{
+   valuedCollateral: collateral_core::ColCollateral[1];
+   valuations: collateral_core::ColCollateralValuation[*];
+}
+
+Association collateral_core::ColAgreementCalls
+{
+   callAgreement: collateral_core::ColCollateralAgreement[1];
+   marginCalls: collateral_core::ColMarginCall[*];
+}
+
+Association collateral_core::ColCallAllocations
+{
+   marginCall: collateral_core::ColMarginCall[1];
+   allocations: collateral_core::ColAllocation[*];
+}
+
+Association collateral_core::ColCollateralAllocations
+{
+   allocatedCollateral: collateral_core::ColCollateral[1];
+   collateralAllocations: collateral_core::ColAllocation[*];
+}
+
+Association collateral_core::ColAgreementSubstitutions
+{
+   substitutionAgreement: collateral_core::ColCollateralAgreement[1];
+   substitutions: collateral_core::ColSubstitution[*];
+}
+
+// Two associations over one table, because the direction is which COLUMN the collateral id
+// matches -- the same shape core-party uses for its ownership edges.
+Association collateral_core::ColOutgoingSubstitutions
+{
+   outgoingCollateral: collateral_core::ColCollateral[1];
+   substitutionsOut: collateral_core::ColSubstitution[*];
+}
+
+Association collateral_core::ColIncomingSubstitutions
+{
+   incomingCollateral: collateral_core::ColCollateral[0..1];
+   substitutionsIn: collateral_core::ColSubstitution[*];
+}
+
+// ---------------------------------------------------------------- across the boundary
+
+// What the collateral IS, from the instrument master.
+Association collateral_core::ColCollateralInstrument
+{
+   instrument: core_instrument::Instrument[0..1];
+   collateralPieces: collateral_core::ColCollateral[*];
+}
+
+// Axis one, resolved: the issuer whose id the or-join matched on.
+Association collateral_core::ColCollateralIssuer
+{
+   issuer: core_party::LegalEntity[0..1];
+   issuedCollateral: collateral_core::ColCollateral[*];
+}
+
+// Axis one on the RULE side: the entity a Schedule A line was negotiated against.
+Association collateral_core::ColRuleEligibleIssuer
+{
+   eligibleIssuer: core_party::LegalEntity[0..1];
+   issuerRules: collateral_core::ColEligibilityRule[*];
+}
+
+// Axis two on the rule side: the asset-class code table, so a rule's class can be labelled
+// without this project restating core-instrument's code strings.
+Association collateral_core::ColRuleAssetClass
+{
+   eligibleAssetClassDefinition: core_instrument::AssetClassDefinition[0..1];
+   assetClassRules: collateral_core::ColEligibilityRule[*];
+}
+
+// The two sides of the CSA. Separate associations, because an entity is the principal on some
+// agreements and the counterparty on others and the direction is the column, not a flag.
+Association collateral_core::ColAgreementPrincipal
+{
+   principalEntity: core_party::LegalEntity[1];
+   principalAgreements: collateral_core::ColCollateralAgreement[*];
+}
+
+Association collateral_core::ColAgreementCounterparty
+{
+   counterpartyEntity: core_party::LegalEntity[1];
+   counterpartyAgreements: collateral_core::ColCollateralAgreement[*];
+}
+
+// Who holds the account. A custodian is a legal entity like any other.
+Association collateral_core::ColAccountCustodian
+{
+   custodian: core_party::LegalEntity[0..1];
+   custodiedAccounts: collateral_core::ColCollateralAccount[*];
+}

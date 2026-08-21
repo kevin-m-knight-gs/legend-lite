@@ -1,0 +1,339 @@
+###Mapping
+
+// ============================================================
+// client_core::Mapping -- twelve class sets, fourteen association sets, and the chains
+// ============================================================
+// Both dependency mappings are included. That is what makes core-party's and core-geo's set
+// ids -- `cpLegalEntity`, `cgCountry` -- nameable in the AssociationMappings at the foot of
+// this file: an association end that crosses a project boundary must name
+// [sourceSetId, targetSetId] explicitly, because both those projects declare explicit ids and
+// the default ones (`core_geo_CgCountry`) therefore do not exist.
+//
+// Set ids here are cli-prefixed for the same reason they are prefixed everywhere: a set id is
+// a GLOBAL namespace across the compiled graph, and an unprefixed `client` would fail forty
+// other projects with a message naming the id and not this file.
+Mapping client_core::Mapping
+(
+   include core_party::Mapping
+   include core_geo::Mapping
+
+   // ---- the relationship, and the join chains ------------------------------------------
+   // The last five property mappings are the point of the project. None of the columns they
+   // read is on CLI_CLIENT: the client table holds a two-letter country code and an entity
+   // id, and everything else is reached.
+   *client_core::CliClient[cliClient]: Relational
+   {
+      ~mainTable [client_core::Store]CLI_CLIENT
+      clientId: [client_core::Store]CLI_CLIENT.CLIENT_ID,
+      clientName: [client_core::Store]CLI_CLIENT.CLIENT_NAME,
+      clientType: [client_core::Store]CLI_CLIENT.CLIENT_TYPE,
+      bookingCentre: [client_core::Store]CLI_CLIENT.BOOKING_CENTRE,
+      domicileCountryCode: [client_core::Store]CLI_CLIENT.DOMICILE_COUNTRY_CODE,
+      regulatoryBlocId: [client_core::Store]CLI_CLIENT.REGULATORY_BLOC_ID,
+      status: [client_core::Store]CLI_CLIENT.STATUS,
+      relationshipStartDate: [client_core::Store]CLI_CLIENT.RELATIONSHIP_START_DATE,
+      relationshipEndDate: [client_core::Store]CLI_CLIENT.RELATIONSHIP_END_DATE,
+      hasDiscretionaryMandate: [client_core::Store]CLI_CLIENT.HAS_DISCRETIONARY_MANDATE,
+
+      // THE JOIN CHAIN. Three hops, two of them into another project's store:
+      //    CLI_CLIENT -> CG_COUNTRY -> CG_SUB_REGION -> CG_MACRO_REGION
+      // The first join is this store's, the next two are core-geo's and resolve because
+      // client_core::Store includes core_geo::Store. Every hop is many-to-one, so the result
+      // is single-valued; the pipe before the final column is not optional.
+      domicileMacroRegionCode: [client_core::Store]@Cli_ClientCountry > @Cg_CountrySubRegion > @Cg_SubRegionMacroRegion | [core_geo::Store]CG_MACRO_REGION.CODE,
+      domicileMacroRegionName: [client_core::Store]@Cli_ClientCountry > @Cg_CountrySubRegion > @Cg_SubRegionMacroRegion | [core_geo::Store]CG_MACRO_REGION.NAME,
+
+      // The bloc branch, two hops through the dated membership row. Single-valued only
+      // because Cli_ClientBlocMembership matches the bloc id as well as the country.
+      regulatoryBlocCode: [client_core::Store]@Cli_ClientBlocMembership > @Cg_MembershipBloc | [core_geo::Store]CG_BLOC.CODE,
+
+      // Out into core-party: one hop for the registered name, two for the legal system,
+      // chaining onto that project's own Cp_Entity_Jurisdiction.
+      legalEntityName: [client_core::Store]@Cli_ClientEntity | [core_party::Store]CP_LEGAL_ENTITY.LEGAL_NAME,
+      incorporationJurisdictionName: [client_core::Store]@Cli_ClientEntity > @Cp_Entity_Jurisdiction | [core_party::Store]CP_JURISDICTION.JURISDICTION_NAME
+   }
+
+   // ---- classification -------------------------------------------------------------------
+   *client_core::CliClientCategory[cliClientCategory]: Relational
+   {
+      ~mainTable [client_core::Store]CLI_CLIENT_CATEGORY
+      categoryCode: [client_core::Store]CLI_CLIENT_CATEGORY.CATEGORY_CODE,
+      categoryName: [client_core::Store]CLI_CLIENT_CATEGORY.CATEGORY_NAME,
+      protectionLevel: [client_core::Store]CLI_CLIENT_CATEGORY.PROTECTION_LEVEL,
+      requiresAppropriatenessTest: [client_core::Store]CLI_CLIENT_CATEGORY.REQUIRES_APPROPRIATENESS_TEST,
+      requiresBestExecutionReport: [client_core::Store]CLI_CLIENT_CATEGORY.REQUIRES_BEST_EXECUTION_REPORT,
+      description: [client_core::Store]CLI_CLIENT_CATEGORY.DESCRIPTION
+   }
+
+   *client_core::CliClassification[cliClassification]: Relational
+   {
+      ~mainTable [client_core::Store]CLI_CLASSIFICATION
+      classificationId: [client_core::Store]CLI_CLASSIFICATION.CLASSIFICATION_ID,
+      effectiveFrom: [client_core::Store]CLI_CLASSIFICATION.EFFECTIVE_FROM,
+      effectiveTo: [client_core::Store]CLI_CLASSIFICATION.EFFECTIVE_TO,
+      basis: [client_core::Store]CLI_CLASSIFICATION.BASIS,
+      assessmentReference: [client_core::Store]CLI_CLASSIFICATION.ASSESSMENT_REFERENCE,
+      assessedBy: [client_core::Store]CLI_CLASSIFICATION.ASSESSED_BY,
+      isClientNotified: [client_core::Store]CLI_CLASSIFICATION.IS_CLIENT_NOTIFIED
+   }
+
+   // ---- domicile ---------------------------------------------------------------------------
+   *client_core::CliDomicile[cliDomicile]: Relational
+   {
+      ~mainTable [client_core::Store]CLI_DOMICILE
+      domicileId: [client_core::Store]CLI_DOMICILE.DOMICILE_ID,
+      domicileType: [client_core::Store]CLI_DOMICILE.DOMICILE_TYPE,
+      countryCode: [client_core::Store]CLI_DOMICILE.COUNTRY_CODE,
+      effectiveFrom: [client_core::Store]CLI_DOMICILE.EFFECTIVE_FROM,
+      effectiveTo: [client_core::Store]CLI_DOMICILE.EFFECTIVE_TO,
+      evidenceType: [client_core::Store]CLI_DOMICILE.EVIDENCE_TYPE,
+      isPrimary: [client_core::Store]CLI_DOMICILE.IS_PRIMARY
+   }
+
+   // ---- onboarding ---------------------------------------------------------------------------
+   *client_core::CliOnboardingState[cliOnboardingState]: Relational
+   {
+      ~mainTable [client_core::Store]CLI_ONBOARDING_STATE
+      stateCode: [client_core::Store]CLI_ONBOARDING_STATE.STATE_CODE,
+      stateName: [client_core::Store]CLI_ONBOARDING_STATE.STATE_NAME,
+      sequenceNo: [client_core::Store]CLI_ONBOARDING_STATE.SEQUENCE_NO,
+      isTerminal: [client_core::Store]CLI_ONBOARDING_STATE.IS_TERMINAL,
+      allowsTrading: [client_core::Store]CLI_ONBOARDING_STATE.ALLOWS_TRADING
+   }
+
+   *client_core::CliOnboardingCase[cliOnboardingCase]: Relational
+   {
+      ~mainTable [client_core::Store]CLI_ONBOARDING_CASE
+      caseId: [client_core::Store]CLI_ONBOARDING_CASE.CASE_ID,
+      caseType: [client_core::Store]CLI_ONBOARDING_CASE.CASE_TYPE,
+      openedDate: [client_core::Store]CLI_ONBOARDING_CASE.OPENED_DATE,
+      closedDate: [client_core::Store]CLI_ONBOARDING_CASE.CLOSED_DATE,
+      kycRiskRating: [client_core::Store]CLI_ONBOARDING_CASE.KYC_RISK_RATING,
+      assignedTo: [client_core::Store]CLI_ONBOARDING_CASE.ASSIGNED_TO,
+      outcomeReason: [client_core::Store]CLI_ONBOARDING_CASE.OUTCOME_REASON,
+      nextReviewDate: [client_core::Store]CLI_ONBOARDING_CASE.NEXT_REVIEW_DATE
+   }
+
+   // ---- coverage -----------------------------------------------------------------------------
+   *client_core::CliRelationshipManager[cliRelationshipManager]: Relational
+   {
+      ~mainTable [client_core::Store]CLI_RELATIONSHIP_MANAGER
+      rmId: [client_core::Store]CLI_RELATIONSHIP_MANAGER.RM_ID,
+      fullName: [client_core::Store]CLI_RELATIONSHIP_MANAGER.FULL_NAME,
+      email: [client_core::Store]CLI_RELATIONSHIP_MANAGER.EMAIL,
+      deskCountryCode: [client_core::Store]CLI_RELATIONSHIP_MANAGER.DESK_COUNTRY_CODE,
+      employeeNumber: [client_core::Store]CLI_RELATIONSHIP_MANAGER.EMPLOYEE_NUMBER,
+      leftOn: [client_core::Store]CLI_RELATIONSHIP_MANAGER.LEFT_ON
+   }
+
+   *client_core::CliCoverageTeam[cliCoverageTeam]: Relational
+   {
+      ~mainTable [client_core::Store]CLI_COVERAGE_TEAM
+      teamId: [client_core::Store]CLI_COVERAGE_TEAM.TEAM_ID,
+      teamName: [client_core::Store]CLI_COVERAGE_TEAM.TEAM_NAME,
+      segment: [client_core::Store]CLI_COVERAGE_TEAM.SEGMENT,
+      costCentre: [client_core::Store]CLI_COVERAGE_TEAM.COST_CENTRE,
+      disbandedOn: [client_core::Store]CLI_COVERAGE_TEAM.DISBANDED_ON
+   }
+
+   // ---- mandates -------------------------------------------------------------------------------
+   // The two chained properties here start INSIDE this store and continue out of it. The
+   // first hop, @Cli_ClientMandate, walks CLI_MANDATE -> CLI_CLIENT (many mandates, one
+   // client); the rest is the client's own chain. Four hops on the second one, which is the
+   // longest in the project and still single-valued for the same reason as all the others.
+   *client_core::CliMandate[cliMandate]: Relational
+   {
+      ~mainTable [client_core::Store]CLI_MANDATE
+      mandateId: [client_core::Store]CLI_MANDATE.MANDATE_ID,
+      mandateName: [client_core::Store]CLI_MANDATE.MANDATE_NAME,
+      mandateType: [client_core::Store]CLI_MANDATE.MANDATE_TYPE,
+      baseCurrencyCode: [client_core::Store]CLI_MANDATE.BASE_CURRENCY_CODE,
+      benchmarkCode: [client_core::Store]CLI_MANDATE.BENCHMARK_CODE,
+      targetAum: [client_core::Store]CLI_MANDATE.TARGET_AUM,
+      managementFeeBps: [client_core::Store]CLI_MANDATE.MANAGEMENT_FEE_BPS,
+      startDate: [client_core::Store]CLI_MANDATE.START_DATE,
+      endDate: [client_core::Store]CLI_MANDATE.END_DATE,
+
+      // CLI_MANDATE -> CLI_CLIENT -> CG_BLOC_MEMBERSHIP -> CG_BLOC. Three hops out to an
+      // economic bloc, from a table that holds no geography at all.
+      clientBlocCode: [client_core::Store]@Cli_ClientMandate > @Cli_ClientBlocMembership > @Cg_MembershipBloc | [core_geo::Store]CG_BLOC.CODE,
+      // CLI_MANDATE -> CLI_CLIENT -> CG_COUNTRY -> CG_SUB_REGION -> CG_MACRO_REGION.
+      clientMacroRegionName: [client_core::Store]@Cli_ClientMandate > @Cli_ClientCountry > @Cg_CountrySubRegion > @Cg_SubRegionMacroRegion | [core_geo::Store]CG_MACRO_REGION.NAME
+   }
+
+   *client_core::CliMandateRestriction[cliMandateRestriction]: Relational
+   {
+      ~mainTable [client_core::Store]CLI_MANDATE_RESTRICTION
+      restrictionId: [client_core::Store]CLI_MANDATE_RESTRICTION.RESTRICTION_ID,
+      restrictionType: [client_core::Store]CLI_MANDATE_RESTRICTION.RESTRICTION_TYPE,
+      scopeValue: [client_core::Store]CLI_MANDATE_RESTRICTION.SCOPE_VALUE,
+      limitPercentage: [client_core::Store]CLI_MANDATE_RESTRICTION.LIMIT_PERCENTAGE,
+      isHardLimit: [client_core::Store]CLI_MANDATE_RESTRICTION.IS_HARD_LIMIT,
+      effectiveFrom: [client_core::Store]CLI_MANDATE_RESTRICTION.EFFECTIVE_FROM,
+      notes: [client_core::Store]CLI_MANDATE_RESTRICTION.NOTES
+   }
+
+   // ---- suitability ------------------------------------------------------------------------------
+   *client_core::CliRiskProfile[cliRiskProfile]: Relational
+   {
+      ~mainTable [client_core::Store]CLI_RISK_PROFILE
+      clientId: [client_core::Store]CLI_RISK_PROFILE.CLIENT_ID,
+      riskTolerance: [client_core::Store]CLI_RISK_PROFILE.RISK_TOLERANCE,
+      knowledgeLevel: [client_core::Store]CLI_RISK_PROFILE.KNOWLEDGE_LEVEL,
+      investmentHorizonYears: [client_core::Store]CLI_RISK_PROFILE.INVESTMENT_HORIZON_YEARS,
+      lossCapacity: [client_core::Store]CLI_RISK_PROFILE.LOSS_CAPACITY,
+      assessedDate: [client_core::Store]CLI_RISK_PROFILE.ASSESSED_DATE,
+      reviewDueDate: [client_core::Store]CLI_RISK_PROFILE.REVIEW_DUE_DATE
+   }
+
+   *client_core::CliClientContact[cliClientContact]: Relational
+   {
+      ~mainTable [client_core::Store]CLI_CLIENT_CONTACT
+      contactId: [client_core::Store]CLI_CLIENT_CONTACT.CONTACT_ID,
+      fullName: [client_core::Store]CLI_CLIENT_CONTACT.FULL_NAME,
+      contactRole: [client_core::Store]CLI_CLIENT_CONTACT.CONTACT_ROLE,
+      email: [client_core::Store]CLI_CLIENT_CONTACT.EMAIL,
+      phone: [client_core::Store]CLI_CLIENT_CONTACT.PHONE,
+      isAuthorisedSignatory: [client_core::Store]CLI_CLIENT_CONTACT.IS_AUTHORISED_SIGNATORY,
+      isPrimaryContact: [client_core::Store]CLI_CLIENT_CONTACT.IS_PRIMARY_CONTACT
+   }
+
+   // ---- associations, within this project ---------------------------------------------------------
+   // The AssociationMapping(...) wrapper is mandatory: without it the grammar reads the block
+   // as a CLASS mapping and reports "Can't find class client_core::CliClientDomiciles", which
+   // names the wrong problem. Both ends use the SAME join; the engine reverses it for the end
+   // that walks against the declared direction.
+   client_core::CliClientDomiciles: Relational
+   {
+      AssociationMapping
+      (
+         client[cliDomicile, cliClient]: [client_core::Store]@Cli_ClientDomicile,
+         domiciles[cliClient, cliDomicile]: [client_core::Store]@Cli_ClientDomicile
+      )
+   }
+
+   client_core::CliClientClassifications: Relational
+   {
+      AssociationMapping
+      (
+         classifiedClient[cliClassification, cliClient]: [client_core::Store]@Cli_ClientClassification,
+         classifications[cliClient, cliClassification]: [client_core::Store]@Cli_ClientClassification
+      )
+   }
+
+   client_core::CliCategoryClassifications: Relational
+   {
+      AssociationMapping
+      (
+         category[cliClassification, cliClientCategory]: [client_core::Store]@Cli_CategoryClassification,
+         categoryAssignments[cliClientCategory, cliClassification]: [client_core::Store]@Cli_CategoryClassification
+      )
+   }
+
+   client_core::CliClientOnboarding: Relational
+   {
+      AssociationMapping
+      (
+         onboardedClient[cliOnboardingCase, cliClient]: [client_core::Store]@Cli_ClientOnboardingCase,
+         onboardingCases[cliClient, cliOnboardingCase]: [client_core::Store]@Cli_ClientOnboardingCase
+      )
+   }
+
+   client_core::CliCaseState: Relational
+   {
+      AssociationMapping
+      (
+         state[cliOnboardingCase, cliOnboardingState]: [client_core::Store]@Cli_CaseState,
+         casesInState[cliOnboardingState, cliOnboardingCase]: [client_core::Store]@Cli_CaseState
+      )
+   }
+
+   client_core::CliClientCoverage: Relational
+   {
+      AssociationMapping
+      (
+         relationshipManager[cliClient, cliRelationshipManager]: [client_core::Store]@Cli_ClientManager,
+         coveredClients[cliRelationshipManager, cliClient]: [client_core::Store]@Cli_ClientManager
+      )
+   }
+
+   client_core::CliManagerTeam: Relational
+   {
+      AssociationMapping
+      (
+         coverageTeam[cliRelationshipManager, cliCoverageTeam]: [client_core::Store]@Cli_ManagerTeam,
+         managers[cliCoverageTeam, cliRelationshipManager]: [client_core::Store]@Cli_ManagerTeam
+      )
+   }
+
+   client_core::CliClientMandates: Relational
+   {
+      AssociationMapping
+      (
+         mandateClient[cliMandate, cliClient]: [client_core::Store]@Cli_ClientMandate,
+         mandates[cliClient, cliMandate]: [client_core::Store]@Cli_ClientMandate
+      )
+   }
+
+   client_core::CliMandateRestrictions: Relational
+   {
+      AssociationMapping
+      (
+         mandate[cliMandateRestriction, cliMandate]: [client_core::Store]@Cli_MandateRestriction,
+         restrictions[cliMandate, cliMandateRestriction]: [client_core::Store]@Cli_MandateRestriction
+      )
+   }
+
+   client_core::CliClientRiskProfile: Relational
+   {
+      AssociationMapping
+      (
+         profiledClient[cliRiskProfile, cliClient]: [client_core::Store]@Cli_ClientRiskProfile,
+         riskProfile[cliClient, cliRiskProfile]: [client_core::Store]@Cli_ClientRiskProfile
+      )
+   }
+
+   client_core::CliClientContacts: Relational
+   {
+      AssociationMapping
+      (
+         contactClient[cliClientContact, cliClient]: [client_core::Store]@Cli_ClientContact,
+         contacts[cliClient, cliClientContact]: [client_core::Store]@Cli_ClientContact
+      )
+   }
+
+   // ---- associations, across a project boundary -----------------------------------------------------
+   // Each end names [sourceSetId, targetSetId], and the ids on the far side are the
+   // dependency's explicit ones -- `cpLegalEntity`, `cgCountry`. The bare `prop: [db]@Join`
+   // form would only resolve against default ids, and neither of those projects has any.
+   // The join itself lives in client_core::Store even for the end whose source table is in
+   // the dependency, because that is the store that includes both.
+   client_core::CliClientLegalEntity: Relational
+   {
+      AssociationMapping
+      (
+         legalEntity[cliClient, cpLegalEntity]: [client_core::Store]@Cli_ClientEntity,
+         clientRelationships[cpLegalEntity, cliClient]: [client_core::Store]@Cli_ClientEntity
+      )
+   }
+
+   // The head of the chain as navigable objects, so a caller can walk
+   // $client.domicileCountry.subRegion.macroRegion rather than read the flattened code.
+   client_core::CliClientDomicileCountry: Relational
+   {
+      AssociationMapping
+      (
+         domicileCountry[cliClient, cgCountry]: [client_core::Store]@Cli_ClientCountry,
+         clientsDomiciled[cgCountry, cliClient]: [client_core::Store]@Cli_ClientCountry
+      )
+   }
+
+   client_core::CliDomicileCountry: Relational
+   {
+      AssociationMapping
+      (
+         country[cliDomicile, cgCountry]: [client_core::Store]@Cli_DomicileCountry,
+         domicileRecords[cgCountry, cliDomicile]: [client_core::Store]@Cli_DomicileCountry
+      )
+   }
+)

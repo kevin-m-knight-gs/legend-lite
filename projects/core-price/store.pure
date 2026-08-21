@@ -1,0 +1,197 @@
+###Relational
+// The price store. Every table is prefixed CPR_ and every join Cpr_, so nothing here can
+// collide with another project in the graph.
+//
+// Three of the six price-bearing tables carry a COMPOSITE PRIMARY KEY, and the widest of them
+// is the whole point: CPR_PRICE_OBSERVATION is keyed by INSTRUMENT_ID, OBS_DATE and SOURCE_ID
+// together. Drop any one column and the key stops being unique -- drop SOURCE_ID and two
+// vendors' closes for the same day fight over one row.
+//
+// The datatypes are chosen rather than defaulted. SMALLINT wherever the number is bounded by
+// construction (decimal places, lot sizes, a rolling window, a severity), CHAR(n) wherever the
+// value is fixed width (a 3-letter currency, a 4-letter vendor or method mnemonic, a
+// single-letter tier or quote condition), NUMERIC(20,6) for money, and FLOAT for percentages
+// -- which are ratios and are allowed to be approximate. REAL is not used anywhere: it parses
+// and then cannot be read back at execution (docs/UPSTREAM_FINDINGS.md F53).
+Database core_price::Store
+(
+   // The vendors. CHAR(4) mnemonic, CHAR(1) tier, CHAR(3) default currency, and two SMALLINTs
+   // that are bounded by what a market-data feed can physically be.
+   Table CPR_PRICE_SOURCE
+   (
+      SOURCE_ID VARCHAR(12) PRIMARY KEY,
+      SOURCE_NAME VARCHAR(60) NOT NULL,
+      VENDOR_CODE CHAR(4),
+      TIER_CODE CHAR(1),
+      DEFAULT_CURRENCY CHAR(3),
+      RANK_ORDER SMALLINT,
+      LATENCY_SECONDS SMALLINT,
+      RELIABILITY_PCT FLOAT,
+      IS_PRIMARY BIT,
+      ONBOARD_DATE DATE
+   )
+
+   // The approval bands. Keyed by a single CHAR(1) code, which is a fixed-width primary key
+   // and not a VARCHAR that happens to hold one letter.
+   Table CPR_SOURCE_TIER
+   (
+      TIER_CODE CHAR(1) PRIMARY KEY,
+      TIER_NAME VARCHAR(20) NOT NULL,
+      MIN_RELIABILITY_PCT FLOAT,
+      MAX_LATENCY_SECONDS SMALLINT,
+      IS_APPROVED BIT,
+      NOTE VARCHAR(80)
+   )
+
+   // Currencies, keyed by the CHAR(3) ISO code itself.
+   Table CPR_PRICE_CURRENCY
+   (
+      CURRENCY_CODE CHAR(3) PRIMARY KEY,
+      CURRENCY_NAME VARCHAR(40) NOT NULL,
+      MINOR_UNITS SMALLINT,
+      QUOTE_DECIMALS SMALLINT,
+      IS_ACTIVE BIT
+   )
+
+   // The composite key this project exists for: instrument AND date AND source. Prices are
+   // NUMERIC(20,6) because they are money; PCT_CHANGE is FLOAT because it is a ratio.
+   Table CPR_PRICE_OBSERVATION
+   (
+      INSTRUMENT_ID VARCHAR(20) PRIMARY KEY,
+      OBS_DATE DATE PRIMARY KEY,
+      SOURCE_ID VARCHAR(12) PRIMARY KEY,
+      CURRENCY_CODE CHAR(3),
+      PRICE_DECIMALS SMALLINT,
+      QUOTE_SEQUENCE SMALLINT,
+      OPEN_PRICE NUMERIC(20,6),
+      HIGH_PRICE NUMERIC(20,6),
+      LOW_PRICE NUMERIC(20,6),
+      CLOSE_PRICE NUMERIC(20,6),
+      PCT_CHANGE FLOAT,
+      VOLUME NUMERIC(20,6),
+      IS_STALE BIT,
+      CAPTURED_AT TIMESTAMP
+   )
+
+   // The two-sided quote, on the same three-column key as the observation -- which is what
+   // makes Cpr_ObservationQuote a three-column join rather than a one-column one.
+   Table CPR_QUOTE
+   (
+      INSTRUMENT_ID VARCHAR(20) PRIMARY KEY,
+      OBS_DATE DATE PRIMARY KEY,
+      SOURCE_ID VARCHAR(12) PRIMARY KEY,
+      BID_PRICE NUMERIC(20,6),
+      ASK_PRICE NUMERIC(20,6),
+      BID_SIZE SMALLINT,
+      ASK_SIZE SMALLINT,
+      SPREAD_PCT FLOAT,
+      QUOTE_CONDITION CHAR(1),
+      CURRENCY_CODE CHAR(3),
+      IS_FIRM BIT
+   )
+
+   // Corporate-action factors. Keyed by instrument, effective date and a SMALLINT sequence,
+   // because two actions can share a date and the order changes the restated price.
+   Table CPR_PRICE_ADJUSTMENT
+   (
+      INSTRUMENT_ID VARCHAR(20) PRIMARY KEY,
+      EFFECTIVE_DATE DATE PRIMARY KEY,
+      ADJUSTMENT_SEQ SMALLINT PRIMARY KEY,
+      ADJUSTMENT_TYPE VARCHAR(16),
+      ADJ_FACTOR NUMERIC(20,6),
+      CUMULATIVE_FACTOR NUMERIC(20,6),
+      PCT_IMPACT FLOAT,
+      CURRENCY_CODE CHAR(3),
+      IS_APPLIED BIT,
+      APPLIED_ON DATE
+   )
+
+   // The consensus: keyed by instrument and date only, with no source leg. CHAR(4) method
+   // mnemonic, SMALLINT contributor count.
+   Table CPR_CONSENSUS_PRICE
+   (
+      INSTRUMENT_ID VARCHAR(20) PRIMARY KEY,
+      OBS_DATE DATE PRIMARY KEY,
+      CONSENSUS_PRICE NUMERIC(20,6),
+      CONTRIBUTOR_COUNT SMALLINT,
+      DISPERSION_PCT FLOAT,
+      METHOD_CODE CHAR(4),
+      CURRENCY_CODE CHAR(3),
+      IS_FINAL BIT
+   )
+
+   // Rolling statistics. WINDOW_DAYS is a SMALLINT and part of the key: 20-day and 60-day are
+   // different rows.
+   Table CPR_PRICE_STATISTIC
+   (
+      INSTRUMENT_ID VARCHAR(20) PRIMARY KEY,
+      OBS_DATE DATE PRIMARY KEY,
+      WINDOW_DAYS SMALLINT PRIMARY KEY,
+      MEAN_PRICE NUMERIC(20,6),
+      MIN_PRICE NUMERIC(20,6),
+      MAX_PRICE NUMERIC(20,6),
+      STDDEV_PCT FLOAT,
+      RETURN_PCT FLOAT,
+      OBSERVATION_COUNT SMALLINT,
+      IS_COMPLETE BIT
+   )
+
+   // Breaks raised when vendors disagree. CHAR(4) code, SMALLINT severity, FLOAT deviation.
+   Table CPR_PRICE_EXCEPTION
+   (
+      INSTRUMENT_ID VARCHAR(20) PRIMARY KEY,
+      OBS_DATE DATE PRIMARY KEY,
+      EXCEPTION_SEQ SMALLINT PRIMARY KEY,
+      EXCEPTION_CODE CHAR(4),
+      SEVERITY SMALLINT,
+      DEVIATION_PCT FLOAT,
+      RAISED_AT TIMESTAMP,
+      IS_RESOLVED BIT,
+      RESOLUTION VARCHAR(80)
+   )
+
+   // Entitlements: which vendor covers which instrument. A two-column composite key.
+   Table CPR_VENDOR_COVERAGE
+   (
+      SOURCE_ID VARCHAR(12) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(20) PRIMARY KEY,
+      START_DATE DATE,
+      END_DATE DATE,
+      COVERAGE_PCT FLOAT,
+      PRIORITY SMALLINT,
+      IS_ACTIVE BIT,
+      CURRENCY_CODE CHAR(3)
+   )
+
+   // A price to the vendor that published it.
+   Join Cpr_ObservationSource(CPR_PRICE_OBSERVATION.SOURCE_ID = CPR_PRICE_SOURCE.SOURCE_ID)
+   // A vendor to its approval band, on the CHAR(1) code.
+   Join Cpr_SourceTier(CPR_PRICE_SOURCE.TIER_CODE = CPR_SOURCE_TIER.TIER_CODE)
+   // A price to its quote currency, on the CHAR(3) code.
+   Join Cpr_ObservationCurrency(CPR_PRICE_OBSERVATION.CURRENCY_CODE = CPR_PRICE_CURRENCY.CURRENCY_CODE)
+   // The composite join: all three key columns, because the quote and the observation share
+   // the whole key and matching on fewer would fan out.
+   Join Cpr_ObservationQuote(CPR_PRICE_OBSERVATION.INSTRUMENT_ID = CPR_QUOTE.INSTRUMENT_ID
+                             and CPR_PRICE_OBSERVATION.OBS_DATE = CPR_QUOTE.OBS_DATE
+                             and CPR_PRICE_OBSERVATION.SOURCE_ID = CPR_QUOTE.SOURCE_ID)
+   // A price to the consensus for its day. Two columns only -- the consensus has no source.
+   Join Cpr_ObservationConsensus(CPR_PRICE_OBSERVATION.INSTRUMENT_ID = CPR_CONSENSUS_PRICE.INSTRUMENT_ID
+                                 and CPR_PRICE_OBSERVATION.OBS_DATE = CPR_CONSENSUS_PRICE.OBS_DATE)
+   // A price to every rolling window computed on it -- to-many, because the window length is
+   // part of the statistic's key and not of this join.
+   Join Cpr_ObservationStatistic(CPR_PRICE_OBSERVATION.INSTRUMENT_ID = CPR_PRICE_STATISTIC.INSTRUMENT_ID
+                                 and CPR_PRICE_OBSERVATION.OBS_DATE = CPR_PRICE_STATISTIC.OBS_DATE)
+   // A price to the breaks raised on its day.
+   Join Cpr_ObservationException(CPR_PRICE_OBSERVATION.INSTRUMENT_ID = CPR_PRICE_EXCEPTION.INSTRUMENT_ID
+                                 and CPR_PRICE_OBSERVATION.OBS_DATE = CPR_PRICE_EXCEPTION.OBS_DATE)
+   // A price to every corporate action on the instrument, dated or not.
+   Join Cpr_ObservationAdjustment(CPR_PRICE_OBSERVATION.INSTRUMENT_ID = CPR_PRICE_ADJUSTMENT.INSTRUMENT_ID)
+   // A vendor to what it is entitled to publish.
+   Join Cpr_SourceCoverage(CPR_VENDOR_COVERAGE.SOURCE_ID = CPR_PRICE_SOURCE.SOURCE_ID)
+
+   // Prices the vendor has stopped refreshing. Selects a real subset rather than everything,
+   // which is what makes CprStalePrice a type worth having.
+   Filter CprStaleRows(CPR_PRICE_OBSERVATION.IS_STALE = 1)
+   // The preferred vendor for an instrument.
+   Filter CprPrimarySourceRows(CPR_PRICE_SOURCE.IS_PRIMARY = 1)
+)

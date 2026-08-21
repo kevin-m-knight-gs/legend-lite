@@ -1,0 +1,162 @@
+###Relational
+// The core-book database. Tables are CB_-prefixed and joins Cb_-prefixed so nothing here
+// can collide with another project in the graph.
+Database core_book::Store
+(
+   // The recursive table. PARENT_BOOK_ID points back into this same table's BOOK_ID, and
+   // is nullable because the roots of the hierarchy have no parent.
+   Table CB_BOOK
+   (
+      BOOK_ID VARCHAR(64) PRIMARY KEY,
+      CODE VARCHAR(64) NOT NULL,
+      NAME VARCHAR(200) NOT NULL,
+      PARENT_BOOK_ID VARCHAR(64),
+      DESK_ID VARCHAR(64),
+      OWNER_ID VARCHAR(64),
+      STRATEGY_ID VARCHAR(64),
+      CLASSIFICATION_ID VARCHAR(64),
+      BASE_CURRENCY VARCHAR(16) NOT NULL,
+      IS_ACTIVE BIT NOT NULL,
+      OPEN_DATE DATE NOT NULL,
+      CLOSE_DATE DATE,
+      DEPTH INTEGER,
+      DESCRIPTION VARCHAR(400)
+   )
+
+   Table CB_DESK
+   (
+      DESK_ID VARCHAR(64) PRIMARY KEY,
+      NAME VARCHAR(200) NOT NULL,
+      ASSET_CLASS VARCHAR(64) NOT NULL,
+      REGION_CODE VARCHAR(16) NOT NULL,
+      HEAD_TRADER VARCHAR(200),
+      IS_ACTIVE BIT NOT NULL,
+      BUSINESS_UNIT_ID VARCHAR(64),
+      COST_CENTRE_ID VARCHAR(64)
+   )
+
+   Table CB_BUSINESS_UNIT
+   (
+      BUSINESS_UNIT_ID VARCHAR(64) PRIMARY KEY,
+      NAME VARCHAR(200) NOT NULL,
+      HEAD VARCHAR(200),
+      HEADCOUNT INTEGER,
+      IS_ACTIVE BIT NOT NULL,
+      DIVISION_ID VARCHAR(64)
+   )
+
+   Table CB_DIVISION
+   (
+      DIVISION_ID VARCHAR(64) PRIMARY KEY,
+      NAME VARCHAR(200) NOT NULL,
+      HEAD VARCHAR(200),
+      IS_ACTIVE BIT NOT NULL
+   )
+
+   Table CB_BOOK_OWNER
+   (
+      OWNER_ID VARCHAR(64) PRIMARY KEY,
+      FIRST_NAME VARCHAR(100) NOT NULL,
+      LAST_NAME VARCHAR(100) NOT NULL,
+      EMAIL VARCHAR(200) NOT NULL,
+      BADGE VARCHAR(64),
+      IS_ACTIVE BIT NOT NULL
+   )
+
+   Table CB_STRATEGY
+   (
+      STRATEGY_ID VARCHAR(64) PRIMARY KEY,
+      NAME VARCHAR(200) NOT NULL,
+      STYLE VARCHAR(64) NOT NULL,
+      BENCHMARK VARCHAR(200),
+      IS_ACTIVE BIT NOT NULL
+   )
+
+   Table CB_BOOK_CLASSIFICATION
+   (
+      CLASSIFICATION_ID VARCHAR(64) PRIMARY KEY,
+      CODE VARCHAR(64) NOT NULL,
+      NAME VARCHAR(200) NOT NULL,
+      REGULATORY_BUCKET VARCHAR(64),
+      IS_TRADING_BOOK BIT NOT NULL
+   )
+
+   Table CB_BOOK_LIMIT
+   (
+      LIMIT_ID VARCHAR(64) PRIMARY KEY,
+      BOOK_ID VARCHAR(64),
+      LIMIT_TYPE VARCHAR(64) NOT NULL,
+      LIMIT_AMOUNT DOUBLE NOT NULL,
+      CURRENCY VARCHAR(16) NOT NULL,
+      EFFECTIVE_DATE DATE NOT NULL,
+      EXPIRY_DATE DATE,
+      IS_ACTIVE BIT NOT NULL
+   )
+
+   Table CB_COST_CENTRE
+   (
+      COST_CENTRE_ID VARCHAR(64) PRIMARY KEY,
+      CODE VARCHAR(64) NOT NULL,
+      NAME VARCHAR(200) NOT NULL,
+      FISCAL_YEAR INTEGER NOT NULL,
+      BUDGET_AMOUNT DOUBLE,
+      CURRENCY VARCHAR(16) NOT NULL
+   )
+
+   Table CB_BOOK_MANDATE
+   (
+      MANDATE_ID VARCHAR(64) PRIMARY KEY,
+      BOOK_ID VARCHAR(64),
+      MANDATE_TYPE VARCHAR(64) NOT NULL,
+      PERMITTED_ASSET_CLASSES VARCHAR(400),
+      MAX_NOTIONAL DOUBLE,
+      APPROVED_DATE DATE,
+      IS_ACTIVE BIT NOT NULL
+   )
+
+   Table CB_BOOK_APPROVAL
+   (
+      APPROVAL_ID VARCHAR(64) PRIMARY KEY,
+      BOOK_ID VARCHAR(64),
+      APPROVAL_TYPE VARCHAR(64) NOT NULL,
+      STATUS VARCHAR(32) NOT NULL,
+      REQUESTED_BY VARCHAR(200) NOT NULL,
+      APPROVED_BY VARCHAR(200),
+      REQUEST_DATE DATE NOT NULL,
+      DECISION_DATE DATE
+   )
+
+   Table CB_BOOK_TRANSFER
+   (
+      TRANSFER_ID VARCHAR(64) PRIMARY KEY,
+      BOOK_ID VARCHAR(64),
+      FROM_DESK_ID VARCHAR(64),
+      TO_DESK_ID VARCHAR(64) NOT NULL,
+      TRANSFER_DATE DATE NOT NULL,
+      REASON VARCHAR(400),
+      IS_REVERSED BIT NOT NULL
+   )
+
+   // ---- The self-join ----
+   // Both sides are CB_BOOK. {target} names the far side of the same table; without it the
+   // condition would compare a row's PARENT_BOOK_ID to its own BOOK_ID. Must stay on ONE
+   // line -- a wrapped join condition is not parsed.
+   Join Cb_ParentBook(CB_BOOK.PARENT_BOOK_ID = {target}.BOOK_ID)
+
+   // ---- The ordinary joins ----
+   Join Cb_BookDesk(CB_BOOK.DESK_ID = CB_DESK.DESK_ID)
+   Join Cb_BookOwner(CB_BOOK.OWNER_ID = CB_BOOK_OWNER.OWNER_ID)
+   Join Cb_BookStrategy(CB_BOOK.STRATEGY_ID = CB_STRATEGY.STRATEGY_ID)
+   Join Cb_BookClassification(CB_BOOK.CLASSIFICATION_ID = CB_BOOK_CLASSIFICATION.CLASSIFICATION_ID)
+   Join Cb_DeskBusinessUnit(CB_DESK.BUSINESS_UNIT_ID = CB_BUSINESS_UNIT.BUSINESS_UNIT_ID)
+   Join Cb_DeskCostCentre(CB_DESK.COST_CENTRE_ID = CB_COST_CENTRE.COST_CENTRE_ID)
+   Join Cb_BusinessUnitDivision(CB_BUSINESS_UNIT.DIVISION_ID = CB_DIVISION.DIVISION_ID)
+   Join Cb_BookLimit(CB_BOOK_LIMIT.BOOK_ID = CB_BOOK.BOOK_ID)
+   Join Cb_BookMandate(CB_BOOK_MANDATE.BOOK_ID = CB_BOOK.BOOK_ID)
+   Join Cb_BookApproval(CB_BOOK_APPROVAL.BOOK_ID = CB_BOOK.BOOK_ID)
+   Join Cb_BookTransfer(CB_BOOK_TRANSFER.BOOK_ID = CB_BOOK.BOOK_ID)
+
+   // Only books that are still open. Filter names are a GLOBAL namespace in Legend, hence
+   // the Cb prefix.
+   Filter CbOpenBooks(CB_BOOK.CLOSE_DATE is null)
+)

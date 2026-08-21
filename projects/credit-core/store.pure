@@ -1,0 +1,180 @@
+###Relational
+// credit-core's tables, plus the two joins that leave the project.
+//
+// Both dependency stores are included, because a join may only name tables the database can
+// see: Cdc_ObligorEntity reaches CP_LEGAL_ENTITY and Cdc_ObligorRating reaches the
+// MILESTONED CR_RATING_MS. Including a store does not copy its tables -- CP_ and CR_ stay
+// owned by their projects, and the filter and joins they declare come along with them.
+//
+// Nothing here is milestoned. The temporal half of every rating query lives in
+// core_ratings::Store; this store only supplies the column to join on.
+Database credit_core::Store
+(
+   include core_party::Store
+   include core_ratings::Store
+
+   // ENTITY_ID is carried alongside OBLIGOR_ID and is not redundant: OBLIGOR_ID is this
+   // project's key, ENTITY_ID is the party master's AND the key CR_RATING_MS is milestoned
+   // by. Two joins leave this table on that one column.
+   Table CDC_OBLIGOR
+   (
+      OBLIGOR_ID VARCHAR(32) PRIMARY KEY,
+      ENTITY_ID VARCHAR(40) NOT NULL,
+      OBLIGOR_NAME VARCHAR(200),
+      INTERNAL_GRADE VARCHAR(8),
+      EXPOSURE_CLASS_CODE VARCHAR(24),
+      ON_WATCH_LIST BIT,
+      IS_DEFAULTED BIT,
+      DEFAULT_DATE DATE,
+      NEXT_REVIEW_DATE DATE
+   )
+
+   Table CDC_EXPOSURE_CLASS
+   (
+      CLASS_CODE VARCHAR(24) PRIMARY KEY,
+      CLASS_NAME VARCHAR(80) NOT NULL,
+      IS_RETAIL BIT,
+      PD_FLOOR DOUBLE,
+      RISK_WEIGHT_FLOOR DOUBLE
+   )
+
+   Table CDC_FACILITY
+   (
+      FACILITY_ID VARCHAR(32) PRIMARY KEY,
+      OBLIGOR_ID VARCHAR(32) NOT NULL,
+      FACILITY_TYPE VARCHAR(32),
+      COMMITMENT_AMOUNT DOUBLE,
+      CURRENCY_CODE VARCHAR(3),
+      START_DATE DATE,
+      MATURITY_DATE DATE,
+      CREDIT_CONVERSION_FACTOR DOUBLE,
+      IS_COMMITTED BIT,
+      SENIORITY VARCHAR(24)
+   )
+
+   Table CDC_EXPOSURE
+   (
+      EXPOSURE_ID VARCHAR(40) PRIMARY KEY,
+      FACILITY_ID VARCHAR(32) NOT NULL,
+      OBLIGOR_ID VARCHAR(32) NOT NULL,
+      PORTFOLIO_ID VARCHAR(32),
+      AS_OF_DATE DATE,
+      DRAWN_AMOUNT DOUBLE,
+      UNDRAWN_AMOUNT DOUBLE,
+      ACCRUED_INTEREST DOUBLE,
+      CURRENCY_CODE VARCHAR(3)
+   )
+
+   Table CDC_PD_MODEL
+   (
+      MODEL_ID VARCHAR(24) PRIMARY KEY,
+      MODEL_NAME VARCHAR(120) NOT NULL,
+      MODEL_VERSION VARCHAR(16),
+      CALIBRATION_DATE DATE,
+      IS_THROUGH_THE_CYCLE BIT,
+      OWNING_TEAM VARCHAR(80)
+   )
+
+   // COMPOSITE KEY. The symbol alone is not a key: every model calibrates its own curve
+   // over the same published scale, and `BBB-` means a different PD under each.
+   Table CDC_RATING_PD
+   (
+      MODEL_ID VARCHAR(24) PRIMARY KEY,
+      RATING_SYMBOL VARCHAR(8) PRIMARY KEY,
+      AGENCY_ID VARCHAR(20),
+      NOTCH INTEGER,
+      PD_VALUE DOUBLE,
+      IS_INVESTMENT_GRADE BIT
+   )
+
+   Table CDC_LGD_SEGMENT
+   (
+      SEGMENT_CODE VARCHAR(24) PRIMARY KEY,
+      SEGMENT_NAME VARCHAR(120) NOT NULL,
+      SENIORITY VARCHAR(24),
+      COLLATERAL_TYPE VARCHAR(32),
+      LGD_VALUE DOUBLE,
+      DOWNTURN_LGD DOUBLE
+   )
+
+   // DOUBLE and not REAL throughout: REAL parses and compiles and then cannot be read at
+   // execution (docs/UPSTREAM_FINDINGS.md F53).
+   Table CDC_RISK_MEASURE
+   (
+      MEASURE_ID VARCHAR(40) PRIMARY KEY,
+      EXPOSURE_ID VARCHAR(40) NOT NULL,
+      AS_OF_DATE DATE,
+      PD_VALUE DOUBLE,
+      LGD_VALUE DOUBLE,
+      EAD_AMOUNT DOUBLE,
+      PD_SOURCE VARCHAR(24),
+      MODEL_ID VARCHAR(24),
+      SEGMENT_CODE VARCHAR(24)
+   )
+
+   Table CDC_GUARANTEE
+   (
+      GUARANTEE_ID VARCHAR(32) PRIMARY KEY,
+      FACILITY_ID VARCHAR(32) NOT NULL,
+      GUARANTOR_ENTITY_ID VARCHAR(40) NOT NULL,
+      GUARANTEE_TYPE VARCHAR(32),
+      COVERED_AMOUNT DOUBLE,
+      IS_UNCONDITIONAL BIT,
+      EXPIRY_DATE DATE
+   )
+
+   Table CDC_DEFAULT_EVENT
+   (
+      EVENT_ID VARCHAR(32) PRIMARY KEY,
+      OBLIGOR_ID VARCHAR(32) NOT NULL,
+      EVENT_DATE DATE,
+      EVENT_TYPE VARCHAR(32),
+      DAYS_PAST_DUE INTEGER,
+      IS_CURED BIT,
+      CURE_DATE DATE
+   )
+
+   Table CDC_RECOVERY
+   (
+      RECOVERY_ID VARCHAR(32) PRIMARY KEY,
+      EVENT_ID VARCHAR(32) NOT NULL,
+      RECOVERY_DATE DATE,
+      RECOVERED_AMOUNT DOUBLE,
+      COST_AMOUNT DOUBLE,
+      RECOVERY_SOURCE VARCHAR(32)
+   )
+
+   Table CDC_PORTFOLIO
+   (
+      PORTFOLIO_ID VARCHAR(32) PRIMARY KEY,
+      PORTFOLIO_NAME VARCHAR(120) NOT NULL,
+      BUSINESS_UNIT VARCHAR(80),
+      REPORTING_CURRENCY VARCHAR(3),
+      IS_TRADING_BOOK BIT
+   )
+
+   // Inside the project.
+   Join Cdc_Obligor_Facility(CDC_OBLIGOR.OBLIGOR_ID = CDC_FACILITY.OBLIGOR_ID)
+   Join Cdc_Facility_Exposure(CDC_FACILITY.FACILITY_ID = CDC_EXPOSURE.FACILITY_ID)
+   Join Cdc_Exposure_Measure(CDC_EXPOSURE.EXPOSURE_ID = CDC_RISK_MEASURE.EXPOSURE_ID)
+   Join Cdc_Portfolio_Exposure(CDC_PORTFOLIO.PORTFOLIO_ID = CDC_EXPOSURE.PORTFOLIO_ID)
+   Join Cdc_Obligor_Default(CDC_OBLIGOR.OBLIGOR_ID = CDC_DEFAULT_EVENT.OBLIGOR_ID)
+   Join Cdc_Event_Recovery(CDC_DEFAULT_EVENT.EVENT_ID = CDC_RECOVERY.EVENT_ID)
+   Join Cdc_Facility_Guarantee(CDC_FACILITY.FACILITY_ID = CDC_GUARANTEE.FACILITY_ID)
+   Join Cdc_Model_RatingPd(CDC_PD_MODEL.MODEL_ID = CDC_RATING_PD.MODEL_ID)
+   Join Cdc_Obligor_ExposureClass(CDC_OBLIGOR.EXPOSURE_CLASS_CODE = CDC_EXPOSURE_CLASS.CLASS_CODE)
+
+   // Leaving the project. Both are plain key equalities on one line -- a wrapped join
+   // condition is not parsed.
+   Join Cdc_Obligor_Entity(CDC_OBLIGOR.ENTITY_ID = CP_LEGAL_ENTITY.ENTITY_ID)
+   Join Cdc_Guarantor_Entity(CDC_GUARANTEE.GUARANTOR_ENTITY_ID = CP_LEGAL_ENTITY.ENTITY_ID)
+
+   // INTO THE MILESTONED TABLE. The condition names no date and must not: FROM_Z / THRU_Z
+   // are the engine's, and it adds the predicate itself when the query supplies a business
+   // date. Written by hand here, the join would be wrong the moment `%latest` was asked for.
+   Join Cdc_Obligor_Rating(CDC_OBLIGOR.ENTITY_ID = CR_RATING_MS.ENTITY_ID)
+
+   // Obligors that have not defaulted. A null test rather than IS_DEFAULTED = false,
+   // because a Filter will not take a boolean literal.
+   Filter CdcPerformingObligors(CDC_OBLIGOR.DEFAULT_DATE is null)
+)

@@ -1,0 +1,232 @@
+###Mapping
+// Every set id is prefixed `cpr`, because set ids are a GLOBAL namespace in Legend and one
+// collision fails the whole graph with a message that names the id and not the project.
+//
+// The ~primaryKey clauses are where the composite keys become real to the engine: three
+// columns for an observation and for a quote, three for an adjustment and a statistic, two for
+// the consensus and for coverage. A shorter key would make two distinct rows the same object.
+Mapping core_price::Mapping
+(
+   // The composite-key class. All three columns: instrument and date alone collide across
+   // vendors, instrument and source alone collide across days.
+   core_price::CprPriceObservation[cprObservation]: Relational
+   {
+      ~primaryKey
+      (
+         [core_price::Store]CPR_PRICE_OBSERVATION.INSTRUMENT_ID,
+         [core_price::Store]CPR_PRICE_OBSERVATION.OBS_DATE,
+         [core_price::Store]CPR_PRICE_OBSERVATION.SOURCE_ID
+      )
+      ~mainTable [core_price::Store]CPR_PRICE_OBSERVATION
+      instrumentId: [core_price::Store]CPR_PRICE_OBSERVATION.INSTRUMENT_ID,
+      observationDate: [core_price::Store]CPR_PRICE_OBSERVATION.OBS_DATE,
+      sourceId: [core_price::Store]CPR_PRICE_OBSERVATION.SOURCE_ID,
+      currencyCode: [core_price::Store]CPR_PRICE_OBSERVATION.CURRENCY_CODE,
+      priceDecimals: [core_price::Store]CPR_PRICE_OBSERVATION.PRICE_DECIMALS,
+      quoteSequence: [core_price::Store]CPR_PRICE_OBSERVATION.QUOTE_SEQUENCE,
+      openPrice: [core_price::Store]CPR_PRICE_OBSERVATION.OPEN_PRICE,
+      highPrice: [core_price::Store]CPR_PRICE_OBSERVATION.HIGH_PRICE,
+      lowPrice: [core_price::Store]CPR_PRICE_OBSERVATION.LOW_PRICE,
+      closePrice: [core_price::Store]CPR_PRICE_OBSERVATION.CLOSE_PRICE,
+      pctChange: [core_price::Store]CPR_PRICE_OBSERVATION.PCT_CHANGE,
+      volume: [core_price::Store]CPR_PRICE_OBSERVATION.VOLUME,
+      isStale: [core_price::Store]CPR_PRICE_OBSERVATION.IS_STALE,
+      capturedAt: [core_price::Store]CPR_PRICE_OBSERVATION.CAPTURED_AT,
+      source[cprSource]: [core_price::Store]@Cpr_ObservationSource,
+      quoteCurrency[cprCurrency]: [core_price::Store]@Cpr_ObservationCurrency,
+      quote[cprQuote]: [core_price::Store]@Cpr_ObservationQuote,
+      consensus[cprConsensus]: [core_price::Store]@Cpr_ObservationConsensus,
+      statistics[cprStatistic]: [core_price::Store]@Cpr_ObservationStatistic,
+      adjustments[cprAdjustment]: [core_price::Store]@Cpr_ObservationAdjustment,
+      exceptions[cprException]: [core_price::Store]@Cpr_ObservationException
+   }
+
+   // The stale subset, over the same table and the same key. `extends` rather than a repeat
+   // of every column.
+   core_price::CprStalePrice[cprStalePrice] extends [cprObservation]: Relational
+   {
+      ~filter [core_price::Store]CprStaleRows
+   }
+
+   // The two-sided quote, keyed by the same triple as the observation.
+   core_price::CprQuote[cprQuote]: Relational
+   {
+      ~primaryKey
+      (
+         [core_price::Store]CPR_QUOTE.INSTRUMENT_ID,
+         [core_price::Store]CPR_QUOTE.OBS_DATE,
+         [core_price::Store]CPR_QUOTE.SOURCE_ID
+      )
+      ~mainTable [core_price::Store]CPR_QUOTE
+      instrumentId: [core_price::Store]CPR_QUOTE.INSTRUMENT_ID,
+      observationDate: [core_price::Store]CPR_QUOTE.OBS_DATE,
+      sourceId: [core_price::Store]CPR_QUOTE.SOURCE_ID,
+      bidPrice: [core_price::Store]CPR_QUOTE.BID_PRICE,
+      askPrice: [core_price::Store]CPR_QUOTE.ASK_PRICE,
+      bidSize: [core_price::Store]CPR_QUOTE.BID_SIZE,
+      askSize: [core_price::Store]CPR_QUOTE.ASK_SIZE,
+      spreadPct: [core_price::Store]CPR_QUOTE.SPREAD_PCT,
+      quoteCondition: [core_price::Store]CPR_QUOTE.QUOTE_CONDITION,
+      currencyCode: [core_price::Store]CPR_QUOTE.CURRENCY_CODE,
+      isFirm: [core_price::Store]CPR_QUOTE.IS_FIRM
+   }
+
+   // The vendors, with their tier reached across the CHAR(1) code and their entitlements
+   // across the coverage join.
+   core_price::CprPriceSource[cprSource]: Relational
+   {
+      ~primaryKey ( [core_price::Store]CPR_PRICE_SOURCE.SOURCE_ID )
+      ~mainTable [core_price::Store]CPR_PRICE_SOURCE
+      sourceId: [core_price::Store]CPR_PRICE_SOURCE.SOURCE_ID,
+      sourceName: [core_price::Store]CPR_PRICE_SOURCE.SOURCE_NAME,
+      vendorCode: [core_price::Store]CPR_PRICE_SOURCE.VENDOR_CODE,
+      tierCode: [core_price::Store]CPR_PRICE_SOURCE.TIER_CODE,
+      defaultCurrency: [core_price::Store]CPR_PRICE_SOURCE.DEFAULT_CURRENCY,
+      rankOrder: [core_price::Store]CPR_PRICE_SOURCE.RANK_ORDER,
+      latencySeconds: [core_price::Store]CPR_PRICE_SOURCE.LATENCY_SECONDS,
+      reliabilityPct: [core_price::Store]CPR_PRICE_SOURCE.RELIABILITY_PCT,
+      isPrimary: [core_price::Store]CPR_PRICE_SOURCE.IS_PRIMARY,
+      onboardDate: [core_price::Store]CPR_PRICE_SOURCE.ONBOARD_DATE,
+      tier[cprTier]: [core_price::Store]@Cpr_SourceTier,
+      coverage[cprCoverage]: [core_price::Store]@Cpr_SourceCoverage
+   }
+
+   // The approval bands, keyed by the CHAR(1) code.
+   core_price::CprSourceTier[cprTier]: Relational
+   {
+      ~primaryKey ( [core_price::Store]CPR_SOURCE_TIER.TIER_CODE )
+      ~mainTable [core_price::Store]CPR_SOURCE_TIER
+      tierCode: [core_price::Store]CPR_SOURCE_TIER.TIER_CODE,
+      tierName: [core_price::Store]CPR_SOURCE_TIER.TIER_NAME,
+      minReliabilityPct: [core_price::Store]CPR_SOURCE_TIER.MIN_RELIABILITY_PCT,
+      maxLatencySeconds: [core_price::Store]CPR_SOURCE_TIER.MAX_LATENCY_SECONDS,
+      isApproved: [core_price::Store]CPR_SOURCE_TIER.IS_APPROVED,
+      note: [core_price::Store]CPR_SOURCE_TIER.NOTE
+   }
+
+   // Currencies, keyed by the CHAR(3) ISO code.
+   core_price::CprPriceCurrency[cprCurrency]: Relational
+   {
+      ~primaryKey ( [core_price::Store]CPR_PRICE_CURRENCY.CURRENCY_CODE )
+      ~mainTable [core_price::Store]CPR_PRICE_CURRENCY
+      currencyCode: [core_price::Store]CPR_PRICE_CURRENCY.CURRENCY_CODE,
+      currencyName: [core_price::Store]CPR_PRICE_CURRENCY.CURRENCY_NAME,
+      minorUnits: [core_price::Store]CPR_PRICE_CURRENCY.MINOR_UNITS,
+      quoteDecimals: [core_price::Store]CPR_PRICE_CURRENCY.QUOTE_DECIMALS,
+      isActive: [core_price::Store]CPR_PRICE_CURRENCY.IS_ACTIVE
+   }
+
+   // Corporate-action factors, keyed by instrument, date and the SMALLINT sequence.
+   core_price::CprPriceAdjustment[cprAdjustment]: Relational
+   {
+      ~primaryKey
+      (
+         [core_price::Store]CPR_PRICE_ADJUSTMENT.INSTRUMENT_ID,
+         [core_price::Store]CPR_PRICE_ADJUSTMENT.EFFECTIVE_DATE,
+         [core_price::Store]CPR_PRICE_ADJUSTMENT.ADJUSTMENT_SEQ
+      )
+      ~mainTable [core_price::Store]CPR_PRICE_ADJUSTMENT
+      instrumentId: [core_price::Store]CPR_PRICE_ADJUSTMENT.INSTRUMENT_ID,
+      effectiveDate: [core_price::Store]CPR_PRICE_ADJUSTMENT.EFFECTIVE_DATE,
+      adjustmentSeq: [core_price::Store]CPR_PRICE_ADJUSTMENT.ADJUSTMENT_SEQ,
+      adjustmentType: [core_price::Store]CPR_PRICE_ADJUSTMENT.ADJUSTMENT_TYPE,
+      adjustmentFactor: [core_price::Store]CPR_PRICE_ADJUSTMENT.ADJ_FACTOR,
+      cumulativeFactor: [core_price::Store]CPR_PRICE_ADJUSTMENT.CUMULATIVE_FACTOR,
+      pctImpact: [core_price::Store]CPR_PRICE_ADJUSTMENT.PCT_IMPACT,
+      currencyCode: [core_price::Store]CPR_PRICE_ADJUSTMENT.CURRENCY_CODE,
+      isApplied: [core_price::Store]CPR_PRICE_ADJUSTMENT.IS_APPLIED,
+      appliedOn: [core_price::Store]CPR_PRICE_ADJUSTMENT.APPLIED_ON
+   }
+
+   // The consensus, keyed by two columns and reaching back to every vendor row behind it.
+   core_price::CprConsensusPrice[cprConsensus]: Relational
+   {
+      ~primaryKey
+      (
+         [core_price::Store]CPR_CONSENSUS_PRICE.INSTRUMENT_ID,
+         [core_price::Store]CPR_CONSENSUS_PRICE.OBS_DATE
+      )
+      ~mainTable [core_price::Store]CPR_CONSENSUS_PRICE
+      instrumentId: [core_price::Store]CPR_CONSENSUS_PRICE.INSTRUMENT_ID,
+      observationDate: [core_price::Store]CPR_CONSENSUS_PRICE.OBS_DATE,
+      consensusPrice: [core_price::Store]CPR_CONSENSUS_PRICE.CONSENSUS_PRICE,
+      contributorCount: [core_price::Store]CPR_CONSENSUS_PRICE.CONTRIBUTOR_COUNT,
+      dispersionPct: [core_price::Store]CPR_CONSENSUS_PRICE.DISPERSION_PCT,
+      methodCode: [core_price::Store]CPR_CONSENSUS_PRICE.METHOD_CODE,
+      currencyCode: [core_price::Store]CPR_CONSENSUS_PRICE.CURRENCY_CODE,
+      isFinal: [core_price::Store]CPR_CONSENSUS_PRICE.IS_FINAL,
+      contributors[cprObservation]: [core_price::Store]@Cpr_ObservationConsensus
+   }
+
+   // Rolling statistics. WINDOW_DAYS is in the key, so 20-day and 60-day are two objects.
+   core_price::CprPriceStatistic[cprStatistic]: Relational
+   {
+      ~primaryKey
+      (
+         [core_price::Store]CPR_PRICE_STATISTIC.INSTRUMENT_ID,
+         [core_price::Store]CPR_PRICE_STATISTIC.OBS_DATE,
+         [core_price::Store]CPR_PRICE_STATISTIC.WINDOW_DAYS
+      )
+      ~mainTable [core_price::Store]CPR_PRICE_STATISTIC
+      instrumentId: [core_price::Store]CPR_PRICE_STATISTIC.INSTRUMENT_ID,
+      observationDate: [core_price::Store]CPR_PRICE_STATISTIC.OBS_DATE,
+      windowDays: [core_price::Store]CPR_PRICE_STATISTIC.WINDOW_DAYS,
+      meanPrice: [core_price::Store]CPR_PRICE_STATISTIC.MEAN_PRICE,
+      minPrice: [core_price::Store]CPR_PRICE_STATISTIC.MIN_PRICE,
+      maxPrice: [core_price::Store]CPR_PRICE_STATISTIC.MAX_PRICE,
+      stdDevPct: [core_price::Store]CPR_PRICE_STATISTIC.STDDEV_PCT,
+      returnPct: [core_price::Store]CPR_PRICE_STATISTIC.RETURN_PCT,
+      observationCount: [core_price::Store]CPR_PRICE_STATISTIC.OBSERVATION_COUNT,
+      isComplete: [core_price::Store]CPR_PRICE_STATISTIC.IS_COMPLETE
+   }
+
+   // Breaks, keyed by instrument, date and the SMALLINT sequence within the day.
+   core_price::CprPriceException[cprException]: Relational
+   {
+      ~primaryKey
+      (
+         [core_price::Store]CPR_PRICE_EXCEPTION.INSTRUMENT_ID,
+         [core_price::Store]CPR_PRICE_EXCEPTION.OBS_DATE,
+         [core_price::Store]CPR_PRICE_EXCEPTION.EXCEPTION_SEQ
+      )
+      ~mainTable [core_price::Store]CPR_PRICE_EXCEPTION
+      instrumentId: [core_price::Store]CPR_PRICE_EXCEPTION.INSTRUMENT_ID,
+      observationDate: [core_price::Store]CPR_PRICE_EXCEPTION.OBS_DATE,
+      exceptionSeq: [core_price::Store]CPR_PRICE_EXCEPTION.EXCEPTION_SEQ,
+      exceptionCode: [core_price::Store]CPR_PRICE_EXCEPTION.EXCEPTION_CODE,
+      severity: [core_price::Store]CPR_PRICE_EXCEPTION.SEVERITY,
+      deviationPct: [core_price::Store]CPR_PRICE_EXCEPTION.DEVIATION_PCT,
+      raisedAt: [core_price::Store]CPR_PRICE_EXCEPTION.RAISED_AT,
+      isResolved: [core_price::Store]CPR_PRICE_EXCEPTION.IS_RESOLVED,
+      resolution: [core_price::Store]CPR_PRICE_EXCEPTION.RESOLUTION
+   }
+
+   // Entitlements, keyed by the (source, instrument) pair.
+   core_price::CprVendorCoverage[cprCoverage]: Relational
+   {
+      ~primaryKey
+      (
+         [core_price::Store]CPR_VENDOR_COVERAGE.SOURCE_ID,
+         [core_price::Store]CPR_VENDOR_COVERAGE.INSTRUMENT_ID
+      )
+      ~mainTable [core_price::Store]CPR_VENDOR_COVERAGE
+      sourceId: [core_price::Store]CPR_VENDOR_COVERAGE.SOURCE_ID,
+      instrumentId: [core_price::Store]CPR_VENDOR_COVERAGE.INSTRUMENT_ID,
+      startDate: [core_price::Store]CPR_VENDOR_COVERAGE.START_DATE,
+      endDate: [core_price::Store]CPR_VENDOR_COVERAGE.END_DATE,
+      coveragePct: [core_price::Store]CPR_VENDOR_COVERAGE.COVERAGE_PCT,
+      priority: [core_price::Store]CPR_VENDOR_COVERAGE.PRIORITY,
+      isActive: [core_price::Store]CPR_VENDOR_COVERAGE.IS_ACTIVE,
+      currencyCode: [core_price::Store]CPR_VENDOR_COVERAGE.CURRENCY_CODE
+   }
+
+   // The (instrument, date) calendar, ~distinct over the observation table -- which holds one
+   // row per vendor and collapses here to one per day.
+   core_price::CprPriceDay[cprPriceDay]: Relational
+   {
+      ~distinct
+      ~mainTable [core_price::Store]CPR_PRICE_OBSERVATION
+      instrumentId: [core_price::Store]CPR_PRICE_OBSERVATION.INSTRUMENT_ID,
+      observationDate: [core_price::Store]CPR_PRICE_OBSERVATION.OBS_DATE
+   }
+)

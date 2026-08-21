@@ -1,0 +1,272 @@
+###Mapping
+// The corporate-actions mapping.
+//
+// Both dependencies' mappings are INCLUDED, and for two different reasons.
+//
+//   core_calendar::Mapping  because EvtEventDate.calendar is a core_calendar::CcCalendar.
+//                           A property whose target class is not mapped in this mapping has
+//                           nothing to resolve to, so the include is what makes the join
+//                           usable rather than merely legal.
+//
+//   core_instrument::Mapping  because the association below has an end ON
+//                           core_instrument::Instrument, and an AssociationMapping end must
+//                           name a set that exists here.
+//
+// Every cross-project end names the dependency's EXPLICIT set id -- [ciBase], [ccCalendar],
+// [ccMarket] -- because both dependencies declare their ids, and where a set id is declared
+// the default id (`core_instrument_Instrument`) does not exist at all.
+//
+// [evtBase] is the root set and the id a downstream project extends: trade-lifecycle adds
+// its own event types as `extends [evtBase]` plus a Filter, and nothing here changes.
+Mapping event_core::Mapping
+(
+   include core_instrument::Mapping
+   include core_calendar::Mapping
+
+   // ---- the enum transformers ----
+   // The only place the physical code strings live. Each is paired with a column that is a
+   // plain VARCHAR in the store, so a code change is one line here rather than a search.
+
+   // Note this does NOT drive the subtype filters. EVENT_TYPE stays a raw String on the
+   // base class because the ~filters match it before any transformation happens; this
+   // transforms the parallel EVENT_TYPE_CODE column, which is the classification.
+   event_core::EvtEventType: EnumerationMapping EvtEventTypeMapping
+   {
+      CASH_DIVIDEND:   ['DVCA', 'CASH_DIVIDEND'],
+      STOCK_SPLIT:     ['SPLF', 'STOCK_SPLIT'],
+      RIGHTS_ISSUE:    ['RHTS', 'RIGHTS_ISSUE'],
+      MERGER:          ['MRGR', 'MERGER'],
+      SPIN_OFF:        ['SOFF', 'SPIN_OFF'],
+      TENDER_OFFER:    ['TEND', 'TENDER_OFFER'],
+      CALL_REDEMPTION: ['REDM', 'CALL_REDEMPTION']
+   }
+
+   event_core::EvtEventStatus: EnumerationMapping EvtEventStatusMapping
+   {
+      ANNOUNCED: ['ANOU', 'ANNOUNCED'],
+      CONFIRMED: ['CONF', 'CONFIRMED'],
+      EFFECTIVE: ['EFFC', 'EFFECTIVE'],
+      CANCELLED: ['CANC', 'CANCELLED'],
+      LAPSED:    ['LAPS', 'LAPSED']
+   }
+
+   event_core::EvtDateRole: EnumerationMapping EvtDateRoleMapping
+   {
+      ANNOUNCEMENT:      ['ANNC', 'ANNOUNCEMENT'],
+      EX:                ['XDTE', 'EX'],
+      RECORD:            ['RDTE', 'RECORD'],
+      PAY:               ['PDTE', 'PAY'],
+      ELECTION_DEADLINE: ['MKDT', 'ELECTION_DEADLINE'],
+      EFFECTIVE:         ['EFFD', 'EFFECTIVE']
+   }
+
+   // The tie back to the calendar: what a date does when the calendar says its day is not
+   // a business day.
+   event_core::EvtBusinessDayConvention: EnumerationMapping EvtBusinessDayConventionMapping
+   {
+      FOLLOWING:          ['FOLL', 'FOLLOWING'],
+      MODIFIED_FOLLOWING: ['MODF', 'MODIFIED_FOLLOWING'],
+      PRECEDING:          ['PREC', 'PRECEDING'],
+      NONE:               ['NONE', 'UNADJUSTED']
+   }
+
+   event_core::EvtConsiderationType: EnumerationMapping EvtConsiderationTypeMapping
+   {
+      CASH:                ['CASH', 'CASH'],
+      SECURITIES:          ['SECU', 'SECURITIES'],
+      CASH_AND_SECURITIES: ['CSSE', 'CASH_AND_SECURITIES'],
+      RIGHTS:              ['RGHT', 'RIGHTS']
+   }
+
+   event_core::EvtElectionStatus: EnumerationMapping EvtElectionStatusMapping
+   {
+      PENDING:      ['PEND', 'PENDING'],
+      SUBMITTED:    ['SUBM', 'SUBMITTED'],
+      ACKNOWLEDGED: ['ACKD', 'ACKNOWLEDGED'],
+      REJECTED:     ['REJT', 'REJECTED'],
+      DEFAULTED:    ['DFLT', 'DEFAULTED']
+   }
+
+   // ---- the root set: every row of EVT_CORPORATE_EVENT, whatever type it turns out to be ----
+   *event_core::EvtCorporateEvent[evtBase]: Relational
+   {
+      ~primaryKey ( [event_core::Store]EVT_CORPORATE_EVENT.EVENT_ID )
+      ~mainTable [event_core::Store]EVT_CORPORATE_EVENT
+      eventId: [event_core::Store]EVT_CORPORATE_EVENT.EVENT_ID,
+      eventType: [event_core::Store]EVT_CORPORATE_EVENT.EVENT_TYPE,
+      eventTypeCode: EnumerationMapping EvtEventTypeMapping: [event_core::Store]EVT_CORPORATE_EVENT.EVENT_TYPE_CODE,
+      eventStatus: EnumerationMapping EvtEventStatusMapping: [event_core::Store]EVT_CORPORATE_EVENT.EVENT_STATUS,
+      instrumentId: [event_core::Store]EVT_CORPORATE_EVENT.INSTRUMENT_ID,
+      marketMic: [event_core::Store]EVT_CORPORATE_EVENT.MARKET_MIC,
+      currency: [event_core::Store]EVT_CORPORATE_EVENT.CURRENCY,
+      announcementDate: [event_core::Store]EVT_CORPORATE_EVENT.ANNOUNCEMENT_DATE,
+      exDate: [event_core::Store]EVT_CORPORATE_EVENT.EX_DATE,
+      recordDate: [event_core::Store]EVT_CORPORATE_EVENT.RECORD_DATE,
+      payDate: [event_core::Store]EVT_CORPORATE_EVENT.PAY_DATE,
+      dateConvention: EnumerationMapping EvtBusinessDayConventionMapping: [event_core::Store]EVT_CORPORATE_EVENT.DATE_CONVENTION,
+      isElective: [event_core::Store]EVT_CORPORATE_EVENT.IS_ELECTIVE,
+      sourceReference: [event_core::Store]EVT_CORPORATE_EVENT.SOURCE_REFERENCE,
+      cancelledOn: [event_core::Store]EVT_CORPORATE_EVENT.CANCELLED_ON,
+      dates[evtEventDate]: [event_core::Store]@Evt_EventDate,
+      electionOptions[evtElectionOption]: [event_core::Store]@Evt_EventElectionOption,
+      elections[evtElection]: [event_core::Store]@Evt_EventElection,
+      // Out to core-calendar. [ccMarket] is that project's declared id; the default does
+      // not exist.
+      market[ccMarket]: [event_core::Store]@Evt_EventMarket
+   }
+
+   // ---- the seven action types ----
+   // Each is the SAME table narrowed by EVENT_TYPE, plus only the columns that mean
+   // something once the row is known to be of this type. The primary key, the main table
+   // and all twenty inherited property mappings come from [evtBase].
+
+   event_core::EvtCashDividend[evtCashDividend] extends [evtBase]: Relational
+   {
+      ~filter [event_core::Store]EvtCashDividendRows
+      grossAmountPerShare: [event_core::Store]EVT_CORPORATE_EVENT.GROSS_AMOUNT_PER_SHARE,
+      netAmountPerShare: [event_core::Store]EVT_CORPORATE_EVENT.NET_AMOUNT_PER_SHARE,
+      withholdingTaxRate: [event_core::Store]EVT_CORPORATE_EVENT.WITHHOLDING_TAX_RATE,
+      dividendFrequency: [event_core::Store]EVT_CORPORATE_EVENT.DIVIDEND_FREQUENCY,
+      isSpecial: [event_core::Store]EVT_CORPORATE_EVENT.IS_SPECIAL,
+      declaredCurrency: [event_core::Store]EVT_CORPORATE_EVENT.DECLARED_CURRENCY
+   }
+
+   event_core::EvtStockSplit[evtStockSplit] extends [evtBase]: Relational
+   {
+      ~filter [event_core::Store]EvtStockSplitRows
+      splitFromShares: [event_core::Store]EVT_CORPORATE_EVENT.SPLIT_FROM_SHARES,
+      splitToShares: [event_core::Store]EVT_CORPORATE_EVENT.SPLIT_TO_SHARES,
+      isReverse: [event_core::Store]EVT_CORPORATE_EVENT.IS_REVERSE,
+      fractionalHandling: [event_core::Store]EVT_CORPORATE_EVENT.FRACTIONAL_HANDLING
+   }
+
+   event_core::EvtRightsIssue[evtRightsIssue] extends [evtBase]: Relational
+   {
+      ~filter [event_core::Store]EvtRightsIssueRows
+      subscriptionPrice: [event_core::Store]EVT_CORPORATE_EVENT.SUBSCRIPTION_PRICE,
+      rightsPerShareHeld: [event_core::Store]EVT_CORPORATE_EVENT.RIGHTS_PER_SHARE_HELD,
+      newSharesPerRight: [event_core::Store]EVT_CORPORATE_EVENT.NEW_SHARES_PER_RIGHT,
+      isTradable: [event_core::Store]EVT_CORPORATE_EVENT.IS_TRADABLE,
+      subscriptionStartDate: [event_core::Store]EVT_CORPORATE_EVENT.SUBSCRIPTION_START_DATE,
+      subscriptionEndDate: [event_core::Store]EVT_CORPORATE_EVENT.SUBSCRIPTION_END_DATE,
+      rightsIsin: [event_core::Store]EVT_CORPORATE_EVENT.RIGHTS_ISIN
+   }
+
+   event_core::EvtMerger[evtMerger] extends [evtBase]: Relational
+   {
+      ~filter [event_core::Store]EvtMergerRows
+      acquirerName: [event_core::Store]EVT_CORPORATE_EVENT.ACQUIRER_NAME,
+      acquirerInstrumentId: [event_core::Store]EVT_CORPORATE_EVENT.ACQUIRER_INSTRUMENT_ID,
+      shareExchangeRatio: [event_core::Store]EVT_CORPORATE_EVENT.SHARE_EXCHANGE_RATIO,
+      cashPerShare: [event_core::Store]EVT_CORPORATE_EVENT.CASH_PER_SHARE,
+      effectiveDate: [event_core::Store]EVT_CORPORATE_EVENT.EFFECTIVE_DATE,
+      isHostile: [event_core::Store]EVT_CORPORATE_EVENT.IS_HOSTILE,
+      considerationType: EnumerationMapping EvtConsiderationTypeMapping: [event_core::Store]EVT_CORPORATE_EVENT.CONSIDERATION_TYPE
+   }
+
+   event_core::EvtSpinOff[evtSpinOff] extends [evtBase]: Relational
+   {
+      ~filter [event_core::Store]EvtSpinOffRows
+      spunOffEntityName: [event_core::Store]EVT_CORPORATE_EVENT.SPUN_OFF_ENTITY_NAME,
+      spunOffInstrumentId: [event_core::Store]EVT_CORPORATE_EVENT.SPUN_OFF_INSTRUMENT_ID,
+      distributionRatio: [event_core::Store]EVT_CORPORATE_EVENT.DISTRIBUTION_RATIO,
+      parentCostBasisPercent: [event_core::Store]EVT_CORPORATE_EVENT.PARENT_COST_BASIS_PCT,
+      isTaxFree: [event_core::Store]EVT_CORPORATE_EVENT.IS_TAX_FREE
+   }
+
+   // The elective one. ELECTION_DEADLINE is the announced date; the ELECTION_DEADLINE row
+   // in EVT_EVENT_DATE is where it was checked against the market's calendar.
+   event_core::EvtTenderOffer[evtTenderOffer] extends [evtBase]: Relational
+   {
+      ~filter [event_core::Store]EvtTenderOfferRows
+      offerPrice: [event_core::Store]EVT_CORPORATE_EVENT.OFFER_PRICE,
+      offerCurrency: [event_core::Store]EVT_CORPORATE_EVENT.OFFER_CURRENCY,
+      electionDeadline: [event_core::Store]EVT_CORPORATE_EVENT.ELECTION_DEADLINE,
+      minimumTenderPercent: [event_core::Store]EVT_CORPORATE_EVENT.MINIMUM_TENDER_PCT,
+      maximumSharesSought: [event_core::Store]EVT_CORPORATE_EVENT.MAXIMUM_SHARES_SOUGHT,
+      prorationApplies: [event_core::Store]EVT_CORPORATE_EVENT.PRORATION_APPLIES,
+      offerorName: [event_core::Store]EVT_CORPORATE_EVENT.OFFEROR_NAME
+   }
+
+   event_core::EvtCallRedemption[evtCallRedemption] extends [evtBase]: Relational
+   {
+      ~filter [event_core::Store]EvtCallRedemptionRows
+      redemptionPricePercent: [event_core::Store]EVT_CORPORATE_EVENT.REDEMPTION_PRICE_PCT,
+      callType: [event_core::Store]EVT_CORPORATE_EVENT.CALL_TYPE,
+      noticeDate: [event_core::Store]EVT_CORPORATE_EVENT.NOTICE_DATE,
+      isPartial: [event_core::Store]EVT_CORPORATE_EVENT.IS_PARTIAL,
+      redeemedFraction: [event_core::Store]EVT_CORPORATE_EVENT.REDEEMED_FRACTION,
+      accruedInterestPaid: [event_core::Store]EVT_CORPORATE_EVENT.ACCRUED_INTEREST_PAID
+   }
+
+   // ---- the dates, and the hop into the calendar ----
+   // `calendar` is the whole point of the core-calendar dependency: from one of an event's
+   // dates, one join reaches the calendar whose holidays decided whether that date was a
+   // business day, and a second hop from there reaches the holidays themselves.
+   event_core::EvtEventDate[evtEventDate]: Relational
+   {
+      ~primaryKey ( [event_core::Store]EVT_EVENT_DATE.EVENT_DATE_ID )
+      ~mainTable [event_core::Store]EVT_EVENT_DATE
+      eventDateId: [event_core::Store]EVT_EVENT_DATE.EVENT_DATE_ID,
+      eventId: [event_core::Store]EVT_EVENT_DATE.EVENT_ID,
+      dateRole: EnumerationMapping EvtDateRoleMapping: [event_core::Store]EVT_EVENT_DATE.DATE_ROLE,
+      announcedDate: [event_core::Store]EVT_EVENT_DATE.ANNOUNCED_DATE,
+      adjustedDate: [event_core::Store]EVT_EVENT_DATE.ADJUSTED_DATE,
+      isBusinessDay: [event_core::Store]EVT_EVENT_DATE.IS_BUSINESS_DAY,
+      convention: EnumerationMapping EvtBusinessDayConventionMapping: [event_core::Store]EVT_EVENT_DATE.CONVENTION,
+      calendarId: [event_core::Store]EVT_EVENT_DATE.CALENDAR_ID,
+      marketMic: [event_core::Store]EVT_EVENT_DATE.MARKET_MIC,
+      event[evtBase]: [event_core::Store]@Evt_EventDate,
+      calendar[ccCalendar]: [event_core::Store]@Evt_DateCalendar,
+      market[ccMarket]: [event_core::Store]@Evt_DateMarket
+   }
+
+   // ---- elections ----
+   event_core::EvtElectionOption[evtElectionOption]: Relational
+   {
+      ~primaryKey ( [event_core::Store]EVT_ELECTION_OPTION.OPTION_ID )
+      ~mainTable [event_core::Store]EVT_ELECTION_OPTION
+      optionId: [event_core::Store]EVT_ELECTION_OPTION.OPTION_ID,
+      eventId: [event_core::Store]EVT_ELECTION_OPTION.EVENT_ID,
+      optionCode: [event_core::Store]EVT_ELECTION_OPTION.OPTION_CODE,
+      optionDescription: [event_core::Store]EVT_ELECTION_OPTION.OPTION_DESCRIPTION,
+      considerationType: EnumerationMapping EvtConsiderationTypeMapping: [event_core::Store]EVT_ELECTION_OPTION.CONSIDERATION_TYPE,
+      cashPerShare: [event_core::Store]EVT_ELECTION_OPTION.CASH_PER_SHARE,
+      sharesPerShare: [event_core::Store]EVT_ELECTION_OPTION.SHARES_PER_SHARE,
+      isDefault: [event_core::Store]EVT_ELECTION_OPTION.IS_DEFAULT,
+      responseDeadline: [event_core::Store]EVT_ELECTION_OPTION.RESPONSE_DEADLINE,
+      event[evtBase]: [event_core::Store]@Evt_EventElectionOption,
+      elections[evtElection]: [event_core::Store]@Evt_ElectionOption
+   }
+
+   event_core::EvtEventElection[evtElection]: Relational
+   {
+      ~primaryKey ( [event_core::Store]EVT_ELECTION.ELECTION_ID )
+      ~mainTable [event_core::Store]EVT_ELECTION
+      electionId: [event_core::Store]EVT_ELECTION.ELECTION_ID,
+      eventId: [event_core::Store]EVT_ELECTION.EVENT_ID,
+      optionId: [event_core::Store]EVT_ELECTION.OPTION_ID,
+      accountReference: [event_core::Store]EVT_ELECTION.ACCOUNT_REFERENCE,
+      quantityElected: [event_core::Store]EVT_ELECTION.QUANTITY_ELECTED,
+      electionStatus: EnumerationMapping EvtElectionStatusMapping: [event_core::Store]EVT_ELECTION.ELECTION_STATUS,
+      submittedOn: [event_core::Store]EVT_ELECTION.SUBMITTED_ON,
+      allocatedQuantity: [event_core::Store]EVT_ELECTION.ALLOCATED_QUANTITY,
+      event[evtBase]: [event_core::Store]@Evt_EventElection,
+      option[evtElectionOption]: [event_core::Store]@Evt_ElectionOption
+   }
+
+   // ---- the association that crosses into core-instrument ----
+   // Both ends name [sourceSetId, targetSetId] explicitly. The bare `prop: [db]@Join` form
+   // only resolves against DEFAULT set ids, and neither side has one: this project declares
+   // [evtBase] and core-instrument declares [ciBase].
+   //
+   // One join serves both directions, read each way round.
+   event_core::EvtInstrumentEvents: Relational
+   {
+      AssociationMapping
+      (
+         instrument[evtBase, ciBase]: [event_core::Store]@Evt_EventInstrument,
+         corporateEvents[ciBase, evtBase]: [event_core::Store]@Evt_EventInstrument
+      )
+   }
+)

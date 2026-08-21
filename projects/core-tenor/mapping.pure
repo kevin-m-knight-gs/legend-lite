@@ -1,0 +1,77 @@
+###Mapping
+Mapping core_tenor::Mapping
+(
+    // Source codes as a bucket table actually stores them, not the enum names.
+    core_tenor::CtnTenorBand: EnumerationMapping CtnBandMapping
+    {
+        D0_7:     ['0-7D', '0D-7D'],
+        D8_30:    ['8-30D'],
+        M1_3:     ['1-3M'],
+        M3_6:     ['3-6M'],
+        M6_12:    ['6-12M'],
+        Y1_3:     ['1-3Y'],
+        Y3_5:     ['3-5Y'],
+        Y5_10:    ['5-10Y'],
+        Y10_PLUS: ['10Y+']
+    }
+
+    core_tenor::CtnDatedItemKind: EnumerationMapping CtnItemKindMapping
+    {
+        CASHFLOW: ['CF'],
+        FIXING:   ['FIX'],
+        RESET:    ['RST'],
+        MATURITY: ['MAT']
+    }
+
+    core_tenor::CtnTenorLadder[ctnLadder]: Relational
+    {
+        ~primaryKey ( [core_tenor::Store]CTN_TENOR_LADDER.LADDER_ID )
+        ~mainTable [core_tenor::Store]CTN_TENOR_LADDER
+        ladderId: [core_tenor::Store]CTN_TENOR_LADDER.LADDER_ID,
+        name: [core_tenor::Store]CTN_TENOR_LADDER.NAME,
+        dayCountConvention: [core_tenor::Store]CTN_TENOR_LADDER.DAY_COUNT_CONVENTION,
+        isDefault: [core_tenor::Store]CTN_TENOR_LADDER.IS_DEFAULT,
+        buckets[ctnBucket]: [core_tenor::Store]@Ctn_BucketLadder
+    }
+
+    core_tenor::CtnTenorBucket[ctnBucket]: Relational
+    {
+        ~primaryKey ( [core_tenor::Store]CTN_BUCKET.BUCKET_ID )
+        ~mainTable [core_tenor::Store]CTN_BUCKET
+        bucketId: [core_tenor::Store]CTN_BUCKET.BUCKET_ID,
+        band: EnumerationMapping CtnBandMapping: [core_tenor::Store]CTN_BUCKET.BAND_CODE,
+        label: [core_tenor::Store]CTN_BUCKET.LABEL,
+        minDays: [core_tenor::Store]CTN_BUCKET.MIN_DAYS,
+        maxDays: [core_tenor::Store]CTN_BUCKET.MAX_DAYS,
+        sortOrder: [core_tenor::Store]CTN_BUCKET.SORT_ORDER,
+        ladder[ctnLadder]: [core_tenor::Store]@Ctn_BucketLadder,
+        // The RANGE join traversed backwards: every dated item whose DAYS_AWAY lands in
+        // this bucket's half-open interval.
+        items[ctnDatedItem]: [core_tenor::Store]@Ctn_DatedBucket
+    }
+
+    core_tenor::CtnDatedItem[ctnDatedItem]: Relational
+    {
+        ~primaryKey ( [core_tenor::Store]CTN_DATED_ITEM.ITEM_ID )
+        ~mainTable [core_tenor::Store]CTN_DATED_ITEM
+        itemId: [core_tenor::Store]CTN_DATED_ITEM.ITEM_ID,
+        kind: EnumerationMapping CtnItemKindMapping: [core_tenor::Store]CTN_DATED_ITEM.ITEM_KIND,
+        valueDate: [core_tenor::Store]CTN_DATED_ITEM.VALUE_DATE,
+        daysAway: [core_tenor::Store]CTN_DATED_ITEM.DAYS_AWAY,
+        amount: [core_tenor::Store]CTN_DATED_ITEM.AMOUNT,
+        currency: [core_tenor::Store]CTN_DATED_ITEM.CURRENCY,
+        // The RANGE join, forwards. No key column on either side of it.
+        bucket[ctnBucket]: [core_tenor::Store]@Ctn_DatedBucket
+    }
+
+    core_tenor::CtnBucketProfile[ctnProfile]: Relational
+    {
+        ~primaryKey ( [core_tenor::Store]CTN_BUCKET_PROFILE.PROFILE_ID )
+        ~mainTable [core_tenor::Store]CTN_BUCKET_PROFILE
+        profileId: [core_tenor::Store]CTN_BUCKET_PROFILE.PROFILE_ID,
+        asOfDate: [core_tenor::Store]CTN_BUCKET_PROFILE.AS_OF_DATE,
+        itemCount: [core_tenor::Store]CTN_BUCKET_PROFILE.ITEM_COUNT,
+        totalAmount: [core_tenor::Store]CTN_BUCKET_PROFILE.TOTAL_AMOUNT,
+        bucket[ctnBucket]: [core_tenor::Store]@Ctn_ProfileBucket
+    }
+)

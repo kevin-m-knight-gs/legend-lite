@@ -1,0 +1,464 @@
+###Mapping
+// ============================================================
+// reference_data::Mapping -- 30 sets, five of which are somebody else's table
+// ============================================================
+// Includes BOTH dependency mappings. Including core_instrument::Mapping is what makes
+// `extends [ciBase]` resolvable at all: a set id is a global name, but a set may only be
+// extended by a mapping that has the mapping declaring it in scope.
+//
+// Three kinds of set live here, and the first two are the point of the project:
+//
+//   CROSS-PROJECT SUBTYPES. Five sets whose class extends core_instrument::Instrument and
+//   whose set extends core-instrument's ROOT set [ciBase]. Each adds one ~filter -- ours,
+//   declared in reference_data::Store, over THEIR CI_INSTRUMENT -- and the columns that
+//   only matter once a row is known to be in that universe. The primary key, the main
+//   table and the twenty inherited property mappings all come from [ciBase]; none of them
+//   is restated. An eligibility universe is a predicate over the master, and this says so
+//   in three lines rather than in a nightly copy job.
+//
+//   ~DISTINCT SETS. rdIssuer and rdVenueUsage have no table of their own. They are the
+//   DISTINCT values of a column pair on CI_INSTRUMENT, which is a real collapse: the master
+//   carries ISSUER_NAME on every row, hundreds of instruments per issuer, so the set turns
+//   a table of hundreds of thousands into a universe of thousands. ~primaryKey names the
+//   collapsed columns and not the table's own INSTRUMENT_ID -- pointing it at the table PK
+//   would leave one row per instrument and the ~distinct would collapse nothing.
+//
+//   OUR OWN TABLES. Twenty-three sets over RD_ tables.
+//
+// Every class-valued property names its TARGET set id -- `domicile[cgCountry]` -- rather
+// than leaving it implicit. core-geo and core-instrument both name their set ids
+// explicitly, so the default ids (`core_geo_CgCountry`) do not exist and the implicit form
+// has nothing to resolve against.
+Mapping reference_data::Mapping
+(
+   include core_instrument::Mapping
+   include core_geo::Mapping
+
+   // ================================================================================
+   // 1. FIVE VIEWS OF THE INSTRUMENT MASTER
+   //    class extends core_instrument::Instrument, set extends [ciBase], filter is ours
+   // ================================================================================
+
+   reference_data::RdListedInstrument[rdListed] extends [ciBase]: Relational
+   {
+      ~filter [reference_data::Store]RdListedRows
+      venueMic: [core_instrument::Store]CI_INSTRUMENT.PRIMARY_EXCHANGE_MIC,
+      boardLotSize: [core_instrument::Store]CI_INSTRUMENT.LOT_SIZE,
+      admittedDate: [core_instrument::Store]CI_INSTRUMENT.LISTING_DATE
+   }
+
+   reference_data::RdRatedInstrument[rdRated] extends [ciBase]: Relational
+   {
+      ~filter [reference_data::Store]RdRatedRows
+      masterRatingCode: [core_instrument::Store]CI_INSTRUMENT.CREDIT_RATING,
+      ratedIssuerName: [core_instrument::Store]CI_INSTRUMENT.ISSUER_NAME,
+      ratedCouponRate: [core_instrument::Store]CI_INSTRUMENT.COUPON_RATE
+   }
+
+   reference_data::RdIndexEligibleInstrument[rdIndexEligible] extends [ciBase]: Relational
+   {
+      ~filter [reference_data::Store]RdIndexEligibleRows
+      freeFloatPct: [core_instrument::Store]CI_INSTRUMENT.FREE_FLOAT_PCT,
+      issuedShareCount: [core_instrument::Store]CI_INSTRUMENT.SHARES_OUTSTANDING,
+      sectorCode: [core_instrument::Store]CI_INSTRUMENT.GICS_SECTOR
+   }
+
+   reference_data::RdRestrictedInstrument[rdRestricted] extends [ciBase]: Relational
+   {
+      ~filter [reference_data::Store]RdRestrictedRows
+      restrictedIssuerName: [core_instrument::Store]CI_INSTRUMENT.ISSUER_NAME,
+      restrictedCountryCode: [core_instrument::Store]CI_INSTRUMENT.COUNTRY_OF_ISSUE
+   }
+
+   reference_data::RdSovereignIssue[rdSovereign] extends [ciBase]: Relational
+   {
+      ~filter [reference_data::Store]RdSovereignIssueRows
+      sovereignName: [core_instrument::Store]CI_INSTRUMENT.ISSUING_SOVEREIGN,
+      auctionDate: [core_instrument::Store]CI_INSTRUMENT.AUCTION_DATE,
+      isInflationLinked: [core_instrument::Store]CI_INSTRUMENT.IS_INFLATION_LINKED
+   }
+
+   // ================================================================================
+   // 2. THE ~DISTINCT SETS -- no table of their own
+   // ================================================================================
+
+   // The issuer universe. Many instruments, few issuers: this is the collapse.
+   *reference_data::RdIssuer[rdIssuer]: Relational
+   {
+      ~distinct
+      ~primaryKey ( [core_instrument::Store]CI_INSTRUMENT.ISSUER_NAME )
+      ~mainTable [core_instrument::Store]CI_INSTRUMENT
+      issuerName: [core_instrument::Store]CI_INSTRUMENT.ISSUER_NAME,
+      domicileCountryCode: [core_instrument::Store]CI_INSTRUMENT.COUNTRY_OF_ISSUE
+   }
+
+   // The (venue, currency) pairs the master actually uses, as opposed to the venues static
+   // data has onboarded. Same table, a different pair of columns, the same collapse.
+   *reference_data::RdVenueUsage[rdVenueUsage]: Relational
+   {
+      ~distinct
+      ~primaryKey ( [core_instrument::Store]CI_INSTRUMENT.PRIMARY_EXCHANGE_MIC )
+      ~mainTable [core_instrument::Store]CI_INSTRUMENT
+      venueMic: [core_instrument::Store]CI_INSTRUMENT.PRIMARY_EXCHANGE_MIC,
+      settlementCurrency: [core_instrument::Store]CI_INSTRUMENT.CURRENCY
+   }
+
+   // ================================================================================
+   // 3. OUR OWN TABLES
+   // ================================================================================
+
+   // ---- issuers -----------------------------------------------------------------------
+   *reference_data::RdIssuerProfile[rdIssuerProfile]: Relational
+   {
+      ~primaryKey ( [reference_data::Store]RD_ISSUER.ISSUER_ID )
+      ~mainTable [reference_data::Store]RD_ISSUER
+      issuerId: [reference_data::Store]RD_ISSUER.ISSUER_ID,
+      legalName: [reference_data::Store]RD_ISSUER.LEGAL_NAME,
+      shortName: [reference_data::Store]RD_ISSUER.SHORT_NAME,
+      domicileCountryCode: [reference_data::Store]RD_ISSUER.DOMICILE_COUNTRY_CODE,
+      sectorCode: [reference_data::Store]RD_ISSUER.SECTOR_CODE,
+      industryCode: [reference_data::Store]RD_ISSUER.INDUSTRY_CODE,
+      isPubliclyTraded: [reference_data::Store]RD_ISSUER.IS_PUBLICLY_TRADED,
+      isFinancialInstitution: [reference_data::Store]RD_ISSUER.IS_FINANCIAL_INSTITUTION,
+      incorporationDate: [reference_data::Store]RD_ISSUER.INCORPORATION_DATE,
+      dissolvedDate: [reference_data::Store]RD_ISSUER.DISSOLVED_DATE,
+
+      // The core-geo dependency: one hop to the country, naming core-geo's set id.
+      domicile[cgCountry]: [reference_data::Store]@Rd_IssuerCountry,
+      // Three hops -- ours, then core-geo's two -- to a column on their third table. The
+      // store qualifier is required on the first hop only; the pipe before the column is
+      // not optional.
+      domicileMacroRegionCode: [reference_data::Store]@Rd_IssuerCountry > @Cg_CountrySubRegion > @Cg_SubRegionMacroRegion | [core_geo::Store]CG_MACRO_REGION.CODE,
+
+      identifiers[rdIssuerIdentifier]: [reference_data::Store]@Rd_IssuerIdentifier
+   }
+
+   *reference_data::RdIssuerIdentifier[rdIssuerIdentifier]: Relational
+   {
+      ~primaryKey
+      (
+         [reference_data::Store]RD_ISSUER_XREF.ISSUER_ID,
+         [reference_data::Store]RD_ISSUER_XREF.SCHEME
+      )
+      ~mainTable [reference_data::Store]RD_ISSUER_XREF
+      issuerId: [reference_data::Store]RD_ISSUER_XREF.ISSUER_ID,
+      scheme: [reference_data::Store]RD_ISSUER_XREF.SCHEME,
+      identifierValue: [reference_data::Store]RD_ISSUER_XREF.IDENTIFIER_VALUE,
+      isPrimary: [reference_data::Store]RD_ISSUER_XREF.IS_PRIMARY,
+      assignedDate: [reference_data::Store]RD_ISSUER_XREF.ASSIGNED_DATE
+   }
+
+   *reference_data::RdIssuerHierarchyLink[rdIssuerHierarchyLink]: Relational
+   {
+      ~primaryKey ( [reference_data::Store]RD_ISSUER_HIERARCHY.LINK_ID )
+      ~mainTable [reference_data::Store]RD_ISSUER_HIERARCHY
+      linkId: [reference_data::Store]RD_ISSUER_HIERARCHY.LINK_ID,
+      childIssuerId: [reference_data::Store]RD_ISSUER_HIERARCHY.CHILD_ISSUER_ID,
+      parentIssuerId: [reference_data::Store]RD_ISSUER_HIERARCHY.PARENT_ISSUER_ID,
+      ownershipPct: [reference_data::Store]RD_ISSUER_HIERARCHY.OWNERSHIP_PCT,
+      isUltimateParent: [reference_data::Store]RD_ISSUER_HIERARCHY.IS_ULTIMATE_PARENT,
+      effectiveDate: [reference_data::Store]RD_ISSUER_HIERARCHY.EFFECTIVE_DATE,
+      endDate: [reference_data::Store]RD_ISSUER_HIERARCHY.END_DATE,
+      parent[rdIssuerProfile]: [reference_data::Store]@Rd_HierarchyParent
+   }
+
+   // ---- ratings -----------------------------------------------------------------------
+   *reference_data::RdRatingAgency[rdRatingAgency]: Relational
+   {
+      ~primaryKey ( [reference_data::Store]RD_RATING_AGENCY.AGENCY_ID )
+      ~mainTable [reference_data::Store]RD_RATING_AGENCY
+      agencyId: [reference_data::Store]RD_RATING_AGENCY.AGENCY_ID,
+      name: [reference_data::Store]RD_RATING_AGENCY.NAME,
+      shortCode: [reference_data::Store]RD_RATING_AGENCY.SHORT_CODE,
+      isEcaiRecognised: [reference_data::Store]RD_RATING_AGENCY.IS_ECAI_RECOGNISED,
+      homeCountryCode: [reference_data::Store]RD_RATING_AGENCY.HOME_COUNTRY_CODE
+   }
+
+   *reference_data::RdRatingGrade[rdRatingGrade]: Relational
+   {
+      ~primaryKey
+      (
+         [reference_data::Store]RD_RATING_GRADE.AGENCY_ID,
+         [reference_data::Store]RD_RATING_GRADE.GRADE_CODE
+      )
+      ~mainTable [reference_data::Store]RD_RATING_GRADE
+      agencyId: [reference_data::Store]RD_RATING_GRADE.AGENCY_ID,
+      gradeCode: [reference_data::Store]RD_RATING_GRADE.GRADE_CODE,
+      notchRank: [reference_data::Store]RD_RATING_GRADE.NOTCH_RANK,
+      isInvestmentGrade: [reference_data::Store]RD_RATING_GRADE.IS_INVESTMENT_GRADE,
+      isLongTerm: [reference_data::Store]RD_RATING_GRADE.IS_LONG_TERM,
+      description: [reference_data::Store]RD_RATING_GRADE.DESCRIPTION,
+      agency[rdRatingAgency]: [reference_data::Store]@Rd_GradeAgency
+   }
+
+   *reference_data::RdInstrumentRating[rdInstrumentRating]: Relational
+   {
+      ~primaryKey
+      (
+         [reference_data::Store]RD_INSTRUMENT_RATING.INSTRUMENT_ID,
+         [reference_data::Store]RD_INSTRUMENT_RATING.AGENCY_ID,
+         [reference_data::Store]RD_INSTRUMENT_RATING.RATING_DATE
+      )
+      ~mainTable [reference_data::Store]RD_INSTRUMENT_RATING
+      instrumentId: [reference_data::Store]RD_INSTRUMENT_RATING.INSTRUMENT_ID,
+      agencyId: [reference_data::Store]RD_INSTRUMENT_RATING.AGENCY_ID,
+      ratingDate: [reference_data::Store]RD_INSTRUMENT_RATING.RATING_DATE,
+      gradeCode: [reference_data::Store]RD_INSTRUMENT_RATING.GRADE_CODE,
+      outlook: [reference_data::Store]RD_INSTRUMENT_RATING.OUTLOOK,
+      isWatchNegative: [reference_data::Store]RD_INSTRUMENT_RATING.IS_WATCH_NEGATIVE,
+      isSolicited: [reference_data::Store]RD_INSTRUMENT_RATING.IS_SOLICITED,
+      // Into the instrument master, naming core-instrument's ROOT set as the target.
+      instrument[ciBase]: [reference_data::Store]@Rd_RatingInstrument,
+      grade[rdRatingGrade]: [reference_data::Store]@Rd_RatingGrade
+   }
+
+   *reference_data::RdRatingEligibilityRule[rdRatingRule]: Relational
+   {
+      ~primaryKey ( [reference_data::Store]RD_RATING_RULE.RULE_ID )
+      ~mainTable [reference_data::Store]RD_RATING_RULE
+      ruleId: [reference_data::Store]RD_RATING_RULE.RULE_ID,
+      ruleName: [reference_data::Store]RD_RATING_RULE.RULE_NAME,
+      agencyId: [reference_data::Store]RD_RATING_RULE.AGENCY_ID,
+      minimumNotchRank: [reference_data::Store]RD_RATING_RULE.MINIMUM_NOTCH_RANK,
+      splitRatingPolicy: [reference_data::Store]RD_RATING_RULE.SPLIT_RATING_POLICY,
+      appliesToAssetClass: [reference_data::Store]RD_RATING_RULE.APPLIES_TO_ASSET_CLASS,
+      isActive: [reference_data::Store]RD_RATING_RULE.IS_ACTIVE
+   }
+
+   // ---- indices -----------------------------------------------------------------------
+   *reference_data::RdIndexProvider[rdIndexProvider]: Relational
+   {
+      ~primaryKey ( [reference_data::Store]RD_INDEX_PROVIDER.PROVIDER_ID )
+      ~mainTable [reference_data::Store]RD_INDEX_PROVIDER
+      providerId: [reference_data::Store]RD_INDEX_PROVIDER.PROVIDER_ID,
+      name: [reference_data::Store]RD_INDEX_PROVIDER.NAME,
+      shortCode: [reference_data::Store]RD_INDEX_PROVIDER.SHORT_CODE,
+      licenceRequired: [reference_data::Store]RD_INDEX_PROVIDER.LICENCE_REQUIRED
+   }
+
+   *reference_data::RdIndexDefinition[rdIndex]: Relational
+   {
+      ~primaryKey ( [reference_data::Store]RD_INDEX.INDEX_ID )
+      ~mainTable [reference_data::Store]RD_INDEX
+      indexId: [reference_data::Store]RD_INDEX.INDEX_ID,
+      providerId: [reference_data::Store]RD_INDEX.PROVIDER_ID,
+      name: [reference_data::Store]RD_INDEX.NAME,
+      ticker: [reference_data::Store]RD_INDEX.TICKER,
+      currencyCode: [reference_data::Store]RD_INDEX.CURRENCY_CODE,
+      weightingScheme: [reference_data::Store]RD_INDEX.WEIGHTING_SCHEME,
+      rebalanceFrequency: [reference_data::Store]RD_INDEX.REBALANCE_FREQUENCY,
+      isTotalReturn: [reference_data::Store]RD_INDEX.IS_TOTAL_RETURN,
+      launchDate: [reference_data::Store]RD_INDEX.LAUNCH_DATE,
+      provider[rdIndexProvider]: [reference_data::Store]@Rd_IndexProvider
+   }
+
+   *reference_data::RdIndexMembership[rdIndexMembership]: Relational
+   {
+      ~primaryKey
+      (
+         [reference_data::Store]RD_INDEX_MEMBERSHIP.INDEX_ID,
+         [reference_data::Store]RD_INDEX_MEMBERSHIP.INSTRUMENT_ID,
+         [reference_data::Store]RD_INDEX_MEMBERSHIP.EFFECTIVE_DATE
+      )
+      ~mainTable [reference_data::Store]RD_INDEX_MEMBERSHIP
+      indexId: [reference_data::Store]RD_INDEX_MEMBERSHIP.INDEX_ID,
+      instrumentId: [reference_data::Store]RD_INDEX_MEMBERSHIP.INSTRUMENT_ID,
+      effectiveDate: [reference_data::Store]RD_INDEX_MEMBERSHIP.EFFECTIVE_DATE,
+      weightPct: [reference_data::Store]RD_INDEX_MEMBERSHIP.WEIGHT_PCT,
+      shareCount: [reference_data::Store]RD_INDEX_MEMBERSHIP.SHARE_COUNT,
+      capFactor: [reference_data::Store]RD_INDEX_MEMBERSHIP.CAP_FACTOR,
+      removalDate: [reference_data::Store]RD_INDEX_MEMBERSHIP.REMOVAL_DATE,
+      index[rdIndex]: [reference_data::Store]@Rd_MembershipIndex,
+      instrument[ciBase]: [reference_data::Store]@Rd_MembershipInstrument
+   }
+
+   *reference_data::RdIndexRebalance[rdIndexRebalance]: Relational
+   {
+      ~primaryKey ( [reference_data::Store]RD_INDEX_REBALANCE.REBALANCE_ID )
+      ~mainTable [reference_data::Store]RD_INDEX_REBALANCE
+      rebalanceId: [reference_data::Store]RD_INDEX_REBALANCE.REBALANCE_ID,
+      indexId: [reference_data::Store]RD_INDEX_REBALANCE.INDEX_ID,
+      announcementDate: [reference_data::Store]RD_INDEX_REBALANCE.ANNOUNCEMENT_DATE,
+      effectiveDate: [reference_data::Store]RD_INDEX_REBALANCE.EFFECTIVE_DATE,
+      rebalanceType: [reference_data::Store]RD_INDEX_REBALANCE.REBALANCE_TYPE,
+      constituentCount: [reference_data::Store]RD_INDEX_REBALANCE.CONSTITUENT_COUNT,
+      index[rdIndex]: [reference_data::Store]@Rd_RebalanceIndex
+   }
+
+   // ---- venues ------------------------------------------------------------------------
+   *reference_data::RdListingVenue[rdVenue]: Relational
+   {
+      ~primaryKey ( [reference_data::Store]RD_VENUE.MIC )
+      ~mainTable [reference_data::Store]RD_VENUE
+      mic: [reference_data::Store]RD_VENUE.MIC,
+      operatingMic: [reference_data::Store]RD_VENUE.OPERATING_MIC,
+      name: [reference_data::Store]RD_VENUE.NAME,
+      countryCode: [reference_data::Store]RD_VENUE.COUNTRY_CODE,
+      venueType: [reference_data::Store]RD_VENUE.VENUE_TYPE,
+      timeZoneName: [reference_data::Store]RD_VENUE.TIME_ZONE_NAME,
+      retiredDate: [reference_data::Store]RD_VENUE.RETIRED_DATE,
+      country[cgCountry]: [reference_data::Store]@Rd_VenueCountry
+   }
+
+   *reference_data::RdVenueSegment[rdVenueSegment]: Relational
+   {
+      ~primaryKey ( [reference_data::Store]RD_VENUE_SEGMENT.SEGMENT_MIC )
+      ~mainTable [reference_data::Store]RD_VENUE_SEGMENT
+      segmentMic: [reference_data::Store]RD_VENUE_SEGMENT.SEGMENT_MIC,
+      mic: [reference_data::Store]RD_VENUE_SEGMENT.MIC,
+      name: [reference_data::Store]RD_VENUE_SEGMENT.NAME,
+      segmentType: [reference_data::Store]RD_VENUE_SEGMENT.SEGMENT_TYPE,
+      tickSizeRegime: [reference_data::Store]RD_VENUE_SEGMENT.TICK_SIZE_REGIME,
+      venue[rdVenue]: [reference_data::Store]@Rd_SegmentVenue
+   }
+
+   *reference_data::RdVenueTradingSession[rdVenueSession]: Relational
+   {
+      ~primaryKey ( [reference_data::Store]RD_VENUE_SESSION.SESSION_ID )
+      ~mainTable [reference_data::Store]RD_VENUE_SESSION
+      sessionId: [reference_data::Store]RD_VENUE_SESSION.SESSION_ID,
+      mic: [reference_data::Store]RD_VENUE_SESSION.MIC,
+      sessionName: [reference_data::Store]RD_VENUE_SESSION.SESSION_NAME,
+      openTimeLocal: [reference_data::Store]RD_VENUE_SESSION.OPEN_TIME_LOCAL,
+      closeTimeLocal: [reference_data::Store]RD_VENUE_SESSION.CLOSE_TIME_LOCAL,
+      isAuction: [reference_data::Store]RD_VENUE_SESSION.IS_AUCTION,
+      dayOfWeek: [reference_data::Store]RD_VENUE_SESSION.DAY_OF_WEEK,
+      venue[rdVenue]: [reference_data::Store]@Rd_SessionVenue
+   }
+
+   *reference_data::RdListing[rdListing]: Relational
+   {
+      ~primaryKey
+      (
+         [reference_data::Store]RD_LISTING.INSTRUMENT_ID,
+         [reference_data::Store]RD_LISTING.MIC
+      )
+      ~mainTable [reference_data::Store]RD_LISTING
+      instrumentId: [reference_data::Store]RD_LISTING.INSTRUMENT_ID,
+      mic: [reference_data::Store]RD_LISTING.MIC,
+      localTicker: [reference_data::Store]RD_LISTING.LOCAL_TICKER,
+      tradingCurrency: [reference_data::Store]RD_LISTING.TRADING_CURRENCY,
+      admissionDate: [reference_data::Store]RD_LISTING.ADMISSION_DATE,
+      delistingDate: [reference_data::Store]RD_LISTING.DELISTING_DATE,
+      isPrimaryListing: [reference_data::Store]RD_LISTING.IS_PRIMARY_LISTING,
+      roundLotSize: [reference_data::Store]RD_LISTING.ROUND_LOT_SIZE,
+      instrument[ciBase]: [reference_data::Store]@Rd_ListingInstrument,
+      venue[rdVenue]: [reference_data::Store]@Rd_ListingVenue
+   }
+
+   // ---- restrictions ------------------------------------------------------------------
+   *reference_data::RdRestrictionReason[rdRestrictionReason]: Relational
+   {
+      ~primaryKey ( [reference_data::Store]RD_RESTRICTION_REASON.REASON_CODE )
+      ~mainTable [reference_data::Store]RD_RESTRICTION_REASON
+      reasonCode: [reference_data::Store]RD_RESTRICTION_REASON.REASON_CODE,
+      description: [reference_data::Store]RD_RESTRICTION_REASON.DESCRIPTION,
+      severity: [reference_data::Store]RD_RESTRICTION_REASON.SEVERITY,
+      blocksBuying: [reference_data::Store]RD_RESTRICTION_REASON.BLOCKS_BUYING,
+      blocksSelling: [reference_data::Store]RD_RESTRICTION_REASON.BLOCKS_SELLING,
+      requiresApproval: [reference_data::Store]RD_RESTRICTION_REASON.REQUIRES_APPROVAL
+   }
+
+   *reference_data::RdSanctionsProgramme[rdSanctionsProgramme]: Relational
+   {
+      ~primaryKey ( [reference_data::Store]RD_SANCTIONS_PROGRAMME.PROGRAMME_ID )
+      ~mainTable [reference_data::Store]RD_SANCTIONS_PROGRAMME
+      programmeId: [reference_data::Store]RD_SANCTIONS_PROGRAMME.PROGRAMME_ID,
+      name: [reference_data::Store]RD_SANCTIONS_PROGRAMME.NAME,
+      issuingAuthority: [reference_data::Store]RD_SANCTIONS_PROGRAMME.ISSUING_AUTHORITY,
+      targetCountryCode: [reference_data::Store]RD_SANCTIONS_PROGRAMME.TARGET_COUNTRY_CODE,
+      effectiveDate: [reference_data::Store]RD_SANCTIONS_PROGRAMME.EFFECTIVE_DATE,
+      liftedDate: [reference_data::Store]RD_SANCTIONS_PROGRAMME.LIFTED_DATE
+   }
+
+   *reference_data::RdRestrictedListEntry[rdRestrictedEntry]: Relational
+   {
+      ~primaryKey ( [reference_data::Store]RD_RESTRICTED_LIST.ENTRY_ID )
+      ~mainTable [reference_data::Store]RD_RESTRICTED_LIST
+      entryId: [reference_data::Store]RD_RESTRICTED_LIST.ENTRY_ID,
+      instrumentId: [reference_data::Store]RD_RESTRICTED_LIST.INSTRUMENT_ID,
+      issuerId: [reference_data::Store]RD_RESTRICTED_LIST.ISSUER_ID,
+      reasonCode: [reference_data::Store]RD_RESTRICTED_LIST.REASON_CODE,
+      programmeId: [reference_data::Store]RD_RESTRICTED_LIST.PROGRAMME_ID,
+      addedDate: [reference_data::Store]RD_RESTRICTED_LIST.ADDED_DATE,
+      releaseDate: [reference_data::Store]RD_RESTRICTED_LIST.RELEASE_DATE,
+      addedBy: [reference_data::Store]RD_RESTRICTED_LIST.ADDED_BY,
+      notes: [reference_data::Store]RD_RESTRICTED_LIST.NOTES,
+      reason[rdRestrictionReason]: [reference_data::Store]@Rd_RestrictedReason,
+      programme[rdSanctionsProgramme]: [reference_data::Store]@Rd_RestrictedProgramme
+   }
+
+   // ---- classification ----------------------------------------------------------------
+   *reference_data::RdClassificationScheme[rdClassificationScheme]: Relational
+   {
+      ~primaryKey ( [reference_data::Store]RD_CLASSIFICATION_SCHEME.SCHEME_ID )
+      ~mainTable [reference_data::Store]RD_CLASSIFICATION_SCHEME
+      schemeId: [reference_data::Store]RD_CLASSIFICATION_SCHEME.SCHEME_ID,
+      name: [reference_data::Store]RD_CLASSIFICATION_SCHEME.NAME,
+      issuingBody: [reference_data::Store]RD_CLASSIFICATION_SCHEME.ISSUING_BODY,
+      version: [reference_data::Store]RD_CLASSIFICATION_SCHEME.VERSION,
+      levelCount: [reference_data::Store]RD_CLASSIFICATION_SCHEME.LEVEL_COUNT,
+      isRegulatory: [reference_data::Store]RD_CLASSIFICATION_SCHEME.IS_REGULATORY
+   }
+
+   *reference_data::RdInstrumentClassification[rdInstrumentClassification]: Relational
+   {
+      ~primaryKey
+      (
+         [reference_data::Store]RD_INSTRUMENT_CLASSIFICATION.INSTRUMENT_ID,
+         [reference_data::Store]RD_INSTRUMENT_CLASSIFICATION.SCHEME_ID
+      )
+      ~mainTable [reference_data::Store]RD_INSTRUMENT_CLASSIFICATION
+      instrumentId: [reference_data::Store]RD_INSTRUMENT_CLASSIFICATION.INSTRUMENT_ID,
+      schemeId: [reference_data::Store]RD_INSTRUMENT_CLASSIFICATION.SCHEME_ID,
+      classificationCode: [reference_data::Store]RD_INSTRUMENT_CLASSIFICATION.CLASSIFICATION_CODE,
+      levelNumber: [reference_data::Store]RD_INSTRUMENT_CLASSIFICATION.LEVEL_NUMBER,
+      parentCode: [reference_data::Store]RD_INSTRUMENT_CLASSIFICATION.PARENT_CODE,
+      assignedDate: [reference_data::Store]RD_INSTRUMENT_CLASSIFICATION.ASSIGNED_DATE,
+      assignedBy: [reference_data::Store]RD_INSTRUMENT_CLASSIFICATION.ASSIGNED_BY,
+      scheme[rdClassificationScheme]: [reference_data::Store]@Rd_ClassificationScheme,
+      instrument[ciBase]: [reference_data::Store]@Rd_ClassificationInstrument
+   }
+
+   // ---- golden source -----------------------------------------------------------------
+   *reference_data::RdReferenceSource[rdReferenceSource]: Relational
+   {
+      ~primaryKey ( [reference_data::Store]RD_REFERENCE_SOURCE.SOURCE_ID )
+      ~mainTable [reference_data::Store]RD_REFERENCE_SOURCE
+      sourceId: [reference_data::Store]RD_REFERENCE_SOURCE.SOURCE_ID,
+      name: [reference_data::Store]RD_REFERENCE_SOURCE.NAME,
+      sourceType: [reference_data::Store]RD_REFERENCE_SOURCE.SOURCE_TYPE,
+      isInternal: [reference_data::Store]RD_REFERENCE_SOURCE.IS_INTERNAL,
+      refreshFrequency: [reference_data::Store]RD_REFERENCE_SOURCE.REFRESH_FREQUENCY,
+      contactTeam: [reference_data::Store]RD_REFERENCE_SOURCE.CONTACT_TEAM
+   }
+
+   *reference_data::RdSourcePrecedence[rdSourcePrecedence]: Relational
+   {
+      ~primaryKey
+      (
+         [reference_data::Store]RD_SOURCE_PRECEDENCE.FIELD_NAME,
+         [reference_data::Store]RD_SOURCE_PRECEDENCE.SOURCE_ID
+      )
+      ~mainTable [reference_data::Store]RD_SOURCE_PRECEDENCE
+      fieldName: [reference_data::Store]RD_SOURCE_PRECEDENCE.FIELD_NAME,
+      sourceId: [reference_data::Store]RD_SOURCE_PRECEDENCE.SOURCE_ID,
+      precedenceRank: [reference_data::Store]RD_SOURCE_PRECEDENCE.PRECEDENCE_RANK,
+      isFallbackAllowed: [reference_data::Store]RD_SOURCE_PRECEDENCE.IS_FALLBACK_ALLOWED,
+      effectiveDate: [reference_data::Store]RD_SOURCE_PRECEDENCE.EFFECTIVE_DATE,
+      source[rdReferenceSource]: [reference_data::Store]@Rd_PrecedenceSource
+   }
+
+   *reference_data::RdDataQualityRule[rdDqRule]: Relational
+   {
+      ~primaryKey ( [reference_data::Store]RD_DQ_RULE.RULE_ID )
+      ~mainTable [reference_data::Store]RD_DQ_RULE
+      ruleId: [reference_data::Store]RD_DQ_RULE.RULE_ID,
+      fieldName: [reference_data::Store]RD_DQ_RULE.FIELD_NAME,
+      ruleType: [reference_data::Store]RD_DQ_RULE.RULE_TYPE,
+      expression: [reference_data::Store]RD_DQ_RULE.EXPRESSION,
+      severity: [reference_data::Store]RD_DQ_RULE.SEVERITY,
+      isBlocking: [reference_data::Store]RD_DQ_RULE.IS_BLOCKING,
+      owningTeam: [reference_data::Store]RD_DQ_RULE.OWNING_TEAM
+   }
+)

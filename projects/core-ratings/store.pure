@@ -1,0 +1,59 @@
+###Relational
+
+Database core_ratings::Store
+(
+  // S&P Global Ratings, Moody's Investors Service, Fitch Ratings, DBRS Morningstar.
+  Table CR_AGENCY
+  (
+    AGENCY_ID VARCHAR(20) PRIMARY KEY,
+    AGENCY_NAME VARCHAR(60),
+    SCALE_FAMILY VARCHAR(20)
+  )
+
+  // One row per notch per agency, so the same NOTCH number lines AA- up against Aa3.
+  // Composite key because "AA+" is only meaningful once you know whose scale it is.
+  Table CR_SCALE
+  (
+    AGENCY_ID VARCHAR(20) PRIMARY KEY,
+    SYMBOL VARCHAR(8) PRIMARY KEY,
+    NOTCH INTEGER,
+    IS_INVESTMENT_GRADE BIT
+  )
+
+  // The milestoned history.
+  //
+  // The milestoning block comes FIRST inside the parentheses, ahead of the columns.
+  // The PRIMARY KEY is COMPOSITE (ENTITY_ID + FROM_Z) because the whole point is several
+  // rows per entity; ENTITY_ID alone would compile and then collide on insert.
+  //
+  // INFINITY_DATE is what makes %latest work. Without it the milestoning parses, compiles
+  // and serves dated queries perfectly well, and only %latest fails -- late, at plan
+  // generation. Open-ended rows must carry exactly this THRU_Z.
+  Table CR_RATING_MS
+  (
+    milestoning
+    (
+      business(BUS_FROM = FROM_Z, BUS_THRU = THRU_Z, INFINITY_DATE = %9999-12-31)
+    )
+    ENTITY_ID VARCHAR(20) PRIMARY KEY,
+    FROM_Z DATE PRIMARY KEY,
+    THRU_Z DATE,
+    RATING VARCHAR(8),
+    AGENCY VARCHAR(20)
+  )
+
+  // The action log: "Fitch downgrades X to BBB+ from A-, outlook negative".
+  Table CR_ACTION
+  (
+    ACTION_ID VARCHAR(20) PRIMARY KEY,
+    ENTITY_ID VARCHAR(20),
+    AGENCY_ID VARCHAR(20),
+    ACTION_TYPE VARCHAR(16),
+    ACTION_DATE DATE,
+    PRIOR_RATING VARCHAR(8),
+    NEW_RATING VARCHAR(8)
+  )
+
+  Join Cr_ScaleAgency(CR_SCALE.AGENCY_ID = CR_AGENCY.AGENCY_ID)
+  Join Cr_ActionAgency(CR_ACTION.AGENCY_ID = CR_AGENCY.AGENCY_ID)
+)

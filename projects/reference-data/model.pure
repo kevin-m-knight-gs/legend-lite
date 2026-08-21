@@ -1,0 +1,464 @@
+###Pure
+// ============================================================
+// reference_data -- the reference layer over the instrument master
+// ============================================================
+// Layer 1. Depends on core-instrument (the instrument master) and core-geo (country, region
+// and bloc). It refers to nothing else.
+//
+// The project is two halves that meet in the mapping:
+//
+//   1. FIVE VIEWS OF SOMEONE ELSE'S TABLE. RdListedInstrument, RdRatedInstrument,
+//      RdIndexEligibleInstrument, RdRestrictedInstrument and RdSovereignIssue all extend
+//      core_instrument::Instrument and are mapped by extending core-instrument's base set
+//      [ciBase] with a ~filter of ours over THEIR table. No table of ours is involved and
+//      no row is copied: an eligibility universe is a predicate over the master, and this
+//      is the only way to say that without a second copy of the master going stale.
+//
+//   2. TWENTY-FIVE CLASSES OF OUR OWN, on RD_ tables: issuers, ratings, indices, venues,
+//      restrictions, classifications and the golden-source metadata that says which vendor
+//      won which field.
+//
+// The join between the halves is RdIssuer, the ~distinct set: the instrument master carries
+// ISSUER_NAME on every one of its rows, and the distinct values of that column are the
+// issuer universe -- tens of thousands of instruments collapsing to hundreds of issuers.
+// RdIssuerProfile is the curated record keyed on the same name.
+
+// ------------------------------------------------------------------ 1. the master, filtered
+// Each of these is a SUBTYPE of core_instrument::Instrument, so it inherits the whole base
+// property set -- id, name, currency, identifiers -- and adds only the columns that matter
+// once a row is known to be in this universe. The mapping is where the predicate lives.
+
+// Instruments the firm can see a public price for: they name a primary exchange. The
+// universe every listing, index and venue question starts from.
+Class reference_data::RdListedInstrument extends core_instrument::Instrument
+{
+   venueMic: String[0..1];
+   boardLotSize: Integer[0..1];
+   admittedDate: StrictDate[0..1];
+}
+
+// Instruments that carry an agency rating on the master record, and are therefore in scope
+// for a ratings-driven mandate. NOT the rating itself -- that is RdInstrumentRating, dated
+// and per agency. This is only "is there a rating at all".
+Class reference_data::RdRatedInstrument extends core_instrument::Instrument
+{
+   masterRatingCode: String[0..1];
+   ratedIssuerName: String[0..1];
+   ratedCouponRate: Float[0..1];
+}
+
+// Instruments with a published free float, which is the one fact a capitalisation-weighted
+// index provider cannot proceed without. Eligibility, not membership: membership is
+// RdIndexMembership, which is dated and carries a weight.
+Class reference_data::RdIndexEligibleInstrument extends core_instrument::Instrument
+{
+   freeFloatPct: Float[0..1];
+   issuedShareCount: Float[0..1];
+   sectorCode: String[0..1];
+}
+
+// Instruments the master has suspended. The restricted-list entry (RdRestrictedListEntry)
+// records WHY and for how long; this class is the population that entry has to cover, and
+// the two disagreeing is the control the ops desk actually runs.
+Class reference_data::RdRestrictedInstrument extends core_instrument::Instrument
+{
+   restrictedIssuerName: String[0..1];
+   restrictedCountryCode: String[0..1];
+}
+
+// Instruments issued by a state rather than a company. Kept apart from corporate paper
+// because the capital, collateral and concentration rules for the two are different rules,
+// not different parameters of one rule.
+Class reference_data::RdSovereignIssue extends core_instrument::Instrument
+{
+   sovereignName: String[0..1];
+   auctionDate: StrictDate[0..1];
+   isInflationLinked: Boolean[0..1];
+}
+
+// ------------------------------------------------------------------ 2. the distinct sets
+// Neither class has a table. Both are the DISTINCT rows of a column set on someone else's
+// wide table, and both exist because the alternative -- a maintained RD_ISSUER_LIST that a
+// nightly job reconciles against the master -- is a job that fails silently.
+
+// The issuer universe: the distinct issuer names across the whole instrument master. One
+// issuer has hundreds of instruments, so this collapses hundreds of thousands of rows to
+// thousands, and it is by construction complete -- an issuer cannot be missing from it
+// while any of its instruments is in the master.
+Class reference_data::RdIssuer
+{
+   issuerName: String[1];
+   domicileCountryCode: String[0..1];
+}
+
+// The venues actually used, as opposed to the venues the firm has onboarded: the distinct
+// (MIC, currency) pairs the master trades on. RdListingVenue is the onboarded list; a pair
+// here with no venue row is a gap in static data.
+Class reference_data::RdVenueUsage
+{
+   venueMic: String[1];
+   settlementCurrency: String[0..1];
+}
+
+// ------------------------------------------------------------------ 3. issuers
+// The curated issuer record. Keyed on the same name the ~distinct set produces, so the
+// derived universe and the curated one join without a surrogate key in between.
+
+// Everything the firm decides about an issuer rather than reads off an instrument:
+// domicile, sector, ownership, whether it is a going concern. Reaches core-geo for the
+// country, and through core-geo's own chain for the coverage region.
+Class reference_data::RdIssuerProfile
+{
+   issuerId: String[1];
+   legalName: String[1];
+   shortName: String[0..1];
+   domicileCountryCode: String[0..1];
+   sectorCode: String[0..1];
+   industryCode: String[0..1];
+   isPubliclyTraded: Boolean[0..1];
+   isFinancialInstitution: Boolean[0..1];
+   incorporationDate: StrictDate[0..1];
+   dissolvedDate: StrictDate[0..1];
+
+   // The core-geo dependency, navigated rather than copied.
+   domicile: core_geo::CgCountry[0..1];
+   // And the same country's coverage region, reached by chaining our join onto core-geo's
+   // two, so a report can group issuers by region without knowing sub-regions exist.
+   domicileMacroRegionCode: String[0..1];
+
+   identifiers: reference_data::RdIssuerIdentifier[*];
+}
+
+// One issuer's identifier under one scheme -- LEI, BIC, a vendor id, an exchange ticker.
+// Its own row because an issuer has several and the set changes without the issuer doing.
+Class reference_data::RdIssuerIdentifier
+{
+   issuerId: String[1];
+   scheme: String[1];
+   identifierValue: String[1];
+   isPrimary: Boolean[0..1];
+   assignedDate: StrictDate[0..1];
+}
+
+// The parent edge of the issuer tree: who owns this issuer, and how much. A separate class
+// from the issuer because the ownership changes on its own dates, and because an issuer can
+// have several parents in the period a takeover is settling.
+Class reference_data::RdIssuerHierarchyLink
+{
+   linkId: String[1];
+   childIssuerId: String[1];
+   parentIssuerId: String[1];
+   ownershipPct: Float[0..1];
+   isUltimateParent: Boolean[0..1];
+   effectiveDate: StrictDate[0..1];
+   endDate: StrictDate[0..1];
+
+   parent: reference_data::RdIssuerProfile[0..1];
+}
+
+// ------------------------------------------------------------------ 4. ratings
+
+// A rating agency the firm recognises. A code table, because a rating means nothing without
+// knowing whose rating it is, and because regulatory recognition (ECAI status) is a fact
+// about the agency, not about any rating it publishes.
+Class reference_data::RdRatingAgency
+{
+   agencyId: String[1];
+   name: String[1];
+   shortCode: String[0..1];
+   isEcaiRecognised: Boolean[0..1];
+   homeCountryCode: String[0..1];
+}
+
+// One grade on one agency's scale, with its rank. The rank is the point: 'A+' and 'A1' are
+// the same credit quality on two scales and cannot be compared as strings, so every
+// cross-agency rule is written against notchRank and never against the code.
+Class reference_data::RdRatingGrade
+{
+   agencyId: String[1];
+   gradeCode: String[1];
+   notchRank: Integer[1];
+   isInvestmentGrade: Boolean[0..1];
+   isLongTerm: Boolean[0..1];
+   description: String[0..1];
+
+   agency: reference_data::RdRatingAgency[0..1];
+}
+
+// One agency's rating of one instrument on one date. Dated because a downgrade is an event
+// with a date and every question about it -- was it rated on the trade date? -- needs the
+// history rather than the current value.
+Class reference_data::RdInstrumentRating
+{
+   instrumentId: String[1];
+   agencyId: String[1];
+   ratingDate: StrictDate[1];
+   gradeCode: String[0..1];
+   outlook: String[0..1];
+   isWatchNegative: Boolean[0..1];
+   isSolicited: Boolean[0..1];
+
+   instrument: core_instrument::Instrument[0..1];
+   grade: reference_data::RdRatingGrade[0..1];
+}
+
+// The rule a mandate states: on this agency's scale, nothing worse than this notch, and
+// what to do when the agencies disagree. The reason RdRatedInstrument is only "is there a
+// rating" -- the threshold is policy and belongs in a table someone can change.
+Class reference_data::RdRatingEligibilityRule
+{
+   ruleId: String[1];
+   ruleName: String[1];
+   agencyId: String[0..1];
+   minimumNotchRank: Integer[0..1];
+   splitRatingPolicy: String[0..1];
+   appliesToAssetClass: String[0..1];
+   isActive: Boolean[0..1];
+}
+
+// ------------------------------------------------------------------ 5. indices
+
+// Who publishes an index. Separate from the index because the licence, the contact and the
+// dissemination terms are per provider and an index inherits them.
+Class reference_data::RdIndexProvider
+{
+   providerId: String[1];
+   name: String[1];
+   shortCode: String[0..1];
+   licenceRequired: Boolean[0..1];
+}
+
+// One published index: its identity, what it weights by, how often it rebalances. The thing
+// an ETF tracks and a benchmark report is measured against.
+Class reference_data::RdIndexDefinition
+{
+   indexId: String[1];
+   providerId: String[1];
+   name: String[1];
+   ticker: String[0..1];
+   currencyCode: String[0..1];
+   weightingScheme: String[0..1];
+   rebalanceFrequency: String[0..1];
+   isTotalReturn: Boolean[0..1];
+   launchDate: StrictDate[0..1];
+
+   provider: reference_data::RdIndexProvider[0..1];
+}
+
+// One instrument in one index from one date, at a weight. The weight is why this is a class
+// and not a set: membership is quantitative, and a constituent leaving is a weight going to
+// zero on a date rather than a row disappearing.
+Class reference_data::RdIndexMembership
+{
+   indexId: String[1];
+   instrumentId: String[1];
+   effectiveDate: StrictDate[1];
+   weightPct: Float[0..1];
+   shareCount: Float[0..1];
+   capFactor: Float[0..1];
+   removalDate: StrictDate[0..1];
+
+   index: reference_data::RdIndexDefinition[0..1];
+   instrument: core_instrument::Instrument[0..1];
+}
+
+// A scheduled reconstitution of an index. Dated separately from the memberships because the
+// announcement, the effective date and the actual trade date are three different dates and
+// the gap between them is when index-tracking funds trade.
+Class reference_data::RdIndexRebalance
+{
+   rebalanceId: String[1];
+   indexId: String[1];
+   announcementDate: StrictDate[0..1];
+   effectiveDate: StrictDate[0..1];
+   rebalanceType: String[0..1];
+   constituentCount: Integer[0..1];
+
+   index: reference_data::RdIndexDefinition[0..1];
+}
+
+// ------------------------------------------------------------------ 6. venues
+
+// A trading venue the firm has onboarded, keyed by its ISO 10383 MIC. Reaches core-geo for
+// the country, which is what makes "where did this trade happen, in regulatory terms" a
+// navigation and not a lookup table of our own.
+Class reference_data::RdListingVenue
+{
+   mic: String[1];
+   operatingMic: String[0..1];
+   name: String[1];
+   countryCode: String[0..1];
+   venueType: String[0..1];
+   timeZoneName: String[0..1];
+   retiredDate: StrictDate[0..1];
+
+   country: core_geo::CgCountry[0..1];
+}
+
+// A market segment inside a venue -- the segment MIC. A venue's rules are not uniform: the
+// main board, the growth market and the dark book are different segments with different
+// tick regimes, and a listing is on a segment rather than on the venue.
+Class reference_data::RdVenueSegment
+{
+   segmentMic: String[1];
+   mic: String[0..1];
+   name: String[1];
+   segmentType: String[0..1];
+   tickSizeRegime: String[0..1];
+
+   venue: reference_data::RdListingVenue[0..1];
+}
+
+// When a venue is open. Its own class because the auction windows are what a settlement or
+// best-execution question actually needs, and because a venue has several sessions a day.
+Class reference_data::RdVenueTradingSession
+{
+   sessionId: String[1];
+   mic: String[0..1];
+   sessionName: String[1];
+   openTimeLocal: String[0..1];
+   closeTimeLocal: String[0..1];
+   isAuction: Boolean[0..1];
+   dayOfWeek: String[0..1];
+
+   venue: reference_data::RdListingVenue[0..1];
+}
+
+// One instrument admitted to trading on one venue. The many-to-many the master's single
+// PRIMARY_EXCHANGE_MIC column cannot express: a share listed in three places has one master
+// row and three listings, each with its own ticker and its own admission date.
+Class reference_data::RdListing
+{
+   instrumentId: String[1];
+   mic: String[1];
+   localTicker: String[0..1];
+   tradingCurrency: String[0..1];
+   admissionDate: StrictDate[0..1];
+   delistingDate: StrictDate[0..1];
+   isPrimaryListing: Boolean[0..1];
+   roundLotSize: Integer[0..1];
+
+   instrument: core_instrument::Instrument[0..1];
+   venue: reference_data::RdListingVenue[0..1];
+}
+
+// ------------------------------------------------------------------ 7. restrictions
+
+// Why something is restricted -- research embargo, insider list, sanctions, credit stop.
+// A code table because the reason decides who may override the restriction, and that is a
+// permission question rather than a text field.
+Class reference_data::RdRestrictionReason
+{
+   reasonCode: String[1];
+   description: String[1];
+   severity: String[0..1];
+   blocksBuying: Boolean[0..1];
+   blocksSelling: Boolean[0..1];
+   requiresApproval: Boolean[0..1];
+}
+
+// The sanctions regime a restriction derives from, and who issued it. Separate from the
+// reason code because a programme has a source authority and a country, and both change
+// while the reason code stays 'SANCTIONS'.
+Class reference_data::RdSanctionsProgramme
+{
+   programmeId: String[1];
+   name: String[1];
+   issuingAuthority: String[0..1];
+   targetCountryCode: String[0..1];
+   effectiveDate: StrictDate[0..1];
+   liftedDate: StrictDate[0..1];
+}
+
+// One instrument or issuer on the restricted list, for a period, for a reason. Dated on
+// both ends: releasing a restriction is not deleting the row, because "were we restricted
+// on the day we traded" is the only question anyone ever asks of this table.
+Class reference_data::RdRestrictedListEntry
+{
+   entryId: String[1];
+   instrumentId: String[0..1];
+   issuerId: String[0..1];
+   reasonCode: String[0..1];
+   programmeId: String[0..1];
+   addedDate: StrictDate[0..1];
+   releaseDate: StrictDate[0..1];
+   addedBy: String[0..1];
+   notes: String[0..1];
+
+   reason: reference_data::RdRestrictionReason[0..1];
+   programme: reference_data::RdSanctionsProgramme[0..1];
+}
+
+// ------------------------------------------------------------------ 8. classification
+
+// A classification taxonomy the firm uses -- CFI, GICS, NACE, an internal product tree.
+// Named as a scheme because the same instrument has a code in every one of them and none
+// of them is the code.
+Class reference_data::RdClassificationScheme
+{
+   schemeId: String[1];
+   name: String[1];
+   issuingBody: String[0..1];
+   version: String[0..1];
+   levelCount: Integer[0..1];
+   isRegulatory: Boolean[0..1];
+}
+
+// One instrument's code under one scheme, with the level it sits at. The row that lets a
+// regulatory extract answer "what is this, in your taxonomy" without the master growing a
+// column per regulator.
+Class reference_data::RdInstrumentClassification
+{
+   instrumentId: String[1];
+   schemeId: String[1];
+   classificationCode: String[1];
+   levelNumber: Integer[0..1];
+   parentCode: String[0..1];
+   assignedDate: StrictDate[0..1];
+   assignedBy: String[0..1];
+
+   scheme: reference_data::RdClassificationScheme[0..1];
+   instrument: core_instrument::Instrument[0..1];
+}
+
+// ------------------------------------------------------------------ 9. golden source
+
+// A system or vendor reference data arrives from. Reference data has no single source and
+// pretending otherwise is how two systems end up with different ISINs for one bond.
+Class reference_data::RdReferenceSource
+{
+   sourceId: String[1];
+   name: String[1];
+   sourceType: String[0..1];
+   isInternal: Boolean[0..1];
+   refreshFrequency: String[0..1];
+   contactTeam: String[0..1];
+}
+
+// Which source wins which field. The golden-source rule, one row per (field, source), with
+// a rank: the lowest-ranked source that has a non-null value is the value, and the rule is
+// data because it is renegotiated far more often than the code is released.
+Class reference_data::RdSourcePrecedence
+{
+   fieldName: String[1];
+   sourceId: String[1];
+   precedenceRank: Integer[1];
+   isFallbackAllowed: Boolean[0..1];
+   effectiveDate: StrictDate[0..1];
+
+   source: reference_data::RdReferenceSource[0..1];
+}
+
+// A validation applied to a reference field before it is published downstream. Kept as data
+// rather than code so a new rule is a row, and so the break report can name the rule that
+// produced it.
+Class reference_data::RdDataQualityRule
+{
+   ruleId: String[1];
+   fieldName: String[1];
+   ruleType: String[0..1];
+   expression: String[0..1];
+   severity: String[0..1];
+   isBlocking: Boolean[0..1];
+   owningTeam: String[0..1];
+}

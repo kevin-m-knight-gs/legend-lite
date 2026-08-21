@@ -1,0 +1,259 @@
+###Relational
+// The limits database. Every table is prefixed LIM_, every join Lim_ and every filter Lim, so
+// nothing here can collide with another project in the graph.
+//
+// It INCLUDES both dependency stores, which is what lets a join in this file name CB_BOOK and
+// CP_LEGAL_ENTITY -- the two dimensions of a limit that belong to other projects.
+//
+// Three tables carry a THREE-COLUMN PRIMARY KEY on the limit triple (BOOK_ID, COUNTERPARTY_ID,
+// MEASURE_CODE): LIM_LIMIT, LIM_UTILISATION and, on a different triple, LIM_THRESHOLD_BAND.
+// Two more extend that triple with a date. Every join back to a limit therefore matches on all
+// three columns; two of them would fan a notional limit's usage onto a tenor limit.
+//
+// Datatypes are chosen rather than defaulted: NUMERIC(20,4) for money-shaped thresholds and
+// amounts, FLOAT for percentages because they are ratios and may be approximate, SMALLINT for
+// anything bounded by construction (a severity, an approval level, a review cycle), CHAR(n) for
+// fixed-width codes. REAL is not used: it parses and cannot be read back at execution
+// (docs/UPSTREAM_FINDINGS.md F53).
+Database limit_core::Store
+(
+   include core_party::Store
+   include core_book::Store
+
+   // What is being limited. The measure leg of the key lives here so the code is validated
+   // against a list rather than being free text on the limit row.
+   Table LIM_MEASURE
+   (
+      MEASURE_CODE VARCHAR(16) PRIMARY KEY,
+      MEASURE_NAME VARCHAR(60) NOT NULL,
+      UNIT_CODE CHAR(4),
+      IS_MONETARY BIT,
+      DEFAULT_CURRENCY CHAR(3),
+      REPORTING_DECIMALS SMALLINT,
+      SORT_ORDER SMALLINT,
+      IS_ACTIVE BIT
+   )
+
+   // The governance framework. OWNER_ENTITY_ID reaches CP_LEGAL_ENTITY in core-party.
+   Table LIM_FRAMEWORK
+   (
+      FRAMEWORK_ID VARCHAR(32) PRIMARY KEY,
+      FRAMEWORK_NAME VARCHAR(120) NOT NULL,
+      OWNER_ENTITY_ID VARCHAR(40),
+      COMMITTEE_CODE CHAR(4),
+      REVIEW_CYCLE_MONTHS SMALLINT,
+      EFFECTIVE_FROM DATE,
+      RETIRED_ON DATE,
+      IS_ACTIVE BIT
+   )
+
+   // The three-column composite key this project exists for. BOOK_ID matches CB_BOOK.BOOK_ID
+   // and COUNTERPARTY_ID matches CP_LEGAL_ENTITY.ENTITY_ID, so two thirds of the key is owned
+   // by the dependencies and only MEASURE_CODE is ours.
+   Table LIM_LIMIT
+   (
+      BOOK_ID VARCHAR(64) PRIMARY KEY,
+      COUNTERPARTY_ID VARCHAR(40) PRIMARY KEY,
+      MEASURE_CODE VARCHAR(16) PRIMARY KEY,
+      FRAMEWORK_ID VARCHAR(32),
+      HARD_THRESHOLD NUMERIC(20,4),
+      SOFT_THRESHOLD NUMERIC(20,4),
+      WARNING_THRESHOLD NUMERIC(20,4),
+      CURRENCY_CODE CHAR(3),
+      REVIEW_FREQUENCY_DAYS SMALLINT,
+      EFFECTIVE_FROM DATE,
+      RETIRED_ON DATE,
+      IS_ACTIVE BIT,
+      IS_INTRADAY BIT
+   )
+
+   // Policy bands, on a different three-column key: framework, measure and band code. The same
+   // framework bands a notional limit differently from a tenor limit.
+   Table LIM_THRESHOLD_BAND
+   (
+      FRAMEWORK_ID VARCHAR(32) PRIMARY KEY,
+      MEASURE_CODE VARCHAR(16) PRIMARY KEY,
+      BAND_CODE CHAR(4) PRIMARY KEY,
+      BAND_NAME VARCHAR(40) NOT NULL,
+      TRIGGER_PCT FLOAT,
+      SEVERITY SMALLINT,
+      IS_BLOCKING BIT,
+      NOTIFY_ROLE VARCHAR(60)
+   )
+
+   // Current usage, on the limit's own triple -- one row per limit, which is what makes it a
+   // position rather than a log.
+   Table LIM_UTILISATION
+   (
+      BOOK_ID VARCHAR(64) PRIMARY KEY,
+      COUNTERPARTY_ID VARCHAR(40) PRIMARY KEY,
+      MEASURE_CODE VARCHAR(16) PRIMARY KEY,
+      UTILISED_AMOUNT NUMERIC(20,4),
+      GROSS_AMOUNT NUMERIC(20,4),
+      AVAILABLE_AMOUNT NUMERIC(20,4),
+      PEAK_AMOUNT NUMERIC(20,4),
+      UTILISATION_PCT FLOAT,
+      CURRENCY_CODE CHAR(3),
+      CONTRIBUTOR_COUNT SMALLINT,
+      AS_OF_DATE DATE,
+      CALCULATED_AT TIMESTAMP,
+      IS_STALE BIT
+   )
+
+   // The same triple plus the date: history is per limit per day.
+   Table LIM_UTILISATION_SNAPSHOT
+   (
+      BOOK_ID VARCHAR(64) PRIMARY KEY,
+      COUNTERPARTY_ID VARCHAR(40) PRIMARY KEY,
+      MEASURE_CODE VARCHAR(16) PRIMARY KEY,
+      AS_OF_DATE DATE PRIMARY KEY,
+      UTILISED_AMOUNT NUMERIC(20,4),
+      APPLIED_THRESHOLD NUMERIC(20,4),
+      UTILISATION_PCT FLOAT,
+      CURRENCY_CODE CHAR(3),
+      WAS_BREACHED BIT,
+      SNAPSHOT_TAKEN_AT TIMESTAMP
+   )
+
+   // Breaches keep their own id -- one limit breaches many times -- but carry the triple so
+   // they join back on all three columns.
+   Table LIM_BREACH
+   (
+      BREACH_ID VARCHAR(40) PRIMARY KEY,
+      BOOK_ID VARCHAR(64) NOT NULL,
+      COUNTERPARTY_ID VARCHAR(40) NOT NULL,
+      MEASURE_CODE VARCHAR(16) NOT NULL,
+      BREACH_TYPE_CODE CHAR(4),
+      BREACHED_THRESHOLD NUMERIC(20,4),
+      OBSERVED_AMOUNT NUMERIC(20,4),
+      EXCESS_AMOUNT NUMERIC(20,4),
+      EXCESS_PCT FLOAT,
+      SEVERITY SMALLINT,
+      CURRENCY_CODE CHAR(3),
+      DETECTED_AT TIMESTAMP,
+      CLOSED_ON DATE,
+      CLOSURE_NOTE VARCHAR(200)
+   )
+
+   // One row per level of the approval chain.
+   Table LIM_BREACH_APPROVAL
+   (
+      BREACH_ID VARCHAR(40) PRIMARY KEY,
+      APPROVAL_LEVEL SMALLINT PRIMARY KEY,
+      APPROVER_ID VARCHAR(40),
+      DECISION_CODE CHAR(4),
+      APPROVED_EXCESS NUMERIC(20,4),
+      DECIDED_AT TIMESTAMP,
+      APPROVAL_COMMENT VARCHAR(200)
+   )
+
+   // The delegation table an approval is checked against.
+   Table LIM_APPROVER
+   (
+      APPROVER_ID VARCHAR(40) PRIMARY KEY,
+      APPROVER_NAME VARCHAR(120) NOT NULL,
+      ROLE_CODE VARCHAR(32),
+      APPROVAL_LEVEL SMALLINT,
+      MAX_APPROVAL_AMOUNT NUMERIC(20,4),
+      CURRENCY_CODE CHAR(3),
+      IS_ACTIVE BIT,
+      DELEGATED_FROM VARCHAR(40)
+   )
+
+   // The temporary uplift. EXPIRES_ON is NOT NULL: an uplift without an expiry is a permanent
+   // limit change and belongs in LIM_LIMIT.
+   Table LIM_UPLIFT
+   (
+      UPLIFT_ID VARCHAR(40) PRIMARY KEY,
+      BOOK_ID VARCHAR(64) NOT NULL,
+      COUNTERPARTY_ID VARCHAR(40) NOT NULL,
+      MEASURE_CODE VARCHAR(16) NOT NULL,
+      BASE_THRESHOLD NUMERIC(20,4),
+      UPLIFT_AMOUNT NUMERIC(20,4),
+      LIFTED_THRESHOLD NUMERIC(20,4),
+      CURRENCY_CODE CHAR(3),
+      EFFECTIVE_FROM DATE NOT NULL,
+      EXPIRES_ON DATE NOT NULL,
+      REASON_CODE VARCHAR(32),
+      APPROVED_BY VARCHAR(40),
+      APPROVED_AT TIMESTAMP,
+      IS_REVOKED BIT
+   )
+
+   // Escalation policy, keyed by framework and severity.
+   Table LIM_ESCALATION_RULE
+   (
+      FRAMEWORK_ID VARCHAR(32) PRIMARY KEY,
+      SEVERITY_CODE CHAR(4) PRIMARY KEY,
+      EXCESS_PCT_FROM FLOAT,
+      EXCESS_PCT_TO FLOAT,
+      REQUIRED_APPROVAL_LEVEL SMALLINT,
+      RESPONSE_MINUTES SMALLINT,
+      NOTIFY_ROLE VARCHAR(60),
+      IS_BLOCKING BIT
+   )
+
+   // The periodic re-approval: the limit triple plus the review date.
+   Table LIM_LIMIT_REVIEW
+   (
+      BOOK_ID VARCHAR(64) PRIMARY KEY,
+      COUNTERPARTY_ID VARCHAR(40) PRIMARY KEY,
+      MEASURE_CODE VARCHAR(16) PRIMARY KEY,
+      REVIEW_DATE DATE PRIMARY KEY,
+      PREVIOUS_THRESHOLD NUMERIC(20,4),
+      PROPOSED_THRESHOLD NUMERIC(20,4),
+      OUTCOME_CODE CHAR(4),
+      REVIEWER_ID VARCHAR(40),
+      AVERAGE_UTILISATION_PCT FLOAT,
+      NEXT_REVIEW_DATE DATE,
+      REVIEW_COMMENT VARCHAR(200)
+   )
+
+   // ---------------------------------------------------------------- across the boundary
+   // A limit to the book it is set on -- CB_BOOK belongs to core-book and is reachable only
+   // because this database includes that one.
+   Join Lim_LimitBook(LIM_LIMIT.BOOK_ID = CB_BOOK.BOOK_ID)
+   // A limit to the counterparty it is set against, in core-party.
+   Join Lim_LimitCounterparty(LIM_LIMIT.COUNTERPARTY_ID = CP_LEGAL_ENTITY.ENTITY_ID)
+   // A framework to the legal entity that owns the policy.
+   Join Lim_FrameworkEntity(LIM_FRAMEWORK.OWNER_ENTITY_ID = CP_LEGAL_ENTITY.ENTITY_ID)
+
+   // ---------------------------------------------------------------- within the project
+   // A limit to what it limits.
+   Join Lim_LimitMeasure(LIM_LIMIT.MEASURE_CODE = LIM_MEASURE.MEASURE_CODE)
+   // A limit to the framework it is written under.
+   Join Lim_LimitFramework(LIM_LIMIT.FRAMEWORK_ID = LIM_FRAMEWORK.FRAMEWORK_ID)
+
+   // The three-column joins. All three key columns every time: match on book and counterparty
+   // alone and a notional limit picks up a tenor limit's usage.
+   Join Lim_LimitUtilisation(LIM_LIMIT.BOOK_ID = LIM_UTILISATION.BOOK_ID
+                             and LIM_LIMIT.COUNTERPARTY_ID = LIM_UTILISATION.COUNTERPARTY_ID
+                             and LIM_LIMIT.MEASURE_CODE = LIM_UTILISATION.MEASURE_CODE)
+   Join Lim_LimitSnapshot(LIM_LIMIT.BOOK_ID = LIM_UTILISATION_SNAPSHOT.BOOK_ID
+                          and LIM_LIMIT.COUNTERPARTY_ID = LIM_UTILISATION_SNAPSHOT.COUNTERPARTY_ID
+                          and LIM_LIMIT.MEASURE_CODE = LIM_UTILISATION_SNAPSHOT.MEASURE_CODE)
+   Join Lim_LimitBreach(LIM_LIMIT.BOOK_ID = LIM_BREACH.BOOK_ID
+                        and LIM_LIMIT.COUNTERPARTY_ID = LIM_BREACH.COUNTERPARTY_ID
+                        and LIM_LIMIT.MEASURE_CODE = LIM_BREACH.MEASURE_CODE)
+   Join Lim_LimitUplift(LIM_LIMIT.BOOK_ID = LIM_UPLIFT.BOOK_ID
+                        and LIM_LIMIT.COUNTERPARTY_ID = LIM_UPLIFT.COUNTERPARTY_ID
+                        and LIM_LIMIT.MEASURE_CODE = LIM_UPLIFT.MEASURE_CODE)
+   Join Lim_LimitReview(LIM_LIMIT.BOOK_ID = LIM_LIMIT_REVIEW.BOOK_ID
+                        and LIM_LIMIT.COUNTERPARTY_ID = LIM_LIMIT_REVIEW.COUNTERPARTY_ID
+                        and LIM_LIMIT.MEASURE_CODE = LIM_LIMIT_REVIEW.MEASURE_CODE)
+
+   // A breach to its approval chain, and an approval to who signed it.
+   Join Lim_BreachApproval(LIM_BREACH.BREACH_ID = LIM_BREACH_APPROVAL.BREACH_ID)
+   Join Lim_ApprovalApprover(LIM_BREACH_APPROVAL.APPROVER_ID = LIM_APPROVER.APPROVER_ID)
+   // An uplift to who granted it.
+   Join Lim_UpliftApprover(LIM_UPLIFT.APPROVED_BY = LIM_APPROVER.APPROVER_ID)
+   // A framework to its policy bands and its escalation ladder.
+   Join Lim_FrameworkBand(LIM_FRAMEWORK.FRAMEWORK_ID = LIM_THRESHOLD_BAND.FRAMEWORK_ID)
+   Join Lim_FrameworkEscalation(LIM_FRAMEWORK.FRAMEWORK_ID = LIM_ESCALATION_RULE.FRAMEWORK_ID)
+
+   // Limits that have not been retired. A null test rather than a boolean literal: a Filter
+   // will not take `= true`.
+   Filter LimLiveLimits(LIM_LIMIT.RETIRED_ON is null)
+   // Breaches nobody has closed yet.
+   Filter LimOpenBreaches(LIM_BREACH.CLOSED_ON is null)
+)

@@ -1,0 +1,47 @@
+###Mapping
+
+Mapping core_ratings::Mapping
+(
+  *core_ratings::CrAgency[crAgency]: Relational
+  {
+    ~primaryKey ( [core_ratings::Store]CR_AGENCY.AGENCY_ID )
+    ~mainTable [core_ratings::Store]CR_AGENCY
+    agencyId: [core_ratings::Store]CR_AGENCY.AGENCY_ID,
+    agencyName: [core_ratings::Store]CR_AGENCY.AGENCY_NAME,
+    scaleFamily: [core_ratings::Store]CR_AGENCY.SCALE_FAMILY
+  }
+
+  *core_ratings::CrRatingScale[crRatingScale]: Relational
+  {
+    ~primaryKey ( [core_ratings::Store]CR_SCALE.AGENCY_ID, [core_ratings::Store]CR_SCALE.SYMBOL )
+    ~mainTable [core_ratings::Store]CR_SCALE
+    symbol: [core_ratings::Store]CR_SCALE.SYMBOL,
+    notch: [core_ratings::Store]CR_SCALE.NOTCH,
+    isInvestmentGrade: [core_ratings::Store]CR_SCALE.IS_INVESTMENT_GRADE,
+    agency[crAgency]: [core_ratings::Store]@Cr_ScaleAgency
+  }
+
+  // The milestoned set. FROM_Z is part of ~primaryKey -- one entity has many versions, and
+  // the version is only identified once you say which span. FROM_Z and THRU_Z appear here
+  // and nowhere on the class: the engine adds the date predicate itself.
+  *core_ratings::RatingVersion[crRatingVersion]: Relational
+  {
+    ~primaryKey ( [core_ratings::Store]CR_RATING_MS.ENTITY_ID, [core_ratings::Store]CR_RATING_MS.FROM_Z )
+    ~mainTable [core_ratings::Store]CR_RATING_MS
+    entityId: [core_ratings::Store]CR_RATING_MS.ENTITY_ID,
+    rating: [core_ratings::Store]CR_RATING_MS.RATING,
+    agency: [core_ratings::Store]CR_RATING_MS.AGENCY
+  }
+
+  *core_ratings::CrRatingAction[crRatingAction]: Relational
+  {
+    ~primaryKey ( [core_ratings::Store]CR_ACTION.ACTION_ID )
+    ~mainTable [core_ratings::Store]CR_ACTION
+    actionId: [core_ratings::Store]CR_ACTION.ACTION_ID,
+    entityId: [core_ratings::Store]CR_ACTION.ENTITY_ID,
+    actionType: [core_ratings::Store]CR_ACTION.ACTION_TYPE,
+    priorRating: [core_ratings::Store]CR_ACTION.PRIOR_RATING,
+    newRating: [core_ratings::Store]CR_ACTION.NEW_RATING,
+    actionAgency[crAgency]: [core_ratings::Store]@Cr_ActionAgency
+  }
+)

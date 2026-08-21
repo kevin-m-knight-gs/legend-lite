@@ -1,0 +1,354 @@
+###Mapping
+// One set per class, every set id ord-prefixed and named EXPLICITLY, because the
+// OrderParent association has order_core::Order on BOTH ends and each of its two ends has
+// to name its source and target set -- [ordOrder, ordOrder], the same id twice.
+//
+// The upstream mappings are included so the cross-project association ends can name the
+// upstream set ids `ciBase` (core-instrument's root Instrument set) and `cbBook`.
+//
+// The five EnumerationMappings below are the only place the physical code strings live.
+Mapping order_core::Mapping
+(
+   include core_instrument::Mapping
+   include core_book::Mapping
+
+   // ---- Enumeration mappings ----
+
+   order_core::OrderType: EnumerationMapping OrdOrderTypeMapping
+   {
+      MARKET:     ['1', 'MARKET'],
+      LIMIT:      ['2', 'LIMIT'],
+      STOP:       ['3', 'STOP'],
+      STOP_LIMIT: ['4', 'STOP_LIMIT'],
+      PEG:        ['P', 'PEGGED']
+   }
+
+   order_core::TimeInForce: EnumerationMapping OrdTimeInForceMapping
+   {
+      DAY: ['0', 'DAY'],
+      GTC: ['1', 'GTC'],
+      IOC: ['3', 'IOC'],
+      FOK: ['4', 'FOK'],
+      GTD: ['6', 'GTD']
+   }
+
+   order_core::OrderState: EnumerationMapping OrdOrderStateMapping
+   {
+      NEW:              ['0', 'NEW'],
+      PARTIALLY_FILLED: ['1', 'PARTIALLY_FILLED'],
+      FILLED:           ['2', 'FILLED'],
+      CANCELLED:        ['4', 'CANCELLED'],
+      REJECTED:         ['8', 'REJECTED'],
+      EXPIRED:          ['C', 'EXPIRED']
+   }
+
+   order_core::OrderSide: EnumerationMapping OrdOrderSideMapping
+   {
+      BUY:           ['1', 'BUY'],
+      SELL:          ['2', 'SELL'],
+      SELL_SHORT:    ['5', 'SELL_SHORT'],
+      BUY_TO_COVER:  ['B', 'BUY_TO_COVER']
+   }
+
+   order_core::ExecutionCapacity: EnumerationMapping OrdExecutionCapacityMapping
+   {
+      AGENCY:             ['A', 'AGENCY'],
+      PRINCIPAL:          ['P', 'PRINCIPAL'],
+      RISKLESS_PRINCIPAL: ['R', 'RISKLESS_PRINCIPAL']
+   }
+
+   // ---- Class mappings ----
+
+   // The recursive set. Both ends of the OrderParent association mapping point at this one
+   // id, in both directions.
+   *order_core::Order[ordOrder]: Relational
+   {
+      ~primaryKey ( [order_core::Store]ORD_ORDER.ORDER_ID )
+      ~mainTable [order_core::Store]ORD_ORDER
+      orderId: [order_core::Store]ORD_ORDER.ORDER_ID,
+      clientOrderId: [order_core::Store]ORD_ORDER.CLIENT_ORDER_ID,
+      parentOrderId: [order_core::Store]ORD_ORDER.PARENT_ORDER_ID,
+      rootOrderId: [order_core::Store]ORD_ORDER.ROOT_ORDER_ID,
+      side: EnumerationMapping OrdOrderSideMapping: [order_core::Store]ORD_ORDER.SIDE,
+      orderType: EnumerationMapping OrdOrderTypeMapping: [order_core::Store]ORD_ORDER.ORDER_TYPE,
+      timeInForce: EnumerationMapping OrdTimeInForceMapping: [order_core::Store]ORD_ORDER.TIME_IN_FORCE,
+      state: EnumerationMapping OrdOrderStateMapping: [order_core::Store]ORD_ORDER.ORDER_STATE,
+      capacity: EnumerationMapping OrdExecutionCapacityMapping: [order_core::Store]ORD_ORDER.CAPACITY,
+      quantity: [order_core::Store]ORD_ORDER.QUANTITY,
+      filledQuantity: [order_core::Store]ORD_ORDER.FILLED_QUANTITY,
+      remainingQuantity: [order_core::Store]ORD_ORDER.REMAINING_QUANTITY,
+      limitPrice: [order_core::Store]ORD_ORDER.LIMIT_PRICE,
+      stopPrice: [order_core::Store]ORD_ORDER.STOP_PRICE,
+      pegOffset: [order_core::Store]ORD_ORDER.PEG_OFFSET,
+      currency: [order_core::Store]ORD_ORDER.CURRENCY,
+      sliceNumber: [order_core::Store]ORD_ORDER.SLICE_NUMBER,
+      createdAt: [order_core::Store]ORD_ORDER.CREATED_AT,
+      lastUpdatedAt: [order_core::Store]ORD_ORDER.LAST_UPDATED_AT,
+      expiryDate: [order_core::Store]ORD_ORDER.EXPIRY_DATE,
+      cancelReason: [order_core::Store]ORD_ORDER.CANCEL_REASON
+   }
+
+   *order_core::Execution[ordExecution]: Relational
+   {
+      ~primaryKey ( [order_core::Store]ORD_EXECUTION.EXECUTION_ID )
+      ~mainTable [order_core::Store]ORD_EXECUTION
+      executionId: [order_core::Store]ORD_EXECUTION.EXECUTION_ID,
+      venueExecutionRef: [order_core::Store]ORD_EXECUTION.VENUE_EXECUTION_REF,
+      executedQuantity: [order_core::Store]ORD_EXECUTION.EXECUTED_QUANTITY,
+      executedPrice: [order_core::Store]ORD_EXECUTION.EXECUTED_PRICE,
+      executedAt: [order_core::Store]ORD_EXECUTION.EXECUTED_AT,
+      liquidityFlag: [order_core::Store]ORD_EXECUTION.LIQUIDITY_FLAG,
+      commission: [order_core::Store]ORD_EXECUTION.COMMISSION,
+      isBusted: [order_core::Store]ORD_EXECUTION.IS_BUSTED
+   }
+
+   *order_core::Venue[ordVenue]: Relational
+   {
+      ~primaryKey ( [order_core::Store]ORD_VENUE.VENUE_ID )
+      ~mainTable [order_core::Store]ORD_VENUE
+      venueId: [order_core::Store]ORD_VENUE.VENUE_ID,
+      mic: [order_core::Store]ORD_VENUE.MIC,
+      name: [order_core::Store]ORD_VENUE.NAME,
+      venueType: [order_core::Store]ORD_VENUE.VENUE_TYPE,
+      countryCode: [order_core::Store]ORD_VENUE.COUNTRY_CODE,
+      isLit: [order_core::Store]ORD_VENUE.IS_LIT,
+      isActive: [order_core::Store]ORD_VENUE.IS_ACTIVE
+   }
+
+   *order_core::RoutingInstruction[ordRoutingInstruction]: Relational
+   {
+      ~primaryKey ( [order_core::Store]ORD_ROUTING_INSTRUCTION.ROUTING_ID )
+      ~mainTable [order_core::Store]ORD_ROUTING_INSTRUCTION
+      routingId: [order_core::Store]ORD_ROUTING_INSTRUCTION.ROUTING_ID,
+      sequenceNumber: [order_core::Store]ORD_ROUTING_INSTRUCTION.SEQUENCE_NUMBER,
+      strategyCode: [order_core::Store]ORD_ROUTING_INSTRUCTION.STRATEGY_CODE,
+      minQuantity: [order_core::Store]ORD_ROUTING_INSTRUCTION.MIN_QUANTITY,
+      maxParticipationRate: [order_core::Store]ORD_ROUTING_INSTRUCTION.MAX_PARTICIPATION_RATE,
+      isActive: [order_core::Store]ORD_ROUTING_INSTRUCTION.IS_ACTIVE
+   }
+
+   *order_core::OrderStateChange[ordStateChange]: Relational
+   {
+      ~primaryKey ( [order_core::Store]ORD_STATE_CHANGE.STATE_CHANGE_ID )
+      ~mainTable [order_core::Store]ORD_STATE_CHANGE
+      stateChangeId: [order_core::Store]ORD_STATE_CHANGE.STATE_CHANGE_ID,
+      fromState: EnumerationMapping OrdOrderStateMapping: [order_core::Store]ORD_STATE_CHANGE.FROM_STATE,
+      toState: EnumerationMapping OrdOrderStateMapping: [order_core::Store]ORD_STATE_CHANGE.TO_STATE,
+      changedAt: [order_core::Store]ORD_STATE_CHANGE.CHANGED_AT,
+      reasonCode: [order_core::Store]ORD_STATE_CHANGE.REASON_CODE,
+      changedBy: [order_core::Store]ORD_STATE_CHANGE.CHANGED_BY
+   }
+
+   *order_core::Allocation[ordAllocation]: Relational
+   {
+      ~primaryKey ( [order_core::Store]ORD_ALLOCATION.ALLOCATION_ID )
+      ~mainTable [order_core::Store]ORD_ALLOCATION
+      allocationId: [order_core::Store]ORD_ALLOCATION.ALLOCATION_ID,
+      accountRef: [order_core::Store]ORD_ALLOCATION.ACCOUNT_REF,
+      allocatedQuantity: [order_core::Store]ORD_ALLOCATION.ALLOCATED_QUANTITY,
+      averagePrice: [order_core::Store]ORD_ALLOCATION.AVERAGE_PRICE,
+      allocationDate: [order_core::Store]ORD_ALLOCATION.ALLOCATION_DATE,
+      status: [order_core::Store]ORD_ALLOCATION.STATUS
+   }
+
+   *order_core::OrderAmendment[ordAmendment]: Relational
+   {
+      ~primaryKey ( [order_core::Store]ORD_AMENDMENT.AMENDMENT_ID )
+      ~mainTable [order_core::Store]ORD_AMENDMENT
+      amendmentId: [order_core::Store]ORD_AMENDMENT.AMENDMENT_ID,
+      amendmentType: [order_core::Store]ORD_AMENDMENT.AMENDMENT_TYPE,
+      fieldName: [order_core::Store]ORD_AMENDMENT.FIELD_NAME,
+      oldValue: [order_core::Store]ORD_AMENDMENT.OLD_VALUE,
+      newValue: [order_core::Store]ORD_AMENDMENT.NEW_VALUE,
+      requestedAt: [order_core::Store]ORD_AMENDMENT.REQUESTED_AT,
+      isAccepted: [order_core::Store]ORD_AMENDMENT.IS_ACCEPTED
+   }
+
+   *order_core::Trader[ordTrader]: Relational
+   {
+      ~primaryKey ( [order_core::Store]ORD_TRADER.TRADER_ID )
+      ~mainTable [order_core::Store]ORD_TRADER
+      traderId: [order_core::Store]ORD_TRADER.TRADER_ID,
+      firstName: [order_core::Store]ORD_TRADER.FIRST_NAME,
+      lastName: [order_core::Store]ORD_TRADER.LAST_NAME,
+      deskCode: [order_core::Store]ORD_TRADER.DESK_CODE,
+      email: [order_core::Store]ORD_TRADER.EMAIL,
+      isActive: [order_core::Store]ORD_TRADER.IS_ACTIVE
+   }
+
+   *order_core::OrderSource[ordOrderSource]: Relational
+   {
+      ~primaryKey ( [order_core::Store]ORD_ORDER_SOURCE.SOURCE_ID )
+      ~mainTable [order_core::Store]ORD_ORDER_SOURCE
+      sourceId: [order_core::Store]ORD_ORDER_SOURCE.SOURCE_ID,
+      code: [order_core::Store]ORD_ORDER_SOURCE.CODE,
+      name: [order_core::Store]ORD_ORDER_SOURCE.NAME,
+      channel: [order_core::Store]ORD_ORDER_SOURCE.CHANNEL,
+      isElectronic: [order_core::Store]ORD_ORDER_SOURCE.IS_ELECTRONIC
+   }
+
+   *order_core::ExecutionAlgorithm[ordAlgorithm]: Relational
+   {
+      ~primaryKey ( [order_core::Store]ORD_ALGORITHM.ALGORITHM_ID )
+      ~mainTable [order_core::Store]ORD_ALGORITHM
+      algorithmId: [order_core::Store]ORD_ALGORITHM.ALGORITHM_ID,
+      code: [order_core::Store]ORD_ALGORITHM.CODE,
+      name: [order_core::Store]ORD_ALGORITHM.NAME,
+      vendor: [order_core::Store]ORD_ALGORITHM.VENDOR,
+      defaultParticipationRate: [order_core::Store]ORD_ALGORITHM.DEFAULT_PARTICIPATION_RATE,
+      isActive: [order_core::Store]ORD_ALGORITHM.IS_ACTIVE
+   }
+
+   *order_core::OrderRestriction[ordRestriction]: Relational
+   {
+      ~primaryKey ( [order_core::Store]ORD_RESTRICTION.RESTRICTION_ID )
+      ~mainTable [order_core::Store]ORD_RESTRICTION
+      restrictionId: [order_core::Store]ORD_RESTRICTION.RESTRICTION_ID,
+      restrictionType: [order_core::Store]ORD_RESTRICTION.RESTRICTION_TYPE,
+      description: [order_core::Store]ORD_RESTRICTION.DESCRIPTION,
+      effectiveDate: [order_core::Store]ORD_RESTRICTION.EFFECTIVE_DATE,
+      expiryDate: [order_core::Store]ORD_RESTRICTION.EXPIRY_DATE
+   }
+
+   // ---- Association mappings ----
+
+   // THE self-join one. Both ends name [ordOrder, ordOrder] -- the same set id twice --
+   // and only the direction of travel over Ord_ParentOrder tells parentOrder from
+   // childOrders.
+   order_core::OrderParent: Relational
+   {
+      AssociationMapping
+      (
+         childOrders[ordOrder, ordOrder]: [order_core::Store]@Ord_ParentOrder,
+         parentOrder[ordOrder, ordOrder]: [order_core::Store]@Ord_ParentOrder
+      )
+   }
+
+   // Cross-project. `ciBase` and `cbBook` are the upstream set ids, taken from their
+   // MANIFESTs -- neither project exposes a default id.
+   order_core::OrderInstrument: Relational
+   {
+      AssociationMapping
+      (
+         instrument[ordOrder, ciBase]: [order_core::Store]@Ord_OrderInstrument,
+         instrumentOrders[ciBase, ordOrder]: [order_core::Store]@Ord_OrderInstrument
+      )
+   }
+
+   order_core::OrderBook: Relational
+   {
+      AssociationMapping
+      (
+         book[ordOrder, cbBook]: [order_core::Store]@Ord_OrderBook,
+         bookOrders[cbBook, ordOrder]: [order_core::Store]@Ord_OrderBook
+      )
+   }
+
+   order_core::OrderExecutions: Relational
+   {
+      AssociationMapping
+      (
+         executions[ordOrder, ordExecution]: [order_core::Store]@Ord_OrderExecution,
+         executedOrder[ordExecution, ordOrder]: [order_core::Store]@Ord_OrderExecution
+      )
+   }
+
+   order_core::ExecutionVenueLink: Relational
+   {
+      AssociationMapping
+      (
+         executionVenue[ordExecution, ordVenue]: [order_core::Store]@Ord_ExecutionVenue,
+         venueExecutions[ordVenue, ordExecution]: [order_core::Store]@Ord_ExecutionVenue
+      )
+   }
+
+   order_core::OrderVenueLink: Relational
+   {
+      AssociationMapping
+      (
+         routedVenue[ordOrder, ordVenue]: [order_core::Store]@Ord_OrderVenue,
+         venueOrders[ordVenue, ordOrder]: [order_core::Store]@Ord_OrderVenue
+      )
+   }
+
+   order_core::OrderRoutingLink: Relational
+   {
+      AssociationMapping
+      (
+         routingInstructions[ordOrder, ordRoutingInstruction]: [order_core::Store]@Ord_OrderRouting,
+         routedOrder[ordRoutingInstruction, ordOrder]: [order_core::Store]@Ord_OrderRouting
+      )
+   }
+
+   order_core::RoutingVenueLink: Relational
+   {
+      AssociationMapping
+      (
+         targetVenue[ordRoutingInstruction, ordVenue]: [order_core::Store]@Ord_RoutingVenue,
+         venueRoutingInstructions[ordVenue, ordRoutingInstruction]: [order_core::Store]@Ord_RoutingVenue
+      )
+   }
+
+   order_core::OrderStateHistory: Relational
+   {
+      AssociationMapping
+      (
+         stateChanges[ordOrder, ordStateChange]: [order_core::Store]@Ord_OrderStateChange,
+         stateChangeOrder[ordStateChange, ordOrder]: [order_core::Store]@Ord_OrderStateChange
+      )
+   }
+
+   order_core::OrderAllocations: Relational
+   {
+      AssociationMapping
+      (
+         allocations[ordOrder, ordAllocation]: [order_core::Store]@Ord_OrderAllocation,
+         allocatedOrder[ordAllocation, ordOrder]: [order_core::Store]@Ord_OrderAllocation
+      )
+   }
+
+   order_core::OrderAmendments: Relational
+   {
+      AssociationMapping
+      (
+         amendments[ordOrder, ordAmendment]: [order_core::Store]@Ord_OrderAmendment,
+         amendedOrder[ordAmendment, ordOrder]: [order_core::Store]@Ord_OrderAmendment
+      )
+   }
+
+   order_core::OrderTraderLink: Relational
+   {
+      AssociationMapping
+      (
+         trader[ordOrder, ordTrader]: [order_core::Store]@Ord_OrderTrader,
+         traderOrders[ordTrader, ordOrder]: [order_core::Store]@Ord_OrderTrader
+      )
+   }
+
+   order_core::OrderSourceLink: Relational
+   {
+      AssociationMapping
+      (
+         source[ordOrder, ordOrderSource]: [order_core::Store]@Ord_OrderSource,
+         sourceOrders[ordOrderSource, ordOrder]: [order_core::Store]@Ord_OrderSource
+      )
+   }
+
+   order_core::OrderAlgorithmLink: Relational
+   {
+      AssociationMapping
+      (
+         algorithm[ordOrder, ordAlgorithm]: [order_core::Store]@Ord_OrderAlgorithm,
+         algorithmOrders[ordAlgorithm, ordOrder]: [order_core::Store]@Ord_OrderAlgorithm
+      )
+   }
+
+   order_core::OrderRestrictions: Relational
+   {
+      AssociationMapping
+      (
+         restrictions[ordOrder, ordRestriction]: [order_core::Store]@Ord_OrderRestriction,
+         restrictedOrder[ordRestriction, ordOrder]: [order_core::Store]@Ord_OrderRestriction
+      )
+   }
+)

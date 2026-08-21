@@ -1,0 +1,299 @@
+###Mapping
+// credit-core's mapping.
+//
+// Both dependency mappings are included, because the cross-project association mappings
+// below name sets that live in them -- cpLegalEntity and crRatingVersion -- and an
+// AssociationMapping end can only name a set the mapping can see.
+//
+// Every set id here is explicit and cdc-prefixed. Set ids are a GLOBAL namespace in Legend:
+// one collision anywhere in the graph fails the whole compile with a message that names the
+// id and not the project. Naming them explicitly also means the DEFAULT ids
+// (credit_core_CdcObligor and the rest) do not exist, so every AssociationMapping end below
+// carries [source, target] -- the bare `prop: [db]@Join` form only resolves default ids.
+Mapping credit_core::Mapping
+(
+   include core_party::Mapping
+   include core_ratings::Mapping
+
+   *credit_core::CdcObligor[cdcObligor]: Relational
+   {
+      ~primaryKey ( [credit_core::Store]CDC_OBLIGOR.OBLIGOR_ID )
+      ~mainTable [credit_core::Store]CDC_OBLIGOR
+      obligorId: [credit_core::Store]CDC_OBLIGOR.OBLIGOR_ID,
+      entityId: [credit_core::Store]CDC_OBLIGOR.ENTITY_ID,
+      obligorName: [credit_core::Store]CDC_OBLIGOR.OBLIGOR_NAME,
+      internalGrade: [credit_core::Store]CDC_OBLIGOR.INTERNAL_GRADE,
+      exposureClassCode: [credit_core::Store]CDC_OBLIGOR.EXPOSURE_CLASS_CODE,
+      onWatchList: [credit_core::Store]CDC_OBLIGOR.ON_WATCH_LIST,
+      isDefaulted: [credit_core::Store]CDC_OBLIGOR.IS_DEFAULTED,
+      defaultDate: [credit_core::Store]CDC_OBLIGOR.DEFAULT_DATE,
+      nextReviewDate: [credit_core::Store]CDC_OBLIGOR.NEXT_REVIEW_DATE
+   }
+
+   *credit_core::CdcExposureClass[cdcExposureClass]: Relational
+   {
+      ~primaryKey ( [credit_core::Store]CDC_EXPOSURE_CLASS.CLASS_CODE )
+      ~mainTable [credit_core::Store]CDC_EXPOSURE_CLASS
+      classCode: [credit_core::Store]CDC_EXPOSURE_CLASS.CLASS_CODE,
+      className: [credit_core::Store]CDC_EXPOSURE_CLASS.CLASS_NAME,
+      isRetail: [credit_core::Store]CDC_EXPOSURE_CLASS.IS_RETAIL,
+      pdFloor: [credit_core::Store]CDC_EXPOSURE_CLASS.PD_FLOOR,
+      riskWeightFloor: [credit_core::Store]CDC_EXPOSURE_CLASS.RISK_WEIGHT_FLOOR
+   }
+
+   *credit_core::CdcFacility[cdcFacility]: Relational
+   {
+      ~primaryKey ( [credit_core::Store]CDC_FACILITY.FACILITY_ID )
+      ~mainTable [credit_core::Store]CDC_FACILITY
+      facilityId: [credit_core::Store]CDC_FACILITY.FACILITY_ID,
+      obligorId: [credit_core::Store]CDC_FACILITY.OBLIGOR_ID,
+      facilityType: [credit_core::Store]CDC_FACILITY.FACILITY_TYPE,
+      commitmentAmount: [credit_core::Store]CDC_FACILITY.COMMITMENT_AMOUNT,
+      currencyCode: [credit_core::Store]CDC_FACILITY.CURRENCY_CODE,
+      startDate: [credit_core::Store]CDC_FACILITY.START_DATE,
+      maturityDate: [credit_core::Store]CDC_FACILITY.MATURITY_DATE,
+      creditConversionFactor: [credit_core::Store]CDC_FACILITY.CREDIT_CONVERSION_FACTOR,
+      isCommitted: [credit_core::Store]CDC_FACILITY.IS_COMMITTED,
+      seniority: [credit_core::Store]CDC_FACILITY.SENIORITY
+   }
+
+   *credit_core::CdcExposure[cdcExposure]: Relational
+   {
+      ~primaryKey ( [credit_core::Store]CDC_EXPOSURE.EXPOSURE_ID )
+      ~mainTable [credit_core::Store]CDC_EXPOSURE
+      exposureId: [credit_core::Store]CDC_EXPOSURE.EXPOSURE_ID,
+      facilityId: [credit_core::Store]CDC_EXPOSURE.FACILITY_ID,
+      obligorId: [credit_core::Store]CDC_EXPOSURE.OBLIGOR_ID,
+      portfolioId: [credit_core::Store]CDC_EXPOSURE.PORTFOLIO_ID,
+      asOfDate: [credit_core::Store]CDC_EXPOSURE.AS_OF_DATE,
+      drawnAmount: [credit_core::Store]CDC_EXPOSURE.DRAWN_AMOUNT,
+      undrawnAmount: [credit_core::Store]CDC_EXPOSURE.UNDRAWN_AMOUNT,
+      accruedInterest: [credit_core::Store]CDC_EXPOSURE.ACCRUED_INTEREST,
+      currencyCode: [credit_core::Store]CDC_EXPOSURE.CURRENCY_CODE
+   }
+
+   *credit_core::CdcPdModel[cdcPdModel]: Relational
+   {
+      ~primaryKey ( [credit_core::Store]CDC_PD_MODEL.MODEL_ID )
+      ~mainTable [credit_core::Store]CDC_PD_MODEL
+      modelId: [credit_core::Store]CDC_PD_MODEL.MODEL_ID,
+      modelName: [credit_core::Store]CDC_PD_MODEL.MODEL_NAME,
+      modelVersion: [credit_core::Store]CDC_PD_MODEL.MODEL_VERSION,
+      calibrationDate: [credit_core::Store]CDC_PD_MODEL.CALIBRATION_DATE,
+      isThroughTheCycle: [credit_core::Store]CDC_PD_MODEL.IS_THROUGH_THE_CYCLE,
+      owningTeam: [credit_core::Store]CDC_PD_MODEL.OWNING_TEAM
+   }
+
+   // The composite key is the point of this set: (MODEL_ID, RATING_SYMBOL). Keyed by
+   // symbol alone it would hold one PD per rating for the whole bank, which is the bug.
+   *credit_core::CdcRatingPd[cdcRatingPd]: Relational
+   {
+      ~primaryKey ( [credit_core::Store]CDC_RATING_PD.MODEL_ID, [credit_core::Store]CDC_RATING_PD.RATING_SYMBOL )
+      ~mainTable [credit_core::Store]CDC_RATING_PD
+      modelId: [credit_core::Store]CDC_RATING_PD.MODEL_ID,
+      ratingSymbol: [credit_core::Store]CDC_RATING_PD.RATING_SYMBOL,
+      agencyId: [credit_core::Store]CDC_RATING_PD.AGENCY_ID,
+      notch: [credit_core::Store]CDC_RATING_PD.NOTCH,
+      pdValue: [credit_core::Store]CDC_RATING_PD.PD_VALUE,
+      isInvestmentGrade: [credit_core::Store]CDC_RATING_PD.IS_INVESTMENT_GRADE
+   }
+
+   *credit_core::CdcLgdSegment[cdcLgdSegment]: Relational
+   {
+      ~primaryKey ( [credit_core::Store]CDC_LGD_SEGMENT.SEGMENT_CODE )
+      ~mainTable [credit_core::Store]CDC_LGD_SEGMENT
+      segmentCode: [credit_core::Store]CDC_LGD_SEGMENT.SEGMENT_CODE,
+      segmentName: [credit_core::Store]CDC_LGD_SEGMENT.SEGMENT_NAME,
+      seniority: [credit_core::Store]CDC_LGD_SEGMENT.SENIORITY,
+      collateralType: [credit_core::Store]CDC_LGD_SEGMENT.COLLATERAL_TYPE,
+      lgdValue: [credit_core::Store]CDC_LGD_SEGMENT.LGD_VALUE,
+      downturnLgd: [credit_core::Store]CDC_LGD_SEGMENT.DOWNTURN_LGD
+   }
+
+   *credit_core::CdcRiskMeasure[cdcRiskMeasure]: Relational
+   {
+      ~primaryKey ( [credit_core::Store]CDC_RISK_MEASURE.MEASURE_ID )
+      ~mainTable [credit_core::Store]CDC_RISK_MEASURE
+      measureId: [credit_core::Store]CDC_RISK_MEASURE.MEASURE_ID,
+      exposureId: [credit_core::Store]CDC_RISK_MEASURE.EXPOSURE_ID,
+      asOfDate: [credit_core::Store]CDC_RISK_MEASURE.AS_OF_DATE,
+      probabilityOfDefault: [credit_core::Store]CDC_RISK_MEASURE.PD_VALUE,
+      lossGivenDefault: [credit_core::Store]CDC_RISK_MEASURE.LGD_VALUE,
+      exposureAtDefault: [credit_core::Store]CDC_RISK_MEASURE.EAD_AMOUNT,
+      pdSource: [credit_core::Store]CDC_RISK_MEASURE.PD_SOURCE,
+      modelId: [credit_core::Store]CDC_RISK_MEASURE.MODEL_ID,
+      segmentCode: [credit_core::Store]CDC_RISK_MEASURE.SEGMENT_CODE
+   }
+
+   *credit_core::CdcGuarantee[cdcGuarantee]: Relational
+   {
+      ~primaryKey ( [credit_core::Store]CDC_GUARANTEE.GUARANTEE_ID )
+      ~mainTable [credit_core::Store]CDC_GUARANTEE
+      guaranteeId: [credit_core::Store]CDC_GUARANTEE.GUARANTEE_ID,
+      facilityId: [credit_core::Store]CDC_GUARANTEE.FACILITY_ID,
+      guarantorEntityId: [credit_core::Store]CDC_GUARANTEE.GUARANTOR_ENTITY_ID,
+      guaranteeType: [credit_core::Store]CDC_GUARANTEE.GUARANTEE_TYPE,
+      coveredAmount: [credit_core::Store]CDC_GUARANTEE.COVERED_AMOUNT,
+      isUnconditional: [credit_core::Store]CDC_GUARANTEE.IS_UNCONDITIONAL,
+      expiryDate: [credit_core::Store]CDC_GUARANTEE.EXPIRY_DATE
+   }
+
+   *credit_core::CdcDefaultEvent[cdcDefaultEvent]: Relational
+   {
+      ~primaryKey ( [credit_core::Store]CDC_DEFAULT_EVENT.EVENT_ID )
+      ~mainTable [credit_core::Store]CDC_DEFAULT_EVENT
+      eventId: [credit_core::Store]CDC_DEFAULT_EVENT.EVENT_ID,
+      obligorId: [credit_core::Store]CDC_DEFAULT_EVENT.OBLIGOR_ID,
+      eventDate: [credit_core::Store]CDC_DEFAULT_EVENT.EVENT_DATE,
+      eventType: [credit_core::Store]CDC_DEFAULT_EVENT.EVENT_TYPE,
+      daysPastDue: [credit_core::Store]CDC_DEFAULT_EVENT.DAYS_PAST_DUE,
+      isCured: [credit_core::Store]CDC_DEFAULT_EVENT.IS_CURED,
+      cureDate: [credit_core::Store]CDC_DEFAULT_EVENT.CURE_DATE
+   }
+
+   *credit_core::CdcRecovery[cdcRecovery]: Relational
+   {
+      ~primaryKey ( [credit_core::Store]CDC_RECOVERY.RECOVERY_ID )
+      ~mainTable [credit_core::Store]CDC_RECOVERY
+      recoveryId: [credit_core::Store]CDC_RECOVERY.RECOVERY_ID,
+      eventId: [credit_core::Store]CDC_RECOVERY.EVENT_ID,
+      recoveryDate: [credit_core::Store]CDC_RECOVERY.RECOVERY_DATE,
+      recoveredAmount: [credit_core::Store]CDC_RECOVERY.RECOVERED_AMOUNT,
+      costAmount: [credit_core::Store]CDC_RECOVERY.COST_AMOUNT,
+      recoverySource: [credit_core::Store]CDC_RECOVERY.RECOVERY_SOURCE
+   }
+
+   *credit_core::CdcPortfolio[cdcPortfolio]: Relational
+   {
+      ~primaryKey ( [credit_core::Store]CDC_PORTFOLIO.PORTFOLIO_ID )
+      ~mainTable [credit_core::Store]CDC_PORTFOLIO
+      portfolioId: [credit_core::Store]CDC_PORTFOLIO.PORTFOLIO_ID,
+      portfolioName: [credit_core::Store]CDC_PORTFOLIO.PORTFOLIO_NAME,
+      businessUnit: [credit_core::Store]CDC_PORTFOLIO.BUSINESS_UNIT,
+      reportingCurrency: [credit_core::Store]CDC_PORTFOLIO.REPORTING_CURRENCY,
+      isTradingBook: [credit_core::Store]CDC_PORTFOLIO.IS_TRADING_BOOK
+   }
+
+   // ---------------------------------------------------------------- associations
+
+   // THE ONE THAT CROSSES THE TEMPORAL BOUNDARY.
+   //
+   // crRatingVersion is core-ratings' set over the milestoned CR_RATING_MS, whose
+   // ~primaryKey is (ENTITY_ID, FROM_Z). This mapping does NOT restate the milestoning and
+   // must not: FROM_Z / THRU_Z belong to the set that owns the table. All that is needed on
+   // this side is the join and the two set ids, and the engine adds the date predicate when
+   // a query supplies a business date.
+   //
+   // Both ends must name [source, target] because both sets are explicitly identified --
+   // and crRatingVersion in particular is not guessable from the class name.
+   credit_core::CdcObligorRatings: Relational
+   {
+      AssociationMapping
+      (
+         obligorRatings[cdcObligor, crRatingVersion]: [credit_core::Store]@Cdc_Obligor_Rating,
+         ratedObligor[crRatingVersion, cdcObligor]: [credit_core::Store]@Cdc_Obligor_Rating
+      )
+   }
+
+   // The two ordinary cross-project ones. cpLegalEntity is core-party's explicit id; the
+   // default core_party_LegalEntity does not exist.
+   credit_core::CdcObligorEntity: Relational
+   {
+      AssociationMapping
+      (
+         obligorEntity[cdcObligor, cpLegalEntity]: [credit_core::Store]@Cdc_Obligor_Entity,
+         creditObligors[cpLegalEntity, cdcObligor]: [credit_core::Store]@Cdc_Obligor_Entity
+      )
+   }
+
+   credit_core::CdcGuarantorEntity: Relational
+   {
+      AssociationMapping
+      (
+         guarantorEntity[cdcGuarantee, cpLegalEntity]: [credit_core::Store]@Cdc_Guarantor_Entity,
+         guaranteesGiven[cpLegalEntity, cdcGuarantee]: [credit_core::Store]@Cdc_Guarantor_Entity
+      )
+   }
+
+   // Inside the project.
+   credit_core::CdcObligorFacilities: Relational
+   {
+      AssociationMapping
+      (
+         facilities[cdcObligor, cdcFacility]: [credit_core::Store]@Cdc_Obligor_Facility,
+         obligor[cdcFacility, cdcObligor]: [credit_core::Store]@Cdc_Obligor_Facility
+      )
+   }
+
+   credit_core::CdcFacilityExposures: Relational
+   {
+      AssociationMapping
+      (
+         exposures[cdcFacility, cdcExposure]: [credit_core::Store]@Cdc_Facility_Exposure,
+         facility[cdcExposure, cdcFacility]: [credit_core::Store]@Cdc_Facility_Exposure
+      )
+   }
+
+   credit_core::CdcExposureMeasures: Relational
+   {
+      AssociationMapping
+      (
+         riskMeasures[cdcExposure, cdcRiskMeasure]: [credit_core::Store]@Cdc_Exposure_Measure,
+         measuredExposure[cdcRiskMeasure, cdcExposure]: [credit_core::Store]@Cdc_Exposure_Measure
+      )
+   }
+
+   credit_core::CdcPortfolioExposures: Relational
+   {
+      AssociationMapping
+      (
+         portfolioExposures[cdcPortfolio, cdcExposure]: [credit_core::Store]@Cdc_Portfolio_Exposure,
+         portfolio[cdcExposure, cdcPortfolio]: [credit_core::Store]@Cdc_Portfolio_Exposure
+      )
+   }
+
+   credit_core::CdcObligorDefaults: Relational
+   {
+      AssociationMapping
+      (
+         defaultEvents[cdcObligor, cdcDefaultEvent]: [credit_core::Store]@Cdc_Obligor_Default,
+         defaultedObligor[cdcDefaultEvent, cdcObligor]: [credit_core::Store]@Cdc_Obligor_Default
+      )
+   }
+
+   credit_core::CdcEventRecoveries: Relational
+   {
+      AssociationMapping
+      (
+         recoveries[cdcDefaultEvent, cdcRecovery]: [credit_core::Store]@Cdc_Event_Recovery,
+         defaultEvent[cdcRecovery, cdcDefaultEvent]: [credit_core::Store]@Cdc_Event_Recovery
+      )
+   }
+
+   credit_core::CdcFacilityGuarantees: Relational
+   {
+      AssociationMapping
+      (
+         guarantees[cdcFacility, cdcGuarantee]: [credit_core::Store]@Cdc_Facility_Guarantee,
+         guaranteedFacility[cdcGuarantee, cdcFacility]: [credit_core::Store]@Cdc_Facility_Guarantee
+      )
+   }
+
+   credit_core::CdcModelRatingPds: Relational
+   {
+      AssociationMapping
+      (
+         ratingPds[cdcPdModel, cdcRatingPd]: [credit_core::Store]@Cdc_Model_RatingPd,
+         pdModel[cdcRatingPd, cdcPdModel]: [credit_core::Store]@Cdc_Model_RatingPd
+      )
+   }
+
+   credit_core::CdcObligorExposureClass: Relational
+   {
+      AssociationMapping
+      (
+         classifiedObligors[cdcExposureClass, cdcObligor]: [credit_core::Store]@Cdc_Obligor_ExposureClass,
+         exposureClass[cdcObligor, cdcExposureClass]: [credit_core::Store]@Cdc_Obligor_ExposureClass
+      )
+   }
+)

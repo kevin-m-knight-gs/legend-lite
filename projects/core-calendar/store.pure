@@ -1,0 +1,88 @@
+###Relational
+Database core_calendar::Store
+(
+    // Four named calendars live here as rows, not as an enum: TARGET (euro area),
+    // USNY (New York), GBLO (London), JPTO (Tokyo). WEEKEND_DAYS is a column
+    // because a calendar for a Gulf market would carry 'FRI,SAT'.
+    Table CC_CALENDAR
+    (
+        CALENDAR_ID VARCHAR(8) PRIMARY KEY,
+        CALENDAR_NAME VARCHAR(64) NOT NULL,
+        FINANCIAL_CENTRE VARCHAR(64) NOT NULL,
+        COUNTRY_CODE VARCHAR(2) NOT NULL,
+        TIME_ZONE VARCHAR(48) NOT NULL,
+        WEEKEND_DAYS VARCHAR(16) NOT NULL,
+        IS_ACTIVE BIT
+    )
+
+    // One row per holiday per calendar per year -- 'New Year's Day', 'Good Friday',
+    // 'Independence Day', 'Golden Week'. HOLIDAY_YEAR is stored rather than
+    // extracted from HOLIDAY_DATE so the View below can group on it directly.
+    Table CC_HOLIDAY
+    (
+        HOLIDAY_ID VARCHAR(32) PRIMARY KEY,
+        CALENDAR_ID VARCHAR(8) NOT NULL,
+        HOLIDAY_DATE DATE NOT NULL,
+        HOLIDAY_YEAR INTEGER NOT NULL,
+        HOLIDAY_NAME VARCHAR(128) NOT NULL,
+        IS_OBSERVED BIT,
+        IS_HALF_DAY BIT
+    )
+
+    // Venues, keyed by ISO 10383 MIC: XNYS, XLON, XETR, XTKS.
+    Table CC_MARKET
+    (
+        MARKET_MIC VARCHAR(4) PRIMARY KEY,
+        MARKET_NAME VARCHAR(64) NOT NULL,
+        CALENDAR_ID VARCHAR(8) NOT NULL,
+        SETTLEMENT_CURRENCY VARCHAR(3) NOT NULL,
+        IS_ACTIVE BIT
+    )
+
+    // T+n per market per asset class. SETTLEMENT_DAYS is the n: 1 for US cash
+    // equities since May 2024 and for JGBs, 2 for EU/UK equities and most bonds.
+    Table CC_SETTLEMENT_CYCLE
+    (
+        CYCLE_ID VARCHAR(32) PRIMARY KEY,
+        MARKET_MIC VARCHAR(4) NOT NULL,
+        ASSET_CLASS VARCHAR(24) NOT NULL,
+        CYCLE_CODE VARCHAR(4) NOT NULL,
+        SETTLEMENT_DAYS INTEGER NOT NULL,
+        CUTOFF_TIME VARCHAR(8),
+        EFFECTIVE_FROM DATE NOT NULL
+    )
+
+    // The aggregation, IN THE STORE. This is not a database view -- no DDL is
+    // created for it and nothing seeds it; the engine folds the GROUP BY into the
+    // SQL it generates whenever a query touches CcHolidayCount. A settlement-date
+    // calculation asks "how many holidays does GBLO have in 2026?" and gets one
+    // row, instead of pulling every CC_HOLIDAY row and counting them in memory.
+    //
+    // The grouping columns are the primary key of the result, which is what makes
+    // the View joinable: Cc_CalendarHolidayCount below hangs it off CC_CALENDAR.
+    //
+    // Note what a grouping does NOT produce: a calendar with no holiday rows for a
+    // year forms no group and is simply absent, rather than appearing with a count
+    // of zero. Anything downstream that needs the zero has to outer-join from
+    // CC_CALENDAR instead.
+    View CC_HOLIDAY_COUNT
+    (
+      ~groupBy
+      (
+        CC_HOLIDAY.CALENDAR_ID,
+        CC_HOLIDAY.HOLIDAY_YEAR
+      )
+      CALENDAR_ID: CC_HOLIDAY.CALENDAR_ID PRIMARY KEY,
+      HOLIDAY_YEAR: CC_HOLIDAY.HOLIDAY_YEAR PRIMARY KEY,
+      HOLIDAY_COUNT: count(CC_HOLIDAY.HOLIDAY_DATE)
+    )
+
+    Join Cc_CalendarHoliday(CC_HOLIDAY.CALENDAR_ID = CC_CALENDAR.CALENDAR_ID)
+    Join Cc_MarketCalendar(CC_MARKET.CALENDAR_ID = CC_CALENDAR.CALENDAR_ID)
+    Join Cc_MarketCycle(CC_SETTLEMENT_CYCLE.MARKET_MIC = CC_MARKET.MARKET_MIC)
+    Join Cc_CalendarHolidayCount(CC_HOLIDAY_COUNT.CALENDAR_ID = CC_CALENDAR.CALENDAR_ID)
+
+    // Observed dates only -- the row a market actually shuts on, which for a
+    // holiday falling on a weekend is the adjacent weekday and not the true date.
+    Filter CcObservedHolidays(CC_HOLIDAY.IS_OBSERVED = 1)
+)

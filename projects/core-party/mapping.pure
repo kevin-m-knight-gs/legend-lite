@@ -1,0 +1,321 @@
+###Mapping
+// Every class to its table, every association to its join.
+//
+// Each set id is spelled out and cp-prefixed rather than left to default, because set ids
+// are a GLOBAL namespace in Legend: a collision fails the whole graph with a message that
+// names the id and not the project that declared it. That also means the AssociationMapping
+// entries below must carry the [source, target] set ids explicitly -- the bare form only
+// resolves against default ids.
+//
+// ~primaryKey is stated on every set, including the single-column ones, so that the eight
+// composite keys read as a decision rather than as an omission.
+Mapping core_party::Mapping
+(
+   core_party::LegalEntity[cpLegalEntity]: Relational
+   {
+      ~primaryKey ( [core_party::Store]CP_LEGAL_ENTITY.ENTITY_ID )
+      ~mainTable [core_party::Store]CP_LEGAL_ENTITY
+      entityId: [core_party::Store]CP_LEGAL_ENTITY.ENTITY_ID,
+      legalName: [core_party::Store]CP_LEGAL_ENTITY.LEGAL_NAME,
+      entityCategory: [core_party::Store]CP_LEGAL_ENTITY.ENTITY_CATEGORY,
+      incorporationDate: [core_party::Store]CP_LEGAL_ENTITY.INCORPORATION_DATE,
+      dissolutionDate: [core_party::Store]CP_LEGAL_ENTITY.DISSOLUTION_DATE,
+      isActive: [core_party::Store]CP_LEGAL_ENTITY.IS_ACTIVE,
+      isBranch: [core_party::Store]CP_LEGAL_ENTITY.IS_BRANCH
+   }
+
+   core_party::Jurisdiction[cpJurisdiction]: Relational
+   {
+      ~primaryKey ( [core_party::Store]CP_JURISDICTION.JURISDICTION_CODE )
+      ~mainTable [core_party::Store]CP_JURISDICTION
+      jurisdictionCode: [core_party::Store]CP_JURISDICTION.JURISDICTION_CODE,
+      jurisdictionName: [core_party::Store]CP_JURISDICTION.JURISDICTION_NAME,
+      sovereignCode: [core_party::Store]CP_JURISDICTION.SOVEREIGN_CODE,
+      companyRegisterName: [core_party::Store]CP_JURISDICTION.COMPANY_REGISTER_NAME,
+      isOffshoreCentre: [core_party::Store]CP_JURISDICTION.IS_OFFSHORE_CENTRE
+   }
+
+   // Composite: a form is identified by its legal system and its code together.
+   core_party::LegalForm[cpLegalForm]: Relational
+   {
+      ~primaryKey ( [core_party::Store]CP_LEGAL_FORM.JURISDICTION_CODE, [core_party::Store]CP_LEGAL_FORM.FORM_CODE )
+      ~mainTable [core_party::Store]CP_LEGAL_FORM
+      jurisdictionCode: [core_party::Store]CP_LEGAL_FORM.JURISDICTION_CODE,
+      formCode: [core_party::Store]CP_LEGAL_FORM.FORM_CODE,
+      formName: [core_party::Store]CP_LEGAL_FORM.FORM_NAME,
+      hasLimitedLiability: [core_party::Store]CP_LEGAL_FORM.HAS_LIMITED_LIABILITY,
+      canBeListed: [core_party::Store]CP_LEGAL_FORM.CAN_BE_LISTED
+   }
+
+   core_party::RegistrationAuthority[cpRegistrationAuthority]: Relational
+   {
+      ~primaryKey ( [core_party::Store]CP_REGISTRATION_AUTHORITY.AUTHORITY_ID )
+      ~mainTable [core_party::Store]CP_REGISTRATION_AUTHORITY
+      authorityId: [core_party::Store]CP_REGISTRATION_AUTHORITY.AUTHORITY_ID,
+      authorityName: [core_party::Store]CP_REGISTRATION_AUTHORITY.AUTHORITY_NAME,
+      jurisdictionCode: [core_party::Store]CP_REGISTRATION_AUTHORITY.JURISDICTION_CODE,
+      authorityKind: [core_party::Store]CP_REGISTRATION_AUTHORITY.AUTHORITY_KIND,
+      registerUrl: [core_party::Store]CP_REGISTRATION_AUTHORITY.REGISTER_URL
+   }
+
+   core_party::IdentifierScheme[cpIdentifierScheme]: Relational
+   {
+      ~primaryKey ( [core_party::Store]CP_IDENTIFIER_SCHEME.SCHEME_CODE )
+      ~mainTable [core_party::Store]CP_IDENTIFIER_SCHEME
+      schemeCode: [core_party::Store]CP_IDENTIFIER_SCHEME.SCHEME_CODE,
+      schemeName: [core_party::Store]CP_IDENTIFIER_SCHEME.SCHEME_NAME,
+      issuingBody: [core_party::Store]CP_IDENTIFIER_SCHEME.ISSUING_BODY,
+      isGlobal: [core_party::Store]CP_IDENTIFIER_SCHEME.IS_GLOBAL,
+      isUniquePerEntity: [core_party::Store]CP_IDENTIFIER_SCHEME.IS_UNIQUE_PER_ENTITY,
+      expectedLength: [core_party::Store]CP_IDENTIFIER_SCHEME.EXPECTED_LENGTH,
+      checksumRule: [core_party::Store]CP_IDENTIFIER_SCHEME.CHECKSUM_RULE
+   }
+
+   // THE composite key. Both columns, and the value column deliberately outside the key:
+   // an identifier that is restated keeps its row, and two schemes may issue the same
+   // string to different entities.
+   core_party::EntityIdentifier[cpEntityIdentifier]: Relational
+   {
+      ~primaryKey ( [core_party::Store]CP_ENTITY_IDENTIFIER.ENTITY_ID, [core_party::Store]CP_ENTITY_IDENTIFIER.SCHEME_CODE )
+      ~mainTable [core_party::Store]CP_ENTITY_IDENTIFIER
+      entityId: [core_party::Store]CP_ENTITY_IDENTIFIER.ENTITY_ID,
+      schemeCode: [core_party::Store]CP_ENTITY_IDENTIFIER.SCHEME_CODE,
+      identifierValue: [core_party::Store]CP_ENTITY_IDENTIFIER.IDENTIFIER_VALUE,
+      status: [core_party::Store]CP_ENTITY_IDENTIFIER.STATUS,
+      isPreferred: [core_party::Store]CP_ENTITY_IDENTIFIER.IS_PREFERRED,
+      issuedDate: [core_party::Store]CP_ENTITY_IDENTIFIER.ISSUED_DATE,
+      lastVerifiedDate: [core_party::Store]CP_ENTITY_IDENTIFIER.LAST_VERIFIED_DATE,
+      supersededValue: [core_party::Store]CP_ENTITY_IDENTIFIER.SUPERSEDED_VALUE
+   }
+
+   core_party::EntityName[cpEntityName]: Relational
+   {
+      ~primaryKey ( [core_party::Store]CP_ENTITY_NAME.ENTITY_ID, [core_party::Store]CP_ENTITY_NAME.NAME_TYPE )
+      ~mainTable [core_party::Store]CP_ENTITY_NAME
+      entityId: [core_party::Store]CP_ENTITY_NAME.ENTITY_ID,
+      nameType: [core_party::Store]CP_ENTITY_NAME.NAME_TYPE,
+      nameValue: [core_party::Store]CP_ENTITY_NAME.NAME_VALUE,
+      languageCode: [core_party::Store]CP_ENTITY_NAME.LANGUAGE_CODE,
+      validFrom: [core_party::Store]CP_ENTITY_NAME.VALID_FROM
+   }
+
+   core_party::EntityAddress[cpEntityAddress]: Relational
+   {
+      ~primaryKey ( [core_party::Store]CP_ENTITY_ADDRESS.ENTITY_ID, [core_party::Store]CP_ENTITY_ADDRESS.ADDRESS_TYPE )
+      ~mainTable [core_party::Store]CP_ENTITY_ADDRESS
+      entityId: [core_party::Store]CP_ENTITY_ADDRESS.ENTITY_ID,
+      addressType: [core_party::Store]CP_ENTITY_ADDRESS.ADDRESS_TYPE,
+      addressLine: [core_party::Store]CP_ENTITY_ADDRESS.ADDRESS_LINE,
+      city: [core_party::Store]CP_ENTITY_ADDRESS.CITY,
+      postalCode: [core_party::Store]CP_ENTITY_ADDRESS.POSTAL_CODE,
+      countryCode: [core_party::Store]CP_ENTITY_ADDRESS.COUNTRY_CODE
+   }
+
+   core_party::EntityRegistration[cpEntityRegistration]: Relational
+   {
+      ~primaryKey ( [core_party::Store]CP_ENTITY_REGISTRATION.ENTITY_ID, [core_party::Store]CP_ENTITY_REGISTRATION.AUTHORITY_ID )
+      ~mainTable [core_party::Store]CP_ENTITY_REGISTRATION
+      entityId: [core_party::Store]CP_ENTITY_REGISTRATION.ENTITY_ID,
+      authorityId: [core_party::Store]CP_ENTITY_REGISTRATION.AUTHORITY_ID,
+      registrationNumber: [core_party::Store]CP_ENTITY_REGISTRATION.REGISTRATION_NUMBER,
+      registrationStatus: [core_party::Store]CP_ENTITY_REGISTRATION.REGISTRATION_STATUS,
+      registeredOn: [core_party::Store]CP_ENTITY_REGISTRATION.REGISTERED_ON,
+      lastFilingDate: [core_party::Store]CP_ENTITY_REGISTRATION.LAST_FILING_DATE
+   }
+
+   // Three key columns. Two of them are entity ids pointing at the same table, which is why
+   // the hierarchy needs two joins rather than a self-join on one column.
+   core_party::EntityRelationship[cpEntityRelationship]: Relational
+   {
+      ~primaryKey ( [core_party::Store]CP_ENTITY_RELATIONSHIP.PARENT_ENTITY_ID, [core_party::Store]CP_ENTITY_RELATIONSHIP.CHILD_ENTITY_ID, [core_party::Store]CP_ENTITY_RELATIONSHIP.RELATIONSHIP_TYPE )
+      ~mainTable [core_party::Store]CP_ENTITY_RELATIONSHIP
+      parentEntityId: [core_party::Store]CP_ENTITY_RELATIONSHIP.PARENT_ENTITY_ID,
+      childEntityId: [core_party::Store]CP_ENTITY_RELATIONSHIP.CHILD_ENTITY_ID,
+      relationshipType: [core_party::Store]CP_ENTITY_RELATIONSHIP.RELATIONSHIP_TYPE,
+      ownershipPercentage: [core_party::Store]CP_ENTITY_RELATIONSHIP.OWNERSHIP_PERCENTAGE,
+      isConsolidated: [core_party::Store]CP_ENTITY_RELATIONSHIP.IS_CONSOLIDATED,
+      accountingStandard: [core_party::Store]CP_ENTITY_RELATIONSHIP.ACCOUNTING_STANDARD,
+      startDate: [core_party::Store]CP_ENTITY_RELATIONSHIP.START_DATE,
+      endDate: [core_party::Store]CP_ENTITY_RELATIONSHIP.END_DATE
+   }
+
+   core_party::EntityGroup[cpEntityGroup]: Relational
+   {
+      ~primaryKey ( [core_party::Store]CP_ENTITY_GROUP.GROUP_ID )
+      ~mainTable [core_party::Store]CP_ENTITY_GROUP
+      groupId: [core_party::Store]CP_ENTITY_GROUP.GROUP_ID,
+      groupName: [core_party::Store]CP_ENTITY_GROUP.GROUP_NAME,
+      groupType: [core_party::Store]CP_ENTITY_GROUP.GROUP_TYPE,
+      headEntityId: [core_party::Store]CP_ENTITY_GROUP.HEAD_ENTITY_ID,
+      asOfDate: [core_party::Store]CP_ENTITY_GROUP.AS_OF_DATE
+   }
+
+   core_party::GroupMembership[cpGroupMembership]: Relational
+   {
+      ~primaryKey ( [core_party::Store]CP_GROUP_MEMBERSHIP.GROUP_ID, [core_party::Store]CP_GROUP_MEMBERSHIP.ENTITY_ID )
+      ~mainTable [core_party::Store]CP_GROUP_MEMBERSHIP
+      groupId: [core_party::Store]CP_GROUP_MEMBERSHIP.GROUP_ID,
+      entityId: [core_party::Store]CP_GROUP_MEMBERSHIP.ENTITY_ID,
+      memberRole: [core_party::Store]CP_GROUP_MEMBERSHIP.MEMBER_ROLE,
+      isFullyConsolidated: [core_party::Store]CP_GROUP_MEMBERSHIP.IS_FULLY_CONSOLIDATED,
+      includedFrom: [core_party::Store]CP_GROUP_MEMBERSHIP.INCLUDED_FROM
+   }
+
+   core_party::EntityClassification[cpEntityClassification]: Relational
+   {
+      ~primaryKey ( [core_party::Store]CP_ENTITY_CLASSIFICATION.ENTITY_ID, [core_party::Store]CP_ENTITY_CLASSIFICATION.TAXONOMY_CODE )
+      ~mainTable [core_party::Store]CP_ENTITY_CLASSIFICATION
+      entityId: [core_party::Store]CP_ENTITY_CLASSIFICATION.ENTITY_ID,
+      taxonomyCode: [core_party::Store]CP_ENTITY_CLASSIFICATION.TAXONOMY_CODE,
+      classificationCode: [core_party::Store]CP_ENTITY_CLASSIFICATION.CLASSIFICATION_CODE,
+      classificationLabel: [core_party::Store]CP_ENTITY_CLASSIFICATION.CLASSIFICATION_LABEL,
+      isPrimary: [core_party::Store]CP_ENTITY_CLASSIFICATION.IS_PRIMARY,
+      assignedDate: [core_party::Store]CP_ENTITY_CLASSIFICATION.ASSIGNED_DATE,
+      assignedBy: [core_party::Store]CP_ENTITY_CLASSIFICATION.ASSIGNED_BY
+   }
+
+
+   // ---------------------------------------------------------------- associations
+   // One join per association, walked in both directions. The join is declared once in the
+   // store and named twice here, which is what keeps the two directions consistent.
+
+   core_party::EntityIdentifiers: Relational
+   {
+      AssociationMapping
+      (
+         identifiers[cpLegalEntity, cpEntityIdentifier]: [core_party::Store]@Cp_Entity_Identifier,
+         identifiedEntity[cpEntityIdentifier, cpLegalEntity]: [core_party::Store]@Cp_Entity_Identifier
+      )
+   }
+
+   core_party::SchemeIdentifiers: Relational
+   {
+      AssociationMapping
+      (
+         issuedIdentifiers[cpIdentifierScheme, cpEntityIdentifier]: [core_party::Store]@Cp_Scheme_Identifier,
+         scheme[cpEntityIdentifier, cpIdentifierScheme]: [core_party::Store]@Cp_Scheme_Identifier
+      )
+   }
+
+   core_party::EntityNames: Relational
+   {
+      AssociationMapping
+      (
+         names[cpLegalEntity, cpEntityName]: [core_party::Store]@Cp_Entity_Name,
+         namedEntity[cpEntityName, cpLegalEntity]: [core_party::Store]@Cp_Entity_Name
+      )
+   }
+
+   core_party::EntityAddresses: Relational
+   {
+      AssociationMapping
+      (
+         addresses[cpLegalEntity, cpEntityAddress]: [core_party::Store]@Cp_Entity_Address,
+         addressedEntity[cpEntityAddress, cpLegalEntity]: [core_party::Store]@Cp_Entity_Address
+      )
+   }
+
+   core_party::EntityClassifications: Relational
+   {
+      AssociationMapping
+      (
+         classifications[cpLegalEntity, cpEntityClassification]: [core_party::Store]@Cp_Entity_Classification,
+         classifiedEntity[cpEntityClassification, cpLegalEntity]: [core_party::Store]@Cp_Entity_Classification
+      )
+   }
+
+   core_party::EntityRegistrations: Relational
+   {
+      AssociationMapping
+      (
+         registrations[cpLegalEntity, cpEntityRegistration]: [core_party::Store]@Cp_Entity_Registration,
+         registeredEntity[cpEntityRegistration, cpLegalEntity]: [core_party::Store]@Cp_Entity_Registration
+      )
+   }
+
+   core_party::AuthorityRegistrations: Relational
+   {
+      AssociationMapping
+      (
+         authorityRegistrations[cpRegistrationAuthority, cpEntityRegistration]: [core_party::Store]@Cp_Authority_Registration,
+         authority[cpEntityRegistration, cpRegistrationAuthority]: [core_party::Store]@Cp_Authority_Registration
+      )
+   }
+
+   // Downward: the entity id matches PARENT_ENTITY_ID.
+   core_party::ParentEdges: Relational
+   {
+      AssociationMapping
+      (
+         subsidiaryEdges[cpLegalEntity, cpEntityRelationship]: [core_party::Store]@Cp_Parent_Relationship,
+         parentEntity[cpEntityRelationship, cpLegalEntity]: [core_party::Store]@Cp_Parent_Relationship
+      )
+   }
+
+   // Upward: the same table, the same class pair, a DIFFERENT column. Two associations over
+   // one table is the honest way to say that.
+   core_party::ChildEdges: Relational
+   {
+      AssociationMapping
+      (
+         parentEdges[cpLegalEntity, cpEntityRelationship]: [core_party::Store]@Cp_Child_Relationship,
+         childEntity[cpEntityRelationship, cpLegalEntity]: [core_party::Store]@Cp_Child_Relationship
+      )
+   }
+
+   core_party::GroupMemberships: Relational
+   {
+      AssociationMapping
+      (
+         memberships[cpEntityGroup, cpGroupMembership]: [core_party::Store]@Cp_Group_Membership,
+         group[cpGroupMembership, cpEntityGroup]: [core_party::Store]@Cp_Group_Membership
+      )
+   }
+
+   core_party::EntityMemberships: Relational
+   {
+      AssociationMapping
+      (
+         entityMemberships[cpLegalEntity, cpGroupMembership]: [core_party::Store]@Cp_Entity_Membership,
+         memberEntity[cpGroupMembership, cpLegalEntity]: [core_party::Store]@Cp_Entity_Membership
+      )
+   }
+
+   core_party::EntityIncorporation: Relational
+   {
+      AssociationMapping
+      (
+         jurisdiction[cpLegalEntity, cpJurisdiction]: [core_party::Store]@Cp_Entity_Jurisdiction,
+         incorporatedEntities[cpJurisdiction, cpLegalEntity]: [core_party::Store]@Cp_Entity_Jurisdiction
+      )
+   }
+
+   // The two-column join. Reaching a legal form takes both key columns, and this is where
+   // the composite key on CP_LEGAL_FORM is actually spent.
+   core_party::EntityForm: Relational
+   {
+      AssociationMapping
+      (
+         legalForm[cpLegalEntity, cpLegalForm]: [core_party::Store]@Cp_Entity_LegalForm,
+         entitiesOfForm[cpLegalForm, cpLegalEntity]: [core_party::Store]@Cp_Entity_LegalForm
+      )
+   }
+
+   core_party::JurisdictionForms: Relational
+   {
+      AssociationMapping
+      (
+         legalForms[cpJurisdiction, cpLegalForm]: [core_party::Store]@Cp_Jurisdiction_LegalForm,
+         formJurisdiction[cpLegalForm, cpJurisdiction]: [core_party::Store]@Cp_Jurisdiction_LegalForm
+      )
+   }
+
+   core_party::JurisdictionAuthorities: Relational
+   {
+      AssociationMapping
+      (
+         authorities[cpJurisdiction, cpRegistrationAuthority]: [core_party::Store]@Cp_Jurisdiction_Authority,
+         authorityJurisdiction[cpRegistrationAuthority, cpJurisdiction]: [core_party::Store]@Cp_Jurisdiction_Authority
+      )
+   }
+)

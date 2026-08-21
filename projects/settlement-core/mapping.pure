@@ -1,0 +1,248 @@
+###Mapping
+// settlement_core::Mapping -- twelve class sets, four enumeration mappings and the join
+// chain this project exists to demonstrate.
+//
+// It INCLUDES both dependency mappings. That is not optional decoration: a property whose
+// type is core_party::LegalEntity can only be mapped here if the set that maps LegalEntity
+// is in scope, and it is in scope because core_party::Mapping is included.
+//
+// Set ids are explicit and sc-prefixed. A set id is a GLOBAL namespace across the compiled
+// graph, so an unprefixed `instruction` here would fail projects that have never heard of
+// this one, with a message naming the id and not the file.
+Mapping settlement_core::Mapping
+(
+   include core_party::Mapping
+   include core_calendar::Mapping
+
+   // ---- the enumeration mappings -------------------------------------------------------
+   // The database stores codes; the model exposes enums. These four blocks are the ONLY
+   // place the physical strings appear, which is what makes a code change one line rather
+   // than a search. Two spellings per value because settlement feeds are not consistent
+   // about whether they send the ISO 15022 mnemonic or the word.
+   settlement_core::ScDeliveryMethod: EnumerationMapping ScDeliveryMethodMapping
+   {
+      DVP: ['DVP', 'APMT'],
+      RVP: ['RVP', 'RECD'],
+      FOP: ['FOP', 'FREE'],
+      DWP: ['DWP'],
+      PVP: ['PVP']
+   }
+
+   settlement_core::ScInstructionStatus: EnumerationMapping ScInstructionStatusMapping
+   {
+      NEW:       ['NEW', 'PEND'],
+      VALIDATED: ['VAL', 'VALIDATED'],
+      MATCHED:   ['MTCH', 'MATCHED'],
+      SETTLED:   ['SETT', 'SETTLED'],
+      FAILED:    ['FAIL', 'FAILED'],
+      CANCELLED: ['CANC', 'CANCELLED']
+   }
+
+   settlement_core::ScSettlementDirection: EnumerationMapping ScSettlementDirectionMapping
+   {
+      DELIVER: ['DELI', 'DELIVER'],
+      RECEIVE: ['RECE', 'RECEIVE']
+   }
+
+   settlement_core::ScSsiStatus: EnumerationMapping ScSsiStatusMapping
+   {
+      ACTIVE:    ['A', 'ACTIVE'],
+      PENDING:   ['P', 'PENDING'],
+      SUSPENDED: ['S', 'SUSPENDED'],
+      EXPIRED:   ['E', 'EXPIRED']
+   }
+
+   // ---- venues and conventions ---------------------------------------------------------
+   *settlement_core::ScPlaceOfSettlement[scPlaceOfSettlement]: Relational
+   {
+      ~primaryKey ( [settlement_core::Store]SC_PLACE_OF_SETTLEMENT.PLACE_BIC )
+      ~mainTable [settlement_core::Store]SC_PLACE_OF_SETTLEMENT
+      placeBic: [settlement_core::Store]SC_PLACE_OF_SETTLEMENT.PLACE_BIC,
+      placeName: [settlement_core::Store]SC_PLACE_OF_SETTLEMENT.PLACE_NAME,
+      placeKind: [settlement_core::Store]SC_PLACE_OF_SETTLEMENT.PLACE_KIND,
+      countryCode: [settlement_core::Store]SC_PLACE_OF_SETTLEMENT.COUNTRY_CODE,
+      isActive: [settlement_core::Store]SC_PLACE_OF_SETTLEMENT.IS_ACTIVE,
+      // Out to core-party for the operator, out to core-calendar for the venue's calendar.
+      // Both target sets come from the included mappings and are named explicitly, because
+      // both dependencies declare explicit ids and the defaults do not exist.
+      operator[cpLegalEntity]: [settlement_core::Store]@Sc_PlaceOperator,
+      calendar[ccCalendar]: [settlement_core::Store]@Sc_PlaceCalendar,
+      cutoffs[scCutoff]: [settlement_core::Store]@Sc_PlaceCutoff
+   }
+
+   *settlement_core::ScMarketSettlementProfile[scMarketProfile]: Relational
+   {
+      ~primaryKey ( [settlement_core::Store]SC_MARKET_PROFILE.PROFILE_ID )
+      ~mainTable [settlement_core::Store]SC_MARKET_PROFILE
+      profileId: [settlement_core::Store]SC_MARKET_PROFILE.PROFILE_ID,
+      assetClass: [settlement_core::Store]SC_MARKET_PROFILE.ASSET_CLASS,
+      defaultDeliveryMethod: EnumerationMapping ScDeliveryMethodMapping: [settlement_core::Store]SC_MARKET_PROFILE.DEFAULT_DELIVERY_METHOD,
+      allowsPartial: [settlement_core::Store]SC_MARKET_PROFILE.ALLOWS_PARTIAL,
+      market[ccMarket]: [settlement_core::Store]@Sc_ProfileMarket,
+      defaultPlace[scPlaceOfSettlement]: [settlement_core::Store]@Sc_ProfilePlace
+   }
+
+   *settlement_core::ScCutoff[scCutoff]: Relational
+   {
+      ~primaryKey ( [settlement_core::Store]SC_CUTOFF.CUTOFF_ID )
+      ~mainTable [settlement_core::Store]SC_CUTOFF
+      cutoffId: [settlement_core::Store]SC_CUTOFF.CUTOFF_ID,
+      currencyCode: [settlement_core::Store]SC_CUTOFF.CURRENCY_CODE,
+      instructionKind: [settlement_core::Store]SC_CUTOFF.INSTRUCTION_KIND,
+      cutoffTime: [settlement_core::Store]SC_CUTOFF.CUTOFF_TIME,
+      offsetDays: [settlement_core::Store]SC_CUTOFF.OFFSET_DAYS,
+      place[scPlaceOfSettlement]: [settlement_core::Store]@Sc_PlaceCutoff
+   }
+
+   // ---- counterparties and their standing instructions ---------------------------------
+   *settlement_core::ScCounterparty[scCounterparty]: Relational
+   {
+      ~primaryKey ( [settlement_core::Store]SC_COUNTERPARTY.COUNTERPARTY_ID )
+      ~mainTable [settlement_core::Store]SC_COUNTERPARTY
+      counterpartyId: [settlement_core::Store]SC_COUNTERPARTY.COUNTERPARTY_ID,
+      settlementBic: [settlement_core::Store]SC_COUNTERPARTY.SETTLEMENT_BIC,
+      isSelfClearing: [settlement_core::Store]SC_COUNTERPARTY.IS_SELF_CLEARING,
+      onboardedDate: [settlement_core::Store]SC_COUNTERPARTY.ONBOARDED_DATE,
+      entity[cpLegalEntity]: [settlement_core::Store]@Sc_CounterpartyEntity,
+      standingInstructions[scStandingInstruction]: [settlement_core::Store]@Sc_SsiCounterparty
+   }
+
+   *settlement_core::ScCustodian[scCustodian]: Relational
+   {
+      ~primaryKey ( [settlement_core::Store]SC_CUSTODIAN.CUSTODIAN_ID )
+      ~mainTable [settlement_core::Store]SC_CUSTODIAN
+      custodianId: [settlement_core::Store]SC_CUSTODIAN.CUSTODIAN_ID,
+      custodianName: [settlement_core::Store]SC_CUSTODIAN.CUSTODIAN_NAME,
+      participantCode: [settlement_core::Store]SC_CUSTODIAN.PARTICIPANT_CODE,
+      entity[cpLegalEntity]: [settlement_core::Store]@Sc_CustodianEntity,
+      place[scPlaceOfSettlement]: [settlement_core::Store]@Sc_CustodianPlace
+   }
+
+   *settlement_core::ScStandingInstruction[scStandingInstruction]: Relational
+   {
+      ~primaryKey ( [settlement_core::Store]SC_STANDING_INSTRUCTION.SSI_ID )
+      ~mainTable [settlement_core::Store]SC_STANDING_INSTRUCTION
+      ssiId: [settlement_core::Store]SC_STANDING_INSTRUCTION.SSI_ID,
+      currencyCode: [settlement_core::Store]SC_STANDING_INSTRUCTION.CURRENCY_CODE,
+      status: EnumerationMapping ScSsiStatusMapping: [settlement_core::Store]SC_STANDING_INSTRUCTION.SSI_STATUS,
+      effectiveFrom: [settlement_core::Store]SC_STANDING_INSTRUCTION.EFFECTIVE_FROM,
+      effectiveTo: [settlement_core::Store]SC_STANDING_INSTRUCTION.EFFECTIVE_TO,
+      counterparty[scCounterparty]: [settlement_core::Store]@Sc_SsiCounterparty,
+      place[scPlaceOfSettlement]: [settlement_core::Store]@Sc_SsiPlace,
+      custodian[scCustodian]: [settlement_core::Store]@Sc_SsiCustodian,
+      accounts[scSettlementAccount]: [settlement_core::Store]@Sc_SsiAccount
+   }
+
+   *settlement_core::ScSettlementAccount[scSettlementAccount]: Relational
+   {
+      ~primaryKey ( [settlement_core::Store]SC_SETTLEMENT_ACCOUNT.ACCOUNT_ID )
+      ~mainTable [settlement_core::Store]SC_SETTLEMENT_ACCOUNT
+      accountId: [settlement_core::Store]SC_SETTLEMENT_ACCOUNT.ACCOUNT_ID,
+      accountNumber: [settlement_core::Store]SC_SETTLEMENT_ACCOUNT.ACCOUNT_NUMBER,
+      accountType: [settlement_core::Store]SC_SETTLEMENT_ACCOUNT.ACCOUNT_TYPE,
+      currencyCode: [settlement_core::Store]SC_SETTLEMENT_ACCOUNT.CURRENCY_CODE,
+      ssi[scStandingInstruction]: [settlement_core::Store]@Sc_SsiAccount,
+      place[scPlaceOfSettlement]: [settlement_core::Store]@Sc_AccountPlace
+   }
+
+   // ---- the instruction, and THE JOIN CHAIN ---------------------------------------------
+   *settlement_core::ScSettlementInstruction[scSettlementInstruction]: Relational
+   {
+      ~primaryKey ( [settlement_core::Store]SC_SETTLEMENT_INSTRUCTION.INSTRUCTION_ID )
+      ~mainTable [settlement_core::Store]SC_SETTLEMENT_INSTRUCTION
+      instructionId: [settlement_core::Store]SC_SETTLEMENT_INSTRUCTION.INSTRUCTION_ID,
+      tradeRef: [settlement_core::Store]SC_SETTLEMENT_INSTRUCTION.TRADE_REF,
+      assetClass: [settlement_core::Store]SC_SETTLEMENT_INSTRUCTION.ASSET_CLASS,
+      deliveryMethod: EnumerationMapping ScDeliveryMethodMapping: [settlement_core::Store]SC_SETTLEMENT_INSTRUCTION.DELIVERY_METHOD,
+      status: EnumerationMapping ScInstructionStatusMapping: [settlement_core::Store]SC_SETTLEMENT_INSTRUCTION.INSTRUCTION_STATUS,
+      tradeDate: [settlement_core::Store]SC_SETTLEMENT_INSTRUCTION.TRADE_DATE,
+      intendedSettlementDate: [settlement_core::Store]SC_SETTLEMENT_INSTRUCTION.INTENDED_SETTLEMENT_DATE,
+      actualSettlementDate: [settlement_core::Store]SC_SETTLEMENT_INSTRUCTION.ACTUAL_SETTLEMENT_DATE,
+      settlementCurrency: [settlement_core::Store]SC_SETTLEMENT_INSTRUCTION.SETTLEMENT_CURRENCY,
+      settlementAmount: [settlement_core::Store]SC_SETTLEMENT_INSTRUCTION.SETTLEMENT_AMOUNT,
+      isOnHold: [settlement_core::Store]SC_SETTLEMENT_INSTRUCTION.IS_ON_HOLD,
+
+      counterparty[scCounterparty]: [settlement_core::Store]@Sc_InstructionCounterparty,
+      ssi[scStandingInstruction]: [settlement_core::Store]@Sc_InstructionSsi,
+      place[scPlaceOfSettlement]: [settlement_core::Store]@Sc_InstructionPlace,
+      // One hop into core-calendar: the market. Everything about the settlement date hangs
+      // off it, and the next four properties are how.
+      market[ccMarket]: [settlement_core::Store]@Sc_InstructionMarket,
+      legs[scSettlementLeg]: [settlement_core::Store]@Sc_InstructionLeg,
+      events[scSettlementEvent]: [settlement_core::Store]@Sc_InstructionEvent,
+      batch[scSettlementBatch]: [settlement_core::Store]@Sc_InstructionBatch,
+
+      // THE JOIN CHAIN. Two hops --
+      //    SC_SETTLEMENT_INSTRUCTION -> CC_MARKET -> CC_CALENDAR
+      // -- ending in a column on a table this project does not own. Sc_InstructionMarket is
+      // mine and crosses the boundary; Cc_MarketCalendar is core-calendar's own join, in
+      // scope only because settlement_core::Store includes core_calendar::Store.
+      //
+      // The store qualifier is required on the first hop and optional afterwards; the PIPE
+      // before the final column is not optional at all. Written without it, the property is
+      // read as ending at a join and fails to compile.
+      //
+      // This is the modelled form of "the settlement date depends on the market's calendar":
+      // the calendar id is never a column on the instruction, so it cannot go stale when a
+      // market re-points at a different calendar.
+      settlementCalendarId: [settlement_core::Store]@Sc_InstructionMarket > @Cc_MarketCalendar | [core_calendar::Store]CC_CALENDAR.CALENDAR_ID,
+      settlementCentre: [settlement_core::Store]@Sc_InstructionMarket > @Cc_MarketCalendar | [core_calendar::Store]CC_CALENDAR.FINANCIAL_CENTRE,
+      // Not every centre closes Sat/Sun, so the weekend is a fact of the calendar and the
+      // date roll cannot be computed without it.
+      settlementWeekendDays: [settlement_core::Store]@Sc_InstructionMarket > @Cc_MarketCalendar | [core_calendar::Store]CC_CALENDAR.WEEKEND_DAYS,
+
+      // A second chain, into the other dependency: instruction -> SC_COUNTERPARTY ->
+      // CP_LEGAL_ENTITY. The name is never copied onto the settlement counterparty row.
+      counterpartyLegalName: [settlement_core::Store]@Sc_InstructionCounterparty > @Sc_CounterpartyEntity | [core_party::Store]CP_LEGAL_ENTITY.LEGAL_NAME
+   }
+
+   *settlement_core::ScSettlementLeg[scSettlementLeg]: Relational
+   {
+      ~primaryKey ( [settlement_core::Store]SC_SETTLEMENT_LEG.LEG_ID )
+      ~mainTable [settlement_core::Store]SC_SETTLEMENT_LEG
+      legId: [settlement_core::Store]SC_SETTLEMENT_LEG.LEG_ID,
+      direction: EnumerationMapping ScSettlementDirectionMapping: [settlement_core::Store]SC_SETTLEMENT_LEG.DIRECTION,
+      legKind: [settlement_core::Store]SC_SETTLEMENT_LEG.LEG_KIND,
+      quantity: [settlement_core::Store]SC_SETTLEMENT_LEG.QUANTITY,
+      amount: [settlement_core::Store]SC_SETTLEMENT_LEG.AMOUNT,
+      currencyCode: [settlement_core::Store]SC_SETTLEMENT_LEG.CURRENCY_CODE,
+      instruction[scSettlementInstruction]: [settlement_core::Store]@Sc_InstructionLeg,
+      account[scSettlementAccount]: [settlement_core::Store]@Sc_LegAccount
+   }
+
+   *settlement_core::ScSettlementEvent[scSettlementEvent]: Relational
+   {
+      ~primaryKey ( [settlement_core::Store]SC_SETTLEMENT_EVENT.EVENT_ID )
+      ~mainTable [settlement_core::Store]SC_SETTLEMENT_EVENT
+      eventId: [settlement_core::Store]SC_SETTLEMENT_EVENT.EVENT_ID,
+      eventType: [settlement_core::Store]SC_SETTLEMENT_EVENT.EVENT_TYPE,
+      resultingStatus: EnumerationMapping ScInstructionStatusMapping: [settlement_core::Store]SC_SETTLEMENT_EVENT.RESULTING_STATUS,
+      eventDate: [settlement_core::Store]SC_SETTLEMENT_EVENT.EVENT_DATE,
+      eventTime: [settlement_core::Store]SC_SETTLEMENT_EVENT.EVENT_TIME,
+      instruction[scSettlementInstruction]: [settlement_core::Store]@Sc_InstructionEvent,
+      failReason[scFailReason]: [settlement_core::Store]@Sc_EventFailReason
+   }
+
+   *settlement_core::ScFailReason[scFailReason]: Relational
+   {
+      ~primaryKey ( [settlement_core::Store]SC_FAIL_REASON.REASON_CODE )
+      ~mainTable [settlement_core::Store]SC_FAIL_REASON
+      reasonCode: [settlement_core::Store]SC_FAIL_REASON.REASON_CODE,
+      reasonName: [settlement_core::Store]SC_FAIL_REASON.REASON_NAME,
+      reasonCategory: [settlement_core::Store]SC_FAIL_REASON.REASON_CATEGORY,
+      isCounterpartyFault: [settlement_core::Store]SC_FAIL_REASON.IS_COUNTERPARTY_FAULT
+   }
+
+   *settlement_core::ScSettlementBatch[scSettlementBatch]: Relational
+   {
+      ~primaryKey ( [settlement_core::Store]SC_SETTLEMENT_BATCH.BATCH_ID )
+      ~mainTable [settlement_core::Store]SC_SETTLEMENT_BATCH
+      batchId: [settlement_core::Store]SC_SETTLEMENT_BATCH.BATCH_ID,
+      batchName: [settlement_core::Store]SC_SETTLEMENT_BATCH.BATCH_NAME,
+      batchDate: [settlement_core::Store]SC_SETTLEMENT_BATCH.BATCH_DATE,
+      releaseTime: [settlement_core::Store]SC_SETTLEMENT_BATCH.RELEASE_TIME,
+      isReleased: [settlement_core::Store]SC_SETTLEMENT_BATCH.IS_RELEASED,
+      place[scPlaceOfSettlement]: [settlement_core::Store]@Sc_BatchPlace,
+      instructions[scSettlementInstruction]: [settlement_core::Store]@Sc_InstructionBatch
+   }
+)

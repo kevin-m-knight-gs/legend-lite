@@ -1,0 +1,172 @@
+###Mapping
+// Every ~primaryKey below except the institution's names TWO OR MORE columns, which is
+// the whole point: the key of an account is (INSTITUTION_ID, ACCOUNT_NO), so the set
+// implementation must say so or two accounts at two banks with the same number collapse
+// into one object.
+//
+// `ownership ( ... )` and `correspondence ( ... )` on core_account::Account are EMBEDDED
+// property mappings. The properties are complex-typed, but their columns are on
+// CA_ACCOUNT, so no join is emitted for them -- reading an account's owner name costs
+// nothing beyond reading the account. `ownership` nests `taxResidence` one level
+// deeper, still on the same row. `holder` on the mandate is the same construct again.
+Mapping core_account::Mapping
+(
+   core_account::Institution[caInstitution]: Relational
+   {
+      ~primaryKey ( [core_account::Store]CA_INSTITUTION.INSTITUTION_ID )
+      ~mainTable [core_account::Store]CA_INSTITUTION
+      institutionId: [core_account::Store]CA_INSTITUTION.INSTITUTION_ID,
+      name: [core_account::Store]CA_INSTITUTION.NAME,
+      bic: [core_account::Store]CA_INSTITUTION.BIC,
+      countryCode: [core_account::Store]CA_INSTITUTION.COUNTRY_CODE,
+      regulator: [core_account::Store]CA_INSTITUTION.REGULATOR,
+      isActive: [core_account::Store]CA_INSTITUTION.IS_ACTIVE
+   }
+
+   core_account::Branch[caBranch]: Relational
+   {
+      ~primaryKey
+      (
+         [core_account::Store]CA_BRANCH.INSTITUTION_ID,
+         [core_account::Store]CA_BRANCH.BRANCH_CODE
+      )
+      ~mainTable [core_account::Store]CA_BRANCH
+      institutionId: [core_account::Store]CA_BRANCH.INSTITUTION_ID,
+      branchCode: [core_account::Store]CA_BRANCH.BRANCH_CODE,
+      name: [core_account::Store]CA_BRANCH.NAME,
+      city: [core_account::Store]CA_BRANCH.CITY,
+      countryCode: [core_account::Store]CA_BRANCH.COUNTRY_CODE,
+      isActive: [core_account::Store]CA_BRANCH.IS_ACTIVE,
+      institution: [core_account::Store]@Ca_BranchInstitution
+   }
+
+   core_account::Account[caAccount]: Relational
+   {
+      ~primaryKey
+      (
+         [core_account::Store]CA_ACCOUNT.INSTITUTION_ID,
+         [core_account::Store]CA_ACCOUNT.ACCOUNT_NO
+      )
+      ~mainTable [core_account::Store]CA_ACCOUNT
+      institutionId: [core_account::Store]CA_ACCOUNT.INSTITUTION_ID,
+      accountNo: [core_account::Store]CA_ACCOUNT.ACCOUNT_NO,
+      accountName: [core_account::Store]CA_ACCOUNT.ACCOUNT_NAME,
+      accountType: [core_account::Store]CA_ACCOUNT.ACCOUNT_TYPE,
+      currencyCode: [core_account::Store]CA_ACCOUNT.CURRENCY_CODE,
+      status: [core_account::Store]CA_ACCOUNT.STATUS,
+      openedOn: [core_account::Store]CA_ACCOUNT.OPENED_ON,
+      closedOn: [core_account::Store]CA_ACCOUNT.CLOSED_ON,
+      isSegregated: [core_account::Store]CA_ACCOUNT.IS_SEGREGATED,
+      branchCode: [core_account::Store]CA_ACCOUNT.BRANCH_CODE,
+      ownership
+      (
+         ownerName: [core_account::Store]CA_ACCOUNT.OWNER_NAME,
+         ownerType: [core_account::Store]CA_ACCOUNT.OWNER_TYPE,
+         ownerLei: [core_account::Store]CA_ACCOUNT.OWNER_LEI,
+         ownerSince: [core_account::Store]CA_ACCOUNT.OWNER_SINCE,
+         taxResidence
+         (
+            countryCode: [core_account::Store]CA_ACCOUNT.TAX_COUNTRY_CODE,
+            taxIdNumber: [core_account::Store]CA_ACCOUNT.TAX_ID_NUMBER,
+            treatyStatus: [core_account::Store]CA_ACCOUNT.TAX_TREATY_STATUS,
+            formExpiry: [core_account::Store]CA_ACCOUNT.TAX_FORM_EXPIRY
+         )
+      ),
+      correspondence
+      (
+         line1: [core_account::Store]CA_ACCOUNT.CORR_LINE1,
+         line2: [core_account::Store]CA_ACCOUNT.CORR_LINE2,
+         city: [core_account::Store]CA_ACCOUNT.CORR_CITY,
+         postcode: [core_account::Store]CA_ACCOUNT.CORR_POSTCODE,
+         countryCode: [core_account::Store]CA_ACCOUNT.CORR_COUNTRY_CODE,
+         email: [core_account::Store]CA_ACCOUNT.CORR_EMAIL
+      ),
+      institution: [core_account::Store]@Ca_AccountInstitution,
+      branch: [core_account::Store]@Ca_AccountBranch,
+      identifiers: [core_account::Store]@Ca_AccountIdentifiers,
+      statusHistory: [core_account::Store]@Ca_AccountStatusEvents,
+      restrictions: [core_account::Store]@Ca_AccountRestrictions,
+      mandates: [core_account::Store]@Ca_AccountMandates
+   }
+
+   core_account::AccountIdentifier[caAccountIdentifier]: Relational
+   {
+      ~primaryKey
+      (
+         [core_account::Store]CA_ACCOUNT_IDENTIFIER.INSTITUTION_ID,
+         [core_account::Store]CA_ACCOUNT_IDENTIFIER.ACCOUNT_NO,
+         [core_account::Store]CA_ACCOUNT_IDENTIFIER.SCHEME
+      )
+      ~mainTable [core_account::Store]CA_ACCOUNT_IDENTIFIER
+      institutionId: [core_account::Store]CA_ACCOUNT_IDENTIFIER.INSTITUTION_ID,
+      accountNo: [core_account::Store]CA_ACCOUNT_IDENTIFIER.ACCOUNT_NO,
+      scheme: [core_account::Store]CA_ACCOUNT_IDENTIFIER.SCHEME,
+      identifierValue: [core_account::Store]CA_ACCOUNT_IDENTIFIER.IDENTIFIER_VALUE,
+      isPrimary: [core_account::Store]CA_ACCOUNT_IDENTIFIER.IS_PRIMARY,
+      assignedOn: [core_account::Store]CA_ACCOUNT_IDENTIFIER.ASSIGNED_ON,
+      account: [core_account::Store]@Ca_AccountIdentifiers
+   }
+
+   core_account::AccountStatusEvent[caAccountStatusEvent]: Relational
+   {
+      ~primaryKey
+      (
+         [core_account::Store]CA_ACCOUNT_STATUS_EVENT.INSTITUTION_ID,
+         [core_account::Store]CA_ACCOUNT_STATUS_EVENT.ACCOUNT_NO,
+         [core_account::Store]CA_ACCOUNT_STATUS_EVENT.EFFECTIVE_FROM
+      )
+      ~mainTable [core_account::Store]CA_ACCOUNT_STATUS_EVENT
+      institutionId: [core_account::Store]CA_ACCOUNT_STATUS_EVENT.INSTITUTION_ID,
+      accountNo: [core_account::Store]CA_ACCOUNT_STATUS_EVENT.ACCOUNT_NO,
+      effectiveFrom: [core_account::Store]CA_ACCOUNT_STATUS_EVENT.EFFECTIVE_FROM,
+      status: [core_account::Store]CA_ACCOUNT_STATUS_EVENT.STATUS,
+      reasonCode: [core_account::Store]CA_ACCOUNT_STATUS_EVENT.REASON_CODE,
+      recordedBy: [core_account::Store]CA_ACCOUNT_STATUS_EVENT.RECORDED_BY,
+      account: [core_account::Store]@Ca_AccountStatusEvents
+   }
+
+   core_account::AccountRestriction[caAccountRestriction]: Relational
+   {
+      ~primaryKey
+      (
+         [core_account::Store]CA_ACCOUNT_RESTRICTION.INSTITUTION_ID,
+         [core_account::Store]CA_ACCOUNT_RESTRICTION.ACCOUNT_NO,
+         [core_account::Store]CA_ACCOUNT_RESTRICTION.RESTRICTION_CODE
+      )
+      ~mainTable [core_account::Store]CA_ACCOUNT_RESTRICTION
+      institutionId: [core_account::Store]CA_ACCOUNT_RESTRICTION.INSTITUTION_ID,
+      accountNo: [core_account::Store]CA_ACCOUNT_RESTRICTION.ACCOUNT_NO,
+      restrictionCode: [core_account::Store]CA_ACCOUNT_RESTRICTION.RESTRICTION_CODE,
+      imposedOn: [core_account::Store]CA_ACCOUNT_RESTRICTION.IMPOSED_ON,
+      liftedOn: [core_account::Store]CA_ACCOUNT_RESTRICTION.LIFTED_ON,
+      imposedBy: [core_account::Store]CA_ACCOUNT_RESTRICTION.IMPOSED_BY,
+      isBlocking: [core_account::Store]CA_ACCOUNT_RESTRICTION.IS_BLOCKING,
+      account: [core_account::Store]@Ca_AccountRestrictions
+   }
+
+   core_account::AccountMandate[caAccountMandate]: Relational
+   {
+      ~primaryKey
+      (
+         [core_account::Store]CA_ACCOUNT_MANDATE.INSTITUTION_ID,
+         [core_account::Store]CA_ACCOUNT_MANDATE.ACCOUNT_NO,
+         [core_account::Store]CA_ACCOUNT_MANDATE.MANDATE_SEQ
+      )
+      ~mainTable [core_account::Store]CA_ACCOUNT_MANDATE
+      institutionId: [core_account::Store]CA_ACCOUNT_MANDATE.INSTITUTION_ID,
+      accountNo: [core_account::Store]CA_ACCOUNT_MANDATE.ACCOUNT_NO,
+      mandateSeq: [core_account::Store]CA_ACCOUNT_MANDATE.MANDATE_SEQ,
+      role: [core_account::Store]CA_ACCOUNT_MANDATE.ROLE,
+      grantedOn: [core_account::Store]CA_ACCOUNT_MANDATE.GRANTED_ON,
+      revokedOn: [core_account::Store]CA_ACCOUNT_MANDATE.REVOKED_ON,
+      approvalLimit: [core_account::Store]CA_ACCOUNT_MANDATE.APPROVAL_LIMIT,
+      holder
+      (
+         holderName: [core_account::Store]CA_ACCOUNT_MANDATE.HOLDER_NAME,
+         idType: [core_account::Store]CA_ACCOUNT_MANDATE.HOLDER_ID_TYPE,
+         idNumber: [core_account::Store]CA_ACCOUNT_MANDATE.HOLDER_ID_NUMBER,
+         countryCode: [core_account::Store]CA_ACCOUNT_MANDATE.HOLDER_COUNTRY_CODE
+      ),
+      account: [core_account::Store]@Ca_AccountMandates
+   }
+)

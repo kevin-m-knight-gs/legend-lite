@@ -1,0 +1,359 @@
+// ============================================================
+// event-core (L1) — corporate actions, dated against another project's calendar
+// ============================================================
+// Depends on core-instrument (the security the action is ON) and core-calendar
+// (the market whose business days the action's dates are STRUCK AGAINST). Nothing
+// else.
+//
+// The shape here is deliberate on three counts.
+//
+// 1. ONE event table with a discriminator, seven subtypes over it. A cash dividend
+//    and a tender offer share an identity -- one event id, one announcement, one
+//    ex date, one instrument -- and differ only in the handful of terms that follow.
+//    That is the same argument core-instrument makes for CI_INSTRUMENT, and the
+//    same ~filter subtype mapping answers it.
+//
+// 2. The DATES are a class of their own, EvtEventDate, and not just the three
+//    StrictDate columns on the event. A corporate action's ex/record/pay dates are
+//    not free-standing dates: each one is asserted to be a business day on a named
+//    calendar in core-calendar, and if the raw date is not one, the market's
+//    convention rolls it. That assertion -- which calendar, was it a business day,
+//    what did it roll to -- is a fact per date, so it is a row per date. The three
+//    columns stay on the event as the announced, unadjusted terms; EvtEventDate is
+//    where the calendar actually gets consulted.
+//
+// 3. ELECTIONS are modelled, because a tender offer is not a mandatory action. An
+//    elective event publishes options (tender at the offer price, or do nothing),
+//    each with a deadline, and a holder submits one. Mandatory events simply have
+//    no option rows, which is why `isElective` is a stored flag and not a guess at
+//    whether the option list is empty.
+//
+// The one association, EvtInstrumentEvents, crosses into core-instrument: it hangs
+// `corporateEvents` off core_instrument::Instrument so a query that already holds an
+// instrument can reach its actions without this project's classes being mentioned.
+
+###Pure
+
+// FOR: what kind of corporate action this is, as a classification rather than as
+// the raw discriminator. EVENT_TYPE stays a String on the base class because the
+// ~filter subtype sets read it; this enum is the same fact restated for anything
+// that wants to group, filter or display by type without matching code strings.
+Enum event_core::EvtEventType
+{
+   CASH_DIVIDEND,
+   STOCK_SPLIT,
+   RIGHTS_ISSUE,
+   MERGER,
+   SPIN_OFF,
+   TENDER_OFFER,
+   CALL_REDEMPTION
+}
+
+// FOR: where an event is in its life. ANNOUNCED is the issuer's press release;
+// CONFIRMED is the terms fixed by the paying agent; EFFECTIVE is past its pay date.
+// CANCELLED and LAPSED are different: a cancelled action was withdrawn, a lapsed one
+// ran past its deadline without enough acceptances (the usual end of a tender offer).
+Enum event_core::EvtEventStatus
+{
+   ANNOUNCED,
+   CONFIRMED,
+   EFFECTIVE,
+   CANCELLED,
+   LAPSED
+}
+
+// FOR: which of an event's dates a EvtEventDate row is. Separate from the event's
+// own columns because the same rolling logic applies whichever date it is, and a
+// query that asks "which dates fall on a holiday" should not have to ask three times.
+Enum event_core::EvtDateRole
+{
+   ANNOUNCEMENT,
+   EX,
+   RECORD,
+   PAY,
+   ELECTION_DEADLINE,
+   EFFECTIVE
+}
+
+// FOR: what a date does when it lands on a non-business day of its calendar. This
+// is the reason the calendar dependency exists at all: MODIFIED_FOLLOWING rolls
+// forward unless that crosses a month end, in which case it rolls back. NONE is the
+// honest case for a record date, which is a register snapshot and does not roll.
+Enum event_core::EvtBusinessDayConvention
+{
+   FOLLOWING,
+   MODIFIED_FOLLOWING,
+   PRECEDING,
+   NONE
+}
+
+// FOR: what a holder actually receives when they take an election option -- cash,
+// stock, a mixture, or the tradable right itself. Drives whether a downstream
+// position keeper books a cash movement, a share receipt or both.
+Enum event_core::EvtConsiderationType
+{
+   CASH,
+   SECURITIES,
+   CASH_AND_SECURITIES,
+   RIGHTS
+}
+
+// FOR: what a holder did about an elective event. PENDING is announced and not yet
+// answered; DEFAULTED is the one that matters operationally -- the deadline passed
+// and the issuer's default option applied, which is a different fact from the holder
+// having chosen it.
+Enum event_core::EvtElectionStatus
+{
+   PENDING,
+   SUBMITTED,
+   ACKNOWLEDGED,
+   REJECTED,
+   DEFAULTED
+}
+
+// FOR: the BASE corporate action -- everything true of a dividend, a split, a merger
+// and a tender offer alike. One row of EVT_CORPORATE_EVENT, told apart by eventType.
+//
+// The three dates are the announced terms, unadjusted: exDate is the first day the
+// security trades without the entitlement, recordDate is the register snapshot that
+// decides who is entitled, payDate is when the consideration moves. Their calendar
+// adjustment lives in `dates`; `market` is where they are struck, and it is a
+// core_calendar::CcMarket rather than a string so the calendar is one hop away.
+Class event_core::EvtCorporateEvent
+{
+   eventId: String[1];
+   // The discriminator the store's ~filters read. Raw String on purpose: the subtype
+   // sets match it before any enum transformation could have happened.
+   eventType: String[1];
+   eventTypeCode: event_core::EvtEventType[1];
+   eventStatus: event_core::EvtEventStatus[1];
+
+   instrumentId: String[1];
+   marketMic: String[1];
+   currency: String[0..1];
+
+   announcementDate: StrictDate[1];
+   exDate: StrictDate[0..1];
+   recordDate: StrictDate[0..1];
+   payDate: StrictDate[0..1];
+
+   dateConvention: event_core::EvtBusinessDayConvention[1];
+   // Stored, not inferred from an empty option list: a mandatory event has no
+   // options because none exist, which is not the same as none having loaded yet.
+   isElective: Boolean[1];
+   sourceReference: String[0..1];
+   cancelledOn: StrictDate[0..1];
+
+   dates: event_core::EvtEventDate[*];
+   electionOptions: event_core::EvtElectionOption[*];
+   elections: event_core::EvtEventElection[*];
+   // The venue whose calendar the dates are struck against -- core-calendar's class,
+   // reached across the store include.
+   market: core_calendar::CcMarket[0..1];
+
+   // Withdrawn by the issuer. A cancelled action keeps its row and its history, so
+   // the date's presence is the only honest test.
+   isCancelled() { $this.cancelledOn->isNotEmpty() } : Boolean[1];
+   // The complement of elective, spelled out so a mandatory-action screen reads as
+   // one word rather than as a negation.
+   isMandatory() { $this.isElective->not() } : Boolean[1];
+   // Both entitlement dates present, which is what a position keeper needs before it
+   // can decide who gets paid.
+   isFullyDated() { $this.exDate->isNotEmpty() && $this.recordDate->isNotEmpty() } : Boolean[1];
+}
+
+// FOR: a cash distribution out of the issuer's earnings. The commonest corporate
+// action by volume and the one most sensitive to dates: entitlement follows the
+// record date, the price drops by the net amount on the ex date, and the cash lands
+// on the pay date -- three different business days on the market's calendar.
+Class event_core::EvtCashDividend extends event_core::EvtCorporateEvent
+{
+   grossAmountPerShare: Float[1];
+   netAmountPerShare: Float[1];
+   withholdingTaxRate: Float[0..1];
+   dividendFrequency: String[0..1];
+   isSpecial: Boolean[1];
+   declaredCurrency: String[0..1];
+
+   // The withholding actually suffered per share, as published rather than as a rate.
+   // A tax reclaim is raised on this number.
+   taxPerShare() { $this.grossAmountPerShare - $this.netAmountPerShare } : Float[1];
+}
+
+// FOR: a change in the share count with no change in the value of the holding -- a
+// 4-for-1 split, or a 1-for-10 reverse. Every price and quantity before the ex date
+// has to be restated by the factor, which is why the factor is a property and not
+// something each downstream consumer recomputes.
+Class event_core::EvtStockSplit extends event_core::EvtCorporateEvent
+{
+   splitFromShares: Integer[1];
+   splitToShares: Integer[1];
+   isReverse: Boolean[1];
+   fractionalHandling: String[0..1];
+
+   // Shares after, per share before. Declared Float because `/` in Pure widens even
+   // when both operands are Integer -- 4/1 is 4.0 here, not 4.
+   adjustmentFactor() { $this.splitToShares / $this.splitFromShares } : Float[1];
+}
+
+// FOR: an offer of new shares to existing holders at a discount, in proportion to
+// what they already hold. Elective, and the right itself usually trades, so it has
+// a subscription window as well as the standard three dates.
+Class event_core::EvtRightsIssue extends event_core::EvtCorporateEvent
+{
+   subscriptionPrice: Float[1];
+   rightsPerShareHeld: Float[1];
+   newSharesPerRight: Float[1];
+   isTradable: Boolean[1];
+   subscriptionStartDate: StrictDate[0..1];
+   subscriptionEndDate: StrictDate[0..1];
+   rightsIsin: String[0..1];
+}
+
+// FOR: the disappearance of the security into another one. The holder ends up with
+// cash, with the acquirer's stock, or with both, which is what the two consideration
+// numbers are: `shareExchangeRatio` acquirer shares plus `cashPerShare` per share held.
+Class event_core::EvtMerger extends event_core::EvtCorporateEvent
+{
+   acquirerName: String[1];
+   acquirerInstrumentId: String[0..1];
+   shareExchangeRatio: Float[0..1];
+   cashPerShare: Float[0..1];
+   effectiveDate: StrictDate[0..1];
+   isHostile: Boolean[1];
+   considerationType: event_core::EvtConsiderationType[1];
+}
+
+// FOR: a subsidiary distributed to holders as shares in a new company. Mandatory,
+// and the awkward part is not the shares but the cost basis: the original holding's
+// basis splits between parent and child by a published percentage.
+Class event_core::EvtSpinOff extends event_core::EvtCorporateEvent
+{
+   spunOffEntityName: String[1];
+   spunOffInstrumentId: String[0..1];
+   distributionRatio: Float[1];
+   parentCostBasisPercent: Float[0..1];
+   isTaxFree: Boolean[1];
+}
+
+// FOR: an offer to buy shares from holders at a stated price -- the ELECTIVE action
+// this project models elections for. A holder does nothing and keeps the stock, or
+// tenders before the deadline and gets the price. If more is tendered than the offer
+// will take, acceptances are prorated, which is why the cap is here and not implied.
+Class event_core::EvtTenderOffer extends event_core::EvtCorporateEvent
+{
+   offerPrice: Float[1];
+   offerCurrency: String[0..1];
+   // The deadline, as the announced date. Whether that date is a business day on the
+   // market's calendar is answered by the ELECTION_DEADLINE row in `dates`.
+   electionDeadline: StrictDate[1];
+   minimumTenderPercent: Float[0..1];
+   maximumSharesSought: Float[0..1];
+   prorationApplies: Boolean[1];
+   offerorName: String[0..1];
+}
+
+// FOR: the issuer redeeming a bond before maturity, at a price set when it was
+// issued. Mandatory for the holder and dated off a notice period rather than an ex
+// date -- the notice date is the one that has to be a business day, because that is
+// when the call is exercisable.
+Class event_core::EvtCallRedemption extends event_core::EvtCorporateEvent
+{
+   redemptionPricePercent: Float[1];
+   callType: String[1];
+   noticeDate: StrictDate[0..1];
+   isPartial: Boolean[1];
+   redeemedFraction: Float[0..1];
+   accruedInterestPaid: Boolean[1];
+}
+
+// FOR: ONE of an event's dates, checked against a calendar. This is where the
+// core-calendar dependency is actually consumed: `calendar` is the named calendar
+// whose holidays apply, `isBusinessDay` is whether the announced date was one, and
+// `adjustedDate` is where the convention rolled it if it was not.
+//
+// A row per date rather than three flags on the event, because the answer differs
+// per date: a pay date rolls FOLLOWING, a record date does not roll at all, and the
+// two can sit on different sides of a holiday.
+Class event_core::EvtEventDate
+{
+   eventDateId: String[1];
+   eventId: String[1];
+   dateRole: event_core::EvtDateRole[1];
+   // As announced by the issuer, before any calendar is consulted.
+   announcedDate: StrictDate[1];
+   // After the convention was applied. Equal to announcedDate when isBusinessDay.
+   adjustedDate: StrictDate[1];
+   isBusinessDay: Boolean[1];
+   convention: event_core::EvtBusinessDayConvention[1];
+   calendarId: String[1];
+   marketMic: String[0..1];
+
+   event: event_core::EvtCorporateEvent[1];
+   // core-calendar's calendar, reached by join. Its holidays are the reason this
+   // row exists.
+   calendar: core_calendar::CcCalendar[0..1];
+   market: core_calendar::CcMarket[0..1];
+
+   // The date moved. True exactly when the announced date was not a business day,
+   // stated as a fact of its own so an operations exception report can select on it.
+   wasRolled() { $this.isBusinessDay->not() } : Boolean[1];
+}
+
+// FOR: one choice published on an ELECTIVE event -- 'tender all', 'tender none',
+// 'take stock', 'take cash'. The issuer names a default, which is what applies to a
+// holder who says nothing before the deadline; that is why `isDefault` is here and
+// not inferred from the first row.
+Class event_core::EvtElectionOption
+{
+   optionId: String[1];
+   eventId: String[1];
+   optionCode: String[1];
+   optionDescription: String[1];
+   considerationType: event_core::EvtConsiderationType[1];
+   cashPerShare: Float[0..1];
+   sharesPerShare: Float[0..1];
+   isDefault: Boolean[1];
+   // The issuer's deadline for THIS option. Usually the event's deadline, but a
+   // custodian's own cutoff sits earlier, which is the one a holder actually meets.
+   responseDeadline: StrictDate[0..1];
+
+   event: event_core::EvtCorporateEvent[1];
+   elections: event_core::EvtEventElection[*];
+}
+
+// FOR: what one holder actually elected, on one option of one event. The quantity
+// matters because an election is per-share, not per-holder: a holder may tender part
+// of a position and keep the rest.
+Class event_core::EvtEventElection
+{
+   electionId: String[1];
+   eventId: String[1];
+   optionId: String[1];
+   accountReference: String[1];
+   quantityElected: Float[1];
+   electionStatus: event_core::EvtElectionStatus[1];
+   submittedOn: StrictDate[0..1];
+   // Set only when the offer was oversubscribed and the acceptance was scaled back.
+   allocatedQuantity: Float[0..1];
+
+   event: event_core::EvtCorporateEvent[1];
+   option: event_core::EvtElectionOption[1];
+
+   // Nobody answered and the issuer's default applied. Operationally distinct from a
+   // holder having chosen the same option, so it gets its own name.
+   wasDefaulted() { $this.electionStatus == event_core::EvtElectionStatus.DEFAULTED } : Boolean[1];
+   // The offer took less than was tendered.
+   wasProrated() { $this.allocatedQuantity->isNotEmpty() } : Boolean[1];
+}
+
+// The one association that CROSSES a project boundary. It hangs `corporateEvents`
+// off core_instrument::Instrument, so anything holding an instrument -- including
+// code that has never heard of event_core -- can navigate to its corporate actions.
+// The other direction, `instrument`, is what gives an event its security without
+// this project restating the instrument master.
+Association event_core::EvtInstrumentEvents
+{
+   instrument: core_instrument::Instrument[0..1];
+   corporateEvents: event_core::EvtCorporateEvent[*];
+}

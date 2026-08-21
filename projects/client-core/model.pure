@@ -1,0 +1,439 @@
+###Pure
+
+// ============================================================
+// client-core (L1) -- the client relationship, and where it sits in the world
+// ============================================================
+// Depends on core-party and core-geo, and on nothing else.
+//
+// The distinction this project rests on: core-party's LegalEntity is who someone IS -- a
+// registered legal person that exists whether or not we have ever spoken to them. A
+// CliClient is the RELATIONSHIP we have with them: a classification under MiFID, an
+// onboarding case, a relationship manager, a set of mandates. One legal entity can carry
+// several client relationships (a fund manager onboarded once per booking centre) and a
+// prospect can be a client relationship with no trading permitted at all. Collapsing the two
+// is the modelling error that makes "when did this client become professional" unanswerable.
+//
+// The other thing this project is FOR is the join chain. A client carries an ISO 3166-1
+// alpha-2 domicile code and nothing else geographic, and from that single column the mapping
+// reaches:
+//
+//    CLI_CLIENT -> CG_COUNTRY -> CG_SUB_REGION -> CG_MACRO_REGION      (three hops)
+//    CLI_CLIENT -> CG_BLOC_MEMBERSHIP -> CG_BLOC                       (two hops)
+//    CLI_MANDATE -> CLI_CLIENT -> CG_BLOC_MEMBERSHIP -> CG_BLOC        (three hops)
+//
+// so a report can group clients by coverage region, or mandates by economic bloc, without
+// knowing that sub-regions or dated memberships exist. The association ends stay available
+// for callers that want the objects rather than the labels:
+//
+//    $client.domicileCountry.subRegion.macroRegion.code
+//    $client.domicileCountry.blocMemberships->filter(m | $m.status == 'MEMBER').bloc.code
+
+// ---------------------------------------------------------------- the relationship
+// FOR: the client relationship itself -- the thing that is onboarded, classified, covered by
+// a relationship manager and billed. Deliberately NOT the legal person: `legalEntity` points
+// at core-party for that, [0..1] because a prospect is a client relationship before anyone
+// has confirmed which registered entity will sign.
+//
+// `domicileCountryCode` is the only geographic column on this table, and it is an alpha-2
+// code so it lines up with `CG_COUNTRY.COUNTRY_CODE` without translation. Everything else
+// about where a client sits -- sub-region, macro-region, bloc -- is reached through joins
+// rather than stored, because a denormalised region column is the one that goes stale.
+Class client_core::CliClient
+{
+   clientId: String[1];
+   // The name the relationship is run under, which is not always the registered legal name:
+   // a fund's marketing name reaches the client statement, the legal name reaches the
+   // contract. The legal name is core-party's and is reached through `legalEntityName`.
+   clientName: String[1];
+   // INDIVIDUAL, CORPORATE, FUND, PENSION_SCHEME, SOVEREIGN, FINANCIAL_INSTITUTION.
+   clientType: String[1];
+   // The booking centre the relationship is held in: 'LONDON', 'NEW_YORK', 'SINGAPORE'.
+   // A group onboarded in three centres is three client relationships against one entity.
+   bookingCentre: String[0..1];
+   // ISO 3166-1 alpha-2, the anchor of the join chain. Nullable because a prospect can exist
+   // before domicile evidence has been collected -- and a null here means the chain returns
+   // no macro-region, which is why core-geo declares `CgPlacedCountry`.
+   domicileCountryCode: String[0..1];
+   // The bloc whose rulebook governs the relationship -- 'EU_BLOC' for a MiFID client. Set by
+   // operations rather than derived, because a client domiciled in a bloc is not automatically
+   // serviced under it. Together with the domicile code this picks out ONE membership row,
+   // which is what keeps the bloc chain single-valued.
+   regulatoryBlocId: String[0..1];
+   // ACTIVE, DORMANT, SUSPENDED, TERMINATED. Distinct from the onboarding state: a fully
+   // onboarded client can be suspended for a missing document review.
+   status: String[1];
+   relationshipStartDate: StrictDate[0..1];
+   // Null while the relationship is live. Termination is recorded by a date, not by clearing
+   // a flag, so "who did we lose in Q3" is answerable.
+   relationshipEndDate: StrictDate[0..1];
+   // True where the client has given discretion over at least one mandate. Denormalised so a
+   // client list can be split without walking the mandates.
+   hasDiscretionaryMandate: Boolean[0..1];
+
+   // -------- reached through joins, stored nowhere on CLI_CLIENT.
+   // Hop 3 of the geography chain: country -> sub-region -> macro-region. AMER, EMEA, APAC.
+   domicileMacroRegionCode: String[0..1];
+   domicileMacroRegionName: String[0..1];
+   // Two hops down the bloc branch, through the dated membership row.
+   regulatoryBlocCode: String[0..1];
+   // One hop and two hops into core-party, off the entity id.
+   legalEntityName: String[0..1];
+   incorporationJurisdictionName: String[0..1];
+
+   // The relationship is live if it was started and never ended. The end date and not the
+   // status, because a SUSPENDED client is still a client.
+   isLive() { $this.relationshipStartDate->isNotEmpty() && $this.relationshipEndDate->isEmpty() } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- classification
+// FOR: the MiFID II client category, as a reference table rather than an enum. Three values
+// in practice -- RETAIL, PROFESSIONAL, ELIGIBLE_COUNTERPARTY -- but each carries attributes
+// (what protections attach, whether an appropriateness test is required) that an enum cannot
+// hold, and the per-se/elective sub-cases arrive as new rows rather than as a recompile of
+// every project above this one.
+Class client_core::CliClientCategory
+{
+   // RETAIL, PROFESSIONAL, ELIGIBLE_COUNTERPARTY.
+   categoryCode: String[1];
+   categoryName: String[1];
+   // 1 = most protected (retail), 3 = least (eligible counterparty). Ordered so a rule can
+   // say "at least as protected as" without hardcoding the three codes.
+   protectionLevel: Integer[1];
+   // Retail clients get one; professionals are presumed to have the knowledge.
+   requiresAppropriatenessTest: Boolean[1];
+   // Best execution, the suitability report and the costs disclosure attach to retail only.
+   requiresBestExecutionReport: Boolean[1];
+   description: String[0..1];
+}
+
+// FOR: the DATED assignment of a category to a client, and the reason categorisation is a
+// class rather than a column. A client can be re-categorised -- opting up from retail to
+// elective professional, or being opted down for a particular service -- and the question
+// asked in a dispute is always "what were they on the trade date", which a column cannot
+// answer. One row per assignment, the open one having no end date.
+Class client_core::CliClassification
+{
+   classificationId: String[1];
+   effectiveFrom: StrictDate[1];
+   // Null on the current row.
+   effectiveTo: StrictDate[0..1];
+   // PER_SE where the client qualifies by size or licence, ELECTIVE where they asked and
+   // passed the qualitative test, DEFAULT where nothing was assessed and retail applies.
+   basis: String[1];
+   // The qualitative assessment behind an elective opt-up, and empty for a per-se category.
+   assessmentReference: String[0..1];
+   assessedBy: String[0..1];
+   // True where the client has been told in writing, which is a precondition of the category
+   // taking effect at all.
+   isClientNotified: Boolean[0..1];
+
+   isCurrent() { $this.effectiveTo->isEmpty() } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- domicile
+// FOR: where a client is, over time and for which purpose. Three separate answers can differ
+// for one client -- tax residence, regulatory domicile and correspondence address -- so the
+// type is part of the row rather than a second table. Dated for the same reason as the
+// classification: a client who moved from GB to IE in 2021 was a MiFID client before and is
+// one again through a different regime, and both facts are needed.
+//
+// `countryCode` is an alpha-2 that joins straight to core-geo, so a domicile row can walk the
+// same three-hop chain as its client.
+Class client_core::CliDomicile
+{
+   domicileId: String[1];
+   // TAX, REGULATORY, RESIDENCE, CORRESPONDENCE.
+   domicileType: String[1];
+   // ISO 3166-1 alpha-2, joining to CG_COUNTRY.
+   countryCode: String[1];
+   effectiveFrom: StrictDate[1];
+   effectiveTo: StrictDate[0..1];
+   // PASSPORT, UTILITY_BILL, CERTIFICATE_OF_INCORPORATION, TAX_RESIDENCY_CERTIFICATE.
+   evidenceType: String[0..1];
+   // The one that drives regulatory scope where several are recorded.
+   isPrimary: Boolean[1];
+
+   isCurrent() { $this.effectiveTo->isEmpty() } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- onboarding
+// FOR: the state a client can be in on the way to trading, as an ordered reference table.
+// PROSPECT, KYC_IN_PROGRESS, PENDING_APPROVAL, APPROVED, REJECTED, OFFBOARDED. `sequenceNo`
+// makes "further along than" a comparison rather than a case statement, and `allowsTrading`
+// is the single question the rest of the firm asks of this table.
+Class client_core::CliOnboardingState
+{
+   stateCode: String[1];
+   stateName: String[1];
+   // 10, 20, 30, 40 for the happy path; the terminal states sit above them.
+   sequenceNo: Integer[1];
+   // REJECTED and OFFBOARDED are terminal: nothing follows them without a new case.
+   isTerminal: Boolean[1];
+   // True for APPROVED alone. Everything else is a client we cannot yet face.
+   allowsTrading: Boolean[1];
+}
+
+// FOR: one pass through onboarding, which is not the same as the client. A client can be
+// onboarded, offboarded and onboarded again, and a periodic KYC refresh opens a new case
+// against a client who is already trading. So the case carries the dates and the outcome,
+// and the client carries only the relationship.
+Class client_core::CliOnboardingCase
+{
+   caseId: String[1];
+   // NEW_CLIENT, PERIODIC_REVIEW, EVENT_DRIVEN_REVIEW, REACTIVATION.
+   caseType: String[1];
+   openedDate: StrictDate[1];
+   // Null while the case is open.
+   closedDate: StrictDate[0..1];
+   // LOW, MEDIUM, HIGH, PROHIBITED -- the outcome of the KYC risk assessment, which drives
+   // the refresh frequency.
+   kycRiskRating: String[0..1];
+   // The analyst the case sits with.
+   assignedTo: String[0..1];
+   // Populated only where the case ended in REJECTED, and required in that case.
+   outcomeReason: String[0..1];
+   // The date the next periodic review falls due, so a queue can be built from this table
+   // alone.
+   nextReviewDate: StrictDate[0..1];
+
+   isOpen() { $this.closedDate->isEmpty() } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- coverage
+// FOR: the person who owns the relationship -- the name on the client's phone. Separate from
+// core-party because a relationship manager is an employee and not a counterparty; modelling
+// staff as legal entities is a well-travelled mistake that ends with payroll in the party
+// master.
+Class client_core::CliRelationshipManager
+{
+   rmId: String[1];
+   fullName: String[1];
+   email: String[0..1];
+   // The desk's country, an alpha-2, so coverage can be reported against the same geography
+   // as the clients themselves.
+   deskCountryCode: String[0..1];
+   employeeNumber: String[0..1];
+   // Null while the person is in post. A leaver's clients must remain attributable to whoever
+   // covered them at the time, so the row is dated rather than deleted.
+   leftOn: StrictDate[0..1];
+
+   isInPost() { $this.leftOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: the desk a relationship manager sits on, and the level most coverage reporting is
+// actually done at -- a client is covered by "UK Institutional", and which named person holds
+// it this quarter is below the resolution of the report.
+Class client_core::CliCoverageTeam
+{
+   teamId: String[1];
+   teamName: String[1];
+   // INSTITUTIONAL, WEALTH, CORPORATE, OFFICIAL_INSTITUTIONS.
+   segment: String[1];
+   // Where the cost of covering the client lands.
+   costCentre: String[0..1];
+   disbandedOn: StrictDate[0..1];
+}
+
+// ---------------------------------------------------------------- mandates
+// FOR: what the client actually asked us to do -- a discretionary portfolio, an advisory
+// relationship, an execution-only account. The mandate and not the client is what carries a
+// benchmark, a base currency and restrictions, because one client can hold several with
+// different terms.
+Class client_core::CliMandate
+{
+   mandateId: String[1];
+   mandateName: String[1];
+   // DISCRETIONARY, ADVISORY, EXECUTION_ONLY, CUSTODY_ONLY.
+   mandateType: String[1];
+   // ISO 4217 alpha code as a STRING rather than a reference to core-types, which is not a
+   // declared dependency of this project.
+   baseCurrencyCode: String[1];
+   // The index the mandate is measured against, where there is one.
+   benchmarkCode: String[0..1];
+   // Committed rather than current: the current figure belongs to a valuation project.
+   targetAum: Float[0..1];
+   // Basis points a year, the headline management fee before any discount.
+   managementFeeBps: Float[0..1];
+   startDate: StrictDate[1];
+   endDate: StrictDate[0..1];
+
+   // -------- reached through joins, three and four hops out.
+   // Mandate -> client -> membership -> bloc. The rulebook a mandate is run under, reached
+   // without the mandate holding any geography of its own.
+   clientBlocCode: String[0..1];
+   // Mandate -> client -> country -> sub-region -> macro-region. Four hops, so a mandate book
+   // can be split by coverage region.
+   clientMacroRegionName: String[0..1];
+
+   isOpen() { $this.endDate->isEmpty() } : Boolean[1];
+}
+
+// FOR: what a mandate may not do. A restriction is a row and not a column because there are
+// many per mandate and they are of different kinds -- an issuer exclusion, a sector cap, a
+// currency ban, a rating floor -- and each carries its own scope value.
+Class client_core::CliMandateRestriction
+{
+   restrictionId: String[1];
+   // ISSUER_EXCLUSION, SECTOR_CAP, COUNTRY_EXCLUSION, RATING_FLOOR, CURRENCY_RESTRICTION,
+   // CONCENTRATION_LIMIT.
+   restrictionType: String[1];
+   // What the type points at: an LEI for an issuer exclusion, a GICS code for a sector cap,
+   // an alpha-2 for a country exclusion. Typed by `restrictionType`, which is why it is a
+   // string.
+   scopeValue: String[0..1];
+   // Percent of the portfolio, for the cap and concentration types.
+   limitPercentage: Float[0..1];
+   // A hard limit blocks the order; a soft one raises a breach to be explained.
+   isHardLimit: Boolean[1];
+   effectiveFrom: StrictDate[0..1];
+   notes: String[0..1];
+}
+
+// ---------------------------------------------------------------- suitability
+// FOR: the client's own risk position -- what they can bear and what they understand -- kept
+// off CliClient because it is reassessed on a cycle while the relationship is stable, and
+// because it applies to the client and not to any one mandate. At most one current profile
+// per client, which is why the association is [0..1] on both ends.
+Class client_core::CliRiskProfile
+{
+   // The client id, repeated so a profile is identifiable on its own.
+   clientId: String[1];
+   // CONSERVATIVE, BALANCED, GROWTH, AGGRESSIVE.
+   riskTolerance: String[1];
+   // BASIC, INFORMED, ADVANCED -- the knowledge-and-experience limb of the suitability test.
+   knowledgeLevel: String[0..1];
+   investmentHorizonYears: Integer[0..1];
+   // What the client can afford to lose, which is not what they are willing to lose:
+   // NONE, LIMITED, MODERATE, SUBSTANTIAL.
+   lossCapacity: String[0..1];
+   assessedDate: StrictDate[0..1];
+   reviewDueDate: StrictDate[0..1];
+}
+
+// FOR: a named human at the client, and the permissions attached to them. Not a legal entity
+// and not a relationship manager: this is their side of the phone call, and the authorised
+// signatory flag is what decides whether an instruction from this person can be acted on.
+Class client_core::CliClientContact
+{
+   contactId: String[1];
+   fullName: String[1];
+   // CFO, TREASURER, PORTFOLIO_MANAGER, COMPLIANCE_OFFICER, OPERATIONS.
+   contactRole: String[1];
+   email: String[0..1];
+   phone: String[0..1];
+   isAuthorisedSignatory: Boolean[1];
+   // True for the one contact a statement is addressed to.
+   isPrimaryContact: Boolean[1];
+}
+
+// ---------------------------------------------------------------- associations, within
+// The end names are the public surface: a downstream project navigates them by name.
+
+// A client's domicile history. [*] and not [1] because the types (tax, regulatory,
+// correspondence) and the dated supersessions are both rows here.
+Association client_core::CliClientDomiciles
+{
+   client: client_core::CliClient[1];
+   domiciles: client_core::CliDomicile[*];
+}
+
+// A client's categorisation history.
+Association client_core::CliClientClassifications
+{
+   classifiedClient: client_core::CliClient[1];
+   classifications: client_core::CliClassification[*];
+}
+
+// The category a classification row assigns.
+Association client_core::CliCategoryClassifications
+{
+   category: client_core::CliClientCategory[1];
+   categoryAssignments: client_core::CliClassification[*];
+}
+
+// A client's onboarding cases, plural on purpose: the periodic reviews are cases too.
+Association client_core::CliClientOnboarding
+{
+   onboardedClient: client_core::CliClient[1];
+   onboardingCases: client_core::CliOnboardingCase[*];
+}
+
+// The state a case has reached.
+Association client_core::CliCaseState
+{
+   state: client_core::CliOnboardingState[1];
+   casesInState: client_core::CliOnboardingCase[*];
+}
+
+// Who covers the client. [0..1] because a prospect can be unassigned, and because a leaver's
+// clients sit unassigned until they are reallocated.
+Association client_core::CliClientCoverage
+{
+   relationshipManager: client_core::CliRelationshipManager[0..1];
+   coveredClients: client_core::CliClient[*];
+}
+
+// Which desk a relationship manager sits on.
+Association client_core::CliManagerTeam
+{
+   coverageTeam: client_core::CliCoverageTeam[1];
+   managers: client_core::CliRelationshipManager[*];
+}
+
+// A client's mandates.
+Association client_core::CliClientMandates
+{
+   mandateClient: client_core::CliClient[1];
+   mandates: client_core::CliMandate[*];
+}
+
+// A mandate's restrictions.
+Association client_core::CliMandateRestrictions
+{
+   mandate: client_core::CliMandate[1];
+   restrictions: client_core::CliMandateRestriction[*];
+}
+
+// The suitability profile, one to at most one in each direction.
+Association client_core::CliClientRiskProfile
+{
+   profiledClient: client_core::CliClient[0..1];
+   riskProfile: client_core::CliRiskProfile[0..1];
+}
+
+// The client's own people.
+Association client_core::CliClientContacts
+{
+   contactClient: client_core::CliClient[1];
+   contacts: client_core::CliClientContact[*];
+}
+
+// ---------------------------------------------------------------- associations, across
+// Three ends that cross a project boundary. They are the reason this project declares
+// core-party and core-geo as dependencies, and each one hands a downstream caller a
+// navigation it would otherwise have to build a join for.
+
+// The relationship to the registered legal person. [0..1] on the entity end because a
+// prospect exists before the entity is confirmed; [*] on the client end because one entity
+// can carry a relationship per booking centre.
+Association client_core::CliClientLegalEntity
+{
+   legalEntity: core_party::LegalEntity[0..1];
+   clientRelationships: client_core::CliClient[*];
+}
+
+// The client's domicile country, and the head of the join chain as objects:
+//    $client.domicileCountry.subRegion.macroRegion.code
+//    $client.domicileCountry.blocMemberships->filter(m | $m.status == 'MEMBER').bloc.code
+Association client_core::CliClientDomicileCountry
+{
+   domicileCountry: core_geo::CgCountry[0..1];
+   clientsDomiciled: client_core::CliClient[*];
+}
+
+// The same hop from a dated domicile row, so the historic domiciles can walk the chain too.
+Association client_core::CliDomicileCountry
+{
+   country: core_geo::CgCountry[1];
+   domicileRecords: client_core::CliDomicile[*];
+}

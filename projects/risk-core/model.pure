@@ -1,0 +1,633 @@
+###Pure
+// risk-core -- risk factors and the sensitivities measured against them.
+//
+// The shape this project exists to carry is AGGREGATION, in two places that are deliberately
+// different from each other:
+//
+//   * a store VIEW, `RSK_FACTOR_TOTAL`, which groups RSK_SENSITIVITY by factor and cob date.
+//     It is not a database view -- no DDL, nothing seeds it; the engine folds the GROUP BY
+//     into the SQL. A risk report asks "what is the firm's total delta to EUR-3M today" and
+//     reads one row per factor instead of scanning every leg. `RskFactorTotal` is the class
+//     rooted at it.
+//
+//   * an AggregationAware class mapping, `RskFactorExposure`, whose main mapping is the leg
+//     table and whose aggregate mapping is that same view. The difference matters: the view
+//     class is a thing a query names, the aggregation-aware class is one the ENGINE rewrites
+//     -- a query over the legs that happens to group by factor and date and sum the delta is
+//     answered from the pre-aggregate without the query ever mentioning it.
+//
+// The dependencies are core-instrument (what a sensitivity is computed on) and core-price
+// (the consensus mark the factor is bumped around). Nothing else is referred to.
+//
+// Money-like numbers are NUMERIC(24,8) and land on Float; percentages, correlations and
+// ratios are FLOAT because they are approximations; counts, tenor buckets and sequence
+// numbers are SMALLINT. REAL is not used anywhere (docs/UPSTREAM_FINDINGS.md F53).
+
+// ---------------------------------------------------------------------------------------
+// The factors
+// ---------------------------------------------------------------------------------------
+
+// A risk factor: the single market observable a book is exposed to and that a bump is
+// applied to. THE base class of this project -- everything else is either measured against a
+// factor or aggregates something that was. One wide table told apart by FACTOR_TYPE.
+Class risk_core::RskRiskFactor
+{
+   factorId: String[1];
+   // The discriminator the six subtype filters read: RATES, CREDIT_SPREAD, EQUITY, FX,
+   // COMMODITY, VOL. Raw String on purpose -- it selects the type, it is not a
+   // classification a report groups on.
+   factorType: String[1];
+   factorName: String[1];
+   // CHAR(3): the currency the factor is quoted in, which is not always the currency of the
+   // instruments exposed to it.
+   currency: String[1];
+   curveName: String[0..1];
+   // The instrument whose mark drives this factor, when there is one. A rates factor has
+   // none; an equity factor is an instrument.
+   underlyingInstrumentId: String[0..1];
+   // BP, PCT or PRICE -- what one unit of this factor means, without which a shock is a
+   // number with no dimension.
+   quotationUnit: String[1];
+   shockUnit: String[1];
+   // SMALLINT: places the factor level is published to.
+   decimals: Integer[1];
+   isActive: Boolean[1];
+   startDate: StrictDate[1];
+
+   underlying: core_instrument::Instrument[0..1];
+   driverPrices: core_price::CprConsensusPrice[*];
+   curvePoints: risk_core::RskFactorCurvePoint[*];
+   sensitivities: risk_core::RskSensitivity[*];
+   // The reason the view exists: navigating from a factor to its totals crosses a join into
+   // a GROUP BY, never into the leg rows.
+   dailyTotals: risk_core::RskFactorTotal[*];
+   shocks: risk_core::RskScenarioShock[*];
+
+   // Whether a shock of 1 means one basis point rather than one percent or one currency
+   // unit. Every ladder that displays this factor has to know.
+   isBasisPointQuoted() { $this.quotationUnit == 'BP' } : Boolean[1];
+}
+
+// A rates factor: a point on a discount or projection curve. What a swap's DV01 is measured
+// against.
+Class risk_core::RskRatesFactor extends risk_core::RskRiskFactor
+{
+   curveConvention: String[0..1];
+   compounding: String[0..1];
+   indexTenor: String[0..1];
+   isOvernightIndex: Boolean[0..1];
+}
+
+// A credit-spread factor: the issuer or index spread a CDS and a corporate bond are both
+// sensitive to. Separate from rates because a spread widens while the curve does not move.
+Class risk_core::RskCreditSpreadFactor extends risk_core::RskRiskFactor
+{
+   referenceEntityId: String[0..1];
+   seniority: String[0..1];
+   restructuringClause: String[0..1];
+   // FLOAT: assumed recovery, a ratio and therefore approximate.
+   recoveryRate: Float[0..1];
+}
+
+// An equity factor: a single name or an index level. The factor a cash equity, a future and
+// an option all reduce to once the option's vol is stripped out.
+Class risk_core::RskEquityFactor extends risk_core::RskRiskFactor
+{
+   issuerTicker: String[0..1];
+   gicsSector: String[0..1];
+   indexName: String[0..1];
+   isBasket: Boolean[0..1];
+}
+
+// An FX factor: one currency pair's spot. Carried separately because every non-base-currency
+// position has one whether or not the desk thinks of itself as trading FX.
+Class risk_core::RskFxFactor extends risk_core::RskRiskFactor
+{
+   baseCurrency: String[0..1];
+   quoteCurrency: String[0..1];
+   isPegged: Boolean[0..1];
+}
+
+// A commodity factor: a grade at a delivery point for a contract month. Location and month
+// are part of the factor's identity, which is what makes commodities not equities.
+Class risk_core::RskCommodityFactor extends risk_core::RskRiskFactor
+{
+   commodityGroup: String[0..1];
+   deliveryLocation: String[0..1];
+   contractMonth: String[0..1];
+   grade: String[0..1];
+}
+
+// A volatility factor: a point on a vol surface. The factor VEGA is measured against, and
+// the only factor type whose identity includes a moneyness as well as a tenor.
+Class risk_core::RskVolatilityFactor extends risk_core::RskRiskFactor
+{
+   surfaceName: String[0..1];
+   // FLOAT: strike over forward, a ratio.
+   moneyness: Float[0..1];
+   expiryTenor: String[0..1];
+   isSmileAware: Boolean[0..1];
+}
+
+// One pillar of a factor's curve on one date -- the level the factor actually had. Keyed by
+// (factor, date, tenor), because a curve is a set of pillars and each is its own row.
+Class risk_core::RskFactorCurvePoint
+{
+   factorId: String[1];
+   cobDate: StrictDate[1];
+   tenorCode: String[1];
+   // SMALLINT: the tenor in days, so a bucket can be picked by range rather than by label.
+   tenorDays: Integer[1];
+   // NUMERIC(24,8): the level itself, at the precision a rate needs.
+   level: Float[1];
+   isInterpolated: Boolean[1];
+   sourceName: String[0..1];
+}
+
+// The correlation between two factors over a window. What turns a set of per-factor
+// sensitivities into a portfolio VaR rather than a sum of standalone numbers.
+Class risk_core::RskFactorCorrelation
+{
+   factorIdA: String[1];
+   factorIdB: String[1];
+   cobDate: StrictDate[1];
+   // SMALLINT: the estimation window in days -- 60, 250. Part of the key, because a 60-day
+   // and a 250-day correlation are different rows and not different columns.
+   windowDays: Integer[1];
+   // FLOAT: a coefficient in [-1, 1], approximate by nature.
+   correlation: Float[1];
+   methodCode: String[1];
+   isStressed: Boolean[1];
+
+   // Whether the pair is close enough to move together for a hedge to be claimed.
+   isTightlyCoupled() { $this.correlation >= 0.8 } : Boolean[1];
+}
+
+// The five greeks as a code table: what DELTA, GAMMA, VEGA, THETA and RHO each mean, in what
+// unit, and at what order. The one place a report reads to label a ladder's rows.
+Class risk_core::RskGreekMeasure
+{
+   measureCode: String[1];
+   measureName: String[1];
+   // SMALLINT: 1 for delta, vega, theta and rho; 2 for gamma and the cross terms.
+   derivativeOrder: Integer[1];
+   // What the number is per: BP, PCT_VOL, DAY, CCY_UNIT.
+   perUnit: String[1];
+   isSecondOrder: Boolean[1];
+   description: String[0..1];
+}
+
+// ---------------------------------------------------------------------------------------
+// The sensitivities
+// ---------------------------------------------------------------------------------------
+
+// One leg's greek vector against one factor on one date -- the row the whole project is
+// built around, and the row the VIEW groups. A leg is a position decomposed to the level the
+// risk engine bumps: a swap contributes one leg per curve pillar, an option one per factor
+// it touches. Every leg has a delta; the higher-order greeks are zero for linear products
+// rather than absent, so a sum never has to decide what a null means.
+Class risk_core::RskSensitivity
+[
+   // Fully parenthesised: Pure binds && tighter than the comparison operators.
+   shockIsPositive: ($this.shockSize > 0.0),
+   tenorIsNotNegative: ($this.tenorDays >= 0)
+]
+{
+   sensitivityId: String[1];
+   cobDate: StrictDate[1];
+   factorId: String[1];
+   portfolioId: String[1];
+   positionId: String[1];
+   instrumentId: String[1];
+   // CHAR(3): the currency the greeks are expressed in.
+   currency: String[1];
+   // NUMERIC(24,8) each: the greek vector. Delta first because it is the one every leg has
+   // and the one the store view sums.
+   deltaValue: Float[1];
+   gammaValue: Float[1];
+   vegaValue: Float[1];
+   thetaValue: Float[1];
+   rhoValue: Float[1];
+   // NUMERIC(24,8): the bump the greeks were measured with -- 1bp, 1% of spot. Without it
+   // two desks' deltas are not comparable.
+   shockSize: Float[1];
+   // BUMP_REVAL or ANALYTIC. Which one produced the number changes how much it can be
+   // trusted at the second order.
+   calcMethod: String[1];
+   tenorCode: String[0..1];
+   // SMALLINT: the tenor in days, so the ladder can bucket by range.
+   tenorDays: Integer[1];
+   isMaterial: Boolean[1];
+   calculatedAt: DateTime[1];
+
+   factor: risk_core::RskRiskFactor[0..1];
+   portfolio: risk_core::RskRiskPortfolio[0..1];
+   instrument: core_instrument::Instrument[0..1];
+   // The mark this leg was bumped around -- (instrument, date), which is exactly the
+   // consensus price's key in core-price.
+   consensusPrice: core_price::CprConsensusPrice[0..1];
+
+   // Delta restated per basis point, whatever the bump actually was. What a ladder prints.
+   deltaPerBp() { $this.deltaValue / 10000.0 } : Float[1];
+   // Whether the leg is convex enough that delta alone misstates a large move.
+   hasConvexity() { ($this.gammaValue > 0.0) || ($this.gammaValue < 0.0) } : Boolean[1];
+   // Whether this leg carries option risk at all.
+   isOptionLeg() { ($this.vegaValue > 0.0) || ($this.vegaValue < 0.0) } : Boolean[1];
+   // The leg's delta under a shock the caller supplies, first order only.
+   deltaUnder(shock: Float[1]) { $this.deltaValue * $shock } : Float[1];
+}
+
+// The legs a report actually shows: a ~filter subtype over the same table and the same key,
+// so "material" is a type rather than a predicate every query re-states. The immaterial tail
+// is most of the rows and none of the risk.
+Class risk_core::RskMaterialSensitivity extends risk_core::RskSensitivity
+{
+}
+
+// A second-order cross term: how the delta to factor A changes when factor B moves. Its own
+// table because it is keyed by a PAIR of factors and cannot live on a per-factor leg row.
+Class risk_core::RskCrossGamma
+{
+   cobDate: StrictDate[1];
+   portfolioId: String[1];
+   factorIdA: String[1];
+   factorIdB: String[1];
+   // NUMERIC(24,8): the cross term itself.
+   crossValue: Float[1];
+   shockA: Float[1];
+   shockB: Float[1];
+   currency: String[1];
+   isMaterial: Boolean[1];
+}
+
+// Exposure to a factor on a date, and NOTHING else -- three properties, because this is the
+// AggregationAware class. Its main mapping is the leg table and its aggregate mapping is the
+// store view, so a query that groups these by factor and date and sums the delta is answered
+// from the pre-aggregate rather than from the legs. Any property the two mappings could not
+// both supply would defeat that, which is why the class is this narrow.
+Class risk_core::RskFactorExposure
+{
+   factorId: String[1];
+   cobDate: StrictDate[1];
+   deltaValue: Float[1];
+}
+
+// One row of the store VIEW: the firm's total delta to one factor on one date, and how many
+// legs made it. This is what a risk report reads instead of scanning RSK_SENSITIVITY.
+//
+// Note what a grouping does NOT produce: a factor with no legs on a date forms no group and
+// is simply absent, rather than appearing with a total of zero. Anything that needs the zero
+// has to outer-join from RSK_RISK_FACTOR instead.
+Class risk_core::RskFactorTotal
+{
+   factorId: String[1];
+   cobDate: StrictDate[1];
+   // sum(DELTA_VALUE) over the group.
+   totalDelta: Float[1];
+   // count(SENSITIVITY_ID) over the group -- how many legs the total is standing on, which
+   // is the first thing anyone asks when a number looks wrong.
+   legCount: Integer[1];
+
+   factor: risk_core::RskRiskFactor[0..1];
+
+   // The average leg. `/` widens to Float even with two Integers, and here the numerator is
+   // already a Float, so the result is declared Float[1].
+   averageLegDelta() { $this.totalDelta / $this.legCount } : Float[1];
+   // Whether the total is a real aggregate or one leg wearing a group's clothes.
+   isBroadlyHeld() { $this.legCount >= 10 } : Boolean[1];
+}
+
+// ---------------------------------------------------------------------------------------
+// Ladders
+// ---------------------------------------------------------------------------------------
+
+// A sensitivity ladder: one greek, for one factor and portfolio on one date, cut into
+// buckets -- by tenor for a rates or credit factor, by strike for a vol one. The header row;
+// the buckets are RskLadderBucket.
+Class risk_core::RskSensitivityLadder
+{
+   ladderId: String[1];
+   cobDate: StrictDate[1];
+   portfolioId: String[1];
+   factorId: String[1];
+   // TENOR or STRIKE -- what the buckets are cut on. A vol ladder cut by tenor and one cut
+   // by strike are different ladders, not different orderings of one.
+   ladderType: String[1];
+   // Which greek is laddered: DELTA, GAMMA, VEGA, THETA, RHO.
+   measureCode: String[1];
+   // SMALLINT: how many buckets, so a partial ladder can be told from a complete one.
+   bucketCount: Integer[1];
+   // NUMERIC(24,8): the ladder's total, held on the header so a report need not re-add the
+   // buckets to show a headline.
+   totalValue: Float[1];
+   currency: String[1];
+   isComplete: Boolean[1];
+
+   buckets: risk_core::RskLadderBucket[*];
+   factor: risk_core::RskRiskFactor[0..1];
+   greek: risk_core::RskGreekMeasure[0..1];
+
+   // The average bucket. Float because `/` widens, and because the total already is one.
+   averageBucketValue() { $this.totalValue / $this.bucketCount } : Float[1];
+   // Whether this ladder is cut by strike, which decides how it is drawn.
+   isStrikeLadder() { $this.ladderType == 'STRIKE' } : Boolean[1];
+}
+
+// One bucket of a ladder: the sensitivity that lands between two pillars. Keyed by
+// (ladder, sequence), because the ORDER of the buckets is part of what a ladder is.
+Class risk_core::RskLadderBucket
+{
+   ladderId: String[1];
+   // SMALLINT: the bucket's position in the ladder, from 1.
+   bucketSeq: Integer[1];
+   bucketLabel: String[1];
+   tenorCode: String[0..1];
+   // SMALLINT: the bucket's tenor in days, null-free by construction for a tenor ladder.
+   tenorDays: Integer[1];
+   // NUMERIC(24,8): the strike this bucket sits at, for a strike ladder.
+   strikeLevel: Float[0..1];
+   // NUMERIC(24,8): the sensitivity in this bucket.
+   bucketValue: Float[1];
+   // FLOAT: the bucket's share of the ladder, a percentage.
+   weightPct: Float[1];
+   isPillar: Boolean[1];
+
+   ladder: risk_core::RskSensitivityLadder[0..1];
+}
+
+// ---------------------------------------------------------------------------------------
+// Portfolios and the measures computed on them
+// ---------------------------------------------------------------------------------------
+
+// The unit risk is computed and reported for -- a desk, a strategy, a legal entity's book.
+// Everything below is keyed by one of these.
+Class risk_core::RskRiskPortfolio
+{
+   portfolioId: String[1];
+   portfolioName: String[1];
+   deskCode: String[1];
+   // CHAR(3): the currency the portfolio's measures are reported in.
+   baseCurrency: String[1];
+   riskOwner: String[1];
+   parentPortfolioId: String[0..1];
+   // SMALLINT: depth in the reporting hierarchy, 0 at the firm.
+   hierarchyLevel: Integer[1];
+   isTrading: Boolean[1];
+   openDate: StrictDate[1];
+
+   sensitivities: risk_core::RskSensitivity[*];
+   varMeasures: risk_core::RskValueAtRisk[*];
+   limits: risk_core::RskRiskLimit[*];
+
+   // Whether this is a leaf a trader actually books to, or a rollup node.
+   isBookingLevel() { $this.hierarchyLevel >= 3 } : Boolean[1];
+}
+
+// A VaR number: the loss not exceeded at a confidence over a horizon, by one method. The
+// composite key is the whole quadruple plus the portfolio -- 99%/10-day historical and
+// 95%/1-day Monte Carlo are different measures of the same book, not different columns.
+Class risk_core::RskValueAtRisk
+{
+   portfolioId: String[1];
+   cobDate: StrictDate[1];
+   // FLOAT: 95.0, 97.5, 99.0. Part of the key.
+   confidencePct: Float[1];
+   // SMALLINT: 1 or 10 days.
+   horizonDays: Integer[1];
+   // HIST, MC, PARAM.
+   methodCode: String[1];
+   // NUMERIC(24,8): the VaR itself, a positive loss amount.
+   varAmount: Float[1];
+   // NUMERIC(24,8): the same number one day earlier, so the move is on the row a reviewer
+   // is already reading.
+   priorVarAmount: Float[1];
+   currency: String[1];
+   // SMALLINT: scenarios or historical days behind the number.
+   scenarioCount: Integer[1];
+   isApproved: Boolean[1];
+   computedAt: DateTime[1];
+
+   portfolio: risk_core::RskRiskPortfolio[0..1];
+   expectedShortfall: risk_core::RskExpectedShortfall[0..1];
+
+   // Whether this is the number a regulator reads rather than a management one.
+   isRegulatory() { ($this.confidencePct >= 99.0) && ($this.horizonDays >= 10) } : Boolean[1];
+   // The day-on-day move, which is what actually gets explained in a morning meeting.
+   varChange() { $this.varAmount - $this.priorVarAmount } : Float[1];
+}
+
+// Expected shortfall: the average loss BEYOND the VaR point, on the same key as the VaR it
+// sits behind. Its own class because it is a different statistic -- VaR is a quantile, ES is
+// a mean of the tail, and only ES says how bad the bad days are.
+Class risk_core::RskExpectedShortfall
+{
+   portfolioId: String[1];
+   cobDate: StrictDate[1];
+   confidencePct: Float[1];
+   horizonDays: Integer[1];
+   // NUMERIC(24,8): the tail mean.
+   esAmount: Float[1];
+   // SMALLINT: how many scenarios were in the tail. Three is not a tail.
+   tailScenarioCount: Integer[1];
+   // SMALLINT: the liquidity horizon the tail was scaled to, in days.
+   liquidityHorizonDays: Integer[1];
+   stressPeriodStart: StrictDate[0..1];
+   stressPeriodEnd: StrictDate[0..1];
+   currency: String[1];
+   isStressedCalibration: Boolean[1];
+
+   // Whether enough scenarios landed in the tail for the mean to mean anything.
+   isSupported() { $this.tailScenarioCount >= 5 } : Boolean[1];
+}
+
+// The backtest row: yesterday's VaR against what actually happened. One per portfolio per
+// date, and the count of exceptions over 250 days is what puts a model in a traffic-light
+// zone.
+Class risk_core::RskVarBacktest
+{
+   portfolioId: String[1];
+   cobDate: StrictDate[1];
+   // NUMERIC(24,8): the VaR that was standing, and the P&L that turned up.
+   varAmount: Float[1];
+   actualPnl: Float[1];
+   isException: Boolean[1];
+   // SMALLINT: exceptions in the trailing 250 business days.
+   exceptionCount250d: Integer[1];
+   // GREEN, AMBER, RED.
+   zoneCode: String[1];
+   currency: String[1];
+
+   // Whether the model is in the zone that costs capital.
+   isRedZone() { $this.exceptionCount250d >= 10 } : Boolean[1];
+}
+
+// ---------------------------------------------------------------------------------------
+// Stress
+// ---------------------------------------------------------------------------------------
+
+// A stress scenario: a named set of factor shocks applied together. Historical ones replay a
+// week that happened; hypothetical ones are a committee's idea of a bad one.
+Class risk_core::RskStressScenario
+{
+   scenarioId: String[1];
+   scenarioName: String[1];
+   // HISTORICAL, HYPOTHETICAL, REGULATORY.
+   scenarioType: String[1];
+   // SMALLINT: 1 to 5, how hard the scenario bites.
+   severity: Integer[1];
+   referencePeriod: String[0..1];
+   // SMALLINT: how many days the shocks are assumed to arrive over.
+   horizonDays: Integer[1];
+   isRegulatory: Boolean[1];
+   ownerTeam: String[1];
+   approvedOn: StrictDate[0..1];
+
+   shocks: risk_core::RskScenarioShock[*];
+   results: risk_core::RskStressResult[*];
+
+   // Whether the scenario is severe enough to be reported upward whatever the result.
+   isSevere() { $this.severity >= 4 } : Boolean[1];
+}
+
+// One factor's move inside one scenario -- the shock itself. Keyed by (scenario, factor),
+// because a scenario says exactly one thing about each factor it touches.
+Class risk_core::RskScenarioShock
+{
+   scenarioId: String[1];
+   factorId: String[1];
+   // ABSOLUTE or RELATIVE: +100bp is one, -20% is the other, and applying one as the other
+   // is the classic stress-testing error.
+   shockType: String[1];
+   // NUMERIC(24,8): the size of the move, in shockUnit.
+   shockValue: Float[1];
+   shockUnit: String[1];
+   isRelative: Boolean[1];
+
+   scenario: risk_core::RskStressScenario[0..1];
+   factor: risk_core::RskRiskFactor[0..1];
+}
+
+// What one scenario did to one portfolio on one date: the P&L impact and the value either
+// side of it. Keyed by all three, because re-running yesterday's scenario on today's book is
+// a different result and not an update.
+Class risk_core::RskStressResult
+{
+   scenarioId: String[1];
+   portfolioId: String[1];
+   cobDate: StrictDate[1];
+   // NUMERIC(24,8): the impact and the two valuations it is the difference of.
+   pnlImpact: Float[1];
+   baseValue: Float[1];
+   stressedValue: Float[1];
+   // The factor that did most of the damage -- the first thing anyone asks.
+   worstFactorId: String[0..1];
+   currency: String[1];
+   isBreach: Boolean[1];
+   computedAt: DateTime[1];
+
+   scenario: risk_core::RskStressScenario[0..1];
+   portfolio: risk_core::RskRiskPortfolio[0..1];
+
+   // The impact as a percentage of the book's value, which is how it is compared across
+   // portfolios of different sizes.
+   impactPct() { ($this.pnlImpact * 100.0) / $this.baseValue } : Float[1];
+}
+
+// ---------------------------------------------------------------------------------------
+// Limits
+// ---------------------------------------------------------------------------------------
+
+// A risk limit: the most of one measure a portfolio may carry, and from when. Optionally
+// narrowed to a single factor, which is how a desk gets a general VaR limit and a specific
+// cap on one curve.
+Class risk_core::RskRiskLimit
+{
+   limitId: String[1];
+   portfolioId: String[1];
+   factorId: String[0..1];
+   // VAR, DELTA, VEGA, STRESS -- what is being limited.
+   limitType: String[1];
+   measureCode: String[0..1];
+   // NUMERIC(24,8): the cap.
+   limitAmount: Float[1];
+   // FLOAT: the percentage of the cap at which a warning is raised, typically 80.
+   warningPct: Float[1];
+   currency: String[1];
+   effectiveFrom: StrictDate[1];
+   effectiveTo: StrictDate[0..1];
+   ownerTeam: String[1];
+   // A hard limit stops trading; a soft one starts a conversation.
+   isHard: Boolean[1];
+
+   portfolio: risk_core::RskRiskPortfolio[0..1];
+   utilisations: risk_core::RskLimitUtilisation[*];
+   breaches: risk_core::RskLimitBreach[*];
+}
+
+// How much of a limit was used on a date. One row per limit per date -- the series a limit
+// report draws, and the row that decides whether a breach exists at all.
+Class risk_core::RskLimitUtilisation
+{
+   limitId: String[1];
+   cobDate: StrictDate[1];
+   // NUMERIC(24,8): what was used, against the cap that was standing that day. The cap is
+   // repeated here on purpose: a limit raised later must not restate history.
+   usedAmount: Float[1];
+   limitAmount: Float[1];
+   // FLOAT: used over cap, as a percentage.
+   utilisationPct: Float[1];
+   // NUMERIC(24,8): what was left.
+   headroom: Float[1];
+   isWarning: Boolean[1];
+   isBreach: Boolean[1];
+
+   limit: risk_core::RskRiskLimit[0..1];
+
+   // The headroom as a percentage, which is the number a trader actually asks for.
+   headroomPct() { 100.0 - $this.utilisationPct } : Float[1];
+}
+
+// A breach: the limit was exceeded, and this is the record of it being raised and closed.
+// Keyed by (limit, date, sequence), because one limit can breach twice in a day on two
+// different intraday marks and each needs its own approval.
+Class risk_core::RskLimitBreach
+{
+   limitId: String[1];
+   cobDate: StrictDate[1];
+   // SMALLINT: the breach's number within the day.
+   breachSeq: Integer[1];
+   // NUMERIC(24,8): how far over the cap.
+   breachAmount: Float[1];
+   // FLOAT: the same overage as a percentage of the cap.
+   excessPct: Float[1];
+   raisedAt: DateTime[1];
+   // OPEN, APPROVED, CLOSED.
+   status: String[1];
+   approvedBy: String[0..1];
+   closedOn: StrictDate[0..1];
+
+   limit: risk_core::RskRiskLimit[0..1];
+
+   // Whether it is still somebody's problem.
+   isOpen() { $this.status == 'OPEN' } : Boolean[1];
+}
+
+// ---------------------------------------------------------------------------------------
+// The instrument, seen from risk
+// ---------------------------------------------------------------------------------------
+
+// An instrument as the risk engine sees it: core-instrument's class plus the few attributes
+// that only risk holds -- which model prices it, which library, how hard to bump it. Extends
+// the upstream class and its upstream set, so an instrument does not become two objects; the
+// extra columns come from this project's own table through a join.
+Class risk_core::RskRiskInstrument extends core_instrument::Instrument
+{
+   // ANALYTIC, LATTICE, MONTE_CARLO -- what produces this instrument's greeks.
+   riskModel: String[0..1];
+   pricingLibrary: String[0..1];
+   isVolSensitive: Boolean[0..1];
+   // SMALLINT: the default bump, in basis points.
+   defaultShockBp: Integer[0..1];
+   // SMALLINT: how many factors this instrument decomposes into.
+   factorCount: Integer[0..1];
+}

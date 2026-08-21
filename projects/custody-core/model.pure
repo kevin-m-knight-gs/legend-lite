@@ -1,0 +1,352 @@
+###Pure
+// custody-core -- WHERE THE SECURITIES ACTUALLY ARE.
+//
+// A position says how much of an instrument an account owns. A custody HOLDING says
+// where that quantity is physically sitting, and those are not the same question. The
+// same stock, in the same account, can sit in two places at once: part at the domestic
+// CSD through one sub-custodian, part at an ICSD through another. Those are TWO
+// holdings, not one, and every reconciliation break in custody operations comes from
+// somebody having treated them as one.
+//
+// So the grain of this project is (account, instrument, depot), and because
+// core-account keys an account by the PAIR (institutionId, accountNo), the physical
+// key of a holding is four columns wide. The three-column key is one level up: a DEPOT
+// -- a safekeeping account -- is keyed by (institutionId, accountNo, depotCode),
+// because a depot code is only unique inside the account it belongs to.
+//
+// Two more shapes worth naming:
+//
+//   THE CHAIN     Between the client's account and the depository there is a chain of
+//                 custodians: global custodian -> sub-custodian in the market ->
+//                 sometimes another tier -> the CSD. SubCustodianLink is one hop of
+//                 that chain, and it is keyed by (global, market, sub) because the same
+//                 pair of firms can be linked in more than one market on different
+//                 terms.
+//
+//   EMBEDDED      The place of safekeeping and the quantity block live ON the holding
+//                 row. They are complex-typed for the model and columns for the store,
+//                 with no join: a custody statement line has to carry the POS BIC and
+//                 the registration form as it stood when the statement was cut, not a
+//                 live pointer to whatever the depository is called today.
+//
+// Depends on core-account (the account key) and core-instrument (what is held).
+
+// A firm that holds securities on somebody else's behalf: a global custodian, a
+// sub-custodian in one market, or a local agent. It is one node in the safekeeping
+// chain, not a counterparty to a trade.
+Class custody_core::Custodian
+{
+   custodianId: String[1];
+   name: String[1];
+   bic: String[0..1];
+   lei: String[0..1];
+   countryCode: String[1];
+   // GLOBAL, SUB or LOCAL_AGENT -- which part of the chain this firm plays.
+   custodianRole: String[1];
+   isAffiliate: Boolean[1];
+   onboardedOn: StrictDate[0..1];
+   terminatedOn: StrictDate[0..1];
+
+   depots: custody_core::Depot[*];
+   linksAsGlobal: custody_core::SubCustodianLink[*];
+   linksAsSub: custody_core::SubCustodianLink[*];
+   memberships: custody_core::DepositoryMembership[*];
+
+   // Still appointed while nobody has terminated the appointment.
+   isAppointed() { $this.terminatedOn->isEmpty() } : Boolean[1];
+}
+
+// The bottom of the chain: a central securities depository where the security is
+// immobilised or dematerialised. Nothing is held below a depository, which is why the
+// place-of-safekeeping block on a holding usually names one.
+Class custody_core::Depository
+{
+   depositoryId: String[1];
+   name: String[1];
+   bic: String[0..1];
+   // CSD, ICSD or NCSD.
+   depositoryType: String[1];
+   countryCode: String[1];
+   marketCode: String[0..1];
+   settlementCycleDays: Integer[1];
+   isActive: Boolean[1];
+
+   market: custody_core::CustodyMarket[0..1];
+   memberships: custody_core::DepositoryMembership[*];
+   depots: custody_core::Depot[*];
+}
+
+// A settlement market -- the place whose rules decide when a delivery settles and in
+// what currency. Custody is organised per market before it is organised per client,
+// because market practice is what differs.
+Class custody_core::CustodyMarket
+{
+   marketCode: String[1];
+   name: String[1];
+   countryCode: String[1];
+   settlementCurrency: String[1];
+   timeZone: String[0..1];
+   isEmerging: Boolean[1];
+
+   depositories: custody_core::Depository[*];
+   depots: custody_core::Depot[*];
+   subCustodianLinks: custody_core::SubCustodianLink[*];
+}
+
+// One hop of the sub-custodian chain: a global custodian appoints a sub-custodian to
+// hold assets in one market. Keyed by (globalCustodianId, marketCode, subCustodianId)
+// -- a THREE-COLUMN key -- because the same two firms are appointed separately market
+// by market, on separate agreements and separate terms.
+Class custody_core::SubCustodianLink
+{
+   globalCustodianId: String[1];
+   marketCode: String[1];
+   subCustodianId: String[1];
+   agreementRef: String[0..1];
+   // 1 is a direct sub-custodian of the global; 2 is that firm's own sub-custodian.
+   tier: Integer[1];
+   effectiveFrom: StrictDate[1];
+   terminatedOn: StrictDate[0..1];
+   isCashCorrespondent: Boolean[1];
+   serviceLevel: String[0..1];
+
+   globalCustodian: custody_core::Custodian[1];
+   subCustodian: custody_core::Custodian[1];
+   market: custody_core::CustodyMarket[1];
+
+   // A link stays on file after it is cut, so absence of a termination date is the
+   // only honest test of whether the chain currently runs through this firm.
+   isCurrent() { $this.terminatedOn->isEmpty() } : Boolean[1];
+}
+
+// A custodian's participation in a depository, and the participant id it settles
+// under. DIRECT membership means the custodian faces the CSD itself; INDIRECT means it
+// reaches the CSD through somebody else, which adds a hop to every holding it carries.
+Class custody_core::DepositoryMembership
+{
+   custodianId: String[1];
+   depositoryId: String[1];
+   participantId: String[1];
+   membershipType: String[1];
+   joinedOn: StrictDate[0..1];
+   resignedOn: StrictDate[0..1];
+
+   custodian: custody_core::Custodian[1];
+   depository: custody_core::Depository[1];
+}
+
+// A DEPOT: one safekeeping account, opened for one client account, at one place. This
+// is the third leg of the holding key and the reason custody reconciliation exists --
+// an account with three depots holds the same stock in three places, and each place
+// reports its own balance.
+//
+// Keyed by (institutionId, accountNo, depotCode): a depot code such as `MAIN` or
+// `OMNIBUS-EU` is only unique inside the account that owns it, exactly as an account
+// number is only unique inside its institution.
+Class custody_core::Depot
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   depotCode: String[1];
+   depotName: String[1];
+   custodianId: String[1];
+   depositoryId: String[0..1];
+   marketCode: String[1];
+   // What the depot is called at the custodian, which is not what we call it here.
+   safekeepingAccountId: String[0..1];
+   // SEGREGATED or OMNIBUS.
+   depotType: String[1];
+   isOmnibus: Boolean[1];
+   baseCurrency: String[1];
+   openedOn: StrictDate[1];
+   closedOn: StrictDate[0..1];
+
+   account: core_account::Account[1];
+   custodian: custody_core::Custodian[1];
+   depository: custody_core::Depository[0..1];
+   market: custody_core::CustodyMarket[1];
+   holdings: custody_core::CustodyHolding[*];
+
+   // A depot with a closing date keeps its history and its statements.
+   isOpen() { $this.closedOn->isEmpty() } : Boolean[1];
+
+   // The depot's identity as one string, for messages that must name a depot without
+   // carrying three fields.
+   depotKey() { $this.institutionId + '/' + $this.accountNo + '/' + $this.depotCode } : String[1];
+}
+
+// THE HOLDING, and the root of this project: how much of one instrument sits in one
+// depot of one account. Identity is (institutionId, accountNo, instrumentId,
+// depotCode) -- the account key is itself two columns, so the (account, instrument,
+// depot) grain lands on four physical columns.
+//
+// `quantities` and `placeOfSafekeeping` are complex-typed but live on THIS row.
+Class custody_core::CustodyHolding
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   depotCode: String[1];
+   asOfDate: StrictDate[1];
+   holdingStatus: String[1];
+   priceCurrency: String[1];
+   lastReconciledOn: StrictDate[0..1];
+
+   // The denormalised blocks. Same row, no join.
+   quantities: custody_core::HoldingQuantity[1];
+   placeOfSafekeeping: custody_core::PlaceOfSafekeeping[1];
+
+   account: core_account::Account[1];
+   instrument: core_instrument::Instrument[1];
+   depot: custody_core::Depot[1];
+   movements: custody_core::PendingMovement[*];
+   encumbrances: custody_core::HoldingEncumbrance[*];
+   statementLines: custody_core::CustodyStatementLine[*];
+
+   // The four fields that make this holding a different holding from the same stock in
+   // the same account at another depository.
+   holdingKey() { $this.institutionId + '/' + $this.accountNo + '/' + $this.instrumentId + '@' + $this.depotCode } : String[1];
+
+   // Anything in flight, in either direction. A holding with nothing pending is one
+   // whose settled and traded quantities agree.
+   hasPendingSettlement() { $this.quantities.pendingReceiptQuantity + $this.quantities.pendingDeliveryQuantity > 0.0 } : Boolean[1];
+}
+
+// The quantity block on the holding row, and the distinction custody is built on.
+//
+// SETTLED is what the depository will confirm today. TRADED is what the firm has
+// promised, including everything not yet delivered. They differ by exactly the pending
+// receipts and deliveries, and a custodian reports the first while a trading desk
+// thinks in the second. A value type: no key, no table, reachable only through a
+// holding.
+Class custody_core::HoldingQuantity
+{
+   settledQuantity: Float[1];
+   tradedQuantity: Float[1];
+   pendingReceiptQuantity: Float[1];
+   pendingDeliveryQuantity: Float[1];
+   availableQuantity: Float[1];
+   blockedQuantity: Float[1];
+   // SHARES or NOMINAL -- a bond's quantity is a face amount, not a count.
+   quantityUnit: String[1];
+
+   // What the depository should confirm once everything in flight has settled. This is
+   // the number a reconciliation compares against tomorrow's statement.
+   projectedSettledQuantity() { $this.settledQuantity + $this.pendingReceiptQuantity - $this.pendingDeliveryQuantity } : Float[1];
+
+   // The gap the trading desk sees and the custodian does not.
+   tradedLessSettled() { $this.tradedQuantity - $this.settledQuantity } : Float[1];
+}
+
+// The PLACE OF SAFEKEEPING block on the holding row: where this quantity physically
+// is, as it was reported. Written onto the row rather than joined, because a statement
+// line has to keep saying what it said -- if a depository is renamed or a chain is
+// re-papered, last quarter's holding must not silently change where it claimed to be.
+Class custody_core::PlaceOfSafekeeping
+{
+   // CSD, ICSD, CUSTODIAN or PHYSICAL -- the last of which still exists.
+   safekeepingType: String[1];
+   safekeepingBic: String[0..1];
+   safekeepingName: String[1];
+   countryCode: String[1];
+   marketCode: String[0..1];
+   // The account number AT the place of safekeeping, which is the number that appears
+   // on their statement and not on ours.
+   safekeepingAccountId: String[0..1];
+
+   // Nested one level deeper, still on the same row.
+   registration: custody_core::Registration[1];
+}
+
+// How the holding is registered at the place of safekeeping, nested inside the
+// safekeeping block. Whether stock stands in a nominee's name or the beneficial
+// owner's decides who receives the dividend and who may vote, so it is a fact about
+// the holding and not about the client.
+Class custody_core::Registration
+{
+   // NOMINEE, BENEFICIAL or BEARER.
+   registrationForm: String[1];
+   registeredName: String[0..1];
+   registerReference: String[0..1];
+   registeredOn: StrictDate[0..1];
+   isSegregated: Boolean[1];
+}
+
+// One receipt or delivery in flight against a holding, keyed by the holding's four
+// columns plus its own reference. The aggregate pending figures on the holding row are
+// the sum of these; this is where the reason a delivery has not settled lives.
+Class custody_core::PendingMovement
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   depotCode: String[1];
+   movementRef: String[1];
+   // RECEIVE or DELIVER, from this account's point of view.
+   movementDirection: String[1];
+   movementQuantity: Float[1];
+   tradeDate: StrictDate[1];
+   intendedSettlementDate: StrictDate[1];
+   actualSettlementDate: StrictDate[0..1];
+   // PENDING, MATCHED, SETTLED or FAILED.
+   movementStatus: String[1];
+   isAgainstPayment: Boolean[1];
+   settlementAmount: Float[0..1];
+   settlementCurrency: String[0..1];
+   counterpartyBic: String[0..1];
+   failReasonCode: String[0..1];
+
+   holding: custody_core::CustodyHolding[1];
+
+   // Stock coming in adds to the settled quantity when it settles; stock going out
+   // takes from it.
+   isReceipt() { $this.movementDirection == 'RECEIVE' } : Boolean[1];
+
+   // Not settled by the day it was meant to settle. The whole of custody operations is
+   // this predicate.
+   isOutstanding() { $this.actualSettlementDate->isEmpty() } : Boolean[1];
+}
+
+// A claim over part of a holding that stops it being delivered: a pledge to a clearing
+// house, a securities loan, a court order. Keyed by the holding plus the encumbrance
+// code, because the same holding can be encumbered twice for different reasons and the
+// quantities do not merge.
+Class custody_core::HoldingEncumbrance
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   depotCode: String[1];
+   encumbranceCode: String[1];
+   // PLEDGE, LOAN, COLLATERAL or COURT_ORDER.
+   encumbranceType: String[1];
+   encumberedQuantity: Float[1];
+   beneficiaryName: String[0..1];
+   createdOn: StrictDate[1];
+   releasedOn: StrictDate[0..1];
+
+   holding: custody_core::CustodyHolding[1];
+
+   // Still biting while nobody has released it.
+   isActive() { $this.releasedOn->isEmpty() } : Boolean[1];
+}
+
+// One line of what the custodian said, on the date they said it. Kept separately from
+// the holding because the holding is the firm's view and this is theirs: the two
+// disagreeing is the normal case, and a reconciliation downstream needs both sides
+// stored rather than one side overwritten.
+Class custody_core::CustodyStatementLine
+{
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   depotCode: String[1];
+   statementDate: StrictDate[1];
+   statementRef: String[0..1];
+   custodianQuantity: Float[1];
+   custodianStatus: String[1];
+   receivedOn: StrictDate[0..1];
+   isFinal: Boolean[1];
+
+   holding: custody_core::CustodyHolding[1];
+}

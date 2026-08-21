@@ -1,0 +1,247 @@
+###Relational
+// ============================================================
+// index_core::Store -- eleven tables, two aggregation views, and the two joins that leave
+// ============================================================
+// The store INCLUDES both dependencies' stores. That is what lets a join in this file name
+// CI_INSTRUMENT and CG_COUNTRY without qualifying them and without redeclaring a single
+// column of either: the instrument master stays the instrument master, and this project
+// holds nothing about an instrument except how much of an index it is.
+//
+// Names are IDX_ / Idx_ prefixed per the contract. A filter name is a GLOBAL namespace in
+// Legend, so IdxLiveIndexRows could not be `LiveRows` however much clearer that would read
+// inside this one file.
+//
+// Declared and unseeded. No ###Data element, no Runtime.
+Database index_core::Store
+(
+   include core_instrument::Store
+   include core_geo::Store
+
+   // ---- who publishes -----------------------------------------------------------------
+   Table IDX_PROVIDER
+   (
+      PROVIDER_ID VARCHAR(16) PRIMARY KEY,
+      NAME VARCHAR(128) NOT NULL,
+      SHORT_NAME VARCHAR(32),
+      HOME_COUNTRY_CODE VARCHAR(2),
+      IS_AUTHORISED_ADMINISTRATOR BIT NOT NULL,
+      METHODOLOGY_URL VARCHAR(400)
+   )
+
+   Table IDX_INDEX_FAMILY
+   (
+      FAMILY_ID VARCHAR(24) PRIMARY KEY,
+      NAME VARCHAR(128) NOT NULL,
+      ASSET_CLASS_SCOPE VARCHAR(32) NOT NULL,
+      WEIGHTING_PHILOSOPHY VARCHAR(64),
+      LAUNCH_YEAR INTEGER,
+      IS_FLAGSHIP BIT NOT NULL,
+      PROVIDER_ID VARCHAR(16)
+   )
+
+   // ---- the index and its rulebook ----------------------------------------------------
+   Table IDX_INDEX
+   (
+      INDEX_ID VARCHAR(24) PRIMARY KEY,
+      CODE VARCHAR(32) NOT NULL,
+      NAME VARCHAR(200) NOT NULL,
+      CURRENCY VARCHAR(3) NOT NULL,
+      BASE_DATE DATE,
+      BASE_LEVEL DOUBLE,
+      WEIGHTING_SCHEME VARCHAR(24) NOT NULL,
+      REBALANCE_FREQUENCY VARCHAR(16) NOT NULL,
+      TARGET_CONSTITUENT_COUNT INTEGER,
+      IS_ACTIVE BIT NOT NULL,
+      FAMILY_ID VARCHAR(24)
+   )
+
+   Table IDX_ELIGIBILITY_RULE
+   (
+      RULE_ID VARCHAR(32) PRIMARY KEY,
+      RULE_CODE VARCHAR(32) NOT NULL,
+      DESCRIPTION VARCHAR(400) NOT NULL,
+      THRESHOLD_VALUE DOUBLE,
+      THRESHOLD_UNIT VARCHAR(24),
+      APPLIES_FROM DATE,
+      IS_HARD_SCREEN BIT NOT NULL,
+      INDEX_ID VARCHAR(24)
+   )
+
+   Table IDX_WEIGHT_CAP
+   (
+      CAP_ID VARCHAR(32) PRIMARY KEY,
+      CAP_TYPE VARCHAR(24) NOT NULL,
+      // The 10 and the 40 of UCITS 5/10/40. Two columns because one number is not the rule.
+      SINGLE_NAME_CAP_PCT DOUBLE,
+      GROUP_CAP_PCT DOUBLE,
+      EFFECTIVE_FROM DATE,
+      REGULATION VARCHAR(24),
+      INDEX_ID VARCHAR(24)
+   )
+
+   // ---- the dated event ----------------------------------------------------------------
+   Table IDX_REBALANCE
+   (
+      REBALANCE_ID VARCHAR(32) PRIMARY KEY,
+      ANNOUNCEMENT_DATE DATE,
+      EFFECTIVE_DATE DATE NOT NULL,
+      REVIEW_TYPE VARCHAR(16) NOT NULL,
+      STATUS VARCHAR(16) NOT NULL,
+      CONSTITUENT_COUNT INTEGER,
+      ADDITION_COUNT INTEGER,
+      DELETION_COUNT INTEGER,
+      TURNOVER_PCT DOUBLE,
+      INDEX_ID VARCHAR(24)
+   )
+
+   // The grain of the project: one row per (rebalance, instrument).
+   //
+   // INSTRUMENT_ID is a plain VARCHAR carrying core-instrument's key, not a copy of anything
+   // about the instrument -- there is no ISIN column here and no issuer name, because those
+   // are one join away and a copy of them is the thing that goes stale.
+   //
+   // ISSUER_COUNTRY_CODE and REGION_CODE are different in kind and both are wanted.
+   // ISSUER_COUNTRY_CODE is a foreign key into CG_COUNTRY: live geography, joinable, and the
+   // grouping key of IDX_COUNTRY_WEIGHT. REGION_CODE is the vendor's own classification as
+   // published in the index file on the day, which is a fact about the rebalance and must not
+   // be recomputed when a country is reclassified -- otherwise last year's review stops
+   // reproducing. The two disagreeing is a signal, not an error.
+   //
+   // DOUBLE and not REAL: REAL parses and then cannot be read at execution.
+   Table IDX_CONSTITUENT
+   (
+      CONSTITUENT_ID VARCHAR(48) PRIMARY KEY,
+      WEIGHT_PCT DOUBLE NOT NULL,
+      UNCAPPED_WEIGHT_PCT DOUBLE,
+      SHARES_IN_INDEX DOUBLE,
+      FREE_FLOAT_FACTOR DOUBLE,
+      CAPPING_FACTOR DOUBLE,
+      IS_ADDITION BIT NOT NULL,
+      IS_DELETION BIT NOT NULL,
+      RANK_BY_WEIGHT INTEGER,
+      REGION_CODE VARCHAR(8),
+      REBALANCE_ID VARCHAR(32),
+      INSTRUMENT_ID VARCHAR(60),
+      ISSUER_COUNTRY_CODE VARCHAR(2)
+   )
+
+   // ---- what the index does -------------------------------------------------------------
+   // Composite key: an index has one level per date, and the date is half the identity.
+   Table IDX_INDEX_LEVEL
+   (
+      INDEX_ID VARCHAR(24) PRIMARY KEY,
+      LEVEL_DATE DATE PRIMARY KEY,
+      PRICE_LEVEL DOUBLE,
+      GROSS_RETURN_LEVEL DOUBLE,
+      NET_RETURN_LEVEL DOUBLE,
+      DIVISOR DOUBLE,
+      MARKET_CAP_USD DOUBLE
+   )
+
+   Table IDX_TRACKING_FUND
+   (
+      FUND_ID VARCHAR(24) PRIMARY KEY,
+      NAME VARCHAR(200) NOT NULL,
+      LEGAL_STRUCTURE VARCHAR(32),
+      DOMICILE_COUNTRY_CODE VARCHAR(2),
+      AUM_USD DOUBLE,
+      TOTAL_EXPENSE_RATIO_BPS DOUBLE,
+      REPLICATION_METHOD VARCHAR(16) NOT NULL,
+      TRACKING_ERROR_BPS DOUBLE,
+      INCEPTION_DATE DATE,
+      INDEX_ID VARCHAR(24)
+   )
+
+   Table IDX_FUND_HOLDING
+   (
+      HOLDING_ID VARCHAR(48) PRIMARY KEY,
+      HOLDING_DATE DATE NOT NULL,
+      WEIGHT_PCT DOUBLE NOT NULL,
+      SHARES DOUBLE,
+      MARKET_VALUE_USD DOUBLE,
+      ACTIVE_WEIGHT_BPS DOUBLE,
+      FUND_ID VARCHAR(24),
+      INSTRUMENT_ID VARCHAR(60)
+   )
+
+   // ---- THE AGGREGATION -------------------------------------------------------------------
+   // Index weight by region, per rebalance. A Legend View, not a database view: no DDL is
+   // created and nothing seeds it -- the engine folds this GROUP BY into whatever SQL a query
+   // over IdxRegionWeight generates. An eight-hundred-name index becomes six rows, which is
+   // the shape a tracking fund's regional exposure report needs and the shape a regional cap
+   // is written against.
+   //
+   // The grouping columns are the view's primary key, which is what makes it joinable:
+   // Idx_RebalanceRegionWeight below hangs it off IDX_REBALANCE.
+   //
+   // sum(WEIGHT_PCT) over a complete rebalance is 100 by construction. That is the check --
+   // a region rollup that does not total 100 means constituent rows are missing, and the
+   // aggregation is where that is visible rather than in eight hundred rows.
+   View IDX_REGION_WEIGHT
+   (
+      ~groupBy
+      (
+         IDX_CONSTITUENT.REBALANCE_ID,
+         IDX_CONSTITUENT.REGION_CODE
+      )
+      REBALANCE_ID: IDX_CONSTITUENT.REBALANCE_ID PRIMARY KEY,
+      REGION_CODE: IDX_CONSTITUENT.REGION_CODE PRIMARY KEY,
+      TOTAL_WEIGHT_PCT: sum(IDX_CONSTITUENT.WEIGHT_PCT),
+      CONSTITUENT_COUNT: count(IDX_CONSTITUENT.CONSTITUENT_ID)
+   )
+
+   // The same rollup one level finer, grouped on the FK into core-geo rather than on the
+   // vendor's label -- so this one joins to CG_COUNTRY and can be walked up core-geo's chain
+   // to a coverage region, while the one above cannot and does not pretend to.
+   View IDX_COUNTRY_WEIGHT
+   (
+      ~groupBy
+      (
+         IDX_CONSTITUENT.REBALANCE_ID,
+         IDX_CONSTITUENT.ISSUER_COUNTRY_CODE
+      )
+      REBALANCE_ID: IDX_CONSTITUENT.REBALANCE_ID PRIMARY KEY,
+      ISSUER_COUNTRY_CODE: IDX_CONSTITUENT.ISSUER_COUNTRY_CODE PRIMARY KEY,
+      TOTAL_WEIGHT_PCT: sum(IDX_CONSTITUENT.WEIGHT_PCT),
+      CONSTITUENT_COUNT: count(IDX_CONSTITUENT.CONSTITUENT_ID)
+   )
+
+   // ---- joins inside this project ---------------------------------------------------------
+   // All written from the many side to the one side, so any chained property mapping over
+   // them stays single-valued. Each is on ONE line: a wrapped join condition is not parsed.
+   Join Idx_FamilyProvider(IDX_INDEX_FAMILY.PROVIDER_ID = IDX_PROVIDER.PROVIDER_ID)
+   Join Idx_IndexFamily(IDX_INDEX.FAMILY_ID = IDX_INDEX_FAMILY.FAMILY_ID)
+   Join Idx_IndexRebalance(IDX_REBALANCE.INDEX_ID = IDX_INDEX.INDEX_ID)
+   Join Idx_RebalanceConstituent(IDX_CONSTITUENT.REBALANCE_ID = IDX_REBALANCE.REBALANCE_ID)
+   Join Idx_IndexRule(IDX_ELIGIBILITY_RULE.INDEX_ID = IDX_INDEX.INDEX_ID)
+   Join Idx_IndexCap(IDX_WEIGHT_CAP.INDEX_ID = IDX_INDEX.INDEX_ID)
+   Join Idx_IndexLevel(IDX_INDEX_LEVEL.INDEX_ID = IDX_INDEX.INDEX_ID)
+   Join Idx_IndexFund(IDX_TRACKING_FUND.INDEX_ID = IDX_INDEX.INDEX_ID)
+   Join Idx_FundHolding(IDX_FUND_HOLDING.FUND_ID = IDX_TRACKING_FUND.FUND_ID)
+
+   // The rollups back onto the review they roll up.
+   Join Idx_RebalanceRegionWeight(IDX_REGION_WEIGHT.REBALANCE_ID = IDX_REBALANCE.REBALANCE_ID)
+   Join Idx_RebalanceCountryWeight(IDX_COUNTRY_WEIGHT.REBALANCE_ID = IDX_REBALANCE.REBALANCE_ID)
+
+   // ---- the two joins that leave this project -----------------------------------------------
+   // CI_INSTRUMENT and CG_COUNTRY are unqualified because their databases are included above.
+   // These four joins are the entire physical surface of both dependencies as far as this
+   // project is concerned; everything else about an instrument or a country is reached by
+   // navigating THEIR properties, not by joining again from here.
+   Join Idx_ConstituentInstrument(IDX_CONSTITUENT.INSTRUMENT_ID = CI_INSTRUMENT.INSTRUMENT_ID)
+   Join Idx_HoldingInstrument(IDX_FUND_HOLDING.INSTRUMENT_ID = CI_INSTRUMENT.INSTRUMENT_ID)
+   Join Idx_ConstituentCountry(IDX_CONSTITUENT.ISSUER_COUNTRY_CODE = CG_COUNTRY.COUNTRY_CODE)
+   Join Idx_CountryWeightCountry(IDX_COUNTRY_WEIGHT.ISSUER_COUNTRY_CODE = CG_COUNTRY.COUNTRY_CODE)
+
+   // ---- filters ---------------------------------------------------------------------------
+   // Declared and unapplied, for a downstream mapping to reference by name. No boolean
+   // literal anywhere: `= 1` against a BIT, or a null test, because `= true` does not parse.
+   Filter IdxLiveIndexRows(IDX_INDEX.IS_ACTIVE = 1)
+   // The list AFTER the review: a deletion row is in the file to say the name left, and
+   // including it would double-count the weight it no longer carries.
+   Filter IdxSurvivingConstituentRows(IDX_CONSTITUENT.IS_DELETION = 0)
+   // Constituents that can be placed on a map at all -- an unmatched issuer country drops out
+   // of the country rollup as a silent null rather than a visible gap.
+   Filter IdxPlacedConstituentRows(IDX_CONSTITUENT.ISSUER_COUNTRY_CODE is not null)
+   Filter IdxEffectiveRebalanceRows(IDX_REBALANCE.STATUS = 'EFFECTIVE')
+)

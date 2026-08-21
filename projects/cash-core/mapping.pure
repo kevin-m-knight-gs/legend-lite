@@ -1,0 +1,391 @@
+###Mapping
+// The cash book's mapping. Three things to notice.
+//
+// CshCurrencyMapping is an EnumerationMapping for an enum that belongs to ANOTHER PROJECT:
+// core_types::CtCurrency. The database stores ISO 4217 codes -- alpha in our own feeds,
+// numeric in the ISO 20022 ones -- and this is the single place either of them is turned
+// into the upstream enum. Nothing downstream ever sees a currency String. CshCountryMapping
+// does the same for core_types::CtCountry, and is applied INSIDE an embedded block.
+//
+// `paymentReference ( ... orderingParty ( ... ) )` on the movement and again on the
+// statement line is an EMBEDDED property mapping. The properties are complex-typed but
+// their columns are on CSH_CASH_MOVEMENT and CSH_STATEMENT_LINE respectively, so no join is
+// emitted for them: reading who sent a payment costs nothing beyond reading the movement.
+// The same value type is embedded on two different tables, which is the point of it being
+// a value type and not a table.
+//
+// `include core_account::Mapping` brings in the caAccount set implementation, which is what
+// every `account:` property below resolves to across the join.
+Mapping cash_core::Mapping
+(
+   include core_account::Mapping
+
+   // ---- the cross-project enum transformers ----
+   // Both source forms are listed for each value because a cash book reads more than one
+   // feed: our own files carry 'USD', an ISO 20022 message carries '840'.
+   core_types::CtCurrency: EnumerationMapping CshCurrencyMapping
+   {
+      USD: ['USD', '840'],
+      EUR: ['EUR', '978'],
+      GBP: ['GBP', '826'],
+      CHF: ['CHF', '756'],
+      CAD: ['CAD', '124'],
+      AUD: ['AUD', '036'],
+      SEK: ['SEK', '752'],
+      NOK: ['NOK', '578'],
+      CNY: ['CNY', '156'],
+      SGD: ['SGD', '702'],
+      HKD: ['HKD', '344'],
+      INR: ['INR', '356'],
+      BRL: ['BRL', '986'],
+      MXN: ['MXN', '484'],
+      ZAR: ['ZAR', '710'],
+      JPY: ['JPY', '392'],
+      KRW: ['KRW', '410'],
+      CLP: ['CLP', '152'],
+      ISK: ['ISK', '352'],
+      VND: ['VND', '704'],
+      KWD: ['KWD', '414'],
+      BHD: ['BHD', '048'],
+      JOD: ['JOD', '400'],
+      OMR: ['OMR', '512'],
+      TND: ['TND', '788']
+   }
+
+   core_types::CtCountry: EnumerationMapping CshCountryMapping
+   {
+      US: ['US'],
+      GB: ['GB'],
+      DE: ['DE'],
+      FR: ['FR'],
+      CH: ['CH'],
+      CA: ['CA'],
+      AU: ['AU'],
+      SE: ['SE'],
+      NO: ['NO'],
+      CN: ['CN'],
+      SG: ['SG'],
+      HK: ['HK'],
+      IN: ['IN'],
+      BR: ['BR'],
+      MX: ['MX'],
+      ZA: ['ZA'],
+      JP: ['JP'],
+      KR: ['KR'],
+      CL: ['CL'],
+      IS: ['IS'],
+      VN: ['VN'],
+      KW: ['KW'],
+      BH: ['BH'],
+      JO: ['JO'],
+      OM: ['OM'],
+      TN: ['TN']
+   }
+
+   // ---- the cash book ----
+   cash_core::CshCashAccountProfile[cshCashAccountProfile]: Relational
+   {
+      ~primaryKey
+      (
+         [cash_core::Store]CSH_CASH_ACCOUNT_PROFILE.INSTITUTION_ID,
+         [cash_core::Store]CSH_CASH_ACCOUNT_PROFILE.ACCOUNT_NO
+      )
+      ~mainTable [cash_core::Store]CSH_CASH_ACCOUNT_PROFILE
+      institutionId: [cash_core::Store]CSH_CASH_ACCOUNT_PROFILE.INSTITUTION_ID,
+      accountNo: [cash_core::Store]CSH_CASH_ACCOUNT_PROFILE.ACCOUNT_NO,
+      baseCurrency: EnumerationMapping CshCurrencyMapping: [cash_core::Store]CSH_CASH_ACCOUNT_PROFILE.BASE_CURRENCY,
+      cashAccountType: [cash_core::Store]CSH_CASH_ACCOUNT_PROFILE.CASH_ACCOUNT_TYPE,
+      overdraftLimit: [cash_core::Store]CSH_CASH_ACCOUNT_PROFILE.OVERDRAFT_LIMIT,
+      cutoffTime: [cash_core::Store]CSH_CASH_ACCOUNT_PROFILE.CUTOFF_TIME,
+      isSweepable: [cash_core::Store]CSH_CASH_ACCOUNT_PROFILE.IS_SWEEPABLE,
+      poolId: [cash_core::Store]CSH_CASH_ACCOUNT_PROFILE.POOL_ID,
+      openedForCashOn: [cash_core::Store]CSH_CASH_ACCOUNT_PROFILE.OPENED_FOR_CASH_ON,
+      closedForCashOn: [cash_core::Store]CSH_CASH_ACCOUNT_PROFILE.CLOSED_FOR_CASH_ON,
+      account: [cash_core::Store]@Csh_ProfileAccount,
+      pool: [cash_core::Store]@Csh_PoolMembers,
+      movements: [cash_core::Store]@Csh_MovementProfile,
+      balances: [cash_core::Store]@Csh_BalanceProfile
+   }
+
+   // The embedded payment reference is the whole reason CSH_CASH_MOVEMENT is wide.
+   cash_core::CshCashMovement[cshCashMovement]: Relational
+   {
+      ~primaryKey
+      (
+         [cash_core::Store]CSH_CASH_MOVEMENT.INSTITUTION_ID,
+         [cash_core::Store]CSH_CASH_MOVEMENT.ACCOUNT_NO,
+         [cash_core::Store]CSH_CASH_MOVEMENT.MOVEMENT_ID
+      )
+      ~mainTable [cash_core::Store]CSH_CASH_MOVEMENT
+      institutionId: [cash_core::Store]CSH_CASH_MOVEMENT.INSTITUTION_ID,
+      accountNo: [cash_core::Store]CSH_CASH_MOVEMENT.ACCOUNT_NO,
+      movementId: [cash_core::Store]CSH_CASH_MOVEMENT.MOVEMENT_ID,
+      direction: [cash_core::Store]CSH_CASH_MOVEMENT.DIRECTION,
+      amount: [cash_core::Store]CSH_CASH_MOVEMENT.AMOUNT,
+      currency: EnumerationMapping CshCurrencyMapping: [cash_core::Store]CSH_CASH_MOVEMENT.CURRENCY_CODE,
+      valueDate: [cash_core::Store]CSH_CASH_MOVEMENT.VALUE_DATE,
+      bookingDate: [cash_core::Store]CSH_CASH_MOVEMENT.BOOKING_DATE,
+      status: [cash_core::Store]CSH_CASH_MOVEMENT.STATUS,
+      movementType: [cash_core::Store]CSH_CASH_MOVEMENT.MOVEMENT_TYPE,
+      sourceSystem: [cash_core::Store]CSH_CASH_MOVEMENT.SOURCE_SYSTEM,
+      reconciledOn: [cash_core::Store]CSH_CASH_MOVEMENT.RECONCILED_ON,
+      reversalOf: [cash_core::Store]CSH_CASH_MOVEMENT.REVERSAL_OF,
+      paymentReference
+      (
+         endToEndId: [cash_core::Store]CSH_CASH_MOVEMENT.PAY_END_TO_END_ID,
+         instructionId: [cash_core::Store]CSH_CASH_MOVEMENT.PAY_INSTRUCTION_ID,
+         scheme: [cash_core::Store]CSH_CASH_MOVEMENT.PAY_SCHEME,
+         purposeCode: [cash_core::Store]CSH_CASH_MOVEMENT.PAY_PURPOSE_CODE,
+         remittanceInfo: [cash_core::Store]CSH_CASH_MOVEMENT.PAY_REMITTANCE_INFO,
+         chargeBearer: [cash_core::Store]CSH_CASH_MOVEMENT.PAY_CHARGE_BEARER,
+         orderingParty
+         (
+            partyName: [cash_core::Store]CSH_CASH_MOVEMENT.PAY_ORD_NAME,
+            bic: [cash_core::Store]CSH_CASH_MOVEMENT.PAY_ORD_BIC,
+            partyAccount: [cash_core::Store]CSH_CASH_MOVEMENT.PAY_ORD_ACCOUNT,
+            country: EnumerationMapping CshCountryMapping: [cash_core::Store]CSH_CASH_MOVEMENT.PAY_ORD_COUNTRY
+         )
+      ),
+      account: [cash_core::Store]@Csh_MovementAccount,
+      profile: [cash_core::Store]@Csh_MovementProfile,
+      statusHistory: [cash_core::Store]@Csh_MovementStatusEvents
+   }
+
+   cash_core::CshMovementStatusEvent[cshMovementStatusEvent]: Relational
+   {
+      ~primaryKey
+      (
+         [cash_core::Store]CSH_MOVEMENT_STATUS_EVENT.INSTITUTION_ID,
+         [cash_core::Store]CSH_MOVEMENT_STATUS_EVENT.ACCOUNT_NO,
+         [cash_core::Store]CSH_MOVEMENT_STATUS_EVENT.MOVEMENT_ID,
+         [cash_core::Store]CSH_MOVEMENT_STATUS_EVENT.STATUS_SEQ
+      )
+      ~mainTable [cash_core::Store]CSH_MOVEMENT_STATUS_EVENT
+      institutionId: [cash_core::Store]CSH_MOVEMENT_STATUS_EVENT.INSTITUTION_ID,
+      accountNo: [cash_core::Store]CSH_MOVEMENT_STATUS_EVENT.ACCOUNT_NO,
+      movementId: [cash_core::Store]CSH_MOVEMENT_STATUS_EVENT.MOVEMENT_ID,
+      statusSeq: [cash_core::Store]CSH_MOVEMENT_STATUS_EVENT.STATUS_SEQ,
+      status: [cash_core::Store]CSH_MOVEMENT_STATUS_EVENT.STATUS,
+      changedOn: [cash_core::Store]CSH_MOVEMENT_STATUS_EVENT.CHANGED_ON,
+      reasonCode: [cash_core::Store]CSH_MOVEMENT_STATUS_EVENT.REASON_CODE,
+      changedBy: [cash_core::Store]CSH_MOVEMENT_STATUS_EVENT.CHANGED_BY,
+      movement: [cash_core::Store]@Csh_MovementStatusEvents
+   }
+
+   // Four key columns, one of which is the currency -- and the currency is the enum, not
+   // the code, everywhere above the mapping.
+   cash_core::CshCashBalance[cshCashBalance]: Relational
+   {
+      ~primaryKey
+      (
+         [cash_core::Store]CSH_CASH_BALANCE.INSTITUTION_ID,
+         [cash_core::Store]CSH_CASH_BALANCE.ACCOUNT_NO,
+         [cash_core::Store]CSH_CASH_BALANCE.CURRENCY_CODE,
+         [cash_core::Store]CSH_CASH_BALANCE.BALANCE_DATE
+      )
+      ~mainTable [cash_core::Store]CSH_CASH_BALANCE
+      institutionId: [cash_core::Store]CSH_CASH_BALANCE.INSTITUTION_ID,
+      accountNo: [cash_core::Store]CSH_CASH_BALANCE.ACCOUNT_NO,
+      currency: EnumerationMapping CshCurrencyMapping: [cash_core::Store]CSH_CASH_BALANCE.CURRENCY_CODE,
+      balanceDate: [cash_core::Store]CSH_CASH_BALANCE.BALANCE_DATE,
+      balanceBasis: [cash_core::Store]CSH_CASH_BALANCE.BALANCE_BASIS,
+      openingBalance: [cash_core::Store]CSH_CASH_BALANCE.OPENING_BALANCE,
+      closingBalance: [cash_core::Store]CSH_CASH_BALANCE.CLOSING_BALANCE,
+      availableBalance: [cash_core::Store]CSH_CASH_BALANCE.AVAILABLE_BALANCE,
+      pendingCredits: [cash_core::Store]CSH_CASH_BALANCE.PENDING_CREDITS,
+      pendingDebits: [cash_core::Store]CSH_CASH_BALANCE.PENDING_DEBITS,
+      isFinal: [cash_core::Store]CSH_CASH_BALANCE.IS_FINAL,
+      account: [cash_core::Store]@Csh_BalanceAccount,
+      profile: [cash_core::Store]@Csh_BalanceProfile,
+      statement: [cash_core::Store]@Csh_BalanceStatement,
+      breaks: [cash_core::Store]@Csh_BalanceBreaks,
+      accruals: [cash_core::Store]@Csh_BalanceAccruals
+   }
+
+   cash_core::CshStatement[cshStatement]: Relational
+   {
+      ~primaryKey
+      (
+         [cash_core::Store]CSH_STATEMENT.INSTITUTION_ID,
+         [cash_core::Store]CSH_STATEMENT.ACCOUNT_NO,
+         [cash_core::Store]CSH_STATEMENT.CURRENCY_CODE,
+         [cash_core::Store]CSH_STATEMENT.STATEMENT_DATE
+      )
+      ~mainTable [cash_core::Store]CSH_STATEMENT
+      institutionId: [cash_core::Store]CSH_STATEMENT.INSTITUTION_ID,
+      accountNo: [cash_core::Store]CSH_STATEMENT.ACCOUNT_NO,
+      currency: EnumerationMapping CshCurrencyMapping: [cash_core::Store]CSH_STATEMENT.CURRENCY_CODE,
+      statementDate: [cash_core::Store]CSH_STATEMENT.STATEMENT_DATE,
+      statementRef: [cash_core::Store]CSH_STATEMENT.STATEMENT_REF,
+      openingBalance: [cash_core::Store]CSH_STATEMENT.OPENING_BALANCE,
+      closingBalance: [cash_core::Store]CSH_STATEMENT.CLOSING_BALANCE,
+      lineCount: [cash_core::Store]CSH_STATEMENT.LINE_COUNT,
+      receivedOn: [cash_core::Store]CSH_STATEMENT.RECEIVED_ON,
+      formatCode: [cash_core::Store]CSH_STATEMENT.FORMAT_CODE,
+      account: [cash_core::Store]@Csh_StatementAccount,
+      lines: [cash_core::Store]@Csh_StatementLines
+   }
+
+   // The SECOND embedded payment reference: the same value type, a different table.
+   cash_core::CshStatementLine[cshStatementLine]: Relational
+   {
+      ~primaryKey
+      (
+         [cash_core::Store]CSH_STATEMENT_LINE.INSTITUTION_ID,
+         [cash_core::Store]CSH_STATEMENT_LINE.ACCOUNT_NO,
+         [cash_core::Store]CSH_STATEMENT_LINE.CURRENCY_CODE,
+         [cash_core::Store]CSH_STATEMENT_LINE.STATEMENT_DATE,
+         [cash_core::Store]CSH_STATEMENT_LINE.LINE_NO
+      )
+      ~mainTable [cash_core::Store]CSH_STATEMENT_LINE
+      institutionId: [cash_core::Store]CSH_STATEMENT_LINE.INSTITUTION_ID,
+      accountNo: [cash_core::Store]CSH_STATEMENT_LINE.ACCOUNT_NO,
+      currency: EnumerationMapping CshCurrencyMapping: [cash_core::Store]CSH_STATEMENT_LINE.CURRENCY_CODE,
+      statementDate: [cash_core::Store]CSH_STATEMENT_LINE.STATEMENT_DATE,
+      lineNo: [cash_core::Store]CSH_STATEMENT_LINE.LINE_NO,
+      movementId: [cash_core::Store]CSH_STATEMENT_LINE.MOVEMENT_ID,
+      direction: [cash_core::Store]CSH_STATEMENT_LINE.DIRECTION,
+      amount: [cash_core::Store]CSH_STATEMENT_LINE.AMOUNT,
+      valueDate: [cash_core::Store]CSH_STATEMENT_LINE.VALUE_DATE,
+      bookingDate: [cash_core::Store]CSH_STATEMENT_LINE.BOOKING_DATE,
+      bankRef: [cash_core::Store]CSH_STATEMENT_LINE.BANK_REF,
+      matchedOn: [cash_core::Store]CSH_STATEMENT_LINE.MATCHED_ON,
+      paymentReference
+      (
+         endToEndId: [cash_core::Store]CSH_STATEMENT_LINE.PAY_END_TO_END_ID,
+         instructionId: [cash_core::Store]CSH_STATEMENT_LINE.PAY_INSTRUCTION_ID,
+         scheme: [cash_core::Store]CSH_STATEMENT_LINE.PAY_SCHEME,
+         purposeCode: [cash_core::Store]CSH_STATEMENT_LINE.PAY_PURPOSE_CODE,
+         remittanceInfo: [cash_core::Store]CSH_STATEMENT_LINE.PAY_REMITTANCE_INFO,
+         chargeBearer: [cash_core::Store]CSH_STATEMENT_LINE.PAY_CHARGE_BEARER,
+         orderingParty
+         (
+            partyName: [cash_core::Store]CSH_STATEMENT_LINE.PAY_ORD_NAME,
+            bic: [cash_core::Store]CSH_STATEMENT_LINE.PAY_ORD_BIC,
+            partyAccount: [cash_core::Store]CSH_STATEMENT_LINE.PAY_ORD_ACCOUNT,
+            country: EnumerationMapping CshCountryMapping: [cash_core::Store]CSH_STATEMENT_LINE.PAY_ORD_COUNTRY
+         )
+      ),
+      statement: [cash_core::Store]@Csh_StatementLines,
+      movement: [cash_core::Store]@Csh_StatementLineMovement
+   }
+
+   cash_core::CshBalanceBreak[cshBalanceBreak]: Relational
+   {
+      ~primaryKey
+      (
+         [cash_core::Store]CSH_BALANCE_BREAK.INSTITUTION_ID,
+         [cash_core::Store]CSH_BALANCE_BREAK.ACCOUNT_NO,
+         [cash_core::Store]CSH_BALANCE_BREAK.CURRENCY_CODE,
+         [cash_core::Store]CSH_BALANCE_BREAK.BALANCE_DATE,
+         [cash_core::Store]CSH_BALANCE_BREAK.BREAK_CODE
+      )
+      ~mainTable [cash_core::Store]CSH_BALANCE_BREAK
+      institutionId: [cash_core::Store]CSH_BALANCE_BREAK.INSTITUTION_ID,
+      accountNo: [cash_core::Store]CSH_BALANCE_BREAK.ACCOUNT_NO,
+      currency: EnumerationMapping CshCurrencyMapping: [cash_core::Store]CSH_BALANCE_BREAK.CURRENCY_CODE,
+      balanceDate: [cash_core::Store]CSH_BALANCE_BREAK.BALANCE_DATE,
+      breakCode: [cash_core::Store]CSH_BALANCE_BREAK.BREAK_CODE,
+      breakAmount: [cash_core::Store]CSH_BALANCE_BREAK.BREAK_AMOUNT,
+      detectedOn: [cash_core::Store]CSH_BALANCE_BREAK.DETECTED_ON,
+      resolvedOn: [cash_core::Store]CSH_BALANCE_BREAK.RESOLVED_ON,
+      assignedTo: [cash_core::Store]CSH_BALANCE_BREAK.ASSIGNED_TO,
+      commentary: [cash_core::Store]CSH_BALANCE_BREAK.COMMENTARY,
+      balance: [cash_core::Store]@Csh_BalanceBreaks
+   }
+
+   cash_core::CshCashPool[cshCashPool]: Relational
+   {
+      ~primaryKey ( [cash_core::Store]CSH_CASH_POOL.POOL_ID )
+      ~mainTable [cash_core::Store]CSH_CASH_POOL
+      poolId: [cash_core::Store]CSH_CASH_POOL.POOL_ID,
+      poolName: [cash_core::Store]CSH_CASH_POOL.POOL_NAME,
+      poolType: [cash_core::Store]CSH_CASH_POOL.POOL_TYPE,
+      poolCurrency: EnumerationMapping CshCurrencyMapping: [cash_core::Store]CSH_CASH_POOL.POOL_CURRENCY,
+      headerInstitutionId: [cash_core::Store]CSH_CASH_POOL.HEADER_INSTITUTION_ID,
+      headerAccountNo: [cash_core::Store]CSH_CASH_POOL.HEADER_ACCOUNT_NO,
+      isNotional: [cash_core::Store]CSH_CASH_POOL.IS_NOTIONAL,
+      effectiveFrom: [cash_core::Store]CSH_CASH_POOL.EFFECTIVE_FROM,
+      headerAccount: [cash_core::Store]@Csh_PoolHeaderAccount,
+      sweepRules: [cash_core::Store]@Csh_PoolSweepRules,
+      members: [cash_core::Store]@Csh_PoolMembers
+   }
+
+   // Two account properties, two DIFFERENT joins, one target table. Getting these the wrong
+   // way round is the classic sweep bug, and the mapping is where it is prevented.
+   cash_core::CshSweepRule[cshSweepRule]: Relational
+   {
+      ~primaryKey
+      (
+         [cash_core::Store]CSH_SWEEP_RULE.SOURCE_INSTITUTION_ID,
+         [cash_core::Store]CSH_SWEEP_RULE.SOURCE_ACCOUNT_NO,
+         [cash_core::Store]CSH_SWEEP_RULE.RULE_SEQ
+      )
+      ~mainTable [cash_core::Store]CSH_SWEEP_RULE
+      sourceInstitutionId: [cash_core::Store]CSH_SWEEP_RULE.SOURCE_INSTITUTION_ID,
+      sourceAccountNo: [cash_core::Store]CSH_SWEEP_RULE.SOURCE_ACCOUNT_NO,
+      ruleSeq: [cash_core::Store]CSH_SWEEP_RULE.RULE_SEQ,
+      poolId: [cash_core::Store]CSH_SWEEP_RULE.POOL_ID,
+      targetInstitutionId: [cash_core::Store]CSH_SWEEP_RULE.TARGET_INSTITUTION_ID,
+      targetAccountNo: [cash_core::Store]CSH_SWEEP_RULE.TARGET_ACCOUNT_NO,
+      sweepCurrency: EnumerationMapping CshCurrencyMapping: [cash_core::Store]CSH_SWEEP_RULE.SWEEP_CURRENCY,
+      sweepType: [cash_core::Store]CSH_SWEEP_RULE.SWEEP_TYPE,
+      targetBalance: [cash_core::Store]CSH_SWEEP_RULE.TARGET_BALANCE,
+      minimumAmount: [cash_core::Store]CSH_SWEEP_RULE.MINIMUM_AMOUNT,
+      frequency: [cash_core::Store]CSH_SWEEP_RULE.FREQUENCY,
+      cutoffTime: [cash_core::Store]CSH_SWEEP_RULE.CUTOFF_TIME,
+      activatedOn: [cash_core::Store]CSH_SWEEP_RULE.ACTIVATED_ON,
+      deactivatedOn: [cash_core::Store]CSH_SWEEP_RULE.DEACTIVATED_ON,
+      sourceAccount: [cash_core::Store]@Csh_SweepRuleSourceAccount,
+      targetAccount: [cash_core::Store]@Csh_SweepRuleTargetAccount,
+      pool: [cash_core::Store]@Csh_PoolSweepRules,
+      executions: [cash_core::Store]@Csh_SweepRuleExecutions
+   }
+
+   cash_core::CshSweepExecution[cshSweepExecution]: Relational
+   {
+      ~primaryKey
+      (
+         [cash_core::Store]CSH_SWEEP_EXECUTION.SOURCE_INSTITUTION_ID,
+         [cash_core::Store]CSH_SWEEP_EXECUTION.SOURCE_ACCOUNT_NO,
+         [cash_core::Store]CSH_SWEEP_EXECUTION.RULE_SEQ,
+         [cash_core::Store]CSH_SWEEP_EXECUTION.EXECUTION_DATE
+      )
+      ~mainTable [cash_core::Store]CSH_SWEEP_EXECUTION
+      sourceInstitutionId: [cash_core::Store]CSH_SWEEP_EXECUTION.SOURCE_INSTITUTION_ID,
+      sourceAccountNo: [cash_core::Store]CSH_SWEEP_EXECUTION.SOURCE_ACCOUNT_NO,
+      ruleSeq: [cash_core::Store]CSH_SWEEP_EXECUTION.RULE_SEQ,
+      executionDate: [cash_core::Store]CSH_SWEEP_EXECUTION.EXECUTION_DATE,
+      sweptAmount: [cash_core::Store]CSH_SWEEP_EXECUTION.SWEPT_AMOUNT,
+      movementId: [cash_core::Store]CSH_SWEEP_EXECUTION.MOVEMENT_ID,
+      status: [cash_core::Store]CSH_SWEEP_EXECUTION.STATUS,
+      balanceBefore: [cash_core::Store]CSH_SWEEP_EXECUTION.BALANCE_BEFORE,
+      balanceAfter: [cash_core::Store]CSH_SWEEP_EXECUTION.BALANCE_AFTER,
+      failureReason: [cash_core::Store]CSH_SWEEP_EXECUTION.FAILURE_REASON,
+      rule: [cash_core::Store]@Csh_SweepRuleExecutions,
+      movement: [cash_core::Store]@Csh_SweepExecutionMovement
+   }
+
+   cash_core::CshInterestAccrual[cshInterestAccrual]: Relational
+   {
+      ~primaryKey
+      (
+         [cash_core::Store]CSH_INTEREST_ACCRUAL.INSTITUTION_ID,
+         [cash_core::Store]CSH_INTEREST_ACCRUAL.ACCOUNT_NO,
+         [cash_core::Store]CSH_INTEREST_ACCRUAL.CURRENCY_CODE,
+         [cash_core::Store]CSH_INTEREST_ACCRUAL.ACCRUAL_DATE
+      )
+      ~mainTable [cash_core::Store]CSH_INTEREST_ACCRUAL
+      institutionId: [cash_core::Store]CSH_INTEREST_ACCRUAL.INSTITUTION_ID,
+      accountNo: [cash_core::Store]CSH_INTEREST_ACCRUAL.ACCOUNT_NO,
+      currency: EnumerationMapping CshCurrencyMapping: [cash_core::Store]CSH_INTEREST_ACCRUAL.CURRENCY_CODE,
+      accrualDate: [cash_core::Store]CSH_INTEREST_ACCRUAL.ACCRUAL_DATE,
+      accrualBasis: [cash_core::Store]CSH_INTEREST_ACCRUAL.ACCRUAL_BASIS,
+      annualRate: [cash_core::Store]CSH_INTEREST_ACCRUAL.ANNUAL_RATE,
+      accruedAmount: [cash_core::Store]CSH_INTEREST_ACCRUAL.ACCRUED_AMOUNT,
+      balanceUsed: [cash_core::Store]CSH_INTEREST_ACCRUAL.BALANCE_USED,
+      rateSource: [cash_core::Store]CSH_INTEREST_ACCRUAL.RATE_SOURCE,
+      isDebitInterest: [cash_core::Store]CSH_INTEREST_ACCRUAL.IS_DEBIT_INTEREST,
+      account: [cash_core::Store]@Csh_AccrualAccount
+   }
+)

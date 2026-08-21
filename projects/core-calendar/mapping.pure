@@ -1,0 +1,73 @@
+###Mapping
+Mapping core_calendar::Mapping
+(
+    core_calendar::CcCalendar[ccCalendar]: Relational
+    {
+        ~primaryKey ([core_calendar::Store] CC_CALENDAR.CALENDAR_ID)
+        ~mainTable [core_calendar::Store] CC_CALENDAR
+        calendarId: [core_calendar::Store] CC_CALENDAR.CALENDAR_ID,
+        calendarName: [core_calendar::Store] CC_CALENDAR.CALENDAR_NAME,
+        financialCentre: [core_calendar::Store] CC_CALENDAR.FINANCIAL_CENTRE,
+        countryCode: [core_calendar::Store] CC_CALENDAR.COUNTRY_CODE,
+        timeZone: [core_calendar::Store] CC_CALENDAR.TIME_ZONE,
+        weekendDays: [core_calendar::Store] CC_CALENDAR.WEEKEND_DAYS,
+        isActive: [core_calendar::Store] CC_CALENDAR.IS_ACTIVE,
+        holidays: [core_calendar::Store] @Cc_CalendarHoliday,
+        // The reason the View exists: navigating from a calendar to its counts
+        // crosses a join into a GROUP BY, never into the holiday rows themselves.
+        holidayCounts: [core_calendar::Store] @Cc_CalendarHolidayCount
+    }
+
+    core_calendar::CcHoliday[ccHoliday]: Relational
+    {
+        ~primaryKey ([core_calendar::Store] CC_HOLIDAY.HOLIDAY_ID)
+        ~mainTable [core_calendar::Store] CC_HOLIDAY
+        holidayId: [core_calendar::Store] CC_HOLIDAY.HOLIDAY_ID,
+        holidayDate: [core_calendar::Store] CC_HOLIDAY.HOLIDAY_DATE,
+        holidayYear: [core_calendar::Store] CC_HOLIDAY.HOLIDAY_YEAR,
+        holidayName: [core_calendar::Store] CC_HOLIDAY.HOLIDAY_NAME,
+        isObserved: [core_calendar::Store] CC_HOLIDAY.IS_OBSERVED,
+        isHalfDay: [core_calendar::Store] CC_HOLIDAY.IS_HALF_DAY,
+        calendar: [core_calendar::Store] @Cc_CalendarHoliday
+    }
+
+    core_calendar::CcMarket[ccMarket]: Relational
+    {
+        ~primaryKey ([core_calendar::Store] CC_MARKET.MARKET_MIC)
+        ~mainTable [core_calendar::Store] CC_MARKET
+        mic: [core_calendar::Store] CC_MARKET.MARKET_MIC,
+        marketName: [core_calendar::Store] CC_MARKET.MARKET_NAME,
+        settlementCurrency: [core_calendar::Store] CC_MARKET.SETTLEMENT_CURRENCY,
+        isActive: [core_calendar::Store] CC_MARKET.IS_ACTIVE,
+        calendar: [core_calendar::Store] @Cc_MarketCalendar,
+        settlementCycles: [core_calendar::Store] @Cc_MarketCycle
+    }
+
+    core_calendar::CcSettlementCycle[ccSettlementCycle]: Relational
+    {
+        ~primaryKey ([core_calendar::Store] CC_SETTLEMENT_CYCLE.CYCLE_ID)
+        ~mainTable [core_calendar::Store] CC_SETTLEMENT_CYCLE
+        cycleId: [core_calendar::Store] CC_SETTLEMENT_CYCLE.CYCLE_ID,
+        assetClass: [core_calendar::Store] CC_SETTLEMENT_CYCLE.ASSET_CLASS,
+        cycleCode: [core_calendar::Store] CC_SETTLEMENT_CYCLE.CYCLE_CODE,
+        settlementDays: [core_calendar::Store] CC_SETTLEMENT_CYCLE.SETTLEMENT_DAYS,
+        cutoffTime: [core_calendar::Store] CC_SETTLEMENT_CYCLE.CUTOFF_TIME,
+        effectiveFrom: [core_calendar::Store] CC_SETTLEMENT_CYCLE.EFFECTIVE_FROM,
+        market: [core_calendar::Store] @Cc_MarketCycle
+    }
+
+    // Rooted at the VIEW, not at a table. Its primary key is the grouping, so one
+    // instance of this class is one calendar-year group.
+    core_calendar::CcHolidayCount[ccHolidayCount]: Relational
+    {
+        ~primaryKey
+        (
+            [core_calendar::Store] CC_HOLIDAY_COUNT.CALENDAR_ID,
+            [core_calendar::Store] CC_HOLIDAY_COUNT.HOLIDAY_YEAR
+        )
+        ~mainTable [core_calendar::Store] CC_HOLIDAY_COUNT
+        calendarId: [core_calendar::Store] CC_HOLIDAY_COUNT.CALENDAR_ID,
+        holidayYear: [core_calendar::Store] CC_HOLIDAY_COUNT.HOLIDAY_YEAR,
+        holidayCount: [core_calendar::Store] CC_HOLIDAY_COUNT.HOLIDAY_COUNT
+    }
+)

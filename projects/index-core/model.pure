@@ -1,0 +1,389 @@
+###Pure
+// ============================================================
+// index-core -- index constituents and weights, aggregated by region
+// ============================================================
+// An index is a rule, not a portfolio: the rule says which instruments are in it and what
+// fraction of the index each one is. The fractions are restruck on a REBALANCE -- a dated
+// event with an announcement and an effective date -- so a constituent weight is only ever
+// meaningful as of a rebalance, and that is why IdxConstituent hangs off IdxRebalance and
+// not off IdxIndex.
+//
+// Two dependencies, and the project is the join between them:
+//
+//   core-instrument   a constituent IS an instrument. The weight belongs here; the ISIN,
+//                     the issuer name and the asset class belong there, and are not copied.
+//   core-geo          the issuer of that instrument sits in a country, and a country walks
+//                     core-geo's own two-hop chain up to a coverage region.
+//
+// The aggregation -- IdxRegionWeight, IdxCountryWeight -- is the number a tracking fund
+// actually looks at: not "which stocks are in the index" but "how much of the index is
+// Japan", because that is what the fund has to hold and what a regional cap is written
+// against.
+//
+// Package root index_core::, prefix IDX_ / Idx_ / idx per the contract.
+
+// ------------------------------------------------------------------ who publishes an index
+
+// The benchmark administrator: MSCI, FTSE Russell, S&P Dow Jones, STOXX. Here because an
+// index is only usable in a fund prospectus if its administrator is authorised, so the
+// administrator is a fact about the index and not a label on it.
+Class index_core::IdxProvider
+{
+   providerId: String[1];
+   name: String[1];
+   shortName: String[0..1];
+   // ISO 3166-1 alpha-2 of the administrator's home regulator. A String and not a
+   // core_geo::CgCountry, because a provider is administered in one place and the code is
+   // the whole fact; the constituent side is where the geography actually gets navigated.
+   homeCountryCode: String[0..1];
+   isAuthorisedAdministrator: Boolean[1];
+   methodologyUrl: String[0..1];
+}
+
+// A published range of indices sharing one methodology -- MSCI World, MSCI Emerging Markets
+// and MSCI ACWI are one family. It exists so an eligibility rule can be stated once for the
+// family rather than copied onto each index in it.
+Class index_core::IdxIndexFamily
+{
+   familyId: String[1];
+   name: String[1];
+   assetClassScope: String[1];
+   weightingPhilosophy: String[0..1];
+   launchYear: Integer[0..1];
+   isFlagship: Boolean[1];
+}
+
+// The index itself: a currency, a base date, a base level and a rule for restriking weights.
+// The divisor lives on the daily level rather than here, because it changes on every
+// corporate action and the index does not.
+Class index_core::IdxIndex
+{
+   indexId: String[1];
+   code: String[1];
+   name: String[1];
+   // The currency the level is published in. Free-float market cap indices are published in
+   // several currencies off one set of weights, and this is the base one.
+   currency: String[1];
+   baseDate: StrictDate[0..1];
+   baseLevel: Float[0..1];
+   // FREE_FLOAT_MCAP, EQUAL, PRICE, FUNDAMENTAL. The single fact that decides what a
+   // constituent weight means.
+   weightingScheme: String[1];
+   rebalanceFrequency: String[1];
+   targetConstituentCount: Integer[0..1];
+   isActive: Boolean[1];
+}
+
+// A rule an instrument must pass to be in the index at all -- minimum free float, minimum
+// three-month traded value, a domicile restriction, a minimum listing history. Separate from
+// the index because the rules are versioned: a threshold change is a new row with a new
+// APPLIES_FROM, and the old rebalances stay explicable.
+Class index_core::IdxEligibilityRule
+{
+   ruleId: String[1];
+   ruleCode: String[1];
+   description: String[1];
+   thresholdValue: Float[0..1];
+   thresholdUnit: String[0..1];
+   appliesFrom: StrictDate[0..1];
+   isHardScreen: Boolean[1];
+}
+
+// The cap that stops one name being the whole index. UCITS 5/10/40 is the reason this class
+// exists: no constituent above 10%, and everything above 5% summing to no more than 40%, so
+// a cap has both a single-name limit and a group limit and neither alone is the rule.
+Class index_core::IdxWeightCap
+{
+   capId: String[1];
+   capType: String[1];
+   singleNameCapPct: Float[0..1];
+   groupCapPct: Float[0..1];
+   effectiveFrom: StrictDate[0..1];
+   // 'UCITS', 'RIC', 'HOUSE' -- which rulebook the cap comes from, which decides whether it
+   // can be waived.
+   regulation: String[0..1];
+}
+
+// ------------------------------------------------------------------ the dated event
+
+// The review at which weights are restruck. The two dates are both load-bearing and are not
+// the same date: the announcement is when the market learns the new list, the effective date
+// is when a tracking fund must be holding it, and the drift between them is where index
+// front-running happens.
+Class index_core::IdxRebalance
+{
+   rebalanceId: String[1];
+   announcementDate: StrictDate[0..1];
+   effectiveDate: StrictDate[1];
+   // ANNUAL, SEMI_ANNUAL, QUARTERLY, AD_HOC -- an AD_HOC review is a deletion after a
+   // takeover, not a scheduled one.
+   reviewType: String[1];
+   status: String[1];
+   constituentCount: Integer[0..1];
+   additionCount: Integer[0..1];
+   deletionCount: Integer[0..1];
+   // One-way turnover as a percent of index weight. What the fund pays to follow this
+   // rebalance.
+   turnoverPct: Float[0..1];
+
+   // The invariant that makes weights weights: they sum to 100. Derived rather than
+   // constrained, so a half-loaded rebalance is readable and reportable rather than
+   // unopenable.
+   totalWeightPct() { $this.constituents.weightPct->sum() }: Float[1];
+}
+
+// ------------------------------------------------------------------ the constituent
+
+// One instrument's membership of one index as of one rebalance, and the weight it carries.
+// This is the grain of the whole project: not (index, instrument) but
+// (index, rebalance, instrument), because the same name at two reviews is two different
+// weights and both are needed to explain the fund's turnover.
+//
+// The instrument itself is NOT redescribed here -- `instrument` navigates to
+// core_instrument::Instrument for the ISIN, the name and the asset class. What is here is
+// only what the index says: how much of it this name is, and how that number was arrived at.
+Class index_core::IdxConstituent
+{
+   constituentId: String[1];
+   // The published weight, after capping. Percent, so 4.2 means 4.2% of the index.
+   weightPct: Float[1];
+   // The weight the methodology produced before any cap was applied. Kept because the
+   // difference between the two is the only evidence a cap actually bound.
+   uncappedWeightPct: Float[0..1];
+   sharesInIndex: Float[0..1];
+   // The fraction of shares outstanding actually available to buy, 0.0 to 1.0. A
+   // state-controlled issuer has a low one and is therefore a small index weight despite a
+   // large market cap.
+   freeFloatFactor: Float[0..1];
+   cappingFactor: Float[0..1];
+   isAddition: Boolean[1];
+   isDeletion: Boolean[1];
+   rankByWeight: Integer[0..1];
+   // The vendor's region label as of this rebalance, and the column the region aggregation
+   // groups on. A copy of geography, deliberately: an index file states the region a name
+   // was classified in ON THE DAY, and reclassifying history when a country moves from
+   // Emerging to Developed would make old rebalances irreproducible. The live truth is one
+   // hop away through `issuerCountry`.
+   regionCode: String[0..1];
+
+   // Weight as a fraction rather than a percent, which is the form every tracking
+   // calculation actually wants. Float because `/` widens even when both sides are Integer.
+   weightFraction() { $this.weightPct / 100.0 }: Float[1];
+   // Whether a cap bound this name at this rebalance.
+   isCapped() { $this.cappingFactor->isNotEmpty() }: Boolean[1];
+}
+
+// ------------------------------------------------------------------ the aggregation
+
+// Index weight by region, per rebalance. The class over the store's ~groupBy view: the
+// engine folds the GROUP BY into the SQL, so a fund asking "how much of this index is EMEA"
+// reads one row per region instead of eight hundred constituent rows.
+//
+// This is what a tracking fund actually looks at. A regional cap, a currency hedge ratio and
+// a settlement-calendar headache are all decided off this number and none of them are
+// decided off the constituent list.
+//
+// Note what a grouping does not produce: a region with no constituents at a rebalance forms
+// no group and is simply absent, rather than appearing at zero weight.
+Class index_core::IdxRegionWeight
+{
+   rebalanceId: String[1];
+   regionCode: String[1];
+   totalWeightPct: Float[0..1];
+   constituentCount: Integer[0..1];
+}
+
+// The same rollup one level finer: index weight by issuer country. It exists separately
+// because a regional cap and a country cap are different limits -- APAC at 30% says nothing
+// about Japan at 25% -- and because this one joins straight onto core_geo::CgCountry, so a
+// report can walk from a weight bucket up core-geo's chain to the coverage region without
+// this project restating any geography.
+Class index_core::IdxCountryWeight
+{
+   rebalanceId: String[1];
+   issuerCountryCode: String[1];
+   totalWeightPct: Float[0..1];
+   constituentCount: Integer[0..1];
+}
+
+// ------------------------------------------------------------------ what the index does
+
+// One published closing level for one index on one date. Composite grain (index, date).
+// The three levels are three different products off one weight set: price return ignores
+// dividends, gross return reinvests them whole, net return reinvests them after the
+// withholding tax a foreign holder actually suffers -- which is why a fund's benchmark is
+// almost always the net one.
+Class index_core::IdxIndexLevel
+{
+   indexId: String[1];
+   levelDate: StrictDate[1];
+   priceLevel: Float[0..1];
+   grossReturnLevel: Float[0..1];
+   netReturnLevel: Float[0..1];
+   // The number that absorbs corporate actions so the level does not jump on them.
+   divisor: Float[0..1];
+   marketCapUsd: Float[0..1];
+}
+
+// A fund whose mandate is to hold the index. The consumer of everything above: it is what
+// makes the weights binding rather than descriptive, because a published weight change is an
+// order this fund has to place.
+Class index_core::IdxTrackingFund
+{
+   fundId: String[1];
+   name: String[1];
+   legalStructure: String[0..1];
+   domicileCountryCode: String[0..1];
+   aumUsd: Float[0..1];
+   totalExpenseRatioBps: Float[0..1];
+   // FULL, OPTIMISED, SYNTHETIC. Decides whether the fund's holdings can differ from the
+   // constituent list at all.
+   replicationMethod: String[1];
+   trackingErrorBps: Float[0..1];
+   inceptionDate: StrictDate[0..1];
+}
+
+// What the fund is actually holding on a date, against what the index says it should hold.
+// The whole point is the difference: activeWeightBps is the fund's weight minus the index
+// weight, and a full-replication fund whose active weight is not near zero has a problem.
+Class index_core::IdxFundHolding
+{
+   holdingId: String[1];
+   holdingDate: StrictDate[1];
+   weightPct: Float[1];
+   shares: Float[0..1];
+   marketValueUsd: Float[0..1];
+   // Fund weight minus index weight, in basis points. Signed.
+   activeWeightBps: Float[0..1];
+}
+
+// ------------------------------------------------------------------ associations, internal
+// The ends are the public surface of this project and are named to read at the call site.
+
+// A family belongs to the administrator that publishes it.
+Association index_core::IdxFamilyProvider
+{
+   provider: index_core::IdxProvider[1];
+   families: index_core::IdxIndexFamily[*];
+}
+
+// An index belongs to a family, which is where its shared methodology comes from.
+Association index_core::IdxIndexInFamily
+{
+   family: index_core::IdxIndexFamily[1];
+   indices: index_core::IdxIndex[*];
+}
+
+// The review history of an index. Ordered by effectiveDate at the call site, not here.
+Association index_core::IdxIndexRebalance
+{
+   index: index_core::IdxIndex[1];
+   rebalances: index_core::IdxRebalance[*];
+}
+
+// The list as struck at one review. `constituents` is the property IdxRebalance's
+// totalWeightPct() sums over.
+Association index_core::IdxRebalanceConstituent
+{
+   rebalance: index_core::IdxRebalance[1];
+   constituents: index_core::IdxConstituent[*];
+}
+
+// The screens the index applies. On the index rather than the family because a family
+// tightens a threshold for one member and not the rest.
+Association index_core::IdxIndexEligibility
+{
+   index: index_core::IdxIndex[1];
+   eligibilityRules: index_core::IdxEligibilityRule[*];
+}
+
+// The caps in force for the index. [*] because UCITS and a house cap coexist and the
+// binding one is the tighter.
+Association index_core::IdxIndexCap
+{
+   index: index_core::IdxIndex[1];
+   weightCaps: index_core::IdxWeightCap[*];
+}
+
+Association index_core::IdxIndexLevelHistory
+{
+   index: index_core::IdxIndex[1];
+   levels: index_core::IdxIndexLevel[*];
+}
+
+// The rollup, reached from the review it rolls up. This is the navigation the theme is
+// about: $rebalance.regionWeights->sortBy(w | $w.totalWeightPct).
+Association index_core::IdxRebalanceRegionWeight
+{
+   rebalance: index_core::IdxRebalance[1];
+   regionWeights: index_core::IdxRegionWeight[*];
+}
+
+Association index_core::IdxRebalanceCountryWeight
+{
+   rebalance: index_core::IdxRebalance[1];
+   countryWeights: index_core::IdxCountryWeight[*];
+}
+
+// Which index a fund has undertaken to track. [1] on the index end: a fund without a
+// benchmark is an active fund and is not this class.
+Association index_core::IdxFundBenchmark
+{
+   index: index_core::IdxIndex[1];
+   trackingFunds: index_core::IdxTrackingFund[*];
+}
+
+Association index_core::IdxFundHoldingLine
+{
+   fund: index_core::IdxTrackingFund[1];
+   holdings: index_core::IdxFundHolding[*];
+}
+
+// ------------------------------------------------------------------ associations, crossing
+// The two boundaries this project exists to cross. Both are declared here rather than
+// upstream, because neither dependency may know about indices: core-instrument is the
+// instrument master and core-geo is a gazetteer, and a downward reference from either would
+// be the dependency inversion this graph is built to detect.
+
+// A constituent IS an instrument. [0..1] on the instrument end and not [1]: an index file
+// arrives before the instrument master has the name set up, and an unmatched line is a
+// mapping break to be worked -- not a row to be rejected. `indexMemberships` is added to
+// core_instrument::Instrument, so an instrument can answer "which indices am I in, and at
+// what weight" without core-instrument knowing indices exist.
+Association index_core::IdxConstituentInstrument
+{
+   instrument: core_instrument::Instrument[0..1];
+   indexMemberships: index_core::IdxConstituent[*];
+}
+
+// A constituent's issuer sits in a country -- the second crossing, and the one that makes
+// the region aggregation checkable. From here core-geo's own chain does the rest:
+//
+//   $c.issuerCountry.subRegion.macroRegion.code
+//
+// which is the live coverage region, against `regionCode` which is what the vendor said on
+// the day. When they disagree, the index has been reclassified and the fund's regional cap
+// is about to bind differently.
+Association index_core::IdxConstituentIssuerCountry
+{
+   issuerCountry: core_geo::CgCountry[0..1];
+   issuedConstituents: index_core::IdxConstituent[*];
+}
+
+// The country rollup, hung directly off the country. `indexCountryWeights` on CgCountry is
+// the end a fund reads to answer "how much index weight sits in this country", and it
+// carries no geography of its own -- $w.country.subRegion.macroRegion is core-geo's chain.
+Association index_core::IdxCountryWeightCountry
+{
+   country: core_geo::CgCountry[0..1];
+   indexCountryWeights: index_core::IdxCountryWeight[*];
+}
+
+// A fund holding is a holding OF an instrument. The second crossing into core-instrument,
+// and it is a different relationship from a constituent: a constituent is what the index
+// says, a holding is what the fund did.
+Association index_core::IdxFundHoldingInstrument
+{
+   instrument: core_instrument::Instrument[0..1];
+   fundHoldings: index_core::IdxFundHolding[*];
+}

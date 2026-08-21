@@ -1,0 +1,278 @@
+###Mapping
+// The custody mapping.
+//
+// It INCLUDES both dependencies' mappings, so `account` on a depot or a holding
+// resolves to core-account's [caAccount] set and `instrument` resolves to
+// core-instrument's root [ciBase] set without either being re-declared here.
+//
+// Look at the ~primaryKey lists. [cstDepot] names THREE columns and [cstHolding] names
+// four, and every child of a holding repeats all four plus its own discriminator. Say
+// less than that and two genuinely different holdings become one object: the same ISIN,
+// in the same account, at Euroclear and at the local CSD, is two rows that must stay
+// two rows.
+//
+// `quantities ( ... )` and `placeOfSafekeeping ( ... )` on custody_core::CustodyHolding
+// are EMBEDDED property mappings. The properties are complex-typed, but their columns
+// are on CST_HOLDING, so no join is emitted -- reading where a holding is safekept
+// costs nothing beyond reading the holding. `placeOfSafekeeping` nests `registration`
+// one level deeper, still on the same row.
+Mapping custody_core::Mapping
+(
+   include core_account::Mapping
+   include core_instrument::Mapping
+
+   custody_core::Custodian[cstCustodian]: Relational
+   {
+      ~primaryKey ( [custody_core::Store]CST_CUSTODIAN.CUSTODIAN_ID )
+      ~mainTable [custody_core::Store]CST_CUSTODIAN
+      custodianId: [custody_core::Store]CST_CUSTODIAN.CUSTODIAN_ID,
+      name: [custody_core::Store]CST_CUSTODIAN.NAME,
+      bic: [custody_core::Store]CST_CUSTODIAN.BIC,
+      lei: [custody_core::Store]CST_CUSTODIAN.LEI,
+      countryCode: [custody_core::Store]CST_CUSTODIAN.COUNTRY_CODE,
+      custodianRole: [custody_core::Store]CST_CUSTODIAN.CUSTODIAN_ROLE,
+      isAffiliate: [custody_core::Store]CST_CUSTODIAN.IS_AFFILIATE,
+      onboardedOn: [custody_core::Store]CST_CUSTODIAN.ONBOARDED_ON,
+      terminatedOn: [custody_core::Store]CST_CUSTODIAN.TERMINATED_ON,
+      depots: [custody_core::Store]@Cst_DepotCustodian,
+      linksAsGlobal: [custody_core::Store]@Cst_LinkGlobalCustodian,
+      linksAsSub: [custody_core::Store]@Cst_LinkSubCustodian,
+      memberships: [custody_core::Store]@Cst_MembershipCustodian
+   }
+
+   custody_core::Depository[cstDepository]: Relational
+   {
+      ~primaryKey ( [custody_core::Store]CST_DEPOSITORY.DEPOSITORY_ID )
+      ~mainTable [custody_core::Store]CST_DEPOSITORY
+      depositoryId: [custody_core::Store]CST_DEPOSITORY.DEPOSITORY_ID,
+      name: [custody_core::Store]CST_DEPOSITORY.NAME,
+      bic: [custody_core::Store]CST_DEPOSITORY.BIC,
+      depositoryType: [custody_core::Store]CST_DEPOSITORY.DEPOSITORY_TYPE,
+      countryCode: [custody_core::Store]CST_DEPOSITORY.COUNTRY_CODE,
+      marketCode: [custody_core::Store]CST_DEPOSITORY.MARKET_CODE,
+      settlementCycleDays: [custody_core::Store]CST_DEPOSITORY.SETTLEMENT_CYCLE_DAYS,
+      isActive: [custody_core::Store]CST_DEPOSITORY.IS_ACTIVE,
+      market: [custody_core::Store]@Cst_DepositoryMarket,
+      memberships: [custody_core::Store]@Cst_MembershipDepository,
+      depots: [custody_core::Store]@Cst_DepotDepository
+   }
+
+   custody_core::CustodyMarket[cstMarket]: Relational
+   {
+      ~primaryKey ( [custody_core::Store]CST_MARKET.MARKET_CODE )
+      ~mainTable [custody_core::Store]CST_MARKET
+      marketCode: [custody_core::Store]CST_MARKET.MARKET_CODE,
+      name: [custody_core::Store]CST_MARKET.NAME,
+      countryCode: [custody_core::Store]CST_MARKET.COUNTRY_CODE,
+      settlementCurrency: [custody_core::Store]CST_MARKET.SETTLEMENT_CURRENCY,
+      timeZone: [custody_core::Store]CST_MARKET.TIME_ZONE,
+      isEmerging: [custody_core::Store]CST_MARKET.IS_EMERGING,
+      depositories: [custody_core::Store]@Cst_DepositoryMarket,
+      depots: [custody_core::Store]@Cst_DepotMarket,
+      subCustodianLinks: [custody_core::Store]@Cst_LinkMarket
+   }
+
+   // Three key columns: the appointment is per (global, market, sub).
+   custody_core::SubCustodianLink[cstSubCustodianLink]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_core::Store]CST_SUB_CUSTODIAN_LINK.GLOBAL_CUSTODIAN_ID,
+         [custody_core::Store]CST_SUB_CUSTODIAN_LINK.MARKET_CODE,
+         [custody_core::Store]CST_SUB_CUSTODIAN_LINK.SUB_CUSTODIAN_ID
+      )
+      ~mainTable [custody_core::Store]CST_SUB_CUSTODIAN_LINK
+      globalCustodianId: [custody_core::Store]CST_SUB_CUSTODIAN_LINK.GLOBAL_CUSTODIAN_ID,
+      marketCode: [custody_core::Store]CST_SUB_CUSTODIAN_LINK.MARKET_CODE,
+      subCustodianId: [custody_core::Store]CST_SUB_CUSTODIAN_LINK.SUB_CUSTODIAN_ID,
+      agreementRef: [custody_core::Store]CST_SUB_CUSTODIAN_LINK.AGREEMENT_REF,
+      tier: [custody_core::Store]CST_SUB_CUSTODIAN_LINK.TIER,
+      effectiveFrom: [custody_core::Store]CST_SUB_CUSTODIAN_LINK.EFFECTIVE_FROM,
+      terminatedOn: [custody_core::Store]CST_SUB_CUSTODIAN_LINK.TERMINATED_ON,
+      isCashCorrespondent: [custody_core::Store]CST_SUB_CUSTODIAN_LINK.IS_CASH_CORRESPONDENT,
+      serviceLevel: [custody_core::Store]CST_SUB_CUSTODIAN_LINK.SERVICE_LEVEL,
+      globalCustodian: [custody_core::Store]@Cst_LinkGlobalCustodian,
+      subCustodian: [custody_core::Store]@Cst_LinkSubCustodian,
+      market: [custody_core::Store]@Cst_LinkMarket
+   }
+
+   custody_core::DepositoryMembership[cstDepositoryMembership]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_core::Store]CST_DEPOSITORY_MEMBERSHIP.CUSTODIAN_ID,
+         [custody_core::Store]CST_DEPOSITORY_MEMBERSHIP.DEPOSITORY_ID
+      )
+      ~mainTable [custody_core::Store]CST_DEPOSITORY_MEMBERSHIP
+      custodianId: [custody_core::Store]CST_DEPOSITORY_MEMBERSHIP.CUSTODIAN_ID,
+      depositoryId: [custody_core::Store]CST_DEPOSITORY_MEMBERSHIP.DEPOSITORY_ID,
+      participantId: [custody_core::Store]CST_DEPOSITORY_MEMBERSHIP.PARTICIPANT_ID,
+      membershipType: [custody_core::Store]CST_DEPOSITORY_MEMBERSHIP.MEMBERSHIP_TYPE,
+      joinedOn: [custody_core::Store]CST_DEPOSITORY_MEMBERSHIP.JOINED_ON,
+      resignedOn: [custody_core::Store]CST_DEPOSITORY_MEMBERSHIP.RESIGNED_ON,
+      custodian: [custody_core::Store]@Cst_MembershipCustodian,
+      depository: [custody_core::Store]@Cst_MembershipDepository
+   }
+
+   // THE THREE-COLUMN COMPOSITE PRIMARY KEY.
+   custody_core::Depot[cstDepot]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_core::Store]CST_DEPOT.INSTITUTION_ID,
+         [custody_core::Store]CST_DEPOT.ACCOUNT_NO,
+         [custody_core::Store]CST_DEPOT.DEPOT_CODE
+      )
+      ~mainTable [custody_core::Store]CST_DEPOT
+      institutionId: [custody_core::Store]CST_DEPOT.INSTITUTION_ID,
+      accountNo: [custody_core::Store]CST_DEPOT.ACCOUNT_NO,
+      depotCode: [custody_core::Store]CST_DEPOT.DEPOT_CODE,
+      depotName: [custody_core::Store]CST_DEPOT.DEPOT_NAME,
+      custodianId: [custody_core::Store]CST_DEPOT.CUSTODIAN_ID,
+      depositoryId: [custody_core::Store]CST_DEPOT.DEPOSITORY_ID,
+      marketCode: [custody_core::Store]CST_DEPOT.MARKET_CODE,
+      safekeepingAccountId: [custody_core::Store]CST_DEPOT.SAFEKEEPING_ACCOUNT_ID,
+      depotType: [custody_core::Store]CST_DEPOT.DEPOT_TYPE,
+      isOmnibus: [custody_core::Store]CST_DEPOT.IS_OMNIBUS,
+      baseCurrency: [custody_core::Store]CST_DEPOT.BASE_CURRENCY,
+      openedOn: [custody_core::Store]CST_DEPOT.OPENED_ON,
+      closedOn: [custody_core::Store]CST_DEPOT.CLOSED_ON,
+      account: [custody_core::Store]@Cst_DepotAccount,
+      custodian: [custody_core::Store]@Cst_DepotCustodian,
+      depository: [custody_core::Store]@Cst_DepotDepository,
+      market: [custody_core::Store]@Cst_DepotMarket,
+      holdings: [custody_core::Store]@Cst_HoldingDepot
+   }
+
+   // The root set of this project, and the two embedded blocks.
+   *custody_core::CustodyHolding[cstHolding]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_core::Store]CST_HOLDING.INSTITUTION_ID,
+         [custody_core::Store]CST_HOLDING.ACCOUNT_NO,
+         [custody_core::Store]CST_HOLDING.INSTRUMENT_ID,
+         [custody_core::Store]CST_HOLDING.DEPOT_CODE
+      )
+      ~mainTable [custody_core::Store]CST_HOLDING
+      institutionId: [custody_core::Store]CST_HOLDING.INSTITUTION_ID,
+      accountNo: [custody_core::Store]CST_HOLDING.ACCOUNT_NO,
+      instrumentId: [custody_core::Store]CST_HOLDING.INSTRUMENT_ID,
+      depotCode: [custody_core::Store]CST_HOLDING.DEPOT_CODE,
+      asOfDate: [custody_core::Store]CST_HOLDING.AS_OF_DATE,
+      holdingStatus: [custody_core::Store]CST_HOLDING.HOLDING_STATUS,
+      priceCurrency: [custody_core::Store]CST_HOLDING.PRICE_CURRENCY,
+      lastReconciledOn: [custody_core::Store]CST_HOLDING.LAST_RECONCILED_ON,
+      quantities
+      (
+         settledQuantity: [custody_core::Store]CST_HOLDING.QTY_SETTLED,
+         tradedQuantity: [custody_core::Store]CST_HOLDING.QTY_TRADED,
+         pendingReceiptQuantity: [custody_core::Store]CST_HOLDING.QTY_PENDING_RECEIPT,
+         pendingDeliveryQuantity: [custody_core::Store]CST_HOLDING.QTY_PENDING_DELIVERY,
+         availableQuantity: [custody_core::Store]CST_HOLDING.QTY_AVAILABLE,
+         blockedQuantity: [custody_core::Store]CST_HOLDING.QTY_BLOCKED,
+         quantityUnit: [custody_core::Store]CST_HOLDING.QTY_UNIT
+      ),
+      placeOfSafekeeping
+      (
+         safekeepingType: [custody_core::Store]CST_HOLDING.POS_TYPE,
+         safekeepingBic: [custody_core::Store]CST_HOLDING.POS_BIC,
+         safekeepingName: [custody_core::Store]CST_HOLDING.POS_NAME,
+         countryCode: [custody_core::Store]CST_HOLDING.POS_COUNTRY_CODE,
+         marketCode: [custody_core::Store]CST_HOLDING.POS_MARKET_CODE,
+         safekeepingAccountId: [custody_core::Store]CST_HOLDING.POS_ACCOUNT_ID,
+         registration
+         (
+            registrationForm: [custody_core::Store]CST_HOLDING.POS_REG_FORM,
+            registeredName: [custody_core::Store]CST_HOLDING.POS_REG_NAME,
+            registerReference: [custody_core::Store]CST_HOLDING.POS_REG_REFERENCE,
+            registeredOn: [custody_core::Store]CST_HOLDING.POS_REG_DATE,
+            isSegregated: [custody_core::Store]CST_HOLDING.POS_REG_IS_SEGREGATED
+         )
+      ),
+      account: [custody_core::Store]@Cst_HoldingAccount,
+      instrument: [custody_core::Store]@Cst_HoldingInstrument,
+      depot: [custody_core::Store]@Cst_HoldingDepot,
+      movements: [custody_core::Store]@Cst_HoldingMovements,
+      encumbrances: [custody_core::Store]@Cst_HoldingEncumbrances,
+      statementLines: [custody_core::Store]@Cst_HoldingStatementLines
+   }
+
+   custody_core::PendingMovement[cstPendingMovement]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_core::Store]CST_PENDING_MOVEMENT.INSTITUTION_ID,
+         [custody_core::Store]CST_PENDING_MOVEMENT.ACCOUNT_NO,
+         [custody_core::Store]CST_PENDING_MOVEMENT.INSTRUMENT_ID,
+         [custody_core::Store]CST_PENDING_MOVEMENT.DEPOT_CODE,
+         [custody_core::Store]CST_PENDING_MOVEMENT.MOVEMENT_REF
+      )
+      ~mainTable [custody_core::Store]CST_PENDING_MOVEMENT
+      institutionId: [custody_core::Store]CST_PENDING_MOVEMENT.INSTITUTION_ID,
+      accountNo: [custody_core::Store]CST_PENDING_MOVEMENT.ACCOUNT_NO,
+      instrumentId: [custody_core::Store]CST_PENDING_MOVEMENT.INSTRUMENT_ID,
+      depotCode: [custody_core::Store]CST_PENDING_MOVEMENT.DEPOT_CODE,
+      movementRef: [custody_core::Store]CST_PENDING_MOVEMENT.MOVEMENT_REF,
+      movementDirection: [custody_core::Store]CST_PENDING_MOVEMENT.MOVEMENT_DIRECTION,
+      movementQuantity: [custody_core::Store]CST_PENDING_MOVEMENT.MOVEMENT_QUANTITY,
+      tradeDate: [custody_core::Store]CST_PENDING_MOVEMENT.TRADE_DATE,
+      intendedSettlementDate: [custody_core::Store]CST_PENDING_MOVEMENT.INTENDED_SETTLEMENT_DATE,
+      actualSettlementDate: [custody_core::Store]CST_PENDING_MOVEMENT.ACTUAL_SETTLEMENT_DATE,
+      movementStatus: [custody_core::Store]CST_PENDING_MOVEMENT.MOVEMENT_STATUS,
+      isAgainstPayment: [custody_core::Store]CST_PENDING_MOVEMENT.IS_AGAINST_PAYMENT,
+      settlementAmount: [custody_core::Store]CST_PENDING_MOVEMENT.SETTLEMENT_AMOUNT,
+      settlementCurrency: [custody_core::Store]CST_PENDING_MOVEMENT.SETTLEMENT_CURRENCY,
+      counterpartyBic: [custody_core::Store]CST_PENDING_MOVEMENT.COUNTERPARTY_BIC,
+      failReasonCode: [custody_core::Store]CST_PENDING_MOVEMENT.FAIL_REASON_CODE,
+      holding: [custody_core::Store]@Cst_HoldingMovements
+   }
+
+   custody_core::HoldingEncumbrance[cstHoldingEncumbrance]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_core::Store]CST_HOLDING_ENCUMBRANCE.INSTITUTION_ID,
+         [custody_core::Store]CST_HOLDING_ENCUMBRANCE.ACCOUNT_NO,
+         [custody_core::Store]CST_HOLDING_ENCUMBRANCE.INSTRUMENT_ID,
+         [custody_core::Store]CST_HOLDING_ENCUMBRANCE.DEPOT_CODE,
+         [custody_core::Store]CST_HOLDING_ENCUMBRANCE.ENCUMBRANCE_CODE
+      )
+      ~mainTable [custody_core::Store]CST_HOLDING_ENCUMBRANCE
+      institutionId: [custody_core::Store]CST_HOLDING_ENCUMBRANCE.INSTITUTION_ID,
+      accountNo: [custody_core::Store]CST_HOLDING_ENCUMBRANCE.ACCOUNT_NO,
+      instrumentId: [custody_core::Store]CST_HOLDING_ENCUMBRANCE.INSTRUMENT_ID,
+      depotCode: [custody_core::Store]CST_HOLDING_ENCUMBRANCE.DEPOT_CODE,
+      encumbranceCode: [custody_core::Store]CST_HOLDING_ENCUMBRANCE.ENCUMBRANCE_CODE,
+      encumbranceType: [custody_core::Store]CST_HOLDING_ENCUMBRANCE.ENCUMBRANCE_TYPE,
+      encumberedQuantity: [custody_core::Store]CST_HOLDING_ENCUMBRANCE.ENCUMBERED_QUANTITY,
+      beneficiaryName: [custody_core::Store]CST_HOLDING_ENCUMBRANCE.BENEFICIARY_NAME,
+      createdOn: [custody_core::Store]CST_HOLDING_ENCUMBRANCE.CREATED_ON,
+      releasedOn: [custody_core::Store]CST_HOLDING_ENCUMBRANCE.RELEASED_ON,
+      holding: [custody_core::Store]@Cst_HoldingEncumbrances
+   }
+
+   custody_core::CustodyStatementLine[cstStatementLine]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_core::Store]CST_STATEMENT_LINE.INSTITUTION_ID,
+         [custody_core::Store]CST_STATEMENT_LINE.ACCOUNT_NO,
+         [custody_core::Store]CST_STATEMENT_LINE.INSTRUMENT_ID,
+         [custody_core::Store]CST_STATEMENT_LINE.DEPOT_CODE,
+         [custody_core::Store]CST_STATEMENT_LINE.STATEMENT_DATE
+      )
+      ~mainTable [custody_core::Store]CST_STATEMENT_LINE
+      institutionId: [custody_core::Store]CST_STATEMENT_LINE.INSTITUTION_ID,
+      accountNo: [custody_core::Store]CST_STATEMENT_LINE.ACCOUNT_NO,
+      instrumentId: [custody_core::Store]CST_STATEMENT_LINE.INSTRUMENT_ID,
+      depotCode: [custody_core::Store]CST_STATEMENT_LINE.DEPOT_CODE,
+      statementDate: [custody_core::Store]CST_STATEMENT_LINE.STATEMENT_DATE,
+      statementRef: [custody_core::Store]CST_STATEMENT_LINE.STATEMENT_REF,
+      custodianQuantity: [custody_core::Store]CST_STATEMENT_LINE.CUSTODIAN_QUANTITY,
+      custodianStatus: [custody_core::Store]CST_STATEMENT_LINE.CUSTODIAN_STATUS,
+      receivedOn: [custody_core::Store]CST_STATEMENT_LINE.RECEIVED_ON,
+      isFinal: [custody_core::Store]CST_STATEMENT_LINE.IS_FINAL,
+      holding: [custody_core::Store]@Cst_HoldingStatementLines
+   }
+)

@@ -1,0 +1,278 @@
+###Relational
+// The position-keeping store. It INCLUDES both upstream stores, which is what lets a join
+// declared here name CA_ACCOUNT and CI_INSTRUMENT directly -- there is no import in
+// Legend, and no copy of the upstream tables either.
+//
+// Every table below has a MULTI-COLUMN PRIMARY KEY, and the first four columns of nearly
+// all of them are the same four: INSTITUTION_ID, ACCOUNT_NO, INSTRUMENT_ID, COB_DATE.
+// That is the grain of a position and there is no shorter one. In particular the account
+// half is TWO columns because core-account keys an account by (INSTITUTION_ID,
+// ACCOUNT_NO); a single-column join on ACCOUNT_NO here would match accounts at other
+// institutions that happen to have reused the number.
+//
+// The four Views at the bottom are the AGGREGATION shape. They are not database views --
+// no DDL is created and nothing seeds them; the engine folds their GROUP BY into the SQL
+// it generates. Their ~groupBy columns are their primary key, which is what makes them
+// joinable, and it is also what they mean: one row of PK_ACCOUNT_DAY_TOTAL is an account
+// and a day, not a position.
+Database position_keeping::Store
+(
+   include core_account::Store
+   include core_instrument::Store
+
+   // The grain. Four primary key columns, and dropping any one of them merges rows that
+   // are genuinely different: drop COB_DATE and yesterday's close overwrites today's.
+   Table PK_POSITION
+   (
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      OPENING_QUANTITY DOUBLE,
+      CLOSING_QUANTITY DOUBLE,
+      SETTLED_QUANTITY DOUBLE,
+      PENDING_QUANTITY DOUBLE,
+      AVERAGE_COST DOUBLE,
+      COST_CURRENCY VARCHAR(3),
+      COST_BASIS_AMOUNT DOUBLE,
+      MARKET_PRICE DOUBLE,
+      MARKET_VALUE DOUBLE,
+      REALISED_PNL DOUBLE,
+      UNREALISED_PNL DOUBLE,
+      PNL_CURRENCY VARCHAR(3),
+      POSITION_STATUS VARCHAR(20),
+      IS_SHORT BIT,
+      LAST_MOVEMENT_DATE DATE,
+      RUN_SEQ INTEGER
+   )
+
+   // Five columns: the position, plus a sequence, because a day can hold many movements
+   // in the same instrument.
+   Table PK_POSITION_MOVEMENT
+   (
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      MOVEMENT_SEQ INTEGER PRIMARY KEY,
+      MOVEMENT_TYPE VARCHAR(30),
+      TRADE_REFERENCE VARCHAR(60),
+      QUANTITY_DELTA DOUBLE,
+      SIGNED_CASH DOUBLE,
+      PRICE DOUBLE,
+      SETTLEMENT_DATE DATE,
+      SOURCE_SYSTEM VARCHAR(40)
+   )
+
+   // The cost detail behind AVERAGE_COST.
+   Table PK_POSITION_LOT
+   (
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      LOT_ID VARCHAR(40) PRIMARY KEY,
+      OPEN_DATE DATE,
+      OPEN_QUANTITY DOUBLE,
+      REMAINING_QUANTITY DOUBLE,
+      UNIT_COST DOUBLE,
+      LOT_CURRENCY VARCHAR(3),
+      CLOSED_ON DATE
+   )
+
+   // Six primary key columns -- the deepest key in the project. One sale can consume
+   // several lots and one lot can be consumed by several sales, so neither the lot nor
+   // the movement alone identifies a match.
+   Table PK_LOT_CLOSURE
+   (
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      LOT_ID VARCHAR(40) PRIMARY KEY,
+      CLOSURE_SEQ INTEGER PRIMARY KEY,
+      CLOSED_QUANTITY DOUBLE,
+      CLOSE_PRICE DOUBLE,
+      REALISED_AMOUNT DOUBLE,
+      MATCHING_METHOD VARCHAR(20),
+      MOVEMENT_SEQ INTEGER
+   )
+
+   Table PK_POSITION_ADJUSTMENT
+   (
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      ADJUSTMENT_SEQ INTEGER PRIMARY KEY,
+      ADJUSTMENT_TYPE VARCHAR(30),
+      QUANTITY_DELTA DOUBLE,
+      AMOUNT_DELTA DOUBLE,
+      REASON VARCHAR(400),
+      RAISED_BY VARCHAR(60),
+      APPROVED_BY VARCHAR(60),
+      RAISED_ON DATE
+   )
+
+   // The fifth key column is a SECOND date. One position, dated at its cob date, owes
+   // deliveries on several later dates.
+   Table PK_SETTLEMENT_LADDER
+   (
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      SETTLEMENT_DATE DATE PRIMARY KEY,
+      EXPECTED_QUANTITY DOUBLE,
+      EXPECTED_CASH DOUBLE,
+      LADDER_CURRENCY VARCHAR(3),
+      IS_OVERDUE BIT
+   )
+
+   Table PK_POSITION_BREAK
+   (
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      BREAK_CODE VARCHAR(30) PRIMARY KEY,
+      BREAK_QUANTITY DOUBLE,
+      BREAK_AMOUNT DOUBLE,
+      SEVERITY VARCHAR(20),
+      DETECTED_ON DATE,
+      RESOLVED_ON DATE,
+      ASSIGNED_TO VARCHAR(60)
+   )
+
+   // The only table here not keyed on the account: a run is (cob date, sequence), because
+   // a day is run more than once.
+   Table PK_RUN
+   (
+      COB_DATE DATE PRIMARY KEY,
+      RUN_SEQ INTEGER PRIMARY KEY,
+      RUN_TYPE VARCHAR(20),
+      RUN_STATUS VARCHAR(20),
+      STARTED_ON DATE,
+      COMPLETED_ON DATE,
+      POSITION_COUNT INTEGER,
+      TRIGGERED_BY VARCHAR(60)
+   )
+
+   // ---------------------------------------------------------- the aggregations
+
+   // One row per account per day. The top of a client statement, without reading a single
+   // position row into memory.
+   View PK_ACCOUNT_DAY_TOTAL
+   (
+      ~groupBy
+      (
+         PK_POSITION.INSTITUTION_ID,
+         PK_POSITION.ACCOUNT_NO,
+         PK_POSITION.COB_DATE
+      )
+      INSTITUTION_ID: PK_POSITION.INSTITUTION_ID PRIMARY KEY,
+      ACCOUNT_NO: PK_POSITION.ACCOUNT_NO PRIMARY KEY,
+      COB_DATE: PK_POSITION.COB_DATE PRIMARY KEY,
+      POSITION_COUNT: count(PK_POSITION.INSTRUMENT_ID),
+      TOTAL_MARKET_VALUE: sum(PK_POSITION.MARKET_VALUE),
+      TOTAL_COST_BASIS: sum(PK_POSITION.COST_BASIS_AMOUNT),
+      TOTAL_REALISED_PNL: sum(PK_POSITION.REALISED_PNL),
+      TOTAL_UNREALISED_PNL: sum(PK_POSITION.UNREALISED_PNL)
+   )
+
+   // One row per instrument per day, ACROSS accounts -- the grouping drops the account
+   // entirely, which is the point: this is the firm's net inventory in a security.
+   View PK_INSTRUMENT_DAY_TOTAL
+   (
+      ~groupBy
+      (
+         PK_POSITION.INSTRUMENT_ID,
+         PK_POSITION.COB_DATE
+      )
+      INSTRUMENT_ID: PK_POSITION.INSTRUMENT_ID PRIMARY KEY,
+      COB_DATE: PK_POSITION.COB_DATE PRIMARY KEY,
+      ACCOUNT_COUNT: count(PK_POSITION.ACCOUNT_NO),
+      NET_QUANTITY: sum(PK_POSITION.CLOSING_QUANTITY),
+      LONGEST_QUANTITY: max(PK_POSITION.CLOSING_QUANTITY),
+      TOTAL_MARKET_VALUE: sum(PK_POSITION.MARKET_VALUE)
+   )
+
+   // The same four-column grain as PK_POSITION, but grouped out of the MOVEMENT table.
+   // Comparing NET_QUANTITY_DELTA here against the position's own opening-to-closing
+   // change is the check that raises a QTY_MISMATCH break.
+   View PK_MOVEMENT_TOTAL
+   (
+      ~groupBy
+      (
+         PK_POSITION_MOVEMENT.INSTITUTION_ID,
+         PK_POSITION_MOVEMENT.ACCOUNT_NO,
+         PK_POSITION_MOVEMENT.INSTRUMENT_ID,
+         PK_POSITION_MOVEMENT.COB_DATE
+      )
+      INSTITUTION_ID: PK_POSITION_MOVEMENT.INSTITUTION_ID PRIMARY KEY,
+      ACCOUNT_NO: PK_POSITION_MOVEMENT.ACCOUNT_NO PRIMARY KEY,
+      INSTRUMENT_ID: PK_POSITION_MOVEMENT.INSTRUMENT_ID PRIMARY KEY,
+      COB_DATE: PK_POSITION_MOVEMENT.COB_DATE PRIMARY KEY,
+      MOVEMENT_COUNT: count(PK_POSITION_MOVEMENT.MOVEMENT_SEQ),
+      NET_QUANTITY_DELTA: sum(PK_POSITION_MOVEMENT.QUANTITY_DELTA),
+      NET_CASH: sum(PK_POSITION_MOVEMENT.SIGNED_CASH)
+   )
+
+   // The grouping that drops COB_DATE. Every other key in this project keeps it; this one
+   // collapses it, which is what turns a series of positions into a holding history.
+   View PK_POSITION_LIFETIME
+   (
+      ~groupBy
+      (
+         PK_POSITION.INSTITUTION_ID,
+         PK_POSITION.ACCOUNT_NO,
+         PK_POSITION.INSTRUMENT_ID
+      )
+      INSTITUTION_ID: PK_POSITION.INSTITUTION_ID PRIMARY KEY,
+      ACCOUNT_NO: PK_POSITION.ACCOUNT_NO PRIMARY KEY,
+      INSTRUMENT_ID: PK_POSITION.INSTRUMENT_ID PRIMARY KEY,
+      DAY_COUNT: count(PK_POSITION.COB_DATE),
+      FIRST_COB_DATE: min(PK_POSITION.COB_DATE),
+      LAST_COB_DATE: max(PK_POSITION.COB_DATE),
+      LIFETIME_REALISED_PNL: sum(PK_POSITION.REALISED_PNL)
+   )
+
+   // ---------------------------------------------------------- joins
+   //
+   // CROSS-PROJECT. Two columns to the account, because the account key is two columns.
+   // One column to the instrument, because the instrument key is one.
+   Join Pk_PositionAccount(PK_POSITION.INSTITUTION_ID = CA_ACCOUNT.INSTITUTION_ID and PK_POSITION.ACCOUNT_NO = CA_ACCOUNT.ACCOUNT_NO)
+   Join Pk_PositionInstrument(PK_POSITION.INSTRUMENT_ID = CI_INSTRUMENT.INSTRUMENT_ID)
+
+   // Two columns, because a run is keyed by two.
+   Join Pk_PositionRun(PK_POSITION.COB_DATE = PK_RUN.COB_DATE and PK_POSITION.RUN_SEQ = PK_RUN.RUN_SEQ)
+
+   // Four columns on every child of a position. Anything less crosses dates or accounts.
+   Join Pk_PositionMovements(PK_POSITION.INSTITUTION_ID = PK_POSITION_MOVEMENT.INSTITUTION_ID and PK_POSITION.ACCOUNT_NO = PK_POSITION_MOVEMENT.ACCOUNT_NO and PK_POSITION.INSTRUMENT_ID = PK_POSITION_MOVEMENT.INSTRUMENT_ID and PK_POSITION.COB_DATE = PK_POSITION_MOVEMENT.COB_DATE)
+   Join Pk_PositionLots(PK_POSITION.INSTITUTION_ID = PK_POSITION_LOT.INSTITUTION_ID and PK_POSITION.ACCOUNT_NO = PK_POSITION_LOT.ACCOUNT_NO and PK_POSITION.INSTRUMENT_ID = PK_POSITION_LOT.INSTRUMENT_ID and PK_POSITION.COB_DATE = PK_POSITION_LOT.COB_DATE)
+   Join Pk_PositionAdjustments(PK_POSITION.INSTITUTION_ID = PK_POSITION_ADJUSTMENT.INSTITUTION_ID and PK_POSITION.ACCOUNT_NO = PK_POSITION_ADJUSTMENT.ACCOUNT_NO and PK_POSITION.INSTRUMENT_ID = PK_POSITION_ADJUSTMENT.INSTRUMENT_ID and PK_POSITION.COB_DATE = PK_POSITION_ADJUSTMENT.COB_DATE)
+   Join Pk_PositionLadder(PK_POSITION.INSTITUTION_ID = PK_SETTLEMENT_LADDER.INSTITUTION_ID and PK_POSITION.ACCOUNT_NO = PK_SETTLEMENT_LADDER.ACCOUNT_NO and PK_POSITION.INSTRUMENT_ID = PK_SETTLEMENT_LADDER.INSTRUMENT_ID and PK_POSITION.COB_DATE = PK_SETTLEMENT_LADDER.COB_DATE)
+   Join Pk_PositionBreaks(PK_POSITION.INSTITUTION_ID = PK_POSITION_BREAK.INSTITUTION_ID and PK_POSITION.ACCOUNT_NO = PK_POSITION_BREAK.ACCOUNT_NO and PK_POSITION.INSTRUMENT_ID = PK_POSITION_BREAK.INSTRUMENT_ID and PK_POSITION.COB_DATE = PK_POSITION_BREAK.COB_DATE)
+
+   // Five columns, because a lot is keyed by five.
+   Join Pk_LotClosures(PK_POSITION_LOT.INSTITUTION_ID = PK_LOT_CLOSURE.INSTITUTION_ID and PK_POSITION_LOT.ACCOUNT_NO = PK_LOT_CLOSURE.ACCOUNT_NO and PK_POSITION_LOT.INSTRUMENT_ID = PK_LOT_CLOSURE.INSTRUMENT_ID and PK_POSITION_LOT.COB_DATE = PK_LOT_CLOSURE.COB_DATE and PK_POSITION_LOT.LOT_ID = PK_LOT_CLOSURE.LOT_ID)
+
+   // Joins INTO the aggregations. Each one crosses from rows to groups: a position
+   // reaches the account's day total, the instrument's day total, its own movement total
+   // and its own lifetime, and none of those reads another position row.
+   Join Pk_PositionMovementTotal(PK_POSITION.INSTITUTION_ID = PK_MOVEMENT_TOTAL.INSTITUTION_ID and PK_POSITION.ACCOUNT_NO = PK_MOVEMENT_TOTAL.ACCOUNT_NO and PK_POSITION.INSTRUMENT_ID = PK_MOVEMENT_TOTAL.INSTRUMENT_ID and PK_POSITION.COB_DATE = PK_MOVEMENT_TOTAL.COB_DATE)
+   Join Pk_PositionAccountDayTotal(PK_POSITION.INSTITUTION_ID = PK_ACCOUNT_DAY_TOTAL.INSTITUTION_ID and PK_POSITION.ACCOUNT_NO = PK_ACCOUNT_DAY_TOTAL.ACCOUNT_NO and PK_POSITION.COB_DATE = PK_ACCOUNT_DAY_TOTAL.COB_DATE)
+   Join Pk_PositionInstrumentDayTotal(PK_POSITION.INSTRUMENT_ID = PK_INSTRUMENT_DAY_TOTAL.INSTRUMENT_ID and PK_POSITION.COB_DATE = PK_INSTRUMENT_DAY_TOTAL.COB_DATE)
+   Join Pk_PositionLifetime(PK_POSITION.INSTITUTION_ID = PK_POSITION_LIFETIME.INSTITUTION_ID and PK_POSITION.ACCOUNT_NO = PK_POSITION_LIFETIME.ACCOUNT_NO and PK_POSITION.INSTRUMENT_ID = PK_POSITION_LIFETIME.INSTRUMENT_ID)
+
+   // CROSS-PROJECT, from a group rather than from a row: an aggregate still knows whose
+   // and what it is, and still needs both account columns to say so.
+   Join Pk_AccountDayTotalAccount(PK_ACCOUNT_DAY_TOTAL.INSTITUTION_ID = CA_ACCOUNT.INSTITUTION_ID and PK_ACCOUNT_DAY_TOTAL.ACCOUNT_NO = CA_ACCOUNT.ACCOUNT_NO)
+   Join Pk_InstrumentDayTotalInstrument(PK_INSTRUMENT_DAY_TOTAL.INSTRUMENT_ID = CI_INSTRUMENT.INSTRUMENT_ID)
+   Join Pk_LifetimeAccount(PK_POSITION_LIFETIME.INSTITUTION_ID = CA_ACCOUNT.INSTITUTION_ID and PK_POSITION_LIFETIME.ACCOUNT_NO = CA_ACCOUNT.ACCOUNT_NO)
+   Join Pk_LifetimeInstrument(PK_POSITION_LIFETIME.INSTRUMENT_ID = CI_INSTRUMENT.INSTRUMENT_ID)
+
+   // Null tests, not boolean literals: a Filter will not take `= true`.
+   Filter PkOpenLots(PK_POSITION_LOT.CLOSED_ON is null)
+   Filter PkUnresolvedBreaks(PK_POSITION_BREAK.RESOLVED_ON is null)
+)

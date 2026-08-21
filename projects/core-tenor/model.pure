@@ -1,0 +1,85 @@
+###Pure
+
+// The nine standard tenor bands, in order. FOR: giving the buckets a closed, typed
+// vocabulary, so a downstream project can switch on a band without matching strings.
+// The band a thing falls in is never stored on the thing -- it is a property of how far
+// away the thing is, which is why the store resolves it with a RANGE join.
+Enum core_tenor::CtnTenorBand
+{
+  D0_7,
+  D8_30,
+  M1_3,
+  M3_6,
+  M6_12,
+  Y1_3,
+  Y3_5,
+  Y5_10,
+  Y10_PLUS
+}
+
+// FOR: saying what kind of dated thing is being bucketed. A tenor ladder is applied to
+// cashflows, to fixing dates and to maturities alike, and the kind is the only thing that
+// distinguishes those rows from one another.
+Enum core_tenor::CtnDatedItemKind
+{
+  CASHFLOW,
+  FIXING,
+  RESET,
+  MATURITY
+}
+
+// FOR: naming a complete, non-overlapping ladder of buckets. More than one ladder exists --
+// a money-market desk buckets the first month in days, a long-end desk does not -- so the
+// buckets belong to a named ladder rather than to the firm.
+Class core_tenor::CtnTenorLadder
+{
+  ladderId: String[1];
+  name: String[1];
+  dayCountConvention: String[1];
+  isDefault: Boolean[1];
+  buckets: core_tenor::CtnTenorBucket[*];
+}
+
+// FOR: one bucket in a ladder -- a half-open interval [minDays, maxDays) on days away.
+// This is the right-hand side of the range join: it carries the two bounds and nothing that
+// could be joined on as a key.
+Class core_tenor::CtnTenorBucket
+{
+  bucketId: String[1];
+  band: core_tenor::CtnTenorBand[1];
+  label: String[1];
+  minDays: Integer[1];
+  maxDays: Integer[1];
+  sortOrder: Integer[1];
+  ladder: core_tenor::CtnTenorLadder[0..1];
+  items: core_tenor::CtnDatedItem[*];
+
+  // How wide this bucket is, which is the only arithmetic the bounds support on their own.
+  spanDays() { $this.maxDays - $this.minDays } : Integer[1];
+}
+
+// FOR: a dated amount that needs bucketing -- a cashflow, a fixing, a maturity. It carries
+// daysAway and no bucket id, because there is no bucket id to carry: `bucket` is resolved by
+// the range join Ctn_DatedBucket and is [0..1] because the buckets do not overlap.
+Class core_tenor::CtnDatedItem
+{
+  itemId: String[1];
+  kind: core_tenor::CtnDatedItemKind[1];
+  valueDate: Date[1];
+  daysAway: Integer[1];
+  amount: Float[1];
+  currency: String[1];
+  bucket: core_tenor::CtnTenorBucket[0..1];
+}
+
+// FOR: a per-bucket rollup as of a date -- what a tenor profile or gap report is made of.
+// Unlike the dated item, this one DOES carry a bucket id, so the graph holds both the keyed
+// and the range route to the same bucket class.
+Class core_tenor::CtnBucketProfile
+{
+  profileId: String[1];
+  asOfDate: Date[1];
+  itemCount: Integer[1];
+  totalAmount: Float[1];
+  bucket: core_tenor::CtnTenorBucket[0..1];
+}

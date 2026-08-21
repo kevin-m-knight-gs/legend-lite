@@ -1,0 +1,114 @@
+// ============================================================
+// core-calendar (L0) — business calendars, holidays, settlement cycles
+// ============================================================
+// No dependencies. Everything downstream that has to answer "what date does this
+// settle on?" reaches into here for two things: the named calendar whose holidays
+// apply, and the T+n cycle of the market the trade was done on.
+//
+// The holiday COUNT is deliberately a class of its own rather than a derived
+// property over `holidays`. It is mapped to a store View, so asking how many
+// holidays a calendar has in a year is a GROUP BY the engine folds into the SQL --
+// not a fetch of every holiday row followed by a count in memory. That distinction
+// is the whole reason this project exists at layer 0: a settlement-date calculation
+// four layers up reads CcHolidayCount and never touches CcHoliday at all.
+
+###Pure
+
+// FOR: naming the set of non-business days that a market observes, so a date
+// calculation can say WHICH holidays apply. TARGET is the euro-area interbank
+// calendar; USNY, GBLO and JPTO are the ISDA centre codes for New York, London
+// and Tokyo. `weekendDays` is here because not every centre closes Sat/Sun.
+Class core_calendar::CcCalendar
+{
+   calendarId: String[1];
+   calendarName: String[1];
+   financialCentre: String[1];
+   countryCode: String[1];
+   timeZone: String[1];
+   weekendDays: String[1];
+   isActive: Boolean[1];
+
+   holidays: core_calendar::CcHoliday[*];
+   holidayCounts: core_calendar::CcHolidayCount[*];
+}
+
+// FOR: one dated non-business day on one calendar -- 'Good Friday', 'Thanksgiving
+// Day', 'Early May Bank Holiday', 'Coming of Age Day'. `isObserved` carries the
+// case where the true date falls on a weekend and the market shuts on an adjacent
+// day instead; `holidayYear` is stored, not derived, so the View can group on it.
+Class core_calendar::CcHoliday
+{
+   holidayId: String[1];
+   holidayDate: StrictDate[1];
+   holidayYear: Integer[1];
+   holidayName: String[1];
+   isObserved: Boolean[1];
+   isHalfDay: Boolean[1];
+
+   calendar: core_calendar::CcCalendar[1];
+}
+
+// FOR: the venue a trade is done on, and the one calendar its dates are struck
+// against. Separate from CcCalendar because several markets share a calendar
+// (XLON and XLOD both keep GBLO) and one market can run several cycles.
+Class core_calendar::CcMarket
+{
+   mic: String[1];
+   marketName: String[1];
+   settlementCurrency: String[1];
+   isActive: Boolean[1];
+
+   calendar: core_calendar::CcCalendar[1];
+   settlementCycles: core_calendar::CcSettlementCycle[*];
+}
+
+// FOR: the T+n convention in force for one asset class on one market -- US and
+// Canadian equities moved to T+1 in May 2024, EU and UK equities are still T+2,
+// JGBs settle T+1. `effectiveFrom` is what makes that a fact rather than an
+// opinion: the cycle changed on a date and the old row is still true before it.
+Class core_calendar::CcSettlementCycle
+{
+   cycleId: String[1];
+   assetClass: String[1];
+   cycleCode: String[1];
+   settlementDays: Integer[1];
+   cutoffTime: String[1];
+   effectiveFrom: StrictDate[1];
+
+   market: core_calendar::CcMarket[1];
+}
+
+// FOR: how many holidays a calendar has in a year, WITHOUT reading the holidays.
+// Mapped to the CC_HOLIDAY_COUNT View, so this class has no table of its own --
+// the aggregation happens in the store and a settlement-date calculation reads
+// one row per calendar-year instead of scanning CC_HOLIDAY.
+Class core_calendar::CcHolidayCount
+{
+   calendarId: String[1];
+   holidayYear: Integer[1];
+   holidayCount: Integer[1];
+}
+
+// The lag in calendar-cycle days, as a function rather than a property, so
+// downstream projects can call it extension-style on any cycle they hold:
+// `$cycle->core_calendar::ccSettlementLagDays()`.
+function core_calendar::ccSettlementLagDays(cycle: core_calendar::CcSettlementCycle[1]): Integer[1]
+{
+   $cycle.settlementDays
+}
+
+// The T+2 predicate, written once here rather than as `== 2` scattered across
+// every downstream query that has to branch on it.
+function core_calendar::ccIsTPlusTwo(cycle: core_calendar::CcSettlementCycle[1]): Boolean[1]
+{
+   $cycle.settlementDays == 2
+}
+
+// Business days in a year for a calendar, from the VIEW's count. 261 is the
+// weekday count of a common year; subtracting the holiday count is the cheap
+// approximation a capacity or accrual estimate wants, and it is cheap precisely
+// because the count came pre-aggregated out of the store.
+function core_calendar::ccBusinessDaysInYear(count: core_calendar::CcHolidayCount[1]): Integer[1]
+{
+   261 - $count.holidayCount
+}

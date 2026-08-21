@@ -1,0 +1,93 @@
+###Pure
+
+// Units of measure for physical commodities, in their own package because every downstream
+// project that carries a quantity has to say what the quantity is IN, and none of them
+// should each invent their own code list.
+
+// FOR: saying WHAT is being measured -- volume, energy, mass, agricultural count. A unit is
+// only convertible to another unit of the same kind, so this is the class that makes a
+// conversion legal or illegal; it also names the base unit every factor in its kind is
+// expressed against.
+Class core_units::CuQuantityKind
+{
+   kindCode: String[1];
+   kindName: String[1];
+   // The unit whose factorToBase is 1.0 -- barrels for volume, MWh for energy, tonnes for
+   // mass. Held as a code rather than as a reference, because the base unit points back at
+   // its kind and a mutual reference would make either one unloadable alone.
+   baseUnitCode: String[1];
+   // False for the interval scales (temperature), where a conversion needs an offset as
+   // well as a factor and ratios are meaningless.
+   isRatioScale: Boolean[1];
+}
+
+// FOR: one unit a commodity quantity can be quoted in -- barrel, therm, MWh, troy ounce,
+// metric tonne, bushel -- carrying both the factor that takes it to the base unit of its
+// kind and the number of decimals a quantity in it is legitimately carried to. The two
+// travel together on purpose: converting without then rounding to the target unit's
+// precision is how a position breaks by a thousandth of a lot.
+Class core_units::CuUnit
+{
+   unitCode: String[1];
+   unitName: String[1];
+   symbol: String[1];
+   kindCode: String[1];
+   // SMALLINT in the store: nothing is quoted to more than a handful of decimals, and a
+   // 32-bit column for a number that never exceeds 12 is a column nobody reads twice.
+   decimals: Integer[1];
+   factorToBase: Float[1];
+   isSiUnit: Boolean[1];
+
+   quantityKind: core_units::CuQuantityKind[1];
+
+   // The base unit of a kind is the one that converts to itself.
+   isBaseUnit() { $this.factorToBase == 1.0 } : Boolean[1];
+   // A quantity in this unit, expressed in the base unit of its kind.
+   toBase(quantity: Float[1]) { $quantity * $this.factorToBase } : Float[1];
+   // How a unit is shown on a confirm: "1000 bbl".
+   label() { $this.unitName + ' (' + $this.symbol + ')' } : String[1];
+}
+
+// FOR: the published conversion between two named units, where the derived factor-to-base
+// ratio is not good enough -- a barrel of crude to a metric tonne depends on the grade, a
+// therm to an MWh is fixed by statute, and both are sourced and revised rather than
+// calculated. Keyed by the ordered pair, so BBL->MT and MT->BBL are two rows and neither is
+// silently inverted.
+Class core_units::CuConversion
+{
+   fromUnitCode: String[1];
+   toUnitCode: String[1];
+   factor: Float[1];
+   // Zero for every ratio-scale pair; non-zero only for the interval scales, which is why
+   // it is a column and not an assumption.
+   offsetValue: Float[1];
+   sourceName: String[1];
+   revision: Integer[1];
+   effectiveFrom: StrictDate[1];
+   // The agreed tolerance, in percent, within which two parties' conversions still agree.
+   tolerancePct: Float[1];
+
+   fromUnit: core_units::CuUnit[1];
+   toUnit: core_units::CuUnit[1];
+
+   // Apply the conversion to a quantity. Offset first is wrong for ratio scales and right
+   // for interval ones, so it is applied after the factor and is zero everywhere else.
+   convert(quantity: Float[1]) { ($quantity * $this.factor) + $this.offsetValue } : Float[1];
+}
+
+// FOR: how far a quantity in a given unit is rounded in a given context -- an exchange lot,
+// a settlement instruction, an invoice. The same unit rounds differently depending on who
+// is reading it, so precision belongs on the pair and not on the unit.
+Class core_units::CuUnitPrecision
+{
+   unitCode: String[1];
+   contextCode: String[1];
+   decimals: Integer[1];
+   // The smallest tradable step, which is not always 10^-decimals: bushels trade in
+   // quarter-cent increments regardless of how many decimals are stored.
+   minIncrement: Float[1];
+   roundingMode: String[1];
+   lotSize: Integer[1];
+
+   unit: core_units::CuUnit[1];
+}

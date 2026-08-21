@@ -1,0 +1,111 @@
+###Pure
+
+// Static reference data as a firm actually distributes it: the code lists it publishes, the
+// values in them, the standard constants that go out alongside them, and the desk that is
+// accountable for each. Everything here is versioned by an effective date rather than
+// overwritten, because a downstream extract run for last quarter has to see last quarter's
+// list.
+//
+// Depends on core-types for its governance profile, its country enum and its date helper,
+// and on core-units for the unit a standard value is expressed in -- core-units keeps its
+// tables in the `uom` SCHEMA, so every reference to them, here and in the mapping, is
+// schema-qualified.
+
+// FOR: naming the team accountable for a piece of static data. A code list with no owner is
+// a code list nobody retires, so ownership is a first-class row rather than a free-text
+// column on the list.
+Class static_core::StcDataOwner
+{
+   ownerCode: String[1];
+   ownerName: String[1];
+   contactEmail: String[1];
+   // Which regulator's rules the owning desk publishes under. The enum comes from
+   // core-types so that two projects cannot disagree about what 'GB' means.
+   jurisdiction: core_types::CtCountry[1];
+   // The firm-wide golden source for its domain, as opposed to a regional copy that is
+   // allowed to lag it.
+   isPrimarySource: Boolean[1];
+
+   // How an owner is shown on a distribution manifest.
+   label() { $this.ownerName + ' <' + $this.contactEmail + '>' } : String[1];
+}
+
+// FOR: one published code list -- settlement venues, product classifications, holiday
+// centres. This is the header: what the list is, who owns it, when it was first published
+// and how often it must be re-reviewed. The members live in StcCodeValue.
+Class <<core_types::CtGovernance.reviewed>>
+      {core_types::CtGovernance.owner = 'ref-data-team',
+       core_types::CtGovernance.since = '2024-03-01'}
+      static_core::StcCodeList
+{
+   listCode: String[1];
+   listName: String[1];
+   // The broad subject area -- SETL, PROD, GEOG -- so a consumer can subscribe to a domain
+   // rather than to a list at a time.
+   domainCode: String[1];
+   ownerCode: String[1];
+   // How long a published list may stand before it is re-attested, in calendar days.
+   reviewDays: Integer[1];
+   publishedFrom: StrictDate[1];
+   // Null while the list is live. A null test rather than an IS_ACTIVE flag, because a
+   // retirement has a date and a flag does not.
+   retiredOn: StrictDate[0..1];
+
+   owner: static_core::StcDataOwner[1];
+   values: static_core::StcCodeValue[*];
+
+   // When this list next falls due for attestation. Calendar days, via core-types -- a
+   // business-day version would need core-calendar, which is not a dependency here.
+   nextReviewDate() { core_types::ctValueDate($this.publishedFrom, $this.reviewDays) } : Date[1];
+   isRetired() { !$this.retiredOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: one member of a code list, with the window over which it is a legal value. Values are
+// added and superseded far more often than lists are, and a consumer that resolves a code
+// against the wrong date books against a value that did not exist yet.
+Class static_core::StcCodeValue
+{
+   listCode: String[1];
+   valueCode: String[1];
+   displayName: String[1];
+   description: String[0..1];
+   // The order the value is shown in a picker, which is rarely alphabetical.
+   displayOrder: Integer[1];
+   effectiveFrom: StrictDate[1];
+   // Null for the current value of its slot; set when a later value supersedes it.
+   effectiveThru: StrictDate[0..1];
+
+   list: static_core::StcCodeList[1];
+
+   isCurrent() { $this.effectiveThru->isEmpty() } : Boolean[1];
+}
+
+// FOR: a standard numeric constant the firm distributes with its code lists -- a standard
+// barrel-to-tonne density, a standard contract size, a standard delivery increment. It is
+// static data and not a market observation, but it is meaningless without a UNIT, so it
+// reaches across into core-units for one: the unit lives in that project's `uom` schema and
+// is joined to by code.
+Class static_core::StcStandardValue
+{
+   standardCode: String[1];
+   standardName: String[1];
+   magnitude: Float[1];
+   // The code of the core-units unit this magnitude is quoted in, kept as a column as well
+   // as a reference so a consumer can read the pair without resolving the join.
+   unitCodeRef: String[1];
+   ownerCode: String[1];
+   effectiveFrom: StrictDate[1];
+   // The tolerance, in percent, within which a counterparty's own copy still agrees.
+   tolerancePct: Float[1];
+
+   // The cross-project reference: a unit from core-units, reached by a join onto
+   // [core_units::Store]uom.CU_UNIT.
+   unit: core_units::CuUnit[1];
+   owner: static_core::StcDataOwner[1];
+
+   // The same constant expressed in the base unit of its kind, so two standards quoted in
+   // different units of one kind can be compared. Calls the upstream unit's own qualified
+   // property rather than re-deriving the factor here.
+   magnitudeInBaseUnit() { $this.unit.toBase($this.magnitude) } : Float[1];
+   label() { $this.standardName + ' = ' + $this.magnitude->toString() + ' ' + $this.unitCodeRef } : String[1];
+}

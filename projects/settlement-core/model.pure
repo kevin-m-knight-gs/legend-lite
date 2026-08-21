@@ -1,0 +1,295 @@
+// ============================================================
+// settlement-core (L1) -- settlement instructions and where they settle
+// ============================================================
+// Depends on core-party (the counterparty and the place operator are legal entities, and
+// this project refuses to re-model them) and on core-calendar (the intended settlement date
+// is T + the market's cycle, counted on the market's calendar, and neither the cycle nor
+// the calendar lives here).
+//
+// The one shape worth stating before the classes: an instruction does NOT carry a calendar.
+// It carries a market MIC, and the calendar is two joins away -- instruction -> CC_MARKET ->
+// CC_CALENDAR. That is deliberate. A settlement date changes when the market changes its
+// calendar, not when someone re-keys a calendar id onto ten thousand instruction rows, and
+// the join chain in mapping.pure is the modelled form of exactly that sentence.
+//
+// Refers to core_party:: and core_calendar:: and to nothing else outside settlement_core::.
+
+###Pure
+
+// FOR: how the two sides of a settlement are made conditional on each other. DVP is the
+// one that matters -- securities move only if cash moves -- and FOP is its absence, which
+// is why a free-of-payment instruction against an external counterparty is the thing
+// operations teams gate on. PVP is the FX case (both legs are cash, in two currencies).
+Enum settlement_core::ScDeliveryMethod
+{
+   DVP,
+   RVP,
+   FOP,
+   DWP,
+   PVP
+}
+
+// FOR: where an instruction has got to in the settlement chain. NEW..MATCHED is the
+// pre-settlement lifecycle at the CSD; FAILED is not terminal, since a fail is retried on
+// the next cycle, and CANCELLED is.
+Enum settlement_core::ScInstructionStatus
+{
+   NEW,
+   VALIDATED,
+   MATCHED,
+   SETTLED,
+   FAILED,
+   CANCELLED
+}
+
+// FOR: which way an individual leg moves, from OUR side. Stated per leg rather than per
+// instruction because a DVP instruction has one leg of each direction.
+Enum settlement_core::ScSettlementDirection
+{
+   DELIVER,
+   RECEIVE
+}
+
+// FOR: whether a standing settlement instruction may actually be used. A PENDING SSI has
+// been captured but not confirmed with the counterparty, and using one is how a payment
+// ends up at the wrong agent.
+Enum settlement_core::ScSsiStatus
+{
+   ACTIVE,
+   PENDING,
+   SUSPENDED,
+   EXPIRED
+}
+
+// FOR: the CSD, ICSD or agent bank at which securities and cash actually change hands --
+// DTC, Euroclear Bank, Clearstream, CREST. Keyed by BIC because that is the identifier the
+// SWIFT message carries. `operator` is the legal entity that runs the place, which is a
+// different fact from the place itself: Euroclear Bank SA/NV is a party, its ICSD is a
+// venue, and only the venue has an opening calendar.
+Class settlement_core::ScPlaceOfSettlement
+{
+   placeBic: String[1];
+   placeName: String[1];
+   // ICSD | CSD | CUSTODIAN | AGENT -- a string and not an enum, because the boundary
+   // between an ICSD and a large custodian is a matter of licence, not of type.
+   placeKind: String[1];
+   countryCode: String[1];
+   isActive: Boolean[1];
+
+   // The legal person operating the venue, from core-party.
+   operator: core_party::LegalEntity[0..1];
+   // The venue's own opening calendar, from core-calendar. Optional because an agent
+   // inside another CSD keeps no calendar of its own.
+   calendar: core_calendar::CcCalendar[0..1];
+   cutoffs: settlement_core::ScCutoff[*];
+}
+
+// FOR: the settlement convention in force for one asset class on one market -- which venue
+// it settles at by default and how. This is the row that turns "XLON, equity" into "settles
+// DVP at CREST", and it is per (market, asset class) because the same venue runs different
+// conventions for equities and for bonds.
+Class settlement_core::ScMarketSettlementProfile
+{
+   profileId: String[1];
+   assetClass: String[1];
+   defaultDeliveryMethod: settlement_core::ScDeliveryMethod[1];
+   allowsPartial: Boolean[1];
+
+   // The market whose MIC this profile is struck against, from core-calendar. Its calendar
+   // and its T+n cycle come with it.
+   market: core_calendar::CcMarket[1];
+   defaultPlace: settlement_core::ScPlaceOfSettlement[1];
+}
+
+// FOR: the settlement-side facts about a counterparty that the party master has no business
+// holding -- its settlement BIC, whether it clears for itself, when it was onboarded for
+// settlement. The legal identity stays in core-party and is reached through `entity`; what
+// is here is only what settlement operations owns.
+Class settlement_core::ScCounterparty
+{
+   counterpartyId: String[1];
+   settlementBic: String[0..1];
+   isSelfClearing: Boolean[1];
+   onboardedDate: StrictDate[0..1];
+
+   // The registered legal person, from core-party. One entity can appear as several
+   // settlement counterparties (one per clearing arrangement), which is why this class
+   // exists rather than being columns on LegalEntity.
+   entity: core_party::LegalEntity[1];
+   standingInstructions: settlement_core::ScStandingInstruction[*];
+}
+
+// FOR: the agent bank or global custodian that holds the account at a place of settlement
+// on someone's behalf. An SSI names one, and it is not the same thing as the counterparty:
+// paying the counterparty's custodian is what settlement actually does.
+Class settlement_core::ScCustodian
+{
+   custodianId: String[1];
+   custodianName: String[1];
+   // The membership code the custodian is known by AT the venue, which is not its BIC.
+   participantCode: String[0..1];
+
+   entity: core_party::LegalEntity[1];
+   place: settlement_core::ScPlaceOfSettlement[1];
+}
+
+// FOR: the standing settlement instruction -- where a given counterparty wants a given
+// currency delivered, standing until it is changed. Dated, because an SSI change is a
+// migration with a date and not an edit: instructions already in flight keep the old one.
+Class settlement_core::ScStandingInstruction
+{
+   ssiId: String[1];
+   currencyCode: String[1];
+   status: settlement_core::ScSsiStatus[1];
+   effectiveFrom: StrictDate[1];
+   effectiveTo: StrictDate[0..1];
+
+   counterparty: settlement_core::ScCounterparty[1];
+   place: settlement_core::ScPlaceOfSettlement[1];
+   custodian: settlement_core::ScCustodian[0..1];
+   accounts: settlement_core::ScSettlementAccount[*];
+
+   // Open-ended, therefore still standing. The end date is what is tested, not the status,
+   // because a SUSPENDED SSI is still the current one.
+   isOpenEnded() { $this.effectiveTo->isEmpty() } : Boolean[1];
+   isUsable() { $this.status == settlement_core::ScSsiStatus.ACTIVE } : Boolean[1];
+}
+
+// FOR: the actual account number an SSI points at, at the venue. Split from the SSI because
+// a single instruction names two -- a securities account and a cash account -- and they are
+// different accounts at possibly different places.
+Class settlement_core::ScSettlementAccount
+{
+   accountId: String[1];
+   accountNumber: String[1];
+   // SECURITIES | CASH
+   accountType: String[1];
+   currencyCode: String[0..1];
+
+   ssi: settlement_core::ScStandingInstruction[1];
+   place: settlement_core::ScPlaceOfSettlement[1];
+}
+
+// FOR: the instruction itself -- one trade's settlement, at one venue, on one date, against
+// one counterparty. The class this project exists for.
+//
+// `intendedSettlementDate` is stored rather than derived: it was computed once from the
+// market's cycle and calendar at instruction time, and re-deriving it later would silently
+// re-date instructions that are already matched at the CSD. What IS derived, through the
+// join chain, is the calendar CONTEXT that date was struck against, so a break can be
+// explained without a second query.
+Class settlement_core::ScSettlementInstruction
+{
+   instructionId: String[1];
+   tradeRef: String[1];
+   assetClass: String[1];
+   deliveryMethod: settlement_core::ScDeliveryMethod[1];
+   status: settlement_core::ScInstructionStatus[1];
+   tradeDate: StrictDate[1];
+   intendedSettlementDate: StrictDate[1];
+   actualSettlementDate: StrictDate[0..1];
+   settlementCurrency: String[1];
+   settlementAmount: Float[1];
+   isOnHold: Boolean[1];
+
+   // ---- reached through joins ----
+   counterparty: settlement_core::ScCounterparty[1];
+   ssi: settlement_core::ScStandingInstruction[0..1];
+   place: settlement_core::ScPlaceOfSettlement[1];
+   // The market, from core-calendar. Everything about the settlement date -- the T+n cycle
+   // and the holidays -- hangs off this one property.
+   market: core_calendar::CcMarket[1];
+   legs: settlement_core::ScSettlementLeg[*];
+   events: settlement_core::ScSettlementEvent[*];
+   batch: settlement_core::ScSettlementBatch[0..1];
+
+   // ---- the join-chain properties: two hops each, ending in a dependency's column ----
+   // The calendar the settlement date was counted on, denormalised onto the instruction by
+   // the mapping rather than by a column, so it cannot go stale.
+   settlementCalendarId: String[0..1];
+   settlementCentre: String[0..1];
+   settlementWeekendDays: String[0..1];
+   // The counterparty's legal name, two joins away in the party master.
+   counterpartyLegalName: String[0..1];
+
+   isSettled() { $this.status == settlement_core::ScInstructionStatus.SETTLED } : Boolean[1];
+   isFailing() { $this.status == settlement_core::ScInstructionStatus.FAILED } : Boolean[1];
+   // A settlement that landed later than intended. Cheap and useful: this is the numerator
+   // of every settlement-efficiency number anyone asks for.
+   settledLate() { $this.actualSettlementDate->isNotEmpty() && ($this.actualSettlementDate > $this.intendedSettlementDate) } : Boolean[1];
+}
+
+// FOR: one side of an instruction -- the securities moving one way, the cash the other.
+// Separate from the instruction because DVP has two of them and FOP has one, and because
+// each leg lands in its own account.
+Class settlement_core::ScSettlementLeg
+{
+   legId: String[1];
+   direction: settlement_core::ScSettlementDirection[1];
+   // SECURITIES | CASH
+   legKind: String[1];
+   quantity: Float[0..1];
+   amount: Float[0..1];
+   currencyCode: String[0..1];
+
+   instruction: settlement_core::ScSettlementInstruction[1];
+   account: settlement_core::ScSettlementAccount[0..1];
+}
+
+// FOR: the dated audit trail of what happened to an instruction -- validated, matched,
+// failed, settled. The instruction carries only its CURRENT status; this carries how it
+// got there, which is what a settlement investigation reads.
+Class settlement_core::ScSettlementEvent
+{
+   eventId: String[1];
+   eventType: String[1];
+   resultingStatus: settlement_core::ScInstructionStatus[1];
+   eventDate: StrictDate[1];
+   eventTime: String[0..1];
+
+   instruction: settlement_core::ScSettlementInstruction[1];
+   failReason: settlement_core::ScFailReason[0..1];
+}
+
+// FOR: the CSD's reason code for a fail -- lack of securities, lack of cash, mismatched
+// SSI, on hold. A table and not an enum because each venue publishes its own code list and
+// they are added to without a model change.
+Class settlement_core::ScFailReason
+{
+   reasonCode: String[1];
+   reasonName: String[1];
+   // LIQUIDITY | STATIC_DATA | OPERATIONAL | COUNTERPARTY
+   reasonCategory: String[1];
+   isCounterpartyFault: Boolean[1];
+}
+
+// FOR: the time of day after which a venue will not accept an instruction for that day's
+// value, per currency. The reason an instruction that is perfectly correct settles a day
+// late: it arrived at 16:05.
+Class settlement_core::ScCutoff
+{
+   cutoffId: String[1];
+   currencyCode: String[1];
+   // The kind of instruction the cutoff applies to: DVP | FOP | CASH.
+   instructionKind: String[1];
+   cutoffTime: String[1];
+   // Days relative to intended settlement date -- 0 for same-day, -1 for a venue that
+   // wants pre-matching the evening before.
+   offsetDays: Integer[1];
+
+   place: settlement_core::ScPlaceOfSettlement[1];
+}
+
+// FOR: the group of instructions a venue releases together in one settlement run. Fails
+// cluster by batch far more than by counterparty, so the batch is worth naming.
+Class settlement_core::ScSettlementBatch
+{
+   batchId: String[1];
+   batchName: String[1];
+   batchDate: StrictDate[1];
+   releaseTime: String[0..1];
+   isReleased: Boolean[1];
+
+   place: settlement_core::ScPlaceOfSettlement[1];
+   instructions: settlement_core::ScSettlementInstruction[*];
+}

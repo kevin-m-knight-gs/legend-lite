@@ -1,0 +1,414 @@
+###Pure
+// legal-core -- the master agreements two parties trade under, and the terms that decide what
+// happens when one of them defaults.
+//
+// The shape worth stating once, because every class below is a consequence of it: a master
+// agreement is not a document, it is a SINGLE AGREEMENT between exactly two legal persons.
+// The ISDA Master, its Schedule, every Confirmation under it and every Credit Support Annex
+// are one contract, which is the entire reason close-out netting works: on default there is
+// one net sum owed, not one claim per trade. So the parties are modelled as rows keyed by the
+// ROLE they sign in -- Party A, Party B, the guarantor, the credit support provider -- and
+// each of those rows points at a core_party::LegalEntity, because who signed is a party-master
+// fact and this project has no business restating it.
+//
+// Layer 1: depends on core-party and on nothing else.
+
+// The governance vocabulary for legal documentation. Separate from any upstream profile
+// because the question a legal reviewer asks is not the question a data owner asks: whether
+// the wording has been through counsel, and whether it still matches the house template.
+Profile legal_core::LglControlled
+{
+   stereotypes: [ legallyReviewed, templateDeviation, negotiated ];
+   tags: [ reviewedBy, reviewDate, opinionRef, deviationTicket ];
+}
+
+
+// The umbrella contract between two parties -- an ISDA Master, a GMRA, a GMSLA -- under which
+// individual transactions are struck.
+//
+// Stereotyped and tagged because this is the class every downstream exposure and netting
+// calculation hangs off, and a change to it is a change to somebody's regulatory capital.
+Class <<legal_core::LglControlled.legallyReviewed>>
+      {legal_core::LglControlled.reviewedBy = 'legal-ops',
+       legal_core::LglControlled.reviewDate = '2025-03-31'}
+      legal_core::MasterAgreement
+{
+   agreementId: String[1];
+   typeCode: String[1];
+   lawCode: String[1];
+   // What the desk calls it. Not a key: the same reference is reused across a group's
+   // subsidiaries often enough that it identifies nothing.
+   agreementReference: String[1];
+   executionDate: StrictDate[1];
+   effectiveDate: StrictDate[0..1];
+   // Set when the agreement is terminated, never cleared. Trades under a terminated master
+   // survive it, and so must the row.
+   terminationDate: StrictDate[0..1];
+   terminationCurrency: String[1];
+   documentStatus: String[1];
+   // Multibranch means Party A may act through any of its listed branches and the netting
+   // opinion has to cover every one of them, so it is a term of the agreement rather than a
+   // booking detail.
+   isMultibranch: Boolean[1];
+   isUmbrella: Boolean[1];
+
+   // In force until terminated. The absence of the date is the test, not the row's presence.
+   isLive() { $this.terminationDate->isEmpty() } : Boolean[1];
+}
+
+// A published master form -- ISDA 2002, ISDA 1992 Multicurrency Cross-Border, GMRA 2011,
+// GMSLA 2010 -- and what it is architecturally.
+//
+// Kept as a class rather than an enum because a netting opinion is written per form, and an
+// enum cannot carry the publisher and the year that the opinion is scoped to.
+Class legal_core::AgreementType
+{
+   typeCode: String[1];
+   formName: String[1];
+   // ISDA, ICMA/SIFMA, ISLA. The trade association that owns the wording.
+   publisher: String[1];
+   publicationYear: Integer[1];
+   productScope: String[1];
+   // A master form; false for the annexes and confirmations that hang off one.
+   isMasterForm: Boolean[1];
+   // Whether the form contains the single-agreement clause, which is the clause the whole of
+   // close-out netting depends on.
+   hasSingleAgreementClause: Boolean[1];
+}
+
+// The law the agreement is construed under, and the courts that hear a dispute about it.
+//
+// Not the same question as where either party is incorporated: an English-law ISDA between a
+// German bank and a Japanese fund is the ordinary case, and the enforceability analysis then
+// spans three legal systems.
+Class legal_core::GoverningLaw
+{
+   lawCode: String[1];
+   lawName: String[1];
+   // Exclusive or non-exclusive submission, and to whose courts. Prose rather than a code
+   // because the clause is prose and flattening it loses the exclusivity.
+   forumClause: String[1];
+   isCommonLaw: Boolean[1];
+   // Whether the courts here recognise close-out netting as a matter of law, before any
+   // opinion is commissioned for a particular counterparty type.
+   recognisesCloseOutNetting: Boolean[1];
+}
+
+// One legal entity's role in one agreement: who is Party A, who is Party B, who guarantees.
+//
+// Keyed (agreement, role) rather than (agreement, entity), because the interesting question
+// is always "who is Party B on this master" and because the same entity can appear twice --
+// as Party A and as its affiliate's credit support provider -- without the row colliding.
+// This is the class that reaches core-party.
+Class legal_core::AgreementParty
+{
+   agreementId: String[1];
+   partyRole: String[1];
+   entityId: String[1];
+   // The branch the party books through, meaningful only on a multibranch master.
+   bookingBranch: String[0..1];
+   isCalculationAgent: Boolean[1];
+   signedOn: StrictDate[0..1];
+   signatoryName: String[0..1];
+   noticeAddressRef: String[0..1];
+}
+
+// A Credit Support Annex or Deed: the collateral terms attached to one master.
+//
+// Keyed (agreement, annexCode) because one master routinely carries several -- a variation
+// margin CSA and a regulatory initial margin CSA/CSD are different documents with different
+// thresholds, different custodians and different transfer mechanics, and collapsing them to
+// one annex per master is how an IM call gets netted against a VM call that was never
+// nettable.
+Class <<legal_core::LglControlled.negotiated>>
+      {legal_core::LglControlled.reviewedBy = 'collateral-legal'}
+      legal_core::CreditSupportAnnex
+{
+   agreementId: String[1];
+   annexCode: String[1];
+   annexForm: String[1];
+   // VM or IM. The regulatory regime differs, and so does whether the collateral may be
+   // rehypothecated at all.
+   marginType: String[1];
+   // Title transfer (English law CSA) versus security interest (New York law CSA). The single
+   // most consequential term in the document: it decides whether posted collateral is the
+   // taker's property or the poster's, and therefore what happens to it in an insolvency.
+   isTitleTransfer: Boolean[1];
+   baseCurrency: String[1];
+   // Unsecured exposure the taker tolerates before calling. Null is not zero: null means the
+   // term was left to the Schedule, zero means it was negotiated to nil.
+   threshold: Float[0..1];
+   minimumTransferAmount: Float[0..1];
+   roundingAmount: Float[0..1];
+   independentAmount: Float[0..1];
+   valuationAgent: String[0..1];
+   notificationTime: String[0..1];
+   // In scope of the uncleared margin rules, which makes the terms mandatory rather than
+   // negotiated.
+   isRegulatoryMargin: Boolean[1];
+
+   hasThreshold() { $this.threshold->isNotEmpty() } : Boolean[1];
+}
+
+// One asset an annex accepts as collateral, and at what valuation.
+//
+// Keyed by all three of (agreement, annex, asset): the same government bond is eligible at
+// 98% under the VM annex and ineligible under the IM annex of the SAME master, so neither the
+// annex nor the asset can be dropped from the key.
+Class legal_core::EligibleCollateral
+{
+   agreementId: String[1];
+   annexCode: String[1];
+   assetCode: String[1];
+   assetDescription: String[1];
+   // The percentage of market value the collateral counts for. The haircut is the complement,
+   // and is derived rather than stored so the two can never disagree.
+   valuationPercentage: Float[1];
+   collateralCurrency: String[1];
+   isCashEquivalent: Boolean[1];
+   minimumRating: String[0..1];
+   maximumResidualMaturityYears: Integer[0..1];
+   concentrationLimit: Float[0..1];
+
+   haircutPercentage() { 100.0 - $this.valuationPercentage } : Float[1];
+}
+
+// A law firm's opinion that close-out netting bites in one jurisdiction, for one master form,
+// against one type of counterparty.
+//
+// All three are part of the key and none is droppable: an opinion covering a bank in Germany
+// says nothing about an insurer in Germany, and a Delaware opinion on the 2002 ISDA does not
+// carry over to a GMRA. Capital relief for netting is only available where an opinion covers
+// the exact triple, which is why this table is read as a lookup and not as documentation.
+Class <<legal_core::LglControlled.legallyReviewed>>
+      {legal_core::LglControlled.opinionRef = 'NET-OPINIONS-2025',
+       legal_core::LglControlled.reviewDate = '2025-01-31'}
+      legal_core::NettingOpinion
+{
+   jurisdictionCode: String[1];
+   typeCode: String[1];
+   // BANK, INSURER, FUND, CORPORATE, SOVEREIGN, PENSION. The insolvency regime that applies
+   // to the counterparty, which is what the opinion is actually about.
+   counterpartyType: String[1];
+   opinionProvider: String[1];
+   opinionDate: StrictDate[1];
+   // Clean means unqualified. A qualified opinion is not a netting opinion for capital
+   // purposes, however encouraging its wording.
+   isCleanOpinion: Boolean[1];
+   supportsCloseOutNetting: Boolean[1];
+   // Enforceability of the collateral arrangement is a SEPARATE question from netting of the
+   // trades, and is opined on separately.
+   supportsCollateralEnforceability: Boolean[1];
+   lastReviewedDate: StrictDate[0..1];
+   qualification: String[0..1];
+
+   isQualified() { $this.qualification->isNotEmpty() } : Boolean[1];
+}
+
+// How the close-out amount is computed when an event of default is called.
+//
+// One per master, which is why it is keyed by the agreement alone. Split out from
+// MasterAgreement rather than folded into it because these are Schedule elections -- they are
+// negotiated separately, amended separately, and a master can exist while they are still open.
+Class legal_core::CloseOutTerms
+{
+   agreementId: String[1];
+   // MARKET_QUOTATION, LOSS (1992 forms) or CLOSE_OUT_AMOUNT (2002). Determines whether the
+   // determining party polls dealers or may use its own commercially reasonable model.
+   paymentMeasure: String[1];
+   // First Method or Second Method. First Method lets the defaulting party's in-the-money
+   // position be walked away from; almost nobody elects it, and knowing that requires the row.
+   payerBasis: String[1];
+   // Automatic Early Termination -- close-out happens by operation of the contract without a
+   // notice, elected where a local insolvency regime would otherwise freeze the right to
+   // terminate.
+   automaticEarlyTermination: Boolean[1];
+   setOffElected: Boolean[1];
+   terminationCurrency: String[1];
+   gracePeriodDays: Integer[1];
+   calculationAgentRole: String[0..1];
+
+   usesCloseOutAmount() { $this.paymentMeasure == 'CLOSE_OUT_AMOUNT' } : Boolean[1];
+}
+
+// A negotiated Schedule election: cross-default threshold, specified entities, additional
+// termination events.
+//
+// Keyed (agreement, election): the elections are the agreement. Two masters on the same
+// published form differ only here, and a downstream comparison of terms across a portfolio is
+// a comparison of these rows.
+Class legal_core::ElectionTerm
+{
+   agreementId: String[1];
+   electionCode: String[1];
+   electionName: String[1];
+   // Stereotyped at the PROPERTY level: the value is the bit that was bargained over, and a
+   // reviewer diffing two agreements looks at this column and no other.
+   <<legal_core::LglControlled.negotiated>> electedValue: String[1];
+   thresholdAmount: Float[0..1];
+   thresholdCurrency: String[0..1];
+   // An election can be asymmetric -- a threshold that applies to one party only is the normal
+   // outcome between a dealer and a fund.
+   appliesToPartyRole: String[0..1];
+   scheduleReference: String[0..1];
+}
+
+// A change to an executed agreement, in force from its own effective date.
+//
+// Keyed (agreement, number) and never overwritten: what the terms were on a past date is the
+// question an unwind or a dispute asks, and an amendment applied in place cannot answer it.
+Class legal_core::Amendment
+{
+   agreementId: String[1];
+   amendmentNumber: Integer[1];
+   // BILATERAL_AMENDMENT, AMENDED_AND_RESTATED, PROTOCOL_UPTAKE. Protocol uptake is here as
+   // well as in ProtocolAdherence because the protocol amends the agreement, and the agreement
+   // has to show that it was amended.
+   amendmentType: String[1];
+   effectiveDate: StrictDate[1];
+   amendedSection: String[0..1];
+   description: String[0..1];
+   // Marks the amendment as moving the document off the house template, which is what the
+   // templateDeviation stereotype exists to flag at the model level.
+   <<legal_core::LglControlled.templateDeviation>> isTemplateDeviation: Boolean[1];
+   executedBy: String[0..1];
+}
+
+// A published multilateral protocol -- 2013 EMIR Portfolio Reconciliation, 2020 IBOR Fallbacks,
+// the Stay Protocols.
+//
+// The mechanism matters: a protocol amends every agreement between any two adhering parties at
+// once, without either of them signing anything bilateral. So it is modelled as its own
+// element and the amendment it makes is derived from the pair of adherences, not from a row
+// per agreement.
+Class legal_core::Protocol
+{
+   protocolCode: String[1];
+   protocolName: String[1];
+   publisher: String[1];
+   publicationDate: StrictDate[1];
+   // Some protocols close to new adherents; most do not.
+   adherenceCutoffDate: StrictDate[0..1];
+   subjectMatter: String[1];
+   isMultilateral: Boolean[1];
+}
+
+// One entity's adherence to one protocol. The second class that reaches core-party.
+//
+// Keyed (protocol, entity), and adherence is by LEGAL ENTITY rather than by agreement -- that
+// is the whole point of a protocol. Revocation is recorded rather than deleted, because
+// agreements amended while the adherence was live stay amended.
+Class legal_core::ProtocolAdherence
+{
+   protocolCode: String[1];
+   entityId: String[1];
+   adherenceDate: StrictDate[1];
+   adherenceLetterRef: String[0..1];
+   // Adhering as principal, as agent for funds, or both. An asset manager's adherence letter
+   // covering 400 funds is one row here and 400 agreements amended downstream.
+   adheringCapacity: String[0..1];
+   isRevoked: Boolean[1];
+   revocationDate: StrictDate[0..1];
+
+   isEffective() { $this.revocationDate->isEmpty() } : Boolean[1];
+}
+
+
+// ---------------------------------------------------------------- associations
+// Navigation only. Two of these cross the project boundary into core-party, which is the
+// point of this layer: the agreement knows who signed it without holding a copy of the party
+// master.
+
+// An agreement to its published form.
+Association legal_core::LglAgreementForm
+{
+   agreementType: legal_core::AgreementType[1];
+   agreementsOfType: legal_core::MasterAgreement[*];
+}
+
+Association legal_core::LglAgreementLaw
+{
+   governingLaw: legal_core::GoverningLaw[1];
+   agreementsUnderLaw: legal_core::MasterAgreement[*];
+}
+
+// The two (or more) signatories. To-many rather than two named ends, because guarantors and
+// credit support providers are parties to the same document and a pair of ends cannot hold
+// them.
+Association legal_core::LglAgreementParties
+{
+   partyAgreement: legal_core::MasterAgreement[1];
+   parties: legal_core::AgreementParty[*];
+}
+
+// CROSSES INTO core-party. The role row points at the registered legal person, so "every
+// master this entity is Party B on" is one hop from the party master and the entity's legal
+// name is never copied into this project.
+Association legal_core::LglPartyEntity
+{
+   partyEntity: core_party::LegalEntity[1];
+   agreementRoles: legal_core::AgreementParty[*];
+}
+
+Association legal_core::LglAgreementAnnexes
+{
+   annexAgreement: legal_core::MasterAgreement[1];
+   creditSupportAnnexes: legal_core::CreditSupportAnnex[*];
+}
+
+// Reached by a TWO-column join, because an annex is only identified together with its master.
+Association legal_core::LglAnnexCollateral
+{
+   collateralAnnex: legal_core::CreditSupportAnnex[1];
+   eligibleCollateral: legal_core::EligibleCollateral[*];
+}
+
+// [0..1] on the terms side: a master can be executed with its close-out elections still open.
+Association legal_core::LglAgreementCloseOut
+{
+   closeOutAgreement: legal_core::MasterAgreement[1];
+   closeOutTerms: legal_core::CloseOutTerms[0..1];
+}
+
+Association legal_core::LglAgreementElections
+{
+   electedAgreement: legal_core::MasterAgreement[1];
+   elections: legal_core::ElectionTerm[*];
+}
+
+Association legal_core::LglAgreementAmendments
+{
+   amendedAgreement: legal_core::MasterAgreement[1];
+   amendments: legal_core::Amendment[*];
+}
+
+Association legal_core::LglProtocolAdherences
+{
+   adheredProtocol: legal_core::Protocol[1];
+   adherences: legal_core::ProtocolAdherence[*];
+}
+
+// CROSSES INTO core-party. Adherence is an attribute of the entity, not of any one agreement,
+// so this end is what lets a downstream project ask whether both sides of a master have
+// adhered -- which is the test for whether the protocol amended it.
+Association legal_core::LglAdherentEntity
+{
+   adherentEntity: core_party::LegalEntity[1];
+   protocolAdherences: legal_core::ProtocolAdherence[*];
+}
+
+// An opinion is written about a form, so the form is one leg of the lookup.
+Association legal_core::LglTypeOpinions
+{
+   opinionAgreementType: legal_core::AgreementType[1];
+   nettingOpinions: legal_core::NettingOpinion[*];
+}
+
+// CROSSES INTO core-party, to Jurisdiction rather than to LegalEntity: an opinion is about a
+// legal system and its insolvency regime, and core-party's Jurisdiction is already that
+// concept -- Delaware and Jersey included, which is exactly the granularity an opinion needs.
+Association legal_core::LglOpinionJurisdiction
+{
+   opinionJurisdiction: core_party::Jurisdiction[1];
+   jurisdictionOpinions: legal_core::NettingOpinion[*];
+}
