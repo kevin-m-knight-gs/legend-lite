@@ -242,24 +242,10 @@ class InferenceKernelTest {
         k.unify(new Type.ClassType(Pure.ANY.qualifiedName()), Type.Primitive.INTEGER, new Bindings());
     }
 
-    // ---- relations (G-alpha: bridge + unwrap) --------------------------
+    // ---- relations (reference-faithful: wrapper preserved) -------------
 
     @Test
-    void relation_bridgesBareRowAndUnwrapsOnResolve() {
-        InferenceKernel k = kernel();
-        Type formal = new Type.GenericType(REL, List.of(new Type.TypeVar("T")));
-        Type.RelationType row = rel(col("x", Type.Primitive.INTEGER));
-
-        Bindings b = new Bindings();
-        k.unify(formal, row, b);                       // actual is a BARE RelationType
-        assertEquals(row, b.type("T").orElseThrow());  // schema var bound to the row-struct
-
-        // resolving Relation<T> unwraps to the bare row-struct (the value form)
-        assertEquals(row, k.resolve(formal, b));
-    }
-
-    @Test
-    void relation_bridgesWrappedActualToo() {
+    void relation_bindsSchemaAndStaysWrappedOnResolve() {
         InferenceKernel k = kernel();
         Type formal = new Type.GenericType(REL, List.of(new Type.TypeVar("T")));
         Type.RelationType row = rel(col("x", Type.Primitive.INTEGER));
@@ -267,7 +253,25 @@ class InferenceKernelTest {
 
         Bindings b = new Bindings();
         k.unify(formal, wrapped, b);
+        // Row-vs-Relation (model B, pure's own spelling): T binds the
+        // BARE SCHEMA STRUCT — pure's pun, the schema IS the row type.
         assertEquals(row, b.type("T").orElseThrow());
+
+        // resolving Relation<T> KEEPS the wrapper — a table type leaves
+        // resolution as GenericType(Relation, [schema]); the G-alpha
+        // erasure is deleted, not inverted.
+        assertEquals(wrapped, k.resolve(formal, b));
+    }
+
+    @Test
+    void relation_bareRowActualDoesNotConformToRelationFormal() {
+        // A bare struct is a ROW value — the type distinction the split
+        // enforces: rows never flow into Relation<T> parameters.
+        InferenceKernel k = kernel();
+        Type formal = new Type.GenericType(REL, List.of(new Type.TypeVar("T")));
+        Type.RelationType row = rel(col("x", Type.Primitive.INTEGER));
+        assertThrows(TypeInferenceException.class,
+                () -> k.unify(formal, row, new Bindings()));
     }
 
     @Test
@@ -438,9 +442,10 @@ class InferenceKernelTest {
                 List.of(new TypedParameter("r", relParam, Multiplicity.Bounded.ONE)),
                 relParam, Multiplicity.Bounded.ONE, Optional.empty(), true);
         Type.RelationType row = rel(col("x", Type.Primitive.INTEGER));
+        Type wrapped = new Type.GenericType(REL, List.of(row));
         InferenceKernel.Resolution r = kernel().resolveOverload(
-                List.of(foo), List.of(et(row, Multiplicity.Bounded.ZERO_MANY)));   // arg is [*], param is [1]
-        assertEquals(row, r.output().type());   // Relation<T> resolves to the bare row-struct
+                List.of(foo), List.of(et(wrapped, Multiplicity.Bounded.ZERO_MANY)));   // arg is [*], param is [1]
+        assertEquals(wrapped, r.output().type());   // Relation<T> stays wrapped (model B)
     }
 
     // ---- resolution error branches --------------------------------------

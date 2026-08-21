@@ -21,8 +21,8 @@ final class MapChecker {
         // the (unknown) row count, never the relation VALUE's multiplicity —
         // a Relation[1] source (the Result.values envelope, audit 19d B2)
         // must not type its row map [0..1].
-        if (a.args().get(0).info().type()
-                instanceof com.legend.compiler.element.type.Type.RelationType) {
+        if (com.legend.compiler.element.type.Type
+                .isRelation(a.args().get(0).info().type())) {
             out = new com.legend.compiler.element.type.ExprType(out.type(),
                     com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY);
         }

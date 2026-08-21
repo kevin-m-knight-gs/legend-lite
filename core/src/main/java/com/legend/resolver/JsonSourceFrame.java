@@ -171,15 +171,26 @@ final class JsonSourceFrame {
                 new Type.Column("data", variant, one),
                 new Type.Column(FRAME_ORDINAL, Type.Primitive.INTEGER, one)));
         ExprType rowInfo = new ExprType(rowType, one);
-        TypedSpec pipeline = new TypedTds(rows, rowInfo);
+        TypedSpec pipeline = new TypedTds(rows,
+                new ExprType(Type.relation(rowType), one));
         String rowVar = "src_json";
         TypedSpec data = new TypedPropertyAccess(
                 new TypedVariable(rowVar, rowInfo), "data",
                 new ExprType(variant, one));
-        TypedFunction getFn = fn(ctx,
-                "meta::pure::functions::variant::navigation::get", 2);
+        // the STRING-key overload (real get.pure has two 2-arg forms:
+        // String key and Integer index — audit slice 2 registered both)
+        TypedFunction getFn = ctx.findFunction(
+                        "meta::pure::functions::variant::navigation::get")
+                .stream()
+                .filter(f -> f.parameters().size() == 2
+                        && f.parameters().get(1).type()
+                                == com.legend.compiler.element.type
+                                        .Type.Primitive.STRING)
+                .findFirst().orElseThrow(() -> new IllegalStateException(
+                        "resolver bug: the String-key variant get overload"
+                        + " is not in the catalog"));
         TypedFunction toOneFn = fn(ctx,
-                "meta::pure::functions::multiplicity::toOne", 1);
+                com.legend.builtin.Pure.Lite.TRUST_ONE, 1);
         Map<String, TypedSpec> bindings = new LinkedHashMap<>();
         for (var p : cls.properties()) {
             // Variant IS a column carrier; other class-typed properties

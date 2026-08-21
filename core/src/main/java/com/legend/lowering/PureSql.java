@@ -132,8 +132,15 @@ final class PureSql {
             }
             case Type.FunctionType f -> throw new IllegalStateException(
                     "a function value has no SQL type (" + f.typeName() + ")");
-            case Type.RelationType r -> throw new IllegalStateException(
-                    "a relation is a SOURCE, not a scalar SQL type (" + r.typeName() + ")");
+            // a bare struct is a ROW value — no bare SQL carrier yet
+            // (the split's lowering leg): loud, per this switch's own
+            // contract. A TABLE (wrapped Relation<T>) lands in the
+            // GenericType arm's loud fallback — a relation is a SOURCE,
+            // not a scalar SQL type.
+            case Type.RelationType r -> throw new com.legend.error
+                    .NotImplementedException("a row value has no SQL"
+                    + " carrier yet (Row-vs-Relation split): "
+                    + r.typeName());
             case Type.SchemaAlgebra a -> throw new IllegalStateException(
                     "unresolved schema algebra " + a.typeName() + " reached the lowering boundary");
         };

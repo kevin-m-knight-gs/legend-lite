@@ -75,7 +75,7 @@ final class TableReferenceChecker {
                         "unknown table '" + resolvedName + "' in database '" + dbRef.fullPath() + "'"));
         String carried = strictDefault ? tableName.value() : resolvedName;
         return new TypedTableReference(dbRef.fullPath(), carried,
-                new ExprType(schema, sig.output().multiplicity()));
+                new ExprType(Type.relation(schema), sig.output().multiplicity()));
     }
 
     /**
@@ -92,7 +92,7 @@ final class TableReferenceChecker {
                     "tableToTDS expects one table argument; got " + af.parameters().size());
         }
         TypedSpec table = t.synth(af.parameters().get(0), env);
-        if (!(table.info().type() instanceof Type.RelationType)) {
+        if (!Type.isRelation(table.info().type())) {
             throw new TypeInferenceException(
                     "tableToTDS expects a table reference; got "
                     + table.info().type().typeName());

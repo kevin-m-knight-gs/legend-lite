@@ -181,9 +181,16 @@ final class Scalars {
             // designed ArrayLit (List/instance/relation carriers never
             // type Boolean), and any other list would have THROWN at
             // the funnel. The stamp alone decides.
+            // EMPTY-IDENTITY FORK FIX (audit §4, slice 4): the old
+            // identity arm gated on upper==1, so a runtime-empty [0..1]
+            // returned NULL where pure defines and([]) = true. Split:
+            // exactlyOne = identity; [0..1] = coalesce to the identity.
             RULES.put(f, (n, args) -> args.size() == 1
-                    ? (isToOne(n.args().get(0))
+                    ? (Stamps.exactlyOne(n.args().get(0))
                             ? args.get(0)
+                            : isToOne(n.args().get(0))
+                            ? SqlExpr.Call.of(SqlFn.COALESCE, args.get(0),
+                                    new SqlExpr.BoolLit(true))
                             : SqlExpr.Call.of(SqlFn.COALESCE,
                                     new SqlExpr.Call(SqlFn.LIST_BOOL_AND, args),
                                     new SqlExpr.BoolLit(true)))
@@ -191,8 +198,11 @@ final class Scalars {
         }
         for (String f : Pure.nativeKeysAt("or")) {
             RULES.put(f, (n, args) -> args.size() == 1
-                    ? (isToOne(n.args().get(0))
+                    ? (Stamps.exactlyOne(n.args().get(0))
                             ? args.get(0)
+                            : isToOne(n.args().get(0))
+                            ? SqlExpr.Call.of(SqlFn.COALESCE, args.get(0),
+                                    new SqlExpr.BoolLit(false))
                             : SqlExpr.Call.of(SqlFn.COALESCE,
                                     new SqlExpr.Call(SqlFn.LIST_BOOL_OR, args),
                                     new SqlExpr.BoolLit(false)))
@@ -410,30 +420,86 @@ final class Scalars {
         // (user toOne = unwrap; synthesized conformance = ride-through
         // by design; values-reader stamps fixed at their producer),
         // recorded in the program doc — not a blanket emission.
+        // USER toOne is CHECKED on BOTH bounds (multiplicity audit
+        // slice 3): pure raises 'Cannot cast a collection of size N to
+        // multiplicity [1]' for N != 1 — the old default arm DELETED
+        // the call (navigation/column/variable operands were never
+        // guarded; two rows flowed silently). The carrier follows the
+        // operand's STAMP: many = list-checked, [0..1] = null-checked
+        // scalar, [1..1] = already exactly one (identity). The
+        // SYNTHESIZED conformance population spells trustOne (below)
+        // and stays unguarded BY NAME — the C2 provenance split.
         for (String f : Pure.nativeKeysAt("toOne")) {
-            // AGG-STRIP (stamp C2): a LIST-collecting subquery operand
-            // becomes the NATIVE scalar subquery — SQL's own checked
-            // toOne (>1 raises, 0 -> NULL). A definite LIST-PRODUCING
-            // CALL operand (list_filter over a json extent — the USER
-            // toOne witnesses, resultSourcing) takes the SAME semantics
-            // spelled directly: checked extract. Everything else rides
-            // through (engine processNoOp).
             RULES.put(f, (n, args) -> {
+                // AGG-STRIP (stamp C2): a LIST-collecting subquery
+                // operand becomes the NATIVE scalar subquery — SQL's
+                // own checked toOne (>1 raises; 0 -> NULL rides, the
+                // row-lane convention, ADJUDICATED: a zero-row subquery
+                // and a NULL cell are indistinguishable in SQL, and the
+                // engine's relational lane flows the empty).
                 SqlExpr stripped = aggStrip(args.get(0));
                 if (stripped != null) {
                     return stripped;
                 }
-                if (args.get(0) instanceof SqlExpr.Call lc
-                        && lc.fn().producesList()) {
-                    // ONE semantic node; dialects own the spelling (D1)
+                Multiplicity.Bounded m = n.args().get(0).info()
+                        .multiplicity().requireBounded("toOne operand");
+                // STATICALLY empty ([] literal): pure raises — size 0
+                if (m.upper() != null && m.upper() == 0) {
+                    return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(
+                            "Cannot cast a collection of size 0 to"
+                            + " multiplicity [1]"));
+                }
+                // VALUE-LANE lists (literals and list-producing calls)
+                // carry pure's raising semantics — size != 1 raises in
+                // the database with pure's message.
+                if (args.get(0) instanceof SqlExpr.ArrayLit
+                        || (args.get(0) instanceof SqlExpr.Call lc
+                                && lc.fn().producesList())) {
                     return new SqlExpr.CheckedOne(args.get(0));
                 }
+                // Everything else — [0..1] scalar reads AND many-stamped
+                // ROW-LANE collections (correlated navigations, window
+                // reads) — is the engine's relational lane: its own
+                // compilation of toOne is processNoOp, and SQL cannot
+                // tell a NULL cell from an empty. Flow (ADJUDICATED vs
+                // audit §3, with the engine as the reference; the
+                // milestoned-qualifier corpus row is the witness).
                 return args.get(0);
             });
         }
-        // toOneMany narrows [*] to [1..*] — the same value-wise no-op.
-        for (String f : Pure.nativeKeysAt("toOneMany")) {
+        // trustOne — the SQL-lane conformance wrap (Lite.TRUST_ONE):
+        // IDENTITY, no guard; SQL null-propagates (the engine's
+        // processNoOp / no-guard qualifier behavior). This is the
+        // synthesized population the C2 provenance split names.
+        for (String f : Pure.nativeKeysAt(Pure.Lite.TRUST_ONE)) {
             RULES.put(f, (n, args) -> args.get(0));
+        }
+        // toOneMany narrows [*] to [1..*]: at-least-one is CHECKED
+        // (audit slice 3 — it was an unconditional no-op). A to-one
+        // operand additionally re-carriers to the LIST the [1..*]
+        // stamp promises downstream.
+        for (String f : Pure.nativeKeysAt("toOneMany")) {
+            RULES.put(f, (n, args) -> {
+                Multiplicity.Bounded m = n.args().get(0).info()
+                        .multiplicity().requireBounded("toOneMany operand");
+                if (m.upper() != null && m.upper() == 0) {
+                    return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(
+                            "Cannot cast a collection of size 0 to"
+                            + " multiplicity [1..*]"));
+                }
+                if (args.get(0) instanceof SqlExpr.ArrayLit
+                        || (args.get(0) instanceof SqlExpr.Call lc2
+                                && lc2.fn().producesList())) {
+                    return new SqlExpr.CheckedOne(args.get(0), false,
+                            true /* at least one */);
+                }
+                if (m.isMany()) {
+                    return args.get(0);   // row-lane collection: flow
+                }
+                // to-one operands re-carrier to the LIST the [1..*]
+                // stamp promises; the row-lane [0..1] flows (see toOne)
+                return new SqlExpr.ArrayLit(List.of(args.get(0)));
+            });
         }
         // evaluateAndDeactivate erases too (real pure: reflection-level
         // deactivation of expression wrappers — values here are already
@@ -865,6 +931,14 @@ final class Scalars {
                 // are enforced-true; the h2 side is carried by the
                 // CarrierStrategies list encodings (the 320 floor is
                 // the referee).
+                // audit §4: an HONEST [0..1] source that is empty at
+                // runtime makeStrings to '' — pure's identity; the
+                // 'TDSNull' spelling is the TDS CELL convention and
+                // belongs to [1..1]-stamped (trust-wrapped) cell reads
+                // and the many-element arm ONLY. The leak of the
+                // sentinel as user data dies here.
+                boolean optionalScalar = !Stamps.exactlyOne(n.args().get(0))
+                        && isToOne(n.args().get(0));
                 SqlExpr coll = PureSql.asList(args.get(0),
                         !isToOne(n.args().get(0)));
                 SqlExpr strs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, coll,
@@ -872,7 +946,9 @@ final class Scalars {
                                 SqlExpr.Call.of(SqlFn.COALESCE,
                                         PureSql.elementText(n.args().get(0),
                                                 coll, new SqlExpr.Column(null, "x")),
-                                        new SqlExpr.StringLit(PlatformTypes.TDS_NULL_CELL))));
+                                        new SqlExpr.StringLit(optionalScalar
+                                                ? ""
+                                                : PlatformTypes.TDS_NULL_CELL))));
                 SqlExpr joined = SqlExpr.Call.of(SqlFn.COALESCE,
                         new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG, strs,
                                 List.of(sep)),
@@ -898,7 +974,7 @@ final class Scalars {
                         // a subquery element cannot ride the list literal
                         && (tcol.elements().stream().allMatch(el ->
                                 el instanceof TypedNativeCall enc
-                                && enc.callee().qualifiedName().endsWith("::toOne"))
+                                && com.legend.builtin.Pure.isToOneCall(enc.callee().qualifiedName()))
                             || jal.elements().stream().anyMatch(SqlProbes::containsSubquery))) {
                     List<SqlExpr> parts = new ArrayList<>();
                     for (SqlExpr el : jal.elements()) {
@@ -912,8 +988,13 @@ final class Scalars {
                 // a TO-ONE source IS the joined string; an EMPTY list
                 // joins to '' (list_aggregate over NULL/[] is NULL).
                 SqlExpr joined;
-                if (isToOne(n.args().get(0))) {
+                if (Stamps.exactlyOne(n.args().get(0))) {
                     joined = args.get(0);   // stamp decides (String args)
+                } else if (isToOne(n.args().get(0))) {
+                    // audit §4: a runtime-empty [0..1] joins to '' —
+                    // pure's empty identity, not NULL
+                    joined = SqlExpr.Call.of(SqlFn.COALESCE, args.get(0),
+                            new SqlExpr.StringLit(""));
                 } else {
                     SqlExpr sep = args.size() == 2 ? args.get(1)
                             : args.size() == 4 ? args.get(2) : new SqlExpr.StringLit("");
@@ -1414,7 +1495,13 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("add")) {
             RULES.put(f, (n, args) -> {
                 if (args.size() == 2) {
-                    return new SqlExpr.Call(SqlFn.LIST_APPEND, args);
+                    // audit §4: a to-one first operand carriers as its
+                    // one-element list (list_append(VARCHAR, x) is a
+                    // binder error — the missing asList wrap)
+                    return new SqlExpr.Call(SqlFn.LIST_APPEND, List.of(
+                            PureSql.asList(args.get(0),
+                                    !isToOne(n.args().get(0))),
+                            args.get(1)));
                 }
                 SqlExpr l = args.get(0);
                 SqlExpr idx = args.get(1);
@@ -1475,7 +1562,12 @@ final class Scalars {
         // collection::distinct = removeDuplicates (real distinct.pure) —
         // registered by the EXACT collection overload key.
         RULES.put(Pure.DISTINCT_COLLECTION_KEY,
-                (n, args) -> orderedDedup(args.get(0)));
+                // audit §4: the same to-one guard its synonym
+                // removeDuplicates always had (a [0..1] value hit the
+                // list-lambda binder)
+                (n, args) -> isToOne(n.args().get(0))
+                        ? new SqlExpr.ArrayLit(List.of(args.get(0)))
+                        : orderedDedup(args.get(0)));
         // print/println inside an expression (map(r|println(...))): the
         // NO-OP doctrine (StatementExecutor's print arm) — the value is
         // the Nil[0] cell, NULL; the argument is pure SQL computation and
@@ -2308,8 +2400,7 @@ final class Scalars {
                     ? SqlExpr.Call.of(SqlFn.TO_VARIANT, raw) : raw;
             // A RELATION-shaped collection = LIST-aggregated subquery;
             // membership is list containment (NULL list = empty = FALSE).
-            if (n.args().get(1).info().type()
-                    instanceof Type.RelationType) {
+            if (Type.relationValued(n.args().get(1).info())) {
                 return SqlExpr.Call.of(SqlFn.COALESCE,
                         new SqlExpr.Membership(needle, args.get(1)),
                         new SqlExpr.BoolLit(false));
@@ -2413,7 +2504,7 @@ final class Scalars {
                 && (actual instanceof Type.ClassType a && a.fqn().equals(target)
                     || com.legend.compiler.element.type.PlatformTypes
                             .TABULAR_DATA_SET.equals(target)
-                       && actual instanceof Type.RelationType);
+                       && Type.isRelation(actual));
         if (!sure) {
             throw new NotImplementedException(
                     "instanceOf undecidable statically: " + actual
@@ -2603,7 +2694,7 @@ final class Scalars {
         // a SINGLE-scalar-column relation in scalar position IS its cell
         // (the scalar-subquery collapse) — the cast is that cell's
         // toString and stays; anything wider is fabrication
-        boolean scalarCell = t instanceof Type.RelationType rt
+        boolean scalarCell = Type.schemaView(t) instanceof Type.RelationType rt
                 && rt.columns().size() == 1
                 && rt.dynamicColumns().isEmpty()
                 && (rt.columns().get(0).type() instanceof Type.Primitive
@@ -2633,7 +2724,7 @@ final class Scalars {
                     new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.JSON)),
                     com.legend.sql.SqlType.Scalar.VARCHAR);
         }
-        if ((t instanceof Type.RelationType && !scalarCell)
+        if ((Type.schemaView(t) != null && !scalarCell)
                 || t instanceof Type.FunctionType
                 || t instanceof Type.SchemaAlgebra
                 || (t instanceof Type.ClassType tc
@@ -3227,9 +3318,13 @@ final class Scalars {
     }
 
     static boolean isClassish(Type t) {
+        // a WRAPPED RELATION is a GenericType but NOT an instance kind —
+        // a relation-valued collection's containment is real membership
+        // over its column values (Row-vs-Relation: the wrapped table
+        // must classify exactly like the bare struct always did).
         return (t instanceof Type.ClassType && !PlatformTypes.isVariant(t)
                         && !PlatformTypes.isAny(t) && !PlatformTypes.isNil(t))
-                || t instanceof Type.GenericType;
+                || (t instanceof Type.GenericType && !Type.isRelation(t));
     }
 
     /**
@@ -3272,8 +3367,10 @@ final class Scalars {
      * raises, 1 yields the value, 0 rows NULL, the engine-noOp empty
      * the corpus pins). Only the EXACT plain single-projection
      * non-distinct no-groupBy shape strips. Moved from the dissolved
-     * ListShapes. */
-    private static @com.legend.Nullable SqlExpr aggStrip(SqlExpr e) {
+     * ListShapes. Package-private: {@code Lowerer#scalarRoot} uses the
+     * recognizer half to spot the SAME shape at the statement root,
+     * where it keeps the LIST instead (egress slice A). */
+    static @com.legend.Nullable SqlExpr aggStrip(SqlExpr e) {
         if (!(e instanceof SqlExpr.ScalarSubquery sq
                 && sq.subquery() instanceof SqlSelect ss
                 && ss.projections().size() == 1

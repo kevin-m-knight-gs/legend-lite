@@ -58,8 +58,7 @@ final class ConnectionFlags {
         return switch (t) {
             case com.legend.compiler.spec.typed.TypedCBoolean b -> b.value();
             case com.legend.compiler.spec.typed.TypedNativeCall nc
-                    when nc.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")
+                    when com.legend.builtin.Pure.isToOneCall(nc.callee().qualifiedName())
                     && nc.args().size() >= 1 -> staticBool(nc.args().get(0));
             case com.legend.compiler.spec.typed.TypedIf i -> {
                 Boolean empt = staticIsEmpty(i.condition());

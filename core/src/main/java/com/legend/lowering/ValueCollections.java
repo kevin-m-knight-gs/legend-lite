@@ -67,6 +67,11 @@ final class ValueCollections {
                                 true)));
     }
 
+    /** Delegates to the canonical reader on the node itself. */
+    static @com.legend.Nullable String autoMapHop(TypedSpec spec) {
+        return com.legend.compiler.spec.typed.TypedMap.singleHopProperty(spec);
+    }
+
     /** The C1 SINGLETON-COLLAPSE predicate — one statement of the rule
      * both collection arms share (D4: it was restated inline in each):
      * a one-element collection whose stamp admits at most one value IS

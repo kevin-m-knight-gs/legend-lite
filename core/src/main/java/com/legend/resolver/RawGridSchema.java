@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.exec;
+package com.legend.resolver;
 
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Multiplicity;
@@ -18,11 +18,6 @@ import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedRawSqlRelation;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedVariable;
-import com.legend.sql.SqlSelect;
-import com.legend.sql.SqlSource;
-
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -54,10 +49,28 @@ import java.util.Map;
  * collection (the TDS row-var rule applied late); {@code at(cells, k)}
  * over a resolved cell collection picks statically.</li>
  * </ol>
+ *
+ * <p><strong>Staged compilation (Invariant 7):</strong> this pass is
+ * COMPILER work — it mints and rewrites typed nodes — so it lives in
+ * the resolver, parameterized by the {@link SchemaOracle}: the
+ * runtime-discovered column roster is an INPUT to a compiler phase run
+ * at a later stage. The executor's oracle is
+ * {@code exec.GridProbe#probeNames}; the compiler never holds a
+ * connection. F1.3 funnels the JDBC surface to the exec layer at
+ * BYTECODE level — even the driver's exception type may not appear
+ * here — so the oracle is UNCHECKED and the executor's implementation
+ * wraps its checked failure (the {@code Frames.inlineExecute} idiom).
  */
 public final class RawGridSchema {
 
     private RawGridSchema() {
+    }
+
+    /** The executor-supplied schema authority: the grid's projection
+     * column names for the authored SQL (one LIMIT-0 metadata read —
+     * schema, never values). */
+    public interface SchemaOracle {
+        List<String> columnsOf(String sql);
     }
 
     /** The tree with every late-bound raw grid stamped and its
@@ -73,8 +86,7 @@ public final class RawGridSchema {
      * {@code schema.isLateBound()}). Two queries only when the second
      * is genuinely needed. */
     public static List<TypedSpec> stamp(List<TypedSpec> body,
-            Connection conn, com.legend.sql.dialect.SqlDialect dialect)
-            throws SQLException {
+            SchemaOracle oracle) {
         if (!demandsSchema(body)) {
             return body;
         }
@@ -82,7 +94,7 @@ public final class RawGridSchema {
         boolean changed = false;
         Map<String, Type.RelationType> binders = new HashMap<>();
         for (TypedSpec n : body) {
-            TypedSpec s = resolve(n, conn, dialect, binders);
+            TypedSpec s = resolve(n, oracle, binders);
             changed |= s != n;
             out.add(s);
         }
@@ -118,30 +130,30 @@ public final class RawGridSchema {
         return false;
     }
 
-    private static TypedSpec resolve(TypedSpec n, Connection conn,
-            com.legend.sql.dialect.SqlDialect dialect,
-            Map<String, Type.RelationType> binders) throws SQLException {
+    private static TypedSpec resolve(TypedSpec n, SchemaOracle oracle,
+            Map<String, Type.RelationType> binders) {
         // STAMP the grid leaf
         if (n instanceof TypedRawSqlRelation raw
-                && raw.info().type() instanceof Type.RelationType rt
+                && Type.relationSchema(raw.info().type())
+                        instanceof Type.RelationType rt
                 && rt.isLateBound()) {
             List<Type.Column> cols = new ArrayList<>();
-            for (String nm : probeNames(raw.sql(), conn, dialect)) {
+            for (String nm : oracle.columnsOf(raw.sql())) {
                 cols.add(Type.RelationType.trustedColumn(nm));
             }
             return new TypedRawSqlRelation(raw.sql(),
-                    new ExprType(new Type.RelationType(cols, List.of()),
+                    new ExprType(Type.relation(new Type.RelationType(cols, List.of())),
                             raw.info().multiplicity()));
         }
         // BINDER SCOPE: a lambda over a (recursively stamped) grid binds
         // its row variable to the stamped schema for the body walk
         // (enter through the body — the shadow-stop discipline)
-        TypedSpec scoped = resolveLambdaOwner(n, conn, dialect, binders);
+        TypedSpec scoped = resolveLambdaOwner(n, oracle, binders);
         if (scoped != null) {
             return scoped;
         }
         // generic recursion, children first
-        n = recurse(n, conn, dialect, binders);
+        n = recurse(n, oracle, binders);
         // RESOLVE the late-bound reads against known schema
         if (n instanceof TypedPropertyAccess pa) {
             Type.RelationType schema = stampedSchemaOf(pa.source(), binders);
@@ -201,9 +213,8 @@ public final class RawGridSchema {
      * bind the row binder to its schema, walk the lambda body under the
      * binding (restored after). Null = not such a node. */
     private static @com.legend.Nullable TypedSpec resolveLambdaOwner(
-            TypedSpec n, Connection conn,
-            com.legend.sql.dialect.SqlDialect dialect,
-            Map<String, Type.RelationType> binders) throws SQLException {
+            TypedSpec n, SchemaOracle oracle,
+            Map<String, Type.RelationType> binders) {
         TypedSpec src;
         TypedLambda lam;
         if (n instanceof TypedFold f) {
@@ -218,7 +229,7 @@ public final class RawGridSchema {
         } else {
             return null;
         }
-        TypedSpec src2 = resolve(src, conn, dialect, binders);
+        TypedSpec src2 = resolve(src, oracle, binders);
         Type.RelationType schema = stampedSchemaOf(src2, binders);
         if (schema == null || lam.parameters().isEmpty()) {
             if (src2 == src) {
@@ -232,7 +243,7 @@ public final class RawGridSchema {
             List<TypedSpec> body2 = new ArrayList<>(lam.body().size());
             boolean changed = false;
             for (TypedSpec st : lam.body()) {
-                TypedSpec r = resolve(st, conn, dialect, binders);
+                TypedSpec r = resolve(st, oracle, binders);
                 changed |= r != st;
                 body2.add(r);
             }
@@ -271,7 +282,8 @@ public final class RawGridSchema {
             s = p.source();
         }
         if (s instanceof TypedRawSqlRelation r
-                && r.info().type() instanceof Type.RelationType rt
+                && Type.relationSchema(r.info().type())
+                        instanceof Type.RelationType rt
                 && !rt.isLateBound()) {
             return rt;
         }
@@ -281,31 +293,8 @@ public final class RawGridSchema {
         return null;
     }
 
-    /** The LIMIT-0 metadata probe (moved from ResultNav at its Phase 1c
-     * deletion): the grid's projection NAMES — a schema read, never
-     * values (the E1 probe discipline). The one {@code new
-     * SqlSource.RawSql} here is a chartered construction site
-     * (RawSqlLedgerTest register); the text is the AUTHORED statement,
-     * MIR-rendered through the dialect like every query. */
-    static List<String> probeNames(String sql, Connection conn,
-            com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
-        SqlSelect probe = SqlSelect.starOf(
-                new SqlSource.RawSql(sql, "_p", List.of()))
-                .withLimit(0L);
-        try (var st = conn.createStatement();
-                var rs = st.executeQuery(dialect.render(probe))) {
-            var md = rs.getMetaData();
-            List<String> names = new ArrayList<>(md.getColumnCount());
-            for (int i = 1; i <= md.getColumnCount(); i++) {
-                names.add(md.getColumnLabel(i));
-            }
-            return names;
-        }
-    }
-
-    private static TypedSpec recurse(TypedSpec n, Connection conn,
-            com.legend.sql.dialect.SqlDialect dialect,
-            Map<String, Type.RelationType> binders) throws SQLException {
+    private static TypedSpec recurse(TypedSpec n, SchemaOracle oracle,
+            Map<String, Type.RelationType> binders) {
         // SHADOWING (audit T1.1): a lambda's parameters hide any
         // same-named outer grid binder for its whole subtree — a nested
         // lambda over a NON-grid source must never see the outer row
@@ -331,7 +320,7 @@ public final class RawGridSchema {
         List<TypedSpec> out = new ArrayList<>(kids.size());
         boolean changed = false;
         for (TypedSpec k : kids) {
-            TypedSpec s = resolve(k, conn, dialect, binders);
+            TypedSpec s = resolve(k, oracle, binders);
             changed |= s != k;
             out.add(s);
         }

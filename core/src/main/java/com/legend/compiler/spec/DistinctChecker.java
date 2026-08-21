@@ -31,8 +31,8 @@ final class DistinctChecker {
         // collection::distinct (T[*] -> T[*], = removeDuplicates) shares the
         // bare name — a non-relation source is the LIBRARY overload and rides
         // the plain-call path, not the relop.
-        if (!(a.args().get(0).info().type()
-                instanceof com.legend.compiler.element.type.Type.RelationType)) {
+        if (!com.legend.compiler.element.type.Type
+                .relationValued(a.args().get(0).info())) {
             return Typer.emitCall(a.chosen(), a.args(), a.out());
         }
         java.util.List<String> columns = Args.outputColumns(a);

@@ -44,6 +44,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -123,9 +124,13 @@ class TypeCheckerTest {
     }
 
     private static Type.RelationType schemaOf(TypedSpec node) {
-        assertInstanceOf(Type.RelationType.class, node.info().type(),
-                "a relation value must carry a bare RelationType (doc §G-α)");
-        return (Type.RelationType) node.info().type();
+        // Row-vs-Relation (reference-faithful): a relation value carries
+        // pure's own spelling — the WRAPPED GenericType(Relation, [schema]);
+        // a bare struct is a ROW, never a table.
+        Type.RelationType schema = Type.relationSchema(node.info().type());
+        assertNotNull(schema, "a relation value must carry the wrapped"
+                + " Relation<schema> type, got " + node.info().type().typeName());
+        return schema;
     }
 
     private static Type columnType(Type.RelationType rt, String name) {
@@ -653,6 +658,17 @@ class TypeCheckerTest {
     void matchWithNoMatchingBranchFailsLoudly() {
         assertThrows(TypeInferenceException.class,
                 () -> typeQuery("5->match([s:String[1]|$s])"));
+    }
+
+    @Test
+    void matchRuntimeDispatchUnionsArmMultiplicities() {
+        // Multiplicity audit §1c: a [0..1] input over multiplicity-
+        // discriminating branches used to stamp a HARDCODED [0..1] —
+        // losing the upper bound AND falsely asserting emptiness. Arms
+        // [2] and [1] union to [1..2].
+        TypedSpec n = typeQuery(
+                "[5]->first()->match([i:Integer[1]|[1,2], i:Integer[0]|3])");
+        assertEquals(new Multiplicity.Bounded(1, 2), n.info().multiplicity());
     }
 
     @Test

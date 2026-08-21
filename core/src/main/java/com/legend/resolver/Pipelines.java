@@ -119,8 +119,7 @@ final class Pipelines {
     static TypedSpec unwrapToOne(TypedSpec n) {
         return n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                 && c.args().size() == 1
-                && c.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
+                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())
                 ? c.args().get(0) : n;
     }
 
@@ -327,11 +326,11 @@ final class Pipelines {
                 for (TypedFuncCol col : kept) {
                     keptNames.add(col.name());
                 }
-                Type.RelationType rt = (Type.RelationType) pr.info().type();
+                Type.RelationType rt = Type.requireRelationSchema(pr.info().type());
                 List<Type.Column> cols = rt.columns().stream()
                         .filter(c -> keptNames.contains(c.name())).toList();
                 yield new TypedProject(pr.source(), kept,
-                        new ExprType(new Type.RelationType(cols),
+                        new ExprType(Type.relation(new Type.RelationType(cols)),
                                 pr.info().multiplicity()));
             }
             default -> pipeline;
@@ -419,8 +418,8 @@ final class Pipelines {
                                 b, leftParam, prefixes, stripped,
                                 UnaryOperator.identity())).toList(),
                         condLam.info());
-                Type.RelationType leftRow = (Type.RelationType) left.info().type();
-                Type.RelationType rightRow = (Type.RelationType) tgt.info().type();
+                Type.RelationType leftRow = Type.requireRelationSchema(left.info().type());
+                Type.RelationType rightRow = Type.requireRelationSchema(tgt.info().type());
                 List<Type.Column> cols = new ArrayList<>(leftRow.columns());
                 for (Type.Column c : rightRow.columns()) {
                     cols.add(new Type.Column(prefix + c.name(), c.type(), c.multiplicity()));
@@ -430,7 +429,7 @@ final class Pipelines {
                                 new ExprType(new Type.EnumType(JOIN_KIND_FQN),
                                         Multiplicity.Bounded.ONE)),
                         cond, Optional.of(prefix), js.frameName(),
-                        new ExprType(new Type.RelationType(cols), Multiplicity.Bounded.ONE),
+                        new ExprType(Type.relation(new Type.RelationType(cols)), Multiplicity.Bounded.ONE),
                 false /* resolver-synth */);
                 }
 
@@ -553,9 +552,9 @@ final class Pipelines {
                 // condition reads rename through the key map, symmetric
                 // to the normalizer's source-side renameGroupedNavCond.
                 cond = renameGroupedTargetReads(cond, targetPipeline);
-                Type.RelationType leftRow = (Type.RelationType) left.info().type();
+                Type.RelationType leftRow = Type.requireRelationSchema(left.info().type());
                 Type.RelationType rightRow =
-                        (Type.RelationType) targetPipeline.info().type();
+                        Type.requireRelationSchema(targetPipeline.info().type());
                 List<Type.Column> cols = new ArrayList<>(leftRow.columns());
                 for (Type.Column c : rightRow.columns()) {
                     cols.add(new Type.Column(prefix + c.name(), c.type(), c.multiplicity()));
@@ -565,7 +564,7 @@ final class Pipelines {
                                 new ExprType(new Type.EnumType(JOIN_KIND_FQN),
                                         Multiplicity.Bounded.ONE)),
                         cond, Optional.of(prefix), nav.frameName(),
-                        new ExprType(new Type.RelationType(cols), Multiplicity.Bounded.ONE),
+                        new ExprType(Type.relation(new Type.RelationType(cols)), Multiplicity.Bounded.ONE),
                 false /* resolver-synth */);
             }
             case TypedFilter f -> {
@@ -667,7 +666,7 @@ final class Pipelines {
                 Set<String> prefixesBefore = new LinkedHashSet<>(prefixes.values());
                 TypedSpec src = walk(d.source(), scalarSlotAliases(d.source()),
                         demandedNavs, targets, prefixes, stripped, classFqn);
-                Type.RelationType row = (Type.RelationType) src.info().type();
+                Type.RelationType row = Type.requireRelationSchema(src.info().type());
                 if (!d.columns().isEmpty()) {
                     // MAPPED-COLUMN distinct (slot-carrying ~distinct): the
                     // tuple is the mapped main columns plus each newly
@@ -696,7 +695,7 @@ final class Pipelines {
                         }
                     }
                     yield new TypedDistinct(src,
-                            cols, new ExprType(new Type.RelationType(outCols),
+                            cols, new ExprType(Type.relation(new Type.RelationType(outCols)),
                                     Multiplicity.Bounded.ONE));
                 }
                 // WHOLE-ROW distinct (empty column list -> DISTINCT *):
@@ -704,7 +703,7 @@ final class Pipelines {
                 // type's columns would reference ones a milestoned scan
                 // does not project.
                 yield new TypedDistinct(src,
-                        List.of(), new ExprType(row, Multiplicity.Bounded.ONE));
+                        List.of(), new ExprType(Type.relation(row), Multiplicity.Bounded.ONE));
             }
             default -> {
                 if (containsSlot(n)) {
@@ -866,7 +865,7 @@ final class Pipelines {
         // present on its source row.
         if (!d.columns().isEmpty()
                 && !(d.source() instanceof TypedSelect)) {
-            Type.RelationType srow = (Type.RelationType) d.source().info().type();
+            Type.RelationType srow = Type.requireRelationSchema(d.source().info().type());
             List<String> dcols = new ArrayList<>(d.columns());
             List<Type.Column> outCols = new ArrayList<>();
             for (Type.Column c : srow.columns()) {
@@ -893,18 +892,18 @@ final class Pipelines {
             }
             return rewrap.apply(new TypedDistinct(
                     d.source(), dcols,
-                    new ExprType(new Type.RelationType(outCols),
+                    new ExprType(Type.relation(new Type.RelationType(outCols)),
                             Multiplicity.Bounded.ONE)));
         }
         if (!(d.source() instanceof TypedSelect sel)) {
             return pipeline;
         }
-        Type.RelationType selRow = (Type.RelationType) sel.info().type();
+        Type.RelationType selRow = Type.requireRelationSchema(sel.info().type());
         Set<String> have = new LinkedHashSet<>();
         for (Type.Column c : selRow.columns()) {
             have.add(c.name());
         }
-        Type.RelationType srcRow = (Type.RelationType) sel.source().info().type();
+        Type.RelationType srcRow = Type.requireRelationSchema(sel.source().info().type());
         List<String> newCols = new ArrayList<>(sel.columns());
         List<Type.Column> newRowCols = new ArrayList<>(selRow.columns());
         boolean widened = false;
@@ -924,7 +923,7 @@ final class Pipelines {
         if (!widened) {
             return pipeline;
         }
-        ExprType row = new ExprType(new Type.RelationType(newRowCols),
+        ExprType row = new ExprType(Type.relation(new Type.RelationType(newRowCols)),
                 Multiplicity.Bounded.ONE);
         TypedSpec ns = new TypedSelect(
                 sel.source(), newCols, row);
@@ -955,7 +954,7 @@ final class Pipelines {
         if (!(pipeline instanceof TypedConcatenate cat)) {
             return pipeline;
         }
-        Type.RelationType row = (Type.RelationType) cat.info().type();
+        Type.RelationType row = Type.requireRelationSchema(cat.info().type());
         Set<String> have = new LinkedHashSet<>();
         for (Type.Column c : row.columns()) {
             have.add(c.name());
@@ -1015,11 +1014,11 @@ final class Pipelines {
                     + side.getClass().getSimpleName()
                     + " — only projected members widen");
         }
-        Type.RelationType srcRow = (Type.RelationType) p.source().info().type();
+        Type.RelationType srcRow = Type.requireRelationSchema(p.source().info().type());
         List<TypedFuncCol> newCols =
                 new ArrayList<>(p.columns());
         List<Type.Column> outCols = new ArrayList<>(
-                ((Type.RelationType) p.info().type()).columns());
+                (Type.requireRelationSchema(p.info().type())).columns());
         for (String c : missing) {
             Type.Column src = columnOf(srcRow, c);
             if (src == null
@@ -1058,7 +1057,7 @@ final class Pipelines {
                 // from a SIBLING that does carry the column.
                 Type sibling = null;
                 for (TypedSpec m : members) {
-                    if (m.info().type() instanceof Type.RelationType mr) {
+                    if (Type.relationSchema(m.info().type()) instanceof Type.RelationType mr) {
                         Type.Column mc = columnOf(mr, c);
                         if (mc != null) {
                             sibling = mc.type();
@@ -1087,7 +1086,7 @@ final class Pipelines {
                     Multiplicity.Bounded.ZERO_ONE));
         }
         return new TypedProject(p.source(), newCols,
-                new ExprType(new Type.RelationType(outCols),
+                new ExprType(Type.relation(new Type.RelationType(outCols)),
                         Multiplicity.Bounded.ONE));
     }
 
@@ -1465,14 +1464,23 @@ final class Pipelines {
         return new TypedProject(chain,
                 java.util.List.of(new com.legend.compiler.spec.typed
                         .TypedFuncCol("c", fn)),
-                new ExprType(new Type.RelationType(java.util.List.of(
-                        new Type.Column("c", Type.Primitive.INTEGER, one))),
+                new ExprType(Type.relation(new Type.RelationType(java.util.List.of(
+                        new Type.Column("c", Type.Primitive.INTEGER, one)))),
                         one));
     }
 
+    /** The dot-rule DESUGAR — pure's own definition applied once at
+     * the resolution boundary (map.pure grammarDoc: "map is auto
+     * generated when the . operator is used"): a class-rooted sugar
+     * chain becomes the canonical {@code map(base, v|$v.a.b)} the
+     * resolution machinery consumes. NOT a duplicated matcher — the
+     * READ side never forks because {@link Substitution#pathOf} (THE
+     * path view) reads both spellings; this converter exists so the
+     * RESOLUTION side has one canonical form, exactly as the language
+     * defines it. (Path-view unification, closed by measurement.) */
     static @com.legend.Nullable TypedSpec autoMapRead(TypedPropertyAccess pa) {
         if (pa.info().type() instanceof Type.ClassType
-                || pa.info().type() instanceof Type.RelationType) {
+                || Type.schemaView(pa.info().type()) != null) {
             return null;
         }
         List<TypedPropertyAccess> hops = new ArrayList<>();

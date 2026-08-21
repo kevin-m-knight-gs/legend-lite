@@ -312,8 +312,7 @@ final class AssertVerdicts {
         TypedSpec s = t;
         while (true) {
             if (s instanceof com.legend.compiler.spec.typed.TypedNativeCall c
-                    && c.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")
+                    && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())
                     && !c.args().isEmpty()) {
                 s = c.args().get(0);
                 continue;
@@ -375,18 +374,11 @@ final class AssertVerdicts {
                     "quantified assert verdict: non-literal message"
                     + " expressions are not modeled");
         }
-        // the predicate vector, computed in the database: same source,
-        // same binder, the assert's CONDITION as the mapper body
-        var boolOne = com.legend.compiler.element.type.ExprType.one(
-                com.legend.compiler.element.type.Type.Primitive.BOOLEAN);
-        var predLam = new com.legend.compiler.spec.typed.TypedLambda(
-                lam.parameters(), List.of(aargs.get(0)), lam.info());
-        TypedSpec predMap = new com.legend.compiler.spec.typed.TypedMap(
-                qm.source(), predLam,
-                new com.legend.compiler.element.type.ExprType(
-                        boolOne.type(),
-                        com.legend.compiler.element.type
-                                .Multiplicity.Bounded.ZERO_MANY));
+        // the predicate vector, computed in the database — SYNTHESIS is
+        // compiler-owned (VerdictQueries, Invariant 7); the judgment
+        // below stays host-side (Clause 2c)
+        TypedSpec predMap = com.legend.compiler.spec.VerdictQueries
+                .predicateVector(qm, lam, aargs.get(0));
         List<Object> verdicts = side(predMap, letPrefix, specs, env);
         boolean wantTrue = name.equals("assert");
         for (Object v : verdicts) {

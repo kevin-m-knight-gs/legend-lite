@@ -33,8 +33,7 @@ final class RelationPredicates {
      * here after resolution; the inner dispatch stays loud when
      * the arg is genuinely not relation-lowerable). */
     static boolean isRelationToOne(TypedNativeCall nc) {
-        return "meta::pure::functions::multiplicity::toOne"
-                        .equals(nc.callee().qualifiedName())
+        return com.legend.builtin.Pure.isToOneCall(nc.callee().qualifiedName())
                 && nc.args().size() == 1;
     }
 
@@ -77,7 +76,8 @@ final class RelationPredicates {
         com.legend.sql.SqlAgg.Fn fam = Aggregates.reducerOrNull(n.callee());
         if (fam != null && fam != com.legend.sql.SqlAgg.Fn.COUNT && fam != com.legend.sql.SqlAgg.Fn.ANY_VALUE
                 && n.args().size() == 1
-                && n.args().get(0).info().type() instanceof Type.RelationType rt2
+                && Type.relationSchema(n.args().get(0).info().type())
+                        instanceof Type.RelationType rt2
                 && rt2.columns().size() == 1
                 && !(rt2.columns().get(0).type() instanceof Type.ClassType)) {
             return (lw, call) -> {
@@ -99,7 +99,8 @@ final class RelationPredicates {
             };
         }
         if ((Lowerer.isFamily(n, "isEmpty") || Lowerer.isFamily(n, "isNotEmpty"))
-                && n.args().size() == 1 && n.args().get(0).info().type()
+                && n.args().size() == 1
+                && Type.relationSchema(n.args().get(0).info().type())
                         instanceof Type.RelationType rt0) {
             // An OPTIONAL-VALUE read encoded as a relation (single scalar
             // column, [0..1] stamp — the filtered-nav leaf): emptiness is

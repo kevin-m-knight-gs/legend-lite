@@ -76,7 +76,7 @@ public sealed interface SqlExpr
             }
             case Exists ignored -> List.of();
             case ScalarSubquery ignored -> List.of();
-            case CheckedOne co -> List.of(co.list());
+            case CheckedOne co -> List.of(co.list());   // flags ride
             case DeferredTdsString ignored -> List.of();
             case WindowCall w -> {
                 java.util.List<SqlExpr> out = new java.util.ArrayList<>();
@@ -139,7 +139,8 @@ public sealed interface SqlExpr
             case TempTableInSplice ignored -> this;
             case Exists ignored -> this;
             case ScalarSubquery ignored -> this;
-            case CheckedOne ignored -> new CheckedOne(cs.get(0));
+            case CheckedOne co2 -> new CheckedOne(cs.get(0),
+                    co2.scalarCarrier(), co2.atLeastOnly());
             case DeferredTdsString ignored -> this;
             case Group ignored -> new Group(cs.get(0));
             case ArrayLit ignored -> new ArrayLit(cs);
@@ -405,7 +406,12 @@ public sealed interface SqlExpr
      * the engine-noOp empty); the engine-TEXT channel renders the
      * INNER value verbatim (the engine's processNoOp view — the
      * NULLS-suppression precedent). */
-    record CheckedOne(SqlExpr list) implements SqlExpr {
+    record CheckedOne(SqlExpr list, boolean scalarCarrier,
+            boolean atLeastOnly) implements SqlExpr {
+        /** The original exactly-one LIST form. */
+        public CheckedOne(SqlExpr list) {
+            this(list, false, false);
+        }
     }
 
     /** A relation-toString whose COLUMN LIST is dynamic (a pivot with

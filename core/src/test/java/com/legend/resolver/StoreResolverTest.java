@@ -62,8 +62,10 @@ class StoreResolverTest {
         assertEquals(before.info(), project.info(),
                 "the projection boundary's info must be UNCHANGED");
         TypedFilter filter = assertInstanceOf(TypedFilter.class, project.source());
-        assertTrue(filter.info().type() instanceof com.legend.compiler.element.type.Type.RelationType,
-                "the filter re-schemas from Person[*] to the pipeline row");
+        assertTrue(com.legend.compiler.element.type.Type
+                        .isRelation(filter.info().type()),
+                "the filter re-schemas from Person[*] to the pipeline"
+                + " relation (wrapped — Row-vs-Relation)");
         assertInstanceOf(TypedTableReference.class, filter.source(),
                 "the pipeline bottoms at the mapping's table scan");
         // Fresh-var hygiene: the rewritten lambda's parameter is the fresh

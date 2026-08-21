@@ -38,16 +38,17 @@ final class FlattenChecker {
         // instead of resolving through the registered VARIANT_FLATTEN
         // signature — the registration's Z=(?:T) colspec form is not yet
         // expressible to checkGeneric. Emission is TypedCollectionRelation.
-        if (!(source.info().type() instanceof Type.RelationType)) {
+        Type.RelationType sourceSchema = Type.relationSchema(source.info().type());
+        if (sourceSchema == null) {
             Type elem = source.info().type();
             var row = new Type.RelationType(List.of(new Type.Column(cs.name(), elem,
                     com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE)));
             return new com.legend.compiler.spec.typed.TypedCollectionRelation(source,
                     cs.name(),
-                    new com.legend.compiler.element.type.ExprType(row,
+                    new com.legend.compiler.element.type.ExprType(Type.relation(row),
                             com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
         }
-        Type.RelationType schema = (Type.RelationType) source.info().type();
+        Type.RelationType schema = sourceSchema;
         // Validate the CALL against the registered native signature — never
         // bypassed (the tableReference lesson). The re-audit showed unifying
         // T[*] against anything is VACUOUS, so the REAL checks are: the
@@ -72,6 +73,7 @@ final class FlattenChecker {
                     : c);
         }
         return new TypedFlatten(source, cs.name(),
-                new ExprType(new Type.RelationType(cols), sig.returnMultiplicity()));
+                new ExprType(Type.relation(new Type.RelationType(cols)),
+                        sig.returnMultiplicity()));
     }
 }

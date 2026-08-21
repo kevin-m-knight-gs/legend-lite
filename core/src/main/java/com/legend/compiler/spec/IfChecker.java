@@ -72,7 +72,8 @@ final class IfChecker {
         // multiplicity of the two branches, NOT a hardcoded [1]. An else-less if is optional (the
         // false path yields nothing). Fixes engine-lite's unconditional [1] (§4.2 flagged bug).
         Multiplicity resultMult = elseBranch
-                .map(e -> commonMultiplicity(thenBranch.info().multiplicity(), e.info().multiplicity()))
+                .map(e -> Multiplicity.union(thenBranch.info().multiplicity(),
+                        e.info().multiplicity()))
                 .orElse(optional(thenBranch.info().multiplicity()));
         return new TypedIf(cond, thenBranch, elseBranch, new ExprType(result, resultMult));
     }
@@ -109,7 +110,7 @@ final class IfChecker {
             }
             TypedSpec value = thunkBody(t, pf.parameters().get(1), env);
             result = t.kernel().commonSupertype(result, value.info().type());
-            resultMult = commonMultiplicity(resultMult, value.info().multiplicity());
+            resultMult = Multiplicity.union(resultMult, value.info().multiplicity());
             TypedSpec elseB = out == null ? chain : out;
             out = new TypedIf(cond, value, Optional.of(elseB),
                     new ExprType(result, resultMult));
@@ -118,16 +119,6 @@ final class IfChecker {
             throw new TypeInferenceException("if(condList, last) needs at least one pair");
         }
         return out;
-    }
-
-    /** The widest multiplicity covering both branches &mdash; the shared {@code m} of {@code if<T|m>}. */
-    private static Multiplicity commonMultiplicity(Multiplicity a, Multiplicity b) {
-        if (a instanceof Multiplicity.Bounded x && b instanceof Multiplicity.Bounded y) {
-            int lower = Math.min(x.lower(), y.lower());
-            Integer upper = (x.upper() == null || y.upper() == null) ? null : Math.max(x.upper(), y.upper());
-            return new Multiplicity.Bounded(lower, upper);
-        }
-        return a;   // multiplicity variables do not occur on compiled if branches
     }
 
     /** Make a multiplicity optional ({@code lower = 0}) &mdash; an else-less branch may yield nothing. */

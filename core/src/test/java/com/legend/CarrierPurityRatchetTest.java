@@ -52,7 +52,14 @@ class   CarrierPurityRatchetTest {
             // 38→34 (burn slice 8, ListShapes dissolution): the dead
             // listArg/definitelyScalar wraps and the shape-decided
             // ArrayLit escapes are GONE; wrap helpers are stamp-read.
-            "new SqlExpr\\.ArrayLit\\(", 34,
+            // 34→35 (multiplicity audit slice 3): toOneMany over a
+            // to-one operand RE-CARRIERS to the list its [1..*] stamp
+            // promises downstream — a designed one-value carrier at the
+            // stamp seam, not a shape guess.
+            // 35→36 (audit slice 4): distinct's to-one guard — the
+            // same one-element re-carrier its synonym removeDuplicates
+            // always had (a [0..1] value hit the list-lambda binder).
+            "new SqlExpr\\.ArrayLit\\(", 36,
             "new SqlExpr\\.OrderedListAgg\\(", 1,
             // 136→137 (2026-08-19): ListEncodings.map's LIST_GET — the
             // map SEMANTIC NODE's wire-shape rule (a to-one result

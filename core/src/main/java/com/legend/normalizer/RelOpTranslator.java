@@ -141,12 +141,28 @@ final class RelOpTranslator {
                     // get the scalar conform.
                     return targetVarOrNull == null
                             && a instanceof RelationalOperation.ColumnRef
-                            ? new AppliedFunction("toOne", List.of(t)) : t;
+                            ? new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(t)) : t;
                 })
                 .toList();
     }
 
     /** {@code cast(v, @String)} — the SQL VARCHAR coercion emission. */
+    /** The dyna lane's to-one trust wrap (SQL null-propagates; the
+     * lowering's erasure makes toOne free) — ONE spelling for every
+     * dyna emission whose pure counterpart is strict [1]. */
+    private static ValueSpecification toOne(ValueSpecification v) {
+        return new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(v));
+    }
+
+    private static List<ValueSpecification> toOneAll(List<ValueSpecification> vs) {
+        // COLLECTION operands stay bare (an in-list is genuinely many —
+        // toOne over it would be the very stamp lie the invariant
+        // catches; the corpus 'in'-prefix family proved it)
+        return vs.stream().map(v -> v instanceof
+                        com.legend.protocol.spec.PureCollection ? v : toOne(v))
+                .toList();
+    }
+
     private static ValueSpecification strCast(ValueSpecification v) {
         return new AppliedFunction("cast", List.of(v,
                 new TypeAnnotation.Named(
@@ -212,9 +228,12 @@ final class RelOpTranslator {
             case RelationalOperation.Literal lit -> literalToValueSpec(lit.value());
             case RelationalOperation.FunctionCall call
                     when DYNA_HASH_TYPES.containsKey(call.name()) ->
+                    // SQL-lane operand: optional column reads null-
+                    // propagate; hash(String[1], ...) is strict — the
+                    // 'position' toOne idiom
                     new AppliedFunction("hash", List.of(
-                            translate(call.args().get(0), tableScope, targetVarOrNull,
-                                    rowBindOrNull, pipeline),
+                            toOne(translate(call.args().get(0), tableScope,
+                                    targetVarOrNull, rowBindOrNull, pipeline)),
                             new EnumValue("meta::pure::functions::hash::HashType",
                                     DYNA_HASH_TYPES.get(call.name()))));
             case RelationalOperation.FunctionCall call
@@ -249,9 +268,11 @@ final class RelOpTranslator {
                         }
                         weekStart = (String) lit.value();
                     }
+                    // SQL-lane operand (the 'position' toOne idiom):
+                    // dayOfWeekNumber's real signature is strict Date[1]
                     ValueSpecification iso = new AppliedFunction("dayOfWeekNumber",
-                            List.of(translate(call.args().get(0), tableScope,
-                                    targetVarOrNull, rowBindOrNull, pipeline)));
+                            List.of(toOne(translate(call.args().get(0), tableScope,
+                                    targetVarOrNull, rowBindOrNull, pipeline))));
                     yield weekStart.equalsIgnoreCase("Monday")
                             ? iso
                             : new AppliedFunction("plus", List.of(
@@ -263,12 +284,13 @@ final class RelOpTranslator {
                     when call.name().equals("adjust") && call.args().size() == 3
                     && call.args().get(2) instanceof RelationalOperation.Literal ul
                     && ul.value() instanceof String unit -> {
-                    // the dyna spells the DurationUnit as a string literal
+                    // the dyna spells the DurationUnit as a string literal;
+                    // operands are SQL-lane (the 'position' toOne idiom)
                     yield new AppliedFunction("adjust", List.of(
-                            translate(call.args().get(0), tableScope, targetVarOrNull,
-                                    rowBindOrNull, pipeline),
-                            translate(call.args().get(1), tableScope, targetVarOrNull,
-                                    rowBindOrNull, pipeline),
+                            toOne(translate(call.args().get(0), tableScope,
+                                    targetVarOrNull, rowBindOrNull, pipeline)),
+                            toOne(translate(call.args().get(1), tableScope,
+                                    targetVarOrNull, rowBindOrNull, pipeline)),
                             new EnumValue("meta::pure::functions::date::DurationUnit",
                                     unit.toUpperCase())));
             }
@@ -315,8 +337,13 @@ final class RelOpTranslator {
                             targetVarOrNull, rowBindOrNull, pipeline);
                     ValueSpecification a2 = translate(call.args().get(2), tableScope,
                             targetVarOrNull, rowBindOrNull, pipeline);
-                    yield new AppliedFunction("splitPart", List.of(a0, a1,
-                            new AppliedFunction("cast", List.of(a2,
+                    // token/part are strict [1] in pure's signature; a
+                    // column operand is SQL-lane null-propagating — the
+                    // 'position' toOne idiom (a0 stays bare: pure's own
+                    // first param is [0..1])
+                    yield new AppliedFunction("splitPart", List.of(a0,
+                            toOne(a1),
+                            new AppliedFunction("cast", List.of(toOne(a2),
                                     new TypeAnnotation.Named(
                                             new TypeExpression.NameRef("Integer"))))));
             }
@@ -363,12 +390,14 @@ final class RelOpTranslator {
                     // (the DATABASE's own formatting: '2014-01-01 06:30:00',
                     // not pure toString's ISO form — audit), a no-op for
                     // strings.
-                    ValueSpecification chain = strCast(translate(call.args().get(0),
-                            tableScope, targetVarOrNull, rowBindOrNull, pipeline));
+                    ValueSpecification chain = toOne(strCast(translate(
+                            call.args().get(0), tableScope, targetVarOrNull,
+                            rowBindOrNull, pipeline)));
                     for (int i = 1; i < call.args().size(); i++) {
                         chain = new AppliedFunction("plus", List.of(chain,
-                                strCast(translate(call.args().get(i), tableScope,
-                                        targetVarOrNull, rowBindOrNull, pipeline))));
+                                toOne(strCast(translate(call.args().get(i),
+                                        tableScope, targetVarOrNull,
+                                        rowBindOrNull, pipeline)))));
                     }
                     yield chain;
             }
@@ -420,14 +449,21 @@ final class RelOpTranslator {
             // dyna 'add'/'sub' are SQL ARITHMETIC — pure spells them
             // plus/minus; the bare names would hit pure's COLLECTION
             // add(T[*],T[1]) and type [*]
+            // The dyna lane is SQL: optional column reads flow into the
+            // arithmetic and null-propagate. Pure's plus/minus are [1]
+            // (the strict kernel now enforces real MultiplicityMatch), so
+            // the translated operands wrap in toOne — the 'position'
+            // idiom below, now uniform across the dyna emissions.
             case RelationalOperation.FunctionCall call
                     when call.name().equals("add") && call.args().size() == 2 ->
-                    new AppliedFunction("plus", translateArgs(call, tableScope,
-                            targetVarOrNull, rowBindOrNull, pipeline));
+                    new AppliedFunction("plus", toOneAll(translateArgs(call,
+                            tableScope, targetVarOrNull, rowBindOrNull,
+                            pipeline)));
             case RelationalOperation.FunctionCall call
                     when call.name().equals("sub") && call.args().size() == 2 ->
-                    new AppliedFunction("minus", translateArgs(call, tableScope,
-                            targetVarOrNull, rowBindOrNull, pipeline));
+                    new AppliedFunction("minus", toOneAll(translateArgs(call,
+                            tableScope, targetVarOrNull, rowBindOrNull,
+                            pipeline)));
             // SQL POSITION(needle, haystack) — 1-based, arguments REVERSED
             // vs pure's indexOf(haystack, needle); forwards verbatim like
             // the indexOf dynafunction above (C1.5c made the rule 1-based)
@@ -437,7 +473,7 @@ final class RelOpTranslator {
                     // otherwise infect the whole arithmetic chain with [*]
                     // (SQL null-propagates; erasure makes toOne free)
                     new AppliedFunction("indexOf", List.of(
-                            new AppliedFunction("toOne", List.of(
+                            new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(
                                     translate(call.args().get(1), tableScope,
                                             targetVarOrNull, rowBindOrNull,
                                             pipeline))),
@@ -485,11 +521,17 @@ final class RelOpTranslator {
             // the engine's dynaFn vocabulary that types against a
             // lite-internal shim is respelled to its exact identity HERE
             // (wireEmissionName); real pure names pass through and
-            // resolve in the user namespace.
+            // resolve in the user namespace. Operands are SQL-LANE:
+            // optional column reads null-propagate, while most pure
+            // counterparts are strict [1] (the kernel enforces real
+            // MultiplicityMatch since audit slice 2) — every arg wraps
+            // in the 'position' toOne idiom (typing-level trust; the
+            // lowering's erasure keeps SQL identical, and [1] args are
+            // unaffected).
             case RelationalOperation.FunctionCall call -> new AppliedFunction(
                     Pure.wireEmissionName(call.name()),
-                    translateArgs(call, tableScope, targetVarOrNull,
-                            rowBindOrNull, pipeline));
+                    toOneAll(translateArgs(call, tableScope, targetVarOrNull,
+                            rowBindOrNull, pipeline)));
             case RelationalOperation.Comparison cmp -> {
                 // a RELATIONAL comparison over a column has SQL null
                 // semantics BY DEFINITION — conform by EMISSION (toOne;
@@ -503,7 +545,7 @@ final class RelOpTranslator {
                             targetVarOrNull, rowBindOrNull, pipeline);
                     return targetVarOrNull == null
                             && o instanceof RelationalOperation.ColumnRef
-                            ? new AppliedFunction("toOne", List.of(t)) : t;
+                            ? new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(t)) : t;
                 };
                 AppliedFunction c = new AppliedFunction(
                         comparisonFn(cmp.op()),

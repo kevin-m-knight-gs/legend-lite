@@ -34,7 +34,8 @@ final class ValueCollectionOps {
         return "meta::pure::functions::collection::sort"
                         .equals(nc.callee().qualifiedName())
                 && nc.args().size() == 1
-                && nc.args().get(0).info().type()
+                && com.legend.compiler.element.type.Type
+                        .schemaView(nc.args().get(0).info().type())
                         instanceof com.legend.compiler.element.type
                                 .Type.RelationType srt
                 && srt.columns().size() == 1;
@@ -50,7 +51,8 @@ final class ValueCollectionOps {
         return "meta::pure::functions::collection::removeDuplicates"
                         .equals(n.callee().qualifiedName())
                 && n.args().size() == 1
-                && n.args().get(0).info().type()
+                && com.legend.compiler.element.type.Type
+                        .schemaView(n.args().get(0).info().type())
                         instanceof com.legend.compiler.element.type
                                 .Type.RelationType rt
                 && rt.columns().size() == 1
@@ -62,7 +64,7 @@ final class ValueCollectionOps {
 
     static @com.legend.Nullable TypedSpec relationSpaceRewrite(TypedNativeCall n) {
         if (n.args().size() != 1
-                || !(n.args().get(0).info().type()
+                || !(Type.schemaView(n.args().get(0).info().type())
                         instanceof Type.RelationType rt)
                 || rt.columns().size() != 1) {
             return null;

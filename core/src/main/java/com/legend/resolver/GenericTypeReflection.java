@@ -57,7 +57,7 @@ final class GenericTypeReflection {
                 Pipelines.unwrapToOne(vpa.source());
         String fqn = ((Type.ClassType) gt.args().get(0).info().type()).fqn();
         TypedSpec rel = resolver.apply(gt.args().get(0));
-        if (!(rel.info().type() instanceof Type.RelationType)) {
+        if (!Type.isRelation(rel.info().type())) {
             rel = Pipelines.materialize(bareExtent.apply(fqn),
                     java.util.Set.of(), fqn).pipeline();
         }
@@ -69,7 +69,8 @@ final class GenericTypeReflection {
      * element's name). */
     static TypedSpec rawTypeProjection(TypedSpec rel, String baseClassFqn,
             java.util.Set<String> modelFqns) {
-        if (!(rel.info().type() instanceof Type.RelationType row)) {
+        Type.RelationType row = Type.relationSchema(rel.info().type());
+        if (row == null) {
             throw new NotImplementedException("genericType().rawType over a"
                     + " non-relation resolution ("
                     + rel.info().type().typeName() + ")");
@@ -119,7 +120,7 @@ final class GenericTypeReflection {
                 List.of(new Type.Column("rawType", Type.Primitive.STRING,
                         one)), List.of());
         return new TypedProject(rel, List.of(new TypedFuncCol("rawType", lam)),
-                new ExprType(out, one));
+                new ExprType(Type.relation(out), one));
     }
 
     private static String simpleName(String fqn) {

@@ -609,7 +609,7 @@ final class ArchitectureTest {
     void rawSqlSourceIsConstructedOnlyAtTheCharteredSeam() {
         noClasses()
             .that().haveNameNotMatching(
-                    "com\\.legend\\.(exec\\.RawGridSchema|lowering\\.Lowerer|sql\\.dialect\\.RawSqlAdapt)(\\$.*)?")
+                    "com\\.legend\\.(exec\\.GridProbe|lowering\\.Lowerer|sql\\.dialect\\.RawSqlAdapt)(\\$.*)?")
             .should().callConstructorWhere(
                     com.tngtech.archunit.core.domain.JavaCall.Predicates
                             .target(com.tngtech.archunit.core.domain
@@ -619,7 +619,7 @@ final class ArchitectureTest {
                                             .Predicates.name(
                                                     "com.legend.sql.SqlSource$RawSql"))))
             .as("Phase 1 quarantine: SqlSource.RawSql is constructed"
-                    + " ONLY by the chartered seams (RawGridSchema's"
+                    + " ONLY by the chartered seams (GridProbe's"
                     + " LIMIT-0 probe + the Lowerer TypedRawSqlRelation"
                     + " case) — it carries authored text, never"
                     + " platform-composed SQL")
@@ -744,6 +744,65 @@ final class ArchitectureTest {
             .orShould().haveSimpleNameEndingWith("Store")
             .as("Invariant 3: caches must be content-addressed — put them in "
               + "com.legend.cache on ContentStore (Hash-keyed). See core/README.md.")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>Invariant 7 — compiler work lives in the compiler.</strong>
+     * Constructing (minting/rewriting) typed-HIR nodes IS compiler work:
+     * it decides stamps and tree shape, the facts the whole stamp
+     * discipline pins. Only the compiler layers — {@code compiler},
+     * {@code resolver}, {@code normalizer}, {@code lowering} — may
+     * construct {@code com.legend.compiler.spec.typed.*} nodes. Reading
+     * (pattern-matching, dispatch) is fine anywhere: the executor
+     * consumes the tree; it must not grow it.
+     *
+     * <p>ZERO exceptions BY DESIGN (user directive 2026-08-21: no pin
+     * list, no mechanism a future change can quietly grow). The
+     * original census found four violators, all evicted the same day —
+     * the eviction patterns to reuse when execution-bound facts seem to
+     * force a mint outside the compiler:
+     * <ul>
+     *   <li>REWRITE RULES move behind an SPI the executor implements —
+     *       splice rules → {@code ResultEnvelopeSplice.Frames}
+     *       (frame lookup / JDBC frame builds stay executor-side).</li>
+     *   <li>β-machinery joins the one engine — {@code UserCallInliner}
+     *       (bindStringParam, callArgumentFrame).</li>
+     *   <li>Staged assembly splits pure-prepare / effects / pure-chain —
+     *       {@code ExecuteChainAssembly} (the executor interleaves its
+     *       execution-bound steps BETWEEN compiler calls).</li>
+     *   <li>Misfiled passes just MOVE — {@code resolver.DriverPkAppend}.</li>
+     *   <li>LATE BINDING is staged compilation — the runtime fact
+     *       becomes an INPUT: {@code resolver.RawGridSchema} takes the
+     *       probed roster through its {@code SchemaOracle};
+     *       {@code exec.GridProbe} is the executor's oracle.</li>
+     *   <li>Verdict-query synthesis is compiler emission —
+     *       {@code VerdictQueries} builds; {@code AssertVerdicts}
+     *       fetches and judges, minting nothing.</li>
+     * </ul>
+     */
+    @Test
+    void typedNodesAreMintedOnlyByCompilerLayers() {
+        noClasses()
+            .that().resideOutsideOfPackages(
+                    "com.legend.compiler..",
+                    "com.legend.resolver..",
+                    "com.legend.normalizer..",
+                    "com.legend.lowering..")
+            .should().callCodeUnitWhere(
+                    com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                            com.tngtech.archunit.core.domain.properties.HasName
+                                    .Predicates.name("<init>"))
+                    .and(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                            com.tngtech.archunit.core.domain.properties.HasOwner
+                                    .Predicates.With.<com.tngtech.archunit.core
+                                            .domain.JavaClass>owner(
+                                    com.tngtech.archunit.core.domain.JavaClass
+                                            .Predicates.resideInAPackage(
+                                                    "com.legend.compiler.spec.typed")))))
+            .as("Invariant 7: typed-HIR nodes are minted only by the compiler"
+                    + " layers (compiler/resolver/normalizer/lowering) — the"
+                    + " pinned exceptions only shrink; see the rule javadoc")
             .check(CORE_PROD_CLASSES);
     }
 }

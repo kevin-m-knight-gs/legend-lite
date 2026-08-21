@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.validation;
+package com.legend.resolver;
 
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.type.ExprType;
@@ -99,13 +99,13 @@ public final class DriverPkAppend {
                                 "addDriverTablePkForProject: table '"
                                 + driver.table() + "' has no definition"));
         Type.RelationType srcRow =
-                (Type.RelationType) p.source().info().type();
+                Type.requireRelationSchema(p.source().info().type());
         String rowVar = p.columns().isEmpty() ? "row"
                 : p.columns().get(0).fn().parameters().get(0);
         ExprType rowInfo = new ExprType(srcRow, Multiplicity.Bounded.ONE);
         List<TypedFuncCol> cols = new ArrayList<>(p.columns());
         List<Type.Column> outCols = new ArrayList<>(
-                ((Type.RelationType) p.info().type()).columns());
+                (Type.requireRelationSchema(p.info().type())).columns());
         for (DatabaseDefinition.ColumnDefinition cd : td.columns()) {
             if (!cd.primaryKey()) {
                 continue;
@@ -148,7 +148,7 @@ public final class DriverPkAppend {
                     src.multiplicity()));
         }
         return new TypedProject(p.source(), cols,
-                new ExprType(new Type.RelationType(outCols),
+                new ExprType(Type.relation(new Type.RelationType(outCols)),
                         p.info().multiplicity()));
     }
 
@@ -160,8 +160,7 @@ public final class DriverPkAppend {
         while (true) {
             if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
                     && nc.args().size() == 1
-                    && nc.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")) {
+                    && com.legend.builtin.Pure.isToOneCall(nc.callee().qualifiedName())) {
                 n = nc.args().get(0);
             } else if (n instanceof com.legend.compiler.spec.typed
                     .TypedCast c) {

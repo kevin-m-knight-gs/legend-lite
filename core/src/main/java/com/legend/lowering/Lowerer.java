@@ -234,7 +234,10 @@ public final class Lowerer {
         if (spec instanceof TypedConcatenate c) {
             return union(c);
         }
-        if (spec.info().type() instanceof Type.RelationType) {
+        // ANY relation-ish root — a table, the .rows collection, or ONE
+        // ROW (an at()-pick: a one-row TABULAR, matching ResultShape) —
+        // lowers through the relation pipeline.
+        if (Type.schemaView(spec.info().type()) != null) {
             return relation(spec);
         }
         // relation->map(row|scalar) at the ROOT is the single-column
@@ -243,10 +246,10 @@ public final class Lowerer {
         // COLLECTION-VALUED mapper ($r.values — the row's cells) FLATTENS
         // per pure map semantics: project the cell array, then UNNEST.
         if (spec instanceof TypedMap m
-                && m.source().info().type() instanceof Type.RelationType
+                && Type.relationValued(m.source().info())
                 && m.mapper() instanceof TypedLambda ml
                 && !(ml.info().type() instanceof Type.FunctionType ft
-                        && ft.result().type() instanceof Type.RelationType)) {
+                        && Type.isRelation(ft.result().type()))) {
             boolean collectionMapper = ValueCollections.isCollectionMapper(ml);
             Multiplicity colMult =
                     ml.info().type() instanceof Type.FunctionType fnT
@@ -256,9 +259,9 @@ public final class Lowerer {
                     m.source(),
                     List.of(new TypedFuncCol("value", ml)),
                     new ExprType(
-                            new Type.RelationType(List.of(
+                            Type.relation(new Type.RelationType(List.of(
                                     new Type.RelationType.Column("value",
-                                            spec.info().type(), colMult))),
+                                            spec.info().type(), colMult)))),
                             Multiplicity.Bounded.ONE)));
             // SCALAR-STAMPED cells (C1) are one element per row ALREADY —
             // the explode is identity, and UNNEST(scalar) does not bind.
@@ -281,10 +284,13 @@ public final class Lowerer {
      * class roots (COLLECTION/GRAPH shapes) are still honestly unbuilt.
      */
     private SqlSelect scalarRoot(TypedSpec spec) {
-        SqlExpr e = scalar(spec, (var, name) -> {
-            throw new IllegalStateException("a scalar query has no row scope for $"
-                    + var + "." + name);
-        });
+        SqlExpr e = requiredOneEgress(spec);
+        if (e == null) {
+            e = scalar(spec, (var, name) -> {
+                throw new IllegalStateException("a scalar query has no row scope for $"
+                        + var + "." + name);
+            });
+        }
         // COLLECTION roots explode to N rows (the result-shape contract:
         // Executor reads a collection as N rows x 1 column).
         if (isMany(spec)) {
@@ -296,6 +302,45 @@ public final class Lowerer {
                 null, List.of(), null, null, List.of(), null, null,
                 List.of(new OutputCol("value", sqlTypeOf(spec.info().type()),
                         PureSql.nullable(spec.info().multiplicity()))));
+    }
+
+    /**
+     * EGRESS lower bound (multiplicity audit follow-up, slice A): the
+     * engine's Java executor checks the FINISHED result's row count
+     * against the declared multiplicity ({@code resultSizeRange}) — the
+     * one enforcement its in-expression {@code processNoOp} lane never
+     * does. Mid-expression, a row-lane {@code toOne} strips to the bare
+     * scalar subquery (empty &rarr; NULL, the ADJUDICATED flow); at the
+     * STATEMENT ROOT the row count is still visible in the LIST carrier,
+     * so a user {@code toOne} over a MANY-stamped operand keeps the list
+     * and guards it: 0 rows raises pure's size-0 cast, 1 row holding
+     * NULL extracts NULL (the engine counts rows, not values), N rows
+     * raises size-N — all with pure's own message. {@code trustOne}
+     * (synthesized conformance) never guards, and [0..1]-stamped
+     * operands stay flow-adjudicated (a NULL cell and an empty are
+     * indistinguishable there, and the engine flows the NULL cell).
+     *
+     * @return the guarded root expression, or {@code null} when this is
+     *         not the required-one egress shape (caller lowers normally)
+     */
+    private @com.legend.Nullable SqlExpr requiredOneEgress(TypedSpec spec) {
+        if (!(spec instanceof com.legend.compiler.spec.typed.TypedNativeCall tc
+                // the recognizer minus its trustOne member: conformance
+                // wraps never guard (the C2 provenance split)
+                && Pure.isToOneCall(tc.callee().qualifiedName())
+                && !Pure.Lite.TRUST_ONE.equals(tc.callee().qualifiedName())
+                && !tc.args().isEmpty()
+                && tc.args().get(0).info().multiplicity().isMany())) {
+            return null;
+        }
+        SqlExpr op = scalar(tc.args().get(0), (var, name) -> {
+            throw new IllegalStateException("a scalar query has no row scope for $"
+                    + var + "." + name);
+        });
+        // only the exact LIST-collecting shape carries an honest row
+        // count; anything else (value-lane lists already CheckedOne'd
+        // inside the rule, opaque calls) lowers through the normal path
+        return Scalars.aggStrip(op) != null ? new SqlExpr.CheckedOne(op) : null;
     }
 
     String nextAlias() {
@@ -311,7 +356,7 @@ public final class Lowerer {
         // first()/head() IS limit 1 — row selection, not value extraction
         if (spec instanceof TypedNativeCall pc
                 && !pc.args().isEmpty()
-                && pc.args().get(0).info().type() instanceof Type.RelationType) {
+                && Type.relationValued(pc.args().get(0).info())) {
             String fqn = pc.callee().qualifiedName();
             if (fqn.equals("meta::pure::functions::collection::at")
                     && pc.args().size() == 2
@@ -410,7 +455,7 @@ public final class Lowerer {
                     throw new IllegalStateException("collection-relation value must"
                             + " be self-contained, referenced column: " + name);
                 });
-                Type elem = ((Type.RelationType) cr.info().type())
+                Type elem = (Type.requireRelationSchema(cr.info().type()))
                         .columns().get(0).type();
                 SqlExpr list = elem instanceof Type.ClassType
                         ? SqlExpr.Call.of(SqlFn.VARIANT_ELEMENTS, value)
@@ -434,8 +479,8 @@ public final class Lowerer {
 
             case TypedRename r -> rename(r);
 
-            case TypedSort s -> sort(s);
-            case TypedSortBy sb -> sortBy(sb);
+            case TypedSort s -> Sorts.sort(this, s);
+            case TypedSortBy sb -> Sorts.sortBy(this, sb);
 
             case TypedLimit l -> {
                 SqlSelect src = relation(l.source());
@@ -445,7 +490,7 @@ public final class Lowerer {
             // first()/head() over a RELATION: the first row — LIMIT 1 (the
             // result stays row-typed, one row's TABULAR).
             case TypedNativeCall n when n.args().size() == 1
-                    && n.args().get(0).info().type() instanceof Type.RelationType
+                    && Type.relationValued(n.args().get(0).info())
                     && (isFamily(n, "first") || isFamily(n, "head")) -> {
                 SqlSelect src = relation(n.args().get(0));
                 yield (Fold.limitFolds(src) ? src : isolate(src)).withLimit(1L);
@@ -501,8 +546,10 @@ public final class Lowerer {
             // names ABSENT from the source are the pivot idiom's dynamic
             // columns — those stay type-only (zero SQL footprint).
             case TypedCast c
-                    when c.source().info().type() instanceof Type.RelationType srcRow
-                    && c.info().type() instanceof Type.RelationType tgtRow ->
+                    when Type.relationSchema(c.source().info().type())
+                            instanceof Type.RelationType srcRow
+                    && Type.relationSchema(c.info().type())
+                            instanceof Type.RelationType tgtRow ->
                     relationCast(c, srcRow, tgtRow);
 
             case TypedFlatten fl -> flatten(fl);
@@ -517,7 +564,7 @@ public final class Lowerer {
             case TypedPropertyAccess pa
                     when pa.property().equals(com.legend.compiler
                             .element.type.PlatformTypes.ROWS_MARKER)
-                    && pa.source().info().type() instanceof Type.RelationType ->
+                    && Type.isRelation(pa.source().info().type()) ->
                     relation(pa.source());
 
             // STORE-ONLY nodes: reaching the lowerer is not a missing rule —
@@ -534,7 +581,7 @@ public final class Lowerer {
                     relation(nc.args().get(0));
 
             case TypedNativeCall nc when ValueCollectionOps.isBareSingleColumnSort(nc) ->
-                    naturalSort(nc);
+                    Sorts.naturalSort(this, nc);
 
             case TypedNativeCall nc
                     when ValueCollectionOps.relationDistinct(nc) != null ->
@@ -1231,7 +1278,7 @@ public final class Lowerer {
             switch (attempt(() -> scalar(body, (v, name) -> resolveOrThrow(resolveBase, name)))) {
                 case Resolution.Resolved r -> {
                     if (manyCols.contains(c)) {
-                        Type elemT = info.type() instanceof Type.RelationType rt
+                        Type elemT = Type.schemaView(info.type()) instanceof Type.RelationType rt
                                 ? rt.columns().stream()
                                         .filter(cc -> cc.name().equals(c.name()))
                                         .findFirst().map(Type.Column::type)
@@ -1415,7 +1462,7 @@ public final class Lowerer {
         };
     }
 
-    private SqlExpr resolveOrThrow(SqlSelect select, @com.legend.Nullable String column) {
+    SqlExpr resolveOrThrow(SqlSelect select, @com.legend.Nullable String column) {
         // bare-variable read ($var whole): over a SINGLE-COLUMN select the
         // row IS the cell (the encoding's value semantics); wider rows
         // stay unfoldable (isolate-or-loud), never NPE
@@ -1541,7 +1588,7 @@ public final class Lowerer {
         // UNION dedups; never a distinct wrapper)
         // whole-row iff columns cover the SOURCE schema (output row is narrowed)
         boolean wholeRow = d.columns().isEmpty()
-                || d.columns().equals(((Type.RelationType) d.source().info().type())
+                || d.columns().equals((Type.requireRelationSchema(d.source().info().type()))
                         .columns().stream().map(Type.Column::name).toList());
         if (wholeRow && d.source() instanceof TypedConcatenate tc) {
             SqlUnion u = union(tc);
@@ -1549,7 +1596,7 @@ public final class Lowerer {
             SqlSource.Subselect sub = new SqlSource.Subselect(
                     dedup, nextAlias(), "unionAlias");
             List<SqlSelect.Projection> projs = new ArrayList<>();
-            for (Type.Column c : ((Type.RelationType) d.info().type())
+            for (Type.Column c : (Type.requireRelationSchema(d.info().type()))
                     .columns()) {
                 projs.add(new SqlSelect.Projection(
                         new SqlExpr.Column(sub.alias(), c.name()), c.name()));
@@ -1581,7 +1628,7 @@ public final class Lowerer {
                 && (src.from() instanceof SqlSource.Subselect
                         || src.projections().isEmpty())
                 ? src : isolate(src);
-        Type.RelationType outSchema = (Type.RelationType) r.info().type();
+        Type.RelationType outSchema = Type.requireRelationSchema(r.info().type());
         // Each output column reverse-maps to the source column it renames.
         Function<String, String> sourceOf = out -> {
             for (TypedRename.ColRename cr : r.renames()) {
@@ -1613,68 +1660,11 @@ public final class Lowerer {
         return base.withProjections(ps, outputsOf(r.info()));
     }
 
-    private SqlSelect sort(TypedSort s) {
-        SqlSelect src = relation(s.source());
-        SqlSelect base = Fold.sortFolds(src) ? src : isolate(src);
-        List<SqlSelect.SortKey> keys = new ArrayList<>(s.keys().size());
-        for (TypedSort.TypedSortKey k : s.keys()) {
-            SqlExpr e = Fold.resolveInto(base, k.column());
-            if (e == null || !Fold.referencesColumn(e)) {
-                base = isolate(base);
-                return sortOnto(base, s);
-            }
-            // engine TEXT spells the OUTPUT column (order by "name" asc);
-            // execution renders e — sortBy stays physical in both
-            keys.add(new SqlSelect.SortKey(e, k.ascending(),
-                    s.pureNullOrder() ? Fold.sortNulls(k.ascending()) : null,
-                    k.column()));
-        }
-        return base.withOrderBy(keys);
-    }
 
-    /**
-     * {@code sortBy(rel, key-lambda)} — ORDER BY over the lowered key
-     * EXPRESSION (TypedSort is column-name-keyed; sortBy's key is a
-     * per-row lambda). Fold.sortFolds decides extend-vs-isolate, same as
-     * sort; the key expression resolves against the base select's row.
-     */
-    private SqlSelect sortBy(TypedSortBy sb) {
-        SqlSelect src = relation(sb.source());
-        SqlSelect base = Fold.sortFolds(src) ? src : isolate(src);
-        // One isolate retry on an unfoldable key ref (a computed projection
-        // column): behind the subselect it is a plain output column.
-        SqlSelect fin1 = base;
-        if (attempt(() -> scalar(last(sb.key()), (v, name) -> resolveOrThrow(fin1, name)))
-                instanceof Resolution.Resolved r) {
-            // TDS/collection sortBy = the engine-drop-in surface: NO null
-            // placement (backend default), per the corpus expected values
-            return base.withOrderBy(List.of(
-                    new SqlSelect.SortKey(r.expr(), sb.ascending(), null, null)));
-        }
-        SqlSelect iso = isolate(base);
-        SqlExpr key = scalar(last(sb.key()), (v, name) -> resolveOrThrow(iso, name));
-        return iso.withOrderBy(List.of(
-                new SqlSelect.SortKey(key, sb.ascending(), null, null)));
-    }
-
-    private SqlSelect sortOnto(SqlSelect base, TypedSort s) {
-        List<SqlSelect.SortKey> keys = new ArrayList<>(s.keys().size());
-        for (TypedSort.TypedSortKey k : s.keys()) {
-            SqlExpr.Column e = Fold.sourceColumn(base.from(), k.column());
-            if (e == null) {
-                throw new IllegalStateException("sort key '" + k.column()
-                        + "' cannot be resolved after isolation");
-            }
-            keys.add(new SqlSelect.SortKey(e, k.ascending(),
-                    s.pureNullOrder() ? Fold.sortNulls(k.ascending()) : null,
-                    null));
-        }
-        return base.withOrderBy(keys);
-    }
 
     /** TDS literal → VALUES; empty → one all-NULL row gated by WHERE 1=0 (schema, zero rows). */
     private SqlSelect tdsLiteral(TypedTds tds) {
-        Type.RelationType schema = (Type.RelationType) tds.info().type();
+        Type.RelationType schema = Type.requireRelationSchema(tds.info().type());
         List<String> names = schema.columns().stream().map(Type.Column::name).toList();
         // The _tds alias names the literal's VALUES source (engine parity;
         // the shared counter keeps multiple literals distinct).
@@ -1708,14 +1698,15 @@ public final class Lowerer {
      * navigates are STORE material and never reach the lowerer.
      */
     private SqlSelect navigate(TypedNavigate nav) {
+        Type.RelationType targetRel = Type.relationSchema(nav.target().info().type());
         if (nav.form() != TypedNavigate.Form.PRE_MAP
-                || !(nav.target().info().type() instanceof Type.RelationType targetRel)
+                || targetRel == null
                 || nav.alias().isEmpty()) {
             throw new IllegalStateException("store-only navigate (class-extent"
                     + " target) reached the lowerer — resolver bug");
         }
         String alias = nav.alias().get();
-        var srcRow = (Type.RelationType) nav.source().info().type();
+        var srcRow = Type.requireRelationSchema(nav.source().info().type());
         Type.RelationType targetRow = targetRel;
         List<Type.Column> flat = new ArrayList<>(srcRow.columns());
         for (Type.Column c : targetRow.columns()) {
@@ -1723,7 +1714,8 @@ public final class Lowerer {
                     Multiplicity.Bounded.ZERO_ONE));
         }
         var flatInfo = new ExprType(
-                new Type.RelationType(flat), nav.info().multiplicity());
+                Type.relation(new Type.RelationType(flat)),
+                nav.info().multiplicity());
         var leftKind = new TypedEnumValue(
                 "meta::pure::functions::relation::JoinKind", "LEFT", nav.info());
         return join(new TypedJoin(nav.source(),
@@ -2218,7 +2210,7 @@ public final class Lowerer {
     /** {@code columns} resolves (lambda variable, property) to a SQL expression in scope. */
     SqlExpr scalar(TypedSpec spec, ColumnResolver columns) {
         SqlExpr r = scalarInner(spec, columns);
-        // stamp-vs-shape inspector (measurement only, LL_STAMP_COUNT)
+        // stamp-vs-shape INVARIANT (throws; LL_STAMP_COUNT=1 = census mode)
         StampCensus.check(spec, r);
         return r;
     }
@@ -2522,7 +2514,7 @@ public final class Lowerer {
             // a lambda binder holds a per-element CELL (stamp rides the
             // element) — it takes the scalar bridge.
             case TypedNativeCall n when n.args().size() >= 1
-                    && n.args().get(0).info().type() instanceof Type.RelationType
+                    && Type.relationValued(n.args().get(0).info())
                     && !(n.args().get(0) instanceof TypedVariable)
                     && relationPredicate(n) != null -> {
                 var predicate = Objects.requireNonNull(relationPredicate(n));
@@ -2541,7 +2533,7 @@ public final class Lowerer {
             // not 3 nested lists) — same TypedCollection-body policy as the
             // relation->map value-collection arm below.
             case TypedMap m
-                    when !(m.source().info().type() instanceof Type.RelationType) -> {
+                    when !Type.relationValued(m.source().info()) -> {
                 // ListEncodings.map owns the wire-shape policy (types
                 // drive construction: scalar sources wrap, scalar results
                 // unwrap, [0..1] null-guards)
@@ -2629,19 +2621,19 @@ public final class Lowerer {
             // COLLECTION-VALUED relation nodes in scalar position (the
             // list encodings; relation-typed sources take relation()).
             // C1: a scalar-stamped source conforms by EMISSION (asList).
-            case TypedFilter f when !(f.source().info().type() instanceof Type.RelationType) ->
+            case TypedFilter f when !Type.relationValued(f.source().info()) ->
                     SqlExpr.Call.of(SqlFn.LIST_FILTER,
                             PureSql.asList(scalar(f.source(), columns),
                                     isMany(f.source())),
                             scalar(f.predicate(), columns));
             // slice(start, stop) — ListEncodings.slice owns the bounds
             // clamps and real pure's inverted-bounds error
-            case TypedSlice s when !(s.source().info().type() instanceof Type.RelationType) ->
+            case TypedSlice s when !Type.relationValued(s.source().info()) ->
                     ListEncodings.slice(scalar(s.source(), columns),
                             scalar(s.start(), columns),
                             scalar(s.stop(), columns));
             // drop(n): the suffix from n+1; negative n drops nothing (PCT).
-            case TypedDrop d when !(d.source().info().type() instanceof Type.RelationType) -> {
+            case TypedDrop d when !Type.relationValued(d.source().info()) -> {
                 SqlExpr src = scalar(d.source(), columns);
                 yield SqlExpr.Call.of(SqlFn.LIST_SLICE, src,
                         ListEncodings.onePlus(ListEncodings.clamp0(scalar(d.count(), columns))),
@@ -2649,7 +2641,7 @@ public final class Lowerer {
             }
             // take(n): the prefix; negative n takes nothing (PCT) — the clamp
             // matters because DuckDB reads a negative bound FROM THE END.
-            case TypedLimit t when !(t.source().info().type() instanceof Type.RelationType) ->
+            case TypedLimit t when !Type.relationValued(t.source().info()) ->
                     SqlExpr.Call.of(SqlFn.LIST_SLICE,
                             scalar(t.source(), columns), new SqlExpr.IntLit(1),
                             ListEncodings.clamp0(scalar(t.count(), columns)));
@@ -2744,10 +2736,10 @@ public final class Lowerer {
             // (makeString/joinStrings tails): aggregate the projected
             // column to a LIST value via a scalar subquery
             case TypedMap m2
-                    when m2.source().info().type() instanceof Type.RelationType
+                    when Type.relationValued(m2.source().info())
                     && m2.mapper() instanceof TypedLambda ml2
                     && !(ml2.info().type() instanceof Type.FunctionType ft2
-                            && ft2.result().type() instanceof Type.RelationType) -> {
+                            && Type.isRelation(ft2.result().type())) -> {
                 Multiplicity colMult2 =
                         ml2.info().type() instanceof Type.FunctionType fnT2
                                 ? fnT2.result().multiplicity()
@@ -2756,9 +2748,9 @@ public final class Lowerer {
                         m2.source(),
                         List.of(new TypedFuncCol("value", ml2)),
                         new ExprType(
-                                new Type.RelationType(List.of(
+                                Type.relation(new Type.RelationType(List.of(
                                         new Type.RelationType.Column("value",
-                                                m2.info().type(), colMult2))),
+                                                m2.info().type(), colMult2)))),
                                 Multiplicity.Bounded.ONE)));
                 // pure map FLATTENS collection-valued mappers ($r.values):
                 // the list-of-cell-arrays flattens one level
@@ -2804,13 +2796,17 @@ public final class Lowerer {
             // A COLUMN READ over a relation chain in scalar position
             // ($tds.rows.id — the TDS getter desugar): narrow to the one
             // column and take the single-column relation route below.
+            // relation-rooted OR a single ROW pick (at(0) over rows —
+            // bare struct, to-one stamp): both narrow to the one column
+            // and take the single-column relation route below.
             case TypedPropertyAccess pa
-                    when pa.source().info().type() instanceof Type.RelationType prt -> {
+                    when Type.schemaView(pa.source().info().type())
+                            instanceof Type.RelationType prt -> {
                 Type.RelationType.Column c = Fold.scalarReadColumn(prt, pa.property());
                 yield scalar(new TypedSelect(pa.source(),
                         List.of(pa.property()),
                         new ExprType(
-                                new Type.RelationType(List.of(c)),
+                                Type.relation(new Type.RelationType(List.of(c))),
                                 pa.info().multiplicity())), columns);
             }
             // A single-column RELATION consumed in SCALAR position. A
@@ -2824,8 +2820,13 @@ public final class Lowerer {
             // MULTI-column = ROW-MAJOR cell flatten (the whole-TDS assert
             // idiom); no toOne carve-out — a [1] stamp on a relation VALUE
             // is the value's mult, not the row count.
-            case TypedSpec rel when rel.info().type()
-                    instanceof Type.RelationType rt
+            // any relation-ish value in scalar position: a table, the
+            // .rows collection, or ONE ROW (an at()-pick — its wire
+            // form is the single-row relation flatten). Row lambda
+            // VARIABLES never reach here (the column-resolver arms
+            // above own them).
+            case TypedSpec rel when Type.schemaView(rel.info().type())
+                            instanceof Type.RelationType rt
                     && !rt.columns().isEmpty() -> {
                 enclosing.push((v, name) -> {
                     SqlExpr r = columns.resolve(v, name);
@@ -2874,14 +2875,6 @@ public final class Lowerer {
         };
     }
 
-    /** Natural ascending order on the stream's one column. */
-    private SqlSelect naturalSort(TypedNativeCall nc) {
-        Type.RelationType srt =
-                (Type.RelationType) nc.args().get(0).info().type();
-        return relation(nc.args().get(0)).withOrderBy(List.of(
-                SqlSelect.SortKey.asc(new SqlExpr.Column(null,
-                        srt.columns().get(0).name()))));
-    }
 
     /** An instance literal in relation position: {@code ^X(…)} or a collection of them. */
     private static boolean isInstanceLiteral(TypedSpec source) {
@@ -3019,14 +3012,21 @@ public final class Lowerer {
                 SqlSource.Join.Kind.LEFT_LATERAL, new SqlExpr.BoolLit(true));
     }
 
-    /** A colspec body as a bare property path rooted at the lambda parameter; null = computed. */
+    /** A colspec body as a bare property path (null = computed). A
+     * path IS a chain of auto-maps: plain access OR single-hop map
+     * node (ValueCollections.autoMapHop). */
     private static @com.legend.Nullable List<String> pathOf(TypedFuncCol col) {
         String param = col.fn().parameters().get(0);
         ArrayDeque<String> path = new ArrayDeque<>();
         TypedSpec cur = col.fn().body().get(col.fn().body().size() - 1);
-        while (cur instanceof TypedPropertyAccess pa) {
-            path.addFirst(pa.property());
-            cur = pa.source();
+        while (true) {
+            if (cur instanceof TypedPropertyAccess pa) {
+                path.addFirst(pa.property());
+                cur = pa.source();
+            } else if (ValueCollections.autoMapHop(cur) instanceof String hop) {
+                path.addFirst(hop);
+                cur = ((TypedMap) cur).source();
+            } else break;
         }
         if (!(cur instanceof TypedVariable v) || !v.name().equals(param) || path.isEmpty()) {
             return null;   // COMPUTED body — the caller lowers it as a scalar
@@ -3459,16 +3459,17 @@ public final class Lowerer {
         return SqlSelect.starOf(new SqlSource.Subselect(s, nextAlias(), null));
     }
 
-    private static TypedSpec last(TypedLambda lambda) {
+    static TypedSpec last(TypedLambda lambda) {
         return lambda.body().get(lambda.body().size() - 1);
     }
 
     private static Type.RelationType schemaOf(TypedSpec spec) {
-        return (Type.RelationType) spec.info().type();
+        return Type.requireRelationSchema(spec.info().type());
     }
 
     List<OutputCol> outputsOf(ExprType info) {
-        if (!(info.type() instanceof Type.RelationType rt)) {
+        Type.RelationType rt = Type.schemaView(info.type());
+        if (rt == null) {
             return List.of();
         }
         // THE Pure→SQL type boundary: plans carry SQL types only. A
@@ -3477,7 +3478,10 @@ public final class Lowerer {
         // join actually emitted (alias_COL, all nullable: LEFT semantics).
         List<OutputCol> out = new ArrayList<>(rt.columns().size());
         for (Type.Column c : rt.columns()) {
-            if (c.type() instanceof Type.RelationType sub) {
+            // a slot column types the target's bare row-struct
+            Type.RelationType sub =
+                    c.type() instanceof Type.RelationType r0 ? r0 : null;
+            if (sub != null) {
                 for (Type.Column sc : sub.columns()) {
                     out.add(new OutputCol(c.name() + "_" + sc.name(),
                             PureSql.type(sc.type()), true));

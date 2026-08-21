@@ -26,11 +26,13 @@ final class Stamps {
      * reading, preserved VERBATIM for the reduction rules: their
      * identity arms are correct for one value but WRONG for the empty
      * (and([]) is true, joinStrings([]) is '' — the empty-identity
-     * lives in the list arm's COALESCE). DISCOVERED FORK, recorded in
-     * STAMP_DISCIPLINE_PROGRAM: a [0..1] operand that is empty AT
-     * RUNTIME already takes the identity arm and yields NULL where
-     * pure defines an empty identity — a PRE-EXISTING semantics hole,
-     * pinned nowhere by the suites, owned by the PCT lane. */
+     * lives in the list arm's COALESCE). THE FORK IS CLOSED (audit §4,
+     * slice 4): the reduction arms split {@link #exactlyOne} (identity)
+     * from [0..1] (coalesce to pure's empty identity — and([])=true,
+     * or()=false, joinStrings/makeString=''); the TDSNull sentinel no
+     * longer leaks as user data. This predicate remains the historical
+     * upper-bound reading for the arms whose semantics genuinely key on
+     * it. */
     static boolean toOne(TypedSpec spec) {
         return spec.info().multiplicity() instanceof Multiplicity.Bounded b
                 && Integer.valueOf(1).equals(b.upper());

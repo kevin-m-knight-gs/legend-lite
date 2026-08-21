@@ -560,3 +560,627 @@ END STATE REACHED: zero shape-decision consumers in production, zero
 invariant skips, one positive carrier table the enforcer CHECKS, and
 no mechanism left to abuse. Shape classification exists only as the
 throwing invariant's private evidence.
+
+## AUDIT BURN (user: "burn them all down") — D1/D4 LANDED, D2/D3 CHARTERED BY MEASUREMENT
+
+The deep-audit debts, attacked in risk order:
+- **D4 LANDED**: ONE stamp authority (lowering/Stamps — toOne preserved
+  VERBATIM for reduction identity arms vs atMostOne for collection
+  ops/frames; the refactor caught its own near-bug: blanket-widening
+  would have broken reduction EMPTY-IDENTITIES). DISCOVERED FORK
+  recorded in Stamps: runtime-empty [0..1] reductions already yield
+  NULL where pure defines an identity (and([])=true, joinStrings([])=
+  '') — pinned nowhere, owned by the PCT lane. C1 collapse predicate
+  stated once (ValueCollections.c1Singleton).
+- **D1 LANDED**: SqlExpr.CheckedOne — checked narrowing as ONE semantic
+  node, spelled by the DIALECT layer (execution = pure's size guard;
+  engine-TEXT = verbatim processNoOp view); Scalars.checkedExtract
+  deleted, the ratchet's re-absorption promise fulfilled (129→127).
+  The subquery-collect strip's DB-native message stays: engine-verbatim,
+  corpus-pinned — spec, not debt.
+- **D2/D3 MEASURED, then CHARTERED (not half-landed)**: the explicit
+  auto-map probe (accessProperty emitting map(recv, v|$v.prop) for
+  many class receivers, mirroring the derived arm) costs 11/4166 core
+  and **~65 corpus regressions across 16 families** (milestoning,
+  association, inheritance, graphFetch, sqlDialectTranslation,
+  executionPlan…) — the resolver's ~115 chain-match sites are
+  load-bearing across the drop-in surface. Same evidence shape that
+  rightly killed the blanket toOne unwrap: this is a per-walker
+  MIGRATION ARC, corpus-refereed per slice. GROUNDWORK KEPT:
+  ValueCollections.autoMapHop is THE canonical single-hop link reader,
+  and pathOf is the first migrated walker (it now also reads
+  user-written map hops as path elements — strictly more correct
+  today). The migration's definition of done: every chain walker
+  consumes hops through autoMapHop, the Typer flips to explicit
+  emission, rowRooted's TypeVar heuristic DELETES (the frame becomes
+  syntax), and Row-vs-Relation conflation resolves with it.
+
+## D3-CLASS CLOSED AS NOT-A-DEBT (measured re-derivation, user session "lets do it")
+
+The class-side explicit-auto-map migration was EXECUTED far enough to
+learn the truth, then reverted on the evidence:
+- Flip + pathOf reader: 11 core failures → the resolver-ingress
+  chain adapter (map→chain at the front door) healed ALL core (4166/0)
+  and cut the corpus delta 65→38.
+- The surviving 38 live in channels OUTSIDE the resolver's front door
+  (assert-verdict machinery, plan-text, the qualifier inliner) —
+  finishing means teaching every typed-tree consumer the new spelling
+  OR normalizing the maps away post-typing, which makes the flip a
+  no-op with extra steps.
+- DECISIVE: the witness dumps show class-side stamps were ALREADY
+  honest pre-flip — accessProperty's compose rule IS pure's dot-rule
+  (source × member multiplicity), C2c made it frame-aware, and the
+  invariant verifies its output. The flip added ZERO invariant payoff.
+
+RULING: the class-side representation duality costs nothing observable
+— compose is the auto-map, stamps are true, the enforcer checks them.
+Purity with no payoff priced at 38-test regression risk is refused,
+the same way the blanket unwrap was. KEPT (correct regardless):
+TypedMap.singleHopProperty — the canonical single-hop reader, now a
+public fact on the node — and pathOf reading user-written map hops as
+path elements. The REAL successor arc is unchanged and now precisely
+scoped: Row-vs-Relation typing (one RelationType currently means both
+"a row" and "a table" at the same multiplicity — the ONLY remaining
+place a stamp is genuinely ambiguous, and the detective's actual home).
+
+## SUCCESSOR ARC CHARTER: the Row-vs-Relation split (read-only sizing, 2026-08-20)
+
+THE last genuine ambiguity: one Type.RelationType means BOTH "a row"
+and "a whole table" — [1..1] cannot distinguish one row from one
+table, rowRooted-the-detective exists to guess it, and its TypeVar
+blind spot ([tds1,tds2]->first().col misread as a row frame) is
+unfixable inside the current model.
+
+KEY ALIGNMENT FACT: the pure signatures we ALREADY PORT write the
+distinction — lead<T>(w:Relation<T>[1], r:T[1]):T[0..1] — container
+(Relation<T>) vs element (T). Our kernel ERASES it: T and Relation<T>
+resolve to the same RelationType. The split RESTORES what the
+signatures declare; rowRooted's heuristic then becomes exact by
+declaration and DELETES.
+
+Measured radius: 121 `instanceof Type.RelationType` sites across ~30
+files, concentrated: InferenceKernel 24 (the generic binding machinery
+— the heart of the change: T binds RowType, Relation<T> the
+container), Lowerer 23 (row/relation arms), Typer 11 (row-var scopes,
+accessProperty frames), StoreResolver 7, + ResultShape/Executor
+carrier decisions. Each site answers one question: row, table, or
+legitimately both.
+
+Probe-first like everything else: introduce Type.RowType, teach the
+kernel to bind Relation<T> signatures container/element, let sealed-
+switch exhaustiveness + the full suites enumerate the fallout, slice
+by the evidence. DEFINITION OF DONE: rowRooted deleted (both the env
+frame-bit consultation for relation receivers and the TypeVar
+heuristic), the per-row/collection frame read off the TYPE, and the
+Env frame bit retained only for genuinely lexical facts (lambda-vs-let
+binding kind).
+
+ADDENDUM (user challenge, accepted in part): the D3-class ruling holds
+for STAMPS (not-a-debt) but UNDERCOUNTED one real payoff — the
+resolver handles user-written maps and sugar chains through SEPARATE
+arms (autoMapRead exists to convert one to the other): duplicated
+logic, divergence risk. The correct fix is a PATH-VIEW API (matchers
+consume the hop sequence as an abstraction both spellings satisfy;
+autoMapRead and the dual arms DELETE) — not the rewriting adapter.
+Sequenced AFTER the Row split (map-over-relation lambdas become
+Row-typed by declaration first; the sites barely overlap, bundling
+would entangle two deep migrations). Tracked as its own arc:
+PATH-VIEW UNIFICATION.
+
+## ROW-VS-RELATION SPLIT — KERNEL LANDING (user: "do it")
+
+Type.RowType EXISTS: one row, distinct from the table. The kernel
+stopped erasing the distinction the pure signatures always declared —
+T in Relation<T> binds the ROW (RowType), Relation<T> resolves back to
+the TABLE (bare RelationType over the row's schema). G-alpha now
+round-trips instead of erasing.
+
+The migration ran in EIGHT principled rings, 1,323 -> 0 core failures
+plus the corpus's getter ring, each ring ONE systematic rule:
+1. accessProperty RowType arm — per-cell stamps BY TYPE (the
+   detective's replacement for kernel-typed rows).
+2. ⊆ subset RHS accepts a row's schema.
+3. Transitional binding coherence: RowType(cols) and RelationType(cols)
+   are one binding (ROW form wins; deleted when all producers speak Row).
+4. Relation<T> resolves to the TABLE view of the bound row (the
+   round-trip — healed 460 in one line).
+5. Schema-algebra operands contribute row SCHEMAS (left AND right —
+   the right-side silent drop was the join 4-vs-2 witness).
+6. ResultShape/Executor: a ROW root is a one-row TABLE at the boundary.
+7. relationRow presents a row's schema (bare row-struct spellings in
+   declared signatures accept row actuals).
+8. The TDS getter surface (tdsReceiver): getters serve relations AND
+   rows — the ROW case stated by type (h2 floor back to exactly
+   320/632; groupBy agg-lambda getters were the witnesses).
+Two kernel tests updated from pinning the ERASURE to pinning the SPLIT.
+
+Landed green: core 4166/0, corpus zero regressions ledger-byte-
+identical, h2 floor exact, PCT all suites, full gates chain.
+
+NEXT SLICE (the detective's actual deletion): resolver-built navigate
+slots still type bare RelationType where they mean rows — move those
+producers to RowType, then rowRooted DELETES (its env consultation for
+relation receivers and the TypeVar heuristic both), the frame read off
+the type everywhere.
+
+## MODEL B — THE REFERENCE-FAITHFUL RE-ORIENTATION (user: "are you
+## sure the shortcut you took is the right thing? ... do it")
+
+The RowType split was audited before landing anything on top of it and
+REVERSED IN ORIENTATION. Unbiased finding, user-ratified: real pure has
+no RowType — the bare struct (metamodel RelationType) IS the row/schema
+(the T of Relation<T>), and a TABLE is ALWAYS the wrapped
+GenericType(Relation, [schema]). My split had kept the inverted meaning
+(bare = table) because 121 sites assumed it and had invented RowType
+for rows — two distinct types (conflation gone) but BACKWARDS relative
+to the reference: every future type-rendering leg (canonical-render
+verdicts prints engine text), every signature port, and every reader
+would pay a permanent translation layer, and two transitional shims
+(binding coherence, the late-bound row guard whose absence stack-
+overflowed) existed only because of the inversion.
+
+MODEL B, landed: bare Type.RelationType = the SCHEMA STRUCT; as a
+value, ONE ROW (pure's pun — schema IS row type). A table =
+Type.relation(schema) = GenericType(Relation, [schema]), preserved
+through resolution — THE G-ALPHA ERASURE IS DELETED, NOT INVERTED.
+Type.RowType DELETED. Both transitional shims DELETED (RowType.of
+guard, kernel coherence). Env's row-param bit DELETED — binding kind
+carries nothing the type doesn't. NavigateChecker's unify-rebind hack
+replaced by the explicit special-form b.bindType (JoinChecker's own Z
+idiom). .rows typed as the ROW COLLECTION (engine TDSRow[*]: bare
+struct, many stamp) — at(0) over rows is a row BY TYPE, the getter
+auto-map/per-cell frames dispatch on Type.relationValued (wrapped, or
+bare+many) with ZERO tree walking.
+
+ONE OWNER for the representation: Type.relation / Type.isRelation /
+Type.relationSchema (wrapped-only reader) / Type.schemaView (wrapped-
+or-bare) / Type.requireRelationSchema (loud pipeline read) /
+Type.relationValued (relation-rooted value BY TYPE+STAMP).
+
+Migration mechanics: ~200 sites over 33 files classified table-vs-row
+(mints wrap; schema/row sites stay bare), suites as referee in 8 rings
+(297 -> 90 -> 37 -> 13 -> 0). TRAP RECORDED: silent-fallback keying
+(`if (!(x instanceof RelationType)) return default;`) DEGRADES instead
+of failing when the spelling flips — RenameChecker's position-
+preserving rebuild silently fell back to append-order; Compiler.wire-
+Schema fell back to the value-column; ExecutionResult.envelopeCarriers
+misclassified TDS as splat. Every such site now reads through the
+owner helpers. Second trap: FQ-spelled `instanceof com.….Type
+.RelationType` hid ~40 sites from the short-spelling grep — census
+both spellings, and multiline `instanceof\n Type` needs an awk pass.
+Ledger pins bumped with justification (type-spelling growth, zero new
+evaluation); Lowerer split Sorts.java out whole (real split, the
+Pivots collaborator pattern) to return under the 3500 cap.
+
+Core 4166/0. Corpus/PCT/gates: recorded below at commit.
+
+### Model-B corpus endgame (rings 9-14) and the stale-oracle rediscovery
+
+The full-corpus referee ran through SIX more rings after the unit
+suite went green (297→90→37→13→0 unit rings; then 70→23→1→0 corpus
+deltas vs a same-day HEAD baseline A/B):
+- StoreResolver's anchored dispatch: per-cell reads over ROW-typed
+  picks and maps over the rows view resolve STRUCTURALLY
+  (schemaView/relationValued, not wrapped-only).
+- .values over a PICK-rooted row is IDENTITY (wire flatten keeps
+  TDSNull; the cells channel is for lambda ROW VARIABLES only — a
+  lexical binding fact; the collection channel's null-drop plus the
+  lower-bound honesty guard caught the difference).
+- lower()'s ROOT dispatch: any schemaView-carrying root (table, rows,
+  one row) lowers through the relation pipeline (matches ResultShape).
+- NavMaterializer: a FOURTH spelling escape — casts written
+  `(com.legend...Type.RelationType)` over a LINE BREAK evaded every
+  census pattern; three pipe casts → requireRelationSchema, three
+  TypedJoin infos wrapped.
+- zipPairProject's ExprType.one(row) — the ExprType.one(...) mint
+  spelling was a FIFTH census gap.
+- Scalars.isClassish counted ANY GenericType as an instance kind — the
+  wrapped relation made containment statically FALSE (exists family,
+  8 tests). Relation types are excluded by name.
+- ValueCollectionOps recognizers + DistinctChecker + Args.outputColumns
+  accept the bare rows view (schemaView/relationValued).
+
+THE BLOCKING SCARE THAT WASN'T: the full corpus first showed 19
+regressions PLUS an h2-floor drop — and a HEAD checkout showed the
+IDENTICAL failure set, as did the very commit that wrote the ledger.
+Controlled A/B (same oracle both sides) kept the migration honest
+while the "drift" was chased — and it was the RECORDED trap:
+$HOME/legend/legend-engine is the STALE checkout; the ledger's
+baselines come from /Users/neemsandv/legend. Against the correct
+roots: G4 zero regressions, scoreboard byte-stable, ALL EIGHT GATES
+GREEN (G1 4166/0, G4 DuckDB corpus, G5 h2, G6/G7 PCT, G8 parser).
+
+## MULTIPLICITY AUDIT ADOPTED — RETRACTION AND THE NEW PROGRAM
+
+docs/MULTIPLICITY_AUDIT_2026_08_20.md (independent deep audit,
+evidence rule: code and execution only) is ADOPTED in full. Its
+verdict stands: the invariant is real and was never weakened, but it
+is a CONSISTENCY check, not soundness — lowering picks SQL shape FROM
+the stamp, so a wrong-but-propagated stamp fires nothing — and the
+stamps are wrong upstream on the most common shape in real Legend
+code. RETRACTED accordingly: every end-state sentence in this document
+claiming "the type system can no longer lie silently" or reading
+census-zero as a guarantee. The honest claim is the hedge: absence is
+not proof of health, but firing IS proof of a lie.
+
+Every audit finding was spot-verified against the post-model-B tree
+before adoption: unifyMult has no lower-bound comparison (its "engine
+convention" comment is FALSE — real pure MultiplicityMatch.java:273
+rejects [0..1]->[1]; that is why toOne exists); MatchChecker hardcoded
+[0..1] beside its own unused widen(); Stamps.exactlyOne had zero
+callers; CheckedOne guards 16/167 functions and navigate-toOne is
+DELETED; []->toOne() yields NULL; the empty-identity fork ships wrong
+answers and leaks the TDSNull sentinel; 4 endsWith("::toOne") suffix
+matches; CI's corpus step assume-skips (vacuous green) and pct never
+runs in CI.
+
+THE PROGRAM (audit §8 order, path-view unification re-sequenced after
+the foundation): slice 1 = the multiplicity algebra owner (below);
+slice 2 = the strict lower-bound flip, probe-first, conform-by-
+emission; slice 3 = toOne honest (CheckedOne everywhere, both bounds,
+negative fixtures, egress lower bound); slice 4 = the empty-identity
+fork; slice 5 = exact-FQN recognizers + honest CI; then path-view.
+
+### SLICE 1 LANDED — Multiplicity.union / Multiplicity.product
+
+ONE owner for the arithmetic (audit §1d: four ad-hoc copies, four
+DIFFERENT Var fallbacks — position-dependent answers). Routed: the
+kernel's covariant mult-var accumulation, IfChecker (its copy
+deleted), MatchChecker (widen() deleted; the §1c HARDCODED [0..1]
+fixed — differing arms now UNION, [2]/[1] = [1..2], pinned by
+matchRuntimeDispatchUnionsArmMultiplicities), Typer.compose (§1e: the
+Var-drop dies — [1] is the product identity, [n].[1] stays [n]; any
+other Var meeting is LOUD). Product annihilation edge caught by the
+slice's own new pin: [0..0].[*] = [0..0], zero beats unbounded
+absorption. MultiplicityAlgebraTest pins all of it (before this slice,
+ZERO tests pinned any copy). Prose corrections landed: StampCensus
+header states the consistency-not-soundness scope, the false
+"production code never consults shape" claim corrected, the Stamps
+fork's fictional "PCT lane" owner repointed to slice 4.
+
+### SLICE 2 LANDED — the strict lower-bound flip (audit §1 root cause)
+
+unifyMult now enforces FULL covariant containment — real pure's
+MultiplicityMatch ([a..b] into [c..d] iff c<=a and b<=d): [0..1] into a
+[1] slot REJECTS, exactly like real pure (that is why toOne exists).
+The false "engine convention rejects only [*]->[1]" comment is deleted
+with a citation of MultiplicityMatch.java:273-279. Scoring mirrors the
+containment (the kernel-halves agreement — and it is HOW real pure
+disambiguates [0..1]-vs-[1] overload pairs). Carve-outs each carry
+their doctrine: relation sources (§3.2), contravariant function-value
+params, the Variant carrier, and — NEW, evidence-based — FUNCTION-VALUE
+RESULT slots are lenient on the LOWER bound only (unifyMultResult /
+resultMultScore, one owner): the reference's own corpus compiles
+sortBy over optional association paths ({T[1]->String[0..1]} against
+declared {T[1]->U[1]}). Audit §1b rides along: declared-return-vs-body
+now strict (f(a:String[0..1]):String[1]{$a} and f():String[3]{['a','b']}
+both REJECT, pinned).
+
+PROBE-FIRST, measured: 68 core failures -> 0 in 8 rings; corpus 356
+non-pass -> ZERO regressions, scoreboard byte-stable but for one
+standing row's MESSAGE text. The fallout decomposed exactly as
+conform-by-emission predicted:
+- FALSE REGISTRATIONS exposed: variant navigation get was registered
+  (Variant[1], Any[1]) — the REAL get.pure is (Variant[0..1],
+  String[1]) + (Variant[0..1], Integer[1]), [0..1] BY DESIGN (nested
+  get chains compose). Real [0..1] overload families registered for
+  startsWith/endsWith (stringExtension.pure:26/31), the date family
+  (year/monthNumber/weekOfYear/datePart/dateDiff — dateExtension), and
+  the legacy TDS optional-size limit (tds.pure:394). The lite dyna
+  comparisons widened to Any[0..1] (the SQL lane's own nullability,
+  mirroring real pure's [0..1] inequality families).
+- SQL-LANE EMISSION made uniform: RelOpTranslator's 'position' toOne
+  idiom now covers add/sub/concat/hash/adjust/dayOfWeekNumber/splitPart
+  AND the generic dyna fallback (COLLECTION operands exempt — the
+  stamp invariant itself caught the in-list over-wrap: toOne over an
+  ArrayLit fired ONE-STAMP/LIST-SHAPE, working exactly as designed).
+  MappingNormalizer's parse-coercion (parseInteger/Float/Decimal over
+  VARCHAR columns) wraps its read; the derived-property β-inline
+  spells toOne on non-[1] receivers (the engine's no-guard qualifier
+  doctrine, ledger cluster 48 — UserCallInliner's local patch is now
+  the sanctioned spelling at the source).
+- OUR non-compliant test spellings fixed to engine-true pure
+  (->toOne() before to-one natives) — the sortBy-directive precedent.
+MultiplicityStrictnessTest pins the rejections end-to-end (the audit
+counted ZERO such fixtures). All eight gates green, correct oracle
+roots.
+
+Slice 3 note: the trust-toOnes this slice emitted at SYNTH sites
+(translator, normalizer coercion, qualifier β-inline) are exactly the
+provenance-split population — user-toOne becomes CHECKED there while
+these stay SQL-lane erasures (the C2 provenance note in Scalars).
+
+### SLICE 3 LANDED — toOne honest: the C2 provenance split + checked bounds
+
+THE SPLIT: user toOne is CHECKED; synthesized conformance spells
+meta::legend::lite::trustOne (internal-only; IDENTITY lowering — the
+engine's processNoOp / no-guard behavior, finally NAMED). All 22 synth
+emission sites converted (translator, normalizer coercions and ctor
+wraps, union shims, qualifier β-inlines, getter desugars, json frames);
+~63 scattered raw-FQN toOne readers routed through ONE owner
+(Pure.isToOneCall — exact FQNs, which also killed three of the
+endsWith("::toOne") suffix-matches from audit §7); exec keeps inline
+FQNs (invariant 6d).
+
+CHECKED SEMANTICS, with the referee-drawn lane boundary: VALUE-LANE
+lists (ArrayLit literals, producesList calls) raise in the DATABASE
+with pure's own message — [1,2]->toOne() is now a USER error "Cannot
+cast a collection of size 2 to multiplicity [1]" (the audit's crash
+case), a runtime-emptied list raises size 0 (BOTH bounds — the old
+guard tested only >1), statically-empty [] raises at emission, and
+toOneMany is at-least-one checked with a re-carrier for to-one
+operands (it was an unconditional no-op). ROW-LANE reads — [0..1]
+scalar carriers AND many-stamped correlated collections — FLOW,
+ADJUDICATED against audit §3 with the ENGINE as the reference: its
+relational compilation of toOne is processNoOp, SQL cannot tell a
+NULL cell from an empty, and the milestoned-qualifier corpus row
+(testIsolationOfMilestoningFiltersReferencedInAllPartsOfIfStmt, an
+ENGINE-authored toOne over an 11-row correlated navigation) is the
+witness that raising there diverges from the reference. The same
+ruling covers egress: TABULAR keeps the engine's TDSNull-under-[1]
+convention; the audit's §3 egress items are ADJUDICATED engine-parity,
+not skipped. The [1..*]-lower-bound wall moved INTO the SQL (tenet #1:
+the database raises; AuditTier1 pin updated).
+
+Guardrails paid consciously: INTERNAL_DESUGAR 12→13 (trustOne),
+ArrayLit ratchet 34→35 (the toOneMany re-carrier), ledger pins
+MetamodelSteps/StoreNav (recognition lines), catalog golden +trustOne.
+Legacy↔clean-sheet convergence fixtures spell the trust form — the
+clean-sheet equivalent of legacy conformance IS trustOne. Core 4181/0;
+corpus zero regressions (ledger delta = one wall row's message
+spelling); ALL EIGHT GATES GREEN.
+
+### SLICE 4 LANDED — the empty-identity fork is closed
+
+The reduction identity arms split Stamps.exactlyOne (identity — the
+value is always present) from [0..1] (COALESCE to pure's empty
+identity): and([])=true, or()=false, joinStrings''=  '', makeString=''
+— the four audit-§4 wrong answers now give pure's answers, pinned
+end-to-end (emptyIdentityForkIsClosed). The TDSNull sentinel no longer
+leaks as user data: it remains ONLY the TDS-cell convention of
+[1..1]-stamped (trust-wrapped) reads and the many-element arm. The two
+adjacent binder bugs die with it: add() carriers its to-one first
+operand (the missing asList), and collection::distinct gets the same
+to-one guard its synonym removeDuplicates always had. Stamps.exactlyOne
+finally has callers. Ratchet ArrayLit 35→36 (the distinct re-carrier,
+justified). Core 4182/0; corpus ledger BYTE-IDENTICAL; all eight gates
+green.
+
+### SLICE 5 LANDED — exact-FQN recognizers + honest CI
+
+The endsWith("::toOne") suffix-matches were already killed in slice 3
+(every reader routes through Pure.isToOneCall — exact FQNs; a user
+function named my::customToOne can no longer be hijacked). CI honesty
+(audit §6): the workflow's third step invoked the corpus runner
+knowing it would assume-skip on a bare runner — a vacuously green
+step named "corpus sweep (self-checks vs committed scoreboard)" that
+never ran a sweep. The workflow now states its honest scope (core
+suite only), and the third step is an explicit ::warning that the
+corpus and PCT run ONLY in the local tools/allgates.sh gate against
+the baselined oracle roots. The two harness swallow sites the audit
+flagged (§6) are recorded as follow-ups on the harness-platformization
+program, not silently kept.
+
+## PATH-VIEW UNIFICATION — CLOSED BY MEASUREMENT
+
+The charter assumed a large dual-arm surface (matchers pattern-matching
+the sugar chain and the map spelling separately, with autoMapRead as a
+rewriting adapter between them). The census says otherwise:
+- Substitution.pathOf ALREADY IS the path view — one reader satisfied
+  by both spellings (map-lambda flattening, toOne/trustOne
+  look-through, milestoned property steps), consumed at 43 sites
+  across six resolver files, with the "ONE funnel: scan and
+  substitution must not drift" contract pinned in its own body.
+- autoMapRead is 30 lines with ONE caller, and it is not an adapter
+  between duplicate matchers — it is pure's OWN dot-rule desugaring
+  (map.pure grammarDoc) applied once at the resolution boundary so the
+  resolution machinery has one canonical form. Deleting it would mean
+  re-implementing chain resolution beside map resolution — MORE
+  duplication, not less.
+- The remaining hand-rolled walkers (~8) have DIFFERENT contracts
+  (root-only reads, unwrap-tracking leaf peels, prefix walks) —
+  forcing them through one API would contort them for purity without
+  payoff, the exact shape of the reverted D3-class adapter.
+- The fragility the corpus rings actually exposed lived in the
+  TYPE-DISPATCH layer (bare-vs-wrapped relation tests), not the path
+  extractors — and model B's owner helpers already fixed it at source.
+
+LANDED: pathOf promoted to the NAMED owner with the full contract
+javadoc; autoMapRead's doctrine written on it. RULING: like D3-class,
+the feared disease was already structurally cured; the honest close is
+the ruling and the naming, not a migration. Any FUTURE matcher that
+pattern-matches a navigation spelling instead of asking pathOf is a
+review defect against this section.
+
+## ENGINE-PARITY RUNTIME CHECKS (user: "Let's try these two")
+
+The two lanes where the engine was still ahead (its finish-line
+resultSizeRange row-count check; its FunctionParametersValidation of
+provided parameter values), assessed and executed as slices.
+
+### EGRESS SLICE A LANDED — the finish-line lower bound
+
+The engine's Java executor checks the FINISHED result's row count
+against the declared multiplicity (resultSizeRange) — the one
+enforcement its in-expression processNoOp lane never performs. Ours
+now does the same, at three seams, all row-count-honest:
+
+- **Root toOne over a MANY operand** (`Lowerer#requiredOneEgress`):
+  the mid-expression lane strips to the bare scalar subquery (empty →
+  NULL, the ADJUDICATED row-lane flow — untouched), but at the
+  STATEMENT ROOT the row count is still visible in the LIST carrier,
+  so the collapse keeps the list and wraps `CheckedOne`: 0 rows raises
+  pure's size-0 cast message, 1 row holding NULL extracts NULL (the
+  engine counts rows, not values — the NULL-cell case must FLOW), N
+  rows raises size-N with pure's message instead of DuckDB's bare
+  more-than-one-row subquery error. Recognizer = `Scalars.aggStrip`'s
+  exact LIST-collect shape (now package-private); trustOne
+  (synthesized conformance) and [0..1]-stamped operands are excluded
+  by design — for the latter a NULL cell and an empty are genuinely
+  indistinguishable post-collapse and the engine flows the NULL cell,
+  so guarding would FALSELY raise.
+- **SCALAR egress** (`Executor` SCALAR arm): zero JDBC rows under a
+  declared lower ≥ 1 raises pure's message (distinct from
+  one-row-holding-NULL, so the TDSNull convention is untouched).
+- **COLLECTION egress** (`Executor` COLLECTION arm): zero JDBC ROWS
+  under a declared lower ≥ 1 raises pure's message as a USER error;
+  the pre-existing values-below-bound guard (NULL cells dropped past
+  the contract) stays as the DEFECT arm behind it. Row count, not
+  value count — a row holding NULL passes the bound, matching the
+  engine.
+
+Ring recorded: the first attempt put the check ONLY in the SCALAR arm
+and the pin didn't fire — the root collapse lowers to
+`SELECT (scalar subquery)`, which ALWAYS returns one JDBC row with
+emptiness encoded as a NULL cell. The row count had to be preserved in
+the SQL (the LIST carrier), not inspected after the collapse erased
+it. Second ring: `Pure.nativeKeysAt` returns signature-qualified KEYS,
+not bare FQNs — the recognizer is `Pure.isToOneCall` minus its
+trustOne member (exact FQNs, never contains/suffix).
+
+Pins: MultiplicityStrictnessTest egress trio (zero-rows scalar raise +
+satisfied-promise control + size-2-at-root pure message;
+zero-rows [1..*] collection raise + satisfied control).
+
+### EGRESS SLICE B — RULED VACUOUS ON THIS SURFACE (no code)
+
+The engine's FunctionParametersParametersValidation
+(missing-mandatory + per-value type validation + stream-size
+processing) exists because the engine has an EXTERNAL ingress: HTTP
+JSON parameter values that arrive untyped at runtime. legend-lite has
+no such seam — `Compiler.execute` takes no parameter map, every
+function argument is a statically-typed Pure expression, and the
+inliner's β-substitution splices KERNEL-CHECKED typed specs, not raw
+values. The pre-adoption framing ("the splice is blind") was WRONG:
+after the strict-kernel slice, splice-time size violations would
+require a stamp to lie, which is the whole program's invariant. Our
+compile-time strict kernel IS FunctionParametersValidation, run
+earlier — the "better than engine" lane the user asked about.
+`FunctionParametersValidationNode` exists in this tree only as plan
+TEXT (PlanText/PlanNode/Pure class def), which the corpus pins
+byte-exactly; executing it with no ingress would be host logic with no
+call site — a necessity-proof failure. RULING: the validation
+semantics land WITH the future ingress that creates the
+Java-holds-value moment — the prepared-statements program (JDBC
+setObject binding), which is chartered separately and owns injection
+safety, statement caching, and wire type fidelity as its payoffs.
+
+## SPLICE-OWNERSHIP LEG (user: "Need to fix the compiler first for sure")
+
+The user's question "Statement Exec does compiler work? (Splice?)"
+named a real debt. Census (measured, not guessed): exactly FOUR files
+outside the compiler layers construct typed-HIR nodes —
+StatementExecutor, AssertVerdicts, exec.RawGridSchema,
+validation.DriverPkAppend.
+
+### INVARIANT 7 LANDED — typed nodes are minted only by compiler layers
+
+New ArchitectureTest rule: constructors of
+`com.legend.compiler.spec.typed.*` are callable only from
+compiler/resolver/normalizer/lowering; READING (pattern-matching,
+dispatch) is free everywhere — the executor consumes the tree, it must
+not grow it. The four census files are pinned exceptions with written
+justifications; the list only SHRINKS, additions need a necessity
+proof (a runtime fact that cannot exist at compile time). The rule was
+PROBED before trust: removing a pin surfaced the exact 19-site mint
+roster with line numbers — which became slice 1's work list.
+
+### SLICE 1 LANDED — the splice rules move home
+
+- `compiler.spec.ResultEnvelopeSplice`: spliceHook's rewrite rules
+  (row-count COUNT(1) projection, `.rows` marker erasure,
+  columns.documentation fold, envelope size-is-ONE, values-read
+  collapse, activities wall, aggAware rewrittenQuery) moved VERBATIM
+  behind a `Frames` SPI (`frame(name)` / `inlineExecute(ec, eager)` /
+  `aggAwareRewrittenQuery(chain)`). The executor's adapter supplies
+  the execution-bound half ONLY: frame lookup, JDBC frame builds, the
+  derived print. The compiler owns WHAT a splice means; the executor
+  owns WHEN a frame's value exists.
+- `UserCallInliner.bindStringParam` + `referencesVar`: the effectful-
+  map β-bind folds into the one β-engine's file — the SECOND partial
+  β-implementation dies as a species (deliberately still narrow: the
+  deep-read wall documents untested positions).
+- foldPairProjection's `endsWith("::pair")` fixed to the exact FQN
+  (exact-FQN doctrine — read-side, stays executor).
+- JavaEvalLedger E4 pin PAID 42→40 (activityEnvelopeRead left the
+  file; the Java-side derivation stays on the ledger's radar).
+
+REMAINING in the pin (slice 2): buildFrame's chain ASSEMBLY
+(β-expansion of map-built lambda collections, the
+concatenateTemporalTdsQueries fold-by-emission, from-attachment — 6
+mints) + two staging TypedLets (executeCallStatement,
+withQueryLetPrefix — which also instantiates a Lowerer in the
+executor). AssertVerdicts (K-arm verdict-query builder),
+RawGridSchema (Phase-1c late-bound schema, runtime probe — genuine
+boundary), DriverPkAppend (pure tree→tree pass — just MOVE it under
+resolver/) each carry their route out in the rule javadoc.
+
+Referee: suite 4185/0, corpus scoreboard byte-identical.
+
+### SLICE 2 LANDED — buildFrame assembly + the last executor mints; pins 4→2
+
+User directive: ZERO exceptions, and ultimately no exception mechanism
+at all (the `doNotBelongToAnyOf` clause dies with the last pin).
+
+- `compiler.spec.ExecuteChainAssembly`: buildFrame's compiler half —
+  `prepare` (query peel: letBound, β-inline of lambda-building calls,
+  preval/withFeatureFlags read-through, concatenateTemporalTdsQueries
+  fold-by-emission; lambda + mapping-ref validation) and `chain`
+  (body inline, ->from() attachment with XStore chain mappings/JSON
+  sources, relation-rootedness). The executor interleaves its
+  execution-bound steps BETWEEN the two calls, order-preserved:
+  runtime-arg effects, tableReplace recording, the eager run.
+- `UserCallInliner.callArgumentFrame`: the staged call frame
+  (arguments β-inline and bind as TypedLets; effectful arguments
+  refuse loudly — audit 17) joins the β-engine's file.
+- `lowering.SeedableLets`: the seedability TRIAL-LOWERING probe (was
+  withQueryLetPrefix, which instantiated a Lowerer inside the
+  executor — the second bonus find). Guardrails PAID with real
+  splits: the Lowerer file-size limit forced the probe into its own
+  file (not a limit bump), and its broad catch is reviewed+documented
+  at the site with an ErrorShapeGuardrail pin row.
+- `DriverPkAppend` MOVED verbatim to `resolver/` — it was a pure
+  tree→tree pass misfiled in validation/.
+- StatementExecutor now mints ZERO typed nodes — dropped from the
+  Invariant 7 pin list; letBound/containsTypedFrom deleted from the
+  executor (they moved with the assembly).
+
+Remaining pins (2): AssertVerdicts (dies with the canonical-render
+verdicts leg — synthesis becomes compiler-owned emission, the
+surviving host half is a byte compare that mints nothing) and
+RawGridSchema (route out = staged compilation: a compiler-owned
+resolve-with-schema phase taking the PROBED column roster as input;
+the executor keeps only the JDBC probe).
+
+Referee: suite 4185/0, corpus scoreboard byte-identical.
+
+### SLICES 3+4 LANDED — ZERO PINS; the exception mechanism is DELETED
+
+Invariant 7 now reads "typed nodes are minted only by compiler layers"
+with NO doNotBelongToAnyOf clause — nothing left to abuse (user
+directive). The last two evictions:
+
+- **RawGridSchema → resolver/ (staged compilation)**: the rewrite pass
+  is parameterized by `SchemaOracle` (`sql -> columnNames`); the
+  runtime-discovered roster is an INPUT to a compiler phase run at a
+  later stage. `exec.GridProbe` (the LIMIT-0 probe, the one chartered
+  RawSql ctor) is the executor's oracle. RING worth keeping: the first
+  design kept `throws SQLException` on the oracle — F1.3's BYTECODE
+  wall rejected it (java.sql funnels to exec; even the exception TYPE
+  may not appear in the resolver), forcing the honest unchecked design
+  (executor wraps, the slice-1 Frames idiom). A guardrail refusing the
+  half-measure and producing the better architecture.
+- **AssertVerdicts → compiler.spec.VerdictQueries**: the quantified-
+  assert predicate-vector synthesis (its only 2 mint sites) is now
+  compiler emission; AssertVerdicts fetches and judges, minting
+  nothing. VerdictQueries is the SEED of the canonical-render verdicts
+  leg (that leg's target is the remaining THIRD-IMPL equality debt —
+  PureAsserts/GridCompare — which mints nothing and no ArchRule sees).
+
+Registrations paid: RawSqlLedger + JavaEvalLedger + JdbcSurfaceCensus
+rows follow the probe to GridProbe.java; the stale RawGridSchema exec
+rows deleted per the ledgers' own instructions; executeTyped method-
+size limit paid with a REAL split (gridOracle helper). Guard census
+END STATE: mints outside compiler layers = ZERO, structurally frozen.
+
+Referee: suite 4185/0, corpus scoreboard byte-identical.

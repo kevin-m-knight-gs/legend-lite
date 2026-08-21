@@ -219,7 +219,7 @@ public final class ClassSources {
             ClassSource m = members.get(i);
             TypedSpec pipe = Pipelines.materialize(m.pipeline(),
                     java.util.Set.of(), classFqn).pipeline();
-            Type.RelationType mRow = (Type.RelationType) pipe.info().type();
+            Type.RelationType mRow = Type.requireRelationSchema(pipe.info().type());
             List<com.legend.compiler.spec.typed.TypedFuncCol> pcols =
                     new ArrayList<>(allCols.size());
             for (Type.Column c : cols) {
@@ -246,10 +246,10 @@ public final class ClassSources {
                 }
             }
             TypedSpec arm = new com.legend.compiler.spec.typed.TypedProject(
-                    pipe, pcols, new ExprType(rowType, many));
+                    pipe, pcols, new ExprType(Type.relation(rowType), many));
             union = union == null ? arm
                     : new com.legend.compiler.spec.typed.TypedConcatenate(
-                            union, arm, new ExprType(rowType, many));
+                            union, arm, new ExprType(Type.relation(rowType), many));
         }
         ExprType rowInfo = new ExprType(rowType, one);
         String rowVar = "u_row";
@@ -518,7 +518,7 @@ public final class ClassSources {
                     null, "");
             TypedSpec pipe = Pipelines.materialize(arm.pipeline(),
                     java.util.Set.of(), childClassFqn).pipeline();
-            Type.RelationType aRow = (Type.RelationType) pipe.info().type();
+            Type.RelationType aRow = Type.requireRelationSchema(pipe.info().type());
             ExprType ari = new ExprType(aRow, one);
             List<TypedSpec> tKeys;
             if (r.navCond() == null) {
@@ -566,10 +566,10 @@ public final class ClassSources {
                 }
             }
             TypedSpec armProj = new com.legend.compiler.spec.typed
-                    .TypedProject(pipe, pcols, new ExprType(rowType, many));
+                    .TypedProject(pipe, pcols, new ExprType(Type.relation(rowType), many));
             union = union == null ? armProj
                     : new com.legend.compiler.spec.typed.TypedConcatenate(
-                            union, armProj, new ExprType(rowType, many));
+                            union, armProj, new ExprType(Type.relation(rowType), many));
         }
         ExprType rowInfo = new ExprType(rowType, one);
         String rowVar = "uc_row";
@@ -655,7 +655,8 @@ public final class ClassSources {
         }
 
         TypedSpec pipeline = map.source();
-        if (!(pipeline.info().type() instanceof Type.RelationType rowType)) {
+        Type.RelationType rowType = Type.relationSchema(pipeline.info().type());
+        if (rowType == null) {
             // A CLASS-typed pipeline is a MODEL-TO-MODEL mapping: the body is
             // getAll(Upstream)->map(src|^Target(...)). Composition is pure
             // β-transitivity (plan H5): resolve the UPSTREAM class through

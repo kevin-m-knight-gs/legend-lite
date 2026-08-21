@@ -77,8 +77,7 @@ final class SubQueryLift {
                 continue;
             }
             if (cur instanceof TypedNativeCall c && c.args().size() == 1
-                    && (c.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")
+                    && (com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())
                         || c.callee().qualifiedName().equals(
                             "meta::pure::functions::collection::first"))) {
                 cur = c.args().get(0);
@@ -171,7 +170,7 @@ final class SubQueryLift {
                 new Type.Column(pa.property(), read.info().type(), one)));
         TypedProject proj = new TypedProject(pa.source(),
                 List.of(new TypedFuncCol(pa.property(), mapper)),
-                new ExprType(row, Multiplicity.Bounded.ZERO_MANY));
+                new ExprType(Type.relation(row), Multiplicity.Bounded.ZERO_MANY));
         Optional<TypedPackageableRef> m = context.explicitMapping() == null
                 ? Optional.empty()
                 : Optional.of(new TypedPackageableRef(
@@ -212,7 +211,7 @@ final class SubQueryLift {
                         read.info().multiplicity())));
         TypedProject proj = new TypedProject(chain,
                 List.of(new TypedFuncCol(pa.property(), mapper)),
-                new ExprType(row, optional));
+                new ExprType(Type.relation(row), optional));
         // recursion through a FRESH resolver (shared per-chain state —
         // temporal frames, synthetic heads — must not leak); the TypedFrom
         // wrapper threads the FULL context including chain mappings

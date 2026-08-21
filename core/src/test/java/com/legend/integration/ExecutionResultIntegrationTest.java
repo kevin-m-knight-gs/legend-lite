@@ -111,8 +111,9 @@ public class ExecutionResultIntegrationTest extends AbstractDatabaseTest {
         assertInstanceOf(ExecutionResult.Tabular.class, result, "Expected TabularResult for project query");
         ExecutionResult.Tabular tabular = result.asTabular();
         assertNotNull(tabular.returnType());
-        assertInstanceOf(Type.RelationType.class, tabular.returnType(),
-                "returnType should be Relation for tabular result");
+        assertNotNull(Type.relationSchema(tabular.returnType()),
+                "returnType should be the wrapped Relation<schema> for a"
+                + " tabular result (Row-vs-Relation)");
         assertTrue(tabular.rowCount() > 0, "Should have rows");
         assertEquals(2, tabular.columnCount(), "Should have 2 columns (firstName, lastName)");
     }

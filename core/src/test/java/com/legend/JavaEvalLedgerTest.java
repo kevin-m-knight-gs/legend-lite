@@ -71,7 +71,9 @@ class JavaEvalLedgerTest {
             // ambiguity, not evaluation
             Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java", 850),
             Map.entry("core/src/main/java/com/legend/exec/MetamodelWalk.java", 1307),
-            Map.entry("core/src/main/java/com/legend/MetamodelSteps.java", 195),
+            // 195→196 (audit slice 3): the walker's case list learns
+            // the trustOne spelling — recognition, not evaluation.
+            Map.entry("core/src/main/java/com/legend/MetamodelSteps.java", 196),
             // raw-line history: 888 -> 943 -> 957 (burn batches 1-2:
             // temp-table IN envelope emitters + PureExp let-allocation —
             // engine-parity plan TEXT, the register's own class);
@@ -98,7 +100,10 @@ class JavaEvalLedgerTest {
             // +25 (Phase 1 batch 2): owns() + the curated construction set
             // +~50 (Phase 1c endgame): chainBottom moved in from deleted
             // ResultNav (this predicate is the walker's last consumer)
-            Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 196),
+            // 196→199 (audit slice 3): the nav walker recognizes BOTH
+            // toOne spellings inline (invariant 6d keeps exec off the
+            // frontend) — recognition lines, not evaluation.
+            Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 199),
             Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 118),
             // Phase 1c endgame: the boundary resolver (stamp + marker
             // substitution over stamped schema — the DynamicPivot model;
@@ -113,7 +118,11 @@ class JavaEvalLedgerTest {
             // ONE query (egress adopts result headers). The growth is
             // demand ANALYSIS (a tree scan), not evaluation — it exists
             // to DELETE a whole query from the common path.
-            Map.entry("core/src/main/java/com/legend/exec/RawGridSchema.java", 261),
+            // (RawGridSchema row RETIRED 2026-08-21: the rewrite pass
+            // moved to resolver/ under Invariant 7's structural guard —
+            // staged compilation; only the LIMIT-0 probe stays exec-side,
+            // pinned below as GridProbe.)
+            Map.entry("core/src/main/java/com/legend/exec/GridProbe.java", 48),
             // Phase 2: the comparison layer, size-pinned at its landing
             // 212 -> 221: assertEqWithinTolerance MIGRATED IN from the
             // harness arm (net move, not new evaluation)
@@ -190,7 +199,10 @@ class JavaEvalLedgerTest {
             // the layers honest: exec never calls the middle-end, so the
             // orchestrator bridges with a probe function). Plumbing, not
             // evaluation — the '#TDS' text still composes IN SQL.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2724),
+            // 2724→2728 (2026-08-20 Row-vs-Relation model B): table
+            // tests spell Type.isRelation/relationSchema on the wrapped
+            // form — multiline type-spelling only, zero new evaluation.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2728),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
@@ -228,10 +240,15 @@ class JavaEvalLedgerTest {
             new LinkedHashMap<>();
 
     static {
-        // E4 — StatementExecutor's walk family
+        // E4 — StatementExecutor's walk family. 42→40 (2026-08-21):
+        // activityEnvelopeRead moved to compiler.spec.ResultEnvelopeSplice
+        // (splice-ownership leg slice 1, Invariant 7) — there it is a
+        // private REWRITE RULE; the Java-side derivation it asks for
+        // (AggAwareActivities.rewrittenQuery) stays executor-side behind
+        // the Frames SPI and stays on this ledger's radar.
         EVICT_NAMES.put("core/src/main/java/com/legend/StatementExecutor.java",
                 new Object[]{"(planWalk|walkProp|walkFilter|walkResult|planModel|planConnOf|constructNode|constructOp|nodeValue|typeRefSimple|activityEnvelopeRead|connectionStoreElementOf)\\(",
-                        42});
+                        40});
         // E4.d batch 1 LANDED (2026-08-17, user-ratified "engine-exact
         // text is a lower TARGET"): the second DDL speller is DEAD —
         // dropTableStatementText/createTableStatementText/engineSpell
@@ -317,11 +334,13 @@ class JavaEvalLedgerTest {
                     "MetamodelWalk.java", "PctProbe.java",
                     "PctRenderOption.java", "PostProcessBoundary.java",
                     "QueryPlan.java",
-                    // Phase 1c: the execution-boundary schema stamp — the
+                    // Phase 1c: the LIMIT-0 schema probe — the
                     // DynamicPivot.staticize model (a FIRST query pins a
                     // late-bound raw grid's columns; schema read only,
-                    // through ResultNav's chartered probe, never values)
-                    "RawGridSchema.java",
+                    // never values). The REWRITE pass moved to
+                    // resolver.RawGridSchema (Invariant 7, staged
+                    // compilation); only the probe stays in exec.
+                    "GridProbe.java",
                     "ResultShape.java", "Row.java", "StoreNav.java",
                     "TimingLedger.java", "package-info.java");
 

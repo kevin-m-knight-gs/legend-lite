@@ -249,8 +249,7 @@ final class FlattenOps {
         TypedSpec inner = b;
         if (inner instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                 && c.args().size() == 1
-                && c.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
+                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())
                 && c.args().get(0) instanceof
                         com.legend.compiler.spec.typed.TypedNewInstance) {
             inner = c.args().get(0);

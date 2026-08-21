@@ -345,6 +345,82 @@ public sealed interface Type permits
      * pivot's schema; checkers read {@link #columns()} only — the templates are
      * consumed at the execution boundary, where the data-derived names first exist.
      */
+    // ====================================================================
+    // THE RELATION REPRESENTATION (Row-vs-Relation, reference-faithful)
+    // ====================================================================
+    // Real pure's own spelling, adopted VERBATIM (Row-vs-Relation split,
+    // the successor arc of STAMP_DISCIPLINE_PROGRAM): a TABLE value's
+    // type is {@code GenericType(Relation, [schema])} — the signature
+    // form {@code Relation<(name:String[1])>} — preserved through
+    // resolution (the historical G-α erasure to a bare struct is
+    // DELETED, not inverted). A bare {@link RelationType} is the SCHEMA
+    // STRUCT, and a schema-typed VALUE is ONE ROW — pure's own pun: the
+    // {@code T} of {@code Relation<T>} is the schema AND the row type
+    // ({@code lead<T>(w:Relation<T>[1], r:T[1]):T[0..1]} — container vs
+    // element, declared in every relation signature). With the wrapper
+    // preserved, "am I holding a row or a table?" is read off the TYPE.
+
+    /** THE table-type mint: {@code Relation<schema>}, pure's spelling. */
+    static GenericType relation(RelationType schema) {
+        return new GenericType(Pure.RELATION.qualifiedName(), List.of(schema));
+    }
+
+    /** Whether {@code t} is a relation (table) type — the wrapped form,
+     * whatever the argument's resolution state (a {@code Relation<T>}
+     * with an unsolved {@code T} is still a table type). */
+    static boolean isRelation(Type t) {
+        return t instanceof GenericType g
+                && g.rawFqn().equals(Pure.RELATION.qualifiedName())
+                && g.arguments().size() == 1;
+    }
+
+    /** The schema of a TABLE type ({@code Relation<schema>}), or null if
+     * {@code t} is not a resolved table type. THE "is this a table?"
+     * reader — a bare {@link RelationType} is a schema/row, never a
+     * table, and returns null here. */
+    static @com.legend.Nullable RelationType relationSchema(Type t) {
+        return t instanceof GenericType g
+                && g.rawFqn().equals(Pure.RELATION.qualifiedName())
+                && g.arguments().size() == 1
+                && g.arguments().get(0) instanceof RelationType r ? r : null;
+    }
+
+    /** The schema VIEW of a relation-ish type: a wrapped table yields its
+     * schema, a bare struct (schema literal / row value) yields itself.
+     * For signature-tolerant consumers (colspec rows, declared struct
+     * params); table-only readers use {@link #relationSchema}. */
+    static @com.legend.Nullable RelationType schemaView(Type t) {
+        RelationType wrapped = relationSchema(t);
+        if (wrapped != null) {
+            return wrapped;
+        }
+        return t instanceof RelationType r ? r : null;
+    }
+
+    /** A RELATION-ROOTED value BY TYPE: a table (wrapped
+     * {@code Relation<T>}), or a ROW COLLECTION — a bare struct with a
+     * many stamp, the {@code .rows} view (engine: {@code TDSRow[*]}).
+     * A bare struct with an at-most-one stamp is ONE row and is NOT
+     * relation-rooted. No tree walking — the type and stamp decide. */
+    static boolean relationValued(ExprType info) {
+        return isRelation(info.type())
+                || (info.type() instanceof RelationType
+                        && info.multiplicity().isMany());
+    }
+
+    /** The schema of a node KNOWN to be a table (the resolver/lowering
+     * pipeline-cast idiom) — loud on anything else, a bare struct
+     * included: a bare struct is a ROW, and a pipeline typed bare is a
+     * missed mint, not a table. */
+    static RelationType requireRelationSchema(Type t) {
+        RelationType schema = relationSchema(t);
+        if (schema == null) {
+            throw new IllegalStateException("expected a table type"
+                    + " (Relation<schema>), got " + t.typeName());
+        }
+        return schema;
+    }
+
     record RelationType(List<Column> columns, List<Column> dynamicColumns) implements Type {
 
         /** Separator between a pivoted data value and its aggregate-template name. */

@@ -606,7 +606,7 @@ final class Fold {
         List<com.legend.compiler.spec.typed.TypedSpec> body = c.fn().body();
         return c.fn().info().type() instanceof Type.FunctionType ft
                 && ft.result().multiplicity().isMany()
-                && !(ft.result().type() instanceof Type.RelationType)
+                && Type.schemaView(ft.result().type()) == null
                 && body.get(body.size() - 1)
                         instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
                 && "meta::pure::functions::collection::concatenate"

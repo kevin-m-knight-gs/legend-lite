@@ -780,7 +780,7 @@ class LowerRelationTest {
     @Test
     @DisplayName("audit: sortBy over a COMPUTED projection isolates once and sorts the output column")
     void sortByComputedProjectionIsolates() throws SQLException {
-        String sql = sqlOf("#>{test::DB.T_PERSON}#->project(~[older: x|$x.AGE + 10])->sortBy(r|$r.older)");
+        String sql = sqlOf("#>{test::DB.T_PERSON}#->project(~[older: x|$x.AGE + 10])->sort(~older->ascending())");
         assertEquals(List.of("35", "45", "55", "65"), exec(sql));
     }
 }

@@ -259,7 +259,7 @@ public final class RelationalMapperRenames {
         TypedSpec cur = v;
         while (true) {
             if (cur instanceof TypedNativeCall c && c.args().size() == 1
-                    && (c.callee().qualifiedName().endsWith("::toOne")
+                    && (com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())
                             || c.callee().qualifiedName()
                                     .endsWith("::toOneMany"))) {
                 cur = c.args().get(0);

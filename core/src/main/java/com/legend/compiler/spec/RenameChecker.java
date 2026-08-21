@@ -62,11 +62,12 @@ final class RenameChecker {
      */
     private static com.legend.compiler.element.type.ExprType positionPreserving(
             Application a, String oldName, String newName) {
-        if (!(a.out().type() instanceof com.legend.compiler.element.type.Type
-                        .RelationType outRt)
-                || !(a.args().get(0).info().type()
-                        instanceof com.legend.compiler.element.type.Type
-                                .RelationType srcRt)) {
+        com.legend.compiler.element.type.Type.RelationType outRt =
+                com.legend.compiler.element.type.Type.relationSchema(a.out().type());
+        com.legend.compiler.element.type.Type.RelationType srcRt =
+                com.legend.compiler.element.type.Type.relationSchema(
+                        a.args().get(0).info().type());
+        if (outRt == null || srcRt == null) {
             return a.out();
         }
         com.legend.compiler.element.type.Type.Column vCol = outRt.columns().stream()
@@ -79,8 +80,9 @@ final class RenameChecker {
                         .map(c -> c.name().equals(oldName) ? vCol : c)
                         .toList();
         return new com.legend.compiler.element.type.ExprType(
-                new com.legend.compiler.element.type.Type.RelationType(
-                        cols, outRt.dynamicColumns()),
+                com.legend.compiler.element.type.Type.relation(
+                        new com.legend.compiler.element.type.Type.RelationType(
+                                cols, outRt.dynamicColumns())),
                 a.out().multiplicity());
     }
 }

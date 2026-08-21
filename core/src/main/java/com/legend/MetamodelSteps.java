@@ -48,6 +48,7 @@ final class MetamodelSteps {
                 }
                 case "meta::pure::functions::lang::cast",
                         "meta::pure::functions::multiplicity::toOne",
+                        "meta::legend::lite::trustOne",
                         "meta::pure::functions::multiplicity::toOneMany" -> {
                     return recv;
                 }

@@ -672,8 +672,7 @@ final class SyntheticHeads {
             // stream arrives as toOne(filter(...)) — look through
             while (s instanceof TypedNativeCall w
                     && w.args().size() == 1
-                    && w.callee().qualifiedName()
-                            .equals("meta::pure::functions::multiplicity::toOne")) {
+                    && com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())) {
                 s = w.args().get(0);
             }
             if (s instanceof TypedFilter f
@@ -853,8 +852,7 @@ final class SyntheticHeads {
     private static TypedSpec filterBehindToOne(TypedSpec n) {
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                 && c.args().size() == 1
-                && c.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")) {
+                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
             return c.args().get(0);
         }
         return n;
@@ -995,8 +993,7 @@ final class SyntheticHeads {
                     navBottomsAtVar(ma.source());
             case TypedFilter f -> navBottomsAtVar(f.source());
             case TypedNativeCall c
-                    when c.args().size() == 1 && c.callee().qualifiedName()
-                            .equals("meta::pure::functions::multiplicity::toOne") ->
+                    when c.args().size() == 1 && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName()) ->
                     navBottomsAtVar(c.args().get(0));
             default -> false;
         };

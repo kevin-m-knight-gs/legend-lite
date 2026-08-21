@@ -10,19 +10,21 @@ import java.util.Optional;
  * {@link ExprType}. Holds a function's parameters and (later) {@code let}
  * bindings and lambda parameters in scope. Immutable &mdash; {@link #with}
  * returns an extended copy, so nested scopes never mutate their parent.
+ *
+ * <p>Row-vs-Relation: the environment carries NO binding-kind bit. Whether
+ * a variable holds one row (a bare struct) or a whole relation (wrapped
+ * {@code Relation<T>}) is read off its TYPE &mdash; the split's whole point.
  */
 public final class Env {
 
     private final Map<String, ExprType> vars;
-    private final java.util.Set<String> rowParams;
 
-    private Env(Map<String, ExprType> vars, java.util.Set<String> rowParams) {
+    private Env(Map<String, ExprType> vars) {
         this.vars = vars;
-        this.rowParams = rowParams;
     }
 
     public static Env empty() {
-        return new Env(Map.of(), java.util.Set.of());
+        return new Env(Map.of());
     }
 
     /** Look up a variable's type, empty if it is not in scope. */
@@ -34,32 +36,6 @@ public final class Env {
     public Env with(String name, ExprType type) {
         Map<String, ExprType> next = new LinkedHashMap<>(vars);
         next.put(name, type);
-        java.util.Set<String> rp = rowParams.contains(name)
-                ? shadowOut(name) : rowParams;
-        return new Env(next, rp);
-    }
-
-    /** A LAMBDA-PARAMETER binding — the PER-ELEMENT/PER-ROW frame
-     * (stamp discipline: a relation-typed lambda param is a ROW; a
-     * let-bound relation variable is a relation VALUE — column reads
-     * off the two take different multiplicity frames). */
-    public Env withRow(String name, ExprType type) {
-        Map<String, ExprType> next = new LinkedHashMap<>(vars);
-        next.put(name, type);
-        java.util.Set<String> rp = new java.util.HashSet<>(rowParams);
-        rp.add(name);
-        return new Env(next, rp);
-    }
-
-    /** True when {@code name} is bound as a lambda parameter (the
-     * per-element frame), false for lets and function parameters. */
-    public boolean isRowParam(String name) {
-        return rowParams.contains(name);
-    }
-
-    private java.util.Set<String> shadowOut(String name) {
-        java.util.Set<String> rp = new java.util.HashSet<>(rowParams);
-        rp.remove(name);
-        return rp;
+        return new Env(next);
     }
 }

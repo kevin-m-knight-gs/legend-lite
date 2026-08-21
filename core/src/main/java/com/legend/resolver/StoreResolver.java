@@ -303,7 +303,7 @@ public final class StoreResolver {
         if (n instanceof TypedPropertyAccess mk
                 && mk.property().equals(com.legend.compiler
                         .element.type.PlatformTypes.ROWS_MARKER)
-                && mk.source().info().type() instanceof Type.RelationType) {
+                && Type.isRelation(mk.source().info().type())) {
             return resolveNode(mk.source(), context);
         }
         return switch (anchors.spaceOf(n)) {
@@ -371,7 +371,7 @@ public final class StoreResolver {
             case TypedFilter f
                     when anchored(f.source())
                     && !(f.source().info().type() instanceof Type.ClassType)
-                    && !(f.source().info().type() instanceof Type.RelationType)
+                    && !Type.isRelation(f.source().info().type())
                     && f.source() instanceof TypedPropertyAccess ->
                     foldScalarHopFilter(f, context);
             case TypedPropertyAccess pa when objectSpace(pa.source())
@@ -393,10 +393,12 @@ public final class StoreResolver {
             // is identity, so predicates/mappers/keys pass through
             // verbatim) and the variant rebuilds through its own
             // withChildren inverse (remediation T2.1).
+            // a RELATION-ROOTED source: a table, the .rows collection,
+            // or ONE ROW (an at()-pick — bare struct; Row-vs-Relation):
+            // the per-cell read resolves structurally over the chain.
             case TypedPropertyAccess pa
                     when anchored(pa.source())
-                    && pa.source().info().type()
-                            instanceof Type.RelationType ->
+                    && Type.schemaView(pa.source().info().type()) != null ->
                     structural(pa, context);
             case TypedFilter f when anchored(f.source()) ->
                     structural(f, context);
@@ -406,7 +408,7 @@ public final class StoreResolver {
                     structural(s, context);
             case TypedCast c
                     when anchored(c.source())
-                    && c.info().type() instanceof Type.RelationType ->
+                    && Type.isRelation(c.info().type()) ->
                     structural(c, context);
             case TypedSortBy sb when anchored(sb.source()) ->
                     structural(sb, context);
@@ -437,8 +439,7 @@ public final class StoreResolver {
             // is resolver OUTPUT vocabulary) — only the source resolves
             case TypedNavigate nav
                     when anchored(nav.source())
-                    && nav.target().info().type()
-                            instanceof Type.RelationType ->
+                    && Type.isRelation(nav.target().info().type()) ->
                     new TypedNavigate(
                             resolveNode(nav.source(), context), nav.alias(),
                             nav.target(), nav.predicate(), nav.pairedPredicate(),
@@ -448,8 +449,7 @@ public final class StoreResolver {
             // map arms matched earlier; this is the relation-space wrapper)
             case TypedMap m
                     when anchored(m.source())
-                    && m.source().info().type()
-                            instanceof Type.RelationType ->
+                    && Type.relationValued(m.source().info()) ->
                     structural(m, context);
             // scalar/relation NATIVES over chains bottoming at a getAll:
             // args resolve structurally; CLASS-typed emptiness rewrites
@@ -755,7 +755,7 @@ public final class StoreResolver {
                     m.slotPrefixes(), m.stripped());
         }
         Type.RelationType row =
-                (Type.RelationType) m.pipeline().info().type();
+                Type.requireRelationSchema(m.pipeline().info().type());
         ExprType rowInfo = new ExprType(row,
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         Map<String, TypedSpec> bindings = new LinkedHashMap<>();
@@ -825,7 +825,7 @@ public final class StoreResolver {
             left = FlattenOps.applyBelow(bsc.pipeline(), belowOps, bsc.sub());
         }
         Type.RelationType leftRow =
-                (Type.RelationType) left.info().type();
+                Type.requireRelationSchema(left.info().type());
         List<Type.Column> cols = new ArrayList<>(leftRow.columns());
         for (Type.Column c : aj.targetRow().columns()) {
             cols.add(new Type.Column(aj.prefix() + c.name(),
@@ -839,7 +839,10 @@ public final class StoreResolver {
                 Optional.of(aj.prefix()),
                 // a VIEW-backed target joins as a frame NAMED BY THE VIEW
                 // (legalentity_view_0, never the physical table's group)
-                ViewFrames.frameNameOf(ctx, aj.target()), rowInfo,
+                ViewFrames.frameNameOf(ctx, aj.target()),
+                new ExprType(Type.relation(row),
+                        com.legend.compiler.element.type.Multiplicity
+                                .Bounded.ONE),
                 false /* resolver-synth */);
         Map<String, TypedSpec> bindings = new LinkedHashMap<>();
         for (var e : aj.target().bindings().entrySet()) {
@@ -879,7 +882,7 @@ public final class StoreResolver {
         TypedSpec innerized = rowPreserving ? spliced
                 : FlattenOps.innerizeFlattenJoin(spliced, pre.prefix());
         Type.RelationType row =
-                (Type.RelationType) innerized.info().type();
+                Type.requireRelationSchema(innerized.info().type());
         ExprType rowInfo = new ExprType(row,
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         Map<String, TypedSpec> bindings = new LinkedHashMap<>();
@@ -937,7 +940,7 @@ public final class StoreResolver {
                         new Type.Column(name, result.type(), cellMult)));
         return new TypedProject(source,
                 List.of(new TypedFuncCol(name, mapper)),
-                new ExprType(row, valueMult));
+                new ExprType(Type.relation(row), valueMult));
     }
 
     /** size()/count() over a class extent = the ROW COUNT of the resolved
@@ -971,7 +974,7 @@ public final class StoreResolver {
                                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
                 TypedProject proj = new TypedProject(nc.args().get(0),
                         List.of(new TypedFuncCol("c", one)),
-                        new ExprType(relType,
+                        new ExprType(Type.relation(relType),
                                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
                 TypedSpec rel = resolveChain(proj, context);
                 var relSize = ctx.findFunction("meta::pure::functions::relation::size")
@@ -986,7 +989,7 @@ public final class StoreResolver {
      * read of that column. */
     private TypedSpec foldScalarHopFilter(TypedFilter f, Context context) {
         TypedSpec rel = resolveNode(f.source(), context);
-        if (!(rel.info().type() instanceof Type.RelationType rt)
+        if (!(Type.relationSchema(rel.info().type()) instanceof Type.RelationType rt)
                 || rt.columns().size() != 1) {
             throw new NotImplementedException("scalar filter over a"
                     + " class-derived collection did not fold to a"
@@ -1087,8 +1090,7 @@ public final class StoreResolver {
      * documented, weaker-but-never-silent stand-in). */
     static boolean isClassToOne(TypedNativeCall c) {
         return c.args().size() == 1
-                && "meta::pure::functions::multiplicity::toOne"
-                        .equals(c.callee().qualifiedName());
+                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName());
     }
 
     private static final String FIRST_FQN = "meta::pure::functions::collection::first";
@@ -1343,8 +1345,7 @@ public final class StoreResolver {
             while (true) {
                 TypedSpec inner = drill;
                 if (inner instanceof TypedNativeCall tc1 && tc1.args().size() == 1
-                        && tc1.callee().qualifiedName().equals(
-                                "meta::pure::functions::multiplicity::toOne")) {
+                        && com.legend.builtin.Pure.isToOneCall(tc1.callee().qualifiedName())) {
                     inner = tc1.args().get(0);
                 }
                 if (inner instanceof TypedNewInstance ni
@@ -1626,8 +1627,7 @@ public final class StoreResolver {
             if (leafBinding != null) {
                 TypedSpec inner = leafBinding;
                 if (inner instanceof TypedNativeCall c1 && c1.args().size() == 1
-                        && c1.callee().qualifiedName().equals(
-                                "meta::pure::functions::multiplicity::toOne")) {
+                        && com.legend.builtin.Pure.isToOneCall(c1.callee().qualifiedName())) {
                     inner = c1.args().get(0);
                 }
                 var pNavSteps = Pipelines.navSteps(parent.pipeline());
@@ -1927,14 +1927,13 @@ public final class StoreResolver {
                             synthetics.correlatedPred(k) != null)) {
                 CorrelatedSubselects.ExplodingSub ex =
                         corrSubs.explodingSubselect(cs, aj,
-                                (Type.RelationType) withJoins.info().type());
+                                Type.requireRelationSchema(withJoins.info().type()));
                 joinTarget = ex.target();
                 joinTargetRow = ex.row();
                 joinCond = ex.cond();
             }
             Type.RelationType leftRow =
-                    (Type.RelationType)
-                            withJoins.info().type();
+                    Type.requireRelationSchema(withJoins.info().type());
             List<Type.Column> cols =
                     new ArrayList<>(leftRow.columns());
             for (Type.Column c
@@ -1947,7 +1946,7 @@ public final class StoreResolver {
                     Optional.of(aj.prefix()),
                     ViewFrames.frameNameOf(ctx, aj.target()),
                     new ExprType(
-                            new Type.RelationType(cols),
+                            Type.relation(new Type.RelationType(cols)),
                             com.legend.compiler.element.type.Multiplicity.Bounded.ONE),
                 false /* resolver-synth */);
         }
@@ -2039,14 +2038,13 @@ public final class StoreResolver {
             var subRow = new Type.RelationType(subCols);
             TypedSpec sub = new TypedGroupBy(
                     subSource, keys, aggs,
-                    new ExprType(subRow,
+                    new ExprType(Type.relation(subRow),
                             com.legend.compiler.element.type.Multiplicity
                                     .Bounded.ONE));
             String prefix = AssociationJoins.prefixFor(
                     head + (filterPos ? "_fagg" : "_agg"), cs);
             Type.RelationType leftRow =
-                    (Type.RelationType)
-                            withJoins.info().type();
+                    Type.requireRelationSchema(withJoins.info().type());
             List<Type.Column>
                     cols = new ArrayList<>(leftRow.columns());
             for (var c : subRow.columns()) {
@@ -2058,14 +2056,13 @@ public final class StoreResolver {
             // INSIDE — the outer joins back on parent-key equality only.
             TypedLambda backCond = cas.targetPrefix() == null ? aj.condition()
                     : assocMaterial.pkEqualityCond(keyCols, keyCols,
-                            (Type.RelationType)
-                                    withJoins.info().type(), subRow,
+                            Type.requireRelationSchema(withJoins.info().type()), subRow,
                             splitKeys);
             withJoins = new TypedJoin(withJoins,
                     sub, leftKind(), java.util.Objects.requireNonNull(backCond, "backCond"),
                     Optional.of(prefix), null,
                     new ExprType(
-                            new Type.RelationType(cols),
+                            Type.relation(new Type.RelationType(cols)),
                             com.legend.compiler.element.type.Multiplicity
                                     .Bounded.ONE),
                 false /* resolver-synth */);
@@ -2471,8 +2468,7 @@ public final class StoreResolver {
             AssociationJoins.AssocJoin aj = new AssociationJoins.AssocJoin(exFp != null
                     ? alias + "_" + exFp + "_"
                     : AssociationJoins.prefixFor(headKey, cs), target, tPipe,
-                    (Type.RelationType)
-                            tPipe.info().type(),
+                    Type.requireRelationSchema(tPipe.info().type()),
                     AssociationJoins.withOuterDatedWindow(temporal, cs, target,
                             headKey, nav.predicate(), tPipe),
                     mat.slotPrefixes());
@@ -2512,8 +2508,7 @@ public final class StoreResolver {
                             mat.subNavs(), pred, cs.mappingFqn()));
             AssociationJoins.AssocJoin aj = new AssociationJoins.AssocJoin(
                     AssociationJoins.prefixFor(headKey, cs), target, tPipe,
-                    (Type.RelationType)
-                            tPipe.info().type(),
+                    Type.requireRelationSchema(tPipe.info().type()),
                     AssociationJoins.withOuterDatedWindow(temporal, cs, target,
                             headKey, nav.predicate(), tPipe),
                     mat.slotPrefixes(), mat.subNavs(),
@@ -2915,7 +2910,7 @@ public final class StoreResolver {
                     // family's 'expected 1, got 5'); downstream demands on
                     // dropped columns fail loud at projection resolution.
                     Type.RelationType pipeRow =
-                            (Type.RelationType) pipeline.info().type();
+                            Type.requireRelationSchema(pipeline.info().type());
                     Set<String> own = new LinkedHashSet<>();
                     for (Type.Column c : cs.rowType().columns()) {
                         own.add(c.name());
@@ -2928,7 +2923,7 @@ public final class StoreResolver {
                     }
                     yield new TypedDistinct(pipeline,
                             kept.stream().map(Type.Column::name).toList(),
-                            new ExprType(new Type.RelationType(kept),
+                            new ExprType(Type.relation(new Type.RelationType(kept)),
                                     pipeline.info().multiplicity()));
                 }
                 default -> throw new IllegalStateException("resolver bug: uncollected op");
@@ -3252,7 +3247,7 @@ public final class StoreResolver {
         Substitution.Registries none = Substitution.Registries.NONE;
         List<TypedLambda> inner = InnerDemand.lambdas(ops, pathKey);
         Type.RelationType row =
-                (Type.RelationType) targetPipe.info().type();
+                Type.requireRelationSchema(targetPipe.info().type());
         if (inner.isEmpty()) {
             return new NestedScope(none, targetPipe, row);
         }
@@ -3321,7 +3316,7 @@ public final class StoreResolver {
             List<String> pathKey) {
         Substitution.Registries none = Substitution.Registries.NONE;
         Type.RelationType row =
-                (Type.RelationType) targetPipe.info().type();
+                Type.requireRelationSchema(targetPipe.info().type());
         // DATED-HOP cursor: nested registrations run under the hop's
         // own frame (root = hop date, specs re-keyed locally)
         TemporalFrame outerT = temporal;
@@ -3354,7 +3349,7 @@ public final class StoreResolver {
                 new Substitution.Registries(nestedAssocs, Set.of(), nested,
                         Map.of(), Map.of(), isNotEmptyCallee(), equalCallee(),
                         List.of(), inCallee()),
-                pipe, (Type.RelationType) pipe.info().type());
+                pipe, Type.requireRelationSchema(pipe.info().type()));
         } finally {
             temporal = outerT;
         }
@@ -3410,8 +3405,7 @@ public final class StoreResolver {
                 new Substitution.RowScope(userLambda.parameters().get(0),
                         freshRowVar, cs.classFqn(), cs.mappingFqn(),
                         cs.rowVar(), cs.bindings(),
-                        (Type.RelationType)
-                                m.pipeline().info().type(),
+                        Type.requireRelationSchema(m.pipeline().info().type()),
                         m.stripped(), m.slotPrefixes(),
                         temporal.milestoneColumnsOf(cs.pipeline(),
                                 cs.classFqn())),

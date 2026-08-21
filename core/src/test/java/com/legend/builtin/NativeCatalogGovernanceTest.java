@@ -57,7 +57,10 @@ class NativeCatalogGovernanceTest {
         // sqlDialectTranslation defaults lowercase; TemporalFrame stamps
         // milestoning window dates; census row in
         // docs/LITE_INVENTION_CENSUS.md).
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 12,
+        // 12→13 (multiplicity audit slice 3): trustOne — the SQL-lane
+        // to-one conformance wrap, the C2 provenance split's synth
+        // spelling (user toOne is CHECKED; synth trust is not).
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 13,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

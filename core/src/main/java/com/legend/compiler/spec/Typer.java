@@ -229,7 +229,7 @@ final class Typer {
                                 : Multiplicity.from(pv.multiplicity());
                         names.add(pv.name());
                         params.add(new Type.Param(pt, pm));
-                        scope = scope.withRow(pv.name(), new ExprType(pt, pm));
+                        scope = scope.with(pv.name(), new ExprType(pt, pm));
                     }
                     List<TypedSpec> stmts = new ArrayList<>();
                     for (int si = 0; si < lf.body().size() - 1; si++) {
@@ -306,8 +306,8 @@ final class Typer {
         if ((af.function().equals("isNotNull") || af.function().equals("isNull"))
                 && af.parameters().size() == 2
                 && literalColName(af.parameters().get(1)) != null
-                && synth(af.parameters().get(0), env).info().type()
-                        instanceof Type.RelationType) {
+                && tdsReceiver(synth(af.parameters().get(0), env)
+                        .info().type())) {
             return synth(new AppliedFunction(
                     af.function().equals("isNotNull") ? "isNotEmpty" : "isEmpty",
                     List.of(new AppliedProperty(af.parameters().get(0),
@@ -324,7 +324,7 @@ final class Typer {
                 && g.function().equals("get") && g.parameters().size() == 2
                 && g.parameters().get(1) instanceof CString gc) {
             TypedSpec grecv0 = synth(g.parameters().get(0), env);
-            if (grecv0.info().type() instanceof Type.RelationType) {
+            if (tdsReceiver(grecv0.info().type())) {
                 var read = new AppliedProperty(g.parameters().get(0), gc.value());
                 return synth(new AppliedFunction("if", List.of(
                         new AppliedFunction("isEmpty", List.of(read)),
@@ -333,7 +333,7 @@ final class Typer {
                                         .PlatformTypes.TDS_NULL_CELL))),
                         new com.legend.protocol.spec.LambdaFunction(List.of(),
                                 List.of(new AppliedFunction("toString", List.of(
-                                        new AppliedFunction("toOne",
+                                        new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE,
                                                 List.of(read)))))))), env);
             }
         }
@@ -345,7 +345,7 @@ final class Typer {
         if (af.function().equals("get") && af.parameters().size() == 2
                 && af.parameters().get(1) instanceof CString gcol) {
             TypedSpec grecv = synth(af.parameters().get(0), env);
-            if (grecv.info().type() instanceof Type.RelationType) {
+            if (tdsReceiver(grecv.info().type())) {
                 TypedSpec gcell = synth(new AppliedProperty(
                         af.parameters().get(0), gcol.value()), env);
                 // Exactly-[1] cell: the read IS the getter. MANY-stamped
@@ -386,7 +386,7 @@ final class Typer {
                                                                 .PlatformTypes.TDS_NULL_CELL))),
                                         new LambdaFunction(List.of(),
                                                 List.of(new AppliedFunction("cast", List.of(
-                                                        new AppliedFunction("toOne",
+                                                        new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE,
                                                                 List.of(cell)),
                                                         new com.legend.protocol.spec
                                                                 .TypeAnnotation.Named(
@@ -398,7 +398,7 @@ final class Typer {
                                 new LambdaFunction(List.of(rv), List.of(body)))), env);
                     }
                 }
-                return synth(new AppliedFunction("toOne", List.of(
+                return synth(new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(
                         new AppliedProperty(af.parameters().get(0), gcol.value()))), env);
             }
         }
@@ -441,8 +441,8 @@ final class Typer {
                     || af.function().equals("getNullableString"))
                 && af.parameters().size() == 2
                 && literalColName(af.parameters().get(1)) != null
-                && synth(af.parameters().get(0), env).info().type()
-                        instanceof Type.RelationType) {
+                && tdsReceiver(synth(af.parameters().get(0), env)
+                        .info().type())) {
             return rowCellRead(af, env);
         }
         TypedSpec tdsGetter = tdsGetterDesugars(af, env);
@@ -526,8 +526,19 @@ final class Typer {
                                     af.withParameters(inner))))),
                             env);
                 }
+                // [0..1] receivers run like [1] (the engine's no-guard
+                // qualifier doctrine, ledger cluster 48) — spell the
+                // conformance with toOne at this synth site.
+                java.util.List<ValueSpecification> qargs =
+                        new ArrayList<>(af.parameters());
+                if (!(recv.info().multiplicity()
+                        instanceof Multiplicity.Bounded rb1
+                        && rb1.lower() == 1)) {
+                    qargs.set(0, new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE,
+                            List.of(qargs.get(0))));
+                }
                 return applyGeneric(new AppliedFunction(d.bodyFunctionFqn(),
-                        af.parameters()), env);
+                        qargs), env);
             }
             // MILESTONED property functions (real pure GENERATES these on
             // ends targeting a temporal class): prop(date) — point access;
@@ -973,8 +984,7 @@ final class Typer {
             return cs.value();
         }
         if (v instanceof AppliedFunction tf
-                && (tf.function().equals("toOne") || tf.function().equals(
-                        "meta::pure::functions::multiplicity::toOne"))
+                && (tf.function().equals("toOne") || com.legend.builtin.Pure.isToOneCall(tf.function()))
                 && tf.parameters().size() == 1) {
             return literalColName(tf.parameters().get(0));
         }
@@ -1004,7 +1014,8 @@ final class Typer {
             "meta::pure::functions::collection::at",
             "meta::pure::functions::collection::first",
             "meta::pure::functions::collection::last",
-            "meta::pure::functions::multiplicity::toOne");
+            "meta::pure::functions::multiplicity::toOne",
+            com.legend.builtin.Pure.Lite.TRUST_ONE);
 
     private static final java.util.Set<String> ROW_CELL_AT_FNS = java.util.Set.of(
             "at", "meta::pure::functions::collection::at");
@@ -1036,14 +1047,14 @@ final class Typer {
                         .TypedPropertyAccess rm
                 && rm.property().equals(com.legend.compiler.element.type
                         .PlatformTypes.ROWS_MARKER)
-                && pick.info().type() instanceof Type.RelationType wrt
+                && Type.schemaView(pick.info().type()) instanceof Type.RelationType wrt
                 && isAt
                 && af.parameters().size() == 2
                 && af.parameters().get(1) instanceof CInteger wk) {
             int cc = wrt.columns().size();
             long k = wk.value().longValue();
             if (cc > 0 && k >= 0) {
-                return synth(new AppliedFunction("toOne", List.of(
+                return synth(new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(
                         new AppliedProperty(
                                 new AppliedFunction("at", List.of(
                                         vp.receiver(),
@@ -1052,7 +1063,7 @@ final class Typer {
                         env);
             }
         }
-        if (!(pick.info().type() instanceof Type.RelationType prt)
+        if (!(Type.schemaView(pick.info().type()) instanceof Type.RelationType prt)
                 || !(pick instanceof TypedNativeCall pc)
                 || !ROW_PICK_FQNS.contains(pc.callee().qualifiedName())) {
             return null;
@@ -1071,7 +1082,7 @@ final class Typer {
                     + " where the collection is of size "
                     + prt.columns().size());
         }
-        return synth(new AppliedFunction("toOne", List.of(
+        return synth(new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(
                 new AppliedProperty(vp.receiver(),
                         prt.columns().get(k).name()))), env);
     }
@@ -1331,7 +1342,7 @@ final class Typer {
             return call;
         }
         return new com.legend.compiler.spec.typed.TypedRawSqlRelation(
-                sql, ExprType.one(Type.RelationType.lateBound()));
+                sql, ExprType.one(Type.relation(Type.RelationType.lateBound())));
     }
 
     /**
@@ -2023,7 +2034,7 @@ final class Typer {
             }
             names.add(pv.name());
             scopeParams.add(new Type.Param(paramType, paramMult));
-            lambdaScope = lambdaScope.withRow(pv.name(),
+            lambdaScope = lambdaScope.with(pv.name(),
                     new ExprType(paramType, paramMult));
         }
 
@@ -2075,6 +2086,10 @@ final class Typer {
         // The body's MULTIPLICITY must satisfy the declared return too — a many-valued
         // body cannot serve a to-one slot (engine rejects sortBy on a to-many key:
         // {T[1]->U[1]} with a [*] body is a type error, not a silent acceptance).
+        // LOWER bound stays LENIENT for lambda results — the reference's
+        // observed covariance (its own corpus compiles sortBy over
+        // optional association paths, a [0..1] body against U[1]);
+        // kernel.unifyMultResult is the one owner of that rule.
         // EXCEPT a NIL-typed body (println side effects: Nil[0] is the
         // bottom VALUE and conforms to any return slot — real pure
         // compiles rows->map(r|println(...)); corpus testWithFilterGroupBy).
@@ -2083,8 +2098,8 @@ final class Typer {
                 && com.legend.compiler.element.type.PlatformTypes.NIL
                         .equals(nbc.fqn());
         if (!nilBody) {
-            kernel.unifyMult(ftype.result().multiplicity(), body.info().multiplicity(),
-                    body.info().type(), b);
+            kernel.unifyMultResult(ftype.result().multiplicity(),
+                    body.info().multiplicity(), body.info().type(), b);
         }
 
         ExprType info = new ExprType(
@@ -2428,15 +2443,14 @@ final class Typer {
      * (map.pure grammarDoc): the column's values, one per row — never a
      * single-row read over many rows. */
     private TypedSpec rowCellRead(AppliedFunction af, Env env) {
-        // COLLECTION frame — the receiver is the rows collection (the
-        // .rows marker, a let-bound relation variable, a raw relation
-        // value), decided SEMANTICALLY by the same frame line as column
-        // stamps (rowRooted), not by spelling: the typed getter
-        // AUTO-MAPS per row (map.pure's dot rule; the milestoning
-        // typed-getter witnesses bind `let data = $r.values.rows`).
+        // COLLECTION frame BY TYPE (Row-vs-Relation): a WRAPPED
+        // Relation<T> receiver is the rows collection — the typed
+        // getter AUTO-MAPS per row (map.pure's dot rule); a bare
+        // struct receiver IS one row and takes the per-cell path
+        // below. Late-bound schemas need no special case: a late-bound
+        // ROW is a bare struct whose schema carries the wildcard.
         TypedSpec grecv = synth(af.parameters().get(0), env);
-        if (grecv.info().type() instanceof Type.RelationType
-                && !rowRooted(grecv, env)) {
+        if (Type.relationValued(grecv.info())) {
             return synth(new AppliedFunction("map", List.of(
                     af.parameters().get(0),
                     new LambdaFunction(List.of(new Variable("_amc")),
@@ -2458,7 +2472,7 @@ final class Typer {
                         && b.lower() == 1)) {
             return cell;
         }
-        return synth(new AppliedFunction("toOne", List.of(
+        return synth(new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(
                 new AppliedProperty(af.parameters().get(0), colRef))), env);
     }
 
@@ -2531,7 +2545,7 @@ final class Typer {
                 && inner.property().equals("columns")
                 && (ap.property().equals("name") || ap.property().equals("type"))) {
             TypedSpec rel = synth(inner.receiver(), env);
-            if (rel.info().type() instanceof Type.RelationType rt) {
+            if (Type.schemaView(rel.info().type()) instanceof Type.RelationType rt) {
                 return columnsMeta(rt, ap.property().equals("type"));
             }
         }
@@ -2554,13 +2568,12 @@ final class Typer {
                     walked = true;
                 } else if (un instanceof TypedNativeCall w
                         && !w.args().isEmpty()
-                        && w.args().get(0).info().type()
-                                instanceof Type.RelationType) {
+                        && Type.isRelation(w.args().get(0).info().type())) {
                     un = w.args().get(0);
                     walked = true;
                 }
             }
-            if (rel.info().type() instanceof Type.RelationType) {
+            if (Type.isRelation(rel.info().type())) {
                 if (un instanceof com.legend.compiler.spec.typed.TypedProject tp) {
                     return tp.docsFold();
                 }
@@ -2584,33 +2597,48 @@ final class Typer {
             return colsMeta;
         }
         TypedSpec source = synth(ap.receiver(), env);
-        if (source.info().type() instanceof Type.RelationType rt2) {
-            // TDS surface over relation values (engine TabularDataSet):
+        Type.RelationType rt2 = Type.schemaView(source.info().type());
+        if (rt2 != null) {
+            // TDS surface over relation values (engine TabularDataSet)
+            // and over ROW values (bare struct — Row-vs-Relation):
             // .rows IS the relation viewed as its row collection; bare
             // .columns is the column-name collection (assertSize targets)
-            if (ap.property().equals("rows")) {
-                // the relation IS its row collection — but the node SURVIVES
-                // as an identity-typed MARKER: the statement executor's
-                // result frame must tell `$r.values.rows->at(k)` (a REAL row
-                // index) from `$r.values->at(k)` (the Result envelope, k=0
-                // only) — erasing here made the two spellings collide (audit
+            if (ap.property().equals("rows") && Type.isRelation(source.info().type())) {
+                // .rows IS the row collection — typed AS one (engine:
+                // TDSRow[*]; Row-vs-Relation: bare struct, many stamp —
+                // Type.relationValued reads it back). The node SURVIVES
+                // as a MARKER: the statement executor's result frame must
+                // tell `$r.values.rows->at(k)` (a REAL row index) from
+                // `$r.values->at(k)` (the Result envelope, k=0 only) —
+                // erasing here made the two spellings collide (audit
                 // 19d B2). The K-side splice hook erases the marker after
-                // disambiguation; no other consumer sees it.
+                // disambiguation.
                 return new com.legend.compiler.spec.typed.TypedPropertyAccess(
-                        source, "rows", source.info());
+                        source, "rows", new ExprType(rt2,
+                                Multiplicity.Bounded.ZERO_MANY));
             }
             TypedSpec lateBound = lateBoundGridMarker(source, ap, rt2);
             if (lateBound != null) {
                 return lateBound;
             }
             if (ap.property().equals("values")) {
-                // On a ROW VARIABLE ($r inside map/filter): TDSRow.values =
-                // the row's CELLS in column order, statically enumerable.
-                // On a RELATION value ($tds.rows.values / ->at(0).values):
-                // identity — the relation's wire flatten IS row-major cell
-                // order. (The Result-ENVELOPE .values never reaches the
-                // Typer: the test driver peels it at substitution.)
-                if (source instanceof com.legend.compiler.spec.typed.TypedVariable) {
+                // On a ROW VARIABLE (bare struct, at-most-one stamp — a
+                // lambda's in-scope row): TDSRow.values = the row's
+                // CELLS in column order, statically enumerable per-cell
+                // reads. On everything else — a wrapped table, the
+                // .rows collection, or a PICK-rooted row
+                // ($tds.rows->at(0).values): IDENTITY — the wire
+                // flatten IS row-major cell order and keeps NULL cells
+                // as TDSNull (the cells-collection channel would drop
+                // them; the lower-bound honesty guard caught exactly
+                // that). The variable test is a LEXICAL binding fact,
+                // not type inference. (The Result-ENVELOPE .values
+                // never reaches the Typer: the test driver peels it at
+                // substitution.)
+                if (source.info().type() instanceof Type.RelationType
+                        && !Type.relationValued(source.info())
+                        && source instanceof
+                                com.legend.compiler.spec.typed.TypedVariable) {
                     // Row-var cells are TYPED per-column reads (at(N) and
                     // typed compares keep their kinds); print consumers
                     // (makeString/joinStrings) stringify at LOWERING, which
@@ -2677,8 +2705,17 @@ final class Typer {
             // (testQualifierWithInThroughJoin: cat='B' for a trade whose
             // account row is absent). The null-strict whitelist encoded
             // the opposite belief and is deleted with its helpers.
+            // A [0..1] receiver β-inlines like [1] (ledger cluster 48:
+            // engine processQualifiedProperty runs with NO presence
+            // guard) — the strict kernel demands the conformance be
+            // SPELLED: the receiver wraps in toOne at this synth site
+            // (SQL null-propagates through the inlined body, which IS
+            // the engine's no-guard behavior).
             return applyGeneric(new AppliedFunction(d.bodyFunctionFqn(),
-                    List.of(ap.receiver())), env);
+                    List.of(exactlyOne
+                            ? ap.receiver()
+                            : new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE,
+                                    List.of(ap.receiver())))), env);
         }
         // the AllVersions PROPERTY spelling (no parens): a version-sweep
         // navigation — normalized to the same TypedMilestonedAccess the
@@ -2733,6 +2770,17 @@ final class Typer {
                 }
                 yield new ExprType(prop.type(), prop.multiplicity());
             }
+            // A TABLE receiver (wrapped Relation<T> — Row-vs-Relation):
+            // the column read is the auto-mapped cell COLLECTION,
+            // always (map.pure's dot rule). A per-row read has a bare
+            // struct receiver and takes the row arm below. No walk, no
+            // inference, no blind spot.
+            case Type.GenericType g
+                    when Type.relationSchema(g) instanceof Type.RelationType rel -> {
+                Type.Column col = relationColumn(rel, ap.property());
+                relColName = col.name();
+                yield new ExprType(col.type(), Multiplicity.Bounded.ZERO_MANY);
+            }
             // A PARAMETERIZED class receiver (Pair<Integer,String>.first): the
             // property's declared type is written in the class's type parameters
             // — instantiate them at the receiver's arguments (positional, real
@@ -2754,22 +2802,15 @@ final class Typer {
                 }
                 yield new ExprType(kernel.resolve(prop.type(), b), prop.multiplicity());
             }
-            case Type.RelationType rel -> {
+            // A ROW receiver (Row-vs-Relation): a bare struct IS one
+            // row — one cell, the per-cell stamp BY TYPE. This arm is
+            // the detective's replacement: no walk, no inference — the
+            // type says row.
+            case Type.RelationType rowT -> {
                 // QUOTE-BEARING column identity (the pivot rule's sibling):
-                Type.Column col = relationColumn(rel, ap.property());
+                Type.Column col = relationColumn(rowT, ap.property());
                 relColName = col.name();
-                // FRAME-HONEST stamp (C2c, STAMP_DISCIPLINE_PROGRAM): a
-                // column read whose receiver chain roots at a ROW
-                // VARIABLE ($r.COL, $r.joinSlot.COL — mapping navigate
-                // slots included) is one cell; off a standalone RELATION
-                // value it is the AUTO-MAPPED cell COLLECTION (N rows —
-                // the same frame line the .values arm draws). The old
-                // per-cell compose stamped [0..1] on reads that lower as
-                // whole-column LIST collects — the census's biggest
-                // surviving toOne class rode it.
-                yield new ExprType(col.type(), rowRooted(source, env)
-                        ? col.multiplicity()
-                        : Multiplicity.Bounded.ZERO_MANY);
+                yield new ExprType(col.type(), col.multiplicity());
             }
             default -> throw new TypeInferenceException("cannot access '" + ap.property()
                     + "' on " + source.info().type().typeName());
@@ -2786,33 +2827,12 @@ final class Typer {
                 new ExprType(member.type(), mult));
     }
 
-    /** The PER-ROW frame test: the receiver chain bottoms out at (a) a
-     * variable (a lambda's row binding — directly, or through navigate
-     * slots / from() rescopes), or (b) a call whose RESOLVED CALLEE
-     * returns a naked type variable — real pure's own signature line: an
-     * element-of-relation value (lead/lag/first/nth/at return T, a ROW)
-     * vs a relation value (filter/project return Relation&lt;T&gt;).
-     * Standalone relation VALUES root at literal/raw-sql/relation-op
-     * nodes instead: their column reads are the auto-mapped cell
-     * collection. */
-    private static boolean rowRooted(TypedSpec s, Env env) {
-        while (true) {
-            if (s instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa) {
-                s = pa.source();
-            } else if (s instanceof com.legend.compiler.spec.typed.TypedFrom f) {
-                s = f.source();
-            } else if (s instanceof TypedNativeCall nc) {
-                return nc.callee().returnType() instanceof Type.TypeVar;
-            } else {
-                // a VARIABLE root is a row frame only when it is a LAMBDA
-                // PARAMETER binding — a LET-bound relation variable holds
-                // the relation VALUE (let data = $r.values.rows; the
-                // typed-getter milestoning witnesses), and its column
-                // reads take the collection frame.
-                return s instanceof com.legend.compiler.spec.typed.TypedVariable v
-                        && env.isRowParam(v.name());
-            }
-        }
+    /** A TDS-surface receiver: a whole relation (wrapped) OR one row of
+     * one (a bare struct) — the getter surface serves both
+     * (Row-vs-Relation split; the ROW case is the getters' primary
+     * frame, stated by TYPE). */
+    private static boolean tdsReceiver(Type t) {
+        return t instanceof Type.RelationType || Type.isRelation(t);
     }
 
     /** Store-declared column lookup: a quoted "FIRST NAME" carries its
@@ -2836,18 +2856,14 @@ final class Typer {
     }
 
     /**
-     * Multiplicity composition along a navigation path: {@code [a..b] . [c..d] =
-     * [a*c .. b*d]} (an unbounded upper on either side stays unbounded). So a
-     * {@code [*]} hop makes everything after it {@code [*]}, and an optional hop
-     * makes the result optional.
+     * Multiplicity composition along a navigation path — ONE owner:
+     * {@link Multiplicity#product} (audit sections 1d/1e: this copy's Var
+     * arm silently dropped a variable source's cardinality across
+     * inlining; the owner keeps the variable through the {@code [1]}
+     * identity and is loud otherwise).
      */
     private static Multiplicity compose(Multiplicity outer, Multiplicity inner) {
-        if (outer instanceof Multiplicity.Bounded a && inner instanceof Multiplicity.Bounded b) {
-            int lower = a.lower() * b.lower();
-            Integer upper = (a.upper() == null || b.upper() == null) ? null : a.upper() * b.upper();
-            return new Multiplicity.Bounded(lower, upper);
-        }
-        return inner;   // multiplicity variables do not occur on object-graph paths
+        return Multiplicity.product(outer, inner);
     }
 
     /** An enum value reference {@code Kind.VALUE}: both the enumeration and the value must exist. */
@@ -2897,9 +2913,12 @@ final class Typer {
     private Type annotationType(TypeAnnotation ta) {
         return switch (ta) {
             case TypeAnnotation.Named n -> namedType(n.type());
-            // A relation target is the BARE row-struct — the computed-value form (G-α),
-            // so cast(@Relation<(…)>) yields the same representation every relation op emits.
-            case TypeAnnotation.RelationShape rs -> relationShapeType(rs);
+            // @Relation<(…)> is a TABLE target — pure's own spelling,
+            // kept WRAPPED (Row-vs-Relation: the G-α unwrap is deleted;
+            // cast(@Relation<(…)>) yields the wrapped type every
+            // relation op emits).
+            case TypeAnnotation.RelationShape rs ->
+                    Type.relation(relationShapeType(rs));
             case TypeAnnotation.Wildcard ignored -> throw new TypeInferenceException(
                     "the ? wildcard is only legal as a column type inside @Relation<(…)>");
         };
@@ -2992,7 +3011,7 @@ final class Typer {
     }
 
     /** {@code @Relation<(name:Type[m], …)>}: each column resolves recursively; multiplicity defaults to [1]. */
-    private Type relationShapeType(TypeAnnotation.RelationShape rs) {
+    private Type.RelationType relationShapeType(TypeAnnotation.RelationShape rs) {
         List<Type.Column> cols = new ArrayList<>(rs.columns().size());
         for (TypeAnnotation.RelationShape.Column c : rs.columns()) {
             if (c.name() == null || c.type() instanceof TypeAnnotation.Wildcard) {

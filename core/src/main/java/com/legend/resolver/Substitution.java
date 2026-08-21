@@ -505,7 +505,7 @@ final class Substitution {
             List<TypedSpec> fnList = fns instanceof TypedCollection tcol
                     ? tcol.elements() : List.of(fns);
             Type.RelationType tRow =
-                    (Type.RelationType) tq.relation().info().type();
+                    Type.requireRelationSchema(tq.relation().info().type());
             if (fnList.size() != 1 || tRow.columns().size() != 1) {
                 throw new NotImplementedException("tdsContains with "
                         + fnList.size() + " function(s) over "
@@ -514,8 +514,7 @@ final class Substitution {
             }
             TypedSpec fn0 = fnList.get(0);
             if (fn0 instanceof TypedNativeCall c0 && c0.args().size() == 1
-                    && c0.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")) {
+                    && com.legend.builtin.Pure.isToOneCall(c0.callee().qualifiedName())) {
                 fn0 = c0.args().get(0);
             }
             if (!(fn0 instanceof TypedLambda fl)
@@ -611,7 +610,7 @@ final class Substitution {
                     + " crossOperation is not a 2-param lambda");
         }
         Type.RelationType tRow =
-                (Type.RelationType) tq.relation().info().type();
+                Type.requireRelationSchema(tq.relation().info().type());
         String tv = "_tc";
         TypedSpec pred = crossCellSubst(
                 cross.body().get(cross.body().size() - 1),
@@ -689,8 +688,7 @@ final class Substitution {
     private static boolean piercesToOne(TypedSpec n) {
         while (true) {
             if (n instanceof TypedNativeCall c && c.args().size() == 1) {
-                if (c.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")) {
+                if (com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
                     return true;
                 }
                 n = c.args().get(0);
@@ -706,12 +704,27 @@ final class Substitution {
         }
     }
 
+    /** THE PATH VIEW — the one reader of navigation hop-sequences,
+     * satisfied by BOTH spellings (path-view unification, closed by
+     * measurement 2026-08-21): the sugar chain {@code $v.a.b}, the
+     * explicit {@code ->map(l|$l.a.b)} (flattened through the lambda —
+     * pure's own definition: the dot IS map sugar, map.pure
+     * grammarDoc), toOne/trustOne coercions (transparent), and
+     * milestoned property functions ({@code $o.product(%d)}).
+     * 43 consumers across the resolver ask THIS reader; matchers never
+     * pattern-match the two spellings separately. The complementary
+     * canonical-form converter is {@link Pipelines#autoMapRead} — the
+     * dot-desugaring pure itself defines, applied once at the
+     * resolution boundary. Specialized walkers with DIFFERENT
+     * contracts (root-only reads, unwrap-tracking peels) legitimately
+     * stay bespoke — forcing them through this API would contort them
+     * for purity without payoff (the D3-class ruling's lesson). */
     static @com.legend.Nullable List<String> pathOf(TypedSpec n, String userVar) {
         // toOne() look-through: $p.employer->toOne().legal is the idiomatic
         // spelling after an optional navigation — the coercion is
         // multiplicity-only and transparent to the path (audit R3).
         if (n instanceof TypedNativeCall c && c.args().size() == 1
-                && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
+                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
             return pathOf(c.args().get(0), userVar);
         }
         // ->map(l|$l.prop...) is the auto-map spelling of the property
@@ -945,7 +958,7 @@ final class Substitution {
                     // isNotEmpty-over-relation lowering (§133) emits the
                     // EXISTS; row equality ≡ the engine's temp-table IN.
                     Type.RelationType qRow =
-                            (Type.RelationType) q.relation().info().type();
+                            Type.requireRelationSchema(q.relation().info().type());
                     String qv = "_iq";
                     Type.Column qc = qRow.columns().stream()
                             .filter(c -> c.name().equals(q.column()))
@@ -1022,7 +1035,7 @@ final class Substitution {
                 TypedSpec rel = java.util.Objects.requireNonNull(
                         filteredNavLeafRead((TypedPropertyAccess)
                                 cmp.args().get(side)));
-                if (rel.info().type() instanceof Type.RelationType rt
+                if (Type.relationSchema(rel.info().type()) instanceof Type.RelationType rt
                         && rt.columns().size() == 1) {
                     Type.Column leaf = rt.columns().get(0);
                     ExprType boolOne = new ExprType(Type.Primitive.BOOLEAN,
@@ -1216,8 +1229,7 @@ final class Substitution {
                     TypedSpec inner3 = leafBinding;
                     if (inner3 instanceof TypedNativeCall c3
                             && c3.args().size() == 1
-                            && c3.callee().qualifiedName().equals(
-                                    "meta::pure::functions::multiplicity::toOne")) {
+                            && com.legend.builtin.Pure.isToOneCall(c3.callee().qualifiedName())) {
                         inner3 = c3.args().get(0);
                     }
                     if (inner3 instanceof TypedPropertyAccess pa3
@@ -1263,8 +1275,7 @@ final class Substitution {
             while (cur != null && hop < path.size()) {
                 TypedSpec inner = cur;
                 if (inner instanceof TypedNativeCall c1 && c1.args().size() == 1
-                        && c1.callee().qualifiedName().equals(
-                                "meta::pure::functions::multiplicity::toOne")) {
+                        && com.legend.builtin.Pure.isToOneCall(c1.callee().qualifiedName())) {
                     inner = c1.args().get(0);
                 }
                 var ow = otherwiseOf(inner);
@@ -1296,8 +1307,7 @@ final class Substitution {
                     TypedSpec inner4 = curT;
                     if (inner4 instanceof TypedNativeCall c4
                             && c4.args().size() == 1
-                            && c4.callee().qualifiedName().equals(
-                                    "meta::pure::functions::multiplicity::toOne")) {
+                            && com.legend.builtin.Pure.isToOneCall(c4.callee().qualifiedName())) {
                         inner4 = c4.args().get(0);
                     }
                     var ow4 = otherwiseOf(inner4);
@@ -1359,7 +1369,7 @@ final class Substitution {
                 // not a "resolver bug" from the rewriter's vocabulary wall.
                 TypedSpec inner = binding;
                 if (inner instanceof TypedNativeCall c1 && c1.args().size() == 1
-                        && c1.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
+                        && com.legend.builtin.Pure.isToOneCall(c1.callee().qualifiedName())) {
                     inner = c1.args().get(0);
                 }
                 if (inner instanceof TypedNewInstance
@@ -1441,7 +1451,7 @@ final class Substitution {
     private boolean rootsAtUserVar(TypedSpec inst) {
         while (true) {
             if (inst instanceof TypedNativeCall w && w.args().size() == 1
-                    && ("meta::pure::functions::multiplicity::toOne".equals(
+                    && (com.legend.builtin.Pure.isToOneCall(
                             w.callee().qualifiedName())
                             || "meta::pure::functions::collection::first"
                                     .equals(w.callee().qualifiedName()))) {
@@ -1460,7 +1470,7 @@ final class Substitution {
     private TypedSpec objectReferenceInRewrite(TypedNativeCall oc) {
         TypedSpec refsArg = oc.args().get(1);
         while (refsArg instanceof TypedNativeCall w && w.args().size() == 1
-                && (w.callee().qualifiedName().endsWith("::toOne")
+                && (com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())
                         || w.callee().qualifiedName().endsWith("::first"))) {
             refsArg = w.args().get(0);
         }
@@ -1777,7 +1787,7 @@ final class Substitution {
                 if (CorrelatedSubselects.isAggregate(c.callee())
                         && !c.args().isEmpty()
                         && c.args().get(0) instanceof TypedMap rm
-                        && !(rm.source().info().type() instanceof Type.RelationType)
+                        && !Type.isRelation(rm.source().info().type())
                         && pathOf(rm.mapper().body().get(0),
                                 rm.mapper().parameters().get(0)) == null) {
                     throw new NotImplementedException(
@@ -1811,7 +1821,7 @@ final class Substitution {
             case TypedMap m
                     when m.mapper().parameters().size() == 1
                     && m.mapper().body().size() == 1
-                    && !(m.source().info().type() instanceof Type.RelationType) ->
+                    && !Type.isRelation(m.source().info().type()) ->
                     // VALUE-POSITION fan-out (task #78 step 2, engine golden
                     // testAdvancedDerivedPropertyThroughAssociation: flat
                     // LEFT JOIN row explosion, mapper evaluated per exploded
@@ -1841,8 +1851,7 @@ final class Substitution {
             // reads left verbatim by the inner scope correlate here).
             // OBJECT-SPACE filters (class-typed sources) stay loud below.
             case TypedTableReference ignored -> n;
-            case TypedFilter f when f.source().info().type()
-                    instanceof Type.RelationType ->
+            case TypedFilter f when Type.isRelation(f.source().info().type()) ->
                     // body-only rewrite: the lambda's OWN param binds its
                     // relation row and must survive (rewriteLambda would
                     // rebind it to THIS scope's row var, orphaning reads)
@@ -1853,13 +1862,11 @@ final class Substitution {
             // over resolved sources) — same pass-through family as the R2
             // constructed material above; the lift's uncorrelated guard
             // means nothing inside reads this scope's vars
-            case TypedProject rp when rp.info().type()
-                    instanceof Type.RelationType -> n;
+            case TypedProject rp when Type.isRelation(rp.info().type()) -> n;
             // ...and the [0..1] LIMIT-1 tail of a correlated scalar
             // subquery (parentNavCondReads / navLeafSubquery emissions):
             // its correlation binds a FRESH row var, never this scope's
-            case TypedLimit rl when rl.source().info().type()
-                    instanceof Type.RelationType -> n;
+            case TypedLimit rl when Type.isRelation(rl.source().info().type()) -> n;
             case com.legend.compiler.spec.typed.TypedTds ignored -> n;
             // graphFetch in VALUE position is SOURCE-PRESERVING (engine
             // GraphFetchLowering = lower(source); the tree shapes only a
@@ -1950,7 +1957,7 @@ final class Substitution {
         if (headBinding != null) {
             TypedSpec inner = headBinding;
             if (inner instanceof TypedNativeCall c && c.args().size() == 1
-                    && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
+                    && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
                 inner = c.args().get(0);
             }
             // A class-typed navigate-slot read ($row.alias): the step was
@@ -2545,7 +2552,7 @@ final class Substitution {
             return objectReferenceInRewrite(oc);
         }
         if (n instanceof TypedFilter f
-                && !(f.source().info().type() instanceof Type.RelationType)
+                && !Type.isRelation(f.source().info().type())
                 && target.nested() && foreignRootedNav(f.source())) {
             return new TypedFilter(f.source(),
                     rewriteLambdaBodyOnly(f.predicate()), f.info());
@@ -2602,7 +2609,7 @@ final class Substitution {
         // subquery must LIMIT 1
         while (src instanceof TypedNativeCall c && c.args().size() == 1) {
             String callee = c.callee().qualifiedName();
-            if (callee.equals("meta::pure::functions::multiplicity::toOne")) {
+            if (com.legend.builtin.Pure.isToOneCall(callee)) {
                 src = c.args().get(0);
                 unwrapped = false;
             } else if (callee.equals("meta::pure::functions::collection::first")
@@ -2787,7 +2794,7 @@ final class Substitution {
         TypedSpec projected = new TypedProject(rel,
                 List.of(new TypedFuncCol(
                         pa.property(), leafFn)),
-                new ExprType(outRow, pa.info().multiplicity()));
+                new ExprType(Type.relation(outRow), pa.info().multiplicity()));
         if (firstRow) {
             projected = new TypedLimit(projected,
                     new TypedCInteger(1L,
@@ -3055,7 +3062,7 @@ final class Substitution {
     static @com.legend.Nullable TypedNativeCall otherwiseOf(TypedSpec binding) {
         TypedSpec inner = binding;
         if (inner instanceof TypedNativeCall c && c.args().size() == 1
-                && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
+                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
             inner = c.args().get(0);
         }
         if (inner instanceof TypedNativeCall oc && oc.args().size() == 2
@@ -3096,8 +3103,7 @@ final class Substitution {
         while (cur != null && h < path.size()) {
             TypedSpec inner = cur;
             if (inner instanceof TypedNativeCall c && c.args().size() == 1
-                    && c.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")) {
+                    && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
                 inner = c.args().get(0);
             }
             var ow = otherwiseOf(inner);
@@ -3113,8 +3119,7 @@ final class Substitution {
             }
         }
         if (cur instanceof TypedNativeCall c && c.args().size() == 1
-                && c.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")) {
+                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
             cur = c.args().get(0);
         }
         return cur;

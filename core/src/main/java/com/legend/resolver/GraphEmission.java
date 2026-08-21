@@ -89,7 +89,7 @@ final class GraphEmission {
             TypedSpec inner = e.getValue();
             if (inner instanceof TypedNativeCall c
                     && c.args().size() == 1
-                    && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
+                    && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
                 inner = c.args().get(0);
             }
             if (inner instanceof TypedNewInstance
@@ -198,8 +198,7 @@ final class GraphEmission {
             Map<String, String> slotPrefixes, Set<String> stripped, String rowVar,
             List<TypedGraphTree> tree, StoreResolver.Context context, boolean arrayWrap,
             ExprType info, boolean checked) {
-        var rowType = (Type.RelationType)
-                pipeline.info().type();
+        var rowType = Type.requireRelationSchema(pipeline.info().type());
         java.util.function.Function<@com.legend.Nullable TypedSpec, TypedSpec> toRow = v -> new TypedVariable(
                 rowVar, new ExprType(rowType,
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
@@ -299,7 +298,7 @@ final class GraphEmission {
             TypedSpec inner = binding;
             if (inner instanceof TypedNativeCall c
                     && c.args().size() == 1
-                    && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
+                    && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
                 inner = c.args().get(0);
             }
             TypedSerializeGraph.Child arrChild = primitiveArrayLeaf(
@@ -653,7 +652,7 @@ final class GraphEmission {
                     dispatch.apply(context, ng.classFqn()), ng.classFqn());
             TypedSpec tPipe = Pipelines.materialize(t.pipeline(),
                     Set.of(), t.classFqn()).pipeline();
-            Type.RelationType tRow = (Type.RelationType) tPipe.info().type();
+            Type.RelationType tRow = Type.requireRelationSchema(tPipe.info().type());
             String pVar = st.predicate().parameters().get(0);
             String tVar = st.predicate().parameters().get(1);
             var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
@@ -671,7 +670,8 @@ final class GraphEmission {
             // null-safe equality arm; the lowering now enters the
             // verbatim-equality scope on this stamp — C2,
             // STAMP_DISCIPLINE_PROGRAM)
-            return new TypedFilter(tPipe, corr, new ExprType(tRow, one),
+            return new TypedFilter(tPipe, corr,
+                    new ExprType(Type.relation(tRow), one),
                     TypedFilter.Stamp.CORRELATION);
         }
         if (n instanceof TypedNativeCall c) {
@@ -784,7 +784,7 @@ final class GraphEmission {
             String parentRowVar, Type.RelationType parentRowType,
             java.util.function.UnaryOperator<TypedSpec> valueWrap) {
         Type.RelationType targetRow =
-                (Type.RelationType) targetPipeline.info().type();
+                Type.requireRelationSchema(targetPipeline.info().type());
         String pVar = cond.parameters().get(0);
         String tVar = cond.parameters().get(1);
         List<TypedSpec> corrBody = cond.body().stream().map(x ->
@@ -881,7 +881,7 @@ final class GraphEmission {
             }
             if (inner instanceof TypedNativeCall c1
                     && c1.args().size() == 1
-                    && c1.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
+                    && com.legend.builtin.Pure.isToOneCall(c1.callee().qualifiedName())) {
                 inner = c1.args().get(0);
             }
             if (inner instanceof TypedNewInstanceCast nic2) {
@@ -990,8 +990,7 @@ final class GraphEmission {
                 // serves QUERY-position reads only.
                 TypedSpec fb = ow2.args().get(1);
                 while (fb instanceof TypedNativeCall fw && fw.args().size() == 1
-                        && (fw.callee().qualifiedName().equals(
-                                "meta::pure::functions::multiplicity::toOne")
+                        && (com.legend.builtin.Pure.isToOneCall(fw.callee().qualifiedName())
                             || fw.callee().qualifiedName().equals(
                                 "meta::pure::functions::collection::first"))) {
                     fb = fw.args().get(0);
@@ -1158,8 +1157,7 @@ final class GraphEmission {
             }
         }
         return correlatedGraphChild(child, childPipe,
-                (Type.RelationType)
-                        childPipe.info().type(),
+                Type.requireRelationSchema(childPipe.info().type()),
                 navCond,
                 toMany, node, parentRowVar, parentRowType, context,
                 cMat.slotPrefixes());
@@ -1212,8 +1210,7 @@ final class GraphEmission {
                         ecs.pipeline(), java.util.Set.of(), ccFqn);
                 var one0 = com.legend.compiler.element.type
                         .Multiplicity.Bounded.ONE;
-                Type.RelationType eRow = (Type.RelationType)
-                        eMat.pipeline().info().type();
+                Type.RelationType eRow = Type.requireRelationSchema(eMat.pipeline().info().type());
                 TypedLambda never = new TypedLambda(
                         java.util.List.of("p_ec", "t_ec"),
                         java.util.List.of(new com.legend.compiler.spec.typed
@@ -1270,8 +1267,7 @@ final class GraphEmission {
         Pipelines.Materialized cMat = Pipelines.materialize(
                 child.pipeline(), leafSlotDemand(child, node), childCls.fqn());
         return correlatedGraphChild(child, cMat.pipeline(),
-                (Type.RelationType)
-                        cMat.pipeline().info().type(),
+                Type.requireRelationSchema(cMat.pipeline().info().type()),
                 java.util.Objects.requireNonNull(aj.condition()), toMany, node, parentRowVar, parentRowType,
                 context, cMat.slotPrefixes());
     }
@@ -1733,7 +1729,7 @@ final class GraphEmission {
         TypedSpec targetPipeline = temporal.temporalTargetPipe(src, target,
                 prop, cMat.pipeline());
         return new HopJoin(target, targetPipeline,
-                (Type.RelationType) targetPipeline.info().type(),
+                Type.requireRelationSchema(targetPipeline.info().type()),
                 nav.pairedPredicate().orElse(nav.predicate()));
     }
 
@@ -1918,8 +1914,7 @@ final class GraphEmission {
                 ? sources.get(cs.mappingFqn(), cast.classFqn(),
                         cast.targetSetId(), null, "")
                 : sources.get(cs.mappingFqn(), cast.classFqn());
-        Type.RelationType rowT = (Type.RelationType)
-                parentPipeline.info().type();
+        Type.RelationType rowT = Type.requireRelationSchema(parentPipeline.info().type());
         // audit 24 F4: SOURCE-CLASS identity is the real same-frame check —
         // two frames can share every column NAME (S_Trade vs S_Trade2) and
         // a name-subset proxy alone would silently serve the parent's rows
@@ -2035,8 +2030,7 @@ final class GraphEmission {
                         .map(k -> new TypedGraphTree(k, List.of()))
                         .toList()
                 : node.children();
-        Type.RelationType rowT = (Type.RelationType)
-                parentPipeline.info().type();
+        Type.RelationType rowT = Type.requireRelationSchema(parentPipeline.info().type());
         var rowInfo = new ExprType(rowT,
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         List<TypedFuncCol> leaves = new ArrayList<>();
@@ -2122,8 +2116,7 @@ final class GraphEmission {
             }
             TypedSpec ei = e;
             if (ei instanceof TypedNativeCall tc1 && tc1.args().size() == 1
-                    && tc1.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")) {
+                    && com.legend.builtin.Pure.isToOneCall(tc1.callee().qualifiedName())) {
                 ei = tc1.args().get(0);
             }
             if (ei instanceof TypedNewInstance subCtor) {
@@ -2350,7 +2343,7 @@ final class GraphEmission {
                         new TypedLambda(List.of(hr.target().rowVar()),
                                 List.of(leafBind),
                                 new ExprType(leafFn, one)))),
-                new ExprType(oneCol,
+                new ExprType(Type.relation(oneCol),
                         com.legend.compiler.element.type
                                 .Multiplicity.Bounded.ZERO_MANY));
         return agg.withChildren(List.of(proj));
@@ -2445,8 +2438,7 @@ final class GraphEmission {
         ClassSource cs = env.cs();
         StoreResolver.Context context = env.context();
         while (hop instanceof TypedNativeCall w && w.args().size() == 1
-                && (w.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
+                && (com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())
                     || w.callee().qualifiedName().equals(
                         "meta::pure::functions::collection::first"))) {
             hop = w.args().get(0);
@@ -2516,8 +2508,7 @@ final class GraphEmission {
             // conform-by-emission wrappers (toOne over the slot read) unwrap
             while (bindingRead instanceof TypedNativeCall bw
                     && bw.args().size() == 1
-                    && (bw.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")
+                    && (com.legend.builtin.Pure.isToOneCall(bw.callee().qualifiedName())
                         || bw.callee().qualifiedName().equals(
                             "meta::pure::functions::collection::first"))) {
                 bindingRead = bw.args().get(0);
@@ -2542,7 +2533,7 @@ final class GraphEmission {
                     target.pipeline(), Set.of(), rawTarget);
             targetPipeline = tf.temporalTargetPipe(cs, target, headProp,
                     cMat.pipeline());
-            targetRow = (Type.RelationType) targetPipeline.info().type();
+            targetRow = Type.requireRelationSchema(targetPipeline.info().type());
             cond = nav.pairedPredicate().orElse(nav.predicate());
         }
         String pVar = java.util.Objects.requireNonNull(cond, "cond").parameters().get(0);
@@ -2585,8 +2576,7 @@ final class GraphEmission {
             Type.RelationType parentRowType) {
         TypedSpec b = body;
         while (b instanceof TypedNativeCall w && w.args().size() == 1
-                && (w.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
+                && (com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())
                     || w.callee().qualifiedName().equals(
                         "meta::pure::functions::collection::first"))) {
             b = w.args().get(0);
@@ -2596,8 +2586,7 @@ final class GraphEmission {
         }
         TypedSpec hop = leaf.source();
         while (hop instanceof TypedNativeCall w2 && w2.args().size() == 1
-                && (w2.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
+                && (com.legend.builtin.Pure.isToOneCall(w2.callee().qualifiedName())
                     || w2.callee().qualifiedName().equals(
                         "meta::pure::functions::collection::first"))) {
             hop = w2.args().get(0);
@@ -2618,8 +2607,7 @@ final class GraphEmission {
                 hop = substVars(ccf.body().get(0), sub);
                 while (hop instanceof TypedNativeCall w4
                         && w4.args().size() == 1
-                        && (w4.callee().qualifiedName().equals(
-                                "meta::pure::functions::multiplicity::toOne")
+                        && (com.legend.builtin.Pure.isToOneCall(w4.callee().qualifiedName())
                             || w4.callee().qualifiedName().equals(
                                 "meta::pure::functions::collection::first"))) {
                     hop = w4.args().get(0);
@@ -2635,8 +2623,7 @@ final class GraphEmission {
                 && hf.predicate().body().size() == 1) {
             TypedSpec inner = hf.source();
             while (inner instanceof TypedNativeCall w3 && w3.args().size() == 1
-                    && (w3.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")
+                    && (com.legend.builtin.Pure.isToOneCall(w3.callee().qualifiedName())
                         || w3.callee().qualifiedName().equals(
                             "meta::pure::functions::collection::first"))) {
                 inner = w3.args().get(0);
@@ -2721,13 +2708,13 @@ final class GraphEmission {
                                     new ExprType(nFn,
                                             com.legend.compiler.element.type
                                                     .Multiplicity.Bounded.ONE)))),
-                    new ExprType(nCol,
+                    new ExprType(Type.relation(nCol),
                             com.legend.compiler.element.type
                                     .Multiplicity.Bounded.ZERO_MANY));
             return new com.legend.compiler.spec.typed.TypedLimit(nProj,
                     new com.legend.compiler.spec.typed.TypedCInteger(1L,
                             ExprType.one(Type.Primitive.INTEGER)),
-                    new ExprType(nCol,
+                    new ExprType(Type.relation(nCol),
                             com.legend.compiler.element.type
                                     .Multiplicity.Bounded.ZERO_ONE));
         }
@@ -2788,13 +2775,13 @@ final class GraphEmission {
                                 new ExprType(leafFn,
                                         com.legend.compiler.element.type
                                                 .Multiplicity.Bounded.ONE)))),
-                new ExprType(oneCol,
+                new ExprType(Type.relation(oneCol),
                         com.legend.compiler.element.type
                                 .Multiplicity.Bounded.ZERO_MANY));
         return new com.legend.compiler.spec.typed.TypedLimit(proj,
                 new com.legend.compiler.spec.typed.TypedCInteger(1L,
                         ExprType.one(Type.Primitive.INTEGER)),
-                new ExprType(oneCol,
+                new ExprType(Type.relation(oneCol),
                         com.legend.compiler.element.type
                                 .Multiplicity.Bounded.ZERO_ONE));
     }
@@ -2838,8 +2825,7 @@ final class GraphEmission {
      * is the read). */
     private static TypedSpec unwrapToOneFirst(TypedSpec v) {
         while (v instanceof TypedNativeCall w && w.args().size() == 1
-                && (w.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
+                && (com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())
                     || w.callee().qualifiedName().equals(
                         "meta::pure::functions::collection::first"))) {
             v = w.args().get(0);
@@ -2870,8 +2856,7 @@ final class GraphEmission {
                 && emv.name().equals(thisVar)) {
             TypedSpec mb = bindings.get(mid.property());
             while (mb instanceof TypedNativeCall mw && mw.args().size() == 1
-                    && (mw.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")
+                    && (com.legend.builtin.Pure.isToOneCall(mw.callee().qualifiedName())
                         || mw.callee().qualifiedName().equals(
                             "meta::pure::functions::collection::first"))) {
                 mb = mw.args().get(0);

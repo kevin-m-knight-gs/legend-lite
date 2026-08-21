@@ -89,8 +89,9 @@ final class JoinChecker {
             AppliedFunction af, Env env, LambdaFunction lf) {
         TypedSpec l = t.synth(af.parameters().get(0), env);
         TypedSpec r = t.synth(af.parameters().get(1), env);
-        if (!(l.info().type() instanceof Type.RelationType lr)
-                || !(r.info().type() instanceof Type.RelationType rr)) {
+        Type.RelationType lr = Type.relationSchema(l.info().type());
+        Type.RelationType rr = Type.relationSchema(r.info().type());
+        if (lr == null || rr == null) {
             return af;
         }
         java.util.Set<String> lc = new java.util.LinkedHashSet<>();
@@ -244,7 +245,7 @@ final class JoinChecker {
         // sides' columns — a real __jk_* column must survive untouched)
         java.util.Set<String> taken = new java.util.LinkedHashSet<>();
         for (ValueSpecification side : List.of(ps.get(0), ps.get(1))) {
-            if (t.synth(side, env).info().type()
+            if (Type.relationSchema(t.synth(side, env).info().type())
                     instanceof Type.RelationType srt) {
                 srt.columns().forEach(c -> taken.add(c.name()));
             }
@@ -283,12 +284,14 @@ final class JoinChecker {
                         joinKindNameOf(kind)),
                 new LambdaFunction(List.of(a, b), List.of(cond))));
         TypedSpec joined = check(t, modern, env);
-        Type.RelationType rt = (Type.RelationType) joined.info().type();
+        Type.RelationType rt = java.util.Objects.requireNonNull(
+                Type.relationSchema(joined.info().type()),
+                "join result must be a relation");
         List<Type.Column> kept = rt.columns().stream()
                 .filter(c -> !synthetic.contains(c.name())).toList();
         return new com.legend.compiler.spec.typed.TypedSelect(joined,
                 kept.stream().map(Type.Column::name).toList(),
-                new ExprType(new Type.RelationType(kept),
+                new ExprType(Type.relation(new Type.RelationType(kept)),
                         joined.info().multiplicity()));
     }
 
@@ -362,15 +365,19 @@ final class JoinChecker {
         TypedLambda thunk = (TypedLambda) t.typeLambda(cs.function1(),
                 slotParam.arguments().get(0), b, env);
         Type targetRow = ((Type.FunctionType) thunk.info().type()).result().type();
-        if (!(targetRow instanceof Type.RelationType)) {
+        Type.RelationType targetSchema = Type.relationSchema(targetRow);
+        if (targetSchema == null) {
             throw new TypeInferenceException(
                     "join slot target must be a relation (a table reference), got "
                             + targetRow.typeName());
         }
-        // Z = (alias : TargetRow[1]) — the joined sub-row column.
+        // Z = (alias : TargetROW[1]) — the joined sub-row column IS one
+        // row of the target: the bare schema struct (Row-vs-Relation —
+        // the navigate slot's reads are per-row BY TYPE).
         String zVar = ((Type.TypeVar) slotParam.arguments().get(1)).name();
         b.bindType(zVar, new Type.RelationType(List.of(
-                new Type.Column(cs.name(), targetRow, Multiplicity.Bounded.ONE))));
+                new Type.Column(cs.name(), targetSchema,
+                        Multiplicity.Bounded.ONE))));
         TypedLambda cond = (TypedLambda) t.typeLambda(condLam, sig.parameters().get(2).type(), b, env);
 
         ExprType out = t.kernel().resolveOutput(sig.returnType(), sig.returnMultiplicity(), b);
@@ -409,6 +416,6 @@ final class JoinChecker {
         // Bespoke output: left columns + EVERY right column renamed prefix+name.
         Type.RelationType schema = Checkers.prefixedUnion(left, right, prefix, c -> true);
         return new TypedJoin(left, right, kind, cond, Optional.of(prefix), null,
-                new ExprType(schema, sig.returnMultiplicity()), true);
+                new ExprType(Type.relation(schema), sig.returnMultiplicity()), true);
     }
 }

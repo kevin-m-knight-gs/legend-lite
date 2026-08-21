@@ -487,7 +487,7 @@ final class TemporalFrame {
     private @com.legend.Nullable TypedSpec hoistDeferredOuterSubJoins(TypedJoin j,
             TypedSpec processedLeft, String chainHead, String outerCol,
             String navClass) {
-        Type.RelationType rRow = (Type.RelationType) j.right().info().type();
+        Type.RelationType rRow = Type.requireRelationSchema(j.right().info().type());
         Map<String, List<String[]>> byPfx = new LinkedHashMap<>();
         Map<String, List<String>> byPfxKeys = new LinkedHashMap<>();
         for (var de : deferredOuterSubWindows.entrySet()) {
@@ -536,7 +536,7 @@ final class TemporalFrame {
         // head-side reads under the head prefix
         String headPfx = j.prefix().orElse("");
         List<String> pfxs = new ArrayList<>(byPfx.keySet());
-        Type.RelationType origRow = (Type.RelationType) j.info().type();
+        Type.RelationType origRow = Type.requireRelationSchema(j.info().type());
         List<Type.Column> headCols = new ArrayList<>();
         for (Type.Column c : origRow.columns()) {
             boolean subCol = pfxs.stream()
@@ -552,7 +552,7 @@ final class TemporalFrame {
                 outerDatedCond(j.condition(), j.left(), stripped, navClass,
                         outerCol, headDate),
                 j.prefix(), j.frameName(),
-                new ExprType(new Type.RelationType(headCols),
+                new ExprType(Type.relation(new Type.RelationType(headCols)),
                         Multiplicity.Bounded.ONE),
                 j.userCondition() /* rebuild */);
         for (int i = 0; i < pfxs.size(); i++) {
@@ -565,7 +565,7 @@ final class TemporalFrame {
             if (!headPfx.isEmpty()) {
                 String sv = c.parameters().get(0);
                 ExprType lInfo = new ExprType(
-                        (Type.RelationType) out.info().type(),
+                        Type.requireRelationSchema(out.info().type()),
                         Multiplicity.Bounded.ONE);
                 List<TypedSpec> body = new ArrayList<>();
                 for (TypedSpec b : c.body()) {
@@ -585,10 +585,9 @@ final class TemporalFrame {
                         /*nullTolerant*/ false, deferredOuterSubDates.get(
                                 java.util.Objects.requireNonNull(byPfxKeys.get(pfx)).get(k)));
             }
-            Type.RelationType prev = (Type.RelationType) out.info().type();
+            Type.RelationType prev = Type.requireRelationSchema(out.info().type());
             List<Type.Column> cols = new ArrayList<>(prev.columns());
-            for (Type.Column sc : ((Type.RelationType)
-                    sj.right().info().type()).columns()) {
+            for (Type.Column sc : (Type.requireRelationSchema(sj.right().info().type())).columns()) {
                 String nm = headPfx + pfx + sc.name();
                 Type.Column oc = origRow.columns().stream()
                         .filter(x -> x.name().equalsIgnoreCase(nm))
@@ -598,7 +597,7 @@ final class TemporalFrame {
             }
             out = new TypedJoin(out, sj.right(), sj.kind(), c,
                     java.util.Optional.of(headPfx + pfx), sj.frameName(),
-                    new ExprType(new Type.RelationType(cols),
+                    new ExprType(Type.relation(new Type.RelationType(cols)),
                             Multiplicity.Bounded.ONE),
                 sj.userCondition() /* rebuild */);
         }
@@ -642,7 +641,7 @@ final class TemporalFrame {
             // the entry's own outer column (a bitemp dimension's date can
             // differ from the head's) wins over the head's odc
             String entryOuter = w.length > 3 && !w[3].isEmpty() ? w[3] : outerCol;
-            Type.RelationType rRow = (Type.RelationType) right.info().type();
+            Type.RelationType rRow = Type.requireRelationSchema(right.info().type());
             String pfx = null;
             for (String cand : new String[]{subProp + "_", subProp + "_nav_"}) {
                 final String probe = cand + w[0];
@@ -809,8 +808,8 @@ final class TemporalFrame {
         }
         String sv = cond.parameters().get(0);
         String tv = cond.parameters().get(1);
-        Type.RelationType lRow = (Type.RelationType) left.info().type();
-        Type.RelationType rRow = (Type.RelationType) right.info().type();
+        Type.RelationType lRow = Type.requireRelationSchema(left.info().type());
+        Type.RelationType rRow = Type.requireRelationSchema(right.info().type());
         java.util.function.BiFunction<String, String, TypedSpec> col =
                 (var vn, var name) -> {
                     Type.RelationType row = vn.equals(sv) ? lRow : rRow;
@@ -1009,8 +1008,7 @@ final class TemporalFrame {
     private static TypedSpec unwrapToOne(TypedSpec d) {
         return d instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                 && c.args().size() == 1
-                && c.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
+                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())
                 ? c.args().get(0) : d;
     }
 
@@ -1124,7 +1122,7 @@ final class TemporalFrame {
                         "outer-nav milestoning date: nav '" + odn.navHead()
                         + "' is not materialized on the outer frame");
             }
-            Type.RelationType row = (Type.RelationType) out.info().type();
+            Type.RelationType row = Type.requireRelationSchema(out.info().type());
             String rv = "_odw";
             java.util.function.Function<String, TypedSpec> read = name -> {
                 Type.Column c = row.columns().stream()
@@ -1242,8 +1240,8 @@ final class TemporalFrame {
             boolean nullTolerant, @com.legend.Nullable TypedSpec specDate) {
         String sv = cond.parameters().get(0);
         String tv = cond.parameters().get(1);
-        Type.RelationType lRow = (Type.RelationType) left.info().type();
-        Type.RelationType rRow = (Type.RelationType) right.info().type();
+        Type.RelationType lRow = Type.requireRelationSchema(left.info().type());
+        Type.RelationType rRow = Type.requireRelationSchema(right.info().type());
         Function<String, TypedSpec> rcol = name -> {
             Type.Column c = rRow.columns().stream()
                     .filter(x -> x.name().equalsIgnoreCase(name)).findFirst()
@@ -1446,7 +1444,7 @@ final class TemporalFrame {
                     ? milestonedPipeByStrategy(sc, fdate, strategy, classFqn)
                     : sc);
         }
-        Type.RelationType row = (Type.RelationType) pipe.info().type();
+        Type.RelationType row = Type.requireRelationSchema(pipe.info().type());
         String v = STAMP_ROW_VAR;
         ExprType rowT =
                 new ExprType(row,
@@ -1512,7 +1510,15 @@ final class TemporalFrame {
                 // datePart (engine golden: snapshotDate = cast(truncate(ts)
                 // as date)) — a raw timestamp equality silently matches
                 // nothing
-                var dpFns = ctx.findFunction("meta::pure::functions::date::datePart");
+                // the strict [1] overload (audit slice 2 registered the
+                // real [0..1] sibling; this synth site's operand is [1])
+                var dpFns = ctx.findFunction("meta::pure::functions::date::datePart")
+                        .stream()
+                        .filter(f2 -> f2.parameters().size() == 1
+                                && f2.parameters().get(0).multiplicity()
+                                        .equals(com.legend.compiler.element
+                                                .type.Multiplicity.Bounded.ONE))
+                        .toList();
                 if (dpFns.size() != 1) {
                     throw new IllegalStateException("resolver bug: datePart"
                             + " resolves to " + dpFns.size() + " overloads —"
@@ -1711,7 +1717,7 @@ final class TemporalFrame {
                         }
                     }
                     String outerCol = outerColumnDate(specs.get(chainHead), cs,
-                            (Type.RelationType) j.left().info().type());
+                            Type.requireRelationSchema(j.left().info().type()));
                     if (outerCol != null) {
                         onWindowedHeads.add(chainHead);
                         TypedSpec processedLeft = applyJoinTemporalFilters(
@@ -1801,8 +1807,8 @@ final class TemporalFrame {
     private static boolean pipeRowHasMilestoneCols(TypedSpec pipe,
             @com.legend.Nullable String fromCol,
             @com.legend.Nullable String thruCol, @com.legend.Nullable String snapCol) {
-        if (!(pipe.info().type()
-                instanceof Type.RelationType row)) {
+        Type.RelationType row = Type.relationSchema(pipe.info().type());
+        if (row == null) {
             return false;
         }
         Predicate<String> has = name -> name != null
@@ -1926,7 +1932,7 @@ final class TemporalFrame {
                     : sc);
         }
         Type.RelationType row =
-                (Type.RelationType) pipe.info().type();
+                Type.requireRelationSchema(pipe.info().type());
         String v = STAMP_ROW_VAR;
         ExprType rowT =
                 new ExprType(row,
@@ -2592,8 +2598,7 @@ final class TemporalFrame {
         }
         if (d instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                 && c.args().size() == 1
-                && c.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
+                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())
                 && c.args().get(0)
                         instanceof com.legend.compiler.spec.typed.TypedVariable iv
                 && letEnv.containsKey(iv.name())) {
@@ -2687,14 +2692,14 @@ final class TemporalFrame {
                     + " bi-temporal class '" + classFqn
                     + "' is not supported yet", classFqn);
         }
-        if (!(datesRel.info().type() instanceof Type.RelationType dRow)
+        if (!(Type.relationSchema(datesRel.info().type()) instanceof Type.RelationType dRow)
                 || dRow.columns().size() != 1) {
             throw new MappingResolutionException("getAllForEachDate of '"
                     + classFqn + "': the dates argument must resolve to a"
                     + " ONE-column relation", classFqn);
         }
         Type.Column dCol = dRow.columns().get(0);
-        Type.RelationType bRow = (Type.RelationType) base.info().type();
+        Type.RelationType bRow = Type.requireRelationSchema(base.info().type());
         java.util.List<Type.Column> joinedCols =
                 new java.util.ArrayList<>(dRow.columns());
         joinedCols.addAll(bRow.columns());

@@ -292,20 +292,56 @@ public class AnsiSqlRenderer implements SqlDialect {
      * execution dialects emit pure's toOne size guard; the engine-TEXT
      * subclasses override to the verbatim inner value (processNoOp). */
     protected String checkedOne(SqlExpr.CheckedOne co, int parentPrec) {
+        String bound = co.atLeastOnly() ? "[1..*]" : "[1]";
+        if (co.scalarCarrier()) {
+            // a SCALAR ([0..1]) carrier: NULL is the empty collection —
+            // pure raises "Cannot cast a collection of size 0 ..."
+            // (multiplicity audit slice 3: the lower bound enforced)
+            return expr(new SqlExpr.Case(
+                    java.util.List.of(new SqlExpr.Case.When(
+                            SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NULL,
+                                    co.list()),
+                            SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
+                                    new SqlExpr.StringLit(
+                                            "Cannot cast a collection of"
+                                            + " size 0 to multiplicity "
+                                            + bound)))),
+                    co.list()), parentPrec);
+        }
         SqlExpr len = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_LENGTH,
                 co.list());
+        SqlExpr sizeErr = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
+                SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
+                        new SqlExpr.StringLit(
+                                "Cannot cast a collection of size "),
+                        new SqlExpr.Cast(SqlExpr.Call.of(
+                                        com.legend.sql.SqlFn.COALESCE, len,
+                                        new SqlExpr.IntLit(0)),
+                                com.legend.sql.SqlType.Scalar.VARCHAR),
+                        new SqlExpr.StringLit(" to multiplicity " + bound)));
+        if (co.atLeastOnly()) {
+            // toOneMany: at least one — the LIST rides through intact
+            return expr(new SqlExpr.Case(
+                    java.util.List.of(new SqlExpr.Case.When(
+                            SqlExpr.Call.of(com.legend.sql.SqlFn.OR,
+                                    SqlExpr.Call.of(com.legend.sql
+                                            .SqlFn.IS_NULL, co.list()),
+                                    SqlExpr.Call.of(com.legend.sql
+                                                    .SqlFn.EQUAL, len,
+                                            new SqlExpr.IntLit(0))),
+                            sizeErr)),
+                    co.list()), parentPrec);
+        }
+        // exactly one: size != 1 raises (audit slice 3 — the old guard
+        // tested only >1 and let the empty flow), 1 extracts
         return expr(new SqlExpr.Case(
                 java.util.List.of(new SqlExpr.Case.When(
-                        SqlExpr.Call.of(com.legend.sql.SqlFn.GREATER, len,
-                                new SqlExpr.IntLit(1)),
-                        SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
-                                SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
-                                        new SqlExpr.StringLit(
-                                                "Cannot cast a collection of size "),
-                                        new SqlExpr.Cast(len,
-                                                com.legend.sql.SqlType.Scalar.VARCHAR),
-                                        new SqlExpr.StringLit(
-                                                " to multiplicity [1]"))))),
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.OR,
+                                SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NULL,
+                                        co.list()),
+                                SqlExpr.Call.of(com.legend.sql.SqlFn.NOT_EQUAL,
+                                        len, new SqlExpr.IntLit(1))),
+                        sizeErr)),
                 SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_GET,
                         co.list(), new SqlExpr.IntLit(1))), parentPrec);
     }

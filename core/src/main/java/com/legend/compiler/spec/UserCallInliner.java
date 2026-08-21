@@ -200,7 +200,8 @@ public final class UserCallInliner {
             }
             TypedSpec reduced = deepFoldInlined(
                     reduceStatements(body, callEnv));
-            if (widened && call.info().type()
+            if (widened && com.legend.compiler.element.type.Type
+                    .relationSchema(call.info().type())
                     instanceof com.legend.compiler.element.type.Type.RelationType rt) {
                 reduced = new com.legend.compiler.spec.typed.TypedSelect(reduced,
                         rt.columns().stream()
@@ -589,5 +590,83 @@ public final class UserCallInliner {
         return out;
     }
 
+    // =====================================================================
+    // Narrow β-binds for the executor's staging loops (Invariant 7: the
+    // SUBSTITUTION is compiler work; the executor supplies the runtime
+    // value and the moment). Owned here beside the full engine so a
+    // second partial β-implementation never grows elsewhere again.
+    // =====================================================================
 
+    /** Bind an effectful map's parameter: {@code TypedVariable(param)}
+     * reads at the node root or in native-call arguments replace with
+     * the STRING literal (the corpus shape:
+     * {@code executeInDb($sql, $connection)}); a read anywhere deeper is
+     * LOUD — a wall, never silently unbound. Deliberately NARROWER than
+     * {@link #inlineBody}: the wall documents the untested positions. */
+    public static TypedSpec bindStringParam(TypedSpec node, String param,
+            String value) {
+        var lit = new com.legend.compiler.spec.typed.TypedCString(value,
+                com.legend.compiler.element.type.ExprType.one(
+                        com.legend.compiler.element.type.Type.Primitive.STRING));
+        if (node instanceof TypedVariable tv && tv.name().equals(param)) {
+            return lit;
+        }
+        if (node instanceof TypedNativeCall nc) {
+            List<TypedSpec> args = new ArrayList<>();
+            for (TypedSpec a : nc.args()) {
+                args.add(a instanceof TypedVariable v2
+                        && v2.name().equals(param) ? lit : a);
+            }
+            return new TypedNativeCall(nc.callee(), args, nc.info());
+        }
+        if (referencesVar(node, param)) {
+            throw new IllegalStateException("effectful map body reads the"
+                    + " parameter '" + param + "' in an unsupported position");
+        }
+        return node;
+    }
+
+    /** The executor's staged CALL FRAME: each argument β-inlines against
+     * the caller's let prefix and binds as a {@link TypedLet} (β-reduction
+     * by environment — the callee's body statements then execute over the
+     * frame). An EFFECTFUL argument refuses loudly: the frame would drop
+     * an unused one or double a twice-used one (audit 17:
+     * {@code ignore(executeInDb(...))} silently lost the insert). */
+    public static List<TypedSpec> callArgumentFrame(
+            com.legend.compiler.spec.typed.TypedUserCall call,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            java.util.function.Predicate<TypedSpec> effectful) {
+        List<TypedSpec> frame = new ArrayList<>();
+        for (int p = 0; p < call.callee().parameters().size(); p++) {
+            List<TypedSpec> argBody = new ArrayList<>(letPrefix);
+            argBody.add(call.args().get(p));
+            TypedSpec argValue = new UserCallInliner(specs)
+                    .inlineBody(argBody).get(0);
+            if (effectful.test(argValue)) {
+                throw new IllegalStateException("effectful argument to '"
+                        + call.callee().qualifiedName()
+                        + "' (parameter '"
+                        + call.callee().parameters().get(p).name()
+                        + "' binds an executeInDb-family call) is not"
+                        + " supported");
+            }
+            frame.add(new TypedLet(
+                    call.callee().parameters().get(p).name(), argValue,
+                    argValue.info()));
+        }
+        return frame;
+    }
+
+    /** Whether {@code node} (transitively) reads the variable. */
+    public static boolean referencesVar(TypedSpec node, String name) {
+        if (node instanceof TypedVariable tv && tv.name().equals(name)) {
+            return true;
+        }
+        for (TypedSpec c : node.children()) {
+            if (referencesVar(c, name)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

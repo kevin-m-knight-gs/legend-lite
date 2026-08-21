@@ -38,8 +38,8 @@ public sealed interface ExecutionResult {
      * branch encoded; the MODEL owns it now. */
     default long envelopeCarriers(long flatSize) {
         boolean tds = this instanceof Tabular tb
-                && (tb.returnType() instanceof
-                        com.legend.compiler.element.type.Type.RelationType
+                && (com.legend.compiler.element.type.Type
+                        .schemaView(tb.returnType()) != null
                         || com.legend.compiler.element.type.PlatformTypes
                                 .isTdsType(tb.returnType()));
         return tds ? 1L : flatSize;

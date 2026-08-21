@@ -59,6 +59,76 @@ public sealed interface Multiplicity permits Multiplicity.Bounded, Multiplicity.
         };
     }
 
+    // ====================================================================
+    // THE multiplicity algebra — ONE owner (multiplicity audit
+    // docs/MULTIPLICITY_AUDIT_2026_08_20.md §1d: the arithmetic was
+    // re-derived at four sites with four DIFFERENT Var fallbacks; that
+    // divergence is the mechanism that regenerates stamp bugs).
+    // ====================================================================
+
+    /**
+     * RANGE UNION &mdash; the widest multiplicity covering both operands:
+     * {@code [min(a,c) .. max(b,d)]}, an unbounded upper absorbing. This is
+     * the shared {@code m} of {@code if<T|m>}/branch joins and the covariant
+     * accumulation of a shared multiplicity variable.
+     *
+     * <p><strong>The {@code Var} rule, written down once:</strong> the same
+     * variable on both sides IS that variable (a generic body's branches both
+     * stamped {@code [m]} stay {@code [m]}). A variable meeting anything else
+     * cannot union statically and is LOUD &mdash; the four old copies each
+     * silently returned a different operand here, which is exactly the
+     * divergence this owner exists to end. (Post-G, {@link #requireBounded}
+     * doctrine: resolved expressions are always bounded.)
+     */
+    static Multiplicity union(Multiplicity a, Multiplicity b) {
+        if (a instanceof Bounded x && b instanceof Bounded y) {
+            return new Bounded(Math.min(x.lower(), y.lower()),
+                    x.upper() == null || y.upper() == null
+                            ? null : Math.max(x.upper(), y.upper()));
+        }
+        if (a instanceof Var va && b instanceof Var vb
+                && va.name().equals(vb.name())) {
+            return a;
+        }
+        throw new IllegalStateException("cannot union multiplicities "
+                + a.text() + " and " + b.text()
+                + " (an unresolved variable met a different bound)");
+    }
+
+    /**
+     * PATH PRODUCT &mdash; composition along a navigation path:
+     * {@code [a..b] . [c..d] = [a*c .. b*d]} (an unbounded upper on either
+     * side stays unbounded). A {@code [*]} hop makes everything after it
+     * {@code [*]}; an optional hop makes the result optional.
+     *
+     * <p><strong>The {@code Var} rule:</strong> {@code [1]} is the product's
+     * identity on EITHER side &mdash; {@code [n] . [1] = [n]} stays the
+     * variable (audit §1e: the old copy returned the other operand, silently
+     * DROPPING a variable source's cardinality across inlining). Any other
+     * variable product cannot be computed statically and is LOUD.
+     */
+    static Multiplicity product(Multiplicity outer, Multiplicity inner) {
+        if (outer instanceof Bounded a && inner instanceof Bounded b) {
+            // a [0..0] side ANNIHILATES (zero hops yield zero results)
+            // — and beats the unbounded absorption: [0..0].[*] is [0..0]
+            boolean zero = (a.upper() != null && a.upper() == 0)
+                    || (b.upper() != null && b.upper() == 0);
+            Integer upper = zero ? Integer.valueOf(0)
+                    : a.upper() == null || b.upper() == null
+                            ? null : a.upper() * b.upper();
+            return new Bounded(a.lower() * b.lower(), upper);
+        }
+        if (Bounded.ONE.equals(inner)) {
+            return outer;
+        }
+        if (Bounded.ONE.equals(outer)) {
+            return inner;
+        }
+        throw new IllegalStateException("cannot compose multiplicities "
+                + outer.text() + " . " + inner.text()
+                + " (an unresolved variable met a non-identity bound)");
+    }
+
 
     /** Source-style rendering, e.g. {@code [1]}, {@code [0..1]}, {@code [*]}, {@code [m]}. */
     String text();

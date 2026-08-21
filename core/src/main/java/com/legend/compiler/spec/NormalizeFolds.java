@@ -67,7 +67,7 @@ public final class NormalizeFolds {
                     || "meta::pure::functions::relation::size".equals(fqn))
                 && nc.args().size() == 1) {
             TypedSpec arg = nc.args().get(0);
-            boolean relationish = arg.info().type() instanceof Type.RelationType
+            boolean relationish = Type.relationValued(arg.info())
                     || PlatformTypes.isTdsType(arg.info().type());
             if (!relationish && arg.info().multiplicity()
                         instanceof Multiplicity.Bounded b

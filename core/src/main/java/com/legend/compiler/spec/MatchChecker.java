@@ -94,7 +94,7 @@ final class MatchChecker {
             // is the point of match — at the branch's declared multiplicity (or the input's).
             Multiplicity bound = param.multiplicity() != null
                     ? Multiplicity.from(param.multiplicity()) : input.info().multiplicity();
-            Env scope = env.withRow(param.name(), new ExprType(branchType, bound));
+            Env scope = env.with(param.name(), new ExprType(branchType, bound));
             Optional<String> extraParam = Optional.empty();
             if (branch.parameters().size() == 2) {
                 Variable second = branch.parameters().get(1);
@@ -104,7 +104,7 @@ final class MatchChecker {
                                         ? Multiplicity.from(second.multiplicity())
                                         : extra.orElseThrow().info().multiplicity())
                         : extra.orElseThrow().info();
-                scope = scope.withRow(second.name(), extraBound);
+                scope = scope.with(second.name(), extraBound);
                 extraParam = Optional.of(second.name());
             }
             TypedSpec body = t.synth(branch.body().get(0), scope);
@@ -147,7 +147,7 @@ final class MatchChecker {
             Multiplicity bound = param.multiplicity() != null
                     ? Multiplicity.from(param.multiplicity())
                     : input.info().multiplicity();
-            Env scope = env.withRow(param.name(),
+            Env scope = env.with(param.name(),
                     new ExprType(branchType, bound));
             if (branch.parameters().size() == 2) {
                 if (extra.isEmpty()) {
@@ -155,7 +155,7 @@ final class MatchChecker {
                             "a two-parameter match branch needs an extra argument");
                 }
                 Variable second = branch.parameters().get(1);
-                scope = scope.withRow(second.name(), extra.get().info());
+                scope = scope.with(second.name(), extra.get().info());
                 extraParam = Optional.of(second.name());
             }
             if (branch.body().size() != 1) {
@@ -168,7 +168,7 @@ final class MatchChecker {
             lub = lub == null ? body.info().type()
                     : t.kernel().commonSupertype(lub, body.info().type());
             lubMult = lubMult == null ? body.info().multiplicity()
-                    : widen(lubMult, body.info().multiplicity());
+                    : Multiplicity.union(lubMult, body.info().multiplicity());
         }
         return new com.legend.compiler.spec.typed.TypedMatchRuntime(
                 input, arms, extraParam,
@@ -189,18 +189,6 @@ final class MatchChecker {
             default -> throw new TypeInferenceException(
                     "match branch type has no runtime tag: " + t.typeName());
         };
-    }
-
-    /** The widest multiplicity covering both arms. */
-    private static Multiplicity widen(Multiplicity a, Multiplicity b) {
-        if (a instanceof Multiplicity.Bounded x
-                && b instanceof Multiplicity.Bounded y) {
-            int lower = Math.min(x.lower(), y.lower());
-            Integer upper = (x.upper() == null || y.upper() == null)
-                    ? null : Math.max(x.upper(), y.upper());
-            return new Multiplicity.Bounded(lower, upper);
-        }
-        return a;
     }
 
 
@@ -266,10 +254,13 @@ final class MatchChecker {
         var boolOne = new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE);
         TypedSpec cond = new com.legend.compiler.spec.typed.TypedNativeCall(
                 one, List.of(input), boolOne);
-        Multiplicity outM = thenArm.info().multiplicity()
-                .equals(elseArm.info().multiplicity())
-                ? thenArm.info().multiplicity()
-                : Multiplicity.Bounded.ZERO_ONE;
+        // AUDIT (docs/MULTIPLICITY_AUDIT_2026_08_20.md §1c) fix:
+        // differing arm multiplicities UNION — the old hardcoded [0..1]
+        // both lost the upper bound and falsely asserted emptiness
+        // (arms [2] and [1] are [1..2], not [0..1]).
+        Multiplicity outM = Multiplicity.union(
+                thenArm.info().multiplicity(),
+                elseArm.info().multiplicity());
         return new com.legend.compiler.spec.typed.TypedIf(cond, thenArm,
                 Optional.of(elseArm),
                 new ExprType(thenArm.info().type(), outM));
@@ -287,7 +278,7 @@ final class MatchChecker {
                 : param.multiplicity() != null
                         ? Multiplicity.from(param.multiplicity())
                         : input.info().multiplicity();
-        Env scope = env.withRow(param.name(), new ExprType(branchType, bound));
+        Env scope = env.with(param.name(), new ExprType(branchType, bound));
         TypedSpec body = t.synth(branch.body().get(0), scope);
         return new TypedMatch(input, param.name(), body, Optional.empty(),
                 Optional.empty(), body.info());

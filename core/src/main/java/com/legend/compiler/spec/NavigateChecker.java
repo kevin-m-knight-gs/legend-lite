@@ -104,7 +104,7 @@ final class NavigateChecker {
                     "navigate expects (source, ~alias: Target.all(), {s,t|pred}) or (Target.all(), {t|pred})");
         }
         TypedSpec source = t.synth(af.parameters().get(0), env);
-        return source.info().type() instanceof Type.RelationType
+        return Type.isRelation(source.info().type())
                 ? preMap(t, af, source, env)
                 : postMap(t, af, source, env);
     }
@@ -201,6 +201,22 @@ final class NavigateChecker {
             throw new TypeInferenceException(
                     "navigate target must be a class extent (Class.all()) or a"
                             + " relation, got " + target.typeName());
+        }
+        // A RELATION target's slot holds ONE ROW of it — the bare
+        // schema struct (Row-vs-Relation: reads through the slot are
+        // per-row BY TYPE). The signature's thunk interior ({->T[*]})
+        // bound T to the whole WRAPPED table (a table target's element
+        // is its row — a distinction the shared class/relation thunk
+        // spelling cannot express), so the checker BINDS T to the row
+        // before the predicate's {S[1],T[1]->Bool} types — the same
+        // manual special-form binding JoinChecker's Z uses.
+        if (target instanceof Type.RelationType trt) {
+            Type tvar = ((Type.FunctionType) ((Type.GenericType)
+                    sig.parameters().get(1).type()).arguments().get(0))
+                    .result().type();
+            if (tvar instanceof Type.TypeVar tv) {
+                b.bindType(tv.name(), trt);
+            }
         }
         return new Parts(cs.name(), thunk.body().get(0), target, predLam);
     }

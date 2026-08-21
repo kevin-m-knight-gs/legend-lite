@@ -30,13 +30,14 @@ import java.util.Set;
  * scoring and the bidirectional body checker build on top of this and live
  * elsewhere.
  *
- * <h2>Relation representation (G-&alpha;)</h2>
- * A relation type appears two ways: as the signature form
- * {@code GenericType(Relation, [row])} and as the computed-value form &mdash; a
- * <strong>bare</strong> {@link Type.RelationType} row-struct. The dedicated
- * relation case in {@link #unify} bridges the two (binding the schema variable
- * to the bare row-struct), and {@link #resolve} <em>unwraps</em>
- * {@code Relation<row>} back to the bare row-struct value form.
+ * <h2>Relation representation (reference-faithful; ex-G-&alpha;)</h2>
+ * A TABLE value's type is {@code GenericType(Relation, [schema])} &mdash; pure's
+ * own signature spelling, preserved through resolution (the historical G-&alpha;
+ * erasure to a bare struct is deleted). A bare {@link Type.RelationType} is the
+ * SCHEMA STRUCT and, as a value type, ONE ROW &mdash; pure's pun: the {@code T}
+ * of {@code Relation<T>} is the schema AND the row type. {@link #unify} binds
+ * the schema variable to the bare struct; {@link #resolve} substitutes it back
+ * under the wrapper untouched.
  */
 public final class InferenceKernel {
 
@@ -92,7 +93,7 @@ public final class InferenceKernel {
             // corpus module's own m3 class): same schema-erasing nominal.
             case Type.ClassType c
                     when c.fqn().equals(PlatformTypes.TABULAR_DATA_SET)
-                    && relationRow(actual) != null -> { }
+                    && Type.isRelation(actual) -> { }
             // TDSRow is the ERASED row nominal of the legacy TDS API: any
             // bare row-struct conforms — the callee is then monomorphized
             // at its call site (TDSRow params are schema-erased, Typer).
@@ -117,14 +118,20 @@ public final class InferenceKernel {
                 }
             }
 
-            // Dedicated relation case: bind the schema var to the actual's bare
-            // row-struct (whether the actual is wrapped Relation<row> or bare).
+            // Dedicated relation case (Row-vs-Relation): a table actual
+            // is WRAPPED — the schema variable binds the bare schema
+            // struct inside it (pure's T = the schema = the row type).
+            // A bare struct actual is a ROW and does NOT conform to a
+            // Relation<T> formal (the type distinction the split
+            // exists to enforce).
             case Type.GenericType g when g.rawFqn().equals(RELATION_FQN) -> {
-                Type row = relationRow(actual);
-                if (row == null) {
+                if (!(actual instanceof Type.GenericType ag
+                        && (ag.rawFqn().equals(RELATION_FQN)
+                                || ctx.isSubtype(ag.rawFqn(), RELATION_FQN))
+                        && ag.arguments().size() == 1)) {
                     throw new TypeInferenceException("expected a Relation, got " + actual.typeName());
                 }
-                unify(g.arguments().get(0), row, b);
+                unify(g.arguments().get(0), ag.arguments().get(0), b);
             }
             // TabularDataSet is the SCHEMA-ERASING nominal over the relation
             // carrier (CastChecker's cast(@TabularDataSet) doctrine): any
@@ -132,7 +139,7 @@ public final class InferenceKernel {
             // over TDS receives the platform's typed row-struct).
             case Type.GenericType g
                     when g.rawFqn().equals(PlatformTypes.TABULAR_DATA_SET)
-                    && relationRow(actual) != null -> { }
+                    && Type.isRelation(actual) -> { }
             // Function<Any> is the universal function bound (real m3:
             // every function instance is a Function; Any covers all
             // function types) — a bare FunctionType actual conforms
@@ -154,8 +161,12 @@ public final class InferenceKernel {
                 }
             }
 
+            // A bare STRUCT formal (a declared inline row/schema param,
+            // or a colspec row): unify by columns against the actual's
+            // schema view (a row's own struct, or a table's schema —
+            // struct-spelled table params are legacy-tolerated).
             case Type.RelationType r -> {
-                if (!(relationRow(actual) instanceof Type.RelationType ar)) {
+                if (!(Type.schemaView(actual) instanceof Type.RelationType ar)) {
                     throw fail(formal, actual);
                 }
                 unifyColumns(r, ar, b);
@@ -199,8 +210,39 @@ public final class InferenceKernel {
                     b.exitContravariant();
                 }
                 unify(f.result().type(), af.result().type(), b);
-                unifyMult(f.result().multiplicity(), af.result().multiplicity(),
-                        af.result().type(), b);
+                // FUNCTION-VALUE RESULT slots are lenient on the LOWER
+                // bound: the engine's own corpus compiles sortBy over
+                // optional association paths — a {T[1]->String[0..1]}
+                // key against sortBy's declared {T[1]->U[1]} (the
+                // reference's observed lambda-result covariance; the
+                // UPPER bound stays checked — a [*] result cannot take
+                // a to-one slot, the earlier audit's interior-result
+                // fix). VALUE slots keep full strict containment.
+                unifyMultResult(f.result().multiplicity(),
+                        af.result().multiplicity(), af.result().type(), b);
+            }
+        }
+    }
+
+    /** Result-slot multiplicity conformance: upper bound only (see the
+     * FunctionType arm — engine-observed lambda-result covariance; the
+     * Typer's lambda-LITERAL body check routes here too). */
+    void unifyMultResult(Multiplicity formal, Multiplicity actual,
+            Type actualType, Bindings b) {
+        if (formal instanceof Multiplicity.Var) {
+            unifyMult(formal, actual, actualType, b);
+            return;
+        }
+        if (formal instanceof Multiplicity.Bounded fb
+                && actual instanceof Multiplicity.Bounded ab
+                && !Type.isRelation(actualType)
+                && !com.legend.compiler.element.type.PlatformTypes
+                        .isVariant(actualType)) {
+            boolean upperOk = fb.upper() == null
+                    || (ab.upper() != null && ab.upper() <= fb.upper());
+            if (!upperOk) {
+                throw new TypeInferenceException("multiplicity " + ab.text()
+                        + " is not compatible with result " + fb.text());
             }
         }
     }
@@ -231,7 +273,7 @@ public final class InferenceKernel {
      * </ul>
      */
     private void unifyConstraint(Type.SchemaAlgebra sa, Type actual, Bindings b) {
-        if (!(relationRow(actual) instanceof Type.RelationType actualRow)) {
+        if (!(Type.schemaView(actual) instanceof Type.RelationType actualRow)) {
             throw new TypeInferenceException("expected a column specification (a row-struct), got "
                     + actual.typeName());
         }
@@ -455,13 +497,14 @@ public final class InferenceKernel {
                     b.bindType(v.name(), valueLub(existing, actual));
                     return;
                 }
-                if (existing instanceof Type.RelationType er
-                        && actual instanceof Type.RelationType ar) {
+                Type.RelationType exSchema = Type.schemaView(existing);
+                Type.RelationType acSchema = Type.schemaView(actual);
+                if (exSchema != null && acSchema != null) {
                     throw new TypeInferenceException("column mismatch: type variable "
                             + v.name() + " bound to relation "
-                            + er.columns().stream().map(Type.Column::name).toList()
+                            + exSchema.columns().stream().map(Type.Column::name).toList()
                             + " cannot also bind relation "
-                            + ar.columns().stream().map(Type.Column::name).toList());
+                            + acSchema.columns().stream().map(Type.Column::name).toList());
                 }
                 throw new TypeInferenceException(
                         "type variable " + v.name() + " bound to " + existing.typeName()
@@ -572,10 +615,19 @@ public final class InferenceKernel {
 
     /**
      * Unify an actual argument's multiplicity against a parameter's: binds a
-     * multiplicity variable, otherwise validates compatibility. Following engine
-     * convention, only the {@code [*] -> [1]} case is rejected, and validation is
-     * <strong>skipped for relation sources</strong> (§3.2 &mdash; relation ops are
-     * typed {@code [*]} but their signatures say {@code [1]}).
+     * multiplicity variable, otherwise validates FULL covariant containment
+     * &mdash; real pure's {@code MultiplicityMatch} (legend-pure
+     * {@code m3/navigation/multiplicity/MultiplicityMatch.java:273-279}):
+     * {@code [a..b]} conforms to {@code [c..d]} iff {@code c <= a} and
+     * {@code b <= d}. In particular {@code [0..1]} does NOT conform to
+     * {@code [1]} &mdash; that is precisely why {@code toOne()} exists.
+     * (The earlier claim here that "engine convention" rejects only
+     * {@code [*] -> [1]} was FALSE &mdash; multiplicity audit
+     * docs/MULTIPLICITY_AUDIT_2026_08_20.md §1: it manufactured a false
+     * {@code [1]} on the most common expression shape in Legend.)
+     * Validation is <strong>skipped for relation sources</strong> (§3.2
+     * &mdash; relation ops are typed {@code [*]} but their signatures say
+     * {@code [1]}).
      */
     public void unifyMult(Multiplicity formal, Multiplicity actual, Type actualType, Bindings b) {
         unifyMult(formal, actual, actualType, b, false);
@@ -603,38 +655,40 @@ public final class InferenceKernel {
                     // bodies). Reachable via the shared-mult-var natives
                     // (fold/eval); if() computes its multiplicity in
                     // IfChecker and never routes here. Widening only (a
-                    // contained range keeps the solution stable).
-                    b.bindMult(v.name(), new Multiplicity.Bounded(
-                            Math.min(e.lower(), a2.lower()),
-                            e.upper() == null || a2.upper() == null ? null
-                                    : Math.max(e.upper(), a2.upper())));
+                    // contained range keeps the solution stable). ONE
+                    // owner: Multiplicity.union (audit §1d).
+                    b.bindMult(v.name(), Multiplicity.union(e, a2));
                 }
             }
             case Multiplicity.Bounded fb -> {
-                // Only [*] -> [1] is rejected, and relation sources skip validation (§3.2).
-                // A Variant MANY additionally conforms: a collection of
-                // variants IS a variant (one JSON array value) — the
-                // carrier's own semantics (toMany(@Variant) results flow
-                // into to-one column/argument slots as array cells).
-                boolean relationSource = relationRow(actualType) != null;
-                // CONTRAVARIANT position (a function value's parameters): a
-                // WIDER actual accepts — equal(Any[*],Any[*]) is a legal
-                // {T[1],T[1]->Boolean} comparator in real pure.
-                if (!relationSource && fb.isToOne() && actual.isMany()
-                        && !contravariantSlot
-                        && !com.legend.compiler.element.type.PlatformTypes.isVariant(actualType)) {
-                    throw new TypeInferenceException(
-                            "expected at most one value, got many (" + actual.text() + ")");
-                }
-                // A STATICALLY EMPTY actual ([0..0], the [] literal) never
-                // satisfies a required slot — Nil-as-bottom conforms on the
-                // TYPE lattice, but multiplicity still binds (abs([]) and
-                // f():Integer[1]{[]} are real-pure errors; audit).
-                if (!relationSource && fb.lower() >= 1
-                        && actual instanceof Multiplicity.Bounded ab
-                        && ab.upper() != null && ab.upper() == 0) {
-                    throw new TypeInferenceException(
-                            "expected at least one value, got none ([0])");
+                // FULL covariant containment (MultiplicityMatch): both
+                // bounds. Carve-outs, each with its own doctrine:
+                // relation sources skip (§3.2); CONTRAVARIANT position (a
+                // function value's parameters) accepts a wider actual —
+                // equal(Any[*],Any[*]) is a legal {T[1],T[1]->Boolean}
+                // comparator in real pure; a Variant MANY conforms to a
+                // to-one slot — a collection of variants IS one JSON
+                // array value (toMany(@Variant) results flow into to-one
+                // column/argument slots as array cells).
+                boolean relationSource = Type.isRelation(actualType);
+                if (!relationSource && !contravariantSlot
+                        && actual instanceof Multiplicity.Bounded ab) {
+                    boolean variantCarrier = com.legend.compiler.element
+                            .type.PlatformTypes.isVariant(actualType);
+                    boolean upperOk = fb.upper() == null
+                            || (ab.upper() != null && ab.upper() <= fb.upper())
+                            || variantCarrier;
+                    // the LOWER bound: [0..1] into [1] is a REAL pure
+                    // error (that is why toOne() exists). Nil-as-bottom
+                    // conforms on the TYPE lattice, but multiplicity
+                    // still binds (abs([]) and f():Integer[1]{[]} are
+                    // real-pure errors).
+                    boolean lowerOk = fb.lower() <= ab.lower();
+                    if (!upperOk || !lowerOk) {
+                        throw new TypeInferenceException("multiplicity "
+                                + ab.text() + " is not compatible with "
+                                + fb.text());
+                    }
                 }
             }
         }
@@ -657,9 +711,10 @@ public final class InferenceKernel {
             case Type.TypeVar v -> b.type(v.name()).orElseThrow(() ->
                     new TypeInferenceException("unbound type variable " + v.name()));
 
-            // Relation<row> -> bare row-struct (the computed-value form, G-alpha).
-            case Type.GenericType g when g.rawFqn().equals(RELATION_FQN) && g.arguments().size() == 1 ->
-                    resolve(g.arguments().get(0), b);
+            // Relation<T> stays WRAPPED (the G-α erasure is deleted): T
+            // resolves to the bound schema struct and the container
+            // rides through the generic descent below — a table type
+            // leaves resolution as GenericType(Relation, [schema]).
             case Type.GenericType g -> new Type.GenericType(g.rawFqn(),
                     g.arguments().stream().map(a -> resolve(a, b)).toList());
 
@@ -992,7 +1047,7 @@ public final class InferenceKernel {
 
             case Type.ClassType fc
                     when fc.fqn().equals(PlatformTypes.TABULAR_DATA_SET)
-                    && relationRow(actual) != null -> 1;
+                    && Type.isRelation(actual) -> 1;
             case Type.ClassType fc -> {
                 if (!(actual instanceof Type.ClassType ac)) {
                     yield -1;
@@ -1003,12 +1058,12 @@ public final class InferenceKernel {
                     (actual instanceof Type.EnumType ae && ae.fqn().equals(fe.fqn())) ? 2 : -1;
 
             case Type.GenericType g when g.rawFqn().equals(RELATION_FQN) ->
-                    relationRow(actual) != null ? 1 : -1;
+                    Type.isRelation(actual) ? 1 : -1;
             // TDS = schema-erasing relation nominal (must agree with the
             // unify arm; score as a subtype-grade match).
             case Type.GenericType g
                     when g.rawFqn().equals(PlatformTypes.TABULAR_DATA_SET)
-                    && relationRow(actual) != null -> 1;
+                    && Type.isRelation(actual) -> 1;
             case Type.GenericType g -> {
                 if (!(actual instanceof Type.GenericType ag)
                         || !ag.rawFqn().equals(g.rawFqn())) {
@@ -1029,7 +1084,7 @@ public final class InferenceKernel {
                         yield -1;
                     }
                     if (ff.result().multiplicity() instanceof Multiplicity.Bounded fb
-                            && paramMultScore(fb, af.result().multiplicity(),
+                            && resultMultScore(fb, af.result().multiplicity(),
                                     af.result().type()) < 0) {
                         yield -1;
                     }
@@ -1037,7 +1092,7 @@ public final class InferenceKernel {
                 yield 1;
             }
 
-            case Type.RelationType ignored -> (relationRow(actual) instanceof Type.RelationType) ? 1 : -1;
+            case Type.RelationType ignored -> Type.schemaView(actual) != null ? 1 : -1;
             case Type.FunctionType ff -> {
                 if (!(actual instanceof Type.FunctionType af)) {
                     yield -1;
@@ -1052,7 +1107,7 @@ public final class InferenceKernel {
                 // check the tighter-VALUE overload won the score and died at
                 // unification (testUsingFunctionInMapLambdaTakingAParameter).
                 if (ff.result().multiplicity() instanceof Multiplicity.Bounded fb
-                        && paramMultScore(fb, af.result().multiplicity(),
+                        && resultMultScore(fb, af.result().multiplicity(),
                                 af.result().type()) < 0) {
                     yield -1;
                 }
@@ -1077,6 +1132,25 @@ public final class InferenceKernel {
      * concrete overload and loses only to an exact concrete match — real
      * pure picks map's {T[m]->V[m]} over {T[0..1]->V[0..1]} for a [1]
      * source), then tightness 8/6/4/2; {@code -1} rejects {@code [*]->[1]}. */
+    /** Result-slot scoring twin of {@link #unifyMultResult}: upper bound
+     * only — scoring and unification must agree (the kernel-halves rule),
+     * and lambda results widen [0..1] into [1] slots per the reference's
+     * observed covariance. */
+    private int resultMultScore(Multiplicity.Bounded formal, Multiplicity actual,
+            Type actualType) {
+        if (actual instanceof Multiplicity.Bounded ab
+                && !Type.isRelation(actualType)
+                && !com.legend.compiler.element.type.PlatformTypes
+                        .isVariant(actualType)) {
+            boolean upperOk = formal.upper() == null
+                    || (ab.upper() != null && ab.upper() <= formal.upper());
+            if (!upperOk) {
+                return -1;
+            }
+        }
+        return multiplicityTightness(formal);
+    }
+
     private int paramMultScore(Multiplicity formal, Multiplicity actual, Type actualType) {
         return switch (formal) {
             case Multiplicity.Var ignored -> 9;
@@ -1084,18 +1158,22 @@ public final class InferenceKernel {
                 if (fb.equals(actual)) {
                     yield 10;
                 }
-                if (fb.isToOne() && actual.isMany() && relationRow(actualType) == null) {
-                    yield -1;   // [*] cannot satisfy a to-one slot (unless a relation source, §3.2)
-                }
-                // [0] never satisfies a REQUIRED slot — scoring must agree
-                // with resolveChosen's rejection, or selection picks the
-                // [1]-param overload over a [0..1] sibling and the check
-                // then rejects a program the sibling accepts (audit:
-                // coalesce('x', [])).
-                if (fb.lower() >= 1 && actual instanceof Multiplicity.Bounded ab
-                        && ab.upper() != null && ab.upper() == 0
-                        && relationRow(actualType) == null) {
-                    yield -1;
+                // FULL covariant containment, mirroring unifyMult (the
+                // two kernel halves must agree, or selection picks an
+                // overload the check then rejects). This is also HOW
+                // real pure disambiguates [0..1]-vs-[1] overload pairs:
+                // a [0..1] actual structurally cannot take the [1]
+                // overload. Relation sources skip (§3.2); a Variant
+                // MANY conforms to a to-one slot (the carrier rule).
+                if (actual instanceof Multiplicity.Bounded ab
+                        && !Type.isRelation(actualType)) {
+                    boolean upperOk = fb.upper() == null
+                            || (ab.upper() != null && ab.upper() <= fb.upper())
+                            || com.legend.compiler.element.type.PlatformTypes
+                                    .isVariant(actualType);
+                    if (!upperOk || fb.lower() > ab.lower()) {
+                        yield -1;
+                    }
                 }
                 yield multiplicityTightness(fb);
             }
@@ -1166,14 +1244,16 @@ public final class InferenceKernel {
         // correlated scalar subquery) meeting a bare scalar in a branch or
         // collection LUB: the LUB is over the COLUMN's type — the
         // encoding's declared value semantics. Multi-column relations stay
-        // at the loud non-nominal wall below.
-        if (a instanceof Type.RelationType r1 && r1.columns().size() == 1
-                && !(b instanceof Type.RelationType)) {
-            return commonSupertype(r1.columns().get(0).type(), b);
+        // at the loud non-nominal wall below. (Row-vs-Relation: the
+        // encoding may arrive wrapped — a table — or as a bare
+        // single-column row; both take the column's-type view.)
+        Type.RelationType sv1 = Type.schemaView(a);
+        Type.RelationType sv2 = Type.schemaView(b);
+        if (sv1 != null && sv1.columns().size() == 1 && sv2 == null) {
+            return commonSupertype(sv1.columns().get(0).type(), b);
         }
-        if (b instanceof Type.RelationType r2 && r2.columns().size() == 1
-                && !(a instanceof Type.RelationType)) {
-            return commonSupertype(a, r2.columns().get(0).type());
+        if (sv2 != null && sv2.columns().size() == 1 && sv1 == null) {
+            return commonSupertype(a, sv2.columns().get(0).type());
         }
         String fa = nominalFqn(a), fb = nominalFqn(b);
         if (fa == null || fb == null) {
@@ -1275,19 +1355,6 @@ public final class InferenceKernel {
     // Helpers
     // =====================================================================
 
-    /** The bare row-struct of a relation value, whether wrapped {@code Relation<row>} or already bare. */
-    private static @com.legend.Nullable Type relationRow(Type actual) {
-        if (actual instanceof Type.GenericType g
-                && g.rawFqn().equals(RELATION_FQN)
-                && g.arguments().size() == 1) {
-            return g.arguments().get(0);
-        }
-        if (actual instanceof Type.RelationType) {
-            return actual;
-        }
-        return null;
-    }
-
     /** Subtype check over the primitive lattice (precision/width-agnostic, §3.2). */
     private boolean isPrimitiveSubtype(Type actual, Type formal) {
         String actualFqn = primitiveFqn(actual);
@@ -1322,16 +1389,25 @@ public final class InferenceKernel {
         // already-bound row: compatible iff its column names all exist there — this is how
         // over(~city)'s _Window<(city:?)> meets extend's _Window<T> with T bound to the
         // source row, and the containment check IS the partition/sort-column validation.
-        if (existing instanceof Type.RelationType er && actual instanceof Type.RelationType ar
+        Type.RelationType exView = Type.schemaView(existing);
+        if (exView != null && actual instanceof Type.RelationType ar
                 && isUnknownFragment(ar)) {
             return ar.columns().stream().allMatch(c ->
-                    er.columns().stream().anyMatch(e -> sameColumn(e.name(), c.name())));
+                    exView.columns().stream().anyMatch(e -> sameColumn(e.name(), c.name())));
         }
         // Relation identity is the COLUMNS — dynamicColumns (pivot templates)
         // are executor metadata; a template-carrying schema re-binding against
         // its template-less rebuild must not spuriously conflict (audit).
+        // Applies to bare schemas and wrapped tables alike (schema view);
+        // a ROW never silently rebinds against a TABLE — same columns or
+        // not, the kinds differ (loud at the caller).
         if (existing instanceof Type.RelationType er2 && actual instanceof Type.RelationType ar2) {
             return er2.columns().equals(ar2.columns());
+        }
+        Type.RelationType ew = Type.relationSchema(existing);
+        Type.RelationType aw = Type.relationSchema(actual);
+        if (ew != null && aw != null) {
+            return ew.columns().equals(aw.columns());
         }
         return existing.equals(actual);
     }

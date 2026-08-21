@@ -251,7 +251,21 @@ public final class Executor {
             return switch (shape) {
                 case TABULAR -> tabular(rs, plan, rootType, dialect);
                 case SCALAR -> {
-                    Object v = rs.next()
+                    boolean hasRow = rs.next();
+                    // ZERO ROWS under a REQUIRED declared bound raises —
+                    // the engine's resultSizeRange enforcement (its Java
+                    // executor checks the finished result's row count;
+                    // multiplicity audit follow-up, egress slice A).
+                    // Distinguishable from one-row-holding-NULL, so the
+                    // TDSNull mapping-lane convention is untouched.
+                    if (!hasRow && rootType.multiplicity()
+                            .requireBounded("SCALAR shaping").lower() >= 1) {
+                        throw new IllegalStateException(
+                                "Cannot cast a collection of size 0 to"
+                                + " multiplicity "
+                                + rootType.multiplicity().text());
+                    }
+                    Object v = hasRow
                             ? latticeKind(cell(rs, plan, dialect, anyRoot, variantRoot),
                                     rootType.type())
                             : null;
@@ -268,7 +282,9 @@ public final class Executor {
                 }
                 case COLLECTION -> {
                     List<Object> values = new ArrayList<>();
+                    boolean anyRow = false;
                     while (rs.next()) {
+                        anyRow = true;
                         Object v = latticeKind(cell(rs, plan, dialect, anyRoot, variantRoot),
                                 rootType.type());
                         // a NULL cell is a pure EMPTY, and no pure collection
@@ -283,11 +299,21 @@ public final class Executor {
                             values.add(v);
                         }
                     }
+                    long lower = rootType.multiplicity()
+                            .requireBounded("COLLECTION shaping").lower();
+                    // ZERO ROWS under a required lower bound is the
+                    // engine's finish-line resultSizeRange check (egress
+                    // slice A) — a USER error with pure's own message,
+                    // not a defect: the query legitimately emptied.
+                    if (!anyRow && lower >= 1) {
+                        throw new IllegalStateException(
+                                "Cannot cast a collection of size 0 to"
+                                + " multiplicity "
+                                + rootType.multiplicity().text());
+                    }
                     // the declared lower bound is the fact with teeth: a
                     // drop that shrinks a [1..*]-typed collection below its
                     // bound is a mapping/lowering defect, never a quiet count
-                    long lower = rootType.multiplicity()
-                            .requireBounded("COLLECTION shaping").lower();
                     if (values.size() < lower) {
                         throw new IllegalStateException("collection-shaped"
                                 + " result holds " + values.size()
@@ -544,7 +570,10 @@ public final class Executor {
 
     /** The relation schema of a TABULAR root, struct columns flattened. */
     private static Type.RelationType tabularSchema(ExprType rootType) {
-        if (!(rootType.type() instanceof Type.RelationType typedSchema)) {
+        // a wrapped table's schema, or a bare struct (a ROW root reads
+        // as a one-row table view) — Row-vs-Relation
+        Type.RelationType typedSchema = Type.schemaView(rootType.type());
+        if (typedSchema == null) {
             throw new IllegalStateException("TABULAR result without a relation root type: "
                     + rootType.type().typeName());
         }
@@ -725,12 +754,16 @@ public final class Executor {
 
     /** Expand row-struct columns (navigate slots) to their prefixed flat set. */
     private static Type.RelationType flattenStructColumns(Type.RelationType schema) {
-        if (schema.columns().stream().noneMatch(c -> c.type() instanceof Type.RelationType)) {
+        if (schema.columns().stream().noneMatch(c ->
+                c.type() instanceof Type.RelationType)) {
             return schema;
         }
         List<Type.Column> flat = new ArrayList<>();
         for (Type.Column c : schema.columns()) {
-            if (c.type() instanceof Type.RelationType sub) {
+            // a slot column types the target's bare row-struct
+            Type.RelationType sub =
+                    c.type() instanceof Type.RelationType r0 ? r0 : null;
+            if (sub != null) {
                 for (Type.Column sc : sub.columns()) {
                     flat.add(new Type.Column(c.name() + "_" + sc.name(),
                             sc.type(), sc.multiplicity()));
