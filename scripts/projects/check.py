@@ -52,6 +52,33 @@ def files_for(names) -> list[str]:
     return out
 
 
+def substance(names) -> list[str]:
+    """Projects that compile but are not the project they were meant to be.
+
+    An agent that dies mid-task can leave its PROBE scaffold behind -- three files, two
+    classes, no MANIFEST -- and that scaffold compiles perfectly. `check.py` said `compiles`
+    and the graph looked complete; only counting the classes showed a 64-line placeholder
+    where a 30-class project was specified.
+
+    So the size band in the matrix is checked, not merely intended. The bands are wide and
+    the check is a floor rather than a target: it exists to catch an empty project, not to
+    police how many classes a domain needs.
+    """
+    out = []
+    for n in sorted(names):
+        d = ROOT / n
+        if not d.is_dir():
+            continue
+        src = "".join(f.read_text() for f in d.glob("*.pure"))
+        classes = len(re.findall(r"^Class\s", src, re.M))
+        low, _high = spec.SIZES[spec.lookup(n)[5]]
+        if classes < low:
+            out.append(f"{n}: {classes} classes, band '{spec.lookup(n)[5]}' wants >= {low}")
+        if not (d / "MANIFEST.md").is_file():
+            out.append(f"{n}: no MANIFEST.md, so nothing downstream can be written against it")
+    return out
+
+
 def compile_set(names, label: str) -> tuple[bool, str]:
     cp = (runner.RUNNER / "cp.txt").read_text().strip()
     r = subprocess.run(
@@ -90,8 +117,15 @@ def main() -> None:
         bad += not ok
         print(line)
 
+    thin = substance(names)
+    if thin:
+        print("\nCOMPILES BUT IS NOT FINISHED:")
+        for line in thin:
+            print(f"  {line}")
+        bad += len(thin)
+
     if bad:
-        raise SystemExit(f"\n{bad} project(s) do not compile")
+        raise SystemExit(f"\n{bad} project(s) do not compile or are unfinished")
 
 
 if __name__ == "__main__":
