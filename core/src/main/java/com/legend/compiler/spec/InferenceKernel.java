@@ -615,11 +615,9 @@ public final class InferenceKernel {
                     // bodies). Reachable via the shared-mult-var natives
                     // (fold/eval); if() computes its multiplicity in
                     // IfChecker and never routes here. Widening only (a
-                    // contained range keeps the solution stable).
-                    b.bindMult(v.name(), new Multiplicity.Bounded(
-                            Math.min(e.lower(), a2.lower()),
-                            e.upper() == null || a2.upper() == null ? null
-                                    : Math.max(e.upper(), a2.upper())));
+                    // contained range keeps the solution stable). ONE
+                    // owner: Multiplicity.union (audit §1d).
+                    b.bindMult(v.name(), Multiplicity.union(e, a2));
                 }
             }
             case Multiplicity.Bounded fb -> {

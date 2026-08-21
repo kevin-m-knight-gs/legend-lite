@@ -2832,18 +2832,14 @@ final class Typer {
     }
 
     /**
-     * Multiplicity composition along a navigation path: {@code [a..b] . [c..d] =
-     * [a*c .. b*d]} (an unbounded upper on either side stays unbounded). So a
-     * {@code [*]} hop makes everything after it {@code [*]}, and an optional hop
-     * makes the result optional.
+     * Multiplicity composition along a navigation path — ONE owner:
+     * {@link Multiplicity#product} (audit sections 1d/1e: this copy's Var
+     * arm silently dropped a variable source's cardinality across
+     * inlining; the owner keeps the variable through the {@code [1]}
+     * identity and is loud otherwise).
      */
     private static Multiplicity compose(Multiplicity outer, Multiplicity inner) {
-        if (outer instanceof Multiplicity.Bounded a && inner instanceof Multiplicity.Bounded b) {
-            int lower = a.lower() * b.lower();
-            Integer upper = (a.upper() == null || b.upper() == null) ? null : a.upper() * b.upper();
-            return new Multiplicity.Bounded(lower, upper);
-        }
-        return inner;   // multiplicity variables do not occur on object-graph paths
+        return Multiplicity.product(outer, inner);
     }
 
     /** An enum value reference {@code Kind.VALUE}: both the enumeration and the value must exist. */

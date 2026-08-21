@@ -661,6 +661,17 @@ class TypeCheckerTest {
     }
 
     @Test
+    void matchRuntimeDispatchUnionsArmMultiplicities() {
+        // Multiplicity audit §1c: a [0..1] input over multiplicity-
+        // discriminating branches used to stamp a HARDCODED [0..1] —
+        // losing the upper bound AND falsely asserting emptiness. Arms
+        // [2] and [1] union to [1..2].
+        TypedSpec n = typeQuery(
+                "[5]->first()->match([i:Integer[1]|[1,2], i:Integer[0]|3])");
+        assertEquals(new Multiplicity.Bounded(1, 2), n.info().multiplicity());
+    }
+
+    @Test
     void evalBetaReducesLambdaToBodyType() {
         TypedSpec n = typeQuery("{x | $x + 1}->eval(5)");
         assertInstanceOf(TypedEval.class, n);

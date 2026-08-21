@@ -12,25 +12,25 @@ import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlType;
 
 /**
- * THE MULTIPLICITY-STAMP INSPECTOR (host-logic audit 2026-08-20, stamp
- * program step 3 built FIRST as a measurement instrument): at the scalar
- * lowering funnel, compare each expression's PURE multiplicity stamp
- * against the PROVABLE shape of the SQL it lowered to, and log every
- * definite mismatch. The census this produces is the worklist for the
- * stamp-discipline fix ({@code ListShapes}' own header documents the
- * defect this measures: "pure multiplicity stamps are unreliable after
- * substitution").
+ * THE MULTIPLICITY-STAMP INVARIANT (stamp program; flipped from the
+ * original measurement instrument 2026-08-20 at census zero on the
+ * full corpus and all five PCT suites): at the scalar lowering funnel,
+ * compare each expression's PURE multiplicity stamp against the
+ * PROVABLE shape of the SQL it lowered to — a provable stamp/shape lie
+ * THROWS, always on, build-breaking. {@code LL_STAMP_COUNT=1}
+ * downgrades to print-and-continue census mode for measurement sweeps.
  *
- * <p>FLIPPED TO THE INVARIANT (2026-08-20, census zero on the full
- * corpus AND all five PCT suites): a provable stamp/shape lie now
- * THROWS at the funnel — always on, build-breaking. {@code
- * LL_STAMP_COUNT=1} downgrades to the original print-and-continue
- * census mode for measurement sweeps. Conservative by construction:
- * only PROVABLE shapes fire (a definite list value under a to-one
- * stamp; a definite scalar literal under a many stamp) and the
- * DESIGNED (stamp, carrier) table below names every adjudicated
- * convention. Unknowable shapes (column reads, opaque calls) never
- * fire — absence is not proof of health, but firing IS proof of a lie.
+ * <p><strong>Honest scope</strong> (multiplicity audit
+ * docs/MULTIPLICITY_AUDIT_2026_08_20.md §2 — adopted): this check is
+ * CONSISTENCY, not soundness. Lowering picks the SQL shape FROM the
+ * stamp at many sites, so a stamp that is wrong but consistently
+ * propagated fires nothing; the checker-side defects the audit
+ * catalogues (§1) are invisible here by construction. Only PROVABLE
+ * shapes fire (a definite list value under a to-one stamp; a definite
+ * scalar literal under a many stamp) and the DESIGNED (stamp, carrier)
+ * table below names every adjudicated convention. Absence is not proof
+ * of health, but firing IS proof of a lie — that hedge is the whole
+ * claim, nothing stronger.
  */
 public final class StampCensus {
 
@@ -123,7 +123,11 @@ public final class StampCensus {
 
     /** The value is DEFINITELY list-shaped at SQL level — the
      * invariant's own evidence procedure (absorbed from the dissolved
-     * ListShapes; production code never consults shape). */
+     * ListShapes). Audit correction: the old claim here that
+     * "production code never consults shape" was FALSE — a handful of
+     * pre-dialect shape-sniffs still decide behaviour (audit §2 lists
+     * them); they are debt, tracked in the audit program, and this
+     * helper is not their license. */
     private static boolean listShaped(SqlExpr e) {
         return e instanceof SqlExpr.ArrayLit || e instanceof SqlExpr.NullLit
                 || (e instanceof SqlExpr.ScalarSubquery sq

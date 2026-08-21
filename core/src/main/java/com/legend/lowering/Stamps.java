@@ -26,11 +26,13 @@ final class Stamps {
      * reading, preserved VERBATIM for the reduction rules: their
      * identity arms are correct for one value but WRONG for the empty
      * (and([]) is true, joinStrings([]) is '' — the empty-identity
-     * lives in the list arm's COALESCE). DISCOVERED FORK, recorded in
-     * STAMP_DISCIPLINE_PROGRAM: a [0..1] operand that is empty AT
-     * RUNTIME already takes the identity arm and yields NULL where
-     * pure defines an empty identity — a PRE-EXISTING semantics hole,
-     * pinned nowhere by the suites, owned by the PCT lane. */
+     * lives in the list arm's COALESCE). DISCOVERED FORK: a [0..1]
+     * operand that is empty AT RUNTIME takes the identity arm and
+     * yields NULL where pure defines an empty identity — WRONG ANSWERS
+     * user-visible (and()/or()/joinStrings''/makeString leaks the
+     * TDSNull sentinel). OWNED: slice 4 of the multiplicity-audit
+     * program (docs/MULTIPLICITY_AUDIT_2026_08_20.md §4; the earlier
+     * "PCT lane" attribution had no ledger row and was fictional). */
     static boolean toOne(TypedSpec spec) {
         return spec.info().multiplicity() instanceof Multiplicity.Bounded b
                 && Integer.valueOf(1).equals(b.upper());

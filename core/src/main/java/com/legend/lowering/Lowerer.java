@@ -2168,7 +2168,7 @@ public final class Lowerer {
     /** {@code columns} resolves (lambda variable, property) to a SQL expression in scope. */
     SqlExpr scalar(TypedSpec spec, ColumnResolver columns) {
         SqlExpr r = scalarInner(spec, columns);
-        // stamp-vs-shape inspector (measurement only, LL_STAMP_COUNT)
+        // stamp-vs-shape INVARIANT (throws; LL_STAMP_COUNT=1 = census mode)
         StampCensus.check(spec, r);
         return r;
     }

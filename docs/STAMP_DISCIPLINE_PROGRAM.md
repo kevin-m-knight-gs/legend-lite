@@ -789,3 +789,51 @@ $HOME/legend/legend-engine is the STALE checkout; the ledger's
 baselines come from /Users/neemsandv/legend. Against the correct
 roots: G4 zero regressions, scoreboard byte-stable, ALL EIGHT GATES
 GREEN (G1 4166/0, G4 DuckDB corpus, G5 h2, G6/G7 PCT, G8 parser).
+
+## MULTIPLICITY AUDIT ADOPTED — RETRACTION AND THE NEW PROGRAM
+
+docs/MULTIPLICITY_AUDIT_2026_08_20.md (independent deep audit,
+evidence rule: code and execution only) is ADOPTED in full. Its
+verdict stands: the invariant is real and was never weakened, but it
+is a CONSISTENCY check, not soundness — lowering picks SQL shape FROM
+the stamp, so a wrong-but-propagated stamp fires nothing — and the
+stamps are wrong upstream on the most common shape in real Legend
+code. RETRACTED accordingly: every end-state sentence in this document
+claiming "the type system can no longer lie silently" or reading
+census-zero as a guarantee. The honest claim is the hedge: absence is
+not proof of health, but firing IS proof of a lie.
+
+Every audit finding was spot-verified against the post-model-B tree
+before adoption: unifyMult has no lower-bound comparison (its "engine
+convention" comment is FALSE — real pure MultiplicityMatch.java:273
+rejects [0..1]->[1]; that is why toOne exists); MatchChecker hardcoded
+[0..1] beside its own unused widen(); Stamps.exactlyOne had zero
+callers; CheckedOne guards 16/167 functions and navigate-toOne is
+DELETED; []->toOne() yields NULL; the empty-identity fork ships wrong
+answers and leaks the TDSNull sentinel; 4 endsWith("::toOne") suffix
+matches; CI's corpus step assume-skips (vacuous green) and pct never
+runs in CI.
+
+THE PROGRAM (audit §8 order, path-view unification re-sequenced after
+the foundation): slice 1 = the multiplicity algebra owner (below);
+slice 2 = the strict lower-bound flip, probe-first, conform-by-
+emission; slice 3 = toOne honest (CheckedOne everywhere, both bounds,
+negative fixtures, egress lower bound); slice 4 = the empty-identity
+fork; slice 5 = exact-FQN recognizers + honest CI; then path-view.
+
+### SLICE 1 LANDED — Multiplicity.union / Multiplicity.product
+
+ONE owner for the arithmetic (audit §1d: four ad-hoc copies, four
+DIFFERENT Var fallbacks — position-dependent answers). Routed: the
+kernel's covariant mult-var accumulation, IfChecker (its copy
+deleted), MatchChecker (widen() deleted; the §1c HARDCODED [0..1]
+fixed — differing arms now UNION, [2]/[1] = [1..2], pinned by
+matchRuntimeDispatchUnionsArmMultiplicities), Typer.compose (§1e: the
+Var-drop dies — [1] is the product identity, [n].[1] stays [n]; any
+other Var meeting is LOUD). Product annihilation edge caught by the
+slice's own new pin: [0..0].[*] = [0..0], zero beats unbounded
+absorption. MultiplicityAlgebraTest pins all of it (before this slice,
+ZERO tests pinned any copy). Prose corrections landed: StampCensus
+header states the consistency-not-soundness scope, the false
+"production code never consults shape" claim corrected, the Stamps
+fork's fictional "PCT lane" owner repointed to slice 4.

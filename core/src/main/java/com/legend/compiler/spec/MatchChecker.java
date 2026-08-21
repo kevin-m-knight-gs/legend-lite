@@ -168,7 +168,7 @@ final class MatchChecker {
             lub = lub == null ? body.info().type()
                     : t.kernel().commonSupertype(lub, body.info().type());
             lubMult = lubMult == null ? body.info().multiplicity()
-                    : widen(lubMult, body.info().multiplicity());
+                    : Multiplicity.union(lubMult, body.info().multiplicity());
         }
         return new com.legend.compiler.spec.typed.TypedMatchRuntime(
                 input, arms, extraParam,
@@ -189,18 +189,6 @@ final class MatchChecker {
             default -> throw new TypeInferenceException(
                     "match branch type has no runtime tag: " + t.typeName());
         };
-    }
-
-    /** The widest multiplicity covering both arms. */
-    private static Multiplicity widen(Multiplicity a, Multiplicity b) {
-        if (a instanceof Multiplicity.Bounded x
-                && b instanceof Multiplicity.Bounded y) {
-            int lower = Math.min(x.lower(), y.lower());
-            Integer upper = (x.upper() == null || y.upper() == null)
-                    ? null : Math.max(x.upper(), y.upper());
-            return new Multiplicity.Bounded(lower, upper);
-        }
-        return a;
     }
 
 
@@ -266,10 +254,13 @@ final class MatchChecker {
         var boolOne = new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE);
         TypedSpec cond = new com.legend.compiler.spec.typed.TypedNativeCall(
                 one, List.of(input), boolOne);
-        Multiplicity outM = thenArm.info().multiplicity()
-                .equals(elseArm.info().multiplicity())
-                ? thenArm.info().multiplicity()
-                : Multiplicity.Bounded.ZERO_ONE;
+        // AUDIT (docs/MULTIPLICITY_AUDIT_2026_08_20.md §1c) fix:
+        // differing arm multiplicities UNION — the old hardcoded [0..1]
+        // both lost the upper bound and falsely asserted emptiness
+        // (arms [2] and [1] are [1..2], not [0..1]).
+        Multiplicity outM = Multiplicity.union(
+                thenArm.info().multiplicity(),
+                elseArm.info().multiplicity());
         return new com.legend.compiler.spec.typed.TypedIf(cond, thenArm,
                 Optional.of(elseArm),
                 new ExprType(thenArm.info().type(), outM));
