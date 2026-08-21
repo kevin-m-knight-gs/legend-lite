@@ -573,7 +573,17 @@ public class RelationalCorpusRunner {
             // row-verified pass carries divergent advisory SQL text
             // (net: pass 2336->2341, sqldiff-pass 246->247, zero
             // pass-count regressions).
-            int maxAdvisorySqlDiffs = 299;
+            // +10 2026-08-21 (shortcut-audit Blocker 1, ADJUDICATED):
+            // the null-drop moved into the compiler — value-collection
+            // egress now emits WHERE <cell> IS NOT NULL. The engine
+            // performs the SAME drop CLIENT-side (SQLNull -> [] in
+            // relationalMappingExecution.pure:480), so its golden text
+            // structurally cannot carry the filter; the 10 diffs are
+            // that one clause on row-verified tests (functions/tests 8,
+            // mapping/join 1, aggregationAware/NOP 1 — witness:
+            // testAssociationToManyAutoMap). Rows identical everywhere;
+            // pass baseline unchanged at 2332.
+            int maxAdvisorySqlDiffs = 309;
             org.junit.jupiter.api.Assertions.assertTrue(
                     advisorySqlDiffs <= maxAdvisorySqlDiffs,
                     "advisory golden-SQL diffs grew: " + advisorySqlDiffs

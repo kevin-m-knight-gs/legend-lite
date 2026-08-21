@@ -110,6 +110,7 @@ final class FoldToListReduce extends SqlRewriter {
             case SqlExpr.Exists x -> x;
             case SqlExpr.ScalarSubquery x -> x;
             case SqlExpr.CheckedOne co -> co;
+            case SqlExpr.CompactList cl -> cl;
             case SqlExpr.DeferredTdsString dtds -> dtds;
             case SqlExpr.WindowCall w -> w;
             // JSON envelope nodes never appear inside fold bodies (the

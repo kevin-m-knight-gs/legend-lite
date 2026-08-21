@@ -1259,6 +1259,66 @@ fail loudly as rings.
 **R3/R4** — tolerance census re-read; World-2 paired probes guard only
 what SURVIVES by design.
 
+### SHORTCUT-AUDIT BLOCKER 1 LANDED (2026-08-21): null-drop into the lowerer
+
+COMPILER_SHORTCUT_AUDIT §5, ratified work order item 2a. The pure rule
+"a collection holds no empties" is now COMPILED, not an egress mask —
+placed at the carriers SQL does NOT null-skip for us:
+
+- **SQL aggregates need nothing**: COUNT/listagg/SUM/min/max skip NULL
+  inputs natively — that IS pure's drop on those consumptions, and the
+  engine's own SQL relies on it. (A first draft filtered at the
+  projection seam instead; the corpus caught it perturbing the
+  un-ORDER-BY'd row order under `listagg` —
+  testSubAggregationMultiLevelJoinString — and it was withdrawn.)
+- **LIST carriers compact**: the NEW `SqlExpr.CompactList` SEMANTIC
+  node (dialect renderer owns the list-filter spelling — CheckedOne/D1
+  precedent, carrier-ratchet pins untouched) wraps every optional-cell
+  LIST() collect (Lowerer columnList site + collectAsList) and every
+  value-lane COLLECTION-root explode. Order-preserving by construction.
+  toOne's agg-strip recognizes through the wrapper and the CheckedOne
+  guard counts the COMPACTED list (pure's null-free size).
+- **Row-wise egress filters**: COLLECTION-shape roots (single synthetic
+  map column, optional cell, many stamp) filter at the root select
+  (`Fold.collectionRootEgress` / `cellPresentFiltered`) — the Executor
+  reads rows directly there.
+- **Executor cutover**: the one-line `if (v != null)` mask is GONE — a
+  NULL reaching non-variant COLLECTION egress now WALLS as a lowering
+  defect. The variant/Any lane keeps its drop (JSON-null variant-decay
+  is a semantic rule of that lane, not a mask).
+
+TRAP RECORDED (cost one PCT + one corpus regression before the referee
+caught it): SqlRewriter's CheckedOne arm called the `expr()` HOOK
+instead of the recursive `rewriteExpr()` — a SHALLOW visit; copying the
+idiom for CompactList shielded whole subtrees from every dialect pass
+(SubstringClamp never reached a nested substr). Both arms now recurse,
+and the rebuild preserves CheckedOne's flags (the 1-arg ctor was
+silently erasing scalarCarrier/atLeastOnly on any rewrite).
+
+Pins: `OptionalCollectionNullDropTest` (e2e over DuckDB, JDBC-census
+registered) — size()/at()/indexOf()/toOne() all see the same pure
+collection; toOne over `[NULL,'Al','Cee']` raises size **2**, not 3.
+
+ENGINE GROUND (user-requested verification): the reference performs the
+SAME drop CLIENT-side — `relationalMappingExecution.pure:480`, the
+PrimitiveType result arm: `if(is($val->type(), SQLNull), |[], |$val)`
+inside `->map` (empties flatten out); the TDS arm (:539/:571) maps
+`SQLNull -> $tdsNull` instead — the two-channel split our lanes mirror
+(grids keep null cells, value collections drop). The engine never
+lowers at/indexOf/toOne INTO SQL, so its SQL never needs the filter;
+ours does (tenet #1), which is the whole divergence.
+
+ADJUDICATION (user: "option 1 bump"): the compiled drop adds one WHERE
+clause to value-collection egress SQL that engine goldens structurally
+cannot carry -> +10 advisory golden-SQL diffs on row-verified tests
+(functions/tests 8, mapping/join 1, aggregationAware/NOP 1; witness
+testAssociationToManyAutoMap). Ceilings moved WITH justification in the
+same commit: runner advisory 299->309, soft-ceiling sqldiff 247->257,
+adv-pass 293->303. Pass baseline unchanged (2332); PCT unchanged
+(1109/36 pinned). The WHERE folds INLINE per the fold policy
+(`Fold.cellPresentFiltered`) — the subselect wrap survives only where
+a WHERE is not clause-equivalent (grouping/window/LIMIT).
+
 ### PROVENANCE CORRECTION (2026-08-21, owed to COMPILER_SHORTCUT_AUDIT)
 
 Egress slice A (d1c968e0) cited "engine resultSizeRange parity". The

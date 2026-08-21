@@ -82,6 +82,14 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return expr(co.list(), parentPrec);
     }
 
+    /** Engine-TEXT view of carrier compaction: the VERBATIM inner value
+     * — the engine's textual SQL has no compaction (its null-drop is
+     * host-side); same rule as {@link #checkedOne}. */
+    @Override
+    protected String compactList(SqlExpr.CompactList cl, int parentPrec) {
+        return expr(cl.list(), parentPrec);
+    }
+
     private @com.legend.Nullable String joinStringsFlat(SqlExpr.Call c) {
         // 4-arg forms: CONCAT(CONCAT(prefix, J), suffix) [list-value arm]
         // or CONCAT(prefix, CONCAT(J, suffix)) [pure-value arm]

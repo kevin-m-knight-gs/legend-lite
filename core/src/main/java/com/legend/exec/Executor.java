@@ -287,15 +287,29 @@ public final class Executor {
                         anyRow = true;
                         Object v = latticeKind(cell(rs, plan, dialect, anyRoot, variantRoot),
                                 rootType.type());
-                        // a NULL cell is a pure EMPTY, and no pure collection
-                        // holds empties — Person.all().middleName over a row
-                        // with no middle name contributes nothing, not null.
-                        // The compile-time gate (audit 2026-08-18 finding F):
-                        // no Pure VALUE of a non-variant type is carried as
-                        // Java null (variant roots keep driver carriers, and
-                        // an Any root's JSON null decays to empty by variant-
-                        // decay semantics), so null here can only MEAN empty
-                        if (v != null) {
+                        // THE LOWERER OWNS THE NULL-DROP (shortcut audit §5):
+                        // pure's "a collection holds no empties" is compiled
+                        // — the resolver filters optional-cell projections,
+                        // the lowerer filters relation-map cells and strips
+                        // value-lane carriers at the explode — so the SQL
+                        // collection IS the pure collection and size()/at()/
+                        // toOne() agree with what arrives here. A NULL cell
+                        // reaching a non-variant COLLECTION egress is a
+                        // lowering defect and WALLS; the silent one-line drop
+                        // that used to sit here masked exactly that defect
+                        // class. The variant/Any lane keeps the drop: a JSON
+                        // null decays to empty by variant-decay SEMANTICS —
+                        // that is a rule of the lane, not a mask.
+                        if (v == null) {
+                            if (!anyRoot && !variantRoot) {
+                                throw new IllegalStateException("NULL cell"
+                                        + " reached COLLECTION egress — the"
+                                        + " lowerer owns the null-drop"
+                                        + " (COMPILER_SHORTCUT_AUDIT §5); a"
+                                        + " NULL here is a lowering defect,"
+                                        + " never an empty");
+                            }
+                        } else {
                             values.add(v);
                         }
                     }

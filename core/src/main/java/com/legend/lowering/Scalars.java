@@ -434,10 +434,12 @@ final class Scalars {
                 // AGG-STRIP (stamp C2): a LIST-collecting subquery
                 // operand becomes the NATIVE scalar subquery — SQL's
                 // own checked toOne (>1 raises; 0 -> NULL rides, the
-                // row-lane convention, ADJUDICATED: a zero-row subquery
-                // and a NULL cell are indistinguishable in SQL, and the
-                // engine's relational lane flows the empty).
-                SqlExpr stripped = aggStrip(args.get(0));
+                // row-lane convention, ADJUDICATED: NULL cell == empty
+                // there, so a COMPACTED carrier (audit §5) strips
+                // through its wrapper).
+                SqlExpr stripped = aggStrip(
+                        args.get(0) instanceof SqlExpr.CompactList cpl
+                                ? cpl.list() : args.get(0));
                 if (stripped != null) {
                     return stripped;
                 }

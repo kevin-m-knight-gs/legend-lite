@@ -365,8 +365,8 @@ public final class StoreResolver {
             // projection (map-terminal invariant)
             case TypedMap m when objectSpace(m.source()) -> {
                 TypedMap m2 = synthetics.liftValueMapFilter(m);
-                yield resolveChain(scalarMapAsProject(m2.source(), m2.mapper(),
-                        m2.info().multiplicity()), context);
+                yield resolvedScalarMapProject(m2.source(), m2.mapper(),
+                        m2.info().multiplicity(), context);
             }
             case TypedFilter f
                     when anchored(f.source())
@@ -612,8 +612,8 @@ public final class StoreResolver {
                                 new Type.Param(pa.info().type(),
                                         pa.info().multiplicity())),
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-        return resolveChain(scalarMapAsProject(src, fn,
-                pa.info().multiplicity()), context);
+        return resolvedScalarMapProject(src, fn,
+                pa.info().multiplicity(), context);
     }
 
     /** The NAVIGATE-SLOT flatten route: materialize the source pipeline
@@ -911,36 +911,22 @@ public final class StoreResolver {
         return t;
     }
 
-    /** The synthetic single-column projection for a scalar map/property
-     * read over instances. {@code valueMult} is the ORIGINAL expression's
-     * multiplicity — a to-many read is a VALUE COLLECTION and the scalar
-     * lowering must LIST-aggregate it (contains/in consumers), while a
-     * to-one read stays the bare scalar subquery. The COLLECTION fact
-     * rides the relation's ExprType (valueMult); the COLUMN declares the
-     * PER-CELL multiplicity — each row holds ONE cell (pair-#4
-     * elimination, STAMP_DISCIPLINE_PROGRAM: copying the collection
-     * mult onto the column stamped every per-row read many — the C5
-     * u_map__active witness and the invariant's one abusable skip). */
-    private static TypedProject scalarMapAsProject(TypedSpec source, TypedLambda mapper,
-            com.legend.compiler.element.type.Multiplicity valueMult) {
-        TypedSpec body = mapper.body().get(mapper.body().size() - 1);
-        String name = com.legend.sql.SqlSelect.SYNTH_MAP_COL
-                + (body instanceof TypedPropertyAccess bpa
-                        ? bpa.property() : "value");
-        Type.Param result =
-                ((Type.FunctionType) mapper.info().type()).result();
-        com.legend.compiler.element.type.Multiplicity cellMult =
-                result.multiplicity() instanceof com.legend.compiler.element
-                        .type.Multiplicity.Bounded rb
-                        && rb.upper() != null && rb.upper() <= 1
-                ? result.multiplicity()
-                : com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE;
-        Type.RelationType row =
-                new Type.RelationType(List.of(
-                        new Type.Column(name, result.type(), cellMult)));
-        return new TypedProject(source,
-                List.of(new TypedFuncCol(name, mapper)),
-                new ExprType(Type.relation(row), valueMult));
+    /** The scalar map/property read funnel ({@link ScalarValueReads}).
+     * NULL-DROP note (COMPILER_SHORTCUT_AUDIT §5): the projection is
+     * emitted UNFILTERED here by design — SQL aggregates over the cell
+     * column (COUNT/listagg/SUM) skip NULLs natively, which IS pure's
+     * "a collection holds no empties" on that consumption, and a WHERE
+     * at this seam perturbs the un-ORDER-BY'd row order those consumers
+     * ride (corpus witness: testSubAggregationMultiLevelJoinString).
+     * The lowerer owns the drop at the carriers SQL does NOT null-skip:
+     * LIST collects compact via {@code SqlExpr.CompactList}, and
+     * row-wise COLLECTION egress filters at the root. */
+    private TypedSpec resolvedScalarMapProject(TypedSpec source,
+            TypedLambda mapper,
+            com.legend.compiler.element.type.Multiplicity valueMult,
+            Context context) {
+        return resolveChain(ScalarValueReads.scalarMapAsProject(
+                source, mapper, valueMult), context);
     }
 
     /** size()/count() over a class extent = the ROW COUNT of the resolved
@@ -3440,8 +3426,10 @@ public final class StoreResolver {
         return fns.isEmpty() ? null : fns.get(0);
     }
 
-    /** Any registered isNotEmpty overload — the lowerer dispatches by family. */
-    private @com.legend.Nullable TypedFunction isNotEmptyCallee() {
+    /** Any registered isNotEmpty overload — the lowerer dispatches by
+     * family. Never null: a missing registration is a resolver bug and
+     * throws. */
+    private TypedFunction isNotEmptyCallee() {
         var fns = ctx.findFunction(
                 "meta::pure::functions::collection::isNotEmpty");
         if (fns.isEmpty()) {

@@ -237,6 +237,7 @@ final class SubselectPrune {
             case SqlExpr.Exists ex -> collectQuery(ex.subquery(), r);
             case SqlExpr.ScalarSubquery sq -> collectQuery(sq.subquery(), r);
             case SqlExpr.CheckedOne co -> collectExpr(co.list(), r);
+            case SqlExpr.CompactList cl -> collectExpr(cl.list(), r);
             case SqlExpr.DeferredTdsString d -> collectQuery(d.inner(), r);
             case SqlExpr.JsonObject jo -> jo.kv().forEach(x -> collectExpr(x, r));
             case SqlExpr.JsonArrayAgg ja -> {

@@ -130,6 +130,7 @@ public final class StampCensus {
      * helper is not their license. */
     private static boolean listShaped(SqlExpr e) {
         return e instanceof SqlExpr.ArrayLit || e instanceof SqlExpr.NullLit
+                || e instanceof SqlExpr.CompactList
                 || (e instanceof SqlExpr.ScalarSubquery sq
                         && listValuedSubquery(sq))
                 || (e instanceof SqlExpr.Cast ct

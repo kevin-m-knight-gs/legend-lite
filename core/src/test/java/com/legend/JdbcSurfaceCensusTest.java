@@ -123,6 +123,10 @@ class JdbcSurfaceCensusTest {
             // Phase 4: map wire-shape + rigid-lattice spec pins execute
             // through a DuckDB session (the wire IS the assertion)
             "core/src/test/java/com/legend/lowering/MapOptionalSourceTest.java",
+            // shortcut audit §5: the null-drop-in-the-lowerer pins run
+            // e2e over a DuckDB session (size/at/toOne must agree ON THE
+            // DATABASE — the bug was SQL-vs-egress disagreement)
+            "core/src/test/java/com/legend/lowering/OptionalCollectionNullDropTest.java",
             "core/src/test/java/com/legend/JdbcSurfaceCensusTest.java",
             "core/src/test/java/com/legend/AuditRound3Test.java",
             // multiplicity audit slice 2: the strictness negative

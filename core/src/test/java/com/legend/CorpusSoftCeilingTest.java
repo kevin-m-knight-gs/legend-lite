@@ -26,8 +26,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CorpusSoftCeilingTest {
 
-    private static final int MAX_SQLDIFF_PASS = 247;
-    private static final int MAX_ADV_PASS = 293;
+    // +10 each 2026-08-21 (shortcut-audit Blocker 1, ADJUDICATED — the
+    // written-justification rule this guard's own message demands): the
+    // null-drop compiled into value-collection egress (WHERE <cell> IS
+    // NOT NULL); the engine does the same drop CLIENT-side (SQLNull->[],
+    // relationalMappingExecution.pure:480) so its goldens cannot carry
+    // the clause. No exact pass was demoted — the 10 moved rows are the
+    // SAME tests row-verified as before, their golden text now one
+    // honest clause apart (RelationalCorpusRunner ceiling 299->309, the
+    // same adjudication).
+    private static final int MAX_SQLDIFF_PASS = 257;
+    private static final int MAX_ADV_PASS = 303;
     private static final int MAX_ZERO_ASSERTS = 27;
     private static final int MAX_RESCUED = 613;
 

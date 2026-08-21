@@ -32,6 +32,48 @@ final class ValueCollections {
     private ValueCollections() {
     }
 
+    /** The single-column {@code value} projection a relation-map value
+     * read lowers through (both Lowerer map arms — root and collect):
+     * cell type = the map node's result type, cell mult = the mapper's
+     * per-cell stamp, outer mult ONE (the relation VALUE). */
+    static com.legend.compiler.spec.typed.TypedProject valueColumnProject(
+            TypedSpec source, TypedLambda ml,
+            com.legend.compiler.element.type.Type cellType,
+            com.legend.compiler.element.type.Multiplicity colMult) {
+        return new com.legend.compiler.spec.typed.TypedProject(source,
+                List.of(new com.legend.compiler.spec.typed.TypedFuncCol(
+                        "value", ml)),
+                new com.legend.compiler.element.type.ExprType(
+                        Type.relation(new Type.RelationType(List.of(
+                                new Type.RelationType.Column("value",
+                                        cellType, colMult)))),
+                        com.legend.compiler.element.type
+                                .Multiplicity.Bounded.ONE));
+    }
+
+    /** The relation-map VALUE-COLLECTION collect (Lowerer's non-root
+     * map arm): LIST-aggregate the projected {@code value} column to
+     * one list value; a collection mapper flattens one level, and
+     * scalar-STAMPED cells re-box as {@code [cell]} so the flatten
+     * contract holds (C1). */
+    static SqlExpr collectAsList(SqlSelect proj, boolean collMapper,
+            boolean scalarCells, String sub) {
+        SqlExpr cellRead = new SqlExpr.Column(sub, "value");
+        SqlExpr collected = scalarCells
+                ? new SqlExpr.ArrayLit(List.of(cellRead)) : cellRead;
+        SqlSelect agg = SqlSelect.starOf(new SqlSource.Subselect(proj, sub, null))
+                .withProjections(List.of(new SqlSelect.Projection(
+                                new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
+                                        collected), false, List.of()),
+                                null)),
+                        List.of(new OutputCol("value",
+                                SqlType.Scalar.VARCHAR, true)));
+        SqlExpr listed = new SqlExpr.ScalarSubquery(agg);
+        return collMapper
+                ? SqlExpr.Call.of(SqlFn.LIST_FLATTEN, listed)
+                : listed;
+    }
+
     /** {@code SELECT LIST(col)} over {@code rel} — the single-column
      * value collection. */
     static SqlSelect columnList(SqlSelect rel, String col, String sub) {
