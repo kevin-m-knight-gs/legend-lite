@@ -106,6 +106,36 @@ final class Fold {
                 base.withFrom(replaceSub(base.from(), sub, repl)), red2);
     }
 
+    /** The §3b widening (audit: one extra argument silently dropped
+     * ordering): the CONCATENATE order obligation applies to a reducer
+     * NESTED inside a wrapping expression too — the 3-arg
+     * {@code joinStrings('[',',',']')} emits
+     * {@code CONCAT(prefix, string_agg, suffix)}, and the old
+     * {@code instanceof Reducer} gate never saw through the wrap.
+     * First nested match wins (one union source per agg projection). */
+    record OrderedAggExpr(com.legend.sql.SqlSelect base,
+            com.legend.sql.SqlExpr expr) {
+    }
+
+    static @com.legend.Nullable OrderedAggExpr orderUnionAggregateExpr(
+            com.legend.sql.SqlSelect base, com.legend.sql.SqlExpr av) {
+        if (av instanceof com.legend.sql.SqlAgg.Reducer red) {
+            OrderedAgg oa = orderUnionAggregate(base, red);
+            return oa == null ? null
+                    : new OrderedAggExpr(oa.base(), oa.reducer());
+        }
+        java.util.List<com.legend.sql.SqlExpr> kids = av.children();
+        for (int i = 0; i < kids.size(); i++) {
+            OrderedAggExpr k = orderUnionAggregateExpr(base, kids.get(i));
+            if (k != null) {
+                var nk = new java.util.ArrayList<>(kids);
+                nk.set(i, k.expr());
+                return new OrderedAggExpr(k.base(), av.withChildren(nk));
+            }
+        }
+        return null;
+    }
+
     private static java.util.List<com.legend.sql.OutputCol> widen(
             java.util.List<com.legend.sql.OutputCol> outs) {
         if (outs == null || outs.isEmpty()) {

@@ -1413,6 +1413,31 @@ size/at/indexOf rules (identity on definite lists, engine-TEXT
 verbatim — zero golden movement). Divergence rows are two-sided: AGREE
 rows fail on divergence, KNOWN rows fail when they START agreeing.
 
+### BURN LANE LANDED (2026-08-21): §3a + §3b + cast — ratified item e
+
+- **§3a exists-dedupe**: the DISTINCT-key projection dedupes by
+  TABLE+NAME identity (bare-name dedupe collapsed T_PERSON.NAME and
+  T_DEPT.NAME onto one projection and the ON compared the outer against
+  the WRONG side — 0 rows where 1 was right). Colliding names get
+  disambiguated output aliases; single-table stays golden-stable.
+- **§3b joinStrings ordering**: the CONCATENATE order obligation sees
+  through wrapping Calls (`Fold.orderUnionAggregateExpr`) — the 3-arg
+  joinStrings' CONCAT(prefix, string_agg, suffix) now mints u_ord like
+  the bare reducer; one extra argument no longer drops pure's order.
+- **cast**: impossible CROSS-KIND casts raise pure's "Cast exception"
+  in the database (`CastPolicy.crossKindRaise`). ADJUDICATED SCOPE the
+  referee set: string<->numeric/temporal conversions are the standing
+  PRODUCT contract — `TypeConversionCheckerTest$StringToInteger` IS the
+  String->Integer pin and the view family pins Integer->String, so the
+  audit's `1->cast(@String)` row lands in the conversion contract, and
+  the raise covers the uncontested classes (boolean<->anything,
+  temporal<->numeric). Mapping WIRE coercions exempt. The whole cast
+  arm moved to CastPolicy (ONE cast owner; Lowerer keeps a 3-line
+  delegator).
+
+Pins: `BurnLaneTest` (§3a and §3b at the IR seam, cast e2e over
+DuckDB, census-registered).
+
 ### AUDIT OF BLOCKERS 1+2 (2026-08-21, user-directed post-landing pass)
 
 Method: executable probes + walker sweep, evidence = code and
