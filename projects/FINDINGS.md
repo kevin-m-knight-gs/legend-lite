@@ -42,10 +42,21 @@ corrections rather than quietly dropping:
   `core_party::LegalEntity[cpLegalEntity]` no longer has `core_party_LegalEntity`, so every
   downstream reference must name the explicit id. This makes each project's MANIFEST
   load-bearing rather than documentation: an id is not derivable from the class name.
-* **Depth is nearly free, size is not.** A project with an 8-project closure compiles in
-  1706ms against 1255ms for one with no dependencies, and most of that gap is the extra
-  source rather than the extra hop. Parse tracks bytes; compile does not — 4.5x the source
-  costs 1.25x the compile.
+* **Depth is nearly free, size is not.** Over the finished 56-project graph, 3MB of Pure:
+
+      through L0   12 projects   226 KB   parse  316ms   compile 2363ms
+      through L1   32 projects  1028 KB   parse  759ms   compile 2512ms
+      through L2   48 projects  2238 KB   parse 1126ms   compile 2850ms
+      through L3   56 projects  3078 KB   parse 1353ms   compile 2987ms
+
+  Parse tracks bytes almost exactly — 13.6x the source, 4.3x the parse. Compile does not:
+  the same 13.6x costs 1.26x. And a project's own closure barely matters — the deepest,
+  `regulatory-capital` with 18 projects and 963KB behind it, compiles in 2373ms against
+  1698ms for `core-account`, which has no dependencies at all.
+
+  These are the BEST of three runs each. A single-run version of this series produced
+  incremental deltas that went NEGATIVE -- 300KB of extra Pure appearing to compile faster --
+  which is impossible, and is what contention looks like when it is reported as data.
 * **A transitive dependency is visible and must not be named.** Everything in the closure is
   on the classpath, so referring to a project you did not declare COMPILES. Several projects
   reported deliberately not naming `core_types::CtCurrency` and using a String instead, for

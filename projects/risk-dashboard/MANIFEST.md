@@ -6,7 +6,7 @@ compile closure, and four of those arrive down two separate paths.
 
 What a CRO actually looks at before nine o'clock — limit utilisation and its breaches, margin
 calls outstanding, P&L against its explain, the largest movers, the concentrations, and the
-exceptions that need a decision today. 29 classes over 22 tables, four store views and 41
+exceptions that need a decision today. 29 classes over 22 tables, four store views and 46
 joins.
 
 Exports **classes**, a **store** and a **mapping**. No enums, no profiles, no functions, no
@@ -137,7 +137,7 @@ that mean something for that domain.
 | `risk_dashboard::RdbOwnerQueueTotal` | class | **AGGREGATE on a view**; derived `averageAmount()`, `queueConcentration()`, `queueBreachRatio()`, `isOverloaded()`, `hasBlockingItem()` |
 | `risk_dashboard::RdbSeverityTotal` | class | **AGGREGATE on a view**, grouped three ways; derived `averageAmount()`, `amountSpread()`, `largestShare()`, `isBlockingBand()` |
 | `risk_dashboard::RdbCounterpartyLimitTotal` | class | **AGGREGATE on a view**; derived `utilisationRatio()`, `averageLimitSize()`, `isSingleLimitDriven()`, `hasLimitNearTheLine()` |
-| `risk_dashboard::Store` | store | `include`s all three dependency stores; 22 tables, 4 views, 41 joins, 6 filters |
+| `risk_dashboard::Store` | store | `include`s all three dependency stores; 22 tables, 4 views, 46 joins, 6 filters |
 | `risk_dashboard::Mapping` | mapping | `include`s all three dependency mappings; 29 sets, every `~primaryKey` explicit |
 
 ## Set ids (a GLOBAL namespace — reference these, do not guess)

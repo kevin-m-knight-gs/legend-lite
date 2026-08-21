@@ -766,3 +766,590 @@ Class trade_surveillance::SurNewsEvent
 
    isMeasured() { $this.priceMoveBps->isNotEmpty() } : Boolean[1];
 }
+
+// ---- Triage, which closes most of them ----
+
+// FOR: the first-line review that disposes of the great majority of alerts. It is a
+// separate class from the alert because the review is a piece of WORK with a cost -- who
+// did it, how long it took, whether a machine did it -- and because an alert closed in
+// two minutes and an alert closed after an hour are different facts about the model.
+Class trade_surveillance::SurTriage
+[
+   minutesSpentNonNegative: ($this.minutesSpent >= 0),
+   confidenceInRange: (($this.confidence >= 0.0) && ($this.confidence <= 1.0))
+]
+{
+   triageId: String[1];
+   reviewedAt: DateTime[1];
+   outcome: trade_surveillance::SurTriageOutcome[1];
+   minutesSpent: Integer[1];
+   reviewerComment: String[0..1];
+   // Closed by rule rather than by a person. Auto-triage is what makes a noisy model
+   // survivable and is also how a real case gets closed without anyone reading it.
+   isAutoTriaged: Boolean[1];
+   confidence: Float[1];
+   secondReviewRequired: Boolean[1];
+
+   isFastTriage() { ($this.minutesSpent <= 15) } : Boolean[1];
+
+   // Reviewed by a person, at length. The opposite of the auto-closed bulk.
+   wasWorkedByHand() { ($this.isAutoTriaged->not() && ($this.minutesSpent > 15)) } : Boolean[1];
+}
+
+// FOR: the controlled vocabulary of WHY an alert was closed. Held as a class and not as
+// free text because `isFalsePositiveReason` is what feeds SurModelPerformance -- the
+// difference between "the model was wrong" and "the model was right and the behaviour was
+// explained" is the difference between retuning it and leaving it alone.
+Class trade_surveillance::SurTriageReason
+[
+   usageCountNonNegative: ($this.usageCount >= 0)
+]
+{
+   reasonId: String[1];
+   reasonCode: String[1];
+   description: String[1];
+   isFalsePositiveReason: Boolean[1];
+   // A reason used a thousand times a month is a threshold nobody has changed yet.
+   requiresModelReview: Boolean[1];
+   usageCount: Integer[1];
+}
+
+// ---- The case that survives triage ----
+
+// FOR: the alert that first line would not close. A case is the unit an analyst owns, a
+// committee escalates and a regulator is told about; it gathers SEVERAL alerts, because
+// eight spoofing alerts on one trader in one week are one investigation.
+//
+// `relatedCaseId` is the SELF-JOIN column: a case names a related case, and `linkReason`
+// says what the link means. DUPLICATE means one of the two should be closed; SAME_TRADER
+// means both stay open and are worked together.
+Class trade_surveillance::SurCase
+[
+   closedNotBeforeOpened:
+      (($this.closedOn->isEmpty()) || ($this.closedOn->toOne() >= $this.openedOn)),
+   dueNotBeforeOpened:
+      (($this.dueOn->isEmpty()) || ($this.dueOn->toOne() >= $this.openedOn)),
+   // A case cannot be its own related case, which is the one keying error the self-join
+   // cannot detect for itself.
+   relatedCaseIsNotSelf:
+      (($this.relatedCaseId->isEmpty()) || ($this.relatedCaseId->toOne() != $this.caseId))
+]
+{
+   caseId: String[1];
+   caseReference: String[1];
+   openedOn: StrictDate[1];
+   status: trade_surveillance::SurCaseStatus[1];
+   // Empty until the case closes. An open case has no outcome, which is not INCONCLUSIVE.
+   outcome: trade_surveillance::SurCaseOutcome[0..1];
+   severity: trade_surveillance::SurSeverity[1];
+   // The CASE_ID of the case this one is linked to. Empty on a case nobody has related to
+   // anything, which is most of them.
+   relatedCaseId: String[0..1];
+   linkReason: trade_surveillance::SurCaseLinkReason[0..1];
+   targetTraderRef: String[1];
+   targetDeskRef: String[0..1];
+   instrumentRef: String[0..1];
+   dueOn: StrictDate[0..1];
+   closedOn: StrictDate[0..1];
+   summaryText: String[0..1];
+   isRegulatorNotified: Boolean[1];
+
+   isOpen() { $this.closedOn->isEmpty() } : Boolean[1];
+
+   // Not derived from anything else in the chain: a case with no related case is the head
+   // of its own investigation.
+   isStandalone() { $this.relatedCaseId->isEmpty() } : Boolean[1];
+
+   // Something was linked TO this one, over the reverse direction of the self-join.
+   isLinkTarget() { $this.linkedCases->isNotEmpty() } : Boolean[1];
+
+   hasReport() { $this.reports->isNotEmpty() } : Boolean[1];
+}
+
+// FOR: one alert's membership of one case. A row rather than a foreign key on the alert,
+// because the same alert can be re-associated as the picture changes, and because WHO
+// pulled it in and WHEN is part of the case file.
+Class trade_surveillance::SurCaseAlertLink
+{
+   linkId: String[1];
+   addedAt: DateTime[1];
+   addedBy: String[1];
+   // The alert the case was opened on, as opposed to the ones swept in afterwards.
+   isPrimaryAlert: Boolean[1];
+   note: String[0..1];
+}
+
+// FOR: the human who owns the case. Surveillance findings are a person's opinion and the
+// person is part of the record -- `isCertified` and `openCaseLimit` are the two facts a
+// supervisor is asked about when a case sat untouched for a month.
+Class trade_surveillance::SurAnalyst
+[
+   openCaseLimitIsPositive: ($this.openCaseLimit > 0),
+   leftNotBeforeJoined:
+      (($this.leftOn->isEmpty()) || ($this.leftOn->toOne() >= $this.joinedOn))
+]
+{
+   analystId: String[1];
+   analystName: String[1];
+   teamName: String[1];
+   seniority: String[1];
+   coverageRegion: String[1];
+   isCertified: Boolean[1];
+   joinedOn: StrictDate[1];
+   leftOn: StrictDate[0..1];
+   openCaseLimit: Integer[1];
+
+   isActive() { $this.leftOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: who held a case, and between which moments. Ownership moves -- holidays, leavers,
+// escalation to a senior -- and the history has to survive the move, so this is a row per
+// spell rather than an owner column that gets overwritten.
+Class trade_surveillance::SurCaseAssignment
+[
+   unassignedNotBeforeAssigned:
+      (($this.unassignedAt->isEmpty()) || ($this.unassignedAt->toOne() >= $this.assignedAt))
+]
+{
+   assignmentId: String[1];
+   assignedAt: DateTime[1];
+   assignedBy: String[1];
+   unassignedAt: DateTime[0..1];
+   assignmentRole: String[1];
+   // Exactly one live assignment per case should carry this. Nothing enforces it here;
+   // the invariant belongs to whoever writes the rows.
+   isOwner: Boolean[1];
+   handoverNote: String[0..1];
+
+   isCurrent() { $this.unassignedAt->isEmpty() } : Boolean[1];
+}
+
+// FOR: one thing the analyst actually did. The audit answer to "was this investigated or
+// was it merely closed": a case whose only step is `CLOSED` is not an investigation, and
+// the numbered steps are what a quality-assurance review reads.
+Class trade_surveillance::SurInvestigationStep
+[
+   stepNumberIsPositive: ($this.stepNumber > 0)
+]
+{
+   stepId: String[1];
+   stepNumber: Integer[1];
+   stepType: String[1];
+   performedAt: DateTime[1];
+   performedBy: String[1];
+   findingText: String[0..1];
+   isComplete: Boolean[1];
+   evidenceReference: String[0..1];
+}
+
+// FOR: the question put to the trading desk, and the answer. Most cases die here: the
+// trader explains the order and the explanation holds. `isSatisfactory` is the analyst's
+// judgement of the answer and is deliberately separate from whether an answer arrived at
+// all, which is `respondedAt`.
+Class trade_surveillance::SurDeskEnquiry
+[
+   respondedNotBeforeSent:
+      (($this.respondedAt->isEmpty()) || ($this.respondedAt->toOne() >= $this.sentAt))
+]
+{
+   enquiryId: String[1];
+   sentAt: DateTime[1];
+   sentTo: String[1];
+   question: String[1];
+   respondedAt: DateTime[0..1];
+   responseText: String[0..1];
+   responseAcceptedBy: String[0..1];
+   isSatisfactory: Boolean[1];
+   // Silence is itself an escalation trigger, and is not the same as an unsatisfactory
+   // answer.
+   escalatedForNoResponse: Boolean[1];
+
+   hasResponse() { $this.respondedAt->isNotEmpty() } : Boolean[1];
+}
+
+// FOR: a chat, a call or a mail pulled into the case. Communications are what turn a
+// pattern in the order flow into an intention somebody can be asked about, and
+// `isPrivileged` exists because some of them cannot be shown to the regulator.
+Class trade_surveillance::SurCommunicationRecord
+{
+   communicationId: String[1];
+   channel: String[1];
+   occurredAt: DateTime[1];
+   participants: String[1];
+   directionCode: String[1];
+   excerpt: String[0..1];
+   isPrivileged: Boolean[1];
+   retrievedFrom: String[1];
+   // After this date the record is gone and the case cannot be reopened on it.
+   retentionExpiresOn: StrictDate[0..1];
+}
+
+// ---- Escalation, and the report at the end of it ----
+
+// FOR: pushing a case above the analyst. An escalation is a request for a DECISION, so it
+// carries both the ask (`rationale`, `isReportRecommended`) and the answer (`decidedAt`,
+// `decision`) -- an escalation with no decision is a case sitting in a committee's inbox.
+Class trade_surveillance::SurEscalation
+[
+   levelIsPositive: ($this.escalationLevel > 0),
+   decidedNotBeforeEscalated:
+      (($this.decidedAt->isEmpty()) || ($this.decidedAt->toOne() >= $this.escalatedAt))
+]
+{
+   escalationId: String[1];
+   escalatedAt: DateTime[1];
+   escalatedBy: String[1];
+   escalatedTo: String[1];
+   escalationLevel: Integer[1];
+   rationale: String[1];
+   decidedAt: DateTime[0..1];
+   decision: String[0..1];
+   isReportRecommended: Boolean[1];
+
+   isDecided() { $this.decidedAt->isNotEmpty() } : Boolean[1];
+}
+
+// FOR: the filing -- the STOR or SAR that says the firm has a reasonable suspicion. It is
+// the end of the funnel and the only part of it anybody outside the firm ever sees.
+// `submittedOn` empty means the obligation is still outstanding; WITHDRAWN and REJECTED
+// are different, and only the second leaves it outstanding again.
+Class trade_surveillance::SurSuspiciousTransactionReport
+[
+   submittedNotBeforeDrafted:
+      (($this.submittedOn->isEmpty()) || ($this.submittedOn->toOne() >= $this.draftedOn)),
+   withdrawnNotBeforeDrafted:
+      (($this.withdrawnOn->isEmpty()) || ($this.withdrawnOn->toOne() >= $this.draftedOn))
+]
+{
+   reportId: String[1];
+   reportReference: String[1];
+   status: trade_surveillance::SurReportStatus[1];
+   draftedOn: StrictDate[1];
+   submittedOn: StrictDate[0..1];
+   regulatorCode: String[1];
+   jurisdiction: String[1];
+   submittedBy: String[0..1];
+   acknowledgementReference: String[0..1];
+   suspicionSummary: String[1];
+   // An order that was never executed is reportable on its own. The two flags are not
+   // alternatives: a case can be both.
+   isSuspiciousOrder: Boolean[1];
+   isSuspiciousTransaction: Boolean[1];
+   withdrawnOn: StrictDate[0..1];
+
+   isFiled() { $this.submittedOn->isNotEmpty() } : Boolean[1];
+
+   isAcknowledged() { $this.acknowledgementReference->isNotEmpty() } : Boolean[1];
+}
+
+// ============================================================
+// Associations
+// ============================================================
+
+// ---- THE SELF-ASSOCIATION ----
+// SurCase sits on BOTH ends. It rides on the {target} self-join Sur_RelatedCase, so both
+// of its mapping ends name [surCase, surCase] -- the same set id twice -- and only the
+// direction of travel tells `relatedCase` (the case this one points at) from
+// `linkedCases` (the cases that point at this one).
+Association trade_surveillance::SurCaseRelation
+{
+   relatedCase: trade_surveillance::SurCase[0..1];
+   linkedCases: trade_surveillance::SurCase[*];
+}
+
+// ---- Cross-project associations ----
+// Every end name hung on a class this project does not own is `surveillance`-prefixed.
+// order_execution::Fill already carries `filledOrder`, `sourceExecution`, `reports`,
+// `fillAmendments`, `fillAllocations`, `allocationSet`, `summary`, `booking`, `costLines`,
+// `slippageMeasures`, `marketImpact`, `prevailingQuote`, `quoteComparison`,
+// `liquidityCapture`, `session`, `latency` and `exceptions`; trade_lifecycle::TlcAmendment
+// carries twenty-six of its own plus `supersedes`/`supersededBy`. A second property of the
+// same name on the same class fails the whole graph, so the prefix is not decoration.
+
+Association trade_surveillance::SurFillEvidenceLink
+{
+   evidenceFill: order_execution::Fill[0..1];
+   surveillanceFillEvidence: trade_surveillance::SurFillEvidence[*];
+}
+
+Association trade_surveillance::SurWashBuyFillLink
+{
+   buySideFill: order_execution::Fill[0..1];
+   surveillanceWashBuyMatches: trade_surveillance::SurWashTradeMatch[*];
+}
+
+Association trade_surveillance::SurWashSellFillLink
+{
+   sellSideFill: order_execution::Fill[0..1];
+   surveillanceWashSellMatches: trade_surveillance::SurWashTradeMatch[*];
+}
+
+Association trade_surveillance::SurFrontRunAheadFillLink
+{
+   aheadFill: order_execution::Fill[0..1];
+   surveillanceFrontRunLeads: trade_surveillance::SurFrontRunningSequence[*];
+}
+
+// The order-level roll-up is what a spoofing or quote-stuffing alert is really about: the
+// order, not any one fill of it.
+Association trade_surveillance::SurAlertOrderSummaryLink
+{
+   alertOrderSummary: order_execution::OrderFillSummary[0..1];
+   surveillanceAlerts: trade_surveillance::SurAlert[*];
+}
+
+Association trade_surveillance::SurMessageRateOrderSummaryLink
+{
+   metricOrderSummary: order_execution::OrderFillSummary[0..1];
+   surveillanceMessageRates: trade_surveillance::SurMessageRateMetric[*];
+}
+
+// The booking seam. A wash trade that was never booked and a wash trade that was are
+// different reporting obligations.
+Association trade_surveillance::SurWashBookingLink
+{
+   matchBooking: order_execution::TradeBooking[0..1];
+   surveillanceWashMatches: trade_surveillance::SurWashTradeMatch[*];
+}
+
+Association trade_surveillance::SurAmendmentEvidenceLink
+{
+   evidenceAmendment: trade_lifecycle::TlcAmendment[0..1];
+   surveillanceAmendmentEvidence: trade_surveillance::SurAmendmentEvidence[*];
+}
+
+// The pattern points at the HEAD of the chain -- the amendment nothing supersedes -- so
+// walking `supersedes` from here replays every change the pattern is measuring.
+Association trade_surveillance::SurPatternAmendmentLink
+{
+   patternHeadAmendment: trade_lifecycle::TlcAmendment[0..1];
+   surveillanceAmendmentPatterns: trade_surveillance::SurAmendmentPattern[*];
+}
+
+// ---- Associations inside trade-surveillance ----
+
+Association trade_surveillance::SurModelParameters
+{
+   parameterModel: trade_surveillance::SurSurveillanceModel[0..1];
+   parameters: trade_surveillance::SurModelParameter[*];
+}
+
+Association trade_surveillance::SurModelCalibrations
+{
+   calibrationModel: trade_surveillance::SurSurveillanceModel[0..1];
+   calibrations: trade_surveillance::SurModelCalibration[*];
+}
+
+Association trade_surveillance::SurModelPerformances
+{
+   performanceModel: trade_surveillance::SurSurveillanceModel[0..1];
+   performanceRecords: trade_surveillance::SurModelPerformance[*];
+}
+
+Association trade_surveillance::SurModelRuns
+{
+   runModel: trade_surveillance::SurSurveillanceModel[0..1];
+   runs: trade_surveillance::SurSurveillanceRun[*];
+}
+
+Association trade_surveillance::SurRunAlerts
+{
+   alertRun: trade_surveillance::SurSurveillanceRun[0..1];
+   runAlerts: trade_surveillance::SurAlert[*];
+}
+
+// The alert names its model directly as well as through the run, because a replayed run
+// and the model it replayed are not the same navigation.
+Association trade_surveillance::SurAlertModelLink
+{
+   alertModel: trade_surveillance::SurSurveillanceModel[0..1];
+   modelAlerts: trade_surveillance::SurAlert[*];
+}
+
+Association trade_surveillance::SurAlertWindow
+{
+   evidenceWindow: trade_surveillance::SurEvidenceWindow[0..1];
+   windowAlert: trade_surveillance::SurAlert[0..1];
+}
+
+Association trade_surveillance::SurWindowItems
+{
+   itemWindow: trade_surveillance::SurEvidenceWindow[0..1];
+   items: trade_surveillance::SurEvidenceItem[*];
+}
+
+Association trade_surveillance::SurItemFillEvidence
+{
+   evidenceItem: trade_surveillance::SurEvidenceItem[0..1];
+   fillEvidence: trade_surveillance::SurFillEvidence[0..1];
+}
+
+Association trade_surveillance::SurItemAmendmentEvidence
+{
+   amendmentEvidenceItem: trade_surveillance::SurEvidenceItem[0..1];
+   amendmentEvidence: trade_surveillance::SurAmendmentEvidence[0..1];
+}
+
+Association trade_surveillance::SurAlertAmendmentPatterns
+{
+   patternAlert: trade_surveillance::SurAlert[0..1];
+   amendmentPatterns: trade_surveillance::SurAmendmentPattern[*];
+}
+
+Association trade_surveillance::SurWindowBookSnapshots
+{
+   snapshotWindow: trade_surveillance::SurEvidenceWindow[0..1];
+   bookSnapshots: trade_surveillance::SurOrderBookSnapshot[*];
+}
+
+Association trade_surveillance::SurSnapshotLevels
+{
+   levelSnapshot: trade_surveillance::SurOrderBookSnapshot[0..1];
+   levels: trade_surveillance::SurBookLevel[*];
+}
+
+Association trade_surveillance::SurWindowCancellationBursts
+{
+   burstWindow: trade_surveillance::SurEvidenceWindow[0..1];
+   cancellationBursts: trade_surveillance::SurCancellationBurst[*];
+}
+
+Association trade_surveillance::SurWindowMessageRates
+{
+   messageRateWindow: trade_surveillance::SurEvidenceWindow[0..1];
+   messageRates: trade_surveillance::SurMessageRateMetric[*];
+}
+
+Association trade_surveillance::SurWindowPriceImpacts
+{
+   impactWindow: trade_surveillance::SurEvidenceWindow[0..1];
+   priceImpacts: trade_surveillance::SurPriceImpactObservation[*];
+}
+
+Association trade_surveillance::SurWindowClosingInfluence
+{
+   influenceWindow: trade_surveillance::SurEvidenceWindow[0..1];
+   closingInfluence: trade_surveillance::SurClosingPriceInfluence[0..1];
+}
+
+Association trade_surveillance::SurAlertWashMatches
+{
+   washMatchAlert: trade_surveillance::SurAlert[0..1];
+   washMatches: trade_surveillance::SurWashTradeMatch[*];
+}
+
+Association trade_surveillance::SurAlertFrontRunning
+{
+   frontRunningAlert: trade_surveillance::SurAlert[0..1];
+   frontRunningSequences: trade_surveillance::SurFrontRunningSequence[*];
+}
+
+Association trade_surveillance::SurWatchListEntries
+{
+   entryList: trade_surveillance::SurWatchList[0..1];
+   entries: trade_surveillance::SurWatchListEntry[*];
+}
+
+Association trade_surveillance::SurEntryNewsEvents
+{
+   newsEntry: trade_surveillance::SurWatchListEntry[0..1];
+   newsEvents: trade_surveillance::SurNewsEvent[*];
+}
+
+Association trade_surveillance::SurAlertWatchListEntry
+{
+   watchListEntry: trade_surveillance::SurWatchListEntry[0..1];
+   entryAlerts: trade_surveillance::SurAlert[*];
+}
+
+Association trade_surveillance::SurAlertTriage
+{
+   triageAlert: trade_surveillance::SurAlert[0..1];
+   triage: trade_surveillance::SurTriage[0..1];
+}
+
+Association trade_surveillance::SurTriageReasonLink
+{
+   reason: trade_surveillance::SurTriageReason[0..1];
+   reasonTriages: trade_surveillance::SurTriage[*];
+}
+
+Association trade_surveillance::SurTriageAnalyst
+{
+   reviewer: trade_surveillance::SurAnalyst[0..1];
+   reviewedTriages: trade_surveillance::SurTriage[*];
+}
+
+Association trade_surveillance::SurCaseAlertMembership
+{
+   linkCase: trade_surveillance::SurCase[0..1];
+   alertLinks: trade_surveillance::SurCaseAlertLink[*];
+}
+
+Association trade_surveillance::SurAlertCaseMembership
+{
+   linkAlert: trade_surveillance::SurAlert[0..1];
+   caseLinks: trade_surveillance::SurCaseAlertLink[*];
+}
+
+Association trade_surveillance::SurCaseAssignments
+{
+   assignmentCase: trade_surveillance::SurCase[0..1];
+   assignments: trade_surveillance::SurCaseAssignment[*];
+}
+
+Association trade_surveillance::SurAnalystAssignments
+{
+   analyst: trade_surveillance::SurAnalyst[0..1];
+   caseAssignments: trade_surveillance::SurCaseAssignment[*];
+}
+
+// The denormalised owner, so "whose case is this" is one hop rather than a scan of the
+// assignment history for the one with no unassignedAt.
+Association trade_surveillance::SurCaseOwner
+{
+   owner: trade_surveillance::SurAnalyst[0..1];
+   ownedCases: trade_surveillance::SurCase[*];
+}
+
+Association trade_surveillance::SurCaseSteps
+{
+   stepCase: trade_surveillance::SurCase[0..1];
+   steps: trade_surveillance::SurInvestigationStep[*];
+}
+
+Association trade_surveillance::SurStepAnalyst
+{
+   stepAnalyst: trade_surveillance::SurAnalyst[0..1];
+   analystSteps: trade_surveillance::SurInvestigationStep[*];
+}
+
+Association trade_surveillance::SurCaseEnquiries
+{
+   enquiryCase: trade_surveillance::SurCase[0..1];
+   deskEnquiries: trade_surveillance::SurDeskEnquiry[*];
+}
+
+Association trade_surveillance::SurCaseCommunications
+{
+   communicationCase: trade_surveillance::SurCase[0..1];
+   communications: trade_surveillance::SurCommunicationRecord[*];
+}
+
+Association trade_surveillance::SurCaseEscalations
+{
+   escalationCase: trade_surveillance::SurCase[0..1];
+   escalations: trade_surveillance::SurEscalation[*];
+}
+
+Association trade_surveillance::SurCaseReports
+{
+   reportCase: trade_surveillance::SurCase[0..1];
+   reports: trade_surveillance::SurSuspiciousTransactionReport[*];
+}
+
+Association trade_surveillance::SurEscalationReport
+{
+   reportEscalation: trade_surveillance::SurEscalation[0..1];
+   escalationReports: trade_surveillance::SurSuspiciousTransactionReport[*];
+}

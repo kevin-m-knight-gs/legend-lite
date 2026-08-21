@@ -34,8 +34,24 @@ import spec
 ROOT = Path(__file__).resolve().parents[2] / "projects"
 
 
-def measure(names) -> tuple[float, float, int, int]:
-    """(parse ms, compile ms, files, bytes) for one set of projects."""
+def measure(names, repeats: int = 3) -> tuple[float, float, int, int]:
+    """(parse ms, compile ms, files, bytes) -- the BEST of `repeats` runs.
+
+    Best, not mean. A single run of this on a busy machine produced an incremental series
+    whose deltas went NEGATIVE -- adding 300KB of Pure appeared to make the compile faster --
+    which is impossible and is the signature of contention rather than of a measurement.
+    The minimum is the run that was least interfered with, and it is the only summary of a
+    timing sample that is not dragged around by whatever else the machine was doing.
+    """
+    best = None
+    for _ in range(max(1, repeats)):
+        got = _once(names)
+        if best is None or got[1] < best[1]:
+            best = got
+    return best
+
+
+def _once(names) -> tuple[float, float, int, int]:
     files = check.files_for(names)
     size = sum(Path(f).stat().st_size for f in files)
     cp = (runner.RUNNER / "cp.txt").read_text().strip()

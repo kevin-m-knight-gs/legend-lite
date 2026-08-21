@@ -1,0 +1,1084 @@
+###Mapping
+// The trade-surveillance mapping.
+//
+// Every set id is named EXPLICITLY and sur-prefixed. That is not decoration: set ids are a
+// GLOBAL namespace in Legend, and SurCaseRelation has trade_surveillance::SurCase on BOTH
+// of its ends, so each of its two association ends has to name a source AND a target set --
+// [surCase, surCase], the same id twice, in both directions. Only the direction of travel
+// over @Sur_RelatedCase distinguishes `relatedCase` from `linkedCases`.
+//
+// Because every set here is explicit, `trade_surveillance_SurAlert` and its siblings do NOT
+// exist. Anything downstream must name the `sur` ids.
+//
+// The two upstream mappings are included so the cross-project association ends can name
+// their far set ids. Those ids come from the dependencies' MANIFESTs rather than from a
+// guess: order-execution names all of its sets explicitly, so `oexFill`,
+// `oexOrderFillSummary` and `oexTradeBooking` are the ids and `order_execution_Fill` does
+// not exist; trade-lifecycle's amendment set is `tlcAmendment`. The two closures overlap on
+// trade-capture and the diamond closes.
+//
+// The eleven EnumerationMappings are the only place the physical code strings live. Each
+// accepts a short code and the spelled-out form, because the vendor surveillance platform
+// emits the short code and the case-management system emits the long one.
+Mapping trade_surveillance::Mapping
+(
+   include order_execution::Mapping
+   include trade_lifecycle::Mapping
+
+   // ---- Enumeration mappings ----
+
+   trade_surveillance::SurAlertType: EnumerationMapping SurAlertTypeMapping
+   {
+      SPOOFING:                  ['SPOOF', 'SPOOFING'],
+      LAYERING:                  ['LAYER', 'LAYERING'],
+      WASH_TRADE:                ['WASH', 'WASH_TRADE'],
+      MARKING_THE_CLOSE:         ['MKCLS', 'MARKING_THE_CLOSE'],
+      MOMENTUM_IGNITION:         ['MOMIG', 'MOMENTUM_IGNITION'],
+      FRONT_RUNNING:             ['FRUN', 'FRONT_RUNNING'],
+      INSIDER_DEALING:           ['INSDR', 'INSIDER_DEALING'],
+      QUOTE_STUFFING:            ['QSTUF', 'QUOTE_STUFFING'],
+      RAMPING:                   ['RAMP', 'RAMPING'],
+      CROSS_MARKET_MANIPULATION: ['XMKT', 'CROSS_MARKET_MANIPULATION'],
+      AMENDMENT_PATTERN:         ['AMDPT', 'AMENDMENT_PATTERN'],
+      UNAUTHORISED_TRADING:      ['UNAUT', 'UNAUTHORISED_TRADING']
+   }
+
+   trade_surveillance::SurAlertStatus: EnumerationMapping SurAlertStatusMapping
+   {
+      NEW:                 ['NEW', 'NEW'],
+      IN_TRIAGE:           ['TRG', 'IN_TRIAGE'],
+      TRIAGED_OUT:         ['TRGO', 'TRIAGED_OUT'],
+      UNDER_INVESTIGATION: ['INV', 'UNDER_INVESTIGATION'],
+      ESCALATED:           ['ESC', 'ESCALATED'],
+      REPORTED:            ['RPT', 'REPORTED'],
+      CLOSED_NO_ACTION:    ['CNA', 'CLOSED_NO_ACTION'],
+      CLOSED_DUPLICATE:    ['CDUP', 'CLOSED_DUPLICATE'],
+      SUPPRESSED:          ['SUPP', 'SUPPRESSED']
+   }
+
+   trade_surveillance::SurSeverity: EnumerationMapping SurSeverityMapping
+   {
+      LOW:      ['L', 'LOW'],
+      MEDIUM:   ['M', 'MEDIUM'],
+      HIGH:     ['H', 'HIGH'],
+      CRITICAL: ['C', 'CRITICAL']
+   }
+
+   trade_surveillance::SurEvidenceKind: EnumerationMapping SurEvidenceKindMapping
+   {
+      ORDER:          ['ORD', 'ORDER'],
+      EXECUTION:      ['EXE', 'EXECUTION'],
+      FILL:           ['FIL', 'FILL'],
+      AMENDMENT:      ['AMD', 'AMENDMENT'],
+      QUOTE:          ['QTE', 'QUOTE'],
+      MARKET_DATA:    ['MKT', 'MARKET_DATA'],
+      COMMUNICATION:  ['COM', 'COMMUNICATION'],
+      NEWS:           ['NWS', 'NEWS'],
+      POSITION:       ['POS', 'POSITION'],
+      REFERENCE_DATA: ['REF', 'REFERENCE_DATA']
+   }
+
+   trade_surveillance::SurTriageOutcome: EnumerationMapping SurTriageOutcomeMapping
+   {
+      CLOSED_FALSE_POSITIVE:    ['CFP', 'CLOSED_FALSE_POSITIVE'],
+      CLOSED_EXPLAINED:         ['CEXP', 'CLOSED_EXPLAINED'],
+      CLOSED_DUPLICATE:         ['CDUP', 'CLOSED_DUPLICATE'],
+      CLOSED_BELOW_MATERIALITY: ['CMAT', 'CLOSED_BELOW_MATERIALITY'],
+      CLOSED_KNOWN_BEHAVIOUR:   ['CKNB', 'CLOSED_KNOWN_BEHAVIOUR'],
+      PROMOTED_TO_CASE:         ['PROM', 'PROMOTED_TO_CASE'],
+      DEFERRED_PENDING_DATA:    ['DEFR', 'DEFERRED_PENDING_DATA']
+   }
+
+   trade_surveillance::SurCaseStatus: EnumerationMapping SurCaseStatusMapping
+   {
+      OPEN:                  ['OPEN', 'OPEN'],
+      PENDING_DESK_RESPONSE: ['PDSK', 'PENDING_DESK_RESPONSE'],
+      PENDING_REVIEW:        ['PREV', 'PENDING_REVIEW'],
+      ESCALATED:             ['ESC', 'ESCALATED'],
+      REPORTED:              ['RPT', 'REPORTED'],
+      CLOSED:                ['CLSD', 'CLOSED']
+   }
+
+   trade_surveillance::SurCaseOutcome: EnumerationMapping SurCaseOutcomeMapping
+   {
+      NO_MARKET_ABUSE:        ['NMA', 'NO_MARKET_ABUSE'],
+      INTERNAL_POLICY_BREACH: ['IPB', 'INTERNAL_POLICY_BREACH'],
+      REPORTED_TO_REGULATOR:  ['RTR', 'REPORTED_TO_REGULATOR'],
+      REFERRED_TO_HR:         ['RHR', 'REFERRED_TO_HR'],
+      REFERRED_TO_LEGAL:      ['RLG', 'REFERRED_TO_LEGAL'],
+      INCONCLUSIVE:           ['INC', 'INCONCLUSIVE']
+   }
+
+   trade_surveillance::SurCaseLinkReason: EnumerationMapping SurCaseLinkReasonMapping
+   {
+      DUPLICATE:            ['DUP', 'DUPLICATE'],
+      SAME_TRADER:          ['STRD', 'SAME_TRADER'],
+      SAME_DESK:            ['SDSK', 'SAME_DESK'],
+      SAME_INSTRUMENT:      ['SINS', 'SAME_INSTRUMENT'],
+      SAME_CLIENT:          ['SCLI', 'SAME_CLIENT'],
+      SAME_PATTERN:         ['SPAT', 'SAME_PATTERN'],
+      PARENT_INVESTIGATION: ['PARN', 'PARENT_INVESTIGATION'],
+      SUPERSEDES:           ['SUPS', 'SUPERSEDES']
+   }
+
+   trade_surveillance::SurModelState: EnumerationMapping SurModelStateMapping
+   {
+      DEVELOPMENT:  ['DEV', 'DEVELOPMENT'],
+      PARALLEL_RUN: ['PAR', 'PARALLEL_RUN'],
+      LIVE:         ['LIVE', 'LIVE'],
+      SUSPENDED:    ['SUSP', 'SUSPENDED'],
+      RETIRED:      ['RETD', 'RETIRED']
+   }
+
+   trade_surveillance::SurReportStatus: EnumerationMapping SurReportStatusMapping
+   {
+      DRAFT:           ['DRFT', 'DRAFT'],
+      LEGAL_REVIEW:    ['LGL', 'LEGAL_REVIEW'],
+      READY_TO_SUBMIT: ['RDY', 'READY_TO_SUBMIT'],
+      SUBMITTED:       ['SUBM', 'SUBMITTED'],
+      ACKNOWLEDGED:    ['ACK', 'ACKNOWLEDGED'],
+      REJECTED:        ['REJ', 'REJECTED'],
+      WITHDRAWN:       ['WDRN', 'WITHDRAWN']
+   }
+
+   trade_surveillance::SurMarketPhase: EnumerationMapping SurMarketPhaseMapping
+   {
+      PRE_OPEN:         ['PREO', 'PRE_OPEN'],
+      OPENING_AUCTION:  ['OPNA', 'OPENING_AUCTION'],
+      CONTINUOUS:       ['CONT', 'CONTINUOUS'],
+      INTRADAY_AUCTION: ['INTA', 'INTRADAY_AUCTION'],
+      CLOSING_AUCTION:  ['CLSA', 'CLOSING_AUCTION'],
+      POST_CLOSE:       ['POST', 'POST_CLOSE'],
+      HALTED:           ['HALT', 'HALTED']
+   }
+
+   // ---- Class mappings ----
+
+   *trade_surveillance::SurSurveillanceModel[surModel]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_MODEL.MODEL_ID )
+      ~mainTable [trade_surveillance::Store]SUR_MODEL
+      modelId: [trade_surveillance::Store]SUR_MODEL.MODEL_ID,
+      modelCode: [trade_surveillance::Store]SUR_MODEL.MODEL_CODE,
+      modelName: [trade_surveillance::Store]SUR_MODEL.MODEL_NAME,
+      alertType: EnumerationMapping SurAlertTypeMapping: [trade_surveillance::Store]SUR_MODEL.ALERT_TYPE,
+      state: EnumerationMapping SurModelStateMapping: [trade_surveillance::Store]SUR_MODEL.MODEL_STATE,
+      modelVersion: [trade_surveillance::Store]SUR_MODEL.MODEL_VERSION,
+      ownerTeam: [trade_surveillance::Store]SUR_MODEL.OWNER_TEAM,
+      deployedOn: [trade_surveillance::Store]SUR_MODEL.DEPLOYED_ON,
+      retiredOn: [trade_surveillance::Store]SUR_MODEL.RETIRED_ON,
+      lookbackMinutes: [trade_surveillance::Store]SUR_MODEL.LOOKBACK_MINUTES,
+      description: [trade_surveillance::Store]SUR_MODEL.DESCRIPTION,
+      falsePositiveTolerance: [trade_surveillance::Store]SUR_MODEL.FP_TOLERANCE
+   }
+
+   *trade_surveillance::SurModelParameter[surModelParameter]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_MODEL_PARAMETER.PARAMETER_ID )
+      ~mainTable [trade_surveillance::Store]SUR_MODEL_PARAMETER
+      parameterId: [trade_surveillance::Store]SUR_MODEL_PARAMETER.PARAMETER_ID,
+      parameterName: [trade_surveillance::Store]SUR_MODEL_PARAMETER.PARAMETER_NAME,
+      parameterValue: [trade_surveillance::Store]SUR_MODEL_PARAMETER.PARAMETER_VALUE,
+      unit: [trade_surveillance::Store]SUR_MODEL_PARAMETER.UNIT_CODE,
+      effectiveFrom: [trade_surveillance::Store]SUR_MODEL_PARAMETER.EFFECTIVE_FROM,
+      effectiveTo: [trade_surveillance::Store]SUR_MODEL_PARAMETER.EFFECTIVE_TO,
+      changedBy: [trade_surveillance::Store]SUR_MODEL_PARAMETER.CHANGED_BY,
+      approvedBy: [trade_surveillance::Store]SUR_MODEL_PARAMETER.APPROVED_BY,
+      rationale: [trade_surveillance::Store]SUR_MODEL_PARAMETER.RATIONALE
+   }
+
+   *trade_surveillance::SurModelCalibration[surModelCalibration]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_MODEL_CALIBRATION.CALIBRATION_ID )
+      ~mainTable [trade_surveillance::Store]SUR_MODEL_CALIBRATION
+      calibrationId: [trade_surveillance::Store]SUR_MODEL_CALIBRATION.CALIBRATION_ID,
+      runOn: [trade_surveillance::Store]SUR_MODEL_CALIBRATION.RUN_ON,
+      sampleFrom: [trade_surveillance::Store]SUR_MODEL_CALIBRATION.SAMPLE_FROM,
+      sampleTo: [trade_surveillance::Store]SUR_MODEL_CALIBRATION.SAMPLE_TO,
+      alertsSimulated: [trade_surveillance::Store]SUR_MODEL_CALIBRATION.ALERTS_SIMULATED,
+      truePositives: [trade_surveillance::Store]SUR_MODEL_CALIBRATION.TRUE_POSITIVES,
+      falsePositives: [trade_surveillance::Store]SUR_MODEL_CALIBRATION.FALSE_POSITIVES,
+      method: [trade_surveillance::Store]SUR_MODEL_CALIBRATION.METHOD_NAME,
+      approvedBy: [trade_surveillance::Store]SUR_MODEL_CALIBRATION.APPROVED_BY
+   }
+
+   *trade_surveillance::SurModelPerformance[surModelPerformance]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_MODEL_PERFORMANCE.PERFORMANCE_ID )
+      ~mainTable [trade_surveillance::Store]SUR_MODEL_PERFORMANCE
+      performanceId: [trade_surveillance::Store]SUR_MODEL_PERFORMANCE.PERFORMANCE_ID,
+      periodStart: [trade_surveillance::Store]SUR_MODEL_PERFORMANCE.PERIOD_START,
+      periodEnd: [trade_surveillance::Store]SUR_MODEL_PERFORMANCE.PERIOD_END,
+      alertsRaised: [trade_surveillance::Store]SUR_MODEL_PERFORMANCE.ALERTS_RAISED,
+      alertsTriagedOut: [trade_surveillance::Store]SUR_MODEL_PERFORMANCE.ALERTS_TRIAGED_OUT,
+      casesOpened: [trade_surveillance::Store]SUR_MODEL_PERFORMANCE.CASES_OPENED,
+      reportsFiled: [trade_surveillance::Store]SUR_MODEL_PERFORMANCE.REPORTS_FILED,
+      meanTriageMinutes: [trade_surveillance::Store]SUR_MODEL_PERFORMANCE.MEAN_TRIAGE_MINUTES,
+      toleranceAtReview: [trade_surveillance::Store]SUR_MODEL_PERFORMANCE.FP_TOLERANCE_AT_REVIEW,
+      reviewedBy: [trade_surveillance::Store]SUR_MODEL_PERFORMANCE.REVIEWED_BY,
+      reviewComment: [trade_surveillance::Store]SUR_MODEL_PERFORMANCE.REVIEW_COMMENT
+   }
+
+   *trade_surveillance::SurSurveillanceRun[surRun]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_RUN.RUN_ID )
+      ~mainTable [trade_surveillance::Store]SUR_RUN
+      runId: [trade_surveillance::Store]SUR_RUN.RUN_ID,
+      businessDate: [trade_surveillance::Store]SUR_RUN.BUSINESS_DATE,
+      startedAt: [trade_surveillance::Store]SUR_RUN.STARTED_AT,
+      completedAt: [trade_surveillance::Store]SUR_RUN.COMPLETED_AT,
+      rowsScanned: [trade_surveillance::Store]SUR_RUN.ROWS_SCANNED,
+      alertsRaised: [trade_surveillance::Store]SUR_RUN.ALERTS_RAISED,
+      runStatus: [trade_surveillance::Store]SUR_RUN.RUN_STATUS,
+      isReplay: [trade_surveillance::Store]SUR_RUN.IS_REPLAY
+   }
+
+   *trade_surveillance::SurAlert[surAlert]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_ALERT.ALERT_ID )
+      ~mainTable [trade_surveillance::Store]SUR_ALERT
+      alertId: [trade_surveillance::Store]SUR_ALERT.ALERT_ID,
+      alertReference: [trade_surveillance::Store]SUR_ALERT.ALERT_REFERENCE,
+      alertType: EnumerationMapping SurAlertTypeMapping: [trade_surveillance::Store]SUR_ALERT.ALERT_TYPE,
+      status: EnumerationMapping SurAlertStatusMapping: [trade_surveillance::Store]SUR_ALERT.ALERT_STATUS,
+      severity: EnumerationMapping SurSeverityMapping: [trade_surveillance::Store]SUR_ALERT.SEVERITY,
+      score: [trade_surveillance::Store]SUR_ALERT.SCORE,
+      raisedAt: [trade_surveillance::Store]SUR_ALERT.RAISED_AT,
+      businessDate: [trade_surveillance::Store]SUR_ALERT.BUSINESS_DATE,
+      instrumentRef: [trade_surveillance::Store]SUR_ALERT.INSTRUMENT_REF,
+      traderRef: [trade_surveillance::Store]SUR_ALERT.TRADER_REF,
+      deskRef: [trade_surveillance::Store]SUR_ALERT.DESK_REF,
+      bookRef: [trade_surveillance::Store]SUR_ALERT.BOOK_REF,
+      accountRef: [trade_surveillance::Store]SUR_ALERT.ACCOUNT_REF,
+      marketPhase: EnumerationMapping SurMarketPhaseMapping: [trade_surveillance::Store]SUR_ALERT.MARKET_PHASE,
+      closedAt: [trade_surveillance::Store]SUR_ALERT.CLOSED_AT,
+      narrative: [trade_surveillance::Store]SUR_ALERT.NARRATIVE,
+      isReopened: [trade_surveillance::Store]SUR_ALERT.IS_REOPENED
+   }
+
+   *trade_surveillance::SurEvidenceWindow[surEvidenceWindow]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_EVIDENCE_WINDOW.WINDOW_ID )
+      ~mainTable [trade_surveillance::Store]SUR_EVIDENCE_WINDOW
+      windowId: [trade_surveillance::Store]SUR_EVIDENCE_WINDOW.WINDOW_ID,
+      windowStart: [trade_surveillance::Store]SUR_EVIDENCE_WINDOW.WINDOW_START,
+      windowEnd: [trade_surveillance::Store]SUR_EVIDENCE_WINDOW.WINDOW_END,
+      lookbackMinutes: [trade_surveillance::Store]SUR_EVIDENCE_WINDOW.LOOKBACK_MINUTES,
+      venueRef: [trade_surveillance::Store]SUR_EVIDENCE_WINDOW.VENUE_REF,
+      instrumentRef: [trade_surveillance::Store]SUR_EVIDENCE_WINDOW.INSTRUMENT_REF,
+      observationCount: [trade_surveillance::Store]SUR_EVIDENCE_WINDOW.OBSERVATION_COUNT,
+      isTruncated: [trade_surveillance::Store]SUR_EVIDENCE_WINDOW.IS_TRUNCATED
+   }
+
+   *trade_surveillance::SurEvidenceItem[surEvidenceItem]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_EVIDENCE_ITEM.ITEM_ID )
+      ~mainTable [trade_surveillance::Store]SUR_EVIDENCE_ITEM
+      itemId: [trade_surveillance::Store]SUR_EVIDENCE_ITEM.ITEM_ID,
+      evidenceKind: EnumerationMapping SurEvidenceKindMapping: [trade_surveillance::Store]SUR_EVIDENCE_ITEM.EVIDENCE_KIND,
+      sourceSystem: [trade_surveillance::Store]SUR_EVIDENCE_ITEM.SOURCE_SYSTEM,
+      sourceReference: [trade_surveillance::Store]SUR_EVIDENCE_ITEM.SOURCE_REFERENCE,
+      observedAt: [trade_surveillance::Store]SUR_EVIDENCE_ITEM.OBSERVED_AT,
+      sequenceNumber: [trade_surveillance::Store]SUR_EVIDENCE_ITEM.SEQUENCE_NUMBER,
+      isMaterial: [trade_surveillance::Store]SUR_EVIDENCE_ITEM.IS_MATERIAL,
+      note: [trade_surveillance::Store]SUR_EVIDENCE_ITEM.NOTE_TEXT
+   }
+
+   *trade_surveillance::SurFillEvidence[surFillEvidence]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_FILL_EVIDENCE.FILL_EVIDENCE_ID )
+      ~mainTable [trade_surveillance::Store]SUR_FILL_EVIDENCE
+      fillEvidenceId: [trade_surveillance::Store]SUR_FILL_EVIDENCE.FILL_EVIDENCE_ID,
+      fillReference: [trade_surveillance::Store]SUR_FILL_EVIDENCE.FILL_REFERENCE,
+      quantity: [trade_surveillance::Store]SUR_FILL_EVIDENCE.QUANTITY,
+      price: [trade_surveillance::Store]SUR_FILL_EVIDENCE.PRICE,
+      side: [trade_surveillance::Store]SUR_FILL_EVIDENCE.SIDE_CODE,
+      isAggressive: [trade_surveillance::Store]SUR_FILL_EVIDENCE.IS_AGGRESSIVE,
+      contributionWeight: [trade_surveillance::Store]SUR_FILL_EVIDENCE.CONTRIBUTION_WEIGHT
+   }
+
+   *trade_surveillance::SurAmendmentEvidence[surAmendmentEvidence]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_AMENDMENT_EVIDENCE.AMENDMENT_EVIDENCE_ID )
+      ~mainTable [trade_surveillance::Store]SUR_AMENDMENT_EVIDENCE
+      amendmentEvidenceId: [trade_surveillance::Store]SUR_AMENDMENT_EVIDENCE.AMENDMENT_EVIDENCE_ID,
+      amendmentReference: [trade_surveillance::Store]SUR_AMENDMENT_EVIDENCE.AMENDMENT_REFERENCE,
+      fieldChanged: [trade_surveillance::Store]SUR_AMENDMENT_EVIDENCE.FIELD_CHANGED,
+      oldValue: [trade_surveillance::Store]SUR_AMENDMENT_EVIDENCE.OLD_VALUE,
+      newValue: [trade_surveillance::Store]SUR_AMENDMENT_EVIDENCE.NEW_VALUE,
+      amendedAt: [trade_surveillance::Store]SUR_AMENDMENT_EVIDENCE.AMENDED_AT,
+      daysAfterTrade: [trade_surveillance::Store]SUR_AMENDMENT_EVIDENCE.DAYS_AFTER_TRADE,
+      isEconomic: [trade_surveillance::Store]SUR_AMENDMENT_EVIDENCE.IS_ECONOMIC
+   }
+
+   *trade_surveillance::SurAmendmentPattern[surAmendmentPattern]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_AMENDMENT_PATTERN.PATTERN_ID )
+      ~mainTable [trade_surveillance::Store]SUR_AMENDMENT_PATTERN
+      patternId: [trade_surveillance::Store]SUR_AMENDMENT_PATTERN.PATTERN_ID,
+      chainLength: [trade_surveillance::Store]SUR_AMENDMENT_PATTERN.CHAIN_LENGTH,
+      firstAmendedAt: [trade_surveillance::Store]SUR_AMENDMENT_PATTERN.FIRST_AMENDED_AT,
+      lastAmendedAt: [trade_surveillance::Store]SUR_AMENDMENT_PATTERN.LAST_AMENDED_AT,
+      distinctFieldsChanged: [trade_surveillance::Store]SUR_AMENDMENT_PATTERN.DISTINCT_FIELDS,
+      economicAmendmentCount: [trade_surveillance::Store]SUR_AMENDMENT_PATTERN.ECONOMIC_COUNT,
+      sameUserCount: [trade_surveillance::Store]SUR_AMENDMENT_PATTERN.SAME_USER_COUNT,
+      notionalDriftPct: [trade_surveillance::Store]SUR_AMENDMENT_PATTERN.NOTIONAL_DRIFT_PCT,
+      isAfterSettlement: [trade_surveillance::Store]SUR_AMENDMENT_PATTERN.IS_AFTER_SETTLEMENT
+   }
+
+   *trade_surveillance::SurOrderBookSnapshot[surBookSnapshot]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_BOOK_SNAPSHOT.SNAPSHOT_ID )
+      ~mainTable [trade_surveillance::Store]SUR_BOOK_SNAPSHOT
+      snapshotId: [trade_surveillance::Store]SUR_BOOK_SNAPSHOT.SNAPSHOT_ID,
+      capturedAt: [trade_surveillance::Store]SUR_BOOK_SNAPSHOT.CAPTURED_AT,
+      bestBid: [trade_surveillance::Store]SUR_BOOK_SNAPSHOT.BEST_BID,
+      bestAsk: [trade_surveillance::Store]SUR_BOOK_SNAPSHOT.BEST_ASK,
+      bidDepth: [trade_surveillance::Store]SUR_BOOK_SNAPSHOT.BID_DEPTH,
+      askDepth: [trade_surveillance::Store]SUR_BOOK_SNAPSHOT.ASK_DEPTH,
+      imbalanceRatio: [trade_surveillance::Store]SUR_BOOK_SNAPSHOT.IMBALANCE_RATIO,
+      levelCount: [trade_surveillance::Store]SUR_BOOK_SNAPSHOT.LEVEL_COUNT
+   }
+
+   *trade_surveillance::SurBookLevel[surBookLevel]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_BOOK_LEVEL.LEVEL_ID )
+      ~mainTable [trade_surveillance::Store]SUR_BOOK_LEVEL
+      levelId: [trade_surveillance::Store]SUR_BOOK_LEVEL.LEVEL_ID,
+      side: [trade_surveillance::Store]SUR_BOOK_LEVEL.SIDE_CODE,
+      levelIndex: [trade_surveillance::Store]SUR_BOOK_LEVEL.LEVEL_INDEX,
+      price: [trade_surveillance::Store]SUR_BOOK_LEVEL.PRICE,
+      quantity: [trade_surveillance::Store]SUR_BOOK_LEVEL.QUANTITY,
+      ownOrderQuantity: [trade_surveillance::Store]SUR_BOOK_LEVEL.OWN_QUANTITY,
+      orderCount: [trade_surveillance::Store]SUR_BOOK_LEVEL.ORDER_COUNT
+   }
+
+   *trade_surveillance::SurCancellationBurst[surCancellationBurst]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_CANCELLATION_BURST.BURST_ID )
+      ~mainTable [trade_surveillance::Store]SUR_CANCELLATION_BURST
+      burstId: [trade_surveillance::Store]SUR_CANCELLATION_BURST.BURST_ID,
+      burstStart: [trade_surveillance::Store]SUR_CANCELLATION_BURST.BURST_START,
+      burstEnd: [trade_surveillance::Store]SUR_CANCELLATION_BURST.BURST_END,
+      ordersPlaced: [trade_surveillance::Store]SUR_CANCELLATION_BURST.ORDERS_PLACED,
+      ordersCancelled: [trade_surveillance::Store]SUR_CANCELLATION_BURST.ORDERS_CANCELLED,
+      medianLifetimeMillis: [trade_surveillance::Store]SUR_CANCELLATION_BURST.MEDIAN_LIFETIME_MILLIS,
+      maxDisplayedQuantity: [trade_surveillance::Store]SUR_CANCELLATION_BURST.MAX_DISPLAYED_QUANTITY,
+      side: [trade_surveillance::Store]SUR_CANCELLATION_BURST.SIDE_CODE
+   }
+
+   *trade_surveillance::SurMessageRateMetric[surMessageRate]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_MESSAGE_RATE.METRIC_ID )
+      ~mainTable [trade_surveillance::Store]SUR_MESSAGE_RATE
+      metricId: [trade_surveillance::Store]SUR_MESSAGE_RATE.METRIC_ID,
+      intervalStart: [trade_surveillance::Store]SUR_MESSAGE_RATE.INTERVAL_START,
+      intervalSeconds: [trade_surveillance::Store]SUR_MESSAGE_RATE.INTERVAL_SECONDS,
+      messageCount: [trade_surveillance::Store]SUR_MESSAGE_RATE.MESSAGE_COUNT,
+      tradeCount: [trade_surveillance::Store]SUR_MESSAGE_RATE.TRADE_COUNT,
+      peakMessagesPerSecond: [trade_surveillance::Store]SUR_MESSAGE_RATE.PEAK_MESSAGES_PER_SECOND,
+      orderToTradeRatio: [trade_surveillance::Store]SUR_MESSAGE_RATE.ORDER_TO_TRADE_RATIO,
+      venueRef: [trade_surveillance::Store]SUR_MESSAGE_RATE.VENUE_REF
+   }
+
+   *trade_surveillance::SurPriceImpactObservation[surPriceImpact]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_PRICE_IMPACT.OBSERVATION_ID )
+      ~mainTable [trade_surveillance::Store]SUR_PRICE_IMPACT
+      observationId: [trade_surveillance::Store]SUR_PRICE_IMPACT.OBSERVATION_ID,
+      horizonSeconds: [trade_surveillance::Store]SUR_PRICE_IMPACT.HORIZON_SECONDS,
+      priceBefore: [trade_surveillance::Store]SUR_PRICE_IMPACT.PRICE_BEFORE,
+      priceAfter: [trade_surveillance::Store]SUR_PRICE_IMPACT.PRICE_AFTER,
+      referencePrice: [trade_surveillance::Store]SUR_PRICE_IMPACT.REFERENCE_PRICE,
+      moveBps: [trade_surveillance::Store]SUR_PRICE_IMPACT.MOVE_BPS,
+      marketMoveBps: [trade_surveillance::Store]SUR_PRICE_IMPACT.MARKET_MOVE_BPS,
+      volumeShare: [trade_surveillance::Store]SUR_PRICE_IMPACT.VOLUME_SHARE,
+      isReverted: [trade_surveillance::Store]SUR_PRICE_IMPACT.IS_REVERTED
+   }
+
+   *trade_surveillance::SurClosingPriceInfluence[surClosingInfluence]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_CLOSING_INFLUENCE.INFLUENCE_ID )
+      ~mainTable [trade_surveillance::Store]SUR_CLOSING_INFLUENCE
+      influenceId: [trade_surveillance::Store]SUR_CLOSING_INFLUENCE.INFLUENCE_ID,
+      closingPrice: [trade_surveillance::Store]SUR_CLOSING_INFLUENCE.CLOSING_PRICE,
+      referencePrice: [trade_surveillance::Store]SUR_CLOSING_INFLUENCE.REFERENCE_PRICE,
+      ownVolume: [trade_surveillance::Store]SUR_CLOSING_INFLUENCE.OWN_VOLUME,
+      auctionVolume: [trade_surveillance::Store]SUR_CLOSING_INFLUENCE.AUCTION_VOLUME,
+      lastMinuteOrderCount: [trade_surveillance::Store]SUR_CLOSING_INFLUENCE.LAST_MINUTE_ORDER_COUNT,
+      priceMoveBps: [trade_surveillance::Store]SUR_CLOSING_INFLUENCE.PRICE_MOVE_BPS,
+      isBenchmarkDate: [trade_surveillance::Store]SUR_CLOSING_INFLUENCE.IS_BENCHMARK_DATE
+   }
+
+   *trade_surveillance::SurWashTradeMatch[surWashMatch]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_WASH_MATCH.MATCH_ID )
+      ~mainTable [trade_surveillance::Store]SUR_WASH_MATCH
+      matchId: [trade_surveillance::Store]SUR_WASH_MATCH.MATCH_ID,
+      matchedQuantity: [trade_surveillance::Store]SUR_WASH_MATCH.MATCHED_QUANTITY,
+      buyPrice: [trade_surveillance::Store]SUR_WASH_MATCH.BUY_PRICE,
+      sellPrice: [trade_surveillance::Store]SUR_WASH_MATCH.SELL_PRICE,
+      secondsApart: [trade_surveillance::Store]SUR_WASH_MATCH.SECONDS_APART,
+      buyAccountRef: [trade_surveillance::Store]SUR_WASH_MATCH.BUY_ACCOUNT_REF,
+      sellAccountRef: [trade_surveillance::Store]SUR_WASH_MATCH.SELL_ACCOUNT_REF,
+      beneficialOwnerRef: [trade_surveillance::Store]SUR_WASH_MATCH.BENEFICIAL_OWNER_REF,
+      isSameBeneficialOwner: [trade_surveillance::Store]SUR_WASH_MATCH.IS_SAME_BENEFICIAL_OWNER,
+      netPositionChange: [trade_surveillance::Store]SUR_WASH_MATCH.NET_POSITION_CHANGE
+   }
+
+   *trade_surveillance::SurFrontRunningSequence[surFrontRunning]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_FRONT_RUNNING.SEQUENCE_ID )
+      ~mainTable [trade_surveillance::Store]SUR_FRONT_RUNNING
+      sequenceId: [trade_surveillance::Store]SUR_FRONT_RUNNING.SEQUENCE_ID,
+      clientOrderRef: [trade_surveillance::Store]SUR_FRONT_RUNNING.CLIENT_ORDER_REF,
+      houseOrderRef: [trade_surveillance::Store]SUR_FRONT_RUNNING.HOUSE_ORDER_REF,
+      secondsAhead: [trade_surveillance::Store]SUR_FRONT_RUNNING.SECONDS_AHEAD,
+      clientQuantity: [trade_surveillance::Store]SUR_FRONT_RUNNING.CLIENT_QUANTITY,
+      houseQuantity: [trade_surveillance::Store]SUR_FRONT_RUNNING.HOUSE_QUANTITY,
+      priceAdvantageBps: [trade_surveillance::Store]SUR_FRONT_RUNNING.PRICE_ADVANTAGE_BPS,
+      sameInstrument: [trade_surveillance::Store]SUR_FRONT_RUNNING.SAME_INSTRUMENT,
+      sameDirection: [trade_surveillance::Store]SUR_FRONT_RUNNING.SAME_DIRECTION
+   }
+
+   *trade_surveillance::SurWatchList[surWatchList]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_WATCH_LIST.LIST_ID )
+      ~mainTable [trade_surveillance::Store]SUR_WATCH_LIST
+      listId: [trade_surveillance::Store]SUR_WATCH_LIST.LIST_ID,
+      listCode: [trade_surveillance::Store]SUR_WATCH_LIST.LIST_CODE,
+      listName: [trade_surveillance::Store]SUR_WATCH_LIST.LIST_NAME,
+      listType: [trade_surveillance::Store]SUR_WATCH_LIST.LIST_TYPE,
+      maintainedBy: [trade_surveillance::Store]SUR_WATCH_LIST.MAINTAINED_BY,
+      effectiveFrom: [trade_surveillance::Store]SUR_WATCH_LIST.EFFECTIVE_FROM,
+      effectiveTo: [trade_surveillance::Store]SUR_WATCH_LIST.EFFECTIVE_TO,
+      isRestricted: [trade_surveillance::Store]SUR_WATCH_LIST.IS_RESTRICTED
+   }
+
+   *trade_surveillance::SurWatchListEntry[surWatchListEntry]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_WATCH_LIST_ENTRY.ENTRY_ID )
+      ~mainTable [trade_surveillance::Store]SUR_WATCH_LIST_ENTRY
+      entryId: [trade_surveillance::Store]SUR_WATCH_LIST_ENTRY.ENTRY_ID,
+      subjectRef: [trade_surveillance::Store]SUR_WATCH_LIST_ENTRY.SUBJECT_REF,
+      subjectType: [trade_surveillance::Store]SUR_WATCH_LIST_ENTRY.SUBJECT_TYPE,
+      addedOn: [trade_surveillance::Store]SUR_WATCH_LIST_ENTRY.ADDED_ON,
+      removedOn: [trade_surveillance::Store]SUR_WATCH_LIST_ENTRY.REMOVED_ON,
+      reason: [trade_surveillance::Store]SUR_WATCH_LIST_ENTRY.REASON_TEXT,
+      addedBy: [trade_surveillance::Store]SUR_WATCH_LIST_ENTRY.ADDED_BY,
+      isBlocking: [trade_surveillance::Store]SUR_WATCH_LIST_ENTRY.IS_BLOCKING
+   }
+
+   *trade_surveillance::SurNewsEvent[surNewsEvent]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_NEWS_EVENT.NEWS_ID )
+      ~mainTable [trade_surveillance::Store]SUR_NEWS_EVENT
+      newsId: [trade_surveillance::Store]SUR_NEWS_EVENT.NEWS_ID,
+      headline: [trade_surveillance::Store]SUR_NEWS_EVENT.HEADLINE,
+      publishedAt: [trade_surveillance::Store]SUR_NEWS_EVENT.PUBLISHED_AT,
+      newsSource: [trade_surveillance::Store]SUR_NEWS_EVENT.NEWS_SOURCE,
+      instrumentRef: [trade_surveillance::Store]SUR_NEWS_EVENT.INSTRUMENT_REF,
+      isPriceSensitive: [trade_surveillance::Store]SUR_NEWS_EVENT.IS_PRICE_SENSITIVE,
+      priceMoveBps: [trade_surveillance::Store]SUR_NEWS_EVENT.PRICE_MOVE_BPS,
+      category: [trade_surveillance::Store]SUR_NEWS_EVENT.CATEGORY
+   }
+
+   *trade_surveillance::SurTriage[surTriage]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_TRIAGE.TRIAGE_ID )
+      ~mainTable [trade_surveillance::Store]SUR_TRIAGE
+      triageId: [trade_surveillance::Store]SUR_TRIAGE.TRIAGE_ID,
+      reviewedAt: [trade_surveillance::Store]SUR_TRIAGE.REVIEWED_AT,
+      outcome: EnumerationMapping SurTriageOutcomeMapping: [trade_surveillance::Store]SUR_TRIAGE.TRIAGE_OUTCOME,
+      minutesSpent: [trade_surveillance::Store]SUR_TRIAGE.MINUTES_SPENT,
+      reviewerComment: [trade_surveillance::Store]SUR_TRIAGE.REVIEWER_COMMENT,
+      isAutoTriaged: [trade_surveillance::Store]SUR_TRIAGE.IS_AUTO_TRIAGED,
+      confidence: [trade_surveillance::Store]SUR_TRIAGE.CONFIDENCE,
+      secondReviewRequired: [trade_surveillance::Store]SUR_TRIAGE.SECOND_REVIEW_REQUIRED
+   }
+
+   *trade_surveillance::SurTriageReason[surTriageReason]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_TRIAGE_REASON.REASON_ID )
+      ~mainTable [trade_surveillance::Store]SUR_TRIAGE_REASON
+      reasonId: [trade_surveillance::Store]SUR_TRIAGE_REASON.REASON_ID,
+      reasonCode: [trade_surveillance::Store]SUR_TRIAGE_REASON.REASON_CODE,
+      description: [trade_surveillance::Store]SUR_TRIAGE_REASON.DESCRIPTION,
+      isFalsePositiveReason: [trade_surveillance::Store]SUR_TRIAGE_REASON.IS_FALSE_POSITIVE_REASON,
+      requiresModelReview: [trade_surveillance::Store]SUR_TRIAGE_REASON.REQUIRES_MODEL_REVIEW,
+      usageCount: [trade_surveillance::Store]SUR_TRIAGE_REASON.USAGE_COUNT
+   }
+
+   // The recursive set. Both ends of SurCaseRelation point at this one id, in both
+   // directions.
+   *trade_surveillance::SurCase[surCase]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_CASE.CASE_ID )
+      ~mainTable [trade_surveillance::Store]SUR_CASE
+      caseId: [trade_surveillance::Store]SUR_CASE.CASE_ID,
+      caseReference: [trade_surveillance::Store]SUR_CASE.CASE_REFERENCE,
+      openedOn: [trade_surveillance::Store]SUR_CASE.OPENED_ON,
+      status: EnumerationMapping SurCaseStatusMapping: [trade_surveillance::Store]SUR_CASE.CASE_STATUS,
+      outcome: EnumerationMapping SurCaseOutcomeMapping: [trade_surveillance::Store]SUR_CASE.CASE_OUTCOME,
+      severity: EnumerationMapping SurSeverityMapping: [trade_surveillance::Store]SUR_CASE.SEVERITY,
+      relatedCaseId: [trade_surveillance::Store]SUR_CASE.RELATED_CASE_ID,
+      linkReason: EnumerationMapping SurCaseLinkReasonMapping: [trade_surveillance::Store]SUR_CASE.LINK_REASON,
+      targetTraderRef: [trade_surveillance::Store]SUR_CASE.TARGET_TRADER_REF,
+      targetDeskRef: [trade_surveillance::Store]SUR_CASE.TARGET_DESK_REF,
+      instrumentRef: [trade_surveillance::Store]SUR_CASE.INSTRUMENT_REF,
+      dueOn: [trade_surveillance::Store]SUR_CASE.DUE_ON,
+      closedOn: [trade_surveillance::Store]SUR_CASE.CLOSED_ON,
+      summaryText: [trade_surveillance::Store]SUR_CASE.SUMMARY_TEXT,
+      isRegulatorNotified: [trade_surveillance::Store]SUR_CASE.IS_REGULATOR_NOTIFIED
+   }
+
+   *trade_surveillance::SurCaseAlertLink[surCaseAlertLink]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_CASE_ALERT.LINK_ID )
+      ~mainTable [trade_surveillance::Store]SUR_CASE_ALERT
+      linkId: [trade_surveillance::Store]SUR_CASE_ALERT.LINK_ID,
+      addedAt: [trade_surveillance::Store]SUR_CASE_ALERT.ADDED_AT,
+      addedBy: [trade_surveillance::Store]SUR_CASE_ALERT.ADDED_BY,
+      isPrimaryAlert: [trade_surveillance::Store]SUR_CASE_ALERT.IS_PRIMARY_ALERT,
+      note: [trade_surveillance::Store]SUR_CASE_ALERT.NOTE_TEXT
+   }
+
+   *trade_surveillance::SurAnalyst[surAnalyst]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_ANALYST.ANALYST_ID )
+      ~mainTable [trade_surveillance::Store]SUR_ANALYST
+      analystId: [trade_surveillance::Store]SUR_ANALYST.ANALYST_ID,
+      analystName: [trade_surveillance::Store]SUR_ANALYST.ANALYST_NAME,
+      teamName: [trade_surveillance::Store]SUR_ANALYST.TEAM_NAME,
+      seniority: [trade_surveillance::Store]SUR_ANALYST.SENIORITY,
+      coverageRegion: [trade_surveillance::Store]SUR_ANALYST.COVERAGE_REGION,
+      isCertified: [trade_surveillance::Store]SUR_ANALYST.IS_CERTIFIED,
+      joinedOn: [trade_surveillance::Store]SUR_ANALYST.JOINED_ON,
+      leftOn: [trade_surveillance::Store]SUR_ANALYST.LEFT_ON,
+      openCaseLimit: [trade_surveillance::Store]SUR_ANALYST.OPEN_CASE_LIMIT
+   }
+
+   *trade_surveillance::SurCaseAssignment[surCaseAssignment]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_CASE_ASSIGNMENT.ASSIGNMENT_ID )
+      ~mainTable [trade_surveillance::Store]SUR_CASE_ASSIGNMENT
+      assignmentId: [trade_surveillance::Store]SUR_CASE_ASSIGNMENT.ASSIGNMENT_ID,
+      assignedAt: [trade_surveillance::Store]SUR_CASE_ASSIGNMENT.ASSIGNED_AT,
+      assignedBy: [trade_surveillance::Store]SUR_CASE_ASSIGNMENT.ASSIGNED_BY,
+      unassignedAt: [trade_surveillance::Store]SUR_CASE_ASSIGNMENT.UNASSIGNED_AT,
+      assignmentRole: [trade_surveillance::Store]SUR_CASE_ASSIGNMENT.ROLE_NAME,
+      isOwner: [trade_surveillance::Store]SUR_CASE_ASSIGNMENT.IS_OWNER,
+      handoverNote: [trade_surveillance::Store]SUR_CASE_ASSIGNMENT.HANDOVER_NOTE
+   }
+
+   *trade_surveillance::SurInvestigationStep[surInvestigationStep]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_INVESTIGATION_STEP.STEP_ID )
+      ~mainTable [trade_surveillance::Store]SUR_INVESTIGATION_STEP
+      stepId: [trade_surveillance::Store]SUR_INVESTIGATION_STEP.STEP_ID,
+      stepNumber: [trade_surveillance::Store]SUR_INVESTIGATION_STEP.STEP_NUMBER,
+      stepType: [trade_surveillance::Store]SUR_INVESTIGATION_STEP.STEP_TYPE,
+      performedAt: [trade_surveillance::Store]SUR_INVESTIGATION_STEP.PERFORMED_AT,
+      performedBy: [trade_surveillance::Store]SUR_INVESTIGATION_STEP.PERFORMED_BY,
+      findingText: [trade_surveillance::Store]SUR_INVESTIGATION_STEP.FINDING_TEXT,
+      isComplete: [trade_surveillance::Store]SUR_INVESTIGATION_STEP.IS_COMPLETE,
+      evidenceReference: [trade_surveillance::Store]SUR_INVESTIGATION_STEP.EVIDENCE_REFERENCE
+   }
+
+   *trade_surveillance::SurDeskEnquiry[surDeskEnquiry]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_DESK_ENQUIRY.ENQUIRY_ID )
+      ~mainTable [trade_surveillance::Store]SUR_DESK_ENQUIRY
+      enquiryId: [trade_surveillance::Store]SUR_DESK_ENQUIRY.ENQUIRY_ID,
+      sentAt: [trade_surveillance::Store]SUR_DESK_ENQUIRY.SENT_AT,
+      sentTo: [trade_surveillance::Store]SUR_DESK_ENQUIRY.SENT_TO,
+      question: [trade_surveillance::Store]SUR_DESK_ENQUIRY.QUESTION_TEXT,
+      respondedAt: [trade_surveillance::Store]SUR_DESK_ENQUIRY.RESPONDED_AT,
+      responseText: [trade_surveillance::Store]SUR_DESK_ENQUIRY.RESPONSE_TEXT,
+      responseAcceptedBy: [trade_surveillance::Store]SUR_DESK_ENQUIRY.RESPONSE_ACCEPTED_BY,
+      isSatisfactory: [trade_surveillance::Store]SUR_DESK_ENQUIRY.IS_SATISFACTORY,
+      escalatedForNoResponse: [trade_surveillance::Store]SUR_DESK_ENQUIRY.ESCALATED_FOR_NO_RESPONSE
+   }
+
+   *trade_surveillance::SurCommunicationRecord[surCommunication]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_COMMUNICATION.COMMUNICATION_ID )
+      ~mainTable [trade_surveillance::Store]SUR_COMMUNICATION
+      communicationId: [trade_surveillance::Store]SUR_COMMUNICATION.COMMUNICATION_ID,
+      channel: [trade_surveillance::Store]SUR_COMMUNICATION.CHANNEL,
+      occurredAt: [trade_surveillance::Store]SUR_COMMUNICATION.OCCURRED_AT,
+      participants: [trade_surveillance::Store]SUR_COMMUNICATION.PARTICIPANTS,
+      directionCode: [trade_surveillance::Store]SUR_COMMUNICATION.DIRECTION_CODE,
+      excerpt: [trade_surveillance::Store]SUR_COMMUNICATION.EXCERPT,
+      isPrivileged: [trade_surveillance::Store]SUR_COMMUNICATION.IS_PRIVILEGED,
+      retrievedFrom: [trade_surveillance::Store]SUR_COMMUNICATION.RETRIEVED_FROM,
+      retentionExpiresOn: [trade_surveillance::Store]SUR_COMMUNICATION.RETENTION_EXPIRES_ON
+   }
+
+   *trade_surveillance::SurEscalation[surEscalation]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_ESCALATION.ESCALATION_ID )
+      ~mainTable [trade_surveillance::Store]SUR_ESCALATION
+      escalationId: [trade_surveillance::Store]SUR_ESCALATION.ESCALATION_ID,
+      escalatedAt: [trade_surveillance::Store]SUR_ESCALATION.ESCALATED_AT,
+      escalatedBy: [trade_surveillance::Store]SUR_ESCALATION.ESCALATED_BY,
+      escalatedTo: [trade_surveillance::Store]SUR_ESCALATION.ESCALATED_TO,
+      escalationLevel: [trade_surveillance::Store]SUR_ESCALATION.ESCALATION_LEVEL,
+      rationale: [trade_surveillance::Store]SUR_ESCALATION.RATIONALE,
+      decidedAt: [trade_surveillance::Store]SUR_ESCALATION.DECIDED_AT,
+      decision: [trade_surveillance::Store]SUR_ESCALATION.DECISION_TEXT,
+      isReportRecommended: [trade_surveillance::Store]SUR_ESCALATION.IS_REPORT_RECOMMENDED
+   }
+
+   *trade_surveillance::SurSuspiciousTransactionReport[surReport]: Relational
+   {
+      ~primaryKey ( [trade_surveillance::Store]SUR_STR.REPORT_ID )
+      ~mainTable [trade_surveillance::Store]SUR_STR
+      reportId: [trade_surveillance::Store]SUR_STR.REPORT_ID,
+      reportReference: [trade_surveillance::Store]SUR_STR.REPORT_REFERENCE,
+      status: EnumerationMapping SurReportStatusMapping: [trade_surveillance::Store]SUR_STR.REPORT_STATUS,
+      draftedOn: [trade_surveillance::Store]SUR_STR.DRAFTED_ON,
+      submittedOn: [trade_surveillance::Store]SUR_STR.SUBMITTED_ON,
+      regulatorCode: [trade_surveillance::Store]SUR_STR.REGULATOR_CODE,
+      jurisdiction: [trade_surveillance::Store]SUR_STR.JURISDICTION,
+      submittedBy: [trade_surveillance::Store]SUR_STR.SUBMITTED_BY,
+      acknowledgementReference: [trade_surveillance::Store]SUR_STR.ACKNOWLEDGEMENT_REFERENCE,
+      suspicionSummary: [trade_surveillance::Store]SUR_STR.SUSPICION_SUMMARY,
+      isSuspiciousOrder: [trade_surveillance::Store]SUR_STR.IS_SUSPICIOUS_ORDER,
+      isSuspiciousTransaction: [trade_surveillance::Store]SUR_STR.IS_SUSPICIOUS_TRANSACTION,
+      withdrawnOn: [trade_surveillance::Store]SUR_STR.WITHDRAWN_ON
+   }
+
+   // ---- THE SELF-ASSOCIATION MAPPING ----
+   // [surCase, surCase] on both ends, the same set id twice. Only the direction of travel
+   // over @Sur_RelatedCase tells them apart.
+   trade_surveillance::SurCaseRelation: Relational
+   {
+      AssociationMapping
+      (
+         relatedCase[surCase, surCase]: [trade_surveillance::Store]@Sur_RelatedCase,
+         linkedCases[surCase, surCase]: [trade_surveillance::Store]@Sur_RelatedCase
+      )
+   }
+
+   // ---- Cross-project association mappings ----
+   // `oexFill`, `oexOrderFillSummary`, `oexTradeBooking` and `tlcAmendment` are the
+   // upstream set ids, taken from their MANIFESTs. Neither dependency has a default id --
+   // both name every set explicitly -- so these cannot be guessed from the class names.
+
+   trade_surveillance::SurFillEvidenceLink: Relational
+   {
+      AssociationMapping
+      (
+         evidenceFill[surFillEvidence, oexFill]: [trade_surveillance::Store]@Sur_FillEvidenceFill,
+         surveillanceFillEvidence[oexFill, surFillEvidence]: [trade_surveillance::Store]@Sur_FillEvidenceFill
+      )
+   }
+
+   trade_surveillance::SurWashBuyFillLink: Relational
+   {
+      AssociationMapping
+      (
+         buySideFill[surWashMatch, oexFill]: [trade_surveillance::Store]@Sur_WashBuyFill,
+         surveillanceWashBuyMatches[oexFill, surWashMatch]: [trade_surveillance::Store]@Sur_WashBuyFill
+      )
+   }
+
+   trade_surveillance::SurWashSellFillLink: Relational
+   {
+      AssociationMapping
+      (
+         sellSideFill[surWashMatch, oexFill]: [trade_surveillance::Store]@Sur_WashSellFill,
+         surveillanceWashSellMatches[oexFill, surWashMatch]: [trade_surveillance::Store]@Sur_WashSellFill
+      )
+   }
+
+   trade_surveillance::SurFrontRunAheadFillLink: Relational
+   {
+      AssociationMapping
+      (
+         aheadFill[surFrontRunning, oexFill]: [trade_surveillance::Store]@Sur_FrontRunAheadFill,
+         surveillanceFrontRunLeads[oexFill, surFrontRunning]: [trade_surveillance::Store]@Sur_FrontRunAheadFill
+      )
+   }
+
+   trade_surveillance::SurAlertOrderSummaryLink: Relational
+   {
+      AssociationMapping
+      (
+         alertOrderSummary[surAlert, oexOrderFillSummary]: [trade_surveillance::Store]@Sur_AlertOrderSummary,
+         surveillanceAlerts[oexOrderFillSummary, surAlert]: [trade_surveillance::Store]@Sur_AlertOrderSummary
+      )
+   }
+
+   trade_surveillance::SurMessageRateOrderSummaryLink: Relational
+   {
+      AssociationMapping
+      (
+         metricOrderSummary[surMessageRate, oexOrderFillSummary]: [trade_surveillance::Store]@Sur_MessageRateOrderSummary,
+         surveillanceMessageRates[oexOrderFillSummary, surMessageRate]: [trade_surveillance::Store]@Sur_MessageRateOrderSummary
+      )
+   }
+
+   trade_surveillance::SurWashBookingLink: Relational
+   {
+      AssociationMapping
+      (
+         matchBooking[surWashMatch, oexTradeBooking]: [trade_surveillance::Store]@Sur_WashBooking,
+         surveillanceWashMatches[oexTradeBooking, surWashMatch]: [trade_surveillance::Store]@Sur_WashBooking
+      )
+   }
+
+   trade_surveillance::SurAmendmentEvidenceLink: Relational
+   {
+      AssociationMapping
+      (
+         evidenceAmendment[surAmendmentEvidence, tlcAmendment]: [trade_surveillance::Store]@Sur_AmendmentEvidenceAmendment,
+         surveillanceAmendmentEvidence[tlcAmendment, surAmendmentEvidence]: [trade_surveillance::Store]@Sur_AmendmentEvidenceAmendment
+      )
+   }
+
+   trade_surveillance::SurPatternAmendmentLink: Relational
+   {
+      AssociationMapping
+      (
+         patternHeadAmendment[surAmendmentPattern, tlcAmendment]: [trade_surveillance::Store]@Sur_PatternAmendment,
+         surveillanceAmendmentPatterns[tlcAmendment, surAmendmentPattern]: [trade_surveillance::Store]@Sur_PatternAmendment
+      )
+   }
+
+   // ---- Association mappings inside trade-surveillance ----
+
+   trade_surveillance::SurModelParameters: Relational
+   {
+      AssociationMapping
+      (
+         parameterModel[surModelParameter, surModel]: [trade_surveillance::Store]@Sur_ModelParameter,
+         parameters[surModel, surModelParameter]: [trade_surveillance::Store]@Sur_ModelParameter
+      )
+   }
+
+   trade_surveillance::SurModelCalibrations: Relational
+   {
+      AssociationMapping
+      (
+         calibrationModel[surModelCalibration, surModel]: [trade_surveillance::Store]@Sur_ModelCalibration,
+         calibrations[surModel, surModelCalibration]: [trade_surveillance::Store]@Sur_ModelCalibration
+      )
+   }
+
+   trade_surveillance::SurModelPerformances: Relational
+   {
+      AssociationMapping
+      (
+         performanceModel[surModelPerformance, surModel]: [trade_surveillance::Store]@Sur_ModelPerformance,
+         performanceRecords[surModel, surModelPerformance]: [trade_surveillance::Store]@Sur_ModelPerformance
+      )
+   }
+
+   trade_surveillance::SurModelRuns: Relational
+   {
+      AssociationMapping
+      (
+         runModel[surRun, surModel]: [trade_surveillance::Store]@Sur_ModelRun,
+         runs[surModel, surRun]: [trade_surveillance::Store]@Sur_ModelRun
+      )
+   }
+
+   trade_surveillance::SurRunAlerts: Relational
+   {
+      AssociationMapping
+      (
+         alertRun[surAlert, surRun]: [trade_surveillance::Store]@Sur_RunAlert,
+         runAlerts[surRun, surAlert]: [trade_surveillance::Store]@Sur_RunAlert
+      )
+   }
+
+   trade_surveillance::SurAlertModelLink: Relational
+   {
+      AssociationMapping
+      (
+         alertModel[surAlert, surModel]: [trade_surveillance::Store]@Sur_AlertModel,
+         modelAlerts[surModel, surAlert]: [trade_surveillance::Store]@Sur_AlertModel
+      )
+   }
+
+   trade_surveillance::SurAlertWindow: Relational
+   {
+      AssociationMapping
+      (
+         evidenceWindow[surAlert, surEvidenceWindow]: [trade_surveillance::Store]@Sur_AlertWindow,
+         windowAlert[surEvidenceWindow, surAlert]: [trade_surveillance::Store]@Sur_AlertWindow
+      )
+   }
+
+   trade_surveillance::SurWindowItems: Relational
+   {
+      AssociationMapping
+      (
+         itemWindow[surEvidenceItem, surEvidenceWindow]: [trade_surveillance::Store]@Sur_WindowItem,
+         items[surEvidenceWindow, surEvidenceItem]: [trade_surveillance::Store]@Sur_WindowItem
+      )
+   }
+
+   trade_surveillance::SurItemFillEvidence: Relational
+   {
+      AssociationMapping
+      (
+         evidenceItem[surFillEvidence, surEvidenceItem]: [trade_surveillance::Store]@Sur_ItemFillEvidence,
+         fillEvidence[surEvidenceItem, surFillEvidence]: [trade_surveillance::Store]@Sur_ItemFillEvidence
+      )
+   }
+
+   trade_surveillance::SurItemAmendmentEvidence: Relational
+   {
+      AssociationMapping
+      (
+         amendmentEvidenceItem[surAmendmentEvidence, surEvidenceItem]: [trade_surveillance::Store]@Sur_ItemAmendmentEvidence,
+         amendmentEvidence[surEvidenceItem, surAmendmentEvidence]: [trade_surveillance::Store]@Sur_ItemAmendmentEvidence
+      )
+   }
+
+   trade_surveillance::SurAlertAmendmentPatterns: Relational
+   {
+      AssociationMapping
+      (
+         patternAlert[surAmendmentPattern, surAlert]: [trade_surveillance::Store]@Sur_AlertAmendmentPattern,
+         amendmentPatterns[surAlert, surAmendmentPattern]: [trade_surveillance::Store]@Sur_AlertAmendmentPattern
+      )
+   }
+
+   trade_surveillance::SurWindowBookSnapshots: Relational
+   {
+      AssociationMapping
+      (
+         snapshotWindow[surBookSnapshot, surEvidenceWindow]: [trade_surveillance::Store]@Sur_WindowBookSnapshot,
+         bookSnapshots[surEvidenceWindow, surBookSnapshot]: [trade_surveillance::Store]@Sur_WindowBookSnapshot
+      )
+   }
+
+   trade_surveillance::SurSnapshotLevels: Relational
+   {
+      AssociationMapping
+      (
+         levelSnapshot[surBookLevel, surBookSnapshot]: [trade_surveillance::Store]@Sur_SnapshotLevel,
+         levels[surBookSnapshot, surBookLevel]: [trade_surveillance::Store]@Sur_SnapshotLevel
+      )
+   }
+
+   trade_surveillance::SurWindowCancellationBursts: Relational
+   {
+      AssociationMapping
+      (
+         burstWindow[surCancellationBurst, surEvidenceWindow]: [trade_surveillance::Store]@Sur_WindowCancellationBurst,
+         cancellationBursts[surEvidenceWindow, surCancellationBurst]: [trade_surveillance::Store]@Sur_WindowCancellationBurst
+      )
+   }
+
+   trade_surveillance::SurWindowMessageRates: Relational
+   {
+      AssociationMapping
+      (
+         messageRateWindow[surMessageRate, surEvidenceWindow]: [trade_surveillance::Store]@Sur_WindowMessageRate,
+         messageRates[surEvidenceWindow, surMessageRate]: [trade_surveillance::Store]@Sur_WindowMessageRate
+      )
+   }
+
+   trade_surveillance::SurWindowPriceImpacts: Relational
+   {
+      AssociationMapping
+      (
+         impactWindow[surPriceImpact, surEvidenceWindow]: [trade_surveillance::Store]@Sur_WindowPriceImpact,
+         priceImpacts[surEvidenceWindow, surPriceImpact]: [trade_surveillance::Store]@Sur_WindowPriceImpact
+      )
+   }
+
+   trade_surveillance::SurWindowClosingInfluence: Relational
+   {
+      AssociationMapping
+      (
+         influenceWindow[surClosingInfluence, surEvidenceWindow]: [trade_surveillance::Store]@Sur_WindowClosingInfluence,
+         closingInfluence[surEvidenceWindow, surClosingInfluence]: [trade_surveillance::Store]@Sur_WindowClosingInfluence
+      )
+   }
+
+   trade_surveillance::SurAlertWashMatches: Relational
+   {
+      AssociationMapping
+      (
+         washMatchAlert[surWashMatch, surAlert]: [trade_surveillance::Store]@Sur_AlertWashMatch,
+         washMatches[surAlert, surWashMatch]: [trade_surveillance::Store]@Sur_AlertWashMatch
+      )
+   }
+
+   trade_surveillance::SurAlertFrontRunning: Relational
+   {
+      AssociationMapping
+      (
+         frontRunningAlert[surFrontRunning, surAlert]: [trade_surveillance::Store]@Sur_AlertFrontRunning,
+         frontRunningSequences[surAlert, surFrontRunning]: [trade_surveillance::Store]@Sur_AlertFrontRunning
+      )
+   }
+
+   trade_surveillance::SurWatchListEntries: Relational
+   {
+      AssociationMapping
+      (
+         entryList[surWatchListEntry, surWatchList]: [trade_surveillance::Store]@Sur_ListEntry,
+         entries[surWatchList, surWatchListEntry]: [trade_surveillance::Store]@Sur_ListEntry
+      )
+   }
+
+   trade_surveillance::SurEntryNewsEvents: Relational
+   {
+      AssociationMapping
+      (
+         newsEntry[surNewsEvent, surWatchListEntry]: [trade_surveillance::Store]@Sur_EntryNews,
+         newsEvents[surWatchListEntry, surNewsEvent]: [trade_surveillance::Store]@Sur_EntryNews
+      )
+   }
+
+   trade_surveillance::SurAlertWatchListEntry: Relational
+   {
+      AssociationMapping
+      (
+         watchListEntry[surAlert, surWatchListEntry]: [trade_surveillance::Store]@Sur_AlertWatchEntry,
+         entryAlerts[surWatchListEntry, surAlert]: [trade_surveillance::Store]@Sur_AlertWatchEntry
+      )
+   }
+
+   trade_surveillance::SurAlertTriage: Relational
+   {
+      AssociationMapping
+      (
+         triageAlert[surTriage, surAlert]: [trade_surveillance::Store]@Sur_AlertTriage,
+         triage[surAlert, surTriage]: [trade_surveillance::Store]@Sur_AlertTriage
+      )
+   }
+
+   trade_surveillance::SurTriageReasonLink: Relational
+   {
+      AssociationMapping
+      (
+         reason[surTriage, surTriageReason]: [trade_surveillance::Store]@Sur_TriageReasonLink,
+         reasonTriages[surTriageReason, surTriage]: [trade_surveillance::Store]@Sur_TriageReasonLink
+      )
+   }
+
+   trade_surveillance::SurTriageAnalyst: Relational
+   {
+      AssociationMapping
+      (
+         reviewer[surTriage, surAnalyst]: [trade_surveillance::Store]@Sur_TriageAnalyst,
+         reviewedTriages[surAnalyst, surTriage]: [trade_surveillance::Store]@Sur_TriageAnalyst
+      )
+   }
+
+   trade_surveillance::SurCaseAlertMembership: Relational
+   {
+      AssociationMapping
+      (
+         linkCase[surCaseAlertLink, surCase]: [trade_surveillance::Store]@Sur_CaseAlertLinkCase,
+         alertLinks[surCase, surCaseAlertLink]: [trade_surveillance::Store]@Sur_CaseAlertLinkCase
+      )
+   }
+
+   trade_surveillance::SurAlertCaseMembership: Relational
+   {
+      AssociationMapping
+      (
+         linkAlert[surCaseAlertLink, surAlert]: [trade_surveillance::Store]@Sur_CaseAlertLinkAlert,
+         caseLinks[surAlert, surCaseAlertLink]: [trade_surveillance::Store]@Sur_CaseAlertLinkAlert
+      )
+   }
+
+   trade_surveillance::SurCaseAssignments: Relational
+   {
+      AssociationMapping
+      (
+         assignmentCase[surCaseAssignment, surCase]: [trade_surveillance::Store]@Sur_CaseAssignment,
+         assignments[surCase, surCaseAssignment]: [trade_surveillance::Store]@Sur_CaseAssignment
+      )
+   }
+
+   trade_surveillance::SurAnalystAssignments: Relational
+   {
+      AssociationMapping
+      (
+         analyst[surCaseAssignment, surAnalyst]: [trade_surveillance::Store]@Sur_AssignmentAnalyst,
+         caseAssignments[surAnalyst, surCaseAssignment]: [trade_surveillance::Store]@Sur_AssignmentAnalyst
+      )
+   }
+
+   trade_surveillance::SurCaseOwner: Relational
+   {
+      AssociationMapping
+      (
+         owner[surCase, surAnalyst]: [trade_surveillance::Store]@Sur_CaseOwner,
+         ownedCases[surAnalyst, surCase]: [trade_surveillance::Store]@Sur_CaseOwner
+      )
+   }
+
+   trade_surveillance::SurCaseSteps: Relational
+   {
+      AssociationMapping
+      (
+         stepCase[surInvestigationStep, surCase]: [trade_surveillance::Store]@Sur_CaseStep,
+         steps[surCase, surInvestigationStep]: [trade_surveillance::Store]@Sur_CaseStep
+      )
+   }
+
+   trade_surveillance::SurStepAnalyst: Relational
+   {
+      AssociationMapping
+      (
+         stepAnalyst[surInvestigationStep, surAnalyst]: [trade_surveillance::Store]@Sur_StepAnalyst,
+         analystSteps[surAnalyst, surInvestigationStep]: [trade_surveillance::Store]@Sur_StepAnalyst
+      )
+   }
+
+   trade_surveillance::SurCaseEnquiries: Relational
+   {
+      AssociationMapping
+      (
+         enquiryCase[surDeskEnquiry, surCase]: [trade_surveillance::Store]@Sur_CaseEnquiry,
+         deskEnquiries[surCase, surDeskEnquiry]: [trade_surveillance::Store]@Sur_CaseEnquiry
+      )
+   }
+
+   trade_surveillance::SurCaseCommunications: Relational
+   {
+      AssociationMapping
+      (
+         communicationCase[surCommunication, surCase]: [trade_surveillance::Store]@Sur_CaseCommunication,
+         communications[surCase, surCommunication]: [trade_surveillance::Store]@Sur_CaseCommunication
+      )
+   }
+
+   trade_surveillance::SurCaseEscalations: Relational
+   {
+      AssociationMapping
+      (
+         escalationCase[surEscalation, surCase]: [trade_surveillance::Store]@Sur_CaseEscalation,
+         escalations[surCase, surEscalation]: [trade_surveillance::Store]@Sur_CaseEscalation
+      )
+   }
+
+   trade_surveillance::SurCaseReports: Relational
+   {
+      AssociationMapping
+      (
+         reportCase[surReport, surCase]: [trade_surveillance::Store]@Sur_CaseReport,
+         reports[surCase, surReport]: [trade_surveillance::Store]@Sur_CaseReport
+      )
+   }
+
+   trade_surveillance::SurEscalationReport: Relational
+   {
+      AssociationMapping
+      (
+         reportEscalation[surReport, surEscalation]: [trade_surveillance::Store]@Sur_EscalationReport,
+         escalationReports[surEscalation, surReport]: [trade_surveillance::Store]@Sur_EscalationReport
+      )
+   }
+)
