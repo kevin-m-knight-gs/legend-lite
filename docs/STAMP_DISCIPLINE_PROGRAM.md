@@ -1184,3 +1184,88 @@ size limit paid with a REAL split (gridOracle helper). Guard census
 END STATE: mints outside compiler layers = ZERO, structurally frozen.
 
 Referee: suite 4185/0, corpus scoreboard byte-identical.
+
+## CANONICAL-RENDER VERDICTS LEG (user: "do it"; ordering ruling: render before JDBC gateway)
+
+Ordering rationale (ratified in-session): render DELETES JDBC surface
+the gateway would otherwise migrate (PureAsserts/GridCompare value-kind
+rows); render is the correctness leg and its blocker (stamp census
+zero) is cleared; the gateway's unique payoffs (validation, injection)
+only become real WITH the ingress prepared statements creates.
+
+### FALSE START RECORDED (2026-08-21, user-caught): the adapter hedge
+
+The first R1 attempt built compile-through of `equal()` to one SQL
+boolean with ASYMMETRIC TRUST (SQL true short-circuits, SQL false
+re-runs the whole host path) — the audit doc's fix-queue row 3. The
+user challenged it ("every time we try the adapter strategy it just
+turns out worse") and the challenge was CORRECT; reverted uncommitted.
+The tells, recorded so the shape is recognized next time:
+- It bumped the eval ledger UP (398→438) with an "it'll shrink later"
+  justification — on the ledger whose purpose is to shrink. A
+  transitional bridge pin-bump is the adapter disease's signature
+  (MODEL B: "the shims existed only because of the inversion";
+  D3-class adapter reverted; C2: producers+consumers move TOGETHER).
+- Two implementations stayed live with a conditional preference —
+  divergences get silently ABSORBED by the fallback. The repo's method
+  is the opposite: surface the divergence table loudly, adjudicate
+  each class, cut over hard. Measurement belongs in the REFEREE, not
+  as a permanent second path in production.
+- It drifted from the RATIFIED design (byte-compare of canonical
+  renders — equality semantics in ONE owner, the serialization
+  definition) back to an older idea (boolean equal() compile-through)
+  that then needed hedges for NaN/tolerance/sentinel — which under the
+  byte design are spec ROWS, not patches.
+
+### THE PLAN — homework, then spec, then hard cutovers
+
+**Homework (fact tables; every R0 row traceable to a source, a PCT
+pin, or a corpus witness — no guessing/sampling):**
+- H1 pure's normative print spec: toString/toRepresentation per
+  primitive from the REAL legend-pure checkout + PCT toString pins
+  (exact spellings: Float vs Integer forms, Decimal suffix, quoting,
+  +0000 temporals).
+- H2 engine's grid canonical form: the TDS print conventions (distinct
+  from scalar toString) from engine sources + wire notes.
+- H3 our emission census: what Render/dateLiteralPrint/STRFTIME-CONCAT
+  /PctTdsWrap already emit (corpus-pinned spellings); diff vs H1/H2 —
+  each mismatch is an R0 decision row.
+- H4 host-arm policy inventory: PureAsserts (kind lattice + repr +
+  temporal bridge + sorted/typeRank), GridCompare (sig-digit tolerance
+  heuristic), JsonCompare leaf rules, TDSNull sentinel scope — R0
+  absorbs or explicitly retires EACH.
+- H5 corpus assert distribution: assert-family × operand-kind counts;
+  and the structural fact that corpus expected literals ARE
+  engine-rendered canonical text — the strongest ground truth.
+- H6 edge witnesses: NaN/±Inf/-0.0/Decimal-scale/empty-in-collection
+  hunted in PCT+corpus so the edge catalog has witnesses.
+
+**R0** — the canonical-form spec doc, written FROM the tables: per-kind
+canonical render; where byte-equality ⟺ pure-equality holds; named
+exceptions (NaN; the 2-ULP tolerance as a declared numeric policy
+outside the byte channel until its census retires it).
+
+**R1** — the render owner (Render's SQL print forms grown into THE
+canonical serializer) + a HARNESS-side divergence instrument: across
+the full corpus, render(e)==render(a) computed NEXT TO
+PureAsserts.equal(e,a); publish the disagreement table. No production
+path changes.
+
+**R2** — per-family HARD cutover (assertEquals scalars → collections →
+grids): each family moves to byte-compare AND its host arms delete in
+the SAME slice — ledger pins go DOWN in every commit; disagreements
+fail loudly as rings.
+
+**R3/R4** — tolerance census re-read; World-2 paired probes guard only
+what SURVIVES by design.
+
+### PROVENANCE CORRECTION (2026-08-21, owed to COMPILER_SHORTCUT_AUDIT)
+
+Egress slice A (d1c968e0) cited "engine resultSizeRange parity". The
+audit verified the reference and the citation is WRONG: the engine
+reads resultSizeRange only via isUpperBoundEqualTo(1) to choose
+realize-vs-stream (ExecutionNodeResultHelper.java:32-41) — there is no
+lower-bound row-count check in the reference executor. The FIX stands
+on the PURE-SPEC ground (size-0 into a required bound raises pure's
+cast error, PCT-witnessed), not on engine parity. The behavior is
+unchanged; the claim is corrected.
