@@ -1,0 +1,515 @@
+###Pure
+// custody-recon -- WHAT THE CUSTODIAN SAYS WE HOLD, PUT AGAINST WHAT WE SAY WE OWN.
+//
+// Layer 2. Depends on custody-core (the holdings) and position-keeping (the positions),
+// and on nothing else. It does not reach past them to core-account or core-instrument:
+// everything it needs about an account or an instrument it reaches THROUGH a holding or
+// a position.
+//
+// THE PROBLEM THIS PROJECT EXISTS FOR. The two sides are not keyed the same way and no
+// amount of goodwill makes them line up:
+//
+//     a custody holding is   (institution, account, instrument, DEPOT)
+//     an internal position is (institution, account, instrument, DATE)
+//
+// Three of the four columns agree. The fourth does not, and it does not disagree
+// symmetrically: DEPOT is a place and DATE is a moment. Custody has no opinion about
+// dates -- a holding is a standing statement of where stock sits -- and position keeping
+// has no opinion about places -- a position is what an account owns, wherever it happens
+// to be sitting. So the join between them is three columns wide plus a date supplied by
+// the RUN, and it is one-to-MANY in the depot direction: the same position faces every
+// depot the account keeps that instrument in, and there is normally more than one.
+//
+// TWO CONSTRUCTS CARRY THAT.
+//
+//   COMPOSITE KEY  Nothing here is identified by fewer than two columns and the spine is
+//                  identified by six. A ReconItem is
+//                  (reconCode, cobDate, institution, account, instrument, depot) --
+//                  the union of both key shapes, which is the only key that can hold one
+//                  comparison, because dropping the depot merges two custodians' answers
+//                  and dropping the date merges two days' runs. A ReconBreak adds a
+//                  seventh column, its type.
+//
+//   AGGREGATION    Four classes are per-group TOTALS on store Views, and one of them is
+//                  the reconciliation itself: DepotRollup groups the items by the FIVE
+//                  columns a position has, which is to say it groups AWAY the depot. That
+//                  GROUP BY is the whole trick -- it is what converts a set of
+//                  holding-shaped rows into one position-shaped row that a position can
+//                  actually be compared against. The other three totals are the
+//                  management view: per account, per break type, per assignee.
+//
+// A run, its matched items, its breaks by type, their ageing, their assignment and their
+// resolution are all here, because a reconciliation that only tells you the difference
+// and not who is fixing it is a report, not a control.
+
+// -------------------------------------------------------------- the standing set-up
+
+// THE STANDING DEFINITION OF ONE RECONCILIATION -- which two sources are compared, how
+// often, and who owns the answer. Every other row in the project is stamped with its
+// reconCode, so two reconciliations of the same holdings (an intraday one and the
+// official overnight one) never contaminate each other's breaks.
+Class custody_recon::ReconDefinition
+{
+   reconCode: String[1];
+
+   reconName: String[1];
+   // Named rather than typed, because the pair is the point: custody is source A and the
+   // internal book is source B, and which one is "right" is decided break by break.
+   sourceASystem: String[1];
+   sourceBSystem: String[1];
+   frequency: String[1];
+   ownerTeam: String[1];
+   defaultToleranceQuantity: Float[0..1];
+   introducedOn: StrictDate[1];
+   retiredOn: StrictDate[0..1];
+
+   toleranceRules: custody_recon::ToleranceRule[*];
+   ageingBands: custody_recon::AgeingBand[*];
+   runs: custody_recon::ReconRun[*];
+
+   // A null retirement date is the only honest test of liveness -- a Filter will not take
+   // a boolean literal either, so the store agrees with the model here.
+   isLive() { $this.retiredOn->isEmpty() } : Boolean[1];
+}
+
+// HOW SMALL A DIFFERENCE COUNTS AS ZERO, for one scope of one reconciliation. Keyed by
+// THREE columns -- (reconCode, ruleScope, ruleCode) -- because a rule code such as
+// `BOND-ROUNDING` means one thing under the scope `INSTRUMENT_CLASS` and another under
+// `MARKET`, and both live under their own reconciliation.
+Class custody_recon::ToleranceRule
+{
+   reconCode: String[1];
+   ruleScope: String[1];
+   ruleCode: String[1];
+
+   toleranceQuantity: Float[0..1];
+   tolerancePercent: Float[0..1];
+   toleranceAmount: Float[0..1];
+   toleranceCurrency: String[0..1];
+   appliesFrom: StrictDate[1];
+   appliesTo: StrictDate[0..1];
+   ruleNote: String[0..1];
+
+   definition: custody_recon::ReconDefinition[1];
+   items: custody_recon::ReconItem[*];
+
+   ruleKey() { $this.reconCode + '/' + $this.ruleScope + '/' + $this.ruleCode } : String[1];
+   isCurrent() { $this.appliesTo->isEmpty() } : Boolean[1];
+}
+
+// ONE NAMED BUCKET OF BREAK AGE -- `0-1D`, `2-5D`, `6-30D`, `31D+` -- and what it
+// escalates to. Ageing is banded rather than left as a raw day count because escalation
+// is a step function: nobody escalates on day four and a half.
+Class custody_recon::AgeingBand
+{
+   reconCode: String[1];
+   bandCode: String[1];
+
+   bandLabel: String[1];
+   minAgeDays: Integer[1];
+   // Absent on the top band. That band is where breaks go to be argued about.
+   maxAgeDays: Integer[0..1];
+   escalationLevel: String[1];
+   bandOrder: Integer[1];
+
+   definition: custody_recon::ReconDefinition[1];
+   breaks: custody_recon::ReconBreak[*];
+
+   isOpenEnded() { $this.maxAgeDays->isEmpty() } : Boolean[1];
+}
+
+// -------------------------------------------------------------- the run and its output
+
+// ONE EXECUTION OF ONE RECONCILIATION FOR ONE DAY. Keyed by THREE columns --
+// (reconCode, cobDate, runSeq) -- because a day is reconciled more than once: the first
+// run at 06:00 against an overnight statement, then again after the late statement
+// arrives, and the second run must not overwrite the evidence of the first.
+//
+// The run is also where the DATE that the two key shapes are missing comes from. Custody
+// holdings carry no date of their own; the run's cobDate is what pins them to a position.
+Class custody_recon::ReconRun
+{
+   reconCode: String[1];
+   cobDate: StrictDate[1];
+   runSeq: Integer[1];
+
+   runType: String[1];
+   runStatus: String[1];
+   startedOn: StrictDate[1];
+   completedOn: StrictDate[0..1];
+   lineCount: Integer[1];
+   itemCount: Integer[1];
+   matchedCount: Integer[1];
+   breakCount: Integer[1];
+   triggeredBy: String[1];
+
+   definition: custody_recon::ReconDefinition[1];
+   lines: custody_recon::ReconLine[*];
+   items: custody_recon::ReconItem[*];
+
+   isComplete() { $this.completedOn->isEmpty()->not() } : Boolean[1];
+
+   // Integer / Integer widens to Float on its own, so this is Float and not Integer.
+   matchRate() { $this.matchedCount / $this.itemCount } : Float[1];
+}
+
+// ONE INTERNAL POSITION PUT UP AGAINST EVERYTHING CUSTODY SAYS ABOUT IT. This is the
+// POSITION-SHAPED side of the reconciliation: keyed by FIVE columns --
+// (reconCode, cobDate, institutionId, accountNo, instrumentId) -- which is exactly
+// position-keeping's four-column position key with the reconciliation's code in front of
+// it. There is deliberately no depot here; that is what makes it comparable to a
+// position at all.
+//
+// Its custodyQuantity is the SUM over the depots underneath it. One line, several items.
+Class custody_recon::ReconLine
+{
+   reconCode: String[1];
+   cobDate: StrictDate[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+
+   runSeq: Integer[1];
+   // How many depots this one position had to be spread over. A line with depotCount 1 is
+   // the easy case and most lines are not it.
+   depotCount: Integer[1];
+   custodyQuantity: Float[1];
+   internalQuantity: Float[1];
+   differenceQuantity: Float[1];
+   differenceValue: Float[0..1];
+   priceCurrency: String[0..1];
+   quantityUnit: String[1];
+   lineStatus: String[1];
+   isWithinTolerance: Boolean[1];
+   matchedOn: StrictDate[0..1];
+
+   run: custody_recon::ReconRun[1];
+   items: custody_recon::ReconItem[*];
+
+   // CROSS-PROJECT, and the reason this class is shaped the way it is: three shared
+   // columns plus the run's cobDate reach exactly one position.
+   position: position_keeping::Position[0..1];
+   // Movements totalled for the same position-day. A quantity break that equals the day's
+   // net movement is a timing break wearing a disguise, and this is what shows it.
+   movementTotal: position_keeping::MovementTotal[0..1];
+   ladder: position_keeping::SettlementLadderEntry[*];
+
+   // The depot-grain items collapsed back to this line's own shape. Reading it does not
+   // read the item rows.
+   rollup: custody_recon::DepotRollup[0..1];
+   accountTotal: custody_recon::AccountReconTotal[0..1];
+
+   lineKey() { $this.reconCode + '/' + $this.institutionId + '/' + $this.accountNo + '/' + $this.instrumentId } : String[1];
+
+   // Recomputed rather than read from differenceQuantity, on purpose: if the two disagree
+   // the stored figure is from an earlier run and the line is stale.
+   custodyLessInternal() { $this.custodyQuantity - $this.internalQuantity } : Float[1];
+
+   isMatched() { $this.matchedOn->isEmpty()->not() } : Boolean[1];
+   facesSeveralDepots() { $this.depotCount > 1 } : Boolean[1];
+}
+
+// ONE COMPARISON AT THE DEPOT GRAIN -- the spine of the project and the class that holds
+// BOTH key shapes at once. SIX key columns:
+//
+//     reconCode + cobDate + institutionId + accountNo + instrumentId + depotCode
+//                 \___ position-keeping's fourth ___/               \_ custody-core's _/
+//
+// Take the four middle-and-right columns without cobDate and you have custody-core's
+// holding key exactly; take them without depotCode and you have position-keeping's
+// position key exactly. Neither key is a prefix of the other, which is why the item has
+// to carry both and why no shorter key would do: drop depotCode and two custodians'
+// answers merge into one row, drop cobDate and yesterday's run overwrites today's.
+//
+// The internalQuantity on an item is the position's quantity ALLOCATED to this depot,
+// and allocationBasis records how -- a position cannot be split by any rule custody
+// knows about, so the split is a stated policy rather than a fact.
+Class custody_recon::ReconItem
+{
+   reconCode: String[1];
+   cobDate: StrictDate[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   depotCode: String[1];
+
+   runSeq: Integer[1];
+
+   // Custody's answer, from the holding. Zero when there is no holding at all.
+   custodyQuantity: Float[1];
+   custodySettledQuantity: Float[1];
+   // Our answer, or this depot's share of it.
+   internalQuantity: Float[1];
+   internalSettledQuantity: Float[1];
+   differenceQuantity: Float[1];
+
+   // SINGLE_DEPOT, PRIMARY_DEPOT, PRO_RATA or UNALLOCATED. UNALLOCATED is the honest
+   // answer when an account holds one instrument at three depots and nothing in the
+   // internal book says which depot owns which share -- the line still reconciles, the
+   // item does not.
+   allocationBasis: String[1];
+   allocationRatio: Float[0..1];
+
+   matchStatus: String[1];
+   // Which side actually turned up. Both false cannot happen; either false is a break.
+   hasCustodySide: Boolean[1];
+   hasInternalSide: Boolean[1];
+   toleranceScope: String[0..1];
+   toleranceCode: String[0..1];
+   matchedOn: StrictDate[0..1];
+
+   line: custody_recon::ReconLine[1];
+   run: custody_recon::ReconRun[1];
+   breaks: custody_recon::ReconBreak[*];
+   toleranceRule: custody_recon::ToleranceRule[0..1];
+   rollup: custody_recon::DepotRollup[0..1];
+
+   // CROSS-PROJECT, custody side. Four columns, no date -- a holding has none.
+   holding: custody_core::CustodyHolding[0..1];
+   depot: custody_core::Depot[0..1];
+   // In-flight receipts and deliveries at this depot: the usual explanation of a timing
+   // break, and the reason the depot column cannot be aggregated away before matching.
+   pendingMovements: custody_core::PendingMovement[*];
+   // The custodian's own dated figure. This join is where the two shapes meet head-on:
+   // four holding columns AND the run's cobDate against the statement's own date.
+   custodianStatement: custody_core::CustodyStatementLine[0..1];
+
+   // CROSS-PROJECT, internal side. Three shared columns plus cobDate, and DEPOT_CODE is
+   // deliberately not in it -- which is precisely why several items point at one position.
+   position: position_keeping::Position[0..1];
+
+   // The custody-shaped identity of this comparison: what custody-core calls this row.
+   holdingKey() { $this.institutionId + '/' + $this.accountNo + '/' + $this.instrumentId + '/' + $this.depotCode } : String[1];
+
+   // The position-shaped identity of the same comparison, minus its date. Two derived
+   // properties on one class because the row genuinely has two names.
+   positionKey() { $this.institutionId + '/' + $this.accountNo + '/' + $this.instrumentId } : String[1];
+
+   signedDifference() { $this.custodyQuantity - $this.internalQuantity } : Float[1];
+   isMatched() { $this.matchedOn->isEmpty()->not() } : Boolean[1];
+
+   // Custody has it and we do not: stock at a depot nobody booked. The dangerous one.
+   isCustodyOnly() { $this.hasInternalSide->not() } : Boolean[1];
+   // We have it and custody does not: a position with nowhere to sit.
+   isInternalOnly() { $this.hasCustodySide->not() } : Boolean[1];
+
+   // The split was a guess. A break on an unallocated item is a modelling problem, not an
+   // operational one, and is triaged differently.
+   isUnallocated() { $this.allocationBasis == 'UNALLOCATED' } : Boolean[1];
+}
+
+// -------------------------------------------------------------- breaks and their life
+
+// ONE DISAGREEMENT OF ONE TYPE ON ONE ITEM. SEVEN key columns: the item's six plus
+// breakType, because a single item can fail in more than one way at once -- a holding
+// can be short by 500 AND have an unmatched receipt in flight -- and the two are worked
+// by different people.
+//
+// The four types are the four things that can be wrong:
+//   QUANTITY       both sides are there and the numbers differ by more than tolerance
+//   MISSING_HERE   custody has a holding; the internal book has no position
+//   MISSING_THERE  the internal book has a position; custody has no holding at that depot
+//   TIMING         the difference is exactly explained by something in flight and will
+//                  clear itself on settlement date
+//
+// breakRef is a mint-once reference for the workflow layer. It exists because assignment
+// and resolution are done by humans through tickets, and a seven-column natural key is
+// not something anybody pastes into one.
+Class custody_recon::ReconBreak
+{
+   reconCode: String[1];
+   cobDate: StrictDate[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   depotCode: String[1];
+   breakType: String[1];
+
+   breakRef: String[1];
+   breakQuantity: Float[1];
+   breakValue: Float[0..1];
+   breakCurrency: String[0..1];
+   severity: String[1];
+
+   // Ageing. detectedOn is this run's; firstSeenOn is the first run that ever saw this
+   // break, and it survives the break being re-detected every night. Ageing off
+   // detectedOn would reset the clock daily, which is how a six-month break gets reported
+   // as one day old.
+   detectedOn: StrictDate[1];
+   firstSeenOn: StrictDate[1];
+   ageDays: Integer[1];
+   ageingBandCode: String[0..1];
+
+   assignedTo: String[0..1];
+   assignedTeam: String[0..1];
+   breakStatus: String[1];
+   resolvedOn: StrictDate[0..1];
+
+   item: custody_recon::ReconItem[1];
+   ageingBand: custody_recon::AgeingBand[0..1];
+   assignments: custody_recon::BreakAssignment[*];
+   resolution: custody_recon::BreakResolution[0..1];
+   typeTotal: custody_recon::BreakTypeTotal[0..1];
+   assigneeLoad: custody_recon::AssigneeLoad[0..1];
+
+   isOpen() { $this.resolvedOn->isEmpty() } : Boolean[1];
+   isQuantityBreak() { $this.breakType == 'QUANTITY' } : Boolean[1];
+   isTimingBreak() { $this.breakType == 'TIMING' } : Boolean[1];
+   // Either side missing entirely. Read together, these two are the whole "missing here /
+   // missing there" pair.
+   isOneSided() { $this.breakType == 'MISSING_HERE' || $this.breakType == 'MISSING_THERE' } : Boolean[1];
+   isUnassigned() { $this.assignedTo->isEmpty() } : Boolean[1];
+}
+
+// ONE HANDOVER OF ONE BREAK TO ONE PERSON. Keyed by (reconCode, breakRef, assignmentSeq)
+// -- THREE columns -- because a break is reassigned: ops picks it up, hands it to the
+// custody team, who hand it back. Kept as a sequence of rows rather than one mutable
+// owner field so the trail is still readable at audit.
+Class custody_recon::BreakAssignment
+{
+   reconCode: String[1];
+   breakRef: String[1];
+   assignmentSeq: Integer[1];
+
+   assignedTo: String[1];
+   assignedTeam: String[1];
+   assignedOn: StrictDate[1];
+   assignedBy: String[1];
+   dueOn: StrictDate[0..1];
+   releasedOn: StrictDate[0..1];
+   assignmentNote: String[0..1];
+
+   reconBreak: custody_recon::ReconBreak[1];
+
+   isCurrent() { $this.releasedOn->isEmpty() } : Boolean[1];
+}
+
+// HOW A BREAK WAS CLOSED, and by whose authority. One per break, keyed by
+// (reconCode, breakRef). correctionSide is the part that matters months later: whether
+// custody was corrected, the internal book was corrected, or neither was and the break
+// was written off.
+Class custody_recon::BreakResolution
+{
+   reconCode: String[1];
+   breakRef: String[1];
+
+   resolutionType: String[1];
+   resolvedOn: StrictDate[1];
+   resolvedBy: String[1];
+   rootCause: String[1];
+   correctionSide: String[1];
+   correctionQuantity: Float[0..1];
+   resolutionNote: String[0..1];
+   approvedBy: String[0..1];
+
+   reconBreak: custody_recon::ReconBreak[1];
+
+   // A write-off that nobody signed off is an open item wearing a closed status.
+   isApproved() { $this.approvedBy->isEmpty()->not() } : Boolean[1];
+   isWriteOff() { $this.resolutionType == 'WRITE_OFF' } : Boolean[1];
+}
+
+// -------------------------------------------------------------- the aggregations
+
+// THE RECONCILIATION OF THE TWO KEY SHAPES, EXPRESSED AS A GROUP BY. One row is one
+// (reconCode, cobDate, institution, account, instrument) -- the position's shape -- and
+// it is built by grouping the depot-grain items and DROPPING the depot column. That is
+// the whole answer to "how do you compare a four-column holding key with a different
+// four-column position key": you do not compare them, you aggregate one of them until it
+// has the other's shape.
+//
+// It is a store View, not a table: no DDL, nothing seeds it, and the engine folds the
+// GROUP BY into its SQL. Navigating here from a line crosses into a group and never into
+// another item row. Note what a grouping does not produce: a position with no custody
+// items at all forms NO group, and is absent rather than showing a total of zero -- which
+// is exactly why MISSING_THERE has to be detected on the items and cannot be read off
+// this view.
+Class custody_recon::DepotRollup
+{
+   reconCode: String[1];
+   cobDate: StrictDate[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+
+   depotCount: Integer[1];
+   totalCustodyQuantity: Float[1];
+   totalInternalQuantity: Float[1];
+   netDifference: Float[1];
+   largestDepotQuantity: Float[1];
+
+   line: custody_recon::ReconLine[0..1];
+   items: custody_recon::ReconItem[*];
+   // The group faces the position directly, on the same three columns plus the date. This
+   // is the join the whole project is built to make possible.
+   position: position_keeping::Position[0..1];
+
+   differenceAgainstPosition() { $this.totalCustodyQuantity - $this.totalInternalQuantity } : Float[1];
+
+   // Float / Integer does not type as Float, so the count is widened first.
+   averageDepotQuantity() { $this.totalCustodyQuantity / $this.depotCount->toFloat() } : Float[1];
+
+   facesSeveralDepots() { $this.depotCount > 1 } : Boolean[1];
+}
+
+// ONE ACCOUNT'S WHOLE RECONCILIATION ON ONE DAY, grouped out of the lines. What a client
+// service desk opens in the morning: how many instruments were compared for this account,
+// how much of it disagrees, and by how much at worst. The grouping drops the instrument.
+Class custody_recon::AccountReconTotal
+{
+   reconCode: String[1];
+   cobDate: StrictDate[1];
+   institutionId: String[1];
+   accountNo: String[1];
+
+   lineCount: Integer[1];
+   totalCustodyQuantity: Float[1];
+   totalInternalQuantity: Float[1];
+   totalDifferenceQuantity: Float[1];
+   totalDifferenceValue: Float[0..1];
+   largestDifference: Float[1];
+
+   lines: custody_recon::ReconLine[*];
+
+   averageDifference() { $this.totalDifferenceQuantity / $this.lineCount->toFloat() } : Float[1];
+}
+
+// BREAKS OF ONE TYPE ON ONE DAY, TOTALLED -- the count, the money and the oldest one.
+// The grouping is (reconCode, cobDate, breakType), which is the shape of the daily break
+// report: four rows, one per type, and the ops manager reads the OLDEST_AGE_DAYS column
+// first because a growing maximum age is worse news than a growing count.
+Class custody_recon::BreakTypeTotal
+{
+   reconCode: String[1];
+   cobDate: StrictDate[1];
+   breakType: String[1];
+
+   breakCount: Integer[1];
+   totalBreakQuantity: Float[1];
+   totalBreakValue: Float[0..1];
+   oldestAgeDays: Integer[1];
+   earliestDetectedOn: StrictDate[1];
+
+   breaks: custody_recon::ReconBreak[*];
+
+   averageBreakQuantity() { $this.totalBreakQuantity / $this.breakCount->toFloat() } : Float[1];
+}
+
+// ONE PERSON'S BREAK QUEUE across every day of one reconciliation. The grouping drops the
+// cob date entirely, which is the point: a break does not stop being yours because the
+// date rolled. This is the aggregate that makes ageing actionable rather than merely
+// reportable.
+Class custody_recon::AssigneeLoad
+{
+   reconCode: String[1];
+   assignedTo: String[1];
+
+   assignedBreakCount: Integer[1];
+   totalBreakValue: Float[0..1];
+   oldestAgeDays: Integer[1];
+   latestCobDate: StrictDate[1];
+
+   breaks: custody_recon::ReconBreak[*];
+
+   isOverloaded() { $this.assignedBreakCount > 25 } : Boolean[1];
+}

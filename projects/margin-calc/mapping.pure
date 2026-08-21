@@ -1,0 +1,407 @@
+###Mapping
+// The margin-calc mapping. It INCLUDES both upstream mappings, so the sets this project's
+// joins land on -- `pkPosition` for a position, `rskPortfolio`, `rskSensitivity`,
+// `rskFactor` and `rskFactorTotal` for the risk side -- already exist and are not redefined
+// here. Both dependencies give every set an EXPLICIT id, which means the default ids
+// (`position_keeping_Position`, `risk_core_RskSensitivity`) do not exist to fall back on
+// and every cross-project property mapping below has to name the real one.
+//
+// This is a DIAMOND: core-instrument's mapping arrives twice, once through each dependency,
+// and must resolve to one set of sets.
+//
+// The last two sets are rooted on VIEWS. Their ~primaryKey is the view's ~groupBy, which is
+// what makes one instance a GROUP and not a row.
+Mapping margin_calc::Mapping
+(
+   include position_keeping::Mapping
+   include risk_core::Mapping
+
+   margin_calc::MgnMarginAgreement[mgnAgreement]: Relational
+   {
+      ~primaryKey
+      (
+         [margin_calc::Store]MGN_AGREEMENT.AGREEMENT_ID
+      )
+      ~mainTable [margin_calc::Store]MGN_AGREEMENT
+      agreementId: [margin_calc::Store]MGN_AGREEMENT.AGREEMENT_ID,
+      agreementType: [margin_calc::Store]MGN_AGREEMENT.AGREEMENT_TYPE,
+      counterpartyId: [margin_calc::Store]MGN_AGREEMENT.COUNTERPARTY_ID,
+      institutionId: [margin_calc::Store]MGN_AGREEMENT.INSTITUTION_ID,
+      baseCurrency: [margin_calc::Store]MGN_AGREEMENT.BASE_CURRENCY,
+      threshold: [margin_calc::Store]MGN_AGREEMENT.THRESHOLD,
+      minimumTransferAmount: [margin_calc::Store]MGN_AGREEMENT.MINIMUM_TRANSFER_AMOUNT,
+      roundingAmount: [margin_calc::Store]MGN_AGREEMENT.ROUNDING_AMOUNT,
+      independentAmount: [margin_calc::Store]MGN_AGREEMENT.INDEPENDENT_AMOUNT,
+      marginCallFrequency: [margin_calc::Store]MGN_AGREEMENT.MARGIN_CALL_FREQUENCY,
+      closeOutPeriodDays: [margin_calc::Store]MGN_AGREEMENT.CLOSE_OUT_PERIOD_DAYS,
+      confidencePct: [margin_calc::Store]MGN_AGREEMENT.CONFIDENCE_PCT,
+      isBilateral: [margin_calc::Store]MGN_AGREEMENT.IS_BILATERAL,
+      imMethod: [margin_calc::Store]MGN_AGREEMENT.IM_METHOD,
+      effectiveFrom: [margin_calc::Store]MGN_AGREEMENT.EFFECTIVE_FROM,
+      terminatedOn: [margin_calc::Store]MGN_AGREEMENT.TERMINATED_ON,
+      calls[mgnMarginCall]: [margin_calc::Store]@Mgn_AgreementCalls,
+      variationMargins[mgnVariationMargin]: [margin_calc::Store]@Mgn_AgreementVariationMargins,
+      haircuts[mgnCollateralHaircut]: [margin_calc::Store]@Mgn_AgreementHaircuts,
+      portfolios[mgnMarginPortfolio]: [margin_calc::Store]@Mgn_AgreementPortfolios
+   }
+
+   // The netting set, and the two cross-project property mappings that make it one.
+   margin_calc::MgnMarginPortfolio[mgnMarginPortfolio]: Relational
+   {
+      ~primaryKey
+      (
+         [margin_calc::Store]MGN_MARGIN_PORTFOLIO.MARGIN_PORTFOLIO_ID
+      )
+      ~mainTable [margin_calc::Store]MGN_MARGIN_PORTFOLIO
+      marginPortfolioId: [margin_calc::Store]MGN_MARGIN_PORTFOLIO.MARGIN_PORTFOLIO_ID,
+      agreementId: [margin_calc::Store]MGN_MARGIN_PORTFOLIO.AGREEMENT_ID,
+      riskPortfolioId: [margin_calc::Store]MGN_MARGIN_PORTFOLIO.RISK_PORTFOLIO_ID,
+      institutionId: [margin_calc::Store]MGN_MARGIN_PORTFOLIO.INSTITUTION_ID,
+      accountNo: [margin_calc::Store]MGN_MARGIN_PORTFOLIO.ACCOUNT_NO,
+      baseCurrency: [margin_calc::Store]MGN_MARGIN_PORTFOLIO.BASE_CURRENCY,
+      imMethod: [margin_calc::Store]MGN_MARGIN_PORTFOLIO.IM_METHOD,
+      isSegregated: [margin_calc::Store]MGN_MARGIN_PORTFOLIO.IS_SEGREGATED,
+      nettingSetCode: [margin_calc::Store]MGN_MARGIN_PORTFOLIO.NETTING_SET_CODE,
+      agreement[mgnAgreement]: [margin_calc::Store]@Mgn_AgreementPortfolios,
+      // CROSS-PROJECT. risk-core's set id, not a default one.
+      riskPortfolio[rskPortfolio]: [margin_calc::Store]@Mgn_PortfolioRiskPortfolio,
+      initialMargins[mgnInitialMargin]: [margin_calc::Store]@Mgn_PortfolioInitialMargins,
+      riskClassMargins[mgnRiskClassMargin]: [margin_calc::Store]@Mgn_PortfolioRiskClassMargins,
+      simmSensitivities[mgnSimmSensitivity]: [margin_calc::Store]@Mgn_PortfolioSimmSensitivities,
+      positionMargins[mgnPositionMargin]: [margin_calc::Store]@Mgn_PortfolioPositionMargins,
+      concentrationAddOns[mgnConcentrationAddOn]: [margin_calc::Store]@Mgn_PortfolioConcentrationAddOns,
+      liquidityAddOns[mgnLiquidityAddOn]: [margin_calc::Store]@Mgn_PortfolioLiquidityAddOns,
+      marginTotals[mgnPortfolioMarginTotal]: [margin_calc::Store]@Mgn_PortfolioMarginTotals
+   }
+
+   margin_calc::MgnMarginRun[mgnMarginRun]: Relational
+   {
+      ~primaryKey
+      (
+         [margin_calc::Store]MGN_RUN.COB_DATE,
+         [margin_calc::Store]MGN_RUN.RUN_SEQ
+      )
+      ~mainTable [margin_calc::Store]MGN_RUN
+      cobDate: [margin_calc::Store]MGN_RUN.COB_DATE,
+      runSeq: [margin_calc::Store]MGN_RUN.RUN_SEQ,
+      runType: [margin_calc::Store]MGN_RUN.RUN_TYPE,
+      runStatus: [margin_calc::Store]MGN_RUN.RUN_STATUS,
+      startedAt: [margin_calc::Store]MGN_RUN.STARTED_AT,
+      completedAt: [margin_calc::Store]MGN_RUN.COMPLETED_AT,
+      agreementCount: [margin_calc::Store]MGN_RUN.AGREEMENT_COUNT,
+      callCount: [margin_calc::Store]MGN_RUN.CALL_COUNT,
+      suppressedCallCount: [margin_calc::Store]MGN_RUN.SUPPRESSED_CALL_COUNT,
+      totalCalledAmount: [margin_calc::Store]MGN_RUN.TOTAL_CALLED_AMOUNT,
+      calls[mgnMarginCall]: [margin_calc::Store]@Mgn_CallRun
+   }
+
+   margin_calc::MgnMarginCall[mgnMarginCall]: Relational
+   {
+      ~primaryKey
+      (
+         [margin_calc::Store]MGN_MARGIN_CALL.AGREEMENT_ID,
+         [margin_calc::Store]MGN_MARGIN_CALL.COB_DATE
+      )
+      ~mainTable [margin_calc::Store]MGN_MARGIN_CALL
+      agreementId: [margin_calc::Store]MGN_MARGIN_CALL.AGREEMENT_ID,
+      cobDate: [margin_calc::Store]MGN_MARGIN_CALL.COB_DATE,
+      runSeq: [margin_calc::Store]MGN_MARGIN_CALL.RUN_SEQ,
+      callDirection: [margin_calc::Store]MGN_MARGIN_CALL.CALL_DIRECTION,
+      requiredMargin: [margin_calc::Store]MGN_MARGIN_CALL.REQUIRED_MARGIN,
+      initialMarginAmount: [margin_calc::Store]MGN_MARGIN_CALL.INITIAL_MARGIN_AMOUNT,
+      variationMarginAmount: [margin_calc::Store]MGN_MARGIN_CALL.VARIATION_MARGIN_AMOUNT,
+      addOnAmount: [margin_calc::Store]MGN_MARGIN_CALL.ADDON_AMOUNT,
+      collateralValue: [margin_calc::Store]MGN_MARGIN_CALL.COLLATERAL_VALUE,
+      threshold: [margin_calc::Store]MGN_MARGIN_CALL.THRESHOLD,
+      minimumTransferAmount: [margin_calc::Store]MGN_MARGIN_CALL.MINIMUM_TRANSFER_AMOUNT,
+      roundingAmount: [margin_calc::Store]MGN_MARGIN_CALL.ROUNDING_AMOUNT,
+      grossCallAmount: [margin_calc::Store]MGN_MARGIN_CALL.GROSS_CALL_AMOUNT,
+      callAmount: [margin_calc::Store]MGN_MARGIN_CALL.CALL_AMOUNT,
+      callCurrency: [margin_calc::Store]MGN_MARGIN_CALL.CALL_CURRENCY,
+      isCallMade: [margin_calc::Store]MGN_MARGIN_CALL.IS_CALL_MADE,
+      suppressedReason: [margin_calc::Store]MGN_MARGIN_CALL.SUPPRESSED_REASON,
+      issuedAt: [margin_calc::Store]MGN_MARGIN_CALL.ISSUED_AT,
+      settledOn: [margin_calc::Store]MGN_MARGIN_CALL.SETTLED_ON,
+      disputeCode: [margin_calc::Store]MGN_MARGIN_CALL.DISPUTE_CODE,
+      agreement[mgnAgreement]: [margin_calc::Store]@Mgn_AgreementCalls,
+      run[mgnMarginRun]: [margin_calc::Store]@Mgn_CallRun,
+      variationMargin[mgnVariationMargin]: [margin_calc::Store]@Mgn_CallVariationMargin
+   }
+
+   margin_calc::MgnVariationMargin[mgnVariationMargin]: Relational
+   {
+      ~primaryKey
+      (
+         [margin_calc::Store]MGN_VARIATION_MARGIN.AGREEMENT_ID,
+         [margin_calc::Store]MGN_VARIATION_MARGIN.COB_DATE
+      )
+      ~mainTable [margin_calc::Store]MGN_VARIATION_MARGIN
+      agreementId: [margin_calc::Store]MGN_VARIATION_MARGIN.AGREEMENT_ID,
+      cobDate: [margin_calc::Store]MGN_VARIATION_MARGIN.COB_DATE,
+      priorMarkToMarket: [margin_calc::Store]MGN_VARIATION_MARGIN.PRIOR_MARK_TO_MARKET,
+      currentMarkToMarket: [margin_calc::Store]MGN_VARIATION_MARGIN.CURRENT_MARK_TO_MARKET,
+      mtmChange: [margin_calc::Store]MGN_VARIATION_MARGIN.MTM_CHANGE,
+      vmCurrency: [margin_calc::Store]MGN_VARIATION_MARGIN.VM_CURRENCY,
+      vmAmount: [margin_calc::Store]MGN_VARIATION_MARGIN.VM_AMOUNT,
+      cumulativeVmPosted: [margin_calc::Store]MGN_VARIATION_MARGIN.CUMULATIVE_VM_POSTED,
+      settlementDate: [margin_calc::Store]MGN_VARIATION_MARGIN.SETTLEMENT_DATE,
+      settlementLagDays: [margin_calc::Store]MGN_VARIATION_MARGIN.SETTLEMENT_LAG_DAYS,
+      interestRateCode: [margin_calc::Store]MGN_VARIATION_MARGIN.INTEREST_RATE_CODE,
+      isSettled: [margin_calc::Store]MGN_VARIATION_MARGIN.IS_SETTLED,
+      agreement[mgnAgreement]: [margin_calc::Store]@Mgn_AgreementVariationMargins,
+      call[mgnMarginCall]: [margin_calc::Store]@Mgn_CallVariationMargin
+   }
+
+   // Three key columns; the third is the method.
+   margin_calc::MgnInitialMargin[mgnInitialMargin]: Relational
+   {
+      ~primaryKey
+      (
+         [margin_calc::Store]MGN_INITIAL_MARGIN.MARGIN_PORTFOLIO_ID,
+         [margin_calc::Store]MGN_INITIAL_MARGIN.COB_DATE,
+         [margin_calc::Store]MGN_INITIAL_MARGIN.METHOD_CODE
+      )
+      ~mainTable [margin_calc::Store]MGN_INITIAL_MARGIN
+      marginPortfolioId: [margin_calc::Store]MGN_INITIAL_MARGIN.MARGIN_PORTFOLIO_ID,
+      cobDate: [margin_calc::Store]MGN_INITIAL_MARGIN.COB_DATE,
+      methodCode: [margin_calc::Store]MGN_INITIAL_MARGIN.METHOD_CODE,
+      confidencePct: [margin_calc::Store]MGN_INITIAL_MARGIN.CONFIDENCE_PCT,
+      closeOutPeriodDays: [margin_calc::Store]MGN_INITIAL_MARGIN.CLOSE_OUT_PERIOD_DAYS,
+      oneDayMargin: [margin_calc::Store]MGN_INITIAL_MARGIN.ONE_DAY_MARGIN,
+      scaledMargin: [margin_calc::Store]MGN_INITIAL_MARGIN.SCALED_MARGIN,
+      concentrationAddOn: [margin_calc::Store]MGN_INITIAL_MARGIN.CONCENTRATION_ADDON,
+      liquidityAddOn: [margin_calc::Store]MGN_INITIAL_MARGIN.LIQUIDITY_ADDON,
+      totalInitialMargin: [margin_calc::Store]MGN_INITIAL_MARGIN.TOTAL_INITIAL_MARGIN,
+      imCurrency: [margin_calc::Store]MGN_INITIAL_MARGIN.IM_CURRENCY,
+      isRegulatory: [margin_calc::Store]MGN_INITIAL_MARGIN.IS_REGULATORY,
+      modelVersion: [margin_calc::Store]MGN_INITIAL_MARGIN.MODEL_VERSION,
+      portfolio[mgnMarginPortfolio]: [margin_calc::Store]@Mgn_PortfolioInitialMargins,
+      riskClassMargins[mgnRiskClassMargin]: [margin_calc::Store]@Mgn_RiskClassMarginInitialMargins
+   }
+
+   margin_calc::MgnSimmBucket[mgnSimmBucket]: Relational
+   {
+      ~primaryKey
+      (
+         [margin_calc::Store]MGN_SIMM_BUCKET.RISK_CLASS,
+         [margin_calc::Store]MGN_SIMM_BUCKET.BUCKET_CODE
+      )
+      ~mainTable [margin_calc::Store]MGN_SIMM_BUCKET
+      riskClass: [margin_calc::Store]MGN_SIMM_BUCKET.RISK_CLASS,
+      bucketCode: [margin_calc::Store]MGN_SIMM_BUCKET.BUCKET_CODE,
+      bucketName: [margin_calc::Store]MGN_SIMM_BUCKET.BUCKET_NAME,
+      riskWeight: [margin_calc::Store]MGN_SIMM_BUCKET.RISK_WEIGHT,
+      vegaRiskWeight: [margin_calc::Store]MGN_SIMM_BUCKET.VEGA_RISK_WEIGHT,
+      intraBucketCorrelation: [margin_calc::Store]MGN_SIMM_BUCKET.INTRA_BUCKET_CORRELATION,
+      interBucketCorrelation: [margin_calc::Store]MGN_SIMM_BUCKET.INTER_BUCKET_CORRELATION,
+      concentrationThreshold: [margin_calc::Store]MGN_SIMM_BUCKET.CONCENTRATION_THRESHOLD,
+      liquidityHorizonDays: [margin_calc::Store]MGN_SIMM_BUCKET.LIQUIDITY_HORIZON_DAYS,
+      curvatureScale: [margin_calc::Store]MGN_SIMM_BUCKET.CURVATURE_SCALE,
+      sensitivities[mgnSimmSensitivity]: [margin_calc::Store]@Mgn_BucketSensitivities
+   }
+
+   // The leg. Two of its four property mappings cross into risk-core.
+   margin_calc::MgnSimmSensitivity[mgnSimmSensitivity]: Relational
+   {
+      ~primaryKey
+      (
+         [margin_calc::Store]MGN_SIMM_SENSITIVITY.SENSITIVITY_ID,
+         [margin_calc::Store]MGN_SIMM_SENSITIVITY.COB_DATE
+      )
+      ~mainTable [margin_calc::Store]MGN_SIMM_SENSITIVITY
+      sensitivityId: [margin_calc::Store]MGN_SIMM_SENSITIVITY.SENSITIVITY_ID,
+      cobDate: [margin_calc::Store]MGN_SIMM_SENSITIVITY.COB_DATE,
+      marginPortfolioId: [margin_calc::Store]MGN_SIMM_SENSITIVITY.MARGIN_PORTFOLIO_ID,
+      riskClass: [margin_calc::Store]MGN_SIMM_SENSITIVITY.RISK_CLASS,
+      bucketCode: [margin_calc::Store]MGN_SIMM_SENSITIVITY.BUCKET_CODE,
+      factorId: [margin_calc::Store]MGN_SIMM_SENSITIVITY.FACTOR_ID,
+      riskType: [margin_calc::Store]MGN_SIMM_SENSITIVITY.RISK_TYPE,
+      rawSensitivity: [margin_calc::Store]MGN_SIMM_SENSITIVITY.RAW_SENSITIVITY,
+      sensitivityCurrency: [margin_calc::Store]MGN_SIMM_SENSITIVITY.SENSITIVITY_CURRENCY,
+      riskWeight: [margin_calc::Store]MGN_SIMM_SENSITIVITY.RISK_WEIGHT,
+      weightedSensitivity: [margin_calc::Store]MGN_SIMM_SENSITIVITY.WEIGHTED_SENSITIVITY,
+      concentrationRiskFactor: [margin_calc::Store]MGN_SIMM_SENSITIVITY.CONCENTRATION_RISK_FACTOR,
+      tenorCode: [margin_calc::Store]MGN_SIMM_SENSITIVITY.TENOR_CODE,
+      isConcentrated: [margin_calc::Store]MGN_SIMM_SENSITIVITY.IS_CONCENTRATED,
+      // CROSS-PROJECT, both of them.
+      riskLeg[rskSensitivity]: [margin_calc::Store]@Mgn_SimmSensitivityRiskLeg,
+      factor[rskFactor]: [margin_calc::Store]@Mgn_SimmSensitivityFactor,
+      bucket[mgnSimmBucket]: [margin_calc::Store]@Mgn_BucketSensitivities,
+      portfolio[mgnMarginPortfolio]: [margin_calc::Store]@Mgn_PortfolioSimmSensitivities,
+      riskClassTotal[mgnRiskClassSensTotal]: [margin_calc::Store]@Mgn_SensitivityRiskClassTotal
+   }
+
+   margin_calc::MgnRiskClassMargin[mgnRiskClassMargin]: Relational
+   {
+      ~primaryKey
+      (
+         [margin_calc::Store]MGN_RISK_CLASS_MARGIN.MARGIN_PORTFOLIO_ID,
+         [margin_calc::Store]MGN_RISK_CLASS_MARGIN.COB_DATE,
+         [margin_calc::Store]MGN_RISK_CLASS_MARGIN.RISK_CLASS
+      )
+      ~mainTable [margin_calc::Store]MGN_RISK_CLASS_MARGIN
+      marginPortfolioId: [margin_calc::Store]MGN_RISK_CLASS_MARGIN.MARGIN_PORTFOLIO_ID,
+      cobDate: [margin_calc::Store]MGN_RISK_CLASS_MARGIN.COB_DATE,
+      riskClass: [margin_calc::Store]MGN_RISK_CLASS_MARGIN.RISK_CLASS,
+      deltaMargin: [margin_calc::Store]MGN_RISK_CLASS_MARGIN.DELTA_MARGIN,
+      vegaMargin: [margin_calc::Store]MGN_RISK_CLASS_MARGIN.VEGA_MARGIN,
+      curvatureMargin: [margin_calc::Store]MGN_RISK_CLASS_MARGIN.CURVATURE_MARGIN,
+      intraClassCorrelation: [margin_calc::Store]MGN_RISK_CLASS_MARGIN.INTRA_CLASS_CORRELATION,
+      sensitivityCount: [margin_calc::Store]MGN_RISK_CLASS_MARGIN.SENSITIVITY_COUNT,
+      grossSensitivity: [margin_calc::Store]MGN_RISK_CLASS_MARGIN.GROSS_SENSITIVITY,
+      netSensitivity: [margin_calc::Store]MGN_RISK_CLASS_MARGIN.NET_SENSITIVITY,
+      riskClassMargin: [margin_calc::Store]MGN_RISK_CLASS_MARGIN.RISK_CLASS_MARGIN,
+      marginCurrency: [margin_calc::Store]MGN_RISK_CLASS_MARGIN.MARGIN_CURRENCY,
+      portfolio[mgnMarginPortfolio]: [margin_calc::Store]@Mgn_PortfolioRiskClassMargins,
+      initialMargins[mgnInitialMargin]: [margin_calc::Store]@Mgn_RiskClassMarginInitialMargins,
+      sensitivityTotal[mgnRiskClassSensTotal]: [margin_calc::Store]@Mgn_RiskClassMarginSensTotal
+   }
+
+   // Four key columns, and the property that reads risk-core's own store view.
+   margin_calc::MgnConcentrationAddOn[mgnConcentrationAddOn]: Relational
+   {
+      ~primaryKey
+      (
+         [margin_calc::Store]MGN_CONCENTRATION_ADDON.MARGIN_PORTFOLIO_ID,
+         [margin_calc::Store]MGN_CONCENTRATION_ADDON.COB_DATE,
+         [margin_calc::Store]MGN_CONCENTRATION_ADDON.RISK_CLASS,
+         [margin_calc::Store]MGN_CONCENTRATION_ADDON.FACTOR_ID
+      )
+      ~mainTable [margin_calc::Store]MGN_CONCENTRATION_ADDON
+      marginPortfolioId: [margin_calc::Store]MGN_CONCENTRATION_ADDON.MARGIN_PORTFOLIO_ID,
+      cobDate: [margin_calc::Store]MGN_CONCENTRATION_ADDON.COB_DATE,
+      riskClass: [margin_calc::Store]MGN_CONCENTRATION_ADDON.RISK_CLASS,
+      factorId: [margin_calc::Store]MGN_CONCENTRATION_ADDON.FACTOR_ID,
+      netSensitivity: [margin_calc::Store]MGN_CONCENTRATION_ADDON.NET_SENSITIVITY,
+      concentrationThreshold: [margin_calc::Store]MGN_CONCENTRATION_ADDON.CONCENTRATION_THRESHOLD,
+      concentrationRatio: [margin_calc::Store]MGN_CONCENTRATION_ADDON.CONCENTRATION_RATIO,
+      addOnPct: [margin_calc::Store]MGN_CONCENTRATION_ADDON.ADDON_PCT,
+      addOnAmount: [margin_calc::Store]MGN_CONCENTRATION_ADDON.ADDON_AMOUNT,
+      addOnCurrency: [margin_calc::Store]MGN_CONCENTRATION_ADDON.ADDON_CURRENCY,
+      drivingBucketCode: [margin_calc::Store]MGN_CONCENTRATION_ADDON.DRIVING_BUCKET_CODE,
+      isBreaching: [margin_calc::Store]MGN_CONCENTRATION_ADDON.IS_BREACHING,
+      portfolio[mgnMarginPortfolio]: [margin_calc::Store]@Mgn_PortfolioConcentrationAddOns,
+      // CROSS-PROJECT, INTO A GROUP: risk-core's view set, rooted on RSK_FACTOR_TOTAL.
+      factorTotal[rskFactorTotal]: [margin_calc::Store]@Mgn_ConcentrationFactorTotal
+   }
+
+   margin_calc::MgnLiquidityAddOn[mgnLiquidityAddOn]: Relational
+   {
+      ~primaryKey
+      (
+         [margin_calc::Store]MGN_LIQUIDITY_ADDON.MARGIN_PORTFOLIO_ID,
+         [margin_calc::Store]MGN_LIQUIDITY_ADDON.COB_DATE,
+         [margin_calc::Store]MGN_LIQUIDITY_ADDON.BUCKET_CODE
+      )
+      ~mainTable [margin_calc::Store]MGN_LIQUIDITY_ADDON
+      marginPortfolioId: [margin_calc::Store]MGN_LIQUIDITY_ADDON.MARGIN_PORTFOLIO_ID,
+      cobDate: [margin_calc::Store]MGN_LIQUIDITY_ADDON.COB_DATE,
+      bucketCode: [margin_calc::Store]MGN_LIQUIDITY_ADDON.BUCKET_CODE,
+      riskClass: [margin_calc::Store]MGN_LIQUIDITY_ADDON.RISK_CLASS,
+      liquidityHorizonDays: [margin_calc::Store]MGN_LIQUIDITY_ADDON.LIQUIDITY_HORIZON_DAYS,
+      baselineHorizonDays: [margin_calc::Store]MGN_LIQUIDITY_ADDON.BASELINE_HORIZON_DAYS,
+      positionNotional: [margin_calc::Store]MGN_LIQUIDITY_ADDON.POSITION_NOTIONAL,
+      averageDailyVolume: [margin_calc::Store]MGN_LIQUIDITY_ADDON.AVERAGE_DAILY_VOLUME,
+      daysToLiquidate: [margin_calc::Store]MGN_LIQUIDITY_ADDON.DAYS_TO_LIQUIDATE,
+      addOnPct: [margin_calc::Store]MGN_LIQUIDITY_ADDON.ADDON_PCT,
+      addOnAmount: [margin_calc::Store]MGN_LIQUIDITY_ADDON.ADDON_AMOUNT,
+      addOnCurrency: [margin_calc::Store]MGN_LIQUIDITY_ADDON.ADDON_CURRENCY,
+      portfolio[mgnMarginPortfolio]: [margin_calc::Store]@Mgn_PortfolioLiquidityAddOns
+   }
+
+   margin_calc::MgnCollateralHaircut[mgnCollateralHaircut]: Relational
+   {
+      ~primaryKey
+      (
+         [margin_calc::Store]MGN_COLLATERAL_HAIRCUT.AGREEMENT_ID,
+         [margin_calc::Store]MGN_COLLATERAL_HAIRCUT.COLLATERAL_ASSET_ID
+      )
+      ~mainTable [margin_calc::Store]MGN_COLLATERAL_HAIRCUT
+      agreementId: [margin_calc::Store]MGN_COLLATERAL_HAIRCUT.AGREEMENT_ID,
+      collateralAssetId: [margin_calc::Store]MGN_COLLATERAL_HAIRCUT.COLLATERAL_ASSET_ID,
+      assetClass: [margin_calc::Store]MGN_COLLATERAL_HAIRCUT.ASSET_CLASS,
+      issuerRating: [margin_calc::Store]MGN_COLLATERAL_HAIRCUT.ISSUER_RATING,
+      currencyCode: [margin_calc::Store]MGN_COLLATERAL_HAIRCUT.CURRENCY_CODE,
+      marketValue: [margin_calc::Store]MGN_COLLATERAL_HAIRCUT.MARKET_VALUE,
+      haircutPct: [margin_calc::Store]MGN_COLLATERAL_HAIRCUT.HAIRCUT_PCT,
+      fxHaircutPct: [margin_calc::Store]MGN_COLLATERAL_HAIRCUT.FX_HAIRCUT_PCT,
+      haircutValue: [margin_calc::Store]MGN_COLLATERAL_HAIRCUT.HAIRCUT_VALUE,
+      concentrationCapPct: [margin_calc::Store]MGN_COLLATERAL_HAIRCUT.CONCENTRATION_CAP_PCT,
+      isEligible: [margin_calc::Store]MGN_COLLATERAL_HAIRCUT.IS_ELIGIBLE,
+      agreement[mgnAgreement]: [margin_calc::Store]@Mgn_AgreementHaircuts
+   }
+
+   // Four key columns -- position-keeping's grain, repeated exactly.
+   margin_calc::MgnPositionMargin[mgnPositionMargin]: Relational
+   {
+      ~primaryKey
+      (
+         [margin_calc::Store]MGN_POSITION_MARGIN.INSTITUTION_ID,
+         [margin_calc::Store]MGN_POSITION_MARGIN.ACCOUNT_NO,
+         [margin_calc::Store]MGN_POSITION_MARGIN.INSTRUMENT_ID,
+         [margin_calc::Store]MGN_POSITION_MARGIN.COB_DATE
+      )
+      ~mainTable [margin_calc::Store]MGN_POSITION_MARGIN
+      institutionId: [margin_calc::Store]MGN_POSITION_MARGIN.INSTITUTION_ID,
+      accountNo: [margin_calc::Store]MGN_POSITION_MARGIN.ACCOUNT_NO,
+      instrumentId: [margin_calc::Store]MGN_POSITION_MARGIN.INSTRUMENT_ID,
+      cobDate: [margin_calc::Store]MGN_POSITION_MARGIN.COB_DATE,
+      marginPortfolioId: [margin_calc::Store]MGN_POSITION_MARGIN.MARGIN_PORTFOLIO_ID,
+      agreementId: [margin_calc::Store]MGN_POSITION_MARGIN.AGREEMENT_ID,
+      exposureAmount: [margin_calc::Store]MGN_POSITION_MARGIN.EXPOSURE_AMOUNT,
+      initialMarginAmount: [margin_calc::Store]MGN_POSITION_MARGIN.INITIAL_MARGIN_AMOUNT,
+      variationMarginAmount: [margin_calc::Store]MGN_POSITION_MARGIN.VARIATION_MARGIN_AMOUNT,
+      addOnAmount: [margin_calc::Store]MGN_POSITION_MARGIN.ADDON_AMOUNT,
+      marginCurrency: [margin_calc::Store]MGN_POSITION_MARGIN.MARGIN_CURRENCY,
+      riskWeight: [margin_calc::Store]MGN_POSITION_MARGIN.RISK_WEIGHT,
+      isMarginEligible: [margin_calc::Store]MGN_POSITION_MARGIN.IS_MARGIN_ELIGIBLE,
+      // CROSS-PROJECT. position-keeping's set id, on all four columns.
+      position[pkPosition]: [margin_calc::Store]@Mgn_PositionMarginPosition,
+      portfolio[mgnMarginPortfolio]: [margin_calc::Store]@Mgn_PortfolioPositionMargins,
+      portfolioTotal[mgnPortfolioMarginTotal]: [margin_calc::Store]@Mgn_PositionMarginPortfolioTotal
+   }
+
+   // ------------------------------------------------------------ the aggregate sets
+   //
+   // Rooted on views. The ~primaryKey IS the ~groupBy, so an instance is a group.
+
+   margin_calc::MgnPortfolioMarginTotal[mgnPortfolioMarginTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [margin_calc::Store]MGN_PORTFOLIO_MARGIN_TOTAL.MARGIN_PORTFOLIO_ID,
+         [margin_calc::Store]MGN_PORTFOLIO_MARGIN_TOTAL.COB_DATE
+      )
+      ~mainTable [margin_calc::Store]MGN_PORTFOLIO_MARGIN_TOTAL
+      marginPortfolioId: [margin_calc::Store]MGN_PORTFOLIO_MARGIN_TOTAL.MARGIN_PORTFOLIO_ID,
+      cobDate: [margin_calc::Store]MGN_PORTFOLIO_MARGIN_TOTAL.COB_DATE,
+      positionCount: [margin_calc::Store]MGN_PORTFOLIO_MARGIN_TOTAL.POSITION_COUNT,
+      totalInitialMargin: [margin_calc::Store]MGN_PORTFOLIO_MARGIN_TOTAL.TOTAL_INITIAL_MARGIN,
+      totalVariationMargin: [margin_calc::Store]MGN_PORTFOLIO_MARGIN_TOTAL.TOTAL_VARIATION_MARGIN,
+      totalAddOn: [margin_calc::Store]MGN_PORTFOLIO_MARGIN_TOTAL.TOTAL_ADDON,
+      totalExposure: [margin_calc::Store]MGN_PORTFOLIO_MARGIN_TOTAL.TOTAL_EXPOSURE,
+      largestPositionMargin: [margin_calc::Store]MGN_PORTFOLIO_MARGIN_TOTAL.LARGEST_POSITION_MARGIN,
+      portfolio[mgnMarginPortfolio]: [margin_calc::Store]@Mgn_PortfolioMarginTotals,
+      positionMargins[mgnPositionMargin]: [margin_calc::Store]@Mgn_PositionMarginPortfolioTotal
+   }
+
+   margin_calc::MgnRiskClassSensitivityTotal[mgnRiskClassSensTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [margin_calc::Store]MGN_RISK_CLASS_SENS_TOTAL.MARGIN_PORTFOLIO_ID,
+         [margin_calc::Store]MGN_RISK_CLASS_SENS_TOTAL.COB_DATE,
+         [margin_calc::Store]MGN_RISK_CLASS_SENS_TOTAL.RISK_CLASS
+      )
+      ~mainTable [margin_calc::Store]MGN_RISK_CLASS_SENS_TOTAL
+      marginPortfolioId: [margin_calc::Store]MGN_RISK_CLASS_SENS_TOTAL.MARGIN_PORTFOLIO_ID,
+      cobDate: [margin_calc::Store]MGN_RISK_CLASS_SENS_TOTAL.COB_DATE,
+      riskClass: [margin_calc::Store]MGN_RISK_CLASS_SENS_TOTAL.RISK_CLASS,
+      sensitivityCount: [margin_calc::Store]MGN_RISK_CLASS_SENS_TOTAL.SENSITIVITY_COUNT,
+      totalWeightedSensitivity: [margin_calc::Store]MGN_RISK_CLASS_SENS_TOTAL.TOTAL_WEIGHTED_SENSITIVITY,
+      totalRawSensitivity: [margin_calc::Store]MGN_RISK_CLASS_SENS_TOTAL.TOTAL_RAW_SENSITIVITY,
+      largestWeightedSensitivity: [margin_calc::Store]MGN_RISK_CLASS_SENS_TOTAL.LARGEST_WEIGHTED_SENSITIVITY,
+      riskClassMargin[mgnRiskClassMargin]: [margin_calc::Store]@Mgn_RiskClassMarginSensTotal,
+      sensitivities[mgnSimmSensitivity]: [margin_calc::Store]@Mgn_SensitivityRiskClassTotal
+   }
+)

@@ -1,0 +1,11 @@
+###Relational
+Database ops_control::Store
+(
+   include custody_recon::Store
+   include settlement_flow::Store
+
+   Table OPS_PROBE
+   (
+      PROBE_ID VARCHAR(40) PRIMARY KEY
+   )
+)

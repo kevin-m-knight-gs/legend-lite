@@ -1,0 +1,429 @@
+###Mapping
+// Every class to its table, every association to its join.
+//
+// Both dependency mappings are included, and both are load-bearing. `legal_core::Mapping`
+// puts the `lgl*` sets in scope so the three cross-boundary association mappings can name
+// `lglMasterAgreement`, `lglNettingOpinion` and `lglCloseOutTerms` -- those ids are explicit
+// upstream, so the default ids (`legal_core_MasterAgreement`) do not exist and cannot be
+// named. `exposure_agg::Mapping` does the same for the `exa*` sets.
+//
+// Every set id here is spelled out and net-prefixed, because set ids are a GLOBAL namespace
+// in Legend: one collision fails the whole graph with a message that names the id and not the
+// project that declared it. Every AssociationMapping end therefore carries its
+// [source, target] pair explicitly -- the bare form only resolves against default ids.
+//
+// ~primaryKey is stated on every set, including the single-column ones, so that the nine
+// composite keys read as a decision rather than as an omission. On the two aggregate sets the
+// primary key IS the view's ~groupBy, which is what makes an instance a GROUP.
+Mapping legal_netting::Mapping
+(
+   include legal_core::Mapping
+   include exposure_agg::Mapping
+
+   // The set. Everything else in this mapping is reached from here.
+   legal_netting::NetSet[netSet]: Relational
+   {
+      ~primaryKey ( [legal_netting::Store]NET_SET.NETTING_SET_ID )
+      ~mainTable [legal_netting::Store]NET_SET
+      nettingSetId: [legal_netting::Store]NET_SET.NETTING_SET_ID,
+      agreementId: [legal_netting::Store]NET_SET.AGREEMENT_ID,
+      counterpartyId: [legal_netting::Store]NET_SET.COUNTERPARTY_ID,
+      counterpartyType: [legal_netting::Store]NET_SET.COUNTERPARTY_TYPE,
+      counterpartyJurisdiction: [legal_netting::Store]NET_SET.COUNTERPARTY_JURISDICTION,
+      nettingBasis: [legal_netting::Store]NET_SET.NETTING_BASIS,
+      settlementCurrency: [legal_netting::Store]NET_SET.SETTLEMENT_CURRENCY,
+      runId: [legal_netting::Store]NET_SET.RUN_ID,
+      establishedDate: [legal_netting::Store]NET_SET.ESTABLISHED_DATE,
+      closedDate: [legal_netting::Store]NET_SET.CLOSED_DATE,
+      isCrossProductSet: [legal_netting::Store]NET_SET.IS_CROSS_PRODUCT_SET
+   }
+
+   // Composite, three columns: the date is part of the grain because membership is a daily
+   // statement rather than a standing fact.
+   legal_netting::NetSetMember[netSetMember]: Relational
+   {
+      ~primaryKey
+      (
+         [legal_netting::Store]NET_SET_MEMBER.NETTING_SET_ID,
+         [legal_netting::Store]NET_SET_MEMBER.EXPOSURE_ID,
+         [legal_netting::Store]NET_SET_MEMBER.COB_DATE
+      )
+      ~mainTable [legal_netting::Store]NET_SET_MEMBER
+      nettingSetId: [legal_netting::Store]NET_SET_MEMBER.NETTING_SET_ID,
+      exposureId: [legal_netting::Store]NET_SET_MEMBER.EXPOSURE_ID,
+      cobDate: [legal_netting::Store]NET_SET_MEMBER.COB_DATE,
+      memberKind: [legal_netting::Store]NET_SET_MEMBER.MEMBER_KIND,
+      productClass: [legal_netting::Store]NET_SET_MEMBER.PRODUCT_CLASS,
+      grossExposure: [legal_netting::Store]NET_SET_MEMBER.GROSS_EXPOSURE,
+      signedMarkToMarket: [legal_netting::Store]NET_SET_MEMBER.SIGNED_MARK_TO_MARKET,
+      isNettable: [legal_netting::Store]NET_SET_MEMBER.IS_NETTABLE,
+      eligibilityRuleCode: [legal_netting::Store]NET_SET_MEMBER.ELIGIBILITY_RULE_CODE,
+      includedOn: [legal_netting::Store]NET_SET_MEMBER.INCLUDED_ON
+   }
+
+   legal_netting::NetEligibilityRule[netEligibilityRule]: Relational
+   {
+      ~primaryKey ( [legal_netting::Store]NET_ELIGIBILITY_RULE.RULE_CODE )
+      ~mainTable [legal_netting::Store]NET_ELIGIBILITY_RULE
+      ruleCode: [legal_netting::Store]NET_ELIGIBILITY_RULE.RULE_CODE,
+      ruleName: [legal_netting::Store]NET_ELIGIBILITY_RULE.RULE_NAME,
+      productClass: [legal_netting::Store]NET_ELIGIBILITY_RULE.PRODUCT_CLASS,
+      typeCode: [legal_netting::Store]NET_ELIGIBILITY_RULE.TYPE_CODE,
+      jurisdictionCode: [legal_netting::Store]NET_ELIGIBILITY_RULE.JURISDICTION_CODE,
+      includesInNetting: [legal_netting::Store]NET_ELIGIBILITY_RULE.INCLUDES_IN_NETTING,
+      opinionBasis: [legal_netting::Store]NET_ELIGIBILITY_RULE.OPINION_BASIS,
+      effectiveFrom: [legal_netting::Store]NET_ELIGIBILITY_RULE.EFFECTIVE_FROM,
+      effectiveTo: [legal_netting::Store]NET_ELIGIBILITY_RULE.EFFECTIVE_TO
+   }
+
+   legal_netting::NetExclusion[netExclusion]: Relational
+   {
+      ~primaryKey
+      (
+         [legal_netting::Store]NET_EXCLUSION.NETTING_SET_ID,
+         [legal_netting::Store]NET_EXCLUSION.EXCLUSION_CODE
+      )
+      ~mainTable [legal_netting::Store]NET_EXCLUSION
+      nettingSetId: [legal_netting::Store]NET_EXCLUSION.NETTING_SET_ID,
+      exclusionCode: [legal_netting::Store]NET_EXCLUSION.EXCLUSION_CODE,
+      exclusionScope: [legal_netting::Store]NET_EXCLUSION.EXCLUSION_SCOPE,
+      reason: [legal_netting::Store]NET_EXCLUSION.REASON,
+      sourceQualification: [legal_netting::Store]NET_EXCLUSION.SOURCE_QUALIFICATION,
+      raisedOn: [legal_netting::Store]NET_EXCLUSION.RAISED_ON,
+      resolvedOn: [legal_netting::Store]NET_EXCLUSION.RESOLVED_ON
+   }
+
+   // Composite (set, date) and append-only: the assessment that supported last year's capital
+   // number is still the row that has to answer for it.
+   legal_netting::NetOpinionAssessment[netOpinionAssessment]: Relational
+   {
+      ~primaryKey
+      (
+         [legal_netting::Store]NET_OPINION_ASSESSMENT.NETTING_SET_ID,
+         [legal_netting::Store]NET_OPINION_ASSESSMENT.ASSESSED_ON
+      )
+      ~mainTable [legal_netting::Store]NET_OPINION_ASSESSMENT
+      nettingSetId: [legal_netting::Store]NET_OPINION_ASSESSMENT.NETTING_SET_ID,
+      assessedOn: [legal_netting::Store]NET_OPINION_ASSESSMENT.ASSESSED_ON,
+      opinionJurisdiction: [legal_netting::Store]NET_OPINION_ASSESSMENT.OPINION_JURISDICTION,
+      opinionTypeCode: [legal_netting::Store]NET_OPINION_ASSESSMENT.OPINION_TYPE_CODE,
+      opinionCounterpartyType: [legal_netting::Store]NET_OPINION_ASSESSMENT.OPINION_COUNTERPARTY_TYPE,
+      supportsNetting: [legal_netting::Store]NET_OPINION_ASSESSMENT.SUPPORTS_NETTING,
+      isClean: [legal_netting::Store]NET_OPINION_ASSESSMENT.IS_CLEAN,
+      assessedBy: [legal_netting::Store]NET_OPINION_ASSESSMENT.ASSESSED_BY,
+      nextReviewDate: [legal_netting::Store]NET_OPINION_ASSESSMENT.NEXT_REVIEW_DATE,
+      assessmentNote: [legal_netting::Store]NET_OPINION_ASSESSMENT.ASSESSMENT_NOTE
+   }
+
+   legal_netting::NetBranchCoverage[netBranchCoverage]: Relational
+   {
+      ~primaryKey
+      (
+         [legal_netting::Store]NET_BRANCH_COVERAGE.NETTING_SET_ID,
+         [legal_netting::Store]NET_BRANCH_COVERAGE.BRANCH_CODE
+      )
+      ~mainTable [legal_netting::Store]NET_BRANCH_COVERAGE
+      nettingSetId: [legal_netting::Store]NET_BRANCH_COVERAGE.NETTING_SET_ID,
+      branchCode: [legal_netting::Store]NET_BRANCH_COVERAGE.BRANCH_CODE,
+      branchJurisdiction: [legal_netting::Store]NET_BRANCH_COVERAGE.BRANCH_JURISDICTION,
+      isCoveredByOpinion: [legal_netting::Store]NET_BRANCH_COVERAGE.IS_COVERED_BY_OPINION,
+      opinionProvider: [legal_netting::Store]NET_BRANCH_COVERAGE.OPINION_PROVIDER,
+      coverageFrom: [legal_netting::Store]NET_BRANCH_COVERAGE.COVERAGE_FROM,
+      coverageTo: [legal_netting::Store]NET_BRANCH_COVERAGE.COVERAGE_TO,
+      qualificationNote: [legal_netting::Store]NET_BRANCH_COVERAGE.QUALIFICATION_NOTE
+   }
+
+   legal_netting::NetCapitalTreatment[netCapitalTreatment]: Relational
+   {
+      ~primaryKey
+      (
+         [legal_netting::Store]NET_CAPITAL_TREATMENT.NETTING_SET_ID,
+         [legal_netting::Store]NET_CAPITAL_TREATMENT.COB_DATE
+      )
+      ~mainTable [legal_netting::Store]NET_CAPITAL_TREATMENT
+      nettingSetId: [legal_netting::Store]NET_CAPITAL_TREATMENT.NETTING_SET_ID,
+      cobDate: [legal_netting::Store]NET_CAPITAL_TREATMENT.COB_DATE,
+      counterpartyId: [legal_netting::Store]NET_CAPITAL_TREATMENT.COUNTERPARTY_ID,
+      recognisedAsNet: [legal_netting::Store]NET_CAPITAL_TREATMENT.RECOGNISED_AS_NET,
+      grossExposureAmount: [legal_netting::Store]NET_CAPITAL_TREATMENT.GROSS_EXPOSURE_AMOUNT,
+      netExposureAmount: [legal_netting::Store]NET_CAPITAL_TREATMENT.NET_EXPOSURE_AMOUNT,
+      collateralValueApplied: [legal_netting::Store]NET_CAPITAL_TREATMENT.COLLATERAL_VALUE_APPLIED,
+      reportingCurrency: [legal_netting::Store]NET_CAPITAL_TREATMENT.REPORTING_CURRENCY,
+      exposureMethod: [legal_netting::Store]NET_CAPITAL_TREATMENT.EXPOSURE_METHOD,
+      denialReason: [legal_netting::Store]NET_CAPITAL_TREATMENT.DENIAL_REASON
+   }
+
+   legal_netting::NetCloseOutAmount[netCloseOutAmount]: Relational
+   {
+      ~primaryKey
+      (
+         [legal_netting::Store]NET_CLOSE_OUT_AMOUNT.NETTING_SET_ID,
+         [legal_netting::Store]NET_CLOSE_OUT_AMOUNT.DETERMINED_ON
+      )
+      ~mainTable [legal_netting::Store]NET_CLOSE_OUT_AMOUNT
+      nettingSetId: [legal_netting::Store]NET_CLOSE_OUT_AMOUNT.NETTING_SET_ID,
+      determinedOn: [legal_netting::Store]NET_CLOSE_OUT_AMOUNT.DETERMINED_ON,
+      agreementId: [legal_netting::Store]NET_CLOSE_OUT_AMOUNT.AGREEMENT_ID,
+      earlyTerminationDate: [legal_netting::Store]NET_CLOSE_OUT_AMOUNT.EARLY_TERMINATION_DATE,
+      defaultingParty: [legal_netting::Store]NET_CLOSE_OUT_AMOUNT.DEFAULTING_PARTY,
+      triggerEvent: [legal_netting::Store]NET_CLOSE_OUT_AMOUNT.TRIGGER_EVENT,
+      closeOutAmount: [legal_netting::Store]NET_CLOSE_OUT_AMOUNT.CLOSE_OUT_AMOUNT,
+      unpaidAmounts: [legal_netting::Store]NET_CLOSE_OUT_AMOUNT.UNPAID_AMOUNTS,
+      collateralApplied: [legal_netting::Store]NET_CLOSE_OUT_AMOUNT.COLLATERAL_APPLIED,
+      terminationCurrency: [legal_netting::Store]NET_CLOSE_OUT_AMOUNT.TERMINATION_CURRENCY,
+      isDisputed: [legal_netting::Store]NET_CLOSE_OUT_AMOUNT.IS_DISPUTED,
+      settledOn: [legal_netting::Store]NET_CLOSE_OUT_AMOUNT.SETTLED_ON
+   }
+
+   // Three key columns. This is where the composite key on NET_CLOSE_OUT_AMOUNT is spent.
+   legal_netting::NetCloseOutComponent[netCloseOutComponent]: Relational
+   {
+      ~primaryKey
+      (
+         [legal_netting::Store]NET_CLOSE_OUT_COMPONENT.NETTING_SET_ID,
+         [legal_netting::Store]NET_CLOSE_OUT_COMPONENT.DETERMINED_ON,
+         [legal_netting::Store]NET_CLOSE_OUT_COMPONENT.COMPONENT_CODE
+      )
+      ~mainTable [legal_netting::Store]NET_CLOSE_OUT_COMPONENT
+      nettingSetId: [legal_netting::Store]NET_CLOSE_OUT_COMPONENT.NETTING_SET_ID,
+      determinedOn: [legal_netting::Store]NET_CLOSE_OUT_COMPONENT.DETERMINED_ON,
+      componentCode: [legal_netting::Store]NET_CLOSE_OUT_COMPONENT.COMPONENT_CODE,
+      componentKind: [legal_netting::Store]NET_CLOSE_OUT_COMPONENT.COMPONENT_KIND,
+      exposureId: [legal_netting::Store]NET_CLOSE_OUT_COMPONENT.EXPOSURE_ID,
+      componentAmount: [legal_netting::Store]NET_CLOSE_OUT_COMPONENT.COMPONENT_AMOUNT,
+      componentCurrency: [legal_netting::Store]NET_CLOSE_OUT_COMPONENT.COMPONENT_CURRENCY,
+      valuationSource: [legal_netting::Store]NET_CLOSE_OUT_COMPONENT.VALUATION_SOURCE,
+      quotationCount: [legal_netting::Store]NET_CLOSE_OUT_COMPONENT.QUOTATION_COUNT,
+      determinedBy: [legal_netting::Store]NET_CLOSE_OUT_COMPONENT.DETERMINED_BY
+   }
+
+   legal_netting::NetSetOffRight[netSetOffRight]: Relational
+   {
+      ~primaryKey ( [legal_netting::Store]NET_SET_OFF_RIGHT.SET_OFF_ID )
+      ~mainTable [legal_netting::Store]NET_SET_OFF_RIGHT
+      setOffId: [legal_netting::Store]NET_SET_OFF_RIGHT.SET_OFF_ID,
+      nettingSetId: [legal_netting::Store]NET_SET_OFF_RIGHT.NETTING_SET_ID,
+      againstAgreementId: [legal_netting::Store]NET_SET_OFF_RIGHT.AGAINST_AGREEMENT_ID,
+      setOffScope: [legal_netting::Store]NET_SET_OFF_RIGHT.SET_OFF_SCOPE,
+      isContractual: [legal_netting::Store]NET_SET_OFF_RIGHT.IS_CONTRACTUAL,
+      isEnforceableOnInsolvency: [legal_netting::Store]NET_SET_OFF_RIGHT.IS_ENFORCEABLE_ON_INSOLVENCY,
+      governingLawCode: [legal_netting::Store]NET_SET_OFF_RIGHT.GOVERNING_LAW_CODE,
+      establishedOn: [legal_netting::Store]NET_SET_OFF_RIGHT.ESTABLISHED_ON,
+      exercisedOn: [legal_netting::Store]NET_SET_OFF_RIGHT.EXERCISED_ON
+   }
+
+   legal_netting::NetSetRun[netSetRun]: Relational
+   {
+      ~primaryKey ( [legal_netting::Store]NET_SET_RUN.RUN_ID )
+      ~mainTable [legal_netting::Store]NET_SET_RUN
+      runId: [legal_netting::Store]NET_SET_RUN.RUN_ID,
+      cobDate: [legal_netting::Store]NET_SET_RUN.COB_DATE,
+      runType: [legal_netting::Store]NET_SET_RUN.RUN_TYPE,
+      startedAt: [legal_netting::Store]NET_SET_RUN.STARTED_AT,
+      completedAt: [legal_netting::Store]NET_SET_RUN.COMPLETED_AT,
+      setCount: [legal_netting::Store]NET_SET_RUN.SET_COUNT,
+      memberCount: [legal_netting::Store]NET_SET_RUN.MEMBER_COUNT,
+      unopinionedSetCount: [legal_netting::Store]NET_SET_RUN.UNOPINIONED_SET_COUNT,
+      runStatus: [legal_netting::Store]NET_SET_RUN.RUN_STATUS,
+      triggeredBy: [legal_netting::Store]NET_SET_RUN.TRIGGERED_BY
+   }
+
+   // ---- THE AGGREGATION ---------------------------------------------------------------------
+   // Both sets have a VIEW as their main table, so reading either class is a GROUP BY the
+   // engine folds into one statement rather than a table anything writes to. The grouping
+   // columns are the primary key, which is what gives a group an identity and lets
+   // NetSetRollups below join it back to the set it rolls up.
+
+   legal_netting::NetSetRollup[netSetRollup]: Relational
+   {
+      ~primaryKey
+      (
+         [legal_netting::Store]NET_SET_ROLLUP.NETTING_SET_ID,
+         [legal_netting::Store]NET_SET_ROLLUP.COB_DATE
+      )
+      ~mainTable [legal_netting::Store]NET_SET_ROLLUP
+      nettingSetId: [legal_netting::Store]NET_SET_ROLLUP.NETTING_SET_ID,
+      cobDate: [legal_netting::Store]NET_SET_ROLLUP.COB_DATE,
+      memberCount: [legal_netting::Store]NET_SET_ROLLUP.MEMBER_COUNT,
+      totalGross: [legal_netting::Store]NET_SET_ROLLUP.TOTAL_GROSS,
+      netExposure: [legal_netting::Store]NET_SET_ROLLUP.NET_EXPOSURE,
+      largestMemberGross: [legal_netting::Store]NET_SET_ROLLUP.LARGEST_MEMBER_GROSS
+   }
+
+   legal_netting::NetCounterpartyRollup[netCounterpartyRollup]: Relational
+   {
+      ~primaryKey
+      (
+         [legal_netting::Store]NET_COUNTERPARTY_ROLLUP.COUNTERPARTY_ID,
+         [legal_netting::Store]NET_COUNTERPARTY_ROLLUP.COB_DATE
+      )
+      ~mainTable [legal_netting::Store]NET_COUNTERPARTY_ROLLUP
+      counterpartyId: [legal_netting::Store]NET_COUNTERPARTY_ROLLUP.COUNTERPARTY_ID,
+      cobDate: [legal_netting::Store]NET_COUNTERPARTY_ROLLUP.COB_DATE,
+      setCount: [legal_netting::Store]NET_COUNTERPARTY_ROLLUP.SET_COUNT,
+      totalGross: [legal_netting::Store]NET_COUNTERPARTY_ROLLUP.TOTAL_GROSS,
+      sumOfSetNets: [legal_netting::Store]NET_COUNTERPARTY_ROLLUP.SUM_OF_SET_NETS
+   }
+
+   // ---- the internal spine -------------------------------------------------------------------
+
+   legal_netting::NetSetMembers: Relational
+   {
+      AssociationMapping
+      (
+         members[netSet, netSetMember]: [legal_netting::Store]@Net_Set_Member,
+         memberSet[netSetMember, netSet]: [legal_netting::Store]@Net_Set_Member
+      )
+   }
+
+   legal_netting::NetSetAssessments: Relational
+   {
+      AssociationMapping
+      (
+         opinionAssessments[netSet, netOpinionAssessment]: [legal_netting::Store]@Net_Set_Assessment,
+         assessedSet[netOpinionAssessment, netSet]: [legal_netting::Store]@Net_Set_Assessment
+      )
+   }
+
+   legal_netting::NetSetBranches: Relational
+   {
+      AssociationMapping
+      (
+         branchCoverage[netSet, netBranchCoverage]: [legal_netting::Store]@Net_Set_Branch,
+         coveredSet[netBranchCoverage, netSet]: [legal_netting::Store]@Net_Set_Branch
+      )
+   }
+
+   legal_netting::NetSetExclusions: Relational
+   {
+      AssociationMapping
+      (
+         exclusions[netSet, netExclusion]: [legal_netting::Store]@Net_Set_Exclusion,
+         excludedSet[netExclusion, netSet]: [legal_netting::Store]@Net_Set_Exclusion
+      )
+   }
+
+   legal_netting::NetSetTreatment: Relational
+   {
+      AssociationMapping
+      (
+         capitalTreatments[netSet, netCapitalTreatment]: [legal_netting::Store]@Net_Set_Treatment,
+         treatedSet[netCapitalTreatment, netSet]: [legal_netting::Store]@Net_Set_Treatment
+      )
+   }
+
+   legal_netting::NetSetCloseOut: Relational
+   {
+      AssociationMapping
+      (
+         closeOutAmounts[netSet, netCloseOutAmount]: [legal_netting::Store]@Net_Set_CloseOut,
+         closedOutSet[netCloseOutAmount, netSet]: [legal_netting::Store]@Net_Set_CloseOut
+      )
+   }
+
+   // The two-column join: reaching a component takes both key columns of the determination.
+   legal_netting::NetCloseOutBreakdown: Relational
+   {
+      AssociationMapping
+      (
+         components[netCloseOutAmount, netCloseOutComponent]: [legal_netting::Store]@Net_CloseOut_Component,
+         closeOutAmount[netCloseOutComponent, netCloseOutAmount]: [legal_netting::Store]@Net_CloseOut_Component
+      )
+   }
+
+   legal_netting::NetSetOffRights: Relational
+   {
+      AssociationMapping
+      (
+         setOffRights[netSet, netSetOffRight]: [legal_netting::Store]@Net_Set_SetOff,
+         setOffSet[netSetOffRight, netSet]: [legal_netting::Store]@Net_Set_SetOff
+      )
+   }
+
+   legal_netting::NetMemberRule: Relational
+   {
+      AssociationMapping
+      (
+         ruledMembers[netEligibilityRule, netSetMember]: [legal_netting::Store]@Net_Rule_Member,
+         eligibilityRule[netSetMember, netEligibilityRule]: [legal_netting::Store]@Net_Rule_Member
+      )
+   }
+
+   legal_netting::NetRunSets: Relational
+   {
+      AssociationMapping
+      (
+         builtSets[netSetRun, netSet]: [legal_netting::Store]@Net_Run_Set,
+         buildingRun[netSet, netSetRun]: [legal_netting::Store]@Net_Run_Set
+      )
+   }
+
+   // Set to its own aggregate. Navigating this crosses into a GROUP BY and never into a
+   // member row.
+   legal_netting::NetSetRollups: Relational
+   {
+      AssociationMapping
+      (
+         rollups[netSet, netSetRollup]: [legal_netting::Store]@Net_Set_Rollup,
+         rolledUpSet[netSetRollup, netSet]: [legal_netting::Store]@Net_Set_Rollup
+      )
+   }
+
+   // ---- ACROSS THE BOUNDARY into legal-core --------------------------------------------------
+   // `lglMasterAgreement`, `lglNettingOpinion` and `lglCloseOutTerms` are legal-core's DECLARED
+   // ids. The default ids they would otherwise be do not exist, and naming them fails the graph.
+
+   legal_netting::NetSetAgreement: Relational
+   {
+      AssociationMapping
+      (
+         nettingSets[lglMasterAgreement, netSet]: [legal_netting::Store]@Net_Agreement_Set,
+         nettingAgreement[netSet, lglMasterAgreement]: [legal_netting::Store]@Net_Agreement_Set
+      )
+   }
+
+   // The three-column join. Any two of the three resolve to the wrong opinion.
+   legal_netting::NetAssessedOpinion: Relational
+   {
+      AssociationMapping
+      (
+         setAssessments[lglNettingOpinion, netOpinionAssessment]: [legal_netting::Store]@Net_Opinion_Assessment,
+         appliedOpinion[netOpinionAssessment, lglNettingOpinion]: [legal_netting::Store]@Net_Opinion_Assessment
+      )
+   }
+
+   legal_netting::NetCloseOutBasis: Relational
+   {
+      AssociationMapping
+      (
+         determinedCloseOuts[lglCloseOutTerms, netCloseOutAmount]: [legal_netting::Store]@Net_CloseOut_Terms,
+         closeOutBasis[netCloseOutAmount, lglCloseOutTerms]: [legal_netting::Store]@Net_CloseOut_Terms
+      )
+   }
+
+   // ---- ACROSS THE BOUNDARY into exposure-agg -------------------------------------------------
+   // `exaNetExposure` and `exaExposureLine` are exposure-agg's DECLARED ids, and both of its
+   // sets are root (`*`) sets over there -- which changes nothing here, since an association
+   // end names the id either way.
+
+   // The set to what it is worth. This is the association the theme names.
+   legal_netting::NetSetNetExposure: Relational
+   {
+      AssociationMapping
+      (
+         nettedExposures[netSet, exaNetExposure]: [legal_netting::Store]@Net_Set_NetExposure,
+         governingLegalSet[exaNetExposure, netSet]: [legal_netting::Store]@Net_Set_NetExposure
+      )
+   }
+
+   // Two-column: on the set AND the exposure, because an exposure id is unique only inside a
+   // set once a novation has moved it.
+   legal_netting::NetMemberExposureLine: Relational
+   {
+      AssociationMapping
+      (
+         exposureLine[netSetMember, exaExposureLine]: [legal_netting::Store]@Net_Member_ExposureLine,
+         nettingSetMembers[exaExposureLine, netSetMember]: [legal_netting::Store]@Net_Member_ExposureLine
+      )
+   }
+)

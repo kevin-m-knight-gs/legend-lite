@@ -1,0 +1,280 @@
+###Relational
+// credit-limits' tables, and the joins that leave the project in both directions.
+//
+// BOTH dependency stores are included, and that is a DIAMOND: credit_core::Store includes
+// core_party::Store and core_ratings::Store, limit_core::Store includes core_party::Store and
+// core_book::Store, so core-party arrives here twice by two different paths. Including a store
+// does not copy its tables -- CDC_, LIM_, CP_, CB_ and CR_ all stay owned by the projects that
+// declare them -- and the second arrival of core-party is the same database, not a copy.
+// Neither dependency store needs re-including on its own account, and core_party::Store must
+// NOT be included here directly.
+//
+// Nothing in this file restates milestoning that belongs elsewhere. CR_RATING_MS is
+// core-ratings' and is reached only through credit-core's own join; CLM_LIMIT_STANDING_MS is
+// ours and is the one milestoned table this project owns.
+//
+// Datatypes follow the two dependencies: NUMERIC(20,4) for money, FLOAT for percentages and
+// ratios, SMALLINT for anything bounded by construction, CHAR(n) for fixed-width codes,
+// TIMESTAMP for the moment something was computed. REAL is not used anywhere: it parses,
+// compiles, and then cannot be read at execution (docs/UPSTREAM_FINDINGS.md F53).
+Database credit_limits::Store
+(
+   include credit_core::Store
+   include limit_core::Store
+
+   // How a credit exposure becomes the number a limit measure is compared against.
+   Table CLM_MEASURE_BASIS
+   (
+      MEASURE_CODE VARCHAR(16) PRIMARY KEY,
+      BASIS_CODE CHAR(4),
+      BASIS_NAME VARCHAR(60) NOT NULL,
+      INCLUDES_UNDRAWN BIT,
+      APPLIES_CCF BIT,
+      EXPOSURE_FACTOR FLOAT
+   )
+
+   // The row that ties limit-core's triple to credit-core's obligor. BOOK_ID,
+   // COUNTERPARTY_ID and MEASURE_CODE are carried in full because every join back to LIM_*
+   // matches on all three -- two of them would fan a tenor limit's usage onto a notional one.
+   Table CLM_CREDIT_LIMIT
+   (
+      CREDIT_LIMIT_ID VARCHAR(40) PRIMARY KEY,
+      BOOK_ID VARCHAR(64) NOT NULL,
+      COUNTERPARTY_ID VARCHAR(40) NOT NULL,
+      MEASURE_CODE VARCHAR(16) NOT NULL,
+      OBLIGOR_ID VARCHAR(32) NOT NULL,
+      PORTFOLIO_ID VARCHAR(32),
+      APPROVED_THRESHOLD NUMERIC(20,4),
+      MONITORING_THRESHOLD NUMERIC(20,4),
+      CURRENCY_CODE CHAR(3),
+      EFFECTIVE_FROM DATE,
+      RETIRED_ON DATE,
+      IS_ACTIVE BIT
+   )
+
+   // THE MILESTONED TABLE THIS PROJECT OWNS.
+   //
+   // The milestoning block comes FIRST inside the parentheses, ahead of the columns. The
+   // PRIMARY KEY is COMPOSITE -- (CREDIT_LIMIT_ID, FROM_Z) -- because the whole point is
+   // several rows per limit; CREDIT_LIMIT_ID alone would compile and then collide on insert.
+   //
+   // INFINITY_DATE is what makes %latest work. Without it the milestoning parses, compiles and
+   // serves dated queries perfectly well, and only %latest fails, late, at plan generation.
+   // The open-ended span must carry exactly this THRU_Z.
+   Table CLM_LIMIT_STANDING_MS
+   (
+      milestoning
+      (
+         business(BUS_FROM = FROM_Z, BUS_THRU = THRU_Z, INFINITY_DATE = %9999-12-31)
+      )
+      CREDIT_LIMIT_ID VARCHAR(40) PRIMARY KEY,
+      FROM_Z DATE PRIMARY KEY,
+      THRU_Z DATE,
+      APPROVED_THRESHOLD NUMERIC(20,4),
+      MONITORING_THRESHOLD NUMERIC(20,4),
+      CURRENCY_CODE CHAR(3),
+      SET_AGAINST_RATING VARCHAR(8),
+      STATUS_CODE CHAR(4),
+      APPROVED_BY VARCHAR(40),
+      CHANGE_REASON_CODE CHAR(4)
+   )
+
+   // The grain: one limit, one day. Keyed on both, which is what makes it a series rather
+   // than a position.
+   Table CLM_UTILISATION_LINE
+   (
+      CREDIT_LIMIT_ID VARCHAR(40) PRIMARY KEY,
+      AS_OF_DATE DATE PRIMARY KEY,
+      UTILISED_AMOUNT NUMERIC(20,4),
+      EXPOSURE_AMOUNT NUMERIC(20,4),
+      DRAWN_AMOUNT NUMERIC(20,4),
+      UNDRAWN_AMOUNT NUMERIC(20,4),
+      APPLIED_THRESHOLD NUMERIC(20,4),
+      HEADROOM_AMOUNT NUMERIC(20,4),
+      UTILISATION_PCT FLOAT,
+      RATING_SYMBOL_APPLIED VARCHAR(8),
+      CURRENCY_CODE CHAR(3),
+      CONTRIBUTOR_COUNT SMALLINT,
+      IS_BREACHED BIT,
+      CALCULATED_AT TIMESTAMP
+   )
+
+   // What made up the number above. Carries the line's two key columns so it joins back on
+   // both -- on the limit alone it would pick up every other day's contributions.
+   Table CLM_CONTRIBUTION
+   (
+      CONTRIBUTION_ID VARCHAR(40) PRIMARY KEY,
+      CREDIT_LIMIT_ID VARCHAR(40) NOT NULL,
+      AS_OF_DATE DATE NOT NULL,
+      EXPOSURE_ID VARCHAR(40) NOT NULL,
+      GROSS_AMOUNT NUMERIC(20,4),
+      CONTRIBUTED_AMOUNT NUMERIC(20,4),
+      CCF_APPLIED FLOAT,
+      CURRENCY_CODE CHAR(3),
+      IS_MITIGATED BIT
+   )
+
+   // The credit view of a threshold crossing. BREACH_ID is limit-core's and is nullable: the
+   // daily credit run can find an excess the limits system has not raised a breach for.
+   Table CLM_EXCESS
+   (
+      EXCESS_ID VARCHAR(40) PRIMARY KEY,
+      CREDIT_LIMIT_ID VARCHAR(40) NOT NULL,
+      AS_OF_DATE DATE NOT NULL,
+      BREACH_ID VARCHAR(40),
+      BREACHED_THRESHOLD NUMERIC(20,4),
+      OBSERVED_AMOUNT NUMERIC(20,4),
+      EXCESS_AMOUNT NUMERIC(20,4),
+      APPROVED_AMOUNT NUMERIC(20,4),
+      EXCESS_PCT FLOAT,
+      SEVERITY SMALLINT,
+      CURRENCY_CODE CHAR(3),
+      RATING_SYMBOL_APPLIED VARCHAR(8),
+      DETECTED_AT TIMESTAMP,
+      CLEARED_ON DATE,
+      CLEARANCE_NOTE VARCHAR(200)
+   )
+
+   // One row per level of the approval chain.
+   Table CLM_EXCESS_APPROVAL
+   (
+      EXCESS_ID VARCHAR(40) PRIMARY KEY,
+      APPROVAL_LEVEL SMALLINT PRIMARY KEY,
+      APPROVER_ID VARCHAR(40),
+      DECISION_CODE CHAR(4),
+      APPROVED_EXCESS NUMERIC(20,4),
+      DECIDED_ON DATE,
+      EXPIRES_ON DATE,
+      DECIDED_AT TIMESTAMP,
+      CONDITION_TEXT VARCHAR(200)
+   )
+
+   // The temporary uplift. EXPIRES_ON is NOT NULL: an uplift without an expiry is a permanent
+   // change and belongs on CLM_LIMIT_STANDING_MS as a new span.
+   Table CLM_TEMP_UPLIFT
+   (
+      UPLIFT_ID VARCHAR(40) PRIMARY KEY,
+      CREDIT_LIMIT_ID VARCHAR(40) NOT NULL,
+      SOURCE_UPLIFT_ID VARCHAR(40),
+      BASE_THRESHOLD NUMERIC(20,4),
+      UPLIFT_AMOUNT NUMERIC(20,4),
+      LIFTED_THRESHOLD NUMERIC(20,4),
+      CURRENCY_CODE CHAR(3),
+      EFFECTIVE_FROM DATE NOT NULL,
+      EXPIRES_ON DATE NOT NULL,
+      REASON_CODE CHAR(4),
+      APPROVED_BY VARCHAR(40),
+      APPROVED_AT TIMESTAMP,
+      IS_REVOKED BIT
+   )
+
+   // The daily capture of what an obligor was rated, keyed by obligor and day. The frozen
+   // side of the reconciliation against CR_RATING_MS, which is reached from here only via
+   // credit-core's own join.
+   Table CLM_RATING_OVERLAY
+   (
+      OBLIGOR_ID VARCHAR(32) PRIMARY KEY,
+      AS_OF_DATE DATE PRIMARY KEY,
+      CAPTURED_SYMBOL VARCHAR(8),
+      CAPTURED_AGENCY VARCHAR(20),
+      NOTCH SMALLINT,
+      IS_INVESTMENT_GRADE BIT,
+      THRESHOLD_FACTOR FLOAT,
+      CAPTURE_SOURCE_CODE CHAR(4),
+      CAPTURED_AT TIMESTAMP
+   )
+
+   // Who was told, by when, and whether they answered.
+   Table CLM_ESCALATION_TICKET
+   (
+      TICKET_ID VARCHAR(40) PRIMARY KEY,
+      EXCESS_ID VARCHAR(40) NOT NULL,
+      SEVERITY_CODE CHAR(4),
+      NOTIFY_ROLE VARCHAR(60),
+      OWNER_ID VARCHAR(40),
+      RESPONSE_MINUTES SMALLINT,
+      REQUIRED_APPROVAL_LEVEL SMALLINT,
+      RAISED_AT TIMESTAMP,
+      RESPONDED_AT TIMESTAMP,
+      STATUS_CODE CHAR(4)
+   )
+
+   // The daily report run.
+   Table CLM_DAILY_REPORT
+   (
+      REPORT_ID VARCHAR(40) PRIMARY KEY,
+      REPORT_DATE DATE NOT NULL,
+      PORTFOLIO_ID VARCHAR(32),
+      FRAMEWORK_ID VARCHAR(32),
+      REPORTING_CURRENCY CHAR(3),
+      LIMIT_COUNT SMALLINT,
+      EXCESS_COUNT SMALLINT,
+      ACTIVE_UPLIFT_COUNT SMALLINT,
+      TOTAL_APPROVED_THRESHOLD NUMERIC(20,4),
+      TOTAL_UTILISED NUMERIC(20,4),
+      PRODUCED_AT TIMESTAMP,
+      STATUS_CODE CHAR(4)
+   )
+
+   // One printed row, keyed by the run it belongs to and the limit it is about.
+   Table CLM_DAILY_REPORT_LINE
+   (
+      REPORT_ID VARCHAR(40) PRIMARY KEY,
+      CREDIT_LIMIT_ID VARCHAR(40) PRIMARY KEY,
+      AS_OF_DATE DATE,
+      OBLIGOR_NAME VARCHAR(200),
+      UTILISED_AMOUNT NUMERIC(20,4),
+      APPLIED_THRESHOLD NUMERIC(20,4),
+      HEADROOM_AMOUNT NUMERIC(20,4),
+      UTILISATION_PCT FLOAT,
+      RATING_SYMBOL VARCHAR(8),
+      HAS_ACTIVE_UPLIFT BIT,
+      STATUS_CODE CHAR(4),
+      SORT_ORDER SMALLINT
+   )
+
+   // ---------------------------------------------------------------- inside the project
+   // INTO OUR OWN MILESTONED TABLE. The condition names no date and must not: FROM_Z and
+   // THRU_Z are the engine's, and it adds the predicate itself when a query supplies a
+   // business date. Written by hand here, the join would be wrong the moment %latest was
+   // asked for.
+   Join Clm_Limit_Standing(CLM_CREDIT_LIMIT.CREDIT_LIMIT_ID = CLM_LIMIT_STANDING_MS.CREDIT_LIMIT_ID)
+
+   Join Clm_Limit_Utilisation(CLM_CREDIT_LIMIT.CREDIT_LIMIT_ID = CLM_UTILISATION_LINE.CREDIT_LIMIT_ID)
+   Join Clm_Limit_Uplift(CLM_CREDIT_LIMIT.CREDIT_LIMIT_ID = CLM_TEMP_UPLIFT.CREDIT_LIMIT_ID)
+   Join Clm_Limit_Excess(CLM_CREDIT_LIMIT.CREDIT_LIMIT_ID = CLM_EXCESS.CREDIT_LIMIT_ID)
+   Join Clm_Excess_Approval(CLM_EXCESS.EXCESS_ID = CLM_EXCESS_APPROVAL.EXCESS_ID)
+   Join Clm_Excess_Ticket(CLM_EXCESS.EXCESS_ID = CLM_ESCALATION_TICKET.EXCESS_ID)
+   Join Clm_Report_Line(CLM_DAILY_REPORT.REPORT_ID = CLM_DAILY_REPORT_LINE.REPORT_ID)
+   Join Clm_ReportLine_Limit(CLM_DAILY_REPORT_LINE.CREDIT_LIMIT_ID = CLM_CREDIT_LIMIT.CREDIT_LIMIT_ID)
+
+   // The two-column ones, on (limit, date). Matching on the limit alone would put every
+   // other day's contributions on today's line.
+   Join Clm_Line_Contribution(CLM_UTILISATION_LINE.CREDIT_LIMIT_ID = CLM_CONTRIBUTION.CREDIT_LIMIT_ID and CLM_UTILISATION_LINE.AS_OF_DATE = CLM_CONTRIBUTION.AS_OF_DATE)
+   Join Clm_Line_Excess(CLM_UTILISATION_LINE.CREDIT_LIMIT_ID = CLM_EXCESS.CREDIT_LIMIT_ID and CLM_UTILISATION_LINE.AS_OF_DATE = CLM_EXCESS.AS_OF_DATE)
+
+   // ---------------------------------------------------------------- into limit-core
+   // THE THREE-COLUMN ONES. limit-core is explicit that a limit is keyed by the whole triple;
+   // dropping the measure here would join a notional limit to a tenor limit's row.
+   Join Clm_Limit_LimLimit(CLM_CREDIT_LIMIT.BOOK_ID = LIM_LIMIT.BOOK_ID and CLM_CREDIT_LIMIT.COUNTERPARTY_ID = LIM_LIMIT.COUNTERPARTY_ID and CLM_CREDIT_LIMIT.MEASURE_CODE = LIM_LIMIT.MEASURE_CODE)
+   Join Clm_Limit_LimUtilisation(CLM_CREDIT_LIMIT.BOOK_ID = LIM_UTILISATION.BOOK_ID and CLM_CREDIT_LIMIT.COUNTERPARTY_ID = LIM_UTILISATION.COUNTERPARTY_ID and CLM_CREDIT_LIMIT.MEASURE_CODE = LIM_UTILISATION.MEASURE_CODE)
+
+   Join Clm_Basis_LimMeasure(CLM_MEASURE_BASIS.MEASURE_CODE = LIM_MEASURE.MEASURE_CODE)
+   Join Clm_Excess_LimBreach(CLM_EXCESS.BREACH_ID = LIM_BREACH.BREACH_ID)
+   Join Clm_Approval_LimApprover(CLM_EXCESS_APPROVAL.APPROVER_ID = LIM_APPROVER.APPROVER_ID)
+   Join Clm_Uplift_LimUplift(CLM_TEMP_UPLIFT.SOURCE_UPLIFT_ID = LIM_UPLIFT.UPLIFT_ID)
+
+   // ---------------------------------------------------------------- into credit-core
+   // The obligor, twice: once from the limit row and once from the daily rating capture. Both
+   // land on CDC_OBLIGOR, which is the far end of the route to the milestoned ratings --
+   // credit-core's Cdc_Obligor_Rating carries on from there, and this project never names
+   // CR_RATING_MS itself.
+   Join Clm_Limit_Obligor(CLM_CREDIT_LIMIT.OBLIGOR_ID = CDC_OBLIGOR.OBLIGOR_ID)
+   Join Clm_Overlay_Obligor(CLM_RATING_OVERLAY.OBLIGOR_ID = CDC_OBLIGOR.OBLIGOR_ID)
+   Join Clm_Contribution_Exposure(CLM_CONTRIBUTION.EXPOSURE_ID = CDC_EXPOSURE.EXPOSURE_ID)
+
+   // ---------------------------------------------------------------- filters
+   // Null tests rather than boolean literals: a Filter will not take `= true`.
+   Filter ClmLiveCreditLimits(CLM_CREDIT_LIMIT.RETIRED_ON is null)
+   Filter ClmOpenExcesses(CLM_EXCESS.CLEARED_ON is null)
+)

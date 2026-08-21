@@ -1,15 +1,650 @@
 ###Mapping
 
+// ============================================================
+// regulatory_extract::Mapping -- 31 sets, four of them filter subtypes
+// ============================================================
+// THREE INCLUDES, AND WHAT THEY BRING. This mapping includes all three dependency mappings,
+// and it needs all three: `[tcTrade]` and `[tcTrader]` come from trade-capture, `[rdVenue]`
+// from reference-data, `[cliClient]` from client-core, and a class-valued property mapping
+// can only name a set that exists in THIS mapping's scope.
+//
+// The same diamond as the store: trade_capture::Mapping and reference_data::Mapping both
+// include core_instrument::Mapping, and trade_capture::Mapping and client_core::Mapping both
+// include core_party::Mapping. Reaching the same mapping by two routes is fine and resolves
+// to one. Including core_instrument::Mapping HERE, on top, would be a reference to an
+// undeclared dependency, and this file does not do it -- no `core_` package name appears
+// anywhere in it.
+//
+// EVERY REFERENCE IS QUALIFIED, TWICE OVER. This project's tables live in the `rex` schema,
+// so a column is `[regulatory_extract::Store]rex.REX_TRANSACTION.REPORT_ID` -- the store,
+// then the schema, then the table, then the column. The three dependencies put their tables
+// in their default schema, so theirs are `[trade_capture::Store]TC_TRADE.CURRENCY` with no
+// schema segment. Getting that wrong is the commonest way a schema-owning project fails to
+// compile, and the error names the column rather than the missing schema.
+//
+// THE FILTER SUBTYPES. `[rexTransaction]` is the ROOT set (`*`) over rex.REX_TRANSACTION:
+// unqualified, `RexTransactionReport.all()` is the whole extract. Four sets extend it, each
+// adding one `~filter` from this project's store and the columns that only mean something
+// once the row is known to be of that type. None of them restates the primary key, the main
+// table, or any of the fifty inherited property mappings.
+//
+//    RexMifirTransactionReport[rexMifir]        ~filter RexMifirRows        REGIME_CODE = 'MIFIR'
+//    RexEmirTradeReport[rexEmir]                ~filter RexEmirRows         REGIME_CODE = 'EMIR'
+//    RexRejectedTransactionReport[rexRejected]  ~filter RexRejectedRows     REPORT_STATUS = 'REJECTED'
+//    RexUnsubmittedTransactionReport[rexUnsubmitted] ~filter RexUnsubmittedRows  SUBMITTED_TIME is null
+//
+// The last two OVERLAP the first two, deliberately: a rejected MiFIR report is a row of
+// both `rexMifir` and `rexRejected`, because rejection is a state and regime is an identity,
+// and a subtype hierarchy that forced them to be disjoint could not express "the MiFIR
+// backlog".
+//
+// SET IDS ARE GLOBAL. Every one below is explicit and `rex`-prefixed, so the default ids
+// (`regulatory_extract_RexTransactionReport`) do not exist and a downstream `extends [...]`
+// must name the explicit one.
 Mapping regulatory_extract::Mapping
 (
    include trade_capture::Mapping
    include reference_data::Mapping
    include client_core::Mapping
 
-   regulatory_extract::RexTransactionReport[rexTransaction]: Relational
+   // ---- the root set: every report row, of whatever regime ------------------------------
+   // Fifty-odd property mappings, of which the last dozen leave this project: four
+   // class-valued ones onto the three dependencies' sets, and seven chained ones that land
+   // on a dependency's COLUMN. Both forms appear here on purpose -- a report needs the
+   // objects for navigation and the flattened values for a group-by that must not walk them.
+   *regulatory_extract::RexTransactionReport[rexTransaction]: Relational
    {
       ~primaryKey ( [regulatory_extract::Store]rex.REX_TRANSACTION.REPORT_ID )
       ~mainTable [regulatory_extract::Store]rex.REX_TRANSACTION
-      reportId: [regulatory_extract::Store]rex.REX_TRANSACTION.REPORT_ID
+      reportId: [regulatory_extract::Store]rex.REX_TRANSACTION.REPORT_ID,
+      regimeCode: [regulatory_extract::Store]rex.REX_TRANSACTION.REGIME_CODE,
+      reportStatus: [regulatory_extract::Store]rex.REX_TRANSACTION.REPORT_STATUS,
+      reportAction: [regulatory_extract::Store]rex.REX_TRANSACTION.REPORT_ACTION,
+      transactionReference: [regulatory_extract::Store]rex.REX_TRANSACTION.TRANSACTION_REFERENCE,
+      executingEntityLei: [regulatory_extract::Store]rex.REX_TRANSACTION.EXECUTING_ENTITY_LEI,
+      submittingEntityLei: [regulatory_extract::Store]rex.REX_TRANSACTION.SUBMITTING_ENTITY_LEI,
+      buyerIdentificationCode: [regulatory_extract::Store]rex.REX_TRANSACTION.BUYER_IDENTIFICATION_CODE,
+      sellerIdentificationCode: [regulatory_extract::Store]rex.REX_TRANSACTION.SELLER_IDENTIFICATION_CODE,
+      tradingDateTime: [regulatory_extract::Store]rex.REX_TRANSACTION.TRADING_DATE_TIME,
+      tradingCapacityCode: [regulatory_extract::Store]rex.REX_TRANSACTION.TRADING_CAPACITY_CODE,
+      reportedQuantity: [regulatory_extract::Store]rex.REX_TRANSACTION.REPORTED_QUANTITY,
+      reportedPrice: [regulatory_extract::Store]rex.REX_TRANSACTION.REPORTED_PRICE,
+      priceCurrency: [regulatory_extract::Store]rex.REX_TRANSACTION.PRICE_CURRENCY,
+      netAmount: [regulatory_extract::Store]rex.REX_TRANSACTION.NET_AMOUNT,
+      venueMic: [regulatory_extract::Store]rex.REX_TRANSACTION.VENUE_MIC,
+      countryOfBranchMembership: [regulatory_extract::Store]rex.REX_TRANSACTION.COUNTRY_OF_BRANCH_MEMBERSHIP,
+      countryOfBranchSupervising: [regulatory_extract::Store]rex.REX_TRANSACTION.COUNTRY_OF_BRANCH_SUPERVISING,
+      instrumentIdentificationCode: [regulatory_extract::Store]rex.REX_TRANSACTION.INSTRUMENT_IDENTIFICATION_CODE,
+      complexTradeComponentId: [regulatory_extract::Store]rex.REX_TRANSACTION.COMPLEX_TRADE_COMPONENT_ID,
+      waiverIndicatorCode: [regulatory_extract::Store]rex.REX_TRANSACTION.WAIVER_INDICATOR_CODE,
+      shortSaleIndicatorCode: [regulatory_extract::Store]rex.REX_TRANSACTION.SHORT_SALE_INDICATOR_CODE,
+      otcPostTradeIndicatorCode: [regulatory_extract::Store]rex.REX_TRANSACTION.OTC_POST_TRADE_INDICATOR_CODE,
+      isCommodityDerivative: [regulatory_extract::Store]rex.REX_TRANSACTION.IS_COMMODITY_DERIVATIVE,
+      isSecuritiesFinancing: [regulatory_extract::Store]rex.REX_TRANSACTION.IS_SECURITIES_FINANCING,
+      reportingDeadline: [regulatory_extract::Store]rex.REX_TRANSACTION.REPORTING_DEADLINE,
+      submittedTime: [regulatory_extract::Store]rex.REX_TRANSACTION.SUBMITTED_TIME,
+      acceptedTime: [regulatory_extract::Store]rex.REX_TRANSACTION.ACCEPTED_TIME,
+
+      // ---- the fan-in, as objects. Three set ids, three projects, one row.
+      // Each target id is the dependency's EXPLICIT one, read out of its MANIFEST: the
+      // default ids (`trade_capture_Trade`) do not exist in any of the three.
+      trade[tcTrade]: [regulatory_extract::Store]@Rex_ReportTrade,
+      executionVenue[rdVenue]: [regulatory_extract::Store]@Rex_ReportVenue,
+      clientProfile[rexClientProfile]: [regulatory_extract::Store]@Rex_ReportClientProfile,
+      venueProfile[rexVenueProfile]: [regulatory_extract::Store]@Rex_ReportVenueProfile,
+
+      // ---- this project's own graph.
+      regime[rexRegime]: [regulatory_extract::Store]@Rex_ReportRegime,
+      tradingCapacity[rexTradingCapacity]: [regulatory_extract::Store]@Rex_ReportCapacity,
+      shortSaleIndicator[rexShortSale]: [regulatory_extract::Store]@Rex_ReportShortSale,
+      reportingEntity[rexReportingEntity]: [regulatory_extract::Store]@Rex_ReportEntity,
+      producedByRun[rexExtractRun]: [regulatory_extract::Store]@Rex_ReportRun,
+      eligibility[rexEligibility]: [regulatory_extract::Store]@Rex_ReportEligibility,
+      fieldValues[rexFieldValue]: [regulatory_extract::Store]@Rex_FieldValueReport,
+      personRoles[rexReportPerson]: [regulatory_extract::Store]@Rex_ReportPersonReport,
+      claimedWaivers[rexReportWaiver]: [regulatory_extract::Store]@Rex_ReportWaiverReport,
+      postTradeFlags[rexPostTradeFlag]: [regulatory_extract::Store]@Rex_PostTradeFlagReport,
+      validationErrors[rexValidationError]: [regulatory_extract::Store]@Rex_ErrorReport,
+      rejections[rexRejection]: [regulatory_extract::Store]@Rex_RejectionReport,
+      reconciliationBreaks[rexReconBreak]: [regulatory_extract::Store]@Rex_ReconBreakReport,
+      submissions[rexSubmission]: [regulatory_extract::Store]@Rex_SubmissionReport,
+
+      // ---- the chained ones. One hop into trade-capture and reference-data, TWO into
+      // client-core because the client is reached through this project's own profile row.
+      // The final segment names the store the COLUMN lives in, which is the dependency's,
+      // while the leading @Join names this store, which is where the join is declared.
+      tradeCurrency: [regulatory_extract::Store]@Rex_ReportTrade | [trade_capture::Store]TC_TRADE.CURRENCY,
+      tradeExecutionTime: [regulatory_extract::Store]@Rex_ReportTrade | [trade_capture::Store]TC_TRADE.EXECUTION_TIME,
+      tradeInstrumentId: [regulatory_extract::Store]@Rex_ReportTrade | [trade_capture::Store]TC_TRADE.INSTRUMENT_ID,
+      venueName: [regulatory_extract::Store]@Rex_ReportVenue | [reference_data::Store]RD_VENUE.NAME,
+      venueCountryCode: [regulatory_extract::Store]@Rex_ReportVenue | [reference_data::Store]RD_VENUE.COUNTRY_CODE,
+      clientName: [regulatory_extract::Store]@Rex_ReportClientProfile > @Rex_ClientProfileClient | [client_core::Store]CLI_CLIENT.CLIENT_NAME,
+      clientType: [regulatory_extract::Store]@Rex_ReportClientProfile > @Rex_ClientProfileClient | [client_core::Store]CLI_CLIENT.CLIENT_TYPE
+   }
+
+   // ---- the four filter subtypes ---------------------------------------------------------
+   // Three lines of directive and a handful of columns each. Everything else -- the key, the
+   // table, the fan-in properties above -- is inherited from [rexTransaction].
+
+   // The MiFIR RTS 22 rows. Transmission (25-27) exists in no other regime's schema.
+   regulatory_extract::RexMifirTransactionReport[rexMifir] extends [rexTransaction]: Relational
+   {
+      ~filter [regulatory_extract::Store]RexMifirRows
+      transmissionIndicator: [regulatory_extract::Store]rex.REX_TRANSACTION.TRANSMISSION_INDICATOR,
+      transmittingFirmIdBuyer: [regulatory_extract::Store]rex.REX_TRANSACTION.TRANSMITTING_FIRM_ID_BUYER,
+      transmittingFirmIdSeller: [regulatory_extract::Store]rex.REX_TRANSACTION.TRANSMITTING_FIRM_ID_SELLER,
+      executionWithinFirmVenue: [regulatory_extract::Store]rex.REX_TRANSACTION.EXECUTION_WITHIN_FIRM_VENUE,
+      derivativeNotionalChange: [regulatory_extract::Store]rex.REX_TRANSACTION.DERIVATIVE_NOTIONAL_CHANGE
+   }
+
+   // The EMIR rows. The UTI and the counterparty LEI are what the repository pairs on, and
+   // `reconciliationBreaks`, inherited from the root set, is what comes back when they do
+   // not agree.
+   regulatory_extract::RexEmirTradeReport[rexEmir] extends [rexTransaction]: Relational
+   {
+      ~filter [regulatory_extract::Store]RexEmirRows
+      uniqueTradeIdentifier: [regulatory_extract::Store]rex.REX_TRANSACTION.UNIQUE_TRADE_IDENTIFIER,
+      counterpartyLei: [regulatory_extract::Store]rex.REX_TRANSACTION.COUNTERPARTY_LEI,
+      counterpartySide: [regulatory_extract::Store]rex.REX_TRANSACTION.COUNTERPARTY_SIDE,
+      hasClearingObligation: [regulatory_extract::Store]rex.REX_TRANSACTION.HAS_CLEARING_OBLIGATION,
+      isCleared: [regulatory_extract::Store]rex.REX_TRANSACTION.IS_CLEARED,
+      ccpLei: [regulatory_extract::Store]rex.REX_TRANSACTION.CCP_LEI,
+      collateralisationCode: [regulatory_extract::Store]rex.REX_TRANSACTION.COLLATERALISATION_CODE,
+      isIntragroup: [regulatory_extract::Store]rex.REX_TRANSACTION.IS_INTRAGROUP,
+      confirmationTimestamp: [regulatory_extract::Store]rex.REX_TRANSACTION.CONFIRMATION_TIMESTAMP,
+      confirmationMeans: [regulatory_extract::Store]rex.REX_TRANSACTION.CONFIRMATION_MEANS,
+      valuationAmount: [regulatory_extract::Store]rex.REX_TRANSACTION.VALUATION_AMOUNT,
+      valuationTimestamp: [regulatory_extract::Store]rex.REX_TRANSACTION.VALUATION_TIMESTAMP
+   }
+
+   // The refused rows. Overlaps rexMifir and rexEmir on purpose: rejection is a state, not
+   // an identity, and a rejected MiFIR report belongs to both sets.
+   regulatory_extract::RexRejectedTransactionReport[rexRejected] extends [rexTransaction]: Relational
+   {
+      ~filter [regulatory_extract::Store]RexRejectedRows
+      rejectedTime: [regulatory_extract::Store]rex.REX_TRANSACTION.REJECTED_TIME,
+      ncaRejectionCode: [regulatory_extract::Store]rex.REX_TRANSACTION.NCA_REJECTION_CODE,
+      ncaFeedbackReference: [regulatory_extract::Store]rex.REX_TRANSACTION.NCA_FEEDBACK_REFERENCE,
+      resubmissionCount: [regulatory_extract::Store]rex.REX_TRANSACTION.RESUBMISSION_COUNT
+   }
+
+   // The backlog. A NULL test, not a status: a report can be DRAFT, PENDING or HELD and
+   // still be unsent, and the T+1 alert is about the absence of a submission.
+   regulatory_extract::RexUnsubmittedTransactionReport[rexUnsubmitted] extends [rexTransaction]: Relational
+   {
+      ~filter [regulatory_extract::Store]RexUnsubmittedRows
+      heldReasonCode: [regulatory_extract::Store]rex.REX_TRANSACTION.HELD_REASON_CODE,
+      heldByUser: [regulatory_extract::Store]rex.REX_TRANSACTION.HELD_BY_USER
+   }
+
+   // ---- regimes, obligations and the schema as data ---------------------------------------
+   regulatory_extract::RexReportingRegime[rexRegime]: Relational
+   {
+      ~primaryKey ( [regulatory_extract::Store]rex.REX_REGIME.REGIME_CODE )
+      ~mainTable [regulatory_extract::Store]rex.REX_REGIME
+      regimeCode: [regulatory_extract::Store]rex.REX_REGIME.REGIME_CODE,
+      regimeName: [regulatory_extract::Store]rex.REX_REGIME.REGIME_NAME,
+      legalReference: [regulatory_extract::Store]rex.REX_REGIME.LEGAL_REFERENCE,
+      receiverType: [regulatory_extract::Store]rex.REX_REGIME.RECEIVER_TYPE,
+      fieldCount: [regulatory_extract::Store]rex.REX_REGIME.FIELD_COUNT,
+      deadlineBusinessDays: [regulatory_extract::Store]rex.REX_REGIME.DEADLINE_BUSINESS_DAYS,
+      schemaVersion: [regulatory_extract::Store]rex.REX_REGIME.SCHEMA_VERSION,
+      effectiveFrom: [regulatory_extract::Store]rex.REX_REGIME.EFFECTIVE_FROM,
+      retiredOn: [regulatory_extract::Store]rex.REX_REGIME.RETIRED_ON
+   }
+
+   regulatory_extract::RexReportingObligation[rexObligation]: Relational
+   {
+      ~primaryKey ( [regulatory_extract::Store]rex.REX_OBLIGATION.OBLIGATION_ID )
+      ~mainTable [regulatory_extract::Store]rex.REX_OBLIGATION
+      obligationId: [regulatory_extract::Store]rex.REX_OBLIGATION.OBLIGATION_ID,
+      regimeCode: [regulatory_extract::Store]rex.REX_OBLIGATION.REGIME_CODE,
+      scopeType: [regulatory_extract::Store]rex.REX_OBLIGATION.SCOPE_TYPE,
+      scopeValue: [regulatory_extract::Store]rex.REX_OBLIGATION.SCOPE_VALUE,
+      reportingParty: [regulatory_extract::Store]rex.REX_OBLIGATION.REPORTING_PARTY,
+      isDelegated: [regulatory_extract::Store]rex.REX_OBLIGATION.IS_DELEGATED,
+      delegateLei: [regulatory_extract::Store]rex.REX_OBLIGATION.DELEGATE_LEI,
+      startDate: [regulatory_extract::Store]rex.REX_OBLIGATION.START_DATE,
+      endDate: [regulatory_extract::Store]rex.REX_OBLIGATION.END_DATE,
+      regime[rexRegime]: [regulatory_extract::Store]@Rex_ObligationRegime
+   }
+
+   // Composite key on regime and field number: there is no global field 57.
+   regulatory_extract::RexReportField[rexField]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_extract::Store]rex.REX_FIELD.REGIME_CODE,
+         [regulatory_extract::Store]rex.REX_FIELD.FIELD_NUMBER
+      )
+      ~mainTable [regulatory_extract::Store]rex.REX_FIELD
+      regimeCode: [regulatory_extract::Store]rex.REX_FIELD.REGIME_CODE,
+      fieldNumber: [regulatory_extract::Store]rex.REX_FIELD.FIELD_NUMBER,
+      fieldName: [regulatory_extract::Store]rex.REX_FIELD.FIELD_NAME,
+      dataType: [regulatory_extract::Store]rex.REX_FIELD.DATA_TYPE,
+      isMandatory: [regulatory_extract::Store]rex.REX_FIELD.IS_MANDATORY,
+      conditionalRule: [regulatory_extract::Store]rex.REX_FIELD.CONDITIONAL_RULE,
+      maxLength: [regulatory_extract::Store]rex.REX_FIELD.MAX_LENGTH,
+      sourceDomain: [regulatory_extract::Store]rex.REX_FIELD.SOURCE_DOMAIN,
+      sourcePath: [regulatory_extract::Store]rex.REX_FIELD.SOURCE_PATH,
+      regime[rexRegime]: [regulatory_extract::Store]@Rex_FieldRegime
+   }
+
+   // Three key columns, because a value belongs to one report, under one regime, at one
+   // field number.
+   regulatory_extract::RexFieldValue[rexFieldValue]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_extract::Store]rex.REX_FIELD_VALUE.REPORT_ID,
+         [regulatory_extract::Store]rex.REX_FIELD_VALUE.REGIME_CODE,
+         [regulatory_extract::Store]rex.REX_FIELD_VALUE.FIELD_NUMBER
+      )
+      ~mainTable [regulatory_extract::Store]rex.REX_FIELD_VALUE
+      reportId: [regulatory_extract::Store]rex.REX_FIELD_VALUE.REPORT_ID,
+      regimeCode: [regulatory_extract::Store]rex.REX_FIELD_VALUE.REGIME_CODE,
+      fieldNumber: [regulatory_extract::Store]rex.REX_FIELD_VALUE.FIELD_NUMBER,
+      fieldValue: [regulatory_extract::Store]rex.REX_FIELD_VALUE.FIELD_VALUE,
+      previousValue: [regulatory_extract::Store]rex.REX_FIELD_VALUE.PREVIOUS_VALUE,
+      isPopulated: [regulatory_extract::Store]rex.REX_FIELD_VALUE.IS_POPULATED,
+      wasDefaulted: [regulatory_extract::Store]rex.REX_FIELD_VALUE.WAS_DEFAULTED,
+      populatedTime: [regulatory_extract::Store]rex.REX_FIELD_VALUE.POPULATED_TIME,
+      report[rexTransaction]: [regulatory_extract::Store]@Rex_FieldValueReport,
+      // Two columns in the join condition, so the hop stays many-to-one.
+      field[rexField]: [regulatory_extract::Store]@Rex_FieldValueField
+   }
+
+   // ---- the four hard fields ---------------------------------------------------------------
+   regulatory_extract::RexTradingCapacity[rexTradingCapacity]: Relational
+   {
+      ~primaryKey ( [regulatory_extract::Store]rex.REX_TRADING_CAPACITY.CAPACITY_CODE )
+      ~mainTable [regulatory_extract::Store]rex.REX_TRADING_CAPACITY
+      capacityCode: [regulatory_extract::Store]rex.REX_TRADING_CAPACITY.CAPACITY_CODE,
+      capacityName: [regulatory_extract::Store]rex.REX_TRADING_CAPACITY.CAPACITY_NAME,
+      description: [regulatory_extract::Store]rex.REX_TRADING_CAPACITY.DESCRIPTION,
+      requiresClientIdentification: [regulatory_extract::Store]rex.REX_TRADING_CAPACITY.REQUIRES_CLIENT_IDENTIFICATION,
+      isPrincipal: [regulatory_extract::Store]rex.REX_TRADING_CAPACITY.IS_PRINCIPAL
+   }
+
+   // The one set that reaches trade-capture for a PERSON rather than for a trade: a decision
+   // maker who is a natural person is, in the front office's terms, a trader.
+   regulatory_extract::RexDecisionMaker[rexDecisionMaker]: Relational
+   {
+      ~primaryKey ( [regulatory_extract::Store]rex.REX_DECISION_MAKER.DECISION_MAKER_ID )
+      ~mainTable [regulatory_extract::Store]rex.REX_DECISION_MAKER
+      decisionMakerId: [regulatory_extract::Store]rex.REX_DECISION_MAKER.DECISION_MAKER_ID,
+      makerType: [regulatory_extract::Store]rex.REX_DECISION_MAKER.MAKER_TYPE,
+      displayName: [regulatory_extract::Store]rex.REX_DECISION_MAKER.DISPLAY_NAME,
+      algorithmRef: [regulatory_extract::Store]rex.REX_DECISION_MAKER.ALGORITHM_ID,
+      traderRef: [regulatory_extract::Store]rex.REX_DECISION_MAKER.TRADER_ID,
+      supervisingBranchCountry: [regulatory_extract::Store]rex.REX_DECISION_MAKER.SUPERVISING_BRANCH_COUNTRY,
+      isActive: [regulatory_extract::Store]rex.REX_DECISION_MAKER.IS_ACTIVE,
+      validFrom: [regulatory_extract::Store]rex.REX_DECISION_MAKER.VALID_FROM,
+      validTo: [regulatory_extract::Store]rex.REX_DECISION_MAKER.VALID_TO,
+      algorithm[rexAlgorithm]: [regulatory_extract::Store]@Rex_MakerAlgorithm,
+      nationalIdentifiers[rexPersonIdentifier]: [regulatory_extract::Store]@Rex_MakerPersonIdentifier,
+      trader[tcTrader]: [regulatory_extract::Store]@Rex_MakerTrader,
+      traderFullNameSource: [regulatory_extract::Store]@Rex_MakerTrader | [trade_capture::Store]TC_TRADER.LAST_NAME,
+      traderDeskName: [regulatory_extract::Store]@Rex_MakerTrader | [trade_capture::Store]TC_TRADER.DESK_NAME
+   }
+
+   regulatory_extract::RexAlgorithm[rexAlgorithm]: Relational
+   {
+      ~primaryKey ( [regulatory_extract::Store]rex.REX_ALGORITHM.ALGORITHM_ID )
+      ~mainTable [regulatory_extract::Store]rex.REX_ALGORITHM
+      algorithmId: [regulatory_extract::Store]rex.REX_ALGORITHM.ALGORITHM_ID,
+      algorithmName: [regulatory_extract::Store]rex.REX_ALGORITHM.ALGORITHM_NAME,
+      registeredCode: [regulatory_extract::Store]rex.REX_ALGORITHM.REGISTERED_CODE,
+      algorithmRole: [regulatory_extract::Store]rex.REX_ALGORITHM.ALGORITHM_ROLE,
+      version: [regulatory_extract::Store]rex.REX_ALGORITHM.VERSION_LABEL,
+      ownerDeskName: [regulatory_extract::Store]rex.REX_ALGORITHM.OWNER_DESK_NAME,
+      registeredWithNca: [regulatory_extract::Store]rex.REX_ALGORITHM.REGISTERED_WITH_NCA,
+      registeredFrom: [regulatory_extract::Store]rex.REX_ALGORITHM.REGISTERED_FROM,
+      withdrawnOn: [regulatory_extract::Store]rex.REX_ALGORITHM.WITHDRAWN_ON
+   }
+
+   // Composite key on maker and scheme: dual nationality is two rows.
+   regulatory_extract::RexNaturalPersonIdentifier[rexPersonIdentifier]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_extract::Store]rex.REX_PERSON_IDENTIFIER.DECISION_MAKER_ID,
+         [regulatory_extract::Store]rex.REX_PERSON_IDENTIFIER.SCHEME_CODE
+      )
+      ~mainTable [regulatory_extract::Store]rex.REX_PERSON_IDENTIFIER
+      decisionMakerId: [regulatory_extract::Store]rex.REX_PERSON_IDENTIFIER.DECISION_MAKER_ID,
+      schemeCode: [regulatory_extract::Store]rex.REX_PERSON_IDENTIFIER.SCHEME_CODE,
+      identifierValue: [regulatory_extract::Store]rex.REX_PERSON_IDENTIFIER.IDENTIFIER_VALUE,
+      issuingCountryCode: [regulatory_extract::Store]rex.REX_PERSON_IDENTIFIER.ISSUING_COUNTRY_CODE,
+      priorityRank: [regulatory_extract::Store]rex.REX_PERSON_IDENTIFIER.PRIORITY_RANK,
+      validFrom: [regulatory_extract::Store]rex.REX_PERSON_IDENTIFIER.VALID_FROM,
+      validTo: [regulatory_extract::Store]rex.REX_PERSON_IDENTIFIER.VALID_TO
+   }
+
+   // Composite key on report and role: one decision maker, one executor, never two of either.
+   regulatory_extract::RexReportPersonRole[rexReportPerson]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_extract::Store]rex.REX_REPORT_PERSON.REPORT_ID,
+         [regulatory_extract::Store]rex.REX_REPORT_PERSON.ROLE_CODE
+      )
+      ~mainTable [regulatory_extract::Store]rex.REX_REPORT_PERSON
+      reportId: [regulatory_extract::Store]rex.REX_REPORT_PERSON.REPORT_ID,
+      roleCode: [regulatory_extract::Store]rex.REX_REPORT_PERSON.ROLE_CODE,
+      decisionMakerId: [regulatory_extract::Store]rex.REX_REPORT_PERSON.DECISION_MAKER_ID,
+      reportedIdentifierValue: [regulatory_extract::Store]rex.REX_REPORT_PERSON.REPORTED_IDENTIFIER_VALUE,
+      reportedSchemeCode: [regulatory_extract::Store]rex.REX_REPORT_PERSON.REPORTED_SCHEME_CODE,
+      isNoDiscretion: [regulatory_extract::Store]rex.REX_REPORT_PERSON.IS_NO_DISCRETION,
+      assignedTime: [regulatory_extract::Store]rex.REX_REPORT_PERSON.ASSIGNED_TIME,
+      report[rexTransaction]: [regulatory_extract::Store]@Rex_ReportPersonReport,
+      decisionMaker[rexDecisionMaker]: [regulatory_extract::Store]@Rex_ReportPersonMaker
+   }
+
+   regulatory_extract::RexWaiver[rexWaiver]: Relational
+   {
+      ~primaryKey ( [regulatory_extract::Store]rex.REX_WAIVER.WAIVER_CODE )
+      ~mainTable [regulatory_extract::Store]rex.REX_WAIVER
+      waiverCode: [regulatory_extract::Store]rex.REX_WAIVER.WAIVER_CODE,
+      waiverName: [regulatory_extract::Store]rex.REX_WAIVER.WAIVER_NAME,
+      description: [regulatory_extract::Store]rex.REX_WAIVER.DESCRIPTION,
+      legalBasis: [regulatory_extract::Store]rex.REX_WAIVER.LEGAL_BASIS,
+      requiresSizeThreshold: [regulatory_extract::Store]rex.REX_WAIVER.REQUIRES_SIZE_THRESHOLD,
+      appliesToAssetClass: [regulatory_extract::Store]rex.REX_WAIVER.APPLIES_TO_ASSET_CLASS
+   }
+
+   regulatory_extract::RexReportWaiver[rexReportWaiver]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_extract::Store]rex.REX_REPORT_WAIVER.REPORT_ID,
+         [regulatory_extract::Store]rex.REX_REPORT_WAIVER.WAIVER_CODE
+      )
+      ~mainTable [regulatory_extract::Store]rex.REX_REPORT_WAIVER
+      reportId: [regulatory_extract::Store]rex.REX_REPORT_WAIVER.REPORT_ID,
+      waiverCode: [regulatory_extract::Store]rex.REX_REPORT_WAIVER.WAIVER_CODE,
+      testedSize: [regulatory_extract::Store]rex.REX_REPORT_WAIVER.TESTED_SIZE,
+      thresholdApplied: [regulatory_extract::Store]rex.REX_REPORT_WAIVER.THRESHOLD_APPLIED,
+      claimedTime: [regulatory_extract::Store]rex.REX_REPORT_WAIVER.CLAIMED_TIME,
+      claimSource: [regulatory_extract::Store]rex.REX_REPORT_WAIVER.CLAIM_SOURCE,
+      report[rexTransaction]: [regulatory_extract::Store]@Rex_ReportWaiverReport,
+      waiver[rexWaiver]: [regulatory_extract::Store]@Rex_ReportWaiverWaiver
+   }
+
+   regulatory_extract::RexShortSaleIndicator[rexShortSale]: Relational
+   {
+      ~primaryKey ( [regulatory_extract::Store]rex.REX_SHORT_SALE_INDICATOR.INDICATOR_CODE )
+      ~mainTable [regulatory_extract::Store]rex.REX_SHORT_SALE_INDICATOR
+      indicatorCode: [regulatory_extract::Store]rex.REX_SHORT_SALE_INDICATOR.INDICATOR_CODE,
+      indicatorName: [regulatory_extract::Store]rex.REX_SHORT_SALE_INDICATOR.INDICATOR_NAME,
+      description: [regulatory_extract::Store]rex.REX_SHORT_SALE_INDICATOR.DESCRIPTION,
+      isShortSale: [regulatory_extract::Store]rex.REX_SHORT_SALE_INDICATOR.IS_SHORT_SALE,
+      hasExemption: [regulatory_extract::Store]rex.REX_SHORT_SALE_INDICATOR.HAS_EXEMPTION
+   }
+
+   regulatory_extract::RexPostTradeFlag[rexPostTradeFlag]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_extract::Store]rex.REX_POST_TRADE_FLAG.REPORT_ID,
+         [regulatory_extract::Store]rex.REX_POST_TRADE_FLAG.FLAG_CODE
+      )
+      ~mainTable [regulatory_extract::Store]rex.REX_POST_TRADE_FLAG
+      reportId: [regulatory_extract::Store]rex.REX_POST_TRADE_FLAG.REPORT_ID,
+      flagCode: [regulatory_extract::Store]rex.REX_POST_TRADE_FLAG.FLAG_CODE,
+      flagName: [regulatory_extract::Store]rex.REX_POST_TRADE_FLAG.FLAG_NAME,
+      grantsDeferral: [regulatory_extract::Store]rex.REX_POST_TRADE_FLAG.GRANTS_DEFERRAL,
+      deferralDays: [regulatory_extract::Store]rex.REX_POST_TRADE_FLAG.DEFERRAL_DAYS,
+      appliedTime: [regulatory_extract::Store]rex.REX_POST_TRADE_FLAG.APPLIED_TIME,
+      report[rexTransaction]: [regulatory_extract::Store]@Rex_PostTradeFlagReport
+   }
+
+   // ---- producing and sending ---------------------------------------------------------------
+   regulatory_extract::RexExtractRun[rexExtractRun]: Relational
+   {
+      ~primaryKey ( [regulatory_extract::Store]rex.REX_EXTRACT_RUN.RUN_ID )
+      ~mainTable [regulatory_extract::Store]rex.REX_EXTRACT_RUN
+      runId: [regulatory_extract::Store]rex.REX_EXTRACT_RUN.RUN_ID,
+      regimeCode: [regulatory_extract::Store]rex.REX_EXTRACT_RUN.REGIME_CODE,
+      businessDate: [regulatory_extract::Store]rex.REX_EXTRACT_RUN.BUSINESS_DATE,
+      startedTime: [regulatory_extract::Store]rex.REX_EXTRACT_RUN.STARTED_TIME,
+      completedTime: [regulatory_extract::Store]rex.REX_EXTRACT_RUN.COMPLETED_TIME,
+      runStatus: [regulatory_extract::Store]rex.REX_EXTRACT_RUN.RUN_STATUS,
+      tradesRead: [regulatory_extract::Store]rex.REX_EXTRACT_RUN.TRADES_READ,
+      reportsProduced: [regulatory_extract::Store]rex.REX_EXTRACT_RUN.REPORTS_PRODUCED,
+      reportsSuppressed: [regulatory_extract::Store]rex.REX_EXTRACT_RUN.REPORTS_SUPPRESSED,
+      triggeredBy: [regulatory_extract::Store]rex.REX_EXTRACT_RUN.TRIGGERED_BY
+   }
+
+   regulatory_extract::RexReportDestination[rexDestination]: Relational
+   {
+      ~primaryKey ( [regulatory_extract::Store]rex.REX_DESTINATION.DESTINATION_CODE )
+      ~mainTable [regulatory_extract::Store]rex.REX_DESTINATION
+      destinationCode: [regulatory_extract::Store]rex.REX_DESTINATION.DESTINATION_CODE,
+      destinationName: [regulatory_extract::Store]rex.REX_DESTINATION.DESTINATION_NAME,
+      destinationType: [regulatory_extract::Store]rex.REX_DESTINATION.DESTINATION_TYPE,
+      countryCode: [regulatory_extract::Store]rex.REX_DESTINATION.COUNTRY_CODE,
+      destinationLei: [regulatory_extract::Store]rex.REX_DESTINATION.DESTINATION_LEI,
+      transportType: [regulatory_extract::Store]rex.REX_DESTINATION.TRANSPORT_TYPE,
+      dailyCutOffLocalTime: [regulatory_extract::Store]rex.REX_DESTINATION.DAILY_CUT_OFF_LOCAL_TIME,
+      schemaVersion: [regulatory_extract::Store]rex.REX_DESTINATION.SCHEMA_VERSION,
+      isActive: [regulatory_extract::Store]rex.REX_DESTINATION.IS_ACTIVE
+   }
+
+   regulatory_extract::RexSubmissionBatch[rexBatch]: Relational
+   {
+      ~primaryKey ( [regulatory_extract::Store]rex.REX_BATCH.BATCH_ID )
+      ~mainTable [regulatory_extract::Store]rex.REX_BATCH
+      batchId: [regulatory_extract::Store]rex.REX_BATCH.BATCH_ID,
+      runId: [regulatory_extract::Store]rex.REX_BATCH.RUN_ID,
+      destinationCode: [regulatory_extract::Store]rex.REX_BATCH.DESTINATION_CODE,
+      regimeCode: [regulatory_extract::Store]rex.REX_BATCH.REGIME_CODE,
+      fileName: [regulatory_extract::Store]rex.REX_BATCH.FILE_NAME,
+      fileHash: [regulatory_extract::Store]rex.REX_BATCH.FILE_HASH,
+      recordCount: [regulatory_extract::Store]rex.REX_BATCH.RECORD_COUNT,
+      builtTime: [regulatory_extract::Store]rex.REX_BATCH.BUILT_TIME,
+      sentTime: [regulatory_extract::Store]rex.REX_BATCH.SENT_TIME,
+      acknowledgedTime: [regulatory_extract::Store]rex.REX_BATCH.ACKNOWLEDGED_TIME,
+      batchStatus: [regulatory_extract::Store]rex.REX_BATCH.BATCH_STATUS,
+      destinationReference: [regulatory_extract::Store]rex.REX_BATCH.DESTINATION_REFERENCE,
+      destination[rexDestination]: [regulatory_extract::Store]@Rex_BatchDestination,
+      producedByRun[rexExtractRun]: [regulatory_extract::Store]@Rex_BatchRun,
+      entries[rexSubmission]: [regulatory_extract::Store]@Rex_SubmissionBatch
+   }
+
+   // Composite key on batch and report: the same report goes again after a rejection.
+   regulatory_extract::RexSubmissionEntry[rexSubmission]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_extract::Store]rex.REX_SUBMISSION.BATCH_ID,
+         [regulatory_extract::Store]rex.REX_SUBMISSION.REPORT_ID
+      )
+      ~mainTable [regulatory_extract::Store]rex.REX_SUBMISSION
+      batchId: [regulatory_extract::Store]rex.REX_SUBMISSION.BATCH_ID,
+      reportId: [regulatory_extract::Store]rex.REX_SUBMISSION.REPORT_ID,
+      sequenceNumber: [regulatory_extract::Store]rex.REX_SUBMISSION.SEQUENCE_NUMBER,
+      attemptNumber: [regulatory_extract::Store]rex.REX_SUBMISSION.ATTEMPT_NUMBER,
+      entryStatus: [regulatory_extract::Store]rex.REX_SUBMISSION.ENTRY_STATUS,
+      submittedTime: [regulatory_extract::Store]rex.REX_SUBMISSION.SUBMITTED_TIME,
+      batch[rexBatch]: [regulatory_extract::Store]@Rex_SubmissionBatch,
+      report[rexTransaction]: [regulatory_extract::Store]@Rex_SubmissionReport
+   }
+
+   // ---- what comes back ---------------------------------------------------------------------
+   regulatory_extract::RexValidationRule[rexValidationRule]: Relational
+   {
+      ~primaryKey ( [regulatory_extract::Store]rex.REX_VALIDATION_RULE.RULE_ID )
+      ~mainTable [regulatory_extract::Store]rex.REX_VALIDATION_RULE
+      ruleId: [regulatory_extract::Store]rex.REX_VALIDATION_RULE.RULE_ID,
+      ruleName: [regulatory_extract::Store]rex.REX_VALIDATION_RULE.RULE_NAME,
+      regimeCode: [regulatory_extract::Store]rex.REX_VALIDATION_RULE.REGIME_CODE,
+      fieldNumber: [regulatory_extract::Store]rex.REX_VALIDATION_RULE.FIELD_NUMBER,
+      ruleType: [regulatory_extract::Store]rex.REX_VALIDATION_RULE.RULE_TYPE,
+      severity: [regulatory_extract::Store]rex.REX_VALIDATION_RULE.SEVERITY,
+      expression: [regulatory_extract::Store]rex.REX_VALIDATION_RULE.EXPRESSION,
+      blocksSubmission: [regulatory_extract::Store]rex.REX_VALIDATION_RULE.BLOCKS_SUBMISSION,
+      isActive: [regulatory_extract::Store]rex.REX_VALIDATION_RULE.IS_ACTIVE,
+      introducedOn: [regulatory_extract::Store]rex.REX_VALIDATION_RULE.INTRODUCED_ON
+   }
+
+   regulatory_extract::RexValidationError[rexValidationError]: Relational
+   {
+      ~primaryKey ( [regulatory_extract::Store]rex.REX_VALIDATION_ERROR.ERROR_ID )
+      ~mainTable [regulatory_extract::Store]rex.REX_VALIDATION_ERROR
+      errorId: [regulatory_extract::Store]rex.REX_VALIDATION_ERROR.ERROR_ID,
+      reportId: [regulatory_extract::Store]rex.REX_VALIDATION_ERROR.REPORT_ID,
+      ruleId: [regulatory_extract::Store]rex.REX_VALIDATION_ERROR.RULE_ID,
+      fieldNumber: [regulatory_extract::Store]rex.REX_VALIDATION_ERROR.FIELD_NUMBER,
+      observedValue: [regulatory_extract::Store]rex.REX_VALIDATION_ERROR.OBSERVED_VALUE,
+      expectedValue: [regulatory_extract::Store]rex.REX_VALIDATION_ERROR.EXPECTED_VALUE,
+      message: [regulatory_extract::Store]rex.REX_VALIDATION_ERROR.MESSAGE,
+      severity: [regulatory_extract::Store]rex.REX_VALIDATION_ERROR.SEVERITY,
+      detectedTime: [regulatory_extract::Store]rex.REX_VALIDATION_ERROR.DETECTED_TIME,
+      resolvedTime: [regulatory_extract::Store]rex.REX_VALIDATION_ERROR.RESOLVED_TIME,
+      resolvedByUser: [regulatory_extract::Store]rex.REX_VALIDATION_ERROR.RESOLVED_BY_USER,
+      report[rexTransaction]: [regulatory_extract::Store]@Rex_ErrorReport,
+      rule[rexValidationRule]: [regulatory_extract::Store]@Rex_ErrorRule
+   }
+
+   regulatory_extract::RexRejectionFeedback[rexRejection]: Relational
+   {
+      ~primaryKey ( [regulatory_extract::Store]rex.REX_REJECTION.FEEDBACK_ID )
+      ~mainTable [regulatory_extract::Store]rex.REX_REJECTION
+      feedbackId: [regulatory_extract::Store]rex.REX_REJECTION.FEEDBACK_ID,
+      reportId: [regulatory_extract::Store]rex.REX_REJECTION.REPORT_ID,
+      batchId: [regulatory_extract::Store]rex.REX_REJECTION.BATCH_ID,
+      feedbackCode: [regulatory_extract::Store]rex.REX_REJECTION.FEEDBACK_CODE,
+      feedbackText: [regulatory_extract::Store]rex.REX_REJECTION.FEEDBACK_TEXT,
+      referencedFieldNumber: [regulatory_extract::Store]rex.REX_REJECTION.REFERENCED_FIELD_NUMBER,
+      feedbackType: [regulatory_extract::Store]rex.REX_REJECTION.FEEDBACK_TYPE,
+      receivedTime: [regulatory_extract::Store]rex.REX_REJECTION.RECEIVED_TIME,
+      authorityReference: [regulatory_extract::Store]rex.REX_REJECTION.AUTHORITY_REFERENCE,
+      requiresResubmission: [regulatory_extract::Store]rex.REX_REJECTION.REQUIRES_RESUBMISSION,
+      report[rexTransaction]: [regulatory_extract::Store]@Rex_RejectionReport,
+      batch[rexBatch]: [regulatory_extract::Store]@Rex_RejectionBatch,
+      remediations[rexRemediation]: [regulatory_extract::Store]@Rex_RemediationFeedback
+   }
+
+   regulatory_extract::RexRemediationAction[rexRemediation]: Relational
+   {
+      ~primaryKey ( [regulatory_extract::Store]rex.REX_REMEDIATION.ACTION_ID )
+      ~mainTable [regulatory_extract::Store]rex.REX_REMEDIATION
+      actionId: [regulatory_extract::Store]rex.REX_REMEDIATION.ACTION_ID,
+      feedbackId: [regulatory_extract::Store]rex.REX_REMEDIATION.FEEDBACK_ID,
+      reportId: [regulatory_extract::Store]rex.REX_REMEDIATION.REPORT_ID,
+      actionType: [regulatory_extract::Store]rex.REX_REMEDIATION.ACTION_TYPE,
+      rootCauseDomain: [regulatory_extract::Store]rex.REX_REMEDIATION.ROOT_CAUSE_DOMAIN,
+      description: [regulatory_extract::Store]rex.REX_REMEDIATION.DESCRIPTION,
+      raisedTime: [regulatory_extract::Store]rex.REX_REMEDIATION.RAISED_TIME,
+      completedTime: [regulatory_extract::Store]rex.REX_REMEDIATION.COMPLETED_TIME,
+      performedByUser: [regulatory_extract::Store]rex.REX_REMEDIATION.PERFORMED_BY_USER,
+      replacementReportId: [regulatory_extract::Store]rex.REX_REMEDIATION.REPLACEMENT_REPORT_ID,
+      feedback[rexRejection]: [regulatory_extract::Store]@Rex_RemediationFeedback
+   }
+
+   regulatory_extract::RexReconciliationBreak[rexReconBreak]: Relational
+   {
+      ~primaryKey ( [regulatory_extract::Store]rex.REX_RECON_BREAK.BREAK_ID )
+      ~mainTable [regulatory_extract::Store]rex.REX_RECON_BREAK
+      breakId: [regulatory_extract::Store]rex.REX_RECON_BREAK.BREAK_ID,
+      reportId: [regulatory_extract::Store]rex.REX_RECON_BREAK.REPORT_ID,
+      uniqueTradeIdentifier: [regulatory_extract::Store]rex.REX_RECON_BREAK.UNIQUE_TRADE_IDENTIFIER,
+      counterpartyLei: [regulatory_extract::Store]rex.REX_RECON_BREAK.COUNTERPARTY_LEI,
+      fieldName: [regulatory_extract::Store]rex.REX_RECON_BREAK.FIELD_NAME,
+      fieldNumber: [regulatory_extract::Store]rex.REX_RECON_BREAK.FIELD_NUMBER,
+      ourValue: [regulatory_extract::Store]rex.REX_RECON_BREAK.OUR_VALUE,
+      theirValue: [regulatory_extract::Store]rex.REX_RECON_BREAK.THEIR_VALUE,
+      pairingStatus: [regulatory_extract::Store]rex.REX_RECON_BREAK.PAIRING_STATUS,
+      toleranceApplied: [regulatory_extract::Store]rex.REX_RECON_BREAK.TOLERANCE_APPLIED,
+      reportedDate: [regulatory_extract::Store]rex.REX_RECON_BREAK.REPORTED_DATE,
+      resolvedDate: [regulatory_extract::Store]rex.REX_RECON_BREAK.RESOLVED_DATE,
+      report[rexTransaction]: [regulatory_extract::Store]@Rex_ReconBreakReport
+   }
+
+   // ---- the fan-in bridges --------------------------------------------------------------
+   regulatory_extract::RexReportingEntity[rexReportingEntity]: Relational
+   {
+      ~primaryKey ( [regulatory_extract::Store]rex.REX_REPORTING_ENTITY.REPORTING_ENTITY_ID )
+      ~mainTable [regulatory_extract::Store]rex.REX_REPORTING_ENTITY
+      reportingEntityId: [regulatory_extract::Store]rex.REX_REPORTING_ENTITY.REPORTING_ENTITY_ID,
+      entityLei: [regulatory_extract::Store]rex.REX_REPORTING_ENTITY.ENTITY_LEI,
+      entityName: [regulatory_extract::Store]rex.REX_REPORTING_ENTITY.ENTITY_NAME,
+      homeNcaCode: [regulatory_extract::Store]rex.REX_REPORTING_ENTITY.HOME_NCA_CODE,
+      countryCode: [regulatory_extract::Store]rex.REX_REPORTING_ENTITY.COUNTRY_CODE,
+      isInvestmentFirm: [regulatory_extract::Store]rex.REX_REPORTING_ENTITY.IS_INVESTMENT_FIRM,
+      isBranch: [regulatory_extract::Store]rex.REX_REPORTING_ENTITY.IS_BRANCH,
+      parentEntityLei: [regulatory_extract::Store]rex.REX_REPORTING_ENTITY.PARENT_ENTITY_LEI,
+      authorisedFrom: [regulatory_extract::Store]rex.REX_REPORTING_ENTITY.AUTHORISED_FROM,
+      authorisationWithdrawnOn: [regulatory_extract::Store]rex.REX_REPORTING_ENTITY.AUTHORISATION_WITHDRAWN_ON
+   }
+
+   // The bridge into client-core. `client[cliClient]` is the object; the four flattened
+   // properties beneath it are the same row's columns, for a report that groups by client
+   // type without navigating anything.
+   regulatory_extract::RexClientReportingProfile[rexClientProfile]: Relational
+   {
+      ~primaryKey ( [regulatory_extract::Store]rex.REX_CLIENT_PROFILE.PROFILE_ID )
+      ~mainTable [regulatory_extract::Store]rex.REX_CLIENT_PROFILE
+      profileId: [regulatory_extract::Store]rex.REX_CLIENT_PROFILE.PROFILE_ID,
+      clientId: [regulatory_extract::Store]rex.REX_CLIENT_PROFILE.CLIENT_ID,
+      reportingIdentifier: [regulatory_extract::Store]rex.REX_CLIENT_PROFILE.REPORTING_IDENTIFIER,
+      identifierScheme: [regulatory_extract::Store]rex.REX_CLIENT_PROFILE.IDENTIFIER_SCHEME,
+      leiStatus: [regulatory_extract::Store]rex.REX_CLIENT_PROFILE.LEI_STATUS,
+      leiExpiryDate: [regulatory_extract::Store]rex.REX_CLIENT_PROFILE.LEI_EXPIRY_DATE,
+      isDelegatedReporting: [regulatory_extract::Store]rex.REX_CLIENT_PROFILE.IS_DELEGATED_REPORTING,
+      delegationAgreementRef: [regulatory_extract::Store]rex.REX_CLIENT_PROFILE.DELEGATION_AGREEMENT_REF,
+      reportedClientCategory: [regulatory_extract::Store]rex.REX_CLIENT_PROFILE.REPORTED_CLIENT_CATEGORY,
+      isSuppressed: [regulatory_extract::Store]rex.REX_CLIENT_PROFILE.IS_SUPPRESSED,
+      suppressionReason: [regulatory_extract::Store]rex.REX_CLIENT_PROFILE.SUPPRESSION_REASON,
+      client[cliClient]: [regulatory_extract::Store]@Rex_ClientProfileClient,
+      clientRelationshipName: [regulatory_extract::Store]@Rex_ClientProfileClient | [client_core::Store]CLI_CLIENT.CLIENT_NAME,
+      clientRelationshipType: [regulatory_extract::Store]@Rex_ClientProfileClient | [client_core::Store]CLI_CLIENT.CLIENT_TYPE,
+      clientDomicileCountryCode: [regulatory_extract::Store]@Rex_ClientProfileClient | [client_core::Store]CLI_CLIENT.DOMICILE_COUNTRY_CODE,
+      clientStatus: [regulatory_extract::Store]@Rex_ClientProfileClient | [client_core::Store]CLI_CLIENT.STATUS
+   }
+
+   // The bridge into reference-data, keyed on the MIC both projects use.
+   regulatory_extract::RexVenueReportingProfile[rexVenueProfile]: Relational
+   {
+      ~primaryKey ( [regulatory_extract::Store]rex.REX_VENUE_PROFILE.PROFILE_ID )
+      ~mainTable [regulatory_extract::Store]rex.REX_VENUE_PROFILE
+      profileId: [regulatory_extract::Store]rex.REX_VENUE_PROFILE.PROFILE_ID,
+      mic: [regulatory_extract::Store]rex.REX_VENUE_PROFILE.MIC,
+      reportedMicOverride: [regulatory_extract::Store]rex.REX_VENUE_PROFILE.REPORTED_MIC_OVERRIDE,
+      venueClassification: [regulatory_extract::Store]rex.REX_VENUE_PROFILE.VENUE_CLASSIFICATION,
+      venueReportsOnOurBehalf: [regulatory_extract::Store]rex.REX_VENUE_PROFILE.VENUE_REPORTS_ON_OUR_BEHALF,
+      isEeaVenue: [regulatory_extract::Store]rex.REX_VENUE_PROFILE.IS_EEA_VENUE,
+      supportsWaivers: [regulatory_extract::Store]rex.REX_VENUE_PROFILE.SUPPORTS_WAIVERS,
+      assessedOn: [regulatory_extract::Store]rex.REX_VENUE_PROFILE.ASSESSED_ON,
+      venue[rdVenue]: [regulatory_extract::Store]@Rex_VenueProfileVenue,
+      venueRegisteredName: [regulatory_extract::Store]@Rex_VenueProfileVenue | [reference_data::Store]RD_VENUE.NAME,
+      venueHomeCountryCode: [regulatory_extract::Store]@Rex_VenueProfileVenue | [reference_data::Store]RD_VENUE.COUNTRY_CODE,
+      venueRetiredDate: [regulatory_extract::Store]@Rex_VenueProfileVenue | [reference_data::Store]RD_VENUE.RETIRED_DATE
+   }
+
+   // The bridge into trade-capture. Composite key on trade and regime, and three flattened
+   // properties off TC_TRADE so the "reportable but unproduced" report needs no navigation.
+   regulatory_extract::RexTradeEligibility[rexEligibility]: Relational
+   {
+      ~primaryKey
+      (
+         [regulatory_extract::Store]rex.REX_TRADE_ELIGIBILITY.TRADE_ID,
+         [regulatory_extract::Store]rex.REX_TRADE_ELIGIBILITY.REGIME_CODE
+      )
+      ~mainTable [regulatory_extract::Store]rex.REX_TRADE_ELIGIBILITY
+      tradeId: [regulatory_extract::Store]rex.REX_TRADE_ELIGIBILITY.TRADE_ID,
+      regimeCode: [regulatory_extract::Store]rex.REX_TRADE_ELIGIBILITY.REGIME_CODE,
+      isReportable: [regulatory_extract::Store]rex.REX_TRADE_ELIGIBILITY.IS_REPORTABLE,
+      obligationId: [regulatory_extract::Store]rex.REX_TRADE_ELIGIBILITY.OBLIGATION_ID,
+      exclusionReason: [regulatory_extract::Store]rex.REX_TRADE_ELIGIBILITY.EXCLUSION_REASON,
+      assessedTime: [regulatory_extract::Store]rex.REX_TRADE_ELIGIBILITY.ASSESSED_TIME,
+      assessedByRun: [regulatory_extract::Store]rex.REX_TRADE_ELIGIBILITY.ASSESSED_BY_RUN,
+      producedReportId: [regulatory_extract::Store]rex.REX_TRADE_ELIGIBILITY.PRODUCED_REPORT_ID,
+      trade[tcTrade]: [regulatory_extract::Store]@Rex_EligibilityTrade,
+      obligation[rexObligation]: [regulatory_extract::Store]@Rex_EligibilityObligation,
+      tradeStatusCode: [regulatory_extract::Store]@Rex_EligibilityTrade | [trade_capture::Store]TC_TRADE.STATUS,
+      tradeDateSource: [regulatory_extract::Store]@Rex_EligibilityTrade | [trade_capture::Store]TC_TRADE.TRADE_DATE,
+      tradeNotionalSource: [regulatory_extract::Store]@Rex_EligibilityTrade | [trade_capture::Store]TC_TRADE.NOTIONAL
    }
 )

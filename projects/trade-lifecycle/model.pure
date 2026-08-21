@@ -1,17 +1,827 @@
 ###Pure
-// probe
-Class trade_lifecycle::TlcAmendment
+// ============================================================
+// trade-lifecycle (L2) -- what happens to a trade after it is captured
+// ============================================================
+// Depends on trade-capture (the trade being changed) and event-core (the corporate
+// action on the underlying that forces one of those changes). Nothing else.
+//
+// The argument this project makes is that a post-trade change is not an UPDATE. A trade
+// is amended, novated, partially terminated, compressed or unwound, and each of those
+// arrives as a NEW TLC_AMENDMENT row that names the row it replaces in SUPERSEDES_ID.
+// Nothing is overwritten, so the chain of rows IS the audit trail: replay it forwards and
+// you have every state the trade was ever in, and "the current version" is not a flag or a
+// max(version) but the one row nothing supersedes.
+//
+// That is why the {target} SELF-JOIN Tlc_SupersededBy is the construct at the centre of
+// this project, and why trade_lifecycle::TlcAmendmentChain has TlcAmendment on BOTH ends
+// -- both of its mapping ends name [tlcAmendment] twice, and only the direction of travel
+// over the join tells `supersedes` from `supersededBy`.
+//
+// The second construct is the Enum with an EnumerationMapping. TlcAmendmentType and its
+// six siblings are Pure enums; the FpML-ish and back-office code strings that the physical
+// tables actually hold ('NOVA', 'PTRM', 'CMPR') are confined to the EnumerationMappings in
+// mapping.pure and never appear on a class.
+//
+// The cross-dependency is TlcCorporateActionImpact. A dividend, a split or a merger on the
+// underlying changes the terms of a trade struck on it -- and the way that change is
+// recorded here is the same way every other change is recorded: it raises an amendment,
+// which supersedes the last one. So event_core::EvtCorporateEvent, trade_capture::Trade
+// and this project's own chain all meet on one class.
+//
+// Prefixes: tables TLC_, joins Tlc_, filters Tlc, set ids tlc.
+
+// ---- Enums ----
+
+// FOR: which kind of post-trade change one amendment row is. This is the single fact that
+// says which of the detail tables below has a row for it -- a NOVATION has a TLC_NOVATION
+// row, a COMPRESSION has a TLC_COMPRESSION_MEMBER row -- so it is the discriminator a
+// reader of the chain dispatches on.
+Enum trade_lifecycle::TlcAmendmentType
 {
-   amendmentId: String[1];
+   ECONOMIC_AMENDMENT,
+   NON_ECONOMIC_AMENDMENT,
+   NOVATION,
+   PARTIAL_TERMINATION,
+   FULL_TERMINATION,
+   COMPRESSION,
+   UNWIND,
+   EXERCISE,
+   EXPIRY,
+   RATE_RESET,
+   CORPORATE_ACTION,
+   RESTRUCTURING,
+   CORRECTION
 }
 
-Class trade_lifecycle::TlcReorgEvent extends event_core::EvtCorporateEvent
+// FOR: how far through its own approval an amendment has got. SUPERSEDED is the one that
+// is not a workflow state at all: it is what an APPLIED amendment becomes when a later
+// amendment names it, and it is set by the arrival of the next row rather than by anyone
+// acting on this one.
+Enum trade_lifecycle::TlcAmendmentStatus
 {
-   exchangeRatio: Float[0..1];
+   DRAFT,
+   PENDING_APPROVAL,
+   APPROVED,
+   APPLIED,
+   SUPERSEDED,
+   REJECTED,
+   WITHDRAWN
 }
+
+// FOR: whether a party has agreed to a novation. DEEMED is the interesting one -- consent
+// deemed given because the notice period expired without a refusal, which is legally a yes
+// and operationally a silence, and the two must not be recorded as the same thing.
+Enum trade_lifecycle::TlcConsentStatus
+{
+   REQUESTED,
+   GRANTED,
+   REFUSED,
+   DEEMED,
+   LAPSED
+}
+
+// FOR: why a trade ended early. This drives the money: a MUTUAL_AGREEMENT unwind is priced
+// at mid and a DEFAULT close-out is priced at the non-defaulting party's replacement cost,
+// which are different numbers for the same trade on the same day.
+Enum trade_lifecycle::TlcTerminationReason
+{
+   MUTUAL_AGREEMENT,
+   COUNTERPARTY_DEFAULT,
+   CREDIT_EVENT,
+   REGULATORY_REQUIREMENT,
+   PORTFOLIO_COMPRESSION,
+   OPTIONAL_BREAK,
+   ERROR_CORRECTION
+}
+
+// FOR: how a compression cycle was run. Whether the netting was bilateral or multilateral
+// decides who had to consent before the trades could be torn up, so it is a legal fact and
+// not merely a description of an algorithm.
+Enum trade_lifecycle::TlcCompressionMethod
+{
+   BILATERAL,
+   MULTILATERAL,
+   PORTFOLIO_RECONCILIATION,
+   RISK_CONSTRAINED,
+   COUPON_BLENDING
+}
+
+// FOR: how the counterparty was told. The channel is the evidence: a SWIFT message has a
+// delivery receipt and an EMAIL does not, which is what an operations team argues about
+// when a novation is disputed.
+Enum trade_lifecycle::TlcNotificationChannel
+{
+   SWIFT,
+   FPML,
+   EMAIL,
+   CLIENT_PORTAL,
+   FAX,
+   PHONE
+}
+
+// FOR: where the human workflow behind an amendment has got to, as distinct from the
+// amendment's own status. BLOCKED is not REJECTED: a blocked step is waiting on someone
+// outside the firm, and the amendment is still going to happen.
+Enum trade_lifecycle::TlcWorkflowState
+{
+   OPEN,
+   IN_PROGRESS,
+   BLOCKED,
+   COMPLETED,
+   CANCELLED
+}
+
+// ---- Classes ----
+
+// FOR: the one row that IS a lifecycle change. Every kind of change -- an economic amend,
+// a novation, a compression tear-up -- is one of these, and the detail classes below only
+// carry the terms specific to their kind. Because a change never overwrites, this class is
+// on both ends of TlcAmendmentChain: `supersedesId` points at the row this one replaces,
+// and the row nothing points at is the trade as it stands today.
+Class trade_lifecycle::TlcAmendment
+[
+   versionIsPositive: ($this.versionNumber > 0),
+   // A superseding row must be at least as recent as the one it supersedes; a chain that
+   // goes backwards in time is a keying error, not a correction.
+   appliedNotBeforeRequested:
+      (($this.appliedAt->isEmpty()) || ($this.appliedAt->toOne() >= $this.requestedAt)),
+   // The first row in a chain is version 1 and supersedes nothing. Anything later must name
+   // what it replaces, or the audit trail has a hole in it.
+   chainRootIsVersionOne:
+      (($this.supersedesId->isNotEmpty()) || ($this.versionNumber == 1))
+]
+{
+   amendmentId: String[1];
+   // The AMENDMENT_ID of the row this one replaces. Empty exactly once per trade, on the
+   // first change ever made to it.
+   supersedesId: String[0..1];
+   amendmentType: trade_lifecycle::TlcAmendmentType[1];
+   status: trade_lifecycle::TlcAmendmentStatus[1];
+   versionNumber: Integer[1];
+   effectiveDate: StrictDate[1];
+   requestedAt: DateTime[1];
+   appliedAt: DateTime[0..1];
+   requestedBy: String[1];
+   approvedBy: String[0..1];
+   isEconomic: Boolean[1];
+   isClientInitiated: Boolean[1];
+   withdrawnOn: StrictDate[0..1];
+   externalReference: String[0..1];
+   narrative: String[0..1];
+
+   // The head of the chain: nothing supersedes it, so this is the trade as it stands.
+   // Deliberately expressed over the association and not over a status flag -- a flag can
+   // be stale, an absent superseding row cannot.
+   isCurrentVersion() { $this.supersededBy->isEmpty() } : Boolean[1];
+
+   // The root of the chain: the first thing that ever happened to this trade.
+   isChainRoot() { $this.supersedesId->isEmpty() } : Boolean[1];
+
+   // Applied but not yet replaced -- the state a downstream reader wants.
+   isLive() { ($this.withdrawnOn->isEmpty()) && ($this.supersededBy->isEmpty()) } : Boolean[1];
+}
+
+// FOR: what actually changed, field by field. The amendment says a change happened; this
+// says the notional went from 10,000,000 to 7,500,000. Kept as rows rather than columns
+// because one amendment may move four fields and the next one may move a field nobody
+// anticipated.
+Class trade_lifecycle::TlcAmendmentDetail
+{
+   detailId: String[1];
+   fieldName: String[1];
+   oldValue: String[0..1];
+   newValue: String[0..1];
+   valueType: String[1];
+   isEconomicField: Boolean[1];
+   sequenceNumber: Integer[1];
+}
+
+// FOR: the controlled vocabulary of WHY. Held as its own class rather than a free-text
+// column on the amendment because the reason drives reporting obligations -- a change made
+// for a trade error is reportable and a change made for a client request is not.
+Class trade_lifecycle::TlcAmendmentReason
+{
+   reasonId: String[1];
+   reasonCode: String[1];
+   description: String[1];
+   requiresApproval: Boolean[1];
+   isReportable: Boolean[1];
+   regulatoryCategory: String[0..1];
+}
+
+// FOR: proof that a human agreed before the change was applied. Separate from the
+// amendment's `approvedBy` because an amendment can need two approvals, and because the
+// approval survives even if the amendment is later withdrawn.
+Class trade_lifecycle::TlcAmendmentApproval
+{
+   approvalId: String[1];
+   approverName: String[1];
+   approverRole: String[1];
+   approvedAt: DateTime[1];
+   approvalLevel: Integer[1];
+   isOverride: Boolean[1];
+   comment: String[0..1];
+}
+
+// FOR: the transfer of one side of a trade to a different counterparty. The economics do
+// not change and the counterparty does, which is why a novation is an amendment and not a
+// termination plus a new trade -- the chain has to stay unbroken across it.
+Class trade_lifecycle::TlcNovation
+[
+   novatedNotionalIsPositive: ($this.novatedNotional > 0.0),
+   partiesDiffer: ($this.transferorReference != $this.transfereeReference)
+]
+{
+   novationId: String[1];
+   transferorReference: String[1];
+   transfereeReference: String[1];
+   remainingPartyReference: String[1];
+   novationDate: StrictDate[1];
+   novatedNotional: Float[1];
+   currency: String[1];
+   feeAmount: Float[0..1];
+   isFullNovation: Boolean[1];
+   agreementReference: String[0..1];
+}
+
+// FOR: one party's answer to a novation request. A novation needs the remaining party's
+// consent as well as the transferee's, and either can refuse, so consent is a row per
+// party and not a flag on the novation.
+Class trade_lifecycle::TlcNovationConsent
+{
+   consentId: String[1];
+   partyReference: String[1];
+   partyRole: String[1];
+   status: trade_lifecycle::TlcConsentStatus[1];
+   requestedAt: DateTime[1];
+   respondedAt: DateTime[0..1];
+   noticeDeadline: StrictDate[0..1];
+   refusalReason: String[0..1];
+}
+
+// FOR: a reduction in notional that leaves the trade alive. The residual notional is
+// stored as well as the reduction because the two are asserted independently by the two
+// parties, and a partial termination that disagrees on the residual is a break.
+Class trade_lifecycle::TlcPartialTermination
+[
+   reductionIsPositive: ($this.reducedNotional > 0.0),
+   residualIsNonNegative: ($this.residualNotional >= 0.0)
+]
+{
+   partialTerminationId: String[1];
+   terminationDate: StrictDate[1];
+   originalNotional: Float[1];
+   reducedNotional: Float[1];
+   residualNotional: Float[1];
+   currency: String[1];
+   reason: trade_lifecycle::TlcTerminationReason[1];
+   settlementAmount: Float[0..1];
+
+   // The share of the trade taken off. `/` widens to Float even on two Integers, so this
+   // must be declared Float regardless of what its operands are.
+   reductionRatio() { $this.reducedNotional / $this.originalNotional } : Float[1];
+}
+
+// FOR: the end of the trade. Distinguished from a cancellation in trade-capture: a
+// cancellation says the trade never should have existed, a termination says it existed and
+// has now stopped, and only the second one leaves a settlement amount behind.
+Class trade_lifecycle::TlcTermination
+{
+   terminationId: String[1];
+   terminationDate: StrictDate[1];
+   effectiveDate: StrictDate[1];
+   reason: trade_lifecycle::TlcTerminationReason[1];
+   terminationAmount: Float[0..1];
+   currency: String[0..1];
+   isEarlyTermination: Boolean[1];
+   calculationAgent: String[0..1];
+   noticeReference: String[0..1];
+}
+
+// FOR: one run of a compression exercise, as an event in its own right. Several trades are
+// torn up and at most one replacement is booked; the cycle is what ties those otherwise
+// unrelated amendments together, which no single trade's chain can express.
+Class trade_lifecycle::TlcCompressionCycle
+[
+   tradesInIsPositive: ($this.tradeCountBefore > 0)
+]
+{
+   cycleId: String[1];
+   cycleReference: String[1];
+   runDate: StrictDate[1];
+   method: trade_lifecycle::TlcCompressionMethod[1];
+   serviceProvider: String[0..1];
+   tradeCountBefore: Integer[1];
+   tradeCountAfter: Integer[1];
+   notionalBefore: Float[1];
+   notionalAfter: Float[1];
+   currency: String[1];
+
+   // How much gross notional the cycle removed. Both operands are Float, so no widening
+   // question arises here.
+   notionalRemoved() { $this.notionalBefore - $this.notionalAfter } : Float[1];
+
+   // The compression ratio the service provider reports. Float because `/` widens.
+   compressionRatio() { $this.notionalAfter / $this.notionalBefore } : Float[1];
+}
+
+// FOR: one trade's participation in one compression cycle. Carries the per-trade outcome,
+// because a cycle can terminate one trade, reduce a second and leave a third untouched
+// after including it in the netting.
+Class trade_lifecycle::TlcCompressionMember
+{
+   memberId: String[1];
+   notionalBefore: Float[1];
+   notionalAfter: Float[1];
+   outcome: String[1];
+   isReplacementTrade: Boolean[1];
+   riskDelta: Float[0..1];
+}
+
+// FOR: an early exit priced at market rather than at the contract's own terms. An unwind
+// and a termination end the same trade; the unwind is the one where a price had to be
+// agreed, so it carries the mid, the spread and who calculated them.
+Class trade_lifecycle::TlcUnwind
+{
+   unwindId: String[1];
+   unwindDate: StrictDate[1];
+   unwindPrice: Float[1];
+   midPrice: Float[0..1];
+   spreadPaid: Float[0..1];
+   cashSettlementAmount: Float[1];
+   currency: String[1];
+   priceSource: String[0..1];
+   isNegotiated: Boolean[1];
+}
+
+// FOR: the holder taking up an optional right. Modelled here rather than in trade-capture
+// because an exercise amends the trade it is on -- an American option exercised early
+// stops accruing, which is a change to the trade's terms and belongs in the chain.
+Class trade_lifecycle::TlcExercise
+[
+   exercisedQuantityIsPositive: ($this.exercisedQuantity > 0.0)
+]
+{
+   exerciseId: String[1];
+   exerciseDate: StrictDate[1];
+   exerciseStyle: String[1];
+   exercisedQuantity: Float[1];
+   remainingQuantity: Float[1];
+   strikePrice: Float[0..1];
+   settlementMethod: String[1];
+   isAutomatic: Boolean[1];
+}
+
+// FOR: the trade reaching its own end date without anyone doing anything. Worth a row
+// because "nothing happened" is a fact a reconciliation needs asserted: an expiry that was
+// never booked and an expiry that was booked look identical on the trade itself.
+Class trade_lifecycle::TlcExpiry
+{
+   expiryId: String[1];
+   expiryDate: StrictDate[1];
+   expiredInTheMoney: Boolean[1];
+   finalReferencePrice: Float[0..1];
+   payoutAmount: Float[0..1];
+   currency: String[0..1];
+   wasAutoExercised: Boolean[1];
+}
+
+// FOR: a floating rate fixing being observed and applied. It amends the trade because the
+// coupon that will be paid is not knowable until it happens, and the value it fixed at is
+// evidence -- a rate republished later does not retroactively change what was paid.
+Class trade_lifecycle::TlcRateReset
+{
+   resetId: String[1];
+   resetDate: StrictDate[1];
+   effectiveDate: StrictDate[1];
+   rateIndexCode: String[1];
+   observedRate: Float[1];
+   spread: Float[0..1];
+   allInRate: Float[1];
+   fixingSource: String[0..1];
+   isEstimated: Boolean[1];
+}
+
+// FOR: the money a lifecycle event creates or destroys. A termination fee, an unwind
+// settlement and a novation fee are all cash that exists only because of an amendment, so
+// the cashflow hangs off the amendment rather than off the trade.
+Class trade_lifecycle::TlcLifecycleCashflow
+{
+   cashflowId: String[1];
+   cashflowType: String[1];
+   amount: Float[1];
+   currency: String[1];
+   valueDate: StrictDate[1];
+   payerReference: String[1];
+   receiverReference: String[1];
+   isSettled: Boolean[1];
+   settledOn: StrictDate[0..1];
+}
+
+// FOR: the cross-dependency, and the reason this project depends on event-core at all. A
+// dividend, a split or a merger on the underlying changes the terms of every trade struck
+// on it -- the strike is adjusted, the quantity is scaled -- and that change enters the
+// trade's history as an ordinary amendment. One row here ties one corporate action to one
+// trade to the amendment it caused.
+Class trade_lifecycle::TlcCorporateActionImpact
+{
+   impactId: String[1];
+   adjustmentFactor: Float[1];
+   originalQuantity: Float[1];
+   adjustedQuantity: Float[1];
+   originalStrike: Float[0..1];
+   adjustedStrike: Float[0..1];
+   cashCompensation: Float[0..1];
+   currency: String[0..1];
+   adjustmentMethod: String[1];
+   isMandatory: Boolean[1];
+   appliedOn: StrictDate[0..1];
+
+   // Whether the action actually moved the trade. A record-date-only event can produce an
+   // impact row with a factor of one, which is not the same fact as no row at all.
+   isMaterial() { $this.adjustmentFactor != 1.0 } : Boolean[1];
+}
+
+// FOR: telling the counterparty. The notice, not the amendment, is what starts a consent
+// clock running, so its channel and timestamp are the operative facts in any later dispute
+// about whether a novation was validly effected.
+Class trade_lifecycle::TlcEventNotification
+{
+   notificationId: String[1];
+   channel: trade_lifecycle::TlcNotificationChannel[1];
+   recipientReference: String[1];
+   sentAt: DateTime[1];
+   acknowledgedAt: DateTime[0..1];
+   messageReference: String[0..1];
+   deliveryStatus: String[1];
+   retryCount: Integer[1];
+}
+
+// FOR: the human process behind an amendment, as an object. An amendment can sit for three
+// days waiting on a client; the workflow is where that waiting is visible, and it is
+// separate from the amendment's status because the amendment is one state and the process
+// is several.
+Class trade_lifecycle::TlcLifecycleWorkflow
+{
+   workflowId: String[1];
+   workflowType: String[1];
+   state: trade_lifecycle::TlcWorkflowState[1];
+   openedAt: DateTime[1];
+   completedOn: StrictDate[0..1];
+   assignedTeam: String[0..1];
+   slaHours: Integer[0..1];
+   isBreached: Boolean[1];
+}
+
+// FOR: one thing that had to be done. Kept as rows so the order and the gaps are visible;
+// the step that was skipped is as interesting to a control function as the ones that were
+// completed.
+Class trade_lifecycle::TlcWorkflowStep
+{
+   stepId: String[1];
+   stepName: String[1];
+   sequenceNumber: Integer[1];
+   state: trade_lifecycle::TlcWorkflowState[1];
+   startedAt: DateTime[0..1];
+   completedAt: DateTime[0..1];
+   performedBy: String[0..1];
+   isMandatory: Boolean[1];
+}
+
+// FOR: the immutable record of who touched what. The amendment chain is already an audit
+// trail of the trade's ECONOMICS; this is the audit trail of the SYSTEM -- who opened the
+// screen, what they typed, which of it was rejected before an amendment ever existed.
+Class trade_lifecycle::TlcAuditEntry
+{
+   auditId: String[1];
+   action: String[1];
+   performedBy: String[1];
+   performedAt: DateTime[1];
+   fieldTouched: String[0..1];
+   previousValue: String[0..1];
+   resultingValue: String[0..1];
+   sourceIpAddress: String[0..1];
+}
+
+// FOR: where the lifecycle event came from. A change asserted by a middleware feed and the
+// same change typed by a person carry different weight when two systems disagree, and the
+// source is the only place that difference is recorded.
+Class trade_lifecycle::TlcEventSource
+{
+   sourceId: String[1];
+   sourceCode: String[1];
+   sourceName: String[1];
+   isAutomated: Boolean[1];
+   isTrusted: Boolean[1];
+   contactReference: String[0..1];
+}
+
+// FOR: the paper. A novation has an executed novation agreement behind it and a
+// termination has a notice; the document reference is what an auditor asks for, and it is
+// not derivable from anything else in the chain.
+Class trade_lifecycle::TlcSupportingDocument
+{
+   documentId: String[1];
+   documentType: String[1];
+   documentReference: String[1];
+   receivedOn: StrictDate[0..1];
+   isExecuted: Boolean[1];
+   storageLocation: String[0..1];
+}
+
+// FOR: a credit event forcing a trade to be restructured rather than terminated. It is its
+// own class because the successor obligation and the recovery are terms that no other kind
+// of amendment carries, and inventing nullable columns on the amendment for them would
+// bury the distinction.
+Class trade_lifecycle::TlcRestructuring
+{
+   restructuringId: String[1];
+   restructuringDate: StrictDate[1];
+   creditEventType: String[1];
+   successorReference: String[0..1];
+   recoveryRate: Float[0..1];
+   auctionReference: String[0..1];
+   isSuccessorDetermined: Boolean[1];
+}
+
+// FOR: moving an allocation between end clients after the trade has been allocated. It is
+// a lifecycle event and not a re-allocation in trade-capture because the original
+// allocation was reported, and unreporting it is itself a reportable act.
+Class trade_lifecycle::TlcAllocationAdjustment
+[
+   adjustedQuantityIsPositive: ($this.adjustedQuantity > 0.0)
+]
+{
+   adjustmentId: String[1];
+   originalAccountReference: String[1];
+   newAccountReference: String[1];
+   adjustedQuantity: Float[1];
+   adjustmentDate: StrictDate[1];
+   isReportable: Boolean[1];
+   reportedOn: StrictDate[0..1];
+}
+
+// FOR: fixing something that was simply wrong. A correction is the one amendment type that
+// asserts the previous row never described reality -- which is why it still supersedes
+// rather than deletes, and why it carries the original booking timestamp it is correcting.
+Class trade_lifecycle::TlcCorrection
+{
+   correctionId: String[1];
+   correctedAt: DateTime[1];
+   originalBookedAt: DateTime[1];
+   correctionCategory: String[1];
+   wasReported: Boolean[1];
+   regulatoryResubmissionRef: String[0..1];
+   detectedBy: String[0..1];
+}
+
+// FOR: the money charged for ending early. It is not the same as the unwind settlement:
+// the settlement is the value of the remaining trade, the break fee is the penalty for not
+// letting it run, and a contract can specify one without the other.
+Class trade_lifecycle::TlcBreakFee
+[
+   feeIsNonNegative: ($this.feeAmount >= 0.0)
+]
+{
+   breakFeeId: String[1];
+   feeAmount: Float[1];
+   currency: String[1];
+   basisPoints: Float[0..1];
+   calculationBasis: String[1];
+   isWaived: Boolean[1];
+   waivedBy: String[0..1];
+}
+
+// FOR: the trade as it read after one amendment was applied. The chain records the
+// CHANGES; this records the RESULT, so a query for "what did this trade look like on the
+// 14th" does not have to replay every amendment from the beginning to find out.
+Class trade_lifecycle::TlcVersionSnapshot
+[
+   snapshotVersionIsPositive: ($this.versionNumber > 0)
+]
+{
+   snapshotId: String[1];
+   versionNumber: Integer[1];
+   asOfDate: StrictDate[1];
+   quantity: Float[1];
+   price: Float[1];
+   notional: Float[1];
+   currency: String[1];
+   counterpartyReference: String[0..1];
+   maturityDate: StrictDate[0..1];
+   isCurrent: Boolean[1];
+}
+
+// ---- Associations ----
+
+// THE self-join association. TlcAmendment is on BOTH ends, so both of its mapping ends
+// name [tlcAmendment, tlcAmendment] -- the same set id twice -- and only the direction of
+// travel over Tlc_SupersededBy tells the two apart. `supersedes` reads SUPERSEDES_ID and
+// walks BACK one link; `supersededBy` walks FORWARD to whoever named this row.
+Association trade_lifecycle::TlcAmendmentChain
+{
+   supersedes: trade_lifecycle::TlcAmendment[0..1];
+   supersededBy: trade_lifecycle::TlcAmendment[0..1];
+}
+
+// ---- Cross-project associations ----
+// End names on trade_capture::Trade are all `lifecycle`-qualified, because that class
+// already carries `amendments`, `versions`, `cancellations` and `allocations` from
+// trade-capture and a second `amendments` would collide.
 
 Association trade_lifecycle::TlcTradeAmendments
 {
    amendedTrade: trade_capture::Trade[0..1];
    lifecycleAmendments: trade_lifecycle::TlcAmendment[*];
+}
+
+Association trade_lifecycle::TlcTradeNovations
+{
+   novatedTrade: trade_capture::Trade[0..1];
+   lifecycleNovations: trade_lifecycle::TlcNovation[*];
+}
+
+Association trade_lifecycle::TlcTradeSnapshots
+{
+   snapshotTrade: trade_capture::Trade[0..1];
+   lifecycleSnapshots: trade_lifecycle::TlcVersionSnapshot[*];
+}
+
+Association trade_lifecycle::TlcTradeCompressionMembers
+{
+   compressedTrade: trade_capture::Trade[0..1];
+   lifecycleCompressionMembers: trade_lifecycle::TlcCompressionMember[*];
+}
+
+Association trade_lifecycle::TlcTradeCorporateActionImpacts
+{
+   impactedTrade: trade_capture::Trade[0..1];
+   lifecycleCorporateActionImpacts: trade_lifecycle::TlcCorporateActionImpact[*];
+}
+
+// The other half of the cross-dependency: the corporate action itself. `tradeImpacts` is
+// hung on event_core::EvtCorporateEvent, which already carries `instrument` from
+// event-core's own cross-project association.
+Association trade_lifecycle::TlcImpactCorporateAction
+{
+   corporateAction: event_core::EvtCorporateEvent[0..1];
+   tradeImpacts: trade_lifecycle::TlcCorporateActionImpact[*];
+}
+
+// ---- Associations inside trade-lifecycle ----
+
+Association trade_lifecycle::TlcAmendmentDetails
+{
+   details: trade_lifecycle::TlcAmendmentDetail[*];
+   detailAmendment: trade_lifecycle::TlcAmendment[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentReasonLink
+{
+   reason: trade_lifecycle::TlcAmendmentReason[0..1];
+   reasonAmendments: trade_lifecycle::TlcAmendment[*];
+}
+
+Association trade_lifecycle::TlcAmendmentApprovals
+{
+   approvals: trade_lifecycle::TlcAmendmentApproval[*];
+   approvalAmendment: trade_lifecycle::TlcAmendment[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentNovation
+{
+   novations: trade_lifecycle::TlcNovation[*];
+   novationAmendment: trade_lifecycle::TlcAmendment[0..1];
+}
+
+Association trade_lifecycle::TlcNovationConsents
+{
+   consents: trade_lifecycle::TlcNovationConsent[*];
+   consentNovation: trade_lifecycle::TlcNovation[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentPartialTermination
+{
+   partialTerminations: trade_lifecycle::TlcPartialTermination[*];
+   partialTerminationAmendment: trade_lifecycle::TlcAmendment[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentTermination
+{
+   terminations: trade_lifecycle::TlcTermination[*];
+   terminationAmendment: trade_lifecycle::TlcAmendment[0..1];
+}
+
+Association trade_lifecycle::TlcCompressionCycleMembers
+{
+   members: trade_lifecycle::TlcCompressionMember[*];
+   memberCycle: trade_lifecycle::TlcCompressionCycle[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentCompressionMember
+{
+   compressionMembers: trade_lifecycle::TlcCompressionMember[*];
+   compressionAmendment: trade_lifecycle::TlcAmendment[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentUnwind
+{
+   unwinds: trade_lifecycle::TlcUnwind[*];
+   unwindAmendment: trade_lifecycle::TlcAmendment[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentExercise
+{
+   exercises: trade_lifecycle::TlcExercise[*];
+   exerciseAmendment: trade_lifecycle::TlcAmendment[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentExpiry
+{
+   expiries: trade_lifecycle::TlcExpiry[*];
+   expiryAmendment: trade_lifecycle::TlcAmendment[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentRateReset
+{
+   rateResets: trade_lifecycle::TlcRateReset[*];
+   rateResetAmendment: trade_lifecycle::TlcAmendment[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentCashflows
+{
+   cashflows: trade_lifecycle::TlcLifecycleCashflow[*];
+   cashflowAmendment: trade_lifecycle::TlcAmendment[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentCorporateActionImpact
+{
+   corporateActionImpacts: trade_lifecycle::TlcCorporateActionImpact[*];
+   impactAmendment: trade_lifecycle::TlcAmendment[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentNotifications
+{
+   notifications: trade_lifecycle::TlcEventNotification[*];
+   notificationAmendment: trade_lifecycle::TlcAmendment[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentWorkflow
+{
+   workflow: trade_lifecycle::TlcLifecycleWorkflow[0..1];
+   workflowAmendments: trade_lifecycle::TlcAmendment[*];
+}
+
+Association trade_lifecycle::TlcWorkflowSteps
+{
+   steps: trade_lifecycle::TlcWorkflowStep[*];
+   stepWorkflow: trade_lifecycle::TlcLifecycleWorkflow[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentAudit
+{
+   auditEntries: trade_lifecycle::TlcAuditEntry[*];
+   auditAmendment: trade_lifecycle::TlcAmendment[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentSource
+{
+   source: trade_lifecycle::TlcEventSource[0..1];
+   sourceAmendments: trade_lifecycle::TlcAmendment[*];
+}
+
+Association trade_lifecycle::TlcAmendmentDocuments
+{
+   documents: trade_lifecycle::TlcSupportingDocument[*];
+   documentAmendment: trade_lifecycle::TlcAmendment[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentRestructuring
+{
+   restructurings: trade_lifecycle::TlcRestructuring[*];
+   restructuringAmendment: trade_lifecycle::TlcAmendment[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentAllocationAdjustment
+{
+   allocationAdjustments: trade_lifecycle::TlcAllocationAdjustment[*];
+   allocationAdjustmentAmendment: trade_lifecycle::TlcAmendment[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentCorrection
+{
+   corrections: trade_lifecycle::TlcCorrection[*];
+   correctionAmendment: trade_lifecycle::TlcAmendment[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentBreakFee
+{
+   breakFees: trade_lifecycle::TlcBreakFee[*];
+   breakFeeAmendment: trade_lifecycle::TlcAmendment[0..1];
+}
+
+Association trade_lifecycle::TlcAmendmentSnapshot
+{
+   snapshots: trade_lifecycle::TlcVersionSnapshot[*];
+   snapshotAmendment: trade_lifecycle::TlcAmendment[0..1];
 }

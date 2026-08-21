@@ -1,0 +1,296 @@
+###Relational
+// legal_netting::Store -- eleven tables, two aggregation views, and the joins that leave the
+// project.
+//
+// `include legal_core::Store` is not decoration. The three cross-boundary joins into
+// LGL_MASTER_AGREEMENT, LGL_NETTING_OPINION and LGL_CLOSE_OUT_TERMS have to be declared in a
+// database from which BOTH sides are visible, and that is this one. legal-core's own store
+// already includes core_party::Store, so that reach comes along transitively -- and this
+// project deliberately declares nothing against it.
+//
+// Every table NET_ prefixed, every join Net_ prefixed, every filter Net prefixed, because
+// none of those namespaces is per-project in Legend.
+//
+// Nine of the eleven tables carry a multi-column PRIMARY KEY, and each grain is a decision:
+// membership is (set, exposure, DATE) because it is a daily statement, an assessment is
+// (set, DATE) because it is append-only, and a close-out component is (set, date, component)
+// because the breakdown is what defends the number.
+Database legal_netting::Store
+(
+   include legal_core::Store
+   include exposure_agg::Store
+
+   // The set. One row per netting set, keyed by its own id rather than by AGREEMENT_ID --
+   // an umbrella master carries several sets, and a set split by an opinion carve-out is a
+   // second row against the same agreement.
+   Table NET_SET
+   (
+      NETTING_SET_ID VARCHAR(40) PRIMARY KEY,
+      // The reach into legal-core. Never accompanied by a copy of the agreement reference.
+      AGREEMENT_ID VARCHAR(40) NOT NULL,
+      COUNTERPARTY_ID VARCHAR(40) NOT NULL,
+      COUNTERPARTY_TYPE VARCHAR(24) NOT NULL,
+      // The counterparty's INSOLVENCY jurisdiction, not the agreement's governing law.
+      COUNTERPARTY_JURISDICTION VARCHAR(8) NOT NULL,
+      NETTING_BASIS VARCHAR(24) NOT NULL,
+      SETTLEMENT_CURRENCY VARCHAR(3),
+      RUN_ID VARCHAR(40),
+      ESTABLISHED_DATE DATE,
+      CLOSED_DATE DATE,
+      IS_CROSS_PRODUCT_SET BIT
+   )
+
+   // COMPOSITE, three columns, and the date is one of them. Membership is a statement about a
+   // day: a trade novated away on Tuesday was in the set on Monday, and Monday's netted
+   // number has to stay reproducible.
+   Table NET_SET_MEMBER
+   (
+      NETTING_SET_ID VARCHAR(40) PRIMARY KEY,
+      // The reach into exposure-agg.
+      EXPOSURE_ID VARCHAR(40) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      MEMBER_KIND VARCHAR(24) NOT NULL,
+      PRODUCT_CLASS VARCHAR(40),
+      GROSS_EXPOSURE DOUBLE,
+      // SIGNED. A payable is negative, and the sign is what makes the sum below a net.
+      SIGNED_MARK_TO_MARKET DOUBLE,
+      IS_NETTABLE BIT,
+      ELIGIBILITY_RULE_CODE VARCHAR(32),
+      INCLUDED_ON DATE
+   )
+
+   Table NET_ELIGIBILITY_RULE
+   (
+      RULE_CODE VARCHAR(32) PRIMARY KEY,
+      RULE_NAME VARCHAR(160) NOT NULL,
+      PRODUCT_CLASS VARCHAR(40) NOT NULL,
+      TYPE_CODE VARCHAR(24),
+      JURISDICTION_CODE VARCHAR(8),
+      INCLUDES_IN_NETTING BIT,
+      OPINION_BASIS VARCHAR(240),
+      EFFECTIVE_FROM DATE,
+      EFFECTIVE_TO DATE
+   )
+
+   // COMPOSITE. A carve-out is set-specific: the same product is netted in one set and
+   // excluded from another because the two counterparties sit in different regimes.
+   Table NET_EXCLUSION
+   (
+      NETTING_SET_ID VARCHAR(40) PRIMARY KEY,
+      EXCLUSION_CODE VARCHAR(32) PRIMARY KEY,
+      EXCLUSION_SCOPE VARCHAR(80) NOT NULL,
+      REASON VARCHAR(400) NOT NULL,
+      SOURCE_QUALIFICATION VARCHAR(400),
+      RAISED_ON DATE,
+      RESOLVED_ON DATE
+   )
+
+   // COMPOSITE and append-only. The assessment that supported last year's capital number is
+   // the row that has to still be there when last year's number is questioned.
+   Table NET_OPINION_ASSESSMENT
+   (
+      NETTING_SET_ID VARCHAR(40) PRIMARY KEY,
+      ASSESSED_ON DATE PRIMARY KEY,
+      // All three columns of the upstream opinion's key. Two of them match the wrong opinion.
+      OPINION_JURISDICTION VARCHAR(8) NOT NULL,
+      OPINION_TYPE_CODE VARCHAR(24) NOT NULL,
+      OPINION_COUNTERPARTY_TYPE VARCHAR(24) NOT NULL,
+      SUPPORTS_NETTING BIT,
+      IS_CLEAN BIT,
+      ASSESSED_BY VARCHAR(120),
+      NEXT_REVIEW_DATE DATE,
+      ASSESSMENT_NOTE VARCHAR(400)
+   )
+
+   // COMPOSITE. A multibranch master needs an opinion per booking jurisdiction, and the
+   // weakest branch governs.
+   Table NET_BRANCH_COVERAGE
+   (
+      NETTING_SET_ID VARCHAR(40) PRIMARY KEY,
+      BRANCH_CODE VARCHAR(40) PRIMARY KEY,
+      BRANCH_JURISDICTION VARCHAR(8) NOT NULL,
+      IS_COVERED_BY_OPINION BIT,
+      OPINION_PROVIDER VARCHAR(120),
+      COVERAGE_FROM DATE,
+      COVERAGE_TO DATE,
+      QUALIFICATION_NOTE VARCHAR(400)
+   )
+
+   // COMPOSITE (set, date). COUNTERPARTY_ID is denormalised from NET_SET so the counterparty
+   // view below can group on it -- a Legend view groups over its own table's columns.
+   Table NET_CAPITAL_TREATMENT
+   (
+      NETTING_SET_ID VARCHAR(40) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      COUNTERPARTY_ID VARCHAR(40) NOT NULL,
+      RECOGNISED_AS_NET BIT,
+      // Both numbers, because the capital benefit is the DIFFERENCE and it is asked for.
+      GROSS_EXPOSURE_AMOUNT DOUBLE,
+      NET_EXPOSURE_AMOUNT DOUBLE,
+      COLLATERAL_VALUE_APPLIED DOUBLE,
+      REPORTING_CURRENCY VARCHAR(3),
+      EXPOSURE_METHOD VARCHAR(24),
+      DENIAL_REASON VARCHAR(400)
+   )
+
+   // COMPOSITE (set, determination date). AGREEMENT_ID is carried so the close-out row can
+   // join straight to the Schedule's close-out terms without a hop through NET_SET -- the
+   // defaults desk works from the agreement, not from the set.
+   Table NET_CLOSE_OUT_AMOUNT
+   (
+      NETTING_SET_ID VARCHAR(40) PRIMARY KEY,
+      DETERMINED_ON DATE PRIMARY KEY,
+      AGREEMENT_ID VARCHAR(40) NOT NULL,
+      EARLY_TERMINATION_DATE DATE,
+      DEFAULTING_PARTY VARCHAR(32) NOT NULL,
+      TRIGGER_EVENT VARCHAR(40) NOT NULL,
+      CLOSE_OUT_AMOUNT DOUBLE,
+      UNPAID_AMOUNTS DOUBLE,
+      COLLATERAL_APPLIED DOUBLE,
+      TERMINATION_CURRENCY VARCHAR(3),
+      IS_DISPUTED BIT,
+      SETTLED_ON DATE
+   )
+
+   // THREE key columns. The breakdown is per determination, and a set determined twice -- an
+   // initial calculation and a revision after a dispute -- has two sets of components that
+   // must not merge.
+   Table NET_CLOSE_OUT_COMPONENT
+   (
+      NETTING_SET_ID VARCHAR(40) PRIMARY KEY,
+      DETERMINED_ON DATE PRIMARY KEY,
+      COMPONENT_CODE VARCHAR(40) PRIMARY KEY,
+      COMPONENT_KIND VARCHAR(32) NOT NULL,
+      EXPOSURE_ID VARCHAR(40),
+      COMPONENT_AMOUNT DOUBLE,
+      COMPONENT_CURRENCY VARCHAR(3),
+      VALUATION_SOURCE VARCHAR(32) NOT NULL,
+      QUOTATION_COUNT INTEGER,
+      DETERMINED_BY VARCHAR(120)
+   )
+
+   // Keyed by its own id, not by the set: a set-off right is between two agreements and
+   // belongs to neither, and the other side is often a loan with no netting set at all.
+   Table NET_SET_OFF_RIGHT
+   (
+      SET_OFF_ID VARCHAR(40) PRIMARY KEY,
+      NETTING_SET_ID VARCHAR(40) NOT NULL,
+      AGAINST_AGREEMENT_ID VARCHAR(40) NOT NULL,
+      SET_OFF_SCOPE VARCHAR(80),
+      IS_CONTRACTUAL BIT,
+      IS_ENFORCEABLE_ON_INSOLVENCY BIT,
+      GOVERNING_LAW_CODE VARCHAR(16),
+      ESTABLISHED_ON DATE,
+      EXERCISED_ON DATE
+   )
+
+   Table NET_SET_RUN
+   (
+      RUN_ID VARCHAR(40) PRIMARY KEY,
+      COB_DATE DATE,
+      RUN_TYPE VARCHAR(32) NOT NULL,
+      STARTED_AT TIMESTAMP,
+      COMPLETED_AT TIMESTAMP,
+      SET_COUNT INTEGER,
+      MEMBER_COUNT INTEGER,
+      UNOPINIONED_SET_COUNT INTEGER,
+      RUN_STATUS VARCHAR(24) NOT NULL,
+      TRIGGERED_BY VARCHAR(120)
+   )
+
+   // ---- THE AGGREGATION --------------------------------------------------------------------
+   // Exposure rolled up to the SET, which is the grain everything downstream of this project
+   // reads. A Legend View, not a database view: no DDL, nothing seeds it, and the GROUP BY is
+   // folded into whatever SQL a query over NetSetRollup generates.
+   //
+   // The grouping columns are the view's primary key, which is what makes an instance a group
+   // rather than a member and what lets Net_Set_Rollup below hang it off NET_SET.
+   //
+   // sum(SIGNED_MARK_TO_MARKET) is the netted figure and sum(GROSS_EXPOSURE) is not, and the
+   // difference between them is the entire economic case for having a master agreement. The
+   // two sit side by side in one row here instead of being reconstructed from a million
+   // member lines by whoever asks next.
+   View NET_SET_ROLLUP
+   (
+      ~groupBy
+      (
+         NET_SET_MEMBER.NETTING_SET_ID,
+         NET_SET_MEMBER.COB_DATE
+      )
+      NETTING_SET_ID: NET_SET_MEMBER.NETTING_SET_ID PRIMARY KEY,
+      COB_DATE: NET_SET_MEMBER.COB_DATE PRIMARY KEY,
+      MEMBER_COUNT: count(NET_SET_MEMBER.EXPOSURE_ID),
+      TOTAL_GROSS: sum(NET_SET_MEMBER.GROSS_EXPOSURE),
+      NET_EXPOSURE: sum(NET_SET_MEMBER.SIGNED_MARK_TO_MARKET),
+      // A set whose exposure is one trade does not really net. This is the column that shows
+      // it without opening the members.
+      LARGEST_MEMBER_GROSS: max(NET_SET_MEMBER.GROSS_EXPOSURE)
+   )
+
+   // The second rollup, one level higher, over the capital treatments rather than over the
+   // members -- because the number a credit officer sees is the RECOGNISED one.
+   //
+   // It is a sum of set-level nets and never a net across sets. Sets do not net against each
+   // other; that is what a set-off right is for, and set-off is a separate table above for
+   // exactly this reason.
+   View NET_COUNTERPARTY_ROLLUP
+   (
+      ~groupBy
+      (
+         NET_CAPITAL_TREATMENT.COUNTERPARTY_ID,
+         NET_CAPITAL_TREATMENT.COB_DATE
+      )
+      COUNTERPARTY_ID: NET_CAPITAL_TREATMENT.COUNTERPARTY_ID PRIMARY KEY,
+      COB_DATE: NET_CAPITAL_TREATMENT.COB_DATE PRIMARY KEY,
+      SET_COUNT: count(NET_CAPITAL_TREATMENT.NETTING_SET_ID),
+      TOTAL_GROSS: sum(NET_CAPITAL_TREATMENT.GROSS_EXPOSURE_AMOUNT),
+      SUM_OF_SET_NETS: sum(NET_CAPITAL_TREATMENT.NET_EXPOSURE_AMOUNT)
+   )
+
+   // ---- joins inside legal-netting ---------------------------------------------------------
+   Join Net_Set_Member(NET_SET.NETTING_SET_ID = NET_SET_MEMBER.NETTING_SET_ID)
+   Join Net_Set_Assessment(NET_SET.NETTING_SET_ID = NET_OPINION_ASSESSMENT.NETTING_SET_ID)
+   Join Net_Set_Branch(NET_SET.NETTING_SET_ID = NET_BRANCH_COVERAGE.NETTING_SET_ID)
+   Join Net_Set_Exclusion(NET_SET.NETTING_SET_ID = NET_EXCLUSION.NETTING_SET_ID)
+   Join Net_Set_Treatment(NET_SET.NETTING_SET_ID = NET_CAPITAL_TREATMENT.NETTING_SET_ID)
+   Join Net_Set_CloseOut(NET_SET.NETTING_SET_ID = NET_CLOSE_OUT_AMOUNT.NETTING_SET_ID)
+   Join Net_Set_SetOff(NET_SET.NETTING_SET_ID = NET_SET_OFF_RIGHT.NETTING_SET_ID)
+   Join Net_Rule_Member(NET_ELIGIBILITY_RULE.RULE_CODE = NET_SET_MEMBER.ELIGIBILITY_RULE_CODE)
+   Join Net_Run_Set(NET_SET_RUN.RUN_ID = NET_SET.RUN_ID)
+   Join Net_Set_Rollup(NET_SET.NETTING_SET_ID = NET_SET_ROLLUP.NETTING_SET_ID)
+
+   // TWO columns, because NET_CLOSE_OUT_AMOUNT's key is two columns. Matching on the set
+   // alone merges the initial determination's components with the revised one's.
+   Join Net_CloseOut_Component(NET_CLOSE_OUT_AMOUNT.NETTING_SET_ID = NET_CLOSE_OUT_COMPONENT.NETTING_SET_ID and NET_CLOSE_OUT_AMOUNT.DETERMINED_ON = NET_CLOSE_OUT_COMPONENT.DETERMINED_ON)
+
+   // ---- joins into legal-core --------------------------------------------------------------
+   // These are why this store includes legal_core::Store rather than restating its keys.
+
+   // The defining reach: a netting set IS the closure of a master agreement.
+   Join Net_Agreement_Set(LGL_MASTER_AGREEMENT.AGREEMENT_ID = NET_SET.AGREEMENT_ID)
+
+   // THREE columns, because a netting opinion is keyed on three and any two of them resolve
+   // to the wrong document -- a German bank opinion is not a German insurer opinion, and
+   // neither is a GMRA opinion.
+   Join Net_Opinion_Assessment(LGL_NETTING_OPINION.JURISDICTION_CODE = NET_OPINION_ASSESSMENT.OPINION_JURISDICTION and LGL_NETTING_OPINION.TYPE_CODE = NET_OPINION_ASSESSMENT.OPINION_TYPE_CODE and LGL_NETTING_OPINION.COUNTERPARTY_TYPE = NET_OPINION_ASSESSMENT.OPINION_COUNTERPARTY_TYPE)
+
+   // The close-out row reaches the Schedule elections that govern how it was struck.
+   Join Net_CloseOut_Terms(LGL_CLOSE_OUT_TERMS.AGREEMENT_ID = NET_CLOSE_OUT_AMOUNT.AGREEMENT_ID)
+
+   // ---- joins into exposure-agg ------------------------------------------------------------
+   // What the set is worth. The set and the measurement meet on NETTING_SET_ID and on nothing
+   // else -- deliberately, because any second matching column would be a fact restated twice.
+   Join Net_Set_NetExposure(NET_SET.NETTING_SET_ID = EXA_NET_EXPOSURE.NETTING_SET_ID)
+
+   // TWO columns. An exposure id is unique only within a set: the same credit exposure sits
+   // in a second set after a novation, and matching on it alone merges two measurements.
+   Join Net_Member_ExposureLine(NET_SET_MEMBER.NETTING_SET_ID = EXA_EXPOSURE_LINE.NETTING_SET_ID and NET_SET_MEMBER.EXPOSURE_ID = EXA_EXPOSURE_LINE.EXPOSURE_ID)
+
+   // Sets still open. A null test rather than a status literal: a boolean literal is not
+   // accepted in a Filter, and the date is the fact anyway.
+   Filter NetOpenSets(NET_SET.CLOSED_DATE is null)
+
+   // Members the opinion actually reaches. Declared for downstream use; nothing here maps a
+   // narrowed set, because the gross population is exactly what NetSetRollup has to see.
+   Filter NetNettableMembers(NET_SET_MEMBER.ELIGIBILITY_RULE_CODE is not null)
+)

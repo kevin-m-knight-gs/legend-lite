@@ -1,5 +1,44 @@
 ###Relational
 
+// ============================================================
+// regulatory_extract::Store -- 27 tables in the `rex` SCHEMA, and a three-way include
+// ============================================================
+// THE SCHEMA. Everything this project owns lives in `rex` and not in the default schema.
+// That is not tidiness: a regulatory extract is not a trading table. It is produced by a
+// job, kept for five years because the regulation says so, read by compliance and by nobody
+// else, and restored from backup as a unit when an authority asks about a transaction from
+// 2021. Putting it in its own schema means the DBA can grant, back up and retain it
+// separately, and it means every reference to one of these tables -- here, in the mapping,
+// and in any downstream project -- has to say `rex.REX_TRANSACTION` and cannot accidentally
+// mean somebody else's table of the same name.
+//
+// THE THREE INCLUDES, and the diamond behind them. This store includes all three dependency
+// stores:
+//
+//    trade_capture::Store   which itself includes core-instrument, core-party, core-book
+//    reference_data::Store  which itself includes core-instrument, core-geo
+//    client_core::Store     which itself includes core-party, core-geo
+//
+// so core-instrument arrives twice (through trade-capture AND reference-data), core-party
+// twice (trade-capture AND client-core) and core-geo twice (reference-data AND client-core).
+// A transitive include reaching the same database by two routes is FINE -- it resolves to
+// one database, not two, and nothing is duplicated. What is NOT fine is writing
+// `include core_instrument::Store` here as well: that is both a redundant include and a
+// reference to a project this one does not declare as a dependency. The rule that follows
+// is simple and worth stating because it is easy to get wrong at layer 2 and impossible to
+// get wrong at layer 1: include your DIRECT dependencies' stores, never your transitive
+// ones, however tempting it is when a join wants a table three projects away.
+//
+// Which is also why every join below lands on a table owned by one of the three: TC_TRADE
+// and TC_TRADER (trade-capture), RD_VENUE (reference-data), CLI_CLIENT (client-core). To
+// reach an instrument, this project navigates trade-capture's own `Tc_TradeInstrument`
+// through the model rather than joining CI_INSTRUMENT directly.
+//
+// Every table is REX_ and lives in `rex`; every join is Rex_; every filter is Rex. Filter
+// names and set ids are GLOBAL namespaces in Legend, so an unprefixed `RejectedRows` here
+// would fail the whole 55-project graph with a message naming the id and not this file.
+//
+// Tables are declared and unseeded. No ###Data element, no Runtime.
 Database regulatory_extract::Store
 (
    include trade_capture::Store
@@ -8,10 +47,514 @@ Database regulatory_extract::Store
 
    Schema rex
    (
+      // ---- the report line ---------------------------------------------------------------
+      // One table for both regimes, narrowed into subtypes by the four filters at the foot
+      // of this file. The MiFIR block, the EMIR block and the rejection block are all here;
+      // a column belonging to a regime a row is not in is simply null.
+      //
+      // Note what is NOT here: no instrument name, no client name, no venue name, no trader
+      // name. Every one of those is reachable by join into one of the three dependencies,
+      // and a copy of it on this table would be the stale value that gets reported.
       Table REX_TRANSACTION
       (
-         REPORT_ID VARCHAR(40) PRIMARY KEY,
-         TRADE_ID VARCHAR(40)
+         REPORT_ID VARCHAR(64) PRIMARY KEY,
+         // The discriminator. MIFIR, EMIR, SFTR.
+         REGIME_CODE VARCHAR(16) NOT NULL,
+         REPORT_STATUS VARCHAR(16) NOT NULL,
+         REPORT_ACTION VARCHAR(8) NOT NULL,
+         TRANSACTION_REFERENCE VARCHAR(52) NOT NULL,
+         EXECUTING_ENTITY_LEI VARCHAR(20) NOT NULL,
+         SUBMITTING_ENTITY_LEI VARCHAR(20),
+         BUYER_IDENTIFICATION_CODE VARCHAR(72),
+         SELLER_IDENTIFICATION_CODE VARCHAR(72),
+         TRADING_DATE_TIME TIMESTAMP NOT NULL,
+         TRADING_CAPACITY_CODE VARCHAR(4),
+         REPORTED_QUANTITY DOUBLE NOT NULL,
+         REPORTED_PRICE DOUBLE,
+         PRICE_CURRENCY VARCHAR(3),
+         NET_AMOUNT DOUBLE,
+         VENUE_MIC VARCHAR(4),
+         COUNTRY_OF_BRANCH_MEMBERSHIP VARCHAR(2),
+         COUNTRY_OF_BRANCH_SUPERVISING VARCHAR(2),
+         INSTRUMENT_IDENTIFICATION_CODE VARCHAR(12),
+         COMPLEX_TRADE_COMPONENT_ID VARCHAR(35),
+         WAIVER_INDICATOR_CODE VARCHAR(4),
+         SHORT_SALE_INDICATOR_CODE VARCHAR(4),
+         OTC_POST_TRADE_INDICATOR_CODE VARCHAR(4),
+         IS_COMMODITY_DERIVATIVE BIT,
+         IS_SECURITIES_FINANCING BIT,
+         REPORTING_DEADLINE TIMESTAMP,
+         SUBMITTED_TIME TIMESTAMP,
+         ACCEPTED_TIME TIMESTAMP,
+
+         // ---- MiFIR only: transmission, fields 25-27, plus 47 and 60.
+         TRANSMISSION_INDICATOR BIT,
+         TRANSMITTING_FIRM_ID_BUYER VARCHAR(20),
+         TRANSMITTING_FIRM_ID_SELLER VARCHAR(20),
+         EXECUTION_WITHIN_FIRM_VENUE VARCHAR(4),
+         DERIVATIVE_NOTIONAL_CHANGE VARCHAR(4),
+
+         // ---- EMIR only: the dual-sided block. UTI is what the repository pairs on.
+         UNIQUE_TRADE_IDENTIFIER VARCHAR(52),
+         COUNTERPARTY_LEI VARCHAR(20),
+         COUNTERPARTY_SIDE VARCHAR(4),
+         HAS_CLEARING_OBLIGATION BIT,
+         IS_CLEARED BIT,
+         CCP_LEI VARCHAR(20),
+         COLLATERALISATION_CODE VARCHAR(8),
+         IS_INTRAGROUP BIT,
+         CONFIRMATION_TIMESTAMP TIMESTAMP,
+         CONFIRMATION_MEANS VARCHAR(16),
+         VALUATION_AMOUNT DOUBLE,
+         VALUATION_TIMESTAMP TIMESTAMP,
+
+         // ---- rejection block, populated once the authority has refused it.
+         REJECTED_TIME TIMESTAMP,
+         NCA_REJECTION_CODE VARCHAR(16),
+         NCA_FEEDBACK_REFERENCE VARCHAR(64),
+         RESUBMISSION_COUNT INTEGER,
+
+         // ---- deliberately-held backlog, for the unsubmitted subtype.
+         HELD_REASON_CODE VARCHAR(24),
+         HELD_BY_USER VARCHAR(60),
+
+         // ---- the foreign keys OUT of this project. None is mapped to a property: each is
+         // reached as an object through the join that uses it.
+         // into trade-capture
+         TRADE_ID VARCHAR(64),
+         // into our own client profile, and through it into client-core
+         CLIENT_ID VARCHAR(32),
+         // our own reporting entity, and the run that produced the row
+         REPORTING_ENTITY_ID VARCHAR(40),
+         EXTRACT_RUN_ID VARCHAR(64)
+      )
+
+      // ---- regimes and obligations --------------------------------------------------------
+      Table REX_REGIME
+      (
+         REGIME_CODE VARCHAR(16) PRIMARY KEY,
+         REGIME_NAME VARCHAR(120) NOT NULL,
+         LEGAL_REFERENCE VARCHAR(60),
+         RECEIVER_TYPE VARCHAR(24),
+         // 65 for MiFIR RTS 22. SMALLINT because no schema has more.
+         FIELD_COUNT SMALLINT,
+         DEADLINE_BUSINESS_DAYS SMALLINT,
+         SCHEMA_VERSION VARCHAR(20),
+         EFFECTIVE_FROM DATE,
+         RETIRED_ON DATE
+      )
+
+      Table REX_OBLIGATION
+      (
+         OBLIGATION_ID VARCHAR(40) PRIMARY KEY,
+         REGIME_CODE VARCHAR(16) NOT NULL,
+         SCOPE_TYPE VARCHAR(24) NOT NULL,
+         SCOPE_VALUE VARCHAR(60) NOT NULL,
+         REPORTING_PARTY VARCHAR(24),
+         IS_DELEGATED BIT,
+         DELEGATE_LEI VARCHAR(20),
+         START_DATE DATE,
+         END_DATE DATE
+      )
+
+      // Composite key on regime and field number: there is no global field 57, only MiFIR's.
+      Table REX_FIELD
+      (
+         REGIME_CODE VARCHAR(16) PRIMARY KEY,
+         FIELD_NUMBER SMALLINT PRIMARY KEY,
+         FIELD_NAME VARCHAR(120) NOT NULL,
+         DATA_TYPE VARCHAR(30),
+         IS_MANDATORY BIT,
+         CONDITIONAL_RULE VARCHAR(400),
+         MAX_LENGTH SMALLINT,
+         SOURCE_DOMAIN VARCHAR(24),
+         SOURCE_PATH VARCHAR(200)
+      )
+
+      // The extract's literal output: one row per field per report, three columns of key.
+      Table REX_FIELD_VALUE
+      (
+         REPORT_ID VARCHAR(64) PRIMARY KEY,
+         REGIME_CODE VARCHAR(16) PRIMARY KEY,
+         FIELD_NUMBER SMALLINT PRIMARY KEY,
+         FIELD_VALUE VARCHAR(400),
+         PREVIOUS_VALUE VARCHAR(400),
+         IS_POPULATED BIT,
+         WAS_DEFAULTED BIT,
+         POPULATED_TIME TIMESTAMP
+      )
+
+      // ---- the four hard fields -----------------------------------------------------------
+      Table REX_TRADING_CAPACITY
+      (
+         CAPACITY_CODE VARCHAR(4) PRIMARY KEY,
+         CAPACITY_NAME VARCHAR(60) NOT NULL,
+         DESCRIPTION VARCHAR(400),
+         REQUIRES_CLIENT_IDENTIFICATION BIT,
+         IS_PRINCIPAL BIT
+      )
+
+      Table REX_DECISION_MAKER
+      (
+         DECISION_MAKER_ID VARCHAR(64) PRIMARY KEY,
+         MAKER_TYPE VARCHAR(20) NOT NULL,
+         DISPLAY_NAME VARCHAR(120),
+         // Set for an algorithm; FK to REX_ALGORITHM.
+         ALGORITHM_ID VARCHAR(40),
+         // Set for a natural person; FK into trade-capture's TC_TRADER. The fan-in: the
+         // front office's trader is the regulator's national identifier.
+         TRADER_ID VARCHAR(64),
+         SUPERVISING_BRANCH_COUNTRY VARCHAR(2),
+         IS_ACTIVE BIT,
+         VALID_FROM DATE,
+         VALID_TO DATE
+      )
+
+      Table REX_ALGORITHM
+      (
+         ALGORITHM_ID VARCHAR(40) PRIMARY KEY,
+         ALGORITHM_NAME VARCHAR(120) NOT NULL,
+         REGISTERED_CODE VARCHAR(50),
+         ALGORITHM_ROLE VARCHAR(24),
+         VERSION_LABEL VARCHAR(20),
+         OWNER_DESK_NAME VARCHAR(120),
+         REGISTERED_WITH_NCA BIT,
+         REGISTERED_FROM DATE,
+         WITHDRAWN_ON DATE
+      )
+
+      // Composite key on maker and scheme: dual nationality is two rows, and the member
+      // state's priority order decides which one goes in the file.
+      Table REX_PERSON_IDENTIFIER
+      (
+         DECISION_MAKER_ID VARCHAR(64) PRIMARY KEY,
+         SCHEME_CODE VARCHAR(8) PRIMARY KEY,
+         IDENTIFIER_VALUE VARCHAR(72) NOT NULL,
+         ISSUING_COUNTRY_CODE VARCHAR(2),
+         PRIORITY_RANK SMALLINT,
+         VALID_FROM DATE,
+         VALID_TO DATE
+      )
+
+      // Composite key on report and role: exactly one decision maker and one executor.
+      Table REX_REPORT_PERSON
+      (
+         REPORT_ID VARCHAR(64) PRIMARY KEY,
+         ROLE_CODE VARCHAR(24) PRIMARY KEY,
+         DECISION_MAKER_ID VARCHAR(64),
+         REPORTED_IDENTIFIER_VALUE VARCHAR(72),
+         REPORTED_SCHEME_CODE VARCHAR(8),
+         IS_NO_DISCRETION BIT,
+         ASSIGNED_TIME TIMESTAMP
+      )
+
+      Table REX_WAIVER
+      (
+         WAIVER_CODE VARCHAR(4) PRIMARY KEY,
+         WAIVER_NAME VARCHAR(80) NOT NULL,
+         DESCRIPTION VARCHAR(400),
+         LEGAL_BASIS VARCHAR(60),
+         REQUIRES_SIZE_THRESHOLD BIT,
+         APPLIES_TO_ASSET_CLASS VARCHAR(20)
+      )
+
+      // Repeatable field 61: a large negotiated trade in an illiquid instrument is two rows.
+      Table REX_REPORT_WAIVER
+      (
+         REPORT_ID VARCHAR(64) PRIMARY KEY,
+         WAIVER_CODE VARCHAR(4) PRIMARY KEY,
+         TESTED_SIZE DOUBLE,
+         THRESHOLD_APPLIED DOUBLE,
+         CLAIMED_TIME TIMESTAMP,
+         CLAIM_SOURCE VARCHAR(24)
+      )
+
+      Table REX_SHORT_SALE_INDICATOR
+      (
+         INDICATOR_CODE VARCHAR(4) PRIMARY KEY,
+         INDICATOR_NAME VARCHAR(80) NOT NULL,
+         DESCRIPTION VARCHAR(400),
+         IS_SHORT_SALE BIT,
+         HAS_EXEMPTION BIT
+      )
+
+      Table REX_POST_TRADE_FLAG
+      (
+         REPORT_ID VARCHAR(64) PRIMARY KEY,
+         FLAG_CODE VARCHAR(4) PRIMARY KEY,
+         FLAG_NAME VARCHAR(80),
+         GRANTS_DEFERRAL BIT,
+         DEFERRAL_DAYS SMALLINT,
+         APPLIED_TIME TIMESTAMP
+      )
+
+      // ---- producing and sending ----------------------------------------------------------
+      Table REX_EXTRACT_RUN
+      (
+         RUN_ID VARCHAR(64) PRIMARY KEY,
+         REGIME_CODE VARCHAR(16),
+         BUSINESS_DATE DATE NOT NULL,
+         STARTED_TIME TIMESTAMP NOT NULL,
+         COMPLETED_TIME TIMESTAMP,
+         RUN_STATUS VARCHAR(16) NOT NULL,
+         TRADES_READ INTEGER,
+         REPORTS_PRODUCED INTEGER,
+         REPORTS_SUPPRESSED INTEGER,
+         TRIGGERED_BY VARCHAR(60)
+      )
+
+      Table REX_DESTINATION
+      (
+         DESTINATION_CODE VARCHAR(24) PRIMARY KEY,
+         DESTINATION_NAME VARCHAR(120) NOT NULL,
+         DESTINATION_TYPE VARCHAR(20) NOT NULL,
+         COUNTRY_CODE VARCHAR(2),
+         DESTINATION_LEI VARCHAR(20),
+         TRANSPORT_TYPE VARCHAR(12),
+         // Text, in the destination's own timezone, because converting it on the way in
+         // loses which timezone it was quoted in.
+         DAILY_CUT_OFF_LOCAL_TIME VARCHAR(8),
+         SCHEMA_VERSION VARCHAR(20),
+         IS_ACTIVE BIT
+      )
+
+      Table REX_BATCH
+      (
+         BATCH_ID VARCHAR(64) PRIMARY KEY,
+         RUN_ID VARCHAR(64),
+         DESTINATION_CODE VARCHAR(24),
+         REGIME_CODE VARCHAR(16),
+         FILE_NAME VARCHAR(200),
+         FILE_HASH VARCHAR(64),
+         RECORD_COUNT INTEGER,
+         BUILT_TIME TIMESTAMP,
+         SENT_TIME TIMESTAMP,
+         ACKNOWLEDGED_TIME TIMESTAMP,
+         BATCH_STATUS VARCHAR(20) NOT NULL,
+         DESTINATION_REFERENCE VARCHAR(64)
+      )
+
+      // Composite key on batch and report: a resubmitted report is in two batches, so
+      // neither side can hold the other's key on its own row.
+      Table REX_SUBMISSION
+      (
+         BATCH_ID VARCHAR(64) PRIMARY KEY,
+         REPORT_ID VARCHAR(64) PRIMARY KEY,
+         SEQUENCE_NUMBER INTEGER,
+         ATTEMPT_NUMBER SMALLINT,
+         ENTRY_STATUS VARCHAR(16),
+         SUBMITTED_TIME TIMESTAMP
+      )
+
+      // ---- what comes back ----------------------------------------------------------------
+      Table REX_VALIDATION_RULE
+      (
+         RULE_ID VARCHAR(40) PRIMARY KEY,
+         RULE_NAME VARCHAR(120) NOT NULL,
+         REGIME_CODE VARCHAR(16),
+         FIELD_NUMBER SMALLINT,
+         RULE_TYPE VARCHAR(20) NOT NULL,
+         SEVERITY VARCHAR(12) NOT NULL,
+         EXPRESSION VARCHAR(400),
+         BLOCKS_SUBMISSION BIT,
+         IS_ACTIVE BIT,
+         INTRODUCED_ON DATE
+      )
+
+      Table REX_VALIDATION_ERROR
+      (
+         ERROR_ID VARCHAR(64) PRIMARY KEY,
+         REPORT_ID VARCHAR(64) NOT NULL,
+         RULE_ID VARCHAR(40),
+         FIELD_NUMBER SMALLINT,
+         OBSERVED_VALUE VARCHAR(400),
+         EXPECTED_VALUE VARCHAR(400),
+         MESSAGE VARCHAR(400),
+         SEVERITY VARCHAR(12),
+         DETECTED_TIME TIMESTAMP NOT NULL,
+         RESOLVED_TIME TIMESTAMP,
+         RESOLVED_BY_USER VARCHAR(60)
+      )
+
+      Table REX_REJECTION
+      (
+         FEEDBACK_ID VARCHAR(64) PRIMARY KEY,
+         REPORT_ID VARCHAR(64) NOT NULL,
+         BATCH_ID VARCHAR(64),
+         FEEDBACK_CODE VARCHAR(24) NOT NULL,
+         FEEDBACK_TEXT VARCHAR(400),
+         REFERENCED_FIELD_NUMBER SMALLINT,
+         FEEDBACK_TYPE VARCHAR(16),
+         RECEIVED_TIME TIMESTAMP NOT NULL,
+         AUTHORITY_REFERENCE VARCHAR(64),
+         REQUIRES_RESUBMISSION BIT
+      )
+
+      Table REX_REMEDIATION
+      (
+         ACTION_ID VARCHAR(64) PRIMARY KEY,
+         FEEDBACK_ID VARCHAR(64),
+         REPORT_ID VARCHAR(64),
+         ACTION_TYPE VARCHAR(24) NOT NULL,
+         // Where the defect really was. Three of the four values name a dependency.
+         ROOT_CAUSE_DOMAIN VARCHAR(24),
+         DESCRIPTION VARCHAR(400),
+         RAISED_TIME TIMESTAMP NOT NULL,
+         COMPLETED_TIME TIMESTAMP,
+         PERFORMED_BY_USER VARCHAR(60),
+         REPLACEMENT_REPORT_ID VARCHAR(64)
+      )
+
+      Table REX_RECON_BREAK
+      (
+         BREAK_ID VARCHAR(64) PRIMARY KEY,
+         REPORT_ID VARCHAR(64),
+         UNIQUE_TRADE_IDENTIFIER VARCHAR(52),
+         COUNTERPARTY_LEI VARCHAR(20),
+         FIELD_NAME VARCHAR(120) NOT NULL,
+         FIELD_NUMBER SMALLINT,
+         OUR_VALUE VARCHAR(400),
+         THEIR_VALUE VARCHAR(400),
+         PAIRING_STATUS VARCHAR(16),
+         TOLERANCE_APPLIED DOUBLE,
+         REPORTED_DATE DATE,
+         RESOLVED_DATE DATE
+      )
+
+      // ---- the fan-in bridges -------------------------------------------------------------
+      Table REX_REPORTING_ENTITY
+      (
+         REPORTING_ENTITY_ID VARCHAR(40) PRIMARY KEY,
+         ENTITY_LEI VARCHAR(20) NOT NULL,
+         ENTITY_NAME VARCHAR(200) NOT NULL,
+         HOME_NCA_CODE VARCHAR(12),
+         COUNTRY_CODE VARCHAR(2),
+         IS_INVESTMENT_FIRM BIT,
+         IS_BRANCH BIT,
+         PARENT_ENTITY_LEI VARCHAR(20),
+         AUTHORISED_FROM DATE,
+         AUTHORISATION_WITHDRAWN_ON DATE
+      )
+
+      // The bridge to client-core. CLIENT_ID is client-core's key and the only column of
+      // theirs kept here; the name, type, domicile and status are reached by join.
+      Table REX_CLIENT_PROFILE
+      (
+         PROFILE_ID VARCHAR(40) PRIMARY KEY,
+         CLIENT_ID VARCHAR(32) NOT NULL,
+         REPORTING_IDENTIFIER VARCHAR(72),
+         IDENTIFIER_SCHEME VARCHAR(8),
+         LEI_STATUS VARCHAR(16),
+         LEI_EXPIRY_DATE DATE,
+         IS_DELEGATED_REPORTING BIT,
+         DELEGATION_AGREEMENT_REF VARCHAR(64),
+         REPORTED_CLIENT_CATEGORY VARCHAR(32),
+         IS_SUPPRESSED BIT,
+         SUPPRESSION_REASON VARCHAR(200)
+      )
+
+      // The bridge to reference-data. MIC is reference-data's key for RD_VENUE.
+      Table REX_VENUE_PROFILE
+      (
+         PROFILE_ID VARCHAR(40) PRIMARY KEY,
+         MIC VARCHAR(4) NOT NULL,
+         REPORTED_MIC_OVERRIDE VARCHAR(4),
+         VENUE_CLASSIFICATION VARCHAR(24),
+         VENUE_REPORTS_ON_OUR_BEHALF BIT,
+         IS_EEA_VENUE BIT,
+         SUPPORTS_WAIVERS BIT,
+         ASSESSED_ON DATE
+      )
+
+      // The bridge to trade-capture. Composite key on trade and regime: one trade is
+      // assessed once per regime and can be reportable under one and not the other.
+      Table REX_TRADE_ELIGIBILITY
+      (
+         TRADE_ID VARCHAR(64) PRIMARY KEY,
+         REGIME_CODE VARCHAR(16) PRIMARY KEY,
+         IS_REPORTABLE BIT NOT NULL,
+         OBLIGATION_ID VARCHAR(40),
+         EXCLUSION_REASON VARCHAR(200),
+         ASSESSED_TIME TIMESTAMP,
+         ASSESSED_BY_RUN VARCHAR(64),
+         PRODUCED_REPORT_ID VARCHAR(64)
       )
    )
+
+   // ---- joins inside the rex schema -------------------------------------------------------
+   // Both sides schema-qualified, and each on ONE line: a wrapped join condition is legal to
+   // the compiler but the corpus reader refuses it, and these files are meant to stay
+   // readable by it.
+   Join Rex_ReportRegime(rex.REX_TRANSACTION.REGIME_CODE = rex.REX_REGIME.REGIME_CODE)
+   Join Rex_ObligationRegime(rex.REX_OBLIGATION.REGIME_CODE = rex.REX_REGIME.REGIME_CODE)
+   Join Rex_FieldRegime(rex.REX_FIELD.REGIME_CODE = rex.REX_REGIME.REGIME_CODE)
+   Join Rex_FieldValueReport(rex.REX_FIELD_VALUE.REPORT_ID = rex.REX_TRANSACTION.REPORT_ID)
+   // Two columns, because a field number alone is ambiguous across regimes.
+   Join Rex_FieldValueField(rex.REX_FIELD_VALUE.REGIME_CODE = rex.REX_FIELD.REGIME_CODE and rex.REX_FIELD_VALUE.FIELD_NUMBER = rex.REX_FIELD.FIELD_NUMBER)
+   Join Rex_ReportCapacity(rex.REX_TRANSACTION.TRADING_CAPACITY_CODE = rex.REX_TRADING_CAPACITY.CAPACITY_CODE)
+   Join Rex_ReportShortSale(rex.REX_TRANSACTION.SHORT_SALE_INDICATOR_CODE = rex.REX_SHORT_SALE_INDICATOR.INDICATOR_CODE)
+   Join Rex_ReportEntity(rex.REX_TRANSACTION.REPORTING_ENTITY_ID = rex.REX_REPORTING_ENTITY.REPORTING_ENTITY_ID)
+   Join Rex_ReportRun(rex.REX_TRANSACTION.EXTRACT_RUN_ID = rex.REX_EXTRACT_RUN.RUN_ID)
+   // The report to its client profile, on client-core's key held on both rows. The second
+   // hop, out to CLI_CLIENT itself, is Rex_ClientProfileClient below.
+   Join Rex_ReportClientProfile(rex.REX_TRANSACTION.CLIENT_ID = rex.REX_CLIENT_PROFILE.CLIENT_ID)
+   Join Rex_ReportVenueProfile(rex.REX_TRANSACTION.VENUE_MIC = rex.REX_VENUE_PROFILE.MIC)
+   Join Rex_ReportPersonReport(rex.REX_REPORT_PERSON.REPORT_ID = rex.REX_TRANSACTION.REPORT_ID)
+   Join Rex_ReportPersonMaker(rex.REX_REPORT_PERSON.DECISION_MAKER_ID = rex.REX_DECISION_MAKER.DECISION_MAKER_ID)
+   Join Rex_MakerAlgorithm(rex.REX_DECISION_MAKER.ALGORITHM_ID = rex.REX_ALGORITHM.ALGORITHM_ID)
+   Join Rex_MakerPersonIdentifier(rex.REX_PERSON_IDENTIFIER.DECISION_MAKER_ID = rex.REX_DECISION_MAKER.DECISION_MAKER_ID)
+   Join Rex_ReportWaiverReport(rex.REX_REPORT_WAIVER.REPORT_ID = rex.REX_TRANSACTION.REPORT_ID)
+   Join Rex_ReportWaiverWaiver(rex.REX_REPORT_WAIVER.WAIVER_CODE = rex.REX_WAIVER.WAIVER_CODE)
+   Join Rex_PostTradeFlagReport(rex.REX_POST_TRADE_FLAG.REPORT_ID = rex.REX_TRANSACTION.REPORT_ID)
+   Join Rex_BatchRun(rex.REX_BATCH.RUN_ID = rex.REX_EXTRACT_RUN.RUN_ID)
+   Join Rex_BatchDestination(rex.REX_BATCH.DESTINATION_CODE = rex.REX_DESTINATION.DESTINATION_CODE)
+   Join Rex_SubmissionBatch(rex.REX_SUBMISSION.BATCH_ID = rex.REX_BATCH.BATCH_ID)
+   Join Rex_SubmissionReport(rex.REX_SUBMISSION.REPORT_ID = rex.REX_TRANSACTION.REPORT_ID)
+   Join Rex_ErrorReport(rex.REX_VALIDATION_ERROR.REPORT_ID = rex.REX_TRANSACTION.REPORT_ID)
+   Join Rex_ErrorRule(rex.REX_VALIDATION_ERROR.RULE_ID = rex.REX_VALIDATION_RULE.RULE_ID)
+   Join Rex_RejectionReport(rex.REX_REJECTION.REPORT_ID = rex.REX_TRANSACTION.REPORT_ID)
+   Join Rex_RejectionBatch(rex.REX_REJECTION.BATCH_ID = rex.REX_BATCH.BATCH_ID)
+   Join Rex_RemediationFeedback(rex.REX_REMEDIATION.FEEDBACK_ID = rex.REX_REJECTION.FEEDBACK_ID)
+   Join Rex_ReconBreakReport(rex.REX_RECON_BREAK.REPORT_ID = rex.REX_TRANSACTION.REPORT_ID)
+   Join Rex_EligibilityObligation(rex.REX_TRADE_ELIGIBILITY.OBLIGATION_ID = rex.REX_OBLIGATION.OBLIGATION_ID)
+   // The eligibility row for the report's own trade and regime: two columns, because a trade
+   // is assessed once per regime and matching on the trade alone would return both rows.
+   Join Rex_ReportEligibility(rex.REX_TRANSACTION.TRADE_ID = rex.REX_TRADE_ELIGIBILITY.TRADE_ID and rex.REX_TRANSACTION.REGIME_CODE = rex.REX_TRADE_ELIGIBILITY.REGIME_CODE)
+
+   // ---- the six joins that leave this project ---------------------------------------------
+   // Legal only because of the three `include`s at the top. Each lands on a table owned by a
+   // DIRECT dependency: TC_ is trade-capture's, RD_ is reference-data's, CLI_ is
+   // client-core's. None of them is schema-qualified on the far side, because all three of
+   // those projects put their tables in the default schema; ours are, because we did not.
+   //
+   // Note there is no join to CI_INSTRUMENT. The instrument is reachable -- trade-capture
+   // includes core-instrument and its store is included here transitively -- but naming
+   // CI_INSTRUMENT would be a reference to a project this one does not declare. The model
+   // goes through `$report.trade.instrument` instead, which is trade-capture's association
+   // and costs this project nothing.
+   Join Rex_ReportTrade(rex.REX_TRANSACTION.TRADE_ID = TC_TRADE.TRADE_ID)
+   Join Rex_EligibilityTrade(rex.REX_TRADE_ELIGIBILITY.TRADE_ID = TC_TRADE.TRADE_ID)
+   Join Rex_MakerTrader(rex.REX_DECISION_MAKER.TRADER_ID = TC_TRADER.TRADER_ID)
+   Join Rex_ReportVenue(rex.REX_TRANSACTION.VENUE_MIC = RD_VENUE.MIC)
+   Join Rex_VenueProfileVenue(rex.REX_VENUE_PROFILE.MIC = RD_VENUE.MIC)
+   Join Rex_ClientProfileClient(rex.REX_CLIENT_PROFILE.CLIENT_ID = CLI_CLIENT.CLIENT_ID)
+
+   // ---- filters ---------------------------------------------------------------------------
+   // The four applied ones are the subtype discriminators, referenced from the mapping as
+   // [regulatory_extract::Store]RexMifirRows. Not one of them is a boolean literal:
+   // `Filter X(T.IS_CLEARED = true)` fails to parse with `Unexpected token 'true'`, so a
+   // flag is tested as a string comparison against a code column or as a null test.
+   Filter RexMifirRows(rex.REX_TRANSACTION.REGIME_CODE = 'MIFIR')
+   Filter RexEmirRows(rex.REX_TRANSACTION.REGIME_CODE = 'EMIR')
+   Filter RexRejectedRows(rex.REX_TRANSACTION.REPORT_STATUS = 'REJECTED')
+   // A null test rather than a status, deliberately: a report can be DRAFT, PENDING or HELD
+   // and still not have gone anywhere, and the backlog is defined by the absence of a
+   // submission and not by any one status string.
+   Filter RexUnsubmittedRows(rex.REX_TRANSACTION.SUBMITTED_TIME is null)
+
+   // Declared and unapplied, for a downstream project to reference.
+   Filter RexOpenValidationErrors(rex.REX_VALIDATION_ERROR.RESOLVED_TIME is null)
+   Filter RexUnresolvedBreaks(rex.REX_RECON_BREAK.RESOLVED_DATE is null)
+   Filter RexLiveObligations(rex.REX_OBLIGATION.END_DATE is null)
+   Filter RexInForceRegimes(rex.REX_REGIME.RETIRED_ON is null)
 )

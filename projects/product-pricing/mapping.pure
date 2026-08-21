@@ -1,0 +1,576 @@
+###Mapping
+// The pricing mapping.
+//
+// It INCLUDES both dependencies' mappings, which is what makes two different kinds of
+// cross-project reference below resolvable at once:
+//
+//  * `extends [prdProduct]` and `extends [prdYieldEnhancement]` -- set ids that live in
+//    product-core. Extending is what makes the priced-product sets three lines rather than
+//    thirty: the primary key, the main table CI_INSTRUMENT and every inherited column
+//    mapping come from the set being extended, across TWO project boundaries
+//    (ppr -> prd -> ci).
+//  * `valuation[vcValuation]`, `valuationRun[vcRun]`, `markAdjustment[vcAdjustment]` --
+//    property mappings whose TARGET set id lives in valuation-core.
+//
+// Both dependencies name every set id explicitly, so there is no `product_core_Product` or
+// `valuation_core_VcValuation` default to fall back on, and every id below is taken from
+// the dependency's MANIFEST rather than guessed.
+//
+// Two shape facts, stated once here rather than inferred from three hundred lines below:
+//
+//  * The main table of every priced-product set is core-instrument's CI_INSTRUMENT, two
+//    projects up. This project's own columns live in PPR_PRODUCT_PRICING and are reached
+//    through Ppr_PricingInstrument, so a property mapping reads
+//    `[product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.COL` and an
+//    association reads `@Ppr_PricingInstrument > @SomeOtherJoin`.
+//  * Every set that adds a property declares it on its OWN set. A property declared on a
+//    subclass cannot be mapped on the parent's set -- the trap product-core recorded, and
+//    the reason PprAnalyticPricedProduct's five columns are on [pprAnalytic] and not on
+//    [pprPricedProduct].
+//
+// No EnumerationMapping is needed: this project declares no enums and maps none of
+// core-types', because core-types is not one of its dependencies.
+Mapping product_pricing::Mapping
+(
+   include product_core::Mapping
+   include valuation_core::Mapping
+
+   // ================================================= the priced-product taxonomy
+
+   // The root of this project's overlay, and the point where it joins the dependency's
+   // taxonomy. It adds no primary key and no main table -- both come from [prdProduct],
+   // which took them from [ciBase] -- only the join to this project's overlay table and
+   // the filter that says the pricing desk owns the product at all.
+   product_pricing::PprPricedProduct[pprPricedProduct] extends [prdProduct]: Relational
+   {
+      ~filter [product_pricing::Store]@Ppr_PricingInstrument | [product_pricing::Store]PprPricedRows
+      modelCode: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.MODEL_CODE,
+      modelFamily: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.MODEL_FAMILY,
+      pricingStatus: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.PRICING_STATUS,
+      pricingCurrency: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.PRICING_CURRENCY,
+      pricingDesk: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.PRICING_DESK,
+      valuationMethodCode: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.VALUATION_METHOD_CODE,
+      discountCurveCode: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.DISCOUNT_CURVE_CODE,
+      volatilitySurfaceCode: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.VOL_SURFACE_CODE,
+      lastPricedOn: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.LAST_PRICED_ON,
+      modelTier: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.MODEL_TIER,
+      isModelValidated: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.IS_MODEL_VALIDATED,
+      revaluationFrequency: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.REVALUATION_FREQUENCY,
+      hasIndependentPriceCheck: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.HAS_INDEPENDENT_PRICE_CHECK,
+      baseReserveBasisPoints: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.BASE_RESERVE_BPS,
+      model[pprModel]: [product_pricing::Store]@Ppr_PricingInstrument > @Ppr_PricingModel,
+      discountCurve[pprCurve]: [product_pricing::Store]@Ppr_PricingInstrument > @Ppr_PricingCurve,
+      prices[pprProductPrice]: [product_pricing::Store]@Ppr_PricingInstrument > @Ppr_PricingProductPrice
+   }
+
+   // ---- the six model families, on this project's own MODEL_FAMILY column ----
+   // Each extends [pprPricedProduct], so the chain to the base is four links long:
+   // family -> pprPricedProduct -> prdProduct -> ciBase, crossing a project boundary twice.
+
+   product_pricing::PprAnalyticPricedProduct[pprAnalytic] extends [pprPricedProduct]: Relational
+   {
+      ~filter [product_pricing::Store]@Ppr_PricingInstrument | [product_pricing::Store]PprAnalyticRows
+      closedFormName: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.CLOSED_FORM_NAME,
+      usesVolatilitySmile: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.USES_VOL_SMILE,
+      quotedVolatility: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.QUOTED_VOLATILITY,
+      analyticDayCount: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.ANALYTIC_DAY_COUNT,
+      hasAnalyticGreeks: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.HAS_ANALYTIC_GREEKS
+   }
+
+   product_pricing::PprMonteCarloPricedProduct[pprMonteCarlo] extends [pprPricedProduct]: Relational
+   {
+      ~filter [product_pricing::Store]@Ppr_PricingInstrument | [product_pricing::Store]PprMonteCarloRows
+      pathCount: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.PATH_COUNT,
+      timeStepsPerYear: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.TIME_STEPS_PER_YEAR,
+      randomSeed: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.RANDOM_SEED,
+      varianceReduction: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.VARIANCE_REDUCTION,
+      pathStandardDeviation: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.PATH_STD_DEV,
+      isPathDependent: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.IS_PATH_DEPENDENT
+   }
+
+   product_pricing::PprLatticePricedProduct[pprLattice] extends [pprPricedProduct]: Relational
+   {
+      ~filter [product_pricing::Store]@Ppr_PricingInstrument | [product_pricing::Store]PprLatticeRows
+      latticeType: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.LATTICE_TYPE,
+      treeSteps: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.TREE_STEPS,
+      exerciseStyle: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.EXERCISE_STYLE,
+      yearsToExpiry: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.YEARS_TO_EXPIRY,
+      handlesDiscreteDividends: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.HANDLES_DISCRETE_DIVIDENDS
+   }
+
+   product_pricing::PprAccrualPricedProduct[pprAccrual] extends [pprPricedProduct]: Relational
+   {
+      ~filter [product_pricing::Store]@Ppr_PricingInstrument | [product_pricing::Store]PprAccrualRows
+      accrualBasis: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.ACCRUAL_BASIS,
+      contractRatePercent: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.CONTRACT_RATE_PCT,
+      isFairValueOption: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.IS_FAIR_VALUE_OPTION,
+      daysToMaturity: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.DAYS_TO_MATURITY,
+      fundingSpreadBasisPoints: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.FUNDING_SPREAD_BPS
+   }
+
+   product_pricing::PprNavPricedProduct[pprNav] extends [pprPricedProduct]: Relational
+   {
+      ~filter [product_pricing::Store]@Ppr_PricingInstrument | [product_pricing::Store]PprNavRows
+      navSource: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.NAV_SOURCE,
+      navLagDays: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.NAV_LAG_DAYS,
+      swingFactorPercent: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.SWING_FACTOR_PCT,
+      usesEstimatedNav: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.USES_ESTIMATED_NAV,
+      navPerUnit: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.NAV_PER_UNIT
+   }
+
+   product_pricing::PprBrokerMarkedProduct[pprBrokerMarked] extends [pprPricedProduct]: Relational
+   {
+      ~filter [product_pricing::Store]@Ppr_PricingInstrument | [product_pricing::Store]PprBrokerMarkedRows
+      brokerCount: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.BROKER_COUNT,
+      brokerDispersionPercent: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.BROKER_DISPERSION_PCT,
+      uncertaintyReserveBasisPoints: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.UNCERTAINTY_RESERVE_BPS,
+      escalationOwner: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.ESCALATION_OWNER,
+      isDeskSourced: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.IS_DESK_SOURCED
+   }
+
+   // ---- two concrete payoffs, extending product-core's CONCRETE sets ----
+   // These do not extend [pprPricedProduct]; they extend the dependency's own concrete
+   // product sets, because the facts they add are facts about that payoff. Their filter is
+   // on PAYOFF_ENGINE rather than MODEL_FAMILY precisely because they are on a different
+   // branch and must not be cut by the same column twice.
+
+   product_pricing::PprPricedAutocall[pprAutocall] extends [prdYieldEnhancement]: Relational
+   {
+      ~filter [product_pricing::Store]@Ppr_PricingInstrument | [product_pricing::Store]PprAutocallPricedRows
+      observationCount: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.OBSERVATION_COUNT,
+      observationFrequency: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.OBSERVATION_FREQUENCY,
+      hasMemoryCoupon: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.HAS_MEMORY_COUPON,
+      autocallProbability: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.AUTOCALL_PROBABILITY,
+      expectedLifeYears: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.EXPECTED_LIFE_YEARS,
+      barrierBreachProbability: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.BARRIER_BREACH_PROBABILITY,
+      pricingModelCode: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.PRICING_MODEL_CODE
+   }
+
+   product_pricing::PprPricedProtectedNote[pprProtectedNote] extends [prdCapitalProtected]: Relational
+   {
+      ~filter [product_pricing::Store]@Ppr_PricingInstrument | [product_pricing::Store]PprProtectedNotePricedRows
+      zeroLegPresentValuePercent: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.ZERO_LEG_PV_PCT,
+      optionLegPresentValuePercent: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.OPTION_LEG_PV_PCT,
+      issuerFundingSpreadBasisPoints: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.ISSUER_FUNDING_SPREAD_BPS,
+      isProtectionModelled: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.IS_PROTECTION_MODELLED,
+      pricingModelCode: [product_pricing::Store]@Ppr_PricingInstrument | PPR_PRODUCT_PRICING.PRICING_MODEL_CODE
+   }
+
+   // ================================================= the model inventory
+
+   // The models, on this project's own table. `valuationMethod[vcMethod]` is the target-set
+   // form: valuation-core names its ids explicitly, so the bare join form would not resolve.
+   product_pricing::PprPricingModel[pprModel]: Relational
+   {
+      ~primaryKey ( [product_pricing::Store]PPR_MODEL.MODEL_CODE )
+      ~mainTable [product_pricing::Store]PPR_MODEL
+      modelCode: [product_pricing::Store]PPR_MODEL.MODEL_CODE,
+      modelName: [product_pricing::Store]PPR_MODEL.MODEL_NAME,
+      modelKind: [product_pricing::Store]PPR_MODEL.MODEL_KIND,
+      engineName: [product_pricing::Store]PPR_MODEL.ENGINE_NAME,
+      engineVersion: [product_pricing::Store]PPR_MODEL.ENGINE_VERSION,
+      assetClass: [product_pricing::Store]PPR_MODEL.ASSET_CLASS,
+      valuationMethodCode: [product_pricing::Store]PPR_MODEL.VALUATION_METHOD_CODE,
+      owningQuantTeam: [product_pricing::Store]PPR_MODEL.OWNING_QUANT_TEAM,
+      approvalStatus: [product_pricing::Store]PPR_MODEL.APPROVAL_STATUS,
+      isProduction: [product_pricing::Store]PPR_MODEL.IS_PRODUCTION,
+      typicalRuntimeMillis: [product_pricing::Store]PPR_MODEL.TYPICAL_RUNTIME_MS,
+      modelRiskTier: [product_pricing::Store]PPR_MODEL.MODEL_RISK_TIER,
+      valuationMethod[vcMethod]: [product_pricing::Store]@Ppr_ModelValuationMethod,
+      inputs[pprModelInput]: [product_pricing::Store]@Ppr_ModelInput,
+      assignments[pprAssignment]: [product_pricing::Store]@Ppr_ModelAssignment,
+      calibrations[pprCalibration]: [product_pricing::Store]@Ppr_ModelCalibration,
+      validations[pprValidation]: [product_pricing::Store]@Ppr_ModelValidation,
+      limitations[pprLimitation]: [product_pricing::Store]@Ppr_ModelLimitation
+   }
+
+   product_pricing::PprAnalyticModel[pprAnalyticModel] extends [pprModel]: Relational
+   {
+      ~filter [product_pricing::Store]PprAnalyticModelRows
+      formulaName: [product_pricing::Store]PPR_MODEL.FORMULA_NAME,
+      hasClosedFormGreeks: [product_pricing::Store]PPR_MODEL.HAS_CLOSED_FORM_GREEKS,
+      smileTreatment: [product_pricing::Store]PPR_MODEL.SMILE_TREATMENT,
+      validatedMoneynessMax: [product_pricing::Store]PPR_MODEL.VALIDATED_MONEYNESS_MAX
+   }
+
+   product_pricing::PprMonteCarloModel[pprMonteCarloModel] extends [pprModel]: Relational
+   {
+      ~filter [product_pricing::Store]PprMonteCarloModelRows
+      defaultPathCount: [product_pricing::Store]PPR_MODEL.DEFAULT_PATH_COUNT,
+      supportsAntithetic: [product_pricing::Store]PPR_MODEL.SUPPORTS_ANTITHETIC,
+      supportsQuasiRandom: [product_pricing::Store]PPR_MODEL.SUPPORTS_QUASI_RANDOM,
+      usesBrownianBridge: [product_pricing::Store]PPR_MODEL.USES_BROWNIAN_BRIDGE,
+      convergenceTargetBasisPoints: [product_pricing::Store]PPR_MODEL.CONVERGENCE_TARGET_BPS
+   }
+
+   product_pricing::PprLatticeModel[pprLatticeModel] extends [pprModel]: Relational
+   {
+      ~filter [product_pricing::Store]PprLatticeModelRows
+      latticeType: [product_pricing::Store]PPR_MODEL.LATTICE_TYPE,
+      defaultStepCount: [product_pricing::Store]PPR_MODEL.DEFAULT_STEP_COUNT,
+      supportsAmerican: [product_pricing::Store]PPR_MODEL.SUPPORTS_AMERICAN,
+      supportsBermudan: [product_pricing::Store]PPR_MODEL.SUPPORTS_BERMUDAN,
+      dividendTreatment: [product_pricing::Store]PPR_MODEL.DIVIDEND_TREATMENT
+   }
+
+   product_pricing::PprModelAssignment[pprAssignment]: Relational
+   {
+      ~primaryKey
+      (
+         [product_pricing::Store]PPR_MODEL_ASSIGNMENT.PRODUCT_SUBTYPE,
+         [product_pricing::Store]PPR_MODEL_ASSIGNMENT.MODEL_CODE
+      )
+      ~mainTable [product_pricing::Store]PPR_MODEL_ASSIGNMENT
+      productSubtype: [product_pricing::Store]PPR_MODEL_ASSIGNMENT.PRODUCT_SUBTYPE,
+      modelCode: [product_pricing::Store]PPR_MODEL_ASSIGNMENT.MODEL_CODE,
+      assignedOn: [product_pricing::Store]PPR_MODEL_ASSIGNMENT.ASSIGNED_ON,
+      assignedBy: [product_pricing::Store]PPR_MODEL_ASSIGNMENT.ASSIGNED_BY,
+      isPrimary: [product_pricing::Store]PPR_MODEL_ASSIGNMENT.IS_PRIMARY,
+      fallbackModelCode: [product_pricing::Store]PPR_MODEL_ASSIGNMENT.FALLBACK_MODEL_CODE,
+      rationale: [product_pricing::Store]PPR_MODEL_ASSIGNMENT.RATIONALE
+   }
+
+   product_pricing::PprModelInput[pprModelInput]: Relational
+   {
+      ~primaryKey
+      (
+         [product_pricing::Store]PPR_MODEL_INPUT.MODEL_CODE,
+         [product_pricing::Store]PPR_MODEL_INPUT.INPUT_CODE
+      )
+      ~mainTable [product_pricing::Store]PPR_MODEL_INPUT
+      modelCode: [product_pricing::Store]PPR_MODEL_INPUT.MODEL_CODE,
+      inputCode: [product_pricing::Store]PPR_MODEL_INPUT.INPUT_CODE,
+      inputName: [product_pricing::Store]PPR_MODEL_INPUT.INPUT_NAME,
+      inputKind: [product_pricing::Store]PPR_MODEL_INPUT.INPUT_KIND,
+      isMandatory: [product_pricing::Store]PPR_MODEL_INPUT.IS_MANDATORY,
+      sourceReference: [product_pricing::Store]PPR_MODEL_INPUT.SOURCE_REFERENCE,
+      defaultValue: [product_pricing::Store]PPR_MODEL_INPUT.DEFAULT_VALUE,
+      unitOfMeasure: [product_pricing::Store]PPR_MODEL_INPUT.UNIT_OF_MEASURE
+   }
+
+   // ================================================= the market inputs
+
+   product_pricing::PprVolatilitySurface[pprVolSurface]: Relational
+   {
+      ~primaryKey ( [product_pricing::Store]PPR_VOL_SURFACE.SURFACE_CODE )
+      ~mainTable [product_pricing::Store]PPR_VOL_SURFACE
+      surfaceCode: [product_pricing::Store]PPR_VOL_SURFACE.SURFACE_CODE,
+      underlyingCode: [product_pricing::Store]PPR_VOL_SURFACE.UNDERLYING_CODE,
+      surfaceType: [product_pricing::Store]PPR_VOL_SURFACE.SURFACE_TYPE,
+      quoteConvention: [product_pricing::Store]PPR_VOL_SURFACE.QUOTE_CONVENTION,
+      asOfDate: [product_pricing::Store]PPR_VOL_SURFACE.AS_OF_DATE,
+      atmVolatility: [product_pricing::Store]PPR_VOL_SURFACE.ATM_VOLATILITY,
+      skew25Delta: [product_pricing::Store]PPR_VOL_SURFACE.SKEW_25_DELTA,
+      isArbitrageFree: [product_pricing::Store]PPR_VOL_SURFACE.IS_ARBITRAGE_FREE,
+      interpolation: [product_pricing::Store]PPR_VOL_SURFACE.INTERPOLATION,
+      pointCount: [product_pricing::Store]PPR_VOL_SURFACE.POINT_COUNT,
+      points[pprVolPoint]: [product_pricing::Store]@Ppr_SurfacePoint
+   }
+
+   product_pricing::PprVolatilityPoint[pprVolPoint]: Relational
+   {
+      ~primaryKey
+      (
+         [product_pricing::Store]PPR_VOL_POINT.SURFACE_CODE,
+         [product_pricing::Store]PPR_VOL_POINT.EXPIRY_TENOR,
+         [product_pricing::Store]PPR_VOL_POINT.STRIKE_BUCKET
+      )
+      ~mainTable [product_pricing::Store]PPR_VOL_POINT
+      surfaceCode: [product_pricing::Store]PPR_VOL_POINT.SURFACE_CODE,
+      expiryTenor: [product_pricing::Store]PPR_VOL_POINT.EXPIRY_TENOR,
+      strikeBucket: [product_pricing::Store]PPR_VOL_POINT.STRIKE_BUCKET,
+      strikePercent: [product_pricing::Store]PPR_VOL_POINT.STRIKE_PCT,
+      impliedVolatility: [product_pricing::Store]PPR_VOL_POINT.IMPLIED_VOLATILITY,
+      bidVolatility: [product_pricing::Store]PPR_VOL_POINT.BID_VOLATILITY,
+      askVolatility: [product_pricing::Store]PPR_VOL_POINT.ASK_VOLATILITY,
+      isInterpolated: [product_pricing::Store]PPR_VOL_POINT.IS_INTERPOLATED,
+      quoteCount: [product_pricing::Store]PPR_VOL_POINT.QUOTE_COUNT
+   }
+
+   product_pricing::PprDiscountCurve[pprCurve]: Relational
+   {
+      ~primaryKey ( [product_pricing::Store]PPR_DISCOUNT_CURVE.CURVE_CODE )
+      ~mainTable [product_pricing::Store]PPR_DISCOUNT_CURVE
+      curveCode: [product_pricing::Store]PPR_DISCOUNT_CURVE.CURVE_CODE,
+      curveName: [product_pricing::Store]PPR_DISCOUNT_CURVE.CURVE_NAME,
+      currencyCode: [product_pricing::Store]PPR_DISCOUNT_CURVE.CURRENCY_CODE,
+      curveType: [product_pricing::Store]PPR_DISCOUNT_CURVE.CURVE_TYPE,
+      asOfDate: [product_pricing::Store]PPR_DISCOUNT_CURVE.AS_OF_DATE,
+      interpolation: [product_pricing::Store]PPR_DISCOUNT_CURVE.INTERPOLATION,
+      isCollateralised: [product_pricing::Store]PPR_DISCOUNT_CURVE.IS_COLLATERALISED,
+      collateralCurrency: [product_pricing::Store]PPR_DISCOUNT_CURVE.COLLATERAL_CURRENCY,
+      nodeCount: [product_pricing::Store]PPR_DISCOUNT_CURVE.NODE_COUNT,
+      points[pprCurvePoint]: [product_pricing::Store]@Ppr_CurveNode
+   }
+
+   product_pricing::PprCurvePoint[pprCurvePoint]: Relational
+   {
+      ~primaryKey
+      (
+         [product_pricing::Store]PPR_CURVE_POINT.CURVE_CODE,
+         [product_pricing::Store]PPR_CURVE_POINT.TENOR_CODE
+      )
+      ~mainTable [product_pricing::Store]PPR_CURVE_POINT
+      curveCode: [product_pricing::Store]PPR_CURVE_POINT.CURVE_CODE,
+      tenorCode: [product_pricing::Store]PPR_CURVE_POINT.TENOR_CODE,
+      tenorDays: [product_pricing::Store]PPR_CURVE_POINT.TENOR_DAYS,
+      zeroRate: [product_pricing::Store]PPR_CURVE_POINT.ZERO_RATE,
+      discountFactor: [product_pricing::Store]PPR_CURVE_POINT.DISCOUNT_FACTOR,
+      forwardRate: [product_pricing::Store]PPR_CURVE_POINT.FORWARD_RATE,
+      isPillar: [product_pricing::Store]PPR_CURVE_POINT.IS_PILLAR
+   }
+
+   product_pricing::PprCorrelationEntry[pprCorrelation]: Relational
+   {
+      ~primaryKey
+      (
+         [product_pricing::Store]PPR_CORRELATION.MATRIX_CODE,
+         [product_pricing::Store]PPR_CORRELATION.UNDERLYING_ONE,
+         [product_pricing::Store]PPR_CORRELATION.UNDERLYING_TWO
+      )
+      ~mainTable [product_pricing::Store]PPR_CORRELATION
+      matrixCode: [product_pricing::Store]PPR_CORRELATION.MATRIX_CODE,
+      underlyingOne: [product_pricing::Store]PPR_CORRELATION.UNDERLYING_ONE,
+      underlyingTwo: [product_pricing::Store]PPR_CORRELATION.UNDERLYING_TWO,
+      correlationValue: [product_pricing::Store]PPR_CORRELATION.CORRELATION_VALUE,
+      estimationWindowDays: [product_pricing::Store]PPR_CORRELATION.ESTIMATION_WINDOW_DAYS,
+      estimationMethod: [product_pricing::Store]PPR_CORRELATION.ESTIMATION_METHOD,
+      isStressed: [product_pricing::Store]PPR_CORRELATION.IS_STRESSED,
+      asOfDate: [product_pricing::Store]PPR_CORRELATION.AS_OF_DATE
+   }
+
+   product_pricing::PprDividendForecast[pprDividend]: Relational
+   {
+      ~primaryKey
+      (
+         [product_pricing::Store]PPR_DIVIDEND.UNDERLYING_CODE,
+         [product_pricing::Store]PPR_DIVIDEND.EX_DATE
+      )
+      ~mainTable [product_pricing::Store]PPR_DIVIDEND
+      underlyingCode: [product_pricing::Store]PPR_DIVIDEND.UNDERLYING_CODE,
+      exDate: [product_pricing::Store]PPR_DIVIDEND.EX_DATE,
+      dividendAmount: [product_pricing::Store]PPR_DIVIDEND.DIVIDEND_AMOUNT,
+      dividendCurrency: [product_pricing::Store]PPR_DIVIDEND.DIVIDEND_CURRENCY,
+      isForecast: [product_pricing::Store]PPR_DIVIDEND.IS_FORECAST,
+      forecastSource: [product_pricing::Store]PPR_DIVIDEND.FORECAST_SOURCE,
+      dividendYield: [product_pricing::Store]PPR_DIVIDEND.DIVIDEND_YIELD,
+      isSpecial: [product_pricing::Store]PPR_DIVIDEND.IS_SPECIAL
+   }
+
+   // ================================================= calibration
+
+   product_pricing::PprCalibration[pprCalibration]: Relational
+   {
+      ~primaryKey
+      (
+         [product_pricing::Store]PPR_CALIBRATION.MODEL_CODE,
+         [product_pricing::Store]PPR_CALIBRATION.CALIBRATION_DATE
+      )
+      ~mainTable [product_pricing::Store]PPR_CALIBRATION
+      modelCode: [product_pricing::Store]PPR_CALIBRATION.MODEL_CODE,
+      calibrationDate: [product_pricing::Store]PPR_CALIBRATION.CALIBRATION_DATE,
+      calibrationType: [product_pricing::Store]PPR_CALIBRATION.CALIBRATION_TYPE,
+      targetCount: [product_pricing::Store]PPR_CALIBRATION.TARGET_COUNT,
+      iterationCount: [product_pricing::Store]PPR_CALIBRATION.ITERATION_COUNT,
+      rootMeanSquareError: [product_pricing::Store]PPR_CALIBRATION.RMS_ERROR,
+      maxAbsoluteError: [product_pricing::Store]PPR_CALIBRATION.MAX_ABSOLUTE_ERROR,
+      hasConverged: [product_pricing::Store]PPR_CALIBRATION.HAS_CONVERGED,
+      solverName: [product_pricing::Store]PPR_CALIBRATION.SOLVER_NAME,
+      runSeconds: [product_pricing::Store]PPR_CALIBRATION.RUN_SECONDS,
+      calibratedBy: [product_pricing::Store]PPR_CALIBRATION.CALIBRATED_BY,
+      surfaceCode: [product_pricing::Store]PPR_CALIBRATION.SURFACE_CODE,
+      curveCode: [product_pricing::Store]PPR_CALIBRATION.CURVE_CODE,
+      targets[pprCalibrationTarget]: [product_pricing::Store]@Ppr_CalibrationTarget,
+      surface[pprVolSurface]: [product_pricing::Store]@Ppr_CalibrationSurface,
+      curve[pprCurve]: [product_pricing::Store]@Ppr_CalibrationCurve
+   }
+
+   product_pricing::PprCalibrationTarget[pprCalibrationTarget]: Relational
+   {
+      ~primaryKey
+      (
+         [product_pricing::Store]PPR_CALIBRATION_TARGET.MODEL_CODE,
+         [product_pricing::Store]PPR_CALIBRATION_TARGET.CALIBRATION_DATE,
+         [product_pricing::Store]PPR_CALIBRATION_TARGET.TARGET_SEQ
+      )
+      ~mainTable [product_pricing::Store]PPR_CALIBRATION_TARGET
+      modelCode: [product_pricing::Store]PPR_CALIBRATION_TARGET.MODEL_CODE,
+      calibrationDate: [product_pricing::Store]PPR_CALIBRATION_TARGET.CALIBRATION_DATE,
+      targetSeq: [product_pricing::Store]PPR_CALIBRATION_TARGET.TARGET_SEQ,
+      targetInstrument: [product_pricing::Store]PPR_CALIBRATION_TARGET.TARGET_INSTRUMENT,
+      targetTenor: [product_pricing::Store]PPR_CALIBRATION_TARGET.TARGET_TENOR,
+      marketQuote: [product_pricing::Store]PPR_CALIBRATION_TARGET.MARKET_QUOTE,
+      modelQuote: [product_pricing::Store]PPR_CALIBRATION_TARGET.MODEL_QUOTE,
+      targetWeight: [product_pricing::Store]PPR_CALIBRATION_TARGET.TARGET_WEIGHT,
+      isExcluded: [product_pricing::Store]PPR_CALIBRATION_TARGET.IS_EXCLUDED,
+      exclusionReason: [product_pricing::Store]PPR_CALIBRATION_TARGET.EXCLUSION_REASON
+   }
+
+   // ================================================= what the runs produce
+
+   product_pricing::PprPricingRun[pprPricingRun]: Relational
+   {
+      ~primaryKey ( [product_pricing::Store]PPR_PRICING_RUN.RUN_ID )
+      ~mainTable [product_pricing::Store]PPR_PRICING_RUN
+      runId: [product_pricing::Store]PPR_PRICING_RUN.RUN_ID,
+      valuationRunId: [product_pricing::Store]PPR_PRICING_RUN.VALUATION_RUN_ID,
+      cobDate: [product_pricing::Store]PPR_PRICING_RUN.COB_DATE,
+      runType: [product_pricing::Store]PPR_PRICING_RUN.RUN_TYPE,
+      status: [product_pricing::Store]PPR_PRICING_RUN.STATUS,
+      productCount: [product_pricing::Store]PPR_PRICING_RUN.PRODUCT_COUNT,
+      failedCount: [product_pricing::Store]PPR_PRICING_RUN.FAILED_COUNT,
+      reportingCurrency: [product_pricing::Store]PPR_PRICING_RUN.REPORTING_CCY,
+      startedAt: [product_pricing::Store]PPR_PRICING_RUN.STARTED_AT,
+      isSignedOff: [product_pricing::Store]PPR_PRICING_RUN.IS_SIGNED_OFF,
+      valuationRun[vcRun]: [product_pricing::Store]@Ppr_RunValuationRun,
+      prices[pprProductPrice]: [product_pricing::Store]@Ppr_RunPrice
+   }
+
+   // The output of the project. `valuation[vcValuation]` crosses into valuation-core on
+   // that project's full three-column key; the derived properties beside it are not mapped
+   // at all, because a derived property whose body calls another project's function needs
+   // no mapping -- the call crosses the boundary in the model, not here.
+   product_pricing::PprProductPrice[pprProductPrice]: Relational
+   {
+      ~primaryKey
+      (
+         [product_pricing::Store]PPR_PRODUCT_PRICE.RUN_ID,
+         [product_pricing::Store]PPR_PRODUCT_PRICE.PRODUCT_CODE
+      )
+      ~mainTable [product_pricing::Store]PPR_PRODUCT_PRICE
+      runId: [product_pricing::Store]PPR_PRODUCT_PRICE.RUN_ID,
+      productCode: [product_pricing::Store]PPR_PRODUCT_PRICE.PRODUCT_CODE,
+      instrumentId: [product_pricing::Store]PPR_PRODUCT_PRICE.INSTRUMENT_ID,
+      valuationRunId: [product_pricing::Store]PPR_PRODUCT_PRICE.VALUATION_RUN_ID,
+      cobDate: [product_pricing::Store]PPR_PRODUCT_PRICE.COB_DATE,
+      modelCode: [product_pricing::Store]PPR_PRODUCT_PRICE.MODEL_CODE,
+      cleanModelPrice: [product_pricing::Store]PPR_PRODUCT_PRICE.CLEAN_MODEL_PRICE,
+      accruedInterest: [product_pricing::Store]PPR_PRODUCT_PRICE.ACCRUED_INTEREST,
+      quantity: [product_pricing::Store]PPR_PRODUCT_PRICE.QUANTITY,
+      marketPrice: [product_pricing::Store]PPR_PRODUCT_PRICE.MARKET_PRICE,
+      fxRate: [product_pricing::Store]PPR_PRODUCT_PRICE.FX_RATE,
+      pricingCurrency: [product_pricing::Store]PPR_PRODUCT_PRICE.PRICING_CCY,
+      reportingCurrency: [product_pricing::Store]PPR_PRODUCT_PRICE.REPORTING_CCY,
+      confidencePercent: [product_pricing::Store]PPR_PRODUCT_PRICE.CONFIDENCE_PCT,
+      tolerancePct: [product_pricing::Store]PPR_PRODUCT_PRICE.TOLERANCE_PCT,
+      isModelPrice: [product_pricing::Store]PPR_PRODUCT_PRICE.IS_MODEL_PRICE,
+      priceStatus: [product_pricing::Store]PPR_PRODUCT_PRICE.PRICE_STATUS,
+      valuation[vcValuation]: [product_pricing::Store]@Ppr_PriceValuation,
+      model[pprModel]: [product_pricing::Store]@Ppr_PriceModel,
+      greekProfile[pprGreekProfile]: [product_pricing::Store]@Ppr_PriceGreekProfile,
+      greeks[pprGreek]: [product_pricing::Store]@Ppr_PriceGreek,
+      reserves[pprReserve]: [product_pricing::Store]@Ppr_PriceReserve
+   }
+
+   product_pricing::PprGreekProfile[pprGreekProfile]: Relational
+   {
+      ~primaryKey
+      (
+         [product_pricing::Store]PPR_GREEK_PROFILE.RUN_ID,
+         [product_pricing::Store]PPR_GREEK_PROFILE.PRODUCT_CODE
+      )
+      ~mainTable [product_pricing::Store]PPR_GREEK_PROFILE
+      runId: [product_pricing::Store]PPR_GREEK_PROFILE.RUN_ID,
+      productCode: [product_pricing::Store]PPR_GREEK_PROFILE.PRODUCT_CODE,
+      delta: [product_pricing::Store]PPR_GREEK_PROFILE.DELTA,
+      gamma: [product_pricing::Store]PPR_GREEK_PROFILE.GAMMA,
+      vega: [product_pricing::Store]PPR_GREEK_PROFILE.VEGA,
+      theta: [product_pricing::Store]PPR_GREEK_PROFILE.THETA,
+      rho: [product_pricing::Store]PPR_GREEK_PROFILE.RHO,
+      spotLevel: [product_pricing::Store]PPR_GREEK_PROFILE.SPOT_LEVEL,
+      quantity: [product_pricing::Store]PPR_GREEK_PROFILE.QUANTITY,
+      greekMethod: [product_pricing::Store]PPR_GREEK_PROFILE.GREEK_METHOD,
+      bumpSizeBasisPoints: [product_pricing::Store]PPR_GREEK_PROFILE.BUMP_SIZE_BPS,
+      isComplete: [product_pricing::Store]PPR_GREEK_PROFILE.IS_COMPLETE
+   }
+
+   product_pricing::PprGreekObservation[pprGreek]: Relational
+   {
+      ~primaryKey
+      (
+         [product_pricing::Store]PPR_GREEK.RUN_ID,
+         [product_pricing::Store]PPR_GREEK.PRODUCT_CODE,
+         [product_pricing::Store]PPR_GREEK.GREEK_CODE
+      )
+      ~mainTable [product_pricing::Store]PPR_GREEK
+      runId: [product_pricing::Store]PPR_GREEK.RUN_ID,
+      productCode: [product_pricing::Store]PPR_GREEK.PRODUCT_CODE,
+      greekCode: [product_pricing::Store]PPR_GREEK.GREEK_CODE,
+      greekName: [product_pricing::Store]PPR_GREEK.GREEK_NAME,
+      greekOrder: [product_pricing::Store]PPR_GREEK.GREEK_ORDER,
+      greekValue: [product_pricing::Store]PPR_GREEK.GREEK_VALUE,
+      greekUnit: [product_pricing::Store]PPR_GREEK.GREEK_UNIT,
+      shockSize: [product_pricing::Store]PPR_GREEK.SHOCK_SIZE,
+      isCrossGreek: [product_pricing::Store]PPR_GREEK.IS_CROSS_GREEK,
+      isStable: [product_pricing::Store]PPR_GREEK.IS_STABLE
+   }
+
+   // ================================================= model risk
+
+   // `markAdjustment[vcAdjustment]` is the other end of this project's reason for existing:
+   // the reserve is COMPUTED here and BOOKED in valuation-core, and the join carries that
+   // project's full three-column adjustment key so one reserve maps to one adjustment.
+   product_pricing::PprModelReserve[pprReserve]: Relational
+   {
+      ~primaryKey
+      (
+         [product_pricing::Store]PPR_MODEL_RESERVE.RUN_ID,
+         [product_pricing::Store]PPR_MODEL_RESERVE.PRODUCT_CODE,
+         [product_pricing::Store]PPR_MODEL_RESERVE.RESERVE_TYPE
+      )
+      ~mainTable [product_pricing::Store]PPR_MODEL_RESERVE
+      runId: [product_pricing::Store]PPR_MODEL_RESERVE.RUN_ID,
+      productCode: [product_pricing::Store]PPR_MODEL_RESERVE.PRODUCT_CODE,
+      reserveType: [product_pricing::Store]PPR_MODEL_RESERVE.RESERVE_TYPE,
+      instrumentId: [product_pricing::Store]PPR_MODEL_RESERVE.INSTRUMENT_ID,
+      valuationRunId: [product_pricing::Store]PPR_MODEL_RESERVE.VALUATION_RUN_ID,
+      adjustmentSeq: [product_pricing::Store]PPR_MODEL_RESERVE.ADJUSTMENT_SEQ,
+      reserveBasisPoints: [product_pricing::Store]PPR_MODEL_RESERVE.RESERVE_BPS,
+      reserveAmount: [product_pricing::Store]PPR_MODEL_RESERVE.RESERVE_AMOUNT,
+      baseValue: [product_pricing::Store]PPR_MODEL_RESERVE.BASE_VALUE,
+      fxRate: [product_pricing::Store]PPR_MODEL_RESERVE.FX_RATE,
+      methodology: [product_pricing::Store]PPR_MODEL_RESERVE.METHODOLOGY,
+      approvedBy: [product_pricing::Store]PPR_MODEL_RESERVE.APPROVED_BY,
+      isReleased: [product_pricing::Store]PPR_MODEL_RESERVE.IS_RELEASED,
+      rationale: [product_pricing::Store]PPR_MODEL_RESERVE.RATIONALE,
+      markAdjustment[vcAdjustment]: [product_pricing::Store]@Ppr_ReserveAdjustment
+   }
+
+   product_pricing::PprModelValidation[pprValidation]: Relational
+   {
+      ~primaryKey
+      (
+         [product_pricing::Store]PPR_MODEL_VALIDATION.MODEL_CODE,
+         [product_pricing::Store]PPR_MODEL_VALIDATION.REVIEW_DATE
+      )
+      ~mainTable [product_pricing::Store]PPR_MODEL_VALIDATION
+      modelCode: [product_pricing::Store]PPR_MODEL_VALIDATION.MODEL_CODE,
+      reviewDate: [product_pricing::Store]PPR_MODEL_VALIDATION.REVIEW_DATE,
+      validator: [product_pricing::Store]PPR_MODEL_VALIDATION.VALIDATOR,
+      outcome: [product_pricing::Store]PPR_MODEL_VALIDATION.OUTCOME,
+      findingsCount: [product_pricing::Store]PPR_MODEL_VALIDATION.FINDINGS_COUNT,
+      severity: [product_pricing::Store]PPR_MODEL_VALIDATION.SEVERITY,
+      nextReviewDate: [product_pricing::Store]PPR_MODEL_VALIDATION.NEXT_REVIEW_DATE,
+      isConditional: [product_pricing::Store]PPR_MODEL_VALIDATION.IS_CONDITIONAL,
+      conditions: [product_pricing::Store]PPR_MODEL_VALIDATION.CONDITIONS
+   }
+
+   product_pricing::PprModelLimitation[pprLimitation]: Relational
+   {
+      ~primaryKey
+      (
+         [product_pricing::Store]PPR_MODEL_LIMITATION.MODEL_CODE,
+         [product_pricing::Store]PPR_MODEL_LIMITATION.LIMITATION_CODE
+      )
+      ~mainTable [product_pricing::Store]PPR_MODEL_LIMITATION
+      modelCode: [product_pricing::Store]PPR_MODEL_LIMITATION.MODEL_CODE,
+      limitationCode: [product_pricing::Store]PPR_MODEL_LIMITATION.LIMITATION_CODE,
+      limitationDescription: [product_pricing::Store]PPR_MODEL_LIMITATION.LIMITATION_DESCRIPTION,
+      impactArea: [product_pricing::Store]PPR_MODEL_LIMITATION.IMPACT_AREA,
+      materiality: [product_pricing::Store]PPR_MODEL_LIMITATION.MATERIALITY,
+      reserveType: [product_pricing::Store]PPR_MODEL_LIMITATION.RESERVE_TYPE,
+      isMitigated: [product_pricing::Store]PPR_MODEL_LIMITATION.IS_MITIGATED,
+      mitigation: [product_pricing::Store]PPR_MODEL_LIMITATION.MITIGATION,
+      raisedOn: [product_pricing::Store]PPR_MODEL_LIMITATION.RAISED_ON
+   }
+)

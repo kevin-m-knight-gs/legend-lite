@@ -1,6 +1,378 @@
 ###Pure
 
-Class liquidity_view::LqvProbe
+// liquidity-view -- L2, depends on cash-core and funding-core and on nothing else.
+//
+// What a treasurer actually reads in the morning. Three regulatory shapes and one physical
+// one, and the physical one is the reason this project exists.
+//
+// THE PHYSICAL SHAPE. Every projected cash flow in LQV_FLOW carries DAYS_OUT -- how many days
+// from the as-of date it lands -- and nothing that says which band that is. Which band it is
+// is a property of the number, not of the flow, so the store resolves it with a RANGE JOIN on
+// the half-open interval [MIN_DAYS, MAX_DAYS): once against this project's own LQV_BUCKET, to
+// reach the band on whichever ladder is being read, and once across the project boundary
+// against funding_core's FND_CURVE_POINT, to reach the priced point the same flow prices off.
+// funding-core's MANIFEST is explicit that a point has no key a flow could hold instead, so
+// the range is the only route.
+//
+// And a treasurer does not scan a million flows. He reads a bucket ladder: one line per band
+// per currency per date. That line is the store VIEW LQV_BUCKET_FLOW, a `~groupBy` over
+// LQV_FLOW, surfaced here as `LqvBucketFlowTotal`. `~groupBy` takes COLUMN references, so the
+// grouping is on the stamped LQV_FLOW.BUCKET_ID -- the band the liquidity run assigned when
+// it wrote the row -- and not on the range join, which is an expression and cannot be grouped
+// on. The two coexist on purpose: BUCKET_ID is what was reported, DAYS_OUT re-derives the
+// band under a different ladder when someone asks what the number would have been on the
+// internal ladder instead of the regulatory one.
+//
+// THE THREE REGULATORY SHAPES.
+//
+//   LCR   -- a thirty-day stress window. Stock of high-quality liquid assets over net
+//            outflows, where the outflows are deposit balances multiplied by a run-off rate
+//            that depends on what kind of deposit it is, and the inflows are capped.
+//   HQLA  -- that stock, by level. Level 1 takes no haircut, 2A takes 15%, 2B takes 25% to
+//            50%, and each level is capped as a share of the total.
+//   NSFR  -- the one-year view. Available stable funding over required stable funding, each
+//            a sum of carrying amounts times a factor that depends on residual maturity,
+//            with 365 days the boundary that matters.
+//
+// Cross-project navigation, all of it to a set id named in the dependency's MANIFEST because
+// both dependencies name their set ids explicitly and the default ids do not exist:
+// `cash_core::CshCashMovement` [cshCashMovement], `cash_core::CshCashBalance`
+// [cshCashBalance], `funding_core::FndCurvePoint` [fndCurvePoint],
+// `funding_core::FndCashflow` [fndCashflow], `funding_core::FndCurveDefinition` [fndCurve].
+//
+// Nothing here navigates to `funding_core::FndCurveVersion`. It is
+// <<temporal.businesstemporal>> and funding-core's MANIFEST is clear that no join targets
+// FND_CURVE_MS: reach a version with `funding_core::FndCurveVersion.all(%2024-03-31)`, using
+// the `asOfDate` these classes carry as the argument. A liquidity run is reproduced against
+// the curve that was in force on its own as-of date, not against today's.
+//
+// Currencies are held here as ISO alpha-3 STRINGS, not as core-types' enum. cash-core maps
+// that enum and this project sees it transitively, but core-types is not a declared
+// dependency of liquidity-view and naming it would be exactly the undeclared-dependency
+// defect the graph exists to detect.
+
+
+// FOR: naming a set of buckets that are read together -- the regulatory ladder the LCR is
+// filed on, the internal ladder treasury manages to, the rating agency's own ladder. The
+// ladder is a row rather than a constant because the same flow is banded differently by each
+// of them and all three answers have to be producible from the one flow table.
+Class liquidity_view::LqvLiquidityLadder
 {
-  probeId: String[1];
+  ladderId: String[1];
+  ladderName: String[1];
+  regime: String[0..1];
+  basis: String[0..1];
+  ownerDesk: String[0..1];
+  retiredOn: Date[0..1];
+  buckets: liquidity_view::LqvLiquidityBucket[*];
+
+  // A ladder is live until it is retired; there is no boolean, because a store Filter will
+  // not take a boolean literal and a null test is the shape that works on both sides.
+  isLive() { $this.retiredOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: one band of a ladder -- "overnight", "2 to 7 days", "31 to 90 days". The RANGE JOIN
+// target: MIN_DAYS and MAX_DAYS are a half-open interval [MIN_DAYS, MAX_DAYS), so a flow at a
+// boundary matches exactly one band. A closed upper bound would match two at every edge,
+// which is why every flow-to-bucket cardinality in this project is [0..1] rather than [*].
+Class liquidity_view::LqvLiquidityBucket
+{
+  ladderId: String[1];
+  bucketId: String[1];
+  bucketLabel: String[1];
+  minDays: Integer[1];
+  maxDays: Integer[1];
+  sortOrder: Integer[0..1];
+  ladder: liquidity_view::LqvLiquidityLadder[0..1];
+  flows: liquidity_view::LqvProjectedFlow[*];
+  totals: liquidity_view::LqvBucketFlowTotal[*];
+
+  spanDays() { $this.maxDays - $this.minDays } : Integer[1];
+
+  // The LCR's horizon. A band entirely inside thirty days counts towards the stress window
+  // whole; a band that straddles the boundary does not, and has to be split before it can be
+  // filed, which is why a well-formed regulatory ladder always has a band ending at 30.
+  isWithinStressWindow() { $this.maxDays <= 30 } : Boolean[1];
+}
+
+// FOR: one cash flow projected onto the ladder: an amount, a currency, and how many days out
+// it falls. The central fact of this project and the left-hand side of both range joins.
+//
+// It carries BOTH `daysOut` and `bucketId`, which looks redundant and is not. `bucketId` is
+// the band the liquidity run stamped when it wrote the row -- the answer that was filed, and
+// the only thing the store VIEW can group on, since `~groupBy` takes column references.
+// `daysOut` is the raw number, which the range join re-bands against any ladder on demand.
+Class liquidity_view::LqvProjectedFlow
+{
+  flowId: String[1];
+  ladderId: String[1];
+  asOfDate: Date[1];
+  institutionId: String[0..1];
+  accountNo: String[0..1];
+  movementId: String[0..1];
+  fundingCashflowId: String[0..1];
+  curveId: String[0..1];
+  currencyCode: String[1];
+  bucketId: String[1];
+  daysOut: Integer[1];
+  grossAmount: Float[1];
+  direction: String[1];
+  flowType: String[0..1];
+  isContractual: Boolean[0..1];
+
+  // The band, by RANGE join within this project.
+  band: liquidity_view::LqvLiquidityBucket[0..1];
+  // The priced point, by RANGE join across the boundary into funding-core.
+  curvePoint: funding_core::FndCurvePoint[0..1];
+  // The cash-core movement this flow was projected from, by key. Null for a behavioural
+  // flow -- a forecast draw on a committed line has no movement yet, which is the whole
+  // difference between a contractual and a behavioural row.
+  sourceMovement: cash_core::CshCashMovement[0..1];
+  // The funding-core cashflow the same money is transfer-priced as.
+  pricedCashflow: funding_core::FndCashflow[0..1];
+
+  isOutflow() { $this.direction == 'OUT' } : Boolean[1];
+
+  // Signed for laddering: outflows negative, so a band's net is a sum and not a difference.
+  signedAmount() { if($this.isOutflow(), | $this.grossAmount * -1.0, | $this.grossAmount) } : Float[1];
+
+  isWithinStressWindow() { $this.daysOut <= 30 } : Boolean[1];
+
+  // The NSFR's boundary. Anything landing at or beyond a year is stable funding on the
+  // available side and long-dated on the required side.
+  isBeyondOneYear() { $this.daysOut >= 365 } : Boolean[1];
+}
+
+// FOR: the line a treasurer actually reads -- net flow per bucket per currency per date,
+// backed by the store VIEW LQV_BUCKET_FLOW rather than by a table. One row per group instead
+// of one per flow, which is the difference between a ladder that renders and a scan of the
+// movement table.
+//
+// What a grouping does not produce: a bucket with no flows on a date forms no group and is
+// simply absent, rather than appearing as a zero. A ladder that must show every band on every
+// day has to drive from LQV_BUCKET and outer-join, not from this.
+Class liquidity_view::LqvBucketFlowTotal
+{
+  ladderId: String[1];
+  bucketId: String[1];
+  currencyCode: String[1];
+  asOfDate: Date[1];
+  netAmount: Float[0..1];
+  grossOutflow: Float[0..1];
+  flowCount: Integer[0..1];
+  bucket: liquidity_view::LqvLiquidityBucket[0..1];
+
+  averageFlow() { $this.netAmount->toOne() / $this.flowCount->toOne()->toFloat() } : Float[1];
+}
+
+// FOR: the regulatory quality tier an asset sits in, with the haircut and the cap that come
+// with it. Level 1 is cash and sovereigns at no haircut and no cap; 2A takes 15% and cannot
+// exceed 40% of the stock; 2B takes 25% to 50% and cannot exceed 15%. Held as rows because
+// the numbers move with the rulebook and a run filed last quarter has to reproduce.
+Class liquidity_view::LqvHqlaLevel
+{
+  levelCode: String[1];
+  levelName: String[1];
+  standardHaircutPct: Float[1];
+  capPct: Float[0..1];
+  levelRank: Integer[0..1];
+  holdings: liquidity_view::LqvHqlaHolding[*];
+
+  // The fraction of market value that survives the haircut, as a percentage.
+  retainedPct() { 100.0 - $this.standardHaircutPct } : Float[1];
+
+  isLevelOne() { $this.levelCode == 'L1' } : Boolean[1];
+}
+
+// FOR: one holding counted towards the stock of high-quality liquid assets on one date. Only
+// the UNENCUMBERED part counts -- an asset pledged to a CCP is not liquidity, it is
+// collateral -- and what is left is haircut before it is added up.
+Class liquidity_view::LqvHqlaHolding
+{
+  holdingId: String[1];
+  asOfDate: Date[1];
+  institutionId: String[0..1];
+  accountNo: String[0..1];
+  levelCode: String[1];
+  currencyCode: String[1];
+  assetClass: String[0..1];
+  marketValue: Float[1];
+  encumberedValue: Float[1];
+  // The haircut ACTUALLY applied, which is the level's standard one except when a local
+  // regulator imposes worse, so it is stamped on the row rather than read off the level.
+  appliedHaircutPct: Float[1];
+  isOperational: Boolean[0..1];
+  level: liquidity_view::LqvHqlaLevel[0..1];
+
+  unencumberedValue() { $this.marketValue - $this.encumberedValue } : Float[1];
+
+  // What this holding contributes to the stock: unencumbered, then haircut.
+  weightedValue() { $this.unencumberedValue() * ((100.0 - $this.appliedHaircutPct) / 100.0) } : Float[1];
+}
+
+// FOR: the kind of deposit a balance is, which is what decides how fast it runs. A retail
+// insured deposit and an unsecured wholesale deposit from a financial are the same money in
+// the same account and behave nothing alike under stress.
+Class liquidity_view::LqvDepositType
+{
+  depositType: String[1];
+  description: String[1];
+  counterpartyClass: String[0..1];
+  isInsured: Boolean[0..1];
+  isOperational: Boolean[0..1];
+  rates: liquidity_view::LqvOutflowRate[*];
+}
+
+// FOR: the run-off rate applied to a deposit type under a named scenario -- 3% for a stable
+// insured retail deposit, 100% for unsecured wholesale from another bank. The rate is keyed
+// by scenario as well as by type because the internal severe scenario deliberately runs
+// harsher than the regulatory one.
+Class liquidity_view::LqvOutflowRate
+{
+  scenarioId: String[1];
+  depositType: String[1];
+  outflowRatePct: Float[1];
+  runoffBasis: String[0..1];
+  effectiveFrom: Date[0..1];
+  scenario: liquidity_view::LqvStressScenario[0..1];
+  type: liquidity_view::LqvDepositType[0..1];
+
+  outflowFactor() { $this.outflowRatePct / 100.0 } : Float[1];
+}
+
+// FOR: the named stress the ratios are computed under, and the horizon it runs over. The LCR
+// is thirty days by definition; an internal scenario may be five, or ninety, and the horizon
+// is a column so the same machinery answers all of them.
+Class liquidity_view::LqvStressScenario
+{
+  scenarioId: String[1];
+  scenarioName: String[1];
+  horizonDays: Integer[1];
+  severity: String[0..1];
+  regime: String[0..1];
+  withdrawnOn: Date[0..1];
+  rates: liquidity_view::LqvOutflowRate[*];
+
+  isThirtyDay() { $this.horizonDays == 30 } : Boolean[1];
+
+  isLive() { $this.withdrawnOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: a deposit balance on one date, classified by type so a run-off rate can be applied to
+// it. Ties back to cash-core's own balance for the same account, currency and date -- the
+// same grain on purpose, so the stressed number and the booked number are reconcilable.
+Class liquidity_view::LqvDepositBalance
+{
+  balanceId: String[1];
+  asOfDate: Date[1];
+  institutionId: String[1];
+  accountNo: String[1];
+  currencyCode: String[1];
+  depositType: String[1];
+  balanceAmount: Float[1];
+  insuredAmount: Float[1];
+  appliedRatePct: Float[1];
+  type: liquidity_view::LqvDepositType[0..1];
+  // The booked balance behind it, in cash-core.
+  bookedBalance: cash_core::CshCashBalance[0..1];
+
+  // Deposit insurance is the reason retail runs slower: the covered part is sticky.
+  atRiskAmount() { $this.balanceAmount - $this.insuredAmount } : Float[1];
+
+  // What this balance contributes to the thirty-day outflow.
+  stressedOutflow() { $this.balanceAmount * ($this.appliedRatePct / 100.0) } : Float[1];
+}
+
+// FOR: the liquidity coverage ratio itself, per entity per currency per date per scenario:
+// the stock of HQLA over net outflows across the thirty-day window. Inflows are capped at 75%
+// of outflows, so a bank cannot claim coverage purely from money it expects to receive; the
+// capped figure is stored alongside the gross so the cap is visible rather than implied.
+Class liquidity_view::LqvLcrResult
+{
+  institutionId: String[1];
+  currencyCode: String[1];
+  asOfDate: Date[1];
+  scenarioId: String[1];
+  hqlaStock: Float[1];
+  grossOutflows: Float[1];
+  grossInflows: Float[1];
+  cappedInflows: Float[1];
+  scenario: liquidity_view::LqvStressScenario[0..1];
+
+  netOutflows() { $this.grossOutflows - $this.cappedInflows } : Float[1];
+
+  coverageRatioPct() { ($this.hqlaStock / $this.netOutflows()) * 100.0 } : Float[1];
+
+  isCompliant() { $this.coverageRatioPct() >= 100.0 } : Boolean[1];
+
+  // True when the 75% cap actually bit, which is the first thing anyone asks about a ratio
+  // that moved without the balance sheet moving.
+  inflowCapApplied() { $this.grossInflows > $this.cappedInflows } : Boolean[1];
+}
+
+// FOR: one line of the net stable funding ratio -- the ONE-YEAR view. Either an available
+// side line (a funding source, weighted by how likely it is to stay) or a required side line
+// (an asset, weighted by how hard it is to shed). Residual maturity drives the factor and
+// 365 days is the boundary that matters.
+Class liquidity_view::LqvNsfrLine
+{
+  lineId: String[1];
+  asOfDate: Date[1];
+  institutionId: String[1];
+  currencyCode: String[1];
+  side: String[1];
+  category: String[1];
+  curveId: String[0..1];
+  residualDays: Integer[1];
+  carryingAmount: Float[1];
+  factorPct: Float[1];
+  // The funding curve this line prices off, in funding-core. The curve DEFINITION, which is
+  // unversioned; the version in force on `asOfDate` is reached with
+  // `funding_core::FndCurveVersion.all($asOfDate)` and never by navigation.
+  fundingCurve: funding_core::FndCurveDefinition[0..1];
+
+  weightedAmount() { $this.carryingAmount * ($this.factorPct / 100.0) } : Float[1];
+
+  isBeyondOneYear() { $this.residualDays >= 365 } : Boolean[1];
+
+  isAvailableSide() { $this.side == 'ASF' } : Boolean[1];
+}
+
+// FOR: the net stable funding ratio itself: available stable funding over required stable
+// funding, both sums of the weighted lines above, per entity per currency per date. A
+// structural ratio rather than a stress one -- it asks whether a year of funding supports a
+// year of assets, not whether thirty days of cash survives a run.
+Class liquidity_view::LqvNsfrResult
+{
+  institutionId: String[1];
+  currencyCode: String[1];
+  asOfDate: Date[1];
+  availableStableFunding: Float[1];
+  requiredStableFunding: Float[1];
+  lineCount: Integer[0..1];
+
+  ratioPct() { ($this.availableStableFunding / $this.requiredStableFunding) * 100.0 } : Float[1];
+
+  isCompliant() { $this.ratioPct() >= 100.0 } : Boolean[1];
+
+  surplus() { $this.availableStableFunding - $this.requiredStableFunding } : Float[1];
+}
+
+// FOR: how much of a band's funding comes from one counterparty. A ladder that nets to
+// comfortable can still be one phone call from a problem, so the concentration sits beside
+// the totals and is keyed to the same bucket on the same ladder.
+Class liquidity_view::LqvFundingConcentration
+{
+  asOfDate: Date[1];
+  institutionId: String[1];
+  counterpartyId: String[1];
+  ladderId: String[1];
+  bucketId: String[1];
+  currencyCode: String[1];
+  fundingAmount: Float[1];
+  sharePct: Float[1];
+  bucket: liquidity_view::LqvLiquidityBucket[0..1];
+
+  // The house threshold: a tenth of a band from one name is reported to ALCO.
+  isReportable() { $this.sharePct >= 10.0 } : Boolean[1];
 }

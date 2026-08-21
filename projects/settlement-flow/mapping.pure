@@ -1,0 +1,408 @@
+###Mapping
+// settlement_flow::Mapping -- twelve class sets, eighteen association mappings and the
+// join chains this project exists to demonstrate.
+//
+// It INCLUDES both dependency mappings. That is load-bearing twice over: an association end
+// typed settlement_core::ScSettlementInstruction can only be mapped if the set that maps it
+// is in scope, and every one of those sets has an EXPLICIT id, so each end names it --
+// `scSettlementInstruction`, `cshCashMovement` -- because the default ids
+// (`settlement_core_ScSettlementInstruction`) do not exist.
+//
+// Set ids are sfl-prefixed. A set id is a GLOBAL namespace across the compiled graph, so an
+// unprefixed `link` here would fail projects that have never heard of this one, with a
+// message naming the id and not the file.
+Mapping settlement_flow::Mapping
+(
+   include settlement_core::Mapping
+   include cash_core::Mapping
+
+   // ---- the bridge, and THE FOUR-HOP JOIN CHAIN ----------------------------------------
+   *settlement_flow::SflCashSettlementLink[sflCashSettlementLink]: Relational
+   {
+      ~primaryKey ( [settlement_flow::Store]SFL_CASH_SETTLEMENT_LINK.LINK_ID )
+      ~mainTable [settlement_flow::Store]SFL_CASH_SETTLEMENT_LINK
+      linkId: [settlement_flow::Store]SFL_CASH_SETTLEMENT_LINK.LINK_ID,
+      linkKind: [settlement_flow::Store]SFL_CASH_SETTLEMENT_LINK.LINK_KIND,
+      linkStatus: [settlement_flow::Store]SFL_CASH_SETTLEMENT_LINK.LINK_STATUS,
+      linkedOn: [settlement_flow::Store]SFL_CASH_SETTLEMENT_LINK.LINKED_ON,
+      expectedAmount: [settlement_flow::Store]SFL_CASH_SETTLEMENT_LINK.EXPECTED_AMOUNT,
+      expectedValueDate: [settlement_flow::Store]SFL_CASH_SETTLEMENT_LINK.EXPECTED_VALUE_DATE,
+      matchConfidence: [settlement_flow::Store]SFL_CASH_SETTLEMENT_LINK.MATCH_CONFIDENCE,
+
+      // THE FOUR-HOP CHAIN.
+      //
+      //    SFL_CASH_SETTLEMENT_LINK --@Sfl_LinkInstruction--> SC_SETTLEMENT_INSTRUCTION
+      //                             --@Sc_InstructionSsi----> SC_STANDING_INSTRUCTION
+      //                             --@Sc_SsiPlace----------> SC_PLACE_OF_SETTLEMENT
+      //                             --@Sc_PlaceCalendar-----> CC_CALENDAR
+      //
+      // Hop one is mine. Hops two, three and four are settlement-core's own joins, reused
+      // without redeclaring them because settlement_flow::Store includes that store; hop
+      // four lands on a table owned by core-calendar, which is in scope only because
+      // settlement_core::Store includes it in turn.
+      //
+      // Every hop is many-to-ONE, which is what makes this a String[0..1] and not a list.
+      // The store qualifier is required on the first hop and optional afterwards; the PIPE
+      // before the final column is not optional at all -- written without it the property is
+      // read as ending at a join and does not compile.
+      settlementCalendarId: [settlement_flow::Store]@Sfl_LinkInstruction > @Sc_InstructionSsi > @Sc_SsiPlace > @Sc_PlaceCalendar | [core_calendar::Store]CC_CALENDAR.CALENDAR_ID,
+      settlementCentre: [settlement_flow::Store]@Sfl_LinkInstruction > @Sc_InstructionSsi > @Sc_SsiPlace > @Sc_PlaceCalendar | [core_calendar::Store]CC_CALENDAR.FINANCIAL_CENTRE,
+      settlementWeekendDays: [settlement_flow::Store]@Sfl_LinkInstruction > @Sc_InstructionSsi > @Sc_SsiPlace > @Sc_PlaceCalendar | [core_calendar::Store]CC_CALENDAR.WEEKEND_DAYS
+   }
+
+   *settlement_flow::SflPaymentRoute[sflPaymentRoute]: Relational
+   {
+      ~primaryKey ( [settlement_flow::Store]SFL_PAYMENT_ROUTE.ROUTE_ID )
+      ~mainTable [settlement_flow::Store]SFL_PAYMENT_ROUTE
+      routeId: [settlement_flow::Store]SFL_PAYMENT_ROUTE.ROUTE_ID,
+      routeKind: [settlement_flow::Store]SFL_PAYMENT_ROUTE.ROUTE_KIND,
+      agentBic: [settlement_flow::Store]SFL_PAYMENT_ROUTE.AGENT_BIC,
+      correspondentBic: [settlement_flow::Store]SFL_PAYMENT_ROUTE.CORRESPONDENT_BIC,
+      isDirect: [settlement_flow::Store]SFL_PAYMENT_ROUTE.IS_DIRECT,
+      legHops: [settlement_flow::Store]SFL_PAYMENT_ROUTE.LEG_HOPS
+   }
+
+   *settlement_flow::SflNostroMandate[sflNostroMandate]: Relational
+   {
+      ~primaryKey ( [settlement_flow::Store]SFL_NOSTRO_MANDATE.MANDATE_ID )
+      ~mainTable [settlement_flow::Store]SFL_NOSTRO_MANDATE
+      mandateId: [settlement_flow::Store]SFL_NOSTRO_MANDATE.MANDATE_ID,
+      currencyCode: [settlement_flow::Store]SFL_NOSTRO_MANDATE.CURRENCY_CODE,
+      institutionId: [settlement_flow::Store]SFL_NOSTRO_MANDATE.INSTITUTION_ID,
+      accountNo: [settlement_flow::Store]SFL_NOSTRO_MANDATE.ACCOUNT_NO,
+      isPrimary: [settlement_flow::Store]SFL_NOSTRO_MANDATE.IS_PRIMARY,
+      effectiveFrom: [settlement_flow::Store]SFL_NOSTRO_MANDATE.EFFECTIVE_FROM,
+      effectiveTo: [settlement_flow::Store]SFL_NOSTRO_MANDATE.EFFECTIVE_TO
+   }
+
+   // ---- the reconciliation, with a chain running the other way, into the cash book ------
+   *settlement_flow::SflReconciliation[sflReconciliation]: Relational
+   {
+      ~primaryKey ( [settlement_flow::Store]SFL_RECONCILIATION.RECON_ID )
+      ~mainTable [settlement_flow::Store]SFL_RECONCILIATION
+      reconId: [settlement_flow::Store]SFL_RECONCILIATION.RECON_ID,
+      reconStatus: [settlement_flow::Store]SFL_RECONCILIATION.RECON_STATUS,
+      reconciledOn: [settlement_flow::Store]SFL_RECONCILIATION.RECONCILED_ON,
+      amountDifference: [settlement_flow::Store]SFL_RECONCILIATION.AMOUNT_DIFFERENCE,
+      valueDateDifferenceDays: [settlement_flow::Store]SFL_RECONCILIATION.VALUE_DATE_DIFFERENCE_DAYS,
+      toleranceApplied: [settlement_flow::Store]SFL_RECONCILIATION.TOLERANCE_APPLIED,
+
+      // Two hops the other way: reconciliation -> link -> movement. The date the break is
+      // measured against belongs to the cash book and is read from it, never copied here.
+      bookedValueDate: [settlement_flow::Store]@Sfl_LinkReconciliation > @Sfl_LinkMovement | [cash_core::Store]CSH_CASH_MOVEMENT.VALUE_DATE,
+      bookedAmount: [settlement_flow::Store]@Sfl_LinkReconciliation > @Sfl_LinkMovement | [cash_core::Store]CSH_CASH_MOVEMENT.AMOUNT
+   }
+
+   *settlement_flow::SflReconciliationBreak[sflReconciliationBreak]: Relational
+   {
+      ~primaryKey ( [settlement_flow::Store]SFL_RECON_BREAK.BREAK_ID )
+      ~mainTable [settlement_flow::Store]SFL_RECON_BREAK
+      breakId: [settlement_flow::Store]SFL_RECON_BREAK.BREAK_ID,
+      breakType: [settlement_flow::Store]SFL_RECON_BREAK.BREAK_TYPE,
+      breakAmount: [settlement_flow::Store]SFL_RECON_BREAK.BREAK_AMOUNT,
+      detectedOn: [settlement_flow::Store]SFL_RECON_BREAK.DETECTED_ON,
+      resolvedOn: [settlement_flow::Store]SFL_RECON_BREAK.RESOLVED_ON,
+      assignedTo: [settlement_flow::Store]SFL_RECON_BREAK.ASSIGNED_TO,
+      commentary: [settlement_flow::Store]SFL_RECON_BREAK.COMMENTARY
+   }
+
+   // ---- the claim, and THE SIX-HOP CHAIN ------------------------------------------------
+   *settlement_flow::SflSettlementClaim[sflSettlementClaim]: Relational
+   {
+      ~primaryKey ( [settlement_flow::Store]SFL_SETTLEMENT_CLAIM.CLAIM_ID )
+      ~mainTable [settlement_flow::Store]SFL_SETTLEMENT_CLAIM
+      claimId: [settlement_flow::Store]SFL_SETTLEMENT_CLAIM.CLAIM_ID,
+      claimType: [settlement_flow::Store]SFL_SETTLEMENT_CLAIM.CLAIM_TYPE,
+      claimStatus: [settlement_flow::Store]SFL_SETTLEMENT_CLAIM.CLAIM_STATUS,
+      claimAmount: [settlement_flow::Store]SFL_SETTLEMENT_CLAIM.CLAIM_AMOUNT,
+      claimCurrency: [settlement_flow::Store]SFL_SETTLEMENT_CLAIM.CLAIM_CURRENCY,
+      raisedOn: [settlement_flow::Store]SFL_SETTLEMENT_CLAIM.RAISED_ON,
+      settledOn: [settlement_flow::Store]SFL_SETTLEMENT_CLAIM.SETTLED_ON,
+      daysLate: [settlement_flow::Store]SFL_SETTLEMENT_CLAIM.DAYS_LATE,
+      interestRate: [settlement_flow::Store]SFL_SETTLEMENT_CLAIM.INTEREST_RATE,
+
+      // THE LONGEST CHAIN IN THIS PROJECT -- six hops, five of them borrowed:
+      //
+      //    SFL_SETTLEMENT_CLAIM --@Sfl_LinkClaim--------> SFL_CASH_SETTLEMENT_LINK
+      //                         --@Sfl_LinkInstruction--> SC_SETTLEMENT_INSTRUCTION
+      //                         --@Sc_InstructionSsi----> SC_STANDING_INSTRUCTION
+      //                         --@Sc_SsiCustodian------> SC_CUSTODIAN
+      //                         --@Sc_CustodianPlace----> SC_PLACE_OF_SETTLEMENT
+      //                         --@Sc_PlaceCalendar-----> CC_CALENDAR
+      //
+      // A claim is charged in business days, so the calendar those days were counted on is
+      // part of the claim's evidence -- and it is six joins away without appearing as a
+      // column on any of them.
+      claimCalendarId: [settlement_flow::Store]@Sfl_LinkClaim > @Sfl_LinkInstruction > @Sc_InstructionSsi > @Sc_SsiCustodian > @Sc_CustodianPlace > @Sc_PlaceCalendar | [core_calendar::Store]CC_CALENDAR.CALENDAR_ID,
+      claimSettlementCentre: [settlement_flow::Store]@Sfl_LinkClaim > @Sfl_LinkInstruction > @Sc_InstructionSsi > @Sc_SsiCustodian > @Sc_CustodianPlace > @Sc_PlaceCalendar | [core_calendar::Store]CC_CALENDAR.FINANCIAL_CENTRE,
+      claimWeekendDays: [settlement_flow::Store]@Sfl_LinkClaim > @Sfl_LinkInstruction > @Sc_InstructionSsi > @Sc_SsiCustodian > @Sc_CustodianPlace > @Sc_PlaceCalendar | [core_calendar::Store]CC_CALENDAR.WEEKEND_DAYS,
+
+      // Four hops in the other direction, into the cash book: the pool the late money
+      // should have concentrated into.
+      fundingPoolName: [settlement_flow::Store]@Sfl_LinkClaim > @Sfl_LinkMovement > @Csh_MovementProfile > @Csh_PoolMembers | [cash_core::Store]CSH_CASH_POOL.POOL_NAME
+   }
+
+   *settlement_flow::SflClaimInterestAccrual[sflClaimInterestAccrual]: Relational
+   {
+      ~primaryKey
+      (
+         [settlement_flow::Store]SFL_CLAIM_INTEREST.CLAIM_ID,
+         [settlement_flow::Store]SFL_CLAIM_INTEREST.ACCRUAL_DATE
+      )
+      ~mainTable [settlement_flow::Store]SFL_CLAIM_INTEREST
+      claimId: [settlement_flow::Store]SFL_CLAIM_INTEREST.CLAIM_ID,
+      accrualDate: [settlement_flow::Store]SFL_CLAIM_INTEREST.ACCRUAL_DATE,
+      accrualBasis: [settlement_flow::Store]SFL_CLAIM_INTEREST.ACCRUAL_BASIS,
+      dailyAmount: [settlement_flow::Store]SFL_CLAIM_INTEREST.DAILY_AMOUNT,
+      cumulativeAmount: [settlement_flow::Store]SFL_CLAIM_INTEREST.CUMULATIVE_AMOUNT
+   }
+
+   *settlement_flow::SflClaimEvent[sflClaimEvent]: Relational
+   {
+      ~primaryKey
+      (
+         [settlement_flow::Store]SFL_CLAIM_EVENT.CLAIM_ID,
+         [settlement_flow::Store]SFL_CLAIM_EVENT.EVENT_SEQ
+      )
+      ~mainTable [settlement_flow::Store]SFL_CLAIM_EVENT
+      claimId: [settlement_flow::Store]SFL_CLAIM_EVENT.CLAIM_ID,
+      eventSeq: [settlement_flow::Store]SFL_CLAIM_EVENT.EVENT_SEQ,
+      eventType: [settlement_flow::Store]SFL_CLAIM_EVENT.EVENT_TYPE,
+      eventDate: [settlement_flow::Store]SFL_CLAIM_EVENT.EVENT_DATE,
+      resultingStatus: [settlement_flow::Store]SFL_CLAIM_EVENT.RESULTING_STATUS,
+      actionedBy: [settlement_flow::Store]SFL_CLAIM_EVENT.ACTIONED_BY,
+      note: [settlement_flow::Store]SFL_CLAIM_EVENT.NOTE
+   }
+
+   *settlement_flow::SflSettlementFailCost[sflSettlementFailCost]: Relational
+   {
+      ~primaryKey ( [settlement_flow::Store]SFL_FAIL_COST.COST_ID )
+      ~mainTable [settlement_flow::Store]SFL_FAIL_COST
+      costId: [settlement_flow::Store]SFL_FAIL_COST.COST_ID,
+      costType: [settlement_flow::Store]SFL_FAIL_COST.COST_TYPE,
+      costAmount: [settlement_flow::Store]SFL_FAIL_COST.COST_AMOUNT,
+      costCurrency: [settlement_flow::Store]SFL_FAIL_COST.COST_CURRENCY,
+      bookedOn: [settlement_flow::Store]SFL_FAIL_COST.BOOKED_ON,
+      isPassedOn: [settlement_flow::Store]SFL_FAIL_COST.IS_PASSED_ON
+   }
+
+   // ---- the forward-looking half ---------------------------------------------------------
+   *settlement_flow::SflCashForecast[sflCashForecast]: Relational
+   {
+      ~primaryKey ( [settlement_flow::Store]SFL_CASH_FORECAST.FORECAST_ID )
+      ~mainTable [settlement_flow::Store]SFL_CASH_FORECAST
+      forecastId: [settlement_flow::Store]SFL_CASH_FORECAST.FORECAST_ID,
+      institutionId: [settlement_flow::Store]SFL_CASH_FORECAST.INSTITUTION_ID,
+      accountNo: [settlement_flow::Store]SFL_CASH_FORECAST.ACCOUNT_NO,
+      currencyCode: [settlement_flow::Store]SFL_CASH_FORECAST.CURRENCY_CODE,
+      forecastDate: [settlement_flow::Store]SFL_CASH_FORECAST.FORECAST_DATE,
+      expectedCredits: [settlement_flow::Store]SFL_CASH_FORECAST.EXPECTED_CREDITS,
+      expectedDebits: [settlement_flow::Store]SFL_CASH_FORECAST.EXPECTED_DEBITS,
+      confirmedAmount: [settlement_flow::Store]SFL_CASH_FORECAST.CONFIRMED_AMOUNT,
+      generatedOn: [settlement_flow::Store]SFL_CASH_FORECAST.GENERATED_ON
+   }
+
+   *settlement_flow::SflForecastLine[sflForecastLine]: Relational
+   {
+      ~primaryKey
+      (
+         [settlement_flow::Store]SFL_FORECAST_LINE.FORECAST_ID,
+         [settlement_flow::Store]SFL_FORECAST_LINE.LINE_SEQ
+      )
+      ~mainTable [settlement_flow::Store]SFL_FORECAST_LINE
+      forecastId: [settlement_flow::Store]SFL_FORECAST_LINE.FORECAST_ID,
+      lineSeq: [settlement_flow::Store]SFL_FORECAST_LINE.LINE_SEQ,
+      direction: [settlement_flow::Store]SFL_FORECAST_LINE.DIRECTION,
+      amount: [settlement_flow::Store]SFL_FORECAST_LINE.AMOUNT,
+      isConfirmed: [settlement_flow::Store]SFL_FORECAST_LINE.IS_CONFIRMED
+   }
+
+   *settlement_flow::SflFundingShortfall[sflFundingShortfall]: Relational
+   {
+      ~primaryKey ( [settlement_flow::Store]SFL_FUNDING_SHORTFALL.SHORTFALL_ID )
+      ~mainTable [settlement_flow::Store]SFL_FUNDING_SHORTFALL
+      shortfallId: [settlement_flow::Store]SFL_FUNDING_SHORTFALL.SHORTFALL_ID,
+      currencyCode: [settlement_flow::Store]SFL_FUNDING_SHORTFALL.CURRENCY_CODE,
+      valueDate: [settlement_flow::Store]SFL_FUNDING_SHORTFALL.VALUE_DATE,
+      shortfallAmount: [settlement_flow::Store]SFL_FUNDING_SHORTFALL.SHORTFALL_AMOUNT,
+      coveredAmount: [settlement_flow::Store]SFL_FUNDING_SHORTFALL.COVERED_AMOUNT,
+      escalationLevel: [settlement_flow::Store]SFL_FUNDING_SHORTFALL.ESCALATION_LEVEL,
+      resolvedOn: [settlement_flow::Store]SFL_FUNDING_SHORTFALL.RESOLVED_ON
+   }
+
+   // ============================================================
+   // Association mappings
+   // ============================================================
+   // The `AssociationMapping( ... )` wrapper is mandatory; without it the grammar reads the
+   // ends as class property mappings and fails naming neither.
+   //
+   // EVERY end names both set ids -- `[sourceSetId, targetSetId]` -- because both this
+   // project and both dependencies declare their ids explicitly, and the bare `prop: [db]@J`
+   // form only resolves against default ids that in this graph do not exist.
+
+   // ---- across the boundary ----
+   // An instruction gains `cashLinks`; the link gains `instruction`. Neither dependency has
+   // a column pointing at this project, and neither needed one.
+   settlement_flow::SflLinkInstruction: Relational
+   {
+      AssociationMapping
+      (
+         instruction[sflCashSettlementLink, scSettlementInstruction]: [settlement_flow::Store]@Sfl_LinkInstruction,
+         cashLinks[scSettlementInstruction, sflCashSettlementLink]: [settlement_flow::Store]@Sfl_LinkInstruction
+      )
+   }
+
+   settlement_flow::SflLinkMovement: Relational
+   {
+      AssociationMapping
+      (
+         movement[sflCashSettlementLink, cshCashMovement]: [settlement_flow::Store]@Sfl_LinkMovement,
+         settlementLinks[cshCashMovement, sflCashSettlementLink]: [settlement_flow::Store]@Sfl_LinkMovement
+      )
+   }
+
+   settlement_flow::SflClaimFailReason: Relational
+   {
+      AssociationMapping
+      (
+         failReason[sflSettlementClaim, scFailReason]: [settlement_flow::Store]@Sfl_ClaimFailReason,
+         claims[scFailReason, sflSettlementClaim]: [settlement_flow::Store]@Sfl_ClaimFailReason
+      )
+   }
+
+   settlement_flow::SflMandatePlace: Relational
+   {
+      AssociationMapping
+      (
+         place[sflNostroMandate, scPlaceOfSettlement]: [settlement_flow::Store]@Sfl_MandatePlace,
+         nostroMandates[scPlaceOfSettlement, sflNostroMandate]: [settlement_flow::Store]@Sfl_MandatePlace
+      )
+   }
+
+   settlement_flow::SflMandateCashProfile: Relational
+   {
+      AssociationMapping
+      (
+         cashProfile[sflNostroMandate, cshCashAccountProfile]: [settlement_flow::Store]@Sfl_MandateCashProfile,
+         mandates[cshCashAccountProfile, sflNostroMandate]: [settlement_flow::Store]@Sfl_MandateCashProfile
+      )
+   }
+
+   settlement_flow::SflBreakStatementLine: Relational
+   {
+      AssociationMapping
+      (
+         statementLine[sflReconciliationBreak, cshStatementLine]: [settlement_flow::Store]@Sfl_BreakStatementLine,
+         settlementBreaks[cshStatementLine, sflReconciliationBreak]: [settlement_flow::Store]@Sfl_BreakStatementLine
+      )
+   }
+
+   settlement_flow::SflShortfallBalance: Relational
+   {
+      AssociationMapping
+      (
+         balance[sflFundingShortfall, cshCashBalance]: [settlement_flow::Store]@Sfl_ShortfallBalance,
+         settlementShortfalls[cshCashBalance, sflFundingShortfall]: [settlement_flow::Store]@Sfl_ShortfallBalance
+      )
+   }
+
+   // ---- inside this project ----
+   settlement_flow::SflLinkRouting: Relational
+   {
+      AssociationMapping
+      (
+         route[sflCashSettlementLink, sflPaymentRoute]: [settlement_flow::Store]@Sfl_LinkRoute,
+         routedLink[sflPaymentRoute, sflCashSettlementLink]: [settlement_flow::Store]@Sfl_LinkRoute
+      )
+   }
+
+   settlement_flow::SflRouteMandate: Relational
+   {
+      AssociationMapping
+      (
+         mandate[sflPaymentRoute, sflNostroMandate]: [settlement_flow::Store]@Sfl_RouteMandate,
+         mandatedRoutes[sflNostroMandate, sflPaymentRoute]: [settlement_flow::Store]@Sfl_RouteMandate
+      )
+   }
+
+   settlement_flow::SflLinkReconciliation: Relational
+   {
+      AssociationMapping
+      (
+         reconciliation[sflCashSettlementLink, sflReconciliation]: [settlement_flow::Store]@Sfl_LinkReconciliation,
+         reconciledLink[sflReconciliation, sflCashSettlementLink]: [settlement_flow::Store]@Sfl_LinkReconciliation
+      )
+   }
+
+   settlement_flow::SflReconciliationBreaks: Relational
+   {
+      AssociationMapping
+      (
+         breaks[sflReconciliation, sflReconciliationBreak]: [settlement_flow::Store]@Sfl_ReconBreak,
+         brokenReconciliation[sflReconciliationBreak, sflReconciliation]: [settlement_flow::Store]@Sfl_ReconBreak
+      )
+   }
+
+   settlement_flow::SflLinkClaims: Relational
+   {
+      AssociationMapping
+      (
+         claims[sflCashSettlementLink, sflSettlementClaim]: [settlement_flow::Store]@Sfl_LinkClaim,
+         claimedLink[sflSettlementClaim, sflCashSettlementLink]: [settlement_flow::Store]@Sfl_LinkClaim
+      )
+   }
+
+   settlement_flow::SflClaimAccruals: Relational
+   {
+      AssociationMapping
+      (
+         accruals[sflSettlementClaim, sflClaimInterestAccrual]: [settlement_flow::Store]@Sfl_ClaimAccrual,
+         accruedClaim[sflClaimInterestAccrual, sflSettlementClaim]: [settlement_flow::Store]@Sfl_ClaimAccrual
+      )
+   }
+
+   settlement_flow::SflClaimEvents: Relational
+   {
+      AssociationMapping
+      (
+         events[sflSettlementClaim, sflClaimEvent]: [settlement_flow::Store]@Sfl_ClaimEvent,
+         eventClaim[sflClaimEvent, sflSettlementClaim]: [settlement_flow::Store]@Sfl_ClaimEvent
+      )
+   }
+
+   settlement_flow::SflClaimCosts: Relational
+   {
+      AssociationMapping
+      (
+         costs[sflSettlementClaim, sflSettlementFailCost]: [settlement_flow::Store]@Sfl_ClaimCost,
+         costClaim[sflSettlementFailCost, sflSettlementClaim]: [settlement_flow::Store]@Sfl_ClaimCost
+      )
+   }
+
+   settlement_flow::SflForecastLines: Relational
+   {
+      AssociationMapping
+      (
+         lines[sflCashForecast, sflForecastLine]: [settlement_flow::Store]@Sfl_ForecastLine,
+         forecast[sflForecastLine, sflCashForecast]: [settlement_flow::Store]@Sfl_ForecastLine
+      )
+   }
+
+   settlement_flow::SflForecastShortfalls: Relational
+   {
+      AssociationMapping
+      (
+         shortfalls[sflCashForecast, sflFundingShortfall]: [settlement_flow::Store]@Sfl_ForecastShortfall,
+         shortfallForecast[sflFundingShortfall, sflCashForecast]: [settlement_flow::Store]@Sfl_ForecastShortfall
+      )
+   }
+
+   settlement_flow::SflLineLink: Relational
+   {
+      AssociationMapping
+      (
+         sourceLink[sflForecastLine, sflCashSettlementLink]: [settlement_flow::Store]@Sfl_LineLink,
+         forecastLines[sflCashSettlementLink, sflForecastLine]: [settlement_flow::Store]@Sfl_LineLink
+      )
+   }
+)

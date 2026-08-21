@@ -1,11 +1,551 @@
 ###Pure
-Class collateral_opt::CopProbe
+// ============================================================
+// collateral-opt -- collateral optimisation against index eligibility
+// ============================================================
+// collateral-core answers "is this piece allowed to be posted here". It does not answer the
+// question the collateral desk actually asks every morning, which is "of everything in the
+// box, WHICH piece should go to WHICH agreement". That is this project.
+//
+// Three costs decide it, and a real optimiser cannot drop any of them:
+//
+//   HAIRCUT      posting 100 of a 15%-haircut asset buys 85 of collateral value, so the
+//                expensive asset ties up more of the balance sheet for the same call.
+//   FUNDING      the asset had to be funded to be in the box at all.
+//   OPPORTUNITY  the asset could have been LENT instead. A special that borrows at 300bp is
+//                the most expensive thing on the shelf to pledge, however cheap its haircut,
+//                and an optimiser that ignores the lending desk posts exactly the wrong bond.
+//
+// Cheapest-to-deliver is the minimum of that stack over the pieces that pass the agreement's
+// Schedule A, subject to the concentration caps -- which is why the plan has to be rolled up
+// per issuer before it can be called feasible.
+//
+// Layer 2. Depends on collateral-core (agreements, Schedule A, the pieces already posted) and
+// index-core (constituents, weights, the rebalance). Nothing else.
+//
+// WHY INDEX MEMBERSHIP IS HERE AND NOT DECORATION: an index constituent has a published
+// weight, a daily struck level and a queue of tracking funds obliged to hold it. That makes it
+// cheap to value, cheap to substitute and hard to dispute -- so a constituent earns a haircut
+// relief and a lower dispute risk, and an agreement's schedule can be negotiated as "anything
+// in this index above this weight" instead of as a list of names that goes stale at every
+// rebalance. CopIndexBasketRule is that clause.
+//
+// TWO OR-JOINS ARE IN PLAY AND THEY ARE DIFFERENT DISJUNCTIONS:
+//
+//   collateral-core's   issuer OR asset class  -- is this piece ELIGIBLE
+//   this project's      instrument OR issuer   -- is this piece IN DEMAND to be lent
+//
+// The second is `CopLendingOpportunity` below. Securities-lending demand is quoted either
+// against a specific line ("the 2031 OAT") or against a whole issuer as general collateral,
+// never both on one quote, and a lot earns the fee if it matches on either axis. Both ends
+// are to-MANY, for the same reason collateral-core's are: an unqualified `or` returns every
+// quote that hits, and the opportunity cost is the HIGHEST of them, not an arbitrary one.
+//
+// Package root collateral_opt::, prefixes COP_ / Cop_ / Cop / cop per the contract.
+
+// ------------------------------------------------------------------ what the optimiser is told
+
+// FOR: one execution of the optimiser -- a dated, re-runnable decision that can be explained
+// after the fact. Everything below hangs off a run because "why did we post that" is a
+// question asked weeks later, and the answer is only reconstructible if the inputs, the
+// scores and the plan are all stamped with the same run.
+Class collateral_opt::CopOptimisationRun
 {
-   probeId: String[1];
+   runId: String[1];
+   runDate: StrictDate[1];
+   // MIN_COST, MIN_OPPORTUNITY_COST, MAX_INDEX_QUALITY -- what was being minimised, because
+   // the same box produces different plans under different objectives and the objective is
+   // the first thing anyone disputes.
+   objective: String[1];
+   // OPTIMAL, FEASIBLE, INFEASIBLE, TIMED_OUT. A plan from a TIMED_OUT run is a suggestion.
+   solverStatus: String[1];
+   costBasisId: String[0..1];
+   totalPostedValue: Float[1];
+   totalOpportunityCost: Float[1];
+   iterationCount: Integer[0..1];
+   // Committed means the plan was released to operations; an uncommitted run is a what-if.
+   isCommitted: Boolean[1];
+
+   // What the plan is worth once the lending revenue it gives up is charged against it. The
+   // number that decides whether optimising was worth doing at all.
+   netBenefit() { $this.totalPostedValue - $this.totalOpportunityCost } : Float[1];
 }
 
-Association collateral_opt::CopProbeAgreement
+// FOR: the price list the optimiser reasons with -- funding spread, substitution cost, the
+// weight put on haircut, and the relief an index constituent earns.
+//
+// Separate from the run because it is negotiated with treasury once a quarter and then used by
+// every run: a plan that changed because the cost basis changed is a different fact from a
+// plan that changed because the box changed.
+Class collateral_opt::CopCostBasis
+{
+   costBasisId: String[1];
+   name: String[1];
+   // What the firm pays to hold the asset it is about to pledge.
+   fundingSpreadBps: Float[1];
+   // The all-in cost of pulling one piece back and putting another in -- settlement, fails
+   // risk, and the counterparty's right to refuse. Substitution is never free.
+   substitutionCostBps: Float[1];
+   // How hard the objective leans on haircut versus opportunity cost.
+   haircutPenaltyWeight: Float[1];
+   // The relief an index constituent earns for being easy to value and to replace.
+   indexMemberReliefBps: Float[1];
+   valuationCurrency: String[1];
+   effectiveDate: StrictDate[1];
+
+   // The spread restated as a fraction, which is the form every cost line actually multiplies
+   // by. Float because `/` widens.
+   fundingCostFraction() { $this.fundingSpreadBps / 10000.0 } : Float[1];
+}
+
+// ------------------------------------------------------------------ what there is to post
+
+// FOR: one lot in the box that COULD be posted -- the optimiser's supply side.
+//
+// Deliberately NOT collateral_core::ColCollateral: that class is a piece already pledged under
+// an agreement, and the whole point of an optimiser is to reason about assets before they are
+// pledged. A lot becomes a ColCollateral only if a plan line is executed.
+//
+// `instrumentId` and `issuerId` are OWN columns because they are the left-hand side of this
+// project's or-join, exactly as collateral-core denormalises its two axes onto COL_COLLATERAL:
+// a join condition cannot hop through the instrument master to reach an issuer.
+Class collateral_opt::CopInventoryLot
+{
+   lotId: String[1];
+   // Axis one of the lending disjunction.
+   instrumentId: String[0..1];
+   // Axis two of the lending disjunction.
+   issuerId: String[0..1];
+   assetClass: String[1];
+   custodyAccountId: String[0..1];
+   quantity: Float[1];
+   marketValue: Float[1];
+   currency: String[1];
+   ratingBand: String[0..1];
+   residualYears: Float[0..1];
+   // Already pledged, lent or otherwise spoken for. Encumbered stock is in the box and is not
+   // available, and conflating the two is how an optimiser produces an infeasible plan.
+   isEncumbered: Boolean[1];
+   availableFrom: StrictDate[1];
+   withdrawnDate: StrictDate[0..1];
+
+   // Still in the box. A lot leaves by a date, never by deleting the row.
+   isAvailable() { $this.withdrawnDate->isEmpty() } : Boolean[1];
+   // Market value per unit -- Float, because `/` widens even between two Integers.
+   unitValue() { $this.marketValue / $this.quantity } : Float[1];
+}
+
+// FOR: a securities-lending quote against this stock -- the OPPORTUNITY COST of pledging it.
+//
+// THE RIGHT-HAND SIDE OF THIS PROJECT'S OR-JOIN. A quote is written against a named line or
+// against an issuer as general collateral, never both on one row, so exactly one of
+// `instrumentId` / `issuerId` is populated and `demandBasis` records which. A lot earns the
+// fee if it matches on either axis, which is an `or` in the join and not two joins.
+Class collateral_opt::CopLendingDemand
+{
+   demandId: String[1];
+   // INSTRUMENT or ISSUER -- which of the two columns below is the live one.
+   demandBasis: String[1];
+   instrumentId: String[0..1];
+   issuerId: String[0..1];
+   // What a borrower pays. This is the number that is forgone by posting the asset instead.
+   borrowFeeBps: Float[1];
+   demandQuantity: Float[0..1];
+   demandCurrency: String[1];
+   quoteDate: StrictDate[1];
+   expiryDate: StrictDate[0..1];
+   // A special: hard to borrow, expensive, and the last thing that should ever be pledged.
+   isSpecial: Boolean[1];
+
+   // The two halves of the disjunction, asked of a single quote.
+   isInstrumentSpecific() { $this.instrumentId->isNotEmpty() } : Boolean[1];
+   isGeneralCollateral() { $this.instrumentId->isEmpty() && $this.issuerId->isNotEmpty() } : Boolean[1];
+}
+
+// FOR: a Schedule A clause written as INDEX MEMBERSHIP rather than as a list of names --
+// "any constituent of this index carrying at least 0.05% weight".
+//
+// It hangs off collateral_core::ColEligibilitySchedule, so it extends an existing negotiated
+// schedule instead of replacing it, and it points at index_core::IdxIndex, so the eligible
+// universe is restruck by the index provider at every rebalance and never goes stale in the
+// contract. The weight floor is the liquidity proxy; the ceiling stops the clause admitting
+// the one mega-cap the counterparty is already long.
+Class collateral_opt::CopIndexBasketRule
+{
+   basketRuleId: String[1];
+   scheduleId: String[1];
+   indexId: String[1];
+   // The liquidity floor: below this weight a constituent is not reliably replaceable.
+   minIndexWeightPct: Float[1];
+   maxIndexWeightPct: Float[1];
+   // Whether membership is required or merely rewarded.
+   requiresConstituent: Boolean[1];
+   // The haircut given back for being index-quality.
+   haircutReliefPct: Float[1];
+   effectiveDate: StrictDate[1];
+   withdrawnDate: StrictDate[0..1];
+
+   // How wide the admitted band actually is; a clause with a narrow window admits almost
+   // nothing and is usually a negotiation that went wrong.
+   weightWindowPct() { $this.maxIndexWeightPct - $this.minIndexWeightPct } : Float[1];
+}
+
+// ------------------------------------------------------------------ the decision
+
+// FOR: the RESOLVED eligibility verdict for one lot against one agreement, on one run.
+//
+// This class exists because collateral-core's or-join is to-many on both ends: a French
+// government bond matches the "French Republic" line AND the "G10 govvies" line, and the
+// answer is the tightest of them with any exclusion applied afterwards. Nothing downstream
+// should re-derive that. `matchedRuleCount` keeps the evidence, `bindingRule` names the line
+// that actually bound, and `tightestHaircutPct` is what the optimiser costed with.
+//
+// Composite grain (run, lot, agreement): the same lot is eligible under one CSA and not
+// another, and the verdict is only true as of the run that computed it.
+Class collateral_opt::CopEligibilityAssessment
+{
+   runId: String[1];
+   lotId: String[1];
+   agreementId: String[1];
+   // Which Schedule A line bound, out of the many the disjunction returned.
+   bindingRuleId: String[0..1];
+   // How many rules the or-join matched. Greater than one is normal, not an error.
+   matchedRuleCount: Integer[1];
+   tightestHaircutPct: Float[1];
+   isEligible: Boolean[1];
+   // An exclusion rule carves out what a broader line let in; the or-join returns it like any
+   // other match, so it has to be applied AFTER the join and recorded here.
+   isExcluded: Boolean[1];
+   exclusionReason: String[0..1];
+   // Whether an index basket clause is what made this lot eligible.
+   admittedByIndexBasket: Boolean[1];
+
+   // More than one Schedule A line hit this lot, so a human reading `bindingRule` alone is
+   // seeing an answer and not the whole match set.
+   hasCompetingRules() { $this.matchedRuleCount > 1 } : Boolean[1];
+   // Eligible in the end: matched something and was not carved back out.
+   isPostable() { $this.isEligible && $this.isExcluded->not() } : Boolean[1];
+}
+
+// FOR: the cost stack that makes one lot cheaper to deliver than another, per agreement.
+//
+// Kept apart from the verdict above because eligibility is a contractual fact and this is an
+// economic opinion: the same lot scores differently under a different cost basis without any
+// contract having changed. The components are stored, not just the total -- an optimiser
+// nobody can decompose is an optimiser nobody follows.
+Class collateral_opt::CopDeliveryScore
+{
+   runId: String[1];
+   lotId: String[1];
+   agreementId: String[1];
+   // Cost of the collateral value lost to the haircut.
+   haircutCostBps: Float[1];
+   // Cost of having funded the asset in the first place.
+   fundingCostBps: Float[1];
+   // The lending revenue given up by pledging it. The term optimisers most often omit.
+   opportunityCostBps: Float[1];
+   // The relief earned by index membership, subtracted rather than added.
+   indexReliefBps: Float[1];
+   totalCostBps: Float[1];
+   // 1 is cheapest-to-deliver for this agreement on this run.
+   rankInAgreement: Integer[0..1];
+
+   // The stored total restated from its parts, so a stale or hand-edited total is visible.
+   recomputedTotalBps() { $this.haircutCostBps + $this.fundingCostBps + $this.opportunityCostBps - $this.indexReliefBps } : Float[1];
+}
+
+// FOR: what the run decided to post to ONE agreement -- the requirement, what was found, and
+// whether the box could actually cover it.
+Class collateral_opt::CopPostingPlan
+{
+   planId: String[1];
+   runId: String[1];
+   agreementId: String[1];
+   // The call to be met, net of thresholds and MTA.
+   requiredValue: Float[1];
+   // The post-haircut collateral value the plan's lines add up to.
+   plannedValue: Float[1];
+   currency: String[1];
+   shortfallValue: Float[1];
+   // False when the eligible, unencumbered box cannot cover the call -- the answer the desk
+   // needs earliest in the day.
+   isFeasible: Boolean[1];
+   planStatus: String[1];
+
+   // Covered on the plan's own numbers.
+   isCovered() { $this.plannedValue >= $this.requiredValue } : Boolean[1];
+   // How much of the requirement the plan meets. Float, because `/` widens.
+   coveragePct() { ($this.plannedValue * 100.0) / $this.requiredValue } : Float[1];
+}
+
+// FOR: one lot proposed against one plan -- the grain of the whole project, and the rows both
+// aggregations below roll up.
+//
+// It carries `runId`, `agreementId` and `issuerId` as its own columns even though they are
+// reachable through the plan and the lot: a `~groupBy` view groups on COLUMNS of the table it
+// reads, so the grouping keys have to be present here or the rollups cannot be written.
+Class collateral_opt::CopPostingPlanLine
+{
+   lineId: String[1];
+   planId: String[1];
+   runId: String[1];
+   agreementId: String[1];
+   lotId: String[1];
+   // Denormalised for the concentration rollup, and for nothing else.
+   issuerId: String[0..1];
+   assetClass: String[1];
+   quantity: Float[1];
+   marketValue: Float[1];
+   appliedHaircutPct: Float[1];
+   // Market value after the haircut -- what the counterparty actually credits.
+   postValue: Float[1];
+   // The lending fee forgone on this line.
+   opportunityCost: Float[1];
+   lineRank: Integer[0..1];
+   // True when this line displaces something already posted rather than filling a new call.
+   isSubstitution: Boolean[1];
+
+   // The haircut restated as money.
+   haircutAmount() { $this.marketValue - $this.postValue } : Float[1];
+   // What the line is worth once the lending revenue it costs is charged against it.
+   netPostValue() { $this.postValue - $this.opportunityCost } : Float[1];
+}
+
+// ------------------------------------------------------------------ the aggregations
+
+// FOR: the plan totalled per (run, agreement) -- the AGGREGATION over the store's `~groupBy`
+// view IDX-style, and the only row an operations screen needs.
+//
+// A plan with four hundred lines becomes one row: how much is being posted, what it costs in
+// forgone lending, and how many lines have to settle. The engine folds the GROUP BY into the
+// SQL, so nothing here is materialised and nothing seeds it.
+//
+// A grouping produces no row for an empty group: an agreement the run posted nothing to is
+// ABSENT here rather than present at zero, which is exactly the case a feasibility report must
+// not read off this class.
+Class collateral_opt::CopPlanAgreementSummary
+{
+   runId: String[1];
+   agreementId: String[1];
+   totalPostValue: Float[1];
+   totalOpportunityCost: Float[1];
+   lineCount: Integer[1];
+
+   // The plan's economics in one number.
+   netOfOpportunity() { $this.totalPostValue - $this.totalOpportunityCost } : Float[1];
+}
+
+// FOR: the same plan rolled up one axis finer -- per (run, agreement, issuer) -- because a
+// concentration limit is breached by the PORTFOLIO and not by a piece.
+//
+// This is the aggregation that makes the optimiser correct rather than merely cheap. Every
+// line in a plan can be individually eligible and the plan can still put 40% of the posted
+// value with one issuer, and the only place that is visible is a rollup. It joins straight
+// onto collateral_core::ColConcentrationLimit on the issuer axis, so the cap and the number it
+// caps sit side by side.
+Class collateral_opt::CopIssuerConcentration
+{
+   runId: String[1];
+   agreementId: String[1];
+   issuerId: String[1];
+   postedValue: Float[1];
+   lotCount: Integer[1];
+
+   // Average size of the lots going to this issuer. `->toFloat()` because Integer against
+   // Float types as Number, and Number is not a Float.
+   averageLotValue() { $this.postedValue / $this.lotCount->toFloat() } : Float[1];
+}
+
+// ------------------------------------------------------------------ acting on the answer
+
+// FOR: a swap the optimiser wants to make -- pull back something expensive that is already
+// posted, and put a cheaper lot in its place.
+//
+// The outgoing side is a collateral_core::ColCollateral, because it is already pledged; the
+// incoming side is a CopInventoryLot, because it is not. That asymmetry is the whole class:
+// a substitution is the only way an optimiser improves a position it did not create.
+Class collateral_opt::CopSubstitutionProposal
+{
+   proposalId: String[1];
+   runId: String[1];
+   agreementId: String[1];
+   outgoingCollateralId: String[1];
+   incomingLotId: String[0..1];
+   valueDifference: Float[1];
+   // The saving net of the substitution cost -- a swap that saves less than it costs to do is
+   // a proposal that should never be raised.
+   costSavingBps: Float[1];
+   proposalStatus: String[1];
+   raisedDate: StrictDate[1];
+   withdrawnDate: StrictDate[0..1];
+
+   isOpen() { $this.withdrawnDate->isEmpty() } : Boolean[1];
+   // Worth doing only once the counterparty's right to refuse and the settlement cost are
+   // priced in; the raw saving is not the test.
+   isWorthDoing() { $this.costSavingBps > 0.0 && $this.withdrawnDate->isEmpty() } : Boolean[1];
+}
+
+// ------------------------------------------------------------------ THE OR-JOIN
+
+// THE DISJUNCTION THIS PROJECT ADDS, and it is a different one from collateral-core's.
+//
+// A lot is in lending demand if its INSTRUMENT is quoted, or if its ISSUER is quoted as
+// general collateral. Both ends to-MANY, and not out of laziness: one GC quote against an
+// issuer hits every line that issuer has in the box, and one bond is hit by both the specific
+// quote and the GC quote. The opportunity cost is the MAXIMUM over the returned set --
+// `$lot.lendingDemands.borrowFeeBps->max()` -- and declaring either end [0..1] would compile
+// happily and then cost the desk the difference.
+Association collateral_opt::CopLendingOpportunity
+{
+   lendingDemands: collateral_opt::CopLendingDemand[*];
+   demandedLots: collateral_opt::CopInventoryLot[*];
+}
+
+// ------------------------------------------------------------------ associations, internal
+
+// The price list a run reasoned with. [0..1] because a what-if run can be executed against
+// defaults before a basis is agreed.
+Association collateral_opt::CopRunCostBasis
+{
+   costBasis: collateral_opt::CopCostBasis[0..1];
+   runs: collateral_opt::CopOptimisationRun[*];
+}
+
+Association collateral_opt::CopRunPlans
+{
+   run: collateral_opt::CopOptimisationRun[1];
+   plans: collateral_opt::CopPostingPlan[*];
+}
+
+Association collateral_opt::CopPlanLines
+{
+   plan: collateral_opt::CopPostingPlan[1];
+   lines: collateral_opt::CopPostingPlanLine[*];
+}
+
+Association collateral_opt::CopLotPlanLines
+{
+   lot: collateral_opt::CopInventoryLot[1];
+   plannedLines: collateral_opt::CopPostingPlanLine[*];
+}
+
+Association collateral_opt::CopRunAssessments
+{
+   assessmentRun: collateral_opt::CopOptimisationRun[1];
+   assessments: collateral_opt::CopEligibilityAssessment[*];
+}
+
+// To-many on the assessment end: one lot is assessed against every agreement in scope.
+Association collateral_opt::CopLotAssessments
+{
+   assessedLot: collateral_opt::CopInventoryLot[1];
+   lotAssessments: collateral_opt::CopEligibilityAssessment[*];
+}
+
+Association collateral_opt::CopRunScores
+{
+   scoreRun: collateral_opt::CopOptimisationRun[1];
+   deliveryScores: collateral_opt::CopDeliveryScore[*];
+}
+
+Association collateral_opt::CopLotScores
+{
+   scoredLot: collateral_opt::CopInventoryLot[1];
+   lotScores: collateral_opt::CopDeliveryScore[*];
+}
+
+// The rollup reached from the plan it rolls up. [0..1] both ways: the view is keyed on
+// exactly the pair the plan is keyed on, and the row is absent when the plan has no lines.
+Association collateral_opt::CopPlanSummaryLink
+{
+   planSummary: collateral_opt::CopPlanAgreementSummary[0..1];
+   summarisedPlan: collateral_opt::CopPostingPlan[0..1];
+}
+
+// The finer rollup: one row per issuer the plan touches.
+Association collateral_opt::CopPlanConcentrations
+{
+   concentrationPlan: collateral_opt::CopPostingPlan[0..1];
+   issuerConcentrations: collateral_opt::CopIssuerConcentration[*];
+}
+
+Association collateral_opt::CopRunSubstitutions
+{
+   substitutionRun: collateral_opt::CopOptimisationRun[1];
+   substitutionProposals: collateral_opt::CopSubstitutionProposal[*];
+}
+
+Association collateral_opt::CopProposalIncomingLot
+{
+   incomingLot: collateral_opt::CopInventoryLot[0..1];
+   incomingProposals: collateral_opt::CopSubstitutionProposal[*];
+}
+
+// ------------------------------------------------------------------ crossing into collateral-core
+
+// The agreement the plan posts to. [0..1] on the agreement end: a run can be scoped to an
+// agreement that has since been terminated, and the plan is still the record of what was
+// decided.
+Association collateral_opt::CopPlanAgreement
 {
    agreement: collateral_core::ColCollateralAgreement[0..1];
-   probes: collateral_opt::CopProbe[*];
+   postingPlans: collateral_opt::CopPostingPlan[*];
+}
+
+// Which ONE of the many rules the or-join returned actually bound. The resolution of
+// collateral-core's to-many match, made navigable.
+Association collateral_opt::CopAssessmentBindingRule
+{
+   bindingRule: collateral_core::ColEligibilityRule[0..1];
+   boundAssessments: collateral_opt::CopEligibilityAssessment[*];
+}
+
+// The index clause attaches to the negotiated schedule, extending Schedule A rather than
+// replacing it.
+Association collateral_opt::CopBasketRuleSchedule
+{
+   basketSchedule: collateral_core::ColEligibilitySchedule[0..1];
+   indexBasketRules: collateral_opt::CopIndexBasketRule[*];
+}
+
+// The cap beside the number it caps. To-many both ways: a limit scoped to an issuer bites on
+// every run's rollup for that issuer, and one rollup row can face a limit from more than one
+// schedule.
+Association collateral_opt::CopConcentrationAgainstLimit
+{
+   bindingLimits: collateral_core::ColConcentrationLimit[*];
+   issuerRollups: collateral_opt::CopIssuerConcentration[*];
+}
+
+// The piece being pulled back. Already pledged, so it is a ColCollateral and not a lot.
+Association collateral_opt::CopProposalOutgoing
+{
+   outgoingCollateral: collateral_core::ColCollateral[0..1];
+   optimiserProposals: collateral_opt::CopSubstitutionProposal[*];
+}
+
+// ------------------------------------------------------------------ crossing into index-core
+
+// Why index membership is worth a haircut relief, made navigable: from a lot to every
+// constituent row its instrument has. To-many both ways -- one instrument is a constituent of
+// several indices and of the same index at every rebalance, and one constituent line covers
+// every lot of that instrument in the box.
+//
+// From here index-core's own chain does the rest:
+//
+//   $lot.indexMemberships.rebalance.regionWeights
+//   $lot.indexMemberships.issuerCountry.subRegion.macroRegion.code
+//
+// and this project declares no join for either.
+Association collateral_opt::CopLotIndexMembership
+{
+   indexMemberships: index_core::IdxConstituent[*];
+   inventoryLots: collateral_opt::CopInventoryLot[*];
+}
+
+// The index a basket clause is written against. The eligible universe is restruck by the
+// provider at every rebalance, which is the entire reason to write the clause this way.
+Association collateral_opt::CopBasketRuleIndex
+{
+   basketIndex: index_core::IdxIndex[0..1];
+   collateralBasketRules: collateral_opt::CopIndexBasketRule[*];
 }

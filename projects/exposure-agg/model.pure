@@ -1,0 +1,768 @@
+###Pure
+// exposure-agg -- L2. Net exposure after collateral.
+//
+// THE DIAMOND. This project depends on credit-core and collateral-core, and on nothing else.
+// Both of those depend on core-party, by different routes and for different reasons:
+//
+//     credit-core      CDC_OBLIGOR.ENTITY_ID      -> the party that OWES
+//     collateral-core  COL_AGREEMENT.COUNTERPARTY_ENTITY_ID and COL_COLLATERAL.ISSUER_ID
+//                                                 -> the party that PLEDGES, and the party
+//                                                    whose paper was pledged
+//
+// Those are three arrivals at one key in a project this one is not allowed to name. The apex
+// of the diamond is therefore a class of this project's own -- ExaCounterparty -- which holds
+// `entityId` and joins BOTH ways from it: to CDC_OBLIGOR on the credit leg and to
+// COL_AGREEMENT on the collateral leg. The two legs meet on this side of the boundary, which
+// is the only place they legitimately can: exposure-agg may refer to credit_core:: and
+// collateral_core:: and must not refer to core_party::, so the join that closes the diamond is
+// written over the two DEPENDENCIES' tables rather than over the shared ancestor's.
+//
+// What is computed here is what a credit officer actually reads at 7am: for each counterparty,
+// on each date, the gross exposure, the collateral value AFTER haircut, the difference, which
+// netting set the difference falls in, whether the collateral is wrong-way, and what the
+// concentration add-on does to the number. ExaNetExposure is the grain;
+// ExaCounterpartyDayNet is the answer.
+//
+// TWO CONSTRUCTS ARE DELIBERATE:
+//
+//   AGGREGATION -- four classes at the bottom of this file are mapped onto store Views with a
+//   ~groupBy. Their instances are GROUPS, not rows: asking for a counterparty's net exposure
+//   on a date folds a GROUP BY into the SQL instead of reading every netting set.
+//
+//   OR JOIN -- ExaWrongWayRule and ExaConcentrationBucket are each scoped EITHER to a related
+//   entity OR to an asset class, never to both on one row, and a piece of collateral is caught
+//   by a rule if it matches on EITHER axis. That is an unqualified `or` in the join condition
+//   and the consequence is stated in the multiplicities: to-MANY on both ends. This is the
+//   same shape collateral-core carries for eligibility, restated here on this project's own
+//   tables for its own reason -- wrong-way risk is negotiated on two axes exactly as
+//   eligibility is, and a bank's own paper posted by its own affiliate hits both.
+//
+// Note what is NOT restated: nothing here is milestoned. credit-core reaches
+// core_ratings::RatingVersion, which is business-temporal, and that obligation stays where
+// credit-core put it -- `exa.obligor.obligorRatings(%2024-03-31)` is how a rating is reached
+// from here, with the date supplied by whoever asks. This project adds no temporal columns of
+// its own and must not.
+
+// ------------------------------------------------------------------ the apex of the diamond
+
+// THE COUNTERPARTY AS BOTH SIDES SEE IT. FOR: being the single place where the credit leg and
+// the collateral leg of the diamond meet. `entityId` is the core-party key that credit-core
+// and collateral-core each arrive at independently; this class holds it once, and the two
+// joins below leave from it in opposite directions. Without this class there is no legal way
+// to net an exposure against collateral, because the only thing the two legs share is a key in
+// a project that is not a dependency of this one.
+Class exposure_agg::ExaCounterparty
+{
+   counterpartyId: String[1];
+   // The core-party key, carried but never navigated to directly: core-party is not a
+   // declared dependency of this project, and everything reachable through it is reachable
+   // through credit-core's obligor or collateral-core's agreement instead.
+   entityId: String[1];
+   // credit-core's own key for the same party, when it has one. Nullable, because a
+   // counterparty can post collateral before it ever draws.
+   obligorId: String[0..1];
+   primaryAgreementId: String[0..1];
+   counterpartyName: String[0..1];
+   sector: String[0..1];
+   isFinancialInstitution: Boolean[0..1];
+   coverageStartDate: StrictDate[0..1];
+   coverageEndDate: StrictDate[0..1];
+
+   // LEG ONE OF THE DIAMOND: who owes. From here credit-core's own navigation reaches
+   // facilities, exposures, risk measures and -- with a date -- ratings.
+   obligor: credit_core::CdcObligor[0..1];
+   // LEG TWO OF THE DIAMOND: who pledged, and under what contract. To-many because one
+   // counterparty signs a CSA per desk, per jurisdiction and per product.
+   agreements: collateral_core::ColCollateralAgreement[*];
+
+   nettingSets: exposure_agg::ExaNettingSet[*];
+   netExposures: exposure_agg::ExaNetExposure[*];
+   dayTotals: exposure_agg::ExaCounterpartyDayNet[*];
+   reviews: exposure_agg::ExaCreditOfficerReview[*];
+   addOns: exposure_agg::ExaConcentrationAddOn[*];
+
+   // Coverage ends by a date, never by deleting the row: an exposure that ran off last year
+   // still has to be explainable this year.
+   isCovered() { $this.coverageEndDate->isEmpty() } : Boolean[1];
+}
+
+// ------------------------------------------------------------------ what nets with what
+
+// THE NETTING SET: the group of exposures that may legally be offset against one another and
+// against one pool of collateral. FOR: making netting a fact with a legal opinion behind it
+// rather than an assumption. Two exposures to the same counterparty under two master
+// agreements in two jurisdictions do NOT net, and the only thing that says so is this row.
+Class exposure_agg::ExaNettingSet
+{
+   nettingSetId: String[1];
+   counterpartyId: String[1];
+   // The collateral-core CSA this set is margined under. Nullable: an unmargined set nets
+   // internally and is simply uncollateralised.
+   agreementId: String[0..1];
+   nettingSetName: String[1];
+   // ISDA_MASTER, GMRA, CSA_ONLY or NONE -- what the netting rests on.
+   nettingBasis: String[1];
+   // False where the legal opinion is missing or adverse, and then gross is the number.
+   isEnforceable: Boolean[1];
+   jurisdiction: String[0..1];
+   opinionDate: StrictDate[0..1];
+   baseCurrency: String[1];
+   closedDate: StrictDate[0..1];
+
+   counterparty: exposure_agg::ExaCounterparty[0..1];
+   // ACROSS THE BOUNDARY, on the collateral leg.
+   agreement: collateral_core::ColCollateralAgreement[0..1];
+   members: exposure_agg::ExaNettingSetMember[*];
+   netExposures: exposure_agg::ExaNetExposure[*];
+   thresholds: exposure_agg::ExaThresholdApplication[*];
+   dayTotals: exposure_agg::ExaNettingSetDayNet[*];
+
+   isOpen() { $this.closedDate->isEmpty() } : Boolean[1];
+   // An unenforceable set is a set of one for measurement purposes, whatever it contains.
+   netsLegally() { $this.isEnforceable && $this.closedDate->isEmpty() } : Boolean[1];
+}
+
+// ONE CREDIT EXPOSURE'S MEMBERSHIP OF ONE NETTING SET, dated. FOR: recording that membership
+// CHANGES -- a facility is moved under a new master, a trade is carved out of a set by a
+// regulator -- without rewriting history. Keyed by (nettingSetId, exposureId), because
+// neither alone is the grain: one exposure can move between sets over time.
+Class exposure_agg::ExaNettingSetMember
+{
+   nettingSetId: String[1];
+   // credit-core's exposure key. The credit leg of the diamond, at row level.
+   exposureId: String[1];
+   includedFrom: StrictDate[1];
+   includedTo: StrictDate[0..1];
+   inclusionReason: String[0..1];
+   // A carve-out sits in the set but does not net -- a regulator's ring-fence, usually.
+   isCarveOut: Boolean[1];
+
+   nettingSet: exposure_agg::ExaNettingSet[0..1];
+   // ACROSS THE BOUNDARY, on the credit leg.
+   exposure: credit_core::CdcExposure[0..1];
+
+   isCurrentMember() { $this.includedTo->isEmpty() } : Boolean[1];
+}
+
+// ------------------------------------------------------------------ the gross side
+
+// ONE CREDIT EXPOSURE AS IT ENTERS A NET EXPOSURE: the gross amount, plus the potential
+// future exposure add-on that turns a current mark into an exposure-at-default. FOR: keeping
+// the arithmetic auditable. A net number nobody can decompose is a net number nobody signs.
+Class exposure_agg::ExaExposureLine
+{
+   lineId: String[1];
+   netExposureId: String[1];
+   nettingSetId: String[1];
+   exposureId: String[1];
+   // credit-core's risk measure, where the EAD actually came from.
+   measureId: String[0..1];
+   asOfDate: StrictDate[1];
+   grossAmount: Float[1];
+   // Potential future exposure, added because today's mark is not tomorrow's.
+   addOnAmount: Float[0..1];
+   currency: String[1];
+   basisCode: String[0..1];
+
+   netExposure: exposure_agg::ExaNetExposure[0..1];
+   // TWO ARRIVALS ON THE CREDIT LEG: the exposure row and the measure taken over it.
+   exposure: credit_core::CdcExposure[0..1];
+   riskMeasure: credit_core::CdcRiskMeasure[0..1];
+   basis: exposure_agg::ExaValuationBasis[0..1];
+
+   grossWithAddOn() { $this.grossAmount + $this.addOnAmount->orElse(0.0) } : Float[1];
+}
+
+// HOW GROSS WAS MEASURED: current mark, EAD, SA-CCR, notional. FOR: making two numbers
+// comparable or refusing to compare them. Netting a mark-to-market exposure against an EAD is
+// the commonest quiet error in counterparty credit, and it is only visible if the basis is a
+// column.
+Class exposure_agg::ExaValuationBasis
+{
+   basisCode: String[1];
+   basisName: String[1];
+   // True where the basis already includes potential future exposure, so the add-on must not
+   // be applied twice.
+   measuresPfe: Boolean[0..1];
+   horizonDays: Integer[0..1];
+   confidenceLevel: Float[0..1];
+   methodology: String[0..1];
+
+   netExposures: exposure_agg::ExaNetExposure[*];
+   exposureLines: exposure_agg::ExaExposureLine[*];
+}
+
+// ------------------------------------------------------------------ the collateral side
+
+// ONE PIECE OF COLLATERAL AS IT COUNTS AGAINST ONE NETTING SET, on one date, after haircut.
+//
+// FOR: being the LEFT-HAND SIDE OF BOTH OR-JOINS. `issuerEntityId` and `assetClass` are this
+// project's own columns, copied down from collateral-core deliberately: a join condition
+// cannot hop through COL_COLLATERAL to reach the issuer, so the two axes wrong-way risk and
+// concentration are scoped on have to be columns HERE. The same denormalisation
+// collateral-core made for eligibility, made again one layer up for a different reason.
+Class exposure_agg::ExaCollateralPosition
+{
+   positionId: String[1];
+   netExposureId: String[1];
+   nettingSetId: String[1];
+   // collateral-core's piece key. The collateral leg of the diamond, at row level.
+   collateralId: String[1];
+   counterpartyId: String[1];
+   // OR-JOIN AXIS ONE. Not null here even though it is nullable on COL_COLLATERAL: a piece
+   // whose issuer cannot be resolved cannot be tested for wrong-way risk, so it is resolved
+   // on the way in or it is not a position.
+   issuerEntityId: String[1];
+   // OR-JOIN AXIS TWO.
+   assetClass: String[1];
+   asOfDate: StrictDate[1];
+   marketValue: Float[1];
+   haircutPct: Float[1];
+   fxHaircutPct: Float[0..1];
+   // Market value less every haircut -- the number that is actually netted off gross.
+   collateralValue: Float[1];
+   currency: String[1];
+   isDisputed: Boolean[0..1];
+
+   netExposure: exposure_agg::ExaNetExposure[0..1];
+   // ACROSS THE BOUNDARY, twice: the piece, and its mark on this date.
+   collateral: collateral_core::ColCollateral[0..1];
+   valuation: collateral_core::ColCollateralValuation[0..1];
+   haircuts: exposure_agg::ExaHaircutApplication[*];
+
+   // THE TWO OR-JOINS, both to-many. A gilt issued by HM Treasury matches the "UK sovereign"
+   // entity rule AND the "government bonds" asset-class rule, and both have to come back so
+   // the harshest multiplier and the tightest bucket can be taken. Declaring either [0..1]
+   // would compile and then return one arbitrary row.
+   wrongWayRules: exposure_agg::ExaWrongWayRule[*];
+   concentrationBuckets: exposure_agg::ExaConcentrationBucket[*];
+
+   issuerTotal: exposure_agg::ExaCollateralIssuerTotal[0..1];
+
+   // What the market value is worth after the stated haircut rate. Float because `/` widens.
+   valueAfterHaircut() { $this.marketValue * (1.0 - ($this.haircutPct / 100.0)) } : Float[1];
+   // The haircut restated as money: what the discount actually cost the poster.
+   haircutAmount() { $this.marketValue - $this.collateralValue } : Float[1];
+}
+
+// THE HAIRCUT ACTUALLY APPLIED to one position, and where each component of it came from.
+// FOR: the dispute. A counterparty that disagrees with a margin call disagrees with a haircut,
+// and "the schedule says so" is only an answer if the schedule, the band and the override are
+// separate columns. Keyed by (positionId, asOfDate) -- a haircut restruck tomorrow is a new
+// row, never an update.
+Class exposure_agg::ExaHaircutApplication
+{
+   positionId: String[1];
+   asOfDate: StrictDate[1];
+   // SCHEDULE_BAND, SUPERVISORY, HOUSE_OVERRIDE -- which authority set the number below.
+   haircutSource: String[1];
+   baseHaircutPct: Float[1];
+   // Applied on top when the collateral currency is not the netting set's base currency.
+   fxHaircutPct: Float[0..1];
+   maturityHaircutPct: Float[0..1];
+   appliedHaircutPct: Float[1];
+   ratingBand: String[0..1];
+   approvedBy: String[0..1];
+
+   position: exposure_agg::ExaCollateralPosition[0..1];
+
+   // The three components, summed. Where this and appliedHaircutPct disagree, somebody
+   // overrode something and the override is the interesting row.
+   componentHaircutPct()
+   {
+      $this.baseHaircutPct + $this.fxHaircutPct->orElse(0.0) + $this.maturityHaircutPct->orElse(0.0)
+   } : Float[1];
+
+   valueRetainedPct() { 100.0 - $this.appliedHaircutPct } : Float[1];
+}
+
+// ------------------------------------------------------------------ THE GRAIN
+
+// NET EXPOSURE TO ONE COUNTERPARTY IN ONE NETTING SET ON ONE DATE. The row the whole project
+// exists to produce, and the row every aggregation below groups.
+//
+// FOR: holding gross, collateral and the difference side by side so the difference can be
+// checked rather than trusted. Gross comes up the credit leg of the diamond, collateral comes
+// up the collateral leg, and this is the first row in the graph where both are present at
+// once.
+Class exposure_agg::ExaNetExposure
+{
+   netExposureId: String[1];
+   runId: String[0..1];
+   counterpartyId: String[1];
+   nettingSetId: String[1];
+   // credit-core's reporting bucket, carried so the portfolio aggregation can group on it.
+   portfolioId: String[0..1];
+   asOfDate: StrictDate[1];
+   basisCode: String[0..1];
+
+   // The three numbers, in the order a credit officer reads them.
+   grossExposure: Float[1];
+   collateralValue: Float[1];
+   netExposure: Float[1];
+
+   // Posted regardless of exposure; it reduces the net but is not exposure-driven.
+   independentAmount: Float[0..1];
+   // The CSA threshold that was unsecured by agreement on this date.
+   thresholdAmount: Float[0..1];
+   concentrationAddOn: Float[0..1];
+   // 1.0 where the collateral is uncorrelated with the obligor; above 1.0 where it is not.
+   wrongWayMultiplier: Float[0..1];
+   reportingCurrency: String[1];
+   // True where the collateral mark is older than the exposure mark, which makes the
+   // difference unreliable rather than merely large.
+   isStale: Boolean[0..1];
+
+   counterparty: exposure_agg::ExaCounterparty[0..1];
+   nettingSet: exposure_agg::ExaNettingSet[0..1];
+   run: exposure_agg::ExaExposureRun[0..1];
+   basis: exposure_agg::ExaValuationBasis[0..1];
+   // ACROSS THE BOUNDARY, on the credit leg: the bucket this rolls up into over there.
+   portfolio: credit_core::CdcPortfolio[0..1];
+
+   exposureLines: exposure_agg::ExaExposureLine[*];
+   collateralPositions: exposure_agg::ExaCollateralPosition[*];
+   assessments: exposure_agg::ExaWrongWayAssessment[*];
+   adjustments: exposure_agg::ExaExposureAdjustment[*];
+   shortfalls: exposure_agg::ExaCollateralShortfall[*];
+   breaks: exposure_agg::ExaExposureBreak[*];
+
+   // THE AGGREGATIONS this row folds into. Navigating any of them crosses into a GROUP BY
+   // and never into another net-exposure row.
+   counterpartyDayNet: exposure_agg::ExaCounterpartyDayNet[0..1];
+   nettingSetDayNet: exposure_agg::ExaNettingSetDayNet[0..1];
+   portfolioDayNet: exposure_agg::ExaPortfolioDayNet[0..1];
+
+   // How much of gross the collateral covers. `/` widens, so Float.
+   coverageRatio() { $this.collateralValue / $this.grossExposure } : Float[1];
+   // Gross less collateral, computed rather than read -- if this disagrees with netExposure
+   // the netting set is unenforceable or a threshold was applied, and both are worth seeing.
+   uncoveredAmount() { $this.grossExposure - $this.collateralValue } : Float[1];
+   isUncovered() { $this.netExposure > 0.0 } : Boolean[1];
+   netAfterAddOn() { $this.netExposure + $this.concentrationAddOn->orElse(0.0) } : Float[1];
+   // Wrong-way risk is a multiplier on the net, not a separate number: the exposure and the
+   // reason it will be large at the same time are the same exposure.
+   wrongWayAdjustedNet() { $this.netExposure * $this.wrongWayMultiplier->orElse(1.0) } : Float[1];
+}
+
+// THE BATCH that produced a set of net exposures. FOR: reproducibility. "What did we report on
+// the 31st" is answerable only if the run that produced it is a row, and a partially completed
+// run is a run whose numbers must not be read.
+Class exposure_agg::ExaExposureRun
+{
+   runId: String[1];
+   asOfDate: StrictDate[1];
+   // EOD, INTRADAY, ADHOC, RESTATEMENT.
+   runType: String[1];
+   startedAt: DateTime[0..1];
+   completedAt: DateTime[0..1];
+   exposureCount: Integer[0..1];
+   sourceSystem: String[0..1];
+   triggeredBy: String[0..1];
+
+   netExposures: exposure_agg::ExaNetExposure[*];
+
+   isComplete() { $this.completedAt->isNotEmpty() } : Boolean[1];
+}
+
+// ------------------------------------------------------------------ wrong-way risk: OR JOIN
+
+// A WRONG-WAY RISK RULE, and the right-hand side of this project's first or-join.
+//
+// FOR: saying that a piece of collateral is worth less exactly when it is needed most.
+// Wrong-way risk is negotiated and policed on two independent axes -- against a NAMED RELATED
+// ENTITY ("nothing issued by the counterparty's own group") or against an ASSET CLASS ("no
+// bank paper against a bank"). A rule is one or the other and never both on one row;
+// `ruleBasis` records which. But a PIECE is caught if it matches on EITHER axis, so the join
+// is an unqualified `or` and both ends of it are to-many.
+Class exposure_agg::ExaWrongWayRule
+{
+   ruleId: String[1];
+   ruleName: String[1];
+   // RELATED_ENTITY or ASSET_CLASS -- which of the two columns below is the live one.
+   ruleBasis: String[1];
+   // AXIS ONE: an entity id. Empty on an asset-class rule.
+   relatedEntityId: String[0..1];
+   // AXIS TWO: an asset-class code. Empty on an entity rule.
+   relatedAssetClass: String[0..1];
+   // HIGH, MEDIUM, LOW -- the qualitative grade behind the multiplier.
+   correlationLevel: String[0..1];
+   // What the net exposure is multiplied by where this rule bites.
+   multiplier: Float[1];
+   // Specific wrong-way risk is a legal relationship; general is a market one.
+   isSpecific: Boolean[1];
+   effectiveDate: StrictDate[1];
+   expiryDate: StrictDate[0..1];
+
+   // THE OR-JOIN, other end. To-many, because one rule catches every piece that matches on
+   // either axis -- "the counterparty's own group" catches a hundred lots at once.
+   scopedCollateral: exposure_agg::ExaCollateralPosition[*];
+   assessments: exposure_agg::ExaWrongWayAssessment[*];
+
+   // The two halves of the disjunction, asked of a single rule.
+   isEntityRule() { $this.relatedEntityId->isNotEmpty() } : Boolean[1];
+   isAssetClassRule() { $this.relatedAssetClass->isNotEmpty() } : Boolean[1];
+   // A rule that names neither axis catches nothing and is a data error worth querying for.
+   isUnscoped() { $this.relatedEntityId->isEmpty() && $this.relatedAssetClass->isEmpty() } : Boolean[1];
+   isCurrent() { $this.expiryDate->isEmpty() } : Boolean[1];
+}
+
+// THE ASSESSMENT: what the rules above actually did to one net exposure on one date.
+// FOR: separating the POLICY from its APPLICATION. The or-join returns every rule that
+// matched; something has to decide which one governed and record that it did, because the
+// disjunction cannot -- an `or` that returns three rules has not chosen between them.
+Class exposure_agg::ExaWrongWayAssessment
+{
+   assessmentId: String[1];
+   netExposureId: String[1];
+   // The rule that governed, once the matches were ranked. Nullable where nothing matched.
+   ruleId: String[0..1];
+   asOfDate: StrictDate[1];
+   // SPECIFIC, GENERAL or NONE.
+   wrongWayType: String[1];
+   // ENTITY, ASSET_CLASS or BOTH -- which side of the disjunction actually fired. Worth
+   // storing: a piece that matched on both axes is a stronger finding than one that matched
+   // on one, and the join itself cannot tell you which happened.
+   matchedOnAxis: String[0..1];
+   correlationEstimate: Float[0..1];
+   appliedMultiplier: Float[1];
+   upliftAmount: Float[0..1];
+   assessedBy: String[0..1];
+
+   netExposure: exposure_agg::ExaNetExposure[0..1];
+   rule: exposure_agg::ExaWrongWayRule[0..1];
+
+   isWrongWay() { $this.wrongWayType->equal('NONE')->not() } : Boolean[1];
+   // Both axes fired -- the collateral is the counterparty's own paper AND the wrong class.
+   matchedBothAxes() { $this.matchedOnAxis->orElse('')->equal('BOTH') } : Boolean[1];
+}
+
+// ------------------------------------------------------------------ concentration: OR JOIN
+
+// A CONCENTRATION BUCKET, and the right-hand side of this project's second or-join.
+//
+// FOR: capping how much of the collateral pool may be one thing. Scoped the same disjunctive
+// way a wrong-way rule is -- by ISSUER or by ASSET CLASS -- and for the same reason: a
+// concentration policy is written as a list of separately negotiated lines, and a piece falls
+// in every bucket it matches on either axis. To-many both ways, again.
+Class exposure_agg::ExaConcentrationBucket
+{
+   bucketCode: String[1];
+   bucketName: String[1];
+   // ISSUER or ASSET_CLASS.
+   bucketBasis: String[1];
+   // AXIS ONE.
+   bucketIssuerId: String[0..1];
+   // AXIS TWO.
+   bucketAssetClass: String[0..1];
+   // A single-name bucket bites at a much lower share than a sector bucket.
+   isSingleName: Boolean[1];
+   // The share of the pool above which the add-on starts.
+   thresholdPct: Float[1];
+   isRegulatory: Boolean[0..1];
+
+   // THE SECOND OR-JOIN, other end. To-many for the same reason as the first.
+   bucketedCollateral: exposure_agg::ExaCollateralPosition[*];
+   addOns: exposure_agg::ExaConcentrationAddOn[*];
+   rates: exposure_agg::ExaAddOnRate[*];
+
+   isIssuerBucket() { $this.bucketIssuerId->isNotEmpty() } : Boolean[1];
+   isAssetClassBucket() { $this.bucketAssetClass->isNotEmpty() } : Boolean[1];
+   isUnscoped() { $this.bucketIssuerId->isEmpty() && $this.bucketAssetClass->isEmpty() } : Boolean[1];
+}
+
+// ONE CELL OF THE ADD-ON GRID: how steep the penalty is once a bucket is over its threshold.
+// FOR: making the add-on a schedule rather than a formula buried in code. Keyed
+// (bucketCode, bandCode) -- the band alone is not a key, because every bucket has its own
+// curve over the same bands.
+Class exposure_agg::ExaAddOnRate
+{
+   bucketCode: String[1];
+   bandCode: String[1];
+   minSharePct: Float[1];
+   maxSharePct: Float[1];
+   addOnRatePct: Float[1];
+   isRegulatory: Boolean[0..1];
+
+   bucket: exposure_agg::ExaConcentrationBucket[0..1];
+
+   // The width of the band, which is the thing a reviewer checks for gaps and overlaps.
+   bandWidthPct() { $this.maxSharePct - $this.minSharePct } : Float[1];
+}
+
+// THE CONCENTRATION ADD-ON as actually charged: one counterparty, one bucket, one date.
+// FOR: the last line of the net exposure calculation. Collateral that is all one issuer is
+// worth less than the same value spread across ten, and the add-on is the number that says so.
+Class exposure_agg::ExaConcentrationAddOn
+{
+   addOnId: String[1];
+   counterpartyId: String[1];
+   bucketCode: String[1];
+   // The collateral-core cap this add-on was measured against, where there is one. The
+   // collateral leg of the diamond, at policy level rather than at row level.
+   limitId: String[0..1];
+   asOfDate: StrictDate[1];
+   // Collateral value falling in this bucket.
+   exposedValue: Float[1];
+   // That value as a share of the whole pool.
+   bucketSharePct: Float[1];
+   // How far over the bucket's threshold the share went.
+   excessPct: Float[0..1];
+   appliedRatePct: Float[0..1];
+   addOnAmount: Float[1];
+   isBreach: Boolean[0..1];
+
+   counterparty: exposure_agg::ExaCounterparty[0..1];
+   bucket: exposure_agg::ExaConcentrationBucket[0..1];
+   // ACROSS THE BOUNDARY: collateral-core's own cap, which is scoped by ITS or-join.
+   concentrationLimit: collateral_core::ColConcentrationLimit[0..1];
+
+   // The value that sits above the threshold, in money.
+   excessAmount() { $this.exposedValue * ($this.excessPct->orElse(0.0) / 100.0) } : Float[1];
+}
+
+// ------------------------------------------------------------------ what happens to the net
+
+// HOW THE CSA TERMS MOVED THE NUMBER on one netting set on one date: threshold, minimum
+// transfer amount, independent amount, rounding. FOR: explaining why a large net exposure
+// produced no call. Keyed (nettingSetId, asOfDate), because the terms are re-applied daily and
+// yesterday's application is still the answer to yesterday's question.
+Class exposure_agg::ExaThresholdApplication
+{
+   nettingSetId: String[1];
+   asOfDate: StrictDate[1];
+   // Exposure below which nothing is called at all -- unsecured by agreement.
+   thresholdAmount: Float[1];
+   minimumTransferAmount: Float[1];
+   independentAmount: Float[0..1];
+   roundingAmount: Float[0..1];
+   requiredCollateral: Float[1];
+   deliveredCollateral: Float[1];
+   appliedBy: String[0..1];
+
+   nettingSet: exposure_agg::ExaNettingSet[0..1];
+
+   // What is actually callable once the terms have been applied.
+   callableAmount() { $this.requiredCollateral - $this.deliveredCollateral } : Float[1];
+   breachesThreshold() { $this.requiredCollateral > $this.thresholdAmount } : Boolean[1];
+}
+
+// A MANUAL ADJUSTMENT to a net exposure, with who asked for it and who approved it.
+// FOR: the honest alternative to editing the number. Every risk system has adjustments; the
+// ones that hide them are the ones that cannot be audited.
+Class exposure_agg::ExaExposureAdjustment
+{
+   adjustmentId: String[1];
+   netExposureId: String[1];
+   // DATA_FIX, LEGAL_OPINION, MODEL_OVERRIDE, PRUDENT_UPLIFT.
+   adjustmentType: String[1];
+   // Signed: a negative adjustment reduces the reported net and needs the most explaining.
+   adjustmentAmount: Float[1];
+   reason: String[0..1];
+   raisedBy: String[0..1];
+   raisedDate: StrictDate[1];
+   approvedBy: String[0..1];
+   approvedDate: StrictDate[0..1];
+   expiryDate: StrictDate[0..1];
+
+   netExposure: exposure_agg::ExaNetExposure[0..1];
+
+   isApproved() { $this.approvedDate->isNotEmpty() } : Boolean[1];
+   isLive() { $this.expiryDate->isEmpty() } : Boolean[1];
+}
+
+// THE UNCOVERED AMOUNT, aged. FOR: turning a number into an action. A shortfall that is one
+// day old is an operational fact; the same shortfall at ten days is a credit event in
+// preparation, and the only difference between them is a column.
+Class exposure_agg::ExaCollateralShortfall
+{
+   shortfallId: String[1];
+   netExposureId: String[1];
+   asOfDate: StrictDate[1];
+   requiredValue: Float[1];
+   heldValue: Float[1];
+   shortfallAmount: Float[1];
+   ageDays: Integer[0..1];
+   // DESK, HEAD_OF_CREDIT, CRO -- how far up it has been escalated.
+   escalationLevel: String[0..1];
+   clearedDate: StrictDate[0..1];
+
+   netExposure: exposure_agg::ExaNetExposure[0..1];
+
+   coveragePct() { ($this.heldValue * 100.0) / $this.requiredValue } : Float[1];
+   isCleared() { $this.clearedDate->isNotEmpty() } : Boolean[1];
+}
+
+// A BREAK BETWEEN THE TWO LEGS OF THE DIAMOND: the credit system's exposure against the
+// collateral system's margin call for the same counterparty on the same day.
+//
+// FOR: the reconciliation that only becomes possible once both legs are in one place. This is
+// what a diamond is actually worth: neither dependency can raise this break on its own, and
+// this project can raise it because it is the first row in the graph that has both numbers.
+Class exposure_agg::ExaExposureBreak
+{
+   breakId: String[1];
+   netExposureId: String[1];
+   // collateral-core's margin call, where there is one to compare against.
+   callId: String[0..1];
+   // AMOUNT_MISMATCH, MISSING_CALL, ORPHAN_CALL, STALE_MARK, CURRENCY_MISMATCH.
+   breakType: String[1];
+   creditSideAmount: Float[1];
+   collateralSideAmount: Float[1];
+   toleranceAmount: Float[0..1];
+   detectedDate: StrictDate[1];
+   resolvedDate: StrictDate[0..1];
+   resolvedBy: String[0..1];
+
+   netExposure: exposure_agg::ExaNetExposure[0..1];
+   // ACROSS THE BOUNDARY, on the collateral leg.
+   marginCall: collateral_core::ColMarginCall[0..1];
+
+   difference() { $this.creditSideAmount - $this.collateralSideAmount } : Float[1];
+   isOpen() { $this.resolvedDate->isEmpty() } : Boolean[1];
+}
+
+// A CREDIT OFFICER'S SIGN-OFF on a counterparty's net exposure for a date. FOR: the fact that
+// somebody looked. An unsigned day is not a wrong number, it is an unread one, and the two
+// need different responses.
+Class exposure_agg::ExaCreditOfficerReview
+{
+   reviewId: String[1];
+   counterpartyId: String[1];
+   asOfDate: StrictDate[1];
+   // The net the officer actually saw, kept so a later restatement is visible as a
+   // disagreement rather than silently replacing what was signed.
+   reviewedNet: Float[1];
+   officer: String[1];
+   comment: String[0..1];
+   signedOffDate: StrictDate[0..1];
+   nextReviewDate: StrictDate[0..1];
+
+   counterparty: exposure_agg::ExaCounterparty[0..1];
+
+   isSignedOff() { $this.signedOffDate->isNotEmpty() } : Boolean[1];
+}
+
+// ------------------------------------------------------------------ THE AGGREGATIONS
+//
+// The four classes below are mapped onto store Views carrying a ~groupBy. Their instances are
+// GROUPS, not rows: the primary key IS the grouping, so asking for one folds a GROUP BY into
+// the SQL rather than reading the underlying rows and totalling them in memory.
+//
+// Note what a group does NOT produce. A counterparty with no netting sets on a date forms no
+// group and is simply ABSENT, rather than appearing with a net of zero. For a credit report
+// that distinction matters: absent means "not measured", zero means "measured and flat", and
+// an aggregation cannot tell you which unless you know this.
+
+// NET EXPOSURE PER COUNTERPARTY PER DATE. The headline, and the thing a credit officer
+// actually reads: one line per name per day, gross, collateral, net.
+//
+// The grouping is (counterpartyId, asOfDate) and it deliberately DROPS the netting set --
+// which is the whole point. A counterparty with four netting sets is one credit decision, not
+// four, and the sets only exist because netting is a legal question rather than a commercial
+// one.
+Class exposure_agg::ExaCounterpartyDayNet
+{
+   counterpartyId: String[1];
+   asOfDate: StrictDate[1];
+
+   nettingSetCount: Integer[1];
+   totalGrossExposure: Float[0..1];
+   totalCollateralValue: Float[0..1];
+   totalNetExposure: Float[0..1];
+   // The single worst set, which a total hides: four sets netting to zero and one at a
+   // billion is not the same risk as five at two hundred million.
+   largestNetExposure: Float[0..1];
+   totalConcentrationAddOn: Float[0..1];
+
+   counterparty: exposure_agg::ExaCounterparty[0..1];
+   netExposures: exposure_agg::ExaNetExposure[*];
+
+   // Division widens to Float even where both operands are Integer, so these are Float[1]
+   // and could not be anything else whatever the operands were.
+   coverageRatio()
+   {
+      $this.totalCollateralValue->orElse(0.0) / $this.totalGrossExposure->orElse(0.0)
+   } : Float[1];
+
+   averageNetPerSet() { $this.totalNetExposure->orElse(0.0) / $this.nettingSetCount } : Float[1];
+
+   netAfterAddOn()
+   {
+      $this.totalNetExposure->orElse(0.0) + $this.totalConcentrationAddOn->orElse(0.0)
+   } : Float[1];
+}
+
+// NET EXPOSURE PER NETTING SET PER DATE. One level below the headline: the grouping keeps the
+// set and drops everything else, which is the grain a collateral operations desk works at
+// because a margin call is made per agreement and never per counterparty.
+Class exposure_agg::ExaNettingSetDayNet
+{
+   nettingSetId: String[1];
+   asOfDate: StrictDate[1];
+
+   exposureCount: Integer[1];
+   totalGrossExposure: Float[0..1];
+   totalCollateralValue: Float[0..1];
+   totalNetExposure: Float[0..1];
+
+   nettingSet: exposure_agg::ExaNettingSet[0..1];
+   netExposures: exposure_agg::ExaNetExposure[*];
+
+   // What the netting agreement was worth in money on this date -- the number the legal
+   // opinion pays for.
+   nettingBenefit()
+   {
+      $this.totalGrossExposure->orElse(0.0) - $this.totalNetExposure->orElse(0.0)
+   } : Float[1];
+}
+
+// COLLATERAL PER ISSUER PER COUNTERPARTY PER DATE, grouped out of the POSITION table rather
+// than the net-exposure table. FOR: feeding the concentration add-on. "How much of what this
+// counterparty posted is one issuer's paper" is exactly the question the add-on charges for,
+// and it is a group by issuer -- the one dimension the net exposure row does not carry.
+Class exposure_agg::ExaCollateralIssuerTotal
+{
+   counterpartyId: String[1];
+   issuerEntityId: String[1];
+   asOfDate: StrictDate[1];
+
+   pieceCount: Integer[1];
+   totalMarketValue: Float[0..1];
+   totalCollateralValue: Float[0..1];
+   largestPieceValue: Float[0..1];
+
+   positions: exposure_agg::ExaCollateralPosition[*];
+
+   averagePieceValue() { $this.totalCollateralValue->orElse(0.0) / $this.pieceCount } : Float[1];
+   // What the haircuts took out of this issuer's paper in total.
+   totalHaircutAmount()
+   {
+      $this.totalMarketValue->orElse(0.0) - $this.totalCollateralValue->orElse(0.0)
+   } : Float[1];
+}
+
+// NET EXPOSURE PER CREDIT PORTFOLIO PER DATE. The grouping crosses counterparties on purpose,
+// because credit-core's portfolio does: a portfolio is a reporting bucket and not a legal
+// hierarchy, and this is the aggregation that reports it after collateral rather than before.
+Class exposure_agg::ExaPortfolioDayNet
+{
+   portfolioId: String[1];
+   asOfDate: StrictDate[1];
+
+   counterpartyCount: Integer[1];
+   totalGrossExposure: Float[0..1];
+   totalNetExposure: Float[0..1];
+   largestNetExposure: Float[0..1];
+
+   // ACROSS THE BOUNDARY, from a GROUP rather than from a row: an aggregate still knows
+   // whose it is. credit-core's portfolio is reached from a grouped view here, which is the
+   // one join in this project that leaves a ~groupBy.
+   portfolio: credit_core::CdcPortfolio[0..1];
+   netExposures: exposure_agg::ExaNetExposure[*];
+
+   nettingBenefit()
+   {
+      $this.totalGrossExposure->orElse(0.0) - $this.totalNetExposure->orElse(0.0)
+   } : Float[1];
+}

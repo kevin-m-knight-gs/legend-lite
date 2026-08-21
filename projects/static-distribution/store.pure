@@ -1,0 +1,208 @@
+###Relational
+
+// ============================================================
+// static_distribution::Store -- ten SDI_ tables in the `sdi` SCHEMA
+// ============================================================
+// This store INCLUDES both dependencies' stores, and that is what makes THREE schemas
+// visible through one database:
+//
+//   sdi  -- ours, declared below
+//   stc  -- static-core's, reached through `include static_core::Store`
+//   uom  -- core-units', which static-core's store itself includes (visible, and not used
+//           here: core-units is not a declared dependency of this project)
+//
+// plus reference-data's tables, which sit in the default (unnamed) schema and so are written
+// unqualified. Every join and every mapping reference therefore has to say which schema it
+// means -- `sdi.SDI_DATASET.LIST_CODE = stc.STC_CODE_LIST.LIST_CODE` names both sides.
+//
+// Every table is SDI_, every join Sdi_, every filter Sdi. Filter names and set ids are GLOBAL
+// namespaces in Legend: one unprefixed `ActiveRows` here fails the whole graph with a message
+// that names the id and not this file.
+//
+// Tables are declared and unseeded. No ###Data element, no Runtime.
+Database static_distribution::Store
+(
+   include static_core::Store
+   include reference_data::Store
+
+   Schema sdi
+   (
+      // ---- the pipe ---------------------------------------------------------------------
+      Table SDI_CHANNEL
+      (
+         CHANNEL_CODE CHAR(8) PRIMARY KEY,
+         CHANNEL_NAME VARCHAR(60) NOT NULL,
+         TRANSPORT VARCHAR(20),
+         ENDPOINT_URI VARCHAR(200),
+         IS_ENCRYPTED BIT,
+         RETIRED_ON DATE
+      )
+
+      Table SDI_CONSUMER
+      (
+         CONSUMER_ID VARCHAR(30) PRIMARY KEY,
+         CONSUMER_NAME VARCHAR(80) NOT NULL,
+         CONTACT_EMAIL VARCHAR(80),
+         ESCALATION_TEAM VARCHAR(60),
+         CHANNEL_CODE CHAR(8),
+         ONBOARDED_ON DATE,
+         OFFBOARDED_ON DATE,
+         ACK_SLA_HOURS SMALLINT
+      )
+
+      // ---- what is distributed ----------------------------------------------------------
+      // LIST_CODE and OWNER_CODE are CHAR(8) and CHAR(6) to match static-core's `stc` schema
+      // exactly; SOURCE_ID and PRIMARY_FIELD_NAME match reference-data's widths. A join
+      // across a schema boundary is only as good as the column it lands on.
+      Table SDI_DATASET
+      (
+         DATASET_CODE VARCHAR(20) PRIMARY KEY,
+         DATASET_NAME VARCHAR(80) NOT NULL,
+         LIST_CODE CHAR(8),
+         DOMAIN_CODE CHAR(4),
+         OWNER_CODE CHAR(6),
+         SOURCE_ID VARCHAR(20),
+         PRIMARY_FIELD_NAME VARCHAR(60),
+         RETIRED_ON DATE
+      )
+
+      // Composite key: the pair IS the subscription.
+      Table SDI_SUBSCRIPTION
+      (
+         CONSUMER_ID VARCHAR(30) PRIMARY KEY,
+         DATASET_CODE VARCHAR(20) PRIMARY KEY,
+         SUBSCRIBED_ON DATE,
+         CANCELLED_ON DATE,
+         DELIVERY_FORMAT VARCHAR(10),
+         IS_MANDATORY BIT
+      )
+
+      Table SDI_SCHEDULE
+      (
+         SCHEDULE_ID VARCHAR(30) PRIMARY KEY,
+         DATASET_CODE VARCHAR(20),
+         FREQUENCY VARCHAR(10),
+         CUTOFF_TIME VARCHAR(5),
+         TIME_ZONE VARCHAR(40),
+         GRACE_MINUTES SMALLINT,
+         NEXT_RUN_DATE DATE
+      )
+
+      // ---- the runs ---------------------------------------------------------------------
+      // CHECKSUM is CHAR(64): a hex SHA-256, fixed width, so a truncated one is a load error
+      // rather than a mismatch discovered three consumers later.
+      Table SDI_PUBLICATION
+      (
+         PUBLICATION_ID VARCHAR(40) PRIMARY KEY,
+         DATASET_CODE VARCHAR(20),
+         VERSION_NUMBER INTEGER,
+         CHECKSUM CHAR(64),
+         ROW_COUNT INTEGER,
+         EXPECTED_ROW_COUNT INTEGER,
+         PUBLISHED_AT TIMESTAMP,
+         SCHEDULE_ID VARCHAR(30),
+         RETRACTED_ON DATE
+      )
+
+      // Three-part key: a publication carries a code value at most once, and the value's own
+      // identity is already the (list, value) pair in static-core.
+      Table SDI_PUBLICATION_ITEM
+      (
+         PUBLICATION_ID VARCHAR(40) PRIMARY KEY,
+         LIST_CODE CHAR(8) PRIMARY KEY,
+         VALUE_CODE VARCHAR(20) PRIMARY KEY,
+         CHANGE_TYPE VARCHAR(10),
+         ITEM_CHECKSUM CHAR(64)
+      )
+
+      // The row exists from the moment the publication does, with ACKNOWLEDGED_AT null. The
+      // outstanding acknowledgements are therefore a null test over rows that are here, not
+      // an anti-join against rows that are not.
+      Table SDI_ACK
+      (
+         PUBLICATION_ID VARCHAR(40) PRIMARY KEY,
+         CONSUMER_ID VARCHAR(30) PRIMARY KEY,
+         ACKNOWLEDGED_AT TIMESTAMP,
+         REPORTED_CHECKSUM CHAR(64),
+         ACK_STATUS VARCHAR(12),
+         REJECTION_REASON VARCHAR(200)
+      )
+
+      Table SDI_DELIVERY
+      (
+         ATTEMPT_ID VARCHAR(40) PRIMARY KEY,
+         PUBLICATION_ID VARCHAR(40),
+         CONSUMER_ID VARCHAR(30),
+         CHANNEL_CODE CHAR(8),
+         ATTEMPT_NUMBER SMALLINT,
+         STARTED_AT TIMESTAMP,
+         COMPLETED_AT TIMESTAMP,
+         BYTES_SENT INTEGER,
+         FAILURE_CODE VARCHAR(20)
+      )
+
+      Table SDI_RETRACTION
+      (
+         RETRACTION_ID VARCHAR(40) PRIMARY KEY,
+         PUBLICATION_ID VARCHAR(40),
+         RAISED_ON DATE,
+         REASON_CODE VARCHAR(20),
+         REASON_TEXT VARCHAR(200),
+         RAISED_BY VARCHAR(60),
+         REPLACEMENT_PUBLICATION_ID VARCHAR(40)
+      )
+
+      // DOMAIN_CODE is CHAR(4) to match stc.STC_CODE_LIST.DOMAIN_CODE, because the domain a
+      // grant is made against is resolved through the `~distinct` domain set, whose main
+      // table is that one.
+      Table SDI_ENTITLEMENT
+      (
+         CONSUMER_ID VARCHAR(30) PRIMARY KEY,
+         DOMAIN_CODE CHAR(4) PRIMARY KEY,
+         GRANTED_ON DATE,
+         REVOKED_ON DATE,
+         MAY_REDISTRIBUTE BIT,
+         RESTRICTION_NOTE VARCHAR(200)
+      )
+   )
+
+   // ---- joins inside our own schema -----------------------------------------------------
+   // One line each: a wrapped condition parses, but the corpus reader refuses it.
+   Join Sdi_ConsumerChannel(sdi.SDI_CONSUMER.CHANNEL_CODE = sdi.SDI_CHANNEL.CHANNEL_CODE)
+   Join Sdi_SubscriptionConsumer(sdi.SDI_SUBSCRIPTION.CONSUMER_ID = sdi.SDI_CONSUMER.CONSUMER_ID)
+   Join Sdi_SubscriptionDataset(sdi.SDI_SUBSCRIPTION.DATASET_CODE = sdi.SDI_DATASET.DATASET_CODE)
+   Join Sdi_ScheduleDataset(sdi.SDI_SCHEDULE.DATASET_CODE = sdi.SDI_DATASET.DATASET_CODE)
+   Join Sdi_PublicationDataset(sdi.SDI_PUBLICATION.DATASET_CODE = sdi.SDI_DATASET.DATASET_CODE)
+   Join Sdi_PublicationSchedule(sdi.SDI_PUBLICATION.SCHEDULE_ID = sdi.SDI_SCHEDULE.SCHEDULE_ID)
+   Join Sdi_ItemPublication(sdi.SDI_PUBLICATION_ITEM.PUBLICATION_ID = sdi.SDI_PUBLICATION.PUBLICATION_ID)
+   Join Sdi_AckPublication(sdi.SDI_ACK.PUBLICATION_ID = sdi.SDI_PUBLICATION.PUBLICATION_ID)
+   Join Sdi_AckConsumer(sdi.SDI_ACK.CONSUMER_ID = sdi.SDI_CONSUMER.CONSUMER_ID)
+   Join Sdi_DeliveryPublication(sdi.SDI_DELIVERY.PUBLICATION_ID = sdi.SDI_PUBLICATION.PUBLICATION_ID)
+   Join Sdi_DeliveryConsumer(sdi.SDI_DELIVERY.CONSUMER_ID = sdi.SDI_CONSUMER.CONSUMER_ID)
+   Join Sdi_DeliveryChannel(sdi.SDI_DELIVERY.CHANNEL_CODE = sdi.SDI_CHANNEL.CHANNEL_CODE)
+   Join Sdi_RetractionPublication(sdi.SDI_RETRACTION.PUBLICATION_ID = sdi.SDI_PUBLICATION.PUBLICATION_ID)
+   Join Sdi_EntitlementConsumer(sdi.SDI_ENTITLEMENT.CONSUMER_ID = sdi.SDI_CONSUMER.CONSUMER_ID)
+
+   // ---- joins across the schema boundary into static-core's `stc` ------------------------
+   Join Sdi_DatasetList(sdi.SDI_DATASET.LIST_CODE = stc.STC_CODE_LIST.LIST_CODE)
+   Join Sdi_DatasetOwner(sdi.SDI_DATASET.OWNER_CODE = stc.STC_DATA_OWNER.OWNER_CODE)
+   // Composite, on one line: a publication item names a static-core code value by its full
+   // (list, value) key, because a value code alone is only unique inside its list.
+   Join Sdi_ItemValue(sdi.SDI_PUBLICATION_ITEM.LIST_CODE = stc.STC_CODE_VALUE.LIST_CODE and sdi.SDI_PUBLICATION_ITEM.VALUE_CODE = stc.STC_CODE_VALUE.VALUE_CODE)
+   // The join that lands on the `~distinct` domain set: the target's main table is
+   // stc.STC_CODE_LIST, and the set collapses it to its distinct DOMAIN_CODE values.
+   Join Sdi_EntitlementDomain(sdi.SDI_ENTITLEMENT.DOMAIN_CODE = stc.STC_CODE_LIST.DOMAIN_CODE)
+
+   // ---- joins into reference-data's default schema ---------------------------------------
+   Join Sdi_DatasetSource(sdi.SDI_DATASET.SOURCE_ID = RD_REFERENCE_SOURCE.SOURCE_ID)
+   // The join that lands on the other `~distinct` set, over RD_SOURCE_PRECEDENCE.
+   Join Sdi_DatasetField(sdi.SDI_DATASET.PRIMARY_FIELD_NAME = RD_SOURCE_PRECEDENCE.FIELD_NAME)
+
+   // ---- filters --------------------------------------------------------------------------
+   // Declared for a downstream project to apply; none uses a boolean literal, because
+   // `Filter X(T.IS_ACTIVE = true)` fails to parse with `Unexpected token 'true'`.
+   Filter SdiOutstandingAck(sdi.SDI_ACK.ACKNOWLEDGED_AT is null)
+   Filter SdiLiveDataset(sdi.SDI_DATASET.RETIRED_ON is null)
+   Filter SdiCurrentSubscription(sdi.SDI_SUBSCRIPTION.CANCELLED_ON is null)
+   Filter SdiFailedDelivery(sdi.SDI_DELIVERY.FAILURE_CODE is not null)
+)

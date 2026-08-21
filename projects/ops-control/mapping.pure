@@ -1,0 +1,13 @@
+###Mapping
+Mapping ops_control::Mapping
+(
+   include custody_recon::Mapping
+   include settlement_flow::Mapping
+
+   *ops_control::OpsProbe[opsProbe]: Relational
+   {
+      ~primaryKey ( [ops_control::Store]OPS_PROBE.PROBE_ID )
+      ~mainTable [ops_control::Store]OPS_PROBE
+      probeId: [ops_control::Store]OPS_PROBE.PROBE_ID
+   }
+)

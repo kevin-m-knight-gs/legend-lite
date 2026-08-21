@@ -1,14 +1,287 @@
 ###Relational
+// ============================================================
+// collateral_opt::Store -- ten tables, two aggregation views, one disjunction
+// ============================================================
+// The store INCLUDES both dependency stores, which is what lets the joins at the bottom name
+// COL_AGREEMENT, COL_ELIGIBILITY_RULE, COL_CONCENTRATION_LIMIT, COL_COLLATERAL, IDX_INDEX and
+// IDX_CONSTITUENT unqualified. Both dependencies themselves include core_instrument::Store, so
+// this is a DIAMOND -- the instrument master arrives here by two paths and is one database
+// either way.
+//
+// Nothing about an agreement, a Schedule A line or an index constituent is restated here. What
+// is here is only what an optimiser knows and collateral-core does not: what is in the box,
+// what it would fetch on loan, what it would cost to deliver, and what the plan added up to.
+//
+// Names are COP_ / Cop_ / Cop prefixed. A filter name and a set id are GLOBAL namespaces in
+// Legend, so nothing here can be called what it would be called if this were the only project.
+//
+// Declared and unseeded. No ###Data element, no Runtime.
 Database collateral_opt::Store
 (
    include collateral_core::Store
    include index_core::Store
 
-   Table COP_PROBE
+   // ---- what the optimiser was told ---------------------------------------------------
+   Table COP_RUN
    (
-      PROBE_ID VARCHAR(40) PRIMARY KEY,
-      AGREEMENT_ID VARCHAR(40)
+      RUN_ID VARCHAR(40) PRIMARY KEY,
+      RUN_DATE DATE NOT NULL,
+      OBJECTIVE VARCHAR(32) NOT NULL,
+      SOLVER_STATUS VARCHAR(16) NOT NULL,
+      COST_BASIS_ID VARCHAR(32),
+      TOTAL_POSTED_VALUE DOUBLE,
+      TOTAL_OPPORTUNITY_COST DOUBLE,
+      ITERATION_COUNT INTEGER,
+      IS_COMMITTED BIT NOT NULL
    )
 
-   Join Cop_ProbeAgreement(COP_PROBE.AGREEMENT_ID = COL_AGREEMENT.AGREEMENT_ID)
+   Table COP_COST_BASIS
+   (
+      COST_BASIS_ID VARCHAR(32) PRIMARY KEY,
+      NAME VARCHAR(160) NOT NULL,
+      FUNDING_SPREAD_BPS DOUBLE,
+      SUBSTITUTION_COST_BPS DOUBLE,
+      HAIRCUT_PENALTY_WEIGHT DOUBLE,
+      INDEX_MEMBER_RELIEF_BPS DOUBLE,
+      VALUATION_CURRENCY VARCHAR(3) NOT NULL,
+      EFFECTIVE_DATE DATE
+   )
+
+   // ---- the supply side -----------------------------------------------------------------
+   // INSTRUMENT_ID and ISSUER_ID are the LEFT-HAND SIDE of this project's or-join. They are
+   // columns here for the same reason collateral-core denormalises its two axes onto
+   // COL_COLLATERAL: a join condition cannot hop through CI_INSTRUMENT to reach an issuer.
+   //
+   // DOUBLE and not REAL: REAL parses and then cannot be read at execution.
+   Table COP_INVENTORY_LOT
+   (
+      LOT_ID VARCHAR(40) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(60),
+      ISSUER_ID VARCHAR(40),
+      ASSET_CLASS VARCHAR(40) NOT NULL,
+      CUSTODY_ACCOUNT_ID VARCHAR(40),
+      QUANTITY DOUBLE,
+      MARKET_VALUE DOUBLE,
+      CURRENCY VARCHAR(3) NOT NULL,
+      RATING_BAND VARCHAR(16),
+      RESIDUAL_YEARS DOUBLE,
+      IS_ENCUMBERED BIT NOT NULL,
+      AVAILABLE_FROM DATE,
+      WITHDRAWN_DATE DATE
+   )
+
+   // THE TABLE THE OR-JOIN READS.
+   //
+   // INSTRUMENT_ID and ISSUER_ID are both nullable and exactly one is populated per row: a
+   // lending quote is against a named line or against an issuer as general collateral. Neither
+   // column can be made NOT NULL and neither can be dropped, which is why the join to the box
+   // is a disjunction rather than a key match.
+   Table COP_LENDING_DEMAND
+   (
+      DEMAND_ID VARCHAR(40) PRIMARY KEY,
+      DEMAND_BASIS VARCHAR(16) NOT NULL,
+      INSTRUMENT_ID VARCHAR(60),
+      ISSUER_ID VARCHAR(40),
+      BORROW_FEE_BPS DOUBLE,
+      DEMAND_QUANTITY DOUBLE,
+      DEMAND_CURRENCY VARCHAR(3) NOT NULL,
+      QUOTE_DATE DATE,
+      EXPIRY_DATE DATE,
+      IS_SPECIAL BIT NOT NULL
+   )
+
+   // The eligibility clause written as index membership. SCHEDULE_ID reaches into
+   // collateral-core's Schedule A; INDEX_ID reaches into index-core's rulebook.
+   Table COP_INDEX_BASKET_RULE
+   (
+      BASKET_RULE_ID VARCHAR(40) PRIMARY KEY,
+      SCHEDULE_ID VARCHAR(32) NOT NULL,
+      INDEX_ID VARCHAR(24) NOT NULL,
+      MIN_INDEX_WEIGHT_PCT DOUBLE,
+      MAX_INDEX_WEIGHT_PCT DOUBLE,
+      REQUIRES_CONSTITUENT BIT NOT NULL,
+      HAIRCUT_RELIEF_PCT DOUBLE,
+      EFFECTIVE_DATE DATE,
+      WITHDRAWN_DATE DATE
+   )
+
+   // ---- the decision ---------------------------------------------------------------------
+   // COMPOSITE KEY, three columns. The same lot is eligible under one CSA and not another, and
+   // only as of the run that assessed it; any shorter key collapses those into one verdict.
+   Table COP_ELIGIBILITY_ASSESSMENT
+   (
+      RUN_ID VARCHAR(40) PRIMARY KEY,
+      LOT_ID VARCHAR(40) PRIMARY KEY,
+      AGREEMENT_ID VARCHAR(40) PRIMARY KEY,
+      BINDING_RULE_ID VARCHAR(40),
+      MATCHED_RULE_COUNT INTEGER,
+      TIGHTEST_HAIRCUT_PCT DOUBLE,
+      IS_ELIGIBLE BIT NOT NULL,
+      IS_EXCLUDED BIT NOT NULL,
+      EXCLUSION_REASON VARCHAR(200),
+      ADMITTED_BY_INDEX_BASKET BIT NOT NULL
+   )
+
+   // COMPOSITE KEY on the same three columns, and a separate table on purpose: eligibility is
+   // a contractual fact, the cost stack is an economic opinion, and re-costing under a new
+   // basis must not rewrite a verdict.
+   Table COP_DELIVERY_SCORE
+   (
+      RUN_ID VARCHAR(40) PRIMARY KEY,
+      LOT_ID VARCHAR(40) PRIMARY KEY,
+      AGREEMENT_ID VARCHAR(40) PRIMARY KEY,
+      HAIRCUT_COST_BPS DOUBLE,
+      FUNDING_COST_BPS DOUBLE,
+      OPPORTUNITY_COST_BPS DOUBLE,
+      INDEX_RELIEF_BPS DOUBLE,
+      TOTAL_COST_BPS DOUBLE,
+      RANK_IN_AGREEMENT INTEGER
+   )
+
+   Table COP_POSTING_PLAN
+   (
+      PLAN_ID VARCHAR(40) PRIMARY KEY,
+      RUN_ID VARCHAR(40) NOT NULL,
+      AGREEMENT_ID VARCHAR(40) NOT NULL,
+      REQUIRED_VALUE DOUBLE,
+      PLANNED_VALUE DOUBLE,
+      CURRENCY VARCHAR(3) NOT NULL,
+      SHORTFALL_VALUE DOUBLE,
+      IS_FEASIBLE BIT NOT NULL,
+      PLAN_STATUS VARCHAR(24) NOT NULL
+   )
+
+   // The grain, and the table both views below read.
+   //
+   // RUN_ID, AGREEMENT_ID and ISSUER_ID are denormalised onto the line because a `~groupBy`
+   // groups on COLUMNS OF THE TABLE IT READS. Reaching them through COP_POSTING_PLAN or
+   // COP_INVENTORY_LOT would be tidier and would make the aggregations unwritable.
+   Table COP_PLAN_LINE
+   (
+      LINE_ID VARCHAR(48) PRIMARY KEY,
+      PLAN_ID VARCHAR(40) NOT NULL,
+      RUN_ID VARCHAR(40) NOT NULL,
+      AGREEMENT_ID VARCHAR(40) NOT NULL,
+      LOT_ID VARCHAR(40) NOT NULL,
+      ISSUER_ID VARCHAR(40),
+      ASSET_CLASS VARCHAR(40) NOT NULL,
+      QUANTITY DOUBLE,
+      MARKET_VALUE DOUBLE,
+      APPLIED_HAIRCUT_PCT DOUBLE,
+      POST_VALUE DOUBLE,
+      OPPORTUNITY_COST DOUBLE,
+      LINE_RANK INTEGER,
+      IS_SUBSTITUTION BIT NOT NULL
+   )
+
+   Table COP_SUBSTITUTION_PROPOSAL
+   (
+      PROPOSAL_ID VARCHAR(40) PRIMARY KEY,
+      RUN_ID VARCHAR(40) NOT NULL,
+      AGREEMENT_ID VARCHAR(40) NOT NULL,
+      // Already pledged: this one is a COL_COLLATERAL.
+      OUTGOING_COLLATERAL_ID VARCHAR(40) NOT NULL,
+      // Not yet pledged: this one is a COP_INVENTORY_LOT. The asymmetry is the point.
+      INCOMING_LOT_ID VARCHAR(40),
+      VALUE_DIFFERENCE DOUBLE,
+      COST_SAVING_BPS DOUBLE,
+      PROPOSAL_STATUS VARCHAR(24) NOT NULL,
+      RAISED_DATE DATE,
+      WITHDRAWN_DATE DATE
+   )
+
+   // ---- THE AGGREGATIONS -----------------------------------------------------------------
+   // Legend Views, not database views: no DDL is created and nothing seeds them -- the engine
+   // folds the GROUP BY into whatever SQL a query over the class generates.
+   //
+   // A four-hundred-line plan becomes one row: what is going out, what it costs in forgone
+   // lending revenue, and how many settlements operations has to watch. The grouping columns
+   // are the view's primary key, which is what makes it joinable back onto COP_POSTING_PLAN.
+   View COP_PLAN_AGREEMENT_SUMMARY
+   (
+      ~groupBy
+      (
+         COP_PLAN_LINE.RUN_ID,
+         COP_PLAN_LINE.AGREEMENT_ID
+      )
+      RUN_ID: COP_PLAN_LINE.RUN_ID PRIMARY KEY,
+      AGREEMENT_ID: COP_PLAN_LINE.AGREEMENT_ID PRIMARY KEY,
+      TOTAL_POST_VALUE: sum(COP_PLAN_LINE.POST_VALUE),
+      TOTAL_OPPORTUNITY_COST: sum(COP_PLAN_LINE.OPPORTUNITY_COST),
+      LINE_COUNT: count(COP_PLAN_LINE.LINE_ID)
+   )
+
+   // The same rollup one axis finer, grouped on the issuer as well -- because a concentration
+   // limit is breached by the PORTFOLIO and not by a piece. Every line in a plan can be
+   // individually eligible and the plan can still put 40% of its value with one issuer, and
+   // this is the only row where that is visible.
+   //
+   // It joins onto COL_CONCENTRATION_LIMIT on the issuer axis, so the cap and the number it
+   // caps sit side by side.
+   View COP_ISSUER_CONCENTRATION
+   (
+      ~groupBy
+      (
+         COP_PLAN_LINE.RUN_ID,
+         COP_PLAN_LINE.AGREEMENT_ID,
+         COP_PLAN_LINE.ISSUER_ID
+      )
+      RUN_ID: COP_PLAN_LINE.RUN_ID PRIMARY KEY,
+      AGREEMENT_ID: COP_PLAN_LINE.AGREEMENT_ID PRIMARY KEY,
+      ISSUER_ID: COP_PLAN_LINE.ISSUER_ID PRIMARY KEY,
+      POSTED_VALUE: sum(COP_PLAN_LINE.POST_VALUE),
+      LOT_COUNT: count(COP_PLAN_LINE.LINE_ID)
+   )
+
+   // ---- THE DISJUNCTION -------------------------------------------------------------------
+   // One line, `or` unqualified, so every quote that applies on either axis comes back -- which
+   // is why both ends of CopLendingOpportunity are to-many. A specific quote on the 2031 OAT
+   // and a GC quote on the French Republic both hit the same lot, and the opportunity cost is
+   // the higher of them.
+   //
+   // A DIFFERENT disjunction from collateral-core's: that one is issuer OR asset class and
+   // decides eligibility, this one is instrument OR issuer and decides opportunity cost.
+   Join Cop_LotLendingDemand(COP_INVENTORY_LOT.INSTRUMENT_ID = COP_LENDING_DEMAND.INSTRUMENT_ID or COP_INVENTORY_LOT.ISSUER_ID = COP_LENDING_DEMAND.ISSUER_ID)
+
+   // ---- the ordinary key joins --------------------------------------------------------------
+   Join Cop_RunCostBasis(COP_RUN.COST_BASIS_ID = COP_COST_BASIS.COST_BASIS_ID)
+   Join Cop_RunPlan(COP_POSTING_PLAN.RUN_ID = COP_RUN.RUN_ID)
+   Join Cop_PlanLine(COP_PLAN_LINE.PLAN_ID = COP_POSTING_PLAN.PLAN_ID)
+   Join Cop_LotPlanLine(COP_PLAN_LINE.LOT_ID = COP_INVENTORY_LOT.LOT_ID)
+   Join Cop_RunAssessment(COP_ELIGIBILITY_ASSESSMENT.RUN_ID = COP_RUN.RUN_ID)
+   Join Cop_LotAssessment(COP_ELIGIBILITY_ASSESSMENT.LOT_ID = COP_INVENTORY_LOT.LOT_ID)
+   Join Cop_RunScore(COP_DELIVERY_SCORE.RUN_ID = COP_RUN.RUN_ID)
+   Join Cop_LotScore(COP_DELIVERY_SCORE.LOT_ID = COP_INVENTORY_LOT.LOT_ID)
+   Join Cop_RunSubstitution(COP_SUBSTITUTION_PROPOSAL.RUN_ID = COP_RUN.RUN_ID)
+   Join Cop_ProposalIncomingLot(COP_SUBSTITUTION_PROPOSAL.INCOMING_LOT_ID = COP_INVENTORY_LOT.LOT_ID)
+
+   // Two-column joins onto the rollups: a summary row is keyed on the pair the plan is keyed
+   // on, so both columns have to match or the plan picks up every other run's totals. Still one
+   // line, because a wrapped join condition is not read by this corpus's own reader.
+   Join Cop_PlanSummary(COP_PLAN_AGREEMENT_SUMMARY.RUN_ID = COP_POSTING_PLAN.RUN_ID and COP_PLAN_AGREEMENT_SUMMARY.AGREEMENT_ID = COP_POSTING_PLAN.AGREEMENT_ID)
+   Join Cop_PlanIssuerConcentration(COP_ISSUER_CONCENTRATION.RUN_ID = COP_POSTING_PLAN.RUN_ID and COP_ISSUER_CONCENTRATION.AGREEMENT_ID = COP_POSTING_PLAN.AGREEMENT_ID)
+
+   // ---- across the boundary into collateral-core ---------------------------------------------
+   Join Cop_PlanAgreement(COP_POSTING_PLAN.AGREEMENT_ID = COL_AGREEMENT.AGREEMENT_ID)
+   Join Cop_AssessmentBindingRule(COP_ELIGIBILITY_ASSESSMENT.BINDING_RULE_ID = COL_ELIGIBILITY_RULE.RULE_ID)
+   Join Cop_BasketRuleSchedule(COP_INDEX_BASKET_RULE.SCHEDULE_ID = COL_ELIGIBILITY_SCHEDULE.SCHEDULE_ID)
+   Join Cop_ConcentrationLimit(COP_ISSUER_CONCENTRATION.ISSUER_ID = COL_CONCENTRATION_LIMIT.LIMIT_ISSUER_ID)
+   Join Cop_ProposalOutgoing(COP_SUBSTITUTION_PROPOSAL.OUTGOING_COLLATERAL_ID = COL_COLLATERAL.COLLATERAL_ID)
+
+   // ---- across the boundary into index-core ---------------------------------------------------
+   // The instrument key is the only thing shared with the constituent list. Everything else
+   // about an index -- the weight, the rebalance, the region rollup -- is reached by navigating
+   // index-core's own properties, not by joining again from here.
+   Join Cop_LotIndexMembership(COP_INVENTORY_LOT.INSTRUMENT_ID = IDX_CONSTITUENT.INSTRUMENT_ID)
+   Join Cop_BasketRuleIndex(COP_INDEX_BASKET_RULE.INDEX_ID = IDX_INDEX.INDEX_ID)
+
+   // ---- filters -------------------------------------------------------------------------------
+   // Declared and unapplied, for a downstream mapping to reference by name. No boolean literal
+   // anywhere: a null test, or `= 1` against a BIT, because `= true` does not parse.
+   Filter CopAvailableLots(COP_INVENTORY_LOT.WITHDRAWN_DATE is null)
+   Filter CopUnencumberedLots(COP_INVENTORY_LOT.IS_ENCUMBERED = 0)
+   Filter CopLiveLendingDemand(COP_LENDING_DEMAND.EXPIRY_DATE is null)
+   Filter CopCommittedRuns(COP_RUN.IS_COMMITTED = 1)
+   Filter CopOpenProposals(COP_SUBSTITUTION_PROPOSAL.WITHDRAWN_DATE is null)
+   Filter CopCurrentBasketRules(COP_INDEX_BASKET_RULE.WITHDRAWN_DATE is null)
 )

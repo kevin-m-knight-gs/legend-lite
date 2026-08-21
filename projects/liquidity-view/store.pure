@@ -1,12 +1,277 @@
 ###Relational
 
+// liquidity_view::Store includes BOTH dependencies' stores, and that is a DIAMOND: cash-core
+// includes core_account::Store and funding-core includes core_account::Store and
+// core_tenor::Store, so CA_ACCOUNT arrives here by two paths. It is included once, not twice
+// -- an include is a reference, not a copy -- and the two paths converge without complaint.
+// Neither core_account::Store nor core_tenor::Store is included again here: they are already
+// present transitively, and this project may not name projects it does not declare.
+//
+// The two constructs this project exists to carry:
+//
+//   THE VIEW.  LQV_BUCKET_FLOW is a `~groupBy` over LQV_FLOW: one row per ladder, bucket,
+//              currency and date, instead of one row per flow. `~groupBy` takes COLUMN
+//              references and nothing else -- LQV_FLOW.BUCKET_ID, not an expression over
+//              DAYS_OUT -- which is precisely why LQV_FLOW carries a stamped BUCKET_ID
+//              alongside the raw DAYS_OUT the range join reads. Lqv_BucketTotals below hangs
+//              the view off LQV_BUCKET so it is reachable by navigation and not only by a
+//              query that names it.
+//
+//   THE RANGE JOINS.  Lqv_FlowBucket and Lqv_FlowCurvePoint, both half-open on
+//              [MIN_DAYS, MAX_DAYS). The first bands a flow on this project's own ladder; the
+//              second crosses the project boundary into funding-core's FND_CURVE_POINT, which
+//              funding-core's MANIFEST says is the only route to a point because there is no
+//              key on a point to join to instead. Both carry an equality on the parent id
+//              (LADDER_ID, CURVE_ID) alongside the range, so the interval is unambiguous
+//              within one ladder or one curve; without it a flow would match a band on every
+//              ladder at once.
+//
+// Every join condition is on ONE line. A wrapped one compiles, but the corpus reader in
+// scripts/corpus/model.py refuses it, and these files are meant to stay readable by it.
 Database liquidity_view::Store
 (
   include cash_core::Store
   include funding_core::Store
 
-  Table LQV_PROBE
+  // The ladders. REGIME distinguishes the filed one from the internal one; RETIRED_ON null
+  // means still in use, which is the shape a Filter can actually test.
+  Table LQV_LADDER
   (
-    PROBE_ID VARCHAR(20) PRIMARY KEY
+    LADDER_ID VARCHAR(20) PRIMARY KEY,
+    LADDER_NAME VARCHAR(120),
+    REGIME VARCHAR(24),
+    BASIS VARCHAR(24),
+    OWNER_DESK VARCHAR(20),
+    RETIRED_ON DATE
   )
+
+  // The bands. The right-hand side of Lqv_FlowBucket: MIN_DAYS/MAX_DAYS are the range bounds,
+  // and the key is composite because the same BUCKET_ID ('D8_30') is defined on more than one
+  // ladder with different bounds.
+  Table LQV_BUCKET
+  (
+    LADDER_ID VARCHAR(20) PRIMARY KEY,
+    BUCKET_ID VARCHAR(24) PRIMARY KEY,
+    BUCKET_LABEL VARCHAR(64),
+    MIN_DAYS INTEGER,
+    MAX_DAYS INTEGER,
+    SORT_ORDER INTEGER
+  )
+
+  // The left-hand side of both range joins, and the source table of the view.
+  //
+  // DAYS_OUT is the raw number the ranges read. BUCKET_ID is the band the liquidity run
+  // stamped, and it exists because ~groupBy cannot group on a join. INSTITUTION_ID/ACCOUNT_NO
+  // are two columns because core-account keys an account by both and there is no synthetic
+  // account id anywhere below this project -- cash-core's MANIFEST is emphatic about it.
+  Table LQV_FLOW
+  (
+    FLOW_ID VARCHAR(40) PRIMARY KEY,
+    LADDER_ID VARCHAR(20) NOT NULL,
+    AS_OF_DATE DATE NOT NULL,
+    INSTITUTION_ID VARCHAR(20),
+    ACCOUNT_NO VARCHAR(34),
+    MOVEMENT_ID VARCHAR(40),
+    FUNDING_CASHFLOW_ID VARCHAR(40),
+    CURVE_ID VARCHAR(20),
+    CURRENCY_CODE VARCHAR(3) NOT NULL,
+    BUCKET_ID VARCHAR(24) NOT NULL,
+    DAYS_OUT INTEGER NOT NULL,
+    GROSS_AMOUNT DOUBLE,
+    OUTFLOW_AMOUNT DOUBLE,
+    DIRECTION VARCHAR(6),
+    FLOW_TYPE VARCHAR(24),
+    IS_CONTRACTUAL BIT
+  )
+
+  // ------------------------------------------------------------------------ THE STORE VIEW
+  // The ladder line. Four grouping columns, all four in the primary key, because that is the
+  // grain a treasurer reads: this band, this currency, this date, on this ladder.
+  //
+  // The grouping columns are COLUMN REFERENCES. LQV_FLOW.BUCKET_ID is a column, so it can be
+  // grouped on; `the band DAYS_OUT falls in` is a join and cannot. That constraint is the
+  // reason the flow row carries both.
+  //
+  // A band with no flows on a date forms no group and is absent rather than zero. A report
+  // that must show every band on every day drives from LQV_BUCKET, not from here.
+  View LQV_BUCKET_FLOW
+  (
+    ~groupBy
+    (
+      LQV_FLOW.LADDER_ID,
+      LQV_FLOW.BUCKET_ID,
+      LQV_FLOW.CURRENCY_CODE,
+      LQV_FLOW.AS_OF_DATE
+    )
+    LADDER_ID: LQV_FLOW.LADDER_ID PRIMARY KEY,
+    BUCKET_ID: LQV_FLOW.BUCKET_ID PRIMARY KEY,
+    CURRENCY_CODE: LQV_FLOW.CURRENCY_CODE PRIMARY KEY,
+    AS_OF_DATE: LQV_FLOW.AS_OF_DATE PRIMARY KEY,
+    NET_AMOUNT: sum(LQV_FLOW.GROSS_AMOUNT),
+    GROSS_OUTFLOW: sum(LQV_FLOW.OUTFLOW_AMOUNT),
+    FLOW_COUNT: count(LQV_FLOW.FLOW_ID)
+  )
+
+  // ------------------------------------------------------------------------------ the HQLA
+  Table LQV_HQLA_LEVEL
+  (
+    LEVEL_CODE VARCHAR(8) PRIMARY KEY,
+    LEVEL_NAME VARCHAR(64),
+    STANDARD_HAIRCUT_PCT DOUBLE,
+    CAP_PCT DOUBLE,
+    LEVEL_RANK INTEGER
+  )
+
+  Table LQV_HQLA_HOLDING
+  (
+    HOLDING_ID VARCHAR(40) PRIMARY KEY,
+    AS_OF_DATE DATE NOT NULL,
+    INSTITUTION_ID VARCHAR(20),
+    ACCOUNT_NO VARCHAR(34),
+    LEVEL_CODE VARCHAR(8) NOT NULL,
+    CURRENCY_CODE VARCHAR(3) NOT NULL,
+    ASSET_CLASS VARCHAR(24),
+    MARKET_VALUE DOUBLE,
+    ENCUMBERED_VALUE DOUBLE,
+    APPLIED_HAIRCUT_PCT DOUBLE,
+    IS_OPERATIONAL BIT
+  )
+
+  // ------------------------------------------------------- the thirty-day stress and its rates
+  Table LQV_STRESS_SCENARIO
+  (
+    SCENARIO_ID VARCHAR(20) PRIMARY KEY,
+    SCENARIO_NAME VARCHAR(120),
+    HORIZON_DAYS INTEGER,
+    SEVERITY VARCHAR(16),
+    REGIME VARCHAR(24),
+    WITHDRAWN_ON DATE
+  )
+
+  Table LQV_DEPOSIT_TYPE
+  (
+    DEPOSIT_TYPE VARCHAR(24) PRIMARY KEY,
+    DESCRIPTION VARCHAR(160),
+    COUNTERPARTY_CLASS VARCHAR(24),
+    IS_INSURED BIT,
+    IS_OPERATIONAL BIT
+  )
+
+  // Keyed by scenario AND type: the same deposit type runs at a different rate under the
+  // internal severe scenario than under the filed one.
+  Table LQV_OUTFLOW_RATE
+  (
+    SCENARIO_ID VARCHAR(20) PRIMARY KEY,
+    DEPOSIT_TYPE VARCHAR(24) PRIMARY KEY,
+    OUTFLOW_RATE_PCT DOUBLE,
+    RUNOFF_BASIS VARCHAR(24),
+    EFFECTIVE_FROM DATE
+  )
+
+  // Deliberately the same grain as cash-core's CSH_CASH_BALANCE -- account, currency, date --
+  // so Lqv_BalanceBookedBalance below is a four-column equality and the stressed number is
+  // reconcilable to the booked one.
+  Table LQV_DEPOSIT_BALANCE
+  (
+    BALANCE_ID VARCHAR(40) PRIMARY KEY,
+    AS_OF_DATE DATE NOT NULL,
+    INSTITUTION_ID VARCHAR(20) NOT NULL,
+    ACCOUNT_NO VARCHAR(34) NOT NULL,
+    CURRENCY_CODE VARCHAR(3) NOT NULL,
+    DEPOSIT_TYPE VARCHAR(24) NOT NULL,
+    BALANCE_AMOUNT DOUBLE,
+    INSURED_AMOUNT DOUBLE,
+    APPLIED_RATE_PCT DOUBLE
+  )
+
+  Table LQV_LCR_RESULT
+  (
+    INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+    CURRENCY_CODE VARCHAR(3) PRIMARY KEY,
+    AS_OF_DATE DATE PRIMARY KEY,
+    SCENARIO_ID VARCHAR(20) PRIMARY KEY,
+    HQLA_STOCK DOUBLE,
+    GROSS_OUTFLOWS DOUBLE,
+    GROSS_INFLOWS DOUBLE,
+    CAPPED_INFLOWS DOUBLE
+  )
+
+  // ------------------------------------------------------------------ the one-year NSFR view
+  Table LQV_NSFR_LINE
+  (
+    LINE_ID VARCHAR(40) PRIMARY KEY,
+    AS_OF_DATE DATE NOT NULL,
+    INSTITUTION_ID VARCHAR(20) NOT NULL,
+    CURRENCY_CODE VARCHAR(3) NOT NULL,
+    SIDE VARCHAR(4) NOT NULL,
+    CATEGORY VARCHAR(48),
+    CURVE_ID VARCHAR(20),
+    RESIDUAL_DAYS INTEGER,
+    CARRYING_AMOUNT DOUBLE,
+    FACTOR_PCT DOUBLE
+  )
+
+  Table LQV_NSFR_RESULT
+  (
+    INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+    CURRENCY_CODE VARCHAR(3) PRIMARY KEY,
+    AS_OF_DATE DATE PRIMARY KEY,
+    AVAILABLE_STABLE_FUNDING DOUBLE,
+    REQUIRED_STABLE_FUNDING DOUBLE,
+    LINE_COUNT INTEGER
+  )
+
+  Table LQV_FUNDING_CONCENTRATION
+  (
+    AS_OF_DATE DATE PRIMARY KEY,
+    INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+    COUNTERPARTY_ID VARCHAR(20) PRIMARY KEY,
+    LADDER_ID VARCHAR(20) PRIMARY KEY,
+    BUCKET_ID VARCHAR(24) PRIMARY KEY,
+    CURRENCY_CODE VARCHAR(3),
+    FUNDING_AMOUNT DOUBLE,
+    SHARE_PCT DOUBLE
+  )
+
+  // ------------------------------------------------------------------------- the RANGE joins
+  // Within this project: LADDER_ID pins the ladder, then the half-open interval picks exactly
+  // one band. [0..1] on the flow side because the bands of one ladder do not overlap.
+  Join Lqv_FlowBucket(LQV_FLOW.LADDER_ID = LQV_BUCKET.LADDER_ID and LQV_FLOW.DAYS_OUT >= LQV_BUCKET.MIN_DAYS and LQV_FLOW.DAYS_OUT < LQV_BUCKET.MAX_DAYS)
+
+  // ACROSS THE BOUNDARY into funding-core, against the columns its MANIFEST names as the only
+  // route to a curve point. Same half-open shape, CURVE_ID pinning the curve.
+  Join Lqv_FlowCurvePoint(LQV_FLOW.CURVE_ID = FND_CURVE_POINT.CURVE_ID and LQV_FLOW.DAYS_OUT >= FND_CURVE_POINT.MIN_DAYS and LQV_FLOW.DAYS_OUT < FND_CURVE_POINT.MAX_DAYS)
+
+  // ------------------------------------------------- the join that makes the VIEW navigable
+  Join Lqv_BucketTotals(LQV_BUCKET_FLOW.LADDER_ID = LQV_BUCKET.LADDER_ID and LQV_BUCKET_FLOW.BUCKET_ID = LQV_BUCKET.BUCKET_ID)
+
+  // ------------------------------------------------------------------- ordinary key joins
+  Join Lqv_LadderBuckets(LQV_BUCKET.LADDER_ID = LQV_LADDER.LADDER_ID)
+  Join Lqv_HoldingLevel(LQV_HQLA_HOLDING.LEVEL_CODE = LQV_HQLA_LEVEL.LEVEL_CODE)
+  Join Lqv_RateScenario(LQV_OUTFLOW_RATE.SCENARIO_ID = LQV_STRESS_SCENARIO.SCENARIO_ID)
+  Join Lqv_RateDepositType(LQV_OUTFLOW_RATE.DEPOSIT_TYPE = LQV_DEPOSIT_TYPE.DEPOSIT_TYPE)
+  Join Lqv_BalanceDepositType(LQV_DEPOSIT_BALANCE.DEPOSIT_TYPE = LQV_DEPOSIT_TYPE.DEPOSIT_TYPE)
+  Join Lqv_LcrScenario(LQV_LCR_RESULT.SCENARIO_ID = LQV_STRESS_SCENARIO.SCENARIO_ID)
+  Join Lqv_ConcentrationBucket(LQV_FUNDING_CONCENTRATION.LADDER_ID = LQV_BUCKET.LADDER_ID and LQV_FUNDING_CONCENTRATION.BUCKET_ID = LQV_BUCKET.BUCKET_ID)
+
+  // ------------------------------------------------------- key joins across the two boundaries
+  // Three columns to cash-core's movement, because an account is two columns down there and
+  // the movement id is only unique within one.
+  Join Lqv_FlowMovement(LQV_FLOW.INSTITUTION_ID = CSH_CASH_MOVEMENT.INSTITUTION_ID and LQV_FLOW.ACCOUNT_NO = CSH_CASH_MOVEMENT.ACCOUNT_NO and LQV_FLOW.MOVEMENT_ID = CSH_CASH_MOVEMENT.MOVEMENT_ID)
+
+  // Four columns to cash-core's balance: the same grain, deliberately.
+  Join Lqv_BalanceBookedBalance(LQV_DEPOSIT_BALANCE.INSTITUTION_ID = CSH_CASH_BALANCE.INSTITUTION_ID and LQV_DEPOSIT_BALANCE.ACCOUNT_NO = CSH_CASH_BALANCE.ACCOUNT_NO and LQV_DEPOSIT_BALANCE.CURRENCY_CODE = CSH_CASH_BALANCE.CURRENCY_CODE and LQV_DEPOSIT_BALANCE.AS_OF_DATE = CSH_CASH_BALANCE.BALANCE_DATE)
+
+  Join Lqv_FlowFundingCashflow(LQV_FLOW.FUNDING_CASHFLOW_ID = FND_CASHFLOW.CASHFLOW_ID)
+
+  // To funding-core's UNVERSIONED curve header. Nothing here joins to FND_CURVE_MS: the
+  // versioned half is business-temporal and is reached with all(<date>), never by navigation.
+  Join Lqv_NsfrLineCurve(LQV_NSFR_LINE.CURVE_ID = FND_CURVE.CURVE_ID)
+
+  // ------------------------------------------------------------------------------- filters
+  // Null tests, not boolean literals: `Filter X(T.IS_ACTIVE = true)` does not parse.
+  Filter LqvLiveLadders(LQV_LADDER.RETIRED_ON is null)
+  Filter LqvLiveScenarios(LQV_STRESS_SCENARIO.WITHDRAWN_ON is null)
+  // A string comparison, for the same reason.
+  Filter LqvOutflowsOnly(LQV_FLOW.DIRECTION = 'OUT')
 )

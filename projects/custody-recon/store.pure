@@ -1,0 +1,354 @@
+###Relational
+// The custody-recon store. It INCLUDES both upstream stores, which is what puts
+// CST_HOLDING, CST_DEPOT, CST_PENDING_MOVEMENT, CST_STATEMENT_LINE, PK_POSITION,
+// PK_MOVEMENT_TOTAL and PK_SETTLEMENT_LADDER in scope for the joins at the bottom.
+// There is no import in Legend and no copy of the upstream tables either. Both included
+// stores themselves include core_account::Store and core_instrument::Store, so those
+// arrive twice by two routes; that is fine, and nothing here names a table from them,
+// because core-account and core-instrument are not this project's dependencies.
+//
+// THE COLUMN THAT IS NOT SHARED. Read the two upstream primary keys side by side:
+//
+//     CST_HOLDING   INSTITUTION_ID, ACCOUNT_NO, INSTRUMENT_ID, DEPOT_CODE
+//     PK_POSITION   INSTITUTION_ID, ACCOUNT_NO, INSTRUMENT_ID, COB_DATE
+//
+// Three columns in common. RCN_ITEM below carries all FIVE distinct columns (plus
+// RECON_CODE), so Rcn_ItemHolding can match custody's four and Rcn_ItemPosition can match
+// position keeping's four, out of the same row. The two joins overlap in three columns
+// and neither is a subset of the other -- that, mechanically, is what this project is.
+//
+// The four Views are the AGGREGATION shape. RCN_DEPOT_ROLLUP is the important one: its
+// ~groupBy is the position's five columns, so it collapses the depot away and gives the
+// custody side the shape the internal side already has.
+Database custody_recon::Store
+(
+   include custody_core::Store
+   include position_keeping::Store
+
+   // ---------------------------------------------------------- standing set-up
+
+   Table RCN_DEFINITION
+   (
+      RECON_CODE VARCHAR(30) PRIMARY KEY,
+      RECON_NAME VARCHAR(200),
+      SOURCE_A_SYSTEM VARCHAR(40),
+      SOURCE_B_SYSTEM VARCHAR(40),
+      FREQUENCY VARCHAR(20),
+      OWNER_TEAM VARCHAR(60),
+      DEFAULT_TOLERANCE_QUANTITY DOUBLE,
+      INTRODUCED_ON DATE,
+      RETIRED_ON DATE
+   )
+
+   // THREE primary key columns. A rule code is unique only inside a scope, and a scope
+   // only inside a reconciliation.
+   Table RCN_TOLERANCE_RULE
+   (
+      RECON_CODE VARCHAR(30) PRIMARY KEY,
+      RULE_SCOPE VARCHAR(30) PRIMARY KEY,
+      RULE_CODE VARCHAR(30) PRIMARY KEY,
+      TOLERANCE_QUANTITY DOUBLE,
+      TOLERANCE_PERCENT DOUBLE,
+      TOLERANCE_AMOUNT DOUBLE,
+      TOLERANCE_CURRENCY VARCHAR(3),
+      APPLIES_FROM DATE,
+      APPLIES_TO DATE,
+      RULE_NOTE VARCHAR(400)
+   )
+
+   Table RCN_AGEING_BAND
+   (
+      RECON_CODE VARCHAR(30) PRIMARY KEY,
+      BAND_CODE VARCHAR(20) PRIMARY KEY,
+      BAND_LABEL VARCHAR(60),
+      MIN_AGE_DAYS INTEGER,
+      MAX_AGE_DAYS INTEGER,
+      ESCALATION_LEVEL VARCHAR(20),
+      BAND_ORDER INTEGER
+   )
+
+   // ---------------------------------------------------------- the run
+
+   // THREE primary key columns. RUN_SEQ is in the key because a cob date is reconciled
+   // again when a late statement lands, and the re-run must not erase the earlier one.
+   Table RCN_RUN
+   (
+      RECON_CODE VARCHAR(30) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      RUN_SEQ INTEGER PRIMARY KEY,
+      RUN_TYPE VARCHAR(20),
+      RUN_STATUS VARCHAR(20),
+      STARTED_ON DATE,
+      COMPLETED_ON DATE,
+      LINE_COUNT INTEGER,
+      ITEM_COUNT INTEGER,
+      MATCHED_COUNT INTEGER,
+      BREAK_COUNT INTEGER,
+      TRIGGERED_BY VARCHAR(60)
+   )
+
+   // The POSITION-SHAPED side. FIVE key columns: RECON_CODE plus PK_POSITION's four,
+   // which is why Rcn_LinePosition below is a clean four-column join.
+   Table RCN_LINE
+   (
+      RECON_CODE VARCHAR(30) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      RUN_SEQ INTEGER,
+      DEPOT_COUNT INTEGER,
+      CUSTODY_QUANTITY DOUBLE,
+      INTERNAL_QUANTITY DOUBLE,
+      DIFFERENCE_QUANTITY DOUBLE,
+      DIFFERENCE_VALUE DOUBLE,
+      PRICE_CURRENCY VARCHAR(3),
+      QUANTITY_UNIT VARCHAR(10),
+      LINE_STATUS VARCHAR(20),
+      IS_WITHIN_TOLERANCE BIT,
+      MATCHED_ON DATE
+   )
+
+   // THE COMPOSITE PRIMARY KEY THIS PROJECT IS ABOUT. SIX columns, and every one of them
+   // is load-bearing:
+   //
+   //   RECON_CODE      two reconciliations of the same stock are not one another's rows
+   //   COB_DATE        supplied by the run; the holding side has no date of its own
+   //   INSTITUTION_ID  shared by both upstream keys
+   //   ACCOUNT_NO      shared by both upstream keys
+   //   INSTRUMENT_ID   shared by both upstream keys
+   //   DEPOT_CODE      custody's fourth column, absent from the position key entirely
+   //
+   // Columns 3-6 are CST_HOLDING's primary key. Columns 2-5 are PK_POSITION's primary
+   // key. The row exists to hold both at once.
+   Table RCN_ITEM
+   (
+      RECON_CODE VARCHAR(30) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      DEPOT_CODE VARCHAR(20) PRIMARY KEY,
+      RUN_SEQ INTEGER,
+      CUSTODY_QUANTITY DOUBLE,
+      CUSTODY_SETTLED_QUANTITY DOUBLE,
+      INTERNAL_QUANTITY DOUBLE,
+      INTERNAL_SETTLED_QUANTITY DOUBLE,
+      DIFFERENCE_QUANTITY DOUBLE,
+      ALLOCATION_BASIS VARCHAR(20),
+      ALLOCATION_RATIO DOUBLE,
+      MATCH_STATUS VARCHAR(20),
+      HAS_CUSTODY_SIDE BIT,
+      HAS_INTERNAL_SIDE BIT,
+      TOLERANCE_SCOPE VARCHAR(30),
+      TOLERANCE_CODE VARCHAR(30),
+      MATCHED_ON DATE
+   )
+
+   // SEVEN key columns: the item's six plus the type. One item can be wrong in two ways
+   // at once and the two are worked by different desks.
+   Table RCN_BREAK
+   (
+      RECON_CODE VARCHAR(30) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      DEPOT_CODE VARCHAR(20) PRIMARY KEY,
+      BREAK_TYPE VARCHAR(20) PRIMARY KEY,
+      BREAK_REF VARCHAR(40),
+      BREAK_QUANTITY DOUBLE,
+      BREAK_VALUE DOUBLE,
+      BREAK_CURRENCY VARCHAR(3),
+      SEVERITY VARCHAR(20),
+      DETECTED_ON DATE,
+      FIRST_SEEN_ON DATE,
+      AGE_DAYS INTEGER,
+      AGEING_BAND_CODE VARCHAR(20),
+      ASSIGNED_TO VARCHAR(60),
+      ASSIGNED_TEAM VARCHAR(60),
+      BREAK_STATUS VARCHAR(20),
+      RESOLVED_ON DATE
+   )
+
+   // The workflow tables key on BREAK_REF, not on the break's seven natural columns. A
+   // ticket system holds a reference; it does not hold a composite key.
+   Table RCN_BREAK_ASSIGNMENT
+   (
+      RECON_CODE VARCHAR(30) PRIMARY KEY,
+      BREAK_REF VARCHAR(40) PRIMARY KEY,
+      ASSIGNMENT_SEQ INTEGER PRIMARY KEY,
+      ASSIGNED_TO VARCHAR(60),
+      ASSIGNED_TEAM VARCHAR(60),
+      ASSIGNED_ON DATE,
+      ASSIGNED_BY VARCHAR(60),
+      DUE_ON DATE,
+      RELEASED_ON DATE,
+      ASSIGNMENT_NOTE VARCHAR(400)
+   )
+
+   Table RCN_BREAK_RESOLUTION
+   (
+      RECON_CODE VARCHAR(30) PRIMARY KEY,
+      BREAK_REF VARCHAR(40) PRIMARY KEY,
+      RESOLUTION_TYPE VARCHAR(30),
+      RESOLVED_ON DATE,
+      RESOLVED_BY VARCHAR(60),
+      ROOT_CAUSE VARCHAR(30),
+      CORRECTION_SIDE VARCHAR(20),
+      CORRECTION_QUANTITY DOUBLE,
+      RESOLUTION_NOTE VARCHAR(400),
+      APPROVED_BY VARCHAR(60)
+   )
+
+   // ---------------------------------------------------------- the aggregations
+
+   // THE ONE THAT DOES THE RECONCILING. Group the depot-grain items by the five columns a
+   // position has and the depot disappears; what is left is custody's answer in the
+   // internal book's shape, joinable straight onto PK_POSITION.
+   View RCN_DEPOT_ROLLUP
+   (
+      ~groupBy
+      (
+         RCN_ITEM.RECON_CODE,
+         RCN_ITEM.COB_DATE,
+         RCN_ITEM.INSTITUTION_ID,
+         RCN_ITEM.ACCOUNT_NO,
+         RCN_ITEM.INSTRUMENT_ID
+      )
+      RECON_CODE: RCN_ITEM.RECON_CODE PRIMARY KEY,
+      COB_DATE: RCN_ITEM.COB_DATE PRIMARY KEY,
+      INSTITUTION_ID: RCN_ITEM.INSTITUTION_ID PRIMARY KEY,
+      ACCOUNT_NO: RCN_ITEM.ACCOUNT_NO PRIMARY KEY,
+      INSTRUMENT_ID: RCN_ITEM.INSTRUMENT_ID PRIMARY KEY,
+      DEPOT_COUNT: count(RCN_ITEM.DEPOT_CODE),
+      TOTAL_CUSTODY_QUANTITY: sum(RCN_ITEM.CUSTODY_QUANTITY),
+      TOTAL_INTERNAL_QUANTITY: sum(RCN_ITEM.INTERNAL_QUANTITY),
+      NET_DIFFERENCE: sum(RCN_ITEM.DIFFERENCE_QUANTITY),
+      LARGEST_DEPOT_QUANTITY: max(RCN_ITEM.CUSTODY_QUANTITY)
+   )
+
+   // One account, one day: the grouping drops the instrument.
+   View RCN_ACCOUNT_TOTAL
+   (
+      ~groupBy
+      (
+         RCN_LINE.RECON_CODE,
+         RCN_LINE.COB_DATE,
+         RCN_LINE.INSTITUTION_ID,
+         RCN_LINE.ACCOUNT_NO
+      )
+      RECON_CODE: RCN_LINE.RECON_CODE PRIMARY KEY,
+      COB_DATE: RCN_LINE.COB_DATE PRIMARY KEY,
+      INSTITUTION_ID: RCN_LINE.INSTITUTION_ID PRIMARY KEY,
+      ACCOUNT_NO: RCN_LINE.ACCOUNT_NO PRIMARY KEY,
+      LINE_COUNT: count(RCN_LINE.INSTRUMENT_ID),
+      TOTAL_CUSTODY_QUANTITY: sum(RCN_LINE.CUSTODY_QUANTITY),
+      TOTAL_INTERNAL_QUANTITY: sum(RCN_LINE.INTERNAL_QUANTITY),
+      TOTAL_DIFFERENCE_QUANTITY: sum(RCN_LINE.DIFFERENCE_QUANTITY),
+      TOTAL_DIFFERENCE_VALUE: sum(RCN_LINE.DIFFERENCE_VALUE),
+      LARGEST_DIFFERENCE: max(RCN_LINE.DIFFERENCE_QUANTITY)
+   )
+
+   // The daily break report: one row per type per day.
+   View RCN_BREAK_TYPE_TOTAL
+   (
+      ~groupBy
+      (
+         RCN_BREAK.RECON_CODE,
+         RCN_BREAK.COB_DATE,
+         RCN_BREAK.BREAK_TYPE
+      )
+      RECON_CODE: RCN_BREAK.RECON_CODE PRIMARY KEY,
+      COB_DATE: RCN_BREAK.COB_DATE PRIMARY KEY,
+      BREAK_TYPE: RCN_BREAK.BREAK_TYPE PRIMARY KEY,
+      BREAK_COUNT: count(RCN_BREAK.DEPOT_CODE),
+      TOTAL_BREAK_QUANTITY: sum(RCN_BREAK.BREAK_QUANTITY),
+      TOTAL_BREAK_VALUE: sum(RCN_BREAK.BREAK_VALUE),
+      OLDEST_AGE_DAYS: max(RCN_BREAK.AGE_DAYS),
+      EARLIEST_DETECTED_ON: min(RCN_BREAK.DETECTED_ON)
+   )
+
+   // One person's queue. The grouping drops COB_DATE, because a break does not stop being
+   // yours when the date rolls -- this is the ageing view that has somebody's name on it.
+   View RCN_ASSIGNEE_TOTAL
+   (
+      ~groupBy
+      (
+         RCN_BREAK.RECON_CODE,
+         RCN_BREAK.ASSIGNED_TO
+      )
+      RECON_CODE: RCN_BREAK.RECON_CODE PRIMARY KEY,
+      ASSIGNED_TO: RCN_BREAK.ASSIGNED_TO PRIMARY KEY,
+      ASSIGNED_BREAK_COUNT: count(RCN_BREAK.BREAK_TYPE),
+      TOTAL_BREAK_VALUE: sum(RCN_BREAK.BREAK_VALUE),
+      OLDEST_AGE_DAYS: max(RCN_BREAK.AGE_DAYS),
+      LATEST_COB_DATE: max(RCN_BREAK.COB_DATE)
+   )
+
+   // ---------------------------------------------------------- joins, inside the project
+
+   Join Rcn_DefinitionToleranceRules(RCN_DEFINITION.RECON_CODE = RCN_TOLERANCE_RULE.RECON_CODE)
+   Join Rcn_DefinitionAgeingBands(RCN_DEFINITION.RECON_CODE = RCN_AGEING_BAND.RECON_CODE)
+   Join Rcn_DefinitionRuns(RCN_DEFINITION.RECON_CODE = RCN_RUN.RECON_CODE)
+
+   // Three columns, because a run is keyed by three.
+   Join Rcn_RunLines(RCN_RUN.RECON_CODE = RCN_LINE.RECON_CODE and RCN_RUN.COB_DATE = RCN_LINE.COB_DATE and RCN_RUN.RUN_SEQ = RCN_LINE.RUN_SEQ)
+   Join Rcn_RunItems(RCN_RUN.RECON_CODE = RCN_ITEM.RECON_CODE and RCN_RUN.COB_DATE = RCN_ITEM.COB_DATE and RCN_RUN.RUN_SEQ = RCN_ITEM.RUN_SEQ)
+
+   // FIVE columns: the line's whole key. This is the one-to-many that the depot creates --
+   // one line, one item per depot.
+   Join Rcn_LineItems(RCN_LINE.RECON_CODE = RCN_ITEM.RECON_CODE and RCN_LINE.COB_DATE = RCN_ITEM.COB_DATE and RCN_LINE.INSTITUTION_ID = RCN_ITEM.INSTITUTION_ID and RCN_LINE.ACCOUNT_NO = RCN_ITEM.ACCOUNT_NO and RCN_LINE.INSTRUMENT_ID = RCN_ITEM.INSTRUMENT_ID)
+
+   // SIX columns, because an item is keyed by six.
+   Join Rcn_ItemBreaks(RCN_ITEM.RECON_CODE = RCN_BREAK.RECON_CODE and RCN_ITEM.COB_DATE = RCN_BREAK.COB_DATE and RCN_ITEM.INSTITUTION_ID = RCN_BREAK.INSTITUTION_ID and RCN_ITEM.ACCOUNT_NO = RCN_BREAK.ACCOUNT_NO and RCN_ITEM.INSTRUMENT_ID = RCN_BREAK.INSTRUMENT_ID and RCN_ITEM.DEPOT_CODE = RCN_BREAK.DEPOT_CODE)
+
+   // Three columns into the tolerance rule: the reconciliation plus the scope-and-code
+   // pair the run actually applied.
+   Join Rcn_ItemToleranceRule(RCN_ITEM.RECON_CODE = RCN_TOLERANCE_RULE.RECON_CODE and RCN_ITEM.TOLERANCE_SCOPE = RCN_TOLERANCE_RULE.RULE_SCOPE and RCN_ITEM.TOLERANCE_CODE = RCN_TOLERANCE_RULE.RULE_CODE)
+
+   // Break workflow, on the minted reference rather than the seven-column key.
+   Join Rcn_BreakAssignments(RCN_BREAK.RECON_CODE = RCN_BREAK_ASSIGNMENT.RECON_CODE and RCN_BREAK.BREAK_REF = RCN_BREAK_ASSIGNMENT.BREAK_REF)
+   Join Rcn_BreakResolution(RCN_BREAK.RECON_CODE = RCN_BREAK_RESOLUTION.RECON_CODE and RCN_BREAK.BREAK_REF = RCN_BREAK_RESOLUTION.BREAK_REF)
+   Join Rcn_BreakAgeingBand(RCN_BREAK.RECON_CODE = RCN_AGEING_BAND.RECON_CODE and RCN_BREAK.AGEING_BAND_CODE = RCN_AGEING_BAND.BAND_CODE)
+
+   // Joins INTO the aggregations. Each one crosses from rows to groups.
+   Join Rcn_LineDepotRollup(RCN_LINE.RECON_CODE = RCN_DEPOT_ROLLUP.RECON_CODE and RCN_LINE.COB_DATE = RCN_DEPOT_ROLLUP.COB_DATE and RCN_LINE.INSTITUTION_ID = RCN_DEPOT_ROLLUP.INSTITUTION_ID and RCN_LINE.ACCOUNT_NO = RCN_DEPOT_ROLLUP.ACCOUNT_NO and RCN_LINE.INSTRUMENT_ID = RCN_DEPOT_ROLLUP.INSTRUMENT_ID)
+   Join Rcn_ItemDepotRollup(RCN_ITEM.RECON_CODE = RCN_DEPOT_ROLLUP.RECON_CODE and RCN_ITEM.COB_DATE = RCN_DEPOT_ROLLUP.COB_DATE and RCN_ITEM.INSTITUTION_ID = RCN_DEPOT_ROLLUP.INSTITUTION_ID and RCN_ITEM.ACCOUNT_NO = RCN_DEPOT_ROLLUP.ACCOUNT_NO and RCN_ITEM.INSTRUMENT_ID = RCN_DEPOT_ROLLUP.INSTRUMENT_ID)
+   Join Rcn_LineAccountTotal(RCN_LINE.RECON_CODE = RCN_ACCOUNT_TOTAL.RECON_CODE and RCN_LINE.COB_DATE = RCN_ACCOUNT_TOTAL.COB_DATE and RCN_LINE.INSTITUTION_ID = RCN_ACCOUNT_TOTAL.INSTITUTION_ID and RCN_LINE.ACCOUNT_NO = RCN_ACCOUNT_TOTAL.ACCOUNT_NO)
+   Join Rcn_BreakTypeTotal(RCN_BREAK.RECON_CODE = RCN_BREAK_TYPE_TOTAL.RECON_CODE and RCN_BREAK.COB_DATE = RCN_BREAK_TYPE_TOTAL.COB_DATE and RCN_BREAK.BREAK_TYPE = RCN_BREAK_TYPE_TOTAL.BREAK_TYPE)
+   Join Rcn_BreakAssigneeLoad(RCN_BREAK.RECON_CODE = RCN_ASSIGNEE_TOTAL.RECON_CODE and RCN_BREAK.ASSIGNED_TO = RCN_ASSIGNEE_TOTAL.ASSIGNED_TO)
+
+   // ---------------------------------------------------------- joins, across the boundary
+   //
+   // THE CUSTODY SIDE. Four columns, and COB_DATE is not one of them, because CST_HOLDING
+   // has no date column to match against.
+   Join Rcn_ItemHolding(RCN_ITEM.INSTITUTION_ID = CST_HOLDING.INSTITUTION_ID and RCN_ITEM.ACCOUNT_NO = CST_HOLDING.ACCOUNT_NO and RCN_ITEM.INSTRUMENT_ID = CST_HOLDING.INSTRUMENT_ID and RCN_ITEM.DEPOT_CODE = CST_HOLDING.DEPOT_CODE)
+   Join Rcn_ItemDepot(RCN_ITEM.INSTITUTION_ID = CST_DEPOT.INSTITUTION_ID and RCN_ITEM.ACCOUNT_NO = CST_DEPOT.ACCOUNT_NO and RCN_ITEM.DEPOT_CODE = CST_DEPOT.DEPOT_CODE)
+   Join Rcn_ItemPendingMovements(RCN_ITEM.INSTITUTION_ID = CST_PENDING_MOVEMENT.INSTITUTION_ID and RCN_ITEM.ACCOUNT_NO = CST_PENDING_MOVEMENT.ACCOUNT_NO and RCN_ITEM.INSTRUMENT_ID = CST_PENDING_MOVEMENT.INSTRUMENT_ID and RCN_ITEM.DEPOT_CODE = CST_PENDING_MOVEMENT.DEPOT_CODE)
+
+   // FIVE columns, and the fifth is the interesting one: the item's COB_DATE is matched
+   // against the STATEMENT_DATE of the custodian's line. The date the custody key does not
+   // have is supplied by this project and spent here.
+   Join Rcn_ItemStatementLine(RCN_ITEM.INSTITUTION_ID = CST_STATEMENT_LINE.INSTITUTION_ID and RCN_ITEM.ACCOUNT_NO = CST_STATEMENT_LINE.ACCOUNT_NO and RCN_ITEM.INSTRUMENT_ID = CST_STATEMENT_LINE.INSTRUMENT_ID and RCN_ITEM.DEPOT_CODE = CST_STATEMENT_LINE.DEPOT_CODE and RCN_ITEM.COB_DATE = CST_STATEMENT_LINE.STATEMENT_DATE)
+
+   // THE INTERNAL SIDE. Four columns, and DEPOT_CODE is not one of them, because
+   // PK_POSITION has no depot column to match against. Every item at every depot of the
+   // same account-instrument-day lands on the SAME position row; that fan-in is the
+   // reconciliation's central fact and it is visible right here in the join condition.
+   Join Rcn_ItemPosition(RCN_ITEM.INSTITUTION_ID = PK_POSITION.INSTITUTION_ID and RCN_ITEM.ACCOUNT_NO = PK_POSITION.ACCOUNT_NO and RCN_ITEM.INSTRUMENT_ID = PK_POSITION.INSTRUMENT_ID and RCN_ITEM.COB_DATE = PK_POSITION.COB_DATE)
+   Join Rcn_LinePosition(RCN_LINE.INSTITUTION_ID = PK_POSITION.INSTITUTION_ID and RCN_LINE.ACCOUNT_NO = PK_POSITION.ACCOUNT_NO and RCN_LINE.INSTRUMENT_ID = PK_POSITION.INSTRUMENT_ID and RCN_LINE.COB_DATE = PK_POSITION.COB_DATE)
+
+   // AGGREGATE TO AGGREGATE, and the cleanest statement of the whole idea: a group of
+   // custody rows, already collapsed to the position's shape, joined onto the position.
+   Join Rcn_RollupPosition(RCN_DEPOT_ROLLUP.INSTITUTION_ID = PK_POSITION.INSTITUTION_ID and RCN_DEPOT_ROLLUP.ACCOUNT_NO = PK_POSITION.ACCOUNT_NO and RCN_DEPOT_ROLLUP.INSTRUMENT_ID = PK_POSITION.INSTRUMENT_ID and RCN_DEPOT_ROLLUP.COB_DATE = PK_POSITION.COB_DATE)
+
+   // A line reaching upstream's own aggregation: the day's movements totalled at exactly
+   // the same grain. A quantity break equal to this is a timing break.
+   Join Rcn_LineMovementTotal(RCN_LINE.INSTITUTION_ID = PK_MOVEMENT_TOTAL.INSTITUTION_ID and RCN_LINE.ACCOUNT_NO = PK_MOVEMENT_TOTAL.ACCOUNT_NO and RCN_LINE.INSTRUMENT_ID = PK_MOVEMENT_TOTAL.INSTRUMENT_ID and RCN_LINE.COB_DATE = PK_MOVEMENT_TOTAL.COB_DATE)
+   Join Rcn_LineLadder(RCN_LINE.INSTITUTION_ID = PK_SETTLEMENT_LADDER.INSTITUTION_ID and RCN_LINE.ACCOUNT_NO = PK_SETTLEMENT_LADDER.ACCOUNT_NO and RCN_LINE.INSTRUMENT_ID = PK_SETTLEMENT_LADDER.INSTRUMENT_ID and RCN_LINE.COB_DATE = PK_SETTLEMENT_LADDER.COB_DATE)
+
+   // Null tests, not boolean literals: a Filter will not take `= true`.
+   Filter RcnOpenBreaks(RCN_BREAK.RESOLVED_ON is null)
+   Filter RcnUnmatchedItems(RCN_ITEM.MATCHED_ON is null)
+)

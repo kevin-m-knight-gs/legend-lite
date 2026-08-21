@@ -1,0 +1,503 @@
+###Relational
+// The pricing store.
+//
+// It INCLUDES both dependencies. product_core::Store because a priced product IS a product
+// -- the rows are the same CI_INSTRUMENT rows product-core catalogues, and this project may
+// not copy them. valuation_core::Store because the prices produced here are fed into that
+// project's valuations and adjustments, and the joins below reach them directly.
+//
+// The shape of the product side is the same overlay pattern product-core used on
+// core-instrument, one layer further out:
+//
+//    CI_INSTRUMENT      core-instrument   what the market trades
+//      -> PRD_PRODUCT   product-core      what the firm sells
+//      -> PPR_PRODUCT_PRICING             how the firm prices it
+//
+// Both overlays hang off CI_INSTRUMENT and not off each other, because the main table of
+// every set below [ciBase] is CI_INSTRUMENT -- which is what product-core's MANIFEST tells
+// a downstream project that maps its own table to do. So Ppr_PricingInstrument joins
+// CI_INSTRUMENT to PPR_PRODUCT_PRICING, and every pricing property mapping is written
+// through it.
+//
+// The discriminator for the six model families is MODEL_FAMILY on this project's own table,
+// NOT core-instrument's INSTRUMENT_SUBTYPE. That is deliberate: how a product is priced is
+// not a property of the instrument, it is a decision the pricing desk made, and it can be
+// changed without touching a row reference data owns. It also means this project takes no
+// new INSTRUMENT_SUBTYPE values and cannot collide with product-core's seventeen.
+//
+// Datatypes follow valuation-core's rule, because these numbers meet its numbers:
+//   NUMERIC(20,6)  money and prices -- must reconcile exactly
+//   FLOAT/DOUBLE   rates, ratios, volatilities, greeks -- compared against a tolerance
+//   SMALLINT       counts bounded by construction; INTEGER where a path count is not
+// REAL is not used anywhere (docs/UPSTREAM_FINDINGS.md F53).
+Database product_pricing::Store
+(
+   include product_core::Store
+   include valuation_core::Store
+
+   // ---------------------------------------------------------------- the pricing overlay
+
+   // How each catalogued product is priced. One row per product the pricing desk owns,
+   // keyed by the instrument it is a product of -- the same key PRD_PRODUCT uses, so the
+   // three tables line up one-to-one-to-one. Wide for the same reason PRD_PRODUCT is wide:
+   // the model families differ in which columns carry meaning, not in where the row lives.
+   Table PPR_PRODUCT_PRICING
+   (
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      PRODUCT_CODE VARCHAR(40),
+      // The two discriminators. PRICING_STATUS gates the root set; MODEL_FAMILY cuts the
+      // six model-family subtypes; PAYOFF_ENGINE cuts the two concrete-payoff subtypes,
+      // which sit on a different branch of the taxonomy and so need their own column.
+      PRICING_STATUS VARCHAR(20),
+      MODEL_FAMILY VARCHAR(20),
+      PAYOFF_ENGINE VARCHAR(24),
+      MODEL_CODE VARCHAR(24),
+      PRICING_CURRENCY VARCHAR(3),
+      PRICING_DESK VARCHAR(60),
+      VALUATION_METHOD_CODE VARCHAR(10),
+      DISCOUNT_CURVE_CODE VARCHAR(24),
+      VOL_SURFACE_CODE VARCHAR(24),
+      LAST_PRICED_ON DATE,
+      MODEL_TIER SMALLINT,
+      IS_MODEL_VALIDATED BIT,
+      REVALUATION_FREQUENCY VARCHAR(20),
+      HAS_INDEPENDENT_PRICE_CHECK BIT,
+      BASE_RESERVE_BPS DOUBLE,
+
+      // analytic
+      CLOSED_FORM_NAME VARCHAR(40),
+      USES_VOL_SMILE BIT,
+      QUOTED_VOLATILITY DOUBLE,
+      ANALYTIC_DAY_COUNT VARCHAR(10),
+      HAS_ANALYTIC_GREEKS BIT,
+
+      // monte carlo
+      PATH_COUNT INTEGER,
+      TIME_STEPS_PER_YEAR INTEGER,
+      RANDOM_SEED INTEGER,
+      VARIANCE_REDUCTION VARCHAR(24),
+      PATH_STD_DEV DOUBLE,
+      IS_PATH_DEPENDENT BIT,
+
+      // lattice
+      LATTICE_TYPE VARCHAR(20),
+      TREE_STEPS INTEGER,
+      EXERCISE_STYLE VARCHAR(12),
+      YEARS_TO_EXPIRY DOUBLE,
+      HANDLES_DISCRETE_DIVIDENDS BIT,
+
+      // accrual
+      ACCRUAL_BASIS VARCHAR(10),
+      CONTRACT_RATE_PCT DOUBLE,
+      IS_FAIR_VALUE_OPTION BIT,
+      DAYS_TO_MATURITY INTEGER,
+      FUNDING_SPREAD_BPS DOUBLE,
+
+      // nav
+      NAV_SOURCE VARCHAR(60),
+      NAV_LAG_DAYS SMALLINT,
+      SWING_FACTOR_PCT DOUBLE,
+      USES_ESTIMATED_NAV BIT,
+      NAV_PER_UNIT DOUBLE,
+
+      // broker marked -- the ones nobody fully trusts
+      BROKER_COUNT SMALLINT,
+      BROKER_DISPERSION_PCT DOUBLE,
+      UNCERTAINTY_RESERVE_BPS DOUBLE,
+      ESCALATION_OWNER VARCHAR(60),
+      IS_DESK_SOURCED BIT,
+
+      // autocallable, on the yield-enhancement branch
+      OBSERVATION_COUNT SMALLINT,
+      OBSERVATION_FREQUENCY VARCHAR(12),
+      HAS_MEMORY_COUPON BIT,
+      AUTOCALL_PROBABILITY DOUBLE,
+      EXPECTED_LIFE_YEARS DOUBLE,
+      BARRIER_BREACH_PROBABILITY DOUBLE,
+      PRICING_MODEL_CODE VARCHAR(24),
+
+      // capital-protected note, on the capital-protected branch
+      ZERO_LEG_PV_PCT DOUBLE,
+      OPTION_LEG_PV_PCT DOUBLE,
+      ISSUER_FUNDING_SPREAD_BPS DOUBLE,
+      IS_PROTECTION_MODELLED BIT
+   )
+
+   // ---------------------------------------------------------------- the models
+
+   // The model inventory. One row per installed model; MODEL_KIND is the discriminator for
+   // the three subtypes, exactly as core-instrument does it on CI_INSTRUMENT.
+   Table PPR_MODEL
+   (
+      MODEL_CODE VARCHAR(24) PRIMARY KEY,
+      MODEL_NAME VARCHAR(80) NOT NULL,
+      MODEL_KIND VARCHAR(20),
+      ENGINE_NAME VARCHAR(40),
+      ENGINE_VERSION VARCHAR(16),
+      ASSET_CLASS VARCHAR(16),
+      VALUATION_METHOD_CODE VARCHAR(10),
+      OWNING_QUANT_TEAM VARCHAR(60),
+      APPROVAL_STATUS VARCHAR(20),
+      IS_PRODUCTION BIT,
+      TYPICAL_RUNTIME_MS INTEGER,
+      MODEL_RISK_TIER SMALLINT,
+
+      // analytic
+      FORMULA_NAME VARCHAR(40),
+      HAS_CLOSED_FORM_GREEKS BIT,
+      SMILE_TREATMENT VARCHAR(24),
+      VALIDATED_MONEYNESS_MAX DOUBLE,
+
+      // monte carlo
+      DEFAULT_PATH_COUNT INTEGER,
+      SUPPORTS_ANTITHETIC BIT,
+      SUPPORTS_QUASI_RANDOM BIT,
+      USES_BROWNIAN_BRIDGE BIT,
+      CONVERGENCE_TARGET_BPS DOUBLE,
+
+      // lattice
+      LATTICE_TYPE VARCHAR(20),
+      DEFAULT_STEP_COUNT INTEGER,
+      SUPPORTS_AMERICAN BIT,
+      SUPPORTS_BERMUDAN BIT,
+      DIVIDEND_TREATMENT VARCHAR(24)
+   )
+
+   // Which model prices which product subtype, and who decided. A policy table, so it is
+   // keyed by the subtype and the model rather than by a product.
+   Table PPR_MODEL_ASSIGNMENT
+   (
+      PRODUCT_SUBTYPE VARCHAR(24) PRIMARY KEY,
+      MODEL_CODE VARCHAR(24) PRIMARY KEY,
+      ASSIGNED_ON DATE,
+      ASSIGNED_BY VARCHAR(60),
+      IS_PRIMARY BIT,
+      FALLBACK_MODEL_CODE VARCHAR(24),
+      RATIONALE VARCHAR(200)
+   )
+
+   // The inputs a model will not run without.
+   Table PPR_MODEL_INPUT
+   (
+      MODEL_CODE VARCHAR(24) PRIMARY KEY,
+      INPUT_CODE VARCHAR(24) PRIMARY KEY,
+      INPUT_NAME VARCHAR(60),
+      INPUT_KIND VARCHAR(20),
+      IS_MANDATORY BIT,
+      SOURCE_REFERENCE VARCHAR(40),
+      DEFAULT_VALUE DOUBLE,
+      UNIT_OF_MEASURE VARCHAR(16)
+   )
+
+   // ---------------------------------------------------------------- the market inputs
+
+   // Volatility surfaces, one row per surface.
+   Table PPR_VOL_SURFACE
+   (
+      SURFACE_CODE VARCHAR(24) PRIMARY KEY,
+      UNDERLYING_CODE VARCHAR(40),
+      SURFACE_TYPE VARCHAR(20),
+      QUOTE_CONVENTION VARCHAR(20),
+      AS_OF_DATE DATE,
+      ATM_VOLATILITY DOUBLE,
+      SKEW_25_DELTA DOUBLE,
+      IS_ARBITRAGE_FREE BIT,
+      INTERPOLATION VARCHAR(20),
+      POINT_COUNT SMALLINT
+   )
+
+   // The quoted points on them. The strike axis is keyed by a BUCKET rather than by the
+   // percentage: a floating-point primary key is a key that never matches twice.
+   Table PPR_VOL_POINT
+   (
+      SURFACE_CODE VARCHAR(24) PRIMARY KEY,
+      EXPIRY_TENOR VARCHAR(8) PRIMARY KEY,
+      STRIKE_BUCKET VARCHAR(8) PRIMARY KEY,
+      STRIKE_PCT DOUBLE,
+      IMPLIED_VOLATILITY DOUBLE,
+      BID_VOLATILITY DOUBLE,
+      ASK_VOLATILITY DOUBLE,
+      IS_INTERPOLATED BIT,
+      QUOTE_COUNT SMALLINT
+   )
+
+   // Discount curves.
+   Table PPR_DISCOUNT_CURVE
+   (
+      CURVE_CODE VARCHAR(24) PRIMARY KEY,
+      CURVE_NAME VARCHAR(60),
+      CURRENCY_CODE CHAR(3),
+      CURVE_TYPE VARCHAR(20),
+      AS_OF_DATE DATE,
+      INTERPOLATION VARCHAR(20),
+      IS_COLLATERALISED BIT,
+      COLLATERAL_CURRENCY CHAR(3),
+      NODE_COUNT SMALLINT
+   )
+
+   // Their pillars.
+   Table PPR_CURVE_POINT
+   (
+      CURVE_CODE VARCHAR(24) PRIMARY KEY,
+      TENOR_CODE VARCHAR(8) PRIMARY KEY,
+      TENOR_DAYS INTEGER,
+      ZERO_RATE DOUBLE,
+      DISCOUNT_FACTOR DOUBLE,
+      FORWARD_RATE DOUBLE,
+      IS_PILLAR BIT
+   )
+
+   // Correlations, keyed by the matrix and the ordered pair.
+   Table PPR_CORRELATION
+   (
+      MATRIX_CODE VARCHAR(24) PRIMARY KEY,
+      UNDERLYING_ONE VARCHAR(40) PRIMARY KEY,
+      UNDERLYING_TWO VARCHAR(40) PRIMARY KEY,
+      CORRELATION_VALUE DOUBLE,
+      ESTIMATION_WINDOW_DAYS INTEGER,
+      ESTIMATION_METHOD VARCHAR(24),
+      IS_STRESSED BIT,
+      AS_OF_DATE DATE
+   )
+
+   // Dividend forecasts, keyed by underlying and ex-date -- the date is the point.
+   Table PPR_DIVIDEND
+   (
+      UNDERLYING_CODE VARCHAR(40) PRIMARY KEY,
+      EX_DATE DATE PRIMARY KEY,
+      DIVIDEND_AMOUNT DOUBLE,
+      DIVIDEND_CURRENCY CHAR(3),
+      IS_FORECAST BIT,
+      FORECAST_SOURCE VARCHAR(40),
+      DIVIDEND_YIELD DOUBLE,
+      IS_SPECIAL BIT
+   )
+
+   // ---------------------------------------------------------------- calibration
+
+   // One calibration of one model on one date.
+   Table PPR_CALIBRATION
+   (
+      MODEL_CODE VARCHAR(24) PRIMARY KEY,
+      CALIBRATION_DATE DATE PRIMARY KEY,
+      CALIBRATION_TYPE VARCHAR(20),
+      TARGET_COUNT SMALLINT,
+      ITERATION_COUNT SMALLINT,
+      RMS_ERROR DOUBLE,
+      MAX_ABSOLUTE_ERROR DOUBLE,
+      HAS_CONVERGED BIT,
+      SOLVER_NAME VARCHAR(40),
+      RUN_SECONDS DOUBLE,
+      CALIBRATED_BY VARCHAR(60),
+      SURFACE_CODE VARCHAR(24),
+      CURVE_CODE VARCHAR(24)
+   )
+
+   // The basket it was fitted to, one row per target instrument.
+   Table PPR_CALIBRATION_TARGET
+   (
+      MODEL_CODE VARCHAR(24) PRIMARY KEY,
+      CALIBRATION_DATE DATE PRIMARY KEY,
+      TARGET_SEQ SMALLINT PRIMARY KEY,
+      TARGET_INSTRUMENT VARCHAR(60),
+      TARGET_TENOR VARCHAR(8),
+      MARKET_QUOTE DOUBLE,
+      MODEL_QUOTE DOUBLE,
+      TARGET_WEIGHT DOUBLE,
+      IS_EXCLUDED BIT,
+      EXCLUSION_REASON VARCHAR(80)
+   )
+
+   // ---------------------------------------------------------------- what runs produce
+
+   // One pricing batch.
+   Table PPR_PRICING_RUN
+   (
+      RUN_ID VARCHAR(20) PRIMARY KEY,
+      VALUATION_RUN_ID VARCHAR(20),
+      COB_DATE DATE,
+      RUN_TYPE VARCHAR(12),
+      STATUS VARCHAR(10),
+      PRODUCT_COUNT SMALLINT,
+      FAILED_COUNT SMALLINT,
+      REPORTING_CCY CHAR(3),
+      STARTED_AT TIMESTAMP,
+      IS_SIGNED_OFF BIT
+   )
+
+   // The price itself. Prices are NUMERIC because they must reconcile against
+   // valuation-core's; FX_RATE is FLOAT because it lands on the Float[1] argument of
+   // core_fx::convert, three projects down.
+   Table PPR_PRODUCT_PRICE
+   (
+      RUN_ID VARCHAR(20) PRIMARY KEY,
+      PRODUCT_CODE VARCHAR(40) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(60),
+      VALUATION_RUN_ID VARCHAR(20),
+      COB_DATE DATE,
+      MODEL_CODE VARCHAR(24),
+      CLEAN_MODEL_PRICE NUMERIC(20,6),
+      ACCRUED_INTEREST NUMERIC(20,6),
+      QUANTITY NUMERIC(20,6),
+      MARKET_PRICE NUMERIC(20,6),
+      FX_RATE FLOAT,
+      PRICING_CCY CHAR(3),
+      REPORTING_CCY CHAR(3),
+      CONFIDENCE_PCT DOUBLE,
+      TOLERANCE_PCT FLOAT,
+      IS_MODEL_PRICE BIT,
+      PRICE_STATUS VARCHAR(16)
+   )
+
+   // The standard first-order greek block, one row per priced product.
+   Table PPR_GREEK_PROFILE
+   (
+      RUN_ID VARCHAR(20) PRIMARY KEY,
+      PRODUCT_CODE VARCHAR(40) PRIMARY KEY,
+      DELTA DOUBLE,
+      GAMMA DOUBLE,
+      VEGA DOUBLE,
+      THETA DOUBLE,
+      RHO DOUBLE,
+      SPOT_LEVEL DOUBLE,
+      QUANTITY NUMERIC(20,6),
+      GREEK_METHOD VARCHAR(16),
+      BUMP_SIZE_BPS DOUBLE,
+      IS_COMPLETE BIT
+   )
+
+   // The sensitivities outside that block, one row each -- they differ by product and so
+   // cannot be columns.
+   Table PPR_GREEK
+   (
+      RUN_ID VARCHAR(20) PRIMARY KEY,
+      PRODUCT_CODE VARCHAR(40) PRIMARY KEY,
+      GREEK_CODE VARCHAR(16) PRIMARY KEY,
+      GREEK_NAME VARCHAR(40),
+      GREEK_ORDER SMALLINT,
+      GREEK_VALUE DOUBLE,
+      GREEK_UNIT VARCHAR(20),
+      SHOCK_SIZE DOUBLE,
+      IS_CROSS_GREEK BIT,
+      IS_STABLE BIT
+   )
+
+   // ---------------------------------------------------------------- model risk
+
+   // Reserves stack, so the type is part of the key.
+   Table PPR_MODEL_RESERVE
+   (
+      RUN_ID VARCHAR(20) PRIMARY KEY,
+      PRODUCT_CODE VARCHAR(40) PRIMARY KEY,
+      RESERVE_TYPE VARCHAR(24) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(60),
+      VALUATION_RUN_ID VARCHAR(20),
+      ADJUSTMENT_SEQ SMALLINT,
+      RESERVE_BPS DOUBLE,
+      RESERVE_AMOUNT NUMERIC(20,6),
+      BASE_VALUE NUMERIC(20,6),
+      FX_RATE FLOAT,
+      METHODOLOGY VARCHAR(60),
+      APPROVED_BY VARCHAR(60),
+      IS_RELEASED BIT,
+      RATIONALE VARCHAR(200)
+   )
+
+   // Validation reviews, keyed by model and review date.
+   Table PPR_MODEL_VALIDATION
+   (
+      MODEL_CODE VARCHAR(24) PRIMARY KEY,
+      REVIEW_DATE DATE PRIMARY KEY,
+      VALIDATOR VARCHAR(60),
+      OUTCOME VARCHAR(20),
+      FINDINGS_COUNT SMALLINT,
+      SEVERITY SMALLINT,
+      NEXT_REVIEW_DATE DATE,
+      IS_CONDITIONAL BIT,
+      CONDITIONS VARCHAR(300)
+   )
+
+   // Known limitations, keyed by model and limitation code.
+   Table PPR_MODEL_LIMITATION
+   (
+      MODEL_CODE VARCHAR(24) PRIMARY KEY,
+      LIMITATION_CODE VARCHAR(24) PRIMARY KEY,
+      LIMITATION_DESCRIPTION VARCHAR(300),
+      IMPACT_AREA VARCHAR(40),
+      MATERIALITY VARCHAR(12),
+      RESERVE_TYPE VARCHAR(24),
+      IS_MITIGATED BIT,
+      MITIGATION VARCHAR(200),
+      RAISED_ON DATE
+   )
+
+   // ---------------------------------------------------------------- joins
+   // Every join condition is on ONE line: the corpus reader refuses a wrapped one.
+
+   // The overlay join. It starts at CI_INSTRUMENT and not at PRD_PRODUCT because the main
+   // table of every set below [ciBase] is CI_INSTRUMENT -- which is what product-core's
+   // MANIFEST instructs a downstream project that maps its own table to do.
+   Join Ppr_PricingInstrument(CI_INSTRUMENT.INSTRUMENT_ID = PPR_PRODUCT_PRICING.INSTRUMENT_ID)
+   // A priced product to the model that prices it.
+   Join Ppr_PricingModel(PPR_PRODUCT_PRICING.MODEL_CODE = PPR_MODEL.MODEL_CODE)
+   // A priced product to the curve it discounts on.
+   Join Ppr_PricingCurve(PPR_PRODUCT_PRICING.DISCOUNT_CURVE_CODE = PPR_DISCOUNT_CURVE.CURVE_CODE)
+   // A priced product to every price it has been given.
+   Join Ppr_PricingProductPrice(PPR_PRODUCT_PRICING.PRODUCT_CODE = PPR_PRODUCT_PRICE.PRODUCT_CODE)
+
+   // ---- into valuation-core ----
+   // A model to the valuation method it reports under, so the tolerance is that project's.
+   Join Ppr_ModelValuationMethod(PPR_MODEL.VALUATION_METHOD_CODE = VC_VALUATION_METHOD.METHOD_CODE)
+   // A pricing run to the valuation run it feeds.
+   Join Ppr_RunValuationRun(PPR_PRICING_RUN.VALUATION_RUN_ID = VC_VALUATION_RUN.RUN_ID)
+   // A price to the valuation it fed, on valuation-core's full three-column key. Matching
+   // on fewer columns would fan one price across every run of the day.
+   Join Ppr_PriceValuation(PPR_PRODUCT_PRICE.VALUATION_RUN_ID = VC_VALUATION.RUN_ID and PPR_PRODUCT_PRICE.INSTRUMENT_ID = VC_VALUATION.INSTRUMENT_ID and PPR_PRODUCT_PRICE.COB_DATE = VC_VALUATION.COB_DATE)
+   // A reserve to the mark adjustment it was booked as, on that project's full key.
+   Join Ppr_ReserveAdjustment(PPR_MODEL_RESERVE.VALUATION_RUN_ID = VC_MARK_ADJUSTMENT.RUN_ID and PPR_MODEL_RESERVE.INSTRUMENT_ID = VC_MARK_ADJUSTMENT.INSTRUMENT_ID and PPR_MODEL_RESERVE.ADJUSTMENT_SEQ = VC_MARK_ADJUSTMENT.ADJUSTMENT_SEQ)
+
+   // ---- within this project ----
+   Join Ppr_ModelInput(PPR_MODEL.MODEL_CODE = PPR_MODEL_INPUT.MODEL_CODE)
+   Join Ppr_ModelAssignment(PPR_MODEL.MODEL_CODE = PPR_MODEL_ASSIGNMENT.MODEL_CODE)
+   Join Ppr_ModelCalibration(PPR_MODEL.MODEL_CODE = PPR_CALIBRATION.MODEL_CODE)
+   Join Ppr_ModelValidation(PPR_MODEL.MODEL_CODE = PPR_MODEL_VALIDATION.MODEL_CODE)
+   Join Ppr_ModelLimitation(PPR_MODEL.MODEL_CODE = PPR_MODEL_LIMITATION.MODEL_CODE)
+   Join Ppr_CalibrationTarget(PPR_CALIBRATION.MODEL_CODE = PPR_CALIBRATION_TARGET.MODEL_CODE and PPR_CALIBRATION.CALIBRATION_DATE = PPR_CALIBRATION_TARGET.CALIBRATION_DATE)
+   Join Ppr_CalibrationSurface(PPR_CALIBRATION.SURFACE_CODE = PPR_VOL_SURFACE.SURFACE_CODE)
+   Join Ppr_CalibrationCurve(PPR_CALIBRATION.CURVE_CODE = PPR_DISCOUNT_CURVE.CURVE_CODE)
+   Join Ppr_SurfacePoint(PPR_VOL_SURFACE.SURFACE_CODE = PPR_VOL_POINT.SURFACE_CODE)
+   Join Ppr_CurveNode(PPR_DISCOUNT_CURVE.CURVE_CODE = PPR_CURVE_POINT.CURVE_CODE)
+   Join Ppr_RunPrice(PPR_PRICING_RUN.RUN_ID = PPR_PRODUCT_PRICE.RUN_ID)
+   Join Ppr_PriceModel(PPR_PRODUCT_PRICE.MODEL_CODE = PPR_MODEL.MODEL_CODE)
+   Join Ppr_PriceGreekProfile(PPR_PRODUCT_PRICE.RUN_ID = PPR_GREEK_PROFILE.RUN_ID and PPR_PRODUCT_PRICE.PRODUCT_CODE = PPR_GREEK_PROFILE.PRODUCT_CODE)
+   Join Ppr_PriceGreek(PPR_PRODUCT_PRICE.RUN_ID = PPR_GREEK.RUN_ID and PPR_PRODUCT_PRICE.PRODUCT_CODE = PPR_GREEK.PRODUCT_CODE)
+   Join Ppr_PriceReserve(PPR_PRODUCT_PRICE.RUN_ID = PPR_MODEL_RESERVE.RUN_ID and PPR_PRODUCT_PRICE.PRODUCT_CODE = PPR_MODEL_RESERVE.PRODUCT_CODE)
+
+   // ---------------------------------------------------------------- the discriminator
+   // All string comparisons: a Filter will not take a boolean literal, and `= 1` on a BIT
+   // is only used where the fact really is a flag.
+
+   // Level 0 of this project's overlay: the pricing desk owns this product at all. Reached
+   // from CI_INSTRUMENT through Ppr_PricingInstrument, which is why the root set writes
+   // `~filter [db]@Ppr_PricingInstrument | [db]PprPricedRows`.
+   Filter PprPricedRows(PPR_PRODUCT_PRICING.PRICING_STATUS = 'IN_MODEL')
+
+   // Level 1: the model family. Six values on this project's own column, so nothing here
+   // competes with core-instrument's INSTRUMENT_TYPE or product-core's INSTRUMENT_SUBTYPE.
+   Filter PprAnalyticRows(PPR_PRODUCT_PRICING.MODEL_FAMILY = 'ANALYTIC')
+   Filter PprMonteCarloRows(PPR_PRODUCT_PRICING.MODEL_FAMILY = 'MONTE_CARLO')
+   Filter PprLatticeRows(PPR_PRODUCT_PRICING.MODEL_FAMILY = 'LATTICE')
+   Filter PprAccrualRows(PPR_PRODUCT_PRICING.MODEL_FAMILY = 'ACCRUAL')
+   Filter PprNavRows(PPR_PRODUCT_PRICING.MODEL_FAMILY = 'NAV')
+   Filter PprBrokerMarkedRows(PPR_PRODUCT_PRICING.MODEL_FAMILY = 'BROKER')
+
+   // The two concrete payoffs, on their own column because those sets extend product-core's
+   // concrete sets rather than this project's root and so are on a different branch.
+   Filter PprAutocallPricedRows(PPR_PRODUCT_PRICING.PAYOFF_ENGINE = 'AUTOCALL')
+   Filter PprProtectedNotePricedRows(PPR_PRODUCT_PRICING.PAYOFF_ENGINE = 'ZERO_PLUS_OPTION')
+
+   // The model inventory's own discriminator, on PPR_MODEL and not on a product row.
+   Filter PprAnalyticModelRows(PPR_MODEL.MODEL_KIND = 'ANALYTIC')
+   Filter PprMonteCarloModelRows(PPR_MODEL.MODEL_KIND = 'MONTE_CARLO')
+   Filter PprLatticeModelRows(PPR_MODEL.MODEL_KIND = 'LATTICE')
+)

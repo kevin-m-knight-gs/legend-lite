@@ -1,21 +1,510 @@
 ###Mapping
+// The trade-lifecycle mapping.
+//
+// Every set id is named EXPLICITLY and tlc-prefixed. That is not decoration: set ids are a
+// GLOBAL namespace in Legend, and TlcAmendmentChain has trade_lifecycle::TlcAmendment on
+// BOTH of its ends, so each of its two association ends has to name a source AND a target
+// set -- [tlcAmendment, tlcAmendment], the same id twice, in both directions. Only the
+// direction of travel over @Tlc_SupersededBy distinguishes `supersedes` from
+// `supersededBy`.
+//
+// The two upstream mappings are included so the cross-project association ends can name
+// their far set ids. Those ids come from the dependencies' MANIFESTs rather than from a
+// guess: trade-capture names all of its sets explicitly, so `tcTrade` is the id and
+// `trade_capture_Trade` does not exist; event-core's root set is `evtBase`, likewise the
+// only id there is.
+//
+// The seven EnumerationMappings are the only place the physical code strings live. Each
+// accepts a short code and the spelled-out form, because the confirmation feeds send one
+// and the back office sends the other.
 Mapping trade_lifecycle::Mapping
 (
    include trade_capture::Mapping
    include event_core::Mapping
 
+   // ---- Enumeration mappings ----
+
+   trade_lifecycle::TlcAmendmentType: EnumerationMapping TlcAmendmentTypeMapping
+   {
+      ECONOMIC_AMENDMENT:     ['AMND', 'ECONOMIC_AMENDMENT'],
+      NON_ECONOMIC_AMENDMENT: ['NAMD', 'NON_ECONOMIC_AMENDMENT'],
+      NOVATION:               ['NOVA', 'NOVATION'],
+      PARTIAL_TERMINATION:    ['PTRM', 'PARTIAL_TERMINATION'],
+      FULL_TERMINATION:       ['FTRM', 'FULL_TERMINATION'],
+      COMPRESSION:            ['CMPR', 'COMPRESSION'],
+      UNWIND:                 ['UNWD', 'UNWIND'],
+      EXERCISE:               ['EXER', 'EXERCISE'],
+      EXPIRY:                 ['EXPI', 'EXPIRY'],
+      RATE_RESET:             ['RSET', 'RATE_RESET'],
+      CORPORATE_ACTION:       ['CACT', 'CORPORATE_ACTION'],
+      RESTRUCTURING:          ['RSTR', 'RESTRUCTURING'],
+      CORRECTION:             ['CORR', 'CORRECTION']
+   }
+
+   trade_lifecycle::TlcAmendmentStatus: EnumerationMapping TlcAmendmentStatusMapping
+   {
+      DRAFT:            ['DRFT', 'DRAFT'],
+      PENDING_APPROVAL: ['PAPP', 'PENDING_APPROVAL'],
+      APPROVED:         ['APPR', 'APPROVED'],
+      APPLIED:          ['APLD', 'APPLIED'],
+      SUPERSEDED:       ['SUPD', 'SUPERSEDED'],
+      REJECTED:         ['REJT', 'REJECTED'],
+      WITHDRAWN:        ['WDRN', 'WITHDRAWN']
+   }
+
+   trade_lifecycle::TlcConsentStatus: EnumerationMapping TlcConsentStatusMapping
+   {
+      REQUESTED: ['REQ', 'REQUESTED'],
+      GRANTED:   ['GRT', 'GRANTED'],
+      REFUSED:   ['REF', 'REFUSED'],
+      DEEMED:    ['DEM', 'DEEMED'],
+      LAPSED:    ['LPS', 'LAPSED']
+   }
+
+   trade_lifecycle::TlcTerminationReason: EnumerationMapping TlcTerminationReasonMapping
+   {
+      MUTUAL_AGREEMENT:       ['MUTL', 'MUTUAL_AGREEMENT'],
+      COUNTERPARTY_DEFAULT:   ['DFLT', 'COUNTERPARTY_DEFAULT'],
+      CREDIT_EVENT:           ['CRED', 'CREDIT_EVENT'],
+      REGULATORY_REQUIREMENT: ['REGL', 'REGULATORY_REQUIREMENT'],
+      PORTFOLIO_COMPRESSION:  ['COMP', 'PORTFOLIO_COMPRESSION'],
+      OPTIONAL_BREAK:         ['BREK', 'OPTIONAL_BREAK'],
+      ERROR_CORRECTION:       ['ERRC', 'ERROR_CORRECTION']
+   }
+
+   trade_lifecycle::TlcCompressionMethod: EnumerationMapping TlcCompressionMethodMapping
+   {
+      BILATERAL:                ['BILT', 'BILATERAL'],
+      MULTILATERAL:             ['MULT', 'MULTILATERAL'],
+      PORTFOLIO_RECONCILIATION: ['PREC', 'PORTFOLIO_RECONCILIATION'],
+      RISK_CONSTRAINED:         ['RISK', 'RISK_CONSTRAINED'],
+      COUPON_BLENDING:          ['CPBL', 'COUPON_BLENDING']
+   }
+
+   trade_lifecycle::TlcNotificationChannel: EnumerationMapping TlcNotificationChannelMapping
+   {
+      SWIFT:         ['SWFT', 'SWIFT'],
+      FPML:          ['FPML', 'FPML'],
+      EMAIL:         ['MAIL', 'EMAIL'],
+      CLIENT_PORTAL: ['PRTL', 'CLIENT_PORTAL'],
+      FAX:           ['FAX', 'FAX'],
+      PHONE:         ['PHON', 'PHONE']
+   }
+
+   trade_lifecycle::TlcWorkflowState: EnumerationMapping TlcWorkflowStateMapping
+   {
+      OPEN:        ['OPEN', 'OPEN'],
+      IN_PROGRESS: ['PROG', 'IN_PROGRESS'],
+      BLOCKED:     ['BLKD', 'BLOCKED'],
+      COMPLETED:   ['COMP', 'COMPLETED'],
+      CANCELLED:   ['CANC', 'CANCELLED']
+   }
+
+   // ---- Class mappings ----
+
+   // The recursive set. Both ends of TlcAmendmentChain point at this one id, in both
+   // directions. The derived properties (isCurrentVersion, isChainRoot, isLive) are NOT
+   // mapped -- they are computed from the chain itself.
    *trade_lifecycle::TlcAmendment[tlcAmendment]: Relational
    {
       ~primaryKey ( [trade_lifecycle::Store]TLC_AMENDMENT.AMENDMENT_ID )
       ~mainTable [trade_lifecycle::Store]TLC_AMENDMENT
-      amendmentId: [trade_lifecycle::Store]TLC_AMENDMENT.AMENDMENT_ID
+      amendmentId: [trade_lifecycle::Store]TLC_AMENDMENT.AMENDMENT_ID,
+      supersedesId: [trade_lifecycle::Store]TLC_AMENDMENT.SUPERSEDES_ID,
+      amendmentType: EnumerationMapping TlcAmendmentTypeMapping: [trade_lifecycle::Store]TLC_AMENDMENT.AMENDMENT_TYPE,
+      status: EnumerationMapping TlcAmendmentStatusMapping: [trade_lifecycle::Store]TLC_AMENDMENT.AMENDMENT_STATUS,
+      versionNumber: [trade_lifecycle::Store]TLC_AMENDMENT.VERSION_NUMBER,
+      effectiveDate: [trade_lifecycle::Store]TLC_AMENDMENT.EFFECTIVE_DATE,
+      requestedAt: [trade_lifecycle::Store]TLC_AMENDMENT.REQUESTED_AT,
+      appliedAt: [trade_lifecycle::Store]TLC_AMENDMENT.APPLIED_AT,
+      requestedBy: [trade_lifecycle::Store]TLC_AMENDMENT.REQUESTED_BY,
+      approvedBy: [trade_lifecycle::Store]TLC_AMENDMENT.APPROVED_BY,
+      isEconomic: [trade_lifecycle::Store]TLC_AMENDMENT.IS_ECONOMIC,
+      isClientInitiated: [trade_lifecycle::Store]TLC_AMENDMENT.IS_CLIENT_INITIATED,
+      withdrawnOn: [trade_lifecycle::Store]TLC_AMENDMENT.WITHDRAWN_ON,
+      externalReference: [trade_lifecycle::Store]TLC_AMENDMENT.EXTERNAL_REFERENCE,
+      narrative: [trade_lifecycle::Store]TLC_AMENDMENT.NARRATIVE
    }
 
-   trade_lifecycle::TlcReorgEvent[tlcReorgEvent] extends [evtBase]: Relational
+   *trade_lifecycle::TlcAmendmentDetail[tlcAmendmentDetail]: Relational
    {
-      ~filter [trade_lifecycle::Store]TlcReorgEventRows
-      exchangeRatio: [event_core::Store]EVT_CORPORATE_EVENT.SHARE_EXCHANGE_RATIO
+      ~primaryKey ( [trade_lifecycle::Store]TLC_AMENDMENT_DETAIL.DETAIL_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_AMENDMENT_DETAIL
+      detailId: [trade_lifecycle::Store]TLC_AMENDMENT_DETAIL.DETAIL_ID,
+      fieldName: [trade_lifecycle::Store]TLC_AMENDMENT_DETAIL.FIELD_NAME,
+      oldValue: [trade_lifecycle::Store]TLC_AMENDMENT_DETAIL.OLD_VALUE,
+      newValue: [trade_lifecycle::Store]TLC_AMENDMENT_DETAIL.NEW_VALUE,
+      valueType: [trade_lifecycle::Store]TLC_AMENDMENT_DETAIL.VALUE_TYPE,
+      isEconomicField: [trade_lifecycle::Store]TLC_AMENDMENT_DETAIL.IS_ECONOMIC_FIELD,
+      sequenceNumber: [trade_lifecycle::Store]TLC_AMENDMENT_DETAIL.SEQUENCE_NUMBER
    }
+
+   *trade_lifecycle::TlcAmendmentReason[tlcAmendmentReason]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_AMENDMENT_REASON.REASON_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_AMENDMENT_REASON
+      reasonId: [trade_lifecycle::Store]TLC_AMENDMENT_REASON.REASON_ID,
+      reasonCode: [trade_lifecycle::Store]TLC_AMENDMENT_REASON.REASON_CODE,
+      description: [trade_lifecycle::Store]TLC_AMENDMENT_REASON.DESCRIPTION,
+      requiresApproval: [trade_lifecycle::Store]TLC_AMENDMENT_REASON.REQUIRES_APPROVAL,
+      isReportable: [trade_lifecycle::Store]TLC_AMENDMENT_REASON.IS_REPORTABLE,
+      regulatoryCategory: [trade_lifecycle::Store]TLC_AMENDMENT_REASON.REGULATORY_CATEGORY
+   }
+
+   *trade_lifecycle::TlcAmendmentApproval[tlcAmendmentApproval]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_AMENDMENT_APPROVAL.APPROVAL_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_AMENDMENT_APPROVAL
+      approvalId: [trade_lifecycle::Store]TLC_AMENDMENT_APPROVAL.APPROVAL_ID,
+      approverName: [trade_lifecycle::Store]TLC_AMENDMENT_APPROVAL.APPROVER_NAME,
+      approverRole: [trade_lifecycle::Store]TLC_AMENDMENT_APPROVAL.APPROVER_ROLE,
+      approvedAt: [trade_lifecycle::Store]TLC_AMENDMENT_APPROVAL.APPROVED_AT,
+      approvalLevel: [trade_lifecycle::Store]TLC_AMENDMENT_APPROVAL.APPROVAL_LEVEL,
+      isOverride: [trade_lifecycle::Store]TLC_AMENDMENT_APPROVAL.IS_OVERRIDE,
+      comment: [trade_lifecycle::Store]TLC_AMENDMENT_APPROVAL.COMMENT_TEXT
+   }
+
+   *trade_lifecycle::TlcNovation[tlcNovation]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_NOVATION.NOVATION_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_NOVATION
+      novationId: [trade_lifecycle::Store]TLC_NOVATION.NOVATION_ID,
+      transferorReference: [trade_lifecycle::Store]TLC_NOVATION.TRANSFEROR_REFERENCE,
+      transfereeReference: [trade_lifecycle::Store]TLC_NOVATION.TRANSFEREE_REFERENCE,
+      remainingPartyReference: [trade_lifecycle::Store]TLC_NOVATION.REMAINING_PARTY_REFERENCE,
+      novationDate: [trade_lifecycle::Store]TLC_NOVATION.NOVATION_DATE,
+      novatedNotional: [trade_lifecycle::Store]TLC_NOVATION.NOVATED_NOTIONAL,
+      currency: [trade_lifecycle::Store]TLC_NOVATION.CURRENCY,
+      feeAmount: [trade_lifecycle::Store]TLC_NOVATION.FEE_AMOUNT,
+      isFullNovation: [trade_lifecycle::Store]TLC_NOVATION.IS_FULL_NOVATION,
+      agreementReference: [trade_lifecycle::Store]TLC_NOVATION.AGREEMENT_REFERENCE
+   }
+
+   *trade_lifecycle::TlcNovationConsent[tlcNovationConsent]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_NOVATION_CONSENT.CONSENT_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_NOVATION_CONSENT
+      consentId: [trade_lifecycle::Store]TLC_NOVATION_CONSENT.CONSENT_ID,
+      partyReference: [trade_lifecycle::Store]TLC_NOVATION_CONSENT.PARTY_REFERENCE,
+      partyRole: [trade_lifecycle::Store]TLC_NOVATION_CONSENT.PARTY_ROLE,
+      status: EnumerationMapping TlcConsentStatusMapping: [trade_lifecycle::Store]TLC_NOVATION_CONSENT.CONSENT_STATUS,
+      requestedAt: [trade_lifecycle::Store]TLC_NOVATION_CONSENT.REQUESTED_AT,
+      respondedAt: [trade_lifecycle::Store]TLC_NOVATION_CONSENT.RESPONDED_AT,
+      noticeDeadline: [trade_lifecycle::Store]TLC_NOVATION_CONSENT.NOTICE_DEADLINE,
+      refusalReason: [trade_lifecycle::Store]TLC_NOVATION_CONSENT.REFUSAL_REASON
+   }
+
+   *trade_lifecycle::TlcPartialTermination[tlcPartialTermination]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_PARTIAL_TERMINATION.PARTIAL_TERMINATION_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_PARTIAL_TERMINATION
+      partialTerminationId: [trade_lifecycle::Store]TLC_PARTIAL_TERMINATION.PARTIAL_TERMINATION_ID,
+      terminationDate: [trade_lifecycle::Store]TLC_PARTIAL_TERMINATION.TERMINATION_DATE,
+      originalNotional: [trade_lifecycle::Store]TLC_PARTIAL_TERMINATION.ORIGINAL_NOTIONAL,
+      reducedNotional: [trade_lifecycle::Store]TLC_PARTIAL_TERMINATION.REDUCED_NOTIONAL,
+      residualNotional: [trade_lifecycle::Store]TLC_PARTIAL_TERMINATION.RESIDUAL_NOTIONAL,
+      currency: [trade_lifecycle::Store]TLC_PARTIAL_TERMINATION.CURRENCY,
+      reason: EnumerationMapping TlcTerminationReasonMapping: [trade_lifecycle::Store]TLC_PARTIAL_TERMINATION.TERMINATION_REASON,
+      settlementAmount: [trade_lifecycle::Store]TLC_PARTIAL_TERMINATION.SETTLEMENT_AMOUNT
+   }
+
+   *trade_lifecycle::TlcTermination[tlcTermination]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_TERMINATION.TERMINATION_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_TERMINATION
+      terminationId: [trade_lifecycle::Store]TLC_TERMINATION.TERMINATION_ID,
+      terminationDate: [trade_lifecycle::Store]TLC_TERMINATION.TERMINATION_DATE,
+      effectiveDate: [trade_lifecycle::Store]TLC_TERMINATION.EFFECTIVE_DATE,
+      reason: EnumerationMapping TlcTerminationReasonMapping: [trade_lifecycle::Store]TLC_TERMINATION.TERMINATION_REASON,
+      terminationAmount: [trade_lifecycle::Store]TLC_TERMINATION.TERMINATION_AMOUNT,
+      currency: [trade_lifecycle::Store]TLC_TERMINATION.CURRENCY,
+      isEarlyTermination: [trade_lifecycle::Store]TLC_TERMINATION.IS_EARLY_TERMINATION,
+      calculationAgent: [trade_lifecycle::Store]TLC_TERMINATION.CALCULATION_AGENT,
+      noticeReference: [trade_lifecycle::Store]TLC_TERMINATION.NOTICE_REFERENCE
+   }
+
+   *trade_lifecycle::TlcCompressionCycle[tlcCompressionCycle]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_COMPRESSION_CYCLE.CYCLE_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_COMPRESSION_CYCLE
+      cycleId: [trade_lifecycle::Store]TLC_COMPRESSION_CYCLE.CYCLE_ID,
+      cycleReference: [trade_lifecycle::Store]TLC_COMPRESSION_CYCLE.CYCLE_REFERENCE,
+      runDate: [trade_lifecycle::Store]TLC_COMPRESSION_CYCLE.RUN_DATE,
+      method: EnumerationMapping TlcCompressionMethodMapping: [trade_lifecycle::Store]TLC_COMPRESSION_CYCLE.COMPRESSION_METHOD,
+      serviceProvider: [trade_lifecycle::Store]TLC_COMPRESSION_CYCLE.SERVICE_PROVIDER,
+      tradeCountBefore: [trade_lifecycle::Store]TLC_COMPRESSION_CYCLE.TRADE_COUNT_BEFORE,
+      tradeCountAfter: [trade_lifecycle::Store]TLC_COMPRESSION_CYCLE.TRADE_COUNT_AFTER,
+      notionalBefore: [trade_lifecycle::Store]TLC_COMPRESSION_CYCLE.NOTIONAL_BEFORE,
+      notionalAfter: [trade_lifecycle::Store]TLC_COMPRESSION_CYCLE.NOTIONAL_AFTER,
+      currency: [trade_lifecycle::Store]TLC_COMPRESSION_CYCLE.CURRENCY
+   }
+
+   *trade_lifecycle::TlcCompressionMember[tlcCompressionMember]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_COMPRESSION_MEMBER.MEMBER_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_COMPRESSION_MEMBER
+      memberId: [trade_lifecycle::Store]TLC_COMPRESSION_MEMBER.MEMBER_ID,
+      notionalBefore: [trade_lifecycle::Store]TLC_COMPRESSION_MEMBER.NOTIONAL_BEFORE,
+      notionalAfter: [trade_lifecycle::Store]TLC_COMPRESSION_MEMBER.NOTIONAL_AFTER,
+      outcome: [trade_lifecycle::Store]TLC_COMPRESSION_MEMBER.OUTCOME,
+      isReplacementTrade: [trade_lifecycle::Store]TLC_COMPRESSION_MEMBER.IS_REPLACEMENT_TRADE,
+      riskDelta: [trade_lifecycle::Store]TLC_COMPRESSION_MEMBER.RISK_DELTA
+   }
+
+   *trade_lifecycle::TlcUnwind[tlcUnwind]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_UNWIND.UNWIND_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_UNWIND
+      unwindId: [trade_lifecycle::Store]TLC_UNWIND.UNWIND_ID,
+      unwindDate: [trade_lifecycle::Store]TLC_UNWIND.UNWIND_DATE,
+      unwindPrice: [trade_lifecycle::Store]TLC_UNWIND.UNWIND_PRICE,
+      midPrice: [trade_lifecycle::Store]TLC_UNWIND.MID_PRICE,
+      spreadPaid: [trade_lifecycle::Store]TLC_UNWIND.SPREAD_PAID,
+      cashSettlementAmount: [trade_lifecycle::Store]TLC_UNWIND.CASH_SETTLEMENT_AMOUNT,
+      currency: [trade_lifecycle::Store]TLC_UNWIND.CURRENCY,
+      priceSource: [trade_lifecycle::Store]TLC_UNWIND.PRICE_SOURCE,
+      isNegotiated: [trade_lifecycle::Store]TLC_UNWIND.IS_NEGOTIATED
+   }
+
+   *trade_lifecycle::TlcExercise[tlcExercise]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_EXERCISE.EXERCISE_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_EXERCISE
+      exerciseId: [trade_lifecycle::Store]TLC_EXERCISE.EXERCISE_ID,
+      exerciseDate: [trade_lifecycle::Store]TLC_EXERCISE.EXERCISE_DATE,
+      exerciseStyle: [trade_lifecycle::Store]TLC_EXERCISE.EXERCISE_STYLE,
+      exercisedQuantity: [trade_lifecycle::Store]TLC_EXERCISE.EXERCISED_QUANTITY,
+      remainingQuantity: [trade_lifecycle::Store]TLC_EXERCISE.REMAINING_QUANTITY,
+      strikePrice: [trade_lifecycle::Store]TLC_EXERCISE.STRIKE_PRICE,
+      settlementMethod: [trade_lifecycle::Store]TLC_EXERCISE.SETTLEMENT_METHOD,
+      isAutomatic: [trade_lifecycle::Store]TLC_EXERCISE.IS_AUTOMATIC
+   }
+
+   *trade_lifecycle::TlcExpiry[tlcExpiry]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_EXPIRY.EXPIRY_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_EXPIRY
+      expiryId: [trade_lifecycle::Store]TLC_EXPIRY.EXPIRY_ID,
+      expiryDate: [trade_lifecycle::Store]TLC_EXPIRY.EXPIRY_DATE,
+      expiredInTheMoney: [trade_lifecycle::Store]TLC_EXPIRY.EXPIRED_IN_THE_MONEY,
+      finalReferencePrice: [trade_lifecycle::Store]TLC_EXPIRY.FINAL_REFERENCE_PRICE,
+      payoutAmount: [trade_lifecycle::Store]TLC_EXPIRY.PAYOUT_AMOUNT,
+      currency: [trade_lifecycle::Store]TLC_EXPIRY.CURRENCY,
+      wasAutoExercised: [trade_lifecycle::Store]TLC_EXPIRY.WAS_AUTO_EXERCISED
+   }
+
+   *trade_lifecycle::TlcRateReset[tlcRateReset]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_RATE_RESET.RESET_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_RATE_RESET
+      resetId: [trade_lifecycle::Store]TLC_RATE_RESET.RESET_ID,
+      resetDate: [trade_lifecycle::Store]TLC_RATE_RESET.RESET_DATE,
+      effectiveDate: [trade_lifecycle::Store]TLC_RATE_RESET.EFFECTIVE_DATE,
+      rateIndexCode: [trade_lifecycle::Store]TLC_RATE_RESET.RATE_INDEX_CODE,
+      observedRate: [trade_lifecycle::Store]TLC_RATE_RESET.OBSERVED_RATE,
+      spread: [trade_lifecycle::Store]TLC_RATE_RESET.SPREAD,
+      allInRate: [trade_lifecycle::Store]TLC_RATE_RESET.ALL_IN_RATE,
+      fixingSource: [trade_lifecycle::Store]TLC_RATE_RESET.FIXING_SOURCE,
+      isEstimated: [trade_lifecycle::Store]TLC_RATE_RESET.IS_ESTIMATED
+   }
+
+   *trade_lifecycle::TlcLifecycleCashflow[tlcCashflow]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_LIFECYCLE_CASHFLOW.CASHFLOW_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_LIFECYCLE_CASHFLOW
+      cashflowId: [trade_lifecycle::Store]TLC_LIFECYCLE_CASHFLOW.CASHFLOW_ID,
+      cashflowType: [trade_lifecycle::Store]TLC_LIFECYCLE_CASHFLOW.CASHFLOW_TYPE,
+      amount: [trade_lifecycle::Store]TLC_LIFECYCLE_CASHFLOW.AMOUNT,
+      currency: [trade_lifecycle::Store]TLC_LIFECYCLE_CASHFLOW.CURRENCY,
+      valueDate: [trade_lifecycle::Store]TLC_LIFECYCLE_CASHFLOW.VALUE_DATE,
+      payerReference: [trade_lifecycle::Store]TLC_LIFECYCLE_CASHFLOW.PAYER_REFERENCE,
+      receiverReference: [trade_lifecycle::Store]TLC_LIFECYCLE_CASHFLOW.RECEIVER_REFERENCE,
+      isSettled: [trade_lifecycle::Store]TLC_LIFECYCLE_CASHFLOW.IS_SETTLED,
+      settledOn: [trade_lifecycle::Store]TLC_LIFECYCLE_CASHFLOW.SETTLED_ON
+   }
+
+   *trade_lifecycle::TlcCorporateActionImpact[tlcCorporateActionImpact]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_CORPORATE_ACTION_IMPACT.IMPACT_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_CORPORATE_ACTION_IMPACT
+      impactId: [trade_lifecycle::Store]TLC_CORPORATE_ACTION_IMPACT.IMPACT_ID,
+      adjustmentFactor: [trade_lifecycle::Store]TLC_CORPORATE_ACTION_IMPACT.ADJUSTMENT_FACTOR,
+      originalQuantity: [trade_lifecycle::Store]TLC_CORPORATE_ACTION_IMPACT.ORIGINAL_QUANTITY,
+      adjustedQuantity: [trade_lifecycle::Store]TLC_CORPORATE_ACTION_IMPACT.ADJUSTED_QUANTITY,
+      originalStrike: [trade_lifecycle::Store]TLC_CORPORATE_ACTION_IMPACT.ORIGINAL_STRIKE,
+      adjustedStrike: [trade_lifecycle::Store]TLC_CORPORATE_ACTION_IMPACT.ADJUSTED_STRIKE,
+      cashCompensation: [trade_lifecycle::Store]TLC_CORPORATE_ACTION_IMPACT.CASH_COMPENSATION,
+      currency: [trade_lifecycle::Store]TLC_CORPORATE_ACTION_IMPACT.CURRENCY,
+      adjustmentMethod: [trade_lifecycle::Store]TLC_CORPORATE_ACTION_IMPACT.ADJUSTMENT_METHOD,
+      isMandatory: [trade_lifecycle::Store]TLC_CORPORATE_ACTION_IMPACT.IS_MANDATORY,
+      appliedOn: [trade_lifecycle::Store]TLC_CORPORATE_ACTION_IMPACT.APPLIED_ON
+   }
+
+   *trade_lifecycle::TlcEventNotification[tlcNotification]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_EVENT_NOTIFICATION.NOTIFICATION_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_EVENT_NOTIFICATION
+      notificationId: [trade_lifecycle::Store]TLC_EVENT_NOTIFICATION.NOTIFICATION_ID,
+      channel: EnumerationMapping TlcNotificationChannelMapping: [trade_lifecycle::Store]TLC_EVENT_NOTIFICATION.NOTIFICATION_CHANNEL,
+      recipientReference: [trade_lifecycle::Store]TLC_EVENT_NOTIFICATION.RECIPIENT_REFERENCE,
+      sentAt: [trade_lifecycle::Store]TLC_EVENT_NOTIFICATION.SENT_AT,
+      acknowledgedAt: [trade_lifecycle::Store]TLC_EVENT_NOTIFICATION.ACKNOWLEDGED_AT,
+      messageReference: [trade_lifecycle::Store]TLC_EVENT_NOTIFICATION.MESSAGE_REFERENCE,
+      deliveryStatus: [trade_lifecycle::Store]TLC_EVENT_NOTIFICATION.DELIVERY_STATUS,
+      retryCount: [trade_lifecycle::Store]TLC_EVENT_NOTIFICATION.RETRY_COUNT
+   }
+
+   *trade_lifecycle::TlcLifecycleWorkflow[tlcWorkflow]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_WORKFLOW.WORKFLOW_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_WORKFLOW
+      workflowId: [trade_lifecycle::Store]TLC_WORKFLOW.WORKFLOW_ID,
+      workflowType: [trade_lifecycle::Store]TLC_WORKFLOW.WORKFLOW_TYPE,
+      state: EnumerationMapping TlcWorkflowStateMapping: [trade_lifecycle::Store]TLC_WORKFLOW.WORKFLOW_STATE,
+      openedAt: [trade_lifecycle::Store]TLC_WORKFLOW.OPENED_AT,
+      completedOn: [trade_lifecycle::Store]TLC_WORKFLOW.COMPLETED_ON,
+      assignedTeam: [trade_lifecycle::Store]TLC_WORKFLOW.ASSIGNED_TEAM,
+      slaHours: [trade_lifecycle::Store]TLC_WORKFLOW.SLA_HOURS,
+      isBreached: [trade_lifecycle::Store]TLC_WORKFLOW.IS_BREACHED
+   }
+
+   *trade_lifecycle::TlcWorkflowStep[tlcWorkflowStep]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_WORKFLOW_STEP.STEP_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_WORKFLOW_STEP
+      stepId: [trade_lifecycle::Store]TLC_WORKFLOW_STEP.STEP_ID,
+      stepName: [trade_lifecycle::Store]TLC_WORKFLOW_STEP.STEP_NAME,
+      sequenceNumber: [trade_lifecycle::Store]TLC_WORKFLOW_STEP.SEQUENCE_NUMBER,
+      state: EnumerationMapping TlcWorkflowStateMapping: [trade_lifecycle::Store]TLC_WORKFLOW_STEP.WORKFLOW_STATE,
+      startedAt: [trade_lifecycle::Store]TLC_WORKFLOW_STEP.STARTED_AT,
+      completedAt: [trade_lifecycle::Store]TLC_WORKFLOW_STEP.COMPLETED_AT,
+      performedBy: [trade_lifecycle::Store]TLC_WORKFLOW_STEP.PERFORMED_BY,
+      isMandatory: [trade_lifecycle::Store]TLC_WORKFLOW_STEP.IS_MANDATORY
+   }
+
+   *trade_lifecycle::TlcAuditEntry[tlcAuditEntry]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_AUDIT_ENTRY.AUDIT_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_AUDIT_ENTRY
+      auditId: [trade_lifecycle::Store]TLC_AUDIT_ENTRY.AUDIT_ID,
+      action: [trade_lifecycle::Store]TLC_AUDIT_ENTRY.ACTION_NAME,
+      performedBy: [trade_lifecycle::Store]TLC_AUDIT_ENTRY.PERFORMED_BY,
+      performedAt: [trade_lifecycle::Store]TLC_AUDIT_ENTRY.PERFORMED_AT,
+      fieldTouched: [trade_lifecycle::Store]TLC_AUDIT_ENTRY.FIELD_TOUCHED,
+      previousValue: [trade_lifecycle::Store]TLC_AUDIT_ENTRY.PREVIOUS_VALUE,
+      resultingValue: [trade_lifecycle::Store]TLC_AUDIT_ENTRY.RESULTING_VALUE,
+      sourceIpAddress: [trade_lifecycle::Store]TLC_AUDIT_ENTRY.SOURCE_IP_ADDRESS
+   }
+
+   *trade_lifecycle::TlcEventSource[tlcEventSource]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_EVENT_SOURCE.SOURCE_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_EVENT_SOURCE
+      sourceId: [trade_lifecycle::Store]TLC_EVENT_SOURCE.SOURCE_ID,
+      sourceCode: [trade_lifecycle::Store]TLC_EVENT_SOURCE.SOURCE_CODE,
+      sourceName: [trade_lifecycle::Store]TLC_EVENT_SOURCE.SOURCE_NAME,
+      isAutomated: [trade_lifecycle::Store]TLC_EVENT_SOURCE.IS_AUTOMATED,
+      isTrusted: [trade_lifecycle::Store]TLC_EVENT_SOURCE.IS_TRUSTED,
+      contactReference: [trade_lifecycle::Store]TLC_EVENT_SOURCE.CONTACT_REFERENCE
+   }
+
+   *trade_lifecycle::TlcSupportingDocument[tlcDocument]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_SUPPORTING_DOCUMENT.DOCUMENT_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_SUPPORTING_DOCUMENT
+      documentId: [trade_lifecycle::Store]TLC_SUPPORTING_DOCUMENT.DOCUMENT_ID,
+      documentType: [trade_lifecycle::Store]TLC_SUPPORTING_DOCUMENT.DOCUMENT_TYPE,
+      documentReference: [trade_lifecycle::Store]TLC_SUPPORTING_DOCUMENT.DOCUMENT_REFERENCE,
+      receivedOn: [trade_lifecycle::Store]TLC_SUPPORTING_DOCUMENT.RECEIVED_ON,
+      isExecuted: [trade_lifecycle::Store]TLC_SUPPORTING_DOCUMENT.IS_EXECUTED,
+      storageLocation: [trade_lifecycle::Store]TLC_SUPPORTING_DOCUMENT.STORAGE_LOCATION
+   }
+
+   *trade_lifecycle::TlcRestructuring[tlcRestructuring]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_RESTRUCTURING.RESTRUCTURING_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_RESTRUCTURING
+      restructuringId: [trade_lifecycle::Store]TLC_RESTRUCTURING.RESTRUCTURING_ID,
+      restructuringDate: [trade_lifecycle::Store]TLC_RESTRUCTURING.RESTRUCTURING_DATE,
+      creditEventType: [trade_lifecycle::Store]TLC_RESTRUCTURING.CREDIT_EVENT_TYPE,
+      successorReference: [trade_lifecycle::Store]TLC_RESTRUCTURING.SUCCESSOR_REFERENCE,
+      recoveryRate: [trade_lifecycle::Store]TLC_RESTRUCTURING.RECOVERY_RATE,
+      auctionReference: [trade_lifecycle::Store]TLC_RESTRUCTURING.AUCTION_REFERENCE,
+      isSuccessorDetermined: [trade_lifecycle::Store]TLC_RESTRUCTURING.IS_SUCCESSOR_DETERMINED
+   }
+
+   *trade_lifecycle::TlcAllocationAdjustment[tlcAllocationAdjustment]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_ALLOCATION_ADJUSTMENT.ADJUSTMENT_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_ALLOCATION_ADJUSTMENT
+      adjustmentId: [trade_lifecycle::Store]TLC_ALLOCATION_ADJUSTMENT.ADJUSTMENT_ID,
+      originalAccountReference: [trade_lifecycle::Store]TLC_ALLOCATION_ADJUSTMENT.ORIGINAL_ACCOUNT_REFERENCE,
+      newAccountReference: [trade_lifecycle::Store]TLC_ALLOCATION_ADJUSTMENT.NEW_ACCOUNT_REFERENCE,
+      adjustedQuantity: [trade_lifecycle::Store]TLC_ALLOCATION_ADJUSTMENT.ADJUSTED_QUANTITY,
+      adjustmentDate: [trade_lifecycle::Store]TLC_ALLOCATION_ADJUSTMENT.ADJUSTMENT_DATE,
+      isReportable: [trade_lifecycle::Store]TLC_ALLOCATION_ADJUSTMENT.IS_REPORTABLE,
+      reportedOn: [trade_lifecycle::Store]TLC_ALLOCATION_ADJUSTMENT.REPORTED_ON
+   }
+
+   *trade_lifecycle::TlcCorrection[tlcCorrection]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_CORRECTION.CORRECTION_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_CORRECTION
+      correctionId: [trade_lifecycle::Store]TLC_CORRECTION.CORRECTION_ID,
+      correctedAt: [trade_lifecycle::Store]TLC_CORRECTION.CORRECTED_AT,
+      originalBookedAt: [trade_lifecycle::Store]TLC_CORRECTION.ORIGINAL_BOOKED_AT,
+      correctionCategory: [trade_lifecycle::Store]TLC_CORRECTION.CORRECTION_CATEGORY,
+      wasReported: [trade_lifecycle::Store]TLC_CORRECTION.WAS_REPORTED,
+      regulatoryResubmissionRef: [trade_lifecycle::Store]TLC_CORRECTION.REGULATORY_RESUBMISSION_REF,
+      detectedBy: [trade_lifecycle::Store]TLC_CORRECTION.DETECTED_BY
+   }
+
+   *trade_lifecycle::TlcBreakFee[tlcBreakFee]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_BREAK_FEE.BREAK_FEE_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_BREAK_FEE
+      breakFeeId: [trade_lifecycle::Store]TLC_BREAK_FEE.BREAK_FEE_ID,
+      feeAmount: [trade_lifecycle::Store]TLC_BREAK_FEE.FEE_AMOUNT,
+      currency: [trade_lifecycle::Store]TLC_BREAK_FEE.CURRENCY,
+      basisPoints: [trade_lifecycle::Store]TLC_BREAK_FEE.BASIS_POINTS,
+      calculationBasis: [trade_lifecycle::Store]TLC_BREAK_FEE.CALCULATION_BASIS,
+      isWaived: [trade_lifecycle::Store]TLC_BREAK_FEE.IS_WAIVED,
+      waivedBy: [trade_lifecycle::Store]TLC_BREAK_FEE.WAIVED_BY
+   }
+
+   *trade_lifecycle::TlcVersionSnapshot[tlcVersionSnapshot]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_VERSION_SNAPSHOT.SNAPSHOT_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_VERSION_SNAPSHOT
+      snapshotId: [trade_lifecycle::Store]TLC_VERSION_SNAPSHOT.SNAPSHOT_ID,
+      versionNumber: [trade_lifecycle::Store]TLC_VERSION_SNAPSHOT.VERSION_NUMBER,
+      asOfDate: [trade_lifecycle::Store]TLC_VERSION_SNAPSHOT.AS_OF_DATE,
+      quantity: [trade_lifecycle::Store]TLC_VERSION_SNAPSHOT.QUANTITY,
+      price: [trade_lifecycle::Store]TLC_VERSION_SNAPSHOT.PRICE,
+      notional: [trade_lifecycle::Store]TLC_VERSION_SNAPSHOT.NOTIONAL,
+      currency: [trade_lifecycle::Store]TLC_VERSION_SNAPSHOT.CURRENCY,
+      counterpartyReference: [trade_lifecycle::Store]TLC_VERSION_SNAPSHOT.COUNTERPARTY_REFERENCE,
+      maturityDate: [trade_lifecycle::Store]TLC_VERSION_SNAPSHOT.MATURITY_DATE,
+      isCurrent: [trade_lifecycle::Store]TLC_VERSION_SNAPSHOT.IS_CURRENT
+   }
+
+   // ---- Association mappings ----
+
+   // THE self-join one. Both ends name [tlcAmendment, tlcAmendment] -- the same set id
+   // twice -- and only the direction of travel over @Tlc_SupersededBy tells `supersedes`
+   // from `supersededBy`.
+   trade_lifecycle::TlcAmendmentChain: Relational
+   {
+      AssociationMapping
+      (
+         supersedes[tlcAmendment, tlcAmendment]: [trade_lifecycle::Store]@Tlc_SupersededBy,
+         supersededBy[tlcAmendment, tlcAmendment]: [trade_lifecycle::Store]@Tlc_SupersededBy
+      )
+   }
+
+   // ---- Cross-project association mappings ----
+   // `tcTrade` and `evtBase` are the upstream set ids, taken from their MANIFESTs. Neither
+   // project exposes a default id, so the bare `prop: [db]@Join` form would not resolve.
 
    trade_lifecycle::TlcTradeAmendments: Relational
    {
@@ -23,6 +512,288 @@ Mapping trade_lifecycle::Mapping
       (
          amendedTrade[tlcAmendment, tcTrade]: [trade_lifecycle::Store]@Tlc_AmendmentTrade,
          lifecycleAmendments[tcTrade, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentTrade
+      )
+   }
+
+   trade_lifecycle::TlcTradeNovations: Relational
+   {
+      AssociationMapping
+      (
+         novatedTrade[tlcNovation, tcTrade]: [trade_lifecycle::Store]@Tlc_NovationTrade,
+         lifecycleNovations[tcTrade, tlcNovation]: [trade_lifecycle::Store]@Tlc_NovationTrade
+      )
+   }
+
+   trade_lifecycle::TlcTradeSnapshots: Relational
+   {
+      AssociationMapping
+      (
+         snapshotTrade[tlcVersionSnapshot, tcTrade]: [trade_lifecycle::Store]@Tlc_SnapshotTrade,
+         lifecycleSnapshots[tcTrade, tlcVersionSnapshot]: [trade_lifecycle::Store]@Tlc_SnapshotTrade
+      )
+   }
+
+   trade_lifecycle::TlcTradeCompressionMembers: Relational
+   {
+      AssociationMapping
+      (
+         compressedTrade[tlcCompressionMember, tcTrade]: [trade_lifecycle::Store]@Tlc_CompressionMemberTrade,
+         lifecycleCompressionMembers[tcTrade, tlcCompressionMember]: [trade_lifecycle::Store]@Tlc_CompressionMemberTrade
+      )
+   }
+
+   trade_lifecycle::TlcTradeCorporateActionImpacts: Relational
+   {
+      AssociationMapping
+      (
+         impactedTrade[tlcCorporateActionImpact, tcTrade]: [trade_lifecycle::Store]@Tlc_ImpactTrade,
+         lifecycleCorporateActionImpacts[tcTrade, tlcCorporateActionImpact]: [trade_lifecycle::Store]@Tlc_ImpactTrade
+      )
+   }
+
+   // The other half of the cross-dependency: into event-core's root set.
+   trade_lifecycle::TlcImpactCorporateAction: Relational
+   {
+      AssociationMapping
+      (
+         corporateAction[tlcCorporateActionImpact, evtBase]: [trade_lifecycle::Store]@Tlc_ImpactCorporateAction,
+         tradeImpacts[evtBase, tlcCorporateActionImpact]: [trade_lifecycle::Store]@Tlc_ImpactCorporateAction
+      )
+   }
+
+   // ---- Association mappings inside trade-lifecycle ----
+
+   trade_lifecycle::TlcAmendmentDetails: Relational
+   {
+      AssociationMapping
+      (
+         details[tlcAmendment, tlcAmendmentDetail]: [trade_lifecycle::Store]@Tlc_AmendmentDetail,
+         detailAmendment[tlcAmendmentDetail, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentDetail
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentReasonLink: Relational
+   {
+      AssociationMapping
+      (
+         reason[tlcAmendment, tlcAmendmentReason]: [trade_lifecycle::Store]@Tlc_AmendmentReasonLink,
+         reasonAmendments[tlcAmendmentReason, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentReasonLink
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentApprovals: Relational
+   {
+      AssociationMapping
+      (
+         approvals[tlcAmendment, tlcAmendmentApproval]: [trade_lifecycle::Store]@Tlc_AmendmentApproval,
+         approvalAmendment[tlcAmendmentApproval, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentApproval
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentNovation: Relational
+   {
+      AssociationMapping
+      (
+         novations[tlcAmendment, tlcNovation]: [trade_lifecycle::Store]@Tlc_AmendmentNovation,
+         novationAmendment[tlcNovation, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentNovation
+      )
+   }
+
+   trade_lifecycle::TlcNovationConsents: Relational
+   {
+      AssociationMapping
+      (
+         consents[tlcNovation, tlcNovationConsent]: [trade_lifecycle::Store]@Tlc_NovationConsent,
+         consentNovation[tlcNovationConsent, tlcNovation]: [trade_lifecycle::Store]@Tlc_NovationConsent
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentPartialTermination: Relational
+   {
+      AssociationMapping
+      (
+         partialTerminations[tlcAmendment, tlcPartialTermination]: [trade_lifecycle::Store]@Tlc_AmendmentPartialTermination,
+         partialTerminationAmendment[tlcPartialTermination, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentPartialTermination
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentTermination: Relational
+   {
+      AssociationMapping
+      (
+         terminations[tlcAmendment, tlcTermination]: [trade_lifecycle::Store]@Tlc_AmendmentTermination,
+         terminationAmendment[tlcTermination, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentTermination
+      )
+   }
+
+   trade_lifecycle::TlcCompressionCycleMembers: Relational
+   {
+      AssociationMapping
+      (
+         members[tlcCompressionCycle, tlcCompressionMember]: [trade_lifecycle::Store]@Tlc_CycleMember,
+         memberCycle[tlcCompressionMember, tlcCompressionCycle]: [trade_lifecycle::Store]@Tlc_CycleMember
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentCompressionMember: Relational
+   {
+      AssociationMapping
+      (
+         compressionMembers[tlcAmendment, tlcCompressionMember]: [trade_lifecycle::Store]@Tlc_AmendmentCompressionMember,
+         compressionAmendment[tlcCompressionMember, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentCompressionMember
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentUnwind: Relational
+   {
+      AssociationMapping
+      (
+         unwinds[tlcAmendment, tlcUnwind]: [trade_lifecycle::Store]@Tlc_AmendmentUnwind,
+         unwindAmendment[tlcUnwind, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentUnwind
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentExercise: Relational
+   {
+      AssociationMapping
+      (
+         exercises[tlcAmendment, tlcExercise]: [trade_lifecycle::Store]@Tlc_AmendmentExercise,
+         exerciseAmendment[tlcExercise, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentExercise
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentExpiry: Relational
+   {
+      AssociationMapping
+      (
+         expiries[tlcAmendment, tlcExpiry]: [trade_lifecycle::Store]@Tlc_AmendmentExpiry,
+         expiryAmendment[tlcExpiry, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentExpiry
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentRateReset: Relational
+   {
+      AssociationMapping
+      (
+         rateResets[tlcAmendment, tlcRateReset]: [trade_lifecycle::Store]@Tlc_AmendmentRateReset,
+         rateResetAmendment[tlcRateReset, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentRateReset
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentCashflows: Relational
+   {
+      AssociationMapping
+      (
+         cashflows[tlcAmendment, tlcCashflow]: [trade_lifecycle::Store]@Tlc_AmendmentCashflow,
+         cashflowAmendment[tlcCashflow, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentCashflow
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentCorporateActionImpact: Relational
+   {
+      AssociationMapping
+      (
+         corporateActionImpacts[tlcAmendment, tlcCorporateActionImpact]: [trade_lifecycle::Store]@Tlc_AmendmentImpact,
+         impactAmendment[tlcCorporateActionImpact, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentImpact
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentNotifications: Relational
+   {
+      AssociationMapping
+      (
+         notifications[tlcAmendment, tlcNotification]: [trade_lifecycle::Store]@Tlc_AmendmentNotification,
+         notificationAmendment[tlcNotification, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentNotification
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentWorkflow: Relational
+   {
+      AssociationMapping
+      (
+         workflow[tlcAmendment, tlcWorkflow]: [trade_lifecycle::Store]@Tlc_AmendmentWorkflow,
+         workflowAmendments[tlcWorkflow, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentWorkflow
+      )
+   }
+
+   trade_lifecycle::TlcWorkflowSteps: Relational
+   {
+      AssociationMapping
+      (
+         steps[tlcWorkflow, tlcWorkflowStep]: [trade_lifecycle::Store]@Tlc_WorkflowStep,
+         stepWorkflow[tlcWorkflowStep, tlcWorkflow]: [trade_lifecycle::Store]@Tlc_WorkflowStep
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentAudit: Relational
+   {
+      AssociationMapping
+      (
+         auditEntries[tlcAmendment, tlcAuditEntry]: [trade_lifecycle::Store]@Tlc_AmendmentAudit,
+         auditAmendment[tlcAuditEntry, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentAudit
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentSource: Relational
+   {
+      AssociationMapping
+      (
+         source[tlcAmendment, tlcEventSource]: [trade_lifecycle::Store]@Tlc_AmendmentSource,
+         sourceAmendments[tlcEventSource, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentSource
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentDocuments: Relational
+   {
+      AssociationMapping
+      (
+         documents[tlcAmendment, tlcDocument]: [trade_lifecycle::Store]@Tlc_AmendmentDocument,
+         documentAmendment[tlcDocument, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentDocument
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentRestructuring: Relational
+   {
+      AssociationMapping
+      (
+         restructurings[tlcAmendment, tlcRestructuring]: [trade_lifecycle::Store]@Tlc_AmendmentRestructuring,
+         restructuringAmendment[tlcRestructuring, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentRestructuring
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentAllocationAdjustment: Relational
+   {
+      AssociationMapping
+      (
+         allocationAdjustments[tlcAmendment, tlcAllocationAdjustment]: [trade_lifecycle::Store]@Tlc_AmendmentAllocationAdjustment,
+         allocationAdjustmentAmendment[tlcAllocationAdjustment, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentAllocationAdjustment
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentCorrection: Relational
+   {
+      AssociationMapping
+      (
+         corrections[tlcAmendment, tlcCorrection]: [trade_lifecycle::Store]@Tlc_AmendmentCorrection,
+         correctionAmendment[tlcCorrection, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentCorrection
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentBreakFee: Relational
+   {
+      AssociationMapping
+      (
+         breakFees[tlcAmendment, tlcBreakFee]: [trade_lifecycle::Store]@Tlc_AmendmentBreakFee,
+         breakFeeAmendment[tlcBreakFee, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentBreakFee
+      )
+   }
+
+   trade_lifecycle::TlcAmendmentSnapshot: Relational
+   {
+      AssociationMapping
+      (
+         snapshots[tlcAmendment, tlcVersionSnapshot]: [trade_lifecycle::Store]@Tlc_AmendmentSnapshot,
+         snapshotAmendment[tlcVersionSnapshot, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentSnapshot
       )
    }
 )

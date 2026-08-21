@@ -1,0 +1,370 @@
+###Relational
+// The margin-calc store. It INCLUDES both upstream stores, which is what lets a join
+// declared here name PK_POSITION, RSK_SENSITIVITY, RSK_RISK_FACTOR, RSK_PORTFOLIO and the
+// view RSK_FACTOR_TOTAL directly. There is no import in Legend and no copy of those tables
+// either.
+//
+// This is a DIAMOND: position-keeping and risk-core both include core-instrument's store,
+// so CI_INSTRUMENT arrives here down two paths and must still be one table.
+//
+// The AGGREGATION shape is the two Views at the bottom. They are Legend views, not database
+// ones: no DDL is created, nothing seeds them, and the engine folds the GROUP BY into the
+// SQL it generates. Their ~groupBy columns are their PRIMARY KEY, which is both what makes
+// them joinable and what they mean -- one row of MGN_PORTFOLIO_MARGIN_TOTAL is a netting
+// set and a day, not a position. `~groupBy` takes COLUMN REFERENCES, never expressions.
+//
+// Datatypes: NUMERIC(24,8) for money and sensitivities, because a margin call is exact and
+// a delta per basis point on a large notional is small; FLOAT for anything that is a ratio
+// -- a haircut, a correlation, a confidence level, an add-on percentage; SMALLINT wherever
+// the number is bounded by construction (a close-out period in days, a liquidity horizon, a
+// sequence); CHAR(3) for a currency. REAL is not used anywhere: it parses and then cannot be
+// read back at execution (docs/UPSTREAM_FINDINGS.md F53).
+Database margin_calc::Store
+(
+   include position_keeping::Store
+   include risk_core::Store
+
+   // The negotiated document. One row per agreement, and every parameter a call is argued
+   // over lives on it: THRESHOLD, MINIMUM_TRANSFER_AMOUNT, CLOSE_OUT_PERIOD_DAYS,
+   // CONFIDENCE_PCT.
+   Table MGN_AGREEMENT
+   (
+      AGREEMENT_ID VARCHAR(40) PRIMARY KEY,
+      AGREEMENT_TYPE VARCHAR(20) NOT NULL,
+      COUNTERPARTY_ID VARCHAR(40) NOT NULL,
+      INSTITUTION_ID VARCHAR(20) NOT NULL,
+      BASE_CURRENCY CHAR(3),
+      THRESHOLD NUMERIC(24,8),
+      MINIMUM_TRANSFER_AMOUNT NUMERIC(24,8),
+      ROUNDING_AMOUNT NUMERIC(24,8),
+      INDEPENDENT_AMOUNT NUMERIC(24,8),
+      MARGIN_CALL_FREQUENCY VARCHAR(16),
+      CLOSE_OUT_PERIOD_DAYS SMALLINT,
+      CONFIDENCE_PCT FLOAT,
+      IS_BILATERAL BIT,
+      IM_METHOD VARCHAR(16),
+      EFFECTIVE_FROM DATE,
+      TERMINATED_ON DATE
+   )
+
+   // The netting set. Carries BOTH upstream keys: risk-core's PORTFOLIO_ID, because that is
+   // where the sensitivities come from, and position-keeping's two account columns, because
+   // that is where the positions are.
+   Table MGN_MARGIN_PORTFOLIO
+   (
+      MARGIN_PORTFOLIO_ID VARCHAR(32) PRIMARY KEY,
+      AGREEMENT_ID VARCHAR(40) NOT NULL,
+      RISK_PORTFOLIO_ID VARCHAR(24) NOT NULL,
+      INSTITUTION_ID VARCHAR(20) NOT NULL,
+      ACCOUNT_NO VARCHAR(34) NOT NULL,
+      BASE_CURRENCY CHAR(3),
+      IM_METHOD VARCHAR(16),
+      IS_SEGREGATED BIT,
+      NETTING_SET_CODE VARCHAR(40)
+   )
+
+   // Two key columns: a day is margined more than once.
+   Table MGN_RUN
+   (
+      COB_DATE DATE PRIMARY KEY,
+      RUN_SEQ INTEGER PRIMARY KEY,
+      RUN_TYPE VARCHAR(16),
+      RUN_STATUS VARCHAR(16),
+      STARTED_AT TIMESTAMP,
+      COMPLETED_AT TIMESTAMP,
+      AGREEMENT_COUNT INTEGER,
+      CALL_COUNT INTEGER,
+      SUPPRESSED_CALL_COUNT INTEGER,
+      TOTAL_CALLED_AMOUNT NUMERIC(24,8)
+   )
+
+   // One call per agreement per day. GROSS_CALL_AMOUNT and CALL_AMOUNT are both stored and
+   // are not the same column: the first is the shortfall that exists, the second is what
+   // the minimum transfer amount allows to be demanded. Collapsing them loses the exposure
+   // the MTA left standing.
+   Table MGN_MARGIN_CALL
+   (
+      AGREEMENT_ID VARCHAR(40) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      RUN_SEQ INTEGER,
+      CALL_DIRECTION VARCHAR(10),
+      REQUIRED_MARGIN NUMERIC(24,8),
+      INITIAL_MARGIN_AMOUNT NUMERIC(24,8),
+      VARIATION_MARGIN_AMOUNT NUMERIC(24,8),
+      ADDON_AMOUNT NUMERIC(24,8),
+      COLLATERAL_VALUE NUMERIC(24,8),
+      THRESHOLD NUMERIC(24,8),
+      MINIMUM_TRANSFER_AMOUNT NUMERIC(24,8),
+      ROUNDING_AMOUNT NUMERIC(24,8),
+      GROSS_CALL_AMOUNT NUMERIC(24,8),
+      CALL_AMOUNT NUMERIC(24,8),
+      CALL_CURRENCY CHAR(3),
+      IS_CALL_MADE BIT,
+      SUPPRESSED_REASON VARCHAR(30),
+      ISSUED_AT TIMESTAMP,
+      SETTLED_ON DATE,
+      DISPUTE_CODE VARCHAR(20)
+   )
+
+   // The settled leg. Same two-column key as the call, and deliberately a separate table:
+   // variation margin settles whether or not a call was made.
+   Table MGN_VARIATION_MARGIN
+   (
+      AGREEMENT_ID VARCHAR(40) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      PRIOR_MARK_TO_MARKET NUMERIC(24,8),
+      CURRENT_MARK_TO_MARKET NUMERIC(24,8),
+      MTM_CHANGE NUMERIC(24,8),
+      VM_CURRENCY CHAR(3),
+      VM_AMOUNT NUMERIC(24,8),
+      CUMULATIVE_VM_POSTED NUMERIC(24,8),
+      SETTLEMENT_DATE DATE,
+      SETTLEMENT_LAG_DAYS SMALLINT,
+      INTEREST_RATE_CODE VARCHAR(16),
+      IS_SETTLED BIT
+   )
+
+   // Three key columns: the third is the METHOD, because the regulatory figure and the
+   // internal one are both computed for the same set on the same day.
+   Table MGN_INITIAL_MARGIN
+   (
+      MARGIN_PORTFOLIO_ID VARCHAR(32) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      METHOD_CODE VARCHAR(16) PRIMARY KEY,
+      CONFIDENCE_PCT FLOAT,
+      CLOSE_OUT_PERIOD_DAYS SMALLINT,
+      ONE_DAY_MARGIN NUMERIC(24,8),
+      SCALED_MARGIN NUMERIC(24,8),
+      CONCENTRATION_ADDON NUMERIC(24,8),
+      LIQUIDITY_ADDON NUMERIC(24,8),
+      TOTAL_INITIAL_MARGIN NUMERIC(24,8),
+      IM_CURRENCY CHAR(3),
+      IS_REGULATORY BIT,
+      MODEL_VERSION VARCHAR(20)
+   )
+
+   // The calibration. Keyed by (RISK_CLASS, BUCKET_CODE) -- a risk weight means nothing
+   // without the bucket it was published for.
+   Table MGN_SIMM_BUCKET
+   (
+      RISK_CLASS VARCHAR(8) PRIMARY KEY,
+      BUCKET_CODE VARCHAR(16) PRIMARY KEY,
+      BUCKET_NAME VARCHAR(120),
+      RISK_WEIGHT FLOAT,
+      VEGA_RISK_WEIGHT FLOAT,
+      INTRA_BUCKET_CORRELATION FLOAT,
+      INTER_BUCKET_CORRELATION FLOAT,
+      CONCENTRATION_THRESHOLD NUMERIC(24,8),
+      LIQUIDITY_HORIZON_DAYS SMALLINT,
+      CURVATURE_SCALE FLOAT
+   )
+
+   // The leg the whole sensitivity-based calculation sums. SENSITIVITY_ID is risk-core's
+   // own id, which is what makes Mgn_SimmSensitivityRiskLeg a one-column join rather than a
+   // copy of the greeks.
+   Table MGN_SIMM_SENSITIVITY
+   (
+      SENSITIVITY_ID VARCHAR(48) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      MARGIN_PORTFOLIO_ID VARCHAR(32) NOT NULL,
+      RISK_CLASS VARCHAR(8) NOT NULL,
+      BUCKET_CODE VARCHAR(16) NOT NULL,
+      FACTOR_ID VARCHAR(32) NOT NULL,
+      RISK_TYPE VARCHAR(12),
+      RAW_SENSITIVITY NUMERIC(24,8),
+      SENSITIVITY_CURRENCY CHAR(3),
+      RISK_WEIGHT FLOAT,
+      WEIGHTED_SENSITIVITY NUMERIC(24,8),
+      CONCENTRATION_RISK_FACTOR FLOAT,
+      TENOR_CODE VARCHAR(8),
+      IS_CONCENTRATED BIT
+   )
+
+   // GROSS_SENSITIVITY and NET_SENSITIVITY are both stored, because the gap between them is
+   // the netting benefit and it is the only visible evidence that a correlation was applied.
+   Table MGN_RISK_CLASS_MARGIN
+   (
+      MARGIN_PORTFOLIO_ID VARCHAR(32) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      RISK_CLASS VARCHAR(8) PRIMARY KEY,
+      DELTA_MARGIN NUMERIC(24,8),
+      VEGA_MARGIN NUMERIC(24,8),
+      CURVATURE_MARGIN NUMERIC(24,8),
+      INTRA_CLASS_CORRELATION FLOAT,
+      SENSITIVITY_COUNT INTEGER,
+      GROSS_SENSITIVITY NUMERIC(24,8),
+      NET_SENSITIVITY NUMERIC(24,8),
+      RISK_CLASS_MARGIN NUMERIC(24,8),
+      MARGIN_CURRENCY CHAR(3)
+   )
+
+   // Four key columns. The fourth is FACTOR_ID, which is also risk-core's factor key -- the
+   // add-on is per factor because concentration is a property of one market, not of a class.
+   Table MGN_CONCENTRATION_ADDON
+   (
+      MARGIN_PORTFOLIO_ID VARCHAR(32) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      RISK_CLASS VARCHAR(8) PRIMARY KEY,
+      FACTOR_ID VARCHAR(32) PRIMARY KEY,
+      NET_SENSITIVITY NUMERIC(24,8),
+      CONCENTRATION_THRESHOLD NUMERIC(24,8),
+      CONCENTRATION_RATIO FLOAT,
+      ADDON_PCT FLOAT,
+      ADDON_AMOUNT NUMERIC(24,8),
+      ADDON_CURRENCY CHAR(3),
+      DRIVING_BUCKET_CODE VARCHAR(16),
+      IS_BREACHING BIT
+   )
+
+   // Per bucket rather than per factor: a liquidity horizon is published for a bucket.
+   Table MGN_LIQUIDITY_ADDON
+   (
+      MARGIN_PORTFOLIO_ID VARCHAR(32) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      BUCKET_CODE VARCHAR(16) PRIMARY KEY,
+      RISK_CLASS VARCHAR(8),
+      LIQUIDITY_HORIZON_DAYS SMALLINT,
+      BASELINE_HORIZON_DAYS SMALLINT,
+      POSITION_NOTIONAL NUMERIC(24,8),
+      AVERAGE_DAILY_VOLUME NUMERIC(24,8),
+      DAYS_TO_LIQUIDATE FLOAT,
+      ADDON_PCT FLOAT,
+      ADDON_AMOUNT NUMERIC(24,8),
+      ADDON_CURRENCY CHAR(3)
+   )
+
+   // The haircut schedule, per agreement and per pledged asset. HAIRCUT_PCT and
+   // FX_HAIRCUT_PCT are FLOAT because they are fractions; HAIRCUT_VALUE is NUMERIC because
+   // it is money.
+   Table MGN_COLLATERAL_HAIRCUT
+   (
+      AGREEMENT_ID VARCHAR(40) PRIMARY KEY,
+      COLLATERAL_ASSET_ID VARCHAR(60) PRIMARY KEY,
+      ASSET_CLASS VARCHAR(20),
+      ISSUER_RATING VARCHAR(12),
+      CURRENCY_CODE CHAR(3),
+      MARKET_VALUE NUMERIC(24,8),
+      HAIRCUT_PCT FLOAT,
+      FX_HAIRCUT_PCT FLOAT,
+      HAIRCUT_VALUE NUMERIC(24,8),
+      CONCENTRATION_CAP_PCT FLOAT,
+      IS_ELIGIBLE BIT
+   )
+
+   // The four columns of position-keeping's key, repeated exactly and in its order. Anything
+   // shorter joins across dates or across institutions that reused an account number.
+   Table MGN_POSITION_MARGIN
+   (
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      MARGIN_PORTFOLIO_ID VARCHAR(32) NOT NULL,
+      AGREEMENT_ID VARCHAR(40) NOT NULL,
+      EXPOSURE_AMOUNT NUMERIC(24,8),
+      INITIAL_MARGIN_AMOUNT NUMERIC(24,8),
+      VARIATION_MARGIN_AMOUNT NUMERIC(24,8),
+      ADDON_AMOUNT NUMERIC(24,8),
+      MARGIN_CURRENCY CHAR(3),
+      RISK_WEIGHT FLOAT,
+      IS_MARGIN_ELIGIBLE BIT
+   )
+
+   // ---------------------------------------------------------- the aggregations
+
+   // One row per netting set per day, grouped out of the per-position table. This is what a
+   // margin call is assembled from: the whole set's requirement without reading a position.
+   View MGN_PORTFOLIO_MARGIN_TOTAL
+   (
+      ~groupBy
+      (
+         MGN_POSITION_MARGIN.MARGIN_PORTFOLIO_ID,
+         MGN_POSITION_MARGIN.COB_DATE
+      )
+      MARGIN_PORTFOLIO_ID: MGN_POSITION_MARGIN.MARGIN_PORTFOLIO_ID PRIMARY KEY,
+      COB_DATE: MGN_POSITION_MARGIN.COB_DATE PRIMARY KEY,
+      POSITION_COUNT: count(MGN_POSITION_MARGIN.INSTRUMENT_ID),
+      TOTAL_INITIAL_MARGIN: sum(MGN_POSITION_MARGIN.INITIAL_MARGIN_AMOUNT),
+      TOTAL_VARIATION_MARGIN: sum(MGN_POSITION_MARGIN.VARIATION_MARGIN_AMOUNT),
+      TOTAL_ADDON: sum(MGN_POSITION_MARGIN.ADDON_AMOUNT),
+      TOTAL_EXPOSURE: sum(MGN_POSITION_MARGIN.EXPOSURE_AMOUNT),
+      LARGEST_POSITION_MARGIN: max(MGN_POSITION_MARGIN.INITIAL_MARGIN_AMOUNT)
+   )
+
+   // Three grouping columns rather than two: the risk class is part of what a group MEANS
+   // here, because a sensitivity-based calculation aggregates inside a class before it
+   // aggregates across them. Grouping this one by set and date alone would add an interest
+   // rate delta to an equity delta, which the methodology exists to stop.
+   View MGN_RISK_CLASS_SENS_TOTAL
+   (
+      ~groupBy
+      (
+         MGN_SIMM_SENSITIVITY.MARGIN_PORTFOLIO_ID,
+         MGN_SIMM_SENSITIVITY.COB_DATE,
+         MGN_SIMM_SENSITIVITY.RISK_CLASS
+      )
+      MARGIN_PORTFOLIO_ID: MGN_SIMM_SENSITIVITY.MARGIN_PORTFOLIO_ID PRIMARY KEY,
+      COB_DATE: MGN_SIMM_SENSITIVITY.COB_DATE PRIMARY KEY,
+      RISK_CLASS: MGN_SIMM_SENSITIVITY.RISK_CLASS PRIMARY KEY,
+      SENSITIVITY_COUNT: count(MGN_SIMM_SENSITIVITY.SENSITIVITY_ID),
+      TOTAL_WEIGHTED_SENSITIVITY: sum(MGN_SIMM_SENSITIVITY.WEIGHTED_SENSITIVITY),
+      TOTAL_RAW_SENSITIVITY: sum(MGN_SIMM_SENSITIVITY.RAW_SENSITIVITY),
+      LARGEST_WEIGHTED_SENSITIVITY: max(MGN_SIMM_SENSITIVITY.WEIGHTED_SENSITIVITY)
+   )
+
+   // ---------------------------------------------------------- joins, within this project
+
+   Join Mgn_AgreementPortfolios(MGN_AGREEMENT.AGREEMENT_ID = MGN_MARGIN_PORTFOLIO.AGREEMENT_ID)
+   Join Mgn_AgreementCalls(MGN_AGREEMENT.AGREEMENT_ID = MGN_MARGIN_CALL.AGREEMENT_ID)
+   Join Mgn_AgreementVariationMargins(MGN_AGREEMENT.AGREEMENT_ID = MGN_VARIATION_MARGIN.AGREEMENT_ID)
+   Join Mgn_AgreementHaircuts(MGN_AGREEMENT.AGREEMENT_ID = MGN_COLLATERAL_HAIRCUT.AGREEMENT_ID)
+
+   // Two columns, because a call and a VM row are both keyed by two.
+   Join Mgn_CallVariationMargin(MGN_MARGIN_CALL.AGREEMENT_ID = MGN_VARIATION_MARGIN.AGREEMENT_ID and MGN_MARGIN_CALL.COB_DATE = MGN_VARIATION_MARGIN.COB_DATE)
+   Join Mgn_CallRun(MGN_MARGIN_CALL.COB_DATE = MGN_RUN.COB_DATE and MGN_MARGIN_CALL.RUN_SEQ = MGN_RUN.RUN_SEQ)
+
+   Join Mgn_PortfolioInitialMargins(MGN_MARGIN_PORTFOLIO.MARGIN_PORTFOLIO_ID = MGN_INITIAL_MARGIN.MARGIN_PORTFOLIO_ID)
+   Join Mgn_PortfolioRiskClassMargins(MGN_MARGIN_PORTFOLIO.MARGIN_PORTFOLIO_ID = MGN_RISK_CLASS_MARGIN.MARGIN_PORTFOLIO_ID)
+   Join Mgn_PortfolioSimmSensitivities(MGN_MARGIN_PORTFOLIO.MARGIN_PORTFOLIO_ID = MGN_SIMM_SENSITIVITY.MARGIN_PORTFOLIO_ID)
+   Join Mgn_PortfolioConcentrationAddOns(MGN_MARGIN_PORTFOLIO.MARGIN_PORTFOLIO_ID = MGN_CONCENTRATION_ADDON.MARGIN_PORTFOLIO_ID)
+   Join Mgn_PortfolioLiquidityAddOns(MGN_MARGIN_PORTFOLIO.MARGIN_PORTFOLIO_ID = MGN_LIQUIDITY_ADDON.MARGIN_PORTFOLIO_ID)
+   Join Mgn_PortfolioPositionMargins(MGN_MARGIN_PORTFOLIO.MARGIN_PORTFOLIO_ID = MGN_POSITION_MARGIN.MARGIN_PORTFOLIO_ID)
+
+   // Two columns: a risk weight belongs to a bucket OF a risk class, and BUCKET_CODE alone
+   // repeats across classes.
+   Join Mgn_BucketSensitivities(MGN_SIMM_BUCKET.RISK_CLASS = MGN_SIMM_SENSITIVITY.RISK_CLASS and MGN_SIMM_BUCKET.BUCKET_CODE = MGN_SIMM_SENSITIVITY.BUCKET_CODE)
+
+   // Set and date, not the method: a risk class charge feeds every method's initial margin.
+   Join Mgn_RiskClassMarginInitialMargins(MGN_RISK_CLASS_MARGIN.MARGIN_PORTFOLIO_ID = MGN_INITIAL_MARGIN.MARGIN_PORTFOLIO_ID and MGN_RISK_CLASS_MARGIN.COB_DATE = MGN_INITIAL_MARGIN.COB_DATE)
+
+   // ---------------------------------------------------------- joins INTO the aggregations
+   //
+   // Each of these crosses from rows to groups. Navigating one never reads another row of
+   // the table the group was built from.
+
+   Join Mgn_PortfolioMarginTotals(MGN_MARGIN_PORTFOLIO.MARGIN_PORTFOLIO_ID = MGN_PORTFOLIO_MARGIN_TOTAL.MARGIN_PORTFOLIO_ID)
+   Join Mgn_PositionMarginPortfolioTotal(MGN_POSITION_MARGIN.MARGIN_PORTFOLIO_ID = MGN_PORTFOLIO_MARGIN_TOTAL.MARGIN_PORTFOLIO_ID and MGN_POSITION_MARGIN.COB_DATE = MGN_PORTFOLIO_MARGIN_TOTAL.COB_DATE)
+   Join Mgn_RiskClassMarginSensTotal(MGN_RISK_CLASS_MARGIN.MARGIN_PORTFOLIO_ID = MGN_RISK_CLASS_SENS_TOTAL.MARGIN_PORTFOLIO_ID and MGN_RISK_CLASS_MARGIN.COB_DATE = MGN_RISK_CLASS_SENS_TOTAL.COB_DATE and MGN_RISK_CLASS_MARGIN.RISK_CLASS = MGN_RISK_CLASS_SENS_TOTAL.RISK_CLASS)
+   Join Mgn_SensitivityRiskClassTotal(MGN_SIMM_SENSITIVITY.MARGIN_PORTFOLIO_ID = MGN_RISK_CLASS_SENS_TOTAL.MARGIN_PORTFOLIO_ID and MGN_SIMM_SENSITIVITY.COB_DATE = MGN_RISK_CLASS_SENS_TOTAL.COB_DATE and MGN_SIMM_SENSITIVITY.RISK_CLASS = MGN_RISK_CLASS_SENS_TOTAL.RISK_CLASS)
+
+   // ---------------------------------------------------------- joins ACROSS the boundary
+
+   // Into position-keeping. All four of its key columns; three would merge dates.
+   Join Mgn_PositionMarginPosition(MGN_POSITION_MARGIN.INSTITUTION_ID = PK_POSITION.INSTITUTION_ID and MGN_POSITION_MARGIN.ACCOUNT_NO = PK_POSITION.ACCOUNT_NO and MGN_POSITION_MARGIN.INSTRUMENT_ID = PK_POSITION.INSTRUMENT_ID and MGN_POSITION_MARGIN.COB_DATE = PK_POSITION.COB_DATE)
+
+   // Into risk-core: the portfolio the sensitivities were produced under, the leg itself,
+   // and the factor it is measured against.
+   Join Mgn_PortfolioRiskPortfolio(MGN_MARGIN_PORTFOLIO.RISK_PORTFOLIO_ID = RSK_PORTFOLIO.PORTFOLIO_ID)
+   Join Mgn_SimmSensitivityRiskLeg(MGN_SIMM_SENSITIVITY.SENSITIVITY_ID = RSK_SENSITIVITY.SENSITIVITY_ID)
+   Join Mgn_SimmSensitivityFactor(MGN_SIMM_SENSITIVITY.FACTOR_ID = RSK_RISK_FACTOR.FACTOR_ID)
+
+   // Into risk-core's own VIEW, on its two grouping columns -- which are its primary key,
+   // and that is what makes a group joinable at all. A concentration add-on is measured
+   // against the firm's whole delta in a factor, and this project never sums a leg to get
+   // it: it reads the GROUP BY somebody else declared.
+   Join Mgn_ConcentrationFactorTotal(MGN_CONCENTRATION_ADDON.FACTOR_ID = RSK_FACTOR_TOTAL.FACTOR_ID and MGN_CONCENTRATION_ADDON.COB_DATE = RSK_FACTOR_TOTAL.COB_DATE)
+
+   // Null tests, not boolean literals: a Filter will not take `= true`.
+   Filter MgnLiveAgreements(MGN_AGREEMENT.TERMINATED_ON is null)
+   Filter MgnUnsettledCalls(MGN_MARGIN_CALL.SETTLED_ON is null)
+)

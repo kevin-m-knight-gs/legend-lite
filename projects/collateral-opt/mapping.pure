@@ -1,22 +1,420 @@
 ###Mapping
+// ============================================================
+// collateral_opt::Mapping -- 12 class sets, 20 association mappings
+// ============================================================
+// It INCLUDES both dependency mappings, because the association mappings at the bottom name
+// set ids that live in them -- `colAgreement`, `colEligibilityRule`, `colEligibilitySchedule`,
+// `colConcentrationLimit`, `colCollateral` from collateral-core, and `idxConstituent`,
+// `idxIndex` from index-core. Those are the explicit ids those projects declared; the default
+// ids (`collateral_core_ColCollateralAgreement`, and so on) do not exist, so every cross-project
+// end names [source, target] rather than the bare `prop: [db]@Join` form.
+//
+// Both included mappings themselves include core_instrument::Mapping. The diamond resolves:
+// `ciBase` and the instrument subtype sets arrive once, by two paths.
+//
+// Every set id here is prefixed `cop`, since set ids are a GLOBAL namespace in Legend and one
+// collision fails the whole graph with a message naming the id and not the project.
 Mapping collateral_opt::Mapping
 (
    include collateral_core::Mapping
    include index_core::Mapping
 
-   collateral_opt::CopProbe[copProbe]: Relational
+   collateral_opt::CopOptimisationRun[copRun]: Relational
    {
-      ~primaryKey ( [collateral_opt::Store]COP_PROBE.PROBE_ID )
-      ~mainTable [collateral_opt::Store]COP_PROBE
-      probeId: [collateral_opt::Store]COP_PROBE.PROBE_ID
+      ~primaryKey ( [collateral_opt::Store]COP_RUN.RUN_ID )
+      ~mainTable [collateral_opt::Store]COP_RUN
+      runId: [collateral_opt::Store]COP_RUN.RUN_ID,
+      runDate: [collateral_opt::Store]COP_RUN.RUN_DATE,
+      objective: [collateral_opt::Store]COP_RUN.OBJECTIVE,
+      solverStatus: [collateral_opt::Store]COP_RUN.SOLVER_STATUS,
+      costBasisId: [collateral_opt::Store]COP_RUN.COST_BASIS_ID,
+      totalPostedValue: [collateral_opt::Store]COP_RUN.TOTAL_POSTED_VALUE,
+      totalOpportunityCost: [collateral_opt::Store]COP_RUN.TOTAL_OPPORTUNITY_COST,
+      iterationCount: [collateral_opt::Store]COP_RUN.ITERATION_COUNT,
+      isCommitted: [collateral_opt::Store]COP_RUN.IS_COMMITTED
    }
 
-   collateral_opt::CopProbeAgreement: Relational
+   collateral_opt::CopCostBasis[copCostBasis]: Relational
+   {
+      ~primaryKey ( [collateral_opt::Store]COP_COST_BASIS.COST_BASIS_ID )
+      ~mainTable [collateral_opt::Store]COP_COST_BASIS
+      costBasisId: [collateral_opt::Store]COP_COST_BASIS.COST_BASIS_ID,
+      name: [collateral_opt::Store]COP_COST_BASIS.NAME,
+      fundingSpreadBps: [collateral_opt::Store]COP_COST_BASIS.FUNDING_SPREAD_BPS,
+      substitutionCostBps: [collateral_opt::Store]COP_COST_BASIS.SUBSTITUTION_COST_BPS,
+      haircutPenaltyWeight: [collateral_opt::Store]COP_COST_BASIS.HAIRCUT_PENALTY_WEIGHT,
+      indexMemberReliefBps: [collateral_opt::Store]COP_COST_BASIS.INDEX_MEMBER_RELIEF_BPS,
+      valuationCurrency: [collateral_opt::Store]COP_COST_BASIS.VALUATION_CURRENCY,
+      effectiveDate: [collateral_opt::Store]COP_COST_BASIS.EFFECTIVE_DATE
+   }
+
+   // The left-hand side of this project's disjunction.
+   collateral_opt::CopInventoryLot[copInventoryLot]: Relational
+   {
+      ~primaryKey ( [collateral_opt::Store]COP_INVENTORY_LOT.LOT_ID )
+      ~mainTable [collateral_opt::Store]COP_INVENTORY_LOT
+      lotId: [collateral_opt::Store]COP_INVENTORY_LOT.LOT_ID,
+      instrumentId: [collateral_opt::Store]COP_INVENTORY_LOT.INSTRUMENT_ID,
+      issuerId: [collateral_opt::Store]COP_INVENTORY_LOT.ISSUER_ID,
+      assetClass: [collateral_opt::Store]COP_INVENTORY_LOT.ASSET_CLASS,
+      custodyAccountId: [collateral_opt::Store]COP_INVENTORY_LOT.CUSTODY_ACCOUNT_ID,
+      quantity: [collateral_opt::Store]COP_INVENTORY_LOT.QUANTITY,
+      marketValue: [collateral_opt::Store]COP_INVENTORY_LOT.MARKET_VALUE,
+      currency: [collateral_opt::Store]COP_INVENTORY_LOT.CURRENCY,
+      ratingBand: [collateral_opt::Store]COP_INVENTORY_LOT.RATING_BAND,
+      residualYears: [collateral_opt::Store]COP_INVENTORY_LOT.RESIDUAL_YEARS,
+      isEncumbered: [collateral_opt::Store]COP_INVENTORY_LOT.IS_ENCUMBERED,
+      availableFrom: [collateral_opt::Store]COP_INVENTORY_LOT.AVAILABLE_FROM,
+      withdrawnDate: [collateral_opt::Store]COP_INVENTORY_LOT.WITHDRAWN_DATE
+   }
+
+   // The right-hand side. Both axis columns are mapped as ordinary optional properties -- the
+   // disjunction lives in the JOIN, not in the class.
+   collateral_opt::CopLendingDemand[copLendingDemand]: Relational
+   {
+      ~primaryKey ( [collateral_opt::Store]COP_LENDING_DEMAND.DEMAND_ID )
+      ~mainTable [collateral_opt::Store]COP_LENDING_DEMAND
+      demandId: [collateral_opt::Store]COP_LENDING_DEMAND.DEMAND_ID,
+      demandBasis: [collateral_opt::Store]COP_LENDING_DEMAND.DEMAND_BASIS,
+      instrumentId: [collateral_opt::Store]COP_LENDING_DEMAND.INSTRUMENT_ID,
+      issuerId: [collateral_opt::Store]COP_LENDING_DEMAND.ISSUER_ID,
+      borrowFeeBps: [collateral_opt::Store]COP_LENDING_DEMAND.BORROW_FEE_BPS,
+      demandQuantity: [collateral_opt::Store]COP_LENDING_DEMAND.DEMAND_QUANTITY,
+      demandCurrency: [collateral_opt::Store]COP_LENDING_DEMAND.DEMAND_CURRENCY,
+      quoteDate: [collateral_opt::Store]COP_LENDING_DEMAND.QUOTE_DATE,
+      expiryDate: [collateral_opt::Store]COP_LENDING_DEMAND.EXPIRY_DATE,
+      isSpecial: [collateral_opt::Store]COP_LENDING_DEMAND.IS_SPECIAL
+   }
+
+   collateral_opt::CopIndexBasketRule[copIndexBasketRule]: Relational
+   {
+      ~primaryKey ( [collateral_opt::Store]COP_INDEX_BASKET_RULE.BASKET_RULE_ID )
+      ~mainTable [collateral_opt::Store]COP_INDEX_BASKET_RULE
+      basketRuleId: [collateral_opt::Store]COP_INDEX_BASKET_RULE.BASKET_RULE_ID,
+      scheduleId: [collateral_opt::Store]COP_INDEX_BASKET_RULE.SCHEDULE_ID,
+      indexId: [collateral_opt::Store]COP_INDEX_BASKET_RULE.INDEX_ID,
+      minIndexWeightPct: [collateral_opt::Store]COP_INDEX_BASKET_RULE.MIN_INDEX_WEIGHT_PCT,
+      maxIndexWeightPct: [collateral_opt::Store]COP_INDEX_BASKET_RULE.MAX_INDEX_WEIGHT_PCT,
+      requiresConstituent: [collateral_opt::Store]COP_INDEX_BASKET_RULE.REQUIRES_CONSTITUENT,
+      haircutReliefPct: [collateral_opt::Store]COP_INDEX_BASKET_RULE.HAIRCUT_RELIEF_PCT,
+      effectiveDate: [collateral_opt::Store]COP_INDEX_BASKET_RULE.EFFECTIVE_DATE,
+      withdrawnDate: [collateral_opt::Store]COP_INDEX_BASKET_RULE.WITHDRAWN_DATE
+   }
+
+   // Three key columns. Two of them would make one lot eligible or ineligible everywhere.
+   collateral_opt::CopEligibilityAssessment[copEligibilityAssessment]: Relational
+   {
+      ~primaryKey
+      (
+         [collateral_opt::Store]COP_ELIGIBILITY_ASSESSMENT.RUN_ID,
+         [collateral_opt::Store]COP_ELIGIBILITY_ASSESSMENT.LOT_ID,
+         [collateral_opt::Store]COP_ELIGIBILITY_ASSESSMENT.AGREEMENT_ID
+      )
+      ~mainTable [collateral_opt::Store]COP_ELIGIBILITY_ASSESSMENT
+      runId: [collateral_opt::Store]COP_ELIGIBILITY_ASSESSMENT.RUN_ID,
+      lotId: [collateral_opt::Store]COP_ELIGIBILITY_ASSESSMENT.LOT_ID,
+      agreementId: [collateral_opt::Store]COP_ELIGIBILITY_ASSESSMENT.AGREEMENT_ID,
+      bindingRuleId: [collateral_opt::Store]COP_ELIGIBILITY_ASSESSMENT.BINDING_RULE_ID,
+      matchedRuleCount: [collateral_opt::Store]COP_ELIGIBILITY_ASSESSMENT.MATCHED_RULE_COUNT,
+      tightestHaircutPct: [collateral_opt::Store]COP_ELIGIBILITY_ASSESSMENT.TIGHTEST_HAIRCUT_PCT,
+      isEligible: [collateral_opt::Store]COP_ELIGIBILITY_ASSESSMENT.IS_ELIGIBLE,
+      isExcluded: [collateral_opt::Store]COP_ELIGIBILITY_ASSESSMENT.IS_EXCLUDED,
+      exclusionReason: [collateral_opt::Store]COP_ELIGIBILITY_ASSESSMENT.EXCLUSION_REASON,
+      admittedByIndexBasket: [collateral_opt::Store]COP_ELIGIBILITY_ASSESSMENT.ADMITTED_BY_INDEX_BASKET
+   }
+
+   collateral_opt::CopDeliveryScore[copDeliveryScore]: Relational
+   {
+      ~primaryKey
+      (
+         [collateral_opt::Store]COP_DELIVERY_SCORE.RUN_ID,
+         [collateral_opt::Store]COP_DELIVERY_SCORE.LOT_ID,
+         [collateral_opt::Store]COP_DELIVERY_SCORE.AGREEMENT_ID
+      )
+      ~mainTable [collateral_opt::Store]COP_DELIVERY_SCORE
+      runId: [collateral_opt::Store]COP_DELIVERY_SCORE.RUN_ID,
+      lotId: [collateral_opt::Store]COP_DELIVERY_SCORE.LOT_ID,
+      agreementId: [collateral_opt::Store]COP_DELIVERY_SCORE.AGREEMENT_ID,
+      haircutCostBps: [collateral_opt::Store]COP_DELIVERY_SCORE.HAIRCUT_COST_BPS,
+      fundingCostBps: [collateral_opt::Store]COP_DELIVERY_SCORE.FUNDING_COST_BPS,
+      opportunityCostBps: [collateral_opt::Store]COP_DELIVERY_SCORE.OPPORTUNITY_COST_BPS,
+      indexReliefBps: [collateral_opt::Store]COP_DELIVERY_SCORE.INDEX_RELIEF_BPS,
+      totalCostBps: [collateral_opt::Store]COP_DELIVERY_SCORE.TOTAL_COST_BPS,
+      rankInAgreement: [collateral_opt::Store]COP_DELIVERY_SCORE.RANK_IN_AGREEMENT
+   }
+
+   collateral_opt::CopPostingPlan[copPostingPlan]: Relational
+   {
+      ~primaryKey ( [collateral_opt::Store]COP_POSTING_PLAN.PLAN_ID )
+      ~mainTable [collateral_opt::Store]COP_POSTING_PLAN
+      planId: [collateral_opt::Store]COP_POSTING_PLAN.PLAN_ID,
+      runId: [collateral_opt::Store]COP_POSTING_PLAN.RUN_ID,
+      agreementId: [collateral_opt::Store]COP_POSTING_PLAN.AGREEMENT_ID,
+      requiredValue: [collateral_opt::Store]COP_POSTING_PLAN.REQUIRED_VALUE,
+      plannedValue: [collateral_opt::Store]COP_POSTING_PLAN.PLANNED_VALUE,
+      currency: [collateral_opt::Store]COP_POSTING_PLAN.CURRENCY,
+      shortfallValue: [collateral_opt::Store]COP_POSTING_PLAN.SHORTFALL_VALUE,
+      isFeasible: [collateral_opt::Store]COP_POSTING_PLAN.IS_FEASIBLE,
+      planStatus: [collateral_opt::Store]COP_POSTING_PLAN.PLAN_STATUS
+   }
+
+   collateral_opt::CopPostingPlanLine[copPlanLine]: Relational
+   {
+      ~primaryKey ( [collateral_opt::Store]COP_PLAN_LINE.LINE_ID )
+      ~mainTable [collateral_opt::Store]COP_PLAN_LINE
+      lineId: [collateral_opt::Store]COP_PLAN_LINE.LINE_ID,
+      planId: [collateral_opt::Store]COP_PLAN_LINE.PLAN_ID,
+      runId: [collateral_opt::Store]COP_PLAN_LINE.RUN_ID,
+      agreementId: [collateral_opt::Store]COP_PLAN_LINE.AGREEMENT_ID,
+      lotId: [collateral_opt::Store]COP_PLAN_LINE.LOT_ID,
+      issuerId: [collateral_opt::Store]COP_PLAN_LINE.ISSUER_ID,
+      assetClass: [collateral_opt::Store]COP_PLAN_LINE.ASSET_CLASS,
+      quantity: [collateral_opt::Store]COP_PLAN_LINE.QUANTITY,
+      marketValue: [collateral_opt::Store]COP_PLAN_LINE.MARKET_VALUE,
+      appliedHaircutPct: [collateral_opt::Store]COP_PLAN_LINE.APPLIED_HAIRCUT_PCT,
+      postValue: [collateral_opt::Store]COP_PLAN_LINE.POST_VALUE,
+      opportunityCost: [collateral_opt::Store]COP_PLAN_LINE.OPPORTUNITY_COST,
+      lineRank: [collateral_opt::Store]COP_PLAN_LINE.LINE_RANK,
+      isSubstitution: [collateral_opt::Store]COP_PLAN_LINE.IS_SUBSTITUTION
+   }
+
+   // ---- the aggregations, mapped over the ~groupBy views ----------------------------------
+   // The grouping columns are the key. Nothing is materialised: the engine folds the GROUP BY
+   // into the SQL when the class is queried.
+   collateral_opt::CopPlanAgreementSummary[copPlanSummary]: Relational
+   {
+      ~primaryKey
+      (
+         [collateral_opt::Store]COP_PLAN_AGREEMENT_SUMMARY.RUN_ID,
+         [collateral_opt::Store]COP_PLAN_AGREEMENT_SUMMARY.AGREEMENT_ID
+      )
+      ~mainTable [collateral_opt::Store]COP_PLAN_AGREEMENT_SUMMARY
+      runId: [collateral_opt::Store]COP_PLAN_AGREEMENT_SUMMARY.RUN_ID,
+      agreementId: [collateral_opt::Store]COP_PLAN_AGREEMENT_SUMMARY.AGREEMENT_ID,
+      totalPostValue: [collateral_opt::Store]COP_PLAN_AGREEMENT_SUMMARY.TOTAL_POST_VALUE,
+      totalOpportunityCost: [collateral_opt::Store]COP_PLAN_AGREEMENT_SUMMARY.TOTAL_OPPORTUNITY_COST,
+      lineCount: [collateral_opt::Store]COP_PLAN_AGREEMENT_SUMMARY.LINE_COUNT
+   }
+
+   collateral_opt::CopIssuerConcentration[copIssuerConcentration]: Relational
+   {
+      ~primaryKey
+      (
+         [collateral_opt::Store]COP_ISSUER_CONCENTRATION.RUN_ID,
+         [collateral_opt::Store]COP_ISSUER_CONCENTRATION.AGREEMENT_ID,
+         [collateral_opt::Store]COP_ISSUER_CONCENTRATION.ISSUER_ID
+      )
+      ~mainTable [collateral_opt::Store]COP_ISSUER_CONCENTRATION
+      runId: [collateral_opt::Store]COP_ISSUER_CONCENTRATION.RUN_ID,
+      agreementId: [collateral_opt::Store]COP_ISSUER_CONCENTRATION.AGREEMENT_ID,
+      issuerId: [collateral_opt::Store]COP_ISSUER_CONCENTRATION.ISSUER_ID,
+      postedValue: [collateral_opt::Store]COP_ISSUER_CONCENTRATION.POSTED_VALUE,
+      lotCount: [collateral_opt::Store]COP_ISSUER_CONCENTRATION.LOT_COUNT
+   }
+
+   collateral_opt::CopSubstitutionProposal[copSubstitutionProposal]: Relational
+   {
+      ~primaryKey ( [collateral_opt::Store]COP_SUBSTITUTION_PROPOSAL.PROPOSAL_ID )
+      ~mainTable [collateral_opt::Store]COP_SUBSTITUTION_PROPOSAL
+      proposalId: [collateral_opt::Store]COP_SUBSTITUTION_PROPOSAL.PROPOSAL_ID,
+      runId: [collateral_opt::Store]COP_SUBSTITUTION_PROPOSAL.RUN_ID,
+      agreementId: [collateral_opt::Store]COP_SUBSTITUTION_PROPOSAL.AGREEMENT_ID,
+      outgoingCollateralId: [collateral_opt::Store]COP_SUBSTITUTION_PROPOSAL.OUTGOING_COLLATERAL_ID,
+      incomingLotId: [collateral_opt::Store]COP_SUBSTITUTION_PROPOSAL.INCOMING_LOT_ID,
+      valueDifference: [collateral_opt::Store]COP_SUBSTITUTION_PROPOSAL.VALUE_DIFFERENCE,
+      costSavingBps: [collateral_opt::Store]COP_SUBSTITUTION_PROPOSAL.COST_SAVING_BPS,
+      proposalStatus: [collateral_opt::Store]COP_SUBSTITUTION_PROPOSAL.PROPOSAL_STATUS,
+      raisedDate: [collateral_opt::Store]COP_SUBSTITUTION_PROPOSAL.RAISED_DATE,
+      withdrawnDate: [collateral_opt::Store]COP_SUBSTITUTION_PROPOSAL.WITHDRAWN_DATE
+   }
+
+   // ---- THE OR-JOIN ------------------------------------------------------------------------
+   // Both ends read the same disjunctive join, from opposite sides.
+   collateral_opt::CopLendingOpportunity: Relational
    {
       AssociationMapping
       (
-         agreement[copProbe, colAgreement]: [collateral_opt::Store]@Cop_ProbeAgreement,
-         probes[colAgreement, copProbe]: [collateral_opt::Store]@Cop_ProbeAgreement
+         lendingDemands[copInventoryLot, copLendingDemand]: [collateral_opt::Store]@Cop_LotLendingDemand,
+         demandedLots[copLendingDemand, copInventoryLot]: [collateral_opt::Store]@Cop_LotLendingDemand
+      )
+   }
+
+   // ---- within this project ------------------------------------------------------------------
+
+   collateral_opt::CopRunCostBasis: Relational
+   {
+      AssociationMapping
+      (
+         costBasis[copRun, copCostBasis]: [collateral_opt::Store]@Cop_RunCostBasis,
+         runs[copCostBasis, copRun]: [collateral_opt::Store]@Cop_RunCostBasis
+      )
+   }
+
+   collateral_opt::CopRunPlans: Relational
+   {
+      AssociationMapping
+      (
+         plans[copRun, copPostingPlan]: [collateral_opt::Store]@Cop_RunPlan,
+         run[copPostingPlan, copRun]: [collateral_opt::Store]@Cop_RunPlan
+      )
+   }
+
+   collateral_opt::CopPlanLines: Relational
+   {
+      AssociationMapping
+      (
+         lines[copPostingPlan, copPlanLine]: [collateral_opt::Store]@Cop_PlanLine,
+         plan[copPlanLine, copPostingPlan]: [collateral_opt::Store]@Cop_PlanLine
+      )
+   }
+
+   collateral_opt::CopLotPlanLines: Relational
+   {
+      AssociationMapping
+      (
+         plannedLines[copInventoryLot, copPlanLine]: [collateral_opt::Store]@Cop_LotPlanLine,
+         lot[copPlanLine, copInventoryLot]: [collateral_opt::Store]@Cop_LotPlanLine
+      )
+   }
+
+   collateral_opt::CopRunAssessments: Relational
+   {
+      AssociationMapping
+      (
+         assessments[copRun, copEligibilityAssessment]: [collateral_opt::Store]@Cop_RunAssessment,
+         assessmentRun[copEligibilityAssessment, copRun]: [collateral_opt::Store]@Cop_RunAssessment
+      )
+   }
+
+   collateral_opt::CopLotAssessments: Relational
+   {
+      AssociationMapping
+      (
+         lotAssessments[copInventoryLot, copEligibilityAssessment]: [collateral_opt::Store]@Cop_LotAssessment,
+         assessedLot[copEligibilityAssessment, copInventoryLot]: [collateral_opt::Store]@Cop_LotAssessment
+      )
+   }
+
+   collateral_opt::CopRunScores: Relational
+   {
+      AssociationMapping
+      (
+         deliveryScores[copRun, copDeliveryScore]: [collateral_opt::Store]@Cop_RunScore,
+         scoreRun[copDeliveryScore, copRun]: [collateral_opt::Store]@Cop_RunScore
+      )
+   }
+
+   collateral_opt::CopLotScores: Relational
+   {
+      AssociationMapping
+      (
+         lotScores[copInventoryLot, copDeliveryScore]: [collateral_opt::Store]@Cop_LotScore,
+         scoredLot[copDeliveryScore, copInventoryLot]: [collateral_opt::Store]@Cop_LotScore
+      )
+   }
+
+   // The rollups, hung off the plan they roll up. Two-column joins both ways.
+   collateral_opt::CopPlanSummaryLink: Relational
+   {
+      AssociationMapping
+      (
+         planSummary[copPostingPlan, copPlanSummary]: [collateral_opt::Store]@Cop_PlanSummary,
+         summarisedPlan[copPlanSummary, copPostingPlan]: [collateral_opt::Store]@Cop_PlanSummary
+      )
+   }
+
+   collateral_opt::CopPlanConcentrations: Relational
+   {
+      AssociationMapping
+      (
+         issuerConcentrations[copPostingPlan, copIssuerConcentration]: [collateral_opt::Store]@Cop_PlanIssuerConcentration,
+         concentrationPlan[copIssuerConcentration, copPostingPlan]: [collateral_opt::Store]@Cop_PlanIssuerConcentration
+      )
+   }
+
+   collateral_opt::CopRunSubstitutions: Relational
+   {
+      AssociationMapping
+      (
+         substitutionProposals[copRun, copSubstitutionProposal]: [collateral_opt::Store]@Cop_RunSubstitution,
+         substitutionRun[copSubstitutionProposal, copRun]: [collateral_opt::Store]@Cop_RunSubstitution
+      )
+   }
+
+   collateral_opt::CopProposalIncomingLot: Relational
+   {
+      AssociationMapping
+      (
+         incomingLot[copSubstitutionProposal, copInventoryLot]: [collateral_opt::Store]@Cop_ProposalIncomingLot,
+         incomingProposals[copInventoryLot, copSubstitutionProposal]: [collateral_opt::Store]@Cop_ProposalIncomingLot
+      )
+   }
+
+   // ---- across the boundary ---------------------------------------------------------------
+   // Every end names the DEPENDENCY's explicit set id -- `colAgreement`, `colEligibilityRule`,
+   // `colEligibilitySchedule`, `colConcentrationLimit`, `colCollateral`, `idxConstituent`,
+   // `idxIndex` -- because those projects declared theirs and the defaults do not exist.
+
+   collateral_opt::CopPlanAgreement: Relational
+   {
+      AssociationMapping
+      (
+         agreement[copPostingPlan, colAgreement]: [collateral_opt::Store]@Cop_PlanAgreement,
+         postingPlans[colAgreement, copPostingPlan]: [collateral_opt::Store]@Cop_PlanAgreement
+      )
+   }
+
+   collateral_opt::CopAssessmentBindingRule: Relational
+   {
+      AssociationMapping
+      (
+         bindingRule[copEligibilityAssessment, colEligibilityRule]: [collateral_opt::Store]@Cop_AssessmentBindingRule,
+         boundAssessments[colEligibilityRule, copEligibilityAssessment]: [collateral_opt::Store]@Cop_AssessmentBindingRule
+      )
+   }
+
+   collateral_opt::CopBasketRuleSchedule: Relational
+   {
+      AssociationMapping
+      (
+         basketSchedule[copIndexBasketRule, colEligibilitySchedule]: [collateral_opt::Store]@Cop_BasketRuleSchedule,
+         indexBasketRules[colEligibilitySchedule, copIndexBasketRule]: [collateral_opt::Store]@Cop_BasketRuleSchedule
+      )
+   }
+
+   collateral_opt::CopConcentrationAgainstLimit: Relational
+   {
+      AssociationMapping
+      (
+         bindingLimits[copIssuerConcentration, colConcentrationLimit]: [collateral_opt::Store]@Cop_ConcentrationLimit,
+         issuerRollups[colConcentrationLimit, copIssuerConcentration]: [collateral_opt::Store]@Cop_ConcentrationLimit
+      )
+   }
+
+   collateral_opt::CopProposalOutgoing: Relational
+   {
+      AssociationMapping
+      (
+         outgoingCollateral[copSubstitutionProposal, colCollateral]: [collateral_opt::Store]@Cop_ProposalOutgoing,
+         optimiserProposals[colCollateral, copSubstitutionProposal]: [collateral_opt::Store]@Cop_ProposalOutgoing
+      )
+   }
+
+   collateral_opt::CopLotIndexMembership: Relational
+   {
+      AssociationMapping
+      (
+         indexMemberships[copInventoryLot, idxConstituent]: [collateral_opt::Store]@Cop_LotIndexMembership,
+         inventoryLots[idxConstituent, copInventoryLot]: [collateral_opt::Store]@Cop_LotIndexMembership
+      )
+   }
+
+   collateral_opt::CopBasketRuleIndex: Relational
+   {
+      AssociationMapping
+      (
+         basketIndex[copIndexBasketRule, idxIndex]: [collateral_opt::Store]@Cop_BasketRuleIndex,
+         collateralBasketRules[idxIndex, copIndexBasketRule]: [collateral_opt::Store]@Cop_BasketRuleIndex
       )
    }
 )

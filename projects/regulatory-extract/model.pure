@@ -1,6 +1,929 @@
 ###Pure
 
+// ============================================================
+// regulatory-extract (L2) -- the report a regulator receives, and what comes back
+// ============================================================
+// Depends on trade-capture, reference-data and client-core, and on NOTHING else. That is
+// three dependencies with three separate transitive closures behind them, and the whole
+// point of the project: a transaction report is the one artefact in a bank that cannot be
+// assembled from one domain.
+//
+//    trade-capture   what was done       trade_capture::Trade, trade_capture::Trader
+//    reference-data  what it was done in reference_data::RdListingVenue
+//    client-core     who it was done for client_core::CliClient
+//
+// The three closures OVERLAP -- trade-capture and reference-data both sit on
+// core-instrument, trade-capture and client-core both sit on core-party -- so this store
+// and this mapping each include a diamond. Nothing in this project names a project outside
+// the three declared ones: an instrument reaches us as `$report.trade.instrument` through
+// trade-capture's own association, and a client's legal name reaches us through
+// `client_core::CliClient.legalEntityName`, which is client-core's flattened chain. Neither
+// core_instrument:: nor core_party:: nor core_geo:: appears in any of these three files.
+//
+// WHAT A TRANSACTION REPORT IS. Under MiFIR RTS 22 an investment firm sends its national
+// competent authority, by T+1, one record per reportable transaction with 65 numbered
+// fields. Under EMIR it sends a trade repository a different record for a derivative, and
+// both sides of the trade report it, so the two records get RECONCILED against each other.
+// The two schemas share almost nothing -- except the four fields that are hard in both:
+//
+//    who DECIDED           MiFIR 57 / the investment decision within firm
+//    who EXECUTED          MiFIR 59 / execution within firm
+//    in what CAPACITY      MiFIR 29 / DEAL, MTCH, AOTC
+//    under what WAIVER     MiFIR 61 / RFPT, NLIQ, OILQ, SIZE
+//
+// Those four are hard because the answer is a PERSON, an ALGORITHM or neither, because the
+// person is identified by a national scheme that differs per member state, and because the
+// answer must be the one that was true at execution, not the one true today. So they are
+// modelled as their own classes with their own rows rather than as four columns of text.
+//
+// WHAT THIS PROJECT DOES NOT DO. It does not restate the trade. `REX_TRANSACTION` carries
+// the REPORTED values -- what was sent, in the units the schema demands -- and a
+// `trade` property back to `trade_capture::Trade` for what was actually booked. When the
+// two disagree, that disagreement is the finding, and a model that stored one column for
+// both could not represent it.
+
+// ---------------------------------------------------------------- the report and its regimes
+
+// FOR: one reportable transaction as it will be, or was, sent to an authority -- the report
+// LINE, not the trade. The root set over `rex.REX_TRANSACTION`: every row, whatever regime
+// it belongs to, so `RexTransactionReport.all()` is the whole extract.
+//
+// The columns of both regimes live on this one table and the subtypes below narrow it by
+// `~filter`. That is deliberate: a MiFIR report and an EMIR report are the same OBJECT at
+// different points of its life -- the same trade, the same submission machinery, the same
+// rejection feedback -- and splitting them into two tables would double every join into the
+// error, batch and remediation tables for no gain.
 Class regulatory_extract::RexTransactionReport
+[
+   // A report with no reference cannot be amended or cancelled later, because the amendment
+   // names the original by this string and nothing else.
+   transactionReferenceIsPresent: ($this.transactionReference->length() > 0),
+   // RTS 22 field 4 is a 20-character LEI. A 19-character one is a keying error that the
+   // authority will reject a day later; catching it here costs nothing.
+   executingEntityLeiIsTwentyCharacters: ($this.executingEntityLei->length() == 20),
+   quantityIsPositive: ($this.reportedQuantity > 0.0),
+   // Acceptance cannot precede submission. Both are nullable, so both guards are needed
+   // before either is dereferenced.
+   acceptedNotBeforeSubmitted:
+      ((($this.acceptedTime->isEmpty()) || ($this.submittedTime->isEmpty())) || ($this.acceptedTime->toOne() >= $this.submittedTime->toOne()))
+]
 {
    reportId: String[1];
+   // MIFIR, EMIR, SFTR. The discriminator the four subtype filters read.
+   regimeCode: String[1];
+   // DRAFT, PENDING, SUBMITTED, ACCEPTED, REJECTED, CANCELLED.
+   reportStatus: String[1];
+   // NEWT, AMND, CANC, CORR, EROR -- what this record DOES to the authority's copy. A
+   // cancellation is a report, not the absence of one.
+   reportAction: String[1];
+   // RTS 22 field 2: our own reference for the transaction, unique for the executing firm
+   // and never reused. The key an amendment or a cancellation names.
+   transactionReference: String[1];
+   // Field 4. Who is legally on the hook for this report.
+   executingEntityLei: String[1];
+   // Field 6. Often a third-party ARM rather than us, which is why it is separate.
+   submittingEntityLei: String[0..1];
+   // Fields 7 and 16: the buyer and the seller, as a LEI, a national identifier or a
+   // structured client code. Held as text because the scheme varies by counterparty type.
+   buyerIdentificationCode: String[0..1];
+   sellerIdentificationCode: String[0..1];
+   // Field 28: the point in time reporting is measured from. Not the capture time.
+   tradingDateTime: DateTime[1];
+   // Field 29, joined out to RexTradingCapacity. DEAL, MTCH or AOTC.
+   tradingCapacityCode: String[0..1];
+   // Fields 30, 33, 34, 35: the reported economics. These may differ from the booked trade
+   // -- a report expresses quantity in the notation the schema demands.
+   reportedQuantity: Float[1];
+   reportedPrice: Float[0..1];
+   priceCurrency: String[0..1];
+   netAmount: Float[0..1];
+   // Field 36: the MIC of the venue, or 'XOFF' / 'XXXX' where there is none.
+   venueMic: String[0..1];
+   // Fields 37-38: the branch whose membership was used, and the branch supervising the
+   // person who decided. Both are ISO 3166-1 alpha-2.
+   countryOfBranchMembership: String[0..1];
+   countryOfBranchSupervising: String[0..1];
+   // Field 41: the ISIN of the instrument as reported. Deliberately a string and not a
+   // reference: what was SENT is what matters, even if the master has since been corrected.
+   instrumentIdentificationCode: String[0..1];
+   // Field 40: ties the legs of a strategy together so the authority does not read four
+   // reports as four unrelated transactions.
+   complexTradeComponentId: String[0..1];
+   // Field 61. The primary waiver claimed; further ones hang off RexReportWaiver, because
+   // a transaction can be executed under more than one.
+   waiverIndicatorCode: String[0..1];
+   // Field 62: SESH, SELL, SSEX, UNDI.
+   shortSaleIndicatorCode: String[0..1];
+   // Field 63: the OTC post-trade flag -- BENC, ACTX, LRGS, ILQD, SIZE, TPAC, XFPH.
+   otcPostTradeIndicatorCode: String[0..1];
+   // Fields 64 and 65.
+   isCommodityDerivative: Boolean[0..1];
+   isSecuritiesFinancing: Boolean[0..1];
+   // The deadline this report is measured against -- T+1 for MiFIR, T+1 for EMIR, but from
+   // different clocks. Stored, because the deadline that applied is not recomputable once
+   // the calendar has been amended.
+   reportingDeadline: DateTime[0..1];
+   // Null until it goes. `RexUnsubmittedTransactionReport` is exactly the rows where it is.
+   submittedTime: DateTime[0..1];
+   acceptedTime: DateTime[0..1];
+
+   // -------- the fan-in, as objects. Three projects, reached from one row.
+   // What was actually booked. Navigate `$report.trade.instrument` for the instrument and
+   // `$report.trade.counterparty.legalEntity` for the party: those are trade-capture's own
+   // associations, and using them is why this project needs no dependency on core-instrument
+   // or core-party of its own.
+   trade: trade_capture::Trade[0..1];
+   // The venue as reference-data knows it, off the reported MIC.
+   executionVenue: reference_data::RdListingVenue[0..1];
+   // Our own regulatory treatment of the client; `clientProfile.client` is the client-core
+   // relationship behind it.
+   clientProfile: regulatory_extract::RexClientReportingProfile[0..1];
+   // And the venue's, which decides what actually goes in field 36.
+   venueProfile: regulatory_extract::RexVenueReportingProfile[0..1];
+
+   // -------- this project's own graph.
+   regime: regulatory_extract::RexReportingRegime[0..1];
+   tradingCapacity: regulatory_extract::RexTradingCapacity[0..1];
+   shortSaleIndicator: regulatory_extract::RexShortSaleIndicator[0..1];
+   reportingEntity: regulatory_extract::RexReportingEntity[0..1];
+   producedByRun: regulatory_extract::RexExtractRun[0..1];
+   eligibility: regulatory_extract::RexTradeEligibility[0..1];
+   fieldValues: regulatory_extract::RexFieldValue[*];
+   personRoles: regulatory_extract::RexReportPersonRole[*];
+   claimedWaivers: regulatory_extract::RexReportWaiver[*];
+   postTradeFlags: regulatory_extract::RexPostTradeFlag[*];
+   validationErrors: regulatory_extract::RexValidationError[*];
+   rejections: regulatory_extract::RexRejectionFeedback[*];
+   reconciliationBreaks: regulatory_extract::RexReconciliationBreak[*];
+   submissions: regulatory_extract::RexSubmissionEntry[*];
+
+   // -------- reached through joins, stored on nobody's table here.
+   // One hop into trade-capture: what was actually booked, against what was reported.
+   tradeCurrency: String[0..1];
+   tradeExecutionTime: DateTime[0..1];
+   tradeInstrumentId: String[0..1];
+   // One hop into reference-data, off the MIC.
+   venueName: String[0..1];
+   venueCountryCode: String[0..1];
+   // Two hops: our client profile row, then client-core's own CLI_CLIENT.
+   clientName: String[0..1];
+   clientType: String[0..1];
+
+   // A report nobody has sent is not late, it is unsent; the two are different findings.
+   isSubmitted() { $this.submittedTime->isNotEmpty() } : Boolean[1];
+   isAccepted() { ($this.reportStatus == 'ACCEPTED') } : Boolean[1];
+   // True only where we can prove lateness: sent, with a deadline, after it.
+   isLate()
+   {
+      ((($this.submittedTime->isNotEmpty()) && ($this.reportingDeadline->isNotEmpty())) && ($this.submittedTime->toOne() > $this.reportingDeadline->toOne()))
+   } : Boolean[1];
+}
+
+// FOR: the MiFIR RTS 22 view of the extract -- the rows whose regime is MIFIR, with the
+// fields that only exist in that schema. Same table, narrowed by `~filter RexMifirRows`.
+//
+// Transmission is the MiFIR-only idea: a firm that passes an order to another firm to
+// execute either transmits the client details with it (and does not report) or does not
+// (and does). Fields 25-27 record which.
+Class regulatory_extract::RexMifirTransactionReport extends regulatory_extract::RexTransactionReport
+{
+   // Field 25. True where the conditions for transmission were met, so the receiving firm
+   // reports the client and we do not.
+   transmissionIndicator: Boolean[0..1];
+   // Fields 26 and 27: the firm we transmitted to, per side.
+   transmittingFirmIdBuyer: String[0..1];
+   transmittingFirmIdSeller: String[0..1];
+   // Field 60. The MIC of the venue an order was routed to for execution, where different
+   // from the venue of the transaction itself.
+   executionWithinFirmVenue: String[0..1];
+   // Field 47: how the notional moved for a derivative -- INCR or DECR.
+   derivativeNotionalChange: String[0..1];
+}
+
+// FOR: the EMIR view of the extract -- a derivative trade report to a trade repository.
+// The rows whose regime is EMIR, narrowed by `~filter RexEmirRows`.
+//
+// The difference that matters downstream: an EMIR report is DUAL-SIDED. Both counterparties
+// report the same trade under a shared UTI, and the repository reconciles the two records
+// field by field. `RexReconciliationBreak` is where that comes back.
+Class regulatory_extract::RexEmirTradeReport extends regulatory_extract::RexTransactionReport
+{
+   // The Unique Trade Identifier both sides must agree on. Without it there is nothing to
+   // reconcile against and the report pairs with nothing.
+   uniqueTradeIdentifier: String[0..1];
+   // The other side's LEI, and which side we are -- one report's buyer is the other's
+   // seller, and a sign error here is the commonest reconciliation break there is.
+   counterpartyLei: String[0..1];
+   counterpartySide: String[0..1];
+   // Whether the trade was subject to the clearing obligation, and whether it was in fact
+   // cleared. These are not the same question and a report answers both.
+   hasClearingObligation: Boolean[0..1];
+   isCleared: Boolean[0..1];
+   ccpLei: String[0..1];
+   // UNCL, PRC1, PRC2, OWC1, OWC2, FLCL -- the collateralisation category.
+   collateralisationCode: String[0..1];
+   isIntragroup: Boolean[0..1];
+   // Confirmation is a separate EMIR obligation with its own deadline, reported here.
+   confirmationTimestamp: DateTime[0..1];
+   confirmationMeans: String[0..1];
+   // The daily mark, which EMIR requires and MiFIR does not.
+   valuationAmount: Float[0..1];
+   valuationTimestamp: DateTime[0..1];
+}
+
+// FOR: the rows the authority refused -- `~filter RexRejectedRows` over report status.
+// A rejection is a state of the report and not a separate object, so this is a view of the
+// same table; the authority's own message is `RexRejectionFeedback`, which can be several.
+Class regulatory_extract::RexRejectedTransactionReport extends regulatory_extract::RexTransactionReport
+{
+   rejectedTime: DateTime[0..1];
+   // The authority's code, not ours: 'CON-412', 'INS-002'. Ours are on RexValidationError.
+   ncaRejectionCode: String[0..1];
+   ncaFeedbackReference: String[0..1];
+   // How many times we have already tried. A report on its fourth attempt is an escalation
+   // whatever its rejection code says.
+   resubmissionCount: Integer[0..1];
+}
+
+// FOR: the backlog -- reports built but not yet sent, `~filter RexUnsubmittedRows` on a
+// null submission time. This is the subtype the T+1 breach alert reads, and it is a filter
+// over a NULL rather than over a status string because a report can sit in any of three
+// statuses and still not have gone anywhere.
+Class regulatory_extract::RexUnsubmittedTransactionReport extends regulatory_extract::RexTransactionReport
+{
+   // Set when a human parks a report deliberately -- a known data gap awaiting a fix.
+   heldReasonCode: String[0..1];
+   heldByUser: String[0..1];
+}
+
+// FOR: one reporting regime we are in scope for, as a row: MiFIR, EMIR, SFTR. The place the
+// deadline convention and the schema version live, so a schema upgrade is one row and not a
+// deployment.
+Class regulatory_extract::RexReportingRegime
+{
+   regimeCode: String[1];
+   regimeName: String[1];
+   // The legal instrument -- 'RTS 22', 'EMIR REFIT', 'SFTR RTS 2'.
+   legalReference: String[0..1];
+   // Which authority or repository type receives it.
+   receiverType: String[0..1];
+   // How many fields this regime's schema has. 65 for MiFIR RTS 22, and the number is not
+   // decoration: a submission with a different count is malformed before it is wrong.
+   fieldCount: Integer[0..1];
+   // Business days after trade date. 1 for both MiFIR and EMIR, and still worth a column
+   // because SFTR's is different and a hardcoded 1 is how a project gets it wrong.
+   deadlineBusinessDays: Integer[0..1];
+   schemaVersion: String[0..1];
+   effectiveFrom: StrictDate[0..1];
+   // Null while in force. A regime is retired by a date, never by deleting the row -- old
+   // reports must still resolve their regime.
+   retiredOn: StrictDate[0..1];
+
+   isInForce() { $this.retiredOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: the rule that puts a population of trades in scope of a regime -- the answer to "why
+// is this trade reportable", kept as a row so that the answer can be shown to an auditor
+// rather than recited from a developer's memory.
+Class regulatory_extract::RexReportingObligation
+{
+   obligationId: String[1];
+   regimeCode: String[1];
+   // What it is scoped on: ASSET_CLASS, VENUE_TYPE, CLIENT_CATEGORY, ENTITY.
+   scopeType: String[1];
+   scopeValue: String[1];
+   // Whether WE report, the counterparty reports, or a delegate does. Under EMIR a
+   // financial counterparty reports for its non-financial client, and getting this backwards
+   // produces either a double report or none.
+   reportingParty: String[0..1];
+   isDelegated: Boolean[0..1];
+   delegateLei: String[0..1];
+   startDate: StrictDate[0..1];
+   endDate: StrictDate[0..1];
+
+   regime: regulatory_extract::RexReportingRegime[0..1];
+
+   isLive() { $this.endDate->isEmpty() } : Boolean[1];
+}
+
+// FOR: one numbered field in one regime's schema -- MiFIR field 57 "Investment decision
+// within firm" as an object. The schema AS DATA, so validation, lineage and the field list
+// sent to an ARM all read the same definition.
+Class regulatory_extract::RexReportField
+{
+   regimeCode: String[1];
+   // 1..65 for MiFIR RTS 22. Composite key with the regime: field 57 means different things
+   // under two regimes and there is no global field 57.
+   fieldNumber: Integer[1];
+   fieldName: String[1];
+   // ISO 20022-ish: 'Max52Text', 'ISODateTime', 'DecimalNumber'.
+   dataType: String[0..1];
+   isMandatory: Boolean[0..1];
+   // The condition under which a conditionally-mandatory field becomes required. Text,
+   // because it is quoted from the regulation and read by a human.
+   conditionalRule: String[0..1];
+   maxLength: Integer[0..1];
+   // Where the value comes from: 'TRADE_CAPTURE', 'REFERENCE_DATA', 'CLIENT', 'STATIC'.
+   // The fan-in, written down.
+   sourceDomain: String[0..1];
+   // The property or column path the extract reads. Lineage as data, not as a comment.
+   sourcePath: String[0..1];
+
+   regime: regulatory_extract::RexReportingRegime[0..1];
+}
+
+// FOR: the value one field took on one report -- the extract's output in its most literal
+// form, one row per field per report. Composite key on report, regime and field number.
+//
+// This exists alongside the typed columns of REX_TRANSACTION on purpose: the typed columns
+// are what the code reads, and these rows are what was actually SENT, byte for byte, after
+// formatting. An investigation into a rejection needs the second, not the first.
+Class regulatory_extract::RexFieldValue
+{
+   reportId: String[1];
+   regimeCode: String[1];
+   fieldNumber: Integer[1];
+   // The formatted value as it appeared in the file. Null is a real answer here -- an
+   // absent optional field -- and is not the same as an empty string.
+   fieldValue: String[0..1];
+   // What it was before the last correction, so an amendment can be explained.
+   previousValue: String[0..1];
+   isPopulated: Boolean[0..1];
+   // Set where this value was defaulted rather than sourced, which is the first thing to
+   // look at when a field is systematically wrong.
+   wasDefaulted: Boolean[0..1];
+   populatedTime: DateTime[0..1];
+
+   report: regulatory_extract::RexTransactionReport[0..1];
+   // The definition this value satisfies -- reached on BOTH key columns, because the field
+   // number alone means nothing without the regime.
+   field: regulatory_extract::RexReportField[0..1];
+}
+
+// ---------------------------------------------------------------- the four hard ones
+
+// FOR: the capacity a transaction was executed in -- MiFIR field 29. DEAL (own account),
+// MTCH (matched principal), AOTC (any other capacity). A reference row rather than a string
+// because the capacity changes what else the report must contain: a DEAL report needs no
+// client, an AOTC report is invalid without one.
+Class regulatory_extract::RexTradingCapacity
+{
+   capacityCode: String[1];
+   capacityName: String[1];
+   description: String[0..1];
+   // True where a client identifier is mandatory alongside this capacity.
+   requiresClientIdentification: Boolean[0..1];
+   // True where the firm takes the position on its own book, which drives the position
+   // reporting obligation as well as this one.
+   isPrincipal: Boolean[0..1];
+}
+
+// FOR: whoever or whatever made a decision that has to be reported -- MiFIR fields 57 and
+// 59. The single hardest thing in a transaction report, because the answer is one of three
+// shapes: a natural person, a registered algorithm, or nobody (a client-driven order the
+// firm exercised no discretion over).
+//
+// So `makerType` is the discriminator and `algorithmId`, `traderId` and the national
+// identifier rows are the three payloads. Modelling it as a single text column, which is
+// what the file format looks like, loses the ability to ask "which algorithm decided" at
+// all.
+Class regulatory_extract::RexDecisionMaker
+{
+   decisionMakerId: String[1];
+   // NATURAL_PERSON, ALGORITHM, NONE.
+   makerType: String[1];
+   displayName: String[0..1];
+   // Set where makerType is ALGORITHM. Points at the registered algorithm.
+   algorithmRef: String[0..1];
+   // Set where makerType is NATURAL_PERSON. The trade-capture trader this is the reporting
+   // face of -- the fan-in: a person the front office knows as a trader is a national
+   // identifier to a regulator.
+   traderRef: String[0..1];
+   // The branch supervising the person, which the report needs separately from the branch
+   // the trade was booked in.
+   supervisingBranchCountry: String[0..1];
+   // Whether this maker may still be quoted on a new report.
+   isActive: Boolean[0..1];
+   validFrom: StrictDate[0..1];
+   validTo: StrictDate[0..1];
+
+   // The registered algorithm, where this maker is one.
+   algorithm: regulatory_extract::RexAlgorithm[0..1];
+   // The national identifiers, of which there may be several with a priority order.
+   nationalIdentifiers: regulatory_extract::RexNaturalPersonIdentifier[*];
+   // Into trade-capture: the same human the front office books trades for.
+   trader: trade_capture::Trader[0..1];
+
+   isNaturalPerson() { ($this.makerType == 'NATURAL_PERSON') } : Boolean[1];
+   isAlgorithm() { ($this.makerType == 'ALGORITHM') } : Boolean[1];
+
+   // -------- reached through a join into trade-capture.
+   traderFullNameSource: String[0..1];
+   traderDeskName: String[0..1];
+}
+
+// FOR: a trading algorithm registered with the competent authority, so that its identifier
+// may appear in field 57 or 59. Separate from the decision maker because one algorithm
+// decides for many desks, and because an algorithm is registered, versioned and withdrawn
+// on its own timeline.
+Class regulatory_extract::RexAlgorithm
+{
+   algorithmId: String[1];
+   algorithmName: String[1];
+   // The code as registered with the NCA, which is not our internal name.
+   registeredCode: String[0..1];
+   // INVESTMENT_DECISION, EXECUTION, BOTH -- what it is allowed to be quoted for.
+   algorithmRole: String[0..1];
+   version: String[0..1];
+   ownerDeskName: String[0..1];
+   registeredWithNca: Boolean[0..1];
+   registeredFrom: StrictDate[0..1];
+   withdrawnOn: StrictDate[0..1];
+}
+
+// FOR: one national identifier of one natural person -- the CONCAT, the passport number,
+// the CCPT/NIDN scheme code. Composite key on the person and the scheme, because a person
+// with dual nationality has two and the report must carry the one the member state ranks
+// first.
+//
+// This is the reason field 57 is hard: the identifier is not ours, it differs per member
+// state, it has a priority order, and using the wrong one is a rejection rather than a
+// warning.
+Class regulatory_extract::RexNaturalPersonIdentifier
+{
+   decisionMakerId: String[1];
+   // NIDN, CCPT, CONCAT.
+   schemeCode: String[1];
+   identifierValue: String[1];
+   // The member state whose ranking this identifier satisfies.
+   issuingCountryCode: String[0..1];
+   // 1, 2, 3 -- the state's priority order. The lowest present one is what goes in the file.
+   priorityRank: Integer[0..1];
+   validFrom: StrictDate[0..1];
+   validTo: StrictDate[0..1];
+}
+
+// FOR: the link between one report and one decision maker in one role -- the join row that
+// answers "who decided this, and who executed it". Composite key on report and role,
+// because a report has exactly one investment decision maker and one execution decision
+// maker and never two of either.
+Class regulatory_extract::RexReportPersonRole
+{
+   reportId: String[1];
+   // INVESTMENT_DECISION (field 57) or EXECUTION (field 59).
+   roleCode: String[1];
+   decisionMakerId: String[0..1];
+   // The value as it was actually written into the file, kept beside the reference, because
+   // a maker's identifier can be corrected afterwards and the report must still show what
+   // was sent.
+   reportedIdentifierValue: String[0..1];
+   reportedSchemeCode: String[0..1];
+   // True where the role was legitimately empty -- a client order the firm exercised no
+   // discretion over. An empty role and a MISSING role are different defects.
+   isNoDiscretion: Boolean[0..1];
+   assignedTime: DateTime[0..1];
+
+   report: regulatory_extract::RexTransactionReport[0..1];
+   decisionMaker: regulatory_extract::RexDecisionMaker[0..1];
+}
+
+// FOR: a pre-trade transparency waiver as a reference row -- MiFIR field 61. RFPT
+// (reference price), NLIQ (negotiated, illiquid), OILQ (negotiated, liquid), SIZE (large in
+// scale). The waiver is what makes an off-book execution legal, so which one was claimed is
+// the first thing an authority asks about a trade that never appeared on a lit venue.
+Class regulatory_extract::RexWaiver
+{
+   waiverCode: String[1];
+   waiverName: String[1];
+   description: String[0..1];
+   // The article of MiFIR that grants it.
+   legalBasis: String[0..1];
+   // True where the waiver may only be claimed above a size threshold, which is the
+   // condition that has to be re-tested per instrument per year.
+   requiresSizeThreshold: Boolean[0..1];
+   // EQUITY, NON_EQUITY, BOTH.
+   appliesToAssetClass: String[0..1];
+}
+
+// FOR: one waiver claimed on one report. A separate row per waiver, composite key on report
+// and waiver code, because a transaction can be executed under more than one -- a large
+// negotiated trade in an illiquid instrument is NLIQ and SIZE at once -- and field 61 is
+// repeatable for exactly that reason.
+Class regulatory_extract::RexReportWaiver
+{
+   reportId: String[1];
+   waiverCode: String[1];
+   // Where the size threshold was the basis, the size that was tested and the threshold it
+   // was tested against. Both, because the threshold moves annually and a report defended
+   // two years later needs the one that applied.
+   testedSize: Float[0..1];
+   thresholdApplied: Float[0..1];
+   claimedTime: DateTime[0..1];
+   // Who or what decided the waiver applied: 'VENUE_FEED', 'TRADER', 'RULE_ENGINE'.
+   claimSource: String[0..1];
+
+   report: regulatory_extract::RexTransactionReport[0..1];
+   waiver: regulatory_extract::RexWaiver[0..1];
+}
+
+// FOR: the short-selling indicator as a reference row -- MiFIR field 62. SESH (short sale
+// with exemption), SELL (short sale, no exemption), SSEX (no short sale), UNDI (information
+// not available). UNDI is a real, legal answer for a client order and not a data gap, which
+// is why it is a row here rather than a null.
+Class regulatory_extract::RexShortSaleIndicator
+{
+   indicatorCode: String[1];
+   indicatorName: String[1];
+   description: String[0..1];
+   isShortSale: Boolean[0..1];
+   // True for SESH: a market-making exemption was relied on, which the authority may test.
+   hasExemption: Boolean[0..1];
+}
+
+// FOR: one post-trade flag on one report -- MiFIR field 63 and its EMIR equivalents. BENC,
+// ACTX, LRGS, ILQD, SIZE, TPAC, XFPH. Composite key on report and flag, because the field is
+// repeatable and a benchmark portfolio trade above large-in-scale carries two.
+Class regulatory_extract::RexPostTradeFlag
+{
+   reportId: String[1];
+   flagCode: String[1];
+   flagName: String[0..1];
+   // True where the flag grants a publication deferral rather than merely describing the
+   // trade -- the difference between a label and a legal effect.
+   grantsDeferral: Boolean[0..1];
+   deferralDays: Integer[0..1];
+   appliedTime: DateTime[0..1];
+
+   report: regulatory_extract::RexTransactionReport[0..1];
+}
+
+// ---------------------------------------------------------------- producing and sending
+
+// FOR: one execution of the extract job -- the batch that read three projects' tables and
+// produced a set of reports. The row an operator looks at first, because "yesterday's
+// reports are missing" is nearly always a run that did not finish rather than a report that
+// was wrong.
+Class regulatory_extract::RexExtractRun
+{
+   runId: String[1];
+   regimeCode: String[0..1];
+   // The business date the extract covers, which is not the date it ran.
+   businessDate: StrictDate[1];
+   startedTime: DateTime[1];
+   // Null while running, and a run that has been null for six hours is the alert.
+   completedTime: DateTime[0..1];
+   // RUNNING, COMPLETED, FAILED, PARTIAL.
+   runStatus: String[1];
+   // Trades read, reports produced, reports suppressed. Three numbers, because the
+   // interesting failure is the one where they do not add up.
+   tradesRead: Integer[0..1];
+   reportsProduced: Integer[0..1];
+   reportsSuppressed: Integer[0..1];
+   triggeredBy: String[0..1];
+
+   isComplete() { ($this.runStatus == 'COMPLETED') } : Boolean[1];
+}
+
+// FOR: where a batch is sent -- an ARM, a national competent authority, a trade repository.
+// Its own row because the destination has a schema version, a transport and a cut-off that
+// the regime alone does not fix: two NCAs under the same regime accept different files.
+Class regulatory_extract::RexReportDestination
+{
+   destinationCode: String[1];
+   destinationName: String[1];
+   // ARM, NCA, TRADE_REPOSITORY.
+   destinationType: String[1];
+   // The country whose authority this is, alpha-2. Text: this project does not depend on
+   // core-geo, so it holds a code and not a reference.
+   countryCode: String[0..1];
+   destinationLei: String[0..1];
+   // SFTP, API, MQ.
+   transportType: String[0..1];
+   // Local time of day, as text, because the cut-off is quoted in the destination's own
+   // timezone and converting it on the way in loses which timezone that was.
+   dailyCutOffLocalTime: String[0..1];
+   schemaVersion: String[0..1];
+   isActive: Boolean[0..1];
+}
+
+// FOR: one file sent to one destination -- the unit the authority acknowledges. A batch is
+// accepted or rejected as a whole before any report in it is validated individually, so it
+// carries its own status distinct from the statuses of its contents.
+Class regulatory_extract::RexSubmissionBatch
+{
+   batchId: String[1];
+   runId: String[0..1];
+   destinationCode: String[0..1];
+   regimeCode: String[0..1];
+   // The name as it went over the wire. The only handle a destination's support desk has.
+   fileName: String[0..1];
+   fileHash: String[0..1];
+   recordCount: Integer[0..1];
+   builtTime: DateTime[0..1];
+   sentTime: DateTime[0..1];
+   // Null until the destination replies. BUILT, SENT, ACKNOWLEDGED, PART_REJECTED, REJECTED.
+   acknowledgedTime: DateTime[0..1];
+   batchStatus: String[1];
+   // The destination's own reference for the file, which is what any query about it must
+   // quote.
+   destinationReference: String[0..1];
+
+   destination: regulatory_extract::RexReportDestination[0..1];
+   producedByRun: regulatory_extract::RexExtractRun[0..1];
+   entries: regulatory_extract::RexSubmissionEntry[*];
+
+   isAcknowledged() { $this.acknowledgedTime->isNotEmpty() } : Boolean[1];
+}
+
+// FOR: one report's presence in one batch. Composite key on batch and report, and the row
+// that makes resubmission representable: the SAME report goes in a second batch after a
+// rejection, so report-to-batch is many-to-many and neither side can hold the other's key.
+Class regulatory_extract::RexSubmissionEntry
+{
+   batchId: String[1];
+   reportId: String[1];
+   // Position in the file. What the destination's error message points at, since its errors
+   // name a line and not our report id.
+   sequenceNumber: Integer[0..1];
+   // 1 for the first send, 2 for the first resubmission.
+   attemptNumber: Integer[0..1];
+   // ACCEPTED, REJECTED, PENDING -- this report's outcome IN THIS BATCH, which is not the
+   // report's current status.
+   entryStatus: String[0..1];
+   submittedTime: DateTime[0..1];
+
+   batch: regulatory_extract::RexSubmissionBatch[0..1];
+   report: regulatory_extract::RexTransactionReport[0..1];
+}
+
+// ---------------------------------------------------------------- what comes back
+
+// FOR: one validation rule we apply BEFORE sending -- ours, not the authority's. Held as
+// data so the rule set can be shown, versioned and switched off without a release, and so a
+// rule can name the regime field it tests.
+Class regulatory_extract::RexValidationRule
+{
+   ruleId: String[1];
+   ruleName: String[1];
+   regimeCode: String[0..1];
+   // The field this rule tests, where it tests one. Null for cross-field rules.
+   fieldNumber: Integer[0..1];
+   // MANDATORY, FORMAT, ENUM, CROSS_FIELD, REFERENCE, CONSISTENCY.
+   ruleType: String[1];
+   // ERROR blocks submission; WARNING does not. The distinction is the whole point of the
+   // column: a report held for a warning is a missed deadline.
+   severity: String[1];
+   // The predicate, quoted, for the operator who has to explain the failure.
+   expression: String[0..1];
+   // Whether a failure stops the report going.
+   blocksSubmission: Boolean[0..1];
+   isActive: Boolean[0..1];
+   introducedOn: StrictDate[0..1];
+}
+
+// FOR: one failure of one rule on one report -- what our own validation found. Its own row
+// per occurrence, because a report can fail six rules and an operator fixes them one at a
+// time, each with its own resolution.
+Class regulatory_extract::RexValidationError
+{
+   errorId: String[1];
+   reportId: String[1];
+   ruleId: String[0..1];
+   // The field the failure was raised against, where the rule names one.
+   fieldNumber: Integer[0..1];
+   // The offending value, captured at detection: it will have been corrected by the time
+   // anyone reads this row.
+   observedValue: String[0..1];
+   expectedValue: String[0..1];
+   message: String[0..1];
+   severity: String[0..1];
+   detectedTime: DateTime[1];
+   // Null while open. The filter `RexOpenErrors` is exactly this being null.
+   resolvedTime: DateTime[0..1];
+   resolvedByUser: String[0..1];
+
+   report: regulatory_extract::RexTransactionReport[0..1];
+   rule: regulatory_extract::RexValidationRule[0..1];
+
+   isOpen() { $this.resolvedTime->isEmpty() } : Boolean[1];
+}
+
+// FOR: the authority's or repository's own reply about one report -- the rejection feedback
+// message, in their vocabulary. Deliberately NOT merged with RexValidationError: ours is
+// what we found before sending, theirs is what they found after, and the reports where the
+// two disagree are the ones that show a gap in our rule set.
+Class regulatory_extract::RexRejectionFeedback
+{
+   feedbackId: String[1];
+   reportId: String[1];
+   batchId: String[0..1];
+   // Their code and their text, unaltered. 'CON-412', 'Invalid value for field 57'.
+   feedbackCode: String[1];
+   feedbackText: String[0..1];
+   // Which of their fields it names, where their message says. Their numbering, which for
+   // MiFIR is ours and for a repository is not.
+   referencedFieldNumber: Integer[0..1];
+   // REJECTION, WARNING, PENDING -- some feedback does not reject.
+   feedbackType: String[0..1];
+   receivedTime: DateTime[1];
+   // Their reference, which any correspondence about it must quote.
+   authorityReference: String[0..1];
+   // True where the report must be sent again rather than merely corrected in our records.
+   requiresResubmission: Boolean[0..1];
+
+   report: regulatory_extract::RexTransactionReport[0..1];
+   batch: regulatory_extract::RexSubmissionBatch[0..1];
+   remediations: regulatory_extract::RexRemediationAction[*];
+}
+
+// FOR: what we did about a rejection -- the remediation, as a row, so that the answer to
+// "how was this fixed" outlives the person who fixed it. One rejection can take several
+// actions and the last one is not always the one that worked.
+Class regulatory_extract::RexRemediationAction
+{
+   actionId: String[1];
+   feedbackId: String[0..1];
+   reportId: String[0..1];
+   // CORRECT_FIELD, CANCEL_AND_REPLACE, SOURCE_FIX, NO_ACTION, ESCALATE.
+   actionType: String[1];
+   // Where the real defect was: 'TRADE_CAPTURE', 'REFERENCE_DATA', 'CLIENT', 'EXTRACT'.
+   // The fan-in seen from the other end -- three quarters of report defects are upstream.
+   rootCauseDomain: String[0..1];
+   description: String[0..1];
+   raisedTime: DateTime[1];
+   completedTime: DateTime[0..1];
+   performedByUser: String[0..1];
+   // The report that replaced the rejected one, where the action was cancel-and-replace.
+   replacementReportId: String[0..1];
+
+   feedback: regulatory_extract::RexRejectionFeedback[0..1];
+
+   isComplete() { $this.completedTime->isNotEmpty() } : Boolean[1];
+}
+
+// FOR: one field on which our EMIR report and the counterparty's disagree -- the trade
+// repository's reconciliation result. Only exists for dual-sided regimes, which is why it
+// keys on the UTI rather than on our report id alone: the counterparty does not know our
+// report id and the break arrives quoting the shared identifier.
+Class regulatory_extract::RexReconciliationBreak
+{
+   breakId: String[1];
+   reportId: String[0..1];
+   // The shared identifier the two sides paired on.
+   uniqueTradeIdentifier: String[0..1];
+   counterpartyLei: String[0..1];
+   // The field that differs, by name and by number.
+   fieldName: String[1];
+   fieldNumber: Integer[0..1];
+   ourValue: String[0..1];
+   theirValue: String[0..1];
+   // MATCHED, NOT_MATCHED, NOT_PAIRED. A break that is NOT_PAIRED means the other side did
+   // not report at all, which is a different and worse finding than a value mismatch.
+   pairingStatus: String[0..1];
+   // Repository tolerance categories: some numeric fields match within a band.
+   toleranceApplied: Float[0..1];
+   reportedDate: StrictDate[0..1];
+   resolvedDate: StrictDate[0..1];
+
+   report: regulatory_extract::RexTransactionReport[0..1];
+
+   isUnresolved() { $this.resolvedDate->isEmpty() } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- the fan-in bridges
+
+// FOR: an entity of the firm that reports in its own name -- the LEI that appears in field
+// 4, and the branch structure behind it. Its own class rather than a reference to a legal
+// entity because this project depends on trade-capture, reference-data and client-core and
+// on nothing else: core-party is not ours to name, so the LEI is held as a value.
+Class regulatory_extract::RexReportingEntity
+{
+   reportingEntityId: String[1];
+   entityLei: String[1];
+   entityName: String[1];
+   // The competent authority that supervises it, and the country it sits in.
+   homeNcaCode: String[0..1];
+   countryCode: String[0..1];
+   // True where this entity is an investment firm with its own reporting obligation, as
+   // opposed to a branch reporting through its head office.
+   isInvestmentFirm: Boolean[0..1];
+   isBranch: Boolean[0..1];
+   parentEntityLei: String[0..1];
+   authorisedFrom: StrictDate[0..1];
+   authorisationWithdrawnOn: StrictDate[0..1];
+}
+
+// FOR: how one client relationship is treated for reporting -- the bridge into client-core.
+// The client's MiFID category decides what the report must carry, whether we report on their
+// behalf, and whether their identifier is a LEI or a national one; none of that belongs on
+// `client_core::CliClient`, which is the relationship and not its regulatory treatment.
+Class regulatory_extract::RexClientReportingProfile
+{
+   profileId: String[1];
+   // The client-core key. The join is on this, and `client` is the object.
+   clientId: String[1];
+   // The identifier that goes in field 7 or 16, and how it is constituted: LEI, NIDN,
+   // CCPT, CONCAT.
+   reportingIdentifier: String[0..1];
+   identifierScheme: String[0..1];
+   // Whether the client's LEI is current. A lapsed LEI is the single commonest cause of a
+   // rejected report and the rule is "no LEI, no trade", so this is a trading control as
+   // much as a reporting one.
+   leiStatus: String[0..1];
+   leiExpiryDate: StrictDate[0..1];
+   // Whether we report on the client's behalf under EMIR delegation.
+   isDelegatedReporting: Boolean[0..1];
+   delegationAgreementRef: String[0..1];
+   // The MiFID category as it was recorded for reporting -- copied, deliberately, because
+   // client-core's classification is dated and this is the one the report used.
+   reportedClientCategory: String[0..1];
+   // Suppress reporting for this client entirely, with a reason. Never a bare flag: an
+   // unexplained suppression is indistinguishable from a bug.
+   isSuppressed: Boolean[0..1];
+   suppressionReason: String[0..1];
+
+   // The relationship itself, in client-core. Navigate `$profile.client.legalEntity` for the
+   // registered legal person and `$profile.client.domicileMacroRegionCode` for the
+   // geography: both are client-core's, reached without this project naming core-party or
+   // core-geo.
+   client: client_core::CliClient[0..1];
+
+   // -------- reached through the join into client-core.
+   clientRelationshipName: String[0..1];
+   clientRelationshipType: String[0..1];
+   clientDomicileCountryCode: String[0..1];
+   clientStatus: String[0..1];
+}
+
+// FOR: how one venue is treated for reporting -- the bridge into reference-data. A MIC is
+// reportable, or it is not, or it must be replaced by 'XOFF' or 'XXXX', and the answer
+// depends on the venue's regulatory status rather than on anything the venue master knows.
+Class regulatory_extract::RexVenueReportingProfile
+{
+   profileId: String[1];
+   // The reference-data key: an ISO 10383 MIC.
+   mic: String[1];
+   // What goes in field 36 when this venue is used -- usually the MIC, sometimes 'XOFF'
+   // for off-venue or 'XXXX' where the venue is outside the EEA and unrecognised.
+   reportedMicOverride: String[0..1];
+   // REGULATED_MARKET, MTF, OTF, SI, THIRD_COUNTRY, OFF_VENUE.
+   venueClassification: String[0..1];
+   // True where the venue itself reports the transaction, so we must not.
+   venueReportsOnOurBehalf: Boolean[0..1];
+   isEeaVenue: Boolean[0..1];
+   // Whether transactions here are eligible for a transparency waiver at all.
+   supportsWaivers: Boolean[0..1];
+   assessedOn: StrictDate[0..1];
+
+   // The venue in reference-data, keyed on the same ISO 10383 MIC.
+   venue: reference_data::RdListingVenue[0..1];
+
+   // -------- reached through the join into reference-data.
+   venueRegisteredName: String[0..1];
+   venueHomeCountryCode: String[0..1];
+   venueRetiredDate: StrictDate[0..1];
+}
+
+// FOR: the decision that one trade is, or is not, reportable under one regime -- kept as a
+// row per trade per regime. The bridge into trade-capture, and the answer to the question
+// an auditor actually asks, which is not "why is this report wrong" but "why is there no
+// report for this trade".
+//
+// A suppressed trade with a reason is a control. A trade with no assessment row at all is
+// the defect: it means the extract never looked at it.
+Class regulatory_extract::RexTradeEligibility
+[
+   // A trade ruled reportable must say when it was ruled so, or the ruling cannot be
+   // defended.
+   reportableTradesAreDated: (($this.isReportable->not()) || ($this.assessedTime->isNotEmpty()))
+]
+{
+   // Composite key: the same trade is assessed separately under each regime and can be
+   // reportable under one and not the other.
+   tradeId: String[1];
+   regimeCode: String[1];
+   isReportable: Boolean[1];
+   // The obligation that made it so, or the reason it did not.
+   obligationId: String[0..1];
+   exclusionReason: String[0..1];
+   assessedTime: DateTime[0..1];
+   assessedByRun: String[0..1];
+   // The report that resulted, where one did. Null for an excluded trade, and null for a
+   // reportable trade is exactly the backlog.
+   producedReportId: String[0..1];
+
+   // The trade that was assessed, and the obligation that put it in scope.
+   trade: trade_capture::Trade[0..1];
+   obligation: regulatory_extract::RexReportingObligation[0..1];
+
+   // -------- reached through the join into trade-capture.
+   tradeStatusCode: String[0..1];
+   tradeDateSource: StrictDate[0..1];
+   tradeNotionalSource: Float[0..1];
+
+   // Reportable, assessed, and nothing came out: the gap that has to be zero every morning.
+   isUnproducedObligation()
+   {
+      (($this.isReportable) && ($this.producedReportId->isEmpty()))
+   } : Boolean[1];
 }

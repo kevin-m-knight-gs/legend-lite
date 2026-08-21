@@ -1,0 +1,1084 @@
+###Pure
+
+// ============================================================
+// client-reporting (L2) -- what the client is actually sent, and whether it arrived
+// ============================================================
+// Depends on client-core, position-keeping and valuation-core, and on nothing else. It is a
+// THREE-WAY FAN-IN and not a diamond: the three dependencies share no upstream project at
+// all. client-core sits on core-party and core-geo, position-keeping on core-account and
+// core-instrument, valuation-core on core-price and core-fx. Six layer-0 projects arrive here
+// through three disjoint paths, which is why the store below can include all three without
+// any include appearing twice.
+//
+// What each dependency contributes, and it is a different KIND of thing in each case:
+//
+//    client-core        WHO the statement is for, and what was agreed with them -- the
+//                       relationship, the mandate, the named contact it is addressed to
+//    position-keeping   WHAT they held and what moved -- the position row behind a valuation
+//                       line, the movement row behind a transaction line, and the account-day
+//                       AGGREGATE that the statement header is reconciled against
+//    valuation-core     WHAT IT WAS WORTH -- the priced valuation behind a line, and the run
+//                       that produced it, which is what a statement quotes as its source
+//
+// A statement line therefore carries three foreign keys into three projects and stores none
+// of the numbers itself twice: `positionMarketValue` is read from PK_POSITION through a join
+// and `valuationDirtyPrice` from VC_VALUATION through another, so a line that disagrees with
+// its sources is visible rather than baked in.
+//
+// The AGGREGATION shape is four store Views, mapped to the four classes at the foot of this
+// file. They are Legend views, not database views: nothing seeds them and the engine folds
+// the GROUP BY into its SQL. One of them, CRP_CLIENT_PERIOD_TOTAL, drops the mandate and the
+// statement type entirely, which is the shape that answers "what did this client get sent
+// this quarter" without reading a statement row.
+
+// ---------------------------------------------------------------- the run
+// FOR: one execution of the statement factory -- the batch that produced a set of statements
+// for a period end. Kept separate from the statements themselves because a period is run more
+// than once (a rerun after a late price correction is a second run over the same period), and
+// a statement must be able to say which run minted it.
+Class client_reporting::CrpStatementRun
+{
+   runId: String[1];
+   // The period end the run is producing statements AS AT. Not the run date: a quarter-end
+   // pack is generated days later.
+   periodEndDate: StrictDate[1];
+   // SCHEDULED, RERUN, AD_HOC, CORRECTION.
+   runType: String[1];
+   // PENDING, RUNNING, COMPLETE, FAILED, ABANDONED.
+   status: String[1];
+   startedAt: DateTime[1];
+   // Null while the run is in flight.
+   completedAt: DateTime[0..1];
+   statementCount: Integer[0..1];
+   triggeredBy: String[1];
+
+   isComplete() { $this.completedAt->isNotEmpty() } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- what was agreed
+// FOR: the reporting terms agreed with a client -- how often, on what medium, in which
+// language and currency, and which of the regulatory documents they have opted out of where
+// an opt-out is available at all. Keyed by the client alone, because this is the CURRENT
+// arrangement; a change is an update here and a new statement downstream, not a version.
+Class client_reporting::CrpReportingProfile
+{
+   clientId: String[1];
+   // MONTHLY, QUARTERLY, ANNUAL -- the valuation statement cycle. Quarterly is the MiFID II
+   // floor for a discretionary mandate; monthly applies where the portfolio is leveraged.
+   valuationFrequency: String[1];
+   // TRADE_BY_TRADE, PERIODIC, NONE. A retail client who has not elected periodic reporting
+   // gets a confirmation per transaction.
+   transactionReporting: String[1];
+   // The channel this client's documents go out on by default. Overridable per delivery.
+   channelCode: String[0..1];
+   // BCP 47, e.g. 'en-GB'. The template is chosen to match it.
+   languageCode: String[0..1];
+   // ISO 4217. The currency the statement totals are struck in, which need not be the
+   // mandate's base currency.
+   reportingCurrency: String[1];
+   // True where the client's several mandates are reported on one document rather than one
+   // each.
+   consolidateMandates: Boolean[1];
+   // Whether an ex-ante costs disclosure must be produced before each service is provided.
+   exAnteRequired: Boolean[1];
+   // Whether the ten-percent depreciation notice applies. It does for a discretionary
+   // mandate and for a leveraged portfolio, and not for execution-only custody.
+   depreciationNoticeRequired: Boolean[1];
+   // Null while the client is receiving statements. A date rather than a flag, so the last
+   // statement sent before an opt-out remains explicable.
+   optedOutOn: StrictDate[0..1];
+
+   isOptedOut() { $this.optedOutOn->isNotEmpty() } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- the document
+// FOR: the document itself, at the level everything else hangs off -- one client, one
+// mandate, one period, one type. The type-specific bodies (valuation, transactions, costs,
+// performance) are separate classes joined one-to-one or one-to-many off this key, rather
+// than a hundred nullable columns on one table.
+//
+// `clientName`, `mandateBenchmarkCode` and `clientMacroRegionName` are stored nowhere on
+// CRP_STATEMENT: they are read through joins into client-core and, in the last case, four
+// hops on into core-geo, which is the deepest chain this project declares.
+Class client_reporting::CrpStatement
+{
+   statementId: String[1];
+   // VALUATION, TRANSACTION, COSTS_EX_ANTE, COSTS_EX_POST, PERFORMANCE, ATTRIBUTION,
+   // DEPRECIATION_NOTICE, CONSOLIDATED.
+   statementType: String[1];
+   periodStartDate: StrictDate[1];
+   periodEndDate: StrictDate[1];
+   // ISO 4217, copied onto the document because the profile can change afterwards and the
+   // document must still read the way it was sent.
+   reportingCurrency: String[1];
+   // DRAFT, APPROVED, ISSUED, WITHDRAWN, SUPERSEDED.
+   status: String[1];
+   generatedAt: DateTime[1];
+   // The four-eyes sign-off, where the type requires one.
+   approvedBy: String[0..1];
+   // Null unless the document was pulled after issue. A withdrawal is a date, not a delete:
+   // a client who received a wrong statement received it.
+   withdrawnOn: StrictDate[0..1];
+   pageCount: Integer[0..1];
+
+   // -------- reached through joins into the dependencies, stored nowhere here.
+   // One hop into client-core.
+   clientName: String[0..1];
+   // One hop into client-core, on the mandate rather than the client.
+   mandateBenchmarkCode: String[0..1];
+   mandateBaseCurrencyCode: String[0..1];
+   // Four hops: CRP_STATEMENT -> CLI_CLIENT -> CG_COUNTRY -> CG_SUB_REGION ->
+   // CG_MACRO_REGION. Two projects and two layers below this one, and single-valued because
+   // every hop is many-to-one.
+   clientMacroRegionName: String[0..1];
+
+   isWithdrawn() { $this.withdrawnOn->isNotEmpty() } : Boolean[1];
+   // What the covering letter says this document is.
+   documentLabel() { $this.statementType + ' ' + $this.reportingCurrency } : String[1];
+}
+
+// FOR: the template a statement was rendered from, and its version. Kept because a dispute
+// about what a client was told is a dispute about wording, and the wording is versioned
+// independently of the numbers.
+Class client_reporting::CrpDocumentTemplate
+{
+   templateCode: String[1];
+   templateName: String[1];
+   versionNo: Integer[1];
+   languageCode: String[1];
+   // Which statement type this template renders.
+   statementType: String[1];
+   // Compliance sign-off on the wording, which is separate from sign-off on the figures.
+   approvedBy: String[0..1];
+   effectiveFrom: StrictDate[1];
+   // Null on the live version.
+   withdrawnOn: StrictDate[0..1];
+
+   isCurrent() { $this.withdrawnOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: a standing instruction not to send something -- a regulatory hold during an
+// investigation, a bereavement hold, a client in dispute. A row rather than a flag on the
+// profile because it is dated and typed, and because the reason has to survive the hold.
+Class client_reporting::CrpSuppression
+{
+   suppressionId: String[1];
+   // Which statement type is held. Null suppresses everything.
+   statementType: String[0..1];
+   reason: String[1];
+   raisedBy: String[1];
+   effectiveFrom: StrictDate[1];
+   // Null while the hold is in force.
+   effectiveTo: StrictDate[0..1];
+   // A regulatory hold cannot be lifted by the relationship manager.
+   isRegulatoryHold: Boolean[1];
+
+   isActive() { $this.effectiveTo->isEmpty() } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- the valuation statement
+// FOR: the periodic valuation statement body -- the holdings and what they were worth on the
+// cob date. One per statement of type VALUATION, keyed by the statement so the header and the
+// body cannot drift apart.
+//
+// It carries the account key (two columns, because core-account keys an account by
+// institution AND number) and the valuation run id, which is what lets it reach
+// position-keeping's account-day AGGREGATE and valuation-core's run in one hop each. Those
+// two reads are the reconciliation: `accountTotalMarketValue` comes from the aggregate and
+// `closingValue` from this row, and they are supposed to agree.
+Class client_reporting::CrpValuationStatement
+{
+   statementId: String[1];
+   // The account half of position-keeping's key. Both columns, always.
+   institutionId: String[1];
+   accountNo: String[1];
+   // The date the holdings are struck at.
+   cobDate: StrictDate[1];
+   // The valuation-core run this statement quotes. A statement names its source run so that
+   // a reprice can be told from a restatement.
+   valuationRunId: String[0..1];
+
+   openingValue: Float[1];
+   closingValue: Float[1];
+   // Contributions less withdrawals over the period -- what the client put in, as opposed to
+   // what the market did.
+   netContributions: Float[1];
+   incomeReceived: Float[0..1];
+   accruedInterest: Float[0..1];
+   cashBalance: Float[0..1];
+   lineCount: Integer[1];
+   // Holdings the run could not price, carried at their last good mark and disclosed as such.
+   unpricedLineCount: Integer[1];
+
+   // -------- reached through joins into two different dependencies.
+   // Into position-keeping's PK_ACCOUNT_DAY_TOTAL -- a VIEW, so this reads a group and not a
+   // position row.
+   accountTotalMarketValue: Float[0..1];
+   accountPositionCount: Integer[0..1];
+   // Into valuation-core's run header.
+   valuationRunReportingCurrency: String[0..1];
+   valuationRunStatus: String[0..1];
+
+   // What the market did, once the client's own money is taken out.
+   netChange() { $this.closingValue - $this.openingValue } : Float[1];
+   pricedLineCount() { $this.lineCount - $this.unpricedLineCount } : Integer[1];
+   // Integer / Integer widens to Float on its own, so this must be declared Float[1].
+   unpricedPct() { $this.unpricedLineCount / $this.lineCount } : Float[1];
+}
+
+// FOR: one holding on a valuation statement -- one line the client reads. It is the join
+// point of the whole project: the same line carries position-keeping's four-column position
+// key AND valuation-core's three-column valuation key, so the quantity can be traced to the
+// book and the price to the run that struck it.
+Class client_reporting::CrpValuationLine
+{
+   statementId: String[1];
+   lineSeq: Integer[1];
+   // position-keeping's key, all four columns.
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+   // valuation-core's key is (runId, instrumentId, cobDate) -- two of the three are already
+   // above, so only the run id is added.
+   valuationRunId: String[0..1];
+
+   quantity: Float[1];
+   unitCost: Float[1];
+   marketPrice: Float[0..1];
+   // In the INSTRUMENT's currency.
+   marketValue: Float[0..1];
+   // The same value in the statement's reporting currency.
+   valueInReporting: Float[0..1];
+   // Share of the portfolio, which is what the client actually looks at.
+   weightPct: Float[0..1];
+   unrealisedPnl: Float[0..1];
+   // EQUITY, BOND, FUND, CASH, DERIVATIVE -- the grouping the statement prints under.
+   assetClass: String[1];
+   // True where the mark is older than the policy allows and the line is disclosed as stale.
+   isPriceStale: Boolean[1];
+
+   // -------- the two reads that make this a reconciliation rather than a copy.
+   positionClosingQuantity: Float[0..1];
+   positionMarketValue: Float[0..1];
+   valuationDirtyPrice: Float[0..1];
+   valuationFxRate: Float[0..1];
+
+   // Both operands are Float, so this stays Float without a conversion.
+   costBasis() { $this.quantity * $this.unitCost } : Float[1];
+}
+
+// ---------------------------------------------------------------- the transaction statement
+// FOR: the transaction statement body -- everything that happened in the account over the
+// period. Separate from the valuation statement because the two have different periods: a
+// valuation is AS AT a date, a transaction list is BETWEEN two.
+Class client_reporting::CrpTransactionStatement
+{
+   statementId: String[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   periodStartDate: StrictDate[1];
+   periodEndDate: StrictDate[1];
+   transactionCount: Integer[1];
+   grossPurchases: Float[1];
+   grossSales: Float[1];
+   netCashMovement: Float[1];
+   // True where the client is confirmed trade by trade rather than periodically.
+   isTradeByTrade: Boolean[1];
+
+   turnover() { $this.grossPurchases + $this.grossSales } : Float[1];
+}
+
+// FOR: one transaction on the statement. Carries position-keeping's FIVE-column movement key,
+// which is the second distinct reach into that project: a line is a movement, and the
+// movement is where the trade reference and the source system live.
+Class client_reporting::CrpTransactionLine
+{
+   statementId: String[1];
+   lineSeq: Integer[1];
+   // The movement key: four position columns plus the sequence.
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+   movementSeq: Integer[0..1];
+
+   tradeDate: StrictDate[1];
+   settlementDate: StrictDate[0..1];
+   // BUY, SELL, SUBSCRIPTION, REDEMPTION, DIVIDEND, COUPON, CORPORATE_ACTION, TRANSFER_IN.
+   transactionType: String[1];
+   quantity: Float[0..1];
+   price: Float[0..1];
+   grossAmount: Float[1];
+   // The costs attached to THIS transaction, which also feed the ex-post costs disclosure.
+   chargesAmount: Float[0..1];
+   netAmount: Float[1];
+   tradeCurrency: String[1];
+   // The execution venue, which a retail client is entitled to be told.
+   venue: String[0..1];
+   counterpartyName: String[0..1];
+
+   // -------- read from the movement row behind the line.
+   movementQuantityDelta: Float[0..1];
+   movementSourceSystem: String[0..1];
+}
+
+// FOR: money in and money out, as opposed to securities bought and sold. Kept off the
+// transaction line because a contribution has no instrument and no price, and putting it on
+// the same table would make half the columns null for half the rows.
+Class client_reporting::CrpCashFlowLine
+{
+   statementId: String[1];
+   lineSeq: Integer[1];
+   flowDate: StrictDate[1];
+   // CONTRIBUTION, WITHDRAWAL, FEE, TAX, INCOME, TRANSFER_IN, TRANSFER_OUT.
+   flowType: String[1];
+   amount: Float[1];
+   currencyCode: String[1];
+   amountInReporting: Float[0..1];
+   narrative: String[0..1];
+}
+
+// ---------------------------------------------------------------- costs and charges
+// FOR: the aggregated costs-and-charges disclosure, in both of its regulatory forms. EX_ANTE
+// is an illustration produced before the service, on an assumed investment and an assumed
+// holding period; EX_POST is what was actually charged over a period that has ended. They are
+// one class because they carry the same figures and are compared against each other -- the
+// client is entitled to ask why the ex-post differs from the ex-ante -- and `basis` is what
+// says which one a row is.
+Class client_reporting::CrpCostsDisclosure
+{
+   disclosureId: String[1];
+   // EX_ANTE or EX_POST. The whole meaning of the row turns on it.
+   basis: String[1];
+   periodStartDate: StrictDate[1];
+   periodEndDate: StrictDate[1];
+   // The notional the ex-ante illustration is struck on. On an ex-post row it is the actual
+   // average invested amount.
+   assumedInvestment: Float[1];
+   // The assumed holding period, in years. The ex-ante figures are cumulative over it.
+   holdingPeriodYears: Integer[1];
+   totalCostsAmount: Float[1];
+   // The same, as a percentage of the investment.
+   totalCostsPct: Float[1];
+   // The cumulative effect on return -- what the client loses to costs, in return terms. The
+   // number the disclosure exists to produce.
+   reductionInYieldPct: Float[1];
+   currencyCode: String[1];
+   // True where service costs and product costs are shown as one figure, which is the
+   // default the rules require.
+   isAggregated: Boolean[1];
+   issuedOn: StrictDate[0..1];
+
+   isExAnte() { $this.basis == 'EX_ANTE' } : Boolean[1];
+   // Integer * Float types as Number, so the integer is converted first. Division is not
+   // symmetrical with this: Integer / Integer widens to Float on its own.
+   annualisedCostsPct() { $this.totalCostsPct / $this.holdingPeriodYears->toFloat() } : Float[1];
+}
+
+// FOR: one line of the costs breakdown. A row and not a column because the categories are
+// prescribed and the list grows: one-off entry and exit costs, ongoing charges, transaction
+// costs, incidental costs, and the product costs of anything held inside the portfolio.
+Class client_reporting::CrpCostLine
+{
+   disclosureId: String[1];
+   lineSeq: Integer[1];
+   // ONE_OFF_ENTRY, ONE_OFF_EXIT, ONGOING, TRANSACTION, INCIDENTAL, PRODUCT.
+   costCategory: String[1];
+   // The named charge within the category: 'Management fee', 'Custody fee', 'FX spread',
+   // 'Performance fee', 'Fund OCF'.
+   costType: String[1];
+   // True where the cost is embedded in a product the portfolio holds rather than charged by
+   // us. The two must be shown separately as well as aggregated.
+   isProductCost: Boolean[1];
+   // Inducements -- what a third party paid us in connection with the service. Disclosed
+   // separately whether or not it is passed on.
+   isThirdPartyPayment: Boolean[1];
+   amount: Float[1];
+   pctOfInvestment: Float[1];
+   currencyCode: String[1];
+   // How the figure was arrived at, which is required where it is an estimate.
+   basisNote: String[0..1];
+
+   // The figure the client compares across providers.
+   amountBps() { $this.pctOfInvestment * 100.0 } : Float[1];
+}
+
+// FOR: one year of the ex-ante cumulative-effect illustration -- the table that shows what
+// the investment would be worth after costs in each year of the assumed holding period. One
+// row per year, because the effect compounds and a single total hides that.
+Class client_reporting::CrpCostIllustration
+{
+   disclosureId: String[1];
+   yearNo: Integer[1];
+   openingValue: Float[1];
+   // The assumed gross return the illustration is built on, disclosed as an assumption.
+   grossReturnPct: Float[1];
+   costsAmount: Float[1];
+   closingValueBeforeCosts: Float[1];
+   closingValueAfterCosts: Float[1];
+   cumulativeCosts: Float[1];
+
+   // The gap the illustration is drawn to show.
+   costDrag() { $this.closingValueBeforeCosts - $this.closingValueAfterCosts } : Float[1];
+}
+
+// ---------------------------------------------------------------- performance
+// FOR: the benchmark a mandate is measured against, as this project's own reference table.
+// client-core's CliMandate carries a `benchmarkCode` and nothing else about it; the name, the
+// provider and whether it is a total-return index live here, because they are reporting facts
+// rather than relationship facts.
+Class client_reporting::CrpBenchmark
+{
+   benchmarkCode: String[1];
+   benchmarkName: String[1];
+   provider: String[0..1];
+   currencyCode: String[1];
+   // Total return includes reinvested income; price return does not. Comparing a portfolio's
+   // total return against a price index flatters it, which is why this is on the row.
+   isTotalReturn: Boolean[1];
+   // A composite is several indices in fixed weights, which is what `components` holds.
+   isComposite: Boolean[1];
+   // DAILY, MONTHLY, QUARTERLY, ANNUAL, NEVER -- how often a composite is rebalanced back to
+   // its stated weights.
+   rebalanceFrequency: String[0..1];
+   retiredOn: StrictDate[0..1];
+}
+
+// FOR: one index inside a composite benchmark, and its weight. Dated, because a composite's
+// weights are renegotiated and a performance figure struck last year used last year's.
+Class client_reporting::CrpBenchmarkComponent
+{
+   benchmarkCode: String[1];
+   componentSeq: Integer[1];
+   componentCode: String[1];
+   componentName: String[0..1];
+   weightPct: Float[1];
+   effectiveFrom: StrictDate[1];
+}
+
+// FOR: the performance report -- what the portfolio returned and what the agreed benchmark
+// returned over the same period. The pairing is the point: a return without its benchmark is
+// not a report, and the benchmark is the one in the MANDATE, not one chosen afterwards.
+Class client_reporting::CrpPerformanceReport
+{
+   reportId: String[1];
+   // TWR is time-weighted, which removes the effect of the client's own cash flows and is
+   // what the manager is judged on; MWR is money-weighted and is what the client actually
+   // earned. They differ, and the report says which it is quoting.
+   returnMethod: String[1];
+   // Net of fees is what the client experienced; gross is what the strategy did.
+   isNetOfFees: Boolean[1];
+   periodStartDate: StrictDate[1];
+   periodEndDate: StrictDate[1];
+   openingValue: Float[1];
+   closingValue: Float[1];
+   netFlows: Float[1];
+   portfolioReturnPct: Float[1];
+   benchmarkReturnPct: Float[1];
+   currencyCode: String[1];
+
+   // The number the whole report exists to state.
+   excessReturnPct() { $this.portfolioReturnPct - $this.benchmarkReturnPct } : Float[1];
+   hasOutperformed() { $this.portfolioReturnPct > $this.benchmarkReturnPct } : Boolean[1];
+}
+
+// FOR: one standard period on the performance report -- month to date, year to date, three
+// years, since inception. A row rather than a column set because the list is configurable per
+// client and because each period carries its own annualisation and volatility.
+Class client_reporting::CrpPerformancePeriod
+{
+   reportId: String[1];
+   // MTD, QTD, YTD, 1Y, 3Y, 5Y, SI.
+   periodCode: String[1];
+   periodStartDate: StrictDate[1];
+   periodEndDate: StrictDate[1];
+   portfolioReturnPct: Float[1];
+   benchmarkReturnPct: Float[1];
+   // True where the figure has been annualised, which is only permitted over a year.
+   isAnnualised: Boolean[1];
+   volatilityPct: Float[0..1];
+
+   excessReturnPct() { $this.portfolioReturnPct - $this.benchmarkReturnPct } : Float[1];
+}
+
+// FOR: the attribution report -- WHY the portfolio beat or missed the benchmark, decomposed
+// into the decisions that caused it. Hangs off the performance report rather than the
+// statement, because attribution without the return it is explaining is meaningless.
+Class client_reporting::CrpAttributionReport
+{
+   attributionId: String[1];
+   // BRINSON_FACHLER, BRINSON_HOOD_BEEBOWER, GEOMETRIC. The model is disclosed because the
+   // three split the same excess return differently.
+   modelCode: String[1];
+   // SECTOR, COUNTRY, ASSET_CLASS, CURRENCY -- what the segments below are.
+   segmentBy: String[1];
+   periodStartDate: StrictDate[1];
+   periodEndDate: StrictDate[1];
+   // Being in the right segments.
+   totalAllocationBps: Float[1];
+   // Picking the right things within them.
+   totalSelectionBps: Float[1];
+   // The cross term, which the geometric models do not produce.
+   totalInteractionBps: Float[1];
+   // What the decomposition failed to explain. A large residual means the model does not fit.
+   residualBps: Float[0..1];
+   // True where multi-period effects have been smoothed rather than simply compounded.
+   isSmoothed: Boolean[1];
+
+   totalActiveBps() { $this.totalAllocationBps + $this.totalSelectionBps + $this.totalInteractionBps } : Float[1];
+}
+
+// FOR: one segment's contribution to the excess return -- the row a portfolio manager is
+// asked about. Carries both weights and both returns as well as the three effects, because
+// the effect cannot be checked without them.
+Class client_reporting::CrpAttributionLine
+{
+   attributionId: String[1];
+   segmentCode: String[1];
+   segmentName: String[0..1];
+   portfolioWeightPct: Float[1];
+   benchmarkWeightPct: Float[1];
+   portfolioReturnPct: Float[1];
+   benchmarkReturnPct: Float[1];
+   allocationBps: Float[1];
+   selectionBps: Float[1];
+   interactionBps: Float[1];
+
+   // The over- or underweight that the allocation effect is paid on.
+   activeWeightPct() { $this.portfolioWeightPct - $this.benchmarkWeightPct } : Float[1];
+   totalEffectBps() { $this.allocationBps + $this.selectionBps + $this.interactionBps } : Float[1];
+}
+
+// ---------------------------------------------------------------- the ten-percent notice
+// FOR: the daily evaluation that decides whether a depreciation notice is owed. A separate
+// class from the notice because most checks produce no notice, and the fact that a portfolio
+// was checked and did not breach is itself the evidence that the obligation was met.
+//
+// The rule: where a client's portfolio has fallen by ten percent since the start of the
+// reporting period, and by each further multiple of ten after that, they must be told by the
+// end of the NEXT BUSINESS DAY. `multipleCrossed` is which multiple this check crossed --
+// a portfolio down 23% has crossed two -- so a second notice is not sent for the same fall.
+Class client_reporting::CrpDepreciationCheck
+{
+   checkId: String[1];
+   // The account the check was run over, both columns of it.
+   institutionId: String[1];
+   accountNo: String[1];
+   cobDate: StrictDate[1];
+   // Ten percent, as a number rather than a constant, because a mandate may agree a tighter
+   // threshold and the check must use the agreed one.
+   thresholdPct: Float[1];
+   // The value at the start of the reporting period -- the baseline the fall is measured
+   // from. It is NOT the previous day's value.
+   periodStartValue: Float[1];
+   currentValue: Float[1];
+   depreciationPct: Float[1];
+   // 0 where nothing was crossed, 1 at ten percent, 2 at twenty, and so on.
+   multipleCrossed: Integer[1];
+   // A leveraged portfolio is checked whatever the mandate type.
+   isLeveraged: Boolean[1];
+   evaluatedAt: DateTime[1];
+   // Null where the check passed.
+   breachedOn: StrictDate[0..1];
+
+   hasBreached() { $this.depreciationPct >= $this.thresholdPct } : Boolean[1];
+   valueLost() { $this.periodStartValue - $this.currentValue } : Float[1];
+}
+
+// FOR: the notice itself, and the deadline it must beat. `dueByDate` is the end of the next
+// business day after the trigger and is stored rather than computed, because the calendar
+// that decides what the next business day was belongs to a project this one does not depend
+// on -- and because the deadline that applied must not move when the calendar is corrected.
+// `isLate` and `lateReason` exist because a missed notice is a reportable breach, and a model
+// with no way to record one cannot be used to find them.
+Class client_reporting::CrpDepreciationNotice
+{
+   noticeId: String[1];
+   // The day the fall was detected -- not the day the value fell.
+   triggerDate: StrictDate[1];
+   // Close of the next business day. The whole obligation, in one column.
+   dueByDate: StrictDate[1];
+   // Null until it goes out.
+   sentAt: DateTime[0..1];
+   thresholdPct: Float[1];
+   depreciationPct: Float[1];
+   portfolioValue: Float[1];
+   currencyCode: String[1];
+   // Set where sentAt fell after dueByDate, or where the notice was never sent at all.
+   isLate: Boolean[1];
+   lateReason: String[0..1];
+
+   wasSent() { $this.sentAt->isNotEmpty() } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- delivery
+// FOR: the medium a document can go out on, and whether it counts. `isDurableMedium` is the
+// regulatory question -- a portal that lets a client re-read a statement qualifies, a screen
+// they cannot return to does not -- and `requiresAcknowledgement` is what turns an
+// unacknowledged delivery into a failure rather than a silence.
+Class client_reporting::CrpDeliveryChannel
+{
+   channelCode: String[1];
+   channelName: String[1];
+   isDurableMedium: Boolean[1];
+   requiresAcknowledgement: Boolean[1];
+   // What the channel is expected to take, so a delivery can be chased rather than assumed.
+   targetLatencyHours: Integer[0..1];
+   retiredOn: StrictDate[0..1];
+}
+
+// FOR: one dispatch of one document to one address -- how it was sent. Either a statement or
+// a depreciation notice, which is why both foreign keys are nullable and exactly one is set.
+// `documentHash` is what proves the thing delivered is the thing generated.
+Class client_reporting::CrpDelivery
+{
+   deliveryId: String[1];
+   // The email address, postal address, portal user or SFTP endpoint. Recorded as it was at
+   // the time, because it changes.
+   recipientAddress: String[1];
+   dispatchedAt: DateTime[1];
+   // Null until the channel confirms. The gap between the two is the latency that matters
+   // for the ten-percent notice.
+   deliveredAt: DateTime[0..1];
+   // QUEUED, SENT, DELIVERED, BOUNCED, FAILED, SUPPRESSED.
+   status: String[1];
+   attemptCount: Integer[1];
+   // SHA-256 of the rendered document.
+   documentHash: String[0..1];
+   failedReason: String[0..1];
+
+   wasDelivered() { $this.deliveredAt->isNotEmpty() } : Boolean[1];
+}
+
+// FOR: one try. A delivery that bounced twice and landed on the third attempt is one
+// delivery and three attempts, and the two failures are what a channel is judged on.
+Class client_reporting::CrpDeliveryAttempt
+{
+   deliveryId: String[1];
+   attemptSeq: Integer[1];
+   // The date, kept alongside the timestamp so the attempt aggregate groups on a DATE.
+   attemptDate: StrictDate[1];
+   attemptedAt: DateTime[1];
+   // DELIVERED, DEFERRED, BOUNCED, REJECTED, TIMED_OUT.
+   outcome: String[1];
+   // The channel's own code -- an SMTP status, an HTTP status, a returned-mail reason.
+   responseCode: String[0..1];
+   diagnostic: String[0..1];
+   nextRetryAt: DateTime[0..1];
+
+   succeeded() { $this.outcome == 'DELIVERED' } : Boolean[1];
+}
+
+// FOR: the client's confirmation that they got it. At most one per delivery, which is why
+// the delivery id is the whole key. `isExplicit` separates a signed return or a portal
+// download -- which the client did -- from a read receipt, which their mail client did.
+Class client_reporting::CrpAcknowledgement
+{
+   deliveryId: String[1];
+   acknowledgedAt: DateTime[1];
+   acknowledgedBy: String[0..1];
+   // The client-core contact who acknowledged, where it was a named person.
+   contactId: String[0..1];
+   // PORTAL_DOWNLOAD, SIGNED_RETURN, EMAIL_REPLY, READ_RECEIPT, VERBAL_CONFIRMED.
+   method: String[1];
+   isExplicit: Boolean[1];
+   sourceIp: String[0..1];
+}
+
+// FOR: who a statement is addressed to, and who is copied. A row per recipient because a
+// corporate client's statement goes to a treasurer, their auditor and their adviser, and
+// only one of the three is the addressee. `contactId` reaches client-core's named human.
+Class client_reporting::CrpStatementRecipient
+{
+   statementId: String[1];
+   contactId: String[1];
+   // PRIMARY, COPY, ADVISER, AUDITOR, ATTORNEY.
+   recipientRole: String[1];
+   // True for the one the document is addressed to.
+   isAddressee: Boolean[1];
+   addedOn: StrictDate[1];
+   // Null unless this recipient was dropped from this statement.
+   suppressedOn: StrictDate[0..1];
+
+   // -------- read from the client-core contact row.
+   contactFullName: String[0..1];
+   contactIsAuthorisedSignatory: Boolean[0..1];
+
+   isSuppressed() { $this.suppressedOn->isNotEmpty() } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- the aggregations
+// Four classes rooted on store VIEWS. An instance of each is a GROUP and never a row: one
+// CrpStatementLineTotal is a statement's whole holdings list totalled, not a line. Note what
+// a grouping does not produce -- a statement with no lines forms no group and is absent
+// rather than appearing with a total of zero.
+
+// FOR: a valuation statement's lines, totalled -- the figure the statement header is checked
+// against without reading a line into memory.
+Class client_reporting::CrpStatementLineTotal
+{
+   statementId: String[1];
+   lineCount: Integer[1];
+   totalMarketValue: Float[1];
+   totalValueInReporting: Float[1];
+   totalUnrealisedPnl: Float[1];
+   // The largest single holding, which is the concentration figure a suitability review asks
+   // for.
+   largestLineValue: Float[1];
+
+   // Float / Integer, declared Float because division widens.
+   averageLineValue() { $this.totalValueInReporting / $this.lineCount } : Float[1];
+}
+
+// FOR: a costs disclosure's lines totalled BY CATEGORY -- the six-line summary the client is
+// shown above the detail. The grouping keeps the category, which is what makes it a summary
+// rather than one number.
+Class client_reporting::CrpDisclosureCostTotal
+{
+   disclosureId: String[1];
+   costCategory: String[1];
+   lineCount: Integer[1];
+   totalAmount: Float[1];
+   totalPct: Float[1];
+}
+
+// FOR: everything one client was sent for one period end, across every mandate and every
+// statement type. The grouping DROPS the mandate and the type, which is the shape that
+// answers "did this client get their quarterly pack" -- a question no statement row can
+// answer on its own.
+Class client_reporting::CrpClientPeriodTotal
+{
+   clientId: String[1];
+   periodEndDate: StrictDate[1];
+   statementCount: Integer[1];
+   mandateCount: Integer[1];
+   totalPages: Integer[1];
+
+   // Integer / Integer widens to Float on its own.
+   pagesPerStatement() { $this.totalPages / $this.statementCount } : Float[1];
+}
+
+// FOR: a delivery's attempts, totalled -- how many tries it took and when the channel first
+// and last tried. The retry history summarised, so a channel's reliability is a query over
+// groups rather than over every attempt ever made.
+Class client_reporting::CrpDeliveryOutcomeTotal
+{
+   deliveryId: String[1];
+   attemptCount: Integer[1];
+   firstAttemptDate: StrictDate[0..1];
+   lastAttemptDate: StrictDate[0..1];
+
+   neededRetry() { $this.attemptCount > 1 } : Boolean[1];
+}
+
+// ================================================================ associations, within
+// The end names are the public surface: a downstream project navigates them by name.
+
+// The batch and what it produced.
+Association client_reporting::CrpRunStatements
+{
+   run: client_reporting::CrpStatementRun[0..1];
+   statements: client_reporting::CrpStatement[*];
+}
+
+// The wording a document was rendered from.
+Association client_reporting::CrpStatementTemplate
+{
+   template: client_reporting::CrpDocumentTemplate[0..1];
+   renderedStatements: client_reporting::CrpStatement[*];
+}
+
+// The valuation body, one to at most one.
+Association client_reporting::CrpStatementValuation
+{
+   statement: client_reporting::CrpStatement[0..1];
+   valuationStatement: client_reporting::CrpValuationStatement[0..1];
+}
+
+// The transaction body.
+Association client_reporting::CrpStatementTransaction
+{
+   transactionOfStatement: client_reporting::CrpStatement[0..1];
+   transactionStatement: client_reporting::CrpTransactionStatement[0..1];
+}
+
+// A valuation statement's holdings.
+Association client_reporting::CrpValuationStatementLines
+{
+   valuationStatement: client_reporting::CrpValuationStatement[0..1];
+   lines: client_reporting::CrpValuationLine[*];
+}
+
+// A transaction statement's transactions.
+Association client_reporting::CrpTransactionStatementLines
+{
+   transactionStatement: client_reporting::CrpTransactionStatement[0..1];
+   transactionLines: client_reporting::CrpTransactionLine[*];
+}
+
+// A transaction statement's money in and out.
+Association client_reporting::CrpTransactionCashFlows
+{
+   cashStatement: client_reporting::CrpTransactionStatement[0..1];
+   cashFlows: client_reporting::CrpCashFlowLine[*];
+}
+
+// A statement's costs disclosures -- plural, because the ex-ante and the ex-post can be
+// printed on the same document and compared.
+Association client_reporting::CrpStatementDisclosures
+{
+   disclosureStatement: client_reporting::CrpStatement[0..1];
+   costsDisclosures: client_reporting::CrpCostsDisclosure[*];
+}
+
+// A disclosure's breakdown.
+Association client_reporting::CrpDisclosureCostLines
+{
+   disclosure: client_reporting::CrpCostsDisclosure[0..1];
+   costLines: client_reporting::CrpCostLine[*];
+}
+
+// A disclosure's year-by-year illustration.
+Association client_reporting::CrpDisclosureIllustrations
+{
+   illustratedDisclosure: client_reporting::CrpCostsDisclosure[0..1];
+   illustrations: client_reporting::CrpCostIllustration[*];
+}
+
+// The performance report on a statement.
+Association client_reporting::CrpStatementPerformance
+{
+   performanceStatement: client_reporting::CrpStatement[0..1];
+   performanceReport: client_reporting::CrpPerformanceReport[0..1];
+}
+
+// The standard periods on a performance report.
+Association client_reporting::CrpPerformancePeriods
+{
+   report: client_reporting::CrpPerformanceReport[0..1];
+   periods: client_reporting::CrpPerformancePeriod[*];
+}
+
+// The benchmark a report is struck against.
+Association client_reporting::CrpPerformanceBenchmark
+{
+   benchmark: client_reporting::CrpBenchmark[0..1];
+   performanceReports: client_reporting::CrpPerformanceReport[*];
+}
+
+// A composite benchmark's constituents.
+Association client_reporting::CrpBenchmarkComponents
+{
+   componentBenchmark: client_reporting::CrpBenchmark[0..1];
+   components: client_reporting::CrpBenchmarkComponent[*];
+}
+
+// The attribution that explains a report's excess return.
+Association client_reporting::CrpPerformanceAttribution
+{
+   attributedReport: client_reporting::CrpPerformanceReport[0..1];
+   attributionReports: client_reporting::CrpAttributionReport[*];
+}
+
+// An attribution's segments.
+Association client_reporting::CrpAttributionLines
+{
+   attributionReport: client_reporting::CrpAttributionReport[0..1];
+   attributionLines: client_reporting::CrpAttributionLine[*];
+}
+
+// The check that produced a notice. [*] on the notice end because a client with two
+// reportable mandates gets two notices off one portfolio check.
+Association client_reporting::CrpCheckNotices
+{
+   depreciationCheck: client_reporting::CrpDepreciationCheck[0..1];
+   notices: client_reporting::CrpDepreciationNotice[*];
+}
+
+// The document a notice was issued as, where it was issued as one rather than as a message.
+Association client_reporting::CrpNoticeStatement
+{
+   noticeStatement: client_reporting::CrpStatement[0..1];
+   statementNotices: client_reporting::CrpDepreciationNotice[*];
+}
+
+// How a statement went out. [*] because it goes to several recipients on several channels.
+Association client_reporting::CrpStatementDeliveries
+{
+   deliveredStatement: client_reporting::CrpStatement[0..1];
+   deliveries: client_reporting::CrpDelivery[*];
+}
+
+// How a notice went out -- the same delivery machinery, a different document.
+Association client_reporting::CrpNoticeDeliveries
+{
+   notice: client_reporting::CrpDepreciationNotice[0..1];
+   noticeDeliveries: client_reporting::CrpDelivery[*];
+}
+
+// The medium.
+Association client_reporting::CrpDeliveryChannelUse
+{
+   channel: client_reporting::CrpDeliveryChannel[0..1];
+   channelDeliveries: client_reporting::CrpDelivery[*];
+}
+
+// The channel a client's profile nominates by default.
+Association client_reporting::CrpProfileChannel
+{
+   preferredChannel: client_reporting::CrpDeliveryChannel[0..1];
+   profiles: client_reporting::CrpReportingProfile[*];
+}
+
+// The tries.
+Association client_reporting::CrpDeliveryAttempts
+{
+   delivery: client_reporting::CrpDelivery[0..1];
+   attempts: client_reporting::CrpDeliveryAttempt[*];
+}
+
+// The confirmation, one to at most one.
+Association client_reporting::CrpDeliveryAcknowledgement
+{
+   acknowledgedDelivery: client_reporting::CrpDelivery[0..1];
+   acknowledgement: client_reporting::CrpAcknowledgement[0..1];
+}
+
+// Who it was addressed to.
+Association client_reporting::CrpStatementRecipients
+{
+   recipientStatement: client_reporting::CrpStatement[0..1];
+   recipients: client_reporting::CrpStatementRecipient[*];
+}
+
+// ---------------------------------------------------------------- into the aggregates
+// Each of these crosses from rows into a GROUP.
+
+Association client_reporting::CrpStatementLineTotals
+{
+   totalValuationStatement: client_reporting::CrpValuationStatement[0..1];
+   lineTotal: client_reporting::CrpStatementLineTotal[0..1];
+}
+
+Association client_reporting::CrpDisclosureCostTotals
+{
+   totalDisclosure: client_reporting::CrpCostsDisclosure[0..1];
+   costTotals: client_reporting::CrpDisclosureCostTotal[*];
+}
+
+Association client_reporting::CrpClientPeriodTotals
+{
+   clientPeriodTotal: client_reporting::CrpClientPeriodTotal[0..1];
+   statementsInPeriod: client_reporting::CrpStatement[*];
+}
+
+Association client_reporting::CrpDeliveryOutcomeTotals
+{
+   totalDelivery: client_reporting::CrpDelivery[0..1];
+   outcomeTotal: client_reporting::CrpDeliveryOutcomeTotal[0..1];
+}
+
+// ================================================================ associations, across
+// Twelve ends that cross a project boundary, and they reach ALL THREE dependencies. Each one
+// hands a downstream caller a navigation it would otherwise have to declare a join for, and
+// together they are what makes this project a fan-in rather than three unrelated halves.
+
+// ---- into client-core: who it is for -----------------------------------------------------
+
+// The relationship the statement belongs to. [0..1] because a consolidated pack for a family
+// office can be raised before the entity it will be billed to is settled.
+Association client_reporting::CrpStatementClient
+{
+   client: client_core::CliClient[0..1];
+   clientStatements: client_reporting::CrpStatement[*];
+}
+
+// The mandate reported on. Nullable because a consolidated statement spans every mandate the
+// client holds and belongs to none of them.
+Association client_reporting::CrpStatementMandate
+{
+   mandate: client_core::CliMandate[0..1];
+   mandateStatements: client_reporting::CrpStatement[*];
+}
+
+// The named human a copy is addressed to.
+Association client_reporting::CrpRecipientContact
+{
+   contact: client_core::CliClientContact[0..1];
+   recipientRows: client_reporting::CrpStatementRecipient[*];
+}
+
+// The client's agreed reporting terms, one to at most one in each direction.
+Association client_reporting::CrpProfileClient
+{
+   profiledClient: client_core::CliClient[0..1];
+   reportingProfile: client_reporting::CrpReportingProfile[0..1];
+}
+
+// Standing holds on a client's documents.
+Association client_reporting::CrpSuppressionClient
+{
+   suppressedClient: client_core::CliClient[0..1];
+   suppressions: client_reporting::CrpSuppression[*];
+}
+
+// The mandate whose threshold a depreciation check was run against -- the mandate and not the
+// client, because the threshold and the obligation are mandate terms.
+Association client_reporting::CrpCheckMandate
+{
+   checkedMandate: client_core::CliMandate[0..1];
+   depreciationChecks: client_reporting::CrpDepreciationCheck[*];
+}
+
+// ---- into position-keeping: what they held and what moved --------------------------------
+
+// The position row behind a valuation line. Four columns of key, because a position is
+// (institution, account, instrument, cob date) and nothing shorter.
+Association client_reporting::CrpLinePosition
+{
+   position: position_keeping::Position[0..1];
+   valuationLines: client_reporting::CrpValuationLine[*];
+}
+
+// The movement row behind a transaction line. FIVE columns -- the four above plus the
+// sequence, because a day holds many movements in one instrument.
+Association client_reporting::CrpTransactionMovement
+{
+   movement: position_keeping::PositionMovement[0..1];
+   transactionLines: client_reporting::CrpTransactionLine[*];
+}
+
+// The account-day AGGREGATE a valuation statement is reconciled against. This end lands on a
+// class rooted on a VIEW in the dependency, so navigating it crosses into a group in another
+// project rather than into a position row.
+Association client_reporting::CrpStatementAccountDayTotal
+{
+   accountDayTotal: position_keeping::AccountDayTotal[0..1];
+   valuationStatements: client_reporting::CrpValuationStatement[*];
+}
+
+// ---- into valuation-core: what it was worth ----------------------------------------------
+
+// The priced valuation behind a line. Three columns: run, instrument and date.
+Association client_reporting::CrpLineValuation
+{
+   valuation: valuation_core::VcValuation[0..1];
+   reportedLines: client_reporting::CrpValuationLine[*];
+}
+
+// The run a statement quotes as its source.
+Association client_reporting::CrpStatementValuationRun
+{
+   valuationRun: valuation_core::VcValuationRun[0..1];
+   statementsProduced: client_reporting::CrpValuationStatement[*];
+}
+
+// ---- from an aggregate, back across a boundary -------------------------------------------
+// The per-client period total still knows whose it is, and says so by reaching client-core
+// FROM A VIEW rather than from a table.
+Association client_reporting::CrpPeriodTotalClient
+{
+   totalClient: client_core::CliClient[0..1];
+   periodTotals: client_reporting::CrpClientPeriodTotal[*];
+}

@@ -1,32 +1,905 @@
 ###Mapping
+// The order-execution mapping.
+//
+// It INCLUDES both dependency mappings, which is what makes the sixteen cross-project
+// association ends below resolvable: `orderFills[ordOrder, oexFill]` names a set id that
+// belongs to order_core::Mapping, and a set id can only be named if the mapping that
+// declared it is in scope.
+//
+// Every set id is stated explicitly and oex-prefixed. Two consequences:
+//   * the DEFAULT ids (`order_execution_Fill` and friends) therefore do NOT exist, so a
+//     downstream project extending one of these sets must name the oex id;
+//   * every AssociationMapping end carries [sourceSetId, targetSetId], because the bare
+//     `prop: [db]@Join` form resolves only against default ids -- and sixteen of the ends
+//     here have a far side whose id was declared in another project entirely (`ordOrder`,
+//     `ordExecution`, `ordVenue`, `tcTrade`, `tcAllocation`, `tcTradeCharge`, `tcVenue`).
+//
+// There are no EnumerationMappings here. This project has no enums: the code fields are
+// Strings, because the vocabularies they carry (ExecType, liquidity flag, session type) are
+// venue-defined and change without notice, and pinning them into an enum would make every
+// new venue a model change.
 Mapping order_execution::Mapping
 (
    include order_core::Mapping
    include trade_capture::Mapping
+
+   // ---------------------------------------------------------------- class sets
+   //
+   // The foreign-key columns appear in the joins and, where the model reaches the thing by
+   // association, nowhere in these sets.
 
    *order_execution::Fill[oexFill]: Relational
    {
       ~primaryKey ( [order_execution::Store]OEX_FILL.FILL_ID )
       ~mainTable [order_execution::Store]OEX_FILL
       fillId: [order_execution::Store]OEX_FILL.FILL_ID,
-      fillQuantity: [order_execution::Store]OEX_FILL.FILL_QUANTITY
+      venueFillRef: [order_execution::Store]OEX_FILL.VENUE_FILL_REF,
+      fillQuantity: [order_execution::Store]OEX_FILL.FILL_QUANTITY,
+      fillPrice: [order_execution::Store]OEX_FILL.FILL_PRICE,
+      grossValue: [order_execution::Store]OEX_FILL.GROSS_VALUE,
+      currency: [order_execution::Store]OEX_FILL.CURRENCY,
+      cumulativeQuantity: [order_execution::Store]OEX_FILL.CUMULATIVE_QUANTITY,
+      executedAt: [order_execution::Store]OEX_FILL.EXECUTED_AT,
+      reportedAt: [order_execution::Store]OEX_FILL.REPORTED_AT,
+      liquidityFlag: [order_execution::Store]OEX_FILL.LIQUIDITY_FLAG,
+      bustTime: [order_execution::Store]OEX_FILL.BUST_TIME,
+      executionVenueMic: [order_execution::Store]OEX_FILL.EXECUTION_VENUE_MIC,
+      settlementDate: [order_execution::Store]OEX_FILL.SETTLEMENT_DATE
    }
+
+   *order_execution::ExecutionReport[oexExecutionReport]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_EXEC_REPORT.REPORT_ID )
+      ~mainTable [order_execution::Store]OEX_EXEC_REPORT
+      reportId: [order_execution::Store]OEX_EXEC_REPORT.REPORT_ID,
+      fillId: [order_execution::Store]OEX_EXEC_REPORT.FILL_ID,
+      execType: [order_execution::Store]OEX_EXEC_REPORT.EXEC_TYPE,
+      sequenceNumber: [order_execution::Store]OEX_EXEC_REPORT.SEQUENCE_NUMBER,
+      receivedAt: [order_execution::Store]OEX_EXEC_REPORT.RECEIVED_AT,
+      fixSessionId: [order_execution::Store]OEX_EXEC_REPORT.FIX_SESSION_ID,
+      rawMessage: [order_execution::Store]OEX_EXEC_REPORT.RAW_MESSAGE,
+      isDuplicate: [order_execution::Store]OEX_EXEC_REPORT.IS_DUPLICATE
+   }
+
+   *order_execution::FillAmendment[oexFillAmendment]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_FILL_AMENDMENT.AMENDMENT_ID )
+      ~mainTable [order_execution::Store]OEX_FILL_AMENDMENT
+      amendmentId: [order_execution::Store]OEX_FILL_AMENDMENT.AMENDMENT_ID,
+      fillId: [order_execution::Store]OEX_FILL_AMENDMENT.FILL_ID,
+      amendmentReason: [order_execution::Store]OEX_FILL_AMENDMENT.AMENDMENT_REASON,
+      oldQuantity: [order_execution::Store]OEX_FILL_AMENDMENT.OLD_QUANTITY,
+      newQuantity: [order_execution::Store]OEX_FILL_AMENDMENT.NEW_QUANTITY,
+      oldPrice: [order_execution::Store]OEX_FILL_AMENDMENT.OLD_PRICE,
+      newPrice: [order_execution::Store]OEX_FILL_AMENDMENT.NEW_PRICE,
+      amendedAt: [order_execution::Store]OEX_FILL_AMENDMENT.AMENDED_AT,
+      amendedBy: [order_execution::Store]OEX_FILL_AMENDMENT.AMENDED_BY,
+      isVenueInitiated: [order_execution::Store]OEX_FILL_AMENDMENT.IS_VENUE_INITIATED
+   }
+
+   *order_execution::AllocationSet[oexAllocationSet]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_ALLOCATION_SET.ALLOCATION_SET_ID )
+      ~mainTable [order_execution::Store]OEX_ALLOCATION_SET
+      allocationSetId: [order_execution::Store]OEX_ALLOCATION_SET.ALLOCATION_SET_ID,
+      fillId: [order_execution::Store]OEX_ALLOCATION_SET.FILL_ID,
+      fillQuantity: [order_execution::Store]OEX_ALLOCATION_SET.FILL_QUANTITY,
+      allocatedQuantity: [order_execution::Store]OEX_ALLOCATION_SET.ALLOCATED_QUANTITY,
+      allocationCount: [order_execution::Store]OEX_ALLOCATION_SET.ALLOCATION_COUNT,
+      allocationStatus: [order_execution::Store]OEX_ALLOCATION_SET.ALLOCATION_STATUS,
+      allocatedAt: [order_execution::Store]OEX_ALLOCATION_SET.ALLOCATED_AT,
+      allocatedBy: [order_execution::Store]OEX_ALLOCATION_SET.ALLOCATED_BY,
+      allocationMethod: [order_execution::Store]OEX_ALLOCATION_SET.ALLOCATION_METHOD
+   }
+
+   *order_execution::FillAllocation[oexFillAllocation]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_FILL_ALLOCATION.FILL_ALLOCATION_ID )
+      ~mainTable [order_execution::Store]OEX_FILL_ALLOCATION
+      fillAllocationId: [order_execution::Store]OEX_FILL_ALLOCATION.FILL_ALLOCATION_ID,
+      allocationSetId: [order_execution::Store]OEX_FILL_ALLOCATION.ALLOCATION_SET_ID,
+      accountRef: [order_execution::Store]OEX_FILL_ALLOCATION.ACCOUNT_REF,
+      clientRef: [order_execution::Store]OEX_FILL_ALLOCATION.CLIENT_REF,
+      allocatedQuantity: [order_execution::Store]OEX_FILL_ALLOCATION.ALLOCATED_QUANTITY,
+      fillQuantity: [order_execution::Store]OEX_FILL_ALLOCATION.FILL_QUANTITY,
+      allocationPrice: [order_execution::Store]OEX_FILL_ALLOCATION.ALLOCATION_PRICE,
+      allocationCurrency: [order_execution::Store]OEX_FILL_ALLOCATION.ALLOCATION_CURRENCY,
+      allocationStatus: [order_execution::Store]OEX_FILL_ALLOCATION.ALLOCATION_STATUS,
+      allocatedAt: [order_execution::Store]OEX_FILL_ALLOCATION.ALLOCATED_AT
+   }
+
+   *order_execution::AllocationBreak[oexAllocationBreak]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_ALLOCATION_BREAK.ALLOCATION_BREAK_ID )
+      ~mainTable [order_execution::Store]OEX_ALLOCATION_BREAK
+      allocationBreakId: [order_execution::Store]OEX_ALLOCATION_BREAK.ALLOCATION_BREAK_ID,
+      allocationSetId: [order_execution::Store]OEX_ALLOCATION_BREAK.ALLOCATION_SET_ID,
+      breakType: [order_execution::Store]OEX_ALLOCATION_BREAK.BREAK_TYPE,
+      breakQuantity: [order_execution::Store]OEX_ALLOCATION_BREAK.BREAK_QUANTITY,
+      breakAmount: [order_execution::Store]OEX_ALLOCATION_BREAK.BREAK_AMOUNT,
+      severity: [order_execution::Store]OEX_ALLOCATION_BREAK.SEVERITY,
+      detectedAt: [order_execution::Store]OEX_ALLOCATION_BREAK.DETECTED_AT,
+      resolvedAt: [order_execution::Store]OEX_ALLOCATION_BREAK.RESOLVED_AT,
+      assignedTo: [order_execution::Store]OEX_ALLOCATION_BREAK.ASSIGNED_TO,
+      resolutionNote: [order_execution::Store]OEX_ALLOCATION_BREAK.RESOLUTION_NOTE
+   }
+
+   *order_execution::OrderFillSummary[oexOrderFillSummary]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_ORDER_FILL_SUMMARY.SUMMARY_ID )
+      ~mainTable [order_execution::Store]OEX_ORDER_FILL_SUMMARY
+      summaryId: [order_execution::Store]OEX_ORDER_FILL_SUMMARY.SUMMARY_ID,
+      orderId: [order_execution::Store]OEX_ORDER_FILL_SUMMARY.ORDER_ID,
+      orderQuantity: [order_execution::Store]OEX_ORDER_FILL_SUMMARY.ORDER_QUANTITY,
+      filledQuantity: [order_execution::Store]OEX_ORDER_FILL_SUMMARY.FILLED_QUANTITY,
+      averagePrice: [order_execution::Store]OEX_ORDER_FILL_SUMMARY.AVERAGE_PRICE,
+      grossConsideration: [order_execution::Store]OEX_ORDER_FILL_SUMMARY.GROSS_CONSIDERATION,
+      currency: [order_execution::Store]OEX_ORDER_FILL_SUMMARY.CURRENCY,
+      fillCount: [order_execution::Store]OEX_ORDER_FILL_SUMMARY.FILL_COUNT,
+      venueCount: [order_execution::Store]OEX_ORDER_FILL_SUMMARY.VENUE_COUNT,
+      firstFillAt: [order_execution::Store]OEX_ORDER_FILL_SUMMARY.FIRST_FILL_AT,
+      lastFillAt: [order_execution::Store]OEX_ORDER_FILL_SUMMARY.LAST_FILL_AT,
+      summaryAsOf: [order_execution::Store]OEX_ORDER_FILL_SUMMARY.SUMMARY_AS_OF
+   }
+
+   *order_execution::TradeBooking[oexTradeBooking]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_TRADE_BOOKING.BOOKING_ID )
+      ~mainTable [order_execution::Store]OEX_TRADE_BOOKING
+      bookingId: [order_execution::Store]OEX_TRADE_BOOKING.BOOKING_ID,
+      fillId: [order_execution::Store]OEX_TRADE_BOOKING.FILL_ID,
+      tradeRef: [order_execution::Store]OEX_TRADE_BOOKING.TRADE_REF,
+      bookingStatus: [order_execution::Store]OEX_TRADE_BOOKING.BOOKING_STATUS,
+      fillQuantity: [order_execution::Store]OEX_TRADE_BOOKING.FILL_QUANTITY,
+      bookedQuantity: [order_execution::Store]OEX_TRADE_BOOKING.BOOKED_QUANTITY,
+      bookedPrice: [order_execution::Store]OEX_TRADE_BOOKING.BOOKED_PRICE,
+      bookedCurrency: [order_execution::Store]OEX_TRADE_BOOKING.BOOKED_CURRENCY,
+      bookedAt: [order_execution::Store]OEX_TRADE_BOOKING.BOOKED_AT,
+      bookingAttempts: [order_execution::Store]OEX_TRADE_BOOKING.BOOKING_ATTEMPTS,
+      rejectionReason: [order_execution::Store]OEX_TRADE_BOOKING.REJECTION_REASON,
+      isAutoBooked: [order_execution::Store]OEX_TRADE_BOOKING.IS_AUTO_BOOKED
+   }
+
+   *order_execution::BookingBreak[oexBookingBreak]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_BOOKING_BREAK.BOOKING_BREAK_ID )
+      ~mainTable [order_execution::Store]OEX_BOOKING_BREAK
+      bookingBreakId: [order_execution::Store]OEX_BOOKING_BREAK.BOOKING_BREAK_ID,
+      bookingId: [order_execution::Store]OEX_BOOKING_BREAK.BOOKING_ID,
+      fieldName: [order_execution::Store]OEX_BOOKING_BREAK.FIELD_NAME,
+      fillValue: [order_execution::Store]OEX_BOOKING_BREAK.FILL_VALUE,
+      tradeValue: [order_execution::Store]OEX_BOOKING_BREAK.TRADE_VALUE,
+      breakType: [order_execution::Store]OEX_BOOKING_BREAK.BREAK_TYPE,
+      severity: [order_execution::Store]OEX_BOOKING_BREAK.SEVERITY,
+      detectedAt: [order_execution::Store]OEX_BOOKING_BREAK.DETECTED_AT,
+      resolvedAt: [order_execution::Store]OEX_BOOKING_BREAK.RESOLVED_AT,
+      assignedTo: [order_execution::Store]OEX_BOOKING_BREAK.ASSIGNED_TO
+   }
+
+   *order_execution::ExecutionCostLine[oexCostLine]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_COST_LINE.COST_LINE_ID )
+      ~mainTable [order_execution::Store]OEX_COST_LINE
+      costLineId: [order_execution::Store]OEX_COST_LINE.COST_LINE_ID,
+      fillId: [order_execution::Store]OEX_COST_LINE.FILL_ID,
+      costType: [order_execution::Store]OEX_COST_LINE.COST_TYPE,
+      isExplicit: [order_execution::Store]OEX_COST_LINE.IS_EXPLICIT,
+      costAmount: [order_execution::Store]OEX_COST_LINE.COST_AMOUNT,
+      costCurrency: [order_execution::Store]OEX_COST_LINE.COST_CURRENCY,
+      costBasisPoints: [order_execution::Store]OEX_COST_LINE.COST_BASIS_POINTS,
+      isChargedToClient: [order_execution::Store]OEX_COST_LINE.IS_CHARGED_TO_CLIENT,
+      calculationMethod: [order_execution::Store]OEX_COST_LINE.CALCULATION_METHOD
+   }
+
+   *order_execution::ArrivalSnapshot[oexArrivalSnapshot]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_ARRIVAL_SNAPSHOT.SNAPSHOT_ID )
+      ~mainTable [order_execution::Store]OEX_ARRIVAL_SNAPSHOT
+      snapshotId: [order_execution::Store]OEX_ARRIVAL_SNAPSHOT.SNAPSHOT_ID,
+      orderId: [order_execution::Store]OEX_ARRIVAL_SNAPSHOT.ORDER_ID,
+      arrivalPrice: [order_execution::Store]OEX_ARRIVAL_SNAPSHOT.ARRIVAL_PRICE,
+      bidPrice: [order_execution::Store]OEX_ARRIVAL_SNAPSHOT.BID_PRICE,
+      askPrice: [order_execution::Store]OEX_ARRIVAL_SNAPSHOT.ASK_PRICE,
+      bidSize: [order_execution::Store]OEX_ARRIVAL_SNAPSHOT.BID_SIZE,
+      askSize: [order_execution::Store]OEX_ARRIVAL_SNAPSHOT.ASK_SIZE,
+      lastTradedPrice: [order_execution::Store]OEX_ARRIVAL_SNAPSHOT.LAST_TRADED_PRICE,
+      snapshotCurrency: [order_execution::Store]OEX_ARRIVAL_SNAPSHOT.SNAPSHOT_CURRENCY,
+      arrivedAt: [order_execution::Store]OEX_ARRIVAL_SNAPSHOT.ARRIVED_AT,
+      sourceFeed: [order_execution::Store]OEX_ARRIVAL_SNAPSHOT.SOURCE_FEED,
+      snapshotVenueMic: [order_execution::Store]OEX_ARRIVAL_SNAPSHOT.SNAPSHOT_VENUE_MIC
+   }
+
+   *order_execution::ExecutionBenchmark[oexBenchmark]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_BENCHMARK.BENCHMARK_ID )
+      ~mainTable [order_execution::Store]OEX_BENCHMARK
+      benchmarkId: [order_execution::Store]OEX_BENCHMARK.BENCHMARK_ID,
+      orderId: [order_execution::Store]OEX_BENCHMARK.ORDER_ID,
+      benchmarkType: [order_execution::Store]OEX_BENCHMARK.BENCHMARK_TYPE,
+      benchmarkPrice: [order_execution::Store]OEX_BENCHMARK.BENCHMARK_PRICE,
+      benchmarkCurrency: [order_execution::Store]OEX_BENCHMARK.BENCHMARK_CURRENCY,
+      intervalStart: [order_execution::Store]OEX_BENCHMARK.INTERVAL_START,
+      intervalEnd: [order_execution::Store]OEX_BENCHMARK.INTERVAL_END,
+      benchmarkVolume: [order_execution::Store]OEX_BENCHMARK.BENCHMARK_VOLUME,
+      sourceFeed: [order_execution::Store]OEX_BENCHMARK.SOURCE_FEED,
+      isPrimary: [order_execution::Store]OEX_BENCHMARK.IS_PRIMARY
+   }
+
+   *order_execution::SlippageMeasure[oexSlippage]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_SLIPPAGE.SLIPPAGE_ID )
+      ~mainTable [order_execution::Store]OEX_SLIPPAGE
+      slippageId: [order_execution::Store]OEX_SLIPPAGE.SLIPPAGE_ID,
+      fillId: [order_execution::Store]OEX_SLIPPAGE.FILL_ID,
+      benchmarkRef: [order_execution::Store]OEX_SLIPPAGE.BENCHMARK_REF,
+      benchmarkType: [order_execution::Store]OEX_SLIPPAGE.BENCHMARK_TYPE,
+      fillPrice: [order_execution::Store]OEX_SLIPPAGE.FILL_PRICE,
+      benchmarkPrice: [order_execution::Store]OEX_SLIPPAGE.BENCHMARK_PRICE,
+      measuredQuantity: [order_execution::Store]OEX_SLIPPAGE.MEASURED_QUANTITY,
+      slippageAmount: [order_execution::Store]OEX_SLIPPAGE.SLIPPAGE_AMOUNT,
+      slippageBasisPoints: [order_execution::Store]OEX_SLIPPAGE.SLIPPAGE_BASIS_POINTS,
+      slippageCurrency: [order_execution::Store]OEX_SLIPPAGE.SLIPPAGE_CURRENCY,
+      sideSign: [order_execution::Store]OEX_SLIPPAGE.SIDE_SIGN,
+      measuredAt: [order_execution::Store]OEX_SLIPPAGE.MEASURED_AT
+   }
+
+   *order_execution::MarketImpactEstimate[oexMarketImpact]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_MARKET_IMPACT.IMPACT_ID )
+      ~mainTable [order_execution::Store]OEX_MARKET_IMPACT
+      impactId: [order_execution::Store]OEX_MARKET_IMPACT.IMPACT_ID,
+      fillId: [order_execution::Store]OEX_MARKET_IMPACT.FILL_ID,
+      modelName: [order_execution::Store]OEX_MARKET_IMPACT.MODEL_NAME,
+      preTradePrice: [order_execution::Store]OEX_MARKET_IMPACT.PRE_TRADE_PRICE,
+      postTradePrice: [order_execution::Store]OEX_MARKET_IMPACT.POST_TRADE_PRICE,
+      temporaryImpactBasisPoints: [order_execution::Store]OEX_MARKET_IMPACT.TEMPORARY_IMPACT_BPS,
+      permanentImpactBasisPoints: [order_execution::Store]OEX_MARKET_IMPACT.PERMANENT_IMPACT_BPS,
+      predictedImpactBasisPoints: [order_execution::Store]OEX_MARKET_IMPACT.PREDICTED_IMPACT_BPS,
+      impactCurrency: [order_execution::Store]OEX_MARKET_IMPACT.IMPACT_CURRENCY,
+      estimatedAt: [order_execution::Store]OEX_MARKET_IMPACT.ESTIMATED_AT
+   }
+
+   *order_execution::ReversionMeasure[oexReversion]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_REVERSION.REVERSION_ID )
+      ~mainTable [order_execution::Store]OEX_REVERSION
+      reversionId: [order_execution::Store]OEX_REVERSION.REVERSION_ID,
+      impactId: [order_execution::Store]OEX_REVERSION.IMPACT_ID,
+      horizonSeconds: [order_execution::Store]OEX_REVERSION.HORIZON_SECONDS,
+      referencePrice: [order_execution::Store]OEX_REVERSION.REFERENCE_PRICE,
+      horizonPrice: [order_execution::Store]OEX_REVERSION.HORIZON_PRICE,
+      reversionBasisPoints: [order_execution::Store]OEX_REVERSION.REVERSION_BASIS_POINTS,
+      marketMoveBasisPoints: [order_execution::Store]OEX_REVERSION.MARKET_MOVE_BASIS_POINTS,
+      measuredAt: [order_execution::Store]OEX_REVERSION.MEASURED_AT
+   }
+
+   *order_execution::ImplementationShortfall[oexShortfall]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_SHORTFALL.SHORTFALL_ID )
+      ~mainTable [order_execution::Store]OEX_SHORTFALL
+      shortfallId: [order_execution::Store]OEX_SHORTFALL.SHORTFALL_ID,
+      orderId: [order_execution::Store]OEX_SHORTFALL.ORDER_ID,
+      decisionPrice: [order_execution::Store]OEX_SHORTFALL.DECISION_PRICE,
+      arrivalPrice: [order_execution::Store]OEX_SHORTFALL.ARRIVAL_PRICE,
+      averageFillPrice: [order_execution::Store]OEX_SHORTFALL.AVERAGE_FILL_PRICE,
+      closingPrice: [order_execution::Store]OEX_SHORTFALL.CLOSING_PRICE,
+      filledQuantity: [order_execution::Store]OEX_SHORTFALL.FILLED_QUANTITY,
+      unfilledQuantity: [order_execution::Store]OEX_SHORTFALL.UNFILLED_QUANTITY,
+      delayCostBasisPoints: [order_execution::Store]OEX_SHORTFALL.DELAY_COST_BPS,
+      executionCostBasisPoints: [order_execution::Store]OEX_SHORTFALL.EXECUTION_COST_BPS,
+      opportunityCostBasisPoints: [order_execution::Store]OEX_SHORTFALL.OPPORTUNITY_COST_BPS,
+      explicitCostBasisPoints: [order_execution::Store]OEX_SHORTFALL.EXPLICIT_COST_BPS,
+      totalShortfallBasisPoints: [order_execution::Store]OEX_SHORTFALL.TOTAL_SHORTFALL_BPS,
+      shortfallCurrency: [order_execution::Store]OEX_SHORTFALL.SHORTFALL_CURRENCY,
+      computedAt: [order_execution::Store]OEX_SHORTFALL.COMPUTED_AT
+   }
+
+   *order_execution::VenueQuote[oexVenueQuote]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_VENUE_QUOTE.QUOTE_ID )
+      ~mainTable [order_execution::Store]OEX_VENUE_QUOTE
+      quoteId: [order_execution::Store]OEX_VENUE_QUOTE.QUOTE_ID,
+      venueMic: [order_execution::Store]OEX_VENUE_QUOTE.VENUE_MIC,
+      instrumentRef: [order_execution::Store]OEX_VENUE_QUOTE.INSTRUMENT_REF,
+      bidPrice: [order_execution::Store]OEX_VENUE_QUOTE.BID_PRICE,
+      askPrice: [order_execution::Store]OEX_VENUE_QUOTE.ASK_PRICE,
+      bidSize: [order_execution::Store]OEX_VENUE_QUOTE.BID_SIZE,
+      askSize: [order_execution::Store]OEX_VENUE_QUOTE.ASK_SIZE,
+      quotedAt: [order_execution::Store]OEX_VENUE_QUOTE.QUOTED_AT,
+      quoteCurrency: [order_execution::Store]OEX_VENUE_QUOTE.QUOTE_CURRENCY,
+      isConsolidated: [order_execution::Store]OEX_VENUE_QUOTE.IS_CONSOLIDATED,
+      sourceFeed: [order_execution::Store]OEX_VENUE_QUOTE.SOURCE_FEED
+   }
+
+   *order_execution::QuoteComparison[oexQuoteComparison]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_QUOTE_COMPARISON.COMPARISON_ID )
+      ~mainTable [order_execution::Store]OEX_QUOTE_COMPARISON
+      comparisonId: [order_execution::Store]OEX_QUOTE_COMPARISON.COMPARISON_ID,
+      fillId: [order_execution::Store]OEX_QUOTE_COMPARISON.FILL_ID,
+      quoteRef: [order_execution::Store]OEX_QUOTE_COMPARISON.QUOTE_REF,
+      fillPrice: [order_execution::Store]OEX_QUOTE_COMPARISON.FILL_PRICE,
+      quoteBidPrice: [order_execution::Store]OEX_QUOTE_COMPARISON.QUOTE_BID_PRICE,
+      quoteAskPrice: [order_execution::Store]OEX_QUOTE_COMPARISON.QUOTE_ASK_PRICE,
+      priceOutcome: [order_execution::Store]OEX_QUOTE_COMPARISON.PRICE_OUTCOME,
+      priceImprovement: [order_execution::Store]OEX_QUOTE_COMPARISON.PRICE_IMPROVEMENT,
+      priceImprovementBasisPoints: [order_execution::Store]OEX_QUOTE_COMPARISON.PRICE_IMPROVEMENT_BPS,
+      quoteAgeMillis: [order_execution::Store]OEX_QUOTE_COMPARISON.QUOTE_AGE_MILLIS,
+      comparedAt: [order_execution::Store]OEX_QUOTE_COMPARISON.COMPARED_AT
+   }
+
+   *order_execution::ExecutionPolicy[oexPolicy]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_POLICY.POLICY_ID )
+      ~mainTable [order_execution::Store]OEX_POLICY
+      policyId: [order_execution::Store]OEX_POLICY.POLICY_ID,
+      policyName: [order_execution::Store]OEX_POLICY.POLICY_NAME,
+      policyVersion: [order_execution::Store]OEX_POLICY.POLICY_VERSION,
+      clientCategory: [order_execution::Store]OEX_POLICY.CLIENT_CATEGORY,
+      effectiveFrom: [order_execution::Store]OEX_POLICY.EFFECTIVE_FROM,
+      effectiveTo: [order_execution::Store]OEX_POLICY.EFFECTIVE_TO,
+      passThreshold: [order_execution::Store]OEX_POLICY.PASS_THRESHOLD,
+      approvedBy: [order_execution::Store]OEX_POLICY.APPROVED_BY
+   }
+
+   *order_execution::BestExecutionAssessment[oexAssessment]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_BESTEX_ASSESSMENT.ASSESSMENT_ID )
+      ~mainTable [order_execution::Store]OEX_BESTEX_ASSESSMENT
+      assessmentId: [order_execution::Store]OEX_BESTEX_ASSESSMENT.ASSESSMENT_ID,
+      orderId: [order_execution::Store]OEX_BESTEX_ASSESSMENT.ORDER_ID,
+      policyRef: [order_execution::Store]OEX_BESTEX_ASSESSMENT.POLICY_REF,
+      assessedQuantity: [order_execution::Store]OEX_BESTEX_ASSESSMENT.ASSESSED_QUANTITY,
+      averageFillPrice: [order_execution::Store]OEX_BESTEX_ASSESSMENT.AVERAGE_FILL_PRICE,
+      arrivalPrice: [order_execution::Store]OEX_BESTEX_ASSESSMENT.ARRIVAL_PRICE,
+      slippageVsArrivalBasisPoints: [order_execution::Store]OEX_BESTEX_ASSESSMENT.SLIPPAGE_VS_ARRIVAL_BPS,
+      overallScore: [order_execution::Store]OEX_BESTEX_ASSESSMENT.OVERALL_SCORE,
+      outcome: [order_execution::Store]OEX_BESTEX_ASSESSMENT.OUTCOME,
+      assessedAt: [order_execution::Store]OEX_BESTEX_ASSESSMENT.ASSESSED_AT,
+      assessedBy: [order_execution::Store]OEX_BESTEX_ASSESSMENT.ASSESSED_BY,
+      reviewedBy: [order_execution::Store]OEX_BESTEX_ASSESSMENT.REVIEWED_BY,
+      reviewNote: [order_execution::Store]OEX_BESTEX_ASSESSMENT.REVIEW_NOTE
+   }
+
+   *order_execution::BestExecutionFactor[oexFactor]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_BESTEX_FACTOR.FACTOR_ID )
+      ~mainTable [order_execution::Store]OEX_BESTEX_FACTOR
+      factorId: [order_execution::Store]OEX_BESTEX_FACTOR.FACTOR_ID,
+      assessmentId: [order_execution::Store]OEX_BESTEX_FACTOR.ASSESSMENT_ID,
+      factorName: [order_execution::Store]OEX_BESTEX_FACTOR.FACTOR_NAME,
+      factorScore: [order_execution::Store]OEX_BESTEX_FACTOR.FACTOR_SCORE,
+      factorWeight: [order_execution::Store]OEX_BESTEX_FACTOR.FACTOR_WEIGHT,
+      measuredValue: [order_execution::Store]OEX_BESTEX_FACTOR.MEASURED_VALUE,
+      measureUnit: [order_execution::Store]OEX_BESTEX_FACTOR.MEASURE_UNIT,
+      commentary: [order_execution::Store]OEX_BESTEX_FACTOR.COMMENTARY
+   }
+
+   *order_execution::BestExecutionReport[oexBestExReport]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_BESTEX_REPORT.REPORT_ID )
+      ~mainTable [order_execution::Store]OEX_BESTEX_REPORT
+      reportId: [order_execution::Store]OEX_BESTEX_REPORT.REPORT_ID,
+      reportName: [order_execution::Store]OEX_BESTEX_REPORT.REPORT_NAME,
+      clientRef: [order_execution::Store]OEX_BESTEX_REPORT.CLIENT_REF,
+      reportPeriodType: [order_execution::Store]OEX_BESTEX_REPORT.REPORT_PERIOD_TYPE,
+      periodStart: [order_execution::Store]OEX_BESTEX_REPORT.PERIOD_START,
+      periodEnd: [order_execution::Store]OEX_BESTEX_REPORT.PERIOD_END,
+      orderCount: [order_execution::Store]OEX_BESTEX_REPORT.ORDER_COUNT,
+      assessedCount: [order_execution::Store]OEX_BESTEX_REPORT.ASSESSED_COUNT,
+      failCount: [order_execution::Store]OEX_BESTEX_REPORT.FAIL_COUNT,
+      publishedAt: [order_execution::Store]OEX_BESTEX_REPORT.PUBLISHED_AT,
+      publishedBy: [order_execution::Store]OEX_BESTEX_REPORT.PUBLISHED_BY,
+      reportVersion: [order_execution::Store]OEX_BESTEX_REPORT.REPORT_VERSION
+   }
+
+   *order_execution::VenuePerformance[oexVenuePerformance]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_VENUE_PERFORMANCE.PERFORMANCE_ID )
+      ~mainTable [order_execution::Store]OEX_VENUE_PERFORMANCE
+      performanceId: [order_execution::Store]OEX_VENUE_PERFORMANCE.PERFORMANCE_ID,
+      venueMic: [order_execution::Store]OEX_VENUE_PERFORMANCE.VENUE_MIC,
+      periodStart: [order_execution::Store]OEX_VENUE_PERFORMANCE.PERIOD_START,
+      periodEnd: [order_execution::Store]OEX_VENUE_PERFORMANCE.PERIOD_END,
+      orderCount: [order_execution::Store]OEX_VENUE_PERFORMANCE.ORDER_COUNT,
+      fillCount: [order_execution::Store]OEX_VENUE_PERFORMANCE.FILL_COUNT,
+      filledQuantity: [order_execution::Store]OEX_VENUE_PERFORMANCE.FILLED_QUANTITY,
+      notionalTraded: [order_execution::Store]OEX_VENUE_PERFORMANCE.NOTIONAL_TRADED,
+      performanceCurrency: [order_execution::Store]OEX_VENUE_PERFORMANCE.PERFORMANCE_CURRENCY,
+      fillRate: [order_execution::Store]OEX_VENUE_PERFORMANCE.FILL_RATE,
+      averageSlippageBasisPoints: [order_execution::Store]OEX_VENUE_PERFORMANCE.AVERAGE_SLIPPAGE_BPS,
+      averageSpreadBasisPoints: [order_execution::Store]OEX_VENUE_PERFORMANCE.AVERAGE_SPREAD_BPS,
+      priceImprovementRate: [order_execution::Store]OEX_VENUE_PERFORMANCE.PRICE_IMPROVEMENT_RATE,
+      averageLatencyMillis: [order_execution::Store]OEX_VENUE_PERFORMANCE.AVERAGE_LATENCY_MILLIS,
+      rejectRate: [order_execution::Store]OEX_VENUE_PERFORMANCE.REJECT_RATE
+   }
+
+   *order_execution::ParticipationMeasure[oexParticipation]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_PARTICIPATION.PARTICIPATION_ID )
+      ~mainTable [order_execution::Store]OEX_PARTICIPATION
+      participationId: [order_execution::Store]OEX_PARTICIPATION.PARTICIPATION_ID,
+      orderId: [order_execution::Store]OEX_PARTICIPATION.ORDER_ID,
+      intervalStart: [order_execution::Store]OEX_PARTICIPATION.INTERVAL_START,
+      intervalEnd: [order_execution::Store]OEX_PARTICIPATION.INTERVAL_END,
+      targetRate: [order_execution::Store]OEX_PARTICIPATION.TARGET_RATE,
+      achievedRate: [order_execution::Store]OEX_PARTICIPATION.ACHIEVED_RATE,
+      ourVolume: [order_execution::Store]OEX_PARTICIPATION.OUR_VOLUME,
+      marketVolume: [order_execution::Store]OEX_PARTICIPATION.MARKET_VOLUME,
+      intervalVwap: [order_execution::Store]OEX_PARTICIPATION.INTERVAL_VWAP
+   }
+
+   *order_execution::LiquidityCapture[oexLiquidityCapture]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_LIQUIDITY_CAPTURE.CAPTURE_ID )
+      ~mainTable [order_execution::Store]OEX_LIQUIDITY_CAPTURE
+      captureId: [order_execution::Store]OEX_LIQUIDITY_CAPTURE.CAPTURE_ID,
+      fillId: [order_execution::Store]OEX_LIQUIDITY_CAPTURE.FILL_ID,
+      capturedQuantity: [order_execution::Store]OEX_LIQUIDITY_CAPTURE.CAPTURED_QUANTITY,
+      captureType: [order_execution::Store]OEX_LIQUIDITY_CAPTURE.CAPTURE_TYPE,
+      spreadCaptureRatio: [order_execution::Store]OEX_LIQUIDITY_CAPTURE.SPREAD_CAPTURE_RATIO,
+      spreadAtFill: [order_execution::Store]OEX_LIQUIDITY_CAPTURE.SPREAD_AT_FILL,
+      rebateAmount: [order_execution::Store]OEX_LIQUIDITY_CAPTURE.REBATE_AMOUNT,
+      rebateCurrency: [order_execution::Store]OEX_LIQUIDITY_CAPTURE.REBATE_CURRENCY,
+      isWashRisk: [order_execution::Store]OEX_LIQUIDITY_CAPTURE.IS_WASH_RISK
+   }
+
+   *order_execution::ExecutionSession[oexSession]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_SESSION.SESSION_ID )
+      ~mainTable [order_execution::Store]OEX_SESSION
+      sessionId: [order_execution::Store]OEX_SESSION.SESSION_ID,
+      venueMic: [order_execution::Store]OEX_SESSION.VENUE_MIC,
+      tradingDate: [order_execution::Store]OEX_SESSION.TRADING_DATE,
+      sessionType: [order_execution::Store]OEX_SESSION.SESSION_TYPE,
+      sessionStart: [order_execution::Store]OEX_SESSION.SESSION_START,
+      sessionEnd: [order_execution::Store]OEX_SESSION.SESSION_END,
+      isHalted: [order_execution::Store]OEX_SESSION.IS_HALTED,
+      haltReason: [order_execution::Store]OEX_SESSION.HALT_REASON,
+      referencePrice: [order_execution::Store]OEX_SESSION.REFERENCE_PRICE
+   }
+
+   *order_execution::LatencyMeasure[oexLatency]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_LATENCY.LATENCY_ID )
+      ~mainTable [order_execution::Store]OEX_LATENCY
+      latencyId: [order_execution::Store]OEX_LATENCY.LATENCY_ID,
+      fillId: [order_execution::Store]OEX_LATENCY.FILL_ID,
+      orderSentAt: [order_execution::Store]OEX_LATENCY.ORDER_SENT_AT,
+      venueAckAt: [order_execution::Store]OEX_LATENCY.VENUE_ACK_AT,
+      filledAt: [order_execution::Store]OEX_LATENCY.FILLED_AT,
+      reportReceivedAt: [order_execution::Store]OEX_LATENCY.REPORT_RECEIVED_AT,
+      gatewayLatencyMicros: [order_execution::Store]OEX_LATENCY.GATEWAY_LATENCY_MICROS,
+      venueLatencyMicros: [order_execution::Store]OEX_LATENCY.VENUE_LATENCY_MICROS,
+      totalLatencyMicros: [order_execution::Store]OEX_LATENCY.TOTAL_LATENCY_MICROS,
+      isClockSynchronised: [order_execution::Store]OEX_LATENCY.IS_CLOCK_SYNCHRONISED
+   }
+
+   *order_execution::ExecutionException[oexException]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_EXCEPTION.EXCEPTION_ID )
+      ~mainTable [order_execution::Store]OEX_EXCEPTION
+      exceptionId: [order_execution::Store]OEX_EXCEPTION.EXCEPTION_ID,
+      fillId: [order_execution::Store]OEX_EXCEPTION.FILL_ID,
+      exceptionType: [order_execution::Store]OEX_EXCEPTION.EXCEPTION_TYPE,
+      severity: [order_execution::Store]OEX_EXCEPTION.SEVERITY,
+      exceptionMessage: [order_execution::Store]OEX_EXCEPTION.EXCEPTION_MESSAGE,
+      observedValue: [order_execution::Store]OEX_EXCEPTION.OBSERVED_VALUE,
+      thresholdValue: [order_execution::Store]OEX_EXCEPTION.THRESHOLD_VALUE,
+      raisedAt: [order_execution::Store]OEX_EXCEPTION.RAISED_AT,
+      raisedBy: [order_execution::Store]OEX_EXCEPTION.RAISED_BY,
+      acknowledgedAt: [order_execution::Store]OEX_EXCEPTION.ACKNOWLEDGED_AT,
+      clearedAt: [order_execution::Store]OEX_EXCEPTION.CLEARED_AT,
+      clearedBy: [order_execution::Store]OEX_EXCEPTION.CLEARED_BY
+   }
+
+   *order_execution::ClientExecutionInstruction[oexClientInstruction]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_CLIENT_INSTRUCTION.INSTRUCTION_ID )
+      ~mainTable [order_execution::Store]OEX_CLIENT_INSTRUCTION
+      instructionId: [order_execution::Store]OEX_CLIENT_INSTRUCTION.INSTRUCTION_ID,
+      orderId: [order_execution::Store]OEX_CLIENT_INSTRUCTION.ORDER_ID,
+      instructionType: [order_execution::Store]OEX_CLIENT_INSTRUCTION.INSTRUCTION_TYPE,
+      instructionText: [order_execution::Store]OEX_CLIENT_INSTRUCTION.INSTRUCTION_TEXT,
+      numericValue: [order_execution::Store]OEX_CLIENT_INSTRUCTION.NUMERIC_VALUE,
+      venueMic: [order_execution::Store]OEX_CLIENT_INSTRUCTION.VENUE_MIC,
+      receivedAt: [order_execution::Store]OEX_CLIENT_INSTRUCTION.RECEIVED_AT,
+      receivedFrom: [order_execution::Store]OEX_CLIENT_INSTRUCTION.RECEIVED_FROM,
+      receivedVia: [order_execution::Store]OEX_CLIENT_INSTRUCTION.RECEIVED_VIA,
+      overridesPolicy: [order_execution::Store]OEX_CLIENT_INSTRUCTION.OVERRIDES_POLICY,
+      acknowledgedAt: [order_execution::Store]OEX_CLIENT_INSTRUCTION.ACKNOWLEDGED_AT
+   }
+
+   // ---------------------------------------------------------------- crossing into order-core
 
    order_execution::FillOrder: Relational
    {
       AssociationMapping
       (
          filledOrder[oexFill, ordOrder]: [order_execution::Store]@Oex_FillOrder,
-         executionFills[ordOrder, oexFill]: [order_execution::Store]@Oex_FillOrder
+         orderFills[ordOrder, oexFill]: [order_execution::Store]@Oex_FillOrder
       )
    }
 
-   order_execution::FillTrade: Relational
+   order_execution::FillSourceExecution: Relational
    {
       AssociationMapping
       (
-         bookedTrade[oexFill, tcTrade]: [order_execution::Store]@Oex_FillTrade,
-         executionFills2[tcTrade, oexFill]: [order_execution::Store]@Oex_FillTrade
+         sourceExecution[oexFill, ordExecution]: [order_execution::Store]@Oex_FillSourceExecution,
+         executionFill[ordExecution, oexFill]: [order_execution::Store]@Oex_FillSourceExecution
+      )
+   }
+
+   order_execution::SummaryOrder: Relational
+   {
+      AssociationMapping
+      (
+         summarisedOrder[oexOrderFillSummary, ordOrder]: [order_execution::Store]@Oex_SummaryOrder,
+         fillSummary[ordOrder, oexOrderFillSummary]: [order_execution::Store]@Oex_SummaryOrder
+      )
+   }
+
+   order_execution::ArrivalOrder: Relational
+   {
+      AssociationMapping
+      (
+         arrivalOrder[oexArrivalSnapshot, ordOrder]: [order_execution::Store]@Oex_ArrivalOrder,
+         arrivalSnapshot[ordOrder, oexArrivalSnapshot]: [order_execution::Store]@Oex_ArrivalOrder
+      )
+   }
+
+   order_execution::BenchmarkOrder: Relational
+   {
+      AssociationMapping
+      (
+         benchmarkedOrder[oexBenchmark, ordOrder]: [order_execution::Store]@Oex_BenchmarkOrder,
+         executionBenchmarks[ordOrder, oexBenchmark]: [order_execution::Store]@Oex_BenchmarkOrder
+      )
+   }
+
+   order_execution::ShortfallOrder: Relational
+   {
+      AssociationMapping
+      (
+         shortfallOrder[oexShortfall, ordOrder]: [order_execution::Store]@Oex_ShortfallOrder,
+         implementationShortfall[ordOrder, oexShortfall]: [order_execution::Store]@Oex_ShortfallOrder
+      )
+   }
+
+   order_execution::AssessmentOrder: Relational
+   {
+      AssociationMapping
+      (
+         assessedOrder[oexAssessment, ordOrder]: [order_execution::Store]@Oex_AssessmentOrder,
+         bestExecAssessment[ordOrder, oexAssessment]: [order_execution::Store]@Oex_AssessmentOrder
+      )
+   }
+
+   order_execution::ParticipationOrder: Relational
+   {
+      AssociationMapping
+      (
+         participationOrder[oexParticipation, ordOrder]: [order_execution::Store]@Oex_ParticipationOrder,
+         participationMeasures[ordOrder, oexParticipation]: [order_execution::Store]@Oex_ParticipationOrder
+      )
+   }
+
+   order_execution::InstructionOrder: Relational
+   {
+      AssociationMapping
+      (
+         instructedOrder[oexClientInstruction, ordOrder]: [order_execution::Store]@Oex_InstructionOrder,
+         executionInstructions[ordOrder, oexClientInstruction]: [order_execution::Store]@Oex_InstructionOrder
+      )
+   }
+
+   order_execution::QuoteVenueLink: Relational
+   {
+      AssociationMapping
+      (
+         quoteVenue[oexVenueQuote, ordVenue]: [order_execution::Store]@Oex_QuoteVenue,
+         venueQuotes[ordVenue, oexVenueQuote]: [order_execution::Store]@Oex_QuoteVenue
+      )
+   }
+
+   order_execution::PerformanceVenueLink: Relational
+   {
+      AssociationMapping
+      (
+         performanceVenue[oexVenuePerformance, ordVenue]: [order_execution::Store]@Oex_PerformanceVenue,
+         venuePerformances[ordVenue, oexVenuePerformance]: [order_execution::Store]@Oex_PerformanceVenue
+      )
+   }
+
+   // ---------------------------------------------------------------- crossing into trade-capture
+
+   order_execution::BookingTradeLink: Relational
+   {
+      AssociationMapping
+      (
+         bookedTrade[oexTradeBooking, tcTrade]: [order_execution::Store]@Oex_BookingTrade,
+         executionBookings[tcTrade, oexTradeBooking]: [order_execution::Store]@Oex_BookingTrade
+      )
+   }
+
+   order_execution::BookingBreakTradeLink: Relational
+   {
+      AssociationMapping
+      (
+         breakTrade[oexBookingBreak, tcTrade]: [order_execution::Store]@Oex_BookingBreakTrade,
+         executionBookingBreaks[tcTrade, oexBookingBreak]: [order_execution::Store]@Oex_BookingBreakTrade
+      )
+   }
+
+   order_execution::AllocationTradeLink: Relational
+   {
+      AssociationMapping
+      (
+         tradeAllocation[oexFillAllocation, tcAllocation]: [order_execution::Store]@Oex_AllocationTrade,
+         executionFillAllocations[tcAllocation, oexFillAllocation]: [order_execution::Store]@Oex_AllocationTrade
+      )
+   }
+
+   order_execution::CostChargeLink: Relational
+   {
+      AssociationMapping
+      (
+         sourceCharge[oexCostLine, tcTradeCharge]: [order_execution::Store]@Oex_CostCharge,
+         executionCostLines[tcTradeCharge, oexCostLine]: [order_execution::Store]@Oex_CostCharge
+      )
+   }
+
+   order_execution::PerformanceMifidVenueLink: Relational
+   {
+      AssociationMapping
+      (
+         mifidVenue[oexVenuePerformance, tcVenue]: [order_execution::Store]@Oex_PerformanceMifidVenue,
+         venuePerformanceLines[tcVenue, oexVenuePerformance]: [order_execution::Store]@Oex_PerformanceMifidVenue
+      )
+   }
+
+   // ---------------------------------------------------------------- internal
+
+   order_execution::FillReports: Relational
+   {
+      AssociationMapping
+      (
+         reports[oexFill, oexExecutionReport]: [order_execution::Store]@Oex_FillReport,
+         reportFill[oexExecutionReport, oexFill]: [order_execution::Store]@Oex_FillReport
+      )
+   }
+
+   order_execution::FillAmendments: Relational
+   {
+      AssociationMapping
+      (
+         fillAmendments[oexFill, oexFillAmendment]: [order_execution::Store]@Oex_FillAmendment,
+         amendedFill[oexFillAmendment, oexFill]: [order_execution::Store]@Oex_FillAmendment
+      )
+   }
+
+   order_execution::FillAllocations: Relational
+   {
+      AssociationMapping
+      (
+         fillAllocations[oexFill, oexFillAllocation]: [order_execution::Store]@Oex_FillAllocation,
+         allocationFill[oexFillAllocation, oexFill]: [order_execution::Store]@Oex_FillAllocation
+      )
+   }
+
+   order_execution::FillAllocationSet: Relational
+   {
+      AssociationMapping
+      (
+         allocationSet[oexFill, oexAllocationSet]: [order_execution::Store]@Oex_FillAllocationSet,
+         setFill[oexAllocationSet, oexFill]: [order_execution::Store]@Oex_FillAllocationSet
+      )
+   }
+
+   order_execution::SetAllocations: Relational
+   {
+      AssociationMapping
+      (
+         setAllocations[oexAllocationSet, oexFillAllocation]: [order_execution::Store]@Oex_SetAllocation,
+         owningSet[oexFillAllocation, oexAllocationSet]: [order_execution::Store]@Oex_SetAllocation
+      )
+   }
+
+   order_execution::SetBreaks: Relational
+   {
+      AssociationMapping
+      (
+         allocationBreaks[oexAllocationSet, oexAllocationBreak]: [order_execution::Store]@Oex_SetBreak,
+         breakSet[oexAllocationBreak, oexAllocationSet]: [order_execution::Store]@Oex_SetBreak
+      )
+   }
+
+   order_execution::SummaryFillLink: Relational
+   {
+      AssociationMapping
+      (
+         summary[oexFill, oexOrderFillSummary]: [order_execution::Store]@Oex_SummaryFill,
+         summaryFills[oexOrderFillSummary, oexFill]: [order_execution::Store]@Oex_SummaryFill
+      )
+   }
+
+   order_execution::FillBooking: Relational
+   {
+      AssociationMapping
+      (
+         booking[oexFill, oexTradeBooking]: [order_execution::Store]@Oex_FillBooking,
+         bookingFill[oexTradeBooking, oexFill]: [order_execution::Store]@Oex_FillBooking
+      )
+   }
+
+   order_execution::BookingBreaks: Relational
+   {
+      AssociationMapping
+      (
+         bookingBreaks[oexTradeBooking, oexBookingBreak]: [order_execution::Store]@Oex_BookingBreakLink,
+         breakBooking[oexBookingBreak, oexTradeBooking]: [order_execution::Store]@Oex_BookingBreakLink
+      )
+   }
+
+   order_execution::FillCostLines: Relational
+   {
+      AssociationMapping
+      (
+         costLines[oexFill, oexCostLine]: [order_execution::Store]@Oex_FillCostLine,
+         costFill[oexCostLine, oexFill]: [order_execution::Store]@Oex_FillCostLine
+      )
+   }
+
+   order_execution::FillSlippage: Relational
+   {
+      AssociationMapping
+      (
+         slippageMeasures[oexFill, oexSlippage]: [order_execution::Store]@Oex_FillSlippage,
+         slippageFill[oexSlippage, oexFill]: [order_execution::Store]@Oex_FillSlippage
+      )
+   }
+
+   order_execution::BenchmarkSlippage: Relational
+   {
+      AssociationMapping
+      (
+         benchmarkSlippages[oexBenchmark, oexSlippage]: [order_execution::Store]@Oex_BenchmarkSlippage,
+         slippageBenchmark[oexSlippage, oexBenchmark]: [order_execution::Store]@Oex_BenchmarkSlippage
+      )
+   }
+
+   order_execution::FillImpact: Relational
+   {
+      AssociationMapping
+      (
+         marketImpact[oexFill, oexMarketImpact]: [order_execution::Store]@Oex_FillImpact,
+         impactFill[oexMarketImpact, oexFill]: [order_execution::Store]@Oex_FillImpact
+      )
+   }
+
+   order_execution::ImpactReversion: Relational
+   {
+      AssociationMapping
+      (
+         reversions[oexMarketImpact, oexReversion]: [order_execution::Store]@Oex_ImpactReversion,
+         reversionImpact[oexReversion, oexMarketImpact]: [order_execution::Store]@Oex_ImpactReversion
+      )
+   }
+
+   order_execution::ShortfallArrival: Relational
+   {
+      AssociationMapping
+      (
+         arrival[oexShortfall, oexArrivalSnapshot]: [order_execution::Store]@Oex_ShortfallArrival,
+         arrivalShortfalls[oexArrivalSnapshot, oexShortfall]: [order_execution::Store]@Oex_ShortfallArrival
+      )
+   }
+
+   order_execution::FillQuote: Relational
+   {
+      AssociationMapping
+      (
+         prevailingQuote[oexFill, oexVenueQuote]: [order_execution::Store]@Oex_FillQuote,
+         quotedFills[oexVenueQuote, oexFill]: [order_execution::Store]@Oex_FillQuote
+      )
+   }
+
+   order_execution::FillQuoteComparison: Relational
+   {
+      AssociationMapping
+      (
+         quoteComparison[oexFill, oexQuoteComparison]: [order_execution::Store]@Oex_FillQuoteComparison,
+         comparisonFill[oexQuoteComparison, oexFill]: [order_execution::Store]@Oex_FillQuoteComparison
+      )
+   }
+
+   order_execution::QuoteComparisons: Relational
+   {
+      AssociationMapping
+      (
+         quoteComparisons[oexVenueQuote, oexQuoteComparison]: [order_execution::Store]@Oex_QuoteComparison,
+         comparedQuote[oexQuoteComparison, oexVenueQuote]: [order_execution::Store]@Oex_QuoteComparison
+      )
+   }
+
+   order_execution::AssessmentFactors: Relational
+   {
+      AssociationMapping
+      (
+         factors[oexAssessment, oexFactor]: [order_execution::Store]@Oex_AssessmentFactor,
+         factorAssessment[oexFactor, oexAssessment]: [order_execution::Store]@Oex_AssessmentFactor
+      )
+   }
+
+   order_execution::AssessmentPolicy: Relational
+   {
+      AssociationMapping
+      (
+         policy[oexAssessment, oexPolicy]: [order_execution::Store]@Oex_AssessmentPolicy,
+         policyAssessments[oexPolicy, oexAssessment]: [order_execution::Store]@Oex_AssessmentPolicy
+      )
+   }
+
+   order_execution::AssessmentReport: Relational
+   {
+      AssociationMapping
+      (
+         report[oexAssessment, oexBestExReport]: [order_execution::Store]@Oex_AssessmentReport,
+         reportAssessments[oexBestExReport, oexAssessment]: [order_execution::Store]@Oex_AssessmentReport
+      )
+   }
+
+   order_execution::ReportVenuePerformance: Relational
+   {
+      AssociationMapping
+      (
+         reportVenuePerformance[oexBestExReport, oexVenuePerformance]: [order_execution::Store]@Oex_ReportVenuePerformance,
+         performanceReport[oexVenuePerformance, oexBestExReport]: [order_execution::Store]@Oex_ReportVenuePerformance
+      )
+   }
+
+   order_execution::FillLiquidity: Relational
+   {
+      AssociationMapping
+      (
+         liquidityCapture[oexFill, oexLiquidityCapture]: [order_execution::Store]@Oex_FillLiquidity,
+         captureFill[oexLiquidityCapture, oexFill]: [order_execution::Store]@Oex_FillLiquidity
+      )
+   }
+
+   order_execution::FillSession: Relational
+   {
+      AssociationMapping
+      (
+         session[oexFill, oexSession]: [order_execution::Store]@Oex_FillSession,
+         sessionFills[oexSession, oexFill]: [order_execution::Store]@Oex_FillSession
+      )
+   }
+
+   order_execution::SessionParticipation: Relational
+   {
+      AssociationMapping
+      (
+         participationSession[oexParticipation, oexSession]: [order_execution::Store]@Oex_SessionParticipation,
+         sessionParticipation[oexSession, oexParticipation]: [order_execution::Store]@Oex_SessionParticipation
+      )
+   }
+
+   order_execution::FillLatency: Relational
+   {
+      AssociationMapping
+      (
+         latency[oexFill, oexLatency]: [order_execution::Store]@Oex_FillLatency,
+         latencyFill[oexLatency, oexFill]: [order_execution::Store]@Oex_FillLatency
+      )
+   }
+
+   order_execution::FillExceptions: Relational
+   {
+      AssociationMapping
+      (
+         exceptions[oexFill, oexException]: [order_execution::Store]@Oex_FillException,
+         exceptionFill[oexException, oexFill]: [order_execution::Store]@Oex_FillException
       )
    }
 )

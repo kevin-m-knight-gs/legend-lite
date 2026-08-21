@@ -1,14 +1,278 @@
 ###Mapping
 
+// liquidity_view::Mapping includes BOTH dependencies' mappings. That is the same diamond the
+// store has: cash_core::Mapping brings core_account::Mapping, funding_core::Mapping brings
+// core_account::Mapping and core_tenor::Mapping, and core-account arrives twice by two paths
+// without being duplicated. Neither is included again here -- they are already present, and
+// naming them would declare a dependency this project does not have.
+//
+// Every set id is explicit and starts `lqv`, per the contract. Set ids are a GLOBAL namespace
+// across the whole graph, so a collision fails everything with a message that names the id
+// and not the project.
+//
+// Every cross-project property names the DEPENDENCY's set id, read out of its MANIFEST rather
+// than guessed: both cash-core and funding-core name their ids explicitly, so the default
+// ids (`cash_core_CshCashMovement`, `funding_core_FndCurvePoint`) do not exist and the bare
+// `prop: [db]@Join` form would not resolve.
 Mapping liquidity_view::Mapping
 (
   include cash_core::Mapping
   include funding_core::Mapping
 
-  *liquidity_view::LqvProbe[lqvProbe]: Relational
+  *liquidity_view::LqvLiquidityLadder[lqvLadder]: Relational
   {
-    ~primaryKey ( [liquidity_view::Store]LQV_PROBE.PROBE_ID )
-    ~mainTable [liquidity_view::Store]LQV_PROBE
-    probeId: [liquidity_view::Store]LQV_PROBE.PROBE_ID
+    ~primaryKey ( [liquidity_view::Store]LQV_LADDER.LADDER_ID )
+    ~mainTable [liquidity_view::Store]LQV_LADDER
+    ladderId: [liquidity_view::Store]LQV_LADDER.LADDER_ID,
+    ladderName: [liquidity_view::Store]LQV_LADDER.LADDER_NAME,
+    regime: [liquidity_view::Store]LQV_LADDER.REGIME,
+    basis: [liquidity_view::Store]LQV_LADDER.BASIS,
+    ownerDesk: [liquidity_view::Store]LQV_LADDER.OWNER_DESK,
+    retiredOn: [liquidity_view::Store]LQV_LADDER.RETIRED_ON,
+    buckets[lqvBucket]: [liquidity_view::Store]@Lqv_LadderBuckets
+  }
+
+  // Composite key: the same bucket id exists on more than one ladder.
+  *liquidity_view::LqvLiquidityBucket[lqvBucket]: Relational
+  {
+    ~primaryKey
+    (
+      [liquidity_view::Store]LQV_BUCKET.LADDER_ID,
+      [liquidity_view::Store]LQV_BUCKET.BUCKET_ID
+    )
+    ~mainTable [liquidity_view::Store]LQV_BUCKET
+    ladderId: [liquidity_view::Store]LQV_BUCKET.LADDER_ID,
+    bucketId: [liquidity_view::Store]LQV_BUCKET.BUCKET_ID,
+    bucketLabel: [liquidity_view::Store]LQV_BUCKET.BUCKET_LABEL,
+    minDays: [liquidity_view::Store]LQV_BUCKET.MIN_DAYS,
+    maxDays: [liquidity_view::Store]LQV_BUCKET.MAX_DAYS,
+    sortOrder: [liquidity_view::Store]LQV_BUCKET.SORT_ORDER,
+    ladder[lqvLadder]: [liquidity_view::Store]@Lqv_LadderBuckets,
+    // The RANGE join read backwards: every flow whose DAYS_OUT lands in this band.
+    flows[lqvFlow]: [liquidity_view::Store]@Lqv_FlowBucket,
+    // And the pre-aggregated line for the same band, out of the store VIEW.
+    totals[lqvBucketFlow]: [liquidity_view::Store]@Lqv_BucketTotals
+  }
+
+  // The flow. Three of its properties are joins and two of those are RANGES.
+  *liquidity_view::LqvProjectedFlow[lqvFlow]: Relational
+  {
+    ~primaryKey ( [liquidity_view::Store]LQV_FLOW.FLOW_ID )
+    ~mainTable [liquidity_view::Store]LQV_FLOW
+    flowId: [liquidity_view::Store]LQV_FLOW.FLOW_ID,
+    ladderId: [liquidity_view::Store]LQV_FLOW.LADDER_ID,
+    asOfDate: [liquidity_view::Store]LQV_FLOW.AS_OF_DATE,
+    institutionId: [liquidity_view::Store]LQV_FLOW.INSTITUTION_ID,
+    accountNo: [liquidity_view::Store]LQV_FLOW.ACCOUNT_NO,
+    movementId: [liquidity_view::Store]LQV_FLOW.MOVEMENT_ID,
+    fundingCashflowId: [liquidity_view::Store]LQV_FLOW.FUNDING_CASHFLOW_ID,
+    curveId: [liquidity_view::Store]LQV_FLOW.CURVE_ID,
+    currencyCode: [liquidity_view::Store]LQV_FLOW.CURRENCY_CODE,
+    bucketId: [liquidity_view::Store]LQV_FLOW.BUCKET_ID,
+    daysOut: [liquidity_view::Store]LQV_FLOW.DAYS_OUT,
+    grossAmount: [liquidity_view::Store]LQV_FLOW.GROSS_AMOUNT,
+    direction: [liquidity_view::Store]LQV_FLOW.DIRECTION,
+    flowType: [liquidity_view::Store]LQV_FLOW.FLOW_TYPE,
+    isContractual: [liquidity_view::Store]LQV_FLOW.IS_CONTRACTUAL,
+    // RANGE, within this project.
+    band[lqvBucket]: [liquidity_view::Store]@Lqv_FlowBucket,
+    // RANGE, across the boundary onto funding-core's own set id.
+    curvePoint[fndCurvePoint]: [liquidity_view::Store]@Lqv_FlowCurvePoint,
+    // Key joins across both boundaries.
+    sourceMovement[cshCashMovement]: [liquidity_view::Store]@Lqv_FlowMovement,
+    pricedCashflow[fndCashflow]: [liquidity_view::Store]@Lqv_FlowFundingCashflow
+  }
+
+  // ROOTED AT THE VIEW. A query naming LqvBucketFlowTotal reads the GROUP BY directly; there
+  // is no flow-level set behind it and no rewrite. The primary key is all four grouping
+  // columns, which is the grain the view produces.
+  *liquidity_view::LqvBucketFlowTotal[lqvBucketFlow]: Relational
+  {
+    ~primaryKey
+    (
+      [liquidity_view::Store]LQV_BUCKET_FLOW.LADDER_ID,
+      [liquidity_view::Store]LQV_BUCKET_FLOW.BUCKET_ID,
+      [liquidity_view::Store]LQV_BUCKET_FLOW.CURRENCY_CODE,
+      [liquidity_view::Store]LQV_BUCKET_FLOW.AS_OF_DATE
+    )
+    ~mainTable [liquidity_view::Store]LQV_BUCKET_FLOW
+    ladderId: [liquidity_view::Store]LQV_BUCKET_FLOW.LADDER_ID,
+    bucketId: [liquidity_view::Store]LQV_BUCKET_FLOW.BUCKET_ID,
+    currencyCode: [liquidity_view::Store]LQV_BUCKET_FLOW.CURRENCY_CODE,
+    asOfDate: [liquidity_view::Store]LQV_BUCKET_FLOW.AS_OF_DATE,
+    netAmount: [liquidity_view::Store]LQV_BUCKET_FLOW.NET_AMOUNT,
+    grossOutflow: [liquidity_view::Store]LQV_BUCKET_FLOW.GROSS_OUTFLOW,
+    flowCount: [liquidity_view::Store]LQV_BUCKET_FLOW.FLOW_COUNT,
+    bucket[lqvBucket]: [liquidity_view::Store]@Lqv_BucketTotals
+  }
+
+  *liquidity_view::LqvHqlaLevel[lqvHqlaLevel]: Relational
+  {
+    ~primaryKey ( [liquidity_view::Store]LQV_HQLA_LEVEL.LEVEL_CODE )
+    ~mainTable [liquidity_view::Store]LQV_HQLA_LEVEL
+    levelCode: [liquidity_view::Store]LQV_HQLA_LEVEL.LEVEL_CODE,
+    levelName: [liquidity_view::Store]LQV_HQLA_LEVEL.LEVEL_NAME,
+    standardHaircutPct: [liquidity_view::Store]LQV_HQLA_LEVEL.STANDARD_HAIRCUT_PCT,
+    capPct: [liquidity_view::Store]LQV_HQLA_LEVEL.CAP_PCT,
+    levelRank: [liquidity_view::Store]LQV_HQLA_LEVEL.LEVEL_RANK,
+    holdings[lqvHolding]: [liquidity_view::Store]@Lqv_HoldingLevel
+  }
+
+  *liquidity_view::LqvHqlaHolding[lqvHolding]: Relational
+  {
+    ~primaryKey ( [liquidity_view::Store]LQV_HQLA_HOLDING.HOLDING_ID )
+    ~mainTable [liquidity_view::Store]LQV_HQLA_HOLDING
+    holdingId: [liquidity_view::Store]LQV_HQLA_HOLDING.HOLDING_ID,
+    asOfDate: [liquidity_view::Store]LQV_HQLA_HOLDING.AS_OF_DATE,
+    institutionId: [liquidity_view::Store]LQV_HQLA_HOLDING.INSTITUTION_ID,
+    accountNo: [liquidity_view::Store]LQV_HQLA_HOLDING.ACCOUNT_NO,
+    levelCode: [liquidity_view::Store]LQV_HQLA_HOLDING.LEVEL_CODE,
+    currencyCode: [liquidity_view::Store]LQV_HQLA_HOLDING.CURRENCY_CODE,
+    assetClass: [liquidity_view::Store]LQV_HQLA_HOLDING.ASSET_CLASS,
+    marketValue: [liquidity_view::Store]LQV_HQLA_HOLDING.MARKET_VALUE,
+    encumberedValue: [liquidity_view::Store]LQV_HQLA_HOLDING.ENCUMBERED_VALUE,
+    appliedHaircutPct: [liquidity_view::Store]LQV_HQLA_HOLDING.APPLIED_HAIRCUT_PCT,
+    isOperational: [liquidity_view::Store]LQV_HQLA_HOLDING.IS_OPERATIONAL,
+    level[lqvHqlaLevel]: [liquidity_view::Store]@Lqv_HoldingLevel
+  }
+
+  *liquidity_view::LqvDepositType[lqvDepositType]: Relational
+  {
+    ~primaryKey ( [liquidity_view::Store]LQV_DEPOSIT_TYPE.DEPOSIT_TYPE )
+    ~mainTable [liquidity_view::Store]LQV_DEPOSIT_TYPE
+    depositType: [liquidity_view::Store]LQV_DEPOSIT_TYPE.DEPOSIT_TYPE,
+    description: [liquidity_view::Store]LQV_DEPOSIT_TYPE.DESCRIPTION,
+    counterpartyClass: [liquidity_view::Store]LQV_DEPOSIT_TYPE.COUNTERPARTY_CLASS,
+    isInsured: [liquidity_view::Store]LQV_DEPOSIT_TYPE.IS_INSURED,
+    isOperational: [liquidity_view::Store]LQV_DEPOSIT_TYPE.IS_OPERATIONAL,
+    rates[lqvOutflowRate]: [liquidity_view::Store]@Lqv_RateDepositType
+  }
+
+  // Composite key: scenario and deposit type together. The rate is not a property of the
+  // deposit type alone.
+  *liquidity_view::LqvOutflowRate[lqvOutflowRate]: Relational
+  {
+    ~primaryKey
+    (
+      [liquidity_view::Store]LQV_OUTFLOW_RATE.SCENARIO_ID,
+      [liquidity_view::Store]LQV_OUTFLOW_RATE.DEPOSIT_TYPE
+    )
+    ~mainTable [liquidity_view::Store]LQV_OUTFLOW_RATE
+    scenarioId: [liquidity_view::Store]LQV_OUTFLOW_RATE.SCENARIO_ID,
+    depositType: [liquidity_view::Store]LQV_OUTFLOW_RATE.DEPOSIT_TYPE,
+    outflowRatePct: [liquidity_view::Store]LQV_OUTFLOW_RATE.OUTFLOW_RATE_PCT,
+    runoffBasis: [liquidity_view::Store]LQV_OUTFLOW_RATE.RUNOFF_BASIS,
+    effectiveFrom: [liquidity_view::Store]LQV_OUTFLOW_RATE.EFFECTIVE_FROM,
+    scenario[lqvScenario]: [liquidity_view::Store]@Lqv_RateScenario,
+    type[lqvDepositType]: [liquidity_view::Store]@Lqv_RateDepositType
+  }
+
+  *liquidity_view::LqvStressScenario[lqvScenario]: Relational
+  {
+    ~primaryKey ( [liquidity_view::Store]LQV_STRESS_SCENARIO.SCENARIO_ID )
+    ~mainTable [liquidity_view::Store]LQV_STRESS_SCENARIO
+    scenarioId: [liquidity_view::Store]LQV_STRESS_SCENARIO.SCENARIO_ID,
+    scenarioName: [liquidity_view::Store]LQV_STRESS_SCENARIO.SCENARIO_NAME,
+    horizonDays: [liquidity_view::Store]LQV_STRESS_SCENARIO.HORIZON_DAYS,
+    severity: [liquidity_view::Store]LQV_STRESS_SCENARIO.SEVERITY,
+    regime: [liquidity_view::Store]LQV_STRESS_SCENARIO.REGIME,
+    withdrawnOn: [liquidity_view::Store]LQV_STRESS_SCENARIO.WITHDRAWN_ON,
+    rates[lqvOutflowRate]: [liquidity_view::Store]@Lqv_RateScenario
+  }
+
+  *liquidity_view::LqvDepositBalance[lqvDepositBalance]: Relational
+  {
+    ~primaryKey ( [liquidity_view::Store]LQV_DEPOSIT_BALANCE.BALANCE_ID )
+    ~mainTable [liquidity_view::Store]LQV_DEPOSIT_BALANCE
+    balanceId: [liquidity_view::Store]LQV_DEPOSIT_BALANCE.BALANCE_ID,
+    asOfDate: [liquidity_view::Store]LQV_DEPOSIT_BALANCE.AS_OF_DATE,
+    institutionId: [liquidity_view::Store]LQV_DEPOSIT_BALANCE.INSTITUTION_ID,
+    accountNo: [liquidity_view::Store]LQV_DEPOSIT_BALANCE.ACCOUNT_NO,
+    currencyCode: [liquidity_view::Store]LQV_DEPOSIT_BALANCE.CURRENCY_CODE,
+    depositType: [liquidity_view::Store]LQV_DEPOSIT_BALANCE.DEPOSIT_TYPE,
+    balanceAmount: [liquidity_view::Store]LQV_DEPOSIT_BALANCE.BALANCE_AMOUNT,
+    insuredAmount: [liquidity_view::Store]LQV_DEPOSIT_BALANCE.INSURED_AMOUNT,
+    appliedRatePct: [liquidity_view::Store]LQV_DEPOSIT_BALANCE.APPLIED_RATE_PCT,
+    type[lqvDepositType]: [liquidity_view::Store]@Lqv_BalanceDepositType,
+    // Four columns across to cash-core's balance, on cash-core's own set id.
+    bookedBalance[cshCashBalance]: [liquidity_view::Store]@Lqv_BalanceBookedBalance
+  }
+
+  *liquidity_view::LqvLcrResult[lqvLcrResult]: Relational
+  {
+    ~primaryKey
+    (
+      [liquidity_view::Store]LQV_LCR_RESULT.INSTITUTION_ID,
+      [liquidity_view::Store]LQV_LCR_RESULT.CURRENCY_CODE,
+      [liquidity_view::Store]LQV_LCR_RESULT.AS_OF_DATE,
+      [liquidity_view::Store]LQV_LCR_RESULT.SCENARIO_ID
+    )
+    ~mainTable [liquidity_view::Store]LQV_LCR_RESULT
+    institutionId: [liquidity_view::Store]LQV_LCR_RESULT.INSTITUTION_ID,
+    currencyCode: [liquidity_view::Store]LQV_LCR_RESULT.CURRENCY_CODE,
+    asOfDate: [liquidity_view::Store]LQV_LCR_RESULT.AS_OF_DATE,
+    scenarioId: [liquidity_view::Store]LQV_LCR_RESULT.SCENARIO_ID,
+    hqlaStock: [liquidity_view::Store]LQV_LCR_RESULT.HQLA_STOCK,
+    grossOutflows: [liquidity_view::Store]LQV_LCR_RESULT.GROSS_OUTFLOWS,
+    grossInflows: [liquidity_view::Store]LQV_LCR_RESULT.GROSS_INFLOWS,
+    cappedInflows: [liquidity_view::Store]LQV_LCR_RESULT.CAPPED_INFLOWS,
+    scenario[lqvScenario]: [liquidity_view::Store]@Lqv_LcrScenario
+  }
+
+  *liquidity_view::LqvNsfrLine[lqvNsfrLine]: Relational
+  {
+    ~primaryKey ( [liquidity_view::Store]LQV_NSFR_LINE.LINE_ID )
+    ~mainTable [liquidity_view::Store]LQV_NSFR_LINE
+    lineId: [liquidity_view::Store]LQV_NSFR_LINE.LINE_ID,
+    asOfDate: [liquidity_view::Store]LQV_NSFR_LINE.AS_OF_DATE,
+    institutionId: [liquidity_view::Store]LQV_NSFR_LINE.INSTITUTION_ID,
+    currencyCode: [liquidity_view::Store]LQV_NSFR_LINE.CURRENCY_CODE,
+    side: [liquidity_view::Store]LQV_NSFR_LINE.SIDE,
+    category: [liquidity_view::Store]LQV_NSFR_LINE.CATEGORY,
+    curveId: [liquidity_view::Store]LQV_NSFR_LINE.CURVE_ID,
+    residualDays: [liquidity_view::Store]LQV_NSFR_LINE.RESIDUAL_DAYS,
+    carryingAmount: [liquidity_view::Store]LQV_NSFR_LINE.CARRYING_AMOUNT,
+    factorPct: [liquidity_view::Store]LQV_NSFR_LINE.FACTOR_PCT,
+    // The UNVERSIONED curve header. The version in force is fetched with all(<asOfDate>).
+    fundingCurve[fndCurve]: [liquidity_view::Store]@Lqv_NsfrLineCurve
+  }
+
+  *liquidity_view::LqvNsfrResult[lqvNsfrResult]: Relational
+  {
+    ~primaryKey
+    (
+      [liquidity_view::Store]LQV_NSFR_RESULT.INSTITUTION_ID,
+      [liquidity_view::Store]LQV_NSFR_RESULT.CURRENCY_CODE,
+      [liquidity_view::Store]LQV_NSFR_RESULT.AS_OF_DATE
+    )
+    ~mainTable [liquidity_view::Store]LQV_NSFR_RESULT
+    institutionId: [liquidity_view::Store]LQV_NSFR_RESULT.INSTITUTION_ID,
+    currencyCode: [liquidity_view::Store]LQV_NSFR_RESULT.CURRENCY_CODE,
+    asOfDate: [liquidity_view::Store]LQV_NSFR_RESULT.AS_OF_DATE,
+    availableStableFunding: [liquidity_view::Store]LQV_NSFR_RESULT.AVAILABLE_STABLE_FUNDING,
+    requiredStableFunding: [liquidity_view::Store]LQV_NSFR_RESULT.REQUIRED_STABLE_FUNDING,
+    lineCount: [liquidity_view::Store]LQV_NSFR_RESULT.LINE_COUNT
+  }
+
+  *liquidity_view::LqvFundingConcentration[lqvConcentration]: Relational
+  {
+    ~primaryKey
+    (
+      [liquidity_view::Store]LQV_FUNDING_CONCENTRATION.AS_OF_DATE,
+      [liquidity_view::Store]LQV_FUNDING_CONCENTRATION.INSTITUTION_ID,
+      [liquidity_view::Store]LQV_FUNDING_CONCENTRATION.COUNTERPARTY_ID,
+      [liquidity_view::Store]LQV_FUNDING_CONCENTRATION.LADDER_ID,
+      [liquidity_view::Store]LQV_FUNDING_CONCENTRATION.BUCKET_ID
+    )
+    ~mainTable [liquidity_view::Store]LQV_FUNDING_CONCENTRATION
+    asOfDate: [liquidity_view::Store]LQV_FUNDING_CONCENTRATION.AS_OF_DATE,
+    institutionId: [liquidity_view::Store]LQV_FUNDING_CONCENTRATION.INSTITUTION_ID,
+    counterpartyId: [liquidity_view::Store]LQV_FUNDING_CONCENTRATION.COUNTERPARTY_ID,
+    ladderId: [liquidity_view::Store]LQV_FUNDING_CONCENTRATION.LADDER_ID,
+    bucketId: [liquidity_view::Store]LQV_FUNDING_CONCENTRATION.BUCKET_ID,
+    currencyCode: [liquidity_view::Store]LQV_FUNDING_CONCENTRATION.CURRENCY_CODE,
+    fundingAmount: [liquidity_view::Store]LQV_FUNDING_CONCENTRATION.FUNDING_AMOUNT,
+    sharePct: [liquidity_view::Store]LQV_FUNDING_CONCENTRATION.SHARE_PCT,
+    bucket[lqvBucket]: [liquidity_view::Store]@Lqv_ConcentrationBucket
   }
 )

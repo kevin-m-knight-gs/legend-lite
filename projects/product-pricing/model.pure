@@ -1,0 +1,1082 @@
+###Pure
+// product-pricing -- how each kind of product is turned into a number.
+//
+// Layer 2. It depends on product-core (the taxonomy of what the firm sells) and on
+// valuation-core (what a position is worth, and the arithmetic that carries it into the
+// reporting currency). It refers to nothing else.
+//
+// The thesis of this project is that THE PRODUCT TYPE PICKS THE MODEL, and the model picks
+// everything after it -- the inputs it needs, the calibration behind those inputs, the
+// greeks it can produce, and the reserve held because it is only a model:
+//
+//    vanilla, linear payoff          a closed form. One evaluation, exact greeks.
+//    path dependent (autocall, ...)  Monte Carlo. A path count, a seed, a standard error.
+//    early exercise (American, ...)  a lattice. A step count, and a backward induction.
+//    deposits and financing          accrual and discounting. No market model at all.
+//    funds                           the administrator's NAV. Not a model, a report.
+//    everything nobody trusts        a broker mark and a reserve big enough to admit it.
+//
+// So the class hierarchy is rooted in the DEPENDENCY's taxonomy rather than in a new one:
+// product_pricing::PprPricedProduct extends product_core::Product, and its mapping set
+// extends product-core's [prdProduct], which itself extends core-instrument's [ciBase].
+// A priced product is a product is an instrument, three projects deep, on one row.
+//
+// Two classes go further down the taxonomy and extend a CONCRETE product type --
+// PprPricedAutocall extends product_core::YieldEnhancementProduct, PprPricedProtectedNote
+// extends product_core::CapitalProtectedNote -- because the pricing facts that matter for
+// those two are facts about that payoff and nothing else. Their properties are mapped on
+// their OWN sets: a property declared on a subclass cannot be mapped on the parent's set,
+// which is the trap product-core hit and recorded.
+//
+// The second theme is the CROSS-PROJECT FUNCTION CALL, inherited from valuation-core's own
+// reason for existing. This project does not re-derive a dirty price or a market value; it
+// calls valuation_core::vcDirtyPrice and valuation_core::vcMarketValue, which in turn call
+// core-fx. The model price and the market price therefore travel through exactly the same
+// arithmetic, which is the only way a model-versus-market deviation means anything.
+//
+// Prefixes per the project contract: classes Ppr*, tables PPR_*, joins Ppr_*, filters Ppr*,
+// set ids ppr*, functions ppr*.
+
+// ============================================================ the priced product taxonomy
+
+// A catalogued product the pricing desk has taken responsibility for: it has a model, a
+// desk, a currency it is priced in, and a reserve rate held against the model being wrong.
+// The root of this project's overlay, and the point where it joins the dependency's
+// taxonomy -- everything product-core knows about the product is inherited, not repeated.
+Class product_pricing::PprPricedProduct extends product_core::Product
+{
+   // The PprPricingModel that prices this product. The single fact this whole project is
+   // organised around: one product, one model, and an audit trail for the choice.
+   modelCode: String[1];
+   // ANALYTIC, MONTE_CARLO, LATTICE, ACCRUAL, NAV or BROKER. Denormalised from the model so
+   // a report can group by technique without walking to PPR_MODEL, and it is the
+   // discriminator the six subtype sets below filter on.
+   modelFamily: String[1];
+   // IN_MODEL or OUT_OF_SCOPE. A product can be catalogued and still not be priced here --
+   // a fund distributed but not manufactured, for instance.
+   pricingStatus: String[1];
+   // ISO 4217 the model produces its number in. Not necessarily the settlement currency.
+   pricingCurrency: String[0..1];
+   // The desk that owns the mark. Whoever this is, is who explains a break.
+   pricingDesk: String[0..1];
+   // valuation-core's VcValuationMethod code (MARK, MODEL, BROKER), so the tolerance this
+   // product is held to is the one the firm's valuation policy already states.
+   valuationMethodCode: String[0..1];
+   // The discount curve the model discounts on. Every model here needs one; only some need
+   // a volatility surface, which is why that lives on the subtypes.
+   discountCurveCode: String[0..1];
+   // The volatility surface the model reads, when it reads one at all.
+   volatilitySurfaceCode: String[0..1];
+   // When the model last produced a price for this product.
+   lastPricedOn: StrictDate[0..1];
+   // Model risk tier, 1 (material) to 3 (immaterial). Drives review frequency and reserve.
+   modelTier: Integer[0..1];
+   // True once model validation has signed the model off FOR THIS PRODUCT. A validated
+   // model used outside its validated scope is an unvalidated model.
+   isModelValidated: Boolean[1];
+   // DAILY, WEEKLY or MONTHLY -- how often the number is expected to move.
+   revaluationFrequency: String[0..1];
+   // True when an independent price verification team re-marks it separately.
+   hasIndependentPriceCheck: Boolean[1];
+   // The standing model reserve, in basis points of model value, before any product-specific
+   // uncertainty is added on top.
+   baseReserveBasisPoints: Float[0..1];
+
+   // The model itself, with its engine, its version and its validation history.
+   model: product_pricing::PprPricingModel[0..1];
+   // The curve this product discounts on.
+   discountCurve: product_pricing::PprDiscountCurve[0..1];
+   // Every price this product has been given, across runs.
+   prices: product_pricing::PprProductPrice[*];
+
+   // The standing reserve as a rate rather than basis points, so two projects quoting the
+   // same reserve agree on the scale. `/` widens to Float, hence Float[1].
+   baseReserveRate() { $this.baseReserveBasisPoints->toOne() / 10000.0 } : Float[1];
+   // Whether this is a tier-one model risk, which is the question a model risk committee
+   // agenda is actually sorted on.
+   isTierOne() { $this.modelTier->toOne() == 1 } : Boolean[1];
+   // Whether the number may be reported without a caveat: validated, and independently
+   // checked. Anything else goes to the committee with a reserve attached.
+   isTrustedMark() { $this.isModelValidated && $this.hasIndependentPriceCheck } : Boolean[1];
+}
+
+// A product priced by a closed-form formula -- one evaluation, no simulation, no lattice.
+// What distinguishes it: the greeks come out of the same formula as the price, so they are
+// exact rather than bumped, and the only real modelling choice left is the volatility point.
+Class product_pricing::PprAnalyticPricedProduct extends product_pricing::PprPricedProduct
+{
+   // BLACK_SCHOLES, BLACK_76, BACHELIER, GARMAN_KOHLHAGEN -- which closed form.
+   closedFormName: String[0..1];
+   // True when the formula is fed a strike-dependent volatility rather than a single ATM
+   // number. The difference between the two is most of the mis-pricing in this family.
+   usesVolatilitySmile: Boolean[1];
+   // The single implied volatility the formula is fed, when it is fed one.
+   quotedVolatility: Float[0..1];
+   // ACT/365, ACT/360 or 30/360 -- how the formula measures time to expiry.
+   analyticDayCount: String[0..1];
+   // True when the same formula also returns the greeks, which is the point of using it.
+   hasAnalyticGreeks: Boolean[1];
+}
+
+// A product priced by simulating paths, because its payoff depends on the whole path and
+// not only on where the underlying finishes. What distinguishes it: the answer is an
+// estimate with a standard error, so the path count is a price of accuracy and the seed is
+// part of the audit trail.
+Class product_pricing::PprMonteCarloPricedProduct extends product_pricing::PprPricedProduct
+{
+   // How many paths the production run uses. Halving the error costs four times this.
+   pathCount: Integer[0..1];
+   // Time steps per year on each path. Discretisation error hides here, not in pathCount.
+   timeStepsPerYear: Integer[0..1];
+   // The seed, recorded so a price can be reproduced exactly. Without it the number is not
+   // reproducible and therefore not auditable.
+   randomSeed: Integer[0..1];
+   // ANTITHETIC, CONTROL_VARIATE, SOBOL or NONE.
+   varianceReduction: String[0..1];
+   // The standard deviation across paths, which is what the standard error is computed from.
+   pathStandardDeviation: Float[0..1];
+   // True when the payoff genuinely reads the path -- a barrier, an average, an autocall.
+   // False here means the product is being simulated when a formula would do.
+   isPathDependent: Boolean[1];
+
+   // The Monte Carlo standard error: the honest error bar on the price.
+   standardError() { product_pricing::pprMonteCarloStandardError($this.pathStandardDeviation->toOne(), $this.pathCount->toOne()) } : Float[1];
+   // Total simulated steps per path count -- the cost of the run, in one integer.
+   totalTimeSteps() { $this.pathCount->toOne() * $this.timeStepsPerYear->toOne() } : Integer[1];
+}
+
+// A product priced on a lattice, because the holder can exercise before expiry and the
+// value therefore has to be compared with the exercise value at every node. What
+// distinguishes it: backward induction, so the step count is the accuracy, and discrete
+// dividends can be placed on actual dates rather than smeared into a yield.
+Class product_pricing::PprLatticePricedProduct extends product_pricing::PprPricedProduct
+{
+   // BINOMIAL, TRINOMIAL or PDE_GRID.
+   latticeType: String[0..1];
+   // Steps from today to expiry. Too few and the early-exercise boundary is a staircase.
+   treeSteps: Integer[0..1];
+   // AMERICAN or BERMUDAN. European on a tree is a formula wearing a costume.
+   exerciseStyle: String[0..1];
+   // Time to expiry in years, which with treeSteps gives the step size.
+   yearsToExpiry: Float[0..1];
+   // True when discrete dividends sit on their ex-dates rather than being turned into a
+   // continuous yield -- which is exactly what decides early exercise on a call.
+   handlesDiscreteDividends: Boolean[1];
+
+   // The size of one step, in years. The number a convergence test is stated against.
+   stepSizeYears() { product_pricing::pprLatticeStepSize($this.yearsToExpiry->toOne(), $this.treeSteps->toOne()) } : Float[1];
+}
+
+// A product priced by accruing and discounting contractual cash flows: deposits, repo,
+// margin loans. What distinguishes it: there is no market model and no volatility -- the
+// only inputs are a rate, a day count and a discount curve, and the only judgement is
+// whether the firm's own funding curve or a collateralised one is the right one.
+Class product_pricing::PprAccrualPricedProduct extends product_pricing::PprPricedProduct
+{
+   // ACT/360, ACT/365 or 30/360 -- how the contract counts days, not how the model does.
+   accrualBasis: String[0..1];
+   // The contractual rate, as a percentage. Fixed for the life of most of this family.
+   contractRatePercent: Float[0..1];
+   // True when the position is carried at fair value rather than at amortised cost. The
+   // choice is an accounting election and it changes what this class produces.
+   isFairValueOption: Boolean[1];
+   // Days from the valuation date to the contractual end.
+   daysToMaturity: Integer[0..1];
+   // The spread over the discount curve applied for the firm's own credit.
+   fundingSpreadBasisPoints: Float[0..1];
+}
+
+// A product priced at the administrator's published net asset value. What distinguishes it:
+// this is not a model at all, it is a REPORT, and everything difficult about it is
+// operational -- how old the NAV is, whether it is estimated, and what swing pricing did.
+Class product_pricing::PprNavPricedProduct extends product_pricing::PprPricedProduct
+{
+   // The administrator or vendor the NAV is taken from.
+   navSource: String[0..1];
+   // How many business days behind the valuation date the NAV is. Non-zero for most funds
+   // of funds, and the single largest source of stale marks in this family.
+   navLagDays: Integer[0..1];
+   // The swing applied by the fund to protect remaining holders, as a percentage of NAV.
+   swingFactorPercent: Float[0..1];
+   // True when the NAV used is the administrator's estimate rather than the final one.
+   usesEstimatedNav: Boolean[1];
+   // The published NAV per unit actually used.
+   navPerUnit: Float[0..1];
+}
+
+// A product carried at a broker's quote because nobody has a model they are willing to
+// defend. What distinguishes it: the number is somebody else's opinion, so the facts that
+// matter are how many opinions there were and how far apart they were -- and the reserve
+// is sized from that dispersion rather than from any model diagnostic.
+Class product_pricing::PprBrokerMarkedProduct extends product_pricing::PprPricedProduct
+{
+   // How many independent brokers quoted. One is a rumour; three is a mark.
+   brokerCount: Integer[0..1];
+   // The spread between the highest and lowest quote, as a percentage of the mid. This
+   // number, not a model diagnostic, is what sizes the reserve for this family.
+   brokerDispersionPercent: Float[0..1];
+   // The uncertainty reserve held on top of the standing reserve, in basis points.
+   uncertaintyReserveBasisPoints: Float[0..1];
+   // Who has to explain the mark when it is challenged. A named person, not a team.
+   escalationOwner: String[0..1];
+   // True when the desk that trades the product also sourced the quotes, which is the
+   // control weakness this class exists to make visible.
+   isDeskSourced: Boolean[1];
+
+   // The total reserve rate for a broker mark: the standing model reserve plus the
+   // uncertainty the dispersion justifies.
+   totalReserveRate() { ($this.baseReserveBasisPoints->toOne() + $this.uncertaintyReserveBasisPoints->toOne()) / 10000.0 } : Float[1];
+}
+
+// ---------------------------------------------------------- two concrete payoffs, priced
+
+// The pricing view of an autocallable yield-enhancement note -- extends the DEPENDENCY's
+// concrete product class, not this project's root. What distinguishes it: the note's life
+// is itself a random variable, so an expected life and an autocall probability are
+// simulation OUTPUTS that have to be stored beside the price to explain it.
+Class product_pricing::PprPricedAutocall extends product_core::YieldEnhancementProduct
+{
+   // How many autocall observation dates remain.
+   observationCount: Integer[0..1];
+   // QUARTERLY, SEMI_ANNUAL or ANNUAL -- the observation schedule.
+   observationFrequency: String[0..1];
+   // True when missed coupons are paid retrospectively once a coupon barrier is regained.
+   // Memory turns a simple simulation into a path-state one.
+   hasMemoryCoupon: Boolean[1];
+   // The simulated probability of being called at the next observation date.
+   autocallProbability: Float[0..1];
+   // Expected life in years under the model. The number a sales desk quotes as "the term"
+   // and the number a treasury desk funds against; they are the same number and it is here.
+   expectedLifeYears: Float[0..1];
+   // The simulated probability of ending below the downside barrier at maturity -- the
+   // client's actual chance of losing principal, which the brochure states as a barrier.
+   barrierBreachProbability: Float[0..1];
+   // The model that produced those probabilities. Path dependent, so always Monte Carlo.
+   pricingModelCode: String[0..1];
+
+   // Expected life spread over the observations still to come -- how long, on average, the
+   // note is expected to survive per remaining chance to be called. `->toFloat()` on the
+   // count because Integer against Float would type as Number.
+   yearsPerRemainingObservation() { $this.expectedLifeYears->toOne() / $this.observationCount->toOne()->toFloat() } : Float[1];
+}
+
+// The pricing view of a capital-protected note -- extends the dependency's concrete class.
+// What distinguishes it: the note is priced as TWO instruments, a zero-coupon bond for the
+// protection and an option for the upside, so the two present values are carried
+// separately and their sum is the check that the decomposition is complete.
+Class product_pricing::PprPricedProtectedNote extends product_core::CapitalProtectedNote
+{
+   // Present value of the zero-coupon leg, as a percentage of face. This is the protection,
+   // and it is worth less the higher rates are -- which is why these notes come and go.
+   zeroLegPresentValuePercent: Float[0..1];
+   // Present value of the option leg, as a percentage of face. Whatever the zero leg left.
+   optionLegPresentValuePercent: Float[0..1];
+   // The issuer funding spread used to discount the zero leg. The protection is only as
+   // good as the issuer, and this basis-point number is where that is priced.
+   issuerFundingSpreadBasisPoints: Float[0..1];
+   // True when the protection is modelled rather than assumed -- conditional protection is
+   // a barrier option and must be simulated, not discounted.
+   isProtectionModelled: Boolean[1];
+   // The model that priced the option leg.
+   pricingModelCode: String[0..1];
+
+   // The two legs added back up, as a percentage of face. Materially away from 100 and the
+   // decomposition is missing a fee, a spread or a leg.
+   decompositionCheckPercent() { $this.zeroLegPresentValuePercent->toOne() + $this.optionLegPresentValuePercent->toOne() } : Float[1];
+}
+
+// ============================================================ the models themselves
+
+// A pricing model as an installed, versioned, owned thing: an engine, a version, a quant
+// team and an approval status. The root of the model hierarchy, and what a product points
+// at when it says "this is how I am priced".
+Class product_pricing::PprPricingModel
+{
+   // The model identifier carried on every product and every price it produced.
+   modelCode: String[1];
+   // What the model is called in the model inventory.
+   modelName: String[1];
+   // ANALYTIC, MONTE_CARLO or LATTICE. The discriminator for the three subtypes below.
+   modelKind: String[1];
+   // The library the implementation lives in.
+   engineName: String[0..1];
+   // The version of it. A price is only reproducible against a version, so this is part of
+   // the identity of every number this project stores.
+   engineVersion: String[0..1];
+   // What the model is approved to price: EQUITY, RATES, FX, CREDIT, HYBRID.
+   assetClass: String[0..1];
+   // valuation-core's method code, so the model inherits that project's tolerance.
+   valuationMethodCode: String[0..1];
+   // The quant team that owns the implementation and answers for it.
+   owningQuantTeam: String[0..1];
+   // APPROVED, CONDITIONAL, RESTRICTED or WITHDRAWN.
+   approvalStatus: String[0..1];
+   // True when it is the model production actually runs, as opposed to a research build.
+   isProduction: Boolean[1];
+   // Typical single-price runtime in milliseconds. A model too slow to run overnight is a
+   // model that will be silently replaced by a spreadsheet.
+   typicalRuntimeMillis: Integer[0..1];
+   // Model risk tier, 1 to 3.
+   modelRiskTier: Integer[0..1];
+
+   // valuation-core's definition of the method this model reports under.
+   valuationMethod: valuation_core::VcValuationMethod[0..1];
+   // The inputs it requires before it will produce a number.
+   inputs: product_pricing::PprModelInput[*];
+   // Which product subtypes it has been assigned to price.
+   assignments: product_pricing::PprModelAssignment[*];
+   // Its calibration history.
+   calibrations: product_pricing::PprCalibration[*];
+   // Its validation history.
+   validations: product_pricing::PprModelValidation[*];
+   // The limitations validation recorded against it.
+   limitations: product_pricing::PprModelLimitation[*];
+
+   // Whether a price from this model may be reported without a caveat.
+   isApprovedForProduction() { $this.isProduction && ($this.approvalStatus->toOne() == 'APPROVED') } : Boolean[1];
+}
+
+// A model with a closed-form solution: the price and its greeks come out of one formula.
+// What distinguishes it: nothing about it is approximate except the assumptions, so the
+// only modelling decision left is how the volatility smile is fed to a formula that
+// assumes there is not one.
+Class product_pricing::PprAnalyticModel extends product_pricing::PprPricingModel
+{
+   // BLACK_SCHOLES, BLACK_76, BACHELIER, GARMAN_KOHLHAGEN.
+   formulaName: String[0..1];
+   // True when the formula returns greeks analytically rather than by bumping.
+   hasClosedFormGreeks: Boolean[1];
+   // STICKY_STRIKE, STICKY_DELTA or NONE -- how the smile is handled by a formula that
+   // does not have one. The choice moves the delta, not the price.
+   smileTreatment: String[0..1];
+   // The upper bound of moneyness the formula is validated over. Outside it the number is
+   // an extrapolation, whatever the engine reports.
+   validatedMoneynessMax: Float[0..1];
+}
+
+// A model that prices by simulation. What distinguishes it: the answer has an error bar,
+// so the settings that control that error bar -- paths, sequence, variance reduction --
+// are model configuration and not run-time preference.
+Class product_pricing::PprMonteCarloModel extends product_pricing::PprPricingModel
+{
+   // The production path count, before any product-specific override.
+   defaultPathCount: Integer[0..1];
+   // True when antithetic sampling is available: the cheapest variance reduction there is.
+   supportsAntithetic: Boolean[1];
+   // True when the engine can draw a low-discrepancy sequence instead of pseudo-random.
+   supportsQuasiRandom: Boolean[1];
+   // True when a Brownian bridge is used to place barrier monitoring between time steps --
+   // without it, a discretely monitored barrier is systematically under-triggered.
+   usesBrownianBridge: Boolean[1];
+   // The convergence target, in basis points of price, the run is expected to reach.
+   convergenceTargetBasisPoints: Float[0..1];
+}
+
+// A model that prices by backward induction on a lattice. What distinguishes it: it can
+// answer "is it worth exercising here", which no closed form and no forward simulation can
+// do without extra machinery, and that is the only reason to accept its cost.
+Class product_pricing::PprLatticeModel extends product_pricing::PprPricingModel
+{
+   // BINOMIAL, TRINOMIAL or PDE_GRID.
+   latticeType: String[0..1];
+   // The default number of steps to expiry.
+   defaultStepCount: Integer[0..1];
+   // True when continuous early exercise is supported.
+   supportsAmerican: Boolean[1];
+   // True when exercise is supported on a stated schedule rather than continuously.
+   supportsBermudan: Boolean[1];
+   // ESCROWED, SPOT_ADJUSTED or CONTINUOUS_YIELD -- how discrete dividends are placed.
+   dividendTreatment: String[0..1];
+}
+
+// The decision that a given product subtype is priced by a given model, with who decided
+// and why. Separate from the product because the assignment is a POLICY that applies to a
+// class of products, and it is the artefact a model risk review actually reads.
+Class product_pricing::PprModelAssignment
+{
+   // The product-core INSTRUMENT_SUBTYPE the assignment applies to, e.g. YIELD_ENHANCEMENT.
+   productSubtype: String[1];
+   // The model assigned to it.
+   modelCode: String[1];
+   // When the assignment took effect.
+   assignedOn: StrictDate[0..1];
+   // Who signed it.
+   assignedBy: String[0..1];
+   // True for the model actually used; false rows are the documented alternatives.
+   isPrimary: Boolean[1];
+   // What is used when the primary model fails to converge or is withdrawn.
+   fallbackModelCode: String[0..1];
+   // Why this model and not another. The one field a reviewer reads first.
+   rationale: String[0..1];
+}
+
+// One named input a model will not run without: a curve, a surface, a correlation matrix, a
+// dividend forecast or a scalar. Exists as data rather than as documentation because the
+// missing-input case is the most common production failure and it has to be queryable.
+Class product_pricing::PprModelInput
+{
+   // Which model needs it.
+   modelCode: String[1];
+   // The input's code within that model, e.g. DISCOUNT_CURVE, VOL_SURFACE, CORR_MATRIX.
+   inputCode: String[1];
+   // What it is called in the model documentation.
+   inputName: String[0..1];
+   // CURVE, SURFACE, CORRELATION, DIVIDEND or SCALAR.
+   inputKind: String[0..1];
+   // True when the model cannot produce a number without it. A false here plus a missing
+   // value is a degraded price, not a failed one, and the two must be told apart.
+   isMandatory: Boolean[1];
+   // Where the value is expected to come from.
+   sourceReference: String[0..1];
+   // The value used when the input is optional and absent.
+   defaultValue: Float[0..1];
+   // PERCENT, BASIS_POINTS, YEARS or ABSOLUTE -- so a number is never read on the wrong scale.
+   unitOfMeasure: String[0..1];
+}
+
+// ============================================================ the market inputs
+
+// An implied volatility surface: one underlying, one as-of date, and the whole grid of
+// expiry against strike. Exists as its own class because every model that needs volatility
+// needs THIS object, not a number, and because arbitrage-freedom is a property of the
+// surface as a whole and cannot be stated on a point.
+Class product_pricing::PprVolatilitySurface
+{
+   // The surface identifier a product or a calibration points at.
+   surfaceCode: String[1];
+   // The underlying it describes.
+   underlyingCode: String[0..1];
+   // EQUITY, FX, RATES or COMMODITY.
+   surfaceType: String[0..1];
+   // LOG_MONEYNESS, DELTA or ABSOLUTE_STRIKE -- the axis the quotes are stated on.
+   quoteConvention: String[0..1];
+   // The date the surface was built for.
+   asOfDate: StrictDate[0..1];
+   // At-the-money volatility at the benchmark expiry -- the one number people quote.
+   atmVolatility: Float[0..1];
+   // The 25-delta risk reversal: how asymmetric the surface is, which is what the ATM
+   // number hides and what a barrier product is actually exposed to.
+   skew25Delta: Float[0..1];
+   // True when the surface passes calendar and butterfly arbitrage checks. A surface that
+   // fails these will produce negative densities and prices nobody can explain.
+   isArbitrageFree: Boolean[1];
+   // LINEAR, CUBIC_SPLINE or SVI -- how the gaps between quotes are filled.
+   interpolation: String[0..1];
+   // How many quoted points went into it.
+   pointCount: Integer[0..1];
+
+   // The points themselves.
+   points: product_pricing::PprVolatilityPoint[*];
+}
+
+// One quoted point on a volatility surface: an expiry, a strike bucket and the implied
+// volatility there. Separate from the surface because a point can be stale, interpolated or
+// quoted by nobody, and a surface-level flag cannot say which point that was.
+Class product_pricing::PprVolatilityPoint
+{
+   // The surface this point belongs to.
+   surfaceCode: String[1];
+   // The expiry pillar, e.g. 1M, 3M, 1Y.
+   expiryTenor: String[1];
+   // The strike bucket, e.g. 80, 90, ATM, 110, 25DP, 25DC.
+   strikeBucket: String[1];
+   // The bucket as a percentage of spot, for arithmetic rather than for display.
+   strikePercent: Float[0..1];
+   // The mid implied volatility at that point.
+   impliedVolatility: Float[0..1];
+   // The bid side of the volatility quote.
+   bidVolatility: Float[0..1];
+   // The ask side of it. The spread between the two is the honest width of the mark.
+   askVolatility: Float[0..1];
+   // True when the point was interpolated rather than quoted. An interpolated point that a
+   // barrier sits exactly on is a model reserve waiting to be sized.
+   isInterpolated: Boolean[1];
+   // How many market quotes backed it.
+   quoteCount: Integer[0..1];
+
+   // The width of the volatility market at this point, in volatility units.
+   volatilitySpread() { $this.askVolatility->toOne() - $this.bidVolatility->toOne() } : Float[1];
+}
+
+// A discount curve: the term structure everything in this project is discounted on.
+// Exists as its own class because WHICH curve is the largest single valuation choice after
+// the model itself -- a collateralised trade and an uncollateralised one discount
+// differently and are otherwise identical.
+Class product_pricing::PprDiscountCurve
+{
+   // The curve identifier a product or a calibration points at.
+   curveCode: String[1];
+   // What it is called on a screen.
+   curveName: String[0..1];
+   // ISO 4217 the curve is in.
+   currencyCode: String[0..1];
+   // OIS, IBOR, FUNDING or GOVERNMENT.
+   curveType: String[0..1];
+   // The date it was built for.
+   asOfDate: StrictDate[0..1];
+   // LINEAR_ZERO, LOG_LINEAR_DF or CUBIC_SPLINE.
+   interpolation: String[0..1];
+   // True for a collateral discount curve. The flag that decides whether this curve may be
+   // used for a CSA trade at all.
+   isCollateralised: Boolean[1];
+   // ISO 4217 of the collateral the curve assumes, when it assumes any.
+   collateralCurrency: String[0..1];
+   // How many pillars were solved.
+   nodeCount: Integer[0..1];
+
+   // The pillars.
+   points: product_pricing::PprCurvePoint[*];
+}
+
+// One pillar on a discount curve: a tenor, the zero rate solved there and the discount
+// factor it implies. Separate from the curve because a pillar is either a market
+// instrument or an interpolation, and only the pillar knows which it is.
+Class product_pricing::PprCurvePoint
+{
+   // Which curve.
+   curveCode: String[1];
+   // The tenor pillar, e.g. 1M, 6M, 2Y, 10Y.
+   tenorCode: String[1];
+   // The same tenor in days, for arithmetic.
+   tenorDays: Integer[0..1];
+   // The continuously compounded zero rate solved at this pillar.
+   zeroRate: Float[0..1];
+   // The discount factor it implies. Carried as well as the rate because rounding one and
+   // re-deriving the other is how two systems come to disagree about the same curve.
+   discountFactor: Float[0..1];
+   // The forward rate over the segment ending here.
+   forwardRate: Float[0..1];
+   // True when a market instrument was solved to this pillar rather than interpolated to it.
+   isPillar: Boolean[1];
+
+   // The tenor in years, which is what every formula in this project actually wants.
+   tenorYears() { $this.tenorDays->toOne()->toFloat() / 365.0 } : Float[1];
+}
+
+// One correlation between two underlyings in a named matrix. Exists as its own class
+// because correlation is the input nobody can hedge and nobody can observe directly, which
+// makes it the input that most model reserves are actually held against.
+Class product_pricing::PprCorrelationEntry
+{
+   // The matrix this entry belongs to.
+   matrixCode: String[1];
+   // The first underlying, by code.
+   underlyingOne: String[1];
+   // The second. The pair is ordered so the matrix is stored once, not twice.
+   underlyingTwo: String[1];
+   // The correlation itself, in [-1, 1].
+   correlationValue: Float[0..1];
+   // How many business days of history it was estimated from.
+   estimationWindowDays: Integer[0..1];
+   // HISTORICAL, IMPLIED or EXPERT_JUDGEMENT. The third is a euphemism and is why the
+   // method is stored rather than assumed.
+   estimationMethod: String[0..1];
+   // True when this is the stressed value used for reserve sizing rather than the base one.
+   isStressed: Boolean[1];
+   // The date it was estimated on.
+   asOfDate: StrictDate[0..1];
+}
+
+// A forecast dividend on an underlying: an ex-date and an amount. Exists as data because
+// on a lattice a dividend has a DATE, and turning it into a continuous yield is precisely
+// the approximation that gets American call early exercise wrong.
+Class product_pricing::PprDividendForecast
+{
+   // The underlying paying it.
+   underlyingCode: String[1];
+   // The ex-date. On a lattice this lands on a node; in a yield it disappears.
+   exDate: StrictDate[1];
+   // The amount per share.
+   dividendAmount: Float[0..1];
+   // ISO 4217 the amount is in.
+   dividendCurrency: String[0..1];
+   // True when the amount is a forecast rather than a declared dividend.
+   isForecast: Boolean[1];
+   // Where the forecast came from.
+   forecastSource: String[0..1];
+   // The implied annual yield, for the models that want a yield rather than a schedule.
+   dividendYield: Float[0..1];
+   // True for a special dividend, which no yield model will ever anticipate.
+   isSpecial: Boolean[1];
+}
+
+// ============================================================ calibration
+
+// One calibration of one model on one date: the fit that turned market quotes into model
+// parameters. Exists as its own class because a model price is only meaningful with the
+// calibration that produced its parameters, and that fit either converged or it did not.
+Class product_pricing::PprCalibration
+{
+   // The model calibrated.
+   modelCode: String[1];
+   // The date calibrated for.
+   calibrationDate: StrictDate[1];
+   // GLOBAL, BOOTSTRAP or LOCAL -- what was actually solved.
+   calibrationType: String[0..1];
+   // How many instruments were in the target basket.
+   targetCount: Integer[0..1];
+   // How many solver iterations it took.
+   iterationCount: Integer[0..1];
+   // Root mean square fit error across the basket, in the quote's own units.
+   rootMeanSquareError: Float[0..1];
+   // The worst single fit error. A good RMSE with a terrible max error means one product
+   // is being priced off the one quote the model cannot fit.
+   maxAbsoluteError: Float[0..1];
+   // True when the solver converged. A price from a non-converged calibration is not a
+   // price, and this flag is the only thing that says so.
+   hasConverged: Boolean[1];
+   // LEVENBERG_MARQUARDT, NELDER_MEAD or NEWTON.
+   solverName: String[0..1];
+   // How long it took, in seconds.
+   runSeconds: Float[0..1];
+   // Who ran it, or which scheduler did.
+   calibratedBy: String[0..1];
+   // The volatility surface it was calibrated to.
+   surfaceCode: String[0..1];
+   // The discount curve it was calibrated on.
+   curveCode: String[0..1];
+
+   // The basket it was fitted to.
+   targets: product_pricing::PprCalibrationTarget[*];
+   // The surface it read.
+   surface: product_pricing::PprVolatilitySurface[0..1];
+   // The curve it discounted on.
+   curve: product_pricing::PprDiscountCurve[0..1];
+
+   // Average fit error per target instrument, which is the number a calibration report
+   // trends over time. `->toFloat()` because Integer against Float would type as Number.
+   errorPerTarget() { $this.rootMeanSquareError->toOne() / $this.targetCount->toOne()->toFloat() } : Float[1];
+}
+
+// One instrument in a calibration basket, with the market quote it was fitted to and the
+// quote the model returned. Exists per instrument because a fit is only as trustworthy as
+// its worst target, and excluding a target is a decision that has to leave a record.
+Class product_pricing::PprCalibrationTarget
+{
+   // The model being calibrated.
+   modelCode: String[1];
+   // The date being calibrated for.
+   calibrationDate: StrictDate[1];
+   // Which target this is within the basket.
+   targetSeq: Integer[1];
+   // What was fitted: an option, a swap, a quoted volatility.
+   targetInstrument: String[0..1];
+   // The tenor pillar it sits on.
+   targetTenor: String[0..1];
+   // The market's quote.
+   marketQuote: Float[0..1];
+   // The model's quote after the fit. The difference is the fit error.
+   modelQuote: Float[0..1];
+   // The weight this target carried in the objective function.
+   targetWeight: Float[0..1];
+   // True when it was dropped from the fit.
+   isExcluded: Boolean[1];
+   // Why it was dropped. An excluded target with no reason is an unexplained fit.
+   exclusionReason: String[0..1];
+
+   // The absolute fit error at this target, in the quote's units.
+   quoteError() { $this.modelQuote->toOne() - $this.marketQuote->toOne() } : Float[1];
+   // The same error as a fraction of the market quote, via valuation-core's deviation
+   // function -- the same one a valuation break is measured with.
+   quoteErrorPct() { valuation_core::vcDeviationPct($this.marketQuote->toOne(), $this.modelQuote->toOne()) } : Float[1];
+}
+
+// ============================================================ what the models produce
+
+// One execution of the pricing process: a batch of products, a cob date, and the
+// valuation-core run it feeds. Exists so a price is always attributable to a run, which is
+// what makes re-pricing a date safe.
+Class product_pricing::PprPricingRun
+{
+   // The pricing run identifier carried on every price and greek it produced.
+   runId: String[1];
+   // valuation-core's run this one feeds. The two are separate because a valuation run
+   // consumes prices from several sources and this project is only one of them.
+   valuationRunId: String[0..1];
+   // The close-of-business date priced as of.
+   cobDate: StrictDate[0..1];
+   // EOD, INTRADAY or ADHOC.
+   runType: String[0..1];
+   // PENDING, RUNNING, COMPLETE or FAILED.
+   status: String[0..1];
+   // How many products the run priced.
+   productCount: Integer[1];
+   // How many it failed to price. A model that fails is not a model that returns zero.
+   failedCount: Integer[1];
+   // ISO 4217 the run reports in.
+   reportingCurrency: String[0..1];
+   // When it started, to the second.
+   startedAt: DateTime[0..1];
+   // True once the run is signed off and may be reported from.
+   isSignedOff: Boolean[1];
+
+   // valuation-core's run, across the project boundary.
+   valuationRun: valuation_core::VcValuationRun[0..1];
+   // Every price the run produced.
+   prices: product_pricing::PprProductPrice[*];
+
+   // The share of the run that produced a price. `->toFloat()` on both sides so the
+   // division is Float rather than Number.
+   pricedPct() { ($this.productCount - $this.failedCount)->toFloat() / $this.productCount->toFloat() } : Float[1];
+}
+
+// The price one model produced for one product in one run, next to the market price it is
+// checked against. This is the output of the whole project, and the class where the
+// cross-project function calls actually happen.
+Class product_pricing::PprProductPrice
+[
+   // A tolerance of zero would make every price a break; a negative one is nonsense.
+   toleranceIsPositive: $this.tolerancePct > 0.0,
+   // A zero FX rate silently zeroes the reported value, exactly as in valuation-core.
+   fxRateIsPositive: $this.fxRate > 0.0
+]
+{
+   // Which pricing run produced it.
+   runId: String[1];
+   // Which product it is for -- product-core's catalogue key.
+   productCode: String[1];
+   // The instrument row behind that product, which is how it reaches valuation-core.
+   instrumentId: String[1];
+   // valuation-core's run this price was fed into.
+   valuationRunId: String[0..1];
+   // The date priced as of.
+   cobDate: StrictDate[0..1];
+   // The model that produced it.
+   modelCode: String[0..1];
+   // The model's clean price, EXCLUDING accrued -- the same convention valuation-core uses,
+   // deliberately, so the two numbers can be compared without a translation step.
+   cleanModelPrice: Float[1];
+   // Interest accrued since the last coupon, per unit. Zero for anything without a coupon.
+   accruedInterest: Float[1];
+   // How many units the price applies to.
+   quantity: Float[1];
+   // The observable market price, where there is one. This is what the model is checked
+   // against, and its absence is why some products carry a reserve.
+   marketPrice: Float[1];
+   // The rate carrying the value into the reporting currency, already pointing the right
+   // way, as valuation-core stores it.
+   fxRate: Float[1];
+   // ISO 4217 the model priced in.
+   pricingCurrency: String[0..1];
+   // ISO 4217 the firm reports in.
+   reportingCurrency: String[0..1];
+   // The model's own confidence in the number, as a percentage. Only meaningful for the
+   // simulated models, which is why it is optional.
+   confidencePercent: Float[0..1];
+   // The deviation from market that raises a break for this product.
+   tolerancePct: Float[1];
+   // True when the reported number is the model's rather than the market's.
+   isModelPrice: Boolean[1];
+   // PRICED, FAILED, STALE or OVERRIDDEN.
+   priceStatus: String[0..1];
+
+   // valuation-core's valuation this price fed, on its full three-column key.
+   valuation: valuation_core::VcValuation[0..1];
+   // The model that produced it.
+   model: product_pricing::PprPricingModel[0..1];
+   // The first-order greek block computed alongside it.
+   greekProfile: product_pricing::PprGreekProfile[0..1];
+   // Every individual greek, including the ones outside the standard block.
+   greeks: product_pricing::PprGreekObservation[*];
+   // Every reserve held against it.
+   reserves: product_pricing::PprModelReserve[*];
+
+   // ---- THE CROSS-PROJECT CALLS ---------------------------------------------------------
+   // The dirty model price. Not written here: valuation-core owns the definition of what a
+   // dirty price is, and a model price that computed it differently would be incomparable
+   // with the market price beside it.
+   dirtyModelPrice() { valuation_core::vcDirtyPrice($this.cleanModelPrice, $this.accruedInterest) } : Float[1];
+   // Model value in the pricing currency, through valuation-core's own multiply.
+   modelValue() { valuation_core::vcMarketValue($this.quantity, valuation_core::vcDirtyPrice($this.cleanModelPrice, $this.accruedInterest)) } : Float[1];
+   // Model value in the reporting currency. valuation-core delegates the FX leg to core-fx,
+   // so this one property reaches three projects down and multiplies nothing itself.
+   modelValueInReporting() { valuation_core::vcMarketValueInReporting($this.quantity, valuation_core::vcDirtyPrice($this.cleanModelPrice, $this.accruedInterest), $this.fxRate) } : Float[1];
+   // How far the model is from the market, as a fraction of the market price -- measured
+   // with the same function a valuation break is measured with.
+   modelVsMarketPct() { valuation_core::vcDeviationPct($this.marketPrice, $this.cleanModelPrice) } : Float[1];
+   // Whether that deviation is inside this product's tolerance. False is a break.
+   isWithinTolerance() { product_pricing::pprIsWithinTolerance(valuation_core::vcDeviationPct($this.marketPrice, $this.cleanModelPrice), $this.tolerancePct) } : Boolean[1];
+}
+
+// The standard first-order greek block for one price: delta, gamma, vega, theta, rho, and
+// how they were produced. Exists as one class rather than five rows because the block is
+// computed together, from one model state, and mixing greeks from two states is wrong in a
+// way no per-row flag would catch.
+Class product_pricing::PprGreekProfile
+{
+   // The run the greeks belong to.
+   runId: String[1];
+   // The product they are for.
+   productCode: String[1];
+   // Sensitivity of price to a one-unit move in the underlying.
+   delta: Float[1];
+   // Sensitivity of DELTA to that move -- the reason a delta hedge has to be re-struck.
+   gamma: Float[1];
+   // Sensitivity of price to a one-point move in volatility. Zero for everything in the
+   // accrual and NAV families, which is the honest answer and not a missing number.
+   vega: Float[1];
+   // Sensitivity of price to the passage of one year.
+   theta: Float[1];
+   // Sensitivity of price to a parallel move in rates.
+   rho: Float[1];
+   // The underlying level the block was computed at. Without it the cash greeks below
+   // cannot be reconstructed and the block is not reproducible.
+   spotLevel: Float[1];
+   // The position size the cash greeks are scaled by.
+   quantity: Float[1];
+   // ANALYTIC, BUMP or PATHWISE -- how the numbers were obtained. A bumped greek from a
+   // Monte Carlo model carries the simulation noise twice.
+   greekMethod: String[0..1];
+   // The bump size used, in basis points, when the method was BUMP.
+   bumpSizeBasisPoints: Float[0..1];
+   // True when every greek in the block was produced. A partial block is not a block.
+   isComplete: Boolean[1];
+
+   // Cash delta: what a 1% move in the underlying costs the position, in money.
+   deltaCash() { product_pricing::pprDeltaCash($this.delta, $this.spotLevel, $this.quantity) } : Float[1];
+   // Cash gamma: the second-order term over the same move.
+   gammaCash() { product_pricing::pprGammaCash($this.gamma, $this.spotLevel, $this.quantity) } : Float[1];
+   // What one volatility point is worth across the whole position, in money.
+   vegaCash() { product_pricing::pprVegaForShift($this.vega, 1.0) * $this.quantity } : Float[1];
+   // Theta as a daily number, which is how a desk carries it.
+   thetaPerDay() { product_pricing::pprThetaPerDay($this.theta) } : Float[1];
+}
+
+// One named greek that is not in the standard block: vanna, volga, a bucketed vega, a
+// cross-gamma. Exists as its own class because the exotic sensitivities differ by product
+// and cannot be columns -- an autocall has a dividend sensitivity a deposit does not.
+Class product_pricing::PprGreekObservation
+{
+   // The run.
+   runId: String[1];
+   // The product.
+   productCode: String[1];
+   // The greek's code, e.g. VANNA, VOLGA, CROSS_GAMMA, DIV_RHO, CORR_SENS.
+   greekCode: String[1];
+   // What it is called in a risk report.
+   greekName: String[0..1];
+   // 1 for a first derivative, 2 for a second, 3 beyond. The order is what decides whether
+   // a bumped estimate is stable enough to hedge on.
+   greekOrder: Integer[0..1];
+   // The value itself.
+   greekValue: Float[0..1];
+   // PER_PERCENT, PER_BASIS_POINT or ABSOLUTE.
+   greekUnit: String[0..1];
+   // The shock size the sensitivity was estimated over.
+   shockSize: Float[0..1];
+   // True when the sensitivity is a cross term between two risk factors -- the ones that
+   // vanish from a report that only ever bumps one factor at a time.
+   isCrossGreek: Boolean[1];
+   // True when the number is stable across re-runs. An unstable second-order greek from a
+   // simulation is noise with a name.
+   isStable: Boolean[1];
+
+   // Whether this is a first-order sensitivity, which is the cut a risk report is made on.
+   isFirstOrder() { $this.greekOrder->toOne() == 1 } : Boolean[1];
+}
+
+// ============================================================ model risk
+
+// A reserve held against a price because the model that produced it is not trusted to the
+// last basis point. Exists as its own class, keyed by run, product and reserve type,
+// because reserves STACK -- model uncertainty, an unhedgeable parameter and a concentrated
+// position are three separate admissions and the firm has to be able to release them
+// separately.
+Class product_pricing::PprModelReserve
+{
+   // The pricing run the reserve was computed in.
+   runId: String[1];
+   // The product it is held against.
+   productCode: String[1];
+   // MODEL_UNCERTAINTY, PARAMETER_UNCERTAINTY, CONCENTRATION, CLOSE_OUT or DAY_ONE.
+   reserveType: String[1];
+   // The instrument row, so the reserve can reach valuation-core's adjustment.
+   instrumentId: String[0..1];
+   // valuation-core's run the matching adjustment was booked in.
+   valuationRunId: String[0..1];
+   // Which of valuation-core's stacked adjustments this reserve became.
+   adjustmentSeq: Integer[0..1];
+   // The reserve as a rate, in basis points of base value.
+   reserveBasisPoints: Float[1];
+   // The reserve in money, in the pricing currency.
+   reserveAmount: Float[1];
+   // The model value the reserve is a percentage of.
+   baseValue: Float[1];
+   // The rate carrying the reserve into the reporting currency.
+   fxRate: Float[1];
+   // How it was sized: DISPERSION, PARAMETER_RANGE, EXPERT_JUDGEMENT, REGULATORY_FLOOR.
+   methodology: String[0..1];
+   // Who approved holding it.
+   approvedBy: String[0..1];
+   // True once it has been released back to P&L, which is a decision and not an accident.
+   isReleased: Boolean[1];
+   // Why it is held. The sentence a regulator reads.
+   rationale: String[0..1];
+
+   // valuation-core's mark adjustment this reserve was booked as, across the boundary --
+   // the reserve is computed here and lands there.
+   markAdjustment: valuation_core::VcMarkAdjustment[0..1];
+
+   // The reserve re-derived from the rate and the base value. Where this disagrees with
+   // reserveAmount, one of the two was computed against a different base.
+   derivedReserveAmount() { product_pricing::pprReserveAmount($this.baseValue, $this.reserveBasisPoints) } : Float[1];
+   // The value actually reported: the model's number, less the admission.
+   valueNetOfReserve() { product_pricing::pprNetOfReserve($this.baseValue, $this.reserveAmount) } : Float[1];
+}
+
+// One model validation review: who looked at the model, when, and what they concluded.
+// Exists as history rather than as a status flag on the model, because "when was it last
+// validated" and "what did they find" are the two questions a model risk report is, and a
+// flag answers neither.
+Class product_pricing::PprModelValidation
+{
+   // The model reviewed.
+   modelCode: String[1];
+   // The date of the review.
+   reviewDate: StrictDate[1];
+   // Who performed it -- independent of the quant team that owns the model.
+   validator: String[0..1];
+   // PASS, PASS_WITH_CONDITIONS, FAIL or DEFERRED.
+   outcome: String[0..1];
+   // How many findings were raised.
+   findingsCount: Integer[0..1];
+   // The severity of the worst one, 1 to 5.
+   severity: Integer[0..1];
+   // When the model must be looked at again.
+   nextReviewDate: StrictDate[0..1];
+   // True when approval depends on conditions being met.
+   isConditional: Boolean[1];
+   // The conditions themselves.
+   conditions: String[0..1];
+
+   // Whether the review cleared the model outright.
+   isClearPass() { $this.outcome->toOne() == 'PASS' } : Boolean[1];
+}
+
+// A known limitation of a model, recorded against it. Exists because a model reserve
+// without a stated limitation is an unexplained number, and because the limitation is what
+// tells a desk which trades to stop doing rather than which reserve to hold.
+Class product_pricing::PprModelLimitation
+{
+   // The model it applies to.
+   modelCode: String[1];
+   // The limitation's code, e.g. NO_STOCHASTIC_VOL, FLAT_CORRELATION, NO_JUMPS.
+   limitationCode: String[1];
+   // What it is, in a sentence.
+   limitationDescription: String[0..1];
+   // Where it bites: PRICE, DELTA, VEGA, TAIL_RISK, LONG_DATED.
+   impactArea: String[0..1];
+   // HIGH, MEDIUM or LOW.
+   materiality: String[0..1];
+   // The PprModelReserve type held because of it, linking the admission to the money.
+   reserveType: String[0..1];
+   // True when something has been done about it -- a reserve, a scope restriction, a
+   // second model run alongside.
+   isMitigated: Boolean[1];
+   // What was done.
+   mitigation: String[0..1];
+   // When it was first recorded.
+   raisedOn: StrictDate[0..1];
+}
+
+// ============================================================ exported functions
+// The pricing arithmetic downstream projects call rather than re-derive. Four of them are
+// thin wrappers over valuation-core, which is the cross-project call this graph is built to
+// exercise: a model price and a market price must travel through the same arithmetic or
+// the deviation between them measures the arithmetic and not the model.
+
+// The dirty model price -- clean plus accrued, by valuation-core's definition and not this
+// project's. One line, and it is here so that no class in this package writes the addition.
+function product_pricing::pprDirtyModelPrice(cleanModelPrice: Float[1], accruedInterest: Float[1]): Float[1]
+{
+   valuation_core::vcDirtyPrice($cleanModelPrice, $accruedInterest)
+}
+
+// Model value in the pricing currency: units times what one unit is modelled to settle at.
+function product_pricing::pprModelValue(quantity: Float[1], dirtyModelPrice: Float[1]): Float[1]
+{
+   valuation_core::vcMarketValue($quantity, $dirtyModelPrice)
+}
+
+// Model value in the reporting currency. The FX leg belongs to core-fx, which valuation-core
+// already calls, so this project reaches it without naming it.
+function product_pricing::pprModelValueInReporting(quantity: Float[1], dirtyModelPrice: Float[1], fxRate: Float[1]): Float[1]
+{
+   valuation_core::vcMarketValueInReporting($quantity, $dirtyModelPrice, $fxRate)
+}
+
+// Model against market, as a fraction of the market price. The same deviation function a
+// valuation break is measured with, so a pricing break and a valuation break are the same
+// number computed once.
+function product_pricing::pprModelVsMarketPct(marketPrice: Float[1], modelPrice: Float[1]): Float[1]
+{
+   valuation_core::vcDeviationPct($marketPrice, $modelPrice)
+}
+
+// Whether a deviation is inside a tolerance. Signed deviation, unsigned test: a model 3%
+// cheap is as wrong as a model 3% rich.
+function product_pricing::pprIsWithinTolerance(deviationPct: Float[1], tolerancePct: Float[1]): Boolean[1]
+{
+   $deviationPct->abs() <= $tolerancePct
+}
+
+// A reserve in money, from a reserve in basis points. The 10000 appears here once, so no
+// class in this package divides by it.
+function product_pricing::pprReserveAmount(baseValue: Float[1], reserveBasisPoints: Float[1]): Float[1]
+{
+   $baseValue * ($reserveBasisPoints / 10000.0)
+}
+
+// The value actually reported, after the reserve is taken off the model's number.
+function product_pricing::pprNetOfReserve(baseValue: Float[1], reserveAmount: Float[1]): Float[1]
+{
+   $baseValue - $reserveAmount
+}
+
+// Cash delta: the money at risk in a one-unit move of the underlying, for a position.
+function product_pricing::pprDeltaCash(delta: Float[1], spotLevel: Float[1], quantity: Float[1]): Float[1]
+{
+   $delta * $spotLevel * $quantity
+}
+
+// Cash gamma: the second-order term of the same move, with the half that a Taylor
+// expansion requires and that hand-written versions of this leave out.
+function product_pricing::pprGammaCash(gamma: Float[1], spotLevel: Float[1], quantity: Float[1]): Float[1]
+{
+   0.5 * $gamma * $spotLevel * $spotLevel * $quantity
+}
+
+// What a stated volatility shift is worth, given a vega. Stated as a function so the scale
+// of the shift is the caller's problem exactly once.
+function product_pricing::pprVegaForShift(vega: Float[1], volShiftPoints: Float[1]): Float[1]
+{
+   $vega * $volShiftPoints
+}
+
+// Theta per calendar day, from theta per year. 365 and not 252: theta is carry, and carry
+// accrues on weekends.
+function product_pricing::pprThetaPerDay(thetaPerYear: Float[1]): Float[1]
+{
+   $thetaPerYear / 365.0
+}
+
+// The size of one lattice step, in years. `->toFloat()` on the step count because Integer
+// against Float types as Number, which is not a subtype of Float.
+function product_pricing::pprLatticeStepSize(yearsToExpiry: Float[1], stepCount: Integer[1]): Float[1]
+{
+   $yearsToExpiry / $stepCount->toFloat()
+}
+
+// The Monte Carlo standard error: the path standard deviation over the square root of the
+// path count. The whole economics of simulation is in that square root -- four times the
+// paths for half the error -- and it is written once, here.
+function product_pricing::pprMonteCarloStandardError(pathStandardDeviation: Float[1], pathCount: Integer[1]): Float[1]
+{
+   $pathStandardDeviation / sqrt($pathCount->toFloat())
+}
+
+// Whether a simulated price has converged to its stated target, in basis points of price.
+function product_pricing::pprHasConverged(standardError: Float[1], targetBasisPoints: Float[1]): Boolean[1]
+{
+   $standardError <= ($targetBasisPoints / 10000.0)
+}

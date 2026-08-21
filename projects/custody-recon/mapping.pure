@@ -1,0 +1,382 @@
+###Mapping
+// The custody-recon mapping. It INCLUDES both upstream mappings, so the sets its
+// cross-project property mappings land on -- `cstHolding`, `cstDepot`,
+// `cstPendingMovement`, `cstStatementLine` on the custody side, `pkPosition`,
+// `pkMovementTotal`, `pkSettlementLadderEntry` on the internal side -- already exist and
+// are not redefined here. Both upstream projects give their sets EXPLICIT ids, so the
+// default ids (`custody_core_CustodyHolding`, `position_keeping_Position`) do not exist
+// and every crossing property mapping below names the upstream id by hand.
+//
+// Read the ~primaryKey lists in order and the shape of the project is visible without
+// reading anything else: 1, 3, 2, 3, 5, 6, 7, 3, 2, then the four aggregates whose keys
+// are their views' ~groupBy. Only RCN_DEFINITION is identified by one column, and that is
+// because a reconciliation is a name somebody chose.
+//
+// `rcnItem` is the ROOT set. It is the class that carries both upstream key shapes, so it
+// is the one a downstream project has any business starting a query from.
+Mapping custody_recon::Mapping
+(
+   include custody_core::Mapping
+   include position_keeping::Mapping
+
+   custody_recon::ReconDefinition[rcnDefinition]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_recon::Store]RCN_DEFINITION.RECON_CODE
+      )
+      ~mainTable [custody_recon::Store]RCN_DEFINITION
+      reconCode: [custody_recon::Store]RCN_DEFINITION.RECON_CODE,
+      reconName: [custody_recon::Store]RCN_DEFINITION.RECON_NAME,
+      sourceASystem: [custody_recon::Store]RCN_DEFINITION.SOURCE_A_SYSTEM,
+      sourceBSystem: [custody_recon::Store]RCN_DEFINITION.SOURCE_B_SYSTEM,
+      frequency: [custody_recon::Store]RCN_DEFINITION.FREQUENCY,
+      ownerTeam: [custody_recon::Store]RCN_DEFINITION.OWNER_TEAM,
+      defaultToleranceQuantity: [custody_recon::Store]RCN_DEFINITION.DEFAULT_TOLERANCE_QUANTITY,
+      introducedOn: [custody_recon::Store]RCN_DEFINITION.INTRODUCED_ON,
+      retiredOn: [custody_recon::Store]RCN_DEFINITION.RETIRED_ON,
+      toleranceRules[rcnToleranceRule]: [custody_recon::Store]@Rcn_DefinitionToleranceRules,
+      ageingBands[rcnAgeingBand]: [custody_recon::Store]@Rcn_DefinitionAgeingBands,
+      runs[rcnRun]: [custody_recon::Store]@Rcn_DefinitionRuns
+   }
+
+   // Three key columns.
+   custody_recon::ToleranceRule[rcnToleranceRule]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_recon::Store]RCN_TOLERANCE_RULE.RECON_CODE,
+         [custody_recon::Store]RCN_TOLERANCE_RULE.RULE_SCOPE,
+         [custody_recon::Store]RCN_TOLERANCE_RULE.RULE_CODE
+      )
+      ~mainTable [custody_recon::Store]RCN_TOLERANCE_RULE
+      reconCode: [custody_recon::Store]RCN_TOLERANCE_RULE.RECON_CODE,
+      ruleScope: [custody_recon::Store]RCN_TOLERANCE_RULE.RULE_SCOPE,
+      ruleCode: [custody_recon::Store]RCN_TOLERANCE_RULE.RULE_CODE,
+      toleranceQuantity: [custody_recon::Store]RCN_TOLERANCE_RULE.TOLERANCE_QUANTITY,
+      tolerancePercent: [custody_recon::Store]RCN_TOLERANCE_RULE.TOLERANCE_PERCENT,
+      toleranceAmount: [custody_recon::Store]RCN_TOLERANCE_RULE.TOLERANCE_AMOUNT,
+      toleranceCurrency: [custody_recon::Store]RCN_TOLERANCE_RULE.TOLERANCE_CURRENCY,
+      appliesFrom: [custody_recon::Store]RCN_TOLERANCE_RULE.APPLIES_FROM,
+      appliesTo: [custody_recon::Store]RCN_TOLERANCE_RULE.APPLIES_TO,
+      ruleNote: [custody_recon::Store]RCN_TOLERANCE_RULE.RULE_NOTE,
+      definition[rcnDefinition]: [custody_recon::Store]@Rcn_DefinitionToleranceRules,
+      items[rcnItem]: [custody_recon::Store]@Rcn_ItemToleranceRule
+   }
+
+   custody_recon::AgeingBand[rcnAgeingBand]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_recon::Store]RCN_AGEING_BAND.RECON_CODE,
+         [custody_recon::Store]RCN_AGEING_BAND.BAND_CODE
+      )
+      ~mainTable [custody_recon::Store]RCN_AGEING_BAND
+      reconCode: [custody_recon::Store]RCN_AGEING_BAND.RECON_CODE,
+      bandCode: [custody_recon::Store]RCN_AGEING_BAND.BAND_CODE,
+      bandLabel: [custody_recon::Store]RCN_AGEING_BAND.BAND_LABEL,
+      minAgeDays: [custody_recon::Store]RCN_AGEING_BAND.MIN_AGE_DAYS,
+      maxAgeDays: [custody_recon::Store]RCN_AGEING_BAND.MAX_AGE_DAYS,
+      escalationLevel: [custody_recon::Store]RCN_AGEING_BAND.ESCALATION_LEVEL,
+      bandOrder: [custody_recon::Store]RCN_AGEING_BAND.BAND_ORDER,
+      definition[rcnDefinition]: [custody_recon::Store]@Rcn_DefinitionAgeingBands,
+      breaks[rcnBreak]: [custody_recon::Store]@Rcn_BreakAgeingBand
+   }
+
+   // Three key columns: a day is reconciled more than once.
+   custody_recon::ReconRun[rcnRun]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_recon::Store]RCN_RUN.RECON_CODE,
+         [custody_recon::Store]RCN_RUN.COB_DATE,
+         [custody_recon::Store]RCN_RUN.RUN_SEQ
+      )
+      ~mainTable [custody_recon::Store]RCN_RUN
+      reconCode: [custody_recon::Store]RCN_RUN.RECON_CODE,
+      cobDate: [custody_recon::Store]RCN_RUN.COB_DATE,
+      runSeq: [custody_recon::Store]RCN_RUN.RUN_SEQ,
+      runType: [custody_recon::Store]RCN_RUN.RUN_TYPE,
+      runStatus: [custody_recon::Store]RCN_RUN.RUN_STATUS,
+      startedOn: [custody_recon::Store]RCN_RUN.STARTED_ON,
+      completedOn: [custody_recon::Store]RCN_RUN.COMPLETED_ON,
+      lineCount: [custody_recon::Store]RCN_RUN.LINE_COUNT,
+      itemCount: [custody_recon::Store]RCN_RUN.ITEM_COUNT,
+      matchedCount: [custody_recon::Store]RCN_RUN.MATCHED_COUNT,
+      breakCount: [custody_recon::Store]RCN_RUN.BREAK_COUNT,
+      triggeredBy: [custody_recon::Store]RCN_RUN.TRIGGERED_BY,
+      definition[rcnDefinition]: [custody_recon::Store]@Rcn_DefinitionRuns,
+      lines[rcnLine]: [custody_recon::Store]@Rcn_RunLines,
+      items[rcnItem]: [custody_recon::Store]@Rcn_RunItems
+   }
+
+   // FIVE key columns -- the position's four with the recon code in front. Its `position`
+   // mapping is a four-column join that never mentions a depot.
+   custody_recon::ReconLine[rcnLine]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_recon::Store]RCN_LINE.RECON_CODE,
+         [custody_recon::Store]RCN_LINE.COB_DATE,
+         [custody_recon::Store]RCN_LINE.INSTITUTION_ID,
+         [custody_recon::Store]RCN_LINE.ACCOUNT_NO,
+         [custody_recon::Store]RCN_LINE.INSTRUMENT_ID
+      )
+      ~mainTable [custody_recon::Store]RCN_LINE
+      reconCode: [custody_recon::Store]RCN_LINE.RECON_CODE,
+      cobDate: [custody_recon::Store]RCN_LINE.COB_DATE,
+      institutionId: [custody_recon::Store]RCN_LINE.INSTITUTION_ID,
+      accountNo: [custody_recon::Store]RCN_LINE.ACCOUNT_NO,
+      instrumentId: [custody_recon::Store]RCN_LINE.INSTRUMENT_ID,
+      runSeq: [custody_recon::Store]RCN_LINE.RUN_SEQ,
+      depotCount: [custody_recon::Store]RCN_LINE.DEPOT_COUNT,
+      custodyQuantity: [custody_recon::Store]RCN_LINE.CUSTODY_QUANTITY,
+      internalQuantity: [custody_recon::Store]RCN_LINE.INTERNAL_QUANTITY,
+      differenceQuantity: [custody_recon::Store]RCN_LINE.DIFFERENCE_QUANTITY,
+      differenceValue: [custody_recon::Store]RCN_LINE.DIFFERENCE_VALUE,
+      priceCurrency: [custody_recon::Store]RCN_LINE.PRICE_CURRENCY,
+      quantityUnit: [custody_recon::Store]RCN_LINE.QUANTITY_UNIT,
+      lineStatus: [custody_recon::Store]RCN_LINE.LINE_STATUS,
+      isWithinTolerance: [custody_recon::Store]RCN_LINE.IS_WITHIN_TOLERANCE,
+      matchedOn: [custody_recon::Store]RCN_LINE.MATCHED_ON,
+      run[rcnRun]: [custody_recon::Store]@Rcn_RunLines,
+      items[rcnItem]: [custody_recon::Store]@Rcn_LineItems,
+      // CROSS-PROJECT, into position-keeping.
+      position[pkPosition]: [custody_recon::Store]@Rcn_LinePosition,
+      movementTotal[pkMovementTotal]: [custody_recon::Store]@Rcn_LineMovementTotal,
+      ladder[pkSettlementLadderEntry]: [custody_recon::Store]@Rcn_LineLadder,
+      rollup[rcnDepotRollup]: [custody_recon::Store]@Rcn_LineDepotRollup,
+      accountTotal[rcnAccountReconTotal]: [custody_recon::Store]@Rcn_LineAccountTotal
+   }
+
+   // THE ROOT, and the six-column composite key. Look at the last three property mappings
+   // together: `holding` is a four-column join with no date, `position` is a four-column
+   // join with no depot, and `custodianStatement` is a five-column join that spends this
+   // project's COB_DATE against the custodian's STATEMENT_DATE. One row, three different
+   // ways of being identified, which is why its own key has to be the union of them.
+   *custody_recon::ReconItem[rcnItem]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_recon::Store]RCN_ITEM.RECON_CODE,
+         [custody_recon::Store]RCN_ITEM.COB_DATE,
+         [custody_recon::Store]RCN_ITEM.INSTITUTION_ID,
+         [custody_recon::Store]RCN_ITEM.ACCOUNT_NO,
+         [custody_recon::Store]RCN_ITEM.INSTRUMENT_ID,
+         [custody_recon::Store]RCN_ITEM.DEPOT_CODE
+      )
+      ~mainTable [custody_recon::Store]RCN_ITEM
+      reconCode: [custody_recon::Store]RCN_ITEM.RECON_CODE,
+      cobDate: [custody_recon::Store]RCN_ITEM.COB_DATE,
+      institutionId: [custody_recon::Store]RCN_ITEM.INSTITUTION_ID,
+      accountNo: [custody_recon::Store]RCN_ITEM.ACCOUNT_NO,
+      instrumentId: [custody_recon::Store]RCN_ITEM.INSTRUMENT_ID,
+      depotCode: [custody_recon::Store]RCN_ITEM.DEPOT_CODE,
+      runSeq: [custody_recon::Store]RCN_ITEM.RUN_SEQ,
+      custodyQuantity: [custody_recon::Store]RCN_ITEM.CUSTODY_QUANTITY,
+      custodySettledQuantity: [custody_recon::Store]RCN_ITEM.CUSTODY_SETTLED_QUANTITY,
+      internalQuantity: [custody_recon::Store]RCN_ITEM.INTERNAL_QUANTITY,
+      internalSettledQuantity: [custody_recon::Store]RCN_ITEM.INTERNAL_SETTLED_QUANTITY,
+      differenceQuantity: [custody_recon::Store]RCN_ITEM.DIFFERENCE_QUANTITY,
+      allocationBasis: [custody_recon::Store]RCN_ITEM.ALLOCATION_BASIS,
+      allocationRatio: [custody_recon::Store]RCN_ITEM.ALLOCATION_RATIO,
+      matchStatus: [custody_recon::Store]RCN_ITEM.MATCH_STATUS,
+      hasCustodySide: [custody_recon::Store]RCN_ITEM.HAS_CUSTODY_SIDE,
+      hasInternalSide: [custody_recon::Store]RCN_ITEM.HAS_INTERNAL_SIDE,
+      toleranceScope: [custody_recon::Store]RCN_ITEM.TOLERANCE_SCOPE,
+      toleranceCode: [custody_recon::Store]RCN_ITEM.TOLERANCE_CODE,
+      matchedOn: [custody_recon::Store]RCN_ITEM.MATCHED_ON,
+      line[rcnLine]: [custody_recon::Store]@Rcn_LineItems,
+      run[rcnRun]: [custody_recon::Store]@Rcn_RunItems,
+      breaks[rcnBreak]: [custody_recon::Store]@Rcn_ItemBreaks,
+      toleranceRule[rcnToleranceRule]: [custody_recon::Store]@Rcn_ItemToleranceRule,
+      rollup[rcnDepotRollup]: [custody_recon::Store]@Rcn_ItemDepotRollup,
+      // CROSS-PROJECT, custody side: four columns, no date.
+      holding[cstHolding]: [custody_recon::Store]@Rcn_ItemHolding,
+      depot[cstDepot]: [custody_recon::Store]@Rcn_ItemDepot,
+      pendingMovements[cstPendingMovement]: [custody_recon::Store]@Rcn_ItemPendingMovements,
+      custodianStatement[cstStatementLine]: [custody_recon::Store]@Rcn_ItemStatementLine,
+      // CROSS-PROJECT, internal side: four columns, no depot.
+      position[pkPosition]: [custody_recon::Store]@Rcn_ItemPosition
+   }
+
+   // Seven key columns.
+   custody_recon::ReconBreak[rcnBreak]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_recon::Store]RCN_BREAK.RECON_CODE,
+         [custody_recon::Store]RCN_BREAK.COB_DATE,
+         [custody_recon::Store]RCN_BREAK.INSTITUTION_ID,
+         [custody_recon::Store]RCN_BREAK.ACCOUNT_NO,
+         [custody_recon::Store]RCN_BREAK.INSTRUMENT_ID,
+         [custody_recon::Store]RCN_BREAK.DEPOT_CODE,
+         [custody_recon::Store]RCN_BREAK.BREAK_TYPE
+      )
+      ~mainTable [custody_recon::Store]RCN_BREAK
+      reconCode: [custody_recon::Store]RCN_BREAK.RECON_CODE,
+      cobDate: [custody_recon::Store]RCN_BREAK.COB_DATE,
+      institutionId: [custody_recon::Store]RCN_BREAK.INSTITUTION_ID,
+      accountNo: [custody_recon::Store]RCN_BREAK.ACCOUNT_NO,
+      instrumentId: [custody_recon::Store]RCN_BREAK.INSTRUMENT_ID,
+      depotCode: [custody_recon::Store]RCN_BREAK.DEPOT_CODE,
+      breakType: [custody_recon::Store]RCN_BREAK.BREAK_TYPE,
+      breakRef: [custody_recon::Store]RCN_BREAK.BREAK_REF,
+      breakQuantity: [custody_recon::Store]RCN_BREAK.BREAK_QUANTITY,
+      breakValue: [custody_recon::Store]RCN_BREAK.BREAK_VALUE,
+      breakCurrency: [custody_recon::Store]RCN_BREAK.BREAK_CURRENCY,
+      severity: [custody_recon::Store]RCN_BREAK.SEVERITY,
+      detectedOn: [custody_recon::Store]RCN_BREAK.DETECTED_ON,
+      firstSeenOn: [custody_recon::Store]RCN_BREAK.FIRST_SEEN_ON,
+      ageDays: [custody_recon::Store]RCN_BREAK.AGE_DAYS,
+      ageingBandCode: [custody_recon::Store]RCN_BREAK.AGEING_BAND_CODE,
+      assignedTo: [custody_recon::Store]RCN_BREAK.ASSIGNED_TO,
+      assignedTeam: [custody_recon::Store]RCN_BREAK.ASSIGNED_TEAM,
+      breakStatus: [custody_recon::Store]RCN_BREAK.BREAK_STATUS,
+      resolvedOn: [custody_recon::Store]RCN_BREAK.RESOLVED_ON,
+      item[rcnItem]: [custody_recon::Store]@Rcn_ItemBreaks,
+      ageingBand[rcnAgeingBand]: [custody_recon::Store]@Rcn_BreakAgeingBand,
+      assignments[rcnBreakAssignment]: [custody_recon::Store]@Rcn_BreakAssignments,
+      resolution[rcnBreakResolution]: [custody_recon::Store]@Rcn_BreakResolution,
+      typeTotal[rcnBreakTypeTotal]: [custody_recon::Store]@Rcn_BreakTypeTotal,
+      assigneeLoad[rcnAssigneeLoad]: [custody_recon::Store]@Rcn_BreakAssigneeLoad
+   }
+
+   custody_recon::BreakAssignment[rcnBreakAssignment]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_recon::Store]RCN_BREAK_ASSIGNMENT.RECON_CODE,
+         [custody_recon::Store]RCN_BREAK_ASSIGNMENT.BREAK_REF,
+         [custody_recon::Store]RCN_BREAK_ASSIGNMENT.ASSIGNMENT_SEQ
+      )
+      ~mainTable [custody_recon::Store]RCN_BREAK_ASSIGNMENT
+      reconCode: [custody_recon::Store]RCN_BREAK_ASSIGNMENT.RECON_CODE,
+      breakRef: [custody_recon::Store]RCN_BREAK_ASSIGNMENT.BREAK_REF,
+      assignmentSeq: [custody_recon::Store]RCN_BREAK_ASSIGNMENT.ASSIGNMENT_SEQ,
+      assignedTo: [custody_recon::Store]RCN_BREAK_ASSIGNMENT.ASSIGNED_TO,
+      assignedTeam: [custody_recon::Store]RCN_BREAK_ASSIGNMENT.ASSIGNED_TEAM,
+      assignedOn: [custody_recon::Store]RCN_BREAK_ASSIGNMENT.ASSIGNED_ON,
+      assignedBy: [custody_recon::Store]RCN_BREAK_ASSIGNMENT.ASSIGNED_BY,
+      dueOn: [custody_recon::Store]RCN_BREAK_ASSIGNMENT.DUE_ON,
+      releasedOn: [custody_recon::Store]RCN_BREAK_ASSIGNMENT.RELEASED_ON,
+      assignmentNote: [custody_recon::Store]RCN_BREAK_ASSIGNMENT.ASSIGNMENT_NOTE,
+      reconBreak[rcnBreak]: [custody_recon::Store]@Rcn_BreakAssignments
+   }
+
+   custody_recon::BreakResolution[rcnBreakResolution]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_recon::Store]RCN_BREAK_RESOLUTION.RECON_CODE,
+         [custody_recon::Store]RCN_BREAK_RESOLUTION.BREAK_REF
+      )
+      ~mainTable [custody_recon::Store]RCN_BREAK_RESOLUTION
+      reconCode: [custody_recon::Store]RCN_BREAK_RESOLUTION.RECON_CODE,
+      breakRef: [custody_recon::Store]RCN_BREAK_RESOLUTION.BREAK_REF,
+      resolutionType: [custody_recon::Store]RCN_BREAK_RESOLUTION.RESOLUTION_TYPE,
+      resolvedOn: [custody_recon::Store]RCN_BREAK_RESOLUTION.RESOLVED_ON,
+      resolvedBy: [custody_recon::Store]RCN_BREAK_RESOLUTION.RESOLVED_BY,
+      rootCause: [custody_recon::Store]RCN_BREAK_RESOLUTION.ROOT_CAUSE,
+      correctionSide: [custody_recon::Store]RCN_BREAK_RESOLUTION.CORRECTION_SIDE,
+      correctionQuantity: [custody_recon::Store]RCN_BREAK_RESOLUTION.CORRECTION_QUANTITY,
+      resolutionNote: [custody_recon::Store]RCN_BREAK_RESOLUTION.RESOLUTION_NOTE,
+      approvedBy: [custody_recon::Store]RCN_BREAK_RESOLUTION.APPROVED_BY,
+      reconBreak[rcnBreak]: [custody_recon::Store]@Rcn_BreakResolution
+   }
+
+   // ------------------------------------------------------------ the aggregate sets
+   //
+   // Rooted on views. Each ~primaryKey IS its view's ~groupBy, so an instance is a GROUP.
+
+   // The reconciling aggregate. Its key is the position's five columns, because grouping
+   // the depot away is how the custody side is given the internal side's shape -- and
+   // then `position[pkPosition]` joins the group straight onto the position row.
+   custody_recon::DepotRollup[rcnDepotRollup]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_recon::Store]RCN_DEPOT_ROLLUP.RECON_CODE,
+         [custody_recon::Store]RCN_DEPOT_ROLLUP.COB_DATE,
+         [custody_recon::Store]RCN_DEPOT_ROLLUP.INSTITUTION_ID,
+         [custody_recon::Store]RCN_DEPOT_ROLLUP.ACCOUNT_NO,
+         [custody_recon::Store]RCN_DEPOT_ROLLUP.INSTRUMENT_ID
+      )
+      ~mainTable [custody_recon::Store]RCN_DEPOT_ROLLUP
+      reconCode: [custody_recon::Store]RCN_DEPOT_ROLLUP.RECON_CODE,
+      cobDate: [custody_recon::Store]RCN_DEPOT_ROLLUP.COB_DATE,
+      institutionId: [custody_recon::Store]RCN_DEPOT_ROLLUP.INSTITUTION_ID,
+      accountNo: [custody_recon::Store]RCN_DEPOT_ROLLUP.ACCOUNT_NO,
+      instrumentId: [custody_recon::Store]RCN_DEPOT_ROLLUP.INSTRUMENT_ID,
+      depotCount: [custody_recon::Store]RCN_DEPOT_ROLLUP.DEPOT_COUNT,
+      totalCustodyQuantity: [custody_recon::Store]RCN_DEPOT_ROLLUP.TOTAL_CUSTODY_QUANTITY,
+      totalInternalQuantity: [custody_recon::Store]RCN_DEPOT_ROLLUP.TOTAL_INTERNAL_QUANTITY,
+      netDifference: [custody_recon::Store]RCN_DEPOT_ROLLUP.NET_DIFFERENCE,
+      largestDepotQuantity: [custody_recon::Store]RCN_DEPOT_ROLLUP.LARGEST_DEPOT_QUANTITY,
+      line[rcnLine]: [custody_recon::Store]@Rcn_LineDepotRollup,
+      items[rcnItem]: [custody_recon::Store]@Rcn_ItemDepotRollup,
+      position[pkPosition]: [custody_recon::Store]@Rcn_RollupPosition
+   }
+
+   custody_recon::AccountReconTotal[rcnAccountReconTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_recon::Store]RCN_ACCOUNT_TOTAL.RECON_CODE,
+         [custody_recon::Store]RCN_ACCOUNT_TOTAL.COB_DATE,
+         [custody_recon::Store]RCN_ACCOUNT_TOTAL.INSTITUTION_ID,
+         [custody_recon::Store]RCN_ACCOUNT_TOTAL.ACCOUNT_NO
+      )
+      ~mainTable [custody_recon::Store]RCN_ACCOUNT_TOTAL
+      reconCode: [custody_recon::Store]RCN_ACCOUNT_TOTAL.RECON_CODE,
+      cobDate: [custody_recon::Store]RCN_ACCOUNT_TOTAL.COB_DATE,
+      institutionId: [custody_recon::Store]RCN_ACCOUNT_TOTAL.INSTITUTION_ID,
+      accountNo: [custody_recon::Store]RCN_ACCOUNT_TOTAL.ACCOUNT_NO,
+      lineCount: [custody_recon::Store]RCN_ACCOUNT_TOTAL.LINE_COUNT,
+      totalCustodyQuantity: [custody_recon::Store]RCN_ACCOUNT_TOTAL.TOTAL_CUSTODY_QUANTITY,
+      totalInternalQuantity: [custody_recon::Store]RCN_ACCOUNT_TOTAL.TOTAL_INTERNAL_QUANTITY,
+      totalDifferenceQuantity: [custody_recon::Store]RCN_ACCOUNT_TOTAL.TOTAL_DIFFERENCE_QUANTITY,
+      totalDifferenceValue: [custody_recon::Store]RCN_ACCOUNT_TOTAL.TOTAL_DIFFERENCE_VALUE,
+      largestDifference: [custody_recon::Store]RCN_ACCOUNT_TOTAL.LARGEST_DIFFERENCE,
+      lines[rcnLine]: [custody_recon::Store]@Rcn_LineAccountTotal
+   }
+
+   custody_recon::BreakTypeTotal[rcnBreakTypeTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_recon::Store]RCN_BREAK_TYPE_TOTAL.RECON_CODE,
+         [custody_recon::Store]RCN_BREAK_TYPE_TOTAL.COB_DATE,
+         [custody_recon::Store]RCN_BREAK_TYPE_TOTAL.BREAK_TYPE
+      )
+      ~mainTable [custody_recon::Store]RCN_BREAK_TYPE_TOTAL
+      reconCode: [custody_recon::Store]RCN_BREAK_TYPE_TOTAL.RECON_CODE,
+      cobDate: [custody_recon::Store]RCN_BREAK_TYPE_TOTAL.COB_DATE,
+      breakType: [custody_recon::Store]RCN_BREAK_TYPE_TOTAL.BREAK_TYPE,
+      breakCount: [custody_recon::Store]RCN_BREAK_TYPE_TOTAL.BREAK_COUNT,
+      totalBreakQuantity: [custody_recon::Store]RCN_BREAK_TYPE_TOTAL.TOTAL_BREAK_QUANTITY,
+      totalBreakValue: [custody_recon::Store]RCN_BREAK_TYPE_TOTAL.TOTAL_BREAK_VALUE,
+      oldestAgeDays: [custody_recon::Store]RCN_BREAK_TYPE_TOTAL.OLDEST_AGE_DAYS,
+      earliestDetectedOn: [custody_recon::Store]RCN_BREAK_TYPE_TOTAL.EARLIEST_DETECTED_ON,
+      breaks[rcnBreak]: [custody_recon::Store]@Rcn_BreakTypeTotal
+   }
+
+   // Two key columns, and COB_DATE is not one of them: the grouping drops the date, which
+   // is what makes it a QUEUE rather than a daily report.
+   custody_recon::AssigneeLoad[rcnAssigneeLoad]: Relational
+   {
+      ~primaryKey
+      (
+         [custody_recon::Store]RCN_ASSIGNEE_TOTAL.RECON_CODE,
+         [custody_recon::Store]RCN_ASSIGNEE_TOTAL.ASSIGNED_TO
+      )
+      ~mainTable [custody_recon::Store]RCN_ASSIGNEE_TOTAL
+      reconCode: [custody_recon::Store]RCN_ASSIGNEE_TOTAL.RECON_CODE,
+      assignedTo: [custody_recon::Store]RCN_ASSIGNEE_TOTAL.ASSIGNED_TO,
+      assignedBreakCount: [custody_recon::Store]RCN_ASSIGNEE_TOTAL.ASSIGNED_BREAK_COUNT,
+      totalBreakValue: [custody_recon::Store]RCN_ASSIGNEE_TOTAL.TOTAL_BREAK_VALUE,
+      oldestAgeDays: [custody_recon::Store]RCN_ASSIGNEE_TOTAL.OLDEST_AGE_DAYS,
+      latestCobDate: [custody_recon::Store]RCN_ASSIGNEE_TOTAL.LATEST_COB_DATE,
+      breaks[rcnBreak]: [custody_recon::Store]@Rcn_BreakAssigneeLoad
+   }
+)

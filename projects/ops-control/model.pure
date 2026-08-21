@@ -1,0 +1,5 @@
+###Pure
+Class ops_control::OpsProbe
+{
+   probeId: String[1];
+}

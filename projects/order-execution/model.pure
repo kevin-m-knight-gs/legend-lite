@@ -1,21 +1,1243 @@
 ###Pure
+// order-execution -- THE JOIN BETWEEN AN ORDER AND THE TRADES IT BECAME.
+//
+// Layer 2. Depends on order-core (the order and the fill as the trading desk records them)
+// and trade-capture (the trade as the back office records it), and on nothing else.
+//
+// The question this project exists to answer is the one a client actually asks: "you said
+// you would buy me a million shares -- what did I pay, and could you have done better?"
+// Answering it needs three things that live nowhere else:
+//
+//   THE LINK       An order is worked, each slice comes back as one or more FILLS, and each
+//                  fill is booked as a trade. order-core owns the order and its executions;
+//                  trade-capture owns the trade. Neither knows about the other. `Fill` here
+//                  is the row that holds both ends -- it reaches `order_core::Order`, the
+//                  `order_core::Execution` the venue reported, and (through `TradeBooking`)
+//                  the `trade_capture::Trade` the fill was booked as. That is the
+//                  CROSS-PROJECT ASSOCIATION this project is built around, and it crosses
+//                  into BOTH dependencies.
+//
+//   THE SPLIT      A fill belongs to the desk; the shares belong to clients. `AllocationSet`
+//                  and `FillAllocation` are the split, and the constraint that the split
+//                  must add back up to the fill is on the SET, not on the pieces, because
+//                  only the set knows the total.
+//
+//   THE NUMBER     Best execution is not an opinion. It is the fill price measured against
+//                  the ARRIVAL PRICE (what the market showed when the order was accepted),
+//                  against the VENUE'S OWN QUOTE at the moment of the fill, and against a
+//                  benchmark over the working interval. Slippage, market impact, reversion
+//                  and implementation shortfall are those measurements, each as its own row
+//                  so a client can be shown the arithmetic rather than the answer.
+//
+// CONSTRAINTS are the second construct this project exercises, and they sit on the classes
+// where the invariant is actually knowable. Every comparison is FULLY PARENTHESISED: Pure
+// binds `&&` tighter than the comparison operators, so `$this.a > 0.0 && $this.a < 1.0`
+// parses as `(($this.a > 0.0) && $this.a) < 1.0` and does not compile.
+//
+// Every relationship in this project is an ASSOCIATION, declared at the bottom of this file
+// rather than as a property in a class body -- an association end already adds the property
+// to both classes, and declaring it twice is a duplicate.
+//
+// Quantities here are Float, not the Integer that order-core uses for share counts, because
+// a fill is allocated in fractions and an average is not a share count.
+
+// ------------------------------------------------------------------ the link
+
+// ONE FILL, ENRICHED. The unit of this whole project: so many shares, at this price, on
+// this venue, at this microsecond, against one order -- and carrying everything the desk
+// needs to say afterwards whether that was a good fill. The raw event is
+// `order_core::Execution`, which the venue reported; this is the desk's own record of it,
+// which is why the two are separate rows joined by `sourceExecution` rather than one.
 Class order_execution::Fill
 [
-   fillQuantityIsPositive: ($this.fillQuantity > 0.0)
+   // The client's two questions, as invariants. A fill of nothing is a message, not a fill.
+   fillQuantityIsPositive: ($this.fillQuantity > 0.0),
+   // A NEGATIVE OR ZERO PRICE IS NEVER A FILL. It is a feed error, and it must not be
+   // allowed to reach an average price, where it would quietly poison every number below.
+   fillPriceIsPositive: ($this.fillPrice > 0.0),
+   // The gross is stored (it is what the venue sent) and recomputable. They may differ by
+   // a rounding cent and no more.
+   grossAgreesWithQuantityTimesPrice:
+      ((($this.fillQuantity * $this.fillPrice) - $this.grossValue) < 0.01),
+   // A fill cannot be reported before it happened.
+   reportedAtOrAfterExecution: ($this.reportedAt >= $this.executedAt),
+   currencyIsThreeLetters: ($this.currency->length() == 3)
 ]
 {
    fillId: String[1];
+   // What the venue calls it. The only handle a venue query has, so it is kept verbatim.
+   venueFillRef: String[0..1];
    fillQuantity: Float[1];
+   fillPrice: Float[1];
+   grossValue: Float[1];
+   currency: String[1];
+   // Cumulative on the ORDER as at this fill, copied forward by the fill handler. Kept on
+   // the fill rather than recomputed, so an out-of-sequence fill is visible as a jump.
+   cumulativeQuantity: Float[1];
+   executedAt: DateTime[1];
+   reportedAt: DateTime[1];
+   // AGGRESSIVE, PASSIVE, MIDPOINT, AUCTION -- what the fill did to the book. The single
+   // most predictive field for whether the fill cost the client anything.
+   liquidityFlag: String[0..1];
+   // A fill that never happened, marked rather than deleted, because the client was already
+   // told about it. Everything downstream of a busted fill must be ignored.
+   bustTime: DateTime[0..1];
+   // The MIC of the place of execution, as a plain string, because the venue object hangs
+   // off the order and a fill must still be readable when it does not.
+   executionVenueMic: String[0..1];
+   settlementDate: StrictDate[0..1];
+
+   // A busted fill is still a row; only the absence of a bust time makes it real.
+   isLive() { $this.bustTime->isEmpty() } : Boolean[1];
+
+   // The recomputed gross, for the constraint above and for anyone who does not trust the
+   // stored one. Both operands are Float, so no widening is needed here -- unlike
+   // order-core's Execution, whose quantity is an Integer and must be `->toFloat()`d.
+   computedGross() { $this.fillQuantity * $this.fillPrice } : Float[1];
+
+   // A fill that took liquidity paid the spread; a fill that made it was paid for it.
+   isAggressive() { $this.liquidityFlag == 'AGGRESSIVE' } : Boolean[1];
 }
 
+// THE FIX MESSAGE THAT TOLD US ABOUT THE FILL. Kept as its own row because a single fill is
+// reported more than once -- an initial 35=8, then a correction, then a trade-bust -- and
+// the sequence of what we were told, and when, is the only defence in a dispute.
+Class order_execution::ExecutionReport
+{
+   reportId: String[1];
+   fillId: String[1];
+   // FIX ExecType: NEW, PARTIAL_FILL, FILL, TRADE_CORRECT, TRADE_CANCEL.
+   execType: String[1];
+   sequenceNumber: Integer[1];
+   receivedAt: DateTime[1];
+   fixSessionId: String[0..1];
+   rawMessage: String[0..1];
+   isDuplicate: Boolean[1];
+}
+
+// A CORRECTION TO A FILL AFTER IT WAS PUBLISHED -- the venue changed the price, the size, or
+// busted it outright. The old values are on this row and not overwritten on the fill,
+// because the client was invoiced off the old ones.
+Class order_execution::FillAmendment
+[
+   amendedQuantityIsPositive: ($this.newQuantity > 0.0),
+   amendedPriceIsPositive: ($this.newPrice > 0.0)
+]
+{
+   amendmentId: String[1];
+   fillId: String[1];
+   amendmentReason: String[1];
+   oldQuantity: Float[1];
+   newQuantity: Float[1];
+   oldPrice: Float[1];
+   newPrice: Float[1];
+   amendedAt: DateTime[1];
+   amendedBy: String[1];
+   isVenueInitiated: Boolean[1];
+
+   // What the correction moved, signed. A large one is a conversation with the venue.
+   quantityDelta() { $this.newQuantity - $this.oldQuantity } : Float[1];
+   priceDelta() { $this.newPrice - $this.oldPrice } : Float[1];
+}
+
+// ------------------------------------------------------------------ the split
+
+// THE COMPLETE SPLIT OF ONE FILL ACROSS CLIENT ACCOUNTS, as one row. It exists so that "the
+// allocations add up" has somewhere to be TRUE: an individual allocation cannot know the
+// total, and the fill cannot know whether the last piece has arrived yet. This is the row a
+// client-money control reads.
+Class order_execution::AllocationSet
+[
+   // THE INVARIANT THIS CLASS EXISTS FOR: the pieces sum to the whole. Written as two
+   // one-sided comparisons rather than an absolute difference, each fully parenthesised
+   // inside the `&&`, because `&&` binds tighter than `<`.
+   allocatedQuantitySumsToFill:
+      ((($this.allocatedQuantity - $this.fillQuantity) < 0.000001) &&
+       (($this.fillQuantity - $this.allocatedQuantity) < 0.000001)),
+   allocationCountIsPositive: ($this.allocationCount > 0),
+   setFillQuantityIsPositive: ($this.fillQuantity > 0.0)
+]
+{
+   allocationSetId: String[1];
+   fillId: String[1];
+   // The fill's quantity, copied here so the invariant is checkable on one row.
+   fillQuantity: Float[1];
+   // The sum of the pieces, maintained by the allocation engine.
+   allocatedQuantity: Float[1];
+   allocationCount: Integer[1];
+   allocationStatus: String[1];
+   allocatedAt: DateTime[0..1];
+   allocatedBy: String[0..1];
+   // The rule that produced the split: PRO_RATA, PRIORITY, RANDOM, MANUAL. Two clients who
+   // both wanted the whole fill will ask which one was used.
+   allocationMethod: String[1];
+
+   // What has not been given to anybody yet. Non-zero on a set that claims to be complete
+   // is exactly the break the class below records.
+   unallocatedQuantity() { $this.fillQuantity - $this.allocatedQuantity } : Float[1];
+
+   isFullyAllocated() { $this.allocationStatus == 'ALLOCATED' } : Boolean[1];
+}
+
+// ONE ACCOUNT'S SHARE OF ONE FILL. The account is held as a plain string reference:
+// core-account is not a dependency of this project, and inventing a dependency to hold an
+// identifier would be the undeclared-dependency defect this graph exists to detect.
+Class order_execution::FillAllocation
+[
+   allocatedQuantityIsPositive: ($this.allocatedQuantity > 0.0),
+   allocationPriceIsPositive: ($this.allocationPrice > 0.0),
+   // A share of the fill cannot be more than the fill.
+   allocatedNotAboveFill: ($this.allocatedQuantity <= $this.fillQuantity)
+]
+{
+   fillAllocationId: String[1];
+   allocationSetId: String[1];
+   accountRef: String[1];
+   clientRef: String[0..1];
+   allocatedQuantity: Float[1];
+   // The fill quantity, carried so the piece can be checked against the whole without a
+   // navigation. Denormalised on purpose.
+   fillQuantity: Float[1];
+   // Usually the fill price, but an averaged allocation across several fills is not.
+   allocationPrice: Float[1];
+   allocationCurrency: String[1];
+   allocationStatus: String[1];
+   allocatedAt: DateTime[0..1];
+
+   // `/` widens to Float even on two Integers, so a dividing derived property is Float
+   // whatever it divides. Here both sides are already Float.
+   shareOfFill() { $this.allocatedQuantity / $this.fillQuantity } : Float[1];
+
+   consideration() { $this.allocatedQuantity * $this.allocationPrice } : Float[1];
+}
+
+// A SPLIT THAT DOES NOT ADD UP, as a row someone has to clear. The class constraint on
+// AllocationSet says what must be true; this says what to do when it is not, which is a
+// different job and needs a name, an owner and a date.
+Class order_execution::AllocationBreak
+{
+   allocationBreakId: String[1];
+   allocationSetId: String[1];
+   // SHORT, OVER, PRICE_MISMATCH, ACCOUNT_UNKNOWN.
+   breakType: String[1];
+   breakQuantity: Float[0..1];
+   breakAmount: Float[0..1];
+   severity: String[1];
+   detectedAt: DateTime[1];
+   resolvedAt: DateTime[0..1];
+   assignedTo: String[0..1];
+   resolutionNote: String[0..1];
+
+   isOpen() { $this.resolvedAt->isEmpty() } : Boolean[1];
+}
+
+// ------------------------------------------------------------------ order-level roll-up
+
+// ONE ORDER'S FILLS, TOTALLED. The desk blotter line: how much of the order is done, at what
+// average, over how many fills and how many venues. It carries the order's own quantity as a
+// snapshot so the one invariant that matters at this level -- YOU CANNOT FILL MORE THAN YOU
+// WERE ASKED TO BUY -- is checkable on a single row.
+Class order_execution::OrderFillSummary
+[
+   // THE OVERFILL CHECK. An order filled beyond its quantity is a position the client did
+   // not ask for and the desk owns.
+   filledQuantityNotAboveOrderQuantity: ($this.filledQuantity <= $this.orderQuantity),
+   orderQuantityIsPositive: ($this.orderQuantity > 0.0),
+   filledQuantityIsNotNegative: ($this.filledQuantity >= 0.0),
+   averagePriceIsPositive: ($this.averagePrice > 0.0),
+   fillCountIsNotNegative: ($this.fillCount >= 0)
+]
+{
+   summaryId: String[1];
+   orderId: String[1];
+   // The order's quantity as at this summary. Snapshotted, because an order that is resized
+   // after the fact must not retrospectively make an old overfill legal.
+   orderQuantity: Float[1];
+   filledQuantity: Float[1];
+   averagePrice: Float[1];
+   grossConsideration: Float[1];
+   currency: String[1];
+   fillCount: Integer[1];
+   venueCount: Integer[1];
+   firstFillAt: DateTime[0..1];
+   lastFillAt: DateTime[0..1];
+   summaryAsOf: DateTime[1];
+
+   // How much of the order is done. Both operands are Float here, but the return type would
+   // be Float either way, because `/` widens.
+   fillRate() { $this.filledQuantity / $this.orderQuantity } : Float[1];
+
+   // What is still to be worked. Never negative if the constraint above holds -- which is
+   // the point of having the constraint.
+   unfilledQuantity() { $this.orderQuantity - $this.filledQuantity } : Float[1];
+
+   isComplete() { $this.filledQuantity >= $this.orderQuantity } : Boolean[1];
+}
+
+// ------------------------------------------------------------------ into trade-capture
+
+// THE RECORD THAT A FILL BECAME A TRADE. This is the seam between the front office and the
+// back office and it is deliberately a ROW, not a foreign key on the fill: booking can fail,
+// can be retried, and can produce a trade whose economics differ from the fill's, and every
+// one of those is something an operations team has to see.
+Class order_execution::TradeBooking
+[
+   bookedQuantityIsPositive: ($this.bookedQuantity > 0.0),
+   bookedPriceIsPositive: ($this.bookedPrice > 0.0),
+   // What was booked cannot exceed what was filled.
+   bookedNotAboveFilled: ($this.bookedQuantity <= $this.fillQuantity)
+]
+{
+   bookingId: String[1];
+   fillId: String[1];
+   // The trade-capture trade reference, kept as a string as well as reached by association,
+   // because the booking row must still name its trade when the trade has not landed yet.
+   tradeRef: String[0..1];
+   bookingStatus: String[1];
+   // The fill's quantity and what was actually booked, side by side, so the two can be
+   // compared without leaving the row.
+   fillQuantity: Float[1];
+   bookedQuantity: Float[1];
+   bookedPrice: Float[1];
+   bookedCurrency: String[1];
+   bookedAt: DateTime[0..1];
+   bookingAttempts: Integer[1];
+   rejectionReason: String[0..1];
+   isAutoBooked: Boolean[1];
+
+   // Booked, and booked in full. A partial booking is a break waiting to be raised.
+   isBooked() { $this.bookingStatus == 'BOOKED' } : Boolean[1];
+
+   unbookedQuantity() { $this.fillQuantity - $this.bookedQuantity } : Float[1];
+}
+
+// ONE FIELD ON WHICH THE FILL AND THE BOOKED TRADE DISAGREE. One row per field, not one per
+// booking, because "the quantity is wrong" and "the settlement date is wrong" go to
+// different people.
+Class order_execution::BookingBreak
+{
+   bookingBreakId: String[1];
+   bookingId: String[1];
+   fieldName: String[1];
+   fillValue: String[0..1];
+   tradeValue: String[0..1];
+   breakType: String[1];
+   severity: String[1];
+   detectedAt: DateTime[1];
+   resolvedAt: DateTime[0..1];
+   assignedTo: String[0..1];
+
+   isOpen() { $this.resolvedAt->isEmpty() } : Boolean[1];
+}
+
+// ONE MONEY LINE ON A FILL. Explicit costs (commission, exchange fee, clearing) have an
+// invoice behind them; implicit ones (spread, impact, delay) do not, and the difference is
+// the whole argument about what an execution really cost. Both are rows here, flagged.
+Class order_execution::ExecutionCostLine
+[
+   costAmountIsNotNegative: ($this.costAmount >= 0.0),
+   costBasisPointsIsNotNegative: ($this.costBasisPoints >= 0.0)
+]
+{
+   costLineId: String[1];
+   fillId: String[1];
+   // COMMISSION, EXCHANGE_FEE, CLEARING_FEE, SPREAD_COST, IMPACT_COST, DELAY_COST.
+   costType: String[1];
+   // The line that separates an invoice from an estimate.
+   isExplicit: Boolean[1];
+   costAmount: Float[1];
+   costCurrency: String[1];
+   costBasisPoints: Float[1];
+   // Whether the client pays it or the desk absorbs it.
+   isChargedToClient: Boolean[1];
+   calculationMethod: String[0..1];
+}
+
+// ------------------------------------------------------------------ the benchmark
+
+// THE MARKET AT THE MOMENT THE ORDER WAS ACCEPTED. Everything a client is told about
+// execution quality is measured from here, so this row is taken once, on arrival, and never
+// updated -- a benchmark that moves is not a benchmark.
+Class order_execution::ArrivalSnapshot
+[
+   arrivalPriceIsPositive: ($this.arrivalPrice > 0.0),
+   // A crossed book is a bad snapshot, and a bad snapshot poisons every number below it.
+   askIsNotBelowBid: ($this.askPrice >= $this.bidPrice),
+   bidIsPositive: ($this.bidPrice > 0.0)
+]
+{
+   snapshotId: String[1];
+   orderId: String[1];
+   // The mid, usually, but a market order in a wide book may be snapped on the far touch.
+   arrivalPrice: Float[1];
+   bidPrice: Float[1];
+   askPrice: Float[1];
+   bidSize: Float[0..1];
+   askSize: Float[0..1];
+   lastTradedPrice: Float[0..1];
+   snapshotCurrency: String[1];
+   arrivedAt: DateTime[1];
+   sourceFeed: String[1];
+   // The MIC the snapshot was taken from, which need not be where the order was filled.
+   snapshotVenueMic: String[0..1];
+
+   // The cost of crossing, in price terms. Half of it is what an aggressive fill pays.
+   spread() { $this.askPrice - $this.bidPrice } : Float[1];
+
+   // The mid recomputed from the touch. Compared against arrivalPrice it says which
+   // convention the snapshotting process used.
+   midPrice() { ($this.bidPrice + $this.askPrice) / 2.0 } : Float[1];
+
+   // The spread as the market quotes it: basis points of the mid.
+   spreadBasisPoints()
+   {
+      (($this.askPrice - $this.bidPrice) / (($this.bidPrice + $this.askPrice) / 2.0)) * 10000.0
+   } : Float[1];
+}
+
+// ONE BENCHMARK VALUE FOR ONE ORDER OVER ONE INTERVAL -- interval VWAP, TWAP, the open, the
+// close, the arrival price. Several per order, because a client who is shown only the
+// benchmark that flatters the desk will eventually ask for the others.
+Class order_execution::ExecutionBenchmark
+[
+   benchmarkPriceIsPositive: ($this.benchmarkPrice > 0.0),
+   intervalEndsAfterItStarts: ($this.intervalEnd >= $this.intervalStart)
+]
+{
+   benchmarkId: String[1];
+   orderId: String[1];
+   // ARRIVAL, INTERVAL_VWAP, FULL_DAY_VWAP, TWAP, OPEN, CLOSE, PARTICIPATION_WEIGHTED.
+   benchmarkType: String[1];
+   benchmarkPrice: Float[1];
+   benchmarkCurrency: String[1];
+   intervalStart: DateTime[1];
+   intervalEnd: DateTime[1];
+   // The volume the benchmark was computed over; a VWAP on thin volume is not evidence.
+   benchmarkVolume: Float[0..1];
+   sourceFeed: String[1];
+   isPrimary: Boolean[1];
+}
+
+// ONE FILL MEASURED AGAINST ONE BENCHMARK. Signed in the client's favour: a negative number
+// means the fill beat the benchmark, whichever side the order was. One row per (fill,
+// benchmark) pair, which is why this is a class and not two columns on the fill.
+Class order_execution::SlippageMeasure
+[
+   slippageFillPriceIsPositive: ($this.fillPrice > 0.0),
+   slippageBenchmarkPriceIsPositive: ($this.benchmarkPrice > 0.0),
+   measuredQuantityIsPositive: ($this.measuredQuantity > 0.0)
+]
+{
+   slippageId: String[1];
+   fillId: String[1];
+   benchmarkRef: String[0..1];
+   benchmarkType: String[1];
+   fillPrice: Float[1];
+   benchmarkPrice: Float[1];
+   measuredQuantity: Float[1];
+   // Signed cost in currency, and the same thing in basis points, both stored because a
+   // client report shows one and a desk report shows the other.
+   slippageAmount: Float[1];
+   slippageBasisPoints: Float[1];
+   slippageCurrency: String[1];
+   // +1 for a buy, -1 for a sell; the multiplier that makes the sign mean "cost".
+   sideSign: Float[1];
+   measuredAt: DateTime[1];
+
+   // The measurement, recomputed. Signed so that positive is always a cost to the client.
+   computedSlippage() { ($this.fillPrice - $this.benchmarkPrice) * $this.sideSign } : Float[1];
+
+   // The same in basis points of the benchmark.
+   computedBasisPoints()
+   {
+      ((($this.fillPrice - $this.benchmarkPrice) * $this.sideSign) / $this.benchmarkPrice) * 10000.0
+   } : Float[1];
+
+   // Beat the benchmark. The only phrasing a client ever remembers.
+   isFavourable() { $this.slippageBasisPoints < 0.0 } : Boolean[1];
+}
+
+// WHAT THE ORDER ITSELF DID TO THE PRICE. Split into TEMPORARY impact (the price moved while
+// we were buying and came back afterwards -- we paid it, nobody kept it) and PERMANENT
+// impact (the price moved and stayed, because the trade carried information). The split
+// matters: only the temporary half is avoidable by trading more slowly.
+Class order_execution::MarketImpactEstimate
+[
+   preTradePriceIsPositive: ($this.preTradePrice > 0.0),
+   postTradePriceIsPositive: ($this.postTradePrice > 0.0)
+]
+{
+   impactId: String[1];
+   fillId: String[1];
+   modelName: String[1];
+   preTradePrice: Float[1];
+   postTradePrice: Float[1];
+   temporaryImpactBasisPoints: Float[1];
+   permanentImpactBasisPoints: Float[1];
+   // What the model said it would be, before the fill. Kept next to the outcome, because a
+   // model whose predictions are never compared to reality is decoration.
+   predictedImpactBasisPoints: Float[0..1];
+   impactCurrency: String[1];
+   estimatedAt: DateTime[1];
+
+   // The whole move, both halves together.
+   totalImpactBasisPoints()
+   {
+      $this.temporaryImpactBasisPoints + $this.permanentImpactBasisPoints
+   } : Float[1];
+
+   // Model error, signed. Persistently positive means the model is optimistic.
+   modelError()
+   {
+      if ($this.predictedImpactBasisPoints->isEmpty(),
+          | 0.0,
+          | ($this.temporaryImpactBasisPoints + $this.permanentImpactBasisPoints)
+            - $this.predictedImpactBasisPoints->toOne())
+   } : Float[1];
+}
+
+// HOW FAR THE PRICE CAME BACK AFTER THE FILL, at one horizon. Several per impact estimate --
+// one minute, five minutes, the close -- because reversion at one minute and reversion at
+// the close are different claims about whether the trade carried information.
+Class order_execution::ReversionMeasure
+[
+   horizonIsPositive: ($this.horizonSeconds > 0),
+   referencePriceIsPositive: ($this.referencePrice > 0.0)
+]
+{
+   reversionId: String[1];
+   impactId: String[1];
+   horizonSeconds: Integer[1];
+   referencePrice: Float[1];
+   horizonPrice: Float[1];
+   reversionBasisPoints: Float[1];
+   // The move in the wider market over the same window, so a reversion that is really just
+   // the index going up is not claimed as skill.
+   marketMoveBasisPoints: Float[0..1];
+   measuredAt: DateTime[1];
+
+   // Reversion net of the market's own move. This is the number worth reporting.
+   excessReversionBasisPoints()
+   {
+      if ($this.marketMoveBasisPoints->isEmpty(),
+          | $this.reversionBasisPoints,
+          | $this.reversionBasisPoints - $this.marketMoveBasisPoints->toOne())
+   } : Float[1];
+}
+
+// THE FULL DECOMPOSITION OF WHAT THE ORDER COST, from the decision price to the last fill:
+// DELAY (the price moved between deciding and starting), EXECUTION (what the fills cost
+// against arrival), OPPORTUNITY (what the unfilled remainder would have cost or saved), and
+// the explicit fees. One per order. This is the number in the quarterly review.
+Class order_execution::ImplementationShortfall
+[
+   decisionPriceIsPositive: ($this.decisionPrice > 0.0),
+   shortfallArrivalPriceIsPositive: ($this.arrivalPrice > 0.0),
+   averageFillPriceIsPositive: ($this.averageFillPrice > 0.0),
+   // The four components are stored AND summed; they may not disagree with the total.
+   componentsAgreeWithTotal:
+      (((($this.delayCostBasisPoints + $this.executionCostBasisPoints)
+         + ($this.opportunityCostBasisPoints + $this.explicitCostBasisPoints))
+        - $this.totalShortfallBasisPoints) < 0.01)
+]
+{
+   shortfallId: String[1];
+   orderId: String[1];
+   // Where the portfolio manager decided, which is earlier than where the desk started.
+   decisionPrice: Float[1];
+   arrivalPrice: Float[1];
+   averageFillPrice: Float[1];
+   // Absent when the order was fully filled, which is when opportunity cost is zero.
+   closingPrice: Float[0..1];
+   filledQuantity: Float[1];
+   unfilledQuantity: Float[1];
+   delayCostBasisPoints: Float[1];
+   executionCostBasisPoints: Float[1];
+   opportunityCostBasisPoints: Float[1];
+   explicitCostBasisPoints: Float[1];
+   totalShortfallBasisPoints: Float[1];
+   shortfallCurrency: String[1];
+   computedAt: DateTime[1];
+
+   // The components, resummed. The constraint above holds this against the stored total.
+   computedTotalBasisPoints()
+   {
+      ($this.delayCostBasisPoints + $this.executionCostBasisPoints)
+      + ($this.opportunityCostBasisPoints + $this.explicitCostBasisPoints)
+   } : Float[1];
+
+   totalQuantity() { $this.filledQuantity + $this.unfilledQuantity } : Float[1];
+}
+
+// ------------------------------------------------------------------ the venue's own quote
+
+// WHAT THE VENUE WAS SHOWING AT THE MOMENT OF THE FILL. Best execution against the venue's
+// own quote is the one test a venue cannot argue with: it published these two numbers, and
+// the fill either was or was not inside them.
+Class order_execution::VenueQuote
+[
+   quoteAskIsNotBelowBid: ($this.askPrice >= $this.bidPrice),
+   quoteBidIsPositive: ($this.bidPrice > 0.0)
+]
+{
+   quoteId: String[1];
+   venueMic: String[1];
+   instrumentRef: String[1];
+   bidPrice: Float[1];
+   askPrice: Float[1];
+   bidSize: Float[1];
+   askSize: Float[1];
+   quotedAt: DateTime[1];
+   quoteCurrency: String[1];
+   // Whether this is the venue's own top of book or a consolidated tape. A comparison
+   // against the wrong one is the commonest mistake in a best-execution report.
+   isConsolidated: Boolean[1];
+   sourceFeed: String[1];
+
+   spread() { $this.askPrice - $this.bidPrice } : Float[1];
+   midPrice() { ($this.bidPrice + $this.askPrice) / 2.0 } : Float[1];
+
+   // A quote with nothing on one side is not a two-sided market and must not be used as a
+   // benchmark. `||` compiles perfectly well; the project that reported otherwise had a
+   // different fault in the same expression.
+   isOneSided() { ($this.bidSize == 0.0) || ($this.askSize == 0.0) } : Boolean[1];
+}
+
+// THE FILL PRICE PUT NEXT TO THE QUOTE THAT WAS STANDING. Its own row rather than a derived
+// property on the fill, because the answer depends on WHICH quote you use, and a client who
+// disagrees with the verdict is really disagreeing with that choice -- which must therefore
+// be recorded.
+Class order_execution::QuoteComparison
+[
+   comparedFillPriceIsPositive: ($this.fillPrice > 0.0),
+   comparedBidIsPositive: ($this.quoteBidPrice > 0.0),
+   comparedAskIsNotBelowBid: ($this.quoteAskPrice >= $this.quoteBidPrice)
+]
+{
+   comparisonId: String[1];
+   fillId: String[1];
+   quoteRef: String[0..1];
+   fillPrice: Float[1];
+   quoteBidPrice: Float[1];
+   quoteAskPrice: Float[1];
+   // INSIDE, AT_TOUCH, OUTSIDE, AT_MID -- the verdict, as a word, because that is what goes
+   // on the report.
+   priceOutcome: String[1];
+   // Improvement over the touch on the client's side, in price and in basis points.
+   priceImprovement: Float[1];
+   priceImprovementBasisPoints: Float[1];
+   // Milliseconds between the quote and the fill. A comparison against a stale quote is
+   // worthless, and this is the field that says so.
+   quoteAgeMillis: Integer[1];
+   comparedAt: DateTime[1];
+
+   quotedSpread() { $this.quoteAskPrice - $this.quoteBidPrice } : Float[1];
+
+   // The comparison is only evidence if the quote was current. Half a second is generous.
+   isStaleQuote() { $this.quoteAgeMillis > 500 } : Boolean[1];
+
+   // Filled better than the touch.
+   isPriceImproved() { $this.priceImprovement > 0.0 } : Boolean[1];
+}
+
+// ------------------------------------------------------------------ the verdict
+
+// THE FIRM'S BEST-EXECUTION POLICY, as a version. An assessment is only meaningful against
+// the policy in force when the order was worked, so the policy is a row with dates and the
+// assessment points at one.
+Class order_execution::ExecutionPolicy
+[
+   policyVersionIsPositive: ($this.policyVersion > 0),
+   passThresholdInRange: (($this.passThreshold >= 0.0) && ($this.passThreshold <= 100.0))
+]
+{
+   policyId: String[1];
+   policyName: String[1];
+   policyVersion: Integer[1];
+   clientCategory: String[1];
+   effectiveFrom: StrictDate[1];
+   effectiveTo: StrictDate[0..1];
+   // The score at or above which an order passes.
+   passThreshold: Float[1];
+   approvedBy: String[1];
+
+   isCurrent() { $this.effectiveTo->isEmpty() } : Boolean[1];
+}
+
+// THE VERDICT ON ONE ORDER: did we obtain the best result reasonably available? One row per
+// order, carrying the score, the outcome and -- when the outcome is a fail -- who reviewed
+// it. The reasoning lives in the factor rows below, because "we scored 61" is not an answer.
+Class order_execution::BestExecutionAssessment
+[
+   overallScoreInRange: (($this.overallScore >= 0.0) && ($this.overallScore <= 100.0)),
+   assessedQuantityIsPositive: ($this.assessedQuantity > 0.0),
+   assessedAveragePriceIsPositive: ($this.averageFillPrice > 0.0)
+]
+{
+   assessmentId: String[1];
+   orderId: String[1];
+   policyRef: String[0..1];
+   assessedQuantity: Float[1];
+   averageFillPrice: Float[1];
+   arrivalPrice: Float[1];
+   // Signed against arrival, in basis points; the headline number.
+   slippageVsArrivalBasisPoints: Float[1];
+   overallScore: Float[1];
+   // PASS, PASS_WITH_COMMENT, FAIL, NOT_ASSESSED.
+   outcome: String[1];
+   assessedAt: DateTime[1];
+   assessedBy: String[1];
+   reviewedBy: String[0..1];
+   reviewNote: String[0..1];
+
+   isPass() { ($this.outcome == 'PASS') || ($this.outcome == 'PASS_WITH_COMMENT') } : Boolean[1];
+
+   // A failed assessment nobody has looked at is the thing a regulator finds.
+   isReviewed() { $this.reviewedBy->isNotEmpty() } : Boolean[1];
+}
+
+// ONE OF THE FACTORS THE POLICY REQUIRES TO BE CONSIDERED -- price, cost, speed, likelihood
+// of execution and settlement, size, nature. Each scored and weighted, so the overall score
+// on the assessment can be shown to be arithmetic rather than judgement.
+Class order_execution::BestExecutionFactor
+[
+   factorScoreInRange: (($this.factorScore >= 0.0) && ($this.factorScore <= 100.0)),
+   factorWeightInRange: (($this.factorWeight >= 0.0) && ($this.factorWeight <= 1.0))
+]
+{
+   factorId: String[1];
+   assessmentId: String[1];
+   // PRICE, COST, SPEED, LIKELIHOOD, SIZE, NATURE.
+   factorName: String[1];
+   factorScore: Float[1];
+   factorWeight: Float[1];
+   // What the score was read off: the measured value and its unit.
+   measuredValue: Float[0..1];
+   measureUnit: String[0..1];
+   commentary: String[0..1];
+
+   // The factor's contribution to the overall score. Both operands are Float -- note that
+   // had the score been an Integer, `Integer * Float` types as `Number`, which is not a
+   // subtype of Float, and would have needed an explicit `->toFloat()`.
+   weightedScore() { $this.factorScore * $this.factorWeight } : Float[1];
+}
+
+// THE PERIODIC REPORT THE CLIENT ACTUALLY RECEIVES, gathering a period's assessments and
+// venue statistics into one published document. It is a row because publication has a date,
+// a version and an author, and a report that was sent cannot be silently rewritten.
+Class order_execution::BestExecutionReport
+[
+   periodEndsAfterItStarts: ($this.periodEnd >= $this.periodStart),
+   reportOrderCountIsNotNegative: ($this.orderCount >= 0)
+]
+{
+   reportId: String[1];
+   reportName: String[1];
+   clientRef: String[0..1];
+   // MONTHLY, QUARTERLY, ANNUAL, AD_HOC.
+   reportPeriodType: String[1];
+   periodStart: StrictDate[1];
+   periodEnd: StrictDate[1];
+   orderCount: Integer[1];
+   assessedCount: Integer[1];
+   failCount: Integer[1];
+   publishedAt: DateTime[0..1];
+   publishedBy: String[0..1];
+   reportVersion: Integer[1];
+
+   isPublished() { $this.publishedAt->isNotEmpty() } : Boolean[1];
+
+   // Share of the period's orders that were assessed at all. `/` widens two Integers to
+   // Float, so this must be declared Float even though both operands are Integer.
+   assessedRate() { $this.assessedCount / $this.orderCount } : Float[1];
+}
+
+// ONE VENUE'S EXECUTION QUALITY OVER ONE PERIOD -- the RTS 27-shaped row. It is what a desk
+// uses to decide where to route next quarter, and what a client uses to ask why the desk did
+// not.
+Class order_execution::VenuePerformance
+[
+   performanceFilledQuantityIsNotNegative: ($this.filledQuantity >= 0.0),
+   fillRateInRange: (($this.fillRate >= 0.0) && ($this.fillRate <= 1.0)),
+   performancePeriodEndsAfterItStarts: ($this.periodEnd >= $this.periodStart)
+]
+{
+   performanceId: String[1];
+   venueMic: String[1];
+   periodStart: StrictDate[1];
+   periodEnd: StrictDate[1];
+   orderCount: Integer[1];
+   fillCount: Integer[1];
+   filledQuantity: Float[1];
+   notionalTraded: Float[1];
+   performanceCurrency: String[1];
+   fillRate: Float[1];
+   averageSlippageBasisPoints: Float[1];
+   averageSpreadBasisPoints: Float[1];
+   priceImprovementRate: Float[1];
+   averageLatencyMillis: Integer[0..1];
+   rejectRate: Float[1];
+
+   // Average trade size over the period. Float / Integer, and `/` widens either way.
+   averageFillSize() { $this.filledQuantity / $this.fillCount } : Float[1];
+}
+
+// ------------------------------------------------------------------ context
+
+// HOW MUCH OF THE MARKET WE WERE, over one interval. Participation is the lever a client
+// controls -- go faster and pay impact, go slower and take risk -- so what was asked for and
+// what was achieved are both on the row.
+Class order_execution::ParticipationMeasure
+[
+   targetRateInRange: (($this.targetRate >= 0.0) && ($this.targetRate <= 1.0)),
+   achievedRateIsNotNegative: ($this.achievedRate >= 0.0),
+   marketVolumeIsPositive: ($this.marketVolume > 0.0)
+]
+{
+   participationId: String[1];
+   orderId: String[1];
+   intervalStart: DateTime[1];
+   intervalEnd: DateTime[1];
+   // What the algorithm was told to do, and what it managed.
+   targetRate: Float[1];
+   achievedRate: Float[1];
+   ourVolume: Float[1];
+   marketVolume: Float[1];
+   intervalVwap: Float[0..1];
+
+   // The rate, recomputed from the two volumes. Compared against achievedRate it says
+   // whether the market volume feed and the fill feed agree.
+   computedRate() { $this.ourVolume / $this.marketVolume } : Float[1];
+
+   // Ahead of schedule, which is where impact comes from.
+   isOverParticipating() { $this.achievedRate > $this.targetRate } : Boolean[1];
+}
+
+// WHAT THE FILL DID TO THE BOOK, split three ways: liquidity taken, liquidity added, and
+// filled at the midpoint. A desk that adds liquidity is paid a rebate and pays no spread, so
+// this breakdown is most of the difference between two desks' costs.
+Class order_execution::LiquidityCapture
+[
+   capturedQuantityIsPositive: ($this.capturedQuantity > 0.0),
+   spreadCaptureInRange: (($this.spreadCaptureRatio >= -2.0) && ($this.spreadCaptureRatio <= 2.0))
+]
+{
+   captureId: String[1];
+   fillId: String[1];
+   capturedQuantity: Float[1];
+   // PASSIVE, AGGRESSIVE, MIDPOINT, AUCTION, DARK.
+   captureType: String[1];
+   // Share of the spread earned (positive) or paid (negative). A passive fill at the bid on
+   // a buy earns half the spread; an aggressive one pays it.
+   spreadCaptureRatio: Float[1];
+   spreadAtFill: Float[1];
+   // Positive when the venue paid us to provide liquidity.
+   rebateAmount: Float[0..1];
+   rebateCurrency: String[0..1];
+   // Was there a resting order of ours that this fill hit? A wash is a control failure.
+   isWashRisk: Boolean[1];
+
+   isPassive() { $this.captureType == 'PASSIVE' } : Boolean[1];
+
+   // Money value of the spread we captured or conceded on this fill.
+   spreadValue() { ($this.spreadAtFill * $this.spreadCaptureRatio) * $this.capturedQuantity } : Float[1];
+}
+
+// THE TRADING SESSION A FILL HAPPENED IN -- opening auction, continuous, closing auction,
+// after hours. A fill in an auction is not comparable with a fill in continuous trading, and
+// a slippage number that mixes them is misleading rather than merely imprecise.
+Class order_execution::ExecutionSession
+[
+   sessionEndsAfterItStarts: ($this.sessionEnd >= $this.sessionStart)
+]
+{
+   sessionId: String[1];
+   venueMic: String[1];
+   tradingDate: StrictDate[1];
+   // OPENING_AUCTION, CONTINUOUS, INTRADAY_AUCTION, CLOSING_AUCTION, AFTER_HOURS.
+   sessionType: String[1];
+   sessionStart: DateTime[1];
+   sessionEnd: DateTime[1];
+   // Whether the book was displayed. A halt inside the session is its own field because a
+   // fill during a halt needs explaining.
+   isHalted: Boolean[1];
+   haltReason: String[0..1];
+   referencePrice: Float[0..1];
+
+   isAuction()
+   {
+      ($this.sessionType == 'OPENING_AUCTION') || ($this.sessionType == 'CLOSING_AUCTION')
+   } : Boolean[1];
+}
+
+// HOW LONG THE ROUND TRIP TOOK, leg by leg: our gateway out, the venue's acknowledgement,
+// the fill, the report back. Latency is a best-execution factor in its own right, and it is
+// the one a venue will dispute, so each leg is timed separately.
+Class order_execution::LatencyMeasure
+[
+   totalLatencyIsNotNegative: ($this.totalLatencyMicros >= 0),
+   venueLatencyIsNotNegative: ($this.venueLatencyMicros >= 0)
+]
+{
+   latencyId: String[1];
+   fillId: String[1];
+   orderSentAt: DateTime[1];
+   venueAckAt: DateTime[0..1];
+   filledAt: DateTime[1];
+   reportReceivedAt: DateTime[1];
+   // Our side of the wire, the venue's side, and the whole thing.
+   gatewayLatencyMicros: Integer[1];
+   venueLatencyMicros: Integer[1];
+   totalLatencyMicros: Integer[1];
+   // Whether our clock and the venue's were disciplined to the same source. Without this,
+   // none of the numbers above is admissible.
+   isClockSynchronised: Boolean[1];
+
+   // Milliseconds, for a report a human reads. `/` widens, so this is Float[1] and could
+   // not be declared Integer[1].
+   totalLatencyMillis() { $this.totalLatencyMicros / 1000.0 } : Float[1];
+
+   isSlow() { $this.totalLatencyMicros > 50000 } : Boolean[1];
+}
+
+// SOMETHING THAT WENT WRONG AROUND A FILL and was noticed: a price outside the day's range,
+// a fill on a restricted name, a quantity that overfills the order, a booking that will not
+// go. Raised automatically, cleared by a person, and kept afterwards.
+Class order_execution::ExecutionException
+{
+   exceptionId: String[1];
+   fillId: String[1];
+   // OVERFILL, PRICE_OUTLIER, RESTRICTED_INSTRUMENT, LATE_REPORT, BOOKING_FAILURE,
+   // ALLOCATION_MISMATCH, STALE_QUOTE.
+   exceptionType: String[1];
+   severity: String[1];
+   exceptionMessage: String[1];
+   // What the rule looked at and what it expected, so the alert can be judged without
+   // rerunning it.
+   observedValue: Float[0..1];
+   thresholdValue: Float[0..1];
+   raisedAt: DateTime[1];
+   raisedBy: String[1];
+   acknowledgedAt: DateTime[0..1];
+   clearedAt: DateTime[0..1];
+   clearedBy: String[0..1];
+
+   isOpen() { $this.clearedAt->isEmpty() } : Boolean[1];
+
+   // Raised, seen, and still not dealt with -- the queue an operations lead works from.
+   isAcknowledgedButOpen()
+   {
+      ($this.acknowledgedAt->isNotEmpty()) && ($this.clearedAt->isEmpty())
+   } : Boolean[1];
+}
+
+// WHAT THE CLIENT TOLD US ABOUT HOW TO WORK THE ORDER -- a participation cap, a limit, a
+// venue exclusion, "work with care", "not held". A specific instruction overrides the firm's
+// own policy, and best execution is then measured against the instruction rather than
+// against the policy, which is why these are rows and not free text on the order.
+Class order_execution::ClientExecutionInstruction
+{
+   instructionId: String[1];
+   orderId: String[1];
+   // PARTICIPATION_CAP, PRICE_LIMIT, VENUE_INCLUDE, VENUE_EXCLUDE, WORK_WITH_CARE,
+   // NOT_HELD, DO_NOT_CROSS.
+   instructionType: String[1];
+   instructionText: String[1];
+   numericValue: Float[0..1];
+   venueMic: String[0..1];
+   receivedAt: DateTime[1];
+   receivedFrom: String[1];
+   // The channel it arrived on, because a verbal instruction and a FIX tag carry different
+   // evidential weight.
+   receivedVia: String[1];
+   // A specific instruction displaces the policy, and the client must be told so.
+   overridesPolicy: Boolean[1];
+   acknowledgedAt: DateTime[0..1];
+
+   isAcknowledged() { $this.acknowledgedAt->isNotEmpty() } : Boolean[1];
+}
+
+// ------------------------------------------------------------------ associations
+//
+// ELEVEN of these cross into order-core and FIVE into trade-capture. Every end name added to
+// a class this project does not own is chosen so it cannot collide: trade-capture has
+// already put `trades`, `instrumentLegs`, `bookedTrades`, `counterpartyRoles`,
+// `entityAllocations` and `brokerRoles` onto classes it does not own, and order-core put
+// `instrumentOrders`, `bookOrders`, `venueOrders`, `venueExecutions` and the rest onto
+// theirs. A second property of the same name on the same class fails the whole graph, so the
+// names below are deliberately unlike any of them.
+
+// ---- crossing into order-core ----
+
+// THE CENTRAL LINK. An order is filled by many fills; a fill belongs to one order.
 Association order_execution::FillOrder
 {
    filledOrder: order_core::Order[0..1];
-   executionFills: order_execution::Fill[*];
+   orderFills: order_execution::Fill[*];
 }
 
-Association order_execution::FillTrade
+// The venue's raw execution report as order-core recorded it, and this project's enriched
+// record of the same event. A fill without one came from a manual booking.
+Association order_execution::FillSourceExecution
+{
+   sourceExecution: order_core::Execution[0..1];
+   executionFill: order_execution::Fill[0..1];
+}
+
+Association order_execution::SummaryOrder
+{
+   summarisedOrder: order_core::Order[0..1];
+   fillSummary: order_execution::OrderFillSummary[0..1];
+}
+
+Association order_execution::ArrivalOrder
+{
+   arrivalOrder: order_core::Order[0..1];
+   arrivalSnapshot: order_execution::ArrivalSnapshot[0..1];
+}
+
+Association order_execution::BenchmarkOrder
+{
+   benchmarkedOrder: order_core::Order[0..1];
+   executionBenchmarks: order_execution::ExecutionBenchmark[*];
+}
+
+Association order_execution::ShortfallOrder
+{
+   shortfallOrder: order_core::Order[0..1];
+   implementationShortfall: order_execution::ImplementationShortfall[0..1];
+}
+
+Association order_execution::AssessmentOrder
+{
+   assessedOrder: order_core::Order[0..1];
+   bestExecAssessment: order_execution::BestExecutionAssessment[0..1];
+}
+
+Association order_execution::ParticipationOrder
+{
+   participationOrder: order_core::Order[0..1];
+   participationMeasures: order_execution::ParticipationMeasure[*];
+}
+
+Association order_execution::InstructionOrder
+{
+   instructedOrder: order_core::Order[0..1];
+   executionInstructions: order_execution::ClientExecutionInstruction[*];
+}
+
+// A quote is published by a venue, and the venue is order-core's.
+Association order_execution::QuoteVenueLink
+{
+   quoteVenue: order_core::Venue[0..1];
+   venueQuotes: order_execution::VenueQuote[*];
+}
+
+Association order_execution::PerformanceVenueLink
+{
+   performanceVenue: order_core::Venue[0..1];
+   venuePerformances: order_execution::VenuePerformance[*];
+}
+
+// ---- crossing into trade-capture ----
+
+// THE OTHER HALF OF THE CENTRAL LINK: the fill became this trade.
+Association order_execution::BookingTradeLink
 {
    bookedTrade: trade_capture::Trade[0..1];
-   executionFills2: order_execution::Fill[*];
+   executionBookings: order_execution::TradeBooking[*];
+}
+
+Association order_execution::BookingBreakTradeLink
+{
+   breakTrade: trade_capture::Trade[0..1];
+   executionBookingBreaks: order_execution::BookingBreak[*];
+}
+
+// The desk's split of a fill and the back office's allocation of a trade are two records of
+// one decision, and they can disagree.
+Association order_execution::AllocationTradeLink
+{
+   tradeAllocation: trade_capture::Allocation[0..1];
+   executionFillAllocations: order_execution::FillAllocation[*];
+}
+
+// An explicit cost line has an invoice behind it; that invoice is a trade-capture charge.
+Association order_execution::CostChargeLink
+{
+   sourceCharge: trade_capture::TradeCharge[0..1];
+   executionCostLines: order_execution::ExecutionCostLine[*];
+}
+
+// The venue as the regulator knows it, so a performance row can be published under a MIC a
+// client can look up. order-core and trade-capture each hold their own record of a venue and
+// neither is authoritative, so a performance row joins to both.
+Association order_execution::PerformanceMifidVenueLink
+{
+   mifidVenue: trade_capture::ExecutionVenue[0..1];
+   venuePerformanceLines: order_execution::VenuePerformance[*];
+}
+
+// ---- internal ----
+
+Association order_execution::FillReports
+{
+   reports: order_execution::ExecutionReport[*];
+   reportFill: order_execution::Fill[0..1];
+}
+
+Association order_execution::FillAmendments
+{
+   fillAmendments: order_execution::FillAmendment[*];
+   amendedFill: order_execution::Fill[0..1];
+}
+
+Association order_execution::FillAllocations
+{
+   fillAllocations: order_execution::FillAllocation[*];
+   allocationFill: order_execution::Fill[0..1];
+}
+
+Association order_execution::FillAllocationSet
+{
+   allocationSet: order_execution::AllocationSet[0..1];
+   setFill: order_execution::Fill[0..1];
+}
+
+Association order_execution::SetAllocations
+{
+   setAllocations: order_execution::FillAllocation[*];
+   owningSet: order_execution::AllocationSet[0..1];
+}
+
+Association order_execution::SetBreaks
+{
+   allocationBreaks: order_execution::AllocationBreak[*];
+   breakSet: order_execution::AllocationSet[0..1];
+}
+
+Association order_execution::SummaryFillLink
+{
+   summary: order_execution::OrderFillSummary[0..1];
+   summaryFills: order_execution::Fill[*];
+}
+
+Association order_execution::FillBooking
+{
+   booking: order_execution::TradeBooking[0..1];
+   bookingFill: order_execution::Fill[0..1];
+}
+
+Association order_execution::BookingBreaks
+{
+   bookingBreaks: order_execution::BookingBreak[*];
+   breakBooking: order_execution::TradeBooking[0..1];
+}
+
+Association order_execution::FillCostLines
+{
+   costLines: order_execution::ExecutionCostLine[*];
+   costFill: order_execution::Fill[0..1];
+}
+
+Association order_execution::FillSlippage
+{
+   slippageMeasures: order_execution::SlippageMeasure[*];
+   slippageFill: order_execution::Fill[0..1];
+}
+
+Association order_execution::BenchmarkSlippage
+{
+   benchmarkSlippages: order_execution::SlippageMeasure[*];
+   slippageBenchmark: order_execution::ExecutionBenchmark[0..1];
+}
+
+Association order_execution::FillImpact
+{
+   marketImpact: order_execution::MarketImpactEstimate[0..1];
+   impactFill: order_execution::Fill[0..1];
+}
+
+Association order_execution::ImpactReversion
+{
+   reversions: order_execution::ReversionMeasure[*];
+   reversionImpact: order_execution::MarketImpactEstimate[0..1];
+}
+
+Association order_execution::ShortfallArrival
+{
+   arrival: order_execution::ArrivalSnapshot[0..1];
+   arrivalShortfalls: order_execution::ImplementationShortfall[*];
+}
+
+Association order_execution::FillQuote
+{
+   prevailingQuote: order_execution::VenueQuote[0..1];
+   quotedFills: order_execution::Fill[*];
+}
+
+Association order_execution::FillQuoteComparison
+{
+   quoteComparison: order_execution::QuoteComparison[0..1];
+   comparisonFill: order_execution::Fill[0..1];
+}
+
+Association order_execution::QuoteComparisons
+{
+   quoteComparisons: order_execution::QuoteComparison[*];
+   comparedQuote: order_execution::VenueQuote[0..1];
+}
+
+Association order_execution::AssessmentFactors
+{
+   factors: order_execution::BestExecutionFactor[*];
+   factorAssessment: order_execution::BestExecutionAssessment[0..1];
+}
+
+Association order_execution::AssessmentPolicy
+{
+   policy: order_execution::ExecutionPolicy[0..1];
+   policyAssessments: order_execution::BestExecutionAssessment[*];
+}
+
+Association order_execution::AssessmentReport
+{
+   report: order_execution::BestExecutionReport[0..1];
+   reportAssessments: order_execution::BestExecutionAssessment[*];
+}
+
+Association order_execution::ReportVenuePerformance
+{
+   reportVenuePerformance: order_execution::VenuePerformance[*];
+   performanceReport: order_execution::BestExecutionReport[0..1];
+}
+
+Association order_execution::FillLiquidity
+{
+   liquidityCapture: order_execution::LiquidityCapture[0..1];
+   captureFill: order_execution::Fill[0..1];
+}
+
+Association order_execution::FillSession
+{
+   session: order_execution::ExecutionSession[0..1];
+   sessionFills: order_execution::Fill[*];
+}
+
+Association order_execution::SessionParticipation
+{
+   participationSession: order_execution::ExecutionSession[0..1];
+   sessionParticipation: order_execution::ParticipationMeasure[*];
+}
+
+Association order_execution::FillLatency
+{
+   latency: order_execution::LatencyMeasure[0..1];
+   latencyFill: order_execution::Fill[0..1];
+}
+
+Association order_execution::FillExceptions
+{
+   exceptions: order_execution::ExecutionException[*];
+   exceptionFill: order_execution::Fill[0..1];
 }

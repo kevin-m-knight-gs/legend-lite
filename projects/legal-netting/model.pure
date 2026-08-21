@@ -1,0 +1,525 @@
+###Pure
+// legal-netting -- the netting set: the population one master agreement covers, and the unit
+// exposure is actually measured on.
+//
+// The one sentence the whole project is a consequence of: netting is not a property of a
+// trade and not a property of a counterparty. It is a property of a SET, and the set is
+// defined by a contract. Two trades net against each other because they are governed by the
+// same single agreement between the same two legal persons -- not because they face the same
+// name, not because they are the same product. So a NetSet is the closure of a master
+// agreement, and everything downstream of exposure measurement has to be grouped on it.
+//
+// The second sentence: the set only nets FOR CAPITAL if a clean netting opinion covers it.
+// The opinion lives upstream in legal-core, keyed on the exact triple (jurisdiction, master
+// form, counterparty type). What this project adds is the ASSESSMENT -- the firm's own
+// determination, on a date, that a particular opinion reaches a particular set, branch by
+// branch. Absent that determination the set still exists and is still measured; it is just
+// measured GROSS, and NetCapitalTreatment is where that shows.
+//
+// Layer 2. Depends on legal-core (the agreement and the opinion) and exposure-agg (the
+// exposure being netted), and on nothing else.
+
+// ------------------------------------------------------------------ the set itself
+
+// The population one master agreement covers: the unit exposure is measured on.
+//
+// Keyed by its own id rather than by the agreement id, even though the two are one-to-one in
+// the ordinary case, because they are NOT one-to-one in the cases that matter -- an umbrella
+// master with per-fund netting sets underneath it, and a master whose set has been split
+// because one product line turned out not to be covered by the opinion.
+Class legal_netting::NetSet
+{
+   nettingSetId: String[1];
+   // The master agreement this set is the closure of. The association NetSetAgreement is the
+   // navigable form; the column is kept because the set is built from the agreement id before
+   // the graph is walked.
+   agreementId: String[1];
+   // The counterparty the set faces. One set, one counterparty -- if two names appear the set
+   // is wrong, not merely large.
+   counterpartyId: String[1];
+   // The insolvency regime the counterparty is subject to: BANK, INSURER, FUND, CORPORATE,
+   // SOVEREIGN, PENSION. Half of the opinion lookup key, and the half a trade system never
+   // knows, which is why it is carried here rather than derived at query time.
+   counterpartyType: String[1];
+   // The jurisdiction whose insolvency law governs the counterparty. NOT the governing law of
+   // the agreement: an English-law ISDA with a German bank is opined on under German
+   // insolvency law, and conflating the two is how a set gets netted that should not be.
+   counterpartyJurisdiction: String[1];
+   // CLOSE_OUT, PAYMENT_ONLY or NONE. Payment netting is settlement plumbing and earns no
+   // capital relief; close-out netting is the one that reduces exposure at default.
+   nettingBasis: String[1];
+   // The currency the close-out is struck in, taken from the agreement's termination currency.
+   settlementCurrency: String[1];
+   // The construction run that built this set. Optional because a set hand-created by a
+   // credit officer for a workout is still a set.
+   runId: String[0..1];
+   establishedDate: StrictDate[1];
+   // Set when the set is closed out or the agreement terminates, never cleared -- historical
+   // exposure on a closed set stays attributable to it.
+   closedDate: StrictDate[0..1];
+   isCrossProductSet: Boolean[1];
+
+   // Live until closed. The absence of the date is the test.
+   isOpen() { $this.closedDate->isEmpty() } : Boolean[1];
+   // Only ever a claim about the CONTRACT. Whether it nets for capital is a different
+   // question, answered by NetCapitalTreatment after an opinion has been assessed.
+   nettableByContract() { $this.nettingBasis == 'CLOSE_OUT' } : Boolean[1];
+}
+
+// One exposure line inside a set, on one date: the membership fact.
+//
+// Keyed (set, exposure, date) and not (set, exposure), because membership is a daily
+// statement. A trade novated away on Tuesday was in the set on Monday, and Monday's netted
+// exposure has to stay reproducible.
+//
+// This is the class that reaches exposure-agg. It restates no exposure numbers of its own
+// beyond the two it is measured on -- the aggregate below sums them, and a third copy
+// somewhere else would be a third answer.
+Class legal_netting::NetSetMember
+{
+   nettingSetId: String[1];
+   // The reach into exposure-agg. The association NetMemberExposure is the navigable form.
+   exposureId: String[1];
+   cobDate: StrictDate[1];
+   // TRADE, COLLATERAL, UNPAID_AMOUNT. Collateral is a member of the set because it is netted
+   // against the trades inside it, not deducted after the set is totalled.
+   memberKind: String[1];
+   productClass: String[1];
+   // Exposure before any offset -- what is owed if the set does not net.
+   grossExposure: Float[1];
+   // Signed. Negative is a payable, and the sign is the entire point: a set of positives is
+   // not a netting set, it is a list.
+   signedMarkToMarket: Float[1];
+   // Whether THIS line is inside the netted population. False for a line the opinion does not
+   // reach, which stays in the set for reporting and out of the net for capital.
+   isNettable: Boolean[1];
+   // The rule that decided isNettable, so the decision is attributable.
+   eligibilityRuleCode: String[0..1];
+   includedOn: StrictDate[1];
+
+   // A payable to the counterparty is what makes netting worth anything.
+   isPayable() { $this.signedMarkToMarket < 0.0 } : Boolean[1];
+}
+
+// The rule that decides whether a line is inside the netted population.
+//
+// Kept as data rather than as code because the answer changes with the opinion, not with the
+// release: when counsel confirms that repo under a GMRA nets against the cash leg, the change
+// is a row here and a re-run, and the pre-change numbers stay explicable.
+Class legal_netting::NetEligibilityRule
+{
+   ruleCode: String[1];
+   ruleName: String[1];
+   productClass: String[1];
+   // The master form the rule is scoped to; a rule true for the 2002 ISDA is not thereby true
+   // for a GMRA.
+   typeCode: String[0..1];
+   jurisdictionCode: String[0..1];
+   includesInNetting: Boolean[1];
+   // The paragraph of the opinion the rule is taken from. A rule with no basis is a guess.
+   opinionBasis: String[0..1];
+   effectiveFrom: StrictDate[1];
+   effectiveTo: StrictDate[0..1];
+}
+
+// A product, currency or jurisdiction carved OUT of an otherwise netted set.
+//
+// Distinct from a rule that never included it: an exclusion is a set-specific carve-out, and
+// it is the shape a qualified opinion actually takes -- "netting is enforceable except in
+// respect of transactions with the counterparty's Singapore branch".
+Class legal_netting::NetExclusion
+{
+   nettingSetId: String[1];
+   exclusionCode: String[1];
+   exclusionScope: String[1];
+   reason: String[1];
+   // Points back at the qualification in the legal-core opinion that forced the carve-out.
+   sourceQualification: String[0..1];
+   raisedOn: StrictDate[1];
+   resolvedOn: StrictDate[0..1];
+
+   isActive() { $this.resolvedOn->isEmpty() } : Boolean[1];
+}
+
+// ------------------------------------------------------------------ the opinion behind it
+
+// The firm's determination, on a date, that a legal-core netting opinion reaches this set.
+//
+// The opinion upstream is a legal document about a triple. THIS is the act of applying it:
+// somebody with a name checked that this set's counterparty really is of the opined type in
+// the opined jurisdiction under the opined form, and signed. Capital relief rests on this row
+// existing and being current, which is why it carries a review date and an expiry rather than
+// a boolean.
+//
+// Keyed (set, assessedOn) so the history is append-only. Last year's assessment is what last
+// year's capital number was computed against.
+Class legal_netting::NetOpinionAssessment
+{
+   nettingSetId: String[1];
+   assessedOn: StrictDate[1];
+   // The three columns that identify the upstream legal_core::NettingOpinion. Carried in full
+   // because the opinion's key is three columns and a single surrogate would hide which of
+   // the three stopped matching when the counterparty was reclassified.
+   opinionJurisdiction: String[1];
+   opinionTypeCode: String[1];
+   opinionCounterpartyType: String[1];
+   // The conclusion. False means the set is measured gross, whatever the agreement says.
+   supportsNetting: Boolean[1];
+   // Clean means unqualified. A qualified opinion is not a netting opinion for capital, and
+   // any qualification that survives assessment turns into a NetExclusion above.
+   isClean: Boolean[1];
+   assessedBy: String[1];
+   // Opinions are refreshed annually. An assessment past its review date is stale, and stale
+   // is treated as absent.
+   nextReviewDate: StrictDate[0..1];
+   assessmentNote: String[0..1];
+
+   // What the capital rules actually require: an opinion that is both supportive and clean.
+   givesCapitalRelief() { $this.supportsNetting && $this.isClean } : Boolean[1];
+}
+
+// Whether the opinion reaches one booking branch of the set.
+//
+// Keyed (set, branch), and it exists because a multibranch master is the ordinary case and
+// the opinion is jurisdiction-by-jurisdiction. A set booked through London, Singapore and New
+// York needs three opinions, and the weakest one governs: a branch the opinion does not reach
+// is exposure measured gross inside a set that otherwise nets.
+Class legal_netting::NetBranchCoverage
+{
+   nettingSetId: String[1];
+   branchCode: String[1];
+   branchJurisdiction: String[1];
+   isCoveredByOpinion: Boolean[1];
+   // The provider whose opinion covers this branch. Different branches are routinely covered
+   // by different firms.
+   opinionProvider: String[0..1];
+   coverageFrom: StrictDate[1];
+   coverageTo: StrictDate[0..1];
+   qualificationNote: String[0..1];
+}
+
+// The netting recognition actually applied to a set on a date, and the number it produced.
+//
+// Keyed (set, date). Separate from the assessment because the assessment is a legal fact and
+// this is an accounting one: they can disagree, and when they do the disagreement is the
+// finding. `recognisedAsNet` false with a clean assessment on file means something else --
+// a stale review, an unresolved exclusion, an uncovered branch -- blocked it.
+Class legal_netting::NetCapitalTreatment
+{
+   nettingSetId: String[1];
+   cobDate: StrictDate[1];
+   // Denormalised from the set, and carried on purpose: the counterparty rollup below groups
+   // on it, and a view cannot group on a column it would have to join to reach.
+   counterpartyId: String[1];
+   // The decision. False means the gross number below is the exposure that goes to capital.
+   recognisedAsNet: Boolean[1];
+   // Both numbers are held, not one and a derivation, because the benefit is the DIFFERENCE
+   // and a supervisor asks for it directly.
+   grossExposureAmount: Float[1];
+   netExposureAmount: Float[1];
+   collateralValueApplied: Float[1];
+   reportingCurrency: String[1];
+   // ORIGINAL_EXPOSURE, SA_CCR, IMM -- the method the netted number was computed under.
+   exposureMethod: String[1];
+   // Why netting was refused, when it was. Null when recognisedAsNet is true.
+   denialReason: String[0..1];
+
+   // The capital benefit of the set, in reporting currency. Both operands are Float, so the
+   // subtraction stays Float.
+   nettingBenefit() { $this.grossExposureAmount - $this.netExposureAmount } : Float[1];
+}
+
+// ------------------------------------------------------------------ close-out
+
+// The single net sum owed when the set is closed out: the number the whole construction
+// exists to produce.
+//
+// One per (set, determination date). The mechanics -- Market Quotation versus Close-out
+// Amount, First versus Second Method, the grace period -- are upstream in
+// legal_core::CloseOutTerms and are not restated here; the association NetCloseOutBasis is
+// how this row reaches them. What is here is the calculation and its result.
+Class legal_netting::NetCloseOutAmount
+{
+   nettingSetId: String[1];
+   determinedOn: StrictDate[1];
+   // Carried so this row can join to the agreement's close-out terms directly, without a hop
+   // through NetSet -- the determination is made by a defaults desk working from the
+   // agreement, not from the set.
+   agreementId: String[1];
+   // The date the termination was designated, which is not the date it was calculated. The
+   // gap between them is where the dispute usually is.
+   earlyTerminationDate: StrictDate[1];
+   // Whether the counterparty or the firm defaulted. Decides who determines and who pays.
+   defaultingParty: String[1];
+   // BANKRUPTCY, FAILURE_TO_PAY, CROSS_DEFAULT, ADDITIONAL_TERMINATION_EVENT.
+   triggerEvent: String[1];
+   // Signed, from the determining party's perspective. Positive is owed TO the firm.
+   closeOutAmount: Float[1];
+   // Amounts that fell due before termination and were never paid. Part of the single sum,
+   // and a separate line because they rank differently in some insolvency regimes.
+   unpaidAmounts: Float[1];
+   // Collateral held, applied against the sum. Whether it may be applied at all depends on
+   // the annex's title-transfer election upstream.
+   collateralApplied: Float[1];
+   terminationCurrency: String[1];
+   isDisputed: Boolean[1];
+   // Set when the amount has been settled. Until then it is a claim, not a payment.
+   settledOn: StrictDate[0..1];
+
+   // The single sum: close-out plus unpaids less collateral. All Float, so the arithmetic
+   // stays Float.
+   netTerminationAmount()
+   {
+      $this.closeOutAmount + $this.unpaidAmounts - $this.collateralApplied
+   } : Float[1];
+}
+
+// One line of the close-out calculation, so the number above can be defended.
+//
+// Keyed (set, determination date, component). A close-out amount that cannot be broken back
+// into the quotations and valuations that produced it is not a close-out amount, it is an
+// assertion -- and it is the assertion the counterparty's counsel attacks first.
+Class legal_netting::NetCloseOutComponent
+{
+   nettingSetId: String[1];
+   determinedOn: StrictDate[1];
+   componentCode: String[1];
+   // TERMINATION_VALUE, UNPAID_AMOUNT, FUNDING_COST, COLLATERAL_CREDIT.
+   componentKind: String[1];
+   // The exposure line this component values, when it values one. Null for set-level lines
+   // like the funding cost.
+   exposureId: String[0..1];
+   componentAmount: Float[1];
+   componentCurrency: String[1];
+   // DEALER_QUOTATION, INTERNAL_MODEL, MID_MARKET. Which of the three was used is exactly
+   // what the 2002 form's commercial-reasonableness standard is judged on.
+   valuationSource: String[1];
+   quotationCount: Integer[0..1];
+   determinedBy: String[0..1];
+}
+
+// A right to set off the close-out sum against amounts owed under a DIFFERENT agreement.
+//
+// Deliberately not a property of the set: set-off reaches ACROSS sets, which is what
+// distinguishes it from netting, and modelling it inside one set would lose that. Keyed by
+// its own id because a right is between two agreements and belongs to neither.
+Class legal_netting::NetSetOffRight
+{
+   setOffId: String[1];
+   // The set whose close-out sum is being set off.
+   nettingSetId: String[1];
+   // The other agreement the amount is set off against. Not a NetSet id: the other side is
+   // often a loan or a custody balance that has no netting set at all.
+   againstAgreementId: String[1];
+   setOffScope: String[1];
+   // Contractual set-off elected in the Schedule, versus a set-off arising under the general
+   // law. The second is far weaker and jurisdiction-dependent.
+   isContractual: Boolean[1];
+   // Whether counsel confirmed the right survives the counterparty's insolvency. An
+   // unconfirmed set-off right earns nothing.
+   isEnforceableOnInsolvency: Boolean[1];
+   governingLawCode: String[1];
+   establishedOn: StrictDate[1];
+   exercisedOn: StrictDate[0..1];
+}
+
+// ------------------------------------------------------------------ the run
+
+// One execution of the set-construction process: which sets were built, from what, when.
+//
+// Netting sets are derived, and a derived population needs a batch that owns it. Without this
+// there is no answer to "why was that trade not in the set yesterday", which is the question
+// asked every time the netted number moves.
+Class legal_netting::NetSetRun
+{
+   runId: String[1];
+   cobDate: StrictDate[1];
+   runType: String[1];
+   startedAt: DateTime[1];
+   completedAt: DateTime[0..1];
+   setCount: Integer[1];
+   memberCount: Integer[1];
+   // Sets whose opinion assessment was missing or stale on this run. Not an error -- those
+   // sets went to capital gross, which is correct and expensive.
+   unopinionedSetCount: Integer[1];
+   runStatus: String[1];
+   triggeredBy: String[0..1];
+
+   // Members per set. `/` widens Integer to Float on its own, so this is Float[1].
+   averageSetSize() { $this.memberCount / $this.setCount } : Float[1];
+}
+
+// ------------------------------------------------------------------ THE AGGREGATION
+
+// Exposure rolled up to the set: one row per set per date, over the member lines.
+//
+// This is the shape of the whole project's answer. Members are per-trade and there are
+// millions; the netting set is what a limit, a capital number and a margin call are all
+// written against, and it is six figures fewer rows. The class is rooted on a store VIEW
+// whose ~groupBy is (set, date), so an instance IS a group and never a member -- and the
+// GROUP BY is folded into the generated SQL rather than materialised.
+//
+// The two totals are kept side by side on purpose: `totalGross` sums every member,
+// `netExposure` sums only the ones the opinion reaches. Where they differ, the difference is
+// either an exclusion or an uncovered branch, and it is visible here in one row instead of
+// being reconstructed from the member lines.
+Class legal_netting::NetSetRollup
+{
+   nettingSetId: String[1];
+   cobDate: StrictDate[1];
+   memberCount: Integer[1];
+   // Sum of grossExposure over every member of the set.
+   totalGross: Float[1];
+   // Sum of signedMarkToMarket -- signed, so this is the netted figure and can be negative.
+   netExposure: Float[1];
+   // The largest single member. A set whose exposure is one trade does not really net, and
+   // this is the column that shows it without opening the members.
+   largestMemberGross: Float[1];
+}
+
+// The same exposure rolled up one level higher, to the counterparty across all its sets.
+//
+// A second aggregation and not a refinement of the first: sets do NOT net against each other,
+// so this row is a SUM of set-level nets and never a net across them. Keeping it separate
+// from NetSetRollup is what stops the two being confused -- the number here is what the
+// credit officer sees, and it is legitimately larger than netting the same trades in one set
+// would give.
+Class legal_netting::NetCounterpartyRollup
+{
+   counterpartyId: String[1];
+   cobDate: StrictDate[1];
+   setCount: Integer[1];
+   totalGross: Float[1];
+   // Sum over sets of each set's net. NOT the net across sets, which would be wrong.
+   sumOfSetNets: Float[1];
+}
+
+// ------------------------------------------------------------------ associations
+//
+// The internal spine first: everything hangs off NetSet, which is the point of a netting set.
+
+Association legal_netting::NetSetMembers
+{
+   memberSet: legal_netting::NetSet[1];
+   members: legal_netting::NetSetMember[*];
+}
+
+Association legal_netting::NetSetAssessments
+{
+   assessedSet: legal_netting::NetSet[1];
+   opinionAssessments: legal_netting::NetOpinionAssessment[*];
+}
+
+Association legal_netting::NetSetBranches
+{
+   coveredSet: legal_netting::NetSet[1];
+   branchCoverage: legal_netting::NetBranchCoverage[*];
+}
+
+Association legal_netting::NetSetExclusions
+{
+   excludedSet: legal_netting::NetSet[1];
+   exclusions: legal_netting::NetExclusion[*];
+}
+
+Association legal_netting::NetSetTreatment
+{
+   treatedSet: legal_netting::NetSet[1];
+   capitalTreatments: legal_netting::NetCapitalTreatment[*];
+}
+
+Association legal_netting::NetSetCloseOut
+{
+   closedOutSet: legal_netting::NetSet[1];
+   closeOutAmounts: legal_netting::NetCloseOutAmount[*];
+}
+
+// Two-column join on the way down: a component belongs to one determination, not to every
+// determination the set has ever had.
+Association legal_netting::NetCloseOutBreakdown
+{
+   closeOutAmount: legal_netting::NetCloseOutAmount[1];
+   components: legal_netting::NetCloseOutComponent[*];
+}
+
+Association legal_netting::NetSetOffRights
+{
+   setOffSet: legal_netting::NetSet[1];
+   setOffRights: legal_netting::NetSetOffRight[*];
+}
+
+Association legal_netting::NetMemberRule
+{
+   eligibilityRule: legal_netting::NetEligibilityRule[0..1];
+   ruledMembers: legal_netting::NetSetMember[*];
+}
+
+Association legal_netting::NetRunSets
+{
+   buildingRun: legal_netting::NetSetRun[1];
+   builtSets: legal_netting::NetSet[*];
+}
+
+// The aggregate hangs off the set it aggregates, so a query can go set -> rollup without
+// touching a member row.
+Association legal_netting::NetSetRollups
+{
+   rolledUpSet: legal_netting::NetSet[1];
+   rollups: legal_netting::NetSetRollup[*];
+}
+
+// ---- ACROSS THE BOUNDARY into legal-core --------------------------------------------------
+//
+// The three reaches that make a netting set a legal object rather than a grouping key: the
+// agreement that DEFINES the set, the opinion that lets it net, and the close-out terms that
+// say how the sum is struck.
+
+// The defining association. A master agreement has netting sets; the ordinary case is one,
+// and an umbrella master has several.
+Association legal_netting::NetSetAgreement
+{
+   nettingAgreement: legal_core::MasterAgreement[1];
+   nettingSets: legal_netting::NetSet[*];
+}
+
+// The assessment points at the opinion it applied. Three-column join upstream, because the
+// opinion's key is three columns and any two of them match the wrong document.
+Association legal_netting::NetAssessedOpinion
+{
+   appliedOpinion: legal_core::NettingOpinion[0..1];
+   setAssessments: legal_netting::NetOpinionAssessment[*];
+}
+
+// The close-out row reaches the Schedule elections that govern how it was calculated.
+Association legal_netting::NetCloseOutBasis
+{
+   closeOutBasis: legal_core::CloseOutTerms[0..1];
+   determinedCloseOuts: legal_netting::NetCloseOutAmount[*];
+}
+
+// ---- ACROSS THE BOUNDARY into exposure-agg -------------------------------------------------
+//
+// The other half of the theme. legal-netting says what the set IS; exposure-agg says what it
+// is WORTH. Neither restates the other: there is no gross number in exposure-agg's shape here
+// and no opinion in this project's arithmetic, and the two meet on `nettingSetId` alone.
+
+// The measured exposure, per run, for the set. To-many because a set is measured every day
+// and more than once on a restatement.
+//
+// This is the association the whole project points at: a netting set is the unit exposure is
+// measured on, and here is the measurement.
+Association legal_netting::NetSetNetExposure
+{
+   governingLegalSet: legal_netting::NetSet[0..1];
+   nettedExposures: exposure_agg::ExaNetExposure[*];
+}
+
+// Member to the gross line it turned into. Two-column join, on the set AND the exposure,
+// because an exposure id is only unique within a set here -- the same underlying credit
+// exposure can sit in a second set after a novation, and matching on it alone merges two
+// different measurements.
+Association legal_netting::NetMemberExposureLine
+{
+   exposureLine: exposure_agg::ExaExposureLine[0..1];
+   nettingSetMembers: legal_netting::NetSetMember[*];
+}

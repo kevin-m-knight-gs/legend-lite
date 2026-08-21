@@ -1,0 +1,568 @@
+###Relational
+
+// ============================================================
+// client_reporting::Store -- the fan-in, as tables and joins
+// ============================================================
+// THREE includes, and that is the shape of the project. client_core::Store already carries
+// core-party and core-geo, position_keeping::Store carries core-account and core-instrument,
+// valuation_core::Store carries core-price and core-fx -- three disjoint sets, so none of the
+// six layer-0 stores arrives here twice and none of them has to be included again. Including
+// a store the wrong number of times is the failure mode a fan-in has and a chain does not.
+//
+// Naming: CRP_ tables, Crp_ joins, Crp filters. All three are GLOBAL namespaces across the
+// compiled graph, so a bare CLIENT_STATEMENT or an ActiveRows filter would fail forty other
+// projects with a message naming the id and not this file.
+//
+// The four Views at the foot are the AGGREGATION shape. No DDL is generated for them and
+// nothing seeds them; the engine folds their GROUP BY into the SQL it emits. Their ~groupBy
+// is their primary key, which is both what makes them joinable and what they mean.
+//
+// Declared and unseeded, per the contract. No ###Data element, no Runtime.
+Database client_reporting::Store
+(
+   include client_core::Store
+   include position_keeping::Store
+   include valuation_core::Store
+
+   // ---- the run ------------------------------------------------------------------------
+   Table CRP_STATEMENT_RUN
+   (
+      RUN_ID VARCHAR(32) PRIMARY KEY,
+      PERIOD_END_DATE DATE NOT NULL,
+      RUN_TYPE VARCHAR(24) NOT NULL,
+      STATUS VARCHAR(16) NOT NULL,
+      STARTED_AT TIMESTAMP NOT NULL,
+      COMPLETED_AT TIMESTAMP,
+      STATEMENT_COUNT INTEGER,
+      TRIGGERED_BY VARCHAR(60) NOT NULL
+   )
+
+   // ---- what was agreed ------------------------------------------------------------------
+   // Keyed by CLIENT_ID alone: this is the current arrangement, one per client. CHANNEL_CODE
+   // is a nominated default and is overridden per delivery.
+   Table CRP_REPORTING_PROFILE
+   (
+      CLIENT_ID VARCHAR(32) PRIMARY KEY,
+      VALUATION_FREQUENCY VARCHAR(16) NOT NULL,
+      TRANSACTION_REPORTING VARCHAR(16) NOT NULL,
+      CHANNEL_CODE VARCHAR(16),
+      LANGUAGE_CODE VARCHAR(8),
+      REPORTING_CURRENCY VARCHAR(3) NOT NULL,
+      CONSOLIDATE_MANDATES BIT NOT NULL,
+      EX_ANTE_REQUIRED BIT NOT NULL,
+      DEPRECIATION_NOTICE_REQUIRED BIT NOT NULL,
+      OPTED_OUT_ON DATE
+   )
+
+   // ---- the document ----------------------------------------------------------------------
+   // CLIENT_ID and MANDATE_ID are the two FKs into client-core. MANDATE_ID is nullable
+   // because a consolidated pack spans every mandate and belongs to none.
+   Table CRP_STATEMENT
+   (
+      STATEMENT_ID VARCHAR(40) PRIMARY KEY,
+      RUN_ID VARCHAR(32),
+      CLIENT_ID VARCHAR(32),
+      MANDATE_ID VARCHAR(40),
+      TEMPLATE_CODE VARCHAR(32),
+      STATEMENT_TYPE VARCHAR(24) NOT NULL,
+      PERIOD_START_DATE DATE NOT NULL,
+      PERIOD_END_DATE DATE NOT NULL,
+      REPORTING_CURRENCY VARCHAR(3) NOT NULL,
+      STATUS VARCHAR(16) NOT NULL,
+      GENERATED_AT TIMESTAMP NOT NULL,
+      APPROVED_BY VARCHAR(80),
+      WITHDRAWN_ON DATE,
+      PAGE_COUNT INTEGER
+   )
+
+   Table CRP_DOCUMENT_TEMPLATE
+   (
+      TEMPLATE_CODE VARCHAR(32) PRIMARY KEY,
+      TEMPLATE_NAME VARCHAR(120) NOT NULL,
+      VERSION_NO INTEGER NOT NULL,
+      LANGUAGE_CODE VARCHAR(8) NOT NULL,
+      STATEMENT_TYPE VARCHAR(24) NOT NULL,
+      APPROVED_BY VARCHAR(80),
+      EFFECTIVE_FROM DATE NOT NULL,
+      WITHDRAWN_ON DATE
+   )
+
+   Table CRP_SUPPRESSION
+   (
+      SUPPRESSION_ID VARCHAR(40) PRIMARY KEY,
+      CLIENT_ID VARCHAR(32),
+      STATEMENT_TYPE VARCHAR(24),
+      REASON VARCHAR(400) NOT NULL,
+      RAISED_BY VARCHAR(80) NOT NULL,
+      EFFECTIVE_FROM DATE NOT NULL,
+      EFFECTIVE_TO DATE,
+      IS_REGULATORY_HOLD BIT NOT NULL
+   )
+
+   // ---- the valuation statement -------------------------------------------------------------
+   // INSTITUTION_ID + ACCOUNT_NO is position-keeping's account key, both columns of it; a
+   // single-column join on ACCOUNT_NO would match accounts at other institutions that reused
+   // the number. VALUATION_RUN_ID is valuation-core's. Two dependencies, on one row.
+   Table CRP_VALUATION_STATEMENT
+   (
+      STATEMENT_ID VARCHAR(40) PRIMARY KEY,
+      INSTITUTION_ID VARCHAR(20) NOT NULL,
+      ACCOUNT_NO VARCHAR(34) NOT NULL,
+      COB_DATE DATE NOT NULL,
+      VALUATION_RUN_ID VARCHAR(20),
+      OPENING_VALUE DOUBLE,
+      CLOSING_VALUE DOUBLE,
+      NET_CONTRIBUTIONS DOUBLE,
+      INCOME_RECEIVED DOUBLE,
+      ACCRUED_INTEREST DOUBLE,
+      CASH_BALANCE DOUBLE,
+      LINE_COUNT INTEGER,
+      UNPRICED_LINE_COUNT INTEGER
+   )
+
+   // The join point of the project. Four columns reach PK_POSITION, three reach VC_VALUATION,
+   // and two of those three are already here for the position.
+   Table CRP_VALUATION_LINE
+   (
+      STATEMENT_ID VARCHAR(40) PRIMARY KEY,
+      LINE_SEQ INTEGER PRIMARY KEY,
+      INSTITUTION_ID VARCHAR(20) NOT NULL,
+      ACCOUNT_NO VARCHAR(34) NOT NULL,
+      INSTRUMENT_ID VARCHAR(60) NOT NULL,
+      COB_DATE DATE NOT NULL,
+      VALUATION_RUN_ID VARCHAR(20),
+      QUANTITY DOUBLE,
+      UNIT_COST DOUBLE,
+      MARKET_PRICE DOUBLE,
+      MARKET_VALUE DOUBLE,
+      VALUE_IN_REPORTING DOUBLE,
+      WEIGHT_PCT DOUBLE,
+      UNREALISED_PNL DOUBLE,
+      ASSET_CLASS VARCHAR(24) NOT NULL,
+      IS_PRICE_STALE BIT NOT NULL
+   )
+
+   // ---- the transaction statement ------------------------------------------------------------
+   Table CRP_TRANSACTION_STATEMENT
+   (
+      STATEMENT_ID VARCHAR(40) PRIMARY KEY,
+      INSTITUTION_ID VARCHAR(20) NOT NULL,
+      ACCOUNT_NO VARCHAR(34) NOT NULL,
+      PERIOD_START_DATE DATE NOT NULL,
+      PERIOD_END_DATE DATE NOT NULL,
+      TRANSACTION_COUNT INTEGER,
+      GROSS_PURCHASES DOUBLE,
+      GROSS_SALES DOUBLE,
+      NET_CASH_MOVEMENT DOUBLE,
+      IS_TRADE_BY_TRADE BIT NOT NULL
+   )
+
+   // FIVE columns out to PK_POSITION_MOVEMENT -- the four position columns plus the sequence.
+   Table CRP_TRANSACTION_LINE
+   (
+      STATEMENT_ID VARCHAR(40) PRIMARY KEY,
+      LINE_SEQ INTEGER PRIMARY KEY,
+      INSTITUTION_ID VARCHAR(20) NOT NULL,
+      ACCOUNT_NO VARCHAR(34) NOT NULL,
+      INSTRUMENT_ID VARCHAR(60) NOT NULL,
+      COB_DATE DATE NOT NULL,
+      MOVEMENT_SEQ INTEGER,
+      TRADE_DATE DATE NOT NULL,
+      SETTLEMENT_DATE DATE,
+      TRANSACTION_TYPE VARCHAR(30) NOT NULL,
+      QUANTITY DOUBLE,
+      PRICE DOUBLE,
+      GROSS_AMOUNT DOUBLE,
+      CHARGES_AMOUNT DOUBLE,
+      NET_AMOUNT DOUBLE,
+      TRADE_CURRENCY VARCHAR(3) NOT NULL,
+      VENUE VARCHAR(40),
+      COUNTERPARTY_NAME VARCHAR(200)
+   )
+
+   Table CRP_CASH_FLOW_LINE
+   (
+      STATEMENT_ID VARCHAR(40) PRIMARY KEY,
+      LINE_SEQ INTEGER PRIMARY KEY,
+      FLOW_DATE DATE NOT NULL,
+      FLOW_TYPE VARCHAR(24) NOT NULL,
+      AMOUNT DOUBLE,
+      CURRENCY_CODE VARCHAR(3) NOT NULL,
+      AMOUNT_IN_REPORTING DOUBLE,
+      NARRATIVE VARCHAR(200)
+   )
+
+   // ---- costs and charges -----------------------------------------------------------------------
+   // BASIS is EX_ANTE or EX_POST and is the only thing separating an illustration from a bill.
+   Table CRP_COSTS_DISCLOSURE
+   (
+      DISCLOSURE_ID VARCHAR(40) PRIMARY KEY,
+      STATEMENT_ID VARCHAR(40),
+      CLIENT_ID VARCHAR(32),
+      MANDATE_ID VARCHAR(40),
+      BASIS VARCHAR(8) NOT NULL,
+      PERIOD_START_DATE DATE NOT NULL,
+      PERIOD_END_DATE DATE NOT NULL,
+      ASSUMED_INVESTMENT DOUBLE,
+      HOLDING_PERIOD_YEARS INTEGER,
+      TOTAL_COSTS_AMOUNT DOUBLE,
+      TOTAL_COSTS_PCT DOUBLE,
+      REDUCTION_IN_YIELD_PCT DOUBLE,
+      CURRENCY_CODE VARCHAR(3) NOT NULL,
+      IS_AGGREGATED BIT NOT NULL,
+      ISSUED_ON DATE
+   )
+
+   Table CRP_COST_LINE
+   (
+      DISCLOSURE_ID VARCHAR(40) PRIMARY KEY,
+      LINE_SEQ INTEGER PRIMARY KEY,
+      COST_CATEGORY VARCHAR(32) NOT NULL,
+      COST_TYPE VARCHAR(60) NOT NULL,
+      IS_PRODUCT_COST BIT NOT NULL,
+      IS_THIRD_PARTY_PAYMENT BIT NOT NULL,
+      AMOUNT DOUBLE,
+      PCT_OF_INVESTMENT DOUBLE,
+      CURRENCY_CODE VARCHAR(3) NOT NULL,
+      BASIS_NOTE VARCHAR(400)
+   )
+
+   // One row per year of the assumed holding period.
+   Table CRP_COST_ILLUSTRATION
+   (
+      DISCLOSURE_ID VARCHAR(40) PRIMARY KEY,
+      YEAR_NO INTEGER PRIMARY KEY,
+      OPENING_VALUE DOUBLE,
+      GROSS_RETURN_PCT DOUBLE,
+      COSTS_AMOUNT DOUBLE,
+      CLOSING_VALUE_BEFORE_COSTS DOUBLE,
+      CLOSING_VALUE_AFTER_COSTS DOUBLE,
+      CUMULATIVE_COSTS DOUBLE
+   )
+
+   // ---- performance ------------------------------------------------------------------------------
+   Table CRP_BENCHMARK
+   (
+      BENCHMARK_CODE VARCHAR(32) PRIMARY KEY,
+      BENCHMARK_NAME VARCHAR(200) NOT NULL,
+      PROVIDER VARCHAR(80),
+      CURRENCY_CODE VARCHAR(3) NOT NULL,
+      IS_TOTAL_RETURN BIT NOT NULL,
+      IS_COMPOSITE BIT NOT NULL,
+      REBALANCE_FREQUENCY VARCHAR(16),
+      RETIRED_ON DATE
+   )
+
+   Table CRP_BENCHMARK_COMPONENT
+   (
+      BENCHMARK_CODE VARCHAR(32) PRIMARY KEY,
+      COMPONENT_SEQ INTEGER PRIMARY KEY,
+      COMPONENT_CODE VARCHAR(32) NOT NULL,
+      COMPONENT_NAME VARCHAR(120),
+      WEIGHT_PCT DOUBLE,
+      EFFECTIVE_FROM DATE NOT NULL
+   )
+
+   Table CRP_PERFORMANCE_REPORT
+   (
+      REPORT_ID VARCHAR(40) PRIMARY KEY,
+      STATEMENT_ID VARCHAR(40),
+      MANDATE_ID VARCHAR(40),
+      BENCHMARK_CODE VARCHAR(32),
+      RETURN_METHOD VARCHAR(16) NOT NULL,
+      IS_NET_OF_FEES BIT NOT NULL,
+      PERIOD_START_DATE DATE NOT NULL,
+      PERIOD_END_DATE DATE NOT NULL,
+      OPENING_VALUE DOUBLE,
+      CLOSING_VALUE DOUBLE,
+      NET_FLOWS DOUBLE,
+      PORTFOLIO_RETURN_PCT DOUBLE,
+      BENCHMARK_RETURN_PCT DOUBLE,
+      CURRENCY_CODE VARCHAR(3) NOT NULL
+   )
+
+   Table CRP_PERFORMANCE_PERIOD
+   (
+      REPORT_ID VARCHAR(40) PRIMARY KEY,
+      PERIOD_CODE VARCHAR(12) PRIMARY KEY,
+      PERIOD_START_DATE DATE NOT NULL,
+      PERIOD_END_DATE DATE NOT NULL,
+      PORTFOLIO_RETURN_PCT DOUBLE,
+      BENCHMARK_RETURN_PCT DOUBLE,
+      IS_ANNUALISED BIT NOT NULL,
+      VOLATILITY_PCT DOUBLE
+   )
+
+   Table CRP_ATTRIBUTION_REPORT
+   (
+      ATTRIBUTION_ID VARCHAR(40) PRIMARY KEY,
+      REPORT_ID VARCHAR(40),
+      MODEL_CODE VARCHAR(24) NOT NULL,
+      SEGMENT_BY VARCHAR(24) NOT NULL,
+      PERIOD_START_DATE DATE NOT NULL,
+      PERIOD_END_DATE DATE NOT NULL,
+      TOTAL_ALLOCATION_BPS DOUBLE,
+      TOTAL_SELECTION_BPS DOUBLE,
+      TOTAL_INTERACTION_BPS DOUBLE,
+      RESIDUAL_BPS DOUBLE,
+      IS_SMOOTHED BIT NOT NULL
+   )
+
+   Table CRP_ATTRIBUTION_LINE
+   (
+      ATTRIBUTION_ID VARCHAR(40) PRIMARY KEY,
+      SEGMENT_CODE VARCHAR(32) PRIMARY KEY,
+      SEGMENT_NAME VARCHAR(120),
+      PORTFOLIO_WEIGHT_PCT DOUBLE,
+      BENCHMARK_WEIGHT_PCT DOUBLE,
+      PORTFOLIO_RETURN_PCT DOUBLE,
+      BENCHMARK_RETURN_PCT DOUBLE,
+      ALLOCATION_BPS DOUBLE,
+      SELECTION_BPS DOUBLE,
+      INTERACTION_BPS DOUBLE
+   )
+
+   // ---- the ten-percent notice ---------------------------------------------------------------------
+   // Every check is kept, breached or not: the evidence that the obligation was met is the
+   // check that found nothing, not the absence of a notice.
+   Table CRP_DEPRECIATION_CHECK
+   (
+      CHECK_ID VARCHAR(40) PRIMARY KEY,
+      CLIENT_ID VARCHAR(32),
+      MANDATE_ID VARCHAR(40),
+      INSTITUTION_ID VARCHAR(20),
+      ACCOUNT_NO VARCHAR(34),
+      COB_DATE DATE NOT NULL,
+      THRESHOLD_PCT DOUBLE,
+      PERIOD_START_VALUE DOUBLE,
+      CURRENT_VALUE DOUBLE,
+      DEPRECIATION_PCT DOUBLE,
+      MULTIPLE_CROSSED INTEGER,
+      IS_LEVERAGED BIT NOT NULL,
+      EVALUATED_AT TIMESTAMP NOT NULL,
+      BREACHED_ON DATE
+   )
+
+   // DUE_BY_DATE is close of the NEXT BUSINESS DAY and is stored, not computed: the calendar
+   // that decides which day that was belongs to a project this one does not depend on, and
+   // the deadline that applied must not move when that calendar is later corrected.
+   Table CRP_DEPRECIATION_NOTICE
+   (
+      NOTICE_ID VARCHAR(40) PRIMARY KEY,
+      CHECK_ID VARCHAR(40),
+      STATEMENT_ID VARCHAR(40),
+      CLIENT_ID VARCHAR(32),
+      MANDATE_ID VARCHAR(40),
+      TRIGGER_DATE DATE NOT NULL,
+      DUE_BY_DATE DATE NOT NULL,
+      SENT_AT TIMESTAMP,
+      THRESHOLD_PCT DOUBLE,
+      DEPRECIATION_PCT DOUBLE,
+      PORTFOLIO_VALUE DOUBLE,
+      CURRENCY_CODE VARCHAR(3) NOT NULL,
+      IS_LATE BIT NOT NULL,
+      LATE_REASON VARCHAR(400)
+   )
+
+   // ---- delivery ---------------------------------------------------------------------------------------
+   Table CRP_DELIVERY_CHANNEL
+   (
+      CHANNEL_CODE VARCHAR(16) PRIMARY KEY,
+      CHANNEL_NAME VARCHAR(80) NOT NULL,
+      IS_DURABLE_MEDIUM BIT NOT NULL,
+      REQUIRES_ACKNOWLEDGEMENT BIT NOT NULL,
+      TARGET_LATENCY_HOURS INTEGER,
+      RETIRED_ON DATE
+   )
+
+   // STATEMENT_ID and NOTICE_ID are both nullable and exactly one is set: the same delivery
+   // machinery carries both documents, and a notice is not always issued as a statement.
+   Table CRP_DELIVERY
+   (
+      DELIVERY_ID VARCHAR(40) PRIMARY KEY,
+      STATEMENT_ID VARCHAR(40),
+      NOTICE_ID VARCHAR(40),
+      CHANNEL_CODE VARCHAR(16),
+      RECIPIENT_ADDRESS VARCHAR(200) NOT NULL,
+      DISPATCHED_AT TIMESTAMP NOT NULL,
+      DELIVERED_AT TIMESTAMP,
+      STATUS VARCHAR(16) NOT NULL,
+      ATTEMPT_COUNT INTEGER,
+      DOCUMENT_HASH VARCHAR(64),
+      FAILED_REASON VARCHAR(400)
+   )
+
+   // ATTEMPT_DATE sits alongside ATTEMPTED_AT so the aggregate below groups min and max over
+   // a DATE rather than a TIMESTAMP.
+   Table CRP_DELIVERY_ATTEMPT
+   (
+      DELIVERY_ID VARCHAR(40) PRIMARY KEY,
+      ATTEMPT_SEQ INTEGER PRIMARY KEY,
+      ATTEMPT_DATE DATE NOT NULL,
+      ATTEMPTED_AT TIMESTAMP NOT NULL,
+      OUTCOME VARCHAR(16) NOT NULL,
+      RESPONSE_CODE VARCHAR(24),
+      DIAGNOSTIC VARCHAR(400),
+      NEXT_RETRY_AT TIMESTAMP
+   )
+
+   // Keyed by the delivery alone: at most one acknowledgement per dispatch.
+   Table CRP_ACKNOWLEDGEMENT
+   (
+      DELIVERY_ID VARCHAR(40) PRIMARY KEY,
+      ACKNOWLEDGED_AT TIMESTAMP NOT NULL,
+      ACKNOWLEDGED_BY VARCHAR(160),
+      CONTACT_ID VARCHAR(40),
+      METHOD VARCHAR(24) NOT NULL,
+      IS_EXPLICIT BIT NOT NULL,
+      SOURCE_IP VARCHAR(45)
+   )
+
+   // CONTACT_ID is the FK into client-core's named human.
+   Table CRP_STATEMENT_RECIPIENT
+   (
+      STATEMENT_ID VARCHAR(40) PRIMARY KEY,
+      CONTACT_ID VARCHAR(40) PRIMARY KEY,
+      RECIPIENT_ROLE VARCHAR(24) NOT NULL,
+      IS_ADDRESSEE BIT NOT NULL,
+      ADDED_ON DATE NOT NULL,
+      SUPPRESSED_ON DATE
+   )
+
+   // ---------------------------------------------------------- the aggregations
+   // Legend views, not database views. Nothing seeds them; the engine folds the GROUP BY into
+   // the SQL it generates. ~groupBy IS the primary key, so one row is one group.
+
+   // A statement's holdings, totalled. The header is reconciled against this without reading
+   // a line.
+   View CRP_VALUATION_LINE_TOTAL
+   (
+      ~groupBy
+      (
+         CRP_VALUATION_LINE.STATEMENT_ID
+      )
+      STATEMENT_ID: CRP_VALUATION_LINE.STATEMENT_ID PRIMARY KEY,
+      LINE_COUNT: count(CRP_VALUATION_LINE.LINE_SEQ),
+      TOTAL_MARKET_VALUE: sum(CRP_VALUATION_LINE.MARKET_VALUE),
+      TOTAL_VALUE_IN_REPORTING: sum(CRP_VALUATION_LINE.VALUE_IN_REPORTING),
+      TOTAL_UNREALISED_PNL: sum(CRP_VALUATION_LINE.UNREALISED_PNL),
+      LARGEST_LINE_VALUE: max(CRP_VALUATION_LINE.VALUE_IN_REPORTING)
+   )
+
+   // The cost breakdown summarised BY CATEGORY. The grouping keeps the category, which is
+   // what makes it the six-line summary the client is shown above the detail.
+   View CRP_DISCLOSURE_COST_TOTAL
+   (
+      ~groupBy
+      (
+         CRP_COST_LINE.DISCLOSURE_ID,
+         CRP_COST_LINE.COST_CATEGORY
+      )
+      DISCLOSURE_ID: CRP_COST_LINE.DISCLOSURE_ID PRIMARY KEY,
+      COST_CATEGORY: CRP_COST_LINE.COST_CATEGORY PRIMARY KEY,
+      LINE_COUNT: count(CRP_COST_LINE.LINE_SEQ),
+      TOTAL_AMOUNT: sum(CRP_COST_LINE.AMOUNT),
+      TOTAL_PCT: sum(CRP_COST_LINE.PCT_OF_INVESTMENT)
+   )
+
+   // The grouping that DROPS the mandate and the statement type: everything one client was
+   // sent for one period end. A question no statement row can answer on its own.
+   View CRP_CLIENT_PERIOD_TOTAL
+   (
+      ~groupBy
+      (
+         CRP_STATEMENT.CLIENT_ID,
+         CRP_STATEMENT.PERIOD_END_DATE
+      )
+      CLIENT_ID: CRP_STATEMENT.CLIENT_ID PRIMARY KEY,
+      PERIOD_END_DATE: CRP_STATEMENT.PERIOD_END_DATE PRIMARY KEY,
+      STATEMENT_COUNT: count(CRP_STATEMENT.STATEMENT_ID),
+      MANDATE_COUNT: count(CRP_STATEMENT.MANDATE_ID),
+      TOTAL_PAGES: sum(CRP_STATEMENT.PAGE_COUNT)
+   )
+
+   // A delivery's retry history, summarised.
+   View CRP_DELIVERY_OUTCOME_TOTAL
+   (
+      ~groupBy
+      (
+         CRP_DELIVERY_ATTEMPT.DELIVERY_ID
+      )
+      DELIVERY_ID: CRP_DELIVERY_ATTEMPT.DELIVERY_ID PRIMARY KEY,
+      ATTEMPT_COUNT: count(CRP_DELIVERY_ATTEMPT.ATTEMPT_SEQ),
+      FIRST_ATTEMPT_DATE: min(CRP_DELIVERY_ATTEMPT.ATTEMPT_DATE),
+      LAST_ATTEMPT_DATE: max(CRP_DELIVERY_ATTEMPT.ATTEMPT_DATE)
+   )
+
+   // ---------------------------------------------------------- joins within this store
+   // Every one is written FROM the many side TO the one side, so a chained property mapping
+   // over it stays single-valued.
+   Join Crp_StatementRun(CRP_STATEMENT.RUN_ID = CRP_STATEMENT_RUN.RUN_ID)
+   Join Crp_StatementTemplate(CRP_STATEMENT.TEMPLATE_CODE = CRP_DOCUMENT_TEMPLATE.TEMPLATE_CODE)
+   Join Crp_StatementValuation(CRP_VALUATION_STATEMENT.STATEMENT_ID = CRP_STATEMENT.STATEMENT_ID)
+   Join Crp_StatementTransaction(CRP_TRANSACTION_STATEMENT.STATEMENT_ID = CRP_STATEMENT.STATEMENT_ID)
+   Join Crp_ValuationStatementLines(CRP_VALUATION_LINE.STATEMENT_ID = CRP_VALUATION_STATEMENT.STATEMENT_ID)
+   Join Crp_TransactionStatementLines(CRP_TRANSACTION_LINE.STATEMENT_ID = CRP_TRANSACTION_STATEMENT.STATEMENT_ID)
+   Join Crp_TransactionCashFlows(CRP_CASH_FLOW_LINE.STATEMENT_ID = CRP_TRANSACTION_STATEMENT.STATEMENT_ID)
+   Join Crp_StatementDisclosure(CRP_COSTS_DISCLOSURE.STATEMENT_ID = CRP_STATEMENT.STATEMENT_ID)
+   Join Crp_DisclosureCostLines(CRP_COST_LINE.DISCLOSURE_ID = CRP_COSTS_DISCLOSURE.DISCLOSURE_ID)
+   Join Crp_DisclosureIllustrations(CRP_COST_ILLUSTRATION.DISCLOSURE_ID = CRP_COSTS_DISCLOSURE.DISCLOSURE_ID)
+   Join Crp_StatementPerformance(CRP_PERFORMANCE_REPORT.STATEMENT_ID = CRP_STATEMENT.STATEMENT_ID)
+   Join Crp_PerformancePeriods(CRP_PERFORMANCE_PERIOD.REPORT_ID = CRP_PERFORMANCE_REPORT.REPORT_ID)
+   Join Crp_PerformanceBenchmark(CRP_PERFORMANCE_REPORT.BENCHMARK_CODE = CRP_BENCHMARK.BENCHMARK_CODE)
+   Join Crp_BenchmarkComponents(CRP_BENCHMARK_COMPONENT.BENCHMARK_CODE = CRP_BENCHMARK.BENCHMARK_CODE)
+   Join Crp_PerformanceAttribution(CRP_ATTRIBUTION_REPORT.REPORT_ID = CRP_PERFORMANCE_REPORT.REPORT_ID)
+   Join Crp_AttributionLines(CRP_ATTRIBUTION_LINE.ATTRIBUTION_ID = CRP_ATTRIBUTION_REPORT.ATTRIBUTION_ID)
+   Join Crp_CheckNotices(CRP_DEPRECIATION_NOTICE.CHECK_ID = CRP_DEPRECIATION_CHECK.CHECK_ID)
+   Join Crp_NoticeStatement(CRP_DEPRECIATION_NOTICE.STATEMENT_ID = CRP_STATEMENT.STATEMENT_ID)
+   Join Crp_StatementDeliveries(CRP_DELIVERY.STATEMENT_ID = CRP_STATEMENT.STATEMENT_ID)
+   Join Crp_NoticeDeliveries(CRP_DELIVERY.NOTICE_ID = CRP_DEPRECIATION_NOTICE.NOTICE_ID)
+   Join Crp_DeliveryChannel(CRP_DELIVERY.CHANNEL_CODE = CRP_DELIVERY_CHANNEL.CHANNEL_CODE)
+   Join Crp_ProfileChannel(CRP_REPORTING_PROFILE.CHANNEL_CODE = CRP_DELIVERY_CHANNEL.CHANNEL_CODE)
+   Join Crp_DeliveryAttempts(CRP_DELIVERY_ATTEMPT.DELIVERY_ID = CRP_DELIVERY.DELIVERY_ID)
+   Join Crp_DeliveryAcknowledgement(CRP_ACKNOWLEDGEMENT.DELIVERY_ID = CRP_DELIVERY.DELIVERY_ID)
+   Join Crp_StatementRecipients(CRP_STATEMENT_RECIPIENT.STATEMENT_ID = CRP_STATEMENT.STATEMENT_ID)
+
+   // ---------------------------------------------------------- joins into the aggregations
+   // Each of these crosses from rows into a GROUP and never into another row.
+   Join Crp_StatementLineTotal(CRP_VALUATION_STATEMENT.STATEMENT_ID = CRP_VALUATION_LINE_TOTAL.STATEMENT_ID)
+   Join Crp_DisclosureCostTotal(CRP_COSTS_DISCLOSURE.DISCLOSURE_ID = CRP_DISCLOSURE_COST_TOTAL.DISCLOSURE_ID)
+   Join Crp_StatementClientPeriodTotal(CRP_STATEMENT.CLIENT_ID = CRP_CLIENT_PERIOD_TOTAL.CLIENT_ID and CRP_STATEMENT.PERIOD_END_DATE = CRP_CLIENT_PERIOD_TOTAL.PERIOD_END_DATE)
+   Join Crp_DeliveryOutcomeTotal(CRP_DELIVERY.DELIVERY_ID = CRP_DELIVERY_OUTCOME_TOTAL.DELIVERY_ID)
+
+   // ---------------------------------------------------------- joins into client-core
+   // Who the document is for. These resolve because client_core::Store is included above --
+   // there is no import in Legend and no copy of CLI_CLIENT here.
+   Join Crp_StatementClient(CRP_STATEMENT.CLIENT_ID = CLI_CLIENT.CLIENT_ID)
+   Join Crp_StatementMandate(CRP_STATEMENT.MANDATE_ID = CLI_MANDATE.MANDATE_ID)
+   Join Crp_RecipientContact(CRP_STATEMENT_RECIPIENT.CONTACT_ID = CLI_CLIENT_CONTACT.CONTACT_ID)
+   Join Crp_ProfileClient(CRP_REPORTING_PROFILE.CLIENT_ID = CLI_CLIENT.CLIENT_ID)
+   Join Crp_SuppressionClient(CRP_SUPPRESSION.CLIENT_ID = CLI_CLIENT.CLIENT_ID)
+   Join Crp_CheckMandate(CRP_DEPRECIATION_CHECK.MANDATE_ID = CLI_MANDATE.MANDATE_ID)
+   // From a VIEW, back across a project boundary: an aggregate still knows whose it is.
+   Join Crp_PeriodTotalClient(CRP_CLIENT_PERIOD_TOTAL.CLIENT_ID = CLI_CLIENT.CLIENT_ID)
+
+   // ---------------------------------------------------------- joins into position-keeping
+   // FOUR columns to a position, because a position is (institution, account, instrument, cob
+   // date) and nothing shorter. FIVE to a movement. THREE to the account-day view, whose
+   // grouping drops the instrument.
+   Join Crp_LinePosition(CRP_VALUATION_LINE.INSTITUTION_ID = PK_POSITION.INSTITUTION_ID and CRP_VALUATION_LINE.ACCOUNT_NO = PK_POSITION.ACCOUNT_NO and CRP_VALUATION_LINE.INSTRUMENT_ID = PK_POSITION.INSTRUMENT_ID and CRP_VALUATION_LINE.COB_DATE = PK_POSITION.COB_DATE)
+   Join Crp_TransactionMovement(CRP_TRANSACTION_LINE.INSTITUTION_ID = PK_POSITION_MOVEMENT.INSTITUTION_ID and CRP_TRANSACTION_LINE.ACCOUNT_NO = PK_POSITION_MOVEMENT.ACCOUNT_NO and CRP_TRANSACTION_LINE.INSTRUMENT_ID = PK_POSITION_MOVEMENT.INSTRUMENT_ID and CRP_TRANSACTION_LINE.COB_DATE = PK_POSITION_MOVEMENT.COB_DATE and CRP_TRANSACTION_LINE.MOVEMENT_SEQ = PK_POSITION_MOVEMENT.MOVEMENT_SEQ)
+   Join Crp_StatementAccountDayTotal(CRP_VALUATION_STATEMENT.INSTITUTION_ID = PK_ACCOUNT_DAY_TOTAL.INSTITUTION_ID and CRP_VALUATION_STATEMENT.ACCOUNT_NO = PK_ACCOUNT_DAY_TOTAL.ACCOUNT_NO and CRP_VALUATION_STATEMENT.COB_DATE = PK_ACCOUNT_DAY_TOTAL.COB_DATE)
+
+   // ---------------------------------------------------------- joins into valuation-core
+   // THREE columns to a valuation: run, instrument and date. Dropping the run would match
+   // every revaluation of the day at once.
+   Join Crp_LineValuation(CRP_VALUATION_LINE.VALUATION_RUN_ID = VC_VALUATION.RUN_ID and CRP_VALUATION_LINE.INSTRUMENT_ID = VC_VALUATION.INSTRUMENT_ID and CRP_VALUATION_LINE.COB_DATE = VC_VALUATION.COB_DATE)
+   Join Crp_StatementValuationRun(CRP_VALUATION_STATEMENT.VALUATION_RUN_ID = VC_VALUATION_RUN.RUN_ID)
+
+   // ---------------------------------------------------------- filters
+   // Crp-prefixed because a filter name is a GLOBAL namespace, and every one is a NULL TEST:
+   // a Filter will not take a boolean literal -- `IS_LATE = true` fails with
+   // `Unexpected token 'true'`. Declared and left unapplied, for a downstream mapping.
+   Filter CrpIssuedStatements(CRP_STATEMENT.WITHDRAWN_ON is null)
+   Filter CrpPendingDeliveries(CRP_DELIVERY.DELIVERED_AT is null)
+   Filter CrpUnsentNotices(CRP_DEPRECIATION_NOTICE.SENT_AT is null)
+   Filter CrpCurrentTemplates(CRP_DOCUMENT_TEMPLATE.WITHDRAWN_ON is null)
+   Filter CrpActiveSuppressions(CRP_SUPPRESSION.EFFECTIVE_TO is null)
+)
