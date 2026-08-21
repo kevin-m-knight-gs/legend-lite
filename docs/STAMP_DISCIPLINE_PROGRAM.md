@@ -654,3 +654,51 @@ frame-bit consultation for relation receivers and the TypeVar
 heuristic), the per-row/collection frame read off the TYPE, and the
 Env frame bit retained only for genuinely lexical facts (lambda-vs-let
 binding kind).
+
+ADDENDUM (user challenge, accepted in part): the D3-class ruling holds
+for STAMPS (not-a-debt) but UNDERCOUNTED one real payoff — the
+resolver handles user-written maps and sugar chains through SEPARATE
+arms (autoMapRead exists to convert one to the other): duplicated
+logic, divergence risk. The correct fix is a PATH-VIEW API (matchers
+consume the hop sequence as an abstraction both spellings satisfy;
+autoMapRead and the dual arms DELETE) — not the rewriting adapter.
+Sequenced AFTER the Row split (map-over-relation lambdas become
+Row-typed by declaration first; the sites barely overlap, bundling
+would entangle two deep migrations). Tracked as its own arc:
+PATH-VIEW UNIFICATION.
+
+## ROW-VS-RELATION SPLIT — KERNEL LANDING (user: "do it")
+
+Type.RowType EXISTS: one row, distinct from the table. The kernel
+stopped erasing the distinction the pure signatures always declared —
+T in Relation<T> binds the ROW (RowType), Relation<T> resolves back to
+the TABLE (bare RelationType over the row's schema). G-alpha now
+round-trips instead of erasing.
+
+The migration ran in EIGHT principled rings, 1,323 -> 0 core failures
+plus the corpus's getter ring, each ring ONE systematic rule:
+1. accessProperty RowType arm — per-cell stamps BY TYPE (the
+   detective's replacement for kernel-typed rows).
+2. ⊆ subset RHS accepts a row's schema.
+3. Transitional binding coherence: RowType(cols) and RelationType(cols)
+   are one binding (ROW form wins; deleted when all producers speak Row).
+4. Relation<T> resolves to the TABLE view of the bound row (the
+   round-trip — healed 460 in one line).
+5. Schema-algebra operands contribute row SCHEMAS (left AND right —
+   the right-side silent drop was the join 4-vs-2 witness).
+6. ResultShape/Executor: a ROW root is a one-row TABLE at the boundary.
+7. relationRow presents a row's schema (bare row-struct spellings in
+   declared signatures accept row actuals).
+8. The TDS getter surface (tdsReceiver): getters serve relations AND
+   rows — the ROW case stated by type (h2 floor back to exactly
+   320/632; groupBy agg-lambda getters were the witnesses).
+Two kernel tests updated from pinning the ERASURE to pinning the SPLIT.
+
+Landed green: core 4166/0, corpus zero regressions ledger-byte-
+identical, h2 floor exact, PCT all suites, full gates chain.
+
+NEXT SLICE (the detective's actual deletion): resolver-built navigate
+slots still type bare RelationType where they mean rows — move those
+producers to RowType, then rowRooted DELETES (its env consultation for
+relation receivers and the TypeVar heuristic both), the frame read off
+the type everywhere.

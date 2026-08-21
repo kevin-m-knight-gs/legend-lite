@@ -252,9 +252,14 @@ class InferenceKernelTest {
 
         Bindings b = new Bindings();
         k.unify(formal, row, b);                       // actual is a BARE RelationType
-        assertEquals(row, b.type("T").orElseThrow());  // schema var bound to the row-struct
+        // Row-vs-Relation SPLIT (the new spec, replacing G-alpha's
+        // erasure): T binds the ROW TYPE — the signatures' declared
+        // container/element distinction is preserved, not erased.
+        assertEquals(new Type.RowType(row.columns()),
+                b.type("T").orElseThrow());
 
-        // resolving Relation<T> unwraps to the bare row-struct (the value form)
+        // resolving Relation<T> yields the TABLE value over the bound
+        // row's schema (the container round-trips; nothing is erased)
         assertEquals(row, k.resolve(formal, b));
     }
 
@@ -267,7 +272,8 @@ class InferenceKernelTest {
 
         Bindings b = new Bindings();
         k.unify(formal, wrapped, b);
-        assertEquals(row, b.type("T").orElseThrow());
+        assertEquals(new Type.RowType(row.columns()),
+                b.type("T").orElseThrow());
     }
 
     @Test

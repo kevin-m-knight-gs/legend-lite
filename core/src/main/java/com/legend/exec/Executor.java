@@ -544,6 +544,10 @@ public final class Executor {
 
     /** The relation schema of a TABULAR root, struct columns flattened. */
     private static Type.RelationType tabularSchema(ExprType rootType) {
+        // a ROW root reads through its schema (one-row table view)
+        if (rootType.type() instanceof Type.RowType row) {
+            return row.relation();
+        }
         if (!(rootType.type() instanceof Type.RelationType typedSchema)) {
             throw new IllegalStateException("TABULAR result without a relation root type: "
                     + rootType.type().typeName());

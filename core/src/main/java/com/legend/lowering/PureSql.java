@@ -54,6 +54,12 @@ final class PureSql {
      */
     static SqlType type(Type t) {
         return switch (t) {
+            // a ROW as a bare SQL value has no carrier yet (the split's
+            // lowering leg) — loud, per this switch's own contract
+            case Type.RowType row -> throw new com.legend.error
+                    .NotImplementedException("a row value has no SQL"
+                    + " carrier yet (Row-vs-Relation split): "
+                    + row.typeName());
             case Type.Primitive p -> switch (p) {
                 case STRING -> SqlType.Scalar.VARCHAR;
                 case INTEGER -> SqlType.Scalar.BIGINT;

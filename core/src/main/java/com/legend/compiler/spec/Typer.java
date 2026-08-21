@@ -306,8 +306,8 @@ final class Typer {
         if ((af.function().equals("isNotNull") || af.function().equals("isNull"))
                 && af.parameters().size() == 2
                 && literalColName(af.parameters().get(1)) != null
-                && synth(af.parameters().get(0), env).info().type()
-                        instanceof Type.RelationType) {
+                && tdsReceiver(synth(af.parameters().get(0), env)
+                        .info().type())) {
             return synth(new AppliedFunction(
                     af.function().equals("isNotNull") ? "isNotEmpty" : "isEmpty",
                     List.of(new AppliedProperty(af.parameters().get(0),
@@ -324,7 +324,7 @@ final class Typer {
                 && g.function().equals("get") && g.parameters().size() == 2
                 && g.parameters().get(1) instanceof CString gc) {
             TypedSpec grecv0 = synth(g.parameters().get(0), env);
-            if (grecv0.info().type() instanceof Type.RelationType) {
+            if (tdsReceiver(grecv0.info().type())) {
                 var read = new AppliedProperty(g.parameters().get(0), gc.value());
                 return synth(new AppliedFunction("if", List.of(
                         new AppliedFunction("isEmpty", List.of(read)),
@@ -345,7 +345,7 @@ final class Typer {
         if (af.function().equals("get") && af.parameters().size() == 2
                 && af.parameters().get(1) instanceof CString gcol) {
             TypedSpec grecv = synth(af.parameters().get(0), env);
-            if (grecv.info().type() instanceof Type.RelationType) {
+            if (tdsReceiver(grecv.info().type())) {
                 TypedSpec gcell = synth(new AppliedProperty(
                         af.parameters().get(0), gcol.value()), env);
                 // Exactly-[1] cell: the read IS the getter. MANY-stamped
@@ -441,8 +441,8 @@ final class Typer {
                     || af.function().equals("getNullableString"))
                 && af.parameters().size() == 2
                 && literalColName(af.parameters().get(1)) != null
-                && synth(af.parameters().get(0), env).info().type()
-                        instanceof Type.RelationType) {
+                && tdsReceiver(synth(af.parameters().get(0), env)
+                        .info().type())) {
             return rowCellRead(af, env);
         }
         TypedSpec tdsGetter = tdsGetterDesugars(af, env);
@@ -2754,6 +2754,14 @@ final class Typer {
                 }
                 yield new ExprType(kernel.resolve(prop.type(), b), prop.multiplicity());
             }
+            // A ROW receiver (Row-vs-Relation): one row, one cell — the
+            // per-cell stamp BY TYPE. This arm is the detective's
+            // replacement: no walk, no inference — the type says row.
+            case Type.RowType rowT -> {
+                Type.Column col = relationColumn(rowT.relation(), ap.property());
+                relColName = col.name();
+                yield new ExprType(col.type(), col.multiplicity());
+            }
             case Type.RelationType rel -> {
                 // QUOTE-BEARING column identity (the pivot rule's sibling):
                 Type.Column col = relationColumn(rel, ap.property());
@@ -2784,6 +2792,13 @@ final class Typer {
         return new TypedPropertyAccess(source,
                 relColName != null ? relColName : ap.property(),
                 new ExprType(member.type(), mult));
+    }
+
+    /** A TDS-surface receiver: a whole relation OR one row of one
+     * (Row-vs-Relation split — the getter surface serves both; the
+     * ROW case is the getters' primary frame, now stated by TYPE). */
+    private static boolean tdsReceiver(Type t) {
+        return t instanceof Type.RelationType || t instanceof Type.RowType;
     }
 
     /** The PER-ROW frame test: the receiver chain bottoms out at (a) a

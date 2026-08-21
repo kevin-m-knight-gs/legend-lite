@@ -48,6 +48,7 @@ public sealed interface Type permits
         Type.ClassType, Type.EnumType,
         Type.TypeVar, Type.GenericType,
         Type.FunctionType, Type.RelationType,
+        Type.RowType,
         Type.SchemaAlgebra {
 
     /** Human-readable rendering, e.g. {@code "Integer"}, {@code "Decimal(38,2)"}, {@code "Relation<T>"}. */
@@ -345,6 +346,36 @@ public sealed interface Type permits
      * pivot's schema; checkers read {@link #columns()} only — the templates are
      * consumed at the execution boundary, where the data-derived names first exist.
      */
+    /** ONE ROW of a relation (Row-vs-Relation split, the successor arc
+     * of STAMP_DISCIPLINE_PROGRAM): the pure signatures already write
+     * the distinction — {@code lead<T>(w:Relation<T>[1], r:T[1]):T[0..1]}
+     * — container vs ELEMENT. A bare {@link RelationType} remains the
+     * TABLE value (a whole relation, today's meaning everywhere); a
+     * RowType is one row of that schema, the type the kernel binds to
+     * the signature's {@code T} and the type every row-lambda parameter
+     * carries. With rows typed, "am I holding a row or a table?" is
+     * read off the TYPE — the rowRooted detective's question becomes
+     * unaskable. */
+    record RowType(List<Column> columns) implements Type {
+        public RowType {
+            columns = List.copyOf(columns);
+        }
+
+        /** The row's relation schema (the container view of the same
+         * columns). */
+        public RelationType relation() {
+            return new RelationType(columns, List.of());
+        }
+
+        @Override
+        public String typeName() {
+            return "Row("
+                    + columns.stream().map(Column::text)
+                            .collect(Collectors.joining(", "))
+                    + ")";
+        }
+    }
+
     record RelationType(List<Column> columns, List<Column> dynamicColumns) implements Type {
 
         /** Separator between a pivoted data value and its aggregate-template name. */
