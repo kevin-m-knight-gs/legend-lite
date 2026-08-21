@@ -1,24 +1,763 @@
 ###Mapping
 
+// ============================================================================================
+// firm_balance_sheet::Mapping -- 33 sets, three of them filter subtypes, four on views
+// ============================================================================================
+// THREE INCLUDES, and this mapping needs all three: a class-valued property mapping may only
+// name a set that exists in THIS mapping's scope, and `[pnlLine]`, `[exaNetExposure]` and
+// `[lqvHqlaLevel]` come from three different dependencies.
+//
+// The same diamond as the store, one layer up: pnl_attribution::Mapping and
+// liquidity_view::Mapping both include core_account::Mapping transitively, and
+// valuation_core::Mapping and cash_core::Mapping both include core_types::Mapping. Reaching
+// one mapping by two routes resolves to one mapping. Including any of them HERE would be both
+// redundant and a reference to an undeclared project, and this file does not do it -- no
+// `core_`, `position_keeping`, `valuation_core`, `credit_core`, `collateral_core`, `cash_core`
+// or `funding_core` package name appears anywhere below.
+//
+// EVERY REFERENCE TO THIS PROJECT'S OWN COLUMNS IS FOUR SEGMENTS DEEP, because this project
+// owns a schema: `[firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.LINE_ID` -- store, schema,
+// table, column. The three dependencies put their tables in the default schema, so theirs are
+// `[pnl_attribution::Store]PNL_LINE.CLOSING_MARKET_VALUE` with no schema segment. Getting that
+// wrong is the commonest way a schema-owning project fails to compile, and the error names
+// the column rather than the missing schema.
+//
+// EVERY TARGET SET ID IS NAMED. `netExposure[exaNetExposure]: ...@Fbs_LineNetExposure` and not
+// the bare `netExposure: ...`, because all three dependencies name their set ids explicitly,
+// which means the DEFAULT ids (`exposure_agg_ExaNetExposure` and the rest) do not exist. The
+// ids used here are read from the three MANIFESTs, not guessed:
+//
+//    pnl-attribution  pnlLine, pnlRunTotal, pnlRun          (pnlRun is PnlAttributionRun)
+//    exposure-agg     exaNetExposure, exaNettingSet, exaCollateralPosition,
+//                     exaCounterpartyDayNet, exaRun          (exaRun is ExaExposureRun)
+//    liquidity-view   lqvHqlaLevel, lqvHolding, lqvLcrResult, lqvNsfrResult
+//                                                            (lqvHolding is LqvHqlaHolding)
+//
+// THE FILTER SUBTYPES. `[fbsLineItem]` is the ROOT set (`*`) over fbs.FBS_LINE_ITEM: an
+// unqualified `FbsLineItem.all()` is the whole statement, all three sides. Three sets extend
+// it, each adding one `~filter` and only the columns that mean something once the row's side
+// is known. None of them restates the key, the main table, or the inherited property mappings.
+// A property declared on a SUBCLASS cannot be mapped on the parent's set -- `unencumbered
+// Amount` is FbsAssetLine's, so it is mapped in `[fbsAssetLine]` and nowhere else.
+//
+// FOUR SETS ARE ROOTED AT VIEWS, not tables. Their `~mainTable` is a `~groupBy` view and their
+// `~primaryKey` names the grouping columns, because that is the grain the view produces.
+//
+// SET IDS ARE A GLOBAL NAMESPACE across all fifty-odd projects. Every one below is explicit
+// and `fbs`-prefixed, so the default ids (`firm_balance_sheet_FbsLineItem`) do not exist and a
+// downstream `extends [...]` or cross-project `AssociationMapping` must name the explicit one.
 Mapping firm_balance_sheet::Mapping
 (
    include pnl_attribution::Mapping
    include exposure_agg::Mapping
    include liquidity_view::Mapping
 
-   firm_balance_sheet::FbsLineItem[fbsLineItem]: Relational
+   // ---- the statement --------------------------------------------------------------------
+   // Two of the class-valued properties here leave the project entirely, and both land on a
+   // dependency's `~groupBy` VIEW rather than a row: `pnlRunTotal` is the firm's whole day of
+   // P&L as one row, `nsfrResult` is the one-year funding ratio. Neither is recomputed here.
+   firm_balance_sheet::FbsBalanceSheet[fbsStatement]: Relational
+   {
+      ~primaryKey
+      (
+         [firm_balance_sheet::Store]fbs.FBS_STATEMENT.INSTITUTION_ID,
+         [firm_balance_sheet::Store]fbs.FBS_STATEMENT.AS_OF_DATE,
+         [firm_balance_sheet::Store]fbs.FBS_STATEMENT.REPORTING_CURRENCY
+      )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_STATEMENT
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_STATEMENT.INSTITUTION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_STATEMENT.AS_OF_DATE,
+      reportingCurrency: [firm_balance_sheet::Store]fbs.FBS_STATEMENT.REPORTING_CURRENCY,
+      basisOfPreparation: [firm_balance_sheet::Store]fbs.FBS_STATEMENT.BASIS_OF_PREPARATION,
+      consolidationScope: [firm_balance_sheet::Store]fbs.FBS_STATEMENT.CONSOLIDATION_SCOPE,
+      statementStatus: [firm_balance_sheet::Store]fbs.FBS_STATEMENT.STATEMENT_STATUS,
+      runId: [firm_balance_sheet::Store]fbs.FBS_STATEMENT.RUN_ID,
+      pnlAttributionId: [firm_balance_sheet::Store]fbs.FBS_STATEMENT.PNL_ATTRIBUTION_ID,
+      nsfrScenarioCurrency: [firm_balance_sheet::Store]fbs.FBS_STATEMENT.NSFR_SCENARIO_CURRENCY,
+      totalAssets: [firm_balance_sheet::Store]fbs.FBS_STATEMENT.TOTAL_ASSETS,
+      totalLiabilities: [firm_balance_sheet::Store]fbs.FBS_STATEMENT.TOTAL_LIABILITIES,
+      totalEquity: [firm_balance_sheet::Store]fbs.FBS_STATEMENT.TOTAL_EQUITY,
+      preparedBy: [firm_balance_sheet::Store]fbs.FBS_STATEMENT.PREPARED_BY,
+      preparedAt: [firm_balance_sheet::Store]fbs.FBS_STATEMENT.PREPARED_AT,
+      signedOffOn: [firm_balance_sheet::Store]fbs.FBS_STATEMENT.SIGNED_OFF_ON,
+      run[fbsRun]: [firm_balance_sheet::Store]@Fbs_StatementRun,
+      lines[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineStatement,
+      sideTotals[fbsSideTotal]: [firm_balance_sheet::Store]@Fbs_StatementSideTotal,
+      categoryTotals[fbsCategoryTotal]: [firm_balance_sheet::Store]@Fbs_StatementCategoryTotal,
+      balanceChecks[fbsBalanceCheck]: [firm_balance_sheet::Store]@Fbs_StatementBalanceCheck,
+      attestations[fbsAttestation]: [firm_balance_sheet::Store]@Fbs_StatementAttestation,
+      retainedEarnings[fbsRetainedEarnings]: [firm_balance_sheet::Store]@Fbs_StatementRetainedEarnings,
+      hqlaStock[fbsHqlaStock]: [firm_balance_sheet::Store]@Fbs_StatementHqlaStock,
+      equityBalances[fbsEquityBalance]: [firm_balance_sheet::Store]@Fbs_StatementEquityBalance,
+      pnlRunTotal[pnlRunTotal]: [firm_balance_sheet::Store]@Fbs_StatementPnlRunTotal,
+      nsfrResult[lqvNsfrResult]: [firm_balance_sheet::Store]@Fbs_StatementNsfrResult
+   }
+
+   firm_balance_sheet::FbsBalanceSheetRun[fbsRun]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_RUN.RUN_ID )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_RUN
+      runId: [firm_balance_sheet::Store]fbs.FBS_RUN.RUN_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_RUN.AS_OF_DATE,
+      runType: [firm_balance_sheet::Store]fbs.FBS_RUN.RUN_TYPE,
+      runStatus: [firm_balance_sheet::Store]fbs.FBS_RUN.RUN_STATUS,
+      startedAt: [firm_balance_sheet::Store]fbs.FBS_RUN.STARTED_AT,
+      completedAt: [firm_balance_sheet::Store]fbs.FBS_RUN.COMPLETED_AT,
+      lineCount: [firm_balance_sheet::Store]fbs.FBS_RUN.LINE_COUNT,
+      rejectedLineCount: [firm_balance_sheet::Store]fbs.FBS_RUN.REJECTED_LINE_COUNT,
+      exposureRunId: [firm_balance_sheet::Store]fbs.FBS_RUN.EXPOSURE_RUN_ID,
+      pnlAttributionId: [firm_balance_sheet::Store]fbs.FBS_RUN.PNL_ATTRIBUTION_ID,
+      triggeredBy: [firm_balance_sheet::Store]fbs.FBS_RUN.TRIGGERED_BY,
+      statements[fbsStatement]: [firm_balance_sheet::Store]@Fbs_StatementRun,
+      lines[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineRun,
+      pnlRun[pnlRun]: [firm_balance_sheet::Store]@Fbs_RunPnlRun,
+      exposureRun[exaRun]: [firm_balance_sheet::Store]@Fbs_RunExposureRun
+   }
+
+   // ---- the line grain, and the three sides ----------------------------------------------
+   // THE ROOT SET. Unqualified, `FbsLineItem.all()` is every row of every side.
+   *firm_balance_sheet::FbsLineItem[fbsLineItem]: Relational
    {
       ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.LINE_ID )
       ~mainTable [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM
       lineId: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.LINE_ID,
-      amount: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.AMOUNT
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.INSTITUTION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.AS_OF_DATE,
+      reportingCurrency: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.REPORTING_CURRENCY,
+      side: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.SIDE,
+      categoryCode: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.CATEGORY_CODE,
+      basisCode: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.BASIS_CODE,
+      bookCode: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.BOOK_CODE,
+      fairValueLevel: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.FAIR_VALUE_LEVEL,
+      carryingAmount: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.CARRYING_AMOUNT,
+      grossAmount: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.GROSS_AMOUNT,
+      impairmentAmount: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.IMPAIRMENT_AMOUNT,
+      priorCarryingAmount: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.PRIOR_CARRYING_AMOUNT,
+      localCurrency: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.LOCAL_CURRENCY,
+      localAmount: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.LOCAL_AMOUNT,
+      fxRate: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.FX_RATE,
+      runId: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.RUN_ID,
+      statement[fbsStatement]: [firm_balance_sheet::Store]@Fbs_LineStatement,
+      category[fbsCategory]: [firm_balance_sheet::Store]@Fbs_LineCategory,
+      basis[fbsMeasurementBasis]: [firm_balance_sheet::Store]@Fbs_LineBasis,
+      book[fbsBookClassification]: [firm_balance_sheet::Store]@Fbs_LineBook,
+      valuationLevel[fbsFairValueLevel]: [firm_balance_sheet::Store]@Fbs_LineFairValueLevel,
+      run[fbsRun]: [firm_balance_sheet::Store]@Fbs_LineRun,
+      adjustments[fbsAdjustment]: [firm_balance_sheet::Store]@Fbs_LineAdjustment,
+      categoryTotal[fbsCategoryTotal]: [firm_balance_sheet::Store]@Fbs_LineCategoryTotal,
+      basisTotal[fbsBasisTotal]: [firm_balance_sheet::Store]@Fbs_LineBasisTotal,
+      bookTotal[fbsBookTotal]: [firm_balance_sheet::Store]@Fbs_LineBookTotal,
+      sideTotal[fbsSideTotal]: [firm_balance_sheet::Store]@Fbs_LineSideTotal,
+      netExposure[exaNetExposure]: [firm_balance_sheet::Store]@Fbs_LineNetExposure
    }
+
+   // The left-hand side. `hqlaHolding` leaves the project: the same asset as liquidity-view
+   // knows it, under a different taxonomy and a different haircut.
+   firm_balance_sheet::FbsAssetLine[fbsAssetLine] extends [fbsLineItem]: Relational
+   {
+      ~filter [firm_balance_sheet::Store]FbsAssetRows
+      isHqla: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.IS_HQLA,
+      hqlaLevelCode: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.HQLA_LEVEL_CODE,
+      encumberedAmount: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.ENCUMBERED_AMOUNT,
+      liquidityDays: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.LIQUIDITY_DAYS,
+      hqlaHoldingId: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.HQLA_HOLDING_ID,
+      hqlaHolding[lqvHolding]: [firm_balance_sheet::Store]@Fbs_AssetLineHqlaHolding
+   }
+
+   firm_balance_sheet::FbsLiabilityLine[fbsLiabilityLine] extends [fbsLineItem]: Relational
+   {
+      ~filter [firm_balance_sheet::Store]FbsLiabilityRows
+      maturityDate: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.MATURITY_DATE,
+      isSecured: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.IS_SECURED,
+      fundingType: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.FUNDING_TYPE,
+      counterpartyId: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.COUNTERPARTY_ID,
+      isDemandDeposit: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.IS_DEMAND_DEPOSIT
+   }
+
+   firm_balance_sheet::FbsEquityLine[fbsEquityLine] extends [fbsLineItem]: Relational
+   {
+      ~filter [firm_balance_sheet::Store]FbsEquityRows
+      equityComponentCode: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.EQUITY_COMPONENT_CODE,
+      isCet1Eligible: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.IS_CET1_ELIGIBLE,
+      nonControllingInterest: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.NON_CONTROLLING_INTEREST
+   }
+
+   // ---- the classifiers -------------------------------------------------------------------
+   firm_balance_sheet::FbsCategory[fbsCategory]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_CATEGORY.CATEGORY_CODE )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_CATEGORY
+      categoryCode: [firm_balance_sheet::Store]fbs.FBS_CATEGORY.CATEGORY_CODE,
+      categoryName: [firm_balance_sheet::Store]fbs.FBS_CATEGORY.CATEGORY_NAME,
+      parentCode: [firm_balance_sheet::Store]fbs.FBS_CATEGORY.PARENT_CODE,
+      side: [firm_balance_sheet::Store]fbs.FBS_CATEGORY.SIDE,
+      statementOrder: [firm_balance_sheet::Store]fbs.FBS_CATEGORY.STATEMENT_ORDER,
+      isSubtotal: [firm_balance_sheet::Store]fbs.FBS_CATEGORY.IS_SUBTOTAL,
+      noteReference: [firm_balance_sheet::Store]fbs.FBS_CATEGORY.NOTE_REFERENCE,
+      retiredOn: [firm_balance_sheet::Store]fbs.FBS_CATEGORY.RETIRED_ON,
+      lines[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineCategory,
+      totals[fbsCategoryTotal]: [firm_balance_sheet::Store]@Fbs_CategoryCategoryTotal
+   }
+
+   firm_balance_sheet::FbsMeasurementBasis[fbsMeasurementBasis]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_MEASUREMENT_BASIS.BASIS_CODE )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_MEASUREMENT_BASIS
+      basisCode: [firm_balance_sheet::Store]fbs.FBS_MEASUREMENT_BASIS.BASIS_CODE,
+      basisName: [firm_balance_sheet::Store]fbs.FBS_MEASUREMENT_BASIS.BASIS_NAME,
+      standardReference: [firm_balance_sheet::Store]fbs.FBS_MEASUREMENT_BASIS.STANDARD_REFERENCE,
+      movementsThrough: [firm_balance_sheet::Store]fbs.FBS_MEASUREMENT_BASIS.MOVEMENTS_THROUGH,
+      isFairValue: [firm_balance_sheet::Store]fbs.FBS_MEASUREMENT_BASIS.IS_FAIR_VALUE,
+      requiresEcl: [firm_balance_sheet::Store]fbs.FBS_MEASUREMENT_BASIS.REQUIRES_ECL,
+      recyclesToPl: [firm_balance_sheet::Store]fbs.FBS_MEASUREMENT_BASIS.RECYCLES_TO_PL,
+      lines[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineBasis,
+      basisTotals[fbsBasisTotal]: [firm_balance_sheet::Store]@Fbs_BasisBasisTotal,
+      ociReserves[fbsOciReserve]: [firm_balance_sheet::Store]@Fbs_OciReserveBasis
+   }
+
+   firm_balance_sheet::FbsBookClassification[fbsBookClassification]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_BOOK_CLASSIFICATION.BOOK_CODE )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_BOOK_CLASSIFICATION
+      bookCode: [firm_balance_sheet::Store]fbs.FBS_BOOK_CLASSIFICATION.BOOK_CODE,
+      bookName: [firm_balance_sheet::Store]fbs.FBS_BOOK_CLASSIFICATION.BOOK_NAME,
+      intent: [firm_balance_sheet::Store]fbs.FBS_BOOK_CLASSIFICATION.INTENT,
+      isTrading: [firm_balance_sheet::Store]fbs.FBS_BOOK_CLASSIFICATION.IS_TRADING,
+      defaultBasisCode: [firm_balance_sheet::Store]fbs.FBS_BOOK_CLASSIFICATION.DEFAULT_BASIS_CODE,
+      capitalTreatment: [firm_balance_sheet::Store]fbs.FBS_BOOK_CLASSIFICATION.CAPITAL_TREATMENT,
+      boundaryPolicyRef: [firm_balance_sheet::Store]fbs.FBS_BOOK_CLASSIFICATION.BOUNDARY_POLICY_REF,
+      defaultBasis[fbsMeasurementBasis]: [firm_balance_sheet::Store]@Fbs_BookDefaultBasis,
+      lines[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineBook,
+      bookTotals[fbsBookTotal]: [firm_balance_sheet::Store]@Fbs_BookBookTotal
+   }
+
+   firm_balance_sheet::FbsFairValueLevel[fbsFairValueLevel]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_FAIR_VALUE_LEVEL.LEVEL_CODE )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_FAIR_VALUE_LEVEL
+      levelCode: [firm_balance_sheet::Store]fbs.FBS_FAIR_VALUE_LEVEL.LEVEL_CODE,
+      levelName: [firm_balance_sheet::Store]fbs.FBS_FAIR_VALUE_LEVEL.LEVEL_NAME,
+      inputType: [firm_balance_sheet::Store]fbs.FBS_FAIR_VALUE_LEVEL.INPUT_TYPE,
+      isObservable: [firm_balance_sheet::Store]fbs.FBS_FAIR_VALUE_LEVEL.IS_OBSERVABLE,
+      requiresDisclosure: [firm_balance_sheet::Store]fbs.FBS_FAIR_VALUE_LEVEL.REQUIRES_DISCLOSURE,
+      levelRank: [firm_balance_sheet::Store]fbs.FBS_FAIR_VALUE_LEVEL.LEVEL_RANK,
+      lines[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineFairValueLevel
+   }
+
+   // ---- trading book vs banking book -------------------------------------------------------
+   // `pnlLine` is the deepest reference in this project: five columns into PNL_LINE, which is
+   // pnl-attribution's own diamond apex over position-keeping and valuation-core. From here a
+   // reader reaches `$position.pnlLine.position.instrument` -- five hops to core-instrument --
+   // without this file naming any project it does not declare.
+   firm_balance_sheet::FbsTradingBookPosition[fbsTradingPosition]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_TRADING_POSITION.LINE_ID )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_TRADING_POSITION
+      lineId: [firm_balance_sheet::Store]fbs.FBS_TRADING_POSITION.LINE_ID,
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_TRADING_POSITION.INSTITUTION_ID,
+      accountNo: [firm_balance_sheet::Store]fbs.FBS_TRADING_POSITION.ACCOUNT_NO,
+      instrumentId: [firm_balance_sheet::Store]fbs.FBS_TRADING_POSITION.INSTRUMENT_ID,
+      cobDate: [firm_balance_sheet::Store]fbs.FBS_TRADING_POSITION.COB_DATE,
+      pnlAttributionId: [firm_balance_sheet::Store]fbs.FBS_TRADING_POSITION.PNL_ATTRIBUTION_ID,
+      quantity: [firm_balance_sheet::Store]fbs.FBS_TRADING_POSITION.QUANTITY,
+      fairValue: [firm_balance_sheet::Store]fbs.FBS_TRADING_POSITION.FAIR_VALUE,
+      dayOneProfit: [firm_balance_sheet::Store]fbs.FBS_TRADING_POSITION.DAY_ONE_PROFIT,
+      bidOfferReserve: [firm_balance_sheet::Store]fbs.FBS_TRADING_POSITION.BID_OFFER_RESERVE,
+      modelReserve: [firm_balance_sheet::Store]fbs.FBS_TRADING_POSITION.MODEL_RESERVE,
+      isLong: [firm_balance_sheet::Store]fbs.FBS_TRADING_POSITION.IS_LONG,
+      deskCode: [firm_balance_sheet::Store]fbs.FBS_TRADING_POSITION.DESK_CODE,
+      line[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineTradingPosition,
+      pnlLine[pnlLine]: [firm_balance_sheet::Store]@Fbs_TradingPositionPnlLine
+   }
+
+   firm_balance_sheet::FbsBankingBookAsset[fbsBankingAsset]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_BANKING_ASSET.LINE_ID )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_BANKING_ASSET
+      lineId: [firm_balance_sheet::Store]fbs.FBS_BANKING_ASSET.LINE_ID,
+      productType: [firm_balance_sheet::Store]fbs.FBS_BANKING_ASSET.PRODUCT_TYPE,
+      originationDate: [firm_balance_sheet::Store]fbs.FBS_BANKING_ASSET.ORIGINATION_DATE,
+      maturityDate: [firm_balance_sheet::Store]fbs.FBS_BANKING_ASSET.MATURITY_DATE,
+      grossCarryingAmount: [firm_balance_sheet::Store]fbs.FBS_BANKING_ASSET.GROSS_CARRYING_AMOUNT,
+      effectiveInterestRate: [firm_balance_sheet::Store]fbs.FBS_BANKING_ASSET.EFFECTIVE_INTEREST_RATE,
+      unamortisedPremium: [firm_balance_sheet::Store]fbs.FBS_BANKING_ASSET.UNAMORTISED_PREMIUM,
+      accruedInterest: [firm_balance_sheet::Store]fbs.FBS_BANKING_ASSET.ACCRUED_INTEREST,
+      eclStage: [firm_balance_sheet::Store]fbs.FBS_BANKING_ASSET.ECL_STAGE,
+      allowanceAmount: [firm_balance_sheet::Store]fbs.FBS_BANKING_ASSET.ALLOWANCE_AMOUNT,
+      isPurchasedCreditImpaired: [firm_balance_sheet::Store]fbs.FBS_BANKING_ASSET.IS_PURCHASED_CREDIT_IMPAIRED,
+      netExposureId: [firm_balance_sheet::Store]fbs.FBS_BANKING_ASSET.NET_EXPOSURE_ID,
+      line[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineBankingAsset,
+      eclAllowances[fbsEclAllowance]: [firm_balance_sheet::Store]@Fbs_BankingAssetEcl,
+      netExposure[exaNetExposure]: [firm_balance_sheet::Store]@Fbs_BankingAssetNetExposure
+   }
+
+   // ---- derivatives, before any netting ----------------------------------------------------
+   firm_balance_sheet::FbsDerivativeAsset[fbsDerivativeAsset]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_ASSET.DERIVATIVE_ASSET_ID )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_ASSET
+      derivativeAssetId: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_ASSET.DERIVATIVE_ASSET_ID,
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_ASSET.INSTITUTION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_ASSET.AS_OF_DATE,
+      nettingSetId: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_ASSET.NETTING_SET_ID,
+      netExposureId: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_ASSET.NET_EXPOSURE_ID,
+      counterpartyId: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_ASSET.COUNTERPARTY_ID,
+      productClass: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_ASSET.PRODUCT_CLASS,
+      notional: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_ASSET.NOTIONAL,
+      grossPositiveValue: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_ASSET.GROSS_POSITIVE_VALUE,
+      cvaAdjustment: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_ASSET.CVA_ADJUSTMENT,
+      fvaAdjustment: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_ASSET.FVA_ADJUSTMENT,
+      isCleared: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_ASSET.IS_CLEARED,
+      currency: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_ASSET.CURRENCY,
+      lineId: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_ASSET.LINE_ID,
+      line[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineDerivativeAsset,
+      netting[fbsNettingAdjustment]: [firm_balance_sheet::Store]@Fbs_DerivativeAssetNetting,
+      nettingSet[exaNettingSet]: [firm_balance_sheet::Store]@Fbs_DerivativeAssetNettingSet,
+      netExposure[exaNetExposure]: [firm_balance_sheet::Store]@Fbs_DerivativeAssetNetExposure,
+      counterpartyDayNet[exaCounterpartyDayNet]: [firm_balance_sheet::Store]@Fbs_DerivativeAssetCounterpartyDayNet
+   }
+
+   firm_balance_sheet::FbsDerivativeLiability[fbsDerivativeLiability]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_LIABILITY.DERIVATIVE_LIABILITY_ID )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_LIABILITY
+      derivativeLiabilityId: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_LIABILITY.DERIVATIVE_LIABILITY_ID,
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_LIABILITY.INSTITUTION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_LIABILITY.AS_OF_DATE,
+      nettingSetId: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_LIABILITY.NETTING_SET_ID,
+      netExposureId: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_LIABILITY.NET_EXPOSURE_ID,
+      counterpartyId: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_LIABILITY.COUNTERPARTY_ID,
+      productClass: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_LIABILITY.PRODUCT_CLASS,
+      notional: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_LIABILITY.NOTIONAL,
+      grossNegativeValue: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_LIABILITY.GROSS_NEGATIVE_VALUE,
+      dvaAdjustment: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_LIABILITY.DVA_ADJUSTMENT,
+      fvaAdjustment: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_LIABILITY.FVA_ADJUSTMENT,
+      isCleared: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_LIABILITY.IS_CLEARED,
+      currency: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_LIABILITY.CURRENCY,
+      lineId: [firm_balance_sheet::Store]fbs.FBS_DERIVATIVE_LIABILITY.LINE_ID,
+      line[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineDerivativeLiability,
+      netting[fbsNettingAdjustment]: [firm_balance_sheet::Store]@Fbs_DerivativeLiabilityNetting,
+      nettingSet[exaNettingSet]: [firm_balance_sheet::Store]@Fbs_DerivativeLiabilityNettingSet,
+      netExposure[exaNetExposure]: [firm_balance_sheet::Store]@Fbs_DerivativeLiabilityNetExposure
+   }
+
+   firm_balance_sheet::FbsNettingAdjustment[fbsNettingAdjustment]: Relational
+   {
+      ~primaryKey
+      (
+         [firm_balance_sheet::Store]fbs.FBS_NETTING_ADJUSTMENT.NETTING_SET_ID,
+         [firm_balance_sheet::Store]fbs.FBS_NETTING_ADJUSTMENT.AS_OF_DATE
+      )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_NETTING_ADJUSTMENT
+      nettingSetId: [firm_balance_sheet::Store]fbs.FBS_NETTING_ADJUSTMENT.NETTING_SET_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_NETTING_ADJUSTMENT.AS_OF_DATE,
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_NETTING_ADJUSTMENT.INSTITUTION_ID,
+      grossAssetAmount: [firm_balance_sheet::Store]fbs.FBS_NETTING_ADJUSTMENT.GROSS_ASSET_AMOUNT,
+      grossLiabilityAmount: [firm_balance_sheet::Store]fbs.FBS_NETTING_ADJUSTMENT.GROSS_LIABILITY_AMOUNT,
+      offsetAmount: [firm_balance_sheet::Store]fbs.FBS_NETTING_ADJUSTMENT.OFFSET_AMOUNT,
+      netAssetAmount: [firm_balance_sheet::Store]fbs.FBS_NETTING_ADJUSTMENT.NET_ASSET_AMOUNT,
+      netLiabilityAmount: [firm_balance_sheet::Store]fbs.FBS_NETTING_ADJUSTMENT.NET_LIABILITY_AMOUNT,
+      isBalanceSheetNetted: [firm_balance_sheet::Store]fbs.FBS_NETTING_ADJUSTMENT.IS_BALANCE_SHEET_NETTED,
+      offsetBasis: [firm_balance_sheet::Store]fbs.FBS_NETTING_ADJUSTMENT.OFFSET_BASIS,
+      legalOpinionRef: [firm_balance_sheet::Store]fbs.FBS_NETTING_ADJUSTMENT.LEGAL_OPINION_REF,
+      derivativeAssets[fbsDerivativeAsset]: [firm_balance_sheet::Store]@Fbs_DerivativeAssetNetting,
+      derivativeLiabilities[fbsDerivativeLiability]: [firm_balance_sheet::Store]@Fbs_DerivativeLiabilityNetting,
+      collateralOffsets[fbsCollateralOffset]: [firm_balance_sheet::Store]@Fbs_NettingCollateralOffset,
+      nettingSet[exaNettingSet]: [firm_balance_sheet::Store]@Fbs_NettingAdjustmentNettingSet
+   }
+
+   firm_balance_sheet::FbsCollateralOffset[fbsCollateralOffset]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_COLLATERAL_OFFSET.OFFSET_ID )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_COLLATERAL_OFFSET
+      offsetId: [firm_balance_sheet::Store]fbs.FBS_COLLATERAL_OFFSET.OFFSET_ID,
+      nettingSetId: [firm_balance_sheet::Store]fbs.FBS_COLLATERAL_OFFSET.NETTING_SET_ID,
+      positionId: [firm_balance_sheet::Store]fbs.FBS_COLLATERAL_OFFSET.POSITION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_COLLATERAL_OFFSET.AS_OF_DATE,
+      cashCollateralAmount: [firm_balance_sheet::Store]fbs.FBS_COLLATERAL_OFFSET.CASH_COLLATERAL_AMOUNT,
+      securitiesCollateralAmount: [firm_balance_sheet::Store]fbs.FBS_COLLATERAL_OFFSET.SECURITIES_COLLATERAL_AMOUNT,
+      offsetAppliedAmount: [firm_balance_sheet::Store]fbs.FBS_COLLATERAL_OFFSET.OFFSET_APPLIED_AMOUNT,
+      isCash: [firm_balance_sheet::Store]fbs.FBS_COLLATERAL_OFFSET.IS_CASH,
+      currency: [firm_balance_sheet::Store]fbs.FBS_COLLATERAL_OFFSET.CURRENCY,
+      rehypothecatedAmount: [firm_balance_sheet::Store]fbs.FBS_COLLATERAL_OFFSET.REHYPOTHECATED_AMOUNT,
+      netting[fbsNettingAdjustment]: [firm_balance_sheet::Store]@Fbs_NettingCollateralOffset,
+      collateralPosition[exaCollateralPosition]: [firm_balance_sheet::Store]@Fbs_CollateralOffsetPosition
+   }
+
+   // ---- HQLA by level ----------------------------------------------------------------------
+   firm_balance_sheet::FbsHqlaStock[fbsHqlaStock]: Relational
+   {
+      ~primaryKey
+      (
+         [firm_balance_sheet::Store]fbs.FBS_HQLA_STOCK.INSTITUTION_ID,
+         [firm_balance_sheet::Store]fbs.FBS_HQLA_STOCK.AS_OF_DATE,
+         [firm_balance_sheet::Store]fbs.FBS_HQLA_STOCK.HQLA_LEVEL_CODE,
+         [firm_balance_sheet::Store]fbs.FBS_HQLA_STOCK.REPORTING_CURRENCY
+      )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_HQLA_STOCK
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_HQLA_STOCK.INSTITUTION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_HQLA_STOCK.AS_OF_DATE,
+      hqlaLevelCode: [firm_balance_sheet::Store]fbs.FBS_HQLA_STOCK.HQLA_LEVEL_CODE,
+      reportingCurrency: [firm_balance_sheet::Store]fbs.FBS_HQLA_STOCK.REPORTING_CURRENCY,
+      balanceSheetAmount: [firm_balance_sheet::Store]fbs.FBS_HQLA_STOCK.BALANCE_SHEET_AMOUNT,
+      unencumberedAmount: [firm_balance_sheet::Store]fbs.FBS_HQLA_STOCK.UNENCUMBERED_AMOUNT,
+      haircutAmount: [firm_balance_sheet::Store]fbs.FBS_HQLA_STOCK.HAIRCUT_AMOUNT,
+      weightedAmount: [firm_balance_sheet::Store]fbs.FBS_HQLA_STOCK.WEIGHTED_AMOUNT,
+      capExcessAmount: [firm_balance_sheet::Store]fbs.FBS_HQLA_STOCK.CAP_EXCESS_AMOUNT,
+      holdingCount: [firm_balance_sheet::Store]fbs.FBS_HQLA_STOCK.HOLDING_COUNT,
+      scenarioId: [firm_balance_sheet::Store]fbs.FBS_HQLA_STOCK.SCENARIO_ID,
+      statement[fbsStatement]: [firm_balance_sheet::Store]@Fbs_StatementHqlaStock,
+      level[lqvHqlaLevel]: [firm_balance_sheet::Store]@Fbs_HqlaStockLevel,
+      lcrResult[lqvLcrResult]: [firm_balance_sheet::Store]@Fbs_HqlaStockLcrResult
+   }
+
+   // ---- goodwill, intangibles and the deductions -------------------------------------------
+   firm_balance_sheet::FbsGoodwill[fbsGoodwill]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_GOODWILL.GOODWILL_ID )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_GOODWILL
+      goodwillId: [firm_balance_sheet::Store]fbs.FBS_GOODWILL.GOODWILL_ID,
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_GOODWILL.INSTITUTION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_GOODWILL.AS_OF_DATE,
+      cashGeneratingUnit: [firm_balance_sheet::Store]fbs.FBS_GOODWILL.CASH_GENERATING_UNIT,
+      acquisitionDate: [firm_balance_sheet::Store]fbs.FBS_GOODWILL.ACQUISITION_DATE,
+      grossGoodwill: [firm_balance_sheet::Store]fbs.FBS_GOODWILL.GROSS_GOODWILL,
+      accumulatedImpairment: [firm_balance_sheet::Store]fbs.FBS_GOODWILL.ACCUMULATED_IMPAIRMENT,
+      carryingAmount: [firm_balance_sheet::Store]fbs.FBS_GOODWILL.CARRYING_AMOUNT,
+      recoverableAmount: [firm_balance_sheet::Store]fbs.FBS_GOODWILL.RECOVERABLE_AMOUNT,
+      lastTestedOn: [firm_balance_sheet::Store]fbs.FBS_GOODWILL.LAST_TESTED_ON,
+      discountRate: [firm_balance_sheet::Store]fbs.FBS_GOODWILL.DISCOUNT_RATE,
+      lineId: [firm_balance_sheet::Store]fbs.FBS_GOODWILL.LINE_ID,
+      line[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineGoodwill,
+      deductions[fbsCapitalDeduction]: [firm_balance_sheet::Store]@Fbs_DeductionGoodwill
+   }
+
+   firm_balance_sheet::FbsIntangibleAsset[fbsIntangible]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_INTANGIBLE.INTANGIBLE_ID )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_INTANGIBLE
+      intangibleId: [firm_balance_sheet::Store]fbs.FBS_INTANGIBLE.INTANGIBLE_ID,
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_INTANGIBLE.INSTITUTION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_INTANGIBLE.AS_OF_DATE,
+      intangibleType: [firm_balance_sheet::Store]fbs.FBS_INTANGIBLE.INTANGIBLE_TYPE,
+      costAmount: [firm_balance_sheet::Store]fbs.FBS_INTANGIBLE.COST_AMOUNT,
+      accumulatedAmortisation: [firm_balance_sheet::Store]fbs.FBS_INTANGIBLE.ACCUMULATED_AMORTISATION,
+      carryingAmount: [firm_balance_sheet::Store]fbs.FBS_INTANGIBLE.CARRYING_AMOUNT,
+      usefulLifeYears: [firm_balance_sheet::Store]fbs.FBS_INTANGIBLE.USEFUL_LIFE_YEARS,
+      isInternallyGenerated: [firm_balance_sheet::Store]fbs.FBS_INTANGIBLE.IS_INTERNALLY_GENERATED,
+      lineId: [firm_balance_sheet::Store]fbs.FBS_INTANGIBLE.LINE_ID,
+      line[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineIntangible,
+      deductions[fbsCapitalDeduction]: [firm_balance_sheet::Store]@Fbs_DeductionIntangible
+   }
+
+   firm_balance_sheet::FbsCapitalDeduction[fbsCapitalDeduction]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_CAPITAL_DEDUCTION.DEDUCTION_ID )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_CAPITAL_DEDUCTION
+      deductionId: [firm_balance_sheet::Store]fbs.FBS_CAPITAL_DEDUCTION.DEDUCTION_ID,
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_CAPITAL_DEDUCTION.INSTITUTION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_CAPITAL_DEDUCTION.AS_OF_DATE,
+      deductionCode: [firm_balance_sheet::Store]fbs.FBS_CAPITAL_DEDUCTION.DEDUCTION_CODE,
+      deductionTier: [firm_balance_sheet::Store]fbs.FBS_CAPITAL_DEDUCTION.DEDUCTION_TIER,
+      balanceSheetAmount: [firm_balance_sheet::Store]fbs.FBS_CAPITAL_DEDUCTION.BALANCE_SHEET_AMOUNT,
+      thresholdAmount: [firm_balance_sheet::Store]fbs.FBS_CAPITAL_DEDUCTION.THRESHOLD_AMOUNT,
+      deductedAmount: [firm_balance_sheet::Store]fbs.FBS_CAPITAL_DEDUCTION.DEDUCTED_AMOUNT,
+      riskWeightedRemainder: [firm_balance_sheet::Store]fbs.FBS_CAPITAL_DEDUCTION.RISK_WEIGHTED_REMAINDER,
+      regulationReference: [firm_balance_sheet::Store]fbs.FBS_CAPITAL_DEDUCTION.REGULATION_REFERENCE,
+      isFullyDeducted: [firm_balance_sheet::Store]fbs.FBS_CAPITAL_DEDUCTION.IS_FULLY_DEDUCTED,
+      goodwillId: [firm_balance_sheet::Store]fbs.FBS_CAPITAL_DEDUCTION.GOODWILL_ID,
+      intangibleId: [firm_balance_sheet::Store]fbs.FBS_CAPITAL_DEDUCTION.INTANGIBLE_ID,
+      lineId: [firm_balance_sheet::Store]fbs.FBS_CAPITAL_DEDUCTION.LINE_ID,
+      line[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineDeduction,
+      goodwill[fbsGoodwill]: [firm_balance_sheet::Store]@Fbs_DeductionGoodwill,
+      intangible[fbsIntangible]: [firm_balance_sheet::Store]@Fbs_DeductionIntangible
+   }
+
+   // ---- provisions --------------------------------------------------------------------------
+   firm_balance_sheet::FbsProvision[fbsProvision]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_PROVISION.PROVISION_ID )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_PROVISION
+      provisionId: [firm_balance_sheet::Store]fbs.FBS_PROVISION.PROVISION_ID,
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_PROVISION.INSTITUTION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_PROVISION.AS_OF_DATE,
+      provisionType: [firm_balance_sheet::Store]fbs.FBS_PROVISION.PROVISION_TYPE,
+      openingBalance: [firm_balance_sheet::Store]fbs.FBS_PROVISION.OPENING_BALANCE,
+      chargeAmount: [firm_balance_sheet::Store]fbs.FBS_PROVISION.CHARGE_AMOUNT,
+      utilisedAmount: [firm_balance_sheet::Store]fbs.FBS_PROVISION.UTILISED_AMOUNT,
+      releasedAmount: [firm_balance_sheet::Store]fbs.FBS_PROVISION.RELEASED_AMOUNT,
+      closingBalance: [firm_balance_sheet::Store]fbs.FBS_PROVISION.CLOSING_BALANCE,
+      expectedSettlementDate: [firm_balance_sheet::Store]fbs.FBS_PROVISION.EXPECTED_SETTLEMENT_DATE,
+      isDiscounted: [firm_balance_sheet::Store]fbs.FBS_PROVISION.IS_DISCOUNTED,
+      lineId: [firm_balance_sheet::Store]fbs.FBS_PROVISION.LINE_ID,
+      line[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineProvision
+   }
+
+   firm_balance_sheet::FbsEclAllowance[fbsEclAllowance]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_ECL_ALLOWANCE.ALLOWANCE_ID )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_ECL_ALLOWANCE
+      allowanceId: [firm_balance_sheet::Store]fbs.FBS_ECL_ALLOWANCE.ALLOWANCE_ID,
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_ECL_ALLOWANCE.INSTITUTION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_ECL_ALLOWANCE.AS_OF_DATE,
+      eclStage: [firm_balance_sheet::Store]fbs.FBS_ECL_ALLOWANCE.ECL_STAGE,
+      portfolioCode: [firm_balance_sheet::Store]fbs.FBS_ECL_ALLOWANCE.PORTFOLIO_CODE,
+      grossExposureAmount: [firm_balance_sheet::Store]fbs.FBS_ECL_ALLOWANCE.GROSS_EXPOSURE_AMOUNT,
+      twelveMonthEcl: [firm_balance_sheet::Store]fbs.FBS_ECL_ALLOWANCE.TWELVE_MONTH_ECL,
+      lifetimeEcl: [firm_balance_sheet::Store]fbs.FBS_ECL_ALLOWANCE.LIFETIME_ECL,
+      allowanceAmount: [firm_balance_sheet::Store]fbs.FBS_ECL_ALLOWANCE.ALLOWANCE_AMOUNT,
+      modelCode: [firm_balance_sheet::Store]fbs.FBS_ECL_ALLOWANCE.MODEL_CODE,
+      postModelAdjustment: [firm_balance_sheet::Store]fbs.FBS_ECL_ALLOWANCE.POST_MODEL_ADJUSTMENT,
+      netExposureId: [firm_balance_sheet::Store]fbs.FBS_ECL_ALLOWANCE.NET_EXPOSURE_ID,
+      bankingAssets[fbsBankingAsset]: [firm_balance_sheet::Store]@Fbs_BankingAssetEcl,
+      netExposure[exaNetExposure]: [firm_balance_sheet::Store]@Fbs_EclNetExposure
+   }
+
+   // ---- the equity that balances it ---------------------------------------------------------
+   firm_balance_sheet::FbsEquityComponent[fbsEquityComponent]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_EQUITY_COMPONENT.COMPONENT_CODE )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_EQUITY_COMPONENT
+      componentCode: [firm_balance_sheet::Store]fbs.FBS_EQUITY_COMPONENT.COMPONENT_CODE,
+      componentName: [firm_balance_sheet::Store]fbs.FBS_EQUITY_COMPONENT.COMPONENT_NAME,
+      componentType: [firm_balance_sheet::Store]fbs.FBS_EQUITY_COMPONENT.COMPONENT_TYPE,
+      capitalTier: [firm_balance_sheet::Store]fbs.FBS_EQUITY_COMPONENT.CAPITAL_TIER,
+      isDistributable: [firm_balance_sheet::Store]fbs.FBS_EQUITY_COMPONENT.IS_DISTRIBUTABLE,
+      isRecyclable: [firm_balance_sheet::Store]fbs.FBS_EQUITY_COMPONENT.IS_RECYCLABLE,
+      presentationOrder: [firm_balance_sheet::Store]fbs.FBS_EQUITY_COMPONENT.PRESENTATION_ORDER,
+      balances[fbsEquityBalance]: [firm_balance_sheet::Store]@Fbs_EquityBalanceComponent,
+      ociReserves[fbsOciReserve]: [firm_balance_sheet::Store]@Fbs_OciReserveComponent
+   }
+
+   firm_balance_sheet::FbsEquityBalance[fbsEquityBalance]: Relational
+   {
+      ~primaryKey
+      (
+         [firm_balance_sheet::Store]fbs.FBS_EQUITY_BALANCE.INSTITUTION_ID,
+         [firm_balance_sheet::Store]fbs.FBS_EQUITY_BALANCE.AS_OF_DATE,
+         [firm_balance_sheet::Store]fbs.FBS_EQUITY_BALANCE.COMPONENT_CODE,
+         [firm_balance_sheet::Store]fbs.FBS_EQUITY_BALANCE.REPORTING_CURRENCY
+      )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_EQUITY_BALANCE
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_EQUITY_BALANCE.INSTITUTION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_EQUITY_BALANCE.AS_OF_DATE,
+      componentCode: [firm_balance_sheet::Store]fbs.FBS_EQUITY_BALANCE.COMPONENT_CODE,
+      reportingCurrency: [firm_balance_sheet::Store]fbs.FBS_EQUITY_BALANCE.REPORTING_CURRENCY,
+      openingBalance: [firm_balance_sheet::Store]fbs.FBS_EQUITY_BALANCE.OPENING_BALANCE,
+      movementAmount: [firm_balance_sheet::Store]fbs.FBS_EQUITY_BALANCE.MOVEMENT_AMOUNT,
+      closingBalance: [firm_balance_sheet::Store]fbs.FBS_EQUITY_BALANCE.CLOSING_BALANCE,
+      attributableToParent: [firm_balance_sheet::Store]fbs.FBS_EQUITY_BALANCE.ATTRIBUTABLE_TO_PARENT,
+      nonControllingInterest: [firm_balance_sheet::Store]fbs.FBS_EQUITY_BALANCE.NON_CONTROLLING_INTEREST,
+      lineId: [firm_balance_sheet::Store]fbs.FBS_EQUITY_BALANCE.LINE_ID,
+      statement[fbsStatement]: [firm_balance_sheet::Store]@Fbs_StatementEquityBalance,
+      component[fbsEquityComponent]: [firm_balance_sheet::Store]@Fbs_EquityBalanceComponent,
+      line[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineEquityBalance
+   }
+
+   firm_balance_sheet::FbsOciReserve[fbsOciReserve]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_OCI_RESERVE.RESERVE_ID )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_OCI_RESERVE
+      reserveId: [firm_balance_sheet::Store]fbs.FBS_OCI_RESERVE.RESERVE_ID,
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_OCI_RESERVE.INSTITUTION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_OCI_RESERVE.AS_OF_DATE,
+      reserveType: [firm_balance_sheet::Store]fbs.FBS_OCI_RESERVE.RESERVE_TYPE,
+      basisCode: [firm_balance_sheet::Store]fbs.FBS_OCI_RESERVE.BASIS_CODE,
+      grossReserve: [firm_balance_sheet::Store]fbs.FBS_OCI_RESERVE.GROSS_RESERVE,
+      deferredTax: [firm_balance_sheet::Store]fbs.FBS_OCI_RESERVE.DEFERRED_TAX,
+      netReserve: [firm_balance_sheet::Store]fbs.FBS_OCI_RESERVE.NET_RESERVE,
+      recycledToPl: [firm_balance_sheet::Store]fbs.FBS_OCI_RESERVE.RECYCLED_TO_PL,
+      isRecyclable: [firm_balance_sheet::Store]fbs.FBS_OCI_RESERVE.IS_RECYCLABLE,
+      componentCode: [firm_balance_sheet::Store]fbs.FBS_OCI_RESERVE.COMPONENT_CODE,
+      basis[fbsMeasurementBasis]: [firm_balance_sheet::Store]@Fbs_OciReserveBasis,
+      component[fbsEquityComponent]: [firm_balance_sheet::Store]@Fbs_OciReserveComponent
+   }
+
+   firm_balance_sheet::FbsRetainedEarnings[fbsRetainedEarnings]: Relational
+   {
+      ~primaryKey
+      (
+         [firm_balance_sheet::Store]fbs.FBS_RETAINED_EARNINGS.INSTITUTION_ID,
+         [firm_balance_sheet::Store]fbs.FBS_RETAINED_EARNINGS.AS_OF_DATE,
+         [firm_balance_sheet::Store]fbs.FBS_RETAINED_EARNINGS.REPORTING_CURRENCY
+      )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_RETAINED_EARNINGS
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_RETAINED_EARNINGS.INSTITUTION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_RETAINED_EARNINGS.AS_OF_DATE,
+      reportingCurrency: [firm_balance_sheet::Store]fbs.FBS_RETAINED_EARNINGS.REPORTING_CURRENCY,
+      openingRetained: [firm_balance_sheet::Store]fbs.FBS_RETAINED_EARNINGS.OPENING_RETAINED,
+      profitForPeriod: [firm_balance_sheet::Store]fbs.FBS_RETAINED_EARNINGS.PROFIT_FOR_PERIOD,
+      dividendsDeclared: [firm_balance_sheet::Store]fbs.FBS_RETAINED_EARNINGS.DIVIDENDS_DECLARED,
+      otherMovements: [firm_balance_sheet::Store]fbs.FBS_RETAINED_EARNINGS.OTHER_MOVEMENTS,
+      closingRetained: [firm_balance_sheet::Store]fbs.FBS_RETAINED_EARNINGS.CLOSING_RETAINED,
+      pnlAttributionId: [firm_balance_sheet::Store]fbs.FBS_RETAINED_EARNINGS.PNL_ATTRIBUTION_ID,
+      isVerified: [firm_balance_sheet::Store]fbs.FBS_RETAINED_EARNINGS.IS_VERIFIED,
+      statement[fbsStatement]: [firm_balance_sheet::Store]@Fbs_StatementRetainedEarnings,
+      pnlRunTotal[pnlRunTotal]: [firm_balance_sheet::Store]@Fbs_RetainedEarningsPnlRunTotal
+   }
+
+   // ---- control ------------------------------------------------------------------------------
+   firm_balance_sheet::FbsAccountingAdjustment[fbsAdjustment]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_ADJUSTMENT.ADJUSTMENT_ID )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_ADJUSTMENT
+      adjustmentId: [firm_balance_sheet::Store]fbs.FBS_ADJUSTMENT.ADJUSTMENT_ID,
+      lineId: [firm_balance_sheet::Store]fbs.FBS_ADJUSTMENT.LINE_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_ADJUSTMENT.AS_OF_DATE,
+      adjustmentType: [firm_balance_sheet::Store]fbs.FBS_ADJUSTMENT.ADJUSTMENT_TYPE,
+      adjustmentAmount: [firm_balance_sheet::Store]fbs.FBS_ADJUSTMENT.ADJUSTMENT_AMOUNT,
+      reason: [firm_balance_sheet::Store]fbs.FBS_ADJUSTMENT.REASON,
+      raisedBy: [firm_balance_sheet::Store]fbs.FBS_ADJUSTMENT.RAISED_BY,
+      raisedOn: [firm_balance_sheet::Store]fbs.FBS_ADJUSTMENT.RAISED_ON,
+      approvedBy: [firm_balance_sheet::Store]fbs.FBS_ADJUSTMENT.APPROVED_BY,
+      approvedOn: [firm_balance_sheet::Store]fbs.FBS_ADJUSTMENT.APPROVED_ON,
+      reversedOn: [firm_balance_sheet::Store]fbs.FBS_ADJUSTMENT.REVERSED_ON,
+      line[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineAdjustment
+   }
+
+   firm_balance_sheet::FbsBalanceCheck[fbsBalanceCheck]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_BALANCE_CHECK.CHECK_ID )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_BALANCE_CHECK
+      checkId: [firm_balance_sheet::Store]fbs.FBS_BALANCE_CHECK.CHECK_ID,
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_BALANCE_CHECK.INSTITUTION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_BALANCE_CHECK.AS_OF_DATE,
+      reportingCurrency: [firm_balance_sheet::Store]fbs.FBS_BALANCE_CHECK.REPORTING_CURRENCY,
+      checkType: [firm_balance_sheet::Store]fbs.FBS_BALANCE_CHECK.CHECK_TYPE,
+      leftAmount: [firm_balance_sheet::Store]fbs.FBS_BALANCE_CHECK.LEFT_AMOUNT,
+      rightAmount: [firm_balance_sheet::Store]fbs.FBS_BALANCE_CHECK.RIGHT_AMOUNT,
+      differenceAmount: [firm_balance_sheet::Store]fbs.FBS_BALANCE_CHECK.DIFFERENCE_AMOUNT,
+      toleranceAmount: [firm_balance_sheet::Store]fbs.FBS_BALANCE_CHECK.TOLERANCE_AMOUNT,
+      severity: [firm_balance_sheet::Store]fbs.FBS_BALANCE_CHECK.SEVERITY,
+      detectedAt: [firm_balance_sheet::Store]fbs.FBS_BALANCE_CHECK.DETECTED_AT,
+      resolvedOn: [firm_balance_sheet::Store]fbs.FBS_BALANCE_CHECK.RESOLVED_ON,
+      owner: [firm_balance_sheet::Store]fbs.FBS_BALANCE_CHECK.OWNER,
+      statement[fbsStatement]: [firm_balance_sheet::Store]@Fbs_StatementBalanceCheck
+   }
+
+   firm_balance_sheet::FbsAttestation[fbsAttestation]: Relational
+   {
+      ~primaryKey
+      (
+         [firm_balance_sheet::Store]fbs.FBS_ATTESTATION.INSTITUTION_ID,
+         [firm_balance_sheet::Store]fbs.FBS_ATTESTATION.AS_OF_DATE,
+         [firm_balance_sheet::Store]fbs.FBS_ATTESTATION.ROLE_CODE
+      )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_ATTESTATION
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_ATTESTATION.INSTITUTION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_ATTESTATION.AS_OF_DATE,
+      roleCode: [firm_balance_sheet::Store]fbs.FBS_ATTESTATION.ROLE_CODE,
+      attestedBy: [firm_balance_sheet::Store]fbs.FBS_ATTESTATION.ATTESTED_BY,
+      attestedAt: [firm_balance_sheet::Store]fbs.FBS_ATTESTATION.ATTESTED_AT,
+      attestationStatus: [firm_balance_sheet::Store]fbs.FBS_ATTESTATION.ATTESTATION_STATUS,
+      commentary: [firm_balance_sheet::Store]fbs.FBS_ATTESTATION.COMMENTARY,
+      withdrawnOn: [firm_balance_sheet::Store]fbs.FBS_ATTESTATION.WITHDRAWN_ON,
+      statement[fbsStatement]: [firm_balance_sheet::Store]@Fbs_StatementAttestation
+   }
+
+   // ==========================================================================================
+   // THE FOUR AGGREGATION SETS -- `~mainTable` is a VIEW, `~primaryKey` is the `~groupBy`
+   // ==========================================================================================
+   // A query naming one of these classes reads the GROUP BY directly: one row per group, not
+   // one per line. Navigating `lines` from here goes back DOWN to the rows that made the
+   // group, which is the only direction that makes sense -- there is no sibling group to
+   // reach sideways.
 
    firm_balance_sheet::FbsCategoryTotal[fbsCategoryTotal]: Relational
    {
-      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.CATEGORY_CODE )
+      ~primaryKey
+      (
+         [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.INSTITUTION_ID,
+         [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.AS_OF_DATE,
+         [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.REPORTING_CURRENCY,
+         [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.CATEGORY_CODE
+      )
       ~mainTable [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.INSTITUTION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.AS_OF_DATE,
+      reportingCurrency: [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.REPORTING_CURRENCY,
       categoryCode: [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.CATEGORY_CODE,
-      totalAmount: [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.TOTAL_AMOUNT
+      lineCount: [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.LINE_COUNT,
+      totalCarrying: [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.TOTAL_CARRYING,
+      totalGross: [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.TOTAL_GROSS,
+      totalImpairment: [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.TOTAL_IMPAIRMENT,
+      totalPriorCarrying: [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.TOTAL_PRIOR_CARRYING,
+      largestLine: [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.LARGEST_LINE,
+      smallestLine: [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.SMALLEST_LINE,
+      statement[fbsStatement]: [firm_balance_sheet::Store]@Fbs_StatementCategoryTotal,
+      category[fbsCategory]: [firm_balance_sheet::Store]@Fbs_CategoryCategoryTotal,
+      lines[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineCategoryTotal
+   }
+
+   firm_balance_sheet::FbsBasisTotal[fbsBasisTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [firm_balance_sheet::Store]fbs.FBS_BASIS_TOTAL.INSTITUTION_ID,
+         [firm_balance_sheet::Store]fbs.FBS_BASIS_TOTAL.AS_OF_DATE,
+         [firm_balance_sheet::Store]fbs.FBS_BASIS_TOTAL.REPORTING_CURRENCY,
+         [firm_balance_sheet::Store]fbs.FBS_BASIS_TOTAL.BASIS_CODE,
+         [firm_balance_sheet::Store]fbs.FBS_BASIS_TOTAL.SIDE
+      )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_BASIS_TOTAL
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_BASIS_TOTAL.INSTITUTION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_BASIS_TOTAL.AS_OF_DATE,
+      reportingCurrency: [firm_balance_sheet::Store]fbs.FBS_BASIS_TOTAL.REPORTING_CURRENCY,
+      basisCode: [firm_balance_sheet::Store]fbs.FBS_BASIS_TOTAL.BASIS_CODE,
+      side: [firm_balance_sheet::Store]fbs.FBS_BASIS_TOTAL.SIDE,
+      lineCount: [firm_balance_sheet::Store]fbs.FBS_BASIS_TOTAL.LINE_COUNT,
+      totalCarrying: [firm_balance_sheet::Store]fbs.FBS_BASIS_TOTAL.TOTAL_CARRYING,
+      totalGross: [firm_balance_sheet::Store]fbs.FBS_BASIS_TOTAL.TOTAL_GROSS,
+      totalImpairment: [firm_balance_sheet::Store]fbs.FBS_BASIS_TOTAL.TOTAL_IMPAIRMENT,
+      largestLine: [firm_balance_sheet::Store]fbs.FBS_BASIS_TOTAL.LARGEST_LINE,
+      basis[fbsMeasurementBasis]: [firm_balance_sheet::Store]@Fbs_BasisBasisTotal,
+      lines[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineBasisTotal
+   }
+
+   firm_balance_sheet::FbsBookTotal[fbsBookTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [firm_balance_sheet::Store]fbs.FBS_BOOK_TOTAL.INSTITUTION_ID,
+         [firm_balance_sheet::Store]fbs.FBS_BOOK_TOTAL.AS_OF_DATE,
+         [firm_balance_sheet::Store]fbs.FBS_BOOK_TOTAL.BOOK_CODE,
+         [firm_balance_sheet::Store]fbs.FBS_BOOK_TOTAL.SIDE
+      )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_BOOK_TOTAL
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_BOOK_TOTAL.INSTITUTION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_BOOK_TOTAL.AS_OF_DATE,
+      bookCode: [firm_balance_sheet::Store]fbs.FBS_BOOK_TOTAL.BOOK_CODE,
+      side: [firm_balance_sheet::Store]fbs.FBS_BOOK_TOTAL.SIDE,
+      lineCount: [firm_balance_sheet::Store]fbs.FBS_BOOK_TOTAL.LINE_COUNT,
+      totalCarrying: [firm_balance_sheet::Store]fbs.FBS_BOOK_TOTAL.TOTAL_CARRYING,
+      totalPriorCarrying: [firm_balance_sheet::Store]fbs.FBS_BOOK_TOTAL.TOTAL_PRIOR_CARRYING,
+      largestLine: [firm_balance_sheet::Store]fbs.FBS_BOOK_TOTAL.LARGEST_LINE,
+      book[fbsBookClassification]: [firm_balance_sheet::Store]@Fbs_BookBookTotal,
+      lines[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineBookTotal
+   }
+
+   // THE BALANCE CHECK, computed. Three rows per statement, and the identity is
+   // `sideTotals` summed with the sign the side implies.
+   firm_balance_sheet::FbsSideTotal[fbsSideTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [firm_balance_sheet::Store]fbs.FBS_SIDE_TOTAL.INSTITUTION_ID,
+         [firm_balance_sheet::Store]fbs.FBS_SIDE_TOTAL.AS_OF_DATE,
+         [firm_balance_sheet::Store]fbs.FBS_SIDE_TOTAL.REPORTING_CURRENCY,
+         [firm_balance_sheet::Store]fbs.FBS_SIDE_TOTAL.SIDE
+      )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_SIDE_TOTAL
+      institutionId: [firm_balance_sheet::Store]fbs.FBS_SIDE_TOTAL.INSTITUTION_ID,
+      asOfDate: [firm_balance_sheet::Store]fbs.FBS_SIDE_TOTAL.AS_OF_DATE,
+      reportingCurrency: [firm_balance_sheet::Store]fbs.FBS_SIDE_TOTAL.REPORTING_CURRENCY,
+      side: [firm_balance_sheet::Store]fbs.FBS_SIDE_TOTAL.SIDE,
+      lineCount: [firm_balance_sheet::Store]fbs.FBS_SIDE_TOTAL.LINE_COUNT,
+      totalCarrying: [firm_balance_sheet::Store]fbs.FBS_SIDE_TOTAL.TOTAL_CARRYING,
+      totalGross: [firm_balance_sheet::Store]fbs.FBS_SIDE_TOTAL.TOTAL_GROSS,
+      totalImpairment: [firm_balance_sheet::Store]fbs.FBS_SIDE_TOTAL.TOTAL_IMPAIRMENT,
+      totalPriorCarrying: [firm_balance_sheet::Store]fbs.FBS_SIDE_TOTAL.TOTAL_PRIOR_CARRYING,
+      statement[fbsStatement]: [firm_balance_sheet::Store]@Fbs_StatementSideTotal,
+      lines[fbsLineItem]: [firm_balance_sheet::Store]@Fbs_LineSideTotal
    }
 )

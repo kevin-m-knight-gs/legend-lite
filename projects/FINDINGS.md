@@ -21,6 +21,7 @@ Each of these cost one project a failed compile, and each is now in `CONTRACT.md
 | an empty group | produces NO ROW at all, not a zero. A completeness report has to read that case from the parent. |
 | an association end declared twice | as an end AND as a class property is a duplicate-property failure. Two projects wrote it that way first, having copied one that maps its edges as plain properties instead. |
 | a constraint over `[0..1]` | does not type-check. The "is it set" rule has to be a derived property using `->isEmpty()`. |
+| infix inside a list literal | `[0.0, $this.a - $this.b]->max()` is a parse error; parenthesising the element fixes it. Verified directly: the bare form fails, `($this.a - $this.b)` and a bare `$this.a` both compile. |
 
 Two things reported as engine limits turned out not to be, and are worth recording as
 corrections rather than quietly dropping:

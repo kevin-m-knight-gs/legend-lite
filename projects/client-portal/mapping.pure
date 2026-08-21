@@ -1,0 +1,623 @@
+###Mapping
+
+// The client-portal mapping.
+//
+// It includes BOTH dependency mappings, which reaches `client_core::Mapping` twice -- once
+// through client-reporting and once through fee-billing. The include diamond closes: the
+// duplicate resolves to one and nothing is redefined. Neither `client_core::Mapping` nor any
+// of the other twelve mappings in the closure is included again here, and none may be.
+//
+// EXPLICIT SET IDS EVERYWHERE, on both sides. Both dependencies name every one of their sets
+// explicitly, so the default ids (`client_reporting_CrpStatement`, `fee_billing_BilInvoice`)
+// do not exist to fall back on. Every cross-project association end below therefore names
+// [sourceSetId, targetSetId] in full: `statement[cpoDocumentEntry, crpStatement]`. The bare
+// `prop: [db]@Join` form resolves only against defaults and fails here with a message naming
+// the property rather than the project. The far-side ids -- crpStatement, crpDelivery,
+// crpCostsDisclosure, crpDepreciationNotice, bilInvoice, bilDispute -- come from the two
+// MANIFESTs and are not derivable from the class names.
+//
+// This project's own sixteen ids are all cpo-prefixed and all explicit, for the reason a set
+// id is prefixed at all: it is a GLOBAL namespace across the compiled graph, and one collision
+// fails the whole thing with a message that names the id and not the project. None is marked
+// root, so a downstream `extends [...]` must name the id from this project's MANIFEST.
+//
+// Derived properties are not mapped. The last three sets are rooted on VIEWS, so one instance
+// of CpoEntryViewTotal is a document-shaped GROUP and never a reading.
+Mapping client_portal::Mapping
+(
+   include client_reporting::Mapping
+   include fee_billing::Mapping
+
+   // ---- identity and access ---------------------------------------------------------------
+
+   client_portal::CpoPortalUser[cpoUser]: Relational
+   {
+      ~primaryKey
+      (
+         [client_portal::Store]CPO_USER.USER_ID
+      )
+      ~mainTable [client_portal::Store]CPO_USER
+      userId: [client_portal::Store]CPO_USER.USER_ID,
+      loginName: [client_portal::Store]CPO_USER.LOGIN_NAME,
+      displayName: [client_portal::Store]CPO_USER.DISPLAY_NAME,
+      emailAddress: [client_portal::Store]CPO_USER.EMAIL_ADDRESS,
+      userType: [client_portal::Store]CPO_USER.USER_TYPE,
+      status: [client_portal::Store]CPO_USER.STATUS,
+      enrolledOn: [client_portal::Store]CPO_USER.ENROLLED_ON,
+      lastLoginAt: [client_portal::Store]CPO_USER.LAST_LOGIN_AT,
+      lockedOn: [client_portal::Store]CPO_USER.LOCKED_ON,
+      mfaMethod: [client_portal::Store]CPO_USER.MFA_METHOD,
+      preferredLanguage: [client_portal::Store]CPO_USER.PREFERRED_LANGUAGE
+   }
+
+   client_portal::CpoUserEntitlement[cpoEntitlement]: Relational
+   {
+      ~primaryKey
+      (
+         [client_portal::Store]CPO_ENTITLEMENT.ENTITLEMENT_ID
+      )
+      ~mainTable [client_portal::Store]CPO_ENTITLEMENT
+      entitlementId: [client_portal::Store]CPO_ENTITLEMENT.ENTITLEMENT_ID,
+      userId: [client_portal::Store]CPO_ENTITLEMENT.USER_ID,
+      clientId: [client_portal::Store]CPO_ENTITLEMENT.CLIENT_ID,
+      mandateId: [client_portal::Store]CPO_ENTITLEMENT.MANDATE_ID,
+      scope: [client_portal::Store]CPO_ENTITLEMENT.SCOPE,
+      permissionLevel: [client_portal::Store]CPO_ENTITLEMENT.PERMISSION_LEVEL,
+      grantedOn: [client_portal::Store]CPO_ENTITLEMENT.GRANTED_ON,
+      grantedBy: [client_portal::Store]CPO_ENTITLEMENT.GRANTED_BY,
+      sourceKind: [client_portal::Store]CPO_ENTITLEMENT.SOURCE_KIND,
+      revokedOn: [client_portal::Store]CPO_ENTITLEMENT.REVOKED_ON
+   }
+
+   client_portal::CpoSession[cpoSession]: Relational
+   {
+      ~primaryKey
+      (
+         [client_portal::Store]CPO_SESSION.SESSION_ID
+      )
+      ~mainTable [client_portal::Store]CPO_SESSION
+      sessionId: [client_portal::Store]CPO_SESSION.SESSION_ID,
+      userId: [client_portal::Store]CPO_SESSION.USER_ID,
+      startedAt: [client_portal::Store]CPO_SESSION.STARTED_AT,
+      endedAt: [client_portal::Store]CPO_SESSION.ENDED_AT,
+      endReason: [client_portal::Store]CPO_SESSION.END_REASON,
+      ipAddress: [client_portal::Store]CPO_SESSION.IP_ADDRESS,
+      userAgent: [client_portal::Store]CPO_SESSION.USER_AGENT,
+      deviceType: [client_portal::Store]CPO_SESSION.DEVICE_TYPE,
+      mfaPassed: [client_portal::Store]CPO_SESSION.MFA_PASSED,
+      impersonatedClientId: [client_portal::Store]CPO_SESSION.IMPERSONATED_CLIENT_ID
+   }
+
+   // ---- the menu --------------------------------------------------------------------------
+
+   client_portal::CpoNavigationNode[cpoNavNode]: Relational
+   {
+      ~primaryKey
+      (
+         [client_portal::Store]CPO_NAV_NODE.NODE_CODE
+      )
+      ~mainTable [client_portal::Store]CPO_NAV_NODE
+      nodeCode: [client_portal::Store]CPO_NAV_NODE.NODE_CODE,
+      parentNodeCode: [client_portal::Store]CPO_NAV_NODE.PARENT_NODE_CODE,
+      label: [client_portal::Store]CPO_NAV_NODE.LABEL,
+      nodeType: [client_portal::Store]CPO_NAV_NODE.NODE_TYPE,
+      displayOrder: [client_portal::Store]CPO_NAV_NODE.DISPLAY_ORDER,
+      routePath: [client_portal::Store]CPO_NAV_NODE.ROUTE_PATH,
+      isLanding: [client_portal::Store]CPO_NAV_NODE.IS_LANDING,
+      retiredOn: [client_portal::Store]CPO_NAV_NODE.RETIRED_ON
+   }
+
+   client_portal::CpoNodeAccess[cpoNodeAccess]: Relational
+   {
+      ~primaryKey
+      (
+         [client_portal::Store]CPO_NODE_ACCESS.NODE_ACCESS_ID
+      )
+      ~mainTable [client_portal::Store]CPO_NODE_ACCESS
+      nodeAccessId: [client_portal::Store]CPO_NODE_ACCESS.NODE_ACCESS_ID,
+      nodeCode: [client_portal::Store]CPO_NODE_ACCESS.NODE_CODE,
+      requiredPermission: [client_portal::Store]CPO_NODE_ACCESS.REQUIRED_PERMISSION,
+      requiredScope: [client_portal::Store]CPO_NODE_ACCESS.REQUIRED_SCOPE,
+      hideWhenDenied: [client_portal::Store]CPO_NODE_ACCESS.HIDE_WHEN_DENIED,
+      effectiveFrom: [client_portal::Store]CPO_NODE_ACCESS.EFFECTIVE_FROM
+   }
+
+   // ---- documents -------------------------------------------------------------------------
+
+   client_portal::CpoDocumentEntry[cpoDocumentEntry]: Relational
+   {
+      ~primaryKey
+      (
+         [client_portal::Store]CPO_DOCUMENT_ENTRY.ENTRY_ID
+      )
+      ~mainTable [client_portal::Store]CPO_DOCUMENT_ENTRY
+      entryId: [client_portal::Store]CPO_DOCUMENT_ENTRY.ENTRY_ID,
+      statementId: [client_portal::Store]CPO_DOCUMENT_ENTRY.STATEMENT_ID,
+      deliveryId: [client_portal::Store]CPO_DOCUMENT_ENTRY.DELIVERY_ID,
+      clientId: [client_portal::Store]CPO_DOCUMENT_ENTRY.CLIENT_ID,
+      nodeCode: [client_portal::Store]CPO_DOCUMENT_ENTRY.NODE_CODE,
+      title: [client_portal::Store]CPO_DOCUMENT_ENTRY.TITLE,
+      documentKind: [client_portal::Store]CPO_DOCUMENT_ENTRY.DOCUMENT_KIND,
+      publishedAt: [client_portal::Store]CPO_DOCUMENT_ENTRY.PUBLISHED_AT,
+      expiresOn: [client_portal::Store]CPO_DOCUMENT_ENTRY.EXPIRES_ON,
+      fileSizeBytes: [client_portal::Store]CPO_DOCUMENT_ENTRY.FILE_SIZE_BYTES,
+      isDownloadable: [client_portal::Store]CPO_DOCUMENT_ENTRY.IS_DOWNLOADABLE,
+      renderedHash: [client_portal::Store]CPO_DOCUMENT_ENTRY.RENDERED_HASH,
+      unpublishedOn: [client_portal::Store]CPO_DOCUMENT_ENTRY.UNPUBLISHED_ON
+   }
+
+   client_portal::CpoDocumentView[cpoDocumentView]: Relational
+   {
+      ~primaryKey
+      (
+         [client_portal::Store]CPO_DOCUMENT_VIEW.VIEW_ID
+      )
+      ~mainTable [client_portal::Store]CPO_DOCUMENT_VIEW
+      viewId: [client_portal::Store]CPO_DOCUMENT_VIEW.VIEW_ID,
+      entryId: [client_portal::Store]CPO_DOCUMENT_VIEW.ENTRY_ID,
+      sessionId: [client_portal::Store]CPO_DOCUMENT_VIEW.SESSION_ID,
+      userId: [client_portal::Store]CPO_DOCUMENT_VIEW.USER_ID,
+      openedAt: [client_portal::Store]CPO_DOCUMENT_VIEW.OPENED_AT,
+      openedDate: [client_portal::Store]CPO_DOCUMENT_VIEW.OPENED_DATE,
+      secondsOnPage: [client_portal::Store]CPO_DOCUMENT_VIEW.SECONDS_ON_PAGE,
+      pagesSeen: [client_portal::Store]CPO_DOCUMENT_VIEW.PAGES_SEEN,
+      wasDownloaded: [client_portal::Store]CPO_DOCUMENT_VIEW.WAS_DOWNLOADED,
+      renderedHash: [client_portal::Store]CPO_DOCUMENT_VIEW.RENDERED_HASH,
+      sourceNodeCode: [client_portal::Store]CPO_DOCUMENT_VIEW.SOURCE_NODE_CODE
+   }
+
+   // ---- acknowledgement -------------------------------------------------------------------
+
+   client_portal::CpoAcknowledgementRequest[cpoAckRequest]: Relational
+   {
+      ~primaryKey
+      (
+         [client_portal::Store]CPO_ACK_REQUEST.REQUEST_ID
+      )
+      ~mainTable [client_portal::Store]CPO_ACK_REQUEST
+      requestId: [client_portal::Store]CPO_ACK_REQUEST.REQUEST_ID,
+      entryId: [client_portal::Store]CPO_ACK_REQUEST.ENTRY_ID,
+      disclosureId: [client_portal::Store]CPO_ACK_REQUEST.DISCLOSURE_ID,
+      clientId: [client_portal::Store]CPO_ACK_REQUEST.CLIENT_ID,
+      raisedOn: [client_portal::Store]CPO_ACK_REQUEST.RAISED_ON,
+      requiredBy: [client_portal::Store]CPO_ACK_REQUEST.REQUIRED_BY,
+      reasonCode: [client_portal::Store]CPO_ACK_REQUEST.REASON_CODE,
+      isBlocking: [client_portal::Store]CPO_ACK_REQUEST.IS_BLOCKING,
+      escalatedOn: [client_portal::Store]CPO_ACK_REQUEST.ESCALATED_ON,
+      cancelledOn: [client_portal::Store]CPO_ACK_REQUEST.CANCELLED_ON
+   }
+
+   client_portal::CpoAcknowledgementReceipt[cpoAckReceipt]: Relational
+   {
+      ~primaryKey
+      (
+         [client_portal::Store]CPO_ACK_RECEIPT.REQUEST_ID
+      )
+      ~mainTable [client_portal::Store]CPO_ACK_RECEIPT
+      requestId: [client_portal::Store]CPO_ACK_RECEIPT.REQUEST_ID,
+      userId: [client_portal::Store]CPO_ACK_RECEIPT.USER_ID,
+      sessionId: [client_portal::Store]CPO_ACK_RECEIPT.SESSION_ID,
+      acceptedAt: [client_portal::Store]CPO_ACK_RECEIPT.ACCEPTED_AT,
+      statementTextHash: [client_portal::Store]CPO_ACK_RECEIPT.STATEMENT_TEXT_HASH,
+      ipAddress: [client_portal::Store]CPO_ACK_RECEIPT.IP_ADDRESS,
+      wasScrolledToEnd: [client_portal::Store]CPO_ACK_RECEIPT.WAS_SCROLLED_TO_END,
+      acceptanceMethod: [client_portal::Store]CPO_ACK_RECEIPT.ACCEPTANCE_METHOD
+   }
+
+   // ---- money on the screen ---------------------------------------------------------------
+
+   client_portal::CpoInvoiceView[cpoInvoiceView]: Relational
+   {
+      ~primaryKey
+      (
+         [client_portal::Store]CPO_INVOICE_VIEW.PORTAL_INVOICE_ID
+      )
+      ~mainTable [client_portal::Store]CPO_INVOICE_VIEW
+      portalInvoiceId: [client_portal::Store]CPO_INVOICE_VIEW.PORTAL_INVOICE_ID,
+      invoiceId: [client_portal::Store]CPO_INVOICE_VIEW.INVOICE_ID,
+      clientId: [client_portal::Store]CPO_INVOICE_VIEW.CLIENT_ID,
+      entryId: [client_portal::Store]CPO_INVOICE_VIEW.ENTRY_ID,
+      publishedAt: [client_portal::Store]CPO_INVOICE_VIEW.PUBLISHED_AT,
+      displayStatus: [client_portal::Store]CPO_INVOICE_VIEW.DISPLAY_STATUS,
+      amountShown: [client_portal::Store]CPO_INVOICE_VIEW.AMOUNT_SHOWN,
+      outstandingAmount: [client_portal::Store]CPO_INVOICE_VIEW.OUTSTANDING_AMOUNT,
+      currencyCode: [client_portal::Store]CPO_INVOICE_VIEW.CURRENCY_CODE,
+      dueDate: [client_portal::Store]CPO_INVOICE_VIEW.DUE_DATE,
+      firstOpenedAt: [client_portal::Store]CPO_INVOICE_VIEW.FIRST_OPENED_AT
+   }
+
+   client_portal::CpoPaymentInstruction[cpoPaymentInstruction]: Relational
+   {
+      ~primaryKey
+      (
+         [client_portal::Store]CPO_PAYMENT_INSTRUCTION.INSTRUCTION_ID
+      )
+      ~mainTable [client_portal::Store]CPO_PAYMENT_INSTRUCTION
+      instructionId: [client_portal::Store]CPO_PAYMENT_INSTRUCTION.INSTRUCTION_ID,
+      portalInvoiceId: [client_portal::Store]CPO_PAYMENT_INSTRUCTION.PORTAL_INVOICE_ID,
+      invoiceId: [client_portal::Store]CPO_PAYMENT_INSTRUCTION.INVOICE_ID,
+      userId: [client_portal::Store]CPO_PAYMENT_INSTRUCTION.USER_ID,
+      sessionId: [client_portal::Store]CPO_PAYMENT_INSTRUCTION.SESSION_ID,
+      instructedAt: [client_portal::Store]CPO_PAYMENT_INSTRUCTION.INSTRUCTED_AT,
+      amount: [client_portal::Store]CPO_PAYMENT_INSTRUCTION.AMOUNT,
+      currencyCode: [client_portal::Store]CPO_PAYMENT_INSTRUCTION.CURRENCY_CODE,
+      method: [client_portal::Store]CPO_PAYMENT_INSTRUCTION.METHOD,
+      reference: [client_portal::Store]CPO_PAYMENT_INSTRUCTION.REFERENCE,
+      settledOn: [client_portal::Store]CPO_PAYMENT_INSTRUCTION.SETTLED_ON,
+      rejectedReason: [client_portal::Store]CPO_PAYMENT_INSTRUCTION.REJECTED_REASON
+   }
+
+   // ---- alerts and the trail --------------------------------------------------------------
+
+   client_portal::CpoAlert[cpoAlert]: Relational
+   {
+      ~primaryKey
+      (
+         [client_portal::Store]CPO_ALERT.ALERT_ID
+      )
+      ~mainTable [client_portal::Store]CPO_ALERT
+      alertId: [client_portal::Store]CPO_ALERT.ALERT_ID,
+      clientId: [client_portal::Store]CPO_ALERT.CLIENT_ID,
+      userId: [client_portal::Store]CPO_ALERT.USER_ID,
+      noticeId: [client_portal::Store]CPO_ALERT.NOTICE_ID,
+      disputeId: [client_portal::Store]CPO_ALERT.DISPUTE_ID,
+      entryId: [client_portal::Store]CPO_ALERT.ENTRY_ID,
+      alertType: [client_portal::Store]CPO_ALERT.ALERT_TYPE,
+      severity: [client_portal::Store]CPO_ALERT.SEVERITY,
+      raisedAt: [client_portal::Store]CPO_ALERT.RAISED_AT,
+      expiresOn: [client_portal::Store]CPO_ALERT.EXPIRES_ON,
+      dismissedAt: [client_portal::Store]CPO_ALERT.DISMISSED_AT,
+      message: [client_portal::Store]CPO_ALERT.MESSAGE
+   }
+
+   client_portal::CpoAuditEvent[cpoAuditEvent]: Relational
+   {
+      ~primaryKey
+      (
+         [client_portal::Store]CPO_AUDIT_EVENT.EVENT_ID
+      )
+      ~mainTable [client_portal::Store]CPO_AUDIT_EVENT
+      eventId: [client_portal::Store]CPO_AUDIT_EVENT.EVENT_ID,
+      sessionId: [client_portal::Store]CPO_AUDIT_EVENT.SESSION_ID,
+      userId: [client_portal::Store]CPO_AUDIT_EVENT.USER_ID,
+      eventAt: [client_portal::Store]CPO_AUDIT_EVENT.EVENT_AT,
+      eventDate: [client_portal::Store]CPO_AUDIT_EVENT.EVENT_DATE,
+      eventType: [client_portal::Store]CPO_AUDIT_EVENT.EVENT_TYPE,
+      nodeCode: [client_portal::Store]CPO_AUDIT_EVENT.NODE_CODE,
+      targetKind: [client_portal::Store]CPO_AUDIT_EVENT.TARGET_KIND,
+      targetId: [client_portal::Store]CPO_AUDIT_EVENT.TARGET_ID,
+      outcome: [client_portal::Store]CPO_AUDIT_EVENT.OUTCOME,
+      durationMs: [client_portal::Store]CPO_AUDIT_EVENT.DURATION_MS,
+      detail: [client_portal::Store]CPO_AUDIT_EVENT.DETAIL
+   }
+
+   // ---- the aggregate sets, rooted on VIEWS -------------------------------------------------
+   //
+   // The primary key of each is the view's ~groupBy and nothing else, which is what makes one
+   // instance a group rather than a row.
+
+   client_portal::CpoEntryViewTotal[cpoEntryViewTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [client_portal::Store]CPO_ENTRY_VIEW_TOTAL.ENTRY_ID
+      )
+      ~mainTable [client_portal::Store]CPO_ENTRY_VIEW_TOTAL
+      entryId: [client_portal::Store]CPO_ENTRY_VIEW_TOTAL.ENTRY_ID,
+      viewCount: [client_portal::Store]CPO_ENTRY_VIEW_TOTAL.VIEW_COUNT,
+      totalSeconds: [client_portal::Store]CPO_ENTRY_VIEW_TOTAL.TOTAL_SECONDS,
+      totalPagesSeen: [client_portal::Store]CPO_ENTRY_VIEW_TOTAL.TOTAL_PAGES_SEEN,
+      firstOpenedDate: [client_portal::Store]CPO_ENTRY_VIEW_TOTAL.FIRST_OPENED_DATE,
+      lastOpenedDate: [client_portal::Store]CPO_ENTRY_VIEW_TOTAL.LAST_OPENED_DATE
+   }
+
+   client_portal::CpoUserActivityTotal[cpoUserActivityTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [client_portal::Store]CPO_USER_DAY_TOTAL.USER_ID,
+         [client_portal::Store]CPO_USER_DAY_TOTAL.EVENT_DATE
+      )
+      ~mainTable [client_portal::Store]CPO_USER_DAY_TOTAL
+      userId: [client_portal::Store]CPO_USER_DAY_TOTAL.USER_ID,
+      eventDate: [client_portal::Store]CPO_USER_DAY_TOTAL.EVENT_DATE,
+      eventCount: [client_portal::Store]CPO_USER_DAY_TOTAL.EVENT_COUNT,
+      totalDurationMs: [client_portal::Store]CPO_USER_DAY_TOTAL.TOTAL_DURATION_MS
+   }
+
+   client_portal::CpoClientOutstandingTotal[cpoClientOutstandingTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [client_portal::Store]CPO_CLIENT_OUTSTANDING_TOTAL.CLIENT_ID
+      )
+      ~mainTable [client_portal::Store]CPO_CLIENT_OUTSTANDING_TOTAL
+      clientId: [client_portal::Store]CPO_CLIENT_OUTSTANDING_TOTAL.CLIENT_ID,
+      invoiceCount: [client_portal::Store]CPO_CLIENT_OUTSTANDING_TOTAL.INVOICE_COUNT,
+      totalOutstanding: [client_portal::Store]CPO_CLIENT_OUTSTANDING_TOTAL.TOTAL_OUTSTANDING,
+      totalShown: [client_portal::Store]CPO_CLIENT_OUTSTANDING_TOTAL.TOTAL_SHOWN,
+      latestDueDate: [client_portal::Store]CPO_CLIENT_OUTSTANDING_TOTAL.LATEST_DUE_DATE
+   }
+
+   // ==== associations, internal ==============================================================
+   //
+   // The AssociationMapping(...) wrapper is mandatory: without it the grammar reads the block
+   // as a CLASS mapping and reports "Can't find class client_portal::CpoUserSessions", which
+   // names the wrong problem. Both ends use the SAME join; the engine reverses it for the end
+   // that walks against the declared direction.
+
+   client_portal::CpoUserEntitlements: Relational
+   {
+      AssociationMapping
+      (
+         entitledUser[cpoEntitlement, cpoUser]: [client_portal::Store]@Cpo_UserEntitlements,
+         entitlements[cpoUser, cpoEntitlement]: [client_portal::Store]@Cpo_UserEntitlements
+      )
+   }
+
+   client_portal::CpoUserSessions: Relational
+   {
+      AssociationMapping
+      (
+         sessionUser[cpoSession, cpoUser]: [client_portal::Store]@Cpo_UserSessions,
+         sessions[cpoUser, cpoSession]: [client_portal::Store]@Cpo_UserSessions
+      )
+   }
+
+   // Both ends are the SAME set, and only the direction of travel over @Cpo_NodeParent
+   // separates the parent from the children.
+   client_portal::CpoNodeParent: Relational
+   {
+      AssociationMapping
+      (
+         parentNode[cpoNavNode, cpoNavNode]: [client_portal::Store]@Cpo_NodeParent,
+         childNodes[cpoNavNode, cpoNavNode]: [client_portal::Store]@Cpo_NodeParent
+      )
+   }
+
+   client_portal::CpoNodeAccessRules: Relational
+   {
+      AssociationMapping
+      (
+         accessNode[cpoNodeAccess, cpoNavNode]: [client_portal::Store]@Cpo_NodeAccessRules,
+         accessRules[cpoNavNode, cpoNodeAccess]: [client_portal::Store]@Cpo_NodeAccessRules
+      )
+   }
+
+   client_portal::CpoEntryNode: Relational
+   {
+      AssociationMapping
+      (
+         entryNode[cpoDocumentEntry, cpoNavNode]: [client_portal::Store]@Cpo_EntryNode,
+         nodeEntries[cpoNavNode, cpoDocumentEntry]: [client_portal::Store]@Cpo_EntryNode
+      )
+   }
+
+   client_portal::CpoEntryViews: Relational
+   {
+      AssociationMapping
+      (
+         entry[cpoDocumentView, cpoDocumentEntry]: [client_portal::Store]@Cpo_EntryViews,
+         views[cpoDocumentEntry, cpoDocumentView]: [client_portal::Store]@Cpo_EntryViews
+      )
+   }
+
+   client_portal::CpoSessionViews: Relational
+   {
+      AssociationMapping
+      (
+         viewSession[cpoDocumentView, cpoSession]: [client_portal::Store]@Cpo_SessionViews,
+         documentViews[cpoSession, cpoDocumentView]: [client_portal::Store]@Cpo_SessionViews
+      )
+   }
+
+   client_portal::CpoUserViews: Relational
+   {
+      AssociationMapping
+      (
+         viewingUser[cpoDocumentView, cpoUser]: [client_portal::Store]@Cpo_UserViews,
+         userViews[cpoUser, cpoDocumentView]: [client_portal::Store]@Cpo_UserViews
+      )
+   }
+
+   client_portal::CpoEntryAckRequests: Relational
+   {
+      AssociationMapping
+      (
+         requestedEntry[cpoAckRequest, cpoDocumentEntry]: [client_portal::Store]@Cpo_EntryAckRequests,
+         acknowledgementRequests[cpoDocumentEntry, cpoAckRequest]: [client_portal::Store]@Cpo_EntryAckRequests
+      )
+   }
+
+   client_portal::CpoRequestReceipt: Relational
+   {
+      AssociationMapping
+      (
+         request[cpoAckReceipt, cpoAckRequest]: [client_portal::Store]@Cpo_RequestReceipt,
+         receipt[cpoAckRequest, cpoAckReceipt]: [client_portal::Store]@Cpo_RequestReceipt
+      )
+   }
+
+   client_portal::CpoReceiptUser: Relational
+   {
+      AssociationMapping
+      (
+         acceptingUser[cpoAckReceipt, cpoUser]: [client_portal::Store]@Cpo_ReceiptUser,
+         receipts[cpoUser, cpoAckReceipt]: [client_portal::Store]@Cpo_ReceiptUser
+      )
+   }
+
+   client_portal::CpoReceiptSession: Relational
+   {
+      AssociationMapping
+      (
+         receiptSession[cpoAckReceipt, cpoSession]: [client_portal::Store]@Cpo_ReceiptSession,
+         sessionReceipts[cpoSession, cpoAckReceipt]: [client_portal::Store]@Cpo_ReceiptSession
+      )
+   }
+
+   client_portal::CpoInvoiceViewEntry: Relational
+   {
+      AssociationMapping
+      (
+         invoiceEntry[cpoInvoiceView, cpoDocumentEntry]: [client_portal::Store]@Cpo_InvoiceViewEntry,
+         invoiceViews[cpoDocumentEntry, cpoInvoiceView]: [client_portal::Store]@Cpo_InvoiceViewEntry
+      )
+   }
+
+   client_portal::CpoInvoicePayments: Relational
+   {
+      AssociationMapping
+      (
+         portalInvoice[cpoPaymentInstruction, cpoInvoiceView]: [client_portal::Store]@Cpo_InvoicePayments,
+         instructions[cpoInvoiceView, cpoPaymentInstruction]: [client_portal::Store]@Cpo_InvoicePayments
+      )
+   }
+
+   client_portal::CpoInstructionUser: Relational
+   {
+      AssociationMapping
+      (
+         instructingUser[cpoPaymentInstruction, cpoUser]: [client_portal::Store]@Cpo_InstructionUser,
+         userInstructions[cpoUser, cpoPaymentInstruction]: [client_portal::Store]@Cpo_InstructionUser
+      )
+   }
+
+   client_portal::CpoAlertUser: Relational
+   {
+      AssociationMapping
+      (
+         alertedUser[cpoAlert, cpoUser]: [client_portal::Store]@Cpo_AlertUser,
+         alerts[cpoUser, cpoAlert]: [client_portal::Store]@Cpo_AlertUser
+      )
+   }
+
+   client_portal::CpoAlertEntry: Relational
+   {
+      AssociationMapping
+      (
+         alertEntry[cpoAlert, cpoDocumentEntry]: [client_portal::Store]@Cpo_AlertEntry,
+         entryAlerts[cpoDocumentEntry, cpoAlert]: [client_portal::Store]@Cpo_AlertEntry
+      )
+   }
+
+   client_portal::CpoSessionAudit: Relational
+   {
+      AssociationMapping
+      (
+         auditSession[cpoAuditEvent, cpoSession]: [client_portal::Store]@Cpo_SessionAudit,
+         auditEvents[cpoSession, cpoAuditEvent]: [client_portal::Store]@Cpo_SessionAudit
+      )
+   }
+
+   client_portal::CpoUserAudit: Relational
+   {
+      AssociationMapping
+      (
+         auditUser[cpoAuditEvent, cpoUser]: [client_portal::Store]@Cpo_UserAudit,
+         userAuditEvents[cpoUser, cpoAuditEvent]: [client_portal::Store]@Cpo_UserAudit
+      )
+   }
+
+   // ---- into this project's own aggregates ---------------------------------------------------
+
+   client_portal::CpoEntryViewTotals: Relational
+   {
+      AssociationMapping
+      (
+         totalEntry[cpoEntryViewTotal, cpoDocumentEntry]: [client_portal::Store]@Cpo_EntryViewTotal,
+         viewTotal[cpoDocumentEntry, cpoEntryViewTotal]: [client_portal::Store]@Cpo_EntryViewTotal
+      )
+   }
+
+   client_portal::CpoUserActivityTotals: Relational
+   {
+      AssociationMapping
+      (
+         activityUser[cpoUserActivityTotal, cpoUser]: [client_portal::Store]@Cpo_UserActivityTotal,
+         activityTotals[cpoUser, cpoUserActivityTotal]: [client_portal::Store]@Cpo_UserActivityTotal
+      )
+   }
+
+   client_portal::CpoClientOutstandingTotals: Relational
+   {
+      AssociationMapping
+      (
+         outstandingTotal[cpoInvoiceView, cpoClientOutstandingTotal]: [client_portal::Store]@Cpo_ClientOutstandingTotal,
+         clientInvoiceViews[cpoClientOutstandingTotal, cpoInvoiceView]: [client_portal::Store]@Cpo_ClientOutstandingTotal
+      )
+   }
+
+   // ==== associations, across a project boundary ==============================================
+   //
+   // Seven, reaching BOTH dependencies. Every end names [sourceSetId, targetSetId], and the
+   // far-side ids are the dependency's explicit ones -- crpStatement, crpDelivery,
+   // crpCostsDisclosure, crpDepreciationNotice, bilInvoice, bilDispute. The join itself lives
+   // in client_portal::Store even for the end whose source table belongs to the dependency,
+   // because that is the store that includes both.
+
+   // ---- into client-reporting -----------------------------------------------------------------
+   client_portal::CpoEntryStatement: Relational
+   {
+      AssociationMapping
+      (
+         statement[cpoDocumentEntry, crpStatement]: [client_portal::Store]@Cpo_EntryStatement,
+         portalEntries[crpStatement, cpoDocumentEntry]: [client_portal::Store]@Cpo_EntryStatement
+      )
+   }
+
+   client_portal::CpoEntryDelivery: Relational
+   {
+      AssociationMapping
+      (
+         delivery[cpoDocumentEntry, crpDelivery]: [client_portal::Store]@Cpo_EntryDelivery,
+         portalEntry[crpDelivery, cpoDocumentEntry]: [client_portal::Store]@Cpo_EntryDelivery
+      )
+   }
+
+   client_portal::CpoRequestDisclosure: Relational
+   {
+      AssociationMapping
+      (
+         disclosure[cpoAckRequest, crpCostsDisclosure]: [client_portal::Store]@Cpo_RequestDisclosure,
+         disclosureRequests[crpCostsDisclosure, cpoAckRequest]: [client_portal::Store]@Cpo_RequestDisclosure
+      )
+   }
+
+   client_portal::CpoAlertNotice: Relational
+   {
+      AssociationMapping
+      (
+         notice[cpoAlert, crpDepreciationNotice]: [client_portal::Store]@Cpo_AlertNotice,
+         portalAlerts[crpDepreciationNotice, cpoAlert]: [client_portal::Store]@Cpo_AlertNotice
+      )
+   }
+
+   // ---- into fee-billing ------------------------------------------------------------------------
+   client_portal::CpoInvoiceViewInvoice: Relational
+   {
+      AssociationMapping
+      (
+         invoice[cpoInvoiceView, bilInvoice]: [client_portal::Store]@Cpo_PortalInvoice,
+         portalView[bilInvoice, cpoInvoiceView]: [client_portal::Store]@Cpo_PortalInvoice
+      )
+   }
+
+   client_portal::CpoInstructionInvoice: Relational
+   {
+      AssociationMapping
+      (
+         instructedInvoice[cpoPaymentInstruction, bilInvoice]: [client_portal::Store]@Cpo_InstructionInvoice,
+         invoiceInstructions[bilInvoice, cpoPaymentInstruction]: [client_portal::Store]@Cpo_InstructionInvoice
+      )
+   }
+
+   client_portal::CpoAlertDispute: Relational
+   {
+      AssociationMapping
+      (
+         dispute[cpoAlert, bilDispute]: [client_portal::Store]@Cpo_AlertDispute,
+         disputeAlerts[bilDispute, cpoAlert]: [client_portal::Store]@Cpo_AlertDispute
+      )
+   }
+)

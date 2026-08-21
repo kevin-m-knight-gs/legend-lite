@@ -1,0 +1,673 @@
+###Relational
+// The risk-dashboard store, and the physical shape of the WIDEST FAN-IN in this graph.
+//
+// It INCLUDES all three dependency stores -- and only those three. Between them they bring
+// twelve more transitively, and FOUR of those arrive TWICE:
+//
+//   position-keeping   via margin_calc::Store   AND via pnl_attribution::Store
+//   core-account       under both of those
+//   core-instrument    under both of those
+//   core-price         under both of those
+//
+// while core-party arrives twice again inside credit_limits::Store's own diamond. Including a
+// store does not copy its tables: PK_*, CI_*, CA_*, CPR_*, CP_* and the rest stay owned by the
+// projects that declare them, and the second and third arrivals are the same database rather
+// than a copy. None of them is included here directly, and no join below names one -- every
+// cross-project join lands on a CLM_*, MGN_* or PNL_* table (or one of their views), which is
+// what makes the declared dependency list the true one.
+//
+// ------------------------------------------------------------------ the fan-in, physically
+//
+// RDB_MORNING_RUN carries three foreign keys into three different projects at once:
+//
+//   MARGIN_RUN_SEQ  + COB_DATE  ->  MGN_RUN            margin-calc's batch
+//   CREDIT_REPORT_ID            ->  CLM_DAILY_REPORT   credit-limits' daily report
+//   ATTRIBUTION_ID              ->  PNL_RUN            pnl-attribution's batch
+//
+// Three upstream batches that have no join between them and never will. This table is where
+// they are the same morning, and Rdb_RunMarginRun / Rdb_RunCreditReport /
+// Rdb_RunAttributionRun are the three joins that say so.
+//
+// ------------------------------------------------------------------ datatypes
+//
+//   NUMERIC(24,8)  money. The three dependencies use three different scales -- NUMERIC(20,4)
+//                  in credit-limits, NUMERIC(20,6) in pnl-attribution, NUMERIC(24,8) in
+//                  margin-calc -- so this project takes the WIDEST, because a board that
+//                  displays all three must not be the place a figure loses digits.
+//   FLOAT          ratios, percentages and thresholds -- compared against a level rather than
+//                  for equality.
+//   SMALLINT       counts and severities bounded by construction; INTEGER for sequences and
+//                  row counts that are not.
+//   CHAR(n)        fixed-width codes; CHAR(3) for a currency.
+//
+// REAL is not used: it parses and cannot be read back at execution (UPSTREAM_FINDINGS F53).
+//
+// ------------------------------------------------------------------ the aggregation
+//
+// The four Views at the bottom are the AGGREGATION shape, and every one of them uses
+// `~groupBy`. They are Legend views, not database ones: no DDL is created, nothing seeds
+// them, and the engine folds the GROUP BY into the SQL it generates. Their ~groupBy columns
+// are their PRIMARY KEY, which is both what makes them joinable and what a row of them MEANS
+// -- one row of RDB_OWNER_QUEUE_TOTAL is an owner and a day, never an exception. `~groupBy`
+// takes COLUMN REFERENCES and never expressions.
+Database risk_dashboard::Store
+(
+   include margin_calc::Store
+   include credit_limits::Store
+   include pnl_attribution::Store
+
+   // ---------------------------------------------------------- the board
+
+   // The board. One row per audience.
+   Table RDB_DASHBOARD
+   (
+      DASHBOARD_ID VARCHAR(32) PRIMARY KEY,
+      DASHBOARD_NAME VARCHAR(120) NOT NULL,
+      AUDIENCE_ROLE VARCHAR(24),
+      OWNER_ID VARCHAR(40),
+      REFRESH_CRON VARCHAR(40),
+      REPORTING_CCY CHAR(3),
+      TILE_COUNT SMALLINT,
+      IS_DEFAULT BIT,
+      RETIRED_ON DATE
+   )
+
+   // THE TILE: a query (MEASURE_CODE plus its bindings), a threshold (POLICY_CODE) and an
+   // owner (OWNER_ID). All three are columns because all three are part of what a tile IS.
+   Table RDB_TILE
+   (
+      TILE_ID VARCHAR(40) PRIMARY KEY,
+      DASHBOARD_ID VARCHAR(32) NOT NULL,
+      TILE_CODE VARCHAR(24) NOT NULL,
+      TITLE VARCHAR(120),
+      PANEL_CODE VARCHAR(16),
+      MEASURE_CODE VARCHAR(32),
+      UNIT_CODE VARCHAR(8),
+      POLICY_CODE VARCHAR(24) NOT NULL,
+      OWNER_ID VARCHAR(40) NOT NULL,
+      SORT_ORDER SMALLINT,
+      MAX_AGE_MINUTES SMALLINT,
+      IS_BLOCKING BIT,
+      RETIRED_ON DATE
+   )
+
+   // The threshold, shared across tiles. DIRECTION is what stops a single comparison being
+   // wrong for half the board.
+   Table RDB_THRESHOLD_POLICY
+   (
+      POLICY_CODE VARCHAR(24) PRIMARY KEY,
+      POLICY_NAME VARCHAR(80) NOT NULL,
+      DIRECTION CHAR(5),
+      AMBER_LEVEL FLOAT,
+      RED_LEVEL FLOAT,
+      ABSOLUTE_FLOOR NUMERIC(24,8),
+      ESCALATION_LEVEL SMALLINT,
+      RESPONSE_MINUTES SMALLINT,
+      IS_DEFAULT BIT
+   )
+
+   // The owner. A named person or a named role, never a team.
+   Table RDB_OWNER
+   (
+      OWNER_ID VARCHAR(40) PRIMARY KEY,
+      OWNER_NAME VARCHAR(120) NOT NULL,
+      ROLE_CODE VARCHAR(24),
+      DESK_CODE VARCHAR(24),
+      ESCALATES_TO_ID VARCHAR(40),
+      CONTACT_EMAIL VARCHAR(120),
+      IS_ON_CALL BIT
+   )
+
+   // The provenance of a tile's number: which project, which element, which expression. A
+   // tile that reads three of them has three rows here, which is the fan-in stated per tile.
+   Table RDB_SOURCE_BINDING
+   (
+      TILE_ID VARCHAR(40) PRIMARY KEY,
+      SOURCE_SEQ SMALLINT PRIMARY KEY,
+      SOURCE_PROJECT VARCHAR(32) NOT NULL,
+      SOURCE_ELEMENT VARCHAR(120) NOT NULL,
+      SOURCE_KIND VARCHAR(10),
+      MEASURE_EXPRESSION VARCHAR(200),
+      IS_PRIMARY BIT
+   )
+
+   // What a tile said on one morning. DASHBOARD_ID is denormalised onto it so the day view
+   // can group on it without reaching back through RDB_TILE -- a ~groupBy takes column
+   // references, and the column has to be on the table being grouped.
+   Table RDB_TILE_SNAPSHOT
+   (
+      TILE_ID VARCHAR(40) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      DASHBOARD_ID VARCHAR(32) NOT NULL,
+      RUN_SEQ INTEGER,
+      HEADLINE_VALUE NUMERIC(24,8),
+      PRIOR_VALUE NUMERIC(24,8),
+      AMBER_THRESHOLD NUMERIC(24,8),
+      RED_THRESHOLD NUMERIC(24,8),
+      BREACH_RATIO FLOAT,
+      AMOUNT_AT_RISK NUMERIC(24,8),
+      EXCEPTION_COUNT SMALLINT,
+      STATUS_CODE CHAR(5),
+      REFRESH_LAG_MINUTES SMALLINT,
+      SOURCE_ROW_COUNT INTEGER,
+      COMPUTED_AT TIMESTAMP
+   )
+
+   // THE FAN-IN TABLE. Two key columns of its own and three foreign keys out, one into each
+   // dependency. Nothing else in this graph carries all three.
+   Table RDB_MORNING_RUN
+   (
+      COB_DATE DATE PRIMARY KEY,
+      RUN_SEQ INTEGER PRIMARY KEY,
+      MARGIN_RUN_SEQ INTEGER,
+      CREDIT_REPORT_ID VARCHAR(40),
+      ATTRIBUTION_ID VARCHAR(24),
+      RUN_TYPE VARCHAR(16),
+      STATUS VARCHAR(12),
+      TILE_COUNT SMALLINT,
+      GREEN_COUNT SMALLINT,
+      AMBER_COUNT SMALLINT,
+      RED_COUNT SMALLINT,
+      EXCEPTION_COUNT SMALLINT,
+      TOTAL_AMOUNT_AT_RISK NUMERIC(24,8),
+      STARTED_AT TIMESTAMP,
+      COMPLETED_AT TIMESTAMP
+   )
+
+   // ---------------------------------------------------------- panel 1: the limits
+
+   // One credit limit as the board published it this morning. COUNTERPARTY_ID is carried so
+   // the counterparty view can group on it, and so the roll-up can join to that group.
+   Table RDB_LIMIT_PANEL
+   (
+      COB_DATE DATE PRIMARY KEY,
+      CREDIT_LIMIT_ID VARCHAR(40) PRIMARY KEY,
+      COUNTERPARTY_ID VARCHAR(40) NOT NULL,
+      OBLIGOR_ID VARCHAR(32),
+      BOOK_ID VARCHAR(64),
+      MEASURE_CODE VARCHAR(16),
+      UTILISED_AMOUNT NUMERIC(24,8),
+      APPLIED_THRESHOLD NUMERIC(24,8),
+      HEADROOM_AMOUNT NUMERIC(24,8),
+      UTILISATION_PCT FLOAT,
+      RATING_SYMBOL VARCHAR(8),
+      CURRENCY_CODE CHAR(3),
+      CONTRIBUTOR_COUNT SMALLINT,
+      IS_BREACHED BIT,
+      RANK_POSITION SMALLINT,
+      TILE_ID VARCHAR(40)
+   )
+
+   // A breach as a queue item: the age and the owner are here and nowhere upstream, because
+   // neither is a fact about the excess.
+   Table RDB_LIMIT_BREACH
+   (
+      COB_DATE DATE PRIMARY KEY,
+      EXCESS_ID VARCHAR(40) PRIMARY KEY,
+      CREDIT_LIMIT_ID VARCHAR(40) NOT NULL,
+      COUNTERPARTY_ID VARCHAR(40),
+      BREACHED_THRESHOLD NUMERIC(24,8),
+      OBSERVED_AMOUNT NUMERIC(24,8),
+      EXCESS_AMOUNT NUMERIC(24,8),
+      APPROVED_AMOUNT NUMERIC(24,8),
+      SEVERITY SMALLINT,
+      SEVERITY_CODE CHAR(4),
+      TICKET_ID VARCHAR(40),
+      AGE_DAYS SMALLINT,
+      CURRENCY_CODE CHAR(3),
+      OWNER_ID VARCHAR(40),
+      DETECTED_AT TIMESTAMP,
+      CLEARED_ON DATE
+   )
+
+   // ---------------------------------------------------------- panel 2: the margin
+
+   // The calls. GROSS_CALL_AMOUNT and CALL_AMOUNT are both carried, exactly as margin-calc
+   // carries them: collapsing them here would lose the exposure the MTA left standing.
+   Table RDB_MARGIN_CALL_PANEL
+   (
+      COB_DATE DATE PRIMARY KEY,
+      AGREEMENT_ID VARCHAR(40) PRIMARY KEY,
+      COUNTERPARTY_ID VARCHAR(40),
+      CALL_DIRECTION VARCHAR(10),
+      REQUIRED_MARGIN NUMERIC(24,8),
+      COLLATERAL_VALUE NUMERIC(24,8),
+      THRESHOLD NUMERIC(24,8),
+      MINIMUM_TRANSFER_AMOUNT NUMERIC(24,8),
+      GROSS_CALL_AMOUNT NUMERIC(24,8),
+      CALL_AMOUNT NUMERIC(24,8),
+      CALL_CURRENCY CHAR(3),
+      IS_CALL_MADE BIT,
+      IS_SETTLED BIT,
+      DISPUTE_CODE VARCHAR(20),
+      AGE_HOURS SMALLINT,
+      DEADLINE_HOURS SMALLINT,
+      OWNER_ID VARCHAR(40),
+      RANK_POSITION SMALLINT
+   )
+
+   // The requirement against the collateral. Three key columns, margin-calc's own grain --
+   // the third is the METHOD, because the regulatory figure and the internal one are both on
+   // the board and the difference between them is itself worth showing.
+   Table RDB_MARGIN_SHORTFALL
+   (
+      COB_DATE DATE PRIMARY KEY,
+      MARGIN_PORTFOLIO_ID VARCHAR(32) PRIMARY KEY,
+      METHOD_CODE VARCHAR(16) PRIMARY KEY,
+      AGREEMENT_ID VARCHAR(40),
+      COUNTERPARTY_ID VARCHAR(40),
+      ONE_DAY_MARGIN NUMERIC(24,8),
+      SCALED_MARGIN NUMERIC(24,8),
+      CONCENTRATION_ADDON NUMERIC(24,8),
+      LIQUIDITY_ADDON NUMERIC(24,8),
+      TOTAL_INITIAL_MARGIN NUMERIC(24,8),
+      CLOSE_OUT_PERIOD_DAYS SMALLINT,
+      COLLATERAL_HELD NUMERIC(24,8),
+      SHORTFALL_AMOUNT NUMERIC(24,8),
+      IM_CURRENCY CHAR(3),
+      RANK_POSITION SMALLINT
+   )
+
+   // ---------------------------------------------------------- panel 3: the explain
+
+   // One book's day against the explain of it. Four key columns: the attribution run plus the
+   // account, which is two columns everywhere the account appears -- and that is exactly the
+   // grouping of pnl-attribution's own account-day view, which is what makes the join into it
+   // a group-to-group one.
+   Table RDB_EXPLAIN_PANEL
+   (
+      ATTRIBUTION_ID VARCHAR(24) PRIMARY KEY,
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      DESK_CODE VARCHAR(24),
+      DESK_NAME VARCHAR(120),
+      TOTAL_PNL NUMERIC(24,8),
+      EXPLAINED_PNL NUMERIC(24,8),
+      UNEXPLAINED_AMOUNT NUMERIC(24,8),
+      UNEXPLAINED_PCT FLOAT,
+      LINE_COUNT SMALLINT,
+      BROKEN_LINE_COUNT SMALLINT,
+      REPORTING_CCY CHAR(3),
+      IS_SIGNED_OFF BIT,
+      OWNER_ID VARCHAR(40),
+      RANK_POSITION SMALLINT
+   )
+
+   // A residual with an owner and a deadline. Five key columns -- pnl-attribution's whole
+   // line grain, repeated exactly, because anything shorter merges runs, books, securities
+   // or dates.
+   Table RDB_RESIDUAL_PANEL
+   (
+      ATTRIBUTION_ID VARCHAR(24) PRIMARY KEY,
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      BREAK_CODE VARCHAR(24),
+      RESIDUAL_AMOUNT NUMERIC(24,8),
+      RESIDUAL_PCT FLOAT,
+      TOLERANCE_PCT FLOAT,
+      TOLERANCE_AMOUNT NUMERIC(24,8),
+      SEVERITY SMALLINT,
+      ASSIGNED_TO VARCHAR(60),
+      RESOLVED_ON DATE,
+      CURRENCY_CODE CHAR(3)
+   )
+
+   // ---------------------------------------------------------- panels 4 and 5
+
+   // The largest movers, at SECURITY grain rather than position grain. INSTRUMENT_ID is
+   // VARCHAR(60) -- position-keeping's width, arriving here through pnl-attribution, because
+   // the wider of the two upstream widths is the only one that cannot truncate.
+   Table RDB_MOVER
+   (
+      ATTRIBUTION_ID VARCHAR(24) PRIMARY KEY,
+      INSTRUMENT_ID VARCHAR(60) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      INSTRUMENT_NAME VARCHAR(200),
+      ASSET_CLASS VARCHAR(16),
+      OPENING_VALUE NUMERIC(24,8),
+      CLOSING_VALUE NUMERIC(24,8),
+      MOVE_AMOUNT NUMERIC(24,8),
+      MOVE_PCT FLOAT,
+      ACCOUNT_COUNT SMALLINT,
+      RANK_POSITION SMALLINT,
+      DIRECTION CHAR(4),
+      CURRENCY_CODE CHAR(3)
+   )
+
+   // The concentrations. Four key columns, margin-calc's own grain.
+   Table RDB_CONCENTRATION
+   (
+      COB_DATE DATE PRIMARY KEY,
+      MARGIN_PORTFOLIO_ID VARCHAR(32) PRIMARY KEY,
+      RISK_CLASS VARCHAR(8) PRIMARY KEY,
+      FACTOR_ID VARCHAR(32) PRIMARY KEY,
+      COUNTERPARTY_ID VARCHAR(40),
+      FACTOR_NAME VARCHAR(120),
+      NET_SENSITIVITY NUMERIC(24,8),
+      CONCENTRATION_THRESHOLD NUMERIC(24,8),
+      CONCENTRATION_RATIO FLOAT,
+      ADDON_AMOUNT NUMERIC(24,8),
+      ADDON_CURRENCY CHAR(3),
+      DRIVING_BUCKET_CODE VARCHAR(16),
+      IS_BREACHING BIT,
+      RANK_POSITION SMALLINT
+   )
+
+   // ---------------------------------------------------------- the roll-ups
+
+   // ONE COUNTERPARTY, ALL THREE SOURCES. The credit block, the margin block and the P&L
+   // block are three groups of columns on one row, and no dependency of this project could
+   // declare it.
+   Table RDB_COUNTERPARTY_ROLLUP
+   (
+      COB_DATE DATE PRIMARY KEY,
+      COUNTERPARTY_ID VARCHAR(40) PRIMARY KEY,
+      COUNTERPARTY_NAME VARCHAR(200),
+      OBLIGOR_ID VARCHAR(32),
+      LIMIT_COUNT SMALLINT,
+      TOTAL_UTILISED NUMERIC(24,8),
+      TOTAL_APPROVED_THRESHOLD NUMERIC(24,8),
+      OPEN_EXCESS_COUNT SMALLINT,
+      RATING_SYMBOL VARCHAR(8),
+      MARGIN_AGREEMENT_COUNT SMALLINT,
+      OUTSTANDING_CALL_AMOUNT NUMERIC(24,8),
+      INITIAL_MARGIN_HELD NUMERIC(24,8),
+      COLLATERAL_HELD NUMERIC(24,8),
+      PNL_LINE_COUNT SMALLINT,
+      PNL_AMOUNT NUMERIC(24,8),
+      UNEXPLAINED_AMOUNT NUMERIC(24,8),
+      REPORTING_CCY CHAR(3),
+      RISK_RANK SMALLINT
+   )
+
+   // The same morning cut by desk instead of by name. ATTRIBUTION_ID is carried so the join
+   // into pnl-attribution's account-day view has all four of its grouping columns.
+   Table RDB_DESK_ROLLUP
+   (
+      COB_DATE DATE PRIMARY KEY,
+      INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+      ACCOUNT_NO VARCHAR(34) PRIMARY KEY,
+      ATTRIBUTION_ID VARCHAR(24),
+      DESK_CODE VARCHAR(24),
+      DESK_NAME VARCHAR(120),
+      TOTAL_PNL NUMERIC(24,8),
+      UNEXPLAINED_AMOUNT NUMERIC(24,8),
+      MARGIN_CHARGED NUMERIC(24,8),
+      WORST_UTILISATION_PCT FLOAT,
+      EXCEPTION_COUNT SMALLINT,
+      OWNER_ID VARCHAR(40),
+      REPORTING_CCY CHAR(3)
+   )
+
+   // ---------------------------------------------------------- panel 6: the queue
+
+   // ONE TABLE, FOUR TYPES. DOMAIN_CODE is the discriminator the three filter-subtypes screen
+   // on; the six columns after STATUS_CODE belong to exactly one subtype each and are null on
+   // the others. A margin exception has no use for CREDIT_LIMIT_ID and never carries one --
+   // the filter is what makes that a type statement rather than a convention.
+   Table RDB_EXCEPTION
+   (
+      COB_DATE DATE PRIMARY KEY,
+      EXCEPTION_ID VARCHAR(40) PRIMARY KEY,
+      TILE_ID VARCHAR(40) NOT NULL,
+      DOMAIN_CODE VARCHAR(8) NOT NULL,
+      EXCEPTION_CODE VARCHAR(24),
+      TITLE VARCHAR(200),
+      SEVERITY SMALLINT,
+      OWNER_ID VARCHAR(40),
+      AMOUNT NUMERIC(24,8),
+      THRESHOLD_AMOUNT NUMERIC(24,8),
+      CURRENCY_CODE CHAR(3),
+      RAISED_AT TIMESTAMP,
+      DUE_BY TIMESTAMP,
+      DECIDED_ON DATE,
+      CARRIED_FROM_DATE DATE,
+      STATUS_CODE CHAR(4),
+      CREDIT_LIMIT_ID VARCHAR(40),
+      EXCESS_ID VARCHAR(40),
+      AGREEMENT_ID VARCHAR(40),
+      MARGIN_PORTFOLIO_ID VARCHAR(32),
+      ATTRIBUTION_ID VARCHAR(24),
+      INSTRUMENT_ID VARCHAR(60)
+   )
+
+   // One rung of the escalation chain. Two key columns, because overwriting the previous rung
+   // destroys the evidence that the first person did not reply.
+   Table RDB_ESCALATION
+   (
+      EXCEPTION_ID VARCHAR(40) PRIMARY KEY,
+      ESCALATION_SEQ SMALLINT PRIMARY KEY,
+      TO_OWNER_ID VARCHAR(40) NOT NULL,
+      ESCALATION_LEVEL SMALLINT,
+      CHANNEL_CODE VARCHAR(10),
+      RAISED_AT TIMESTAMP,
+      ACKNOWLEDGED_AT TIMESTAMP,
+      NOTE VARCHAR(200)
+   )
+
+   // THE DECISION. The board's only output.
+   Table RDB_DECISION
+   (
+      EXCEPTION_ID VARCHAR(40) PRIMARY KEY,
+      DECISION_SEQ SMALLINT PRIMARY KEY,
+      DECISION_CODE CHAR(4),
+      DECIDED_BY VARCHAR(60),
+      DECIDED_ON DATE,
+      AMOUNT_APPROVED NUMERIC(24,8),
+      VALID_UNTIL DATE,
+      RATIONALE VARCHAR(400)
+   )
+
+   // The sentence somebody wrote against a tile.
+   Table RDB_COMMENTARY
+   (
+      TILE_ID VARCHAR(40) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      COMMENT_SEQ SMALLINT PRIMARY KEY,
+      AUTHOR_ID VARCHAR(40) NOT NULL,
+      COMMENT_TEXT VARCHAR(400),
+      IS_PUBLISHED BIT,
+      POSTED_AT TIMESTAMP
+   )
+
+   // The watch list, which survives the morning it was raised on.
+   Table RDB_WATCH_ITEM
+   (
+      WATCH_ID VARCHAR(40) PRIMARY KEY,
+      EXCEPTION_ID VARCHAR(40),
+      COUNTERPARTY_ID VARCHAR(40),
+      WATCH_REASON VARCHAR(24),
+      OPENED_ON DATE,
+      REVIEW_ON DATE,
+      CLOSED_ON DATE,
+      OWNER_ID VARCHAR(40),
+      SEVERITY SMALLINT,
+      NOTE VARCHAR(400)
+   )
+
+   // ---------------------------------------------------------- THE AGGREGATIONS
+
+   // One row per board per day. The grouping is (dashboard, date): a tile is not part of what
+   // this row means, which is what makes it a header rather than a list.
+   View RDB_TILE_DAY_TOTAL
+   (
+      ~groupBy
+      (
+         RDB_TILE_SNAPSHOT.DASHBOARD_ID,
+         RDB_TILE_SNAPSHOT.COB_DATE
+      )
+      DASHBOARD_ID: RDB_TILE_SNAPSHOT.DASHBOARD_ID PRIMARY KEY,
+      COB_DATE: RDB_TILE_SNAPSHOT.COB_DATE PRIMARY KEY,
+      TILE_COUNT: count(RDB_TILE_SNAPSHOT.TILE_ID),
+      TOTAL_HEADLINE_VALUE: sum(RDB_TILE_SNAPSHOT.HEADLINE_VALUE),
+      TOTAL_AMOUNT_AT_RISK: sum(RDB_TILE_SNAPSHOT.AMOUNT_AT_RISK),
+      TOTAL_EXCEPTION_COUNT: sum(RDB_TILE_SNAPSHOT.EXCEPTION_COUNT),
+      WORST_BREACH_RATIO: max(RDB_TILE_SNAPSHOT.BREACH_RATIO),
+      LEAST_SOURCE_ROWS: min(RDB_TILE_SNAPSHOT.SOURCE_ROW_COUNT)
+   )
+
+   // One row per owner per day: the queue. An owner with nothing on their desk forms NO
+   // GROUP and is absent, which is the correct answer -- an empty queue is not a queue.
+   View RDB_OWNER_QUEUE_TOTAL
+   (
+      ~groupBy
+      (
+         RDB_EXCEPTION.COB_DATE,
+         RDB_EXCEPTION.OWNER_ID
+      )
+      COB_DATE: RDB_EXCEPTION.COB_DATE PRIMARY KEY,
+      OWNER_ID: RDB_EXCEPTION.OWNER_ID PRIMARY KEY,
+      EXCEPTION_COUNT: count(RDB_EXCEPTION.EXCEPTION_ID),
+      TOTAL_AMOUNT: sum(RDB_EXCEPTION.AMOUNT),
+      LARGEST_AMOUNT: max(RDB_EXCEPTION.AMOUNT),
+      HIGHEST_SEVERITY: max(RDB_EXCEPTION.SEVERITY),
+      TOTAL_THRESHOLD_AMOUNT: sum(RDB_EXCEPTION.THRESHOLD_AMOUNT)
+   )
+
+   // THREE grouping columns rather than two, and the third is deliberate: a severity 4 in
+   // MARGIN and a severity 4 in EXPLAIN are not the same morning, and grouping by severity
+   // alone would add them together. max() and min() come with the sum because a band whose
+   // largest and smallest items are orders apart is not one band in any useful sense.
+   View RDB_SEVERITY_TOTAL
+   (
+      ~groupBy
+      (
+         RDB_EXCEPTION.COB_DATE,
+         RDB_EXCEPTION.DOMAIN_CODE,
+         RDB_EXCEPTION.SEVERITY
+      )
+      COB_DATE: RDB_EXCEPTION.COB_DATE PRIMARY KEY,
+      DOMAIN_CODE: RDB_EXCEPTION.DOMAIN_CODE PRIMARY KEY,
+      SEVERITY: RDB_EXCEPTION.SEVERITY PRIMARY KEY,
+      EXCEPTION_COUNT: count(RDB_EXCEPTION.EXCEPTION_ID),
+      TOTAL_AMOUNT: sum(RDB_EXCEPTION.AMOUNT),
+      LARGEST_AMOUNT: max(RDB_EXCEPTION.AMOUNT),
+      SMALLEST_AMOUNT: min(RDB_EXCEPTION.AMOUNT)
+   )
+
+   // One counterparty's limits, totalled out of the limit panel. The grouping DROPS the
+   // limit, which is the whole question: how much of this name are we carrying, not how much
+   // of this line.
+   View RDB_COUNTERPARTY_LIMIT_TOTAL
+   (
+      ~groupBy
+      (
+         RDB_LIMIT_PANEL.COB_DATE,
+         RDB_LIMIT_PANEL.COUNTERPARTY_ID
+      )
+      COB_DATE: RDB_LIMIT_PANEL.COB_DATE PRIMARY KEY,
+      COUNTERPARTY_ID: RDB_LIMIT_PANEL.COUNTERPARTY_ID PRIMARY KEY,
+      LIMIT_COUNT: count(RDB_LIMIT_PANEL.CREDIT_LIMIT_ID),
+      TOTAL_UTILISED: sum(RDB_LIMIT_PANEL.UTILISED_AMOUNT),
+      TOTAL_THRESHOLD: sum(RDB_LIMIT_PANEL.APPLIED_THRESHOLD),
+      TOTAL_HEADROOM: sum(RDB_LIMIT_PANEL.HEADROOM_AMOUNT),
+      WORST_UTILISATION_PCT: max(RDB_LIMIT_PANEL.UTILISATION_PCT),
+      LARGEST_UTILISED: max(RDB_LIMIT_PANEL.UTILISED_AMOUNT)
+   )
+
+   // ---------------------------------------------------------- THE THREE-WAY FAN-IN JOINS
+   //
+   // One table, three projects, three joins. Read together they are the reason this project
+   // sits at layer 3: no two of the three upstream stores can reach each other, and this is
+   // the row where all three are the same morning.
+
+   Join Rdb_RunMarginRun(RDB_MORNING_RUN.COB_DATE = MGN_RUN.COB_DATE and RDB_MORNING_RUN.MARGIN_RUN_SEQ = MGN_RUN.RUN_SEQ)
+   Join Rdb_RunCreditReport(RDB_MORNING_RUN.CREDIT_REPORT_ID = CLM_DAILY_REPORT.REPORT_ID)
+   Join Rdb_RunAttributionRun(RDB_MORNING_RUN.ATTRIBUTION_ID = PNL_RUN.ATTRIBUTION_ID)
+
+   // ---------------------------------------------------------- other joins into credit-limits
+
+   // Two columns, on (limit, date): the limit alone would put every other day's utilisation
+   // on today's board row.
+   Join Rdb_LimitPanelUtilisation(RDB_LIMIT_PANEL.CREDIT_LIMIT_ID = CLM_UTILISATION_LINE.CREDIT_LIMIT_ID and RDB_LIMIT_PANEL.COB_DATE = CLM_UTILISATION_LINE.AS_OF_DATE)
+   // The anchor, which is where BOTH of credit-limits' milestoned routes hang off.
+   Join Rdb_LimitPanelCreditLimit(RDB_LIMIT_PANEL.CREDIT_LIMIT_ID = CLM_CREDIT_LIMIT.CREDIT_LIMIT_ID)
+   Join Rdb_BreachExcess(RDB_LIMIT_BREACH.EXCESS_ID = CLM_EXCESS.EXCESS_ID)
+   Join Rdb_BreachTicket(RDB_LIMIT_BREACH.TICKET_ID = CLM_ESCALATION_TICKET.TICKET_ID)
+   // Every limit this counterparty is watched under. One column, and [*] on purpose.
+   Join Rdb_RollUpCreditLimits(RDB_COUNTERPARTY_ROLLUP.COUNTERPARTY_ID = CLM_CREDIT_LIMIT.COUNTERPARTY_ID)
+
+   // ---------------------------------------------------------- other joins into margin-calc
+
+   Join Rdb_MarginCallPanelCall(RDB_MARGIN_CALL_PANEL.AGREEMENT_ID = MGN_MARGIN_CALL.AGREEMENT_ID and RDB_MARGIN_CALL_PANEL.COB_DATE = MGN_MARGIN_CALL.COB_DATE)
+   Join Rdb_MarginCallPanelAgreement(RDB_MARGIN_CALL_PANEL.AGREEMENT_ID = MGN_AGREEMENT.AGREEMENT_ID)
+   Join Rdb_ShortfallInitialMargin(RDB_MARGIN_SHORTFALL.MARGIN_PORTFOLIO_ID = MGN_INITIAL_MARGIN.MARGIN_PORTFOLIO_ID and RDB_MARGIN_SHORTFALL.COB_DATE = MGN_INITIAL_MARGIN.COB_DATE and RDB_MARGIN_SHORTFALL.METHOD_CODE = MGN_INITIAL_MARGIN.METHOD_CODE)
+   // INTO SOMEBODY ELSE'S VIEW, on its two grouping columns -- which are its primary key, and
+   // that is what makes a group joinable at all.
+   Join Rdb_ShortfallPortfolioTotal(RDB_MARGIN_SHORTFALL.MARGIN_PORTFOLIO_ID = MGN_PORTFOLIO_MARGIN_TOTAL.MARGIN_PORTFOLIO_ID and RDB_MARGIN_SHORTFALL.COB_DATE = MGN_PORTFOLIO_MARGIN_TOTAL.COB_DATE)
+   // Four columns, margin-calc's own concentration grain.
+   Join Rdb_ConcentrationAddOn(RDB_CONCENTRATION.MARGIN_PORTFOLIO_ID = MGN_CONCENTRATION_ADDON.MARGIN_PORTFOLIO_ID and RDB_CONCENTRATION.COB_DATE = MGN_CONCENTRATION_ADDON.COB_DATE and RDB_CONCENTRATION.RISK_CLASS = MGN_CONCENTRATION_ADDON.RISK_CLASS and RDB_CONCENTRATION.FACTOR_ID = MGN_CONCENTRATION_ADDON.FACTOR_ID)
+   // Every agreement this counterparty has signed.
+   Join Rdb_RollUpMarginAgreements(RDB_COUNTERPARTY_ROLLUP.COUNTERPARTY_ID = MGN_AGREEMENT.COUNTERPARTY_ID)
+
+   // ---------------------------------------------------------- other joins into pnl-attribution
+
+   // FOUR columns INTO A VIEW -- the account-day group, matched on its whole ~groupBy. The
+   // board row and the P&L group are one navigation apart and neither reads a P&L line.
+   Join Rdb_ExplainAccountTotal(RDB_EXPLAIN_PANEL.ATTRIBUTION_ID = PNL_ACCOUNT_DAY_TOTAL.ATTRIBUTION_ID and RDB_EXPLAIN_PANEL.INSTITUTION_ID = PNL_ACCOUNT_DAY_TOTAL.INSTITUTION_ID and RDB_EXPLAIN_PANEL.ACCOUNT_NO = PNL_ACCOUNT_DAY_TOTAL.ACCOUNT_NO and RDB_EXPLAIN_PANEL.COB_DATE = PNL_ACCOUNT_DAY_TOTAL.COB_DATE)
+   Join Rdb_ExplainAttributionRun(RDB_EXPLAIN_PANEL.ATTRIBUTION_ID = PNL_RUN.ATTRIBUTION_ID)
+   // Five columns into the residual, and six into the break.
+   Join Rdb_ResidualSource(RDB_RESIDUAL_PANEL.ATTRIBUTION_ID = PNL_RESIDUAL.ATTRIBUTION_ID and RDB_RESIDUAL_PANEL.INSTITUTION_ID = PNL_RESIDUAL.INSTITUTION_ID and RDB_RESIDUAL_PANEL.ACCOUNT_NO = PNL_RESIDUAL.ACCOUNT_NO and RDB_RESIDUAL_PANEL.INSTRUMENT_ID = PNL_RESIDUAL.INSTRUMENT_ID and RDB_RESIDUAL_PANEL.COB_DATE = PNL_RESIDUAL.COB_DATE)
+   Join Rdb_ResidualBreak(RDB_RESIDUAL_PANEL.ATTRIBUTION_ID = PNL_BREAK.ATTRIBUTION_ID and RDB_RESIDUAL_PANEL.INSTITUTION_ID = PNL_BREAK.INSTITUTION_ID and RDB_RESIDUAL_PANEL.ACCOUNT_NO = PNL_BREAK.ACCOUNT_NO and RDB_RESIDUAL_PANEL.INSTRUMENT_ID = PNL_BREAK.INSTRUMENT_ID and RDB_RESIDUAL_PANEL.COB_DATE = PNL_BREAK.COB_DATE and RDB_RESIDUAL_PANEL.BREAK_CODE = PNL_BREAK.BREAK_CODE)
+   // THREE columns INTO ANOTHER VIEW -- the instrument-day group. A mover is a security and
+   // this is the group that already knows what the security did.
+   Join Rdb_MoverInstrumentTotal(RDB_MOVER.ATTRIBUTION_ID = PNL_INSTRUMENT_DAY_TOTAL.ATTRIBUTION_ID and RDB_MOVER.INSTRUMENT_ID = PNL_INSTRUMENT_DAY_TOTAL.INSTRUMENT_ID and RDB_MOVER.COB_DATE = PNL_INSTRUMENT_DAY_TOTAL.COB_DATE)
+   // And the desk roll-up into the same account-day group, on its four columns.
+   Join Rdb_DeskAccountTotal(RDB_DESK_ROLLUP.ATTRIBUTION_ID = PNL_ACCOUNT_DAY_TOTAL.ATTRIBUTION_ID and RDB_DESK_ROLLUP.INSTITUTION_ID = PNL_ACCOUNT_DAY_TOTAL.INSTITUTION_ID and RDB_DESK_ROLLUP.ACCOUNT_NO = PNL_ACCOUNT_DAY_TOTAL.ACCOUNT_NO and RDB_DESK_ROLLUP.COB_DATE = PNL_ACCOUNT_DAY_TOTAL.COB_DATE)
+
+   // ---------------------------------------------------------- joins inside this project
+
+   Join Rdb_DashboardOwner(RDB_DASHBOARD.OWNER_ID = RDB_OWNER.OWNER_ID)
+   Join Rdb_DashboardTiles(RDB_DASHBOARD.DASHBOARD_ID = RDB_TILE.DASHBOARD_ID)
+   Join Rdb_TileOwner(RDB_TILE.OWNER_ID = RDB_OWNER.OWNER_ID)
+   Join Rdb_TilePolicy(RDB_TILE.POLICY_CODE = RDB_THRESHOLD_POLICY.POLICY_CODE)
+   Join Rdb_TileBindings(RDB_TILE.TILE_ID = RDB_SOURCE_BINDING.TILE_ID)
+   Join Rdb_TileSnapshots(RDB_TILE.TILE_ID = RDB_TILE_SNAPSHOT.TILE_ID)
+   Join Rdb_TileCommentary(RDB_TILE.TILE_ID = RDB_COMMENTARY.TILE_ID)
+   Join Rdb_TileExceptions(RDB_TILE.TILE_ID = RDB_EXCEPTION.TILE_ID)
+   Join Rdb_LimitPanelTile(RDB_LIMIT_PANEL.TILE_ID = RDB_TILE.TILE_ID)
+
+   // Two columns: a run is (date, seq) and a snapshot carries both.
+   Join Rdb_RunSnapshots(RDB_MORNING_RUN.COB_DATE = RDB_TILE_SNAPSHOT.COB_DATE and RDB_MORNING_RUN.RUN_SEQ = RDB_TILE_SNAPSHOT.RUN_SEQ)
+   // Two columns again: an exception belongs to a tile ON A DAY, and the tile alone would
+   // put every morning's exceptions on this morning's snapshot.
+   Join Rdb_SnapshotExceptions(RDB_TILE_SNAPSHOT.TILE_ID = RDB_EXCEPTION.TILE_ID and RDB_TILE_SNAPSHOT.COB_DATE = RDB_EXCEPTION.COB_DATE)
+
+   Join Rdb_ExceptionOwner(RDB_EXCEPTION.OWNER_ID = RDB_OWNER.OWNER_ID)
+   Join Rdb_ExceptionEscalations(RDB_EXCEPTION.EXCEPTION_ID = RDB_ESCALATION.EXCEPTION_ID)
+   Join Rdb_ExceptionDecisions(RDB_EXCEPTION.EXCEPTION_ID = RDB_DECISION.EXCEPTION_ID)
+   Join Rdb_EscalationOwner(RDB_ESCALATION.TO_OWNER_ID = RDB_OWNER.OWNER_ID)
+   Join Rdb_CommentaryAuthor(RDB_COMMENTARY.AUTHOR_ID = RDB_OWNER.OWNER_ID)
+   Join Rdb_WatchItemException(RDB_WATCH_ITEM.EXCEPTION_ID = RDB_EXCEPTION.EXCEPTION_ID)
+   Join Rdb_WatchItemOwner(RDB_WATCH_ITEM.OWNER_ID = RDB_OWNER.OWNER_ID)
+   Join Rdb_DeskOwner(RDB_DESK_ROLLUP.OWNER_ID = RDB_OWNER.OWNER_ID)
+
+   // ---------------------------------------------------------- joins INTO our aggregations
+   //
+   // Each of these crosses from rows to groups. Navigating one never reads another row of the
+   // table the group was built from.
+
+   Join Rdb_DashboardDayTotals(RDB_DASHBOARD.DASHBOARD_ID = RDB_TILE_DAY_TOTAL.DASHBOARD_ID)
+   Join Rdb_SnapshotDayTotal(RDB_TILE_SNAPSHOT.DASHBOARD_ID = RDB_TILE_DAY_TOTAL.DASHBOARD_ID and RDB_TILE_SNAPSHOT.COB_DATE = RDB_TILE_DAY_TOTAL.COB_DATE)
+   Join Rdb_OwnerQueueTotals(RDB_OWNER.OWNER_ID = RDB_OWNER_QUEUE_TOTAL.OWNER_ID)
+   Join Rdb_ExceptionOwnerTotal(RDB_EXCEPTION.COB_DATE = RDB_OWNER_QUEUE_TOTAL.COB_DATE and RDB_EXCEPTION.OWNER_ID = RDB_OWNER_QUEUE_TOTAL.OWNER_ID)
+   Join Rdb_ExceptionSeverityTotal(RDB_EXCEPTION.COB_DATE = RDB_SEVERITY_TOTAL.COB_DATE and RDB_EXCEPTION.DOMAIN_CODE = RDB_SEVERITY_TOTAL.DOMAIN_CODE and RDB_EXCEPTION.SEVERITY = RDB_SEVERITY_TOTAL.SEVERITY)
+   Join Rdb_LimitPanelCounterpartyTotal(RDB_LIMIT_PANEL.COB_DATE = RDB_COUNTERPARTY_LIMIT_TOTAL.COB_DATE and RDB_LIMIT_PANEL.COUNTERPARTY_ID = RDB_COUNTERPARTY_LIMIT_TOTAL.COUNTERPARTY_ID)
+   Join Rdb_RollUpCounterpartyTotal(RDB_COUNTERPARTY_ROLLUP.COB_DATE = RDB_COUNTERPARTY_LIMIT_TOTAL.COB_DATE and RDB_COUNTERPARTY_ROLLUP.COUNTERPARTY_ID = RDB_COUNTERPARTY_LIMIT_TOTAL.COUNTERPARTY_ID)
+
+   // ---------------------------------------------------------- filters
+   //
+   // Three of these back the three filter-subtypes of RdbException: one table, one
+   // discriminator, four types. String comparisons and null tests, never boolean literals --
+   // a Filter will not take `= true` and fails with `Unexpected token 'true'`.
+   Filter RdbLimitExceptionRows(RDB_EXCEPTION.DOMAIN_CODE = 'LIMIT')
+   Filter RdbMarginExceptionRows(RDB_EXCEPTION.DOMAIN_CODE = 'MARGIN')
+   Filter RdbExplainExceptionRows(RDB_EXCEPTION.DOMAIN_CODE = 'EXPLAIN')
+   // Null tests, for the same reason.
+   Filter RdbOpenExceptions(RDB_EXCEPTION.DECIDED_ON is null)
+   Filter RdbLiveTiles(RDB_TILE.RETIRED_ON is null)
+   Filter RdbOpenWatchItems(RDB_WATCH_ITEM.CLOSED_ON is null)
+)

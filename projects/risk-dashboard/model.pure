@@ -649,3 +649,730 @@ Class risk_dashboard::RdbMarginShortfallRow
    initialMargin: margin_calc::MgnInitialMargin[0..1];
    portfolioTotal: margin_calc::MgnPortfolioMarginTotal[0..1];
 }
+
+// ---------------------------------------------------------------- panel 3: the explain
+
+// FOR: one book's P&L set against the explain of it -- what the desk made, what six causes
+// account for, and the gap. The gap is the number risk management reads, and it is on the
+// board next to the P&L rather than on a separate page, because a large P&L that is fully
+// explained and a small one that is not are opposite kinds of morning.
+Class risk_dashboard::RdbExplainRow
+[
+   lineCountIsPositive: ($this.lineCount > 0),
+   brokenWithinLines: ($this.brokenLineCount <= $this.lineCount)
+]
+{
+   // Part 1 of the key: pnl-attribution's run.
+   attributionId: String[1];
+   // Parts 2 and 3: the account, which is TWO columns everywhere the account appears.
+   institutionId: String[1];
+   accountNo: String[1];
+   // Part 4.
+   cobDate: StrictDate[1];
+   // What the desk is called on the board.
+   deskCode: String[1];
+   deskName: String[1];
+   // NUMERIC(24,8): the day, as published.
+   totalPnl: Float[1];
+   // What the six causes claim, summed.
+   explainedPnl: Float[1];
+   // What they failed to claim. Stored AND derivable, and the two must agree.
+   unexplainedAmount: Float[1];
+   unexplainedPct: Float[1];
+   // SMALLINT: the shape of the run behind the row.
+   lineCount: Integer[1];
+   brokenLineCount: Integer[1];
+   reportingCurrency: String[1];
+   isSignedOff: Boolean[1];
+   ownerId: String[1];
+   rankPosition: Integer[1];
+
+   // The residual from the two numbers on this row.
+   residualFromRow() { $this.totalPnl - $this.explainedPnl } : Float[1];
+   // How much of the day the explain covered. The screen a reviewer sorts on.
+   explainQuality() { $this.explainedPnl / $this.totalPnl } : Float[1];
+   // Share of lines that breached their tolerance. Integer / Integer widens on its own.
+   brokenPct() { $this.brokenLineCount / $this.lineCount } : Float[1];
+   // READING SOMEBODY ELSE'S AGGREGATION: pnl-attribution's own account-day GROUP, and its
+   // own definition of unexplained. The board does not re-derive a residual; it asks.
+   unexplainedFromSource() { $this.accountTotal->toOne().totalUnexplained() } : Float[1];
+   // The gap between the two answers. Non-zero means the board is stale or the run was
+   // re-attributed after publication, and either is worth a decision.
+   explainDrift() { $this.unexplainedAmount - $this.accountTotal->toOne().totalUnexplained() } : Float[1];
+   // The book's return on its opening value, also out of the group.
+   returnPct() { $this.accountTotal->toOne().returnPct() } : Float[1];
+   // Whether the run behind the row is even finished.
+   runIsComplete() { $this.attributionRun->toOne().isComplete() } : Boolean[1];
+
+   // CROSS-PROJECT: the GROUP, and the run above it.
+   accountTotal: pnl_attribution::PnlAccountDayTotal[0..1];
+   attributionRun: pnl_attribution::PnlAttributionRun[0..1];
+}
+
+// FOR: one unexplained residual that has been given an owner and a deadline -- the P&L half
+// of the decision queue. pnl-attribution holds the number and the break; this holds what has
+// to happen about it today, which is not a fact about the P&L.
+Class risk_dashboard::RdbResidualRow
+[
+   severityInRange: (($this.severity >= 1) && ($this.severity <= 5)),
+   toleranceIsPositive: ($this.tolerancePct > 0.0)
+]
+{
+   // Five key columns -- pnl-attribution's whole line grain, repeated exactly. Anything
+   // shorter merges runs, accounts, securities or dates.
+   attributionId: String[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   instrumentId: String[1];
+   cobDate: StrictDate[1];
+   // The break pnl-attribution raised, where it raised one. Null when the residual is inside
+   // tolerance and the board is showing it for size rather than for action.
+   breakCode: String[0..1];
+   // NUMERIC(24,8): the residual and the tolerance it was judged against, frozen.
+   residualAmount: Float[1];
+   residualPct: Float[1];
+   tolerancePct: Float[1];
+   toleranceAmount: Float[1];
+   // SMALLINT: 1 informational, 5 blocks the sign-off.
+   severity: Integer[1];
+   assignedTo: String[0..1];
+   resolvedOn: StrictDate[0..1];
+   currencyCode: String[1];
+
+   // How far past tolerance it went. Above 1.0 is a breach.
+   breachRatio() { $this.residualPct / $this.tolerancePct } : Float[1];
+   isOpen() { $this.resolvedOn->isEmpty() } : Boolean[1];
+   // A break that stops the whole run being signed off. The only tile on this board that can
+   // block a publication.
+   isBlocking() { $this.severity >= 5 } : Boolean[1];
+   // A residual nobody has been given. The state this project exists to make visible.
+   isUnowned() { $this.assignedTo->isEmpty() } : Boolean[1];
+   // Whether the board's residual still matches what pnl-attribution's run wrote.
+   residualDrift() { $this.residualAmount - $this.residual.residualAmount->toOne() } : Float[1];
+   // And whether the source thinks it has been accounted for, which the board may not know.
+   explainedAtSource() { $this.residual->toOne().isExplained() } : Boolean[1];
+
+   // CROSS-PROJECT: the number, and the obligation it created.
+   residual: pnl_attribution::PnlResidual[0..1];
+   attributionBreak: pnl_attribution::PnlAttributionBreak[0..1];
+}
+
+// ---------------------------------------------------------------- panel 4: the movers
+
+// FOR: the largest movers -- one security across every account, ranked by how much the firm's
+// day turned on it. The grain is deliberately the SECURITY and not the position: a name that
+// moved the firm through six books is one story, and reading it off the position table makes
+// it six. It reads pnl-attribution's instrument-day group rather than scanning lines.
+Class risk_dashboard::RdbMoverRow
+[
+   rankIsPositive: ($this.rankPosition >= 1)
+]
+{
+   // Part 1 of the key.
+   attributionId: String[1];
+   // Part 2: the security.
+   instrumentId: String[1];
+   // Part 3.
+   cobDate: StrictDate[1];
+   // What it is called on the board.
+   instrumentName: String[1];
+   assetClass: String[1];
+   // NUMERIC(24,8): the two ends of its day and the move between them.
+   openingValue: Float[1];
+   closingValue: Float[1];
+   moveAmount: Float[1];
+   movePct: Float[1];
+   // SMALLINT: how many accounts held it -- one book or twelve, which changes what to do.
+   accountCount: Integer[1];
+   // SMALLINT: rank on the panel, worst-first.
+   rankPosition: Integer[1];
+   // UP or DOWN. Kept as a column because the panel is sorted on size and read on direction.
+   direction: String[1];
+   currencyCode: String[1];
+
+   // Size without direction: a mover is a mover in either sign.
+   absoluteMove() { $this.moveAmount->abs() } : Float[1];
+   // The move re-derived from the two ends -- the data-quality screen on moveAmount.
+   moveFromEnds() { $this.closingValue - $this.openingValue } : Float[1];
+   isTopTen() { $this.rankPosition <= 10 } : Boolean[1];
+   // Concentrated in one book, which makes it a desk conversation rather than a firm one.
+   isSingleBook() { $this.accountCount == 1 } : Boolean[1];
+   // READING SOMEBODY ELSE'S AGGREGATION: the same security's day out of pnl-attribution's
+   // instrument-day GROUP, and its own split between market and activity.
+   moveFromSource() { $this.instrumentTotal->toOne().valueChange() } : Float[1];
+   // How much of the security's day was the market moving rather than the firm trading.
+   marketShare() { $this.instrumentTotal->toOne().marketShare() } : Float[1];
+   // A mover whose day will not reconcile across the accounts holding it is a data problem
+   // and not a trading one, and this is where that is told apart.
+   unexplainedOnSecurity() { $this.instrumentTotal->toOne().totalUnexplained() } : Float[1];
+
+   // CROSS-PROJECT, INTO A GROUP.
+   instrumentTotal: pnl_attribution::PnlInstrumentDayTotal[0..1];
+}
+
+// ---------------------------------------------------------------- panel 5: concentration
+
+// FOR: the concentrations -- where one netting set holds so much of one risk factor that the
+// model's own close-out assumption stops being true. margin-calc computes the charge; the
+// board shows it against the FIRM's whole delta in that factor, which margin-calc reads out
+// of risk-core's aggregation, so this row reaches a group two projects away without summing
+// a single sensitivity leg.
+Class risk_dashboard::RdbConcentrationRow
+[
+   thresholdIsPositive: ($this.concentrationThreshold > 0.0),
+   rankIsPositive: ($this.rankPosition >= 1)
+]
+{
+   // Four key columns, margin-calc's grain exactly.
+   cobDate: StrictDate[1];
+   marginPortfolioId: String[1];
+   riskClass: String[1];
+   factorId: String[1];
+   counterpartyId: String[1];
+   // What the factor is called on the board.
+   factorName: String[1];
+   // NUMERIC(24,8): the netted sensitivity, signed, and the threshold it is measured against.
+   netSensitivity: Float[1];
+   concentrationThreshold: Float[1];
+   concentrationRatio: Float[1];
+   // The money the concentration costs.
+   addOnAmount: Float[1];
+   addOnCurrency: String[1];
+   drivingBucketCode: String[1];
+   isBreaching: Boolean[1];
+   rankPosition: Integer[1];
+
+   // The ratio on SIZE rather than direction: a large short is as hard to close out as a
+   // large long.
+   ratioOverThreshold() { $this.netSensitivity->abs() / $this.concentrationThreshold } : Float[1];
+   // SIMM's multiplier, from margin-calc's function: max(1, sqrt(|S|/T)). Never below one.
+   concentrationFactor() { margin_calc::mgnConcentrationFactor($this.netSensitivity, $this.concentrationThreshold) } : Float[1];
+   // The add-on this row implies on a base charge the caller supplies -- also margin-calc's,
+   // so the board and the margin system charge concentration the same way.
+   chargeOn(baseCharge: Float[1]) { margin_calc::mgnAddOn($baseCharge, $this.concentrationRatio) } : Float[1];
+   // TWO PROJECTS DEEP INTO AN AGGREGATION: margin-calc's add-on reads risk-core's factor
+   // GROUP, so this is the share of the FIRM's delta in the factor that sits in one set.
+   shareOfFirmFactorDelta() { $this.addOn->toOne().shareOfFirmFactorDelta() } : Float[1];
+   // Whether the board's ratio still agrees with margin-calc's.
+   ratioDrift() { $this.concentrationRatio - $this.addOn.concentrationRatio->toOne() } : Float[1];
+
+   // CROSS-PROJECT.
+   addOn: margin_calc::MgnConcentrationAddOn[0..1];
+}
+
+// ---------------------------------------------------------------- the roll-ups
+
+// FOR: **one counterparty, on one morning, across all three sources at once** -- how much of
+// its credit limit it is using, what margin it owes and has posted, and what the firm made or
+// lost on it. No dependency of this project can hold this row: margin-calc has never heard of
+// a credit limit, credit-limits has never heard of a margin call, and pnl-attribution has
+// never heard of a counterparty. It exists only where all three closures overlap, which is
+// here, and it is the reason this project is at layer 3.
+Class risk_dashboard::RdbCounterpartyRollUp
+[
+   limitCountNotNegative: ($this.limitCount >= 0),
+   agreementCountNotNegative: ($this.marginAgreementCount >= 0),
+   thresholdNotNegative: ($this.totalApprovedThreshold >= 0.0)
+]
+{
+   // Part 1 of the key.
+   cobDate: StrictDate[1];
+   // Part 2. Both credit-limits and margin-calc key a counterparty on this string, and that
+   // is the entire mechanism by which the two halves of this row are the same name.
+   counterpartyId: String[1];
+   counterpartyName: String[1];
+   // credit-core's borrower behind the limits.
+   obligorId: String[1];
+   // ---- source 1: credit-limits ----
+   // SMALLINT: how many limits this name is watched under.
+   limitCount: Integer[1];
+   totalUtilised: Float[1];
+   totalApprovedThreshold: Float[1];
+   // SMALLINT: how many are in excess this morning.
+   openExcessCount: Integer[1];
+   // The rating in force, frozen. It is the input to the credit threshold AND to the margin
+   // haircut schedule, which is one of the few facts that genuinely spans two of the three.
+   ratingSymbol: String[0..1];
+   // ---- source 2: margin-calc ----
+   marginAgreementCount: Integer[1];
+   outstandingCallAmount: Float[1];
+   initialMarginHeld: Float[1];
+   collateralHeld: Float[1];
+   // ---- source 3: pnl-attribution ----
+   pnlLineCount: Integer[1];
+   pnlAmount: Float[1];
+   unexplainedAmount: Float[1];
+   // ---- and the board's own verdict ----
+   reportingCurrency: String[1];
+   // SMALLINT: 1 to 5, assigned by the morning run across all three.
+   riskRank: Integer[1];
+
+   // Credit headroom, from the credit half.
+   headroom() { $this.totalApprovedThreshold - $this.totalUtilised } : Float[1];
+   // Utilisation as a percentage. `Integer * Float` types as Number, but both operands here
+   // are Float, so the multiplication is safe and the division widens as it must.
+   utilisationPct() { ($this.totalUtilised * 100.0) / $this.totalApprovedThreshold } : Float[1];
+   // Collateral against margin, from the margin half.
+   collateralCoverage() { $this.collateralHeld / $this.initialMarginHeld } : Float[1];
+   // THE NUMBER THAT ONLY EXISTS HERE: drawn credit plus the margin owed and not yet posted,
+   // less the collateral actually sitting there. Two of its three terms come from projects
+   // that cannot see each other.
+   netRiskAmount() { ($this.totalUtilised + $this.outstandingCallAmount) - $this.collateralHeld } : Float[1];
+   // Whether this name is genuinely present in all three sources. A row missing one of them
+   // is a roll-up of two things wearing the name of three.
+   spansAllThreeSources() { (($this.limitCount > 0) && ($this.marginAgreementCount > 0)) && ($this.pnlLineCount > 0) } : Boolean[1];
+   // The credit half re-read out of our own aggregation rather than trusted on this row.
+   utilisationFromGroup() { $this.limitTotal.totalUtilised->toOne() } : Float[1];
+   // And the drift between the two, which is the roll-up's own consistency screen.
+   utilisationDrift() { $this.totalUtilised - $this.limitTotal.totalUtilised->toOne() } : Float[1];
+
+   // CROSS-PROJECT, TWO WAYS, ON ONE CLASS: every credit limit this name is watched under,
+   // and every margin agreement it has signed. Both are [*] because a counterparty has many
+   // of each, and neither dependency can reach the other.
+   creditLimits: credit_limits::ClmCreditLimit[*];
+   marginAgreements: margin_calc::MgnMarginAgreement[*];
+   // INTO OUR OWN AGGREGATION.
+   limitTotal: risk_dashboard::RdbCounterpartyLimitTotal[0..1];
+}
+
+// FOR: one desk's morning in one row -- what it made, how much of that is unexplained, what
+// margin it is being charged and how close its limits are. The cut a desk head reads, as
+// against the counterparty cut a credit officer reads, off the same three sources.
+Class risk_dashboard::RdbDeskRollUp
+[
+   exceptionCountNotNegative: ($this.exceptionCount >= 0),
+   marginNotNegative: ($this.marginCharged >= 0.0)
+]
+{
+   // Part 1 of the key.
+   cobDate: StrictDate[1];
+   // Parts 2 and 3: the account, two columns as everywhere else.
+   institutionId: String[1];
+   accountNo: String[1];
+   // The attribution run the P&L half came from, carried so the join into pnl-attribution's
+   // account-day group has all four of its columns.
+   attributionId: String[1];
+   deskCode: String[1];
+   deskName: String[1];
+   // NUMERIC(24,8): the P&L half.
+   totalPnl: Float[1];
+   unexplainedAmount: Float[1];
+   // The margin half.
+   marginCharged: Float[1];
+   // The credit half, as a percentage rather than an amount: a desk's limits are several and
+   // the worst one is what matters.
+   worstUtilisationPct: Float[1];
+   // SMALLINT: what the desk has to deal with today.
+   exceptionCount: Integer[1];
+   ownerId: String[1];
+   reportingCurrency: String[1];
+
+   // What the six causes did account for.
+   explainedPnl() { $this.totalPnl - $this.unexplainedAmount } : Float[1];
+   // And what share they missed.
+   unexplainedPct() { $this.unexplainedAmount / $this.totalPnl } : Float[1];
+   // Return on the margin the desk is charged -- the only number on this board that puts the
+   // P&L half and the margin half in one fraction.
+   returnOnMargin() { $this.totalPnl / $this.marginCharged } : Float[1];
+   // Whether the desk is near any of its limits at all.
+   isNearLimit() { $this.worstUtilisationPct >= 90.0 } : Boolean[1];
+   // The P&L half read straight out of pnl-attribution's own account-day GROUP.
+   pnlFromSource() { $this.accountTotal->toOne().totalPnl() } : Float[1];
+
+   // CROSS-PROJECT, INTO A GROUP.
+   accountTotal: pnl_attribution::PnlAccountDayTotal[0..1];
+   owner: risk_dashboard::RdbOwner[0..1];
+}
+
+// ---------------------------------------------------------------- panel 6: the queue
+
+// FOR: **the exceptions that need a decision today** -- the base of a filter-subtype family
+// and the only part of this board that is not a report. An exception has an amount, a
+// threshold it passed, an owner, a time it is due by, and a decision or the absence of one.
+// One table serves four types: the base and three subtypes, discriminated on DOMAIN_CODE,
+// which is what makes "this is a limit exception" a type statement rather than a convention.
+Class risk_dashboard::RdbException
+[
+   severityInRange: (($this.severity >= 1) && ($this.severity <= 5)),
+   thresholdNotNegative: ($this.thresholdAmount >= 0.0)
+]
+{
+   // Part 1 of the key.
+   cobDate: StrictDate[1];
+   // Part 2.
+   exceptionId: String[1];
+   // The tile that raised it. An exception with no tile came from nowhere and can be
+   // justified by nothing.
+   tileId: String[1];
+   // LIMIT, MARGIN or EXPLAIN -- the discriminator the three subtypes filter on.
+   domainCode: String[1];
+   // What kind of exception it is within its domain, e.g. OVER_LIMIT, UNSETTLED_CALL,
+   // RESIDUAL_PCT.
+   exceptionCode: String[1];
+   // The one line a CRO reads before deciding whether to read the rest.
+   title: String[1];
+   // SMALLINT: 1 informational, 5 blocks the morning sign-off.
+   severity: Integer[1];
+   // THE OWNER. Not a team.
+   ownerId: String[1];
+   // NUMERIC(24,8): what is at stake, and the level it passed.
+   amount: Float[1];
+   thresholdAmount: Float[1];
+   currencyCode: String[1];
+   raisedAt: DateTime[1];
+   // THE DEADLINE. An exception with no due time is a list entry, not an obligation.
+   dueBy: DateTime[1];
+   // Absent until somebody decides. The null test the open-exception filter screens on.
+   decidedOn: StrictDate[0..1];
+   // Set when this exception is yesterday's, carried forward unresolved. The single most
+   // useful column on the panel: a queue of new items is a busy morning, and a queue of old
+   // ones is a control failure.
+   carriedFromDate: StrictDate[0..1];
+   // OPEN, ACKD, DEFR, CLSD.
+   statusCode: String[1];
+
+   isOpen() { $this.decidedOn->isEmpty() } : Boolean[1];
+   isCritical() { $this.severity >= 4 } : Boolean[1];
+   // How far past the threshold it went, in money.
+   overThreshold() { $this.amount - $this.thresholdAmount } : Float[1];
+   // And as a ratio. Above 1.0 by construction, since a smaller amount raises nothing.
+   breachRatio() { $this.amount / $this.thresholdAmount } : Float[1];
+   // Yesterday's, still here.
+   isCarriedOver() { $this.carriedFromDate->isNotEmpty() } : Boolean[1];
+   // Open, critical or carried over: the filter a CRO actually applies to the queue.
+   needsDecisionToday() { $this.decidedOn->isEmpty() && (($this.severity >= 4) || $this.carriedFromDate->isNotEmpty()) } : Boolean[1];
+   // Whether the tile that raised it is one that can stop the morning sign-off.
+   isBlocking() { ($this.severity >= 5) && $this.tile->toOne().isBlocking } : Boolean[1];
+   // This exception's share of its owner's whole queue for the day, read out of the
+   // aggregation rather than by summing the owner's other exceptions.
+   shareOfOwnerQueue() { $this.amount / $this.ownerQueue.totalAmount->toOne() } : Float[1];
+
+   tile: risk_dashboard::RdbTile[0..1];
+   owner: risk_dashboard::RdbOwner[0..1];
+   snapshot: risk_dashboard::RdbTileSnapshot[0..1];
+   escalations: risk_dashboard::RdbEscalation[*];
+   decisions: risk_dashboard::RdbDecision[*];
+   // INTO THE TWO AGGREGATIONS this table is grouped into.
+   ownerQueue: risk_dashboard::RdbOwnerQueueTotal[0..1];
+   severityTotal: risk_dashboard::RdbSeverityTotal[0..1];
+}
+
+// FOR: an exception raised by the limit panel. Subtype on `~filter RdbLimitExceptionRows`;
+// adds the two ids that make it actionable -- which limit, and which excess if credit-limits
+// has raised one. A margin exception has no use for either and never carries one.
+Class risk_dashboard::RdbLimitException extends risk_dashboard::RdbException
+{
+   // credit-limits' anchor.
+   creditLimitId: String[1];
+   // Its excess, where the crossing has been recorded as one.
+   excessId: String[0..1];
+
+   // Whether the credit system has caught up with the board.
+   hasRecordedExcess() { $this.excessId->isNotEmpty() } : Boolean[1];
+   // The limit as one string for the queue line.
+   limitLabel() { 'LIMIT ' + $this.creditLimitId } : String[1];
+}
+
+// FOR: an exception raised by the margin panel. Subtype on `~filter RdbMarginExceptionRows`;
+// adds the agreement and, where the exception is about a requirement rather than a call, the
+// netting set it was computed on.
+Class risk_dashboard::RdbMarginException extends risk_dashboard::RdbException
+{
+   // margin-calc's agreement.
+   agreementId: String[1];
+   // Its netting set, where the exception is about the requirement.
+   marginPortfolioId: String[0..1];
+
+   isPortfolioLevel() { $this.marginPortfolioId->isNotEmpty() } : Boolean[1];
+   agreementLabel() { 'CSA ' + $this.agreementId } : String[1];
+}
+
+// FOR: an exception raised by the explain panel. Subtype on `~filter RdbExplainExceptionRows`;
+// adds the attribution run and, where the residual is on one security rather than a whole
+// book, the instrument.
+Class risk_dashboard::RdbExplainException extends risk_dashboard::RdbException
+{
+   // pnl-attribution's run.
+   attributionId: String[1];
+   // The security, where the residual is a single-name one.
+   instrumentId: String[0..1];
+
+   isSingleName() { $this.instrumentId->isNotEmpty() } : Boolean[1];
+   runLabel() { 'ATTR ' + $this.attributionId } : String[1];
+}
+
+// FOR: who was told about an exception, when, and whether they answered. One row per rung,
+// because an escalation that overwrites the previous one destroys the evidence that the first
+// person did not reply -- which is usually the point.
+Class risk_dashboard::RdbEscalation
+[
+   seqIsPositive: ($this.escalationSeq >= 1),
+   levelIsPositive: ($this.escalationLevel >= 1)
+]
+{
+   // Part 1 of the key.
+   exceptionId: String[1];
+   // Part 2: the rung.
+   escalationSeq: Integer[1];
+   // Who it went to.
+   toOwnerId: String[1];
+   // SMALLINT: 1 desk, 2 business, 3 CRO.
+   escalationLevel: Integer[1];
+   // EMAIL, PAGER, CALL, TICKET.
+   channelCode: String[1];
+   raisedAt: DateTime[1];
+   // Absent until somebody answers, which is the whole state this class records.
+   acknowledgedAt: DateTime[0..1];
+   note: String[0..1];
+
+   isOutstanding() { $this.acknowledgedAt->isEmpty() } : Boolean[1];
+   isAtCroLevel() { $this.escalationLevel >= 3 } : Boolean[1];
+
+   exception: risk_dashboard::RdbException[0..1];
+   toOwner: risk_dashboard::RdbOwner[0..1];
+}
+
+// FOR: the decision itself -- what was decided about an exception, by whom, for how much and
+// until when. The board's output. Everything above it is a number; this is the only class
+// here that records somebody having done something about one.
+Class risk_dashboard::RdbDecision
+[
+   seqIsPositive: ($this.decisionSeq >= 1),
+   approvedNotNegative: ($this.amountApproved >= 0.0)
+]
+{
+   // Part 1 of the key.
+   exceptionId: String[1];
+   // Part 2: a decision can be revised, and both survive.
+   decisionSeq: Integer[1];
+   // APPR (accept it), RJCT (fix it), DEFR (tomorrow), ESCL (not mine).
+   decisionCode: String[1];
+   decidedBy: String[1];
+   decidedOn: StrictDate[1];
+   // NUMERIC(24,8): how much of the exposure was accepted, which may be less than the
+   // exception's amount and is why a decision is not a boolean.
+   amountApproved: Float[1];
+   // Absent for a permanent decision. A decision with no expiry is a policy change made by
+   // accident, which is the failure mode this column exists to prevent.
+   validUntil: StrictDate[0..1];
+   rationale: String[0..1];
+
+   isApproval() { $this.decisionCode == 'APPR' } : Boolean[1];
+   // A deferral is a decision to look at it tomorrow, and counts as one.
+   isDeferral() { $this.decisionCode == 'DEFR' } : Boolean[1];
+   isTemporary() { $this.validUntil->isNotEmpty() } : Boolean[1];
+   // What was accepted against what was at stake.
+   approvedShare() { $this.amountApproved / $this.exception.amount->toOne() } : Float[1];
+
+   exception: risk_dashboard::RdbException[0..1];
+}
+
+// FOR: the sentence somebody wrote against a tile on a morning. A dashboard without it makes
+// every reader re-derive the same explanation, and the explanation is usually the only part
+// that was not already in the data.
+Class risk_dashboard::RdbCommentary
+[
+   seqIsPositive: ($this.commentSeq >= 1)
+]
+{
+   // Parts 1 and 2: the tile and the day it is about.
+   tileId: String[1];
+   cobDate: StrictDate[1];
+   // Part 3: a tile gets more than one note on a bad morning.
+   commentSeq: Integer[1];
+   authorId: String[1];
+   commentText: String[1];
+   // True once it appears on the published board rather than only in the working copy.
+   isPublished: Boolean[1];
+   postedAt: DateTime[1];
+
+   // The note's provenance in one string.
+   attribution() { $this.authorId + ' on ' + $this.tileId } : String[1];
+   isDraft() { $this.isPublished->not() } : Boolean[1];
+
+   tile: risk_dashboard::RdbTile[0..1];
+   author: risk_dashboard::RdbOwner[0..1];
+}
+
+// FOR: something that is not an exception today and will be one soon -- a name on watch, with
+// a review date and an owner. It survives the morning it was raised on, which is the
+// difference between a watch list and a queue.
+Class risk_dashboard::RdbWatchItem
+[
+   reviewAfterOpen: ($this.reviewOn >= $this.openedOn),
+   severityInRange: (($this.severity >= 1) && ($this.severity <= 5))
+]
+{
+   // The key.
+   watchId: String[1];
+   // The exception it grew out of, where it grew out of one.
+   exceptionId: String[0..1];
+   // The counterparty it is about, where it is about one.
+   counterpartyId: String[0..1];
+   // WATCH_RATING, WATCH_LIQUIDITY, WATCH_CONCENTRATION, WATCH_EXPLAIN.
+   watchReason: String[1];
+   openedOn: StrictDate[1];
+   // When it must be looked at again. The column that stops a watch list becoming a graveyard.
+   reviewOn: StrictDate[1];
+   closedOn: StrictDate[0..1];
+   ownerId: String[1];
+   // SMALLINT: 1 to 5.
+   severity: Integer[1];
+   note: String[0..1];
+
+   isOpen() { $this.closedOn->isEmpty() } : Boolean[1];
+   // Whether the review date has passed, against a date the caller supplies. Comparing two
+   // StrictDates, which is what the class has.
+   isOverdueForReview(today: StrictDate[1]) { $this.closedOn->isEmpty() && ($this.reviewOn < $today) } : Boolean[1];
+   camefromException() { $this.exceptionId->isNotEmpty() } : Boolean[1];
+
+   exception: risk_dashboard::RdbException[0..1];
+   owner: risk_dashboard::RdbOwner[0..1];
+}
+
+// ---------------------------------------------------------------- THE AGGREGATIONS
+//
+// Four classes rooted on store Views. In each one the ~primaryKey IS the ~groupBy, which is
+// both what makes a group joinable and what one instance MEANS. These are Legend views: no
+// DDL, nothing seeds them, and the engine folds the GROUP BY into its SQL. A group with no
+// rows on a date does not form and is absent, rather than appearing as a total of zero --
+// which on a risk dashboard is the honest answer, because zero exceptions and no data are
+// different mornings and a board that shows them the same way is dangerous.
+
+// AGGREGATE on a store view: one dashboard, one day, its tiles totalled. FOR: giving the top
+// of the board its own row -- how many tiles, how much money at risk, and the worst breach on
+// the page -- without reading a tile.
+Class risk_dashboard::RdbTileDayTotal
+{
+   // The grouping, and therefore the key.
+   dashboardId: String[1];
+   cobDate: StrictDate[1];
+   // count(TILE_ID) over the group -- how many tiles the header stands on.
+   tileCount: Integer[1];
+   // sum(HEADLINE_VALUE). Meaningful only across tiles of one unit, which is why the money
+   // total beside it is the one the header prints.
+   totalHeadlineValue: Float[1];
+   // sum(AMOUNT_AT_RISK) -- the board's money, in one number.
+   totalAmountAtRisk: Float[1];
+   // sum(EXCEPTION_COUNT).
+   totalExceptionCount: Integer[1];
+   // max(BREACH_RATIO) -- the worst tile on the page, which is what the header colour is.
+   worstBreachRatio: Float[1];
+   // min(SOURCE_ROW_COUNT) -- the emptiest tile. A board with a zero here has a tile that is
+   // green because it read nothing.
+   leastSourceRows: Integer[1];
+
+   // Exceptions per tile. `/` widens to Float even on two Integers.
+   exceptionsPerTile() { $this.totalExceptionCount / $this.tileCount } : Float[1];
+   // Average money per tile.
+   averageAmountAtRisk() { $this.totalAmountAtRisk / $this.tileCount } : Float[1];
+   // Whether anything on the board is red at all.
+   hasRedTile() { $this.worstBreachRatio >= 1.0 } : Boolean[1];
+   // Whether some tile on the board was computed from no rows, which is the failure this
+   // aggregate exists to surface: it cannot be seen from any single tile.
+   hasEmptyTile() { $this.leastSourceRows == 0 } : Boolean[1];
+
+   dashboard: risk_dashboard::RdbDashboard[0..1];
+   snapshots: risk_dashboard::RdbTileSnapshot[*];
+}
+
+// AGGREGATE on a store view: one owner, one day, their whole queue. FOR: answering "what is
+// on my desk this morning" in one grouped read -- and, across owners, "who is buried", which
+// is a real risk about a risk dashboard and is invisible from any one exception.
+Class risk_dashboard::RdbOwnerQueueTotal
+{
+   // The grouping, and therefore the key.
+   cobDate: StrictDate[1];
+   ownerId: String[1];
+   // count(EXCEPTION_ID) over the group.
+   exceptionCount: Integer[1];
+   // sum(AMOUNT) -- the money in this owner's queue.
+   totalAmount: Float[1];
+   // max(AMOUNT) -- their single worst item.
+   largestAmount: Float[1];
+   // max(SEVERITY) -- how bad their morning is at its worst.
+   highestSeverity: Integer[1];
+   // sum(THRESHOLD_AMOUNT), so the queue's aggregate breach can be stated as a ratio.
+   totalThresholdAmount: Float[1];
+
+   // The average item.
+   averageAmount() { $this.totalAmount / $this.exceptionCount } : Float[1];
+   // Whether one item IS the queue. Above a half, the owner has one problem and a list.
+   queueConcentration() { $this.largestAmount / $this.totalAmount } : Float[1];
+   // The queue's aggregate breach ratio.
+   queueBreachRatio() { $this.totalAmount / $this.totalThresholdAmount } : Float[1];
+   // More than a morning's work, on the firm's own rule of thumb.
+   isOverloaded() { $this.exceptionCount > 10 } : Boolean[1];
+   // A queue with a blocking item in it, whoever else is also waiting.
+   hasBlockingItem() { $this.highestSeverity >= 5 } : Boolean[1];
+
+   owner: risk_dashboard::RdbOwner[0..1];
+   exceptions: risk_dashboard::RdbException[*];
+}
+
+// AGGREGATE on a store view: one day, one domain, one severity. FOR: the shape of the
+// morning -- three criticals in margin and forty informationals in explain is a different day
+// from the reverse, and the count alone cannot say which. Grouped THREE ways rather than two
+// because a severity means something different in each domain.
+Class risk_dashboard::RdbSeverityTotal
+{
+   // The grouping, and therefore the key.
+   cobDate: StrictDate[1];
+   domainCode: String[1];
+   severity: Integer[1];
+   // count(EXCEPTION_ID) over the group.
+   exceptionCount: Integer[1];
+   // sum(AMOUNT).
+   totalAmount: Float[1];
+   // max(AMOUNT) -- the worst single item at this severity.
+   largestAmount: Float[1];
+   // min(AMOUNT) -- and the smallest, because a band whose largest and smallest are orders of
+   // apart is not one band in any useful sense.
+   smallestAmount: Float[1];
+
+   averageAmount() { $this.totalAmount / $this.exceptionCount } : Float[1];
+   // The spread within the band.
+   amountSpread() { $this.largestAmount - $this.smallestAmount } : Float[1];
+   // What share of the band sits in its largest item.
+   largestShare() { $this.largestAmount / $this.totalAmount } : Float[1];
+   // Whether this band blocks the morning sign-off.
+   isBlockingBand() { $this.severity >= 5 } : Boolean[1];
+
+   exceptions: risk_dashboard::RdbException[*];
+}
+
+// AGGREGATE on a store view: one counterparty, one day, its limit rows totalled. FOR: giving
+// the counterparty roll-up its credit half as a GROUP rather than as a sum the roll-up did
+// itself -- so a name's total utilisation is one grouped read, and the roll-up's own stored
+// figure has something independent to be checked against.
+Class risk_dashboard::RdbCounterpartyLimitTotal
+{
+   // The grouping, and therefore the key.
+   cobDate: StrictDate[1];
+   counterpartyId: String[1];
+   // count(CREDIT_LIMIT_ID) over the group.
+   limitCount: Integer[1];
+   // sum(UTILISED_AMOUNT).
+   totalUtilised: Float[1];
+   // sum(APPLIED_THRESHOLD).
+   totalThreshold: Float[1];
+   // sum(HEADROOM_AMOUNT) -- which can be negative, and is exactly when it matters.
+   totalHeadroom: Float[1];
+   // max(UTILISATION_PCT) -- the worst single limit this name is against.
+   worstUtilisationPct: Float[1];
+   // max(UTILISED_AMOUNT) -- and the largest single drawing.
+   largestUtilised: Float[1];
+
+   // Utilisation across every limit this name is watched under.
+   utilisationRatio() { $this.totalUtilised / $this.totalThreshold } : Float[1];
+   // The average limit size, which is how a name with one huge line is told from one with
+   // twenty small ones.
+   averageLimitSize() { $this.totalThreshold / $this.limitCount } : Float[1];
+   // Whether the name's exposure is really one limit.
+   isSingleLimitDriven() { ($this.largestUtilised / $this.totalUtilised) > 0.5 } : Boolean[1];
+   // At least one limit near its line, whatever the aggregate says.
+   hasLimitNearTheLine() { $this.worstUtilisationPct >= 90.0 } : Boolean[1];
+
+   limitRows: risk_dashboard::RdbLimitPanelRow[*];
+   rollUp: risk_dashboard::RdbCounterpartyRollUp[0..1];
+}

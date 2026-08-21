@@ -109,5 +109,9 @@ Must print `compiles`. That is the whole acceptance test.
   as associations -- both styles are valid and they cannot be mixed on one property.
 * A class CONSTRAINT can only compare `[1]` properties. A `>= 0` over a `[0..1]` does not
   type-check; express the "is it set" rule as a derived property using `->isEmpty()` instead.
+* A list literal element must be PARENTHESISED if it is an infix expression.
+  `[0.0, $this.a - $this.b]->max()` is a parse error; `[0.0, ($this.a - $this.b)]->max()` is
+  fine, and so is `[0.0, $this.a]->max()`. The message is `Unexpected token` with a stack in
+  `expressionsArray`, naming neither the class nor the property.
 * Do not use the SQL type `REAL` — it is accepted by the grammar and cannot be read at
   execution (docs/UPSTREAM_FINDINGS.md F53). Use `FLOAT` or `DOUBLE`.

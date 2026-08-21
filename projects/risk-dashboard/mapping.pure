@@ -1,0 +1,770 @@
+###Mapping
+// The risk-dashboard mapping. It INCLUDES all three dependency mappings, so every set this
+// project's joins land on already exists and none is redefined here:
+//
+//   from margin-calc      mgnMarginRun, mgnMarginCall, mgnAgreement, mgnInitialMargin,
+//                         mgnConcentrationAddOn, mgnPortfolioMarginTotal
+//   from credit-limits    clmDailyReport, clmCreditLimit, clmUtilisationLine, clmExcess,
+//                         clmEscalationTicket
+//   from pnl-attribution  pnlRun, pnlResidual, pnlBreak, pnlAccountDayTotal,
+//                         pnlInstrumentDayTotal
+//
+// All three dependencies name every set id EXPLICITLY, which means the default ids
+// (`margin_calc_MgnMarginCall`, `credit_limits_ClmExcess`, `pnl_attribution_PnlResidual`) do
+// NOT exist to fall back on, and every cross-project property mapping below names the real
+// one. Note the two that are shorter than their classes: `clmDailyReport` for
+// ClmDailyLimitReport and `pnlBreak` for PnlAttributionBreak.
+//
+// THE OVERLAP. position_keeping::Mapping arrives twice -- once under margin_calc::Mapping and
+// once under pnl_attribution::Mapping -- and with it core-account, core-instrument and
+// core-price; core_party::Mapping arrives twice again inside credit_limits::Mapping's own
+// diamond. Each must resolve to ONE set of sets. None of them is included here directly, and
+// none of their set ids is named below.
+//
+// Three shapes are worth reading for:
+//
+//   FILTER-SUBTYPES  [rdbException] is the base set over RDB_EXCEPTION; the three sets after
+//                    it `extends [rdbException]` and add nothing but a ~filter on DOMAIN_CODE
+//                    and the columns that mean something for that one domain. The key, the
+//                    main table and the shared column mappings all come from the set they
+//                    extend -- and the subtype columns are mapped THERE and not on the
+//                    parent, because a property declared on a subclass cannot be mapped on
+//                    the parent's set.
+//
+//   AGGREGATE SETS   the last four are rooted on VIEWS. Their ~primaryKey IS the view's
+//                    ~groupBy, so one instance of RdbOwnerQueueTotal is one owner-day GROUP
+//                    and never an exception.
+//
+//   THE FAN-IN       [rdbMorningRun] has three cross-project property mappings, one into each
+//                    dependency, and is the only set in this graph that does.
+//
+// What is NOT mapped: every derived property -- `netRiskAmount()`, `uncollateralisedByMta()`,
+// `unexplainedFromSource()`, the two dated `...On(date)` families and the rest. A derived
+// property needs no mapping, and several of these call margin-calc's exported functions or
+// navigate into somebody else's GROUP BY, neither of which is a column.
+Mapping risk_dashboard::Mapping
+(
+   include margin_calc::Mapping
+   include credit_limits::Mapping
+   include pnl_attribution::Mapping
+
+   // ------------------------------------------------------------ the board
+
+   risk_dashboard::RdbDashboard[rdbDashboard]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_DASHBOARD.DASHBOARD_ID
+      )
+      ~mainTable [risk_dashboard::Store]RDB_DASHBOARD
+      dashboardId: [risk_dashboard::Store]RDB_DASHBOARD.DASHBOARD_ID,
+      dashboardName: [risk_dashboard::Store]RDB_DASHBOARD.DASHBOARD_NAME,
+      audienceRole: [risk_dashboard::Store]RDB_DASHBOARD.AUDIENCE_ROLE,
+      ownerId: [risk_dashboard::Store]RDB_DASHBOARD.OWNER_ID,
+      refreshCron: [risk_dashboard::Store]RDB_DASHBOARD.REFRESH_CRON,
+      reportingCurrency: [risk_dashboard::Store]RDB_DASHBOARD.REPORTING_CCY,
+      tileCount: [risk_dashboard::Store]RDB_DASHBOARD.TILE_COUNT,
+      isDefault: [risk_dashboard::Store]RDB_DASHBOARD.IS_DEFAULT,
+      retiredOn: [risk_dashboard::Store]RDB_DASHBOARD.RETIRED_ON,
+      owner[rdbOwner]: [risk_dashboard::Store]@Rdb_DashboardOwner,
+      tiles[rdbTile]: [risk_dashboard::Store]@Rdb_DashboardTiles,
+      dayTotals[rdbTileDayTotal]: [risk_dashboard::Store]@Rdb_DashboardDayTotals
+   }
+
+   // THE TILE. `policy`, `owner` and `bindings` are the threshold, the owner and the query --
+   // the three property mappings that make the central claim of this project true in the
+   // mapping and not only in the comments.
+   risk_dashboard::RdbTile[rdbTile]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_TILE.TILE_ID
+      )
+      ~mainTable [risk_dashboard::Store]RDB_TILE
+      tileId: [risk_dashboard::Store]RDB_TILE.TILE_ID,
+      dashboardId: [risk_dashboard::Store]RDB_TILE.DASHBOARD_ID,
+      tileCode: [risk_dashboard::Store]RDB_TILE.TILE_CODE,
+      title: [risk_dashboard::Store]RDB_TILE.TITLE,
+      panelCode: [risk_dashboard::Store]RDB_TILE.PANEL_CODE,
+      measureCode: [risk_dashboard::Store]RDB_TILE.MEASURE_CODE,
+      unitCode: [risk_dashboard::Store]RDB_TILE.UNIT_CODE,
+      policyCode: [risk_dashboard::Store]RDB_TILE.POLICY_CODE,
+      ownerId: [risk_dashboard::Store]RDB_TILE.OWNER_ID,
+      sortOrder: [risk_dashboard::Store]RDB_TILE.SORT_ORDER,
+      maxAgeMinutes: [risk_dashboard::Store]RDB_TILE.MAX_AGE_MINUTES,
+      isBlocking: [risk_dashboard::Store]RDB_TILE.IS_BLOCKING,
+      retiredOn: [risk_dashboard::Store]RDB_TILE.RETIRED_ON,
+      dashboard[rdbDashboard]: [risk_dashboard::Store]@Rdb_DashboardTiles,
+      owner[rdbOwner]: [risk_dashboard::Store]@Rdb_TileOwner,
+      policy[rdbThresholdPolicy]: [risk_dashboard::Store]@Rdb_TilePolicy,
+      bindings[rdbSourceBinding]: [risk_dashboard::Store]@Rdb_TileBindings,
+      snapshots[rdbTileSnapshot]: [risk_dashboard::Store]@Rdb_TileSnapshots,
+      commentary[rdbCommentary]: [risk_dashboard::Store]@Rdb_TileCommentary,
+      exceptions[rdbException]: [risk_dashboard::Store]@Rdb_TileExceptions
+   }
+
+   risk_dashboard::RdbThresholdPolicy[rdbThresholdPolicy]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_THRESHOLD_POLICY.POLICY_CODE
+      )
+      ~mainTable [risk_dashboard::Store]RDB_THRESHOLD_POLICY
+      policyCode: [risk_dashboard::Store]RDB_THRESHOLD_POLICY.POLICY_CODE,
+      policyName: [risk_dashboard::Store]RDB_THRESHOLD_POLICY.POLICY_NAME,
+      direction: [risk_dashboard::Store]RDB_THRESHOLD_POLICY.DIRECTION,
+      amberLevel: [risk_dashboard::Store]RDB_THRESHOLD_POLICY.AMBER_LEVEL,
+      redLevel: [risk_dashboard::Store]RDB_THRESHOLD_POLICY.RED_LEVEL,
+      absoluteFloor: [risk_dashboard::Store]RDB_THRESHOLD_POLICY.ABSOLUTE_FLOOR,
+      escalationLevel: [risk_dashboard::Store]RDB_THRESHOLD_POLICY.ESCALATION_LEVEL,
+      responseMinutes: [risk_dashboard::Store]RDB_THRESHOLD_POLICY.RESPONSE_MINUTES,
+      isDefault: [risk_dashboard::Store]RDB_THRESHOLD_POLICY.IS_DEFAULT,
+      tiles[rdbTile]: [risk_dashboard::Store]@Rdb_TilePolicy
+   }
+
+   risk_dashboard::RdbOwner[rdbOwner]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_OWNER.OWNER_ID
+      )
+      ~mainTable [risk_dashboard::Store]RDB_OWNER
+      ownerId: [risk_dashboard::Store]RDB_OWNER.OWNER_ID,
+      ownerName: [risk_dashboard::Store]RDB_OWNER.OWNER_NAME,
+      roleCode: [risk_dashboard::Store]RDB_OWNER.ROLE_CODE,
+      deskCode: [risk_dashboard::Store]RDB_OWNER.DESK_CODE,
+      escalatesToId: [risk_dashboard::Store]RDB_OWNER.ESCALATES_TO_ID,
+      contactEmail: [risk_dashboard::Store]RDB_OWNER.CONTACT_EMAIL,
+      isOnCall: [risk_dashboard::Store]RDB_OWNER.IS_ON_CALL,
+      tiles[rdbTile]: [risk_dashboard::Store]@Rdb_TileOwner,
+      dashboards[rdbDashboard]: [risk_dashboard::Store]@Rdb_DashboardOwner,
+      exceptions[rdbException]: [risk_dashboard::Store]@Rdb_ExceptionOwner,
+      queueTotals[rdbOwnerQueueTotal]: [risk_dashboard::Store]@Rdb_OwnerQueueTotals
+   }
+
+   risk_dashboard::RdbSourceBinding[rdbSourceBinding]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_SOURCE_BINDING.TILE_ID,
+         [risk_dashboard::Store]RDB_SOURCE_BINDING.SOURCE_SEQ
+      )
+      ~mainTable [risk_dashboard::Store]RDB_SOURCE_BINDING
+      tileId: [risk_dashboard::Store]RDB_SOURCE_BINDING.TILE_ID,
+      sourceSeq: [risk_dashboard::Store]RDB_SOURCE_BINDING.SOURCE_SEQ,
+      sourceProject: [risk_dashboard::Store]RDB_SOURCE_BINDING.SOURCE_PROJECT,
+      sourceElement: [risk_dashboard::Store]RDB_SOURCE_BINDING.SOURCE_ELEMENT,
+      sourceKind: [risk_dashboard::Store]RDB_SOURCE_BINDING.SOURCE_KIND,
+      measureExpression: [risk_dashboard::Store]RDB_SOURCE_BINDING.MEASURE_EXPRESSION,
+      isPrimary: [risk_dashboard::Store]RDB_SOURCE_BINDING.IS_PRIMARY,
+      tile[rdbTile]: [risk_dashboard::Store]@Rdb_TileBindings
+   }
+
+   risk_dashboard::RdbTileSnapshot[rdbTileSnapshot]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_TILE_SNAPSHOT.TILE_ID,
+         [risk_dashboard::Store]RDB_TILE_SNAPSHOT.COB_DATE
+      )
+      ~mainTable [risk_dashboard::Store]RDB_TILE_SNAPSHOT
+      tileId: [risk_dashboard::Store]RDB_TILE_SNAPSHOT.TILE_ID,
+      cobDate: [risk_dashboard::Store]RDB_TILE_SNAPSHOT.COB_DATE,
+      dashboardId: [risk_dashboard::Store]RDB_TILE_SNAPSHOT.DASHBOARD_ID,
+      runSeq: [risk_dashboard::Store]RDB_TILE_SNAPSHOT.RUN_SEQ,
+      headlineValue: [risk_dashboard::Store]RDB_TILE_SNAPSHOT.HEADLINE_VALUE,
+      priorValue: [risk_dashboard::Store]RDB_TILE_SNAPSHOT.PRIOR_VALUE,
+      amberThreshold: [risk_dashboard::Store]RDB_TILE_SNAPSHOT.AMBER_THRESHOLD,
+      redThreshold: [risk_dashboard::Store]RDB_TILE_SNAPSHOT.RED_THRESHOLD,
+      breachRatio: [risk_dashboard::Store]RDB_TILE_SNAPSHOT.BREACH_RATIO,
+      amountAtRisk: [risk_dashboard::Store]RDB_TILE_SNAPSHOT.AMOUNT_AT_RISK,
+      exceptionCount: [risk_dashboard::Store]RDB_TILE_SNAPSHOT.EXCEPTION_COUNT,
+      statusCode: [risk_dashboard::Store]RDB_TILE_SNAPSHOT.STATUS_CODE,
+      refreshLagMinutes: [risk_dashboard::Store]RDB_TILE_SNAPSHOT.REFRESH_LAG_MINUTES,
+      sourceRowCount: [risk_dashboard::Store]RDB_TILE_SNAPSHOT.SOURCE_ROW_COUNT,
+      computedAt: [risk_dashboard::Store]RDB_TILE_SNAPSHOT.COMPUTED_AT,
+      tile[rdbTile]: [risk_dashboard::Store]@Rdb_TileSnapshots,
+      run[rdbMorningRun]: [risk_dashboard::Store]@Rdb_RunSnapshots,
+      exceptions[rdbException]: [risk_dashboard::Store]@Rdb_SnapshotExceptions,
+      dayTotal[rdbTileDayTotal]: [risk_dashboard::Store]@Rdb_SnapshotDayTotal
+   }
+
+   // ------------------------------------------------------------ THE FAN-IN
+   //
+   // Three cross-project property mappings on one set, into three projects that cannot see
+   // each other. `creditReport[clmDailyReport]` is the shortened id credit-limits publishes
+   // for ClmDailyLimitReport, which is exactly the kind of thing a downstream project has to
+   // read a MANIFEST for rather than guess.
+   risk_dashboard::RdbMorningRun[rdbMorningRun]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_MORNING_RUN.COB_DATE,
+         [risk_dashboard::Store]RDB_MORNING_RUN.RUN_SEQ
+      )
+      ~mainTable [risk_dashboard::Store]RDB_MORNING_RUN
+      cobDate: [risk_dashboard::Store]RDB_MORNING_RUN.COB_DATE,
+      runSeq: [risk_dashboard::Store]RDB_MORNING_RUN.RUN_SEQ,
+      marginRunSeq: [risk_dashboard::Store]RDB_MORNING_RUN.MARGIN_RUN_SEQ,
+      creditReportId: [risk_dashboard::Store]RDB_MORNING_RUN.CREDIT_REPORT_ID,
+      attributionId: [risk_dashboard::Store]RDB_MORNING_RUN.ATTRIBUTION_ID,
+      runType: [risk_dashboard::Store]RDB_MORNING_RUN.RUN_TYPE,
+      status: [risk_dashboard::Store]RDB_MORNING_RUN.STATUS,
+      tileCount: [risk_dashboard::Store]RDB_MORNING_RUN.TILE_COUNT,
+      greenCount: [risk_dashboard::Store]RDB_MORNING_RUN.GREEN_COUNT,
+      amberCount: [risk_dashboard::Store]RDB_MORNING_RUN.AMBER_COUNT,
+      redCount: [risk_dashboard::Store]RDB_MORNING_RUN.RED_COUNT,
+      exceptionCount: [risk_dashboard::Store]RDB_MORNING_RUN.EXCEPTION_COUNT,
+      totalAmountAtRisk: [risk_dashboard::Store]RDB_MORNING_RUN.TOTAL_AMOUNT_AT_RISK,
+      startedAt: [risk_dashboard::Store]RDB_MORNING_RUN.STARTED_AT,
+      completedAt: [risk_dashboard::Store]RDB_MORNING_RUN.COMPLETED_AT,
+      // CROSS-PROJECT, ALL THREE. Upstream ids, because no default id exists for any of them.
+      marginRun[mgnMarginRun]: [risk_dashboard::Store]@Rdb_RunMarginRun,
+      creditReport[clmDailyReport]: [risk_dashboard::Store]@Rdb_RunCreditReport,
+      attributionRun[pnlRun]: [risk_dashboard::Store]@Rdb_RunAttributionRun,
+      snapshots[rdbTileSnapshot]: [risk_dashboard::Store]@Rdb_RunSnapshots
+   }
+
+   // ------------------------------------------------------------ panel 1: the limits
+   //
+   // Two cross-project property mappings, and the second one matters more than it looks:
+   // `creditLimit[clmCreditLimit]` is the anchor BOTH of credit-limits' milestoned routes
+   // hang off, so the dated `approvedThresholdOn(date)` and `ratingSymbolOn(date)` on this
+   // class resolve through it -- one into credit-limits' own <<temporal.businesstemporal>>
+   // class, one on through credit-core into core-ratings'. Neither temporal class is named
+   // here and neither could be: core-ratings is transitive, not declared.
+   risk_dashboard::RdbLimitPanelRow[rdbLimitPanel]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_LIMIT_PANEL.COB_DATE,
+         [risk_dashboard::Store]RDB_LIMIT_PANEL.CREDIT_LIMIT_ID
+      )
+      ~mainTable [risk_dashboard::Store]RDB_LIMIT_PANEL
+      cobDate: [risk_dashboard::Store]RDB_LIMIT_PANEL.COB_DATE,
+      creditLimitId: [risk_dashboard::Store]RDB_LIMIT_PANEL.CREDIT_LIMIT_ID,
+      counterpartyId: [risk_dashboard::Store]RDB_LIMIT_PANEL.COUNTERPARTY_ID,
+      obligorId: [risk_dashboard::Store]RDB_LIMIT_PANEL.OBLIGOR_ID,
+      bookId: [risk_dashboard::Store]RDB_LIMIT_PANEL.BOOK_ID,
+      measureCode: [risk_dashboard::Store]RDB_LIMIT_PANEL.MEASURE_CODE,
+      utilisedAmount: [risk_dashboard::Store]RDB_LIMIT_PANEL.UTILISED_AMOUNT,
+      appliedThreshold: [risk_dashboard::Store]RDB_LIMIT_PANEL.APPLIED_THRESHOLD,
+      headroomAmount: [risk_dashboard::Store]RDB_LIMIT_PANEL.HEADROOM_AMOUNT,
+      utilisationPct: [risk_dashboard::Store]RDB_LIMIT_PANEL.UTILISATION_PCT,
+      ratingSymbol: [risk_dashboard::Store]RDB_LIMIT_PANEL.RATING_SYMBOL,
+      currencyCode: [risk_dashboard::Store]RDB_LIMIT_PANEL.CURRENCY_CODE,
+      contributorCount: [risk_dashboard::Store]RDB_LIMIT_PANEL.CONTRIBUTOR_COUNT,
+      isBreached: [risk_dashboard::Store]RDB_LIMIT_PANEL.IS_BREACHED,
+      rankPosition: [risk_dashboard::Store]RDB_LIMIT_PANEL.RANK_POSITION,
+      tileId: [risk_dashboard::Store]RDB_LIMIT_PANEL.TILE_ID,
+      // CROSS-PROJECT, both of them.
+      utilisationLine[clmUtilisationLine]: [risk_dashboard::Store]@Rdb_LimitPanelUtilisation,
+      creditLimit[clmCreditLimit]: [risk_dashboard::Store]@Rdb_LimitPanelCreditLimit,
+      tile[rdbTile]: [risk_dashboard::Store]@Rdb_LimitPanelTile,
+      counterpartyTotal[rdbCounterpartyLimitTotal]: [risk_dashboard::Store]@Rdb_LimitPanelCounterpartyTotal
+   }
+
+   risk_dashboard::RdbLimitBreachRow[rdbLimitBreach]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_LIMIT_BREACH.COB_DATE,
+         [risk_dashboard::Store]RDB_LIMIT_BREACH.EXCESS_ID
+      )
+      ~mainTable [risk_dashboard::Store]RDB_LIMIT_BREACH
+      cobDate: [risk_dashboard::Store]RDB_LIMIT_BREACH.COB_DATE,
+      excessId: [risk_dashboard::Store]RDB_LIMIT_BREACH.EXCESS_ID,
+      creditLimitId: [risk_dashboard::Store]RDB_LIMIT_BREACH.CREDIT_LIMIT_ID,
+      counterpartyId: [risk_dashboard::Store]RDB_LIMIT_BREACH.COUNTERPARTY_ID,
+      breachedThreshold: [risk_dashboard::Store]RDB_LIMIT_BREACH.BREACHED_THRESHOLD,
+      observedAmount: [risk_dashboard::Store]RDB_LIMIT_BREACH.OBSERVED_AMOUNT,
+      excessAmount: [risk_dashboard::Store]RDB_LIMIT_BREACH.EXCESS_AMOUNT,
+      approvedAmount: [risk_dashboard::Store]RDB_LIMIT_BREACH.APPROVED_AMOUNT,
+      severity: [risk_dashboard::Store]RDB_LIMIT_BREACH.SEVERITY,
+      severityCode: [risk_dashboard::Store]RDB_LIMIT_BREACH.SEVERITY_CODE,
+      ticketId: [risk_dashboard::Store]RDB_LIMIT_BREACH.TICKET_ID,
+      ageDays: [risk_dashboard::Store]RDB_LIMIT_BREACH.AGE_DAYS,
+      currencyCode: [risk_dashboard::Store]RDB_LIMIT_BREACH.CURRENCY_CODE,
+      ownerId: [risk_dashboard::Store]RDB_LIMIT_BREACH.OWNER_ID,
+      detectedAt: [risk_dashboard::Store]RDB_LIMIT_BREACH.DETECTED_AT,
+      clearedOn: [risk_dashboard::Store]RDB_LIMIT_BREACH.CLEARED_ON,
+      excess[clmExcess]: [risk_dashboard::Store]@Rdb_BreachExcess,
+      ticket[clmEscalationTicket]: [risk_dashboard::Store]@Rdb_BreachTicket
+   }
+
+   // ------------------------------------------------------------ panel 2: the margin
+
+   risk_dashboard::RdbMarginCallRow[rdbMarginCall]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.COB_DATE,
+         [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.AGREEMENT_ID
+      )
+      ~mainTable [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL
+      cobDate: [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.COB_DATE,
+      agreementId: [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.AGREEMENT_ID,
+      counterpartyId: [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.COUNTERPARTY_ID,
+      callDirection: [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.CALL_DIRECTION,
+      requiredMargin: [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.REQUIRED_MARGIN,
+      collateralValue: [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.COLLATERAL_VALUE,
+      threshold: [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.THRESHOLD,
+      minimumTransferAmount: [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.MINIMUM_TRANSFER_AMOUNT,
+      grossCallAmount: [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.GROSS_CALL_AMOUNT,
+      callAmount: [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.CALL_AMOUNT,
+      callCurrency: [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.CALL_CURRENCY,
+      isCallMade: [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.IS_CALL_MADE,
+      isSettled: [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.IS_SETTLED,
+      disputeCode: [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.DISPUTE_CODE,
+      ageHours: [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.AGE_HOURS,
+      deadlineHours: [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.DEADLINE_HOURS,
+      ownerId: [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.OWNER_ID,
+      rankPosition: [risk_dashboard::Store]RDB_MARGIN_CALL_PANEL.RANK_POSITION,
+      call[mgnMarginCall]: [risk_dashboard::Store]@Rdb_MarginCallPanelCall,
+      agreement[mgnAgreement]: [risk_dashboard::Store]@Rdb_MarginCallPanelAgreement
+   }
+
+   // `portfolioTotal[mgnPortfolioMarginTotal]` is a set rooted on ANOTHER PROJECT'S STORE
+   // VIEW. Navigating it crosses into margin-calc's GROUP BY and never reads a position.
+   risk_dashboard::RdbMarginShortfallRow[rdbMarginShortfall]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_MARGIN_SHORTFALL.COB_DATE,
+         [risk_dashboard::Store]RDB_MARGIN_SHORTFALL.MARGIN_PORTFOLIO_ID,
+         [risk_dashboard::Store]RDB_MARGIN_SHORTFALL.METHOD_CODE
+      )
+      ~mainTable [risk_dashboard::Store]RDB_MARGIN_SHORTFALL
+      cobDate: [risk_dashboard::Store]RDB_MARGIN_SHORTFALL.COB_DATE,
+      marginPortfolioId: [risk_dashboard::Store]RDB_MARGIN_SHORTFALL.MARGIN_PORTFOLIO_ID,
+      methodCode: [risk_dashboard::Store]RDB_MARGIN_SHORTFALL.METHOD_CODE,
+      agreementId: [risk_dashboard::Store]RDB_MARGIN_SHORTFALL.AGREEMENT_ID,
+      counterpartyId: [risk_dashboard::Store]RDB_MARGIN_SHORTFALL.COUNTERPARTY_ID,
+      oneDayMargin: [risk_dashboard::Store]RDB_MARGIN_SHORTFALL.ONE_DAY_MARGIN,
+      scaledMargin: [risk_dashboard::Store]RDB_MARGIN_SHORTFALL.SCALED_MARGIN,
+      concentrationAddOn: [risk_dashboard::Store]RDB_MARGIN_SHORTFALL.CONCENTRATION_ADDON,
+      liquidityAddOn: [risk_dashboard::Store]RDB_MARGIN_SHORTFALL.LIQUIDITY_ADDON,
+      totalInitialMargin: [risk_dashboard::Store]RDB_MARGIN_SHORTFALL.TOTAL_INITIAL_MARGIN,
+      closeOutPeriodDays: [risk_dashboard::Store]RDB_MARGIN_SHORTFALL.CLOSE_OUT_PERIOD_DAYS,
+      collateralHeld: [risk_dashboard::Store]RDB_MARGIN_SHORTFALL.COLLATERAL_HELD,
+      shortfallAmount: [risk_dashboard::Store]RDB_MARGIN_SHORTFALL.SHORTFALL_AMOUNT,
+      imCurrency: [risk_dashboard::Store]RDB_MARGIN_SHORTFALL.IM_CURRENCY,
+      rankPosition: [risk_dashboard::Store]RDB_MARGIN_SHORTFALL.RANK_POSITION,
+      initialMargin[mgnInitialMargin]: [risk_dashboard::Store]@Rdb_ShortfallInitialMargin,
+      // CROSS-PROJECT, INTO A GROUP.
+      portfolioTotal[mgnPortfolioMarginTotal]: [risk_dashboard::Store]@Rdb_ShortfallPortfolioTotal
+   }
+
+   // ------------------------------------------------------------ panel 3: the explain
+
+   // `accountTotal[pnlAccountDayTotal]` is another project's view set, matched on all four of
+   // its grouping columns.
+   risk_dashboard::RdbExplainRow[rdbExplain]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_EXPLAIN_PANEL.ATTRIBUTION_ID,
+         [risk_dashboard::Store]RDB_EXPLAIN_PANEL.INSTITUTION_ID,
+         [risk_dashboard::Store]RDB_EXPLAIN_PANEL.ACCOUNT_NO,
+         [risk_dashboard::Store]RDB_EXPLAIN_PANEL.COB_DATE
+      )
+      ~mainTable [risk_dashboard::Store]RDB_EXPLAIN_PANEL
+      attributionId: [risk_dashboard::Store]RDB_EXPLAIN_PANEL.ATTRIBUTION_ID,
+      institutionId: [risk_dashboard::Store]RDB_EXPLAIN_PANEL.INSTITUTION_ID,
+      accountNo: [risk_dashboard::Store]RDB_EXPLAIN_PANEL.ACCOUNT_NO,
+      cobDate: [risk_dashboard::Store]RDB_EXPLAIN_PANEL.COB_DATE,
+      deskCode: [risk_dashboard::Store]RDB_EXPLAIN_PANEL.DESK_CODE,
+      deskName: [risk_dashboard::Store]RDB_EXPLAIN_PANEL.DESK_NAME,
+      totalPnl: [risk_dashboard::Store]RDB_EXPLAIN_PANEL.TOTAL_PNL,
+      explainedPnl: [risk_dashboard::Store]RDB_EXPLAIN_PANEL.EXPLAINED_PNL,
+      unexplainedAmount: [risk_dashboard::Store]RDB_EXPLAIN_PANEL.UNEXPLAINED_AMOUNT,
+      unexplainedPct: [risk_dashboard::Store]RDB_EXPLAIN_PANEL.UNEXPLAINED_PCT,
+      lineCount: [risk_dashboard::Store]RDB_EXPLAIN_PANEL.LINE_COUNT,
+      brokenLineCount: [risk_dashboard::Store]RDB_EXPLAIN_PANEL.BROKEN_LINE_COUNT,
+      reportingCurrency: [risk_dashboard::Store]RDB_EXPLAIN_PANEL.REPORTING_CCY,
+      isSignedOff: [risk_dashboard::Store]RDB_EXPLAIN_PANEL.IS_SIGNED_OFF,
+      ownerId: [risk_dashboard::Store]RDB_EXPLAIN_PANEL.OWNER_ID,
+      rankPosition: [risk_dashboard::Store]RDB_EXPLAIN_PANEL.RANK_POSITION,
+      // CROSS-PROJECT: the GROUP, and the run above it.
+      accountTotal[pnlAccountDayTotal]: [risk_dashboard::Store]@Rdb_ExplainAccountTotal,
+      attributionRun[pnlRun]: [risk_dashboard::Store]@Rdb_ExplainAttributionRun
+   }
+
+   // `attributionBreak[pnlBreak]` -- the set id is SHORTER than the class name
+   // (PnlAttributionBreak), which is exactly the sort of thing the dependency's MANIFEST is
+   // for and guessing would fail on.
+   risk_dashboard::RdbResidualRow[rdbResidual]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_RESIDUAL_PANEL.ATTRIBUTION_ID,
+         [risk_dashboard::Store]RDB_RESIDUAL_PANEL.INSTITUTION_ID,
+         [risk_dashboard::Store]RDB_RESIDUAL_PANEL.ACCOUNT_NO,
+         [risk_dashboard::Store]RDB_RESIDUAL_PANEL.INSTRUMENT_ID,
+         [risk_dashboard::Store]RDB_RESIDUAL_PANEL.COB_DATE
+      )
+      ~mainTable [risk_dashboard::Store]RDB_RESIDUAL_PANEL
+      attributionId: [risk_dashboard::Store]RDB_RESIDUAL_PANEL.ATTRIBUTION_ID,
+      institutionId: [risk_dashboard::Store]RDB_RESIDUAL_PANEL.INSTITUTION_ID,
+      accountNo: [risk_dashboard::Store]RDB_RESIDUAL_PANEL.ACCOUNT_NO,
+      instrumentId: [risk_dashboard::Store]RDB_RESIDUAL_PANEL.INSTRUMENT_ID,
+      cobDate: [risk_dashboard::Store]RDB_RESIDUAL_PANEL.COB_DATE,
+      breakCode: [risk_dashboard::Store]RDB_RESIDUAL_PANEL.BREAK_CODE,
+      residualAmount: [risk_dashboard::Store]RDB_RESIDUAL_PANEL.RESIDUAL_AMOUNT,
+      residualPct: [risk_dashboard::Store]RDB_RESIDUAL_PANEL.RESIDUAL_PCT,
+      tolerancePct: [risk_dashboard::Store]RDB_RESIDUAL_PANEL.TOLERANCE_PCT,
+      toleranceAmount: [risk_dashboard::Store]RDB_RESIDUAL_PANEL.TOLERANCE_AMOUNT,
+      severity: [risk_dashboard::Store]RDB_RESIDUAL_PANEL.SEVERITY,
+      assignedTo: [risk_dashboard::Store]RDB_RESIDUAL_PANEL.ASSIGNED_TO,
+      resolvedOn: [risk_dashboard::Store]RDB_RESIDUAL_PANEL.RESOLVED_ON,
+      currencyCode: [risk_dashboard::Store]RDB_RESIDUAL_PANEL.CURRENCY_CODE,
+      residual[pnlResidual]: [risk_dashboard::Store]@Rdb_ResidualSource,
+      attributionBreak[pnlBreak]: [risk_dashboard::Store]@Rdb_ResidualBreak
+   }
+
+   // ------------------------------------------------------------ panels 4 and 5
+
+   risk_dashboard::RdbMoverRow[rdbMover]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_MOVER.ATTRIBUTION_ID,
+         [risk_dashboard::Store]RDB_MOVER.INSTRUMENT_ID,
+         [risk_dashboard::Store]RDB_MOVER.COB_DATE
+      )
+      ~mainTable [risk_dashboard::Store]RDB_MOVER
+      attributionId: [risk_dashboard::Store]RDB_MOVER.ATTRIBUTION_ID,
+      instrumentId: [risk_dashboard::Store]RDB_MOVER.INSTRUMENT_ID,
+      cobDate: [risk_dashboard::Store]RDB_MOVER.COB_DATE,
+      instrumentName: [risk_dashboard::Store]RDB_MOVER.INSTRUMENT_NAME,
+      assetClass: [risk_dashboard::Store]RDB_MOVER.ASSET_CLASS,
+      openingValue: [risk_dashboard::Store]RDB_MOVER.OPENING_VALUE,
+      closingValue: [risk_dashboard::Store]RDB_MOVER.CLOSING_VALUE,
+      moveAmount: [risk_dashboard::Store]RDB_MOVER.MOVE_AMOUNT,
+      movePct: [risk_dashboard::Store]RDB_MOVER.MOVE_PCT,
+      accountCount: [risk_dashboard::Store]RDB_MOVER.ACCOUNT_COUNT,
+      rankPosition: [risk_dashboard::Store]RDB_MOVER.RANK_POSITION,
+      direction: [risk_dashboard::Store]RDB_MOVER.DIRECTION,
+      currencyCode: [risk_dashboard::Store]RDB_MOVER.CURRENCY_CODE,
+      // CROSS-PROJECT, INTO A GROUP: one security across every account, already summed.
+      instrumentTotal[pnlInstrumentDayTotal]: [risk_dashboard::Store]@Rdb_MoverInstrumentTotal
+   }
+
+   risk_dashboard::RdbConcentrationRow[rdbConcentration]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_CONCENTRATION.COB_DATE,
+         [risk_dashboard::Store]RDB_CONCENTRATION.MARGIN_PORTFOLIO_ID,
+         [risk_dashboard::Store]RDB_CONCENTRATION.RISK_CLASS,
+         [risk_dashboard::Store]RDB_CONCENTRATION.FACTOR_ID
+      )
+      ~mainTable [risk_dashboard::Store]RDB_CONCENTRATION
+      cobDate: [risk_dashboard::Store]RDB_CONCENTRATION.COB_DATE,
+      marginPortfolioId: [risk_dashboard::Store]RDB_CONCENTRATION.MARGIN_PORTFOLIO_ID,
+      riskClass: [risk_dashboard::Store]RDB_CONCENTRATION.RISK_CLASS,
+      factorId: [risk_dashboard::Store]RDB_CONCENTRATION.FACTOR_ID,
+      counterpartyId: [risk_dashboard::Store]RDB_CONCENTRATION.COUNTERPARTY_ID,
+      factorName: [risk_dashboard::Store]RDB_CONCENTRATION.FACTOR_NAME,
+      netSensitivity: [risk_dashboard::Store]RDB_CONCENTRATION.NET_SENSITIVITY,
+      concentrationThreshold: [risk_dashboard::Store]RDB_CONCENTRATION.CONCENTRATION_THRESHOLD,
+      concentrationRatio: [risk_dashboard::Store]RDB_CONCENTRATION.CONCENTRATION_RATIO,
+      addOnAmount: [risk_dashboard::Store]RDB_CONCENTRATION.ADDON_AMOUNT,
+      addOnCurrency: [risk_dashboard::Store]RDB_CONCENTRATION.ADDON_CURRENCY,
+      drivingBucketCode: [risk_dashboard::Store]RDB_CONCENTRATION.DRIVING_BUCKET_CODE,
+      isBreaching: [risk_dashboard::Store]RDB_CONCENTRATION.IS_BREACHING,
+      rankPosition: [risk_dashboard::Store]RDB_CONCENTRATION.RANK_POSITION,
+      // CROSS-PROJECT. Through this one property the board reaches risk-core's own factor
+      // GROUP, two projects away, without naming risk-core.
+      addOn[mgnConcentrationAddOn]: [risk_dashboard::Store]@Rdb_ConcentrationAddOn
+   }
+
+   // ------------------------------------------------------------ the roll-ups
+
+   // TWO CROSS-PROJECT COLLECTION PROPERTIES ON ONE SET, into two dependencies that cannot
+   // reach each other. This is the fan-in at row level, as Rdb_RunMarginRun and its two
+   // siblings are the fan-in at batch level.
+   risk_dashboard::RdbCounterpartyRollUp[rdbCounterpartyRollUp]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.COB_DATE,
+         [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.COUNTERPARTY_ID
+      )
+      ~mainTable [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP
+      cobDate: [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.COB_DATE,
+      counterpartyId: [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.COUNTERPARTY_ID,
+      counterpartyName: [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.COUNTERPARTY_NAME,
+      obligorId: [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.OBLIGOR_ID,
+      limitCount: [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.LIMIT_COUNT,
+      totalUtilised: [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.TOTAL_UTILISED,
+      totalApprovedThreshold: [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.TOTAL_APPROVED_THRESHOLD,
+      openExcessCount: [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.OPEN_EXCESS_COUNT,
+      ratingSymbol: [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.RATING_SYMBOL,
+      marginAgreementCount: [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.MARGIN_AGREEMENT_COUNT,
+      outstandingCallAmount: [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.OUTSTANDING_CALL_AMOUNT,
+      initialMarginHeld: [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.INITIAL_MARGIN_HELD,
+      collateralHeld: [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.COLLATERAL_HELD,
+      pnlLineCount: [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.PNL_LINE_COUNT,
+      pnlAmount: [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.PNL_AMOUNT,
+      unexplainedAmount: [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.UNEXPLAINED_AMOUNT,
+      reportingCurrency: [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.REPORTING_CCY,
+      riskRank: [risk_dashboard::Store]RDB_COUNTERPARTY_ROLLUP.RISK_RANK,
+      creditLimits[clmCreditLimit]: [risk_dashboard::Store]@Rdb_RollUpCreditLimits,
+      marginAgreements[mgnAgreement]: [risk_dashboard::Store]@Rdb_RollUpMarginAgreements,
+      limitTotal[rdbCounterpartyLimitTotal]: [risk_dashboard::Store]@Rdb_RollUpCounterpartyTotal
+   }
+
+   risk_dashboard::RdbDeskRollUp[rdbDeskRollUp]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_DESK_ROLLUP.COB_DATE,
+         [risk_dashboard::Store]RDB_DESK_ROLLUP.INSTITUTION_ID,
+         [risk_dashboard::Store]RDB_DESK_ROLLUP.ACCOUNT_NO
+      )
+      ~mainTable [risk_dashboard::Store]RDB_DESK_ROLLUP
+      cobDate: [risk_dashboard::Store]RDB_DESK_ROLLUP.COB_DATE,
+      institutionId: [risk_dashboard::Store]RDB_DESK_ROLLUP.INSTITUTION_ID,
+      accountNo: [risk_dashboard::Store]RDB_DESK_ROLLUP.ACCOUNT_NO,
+      attributionId: [risk_dashboard::Store]RDB_DESK_ROLLUP.ATTRIBUTION_ID,
+      deskCode: [risk_dashboard::Store]RDB_DESK_ROLLUP.DESK_CODE,
+      deskName: [risk_dashboard::Store]RDB_DESK_ROLLUP.DESK_NAME,
+      totalPnl: [risk_dashboard::Store]RDB_DESK_ROLLUP.TOTAL_PNL,
+      unexplainedAmount: [risk_dashboard::Store]RDB_DESK_ROLLUP.UNEXPLAINED_AMOUNT,
+      marginCharged: [risk_dashboard::Store]RDB_DESK_ROLLUP.MARGIN_CHARGED,
+      worstUtilisationPct: [risk_dashboard::Store]RDB_DESK_ROLLUP.WORST_UTILISATION_PCT,
+      exceptionCount: [risk_dashboard::Store]RDB_DESK_ROLLUP.EXCEPTION_COUNT,
+      ownerId: [risk_dashboard::Store]RDB_DESK_ROLLUP.OWNER_ID,
+      reportingCurrency: [risk_dashboard::Store]RDB_DESK_ROLLUP.REPORTING_CCY,
+      accountTotal[pnlAccountDayTotal]: [risk_dashboard::Store]@Rdb_DeskAccountTotal,
+      owner[rdbOwner]: [risk_dashboard::Store]@Rdb_DeskOwner
+   }
+
+   // ------------------------------------------------------------ panel 6: the queue
+   //
+   // The BASE set. Everything shared by the four types is mapped here once: the key, the main
+   // table, and every column the three subtypes have in common. Nothing subtype-specific
+   // appears -- a property declared on a subclass cannot be mapped on the parent's set, and
+   // the error would name the property rather than the set it was wrongly written in.
+   risk_dashboard::RdbException[rdbException]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_EXCEPTION.COB_DATE,
+         [risk_dashboard::Store]RDB_EXCEPTION.EXCEPTION_ID
+      )
+      ~mainTable [risk_dashboard::Store]RDB_EXCEPTION
+      cobDate: [risk_dashboard::Store]RDB_EXCEPTION.COB_DATE,
+      exceptionId: [risk_dashboard::Store]RDB_EXCEPTION.EXCEPTION_ID,
+      tileId: [risk_dashboard::Store]RDB_EXCEPTION.TILE_ID,
+      domainCode: [risk_dashboard::Store]RDB_EXCEPTION.DOMAIN_CODE,
+      exceptionCode: [risk_dashboard::Store]RDB_EXCEPTION.EXCEPTION_CODE,
+      title: [risk_dashboard::Store]RDB_EXCEPTION.TITLE,
+      severity: [risk_dashboard::Store]RDB_EXCEPTION.SEVERITY,
+      ownerId: [risk_dashboard::Store]RDB_EXCEPTION.OWNER_ID,
+      amount: [risk_dashboard::Store]RDB_EXCEPTION.AMOUNT,
+      thresholdAmount: [risk_dashboard::Store]RDB_EXCEPTION.THRESHOLD_AMOUNT,
+      currencyCode: [risk_dashboard::Store]RDB_EXCEPTION.CURRENCY_CODE,
+      raisedAt: [risk_dashboard::Store]RDB_EXCEPTION.RAISED_AT,
+      dueBy: [risk_dashboard::Store]RDB_EXCEPTION.DUE_BY,
+      decidedOn: [risk_dashboard::Store]RDB_EXCEPTION.DECIDED_ON,
+      carriedFromDate: [risk_dashboard::Store]RDB_EXCEPTION.CARRIED_FROM_DATE,
+      statusCode: [risk_dashboard::Store]RDB_EXCEPTION.STATUS_CODE,
+      tile[rdbTile]: [risk_dashboard::Store]@Rdb_TileExceptions,
+      owner[rdbOwner]: [risk_dashboard::Store]@Rdb_ExceptionOwner,
+      snapshot[rdbTileSnapshot]: [risk_dashboard::Store]@Rdb_SnapshotExceptions,
+      escalations[rdbEscalation]: [risk_dashboard::Store]@Rdb_ExceptionEscalations,
+      decisions[rdbDecision]: [risk_dashboard::Store]@Rdb_ExceptionDecisions,
+      // INTO BOTH AGGREGATIONS this table is grouped into.
+      ownerQueue[rdbOwnerQueueTotal]: [risk_dashboard::Store]@Rdb_ExceptionOwnerTotal,
+      severityTotal[rdbSeverityTotal]: [risk_dashboard::Store]@Rdb_ExceptionSeverityTotal
+   }
+
+   // The three subtypes. Each adds nothing but a ~filter on DOMAIN_CODE and the two columns
+   // that mean something for that one domain.
+   risk_dashboard::RdbLimitException[rdbLimitException] extends [rdbException]: Relational
+   {
+      ~filter [risk_dashboard::Store]RdbLimitExceptionRows
+      creditLimitId: [risk_dashboard::Store]RDB_EXCEPTION.CREDIT_LIMIT_ID,
+      excessId: [risk_dashboard::Store]RDB_EXCEPTION.EXCESS_ID
+   }
+
+   risk_dashboard::RdbMarginException[rdbMarginException] extends [rdbException]: Relational
+   {
+      ~filter [risk_dashboard::Store]RdbMarginExceptionRows
+      agreementId: [risk_dashboard::Store]RDB_EXCEPTION.AGREEMENT_ID,
+      marginPortfolioId: [risk_dashboard::Store]RDB_EXCEPTION.MARGIN_PORTFOLIO_ID
+   }
+
+   risk_dashboard::RdbExplainException[rdbExplainException] extends [rdbException]: Relational
+   {
+      ~filter [risk_dashboard::Store]RdbExplainExceptionRows
+      attributionId: [risk_dashboard::Store]RDB_EXCEPTION.ATTRIBUTION_ID,
+      instrumentId: [risk_dashboard::Store]RDB_EXCEPTION.INSTRUMENT_ID
+   }
+
+   risk_dashboard::RdbEscalation[rdbEscalation]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_ESCALATION.EXCEPTION_ID,
+         [risk_dashboard::Store]RDB_ESCALATION.ESCALATION_SEQ
+      )
+      ~mainTable [risk_dashboard::Store]RDB_ESCALATION
+      exceptionId: [risk_dashboard::Store]RDB_ESCALATION.EXCEPTION_ID,
+      escalationSeq: [risk_dashboard::Store]RDB_ESCALATION.ESCALATION_SEQ,
+      toOwnerId: [risk_dashboard::Store]RDB_ESCALATION.TO_OWNER_ID,
+      escalationLevel: [risk_dashboard::Store]RDB_ESCALATION.ESCALATION_LEVEL,
+      channelCode: [risk_dashboard::Store]RDB_ESCALATION.CHANNEL_CODE,
+      raisedAt: [risk_dashboard::Store]RDB_ESCALATION.RAISED_AT,
+      acknowledgedAt: [risk_dashboard::Store]RDB_ESCALATION.ACKNOWLEDGED_AT,
+      note: [risk_dashboard::Store]RDB_ESCALATION.NOTE,
+      exception[rdbException]: [risk_dashboard::Store]@Rdb_ExceptionEscalations,
+      toOwner[rdbOwner]: [risk_dashboard::Store]@Rdb_EscalationOwner
+   }
+
+   risk_dashboard::RdbDecision[rdbDecision]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_DECISION.EXCEPTION_ID,
+         [risk_dashboard::Store]RDB_DECISION.DECISION_SEQ
+      )
+      ~mainTable [risk_dashboard::Store]RDB_DECISION
+      exceptionId: [risk_dashboard::Store]RDB_DECISION.EXCEPTION_ID,
+      decisionSeq: [risk_dashboard::Store]RDB_DECISION.DECISION_SEQ,
+      decisionCode: [risk_dashboard::Store]RDB_DECISION.DECISION_CODE,
+      decidedBy: [risk_dashboard::Store]RDB_DECISION.DECIDED_BY,
+      decidedOn: [risk_dashboard::Store]RDB_DECISION.DECIDED_ON,
+      amountApproved: [risk_dashboard::Store]RDB_DECISION.AMOUNT_APPROVED,
+      validUntil: [risk_dashboard::Store]RDB_DECISION.VALID_UNTIL,
+      rationale: [risk_dashboard::Store]RDB_DECISION.RATIONALE,
+      exception[rdbException]: [risk_dashboard::Store]@Rdb_ExceptionDecisions
+   }
+
+   risk_dashboard::RdbCommentary[rdbCommentary]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_COMMENTARY.TILE_ID,
+         [risk_dashboard::Store]RDB_COMMENTARY.COB_DATE,
+         [risk_dashboard::Store]RDB_COMMENTARY.COMMENT_SEQ
+      )
+      ~mainTable [risk_dashboard::Store]RDB_COMMENTARY
+      tileId: [risk_dashboard::Store]RDB_COMMENTARY.TILE_ID,
+      cobDate: [risk_dashboard::Store]RDB_COMMENTARY.COB_DATE,
+      commentSeq: [risk_dashboard::Store]RDB_COMMENTARY.COMMENT_SEQ,
+      authorId: [risk_dashboard::Store]RDB_COMMENTARY.AUTHOR_ID,
+      commentText: [risk_dashboard::Store]RDB_COMMENTARY.COMMENT_TEXT,
+      isPublished: [risk_dashboard::Store]RDB_COMMENTARY.IS_PUBLISHED,
+      postedAt: [risk_dashboard::Store]RDB_COMMENTARY.POSTED_AT,
+      tile[rdbTile]: [risk_dashboard::Store]@Rdb_TileCommentary,
+      author[rdbOwner]: [risk_dashboard::Store]@Rdb_CommentaryAuthor
+   }
+
+   risk_dashboard::RdbWatchItem[rdbWatchItem]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_WATCH_ITEM.WATCH_ID
+      )
+      ~mainTable [risk_dashboard::Store]RDB_WATCH_ITEM
+      watchId: [risk_dashboard::Store]RDB_WATCH_ITEM.WATCH_ID,
+      exceptionId: [risk_dashboard::Store]RDB_WATCH_ITEM.EXCEPTION_ID,
+      counterpartyId: [risk_dashboard::Store]RDB_WATCH_ITEM.COUNTERPARTY_ID,
+      watchReason: [risk_dashboard::Store]RDB_WATCH_ITEM.WATCH_REASON,
+      openedOn: [risk_dashboard::Store]RDB_WATCH_ITEM.OPENED_ON,
+      reviewOn: [risk_dashboard::Store]RDB_WATCH_ITEM.REVIEW_ON,
+      closedOn: [risk_dashboard::Store]RDB_WATCH_ITEM.CLOSED_ON,
+      ownerId: [risk_dashboard::Store]RDB_WATCH_ITEM.OWNER_ID,
+      severity: [risk_dashboard::Store]RDB_WATCH_ITEM.SEVERITY,
+      note: [risk_dashboard::Store]RDB_WATCH_ITEM.NOTE,
+      exception[rdbException]: [risk_dashboard::Store]@Rdb_WatchItemException,
+      owner[rdbOwner]: [risk_dashboard::Store]@Rdb_WatchItemOwner
+   }
+
+   // ------------------------------------------------------------ the aggregate sets
+   //
+   // Rooted on views. In each one the ~primaryKey IS the ~groupBy, so an instance is a GROUP.
+
+   risk_dashboard::RdbTileDayTotal[rdbTileDayTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_TILE_DAY_TOTAL.DASHBOARD_ID,
+         [risk_dashboard::Store]RDB_TILE_DAY_TOTAL.COB_DATE
+      )
+      ~mainTable [risk_dashboard::Store]RDB_TILE_DAY_TOTAL
+      dashboardId: [risk_dashboard::Store]RDB_TILE_DAY_TOTAL.DASHBOARD_ID,
+      cobDate: [risk_dashboard::Store]RDB_TILE_DAY_TOTAL.COB_DATE,
+      tileCount: [risk_dashboard::Store]RDB_TILE_DAY_TOTAL.TILE_COUNT,
+      totalHeadlineValue: [risk_dashboard::Store]RDB_TILE_DAY_TOTAL.TOTAL_HEADLINE_VALUE,
+      totalAmountAtRisk: [risk_dashboard::Store]RDB_TILE_DAY_TOTAL.TOTAL_AMOUNT_AT_RISK,
+      totalExceptionCount: [risk_dashboard::Store]RDB_TILE_DAY_TOTAL.TOTAL_EXCEPTION_COUNT,
+      worstBreachRatio: [risk_dashboard::Store]RDB_TILE_DAY_TOTAL.WORST_BREACH_RATIO,
+      leastSourceRows: [risk_dashboard::Store]RDB_TILE_DAY_TOTAL.LEAST_SOURCE_ROWS,
+      dashboard[rdbDashboard]: [risk_dashboard::Store]@Rdb_DashboardDayTotals,
+      snapshots[rdbTileSnapshot]: [risk_dashboard::Store]@Rdb_SnapshotDayTotal
+   }
+
+   risk_dashboard::RdbOwnerQueueTotal[rdbOwnerQueueTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_OWNER_QUEUE_TOTAL.COB_DATE,
+         [risk_dashboard::Store]RDB_OWNER_QUEUE_TOTAL.OWNER_ID
+      )
+      ~mainTable [risk_dashboard::Store]RDB_OWNER_QUEUE_TOTAL
+      cobDate: [risk_dashboard::Store]RDB_OWNER_QUEUE_TOTAL.COB_DATE,
+      ownerId: [risk_dashboard::Store]RDB_OWNER_QUEUE_TOTAL.OWNER_ID,
+      exceptionCount: [risk_dashboard::Store]RDB_OWNER_QUEUE_TOTAL.EXCEPTION_COUNT,
+      totalAmount: [risk_dashboard::Store]RDB_OWNER_QUEUE_TOTAL.TOTAL_AMOUNT,
+      largestAmount: [risk_dashboard::Store]RDB_OWNER_QUEUE_TOTAL.LARGEST_AMOUNT,
+      highestSeverity: [risk_dashboard::Store]RDB_OWNER_QUEUE_TOTAL.HIGHEST_SEVERITY,
+      totalThresholdAmount: [risk_dashboard::Store]RDB_OWNER_QUEUE_TOTAL.TOTAL_THRESHOLD_AMOUNT,
+      owner[rdbOwner]: [risk_dashboard::Store]@Rdb_OwnerQueueTotals,
+      exceptions[rdbException]: [risk_dashboard::Store]@Rdb_ExceptionOwnerTotal
+   }
+
+   // Three key columns, because the grouping is three columns: a severity means something
+   // different in each domain and adding them would say nothing.
+   risk_dashboard::RdbSeverityTotal[rdbSeverityTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_SEVERITY_TOTAL.COB_DATE,
+         [risk_dashboard::Store]RDB_SEVERITY_TOTAL.DOMAIN_CODE,
+         [risk_dashboard::Store]RDB_SEVERITY_TOTAL.SEVERITY
+      )
+      ~mainTable [risk_dashboard::Store]RDB_SEVERITY_TOTAL
+      cobDate: [risk_dashboard::Store]RDB_SEVERITY_TOTAL.COB_DATE,
+      domainCode: [risk_dashboard::Store]RDB_SEVERITY_TOTAL.DOMAIN_CODE,
+      severity: [risk_dashboard::Store]RDB_SEVERITY_TOTAL.SEVERITY,
+      exceptionCount: [risk_dashboard::Store]RDB_SEVERITY_TOTAL.EXCEPTION_COUNT,
+      totalAmount: [risk_dashboard::Store]RDB_SEVERITY_TOTAL.TOTAL_AMOUNT,
+      largestAmount: [risk_dashboard::Store]RDB_SEVERITY_TOTAL.LARGEST_AMOUNT,
+      smallestAmount: [risk_dashboard::Store]RDB_SEVERITY_TOTAL.SMALLEST_AMOUNT,
+      exceptions[rdbException]: [risk_dashboard::Store]@Rdb_ExceptionSeverityTotal
+   }
+
+   risk_dashboard::RdbCounterpartyLimitTotal[rdbCounterpartyLimitTotal]: Relational
+   {
+      ~primaryKey
+      (
+         [risk_dashboard::Store]RDB_COUNTERPARTY_LIMIT_TOTAL.COB_DATE,
+         [risk_dashboard::Store]RDB_COUNTERPARTY_LIMIT_TOTAL.COUNTERPARTY_ID
+      )
+      ~mainTable [risk_dashboard::Store]RDB_COUNTERPARTY_LIMIT_TOTAL
+      cobDate: [risk_dashboard::Store]RDB_COUNTERPARTY_LIMIT_TOTAL.COB_DATE,
+      counterpartyId: [risk_dashboard::Store]RDB_COUNTERPARTY_LIMIT_TOTAL.COUNTERPARTY_ID,
+      limitCount: [risk_dashboard::Store]RDB_COUNTERPARTY_LIMIT_TOTAL.LIMIT_COUNT,
+      totalUtilised: [risk_dashboard::Store]RDB_COUNTERPARTY_LIMIT_TOTAL.TOTAL_UTILISED,
+      totalThreshold: [risk_dashboard::Store]RDB_COUNTERPARTY_LIMIT_TOTAL.TOTAL_THRESHOLD,
+      totalHeadroom: [risk_dashboard::Store]RDB_COUNTERPARTY_LIMIT_TOTAL.TOTAL_HEADROOM,
+      worstUtilisationPct: [risk_dashboard::Store]RDB_COUNTERPARTY_LIMIT_TOTAL.WORST_UTILISATION_PCT,
+      largestUtilised: [risk_dashboard::Store]RDB_COUNTERPARTY_LIMIT_TOTAL.LARGEST_UTILISED,
+      limitRows[rdbLimitPanel]: [risk_dashboard::Store]@Rdb_LimitPanelCounterpartyTotal,
+      rollUp[rdbCounterpartyRollUp]: [risk_dashboard::Store]@Rdb_RollUpCounterpartyTotal
+   }
+)

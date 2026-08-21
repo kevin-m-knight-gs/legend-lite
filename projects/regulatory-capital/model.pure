@@ -305,7 +305,7 @@ Class regulatory_capital::RcpIrbExposure extends regulatory_capital::RcpExposure
    } : Float[1];
    // The PD floor: 0.03% for everything but sovereigns, so a model output below it is not
    // the number used.
-   pdAfterFloor() { [$this.pointInTimePd->orElse(0.0), 0.0003]->max() } : Float[1];
+   pdAfterFloor() { if($this.pointInTimePd->orElse(0.0) > 0.0003, | $this.pointInTimePd->orElse(0.0), | 0.0003) } : Float[1];
    // Foundation IRB fixes LGD at 45% senior unsecured; anything else is an advanced model.
    isAdvanced() { $this.lossGivenDefault->orElse(0.45) != 0.45 } : Boolean[1];
 }
@@ -503,7 +503,7 @@ Class regulatory_capital::RcpIrbParameterSet
    // Observed against assigned. Persistently positive means the grade is optimistic.
    calibrationGap() { $this.observedDefaultRate->orElse(0.0) - $this.gradePd } : Float[1];
    // The 0.03% floor applied to the grade itself.
-   pdAfterFloor() { [$this.gradePd, 0.0003]->max() } : Float[1];
+   pdAfterFloor() { if($this.gradePd > 0.0003, | $this.gradePd, | 0.0003) } : Float[1];
    // Expected loss per unit of exposure in this grade.
    expectedLossRate() { $this.gradePd * $this.gradeLgd->orElse(0.45) } : Float[1];
 }
@@ -705,7 +705,7 @@ Class regulatory_capital::RcpNettingSetCapital
    // The whole benefit of the SA-CCR treatment: what the set would be at gross MTM.
    grossVersusEad() { $this.currentMarkToMarket - $this.exposureAtDefault } : Float[1];
    // The multiplier is floored at 5%: over-collateralisation reduces PFE, never removes it.
-   effectiveMultiplier() { [$this.pfeMultiplier->orElse(1.0), 0.05]->max() } : Float[1];
+   effectiveMultiplier() { if($this.pfeMultiplier->orElse(1.0) > 0.05, | $this.pfeMultiplier->orElse(1.0), | 0.05) } : Float[1];
    isMargined() { $this.marginedStatus == 'MARGINED' } : Boolean[1];
    // How much collateral there is per unit of replacement cost.
    collateralCoverage() { $this.netCollateralHeld / $this.replacementCost } : Float[1];
@@ -1227,7 +1227,7 @@ Class regulatory_capital::RcpBufferRequirement
    // The shortfall, floored at zero: a firm above the buffer has no shortfall.
    bufferShortfall()
    {
-      [0.0, $this.combinedBufferAmount - $this.cet1AvailableForBuffer]->max()
+      if($this.combinedBufferAmount > $this.cet1AvailableForBuffer, | $this.combinedBufferAmount - $this.cet1AvailableForBuffer, | 0.0)
    } : Float[1];
 }
 

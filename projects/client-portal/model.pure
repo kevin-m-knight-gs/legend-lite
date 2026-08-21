@@ -1,0 +1,736 @@
+###Pure
+
+// ============================================================
+// client-portal (L3) -- what a client actually sees
+// ============================================================
+// Depends on client-reporting and fee-billing, and on nothing else.
+//
+// FOUR LEVELS FROM THE INSTRUMENT MASTER. A holding line on a portal screen is
+//
+//    core-instrument (L0) -> position-keeping (L1) -> client-reporting (L2) -> here (L3)
+//
+// and the whole point of this project is that it does not restate a single number from any of
+// those four levels. A portal is NOT the reports. The reports already exist upstream, priced,
+// totalled and delivered. What is missing above them is everything that decides whether a
+// particular human, logged in from a particular device on a particular Tuesday, is shown a
+// particular document at all -- and the record of what they were in fact shown, which is the
+// only thing a complaint can be answered from two years later.
+//
+// So this project owns six things and none of them are numbers:
+//
+//    ENTITLEMENT     who may see whose statements, at what depth, and until when
+//    SESSION         the logged-in stretch inside which everything else happened
+//    NAVIGATION      the menu tree, and which permission each branch needs
+//    ACKNOWLEDGEMENT the documents that must be accepted before the portal moves on
+//    OUTSTANDING     the invoices shown as owing, from fee-billing's side
+//    AUDIT           what was rendered, to whom, when, and against which text
+//
+// THE DIAMOND. `client_reporting::Store` includes `client_core::Store`, and so does
+// `fee_billing::Store`. Including both here reaches client-core by two routes and it resolves
+// to ONE -- verified before anything else in this project was written, because the failure
+// mode would have surfaced sixteen classes in. See MANIFEST.md.
+//
+// WHAT IS DELIBERATELY NOT NAMED. client-core, position-keeping, valuation-core, fee-core,
+// core-party, core-geo, core-tenor and the rest of the closure are all on the classpath and
+// would COMPILE if named. None of them is a declared dependency of this project, so every
+// client id, mandate id and contact id below is a plain `String` carried on this project's
+// own rows rather than a join into a project this one did not declare. Where a name from
+// client-core is genuinely wanted, it is one more hop off a client-reporting object that
+// already reaches it: `$entry.statement.clientName`.
+
+// ---------------------------------------------------------------- the identity
+// FOR: a login, which is NOT a client. One human may act for four clients (a trustee), and
+// one client may have nine logins (a family office's staff). Keeping the identity separate
+// from the entitlement is what makes revoking one relationship possible without deleting a
+// person, and it is why `CpoUserEntitlement` below is a table rather than a column here.
+Class client_portal::CpoPortalUser
+{
+   userId: String[1];
+   loginName: String[1];
+   displayName: String[1];
+   emailAddress: String[0..1];
+   // CLIENT, ADVISER, INTERMEDIARY, STAFF. A STAFF login sees the portal as the client sees
+   // it, which is why impersonation has to be visible in the audit trail rather than
+   // indistinguishable from the client's own reading.
+   userType: String[1];
+   // PENDING, ACTIVE, SUSPENDED, CLOSED.
+   status: String[1];
+   enrolledOn: StrictDate[1];
+   // Null until the first successful login. A never-logged-in user with statements waiting is
+   // a delivery failure that no delivery record shows.
+   lastLoginAt: DateTime[0..1];
+   // Null unless locked out. A date, not a flag, because how long they were locked out is the
+   // question that gets asked.
+   lockedOn: StrictDate[0..1];
+   // SMS, TOTP, PUSH, NONE.
+   mfaMethod: String[0..1];
+   // BCP 47. Chooses the rendering, and must be reconcilable with the template language a
+   // statement was actually produced in upstream.
+   preferredLanguage: String[0..1];
+
+   isActive() { $this.lockedOn->isEmpty() && $this.status == 'ACTIVE' } : Boolean[1];
+   // A login that exists and has never been used. The statements went out; nobody opened them.
+   hasNeverLoggedIn() { $this.lastLoginAt->isEmpty() } : Boolean[1];
+   isStaff() { $this.userType == 'STAFF' } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- who may see what
+// FOR: the grant that lets one login see one client's (or one mandate's) material, at one
+// depth. THE class of this project: every screen in the portal is a filter over these rows,
+// and a document shown outside them is the incident this whole model exists to make
+// answerable. Dated on both sides, because "was she entitled to see it ON THE DAY" is the
+// question, and revoking a grant must not rewrite what was legitimately shown last March.
+Class client_portal::CpoUserEntitlement
+{
+   entitlementId: String[1];
+   userId: String[1];
+   // client-core's client id, carried as a String. client-core is NOT a dependency of this
+   // project; the same id reached through `$entry.statement.client` is one hop away for a
+   // caller that wants the object.
+   clientId: String[1];
+   // Null means the whole relationship. Set means this mandate only, which is how a trustee
+   // is given one portfolio out of six.
+   mandateId: String[0..1];
+   // PORTFOLIO, BILLING, DOCUMENTS, ALL. The billing scope is separable because the person
+   // who reads the invoices is frequently not the person who reads the valuations.
+   scope: String[1];
+   // VIEW, DOWNLOAD, ACKNOWLEDGE, INSTRUCT. Ordered, and `rank()` below is what a screen
+   // compares against a navigation node's requirement.
+   permissionLevel: String[1];
+   grantedOn: StrictDate[1];
+   grantedBy: String[1];
+   // MANDATE, POWER_OF_ATTORNEY, STAFF_ROLE, CLIENT_DELEGATION -- what the grant rests on.
+   sourceKind: String[1];
+   // Null while live. Not a delete: a revoked grant is the evidence that access was correct
+   // at the time and stopped afterwards.
+   revokedOn: StrictDate[0..1];
+
+   isLive() { $this.revokedOn->isEmpty() } : Boolean[1];
+   // Whole-relationship rather than one portfolio.
+   coversWholeRelationship() { $this.mandateId->isEmpty() } : Boolean[1];
+   // The ladder, as an Integer, so a node requirement can be compared numerically.
+   rank()
+   {
+      if($this.permissionLevel == 'INSTRUCT', | 4,
+         | if($this.permissionLevel == 'ACKNOWLEDGE', | 3,
+              | if($this.permissionLevel == 'DOWNLOAD', | 2, | 1)))
+   } : Integer[1];
+   canAcknowledge() { $this.rank() >= 3 } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- the logged-in stretch
+// FOR: one continuous visit. Everything the portal did is hung off a session rather than off
+// a user, because "she saw it" is weaker evidence than "she saw it at 14:02 from this device
+// in this session that had passed MFA", and the second is what a regulator asks for.
+Class client_portal::CpoSession
+{
+   sessionId: String[1];
+   userId: String[1];
+   startedAt: DateTime[1];
+   // Null while the session is open.
+   endedAt: DateTime[0..1];
+   // LOGOUT, TIMEOUT, REVOKED, EXPIRED. Kept because a timeout mid-acknowledgement is a
+   // different story from a logout after one.
+   endReason: String[0..1];
+   ipAddress: String[0..1];
+   userAgent: String[0..1];
+   // WEB, MOBILE_APP, TABLET.
+   deviceType: String[0..1];
+   mfaPassed: Boolean[1];
+   // If a STAFF login is acting as a client, this is the client they are acting as. Null
+   // otherwise, and non-null is what separates the client's own reading from ours.
+   impersonatedClientId: String[0..1];
+
+   isOpen() { $this.endedAt->isEmpty() } : Boolean[1];
+   isImpersonation() { $this.impersonatedClientId->isNotEmpty() } : Boolean[1];
+   // A session that ended by itself rather than by the user.
+   timedOut() { $this.endReason == 'TIMEOUT' } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- the menu
+// FOR: one branch of the portal's navigation tree -- the thing a client clicks. Modelled
+// because the tree is not cosmetic: a document that exists, is entitled and is never reachable
+// from any node was, in practice, not shown. The parent link is a SELF-JOIN on this table.
+Class client_portal::CpoNavigationNode
+{
+   nodeCode: String[1];
+   // Null at the root. The tree is one table, walked by {target} in the store.
+   parentNodeCode: String[0..1];
+   label: String[1];
+   // SECTION, DOCUMENT_LIST, INVOICE_LIST, ALERT_LIST, ACTION.
+   nodeType: String[1];
+   displayOrder: Integer[1];
+   routePath: String[0..1];
+   // The node the client lands on after login. Exactly one should be true; nothing here
+   // enforces that, which is itself worth knowing.
+   isLanding: Boolean[1];
+   // Null while the node is in the menu.
+   retiredOn: StrictDate[0..1];
+
+   isRoot() { $this.parentNodeCode->isEmpty() } : Boolean[1];
+   isLive() { $this.retiredOn->isEmpty() } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- what a branch demands
+// FOR: the permission a navigation node requires before it renders. Separate from the node so
+// one branch can demand different things of different scopes -- the invoice list needs
+// BILLING/VIEW, the pay button needs BILLING/INSTRUCT, and they are the same screen.
+Class client_portal::CpoNodeAccess
+{
+   nodeAccessId: String[1];
+   nodeCode: String[1];
+   // Compared against CpoUserEntitlement.rank().
+   requiredPermission: String[1];
+   // PORTFOLIO, BILLING, DOCUMENTS, ALL.
+   requiredScope: String[1];
+   // Whether a denied node disappears or greys out. Greyed out tells the client the feature
+   // exists and they lack it; hidden tells them nothing. Both are defensible and the choice
+   // is per node.
+   hideWhenDenied: Boolean[1];
+   effectiveFrom: StrictDate[1];
+
+   // The numeric requirement, matched against an entitlement's rank.
+   requiredRank()
+   {
+      if($this.requiredPermission == 'INSTRUCT', | 4,
+         | if($this.requiredPermission == 'ACKNOWLEDGE', | 3,
+              | if($this.requiredPermission == 'DOWNLOAD', | 2, | 1)))
+   } : Integer[1];
+}
+
+// ---------------------------------------------------------------- the catalogue row
+// FOR: a document as it appears in the portal's list -- title, date, size, and whether it can
+// be taken away. It is NOT the statement. `client_reporting::CrpStatement` is the statement;
+// this row is the portal's decision to publish it, which happens later, can be reversed, and
+// carries the rendered hash of the file actually served. A statement with no entry was
+// produced and never shown.
+Class client_portal::CpoDocumentEntry
+{
+   entryId: String[1];
+   // The upstream statement. Nullable because an entry can also be a portal-only document --
+   // a terms update, a fee schedule -- that no statement run produced.
+   statementId: String[0..1];
+   // The dispatch this entry corresponds to, where the document also went out on a channel.
+   deliveryId: String[0..1];
+   clientId: String[1];
+   // Where in the menu it hangs.
+   nodeCode: String[0..1];
+   // What the client reads in the list. NOT derived from the statement type: the portal's
+   // wording and the document's wording drift, and the list is what they saw.
+   title: String[1];
+   // STATEMENT, DISCLOSURE, NOTICE, INVOICE, CONTRACT, CORRESPONDENCE.
+   documentKind: String[1];
+   publishedAt: DateTime[1];
+   // Null means it stays. Set means it drops off the list, without ceasing to have been shown.
+   expiresOn: StrictDate[0..1];
+   fileSizeBytes: Integer[0..1];
+   isDownloadable: Boolean[1];
+   // Of the file actually served. Compared against `CrpDelivery.documentHash` this answers
+   // "was the portal serving the same PDF that was emailed", and a mismatch is a real defect
+   // that nothing upstream can see.
+   renderedHash: String[0..1];
+   // Null while published. Set when pulled -- a withdrawal upstream should land here too, and
+   // whether it did is checkable.
+   unpublishedOn: StrictDate[0..1];
+
+   isPublished() { $this.unpublishedOn->isEmpty() } : Boolean[1];
+   // A portal-only document with no upstream statement behind it.
+   isPortalOnly() { $this.statementId->isEmpty() } : Boolean[1];
+   // Whether the file served matches the file dispatched. Written with ->exists so an absent
+   // delivery is FALSE rather than empty: a Boolean[1] that has to answer "did they match"
+   // must answer no when there is nothing to match against.
+   matchesDispatchedFile()
+   {
+      $this.delivery->exists(d | $d.documentHash == $this.renderedHash)
+   } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- what was actually shown
+// FOR: one opening of one document by one user in one session. THE audit row. Everything else
+// in this project can be reconstructed; this cannot, and it is the row a complaint is answered
+// from -- not "the statement was sent" but "it was opened on the 14th, eleven of its twelve
+// pages were reached, and it was not downloaded".
+Class client_portal::CpoDocumentView
+{
+   viewId: String[1];
+   entryId: String[1];
+   sessionId: String[1];
+   userId: String[1];
+   openedAt: DateTime[1];
+   // The DATE of openedAt, stamped on the row. A ~groupBy takes column REFERENCES and not
+   // expressions, so a view that groups by day needs the day to exist as a column.
+   openedDate: StrictDate[1];
+   secondsOnPage: Integer[0..1];
+   pagesSeen: Integer[0..1];
+   wasDownloaded: Boolean[1];
+   // The hash of what was rendered AT THIS VIEW. Compared against the entry's, it catches a
+   // document that was quietly replaced between two readings of it.
+   renderedHash: String[0..1];
+   // Which menu branch they arrived from. An alert-driven read and a browse are different
+   // evidence of whether the client was told.
+   sourceNodeCode: String[0..1];
+
+   // Opened rather than merely listed, and long enough to have been read at all.
+   wasEngaged() { $this.secondsOnPage->orElse(0) > 5 } : Boolean[1];
+   // Whether this reading saw the same bytes the catalogue claims to hold.
+   hashAgrees() { $this.entry->exists(e | $e.renderedHash == $this.renderedHash) } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- awaiting acceptance
+// FOR: a document the client must accept before the portal lets them past -- a costs
+// disclosure, a terms change, a risk warning. The REQUEST is separate from the receipt below
+// because an unanswered request is the interesting one: it is the queue, and its age is the
+// number that gets reported.
+Class client_portal::CpoAcknowledgementRequest
+{
+   requestId: String[1];
+   entryId: String[1];
+   // The upstream costs-and-charges disclosure, where that is what must be accepted. Null for
+   // a request over a portal-only document.
+   disclosureId: String[0..1];
+   clientId: String[1];
+   raisedOn: StrictDate[1];
+   // The date by which acceptance is required.
+   requiredBy: StrictDate[1];
+   // REGULATORY, CONTRACTUAL, ADVISORY -- why acceptance is being demanded, because only the
+   // first two justify blocking.
+   reasonCode: String[1];
+   // Whether the portal refuses to move on without it.
+   isBlocking: Boolean[1];
+   // Null unless chased.
+   escalatedOn: StrictDate[0..1];
+   // Null unless withdrawn. A cancelled request was never answered and must not be counted as
+   // outstanding OR as satisfied.
+   cancelledOn: StrictDate[0..1];
+
+   isCancelled() { $this.cancelledOn->isNotEmpty() } : Boolean[1];
+   // Live and unanswered: the queue.
+   isOutstanding() { $this.cancelledOn->isEmpty() && $this.receipt->isEmpty() } : Boolean[1];
+   wasEscalated() { $this.escalatedOn->isNotEmpty() } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- the acceptance
+// FOR: the click that answered a request. At most one per request, so `requestId` is the whole
+// key. `statementTextHash` is the load-bearing column: it records WHICH WORDING was accepted,
+// which is the difference between an acknowledgement and an assertion that one happened.
+Class client_portal::CpoAcknowledgementReceipt
+{
+   requestId: String[1];
+   userId: String[1];
+   sessionId: String[1];
+   acceptedAt: DateTime[1];
+   // Of the text on the screen at the moment of acceptance.
+   statementTextHash: String[1];
+   ipAddress: String[0..1];
+   // Whether the client reached the end of the text before the button enabled. False is not
+   // fatal and is exactly what a challenge turns on.
+   wasScrolledToEnd: Boolean[1];
+   // TICKBOX, BUTTON, TYPED_NAME, WET_SIGNATURE_UPLOAD.
+   acceptanceMethod: String[1];
+
+   // Accepted by a login that was standing in for the client rather than by the client.
+   byStaffProxy() { $this.acceptingUser->exists(u | $u.isStaff()) } : Boolean[1];
+   // The strong form: read to the end and accepted deliberately.
+   isInformed() { $this.wasScrolledToEnd && $this.acceptanceMethod != 'TICKBOX' } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- money on the screen
+// FOR: an invoice as the PORTAL shows it. fee-billing owns what is owed; this row owns what
+// was displayed and when it became visible, which are different dates and occasionally
+// different numbers. `amountShown` is stored rather than read through the join on purpose: if
+// it ever disagrees with `BilInvoice.chargeAfterLimits()` that disagreement is a finding, and
+// a derived property would have hidden it.
+Class client_portal::CpoInvoiceView
+{
+   portalInvoiceId: String[1];
+   // fee-billing's invoice.
+   invoiceId: String[1];
+   clientId: String[1];
+   // The catalogue row the PDF hangs off, where one was published.
+   entryId: String[0..1];
+   publishedAt: DateTime[1];
+   // DUE, OVERDUE, PAID, DISPUTED, CANCELLED -- the portal's word for it, which is softer than
+   // the biller's status and is what the client reads.
+   displayStatus: String[1];
+   // What the screen said. Compare with the join, do not replace it.
+   amountShown: Float[1];
+   // What is still owing on it.
+   outstandingAmount: Float[1];
+   currencyCode: String[1];
+   dueDate: StrictDate[1];
+   // Null until someone opens it. The portal's own read receipt for a bill.
+   firstOpenedAt: DateTime[0..1];
+
+   isSettled() { $this.outstandingAmount <= 0.0 } : Boolean[1];
+   hasBeenOpened() { $this.firstOpenedAt->isNotEmpty() } : Boolean[1];
+   // What the portal displayed against what the biller computed. Nothing forces these to
+   // agree, and that is the point of storing both.
+   agreesWithBiller() { $this.invoice->exists(i | $i.chargeAfterLimits() == $this.amountShown) } : Boolean[1];
+   // The share still owing, as a fraction. Integer/Integer widens, but these are already
+   // Float, and the guard is against a zero invoice rather than against typing.
+   settledFraction()
+   {
+      if($this.amountShown == 0.0, | 1.0, | 1.0 - ($this.outstandingAmount / $this.amountShown))
+   } : Float[1];
+}
+
+// ---------------------------------------------------------------- the client acting
+// FOR: the client telling the portal to pay an invoice. The portal does not settle anything --
+// `settledOn` is stamped when the payment rail confirms -- but the INSTRUCTION is the client's
+// act and belongs here rather than in the biller, which never sees a screen.
+Class client_portal::CpoPaymentInstruction
+{
+   instructionId: String[1];
+   portalInvoiceId: String[1];
+   // Carried as well as the portal id, so an instruction can be reconciled against fee-billing
+   // without going through this project's own row.
+   invoiceId: String[1];
+   userId: String[1];
+   sessionId: String[1];
+   instructedAt: DateTime[1];
+   amount: Float[1];
+   currencyCode: String[1];
+   // DIRECT_DEBIT, TRANSFER, CARD, DEDUCT_FROM_PORTFOLIO. The last one is why this cannot be a
+   // pure billing concept: it moves the client's own assets.
+   method: String[1];
+   reference: String[0..1];
+   // Null until the rail confirms.
+   settledOn: StrictDate[0..1];
+   rejectedReason: String[0..1];
+
+   isSettled() { $this.settledOn->isNotEmpty() } : Boolean[1];
+   wasRejected() { $this.rejectedReason->isNotEmpty() } : Boolean[1];
+   // Paying less than the screen said is owing. A part payment is not a rejection and is not a
+   // settlement, and conflating the three is how disputes start.
+   isPartPayment() { $this.portalInvoice->exists(v | $this.amount < $v.outstandingAmount) } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- the nag
+// FOR: something the portal is putting in front of the client -- a notice with a deadline, an
+// invoice gone overdue, a disclosure unaccepted, a dispute answered. An alert can point at an
+// upstream notice OR at an upstream billing dispute OR at a local document entry; all three
+// links are nullable and an alert with none of them is a plain message.
+Class client_portal::CpoAlert
+{
+   alertId: String[1];
+   clientId: String[1];
+   // Null for a client-wide alert shown to every entitled login.
+   userId: String[0..1];
+   // client-reporting's ten-percent depreciation notice, where that is what raised this.
+   noticeId: String[0..1];
+   // fee-billing's dispute, where the alert is telling the client what happened to it.
+   disputeId: String[0..1];
+   entryId: String[0..1];
+   // DOCUMENT_READY, ACK_REQUIRED, INVOICE_OVERDUE, DEPRECIATION_NOTICE, DISPUTE_RESOLVED,
+   // ACCESS_CHANGED.
+   alertType: String[1];
+   // INFO, WARNING, ACTION_REQUIRED, CRITICAL.
+   severity: String[1];
+   raisedAt: DateTime[1];
+   expiresOn: StrictDate[0..1];
+   // Null while it is still on screen.
+   dismissedAt: DateTime[0..1];
+   message: String[1];
+
+   isLive() { $this.dismissedAt->isEmpty() } : Boolean[1];
+   needsAction() { $this.severity == 'ACTION_REQUIRED' || $this.severity == 'CRITICAL' } : Boolean[1];
+   // Raised by a regulatory deadline upstream rather than by the portal itself.
+   isRegulatory() { $this.noticeId->isNotEmpty() } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- the trail
+// FOR: everything the portal did, whether or not it succeeded. Wider than CpoDocumentView,
+// which records only successful renders: a DENIED event -- someone reached for a document they
+// were not entitled to -- has no view row and is precisely what an access review looks for.
+Class client_portal::CpoAuditEvent
+{
+   eventId: String[1];
+   sessionId: String[1];
+   userId: String[1];
+   eventAt: DateTime[1];
+   // The DATE, stamped on the row so the daily view can group on a column reference.
+   eventDate: StrictDate[1];
+   // LOGIN, LOGOUT, NAVIGATE, VIEW_DOCUMENT, DOWNLOAD, ACKNOWLEDGE, INSTRUCT_PAYMENT,
+   // DENIED, MFA_CHALLENGE, EXPORT.
+   eventType: String[1];
+   nodeCode: String[0..1];
+   // ENTRY, INVOICE, REQUEST, NODE, SESSION -- what kind of thing targetId names. A loose
+   // pointer on purpose: the alternative is eleven nullable foreign keys.
+   targetKind: String[0..1];
+   targetId: String[0..1];
+   // OK, DENIED, ERROR, TIMEOUT.
+   outcome: String[1];
+   durationMs: Integer[0..1];
+   detail: String[0..1];
+
+   wasDenied() { $this.outcome == 'DENIED' } : Boolean[1];
+   isReadOfDocument() { $this.eventType == 'VIEW_DOCUMENT' || $this.eventType == 'DOWNLOAD' } : Boolean[1];
+}
+
+// ================================================================ the aggregate classes
+//
+// Rooted on store VIEWS. One instance is a GROUP, never a row: the set's primary key is the
+// view's ~groupBy and nothing else. An empty group produces NO ROW -- an entry nobody has ever
+// opened is ABSENT from CpoEntryViewTotal rather than present with a count of zero, which is
+// why "never opened" has to be read from the entry side.
+
+// FOR: a document read as one row -- how many times it was opened, by how many sessions, and
+// when it was first and last reached. This is the answer to "did the client ever look at it",
+// and it is a GROUP, so it is absent rather than zero when they never did.
+Class client_portal::CpoEntryViewTotal
+{
+   entryId: String[1];
+   viewCount: Integer[1];
+   totalSeconds: Integer[1];
+   totalPagesSeen: Integer[1];
+   firstOpenedDate: StrictDate[1];
+   lastOpenedDate: StrictDate[1];
+
+   // Integer / Integer widens to Float on its own, which is why this is Float[1].
+   averageSecondsPerView() { $this.totalSeconds / $this.viewCount } : Float[1];
+   // Opened more than once. A second reading is usually a client who did not understand the
+   // first one.
+   wasRevisited() { $this.viewCount > 1 } : Boolean[1];
+}
+
+// FOR: one login's activity on one day -- the row an access review reads. The grain is the
+// PAIR, so an instance is a (user, day) and never an event.
+Class client_portal::CpoUserActivityTotal
+{
+   userId: String[1];
+   eventDate: StrictDate[1];
+   eventCount: Integer[1];
+   totalDurationMs: Integer[1];
+
+   averageDurationMs() { $this.totalDurationMs / $this.eventCount } : Float[1];
+   // A day busy enough to be worth reading the detail of.
+   isHeavyDay() { $this.eventCount > 100 } : Boolean[1];
+}
+
+// FOR: what one client owes across every invoice on their screen, with the mandate and the
+// billing run both DROPPED by the grouping. This is the number the portal's landing page
+// prints, and reconstructing it from `fee_billing::BilRunTotal` would give a different answer,
+// because a run is not a client.
+Class client_portal::CpoClientOutstandingTotal
+{
+   clientId: String[1];
+   invoiceCount: Integer[1];
+   totalOutstanding: Float[1];
+   totalShown: Float[1];
+   latestDueDate: StrictDate[1];
+
+   // The share of what was billed that is still owing.
+   outstandingFraction()
+   {
+      if($this.totalShown == 0.0, | 0.0, | $this.totalOutstanding / $this.totalShown)
+   } : Float[1];
+   isClear() { $this.totalOutstanding <= 0.0 } : Boolean[1];
+}
+
+// ================================================================ associations, internal
+//
+// Twenty-one of them. Every one is an Association rather than a one-directional property,
+// because the portal is navigated from both ends: from the user down ("what may she see") and
+// from the document up ("who saw this"), and the second direction is the one an investigation
+// uses.
+
+Association client_portal::CpoUserEntitlements
+{
+   entitledUser: client_portal::CpoPortalUser[0..1];
+   entitlements: client_portal::CpoUserEntitlement[*];
+}
+
+Association client_portal::CpoUserSessions
+{
+   sessionUser: client_portal::CpoPortalUser[0..1];
+   sessions: client_portal::CpoSession[*];
+}
+
+Association client_portal::CpoNodeParent
+{
+   parentNode: client_portal::CpoNavigationNode[0..1];
+   childNodes: client_portal::CpoNavigationNode[*];
+}
+
+Association client_portal::CpoNodeAccessRules
+{
+   accessNode: client_portal::CpoNavigationNode[0..1];
+   accessRules: client_portal::CpoNodeAccess[*];
+}
+
+Association client_portal::CpoEntryNode
+{
+   entryNode: client_portal::CpoNavigationNode[0..1];
+   nodeEntries: client_portal::CpoDocumentEntry[*];
+}
+
+Association client_portal::CpoEntryViews
+{
+   entry: client_portal::CpoDocumentEntry[0..1];
+   views: client_portal::CpoDocumentView[*];
+}
+
+Association client_portal::CpoSessionViews
+{
+   viewSession: client_portal::CpoSession[0..1];
+   documentViews: client_portal::CpoDocumentView[*];
+}
+
+Association client_portal::CpoUserViews
+{
+   viewingUser: client_portal::CpoPortalUser[0..1];
+   userViews: client_portal::CpoDocumentView[*];
+}
+
+Association client_portal::CpoEntryAckRequests
+{
+   requestedEntry: client_portal::CpoDocumentEntry[0..1];
+   acknowledgementRequests: client_portal::CpoAcknowledgementRequest[*];
+}
+
+Association client_portal::CpoRequestReceipt
+{
+   request: client_portal::CpoAcknowledgementRequest[0..1];
+   receipt: client_portal::CpoAcknowledgementReceipt[0..1];
+}
+
+Association client_portal::CpoReceiptUser
+{
+   acceptingUser: client_portal::CpoPortalUser[0..1];
+   receipts: client_portal::CpoAcknowledgementReceipt[*];
+}
+
+Association client_portal::CpoReceiptSession
+{
+   receiptSession: client_portal::CpoSession[0..1];
+   sessionReceipts: client_portal::CpoAcknowledgementReceipt[*];
+}
+
+Association client_portal::CpoInvoiceViewEntry
+{
+   invoiceEntry: client_portal::CpoDocumentEntry[0..1];
+   invoiceViews: client_portal::CpoInvoiceView[*];
+}
+
+Association client_portal::CpoInvoicePayments
+{
+   portalInvoice: client_portal::CpoInvoiceView[0..1];
+   instructions: client_portal::CpoPaymentInstruction[*];
+}
+
+Association client_portal::CpoInstructionUser
+{
+   instructingUser: client_portal::CpoPortalUser[0..1];
+   userInstructions: client_portal::CpoPaymentInstruction[*];
+}
+
+Association client_portal::CpoAlertUser
+{
+   alertedUser: client_portal::CpoPortalUser[0..1];
+   alerts: client_portal::CpoAlert[*];
+}
+
+Association client_portal::CpoAlertEntry
+{
+   alertEntry: client_portal::CpoDocumentEntry[0..1];
+   entryAlerts: client_portal::CpoAlert[*];
+}
+
+Association client_portal::CpoSessionAudit
+{
+   auditSession: client_portal::CpoSession[0..1];
+   auditEvents: client_portal::CpoAuditEvent[*];
+}
+
+Association client_portal::CpoUserAudit
+{
+   auditUser: client_portal::CpoPortalUser[0..1];
+   userAuditEvents: client_portal::CpoAuditEvent[*];
+}
+
+// The three into this project's own aggregates. The end on the aggregate side is [0..1]
+// because an empty group is no row at all.
+Association client_portal::CpoEntryViewTotals
+{
+   totalEntry: client_portal::CpoDocumentEntry[0..1];
+   viewTotal: client_portal::CpoEntryViewTotal[0..1];
+}
+
+Association client_portal::CpoUserActivityTotals
+{
+   activityUser: client_portal::CpoPortalUser[0..1];
+   activityTotals: client_portal::CpoUserActivityTotal[*];
+}
+
+Association client_portal::CpoClientOutstandingTotals
+{
+   outstandingTotal: client_portal::CpoClientOutstandingTotal[0..1];
+   clientInvoiceViews: client_portal::CpoInvoiceView[*];
+}
+
+// ================================================================ associations, across a boundary
+//
+// SEVEN, reaching BOTH dependencies -- four into client-reporting, three into fee-billing.
+// This is the construct the project exists to exercise: an association end puts a property on
+// the DEPENDENCY'S class, so `client_reporting::CrpStatement` now carries `portalEntries` and
+// `fee_billing::BilInvoice` now carries `portalView`, neither of which those projects declared.
+// Both MANIFESTs were read before these names were chosen, because that namespace is shared
+// and nobody owns it: client-reporting has already put `clientStatements`, `deliveries` and
+// nine more onto its own classes, and a second project reusing one of those names is a
+// collision that names the property and not the project.
+
+// ---- into client-reporting -----------------------------------------------------------------
+// FOR: the statement a catalogue row publishes. The join that makes the portal a portal.
+Association client_portal::CpoEntryStatement
+{
+   statement: client_reporting::CrpStatement[0..1];
+   portalEntries: client_portal::CpoDocumentEntry[*];
+}
+
+// FOR: the dispatch the same document went out on, so the hash served can be compared with the
+// hash delivered.
+Association client_portal::CpoEntryDelivery
+{
+   delivery: client_reporting::CrpDelivery[0..1];
+   portalEntry: client_portal::CpoDocumentEntry[0..1];
+}
+
+// FOR: the costs disclosure behind an acknowledgement request -- the commonest thing a client
+// is actually made to accept.
+Association client_portal::CpoRequestDisclosure
+{
+   disclosure: client_reporting::CrpCostsDisclosure[0..1];
+   disclosureRequests: client_portal::CpoAcknowledgementRequest[*];
+}
+
+// FOR: the ten-percent depreciation notice an alert is raising. The deadline lives upstream on
+// the notice; the portal only has to show it before that date.
+Association client_portal::CpoAlertNotice
+{
+   notice: client_reporting::CrpDepreciationNotice[0..1];
+   portalAlerts: client_portal::CpoAlert[*];
+}
+
+// ---- into fee-billing ----------------------------------------------------------------------
+// FOR: the invoice behind what the screen shows. One portal row per invoice.
+Association client_portal::CpoInvoiceViewInvoice
+{
+   invoice: fee_billing::BilInvoice[0..1];
+   portalView: client_portal::CpoInvoiceView[0..1];
+}
+
+// FOR: reconciling an instruction straight against the biller, without going through this
+// project's own row.
+Association client_portal::CpoInstructionInvoice
+{
+   instructedInvoice: fee_billing::BilInvoice[0..1];
+   invoiceInstructions: client_portal::CpoPaymentInstruction[*];
+}
+
+// FOR: telling the client what became of the charge they queried. The dispute is fee-billing's;
+// the telling is the portal's.
+Association client_portal::CpoAlertDispute
+{
+   dispute: fee_billing::BilDispute[0..1];
+   disputeAlerts: client_portal::CpoAlert[*];
+}
