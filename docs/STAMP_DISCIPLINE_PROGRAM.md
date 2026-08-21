@@ -622,3 +622,35 @@ path elements. The REAL successor arc is unchanged and now precisely
 scoped: Row-vs-Relation typing (one RelationType currently means both
 "a row" and "a table" at the same multiplicity — the ONLY remaining
 place a stamp is genuinely ambiguous, and the detective's actual home).
+
+## SUCCESSOR ARC CHARTER: the Row-vs-Relation split (read-only sizing, 2026-08-20)
+
+THE last genuine ambiguity: one Type.RelationType means BOTH "a row"
+and "a whole table" — [1..1] cannot distinguish one row from one
+table, rowRooted-the-detective exists to guess it, and its TypeVar
+blind spot ([tds1,tds2]->first().col misread as a row frame) is
+unfixable inside the current model.
+
+KEY ALIGNMENT FACT: the pure signatures we ALREADY PORT write the
+distinction — lead<T>(w:Relation<T>[1], r:T[1]):T[0..1] — container
+(Relation<T>) vs element (T). Our kernel ERASES it: T and Relation<T>
+resolve to the same RelationType. The split RESTORES what the
+signatures declare; rowRooted's heuristic then becomes exact by
+declaration and DELETES.
+
+Measured radius: 121 `instanceof Type.RelationType` sites across ~30
+files, concentrated: InferenceKernel 24 (the generic binding machinery
+— the heart of the change: T binds RowType, Relation<T> the
+container), Lowerer 23 (row/relation arms), Typer 11 (row-var scopes,
+accessProperty frames), StoreResolver 7, + ResultShape/Executor
+carrier decisions. Each site answers one question: row, table, or
+legitimately both.
+
+Probe-first like everything else: introduce Type.RowType, teach the
+kernel to bind Relation<T> signatures container/element, let sealed-
+switch exhaustiveness + the full suites enumerate the fallout, slice
+by the evidence. DEFINITION OF DONE: rowRooted deleted (both the env
+frame-bit consultation for relation receivers and the TypeVar
+heuristic), the per-row/collection frame read off the TYPE, and the
+Env frame bit retained only for genuinely lexical facts (lambda-vs-let
+binding kind).
