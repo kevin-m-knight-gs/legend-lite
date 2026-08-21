@@ -1438,6 +1438,74 @@ rows fail on divergence, KNOWN rows fail when they START agreeing.
 Pins: `BurnLaneTest` (§3a and §3b at the IR seam, cast e2e over
 DuckDB, census-registered).
 
+### AUDIT OF BLOCKER 3 + R1 + BURN LANE (2026-08-21, user-directed)
+
+Same method as the Blockers-1+2 audit: probes + sweep, code and
+execution only. NUL-byte sweep of every session-touched file: clean
+(the one ExistsJoinForm incident was already fixed).
+
+FOUND + FIXED (four):
+1. **Type-checker stamp bug** (the biggest catch): collection-literal
+   multiplicity was the ELEMENT COUNT ([2..2] for `[[]->first(),'a']`),
+   not the SUM of element bounds ([1..2], pure). The §5 egress wall had
+   been correctly firing on it (reverse/sort walling on a correct
+   one-element result). Typer#collection now sums bounds.
+2. **Compaction moved to the literal's CONSTRUCTION**: a 12-probe
+   battery showed consumer-site compaction was whack-a-mole — head/
+   first returned null, tail/drop/take were off-by-slot, makeString
+   printed TDSNull. A value-lane literal with any lower-0 element now
+   compacts ONCE at the ArrayLit build; all 12 probes pure-correct,
+   pinned as VerdictWorld2ConsistencyTest#section5FullBattery.
+3. **The pool-loop regex had its own blind spot**: `pool\.remove\(`
+   missed rowTupleMultiset's `ap.remove(hit)` — the guard widened in
+   Blocker 3 was still spelling-bound. Regex now `\.remove\(hit\)`
+   (the idiom's true token); GridCompare register 3→4.
+4. **ChannelBGrammarTest was the one suite #12 missed** — walls now
+   captured, printed, and pinned (20) like its four siblings.
+
+RECORDED (no action): §3b orderUnionAggregateExpr orders the FIRST
+nested reducer only (one union source per agg projection — the real
+shape; a second unordered reducer in one wrapped expr has no witness);
+cast BYTE-family (BINARY) cross-casts now raise (pure-right, no corpus
+witness either way); the live soft ceilings bind in the hand-run gate
+only (the corpus never runs in CI — same boundary as every corpus
+guard, now honest rather than vacuous).
+
+CROSS-CHECKED against the PARALLEL DEEP_AUDIT_2026_08_21 (branch
+worktree-e2e-deep-diagnosis, user-directed read): its two claimed
+regressions from our blockers were CONFIRMED BY PROBE and are FIXED in
+this slice —
+- **R1**: `take(1)->toOne()` aborted the compile — `CollectionLanes`'
+  whitelist had no `TypedLimit` arm (`default -> false` re-created the
+  blind-spot class the whitelist replaced, exactly as the deep audit
+  diagnosed). Fixed with the DURABLE form both audits converge on: the
+  switch is now EXHAUSTIVE over the sealed TypedSpec hierarchy — javac
+  refuses a new node type until it is classified. Pins:
+  take/limit rows in ToOneLaneTest.
+- **R2**: `map(p|$p.nick->toOne())` hit the §5 egress WALL — the
+  flow-adjudicated toOne wrap stamps [1] but its SQL cell CAN be NULL
+  (§7b witness: the engine emits no guard and drops client-side).
+  `ScalarValueReads` now descends through toOne-family wraps when
+  computing the u_map__ COLUMN mult, so the carrier's truth ([0..1])
+  drives the egress filter — result [Al, Cee], the engine's
+  SQLNull->[] equivalence. Pin: flowedToOneCellDrops.
+The deep audit's remaining findings were RATIFIED as the next work
+order (user: "do it"; queue D1–D6). D1 ADJUDICATED NO-CHANGE during
+recon: filter-grows-the-set is the ENGINE'S PINNED semantics — its own
+testInNegated golden asserts the duplicated-parent count
+(assertSize 10) AND the `or ... is null` admission arm, and
+testConsistencyWithNullsInJoin pins the isEmpty()||-equivalence plus
+the eq/notEq partition law. Our AUDIT-9 comment
+(StoreResolver:2304-2308) had already recorded exactly this; the deep
+audit's §2 lands in the same retraction class as its own §1 rows.
+
+REFEREE LESSON from this slice (corpus witness
+testSelfJoinPropertyMapping): construction-site compaction must be
+VALUE-LANE-scoped — a ROW-cells literal ($r.values / hand-written
+property reads) keeps its NULL cells, because TDSNull is DATA on the
+grid convention (the engine's tdsNull channel). The first draft
+compacted any literal with a lower-0 element and ate a grid cell.
+
 ### §7b ADJUDICATION (2026-08-21, ratified item f — witnesses, no reflex fix)
 
 **Question 1 — TRUST_ONE wrapping user `[1]` declarations / the

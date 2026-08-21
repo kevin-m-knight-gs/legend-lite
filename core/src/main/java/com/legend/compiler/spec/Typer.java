@@ -2420,7 +2420,25 @@ final class Typer {
                 // and vanishes in LUBs: if(c, {|Status}, {|[]}) is
                 // Status[0..1], not Any.
                 .orElseGet(() -> new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.NIL));
-        Multiplicity mult = new Multiplicity.Bounded(elements.size(), elements.size());
+        // multiplicity = the SUM of element bounds, not the element
+        // count (audit-of-R1: [[]->first(), 'a'] is [1..2] in pure —
+        // the [2..2] stamp made the §5 egress wall fire on a correct
+        // one-element result). An unbounded element makes the sum
+        // unbounded; a non-Bounded element stamp cannot reach a literal
+        // (checker invariant) and falls back to 1..1 for that slot.
+        int lo = 0;
+        Integer hi = 0;
+        for (TypedSpec e : elements) {
+            if (e.info().multiplicity() instanceof Multiplicity.Bounded b) {
+                lo += b.lower();
+                hi = hi == null || b.upper() == null ? null
+                        : hi + b.upper();
+            } else {
+                lo += 1;
+                hi = hi == null ? null : hi + 1;
+            }
+        }
+        Multiplicity mult = new Multiplicity.Bounded(lo, hi);
         return new TypedCollection(elements, new ExprType(elementType, mult));
     }
 

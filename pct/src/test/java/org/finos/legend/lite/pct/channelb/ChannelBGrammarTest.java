@@ -35,7 +35,15 @@ class ChannelBGrammarTest {
         // grammar's OTHER subtrees (tests/, m3.pure …) belong to no
         // adapter suite
         Path scope = modelRoot.resolve("grammar/functions");
-        List<ChannelB.Outcome> out = ChannelB.run(modelRoot, List.of(scope));
+        java.util.List<String> walls = new java.util.ArrayList<>();
+        List<ChannelB.Outcome> out = ChannelB.run(modelRoot,
+                List.of(scope), walls);
+        walls.forEach(w -> System.out.println("[chB-gram-wall] " + w));
+        System.out.println("[chB-gram] walls=" + walls.size());
+        // audit-of-Blocker-3: the ONE suite #12 missed — walls ASSERTED
+        // shrink-only like its four siblings (20 measured 2026-08-21)
+        assertTrue(walls.size() <= 20,
+                "grammar walls grew: " + walls.size() + " > 20");
         Map<ChannelB.Status, Integer> census =
                 new EnumMap<>(ChannelB.Status.class);
         for (ChannelB.Outcome o : out) {

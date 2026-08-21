@@ -75,11 +75,12 @@ class HarnessDisciplineTest {
             // ---- src/main/com/legend/exec (audit-of-audits #9): the
             // comparison policy MOVED here from the harness and walked
             // out of this guard's scope — the walk now covers it. ----
-            // GridCompare: the three POOL-MATCHING loops (row multiset,
-            // CSVJOIN cell multiset, text line multiset) — two-sided
-            // comparison policy gated on the chain's sortedness, each
-            // with a distinct [ord] tag (audit #10)
-            Map.entry("GridCompare.java", 3),
+            // GridCompare: the FOUR pool-matching loops (row multiset,
+            // row-TUPLE multiset [ap.remove — the regex blind spot the
+            // audit-of-Blocker-3 closed], CSVJOIN cell multiset, text
+            // line multiset) — two-sided comparison policy gated on the
+            // chain's sortedness, each with a distinct [ord] tag (#10)
+            Map.entry("GridCompare.java", 4),
             // PureAsserts: the typeRank sort inside sameElements — the
             // pure total-order comparator applied to BOTH sides
             Map.entry("PureAsserts.java", 1),
@@ -107,9 +108,11 @@ class HarnessDisciplineTest {
             + "|\\.stream\\(\\)\\.min\\("
             // audit-of-audits #9: the POOL-MATCHING loop spelling —
             // GridCompare's hand-rolled multiset compares carry no
-            // .sorted( for the regex to find; `pool.remove(` is the
-            // loose-match idiom's one stable token
-            + "|pool\\.remove\\(");
+            // .sorted( for the regex to find. `.remove(hit)` is the
+            // idiom's TRUE stable token (the first spelling,
+            // `pool.remove(`, missed rowTupleMultiset's `ap.remove(hit)`
+            // — caught by the audit-of-Blocker-3 pass).
+            + "|\\.remove\\(hit\\)");
 
     @Test
     void resultReorderingIsEnumeratedComparisonPolicyOnly()

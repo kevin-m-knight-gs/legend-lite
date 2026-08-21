@@ -131,4 +131,15 @@ class OptionalCollectionNullDropTest {
         assertEquals(3L, ((Number)
                 run("{| m::P.all().id->size();}")).longValue());
     }
+
+    @Test
+    @DisplayName("DEEP_AUDIT R2: a flowed toOne'd cell drops like the engine's SQLNull->[]")
+    void flowedToOneCellDrops() throws SQLException {
+        // pure-stamps [1] via the toOne wrap, but the engine lane emits
+        // no guard (§7b witness) and drops the NULL client-side — the
+        // cell mult tells the carrier's truth and the egress filter
+        // fires; this hit the §5 WALL before the audit round
+        assertEquals(List.of("Al", "Cee"), ((List<?>)
+                run("{| m::P.all()->map(p|$p.nick->toOne())->sort();}")));
+    }
 }

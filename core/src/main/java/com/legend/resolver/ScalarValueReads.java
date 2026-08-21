@@ -48,6 +48,18 @@ final class ScalarValueReads {
                         && rb.upper() != null && rb.upper() <= 1
                 ? result.multiplicity()
                 : Multiplicity.Bounded.ZERO_ONE;
+        // DEEP_AUDIT R2: a FLOW-adjudicated toOne/trustOne wrap over an
+        // optional read stamps [1] in pure but its SQL CELL can be NULL
+        // (the engine lane emits no guard — §7b witness: user toOne =
+        // bare LEFT JOIN; the engine drops the NULL client-side,
+        // SQLNull->[]). The COLUMN mult tells the CARRIER's truth so
+        // the egress filter and the CompactList consumers drop exactly
+        // as the engine does. map(p|$p.nick->toOne()) hit the egress
+        // WALL before this.
+        if (cellMult instanceof Multiplicity.Bounded cb && cb.lower() == 1
+                && cellCanBeEmpty(body)) {
+            cellMult = Multiplicity.Bounded.ZERO_ONE;
+        }
         Type.RelationType row =
                 new Type.RelationType(List.of(
                         new Type.Column(name, result.type(), cellMult)));
@@ -56,4 +68,18 @@ final class ScalarValueReads {
                 new ExprType(Type.relation(row), valueMult));
     }
 
+    /** The cell UNDER any flow-adjudicated toOne-family wraps can be
+     * empty — descend to the wrapped read and ask ITS stamp. */
+    private static boolean cellCanBeEmpty(TypedSpec body) {
+        while (body instanceof com.legend.compiler.spec.typed
+                        .TypedNativeCall nc
+                && com.legend.builtin.Pure.isToOneCall(
+                        nc.callee().qualifiedName())
+                && !nc.args().isEmpty()) {
+            body = nc.args().get(0);
+        }
+        return body.info().multiplicity()
+                        instanceof Multiplicity.Bounded b
+                && b.lower() == 0;
+    }
 }

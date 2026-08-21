@@ -2313,8 +2313,25 @@ public final class Lowerer {
                 if (ValueCollections.c1Singleton(c)) {
                     yield scalar(c.elements().get(0), columns);
                 }
-                yield new SqlExpr.ArrayLit(
+                SqlExpr arr = new SqlExpr.ArrayLit(
                         c.elements().stream().map(e -> scalar(e, columns)).toList());
+                // pure LITERAL FLATTENING at CONSTRUCTION (audit-of-R1:
+                // consumer-site compaction was whack-a-mole — head/tail/
+                // drop/take/makeString all read raw slots): an element
+                // that CAN be empty ([0..1]/[0..*] stamped) contributes
+                // nothing when empty, so the carrier compacts ONCE here
+                // and every consumer sees the pure collection.
+                // VALUE-LANE literals ONLY (corpus witness
+                // testSelfJoinPropertyMapping): a ROW-cells list
+                // ($r.values / hand-written property reads) keeps its
+                // NULL cells — TDSNull is DATA on the grid convention.
+                yield CollectionLanes.valueLane(c)
+                        && c.elements().stream().anyMatch(e ->
+                                e.info().multiplicity()
+                                        instanceof Multiplicity.Bounded b
+                                && b.lower() == 0)
+                        ? new SqlExpr.CompactList(arr)
+                        : arr;
             }
             // $r.alias.COL — a NAVIGATE slot's struct column flattens to
             // its prefixed physical column (alias_COL).
