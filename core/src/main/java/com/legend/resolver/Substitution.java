@@ -704,6 +704,21 @@ final class Substitution {
         }
     }
 
+    /** THE PATH VIEW — the one reader of navigation hop-sequences,
+     * satisfied by BOTH spellings (path-view unification, closed by
+     * measurement 2026-08-21): the sugar chain {@code $v.a.b}, the
+     * explicit {@code ->map(l|$l.a.b)} (flattened through the lambda —
+     * pure's own definition: the dot IS map sugar, map.pure
+     * grammarDoc), toOne/trustOne coercions (transparent), and
+     * milestoned property functions ({@code $o.product(%d)}).
+     * 43 consumers across the resolver ask THIS reader; matchers never
+     * pattern-match the two spellings separately. The complementary
+     * canonical-form converter is {@link Pipelines#autoMapRead} — the
+     * dot-desugaring pure itself defines, applied once at the
+     * resolution boundary. Specialized walkers with DIFFERENT
+     * contracts (root-only reads, unwrap-tracking peels) legitimately
+     * stay bespoke — forcing them through this API would contort them
+     * for purity without payoff (the D3-class ruling's lesson). */
     static @com.legend.Nullable List<String> pathOf(TypedSpec n, String userVar) {
         // toOne() look-through: $p.employer->toOne().legal is the idiomatic
         // spelling after an optional navigation — the coercion is

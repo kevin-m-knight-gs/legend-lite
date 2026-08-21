@@ -1469,6 +1469,15 @@ final class Pipelines {
                         one));
     }
 
+    /** The dot-rule DESUGAR — pure's own definition applied once at
+     * the resolution boundary (map.pure grammarDoc: "map is auto
+     * generated when the . operator is used"): a class-rooted sugar
+     * chain becomes the canonical {@code map(base, v|$v.a.b)} the
+     * resolution machinery consumes. NOT a duplicated matcher — the
+     * READ side never forks because {@link Substitution#pathOf} (THE
+     * path view) reads both spellings; this converter exists so the
+     * RESOLUTION side has one canonical form, exactly as the language
+     * defines it. (Path-view unification, closed by measurement.) */
     static @com.legend.Nullable TypedSpec autoMapRead(TypedPropertyAccess pa) {
         if (pa.info().type() instanceof Type.ClassType
                 || Type.schemaView(pa.info().type()) != null) {

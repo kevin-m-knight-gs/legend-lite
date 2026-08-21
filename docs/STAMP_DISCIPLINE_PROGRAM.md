@@ -960,3 +960,34 @@ corpus and PCT run ONLY in the local tools/allgates.sh gate against
 the baselined oracle roots. The two harness swallow sites the audit
 flagged (§6) are recorded as follow-ups on the harness-platformization
 program, not silently kept.
+
+## PATH-VIEW UNIFICATION — CLOSED BY MEASUREMENT
+
+The charter assumed a large dual-arm surface (matchers pattern-matching
+the sugar chain and the map spelling separately, with autoMapRead as a
+rewriting adapter between them). The census says otherwise:
+- Substitution.pathOf ALREADY IS the path view — one reader satisfied
+  by both spellings (map-lambda flattening, toOne/trustOne
+  look-through, milestoned property steps), consumed at 43 sites
+  across six resolver files, with the "ONE funnel: scan and
+  substitution must not drift" contract pinned in its own body.
+- autoMapRead is 30 lines with ONE caller, and it is not an adapter
+  between duplicate matchers — it is pure's OWN dot-rule desugaring
+  (map.pure grammarDoc) applied once at the resolution boundary so the
+  resolution machinery has one canonical form. Deleting it would mean
+  re-implementing chain resolution beside map resolution — MORE
+  duplication, not less.
+- The remaining hand-rolled walkers (~8) have DIFFERENT contracts
+  (root-only reads, unwrap-tracking leaf peels, prefix walks) —
+  forcing them through one API would contort them for purity without
+  payoff, the exact shape of the reverted D3-class adapter.
+- The fragility the corpus rings actually exposed lived in the
+  TYPE-DISPATCH layer (bare-vs-wrapped relation tests), not the path
+  extractors — and model B's owner helpers already fixed it at source.
+
+LANDED: pathOf promoted to the NAMED owner with the full contract
+javadoc; autoMapRead's doctrine written on it. RULING: like D3-class,
+the feared disease was already structurally cured; the honest close is
+the ruling and the naming, not a migration. Any FUTURE matcher that
+pattern-matches a navigation spelling instead of asking pathOf is a
+review defect against this section.
