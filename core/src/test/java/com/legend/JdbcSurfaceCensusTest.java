@@ -34,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <li><b>Production register</b> — the EXACT set of {@code src/main}
  *   files that touch JDBC or a driver API ({@code java.sql},
  *   {@code javax.sql}, {@code org.duckdb}, {@code org.h2},
- *   {@code org.sqlite}, {@code ResultSet}/statement spellings, in
+ *   {@code org.sqlite}, statement-method spellings, in
  *   comment-stripped source). A new file fails in BOTH directions:
  *   growth is a conscious registration, shrink deletes the row.</li>
  *   <li><b>Test register</b> — same, for test roots: the harness,
@@ -51,9 +51,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class JdbcSurfaceCensusTest {
 
+    /** PRECISION (2026-08-21): the bare word {@code ResultSet} is gone —
+     * it over-matched the PURE-LANGUAGE class
+     * {@code meta::relational::metamodel::execute::ResultSet} spelled in
+     * native-signature STRINGS (builtin/Pure.java sat on the register
+     * with zero JDBC). Genuine JDBC cannot hide from the tightened
+     * pattern: the java.sql TYPE spelling appears in the import or FQN,
+     * and connection-passed usage spells a statement-method call —
+     * {@code createStatement} added for that same completeness. */
     private static final Pattern JDBC = Pattern.compile(
             "java\\.sql|javax\\.sql|org\\.duckdb|org\\.h2\\.|org\\.sqlite"
-            + "|ResultSet|prepareStatement|executeQuery");
+            + "|prepareStatement|createStatement|executeQuery");
 
     /** Every module source root the census walks (repo-relative). A
      * NEW MODULE must be added here — the coverage floor cannot see a
@@ -80,7 +88,6 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/Compiler.java",
             "core/src/main/java/com/legend/SeedSqlForms.java",
             "core/src/main/java/com/legend/StatementExecutor.java",
-            "core/src/main/java/com/legend/builtin/Pure.java",
             "core/src/main/java/com/legend/exec/DynamicPivot.java",
             // Phase 1c: the LIMIT-0 schema probe (schema, never values;
             // moved from deleted ResultNav; split out of RawGridSchema at
@@ -126,7 +133,6 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/AuditRound5Test.java",
             "core/src/test/java/com/legend/ConstantPlanParityTest.java",
             "core/src/test/java/com/legend/TenetRatchetTest.java",
-            "core/src/test/java/com/legend/builtin/NativeFunctionTest.java",
             "core/src/test/java/com/legend/compiler/spec/UserCallInlinerTest.java",
             // Tier-1 audit regression pins (2026-08-18): drive the fixed
             // findings through the real pipeline / real connections —
