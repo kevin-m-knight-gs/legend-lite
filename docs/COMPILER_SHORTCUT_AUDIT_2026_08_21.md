@@ -14,6 +14,21 @@ were read to extract *claims*, never as proof. Every behavioural line
 below was produced by building this tree and running the query. Baseline:
 `mvn -o -pl core test` → **4185 tests, 0 failures, 16 skipped**.
 
+> **ADOPTION NOTE (2026-08-21, ratified).** This audit is ADOPTED and its
+> recommended order governs the work queue (blockers 1–3 = §5, §1a,
+> recs #9–13; then rec #1 as the render leg's R1). One standing caveat:
+> **§4's findings are lane-conflated** — its oracle probes ran on the
+> pure-interpreted lane while our conformance target is the
+> engine-relational corpus lane, and the two reference lanes do not agree
+> on all of these behaviors. Therefore `1 == 1.0` (kind-strict equality),
+> `indexOf` base, and `substring` base get **per-lane adjudication with
+> engine witnesses** before any shared-emission change. `cast()` being
+> unchecked and `isDistinct()` crashing are real bugs on any lane and
+> need no adjudication. §7b (TRUST_ONE over user declarations,
+> GraphEmission's LIMIT 1) is likewise an adjudication item requiring
+> engine witnesses — a test pins current behavior
+> (ResolveNavigationTest "audit R3"); do not reflex-fix.
+
 ---
 
 ## 0. The previous audit's fixes: verified, and mostly real
