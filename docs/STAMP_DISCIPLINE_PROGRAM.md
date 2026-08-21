@@ -1438,6 +1438,38 @@ rows fail on divergence, KNOWN rows fail when they START agreeing.
 Pins: `BurnLaneTest` (§3a and §3b at the IR seam, cast e2e over
 DuckDB, census-registered).
 
+### §7b ADJUDICATION (2026-08-21, ratified item f — witnesses, no reflex fix)
+
+**Question 1 — TRUST_ONE wrapping user `[1]` declarations / the
+"audit R3" pin (`ResolveNavigationTest:215`, user `->toOne()` over a
+zero-row association yielding "null"): ADJUDICATED ENGINE-FAITHFUL,
+pin STANDS.** Engine witness (decisive, golden SQL in the reference's
+own test): `testTwoAssociationsToOneBranchWithQuery`
+(projection/testAssociationToOne.pure:40-43) compiles a USER-written
+`$p.firm->toOne().legalName` to a bare unguarded
+`left outer join firmTable` — no row-count guard exists anywhere in
+the engine's relational compilation of user toOne (processNoOp, the
+same lane our flow convention mirrors). A missing association row
+produces a NULL cell in the engine's own TDS, exactly the pin's
+"null". PROVENANCE CORRECTION owed: the behavior is engine-relational
+parity, not "pure toOne semantics" as GraphEmission's comment claims —
+reword at next touch. The audit's demand ("a user's [1] declaration is
+trusted, never verified") describes the ENGINE's relational lane too;
+enforcement would be a deliberate DIVERGENCE, adjudicated NO for now.
+
+**Question 2 — GraphEmission's `TypedLimit(proj, 1)` on to-one nav
+leaves suppressing the backend's own more-than-one-row error: OPEN.**
+No multiplicity enforcement found in the engine's relational
+graph-fetch executor plugin (RelationalExecutionNodeExecutor /
+RelationalGraphFetchUtils — no check/validate/error arms on child
+cardinality); the decisive witness lives in the engine's GENERATED
+graph-node classes' to-one setters (last-wins vs throw), not yet
+decoded. Until then the LIMIT 1 stays AS PINNED — but its comment's
+"pure toOne semantics" claim is wrong on any reading (pure raises on
+2); reword with the honest OPEN status at next touch. Follow-up
+witness location recorded: legend-engine-executionPlan-execution
+generated GraphFetch class setters.
+
 ### AUDIT OF BLOCKERS 1+2 (2026-08-21, user-directed post-landing pass)
 
 Method: executable probes + walker sweep, evidence = code and
