@@ -83,7 +83,10 @@ class   CarrierPurityRatchetTest {
             // metadata (function facts live on the enum, outside the
             // pre-dialect ban zone) and the dissolved ListShapes' dead
             // arms took their references with them.
-            "SqlFn\\.LIST_", 129,
+            // 129→127 (D1): checkedExtract's guard spelling moved INTO the
+            // renderer behind the CheckedOne SEMANTIC NODE — the exact
+            // re-absorption its justification promised.
+            "SqlFn\\.LIST_", 127,
             "SqlFn\\.UNNEST", 12,
             // the collect-carrier reducer (R1 recognizes it for fusion;
             // burns with R3/R4 when sources/values migrate)

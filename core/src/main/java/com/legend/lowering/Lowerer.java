@@ -2259,13 +2259,9 @@ public final class Lowerer {
                     && !PlatformTypes.isVariant(ct)
                     && !PlatformTypes.isNil(ct)
                     && classLayout.apply(ct).isEmpty() -> {
-                // C1: a SCALAR-STAMPED singleton IS its element here too
-                // (witness in::H2Test); the VARIANT carrier stays — only
-                // the list box goes (cell()'s anyRoot contract).
-                if (c.elements().size() == 1
-                        && c.info().multiplicity()
-                                instanceof Multiplicity.Bounded ab
-                        && ab.upper() != null && ab.upper() <= 1) {
+                // C1 collapse (ValueCollections.c1Singleton — witness
+                // in::H2Test); the VARIANT carrier stays, the box goes.
+                if (ValueCollections.c1Singleton(c)) {
                     yield SqlExpr.Call.of(SqlFn.TO_VARIANT,
                             scalar(c.elements().get(0), columns));
                 }
@@ -2310,12 +2306,8 @@ public final class Lowerer {
                                 .toList());
                     }
                 }
-                // C1: a SCALAR-STAMPED singleton literal IS its element
-                // ([x] = x); consumers read stamps honestly.
-                if (c.elements().size() == 1
-                        && c.info().multiplicity()
-                                instanceof Multiplicity.Bounded cb
-                        && cb.upper() != null && cb.upper() <= 1) {
+                // C1 collapse ([x] = x); consumers read stamps honestly.
+                if (ValueCollections.c1Singleton(c)) {
                     yield scalar(c.elements().get(0), columns);
                 }
                 yield new SqlExpr.ArrayLit(

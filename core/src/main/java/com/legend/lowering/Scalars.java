@@ -425,7 +425,8 @@ final class Scalars {
                 }
                 if (args.get(0) instanceof SqlExpr.Call lc
                         && lc.fn().producesList()) {
-                    return checkedExtract(args.get(0));
+                    // ONE semantic node; dialects own the spelling (D1)
+                    return new SqlExpr.CheckedOne(args.get(0));
                 }
                 return args.get(0);
             });
@@ -956,13 +957,9 @@ final class Scalars {
         // index second, so equal keys stay stable — then unwraps.
         for (String f : Pure.nativeKeysAt("sort")) {
             RULES.put(f, (n, args) -> {
-                // STAMP-READ identity (stamp program): sort over a
-                // scalar-stamped operand (<=1 values, [0..0] INCLUDED —
-                // sort([]) is []) IS the operand, whatever the
-                // comparator — no list carrier minted.
-                if (n.args().get(0).info().multiplicity()
-                                instanceof Multiplicity.Bounded sb
-                        && sb.upper() != null && sb.upper() <= 1) {
+                // STAMP-READ identity: sort over <=1 values IS the
+                // operand ([0..0] included: sort([]) is []).
+                if (Stamps.atMostOne(n.args().get(0))) {
                     return args.get(0);
                 }
                 if (n.args().size() == 1) {
@@ -1783,10 +1780,8 @@ final class Scalars {
         }
         // reverse(T[*]): the list reversed; a to-one value is its own reverse.
         for (String f : Pure.nativeKeysAt("reverse")) {
-            // <=1 values ([0..0] included) reverse to themselves.
-            RULES.put(f, (n, args) -> n.args().get(0).info().multiplicity()
-                            instanceof Multiplicity.Bounded rb
-                            && rb.upper() != null && rb.upper() <= 1
+            // <=1 values reverse to themselves ([0..0] included).
+            RULES.put(f, (n, args) -> Stamps.atMostOne(n.args().get(0))
                     ? args.get(0)
                     : new SqlExpr.Call(SqlFn.LIST_REVERSE, args));
         }
@@ -3297,28 +3292,6 @@ final class Scalars {
                 ss.outputs()));
     }
 
-    /** The CHECKED toOne extract over a definite list value — the
-     * agg-strip's semantics spelled directly. Moved from the dissolved
-     * ListShapes; re-absorbs into the checked-narrowing semantic node
-     * when built. */
-    private static SqlExpr checkedExtract(SqlExpr list) {
-        SqlExpr len = SqlExpr.Call.of(SqlFn.LIST_LENGTH, list);
-        return new SqlExpr.Case(
-                List.of(new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.GREATER, len,
-                                new SqlExpr.IntLit(1)),
-                        SqlExpr.Call.of(SqlFn.ERROR,
-                                SqlExpr.Call.of(SqlFn.CONCAT,
-                                        new SqlExpr.StringLit(
-                                                "Cannot cast a collection of size "),
-                                        new SqlExpr.Cast(len,
-                                                SqlType.Scalar.VARCHAR),
-                                        new SqlExpr.StringLit(
-                                                " to multiplicity [1]"))))),
-                SqlExpr.Call.of(SqlFn.LIST_GET, list,
-                        new SqlExpr.IntLit(1)));
-    }
-
     /** A concatenate SIDE: scalar encodings (TO-ONE stamps, many-
      * stamped CASE optionals) wrap null-guarded — SQL NULL is pure's
      * EMPTY, so the side contributes [], never [NULL]. Many-stamped
@@ -3336,10 +3309,11 @@ final class Scalars {
                 new SqlExpr.ArrayLit(List.of(e)));
     }
 
-    /** Whether an argument's Pure multiplicity is at most one. */
+    /** The reduction rules' identity-arm guard — Stamps.toOne, the
+     * historical upper==1 reading preserved verbatim (see Stamps for
+     * the empty-identity fork this deliberately does NOT change). */
     private static boolean isToOne(TypedSpec arg) {
-        return arg.info().multiplicity() instanceof Multiplicity.Bounded b
-                && b.isToOne();
+        return Stamps.toOne(arg);
     }
 
 

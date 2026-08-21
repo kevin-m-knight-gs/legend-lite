@@ -67,6 +67,15 @@ final class ValueCollections {
                                 true)));
     }
 
+    /** The C1 SINGLETON-COLLAPSE predicate — one statement of the rule
+     * both collection arms share (D4: it was restated inline in each):
+     * a one-element collection whose stamp admits at most one value IS
+     * its element; only the CARRIER differs per arm (plain vs the
+     * Any-LUB variant wrap). */
+    static boolean c1Singleton(TypedCollection tc) {
+        return tc.elements().size() == 1 && Stamps.atMostOne(tc);
+    }
+
     /** The Typer's {@code $r.values} TDSRow-cells synthesis — the one
      * shape that prints TDSNull: every element a property read off the
      * SAME row variable, AND the reads cover the row's FULL column

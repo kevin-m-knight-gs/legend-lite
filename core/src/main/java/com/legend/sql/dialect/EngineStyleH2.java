@@ -74,6 +74,14 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * 1-arg form desugars to three {@code ''}). Recognizes the lowered
      * COALESCE(STRING_AGG)+CONCAT wrappers; non-literal collections fall
      * through to the honest wall. */
+    /** Engine-TEXT view of checked narrowing: the VERBATIM inner value
+     * — the engine translates toOne to processNoOp in SQL (D1; the
+     * NULLS-suppression precedent for engine-verbatim views). */
+    @Override
+    protected String checkedOne(SqlExpr.CheckedOne co, int parentPrec) {
+        return expr(co.list(), parentPrec);
+    }
+
     private @com.legend.Nullable String joinStringsFlat(SqlExpr.Call c) {
         // 4-arg forms: CONCAT(CONCAT(prefix, J), suffix) [list-value arm]
         // or CONCAT(prefix, CONCAT(J, suffix)) [pure-value arm]

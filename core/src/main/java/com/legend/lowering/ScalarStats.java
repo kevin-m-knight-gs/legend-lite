@@ -34,11 +34,7 @@ final class ScalarStats {
                 "varianceSample", SqlAgg.Fn.VAR_SAMP,
                 "variancePopulation", SqlAgg.Fn.VAR_POP).entrySet()) {
             for (String f : Pure.nativeKeysAt(e.getKey())) {
-                rules.put(f, (n, args) ->
-                        n.args().get(0).info().multiplicity()
-                                        instanceof com.legend.compiler.element
-                                                .type.Multiplicity.Bounded b
-                                && b.upper() != null && b.upper() <= 1
+                rules.put(f, (n, args) -> Stamps.atMostOne(n.args().get(0))
                         ? new SqlAgg.Reducer(e.getValue(),
                                 List.of(args.get(0)), false, java.util.List.of())
                         : new SqlExpr.ReduceCollection(e.getValue(),

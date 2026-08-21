@@ -190,6 +190,10 @@ public abstract class SqlRewriter {
                 SqlQuery sub = rewrite(ex.subquery());
                 yield sub == ex.subquery() ? ex : new SqlExpr.Exists(sub);
             }
+            case SqlExpr.CheckedOne co -> {
+                SqlExpr in = expr(co.list());
+                yield in == co.list() ? co : new SqlExpr.CheckedOne(in);
+            }
             case SqlExpr.ScalarSubquery sq -> {
                 SqlQuery sub = rewrite(sq.subquery());
                 yield sub == sq.subquery() ? sq
