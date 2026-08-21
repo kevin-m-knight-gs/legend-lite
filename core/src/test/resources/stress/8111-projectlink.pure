@@ -1,0 +1,50 @@
+###Pure
+// Where the executable corpus meets the project dependency graph.
+//
+// projects/ holds 56 Legend projects that depend on each other the way real ones do, and all
+// 56 compile -- alone with their declared closure, and together. What none of them does is
+// RUN: the contract forbade data elements, runtimes and services, so the graph proves that a
+// cross-project reference COMPILES and nothing more.
+//
+// That is a real gap rather than a tidy boundary. Three of this session's findings -- F50 (a
+// derived Boolean compared to a literal), F51 (isEmpty over a non-key join) and F53 (a REAL
+// column) -- compile perfectly and fail at execution. A cross-project join that lowered to
+// wrong SQL would be invisible to every check the graph currently has.
+//
+// So one project is pulled across the line. `core-tenor` is seeded, its mapping is included
+// in stress::AllMapping, and the corpus navigates INTO it from a corpus-owned root. Two
+// directions are worth having and they test different things:
+//
+//   * a service rooted at a PROJECT class, executing against seeded project data -- which is
+//     the first time anything in projects/ has produced a row
+//   * a service rooted at a CORPUS class that reaches a project attribute through an
+//     association -- which is the question a user actually asks of a dependency, and the one
+//     a compile check cannot answer
+//
+// core-tenor was chosen because its join is a RANGE. A key equality that lowers wrongly
+// usually returns nothing and is obvious; a range that lowers wrongly returns the wrong
+// BAND, which is a plausible number in the right shape.
+Association projectlink::PillarTenorBucket
+{
+   // A curve pillar's tenor in days decides which bucket it falls in. The bucket table
+   // belongs to core-tenor and the pillar to the corpus, so this association is the boundary.
+   bucketedPillars: curves::CurvePoint[*];
+   tenorBucket: core_tenor::CtnTenorBucket[0..1];
+}
+
+###Mapping
+Mapping projectlink::ProjectLinkMapping
+(
+   include core_tenor::Mapping
+
+   projectlink::PillarTenorBucket: Relational
+   {
+      AssociationMapping
+      (
+         // The far set id is core-tenor's own, read from its MANIFEST. It names its sets
+         // explicitly, so `core_tenor_CtnTenorBucket` does not exist.
+         tenorBucket[pillar, ctnBucket]: [store::DB]@Pillar_TenorBucket,
+         bucketedPillars[ctnBucket, pillar]: [store::DB]@Pillar_TenorBucket
+      )
+   }
+)

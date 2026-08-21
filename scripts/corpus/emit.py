@@ -62,9 +62,19 @@ def store_tables(c, prefix: str) -> set:
 
 
 def side_tables(c) -> set:
+    """Tables belonging to a store the MAIN runtime does not connect.
+
+    Follows the include closure rather than comparing one name. `store::DB` includes a
+    linked project's store, and an included store's tables are created in the same physical
+    database -- so treating them as a side store left them out of the data element entirely
+    and every query over them failed with `Table with name CTN_BUCKET does not exist`, which
+    reads as a missing table rather than as a table nobody seeded.
+    """
+    import model
+
+    main = model.store_closure(c, MAIN_STORE)
     return {n for n, t in c.tables.items()
-            if n not in c.views
-            and getattr(t, "database", "") not in ("", MAIN_STORE)}
+            if n not in c.views and getattr(t, "database", "") not in ({""} | main)}
 
 CONNECTION_KEY = "environment"      # the identifiedConnection id in stress::RT
 MAPPING = "stress::AllMapping"

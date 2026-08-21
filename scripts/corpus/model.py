@@ -30,6 +30,56 @@ from pathlib import Path
 import rhs
 
 STRESS = Path(__file__).resolve().parents[2] / "core/src/test/resources/stress"
+PROJECTS = Path(__file__).resolve().parents[2] / "projects"
+
+# Projects from the dependency graph that the EXECUTABLE corpus depends on.
+#
+# The graph in projects/ is compile-only by design: no data, no runtimes, no services. That
+# leaves a real gap, because three of this session's findings (F50, F51, F53) compile
+# perfectly and fail at execution -- a cross-project reference that lowers to wrong SQL would
+# be invisible to a compile check.
+#
+# So a SLICE of the graph is pulled into the executable corpus: its tables are seeded, its
+# mapping is included in stress::AllMapping, and corpus classes navigate into it. Kept to a
+# named list rather than the whole graph because every project added here is 200 more
+# services to run, and the point is to prove the boundary executes rather than to re-test
+# each project's content.
+LINKED_PROJECTS = ["core-tenor"]
+
+
+# Section order within a project, not alphabetical. A .pure file with no `###` header
+# inherits whatever section the PREVIOUS file left open, and the corpus's own first file
+# (01-products.pure) has no header -- it relied on ###Pure being the default because nothing
+# had ever come before it.
+#
+# Sorted alphabetically the project emits mapping, model, STORE, so the corpus's first file
+# inherited ###Relational and its classes were handed to the relational parser. The whole
+# corpus then failed with a bare `Unexpected token` naming no file and no line, which is
+# exactly the failure model.check's header guard exists to prevent -- reaching the corpus
+# from outside it for the first time.
+#
+# Mapping last, so what a following headerless file inherits is at least the section the
+# corpus's own concatenation already ends on.
+_SECTION_ORDER = {"model.pure": 0, "store.pure": 1, "mapping.pure": 2}
+
+
+def store_closure(c, root: str) -> set:
+    """`root` and every database it includes, transitively."""
+    seen, stack = {root}, [root]
+    while stack:
+        for n in c.store_includes.get(stack.pop(), ()):
+            if n not in seen:
+                seen.add(n)
+                stack.append(n)
+    return seen
+
+
+def linked_files() -> list[Path]:
+    out = []
+    for n in LINKED_PROJECTS:
+        fs = sorted((PROJECTS / n).glob("*.pure"))
+        out += sorted(fs, key=lambda f: (_SECTION_ORDER.get(f.name, 99), f.name))
+    return out
 
 
 # ---------------------------------------------------------------- data model
@@ -210,7 +260,9 @@ class Derived:
     type: str
     lower: int
     upper: int | None
-    params: list[str] = field(default_factory=list)   # a QUALIFIED property if non-empty
+    # (name, type) per parameter; a QUALIFIED property if non-empty. The type is what lets a
+    # generator choose an argument that type-checks rather than one that happens to work.
+    params: list[tuple[str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -332,6 +384,14 @@ class Corpus:
 
     # (class, property) pairs declared in a MAPPING with `+` rather than on the class.
     local_props: set = field(default_factory=set)
+
+    # database -> the databases it `include`s, directly. Not recorded until a corpus store
+    # included a PROJECT store: an included store's tables live in the same physical database
+    # at execution, so anything deciding "which tables does this store own" has to follow the
+    # closure, or the included tables are never created and every query over them fails with
+    # `Table with name X does not exist` -- which reads as a missing table rather than as a
+    # table nobody seeded.
+    store_includes: dict = field(default_factory=dict)
 
     # Classes whose set implementation carries ~distinct. The reader skipped the directive
     # as noise for a long time and the oracle never deduped, which was invisible while the
@@ -582,7 +642,12 @@ _PROP = re.compile(
 # `name() { expr } : T[m];` and the qualified form `name(p: T[1], ...) { expr } : T[m];`
 _DERIVED = re.compile(
     r"^\s*(\w+)\s*\(([^)]*)\)\s*\{(.+)\}\s*:\s*([\w:]+)\s*\[([^\]]+)\]\s*;\s*$")
-_PARAM = re.compile(r"(\w+)\s*:\s*[\w:]+\s*\[[^\]]+\]")
+# The TYPE is captured, not discarded. It used to be thrown away, so a qualified property's
+# parameters were a list of names -- and a generator picking an argument for one had nothing
+# to go on and used 0.5 for everything. That passed a Float to `tickerOn(vendor: String[1])`,
+# which the oracle hit as `float + str` deep inside expression evaluation, naming neither the
+# property nor the generator.
+_PARAM = re.compile(r"(\w+)\s*:\s*([\w:]+)\s*\[[^\]]+\]")
 # A reference may be SCHEMA-QUALIFIED: `[db]schema.TABLE.COL`. Tables are keyed globally
 # by name here, so the schema qualifier is matched and discarded -- but it has to be
 # MATCHED, or the pattern reads `analytics` as the table and `COMBO_SUMMARY` as the
@@ -644,6 +709,19 @@ _CALL_START = re.compile(r"(\w+)\s*:\s*(\w+)\s*\(")
 _CHAINMAP = re.compile(
     r"(\w+)\s*:\s*((?:\[[\w:]+\]\s*)?@[\w@\s>\[\]:.]*?)\|\s*(?:\[[\w:]+\]\s*)?(\w+)\.(\w+)")
 _CHAINJOIN = re.compile(r"@(\w+)")
+
+# `prop[targetSetId]: [db]@Join` -- a CLASS-TYPED property mapped over a join, with no
+# trailing column because the property is a navigation rather than a value.
+#
+# This is the second of Legend's two valid ways to model an edge; the other is an Association
+# with mapped ends. This reader modelled only the Association form, so a project using this
+# one had its navigations recorded NOWHERE -- not in ends, not in chains, not in columns --
+# and a query across such an edge died in `to_many_on` with a KeyError naming the property.
+#
+# Both styles are used across the project graph, and a project cannot tell which one a
+# dependency chose from its MANIFEST. So the reader has to read both.
+_JOINPROP = re.compile(
+    r"(\w+)\s*(?:\[\s*\w+\s*\])?\s*:\s*(?:\[[\w:]+\]\s*)?@(\w+)\s*(?:,|$)", re.M)
 
 # `prop: Binding path::B : [db]T.COL` -- a BINDING TRANSFORMER, reading a complex-typed
 # property out of one column through an external-format binding.
@@ -878,6 +956,10 @@ def _owning_database(text: str, at: int) -> str:
 
 def _parse_store(text: str, c: Corpus) -> None:
     text = "\n".join(_strip(l) for l in text.splitlines())
+    m = re.search(r"^Database\s+([\w:]+)", text, re.M)
+    if m:
+        c.store_includes.setdefault(m.group(1), []).extend(
+            n for n in re.findall(r"^\s*include\s+([\w:]+)\s*$", text, re.M))
     for name, body in _view_bodies(text):
         _parse_view(name, body, c)
     for name, body, at in _table_bodies(text):
@@ -1497,7 +1579,23 @@ def _value_forms(line: str, c: "Corpus", owner: str, tbl: str,
         joins = _CHAINJOIN.findall(chaintext)
         if joins:
             c.chains[(owner, prop)] = (joins, ctbl, ccol)
-    return _CHAINMAP.sub("", line)
+    line = _CHAINMAP.sub("", line)
+
+    # A class-typed property over a single join, recorded as an association end so every
+    # navigation helper -- resolve, resolve_assoc, owner_of, to_many_on -- treats it the same
+    # way it treats an Association. The declared multiplicity on the class decides to_many;
+    # the mapping does not carry it.
+    for prop, joinname in _JOINPROP.findall(line):
+        if (owner, prop) in c.ends:
+            continue
+        kl = c.classes.get(owner)
+        decl = kl.props.get(prop) if kl else None
+        if decl is None or decl.type not in c.classes:
+            continue
+        c.ends[(owner, prop)] = AssocEnd(
+            owner=owner, name=prop, target=decl.type,
+            to_many=decl.upper != 1, join=joinname, assoc=None)
+    return line
 
 
 def _assoc_matches(assoc_fqn: str, owner: str, end: AssocEnd) -> bool:
@@ -1600,7 +1698,10 @@ def _materialise_view_schemas(c: Corpus) -> None:
 
 def load() -> Corpus:
     c = Corpus()
-    files = sorted(STRESS.glob("*.pure"))
+    # Linked projects FIRST: a corpus store includes a project store and a corpus mapping
+    # includes a project mapping, so the project's tables and sets must already exist when
+    # the corpus's own files are read.
+    files = linked_files() + sorted(STRESS.glob("*.pure"))
     parsed = [(f, sections(f.read_text())) for f in files]
     # Three passes: stores define the tables mappings point at, and mappings bind
     # associations that must already exist.
@@ -1656,6 +1757,15 @@ def check(c: Corpus) -> list[str]:
     """Facts that must hold for the oracle to be trustworthy. Returned, not raised, so
     the caller can print all of them at once."""
     bad = []
+    # The FIRST file parsed must declare its section. Every other headerless file inherits
+    # from the one before it, which the guard below already covers; the first one inherits
+    # from whatever the runner happens to concatenate ahead of it, which used to be nothing
+    # and is now a linked project. A default that holds only while a file is first is not a
+    # default, it is an accident waiting for something to be put in front of it.
+    first = (linked_files() + sorted(STRESS.glob("*.pure")))[0]
+    if not first.read_text().lstrip().startswith("###"):
+        bad.append(f"{first.name} is parsed first and declares no ###Section; it would "
+                   f"inherit from whatever is concatenated ahead of it")
     # A file that opens WITHOUT a `###Section` header inherits the section the PREVIOUS file
     # left active, because the runner parses the corpus as one concatenated unit. Twenty of
     # these files legitimately open with a bare `Class` -- they are pure domain models and

@@ -42,6 +42,12 @@ MIN_FEATURES = 5
 MAX_ROOTS = 120
 
 
+# A literal per parameter type, for a generated qualified-property call. Deliberately not a
+# default-with-fallback for unknown types: an unknown type gets 0.5 and will fail loudly in
+# the oracle, which is better than a plausible value that makes a wrong call look right.
+_ARG_FOR = {"String": "BBG", "Float": 0.5, "Integer": 2, "Boolean": True}
+
+
 def _identifier(c: model.Corpus, root: str) -> str | None:
     """The property mapped to the root table's primary key — used as the stable sort key
     and the first projected column, so a generated service reads like one a person would
@@ -112,6 +118,20 @@ def roots(c: model.Corpus, seeded: set[str]) -> list[tuple[str, str]]:
 _LABELLISH = ("name", "legalname", "region", "status", "currency", "jurisdiction")
 
 
+def _inherited_ends(c: model.Corpus, cls: str) -> set[str]:
+    """End names `cls` gets from a supertype rather than declaring itself.
+
+    The reader propagates a supertype's ends onto every subclass, correctly -- Pure does the
+    same. What it cannot propagate is the MAPPING: there is one association and its ends
+    already name a source and a target set, so navigating one from a subtype set fails.
+    """
+    out, parent = set(), c.classes[cls].supertype if cls in c.classes else None
+    while parent:
+        out |= {n for (owner, n) in c.ends if owner == parent}
+        parent = c.classes[parent].supertype if parent in c.classes else None
+    return out
+
+
 def _chains(c: model.Corpus, root: str, seeded: set[str], depth: int = 3):
     """Every to-one navigation path from `root`, deepest first, whose every hop lands on a
     seeded table. Deepest-first so the densest service takes the longest chains."""
@@ -119,8 +139,20 @@ def _chains(c: model.Corpus, root: str, seeded: set[str], depth: int = 3):
     for _ in range(depth):
         nxt = []
         for path, cls in frontier:
+            # An end INHERITED from a supertype cannot be navigated from a subtype set: the
+            # association names the base's set id and a query rooted at the subtype is not it
+            # (F49). That is fatal at test-suite INITIALISATION rather than a failure, so it
+            # kills the whole batch -- forty unrelated services reported MISSING when a
+            # generated dense service over `curves::QuotedPillar` first reached one.
+            #
+            # graphs.py and tomany.py skip subtype ROOTS entirely for this reason. That is too
+            # blunt here: a subtype's OWN ends are fine, and this generator's whole value is
+            # the depth it reaches. So the exclusion is per-END rather than per-root.
+            inherited = _inherited_ends(c, cls)
             for (owner, name), end in c.ends.items():
                 if owner != cls or end.to_many or not end.join:
+                    continue
+                if name in inherited:
                     continue
                 if c.main_table.get(end.target) not in seeded:
                     continue
@@ -158,6 +190,26 @@ def _alias(path: list[str], leaf: str) -> str:
     parts = path + [leaf]
     head, *rest = parts
     return head + "".join(p[:1].upper() + p[1:] for p in rest)
+
+
+def _unique_aliases(projections: list[Proj]) -> list[Proj]:
+    """Make every alias in one projection list distinct.
+
+    `_alias` builds a name from the path, which is unique per path -- but two DIFFERENT paths
+    can flatten to the same name, and the engine rejects the result at compile with
+    "The relation contains duplicates: [bucketBand]", naming the alias and neither path.
+    It surfaced the moment the linked project put two routes to the same leaf in range.
+
+    Renaming the later one rather than dropping it: both paths are worth projecting, and a
+    generated service that quietly reads one of two chains is the shape this corpus exists to
+    avoid.
+    """
+    seen, out = {}, []
+    for p in projections:
+        n = seen.get(p.alias, 0)
+        seen[p.alias] = n + 1
+        out.append(p if n == 0 else Proj(f"{p.alias}{n + 1}", p.path, p.agg, p.args, p.func))
+    return out
 
 
 def build(c: model.Corpus, seeded: set[str]) -> list[Spec]:
@@ -234,8 +286,14 @@ def build(c: model.Corpus, seeded: set[str]) -> list[Spec]:
             k = c.classes.get(tgt)
             qual = next((d for d in (k.derived.values() if k else []) if d.params), None)
             if qual and len(projections) < 10:
+                # An argument of the DECLARED type. This was 0.5 for everything, which is
+                # right for the Float parameters that were the only ones the generator could
+                # reach until a String one came into range -- and then it produced
+                # `tickerOn(0.5)`, which the oracle hit as `float + str` inside expression
+                # evaluation, naming neither the property nor this line.
+                args = [_ARG_FOR.get(ptype, 0.5) for _pname, ptype in qual.params]
                 projections.append(Proj(_alias(path, qual.name) + "Q",
-                                        path + [qual.name], args=[0.5]))
+                                        path + [qual.name], args=args))
                 features.add("qualifiedProperty")
                 break
 
@@ -250,7 +308,7 @@ def build(c: model.Corpus, seeded: set[str]) -> list[Spec]:
                     f"limit. Generated from the model by scripts/corpus/stacks.py, so it "
                     f"deepens as the model does rather than needing a new hand-written "
                     f"service per domain.", root)
-        spec.projections = projections
+        spec.projections = _unique_aliases(projections)
 
         scalar = _leaf(c, root)
         if scalar:

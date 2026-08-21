@@ -1718,3 +1718,38 @@ obvious declaration for a percentage -- it had never been written.
 Workaround: `FLOAT` or `DOUBLE`.
 
 Repro: `repro/real-column-type/`, `scripts/corpus/probe_column_types.py`.
+
+## F54 — A qualified property that concatenates fabricates a value on a broken chain
+
+    $x.target.label('BBG')
+
+with `label(vendor: String[1]) { $vendor + '/' + $this.name + ':' + $this.targetId }` and
+`$x.target` landing on nothing, returns `"BBG/:"` — the body evaluated with every `$this.`
+component empty. Not null, not an error: a string in exactly the right shape, built out of a
+row that is not there.
+
+Three rows, four projections through the same broken chain, and only one is wrong:
+
+| projection | result |
+| --- | --- |
+| plain property `$x.target.name` | null — correct |
+| derived property `$x.target.twiceSize` | null — correct |
+| qualified property doing ARITHMETIC `$x.target.scaled(100.0)` | null — correct |
+| qualified property doing CONCATENATION `$x.target.label('BBG')` | **`"BBG/:"`** |
+
+So it is neither qualified properties nor broken chains in general. The arithmetic case over
+the SAME absent object is correct, because `null * 100.0` is null where
+`'' + '/' + '' + ':' + ''` is a perfectly good string. Whatever supplies `$this` for the
+call is supplying an empty object rather than declining to make the call.
+
+What makes it worth more than its size: every other case yields null, which a caller
+notices. This one yields a plausible identifier — a vendor ticker, a composite key, a display
+label — for a row that does not exist. That is the shape of value most likely to be used as a
+lookup key downstream and least likely to be checked.
+
+Found by a generated service, not by looking: `$curve.benchmarkSeries.tickerOn('BBG')` over
+eight curves, three without a benchmark series. The generator reached that chain only because
+a project had just been linked into the executable corpus, which changed what was in range.
+
+Repro: `repro/qualified-property-broken-chain/`,
+`scripts/corpus/probe_qualified_broken_chain.py`.

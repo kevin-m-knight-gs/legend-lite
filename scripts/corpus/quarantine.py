@@ -47,6 +47,22 @@ ENGINE_QUARANTINE: dict[str, tuple[str, str]] = {
 #
 # The construct is still covered green: LE6 counts the same join from the RULE side, where
 # every rule reaches at least one line, and LE1 reaches the range join the same way.
+# F54: a qualified property whose body CONCATENATES returns a string built from empty parts
+# when the to-one chain it is reached through lands on nothing -- `"BBG/:"` rather than null.
+# Three of the eight curves here have no benchmark series, so three of sixteen rows carry a
+# fabricated ticker.
+#
+# The same property doing arithmetic over the same absent object is correct, which is what
+# makes this narrow enough to pin rather than a general nullability complaint. See
+# scripts/corpus/probe_qualified_broken_chain.py for the four-case separation.
+#
+# Two services reach it, both generated: the dense stack over curve summaries and the
+# filtered variant of the same reach. Both project the same `tickerOn` through the same
+# to-one chain, so they are one defect seen twice rather than two.
+for _n in ("D_CurveSummaryDense", "SP_defCurveSummaryFilter"):
+    ENGINE_QUARANTINE[f"stress::{_n}"] = (
+        "F54", "a concatenating qualified property fabricates a value on a broken chain")
+
 ENGINE_QUARANTINE["stress::LE2_ExemptionMatches"] = (
     "F6", "count() over an empty to-many returns 1, not 0")
 

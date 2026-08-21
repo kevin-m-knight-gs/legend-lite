@@ -25,6 +25,7 @@ from pathlib import Path
 
 from model import STRESS
 import functest
+import model
 from quarantine import HANGS, QUARANTINE
 
 REPO = STRESS.parents[4]
@@ -99,7 +100,13 @@ def main() -> None:
     #
     # Chunking also bounds the blast radius: whatever exhausts a process now takes one
     # batch with it instead of the tail of the suite, and the batch that broke is named.
-    files = sorted(str(p) for p in STRESS.glob("*.pure"))
+    # The LINKED PROJECTS first, then the corpus. A corpus store includes a project store
+    # and a corpus mapping includes a project mapping, so the project's elements must be in
+    # the source before the corpus's own files refer to them. Omitting them entirely fails
+    # with a bare "Unexpected token" -- a parse error naming no file, because the corpus text
+    # references a package the parser has never seen.
+    files = ([str(f) for f in model.linked_files()]
+             + sorted(str(p) for p in STRESS.glob("*.pure")))
     chunks = [names[i:i + BATCH] for i in range(0, len(names), BATCH)] or [[]]
     parts = []
     for chunk in chunks:
@@ -109,6 +116,22 @@ def main() -> None:
             capture_output=True, text=True, env=env, cwd=RUNNER, timeout=3600)
         parts.append(r.stdout + r.stderr)
     out = "\n".join(parts)
+
+    # A service that throws during test-suite INITIALISATION kills the JVM its batch runs in.
+    # It does not report FAIL -- it reports nothing, and neither do the other services in the
+    # batch, which surface as MISSING. Three times now a single such service has cost eighty
+    # unrelated results, and each time the eighty looked like the problem.
+    #
+    # A quarantine entry cannot hold one of these: quarantine excuses a FAILURE, and there is
+    # no failure to excuse. The service has to be absent from the corpus, so say that rather
+    # than let the reader work backwards from a wall of MISSING.
+    for m in re.finditer(r"Error initializing test suite session for '(\w+)_suite'", out):
+        print(f"  FATAL AT INIT  {m.group(1)}: threw during test-suite initialisation, which "
+              f"kills its whole batch.\n"
+              f"                 Every MISSING below is collateral. Quarantine will not help "
+              f"-- a quarantine excuses a failure and\n"
+              f"                 this service never reports one. Remove it from the corpus "
+              f"and pin the defect with a repro instead.")
     if "-v" in sys.argv:
         print(out)
 

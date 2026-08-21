@@ -19808,7 +19808,63 @@ EXEMPTION_RULE = [
 ]
 
 
+
+# ---- the linked project: core-tenor ----
+#
+# The first rows any project in projects/ has ever had. The graph is compile-only by design,
+# so a cross-project join that lowered to wrong SQL was invisible to it; seeding one project
+# is what makes the boundary executable. See 8111-projectlink.pure.
+#
+# The bounds are half-open [MIN_DAYS, MAX_DAYS) and cover every tenor the corpus's curve
+# pillars carry -- 30 through 10958 days -- with a sentinel at the top so the 30y pillar
+# lands in the last band rather than in none.
+#
+# BAND_CODE holds the project's SOURCE codes ('0-7D'), not its enum constant names ('D0_7').
+# The first version of this seed wrote the constants, which is the obvious guess and the
+# wrong one: core-tenor's EnumerationMapping translates source-to-constant, so a constant in
+# the column matches no entry and the enum reads NULL. Every other projected column was
+# correct, so the row looked right except for that one cell -- which is exactly the failure
+# an enum transformer across a project boundary produces, and exactly why this slice of the
+# graph is executed rather than only compiled.
+CTN_TENOR_LADDER = [
+    dict(LADDER_ID="LDR-SWAP", NAME="Standard swap ladder", DAY_COUNT_CONVENTION="ACT/365",
+         IS_DEFAULT=True),
+]
+
+CTN_BUCKET = [
+    dict(BUCKET_ID="CTN-01", LADDER_ID="LDR-SWAP", BAND_CODE="0-7D",
+         LABEL="0-7d", MIN_DAYS=0, MAX_DAYS=8, SORT_ORDER=1),
+    dict(BUCKET_ID="CTN-02", LADDER_ID="LDR-SWAP", BAND_CODE="8-30D",
+         LABEL="8-30d", MIN_DAYS=8, MAX_DAYS=31, SORT_ORDER=2),
+    dict(BUCKET_ID="CTN-03", LADDER_ID="LDR-SWAP", BAND_CODE="1-3M",
+         LABEL="1-3m", MIN_DAYS=31, MAX_DAYS=92, SORT_ORDER=3),
+    dict(BUCKET_ID="CTN-04", LADDER_ID="LDR-SWAP", BAND_CODE="3-6M",
+         LABEL="3-6m", MIN_DAYS=92, MAX_DAYS=184, SORT_ORDER=4),
+    dict(BUCKET_ID="CTN-05", LADDER_ID="LDR-SWAP", BAND_CODE="6-12M",
+         LABEL="6-12m", MIN_DAYS=184, MAX_DAYS=366, SORT_ORDER=5),
+    dict(BUCKET_ID="CTN-06", LADDER_ID="LDR-SWAP", BAND_CODE="1-3Y",
+         LABEL="1-3y", MIN_DAYS=366, MAX_DAYS=1096, SORT_ORDER=6),
+    dict(BUCKET_ID="CTN-07", LADDER_ID="LDR-SWAP", BAND_CODE="3-5Y",
+         LABEL="3-5y", MIN_DAYS=1096, MAX_DAYS=1827, SORT_ORDER=7),
+    dict(BUCKET_ID="CTN-08", LADDER_ID="LDR-SWAP", BAND_CODE="5-10Y",
+         LABEL="5-10y", MIN_DAYS=1827, MAX_DAYS=3654, SORT_ORDER=8),
+    dict(BUCKET_ID="CTN-09", LADDER_ID="LDR-SWAP", BAND_CODE="10Y+",
+         LABEL="10y+", MIN_DAYS=3654, MAX_DAYS=40000, SORT_ORDER=9),
+]
+
+# Deliberately EMPTY. core-tenor declares this table as the other side of its own range join,
+# and nothing in the corpus reaches it -- so it stays declared and unseeded, which is what a
+# project table looks like when only part of a project is pulled across the line.
+CTN_DATED_ITEM: list[dict] = []
+
+CTN_BUCKET_PROFILE: list[dict] = []
+
+
 TABLES: dict[str, list[dict]] = {
+    "CTN_TENOR_LADDER": CTN_TENOR_LADDER,
+    "CTN_BUCKET": CTN_BUCKET,
+    "CTN_DATED_ITEM": CTN_DATED_ITEM,
+    "CTN_BUCKET_PROFILE": CTN_BUCKET_PROFILE,
     "EXPOSURE_LINE": EXPOSURE_LINE,
     "EXPOSURE_THRESHOLD": EXPOSURE_THRESHOLD,
     "EXEMPTION_RULE": EXEMPTION_RULE,

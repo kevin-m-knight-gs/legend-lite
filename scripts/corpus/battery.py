@@ -1946,9 +1946,124 @@ def _large_exposure_specs():
 LARGE_EXPOSURES = _large_exposure_specs()
 
 
+def _project_link_specs():
+    """The dependency graph, executing.
+
+    The 56 projects in projects/ are compile-only: no data, no runtimes, no services. That
+    proves a cross-project reference COMPILES and stops there -- and three of this session's
+    findings (F50, F51, F53) compile perfectly and fail at execution, so the gap is real
+    rather than tidy.
+
+    These are the first services that run against a project. Two directions, testing
+    different things:
+
+      PL0-PL1  rooted at a PROJECT class, over seeded project data. The first rows anything
+               in projects/ has produced.
+      PL2-PL4  rooted at a CORPUS class, reaching a project attribute across the boundary --
+               which is the question a user actually asks of a dependency, and the one no
+               compile check can answer.
+
+    The join is a RANGE on purpose. A key equality that lowers wrongly returns nothing and is
+    obvious; a range that lowers wrongly returns the WRONG BAND, which is a plausible number
+    in the right shape.
+    """
+    out = []
+
+    # Rooted at the project's own class. Nothing in projects/ had ever produced a row.
+    ladder = Spec("stress::PL0_TenorLadder", "/stress/pl0",
+                  "Every tenor bucket in the linked project's ladder, read from the corpus. "
+                  "The first service in this corpus rooted at a class that belongs to a "
+                  "PROJECT rather than to the corpus, and the first rows anything in "
+                  "projects/ has produced -- the graph is compile-only by design.",
+                  "core_tenor::CtnTenorBucket")
+    ladder.projections = [Proj("bucketId", ["bucketId"]),
+                          Proj("band", ["band"]),
+                          Proj("label", ["label"]),
+                          Proj("minDays", ["minDays"]),
+                          Proj("maxDays", ["maxDays"]),
+                          Proj("spanDays", ["spanDays"]),
+                          Proj("sortOrder", ["sortOrder"])]
+    ladder.sort = ("bucketId", False)
+    out.append(ladder)
+
+    # A project class navigating a project association, executed from the corpus. The enum
+    # comes through the project's own EnumerationMapping, which nothing had exercised.
+    laddered = Spec("stress::PL1_BucketLadder", "/stress/pl1",
+                    "Each bucket with the ladder it belongs to -- a navigation entirely "
+                    "INSIDE the linked project, executed from the corpus. The band is an "
+                    "enum resolved by the project's own EnumerationMapping, which until now "
+                    "had been compiled and never run.",
+                    "core_tenor::CtnTenorBucket")
+    laddered.projections = [Proj("bucketId", ["bucketId"]),
+                            Proj("band", ["band"]),
+                            Proj("ladderName", ["ladder", "name"]),
+                            Proj("dayCount", ["ladder", "dayCountConvention"])]
+    laddered.sort = ("bucketId", False)
+    out.append(laddered)
+
+    # THE BOUNDARY, in the direction a user asks it: a corpus root reaching a project
+    # attribute. 192 pillars across nine bands.
+    banded = Spec("stress::PL2_PillarTenorBand", "/stress/pl2",
+                  "Every curve pillar with the tenor band it falls in -- a CORPUS class "
+                  "reaching an attribute of a PROJECT class, across a range join. This is "
+                  "the query a dependency exists to allow, and the one a compile check "
+                  "cannot answer: a range that lowers wrongly returns the wrong band rather "
+                  "than nothing, which is a plausible number in the right shape.",
+                  "curves::CurvePoint")
+    banded.projections = [Proj("curveId", ["curveId"]),
+                          Proj("cobDate", ["cobDate"]),
+                          Proj("tenorLabel", ["tenorLabel"]),
+                          Proj("tenorDays", ["tenorDays"]),
+                          Proj("bandCode", ["tenorBucket", "band"]),
+                          Proj("bandLabel", ["tenorBucket", "label"]),
+                          Proj("bandMinDays", ["tenorBucket", "minDays"]),
+                          Proj("bandMaxDays", ["tenorBucket", "maxDays"])]
+    banded.sort = [("curveId", False), ("cobDate", False), ("tenorLabel", False)]
+    out.append(banded)
+
+    # WITHDRAWN: the same boundary reached from a ~filter SUBTYPE.
+    #
+    # `curves::QuotedPillar` is a subtype of `curves::CurvePoint`, and the association to the
+    # linked project's bucket names the BASE's set id -- there is one association and its ends
+    # already name a source and a target. Rooting a query at the subtype set fails with
+    # `Void not supported!`, which is F49, now shown to survive a project boundary: the
+    # association's far end is in a different project entirely and the failure is identical.
+    #
+    # QUARANTINED IS NOT ENOUGH. The failure is an exception during test-suite
+    # INITIALISATION, which kills the JVM the batch runs in -- so the service does not report
+    # FAIL, it reports nothing, and neither do the other seventy-nine services in its batch.
+    # A quarantine entry can only hold a service that fails; this one has to be absent. Same
+    # shape as graph-fetch-over-~distinct, which spread.py excludes for the same reason.
+    #
+    # PL2 asks the identical question from the BASE and passes, so the boundary itself is
+    # sound and nothing about it goes untested.
+
+    # And the boundary UNDER an aggregate: group the corpus's pillars by a project's band.
+    # A group-by whose key comes from the other side of the boundary.
+    byband = Spec("stress::PL4_PillarsPerBand", "/stress/pl4",
+                  "How many curve pillars fall in each tenor band, and the rate range within "
+                  "it. The grouping key is a PROJECT attribute reached across the boundary, "
+                  "so this is a group-by whose key the corpus does not own. Two of the nine "
+                  "bands hold no pillar at all and are absent rather than zero.",
+                  "curves::CurvePoint")
+    byband.projections = [Proj("bandCode", ["tenorBucket", "band"]),
+                          Proj("zeroRate", ["zeroRate"])]
+    byband.group_by = ["bandCode"]
+    byband.aggs = [("pillars", "zeroRate", "count"),
+                   ("highestRate", "zeroRate", "max"),
+                   ("lowestRate", "zeroRate", "min")]
+    byband.sort = ("bandCode", False)
+    out.append(byband)
+
+    return out
+
+
+PROJECT_LINK = _project_link_specs()
+
+
 SPECS = (STACK + INVARIANCE + AGGREGATION
          + [XSTORE, XSTORE_PROJECTION, MODELJOIN, MEASURE,
-            CANONICAL_WITH_ENUM, OTHERWISE, CONFLUENCE]) + FIXED_INCOME + OTC + RISK + MIDDLE_OFFICE + BACK_OFFICE + MARKET_DATA + CURVES + BROKERAGE + SCHEDULE + LARGE_EXPOSURES + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
+            CANONICAL_WITH_ENUM, OTHERWISE, CONFLUENCE]) + FIXED_INCOME + OTC + RISK + MIDDLE_OFFICE + BACK_OFFICE + MARKET_DATA + CURVES + BROKERAGE + SCHEDULE + LARGE_EXPOSURES + PROJECT_LINK + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

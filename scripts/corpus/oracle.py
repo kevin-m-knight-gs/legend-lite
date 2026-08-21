@@ -2094,7 +2094,9 @@ def _derived(c: Corpus, data, row, root: str, path: list[str], hit, args=()):
     if len(args) != len(d.params):
         raise Unsupported(
             f"{cls}.{d.name} takes {len(d.params)} argument(s), given {len(args)}")
-    bound = dict(zip(d.params, args))
+    # `d.params` is (name, type) per parameter; bind on the NAME. It was a bare list of
+    # names until the generator needed the types to choose a type-correct argument.
+    bound = dict(zip((n for n, _ty in d.params), args))
     landed = walk(c, data, row, hops) if hops else row
     if landed is None:
         return None
