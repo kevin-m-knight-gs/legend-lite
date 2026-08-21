@@ -594,3 +594,31 @@ The deep-audit debts, attacked in risk order:
   consumes hops through autoMapHop, the Typer flips to explicit
   emission, rowRooted's TypeVar heuristic DELETES (the frame becomes
   syntax), and Row-vs-Relation conflation resolves with it.
+
+## D3-CLASS CLOSED AS NOT-A-DEBT (measured re-derivation, user session "lets do it")
+
+The class-side explicit-auto-map migration was EXECUTED far enough to
+learn the truth, then reverted on the evidence:
+- Flip + pathOf reader: 11 core failures → the resolver-ingress
+  chain adapter (map→chain at the front door) healed ALL core (4166/0)
+  and cut the corpus delta 65→38.
+- The surviving 38 live in channels OUTSIDE the resolver's front door
+  (assert-verdict machinery, plan-text, the qualifier inliner) —
+  finishing means teaching every typed-tree consumer the new spelling
+  OR normalizing the maps away post-typing, which makes the flip a
+  no-op with extra steps.
+- DECISIVE: the witness dumps show class-side stamps were ALREADY
+  honest pre-flip — accessProperty's compose rule IS pure's dot-rule
+  (source × member multiplicity), C2c made it frame-aware, and the
+  invariant verifies its output. The flip added ZERO invariant payoff.
+
+RULING: the class-side representation duality costs nothing observable
+— compose is the auto-map, stamps are true, the enforcer checks them.
+Purity with no payoff priced at 38-test regression risk is refused,
+the same way the blanket unwrap was. KEPT (correct regardless):
+TypedMap.singleHopProperty — the canonical single-hop reader, now a
+public fact on the node — and pathOf reading user-written map hops as
+path elements. The REAL successor arc is unchanged and now precisely
+scoped: Row-vs-Relation typing (one RelationType currently means both
+"a row" and "a table" at the same multiplicity — the ONLY remaining
+place a stamp is genuinely ambiguous, and the detective's actual home).

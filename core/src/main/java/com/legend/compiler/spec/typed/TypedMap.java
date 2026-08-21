@@ -26,4 +26,23 @@ public record TypedMap(TypedSpec source, TypedLambda mapper, ExprType info) impl
         TypedSpec.expectChildren(kids, 2, "TypedMap");
         return new TypedMap(kids.get(0), (TypedLambda) kids.get(1), info);
     }
+
+    /** The property name of a SINGLE-HOP auto-map node
+     * ({@code map(src, v|$v.prop)} — pure's dot-rule as a node, whether
+     * user-written or Typer-emitted), or null for any other shape. THE
+     * canonical link-reader (D3): a navigation path is a chain of
+     * these; the resolver's ingress adapter (Pipelines.chainForm) and
+     * the lowering's path readers consume hops ONLY through it. */
+    public static @com.legend.Nullable String singleHopProperty(TypedSpec spec) {
+        if (spec instanceof TypedMap m
+                && m.mapper() instanceof TypedLambda ml
+                && ml.body().size() == 1
+                && ml.parameters().size() == 1
+                && ml.body().get(0) instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v
+                && v.name().equals(ml.parameters().get(0))) {
+            return pa.property();
+        }
+        return null;
+    }
 }
