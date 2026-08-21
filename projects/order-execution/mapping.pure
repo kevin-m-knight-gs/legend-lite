@@ -1,0 +1,32 @@
+###Mapping
+Mapping order_execution::Mapping
+(
+   include order_core::Mapping
+   include trade_capture::Mapping
+
+   *order_execution::Fill[oexFill]: Relational
+   {
+      ~primaryKey ( [order_execution::Store]OEX_FILL.FILL_ID )
+      ~mainTable [order_execution::Store]OEX_FILL
+      fillId: [order_execution::Store]OEX_FILL.FILL_ID,
+      fillQuantity: [order_execution::Store]OEX_FILL.FILL_QUANTITY
+   }
+
+   order_execution::FillOrder: Relational
+   {
+      AssociationMapping
+      (
+         filledOrder[oexFill, ordOrder]: [order_execution::Store]@Oex_FillOrder,
+         executionFills[ordOrder, oexFill]: [order_execution::Store]@Oex_FillOrder
+      )
+   }
+
+   order_execution::FillTrade: Relational
+   {
+      AssociationMapping
+      (
+         bookedTrade[oexFill, tcTrade]: [order_execution::Store]@Oex_FillTrade,
+         executionFills2[tcTrade, oexFill]: [order_execution::Store]@Oex_FillTrade
+      )
+   }
+)

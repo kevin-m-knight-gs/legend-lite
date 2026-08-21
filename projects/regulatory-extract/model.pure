@@ -1,0 +1,6 @@
+###Pure
+
+Class regulatory_extract::RexTransactionReport
+{
+   reportId: String[1];
+}

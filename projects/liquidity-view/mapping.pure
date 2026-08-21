@@ -1,0 +1,14 @@
+###Mapping
+
+Mapping liquidity_view::Mapping
+(
+  include cash_core::Mapping
+  include funding_core::Mapping
+
+  *liquidity_view::LqvProbe[lqvProbe]: Relational
+  {
+    ~primaryKey ( [liquidity_view::Store]LQV_PROBE.PROBE_ID )
+    ~mainTable [liquidity_view::Store]LQV_PROBE
+    probeId: [liquidity_view::Store]LQV_PROBE.PROBE_ID
+  }
+)

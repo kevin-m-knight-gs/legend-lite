@@ -1,0 +1,14 @@
+###Relational
+Database collateral_opt::Store
+(
+   include collateral_core::Store
+   include index_core::Store
+
+   Table COP_PROBE
+   (
+      PROBE_ID VARCHAR(40) PRIMARY KEY,
+      AGREEMENT_ID VARCHAR(40)
+   )
+
+   Join Cop_ProbeAgreement(COP_PROBE.AGREEMENT_ID = COL_AGREEMENT.AGREEMENT_ID)
+)

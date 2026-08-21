@@ -1,0 +1,6 @@
+###Pure
+
+Class liquidity_view::LqvProbe
+{
+  probeId: String[1];
+}

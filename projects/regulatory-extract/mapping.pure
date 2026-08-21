@@ -1,0 +1,15 @@
+###Mapping
+
+Mapping regulatory_extract::Mapping
+(
+   include trade_capture::Mapping
+   include reference_data::Mapping
+   include client_core::Mapping
+
+   regulatory_extract::RexTransactionReport[rexTransaction]: Relational
+   {
+      ~primaryKey ( [regulatory_extract::Store]rex.REX_TRANSACTION.REPORT_ID )
+      ~mainTable [regulatory_extract::Store]rex.REX_TRANSACTION
+      reportId: [regulatory_extract::Store]rex.REX_TRANSACTION.REPORT_ID
+   }
+)

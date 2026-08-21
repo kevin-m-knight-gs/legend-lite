@@ -1,0 +1,22 @@
+###Mapping
+Mapping collateral_opt::Mapping
+(
+   include collateral_core::Mapping
+   include index_core::Mapping
+
+   collateral_opt::CopProbe[copProbe]: Relational
+   {
+      ~primaryKey ( [collateral_opt::Store]COP_PROBE.PROBE_ID )
+      ~mainTable [collateral_opt::Store]COP_PROBE
+      probeId: [collateral_opt::Store]COP_PROBE.PROBE_ID
+   }
+
+   collateral_opt::CopProbeAgreement: Relational
+   {
+      AssociationMapping
+      (
+         agreement[copProbe, colAgreement]: [collateral_opt::Store]@Cop_ProbeAgreement,
+         probes[colAgreement, copProbe]: [collateral_opt::Store]@Cop_ProbeAgreement
+      )
+   }
+)

@@ -1,0 +1,11 @@
+###Pure
+Class collateral_opt::CopProbe
+{
+   probeId: String[1];
+}
+
+Association collateral_opt::CopProbeAgreement
+{
+   agreement: collateral_core::ColCollateralAgreement[0..1];
+   probes: collateral_opt::CopProbe[*];
+}

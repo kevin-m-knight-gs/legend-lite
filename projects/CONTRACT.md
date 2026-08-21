@@ -95,5 +95,13 @@ Must print `compiles`. That is the whole acceptance test.
   join rather than silently dropping it, and these projects are meant to stay readable by it.
 * `||` compiles. One project reported it failing; the failure there was something else in the
   same expression, so if you hit it, narrow it before believing the operator is at fault.
+* A `~filter` reached through a JOIN needs a database pointer on BOTH sides:
+  `~filter [db]@MyJoin | [db]MyFilterRows`. Written `[db]@MyJoin | MyFilterRows` it is a parse
+  error naming neither the filter nor the project.
+* A property declared on a SUBCLASS cannot be mapped on the parent's set. Give the subclass
+  its own set (`Sub[mySub] extends [myParent]`) and map the property there. The error names
+  the property, not the set it was wrongly written in.
+* A `~distinct` set needs an explicit `~primaryKey` naming the column you are deduplicating
+  ON. Keyed on the table's own key it collapses nothing, and nothing says so.
 * Do not use the SQL type `REAL` — it is accepted by the grammar and cannot be read at
   execution (docs/UPSTREAM_FINDINGS.md F53). Use `FLOAT` or `DOUBLE`.

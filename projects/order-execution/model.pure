@@ -1,0 +1,21 @@
+###Pure
+Class order_execution::Fill
+[
+   fillQuantityIsPositive: ($this.fillQuantity > 0.0)
+]
+{
+   fillId: String[1];
+   fillQuantity: Float[1];
+}
+
+Association order_execution::FillOrder
+{
+   filledOrder: order_core::Order[0..1];
+   executionFills: order_execution::Fill[*];
+}
+
+Association order_execution::FillTrade
+{
+   bookedTrade: trade_capture::Trade[0..1];
+   executionFills2: order_execution::Fill[*];
+}

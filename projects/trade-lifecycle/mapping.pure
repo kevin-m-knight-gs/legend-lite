@@ -1,0 +1,28 @@
+###Mapping
+Mapping trade_lifecycle::Mapping
+(
+   include trade_capture::Mapping
+   include event_core::Mapping
+
+   *trade_lifecycle::TlcAmendment[tlcAmendment]: Relational
+   {
+      ~primaryKey ( [trade_lifecycle::Store]TLC_AMENDMENT.AMENDMENT_ID )
+      ~mainTable [trade_lifecycle::Store]TLC_AMENDMENT
+      amendmentId: [trade_lifecycle::Store]TLC_AMENDMENT.AMENDMENT_ID
+   }
+
+   trade_lifecycle::TlcReorgEvent[tlcReorgEvent] extends [evtBase]: Relational
+   {
+      ~filter [trade_lifecycle::Store]TlcReorgEventRows
+      exchangeRatio: [event_core::Store]EVT_CORPORATE_EVENT.SHARE_EXCHANGE_RATIO
+   }
+
+   trade_lifecycle::TlcTradeAmendments: Relational
+   {
+      AssociationMapping
+      (
+         amendedTrade[tlcAmendment, tcTrade]: [trade_lifecycle::Store]@Tlc_AmendmentTrade,
+         lifecycleAmendments[tcTrade, tlcAmendment]: [trade_lifecycle::Store]@Tlc_AmendmentTrade
+      )
+   }
+)

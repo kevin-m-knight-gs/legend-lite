@@ -1,0 +1,17 @@
+###Pure
+// probe
+Class trade_lifecycle::TlcAmendment
+{
+   amendmentId: String[1];
+}
+
+Class trade_lifecycle::TlcReorgEvent extends event_core::EvtCorporateEvent
+{
+   exchangeRatio: Float[0..1];
+}
+
+Association trade_lifecycle::TlcTradeAmendments
+{
+   amendedTrade: trade_capture::Trade[0..1];
+   lifecycleAmendments: trade_lifecycle::TlcAmendment[*];
+}

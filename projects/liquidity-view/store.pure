@@ -1,0 +1,12 @@
+###Relational
+
+Database liquidity_view::Store
+(
+  include cash_core::Store
+  include funding_core::Store
+
+  Table LQV_PROBE
+  (
+    PROBE_ID VARCHAR(20) PRIMARY KEY
+  )
+)

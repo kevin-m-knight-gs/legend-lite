@@ -1,0 +1,19 @@
+###Relational
+Database trade_lifecycle::Store
+(
+   include trade_capture::Store
+   include event_core::Store
+
+   Table TLC_AMENDMENT
+   (
+      AMENDMENT_ID VARCHAR(64) PRIMARY KEY,
+      TRADE_ID VARCHAR(64) NOT NULL,
+      SUPERSEDES_ID VARCHAR(64),
+      AMENDMENT_TYPE VARCHAR(30) NOT NULL
+   )
+
+   Join Tlc_SupersededBy(TLC_AMENDMENT.SUPERSEDES_ID = {target}.AMENDMENT_ID)
+   Join Tlc_AmendmentTrade(TLC_AMENDMENT.TRADE_ID = TC_TRADE.TRADE_ID)
+
+   Filter TlcReorgEventRows(EVT_CORPORATE_EVENT.EVENT_TYPE = 'MERGER')
+)

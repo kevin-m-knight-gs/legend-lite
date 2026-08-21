@@ -1,0 +1,17 @@
+###Relational
+
+Database regulatory_extract::Store
+(
+   include trade_capture::Store
+   include reference_data::Store
+   include client_core::Store
+
+   Schema rex
+   (
+      Table REX_TRANSACTION
+      (
+         REPORT_ID VARCHAR(40) PRIMARY KEY,
+         TRADE_ID VARCHAR(40)
+      )
+   )
+)

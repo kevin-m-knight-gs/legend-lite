@@ -1,0 +1,17 @@
+###Relational
+Database order_execution::Store
+(
+   include order_core::Store
+   include trade_capture::Store
+
+   Table OEX_FILL
+   (
+      FILL_ID VARCHAR(64) PRIMARY KEY,
+      FILL_QUANTITY DOUBLE NOT NULL,
+      ORDER_ID VARCHAR(64),
+      TRADE_ID VARCHAR(64)
+   )
+
+   Join Oex_FillOrder(OEX_FILL.ORDER_ID = ORD_ORDER.ORDER_ID)
+   Join Oex_FillTrade(OEX_FILL.TRADE_ID = TC_TRADE.TRADE_ID)
+)
