@@ -1362,6 +1362,39 @@ paired-probe pass):
    count; toOne FLOWS it, exactly the engine's compilation
    (CollectionLanes.scalarCarriedIf — typed facts only).
 
+### AUDIT OF BLOCKERS 1+2 (2026-08-21, user-directed post-landing pass)
+
+Method: executable probes + walker sweep, evidence = code and
+execution only. Nine e2e probes (zip, let-bound, eval'd thunk,
+empty-cast toOneMany, scalar-if, optional-element literal, fold-inner
+toOne) ALL pure-correct — the classifier's conservative defaults
+(TypedLet/Variable/Eval → ROW) never bite because the inliner reduces
+them before the rules run.
+
+FOUND + FIXED: `FoldToListReduce.unwrapElemRefs` claimed "EXHAUSTIVE"
+but its CheckedOne/CompactList arms were SHALLOW (the same class as
+SqlRewriter's arm fixed in b0a163af) — an elem ref under a value-lane
+guard inside a fold body stayed un-rewritten on the H2
+list-accumulator path. Both arms now recurse; zip + optional-element
+rows pinned in ToOneLaneTest.
+
+FOUND + RECORDED (no action): (a) Exists/ScalarSubquery/WindowCall
+arms in the same walker share the shallow hole PRE-EXISTING — the fold
+recognizer does not currently produce the combination; noted in-source.
+(b) h2-replay unverifiable 143→145 across Blocker 1: compacted
+carriers reaching H2 decline LOUDLY (no lambda list encoding there) —
+honest wall, not silent wrong rows; a CarrierStrategies CompactList
+strategy for H2 is a future leg. (c) CarrierStrategies' recognizers
+no-match CompactList-wrapped collects (conservative no-op; corpus
+green bounds the impact).
+
+VERIFIED CLEAN: every engine-TEXT view (DB2/Composite extend
+EngineStyleH2) renders CompactList verbatim consistently; H2 EXECUTION
+extends AnsiSqlRenderer and gets the real list_filter spelling (walls
+where unsupported); no volatile SqlFns exist for the whereSafe
+double-evaluation to bite; the Executor wall's variant/Any boundary
+mirrors the engine's SQLNull→[] vs tdsNull two-channel split.
+
 ### PROVENANCE CORRECTION (2026-08-21, owed to COMPILER_SHORTCUT_AUDIT)
 
 Egress slice A (d1c968e0) cited "engine resultSizeRange parity". The

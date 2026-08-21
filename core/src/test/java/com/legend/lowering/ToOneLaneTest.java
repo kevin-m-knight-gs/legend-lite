@@ -89,6 +89,18 @@ class ToOneLaneTest {
     }
 
     @Test
+    @DisplayName("audit row: zip raises (audit-of-blockers probe, pinned)")
+    void zipRaises() throws Exception {
+        assertSizeError("{|[1,2]->zip([3,4])->toOne()}", 2);
+    }
+
+    @Test
+    @DisplayName("compacted count: a literal of optional elements counts PRESENT")
+    void optionalElementsCountPresent() throws Exception {
+        assertEquals("a", run("{|[[]->first(), 'a']->toOne()}"));
+    }
+
+    @Test
     @DisplayName("size-1 value-lane collections extract through every shape")
     void sizeOneExtracts() throws Exception {
         assertEquals(1L, ((Number) run("{|[1,2]->slice(0,1)->toOne()}"))

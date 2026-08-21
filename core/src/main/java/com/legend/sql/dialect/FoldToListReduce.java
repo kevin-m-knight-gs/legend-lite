@@ -107,10 +107,21 @@ final class FoldToListReduce extends SqlRewriter {
             case SqlExpr.DateLit v -> v;
             case SqlExpr.TimestampLit v -> v;
             case SqlExpr.FormatLit v -> v;
+            // KNOWN HOLE (audit of Blockers 1+2): a correlated subquery
+            // inside a fold body could reference the element — these two
+            // arms do not rewrite it (pre-existing; the fold recognizer
+            // does not currently produce the combination).
             case SqlExpr.Exists x -> x;
             case SqlExpr.ScalarSubquery x -> x;
-            case SqlExpr.CheckedOne co -> co;
-            case SqlExpr.CompactList cl -> cl;
+            // guards RECURSE — the audit found these two shallow (same
+            // class as SqlRewriter's CheckedOne arm, fixed b0a163af):
+            // an elem ref under a value-lane toOne guard inside a fold
+            // body must unwrap like any other ref.
+            case SqlExpr.CheckedOne co -> new SqlExpr.CheckedOne(
+                    unwrapElemRefs(co.list(), elem),
+                    co.scalarCarrier(), co.atLeastOnly());
+            case SqlExpr.CompactList cl -> new SqlExpr.CompactList(
+                    unwrapElemRefs(cl.list(), elem));
             case SqlExpr.DeferredTdsString dtds -> dtds;
             case SqlExpr.WindowCall w -> w;
             // JSON envelope nodes never appear inside fold bodies (the
