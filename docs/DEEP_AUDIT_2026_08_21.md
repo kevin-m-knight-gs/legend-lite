@@ -508,6 +508,13 @@ runs GREEN in 780s — and two of its gates cannot report failure:
   `CorpusManifestTest.java:64-71` returns having asserted nothing, and
   reports a genuine **PASS**, not a skip, so neither the `skipped()`
   detector nor the rename-goes-red loop can see it.
+- **`nlq`'s tests are run by no gate at all.** `grep -n nlq
+  tools/allgates.sh` → nothing; CI runs `-pl core` only. Measured:
+  `mvn -o -pl nlq -am test` → **223 tests, 213 passing, 10 skipped, 0
+  failures** in ~6s. This is the inverse of the other rows here — real,
+  cheap, *passing* coverage that nothing claims, so a regression in the
+  module would be found by no automated check. Adding `nlq` to
+  `allgates.sh` is the cheapest coverage win in the repo.
 
 **`nlq/` — never audited, and it trusts the model three times:**
 
