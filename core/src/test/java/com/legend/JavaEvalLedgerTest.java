@@ -118,11 +118,11 @@ class JavaEvalLedgerTest {
             // ONE query (egress adopts result headers). The growth is
             // demand ANALYSIS (a tree scan), not evaluation — it exists
             // to DELETE a whole query from the common path.
-            // 261→263 (2026-08-20 Row-vs-Relation model B): the grid's
-            // TABLE type is now the wrapped Relation<schema> — reads
-            // spell relationSchema(...) instead of a bare instanceof
-            // (two lines of type-spelling, zero new evaluation).
-            Map.entry("core/src/main/java/com/legend/exec/RawGridSchema.java", 263),
+            // (RawGridSchema row RETIRED 2026-08-21: the rewrite pass
+            // moved to resolver/ under Invariant 7's structural guard —
+            // staged compilation; only the LIMIT-0 probe stays exec-side,
+            // pinned below as GridProbe.)
+            Map.entry("core/src/main/java/com/legend/exec/GridProbe.java", 48),
             // Phase 2: the comparison layer, size-pinned at its landing
             // 212 -> 221: assertEqWithinTolerance MIGRATED IN from the
             // harness arm (net move, not new evaluation)
@@ -334,11 +334,13 @@ class JavaEvalLedgerTest {
                     "MetamodelWalk.java", "PctProbe.java",
                     "PctRenderOption.java", "PostProcessBoundary.java",
                     "QueryPlan.java",
-                    // Phase 1c: the execution-boundary schema stamp — the
+                    // Phase 1c: the LIMIT-0 schema probe — the
                     // DynamicPivot.staticize model (a FIRST query pins a
                     // late-bound raw grid's columns; schema read only,
-                    // through ResultNav's chartered probe, never values)
-                    "RawGridSchema.java",
+                    // never values). The REWRITE pass moved to
+                    // resolver.RawGridSchema (Invariant 7, staged
+                    // compilation); only the probe stays in exec.
+                    "GridProbe.java",
                     "ResultShape.java", "Row.java", "StoreNav.java",
                     "TimingLedger.java", "package-info.java");
 

@@ -1153,3 +1153,34 @@ resolve-with-schema phase taking the PROBED column roster as input;
 the executor keeps only the JDBC probe).
 
 Referee: suite 4185/0, corpus scoreboard byte-identical.
+
+### SLICES 3+4 LANDED — ZERO PINS; the exception mechanism is DELETED
+
+Invariant 7 now reads "typed nodes are minted only by compiler layers"
+with NO doNotBelongToAnyOf clause — nothing left to abuse (user
+directive). The last two evictions:
+
+- **RawGridSchema → resolver/ (staged compilation)**: the rewrite pass
+  is parameterized by `SchemaOracle` (`sql -> columnNames`); the
+  runtime-discovered roster is an INPUT to a compiler phase run at a
+  later stage. `exec.GridProbe` (the LIMIT-0 probe, the one chartered
+  RawSql ctor) is the executor's oracle. RING worth keeping: the first
+  design kept `throws SQLException` on the oracle — F1.3's BYTECODE
+  wall rejected it (java.sql funnels to exec; even the exception TYPE
+  may not appear in the resolver), forcing the honest unchecked design
+  (executor wraps, the slice-1 Frames idiom). A guardrail refusing the
+  half-measure and producing the better architecture.
+- **AssertVerdicts → compiler.spec.VerdictQueries**: the quantified-
+  assert predicate-vector synthesis (its only 2 mint sites) is now
+  compiler emission; AssertVerdicts fetches and judges, minting
+  nothing. VerdictQueries is the SEED of the canonical-render verdicts
+  leg (that leg's target is the remaining THIRD-IMPL equality debt —
+  PureAsserts/GridCompare — which mints nothing and no ArchRule sees).
+
+Registrations paid: RawSqlLedger + JavaEvalLedger + JdbcSurfaceCensus
+rows follow the probe to GridProbe.java; the stale RawGridSchema exec
+rows deleted per the ledgers' own instructions; executeTyped method-
+size limit paid with a REAL split (gridOracle helper). Guard census
+END STATE: mints outside compiler layers = ZERO, structurally frozen.
+
+Referee: suite 4185/0, corpus scoreboard byte-identical.

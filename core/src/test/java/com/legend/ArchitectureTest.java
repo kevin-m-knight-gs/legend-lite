@@ -609,7 +609,7 @@ final class ArchitectureTest {
     void rawSqlSourceIsConstructedOnlyAtTheCharteredSeam() {
         noClasses()
             .that().haveNameNotMatching(
-                    "com\\.legend\\.(exec\\.RawGridSchema|lowering\\.Lowerer|sql\\.dialect\\.RawSqlAdapt)(\\$.*)?")
+                    "com\\.legend\\.(exec\\.GridProbe|lowering\\.Lowerer|sql\\.dialect\\.RawSqlAdapt)(\\$.*)?")
             .should().callConstructorWhere(
                     com.tngtech.archunit.core.domain.JavaCall.Predicates
                             .target(com.tngtech.archunit.core.domain
@@ -619,7 +619,7 @@ final class ArchitectureTest {
                                             .Predicates.name(
                                                     "com.legend.sql.SqlSource$RawSql"))))
             .as("Phase 1 quarantine: SqlSource.RawSql is constructed"
-                    + " ONLY by the chartered seams (RawGridSchema's"
+                    + " ONLY by the chartered seams (GridProbe's"
                     + " LIMIT-0 probe + the Lowerer TypedRawSqlRelation"
                     + " case) — it carries authored text, never"
                     + " platform-composed SQL")
@@ -757,31 +757,28 @@ final class ArchitectureTest {
      * (pattern-matching, dispatch) is fine anywhere: the executor
      * consumes the tree; it must not grow it.
      *
-     * <p>The pinned exceptions (census 2026-08-21, four; two already
-     * evicted the same day) each carry a standing justification, and the
-     * list only SHRINKS — never add a row without a necessity proof on
-     * OUR tenets (a runtime fact that cannot exist at compile time). The
-     * END STATE (user directive: zero exceptions, no exception
-     * mechanism) deletes the {@code doNotBelongToAnyOf} clause entirely:
+     * <p>ZERO exceptions BY DESIGN (user directive 2026-08-21: no pin
+     * list, no mechanism a future change can quietly grow). The
+     * original census found four violators, all evicted the same day —
+     * the eviction patterns to reuse when execution-bound facts seem to
+     * force a mint outside the compiler:
      * <ul>
-     *   <li>{@code StatementExecutor} — EVICTED (slices 1+2): splice
-     *       rules → {@code ResultEnvelopeSplice}; β-binds + call frame →
-     *       {@code UserCallInliner}; chain assembly →
-     *       {@code ExecuteChainAssembly}; seedable-let prefix →
-     *       {@code Lowerer.withSeedableLetPrefix}.</li>
-     *   <li>{@code validation.DriverPkAppend} — EVICTED: a pure
-     *       tree→tree pass, moved under {@code resolver/}.</li>
-     *   <li>{@code AssertVerdicts} — the K-arm verdict-query synthesis
-     *       (Phase-4 redesign, ratified): builds the predicate-vector
-     *       query from the assert's own typed arguments. DIES with the
-     *       canonical-render verdicts leg (synthesis becomes
-     *       compiler-owned emission; the surviving host half is a byte
-     *       compare that mints nothing).</li>
-     *   <li>{@code exec.RawGridSchema} — Phase 1c late-bound raw-grid
-     *       schema: the column roster is a RUNTIME fact (probed over the
-     *       connection). Route out: staged compilation — a
-     *       compiler-owned resolve-with-schema phase taking the probed
-     *       roster as INPUT; the executor keeps only the probe.</li>
+     *   <li>REWRITE RULES move behind an SPI the executor implements —
+     *       splice rules → {@code ResultEnvelopeSplice.Frames}
+     *       (frame lookup / JDBC frame builds stay executor-side).</li>
+     *   <li>β-machinery joins the one engine — {@code UserCallInliner}
+     *       (bindStringParam, callArgumentFrame).</li>
+     *   <li>Staged assembly splits pure-prepare / effects / pure-chain —
+     *       {@code ExecuteChainAssembly} (the executor interleaves its
+     *       execution-bound steps BETWEEN compiler calls).</li>
+     *   <li>Misfiled passes just MOVE — {@code resolver.DriverPkAppend}.</li>
+     *   <li>LATE BINDING is staged compilation — the runtime fact
+     *       becomes an INPUT: {@code resolver.RawGridSchema} takes the
+     *       probed roster through its {@code SchemaOracle};
+     *       {@code exec.GridProbe} is the executor's oracle.</li>
+     *   <li>Verdict-query synthesis is compiler emission —
+     *       {@code VerdictQueries} builds; {@code AssertVerdicts}
+     *       fetches and judges, minting nothing.</li>
      * </ul>
      */
     @Test
@@ -792,9 +789,6 @@ final class ArchitectureTest {
                     "com.legend.resolver..",
                     "com.legend.normalizer..",
                     "com.legend.lowering..")
-            .and().doNotBelongToAnyOf(
-                    com.legend.AssertVerdicts.class,
-                    com.legend.exec.RawGridSchema.class)
             .should().callCodeUnitWhere(
                     com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
                             com.tngtech.archunit.core.domain.properties.HasName

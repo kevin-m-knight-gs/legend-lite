@@ -1820,6 +1820,21 @@ final class StatementExecutor {
      * EXPLICIT mapping argument as the chain's execution context, and — for
      * a let binding — run it eagerly through the pipeline.
      */
+    /** The executor's SchemaOracle: the LIMIT-0 probe with its checked
+     * failure wrapped — F1.3 keeps the JDBC surface (its exception type
+     * included) out of the resolver. */
+    private static com.legend.resolver.RawGridSchema.SchemaOracle gridOracle(
+            java.sql.Connection connection, ExecEnv env) {
+        return sql -> {
+            try {
+                return com.legend.exec.GridProbe.probeNames(sql, connection,
+                        env.dialect());
+            } catch (java.sql.SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        };
+    }
+
     private static ExecFrame buildFrame(
             com.legend.compiler.spec.typed.TypedNativeCall ec,
             java.util.List<TypedSpec> letPrefix, boolean eager,
@@ -2329,8 +2344,10 @@ final class StatementExecutor {
         ModelContext ctx = env.ctx();
         String runtimeFqn = env.runtimeFqn();
         java.sql.Connection connection = env.connection();
-        body = com.legend.exec.RawGridSchema.stamp(body, connection,
-                env.dialect());   // late-bound grids: FIRST-query schema pin
+        // late-bound grids: FIRST-query schema pin — staged compilation:
+        // the resolver pass takes the probed roster through the oracle
+        body = com.legend.resolver.RawGridSchema.stamp(body,
+                gridOracle(connection, env));
         TypedSpec root = body.get(body.size() - 1);
         // from() is context-only, but its info is the PRE-RESOLUTION
         // declared type — kept: a primitive-many declared root whose

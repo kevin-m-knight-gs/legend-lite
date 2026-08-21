@@ -82,11 +82,12 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/StatementExecutor.java",
             "core/src/main/java/com/legend/builtin/Pure.java",
             "core/src/main/java/com/legend/exec/DynamicPivot.java",
-            // Phase 1c: the boundary schema resolver — owns the LIMIT-0
-            // probe (schema, never values; moved from deleted ResultNav).
-            // (DbMetaData row RETIRED: moved to compiler/spec/CatalogGrids
-            // — pure SQL-text composition.)
-            "core/src/main/java/com/legend/exec/RawGridSchema.java",
+            // Phase 1c: the LIMIT-0 schema probe (schema, never values;
+            // moved from deleted ResultNav; split out of RawGridSchema at
+            // the Invariant-7 staged-compilation move). (DbMetaData row
+            // RETIRED: moved to compiler/spec/CatalogGrids — pure
+            // SQL-text composition.)
+            "core/src/main/java/com/legend/exec/GridProbe.java",
             // Phase 2: the platform assert family — java.sql VALUE KINDS
             // only (Timestamp/Date arms of the ONE equality owner);
             // no connection ever reaches it
