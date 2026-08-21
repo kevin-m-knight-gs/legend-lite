@@ -1390,6 +1390,29 @@ The guards now cover the code they claim to govern:
   CorpusSoftCeilingTest — which read the committed markdown and could
   never go red in CI — is DELETED.
 
+### R1 LANDED (2026-08-21): the World-2 paired-probe guard
+
+`VerdictWorld2ConsistencyTest` — chartered in HOST_LOGIC_AUDIT ("the
+guard that keeps it fixed") and unbuilt until the shortcut audit called
+it out; ratified item d, WIDENED to the egress arms. The pairwise
+equality lattice stays with its OWNER (`EqualityWorldsConformanceTest`,
+the Clause-2c two-worlds fixture — R1 extended it with the
+integral×Decimal agree row and the 2-ULP declared-divergence row
+rather than duplicating). The new test owns: total order (host sort
+canonicalization vs compiled sort), the §6 decodeAny egress probe
+(Decimal-through-Any precision loss made VISIBLE, pinned to flip when
+the carrier heals), and the §5 cross-notion seal
+(collection/size/at/indexOf/toOne must tell ONE story over a carrier
+holding empties).
+
+**The instrument caught two live inconsistencies on its first run**:
+size()=2 and indexOf mis-based over `[[]->first(),'a']` while at(0)
+extracted correctly — the §5 rule missing at the counting/positional
+consumers. Fixed via `CollectionLanes.compactIfValueLane` at the
+size/at/indexOf rules (identity on definite lists, engine-TEXT
+verbatim — zero golden movement). Divergence rows are two-sided: AGREE
+rows fail on divergence, KNOWN rows fail when they START agreeing.
+
 ### AUDIT OF BLOCKERS 1+2 (2026-08-21, user-directed post-landing pass)
 
 Method: executable probes + walker sweep, evidence = code and

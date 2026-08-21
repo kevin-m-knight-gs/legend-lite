@@ -433,10 +433,9 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 // AGG-STRIP (stamp C2): a LIST-collecting subquery
                 // operand becomes the NATIVE scalar subquery — SQL's
-                // own checked toOne (>1 raises; 0 -> NULL rides, the
-                // row-lane convention, ADJUDICATED: NULL cell == empty
-                // there, so a COMPACTED carrier (audit §5) strips
-                // through its wrapper).
+                // own checked toOne (row-lane flow convention,
+                // ADJUDICATED: NULL cell == empty; compacted carriers
+                // strip through their wrapper).
                 SqlExpr stripped = aggStrip(
                         args.get(0) instanceof SqlExpr.CompactList cpl
                                 ? cpl.list() : args.get(0));
@@ -451,12 +450,9 @@ final class Scalars {
                             "Cannot cast a collection of size 0 to"
                             + " multiplicity [1]"));
                 }
-                // VALUE-LANE collections carry pure's raising semantics
-                // — size != 1 raises in the database with pure's
-                // message. Lane from the TYPED OPERAND (CollectionLanes,
-                // audit §1a — the old SQL-shape sniff shared its blind
-                // spots with the stamp census); the guard counts the
-                // COMPACTED carrier (pure size = PRESENT elements);
+                // VALUE-LANE collections raise pure's size error in the
+                // database. Lane from the TYPED OPERAND (CollectionLanes
+                // — audit §1a); the guard counts the COMPACTED carrier;
                 // scalar-carried ifs FLOW (no list to count).
                 if (m.isMany() && CollectionLanes.valueLane(n.args().get(0))
                         && !CollectionLanes.scalarCarriedIf(
@@ -495,8 +491,7 @@ final class Scalars {
                             + " multiplicity [1..*]"));
                 }
                 // TYPED-operand lane — exactly as toOne above
-                if (m.isMany()
-                        && CollectionLanes.valueLane(n.args().get(0))
+                if (m.isMany() && CollectionLanes.valueLane(n.args().get(0))
                         && !CollectionLanes.scalarCarriedIf(
                                 n.args().get(0))) {
                     return new SqlExpr.CheckedOne(
@@ -923,8 +918,12 @@ final class Scalars {
                             SqlExpr.Call.of(SqlFn.IS_NULL, args.get(0)),
                             new SqlExpr.IntLit(0))), new SqlExpr.IntLit(1));
                 }
+                // §5 at the counting consumer (R1 instrument catch:
+                // size()=2 vs at(0)='a' over [[]->first(),'a'])
                 return SqlExpr.Call.of(SqlFn.COALESCE,
-                        SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)),
+                        SqlExpr.Call.of(SqlFn.LIST_LENGTH,
+                                CollectionLanes.compactIfValueLane(
+                                        n.args().get(0), args.get(0))),
                         new SqlExpr.IntLit(0));
             });
         }
@@ -1409,12 +1408,10 @@ final class Scalars {
         }
         // RELATIONAL substring = VERBATIM SQL substring(start, length)
         // passthrough (engine goldens pass args unshifted; diverges from
-        // platform pure's 0-based).
+        // platform pure's 0-based). ONE verbatim emission (Phase 1
+        // audit): the DuckDB start-clamp is SubstringClamp, that
+        // dialect's own rewrite pass.
         for (String f : Pure.nativeKeysAt("substring")) {
-            // ONE verbatim emission (Phase 1 audit): the DuckDB
-            // start-clamp is that dialect's OWN rewrite pass
-            // (SubstringClamp in DuckDb.passes()) — the last
-            // dialect-mode branch left this layer
             RULES.put(f, (n, args) ->
                     new SqlExpr.Call(SqlFn.SUBSTRING, args));
         }
@@ -1430,12 +1427,17 @@ final class Scalars {
                         && pb.upper() != null && pb.upper() <= 1);
                 if (listCallee || n.args().get(0).info().type() != Type.Primitive.STRING) {
                     // LIST indexOf: 0-based, -1 on a miss; the operand
-                    // conforms to the list contract by stamp (asList).
+                    // conforms to the list contract by stamp (asList)
+                    // and COMPACTS on the value lane (§5 positional
+                    // consumer — R1 instrument).
                     return new SqlExpr.Call(SqlFn.MINUS, List.of(
                             new SqlExpr.Call(SqlFn.COALESCE, List.of(
                                     new SqlExpr.Call(SqlFn.LIST_POSITION,
-                                            List.of(PureSql.asList(args.get(0),
-                                                    !isToOne(n.args().get(0))),
+                                            List.of(CollectionLanes
+                                                    .compactIfValueLane(
+                                                            n.args().get(0),
+                                                    PureSql.asList(args.get(0),
+                                                    !isToOne(n.args().get(0)))),
                                                     args.get(1))),
                                     new SqlExpr.IntLit(0))),
                             new SqlExpr.IntLit(1)));
@@ -1478,8 +1480,11 @@ final class Scalars {
                         && args.get(1) instanceof SqlExpr.IntLit i && i.value() == 0) {
                     return args.get(0);
                 }
-                // OUT-OF-BOUNDS raises real pure's message, in the database
-                SqlExpr size = SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0));
+                // OUT-OF-BOUNDS raises pure's message in the database;
+                // §5: the positional read consumes the COMPACTED carrier
+                SqlExpr op = CollectionLanes.compactIfValueLane(
+                        n.args().get(0), args.get(0));
+                SqlExpr size = SqlExpr.Call.of(SqlFn.LIST_LENGTH, op);
                 SqlExpr oob = SqlExpr.Call.of(SqlFn.OR,
                         SqlExpr.Call.of(SqlFn.GREATER_EQUAL, args.get(1), size),
                         SqlExpr.Call.of(SqlFn.LESS, args.get(1), new SqlExpr.IntLit(0)));
@@ -1490,7 +1495,7 @@ final class Scalars {
                                 new SqlExpr.StringLit(" where the collection is of size "),
                                 str(size)),
                         new SqlExpr.Call(SqlFn.LIST_GET,
-                                List.of(args.get(0), plusOne(args.get(1)))));
+                                List.of(op, plusOne(args.get(1)))));
             });
         }
         // list(items): the List<T> CARRIER — at SQL level the list value

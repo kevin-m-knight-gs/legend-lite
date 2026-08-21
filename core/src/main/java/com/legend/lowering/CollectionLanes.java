@@ -106,6 +106,20 @@ final class CollectionLanes {
         };
     }
 
+    /** The §5 rule at a VALUE-LANE consumer: positional/counting reads
+     * (size/at/indexOf — the ops SQL does not null-skip) consume the
+     * COMPACTED carrier, because pure collections hold no empties and a
+     * literal of {@code [0..1]} reads carries NULL slots for the empty
+     * ones. Identity on definite lists; engine-TEXT renders the wrapper
+     * verbatim (no golden movement). Row-lane operands ride through —
+     * their carriers compact at the collect (Blocker 1). */
+    static com.legend.sql.SqlExpr compactIfValueLane(TypedSpec typedOp,
+            com.legend.sql.SqlExpr arg) {
+        return valueLane(typedOp) && !scalarCarriedIf(typedOp)
+                ? new com.legend.sql.SqlExpr.CompactList(arg)
+                : arg;
+    }
+
     /** An if whose branch thunks are ALL to-one-stamped lowers on the
      * SCALAR carrier (MixedEncoding.lubCase — a bare CASE), a loose
      * {@code [*]} outer stamp notwithstanding: there is no list to

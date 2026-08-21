@@ -84,6 +84,9 @@ class EqualityWorldsConformanceTest {
                 java.sql.Date.valueOf("2014-01-02"));
         agree(true, "3.0d", "3.00d",
                 new java.math.BigDecimal("3.0"), new java.math.BigDecimal("3.00"));
+        // R1 widening: integral vs Decimal is NUMERIC in both worlds
+        // (PCT testIntToDecimal is the spec witness)
+        agree(true, "8", "8D", 8L, new java.math.BigDecimal("8"));
     }
 
     @Test
@@ -99,5 +102,11 @@ class EqualityWorldsConformanceTest {
         // STATIC [] == [] arm answers true, this pins the RUNTIME path)
         diverge(true, null, "[]->head()", "[]->head()", null, null,
                 "SQL NULL vs pure true — recorded Phase-2 residual");
+        // R1 widening: the 2-ULP arithmetic leniency is World 1's
+        // DECLARED numeric policy (outside the byte channel — R0);
+        // World 2's IEEE compare is exact. R3's census decides
+        // retire-vs-keep; a healed row tightens here.
+        diverge(true, false, "(0.1 + 0.2)", "0.3", 0.1d + 0.2d, 0.3d,
+                "2-ULP declared policy vs exact IEEE compare");
     }
 }
