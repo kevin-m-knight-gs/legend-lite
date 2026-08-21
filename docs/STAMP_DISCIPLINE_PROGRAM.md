@@ -560,3 +560,37 @@ END STATE REACHED: zero shape-decision consumers in production, zero
 invariant skips, one positive carrier table the enforcer CHECKS, and
 no mechanism left to abuse. Shape classification exists only as the
 throwing invariant's private evidence.
+
+## AUDIT BURN (user: "burn them all down") — D1/D4 LANDED, D2/D3 CHARTERED BY MEASUREMENT
+
+The deep-audit debts, attacked in risk order:
+- **D4 LANDED**: ONE stamp authority (lowering/Stamps — toOne preserved
+  VERBATIM for reduction identity arms vs atMostOne for collection
+  ops/frames; the refactor caught its own near-bug: blanket-widening
+  would have broken reduction EMPTY-IDENTITIES). DISCOVERED FORK
+  recorded in Stamps: runtime-empty [0..1] reductions already yield
+  NULL where pure defines an identity (and([])=true, joinStrings([])=
+  '') — pinned nowhere, owned by the PCT lane. C1 collapse predicate
+  stated once (ValueCollections.c1Singleton).
+- **D1 LANDED**: SqlExpr.CheckedOne — checked narrowing as ONE semantic
+  node, spelled by the DIALECT layer (execution = pure's size guard;
+  engine-TEXT = verbatim processNoOp view); Scalars.checkedExtract
+  deleted, the ratchet's re-absorption promise fulfilled (129→127).
+  The subquery-collect strip's DB-native message stays: engine-verbatim,
+  corpus-pinned — spec, not debt.
+- **D2/D3 MEASURED, then CHARTERED (not half-landed)**: the explicit
+  auto-map probe (accessProperty emitting map(recv, v|$v.prop) for
+  many class receivers, mirroring the derived arm) costs 11/4166 core
+  and **~65 corpus regressions across 16 families** (milestoning,
+  association, inheritance, graphFetch, sqlDialectTranslation,
+  executionPlan…) — the resolver's ~115 chain-match sites are
+  load-bearing across the drop-in surface. Same evidence shape that
+  rightly killed the blanket toOne unwrap: this is a per-walker
+  MIGRATION ARC, corpus-refereed per slice. GROUNDWORK KEPT:
+  ValueCollections.autoMapHop is THE canonical single-hop link reader,
+  and pathOf is the first migrated walker (it now also reads
+  user-written map hops as path elements — strictly more correct
+  today). The migration's definition of done: every chain walker
+  consumes hops through autoMapHop, the Typer flips to explicit
+  emission, rowRooted's TypeVar heuristic DELETES (the frame becomes
+  syntax), and Row-vs-Relation conflation resolves with it.

@@ -3019,14 +3019,21 @@ public final class Lowerer {
                 SqlSource.Join.Kind.LEFT_LATERAL, new SqlExpr.BoolLit(true));
     }
 
-    /** A colspec body as a bare property path rooted at the lambda parameter; null = computed. */
+    /** A colspec body as a bare property path (null = computed). A
+     * path IS a chain of auto-maps: plain access OR single-hop map
+     * node (ValueCollections.autoMapHop). */
     private static @com.legend.Nullable List<String> pathOf(TypedFuncCol col) {
         String param = col.fn().parameters().get(0);
         ArrayDeque<String> path = new ArrayDeque<>();
         TypedSpec cur = col.fn().body().get(col.fn().body().size() - 1);
-        while (cur instanceof TypedPropertyAccess pa) {
-            path.addFirst(pa.property());
-            cur = pa.source();
+        while (true) {
+            if (cur instanceof TypedPropertyAccess pa) {
+                path.addFirst(pa.property());
+                cur = pa.source();
+            } else if (ValueCollections.autoMapHop(cur) instanceof String hop) {
+                path.addFirst(hop);
+                cur = ((TypedMap) cur).source();
+            } else break;
         }
         if (!(cur instanceof TypedVariable v) || !v.name().equals(param) || path.isEmpty()) {
             return null;   // COMPUTED body — the caller lowers it as a scalar
