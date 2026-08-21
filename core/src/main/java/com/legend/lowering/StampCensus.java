@@ -135,7 +135,16 @@ public final class StampCensus {
                         && listValuedSubquery(sq))
                 || (e instanceof SqlExpr.Cast ct
                         && ct.target() instanceof com.legend.sql.SqlType.Array)
-                || (e instanceof SqlExpr.Call c && c.fn().producesList());
+                || (e instanceof SqlExpr.Call c && c.fn().producesList())
+                // a CASE is list-shaped when every branch is (audit §1a
+                // stopgap: slice's bound-check wrapper and lowered ifs
+                // were the census's blind spot — shared with the old
+                // toOne rule, which now decides from the TYPED node)
+                || (e instanceof SqlExpr.Case cs
+                        && cs.whens().stream()
+                                .allMatch(w -> listShaped(w.then()))
+                        && cs.otherwise() != null
+                        && listShaped(cs.otherwise()));
     }
 
     /** A scalar subquery whose single projection is a LIST-building

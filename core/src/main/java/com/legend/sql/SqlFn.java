@@ -93,9 +93,15 @@ public enum SqlFn {
      * chunk()->sort(), split(':')->sort()->joinStrings). */
     public boolean producesList() {
         return switch (this) {
-            case LIST_CONCAT, LIST_TRANSFORM, LIST_SORT, LIST_FILTER,
-                    LIST_TAIL, LIST_INIT, LIST_SLICE, LIST_APPEND,
-                    LIST_FLATTEN, LIST_DISTINCT, LIST_REVERSE, LIST_ZIP,
+            // LIST_SORT_DESC + RANGE_FN joined 2026-08-21 (shortcut
+            // audit §1a: ascending and descending sort had DIFFERENT
+            // safety guarantees; range() was unlisted). This is honest
+            // function METADATA — the toOne lane itself now decides
+            // from the TYPED operand (CollectionLanes), not from here.
+            case LIST_CONCAT, LIST_TRANSFORM, LIST_SORT, LIST_SORT_DESC,
+                    LIST_FILTER, LIST_TAIL, LIST_INIT, LIST_SLICE,
+                    LIST_APPEND, LIST_FLATTEN, LIST_DISTINCT,
+                    LIST_REVERSE, LIST_ZIP, RANGE_FN,
                     MAP_KEYS, MAP_VALUES, REGEXP_EXTRACT_ALL, SPLIT -> true;
             default -> false;
         };

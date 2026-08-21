@@ -1319,6 +1319,49 @@ adv-pass 293->303. Pass baseline unchanged (2332); PCT unchanged
 (`Fold.cellPresentFiltered`) — the subselect wrap survives only where
 a WHERE is not clause-equivalent (grouping/window/LIMIT).
 
+### SHORTCUT-AUDIT BLOCKER 2 LANDED (2026-08-21): toOne lane from the TYPED node
+
+Audit §1a, ratified work order item 2b. `toOne`/`toOneMany` pick their
+checked lane from the OPERAND'S TYPED PROVENANCE (`CollectionLanes.
+valueLane` — literals/if-branches/native-transforms over value
+collections = VALUE lane, pure raising semantics; store/relation-rooted
+reads and unknown binders = ROW lane, the engine's processNoOp flow,
+default-conservative). The SQL-shape sniff (`instanceof ArrayLit ||
+producesList()`) is DELETED from the rules — it shared its evidence
+procedure with `StampCensus.listShaped`, so the "always-on" invariant
+fired zero times on the very shapes the rule missed (the audit's
+tautology, concrete form).
+
+Audit table now pins in `ToOneLaneTest` (e2e DuckDB, census-registered):
+slice's Case wrapper, lowered ifs, `range()`, descending sort and
+`reverse()` all raise pure's size error IN THE DATABASE; size-1 shapes
+extract. Census strengthened in the same slice (the ratified stopgap,
+now defense-in-depth rather than the decision procedure):
+`producesList` += RANGE_FN + LIST_SORT_DESC (the asc/desc guarantee
+asymmetry), `listShaped` += Case-of-list-branches + CompactList.
+
+ROW-lane note: shapes the old sniff accidentally checked (a row-lane
+`->sort()->toOne()` emitting LIST_SORT) now FLOW — that IS the
+engine's relational lane; the corpus referees the parity.
+
+THREE RULES THE REFEREE TAUGHT (one milestoning witness,
+testIsolationOfMilestoningFiltersReferencedInAllPartsOfIfStmt, three
+consecutive gate rounds — each grounded in the engine golden or pure
+semantics, NOT in making the test pass; flagged for the R1
+paired-probe pass):
+1. The value-lane guard counts the COMPACTED carrier
+   (CheckedOne(CompactList(x))) — pure's size is over PRESENT
+   elements; SQL list slots include NULLs for empty [0..1] reads.
+2. A collection LITERAL carries its ELEMENTS' lane — [$p.a, $p.b] is
+   the engine's relational lane (flow), [1,2] is the value lane
+   (raise); §4 per-lane ruling, engine-relational is the target.
+3. if() arrives as a NATIVE with zero-param thunks (thunk bodies carry
+   the lane; parameterized lambdas stay excluded), and an if whose
+   branches are ALL to-one-stamped lowers on the SCALAR carrier
+   (bare CASE, loose [*] stamp notwithstanding) — no list exists to
+   count; toOne FLOWS it, exactly the engine's compilation
+   (CollectionLanes.scalarCarriedIf — typed facts only).
+
 ### PROVENANCE CORRECTION (2026-08-21, owed to COMPILER_SHORTCUT_AUDIT)
 
 Egress slice A (d1c968e0) cited "engine resultSizeRange parity". The

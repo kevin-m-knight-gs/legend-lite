@@ -127,6 +127,10 @@ class JdbcSurfaceCensusTest {
             // e2e over a DuckDB session (size/at/toOne must agree ON THE
             // DATABASE — the bug was SQL-vs-egress disagreement)
             "core/src/test/java/com/legend/lowering/OptionalCollectionNullDropTest.java",
+            // shortcut audit §1a: the typed-lane toOne pins raise pure's
+            // size errors IN THE DATABASE — the assertion is the DB's
+            // own error message, so the session is the test subject
+            "core/src/test/java/com/legend/lowering/ToOneLaneTest.java",
             "core/src/test/java/com/legend/JdbcSurfaceCensusTest.java",
             "core/src/test/java/com/legend/AuditRound3Test.java",
             // multiplicity audit slice 2: the strictness negative

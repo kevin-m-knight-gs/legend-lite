@@ -451,13 +451,18 @@ final class Scalars {
                             "Cannot cast a collection of size 0 to"
                             + " multiplicity [1]"));
                 }
-                // VALUE-LANE lists (literals and list-producing calls)
-                // carry pure's raising semantics — size != 1 raises in
-                // the database with pure's message.
-                if (args.get(0) instanceof SqlExpr.ArrayLit
-                        || (args.get(0) instanceof SqlExpr.Call lc
-                                && lc.fn().producesList())) {
-                    return new SqlExpr.CheckedOne(args.get(0));
+                // VALUE-LANE collections carry pure's raising semantics
+                // — size != 1 raises in the database with pure's
+                // message. Lane from the TYPED OPERAND (CollectionLanes,
+                // audit §1a — the old SQL-shape sniff shared its blind
+                // spots with the stamp census); the guard counts the
+                // COMPACTED carrier (pure size = PRESENT elements);
+                // scalar-carried ifs FLOW (no list to count).
+                if (m.isMany() && CollectionLanes.valueLane(n.args().get(0))
+                        && !CollectionLanes.scalarCarriedIf(
+                                n.args().get(0))) {
+                    return new SqlExpr.CheckedOne(
+                            new SqlExpr.CompactList(args.get(0)));
                 }
                 // Everything else — [0..1] scalar reads AND many-stamped
                 // ROW-LANE collections (correlated navigations, window
@@ -489,10 +494,13 @@ final class Scalars {
                             "Cannot cast a collection of size 0 to"
                             + " multiplicity [1..*]"));
                 }
-                if (args.get(0) instanceof SqlExpr.ArrayLit
-                        || (args.get(0) instanceof SqlExpr.Call lc2
-                                && lc2.fn().producesList())) {
-                    return new SqlExpr.CheckedOne(args.get(0), false,
+                // TYPED-operand lane — exactly as toOne above
+                if (m.isMany()
+                        && CollectionLanes.valueLane(n.args().get(0))
+                        && !CollectionLanes.scalarCarriedIf(
+                                n.args().get(0))) {
+                    return new SqlExpr.CheckedOne(
+                            new SqlExpr.CompactList(args.get(0)), false,
                             true /* at least one */);
                 }
                 if (m.isMany()) {
@@ -1538,7 +1546,7 @@ final class Scalars {
                     return new SqlExpr.ArrayLit(List.of(args.get(0)));
                 }
                 if (args.size() < 2 || isEqualityComparator(n.args().get(n.args().size() - 1))) {
-                    return orderedDedup(args.get(0));
+                    return ListEncodings.orderedDedup(args.get(0));
                 }
                 if (!(args.get(args.size() - 1) instanceof SqlExpr.Lambda eq)
                         || eq.params().size() != 2) {
@@ -1569,7 +1577,7 @@ final class Scalars {
                 // list-lambda binder)
                 (n, args) -> isToOne(n.args().get(0))
                         ? new SqlExpr.ArrayLit(List.of(args.get(0)))
-                        : orderedDedup(args.get(0)));
+                        : ListEncodings.orderedDedup(args.get(0)));
         // print/println inside an expression (map(r|println(...))): the
         // NO-OP doctrine (StatementExecutor's print arm) — the value is
         // the Nil[0] cell, NULL; the argument is pure SQL computation and
@@ -2572,19 +2580,6 @@ final class Scalars {
         return arg.info().multiplicity().isMany();
     }
 
-    /**
-     * FIRST-OCCURRENCE dedup (real removeDuplicates semantics — its PCT
-     * asserts order without sorting). LIST_DISTINCT is UNORDERED in DuckDB;
-     * keep element x at 1-based index i iff its first position is i.
-     */
-    private static SqlExpr orderedDedup(SqlExpr list) {
-        return new SqlExpr.Call(SqlFn.LIST_FILTER, List.of(list,
-                new SqlExpr.Lambda(List.of("_ddx", "_ddi"),
-                        new SqlExpr.Call(SqlFn.EQUAL, List.of(
-                                SqlExpr.Call.of(SqlFn.LIST_POSITION, list,
-                                        new SqlExpr.Column(null, "_ddx")),
-                                new SqlExpr.Column(null, "_ddi"))))));
-    }
 
 
     /**
