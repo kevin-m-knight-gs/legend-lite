@@ -27,7 +27,7 @@ final class ConstBounds {
         if (spec instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
                 && !nc.args().isEmpty()
                 && ("meta::pure::functions::collection::first".equals(nc.callee().qualifiedName())
-                        || "meta::pure::functions::multiplicity::toOne".equals(nc.callee().qualifiedName()))) {
+                        || com.legend.builtin.Pure.isToOneCall(nc.callee().qualifiedName()))) {
             return intOf(nc.args().get(0));
         }
         if (spec instanceof com.legend.compiler.spec.typed.TypedCollection tc

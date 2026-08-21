@@ -33,8 +33,7 @@ final class RelationPredicates {
      * here after resolution; the inner dispatch stays loud when
      * the arg is genuinely not relation-lowerable). */
     static boolean isRelationToOne(TypedNativeCall nc) {
-        return "meta::pure::functions::multiplicity::toOne"
-                        .equals(nc.callee().qualifiedName())
+        return com.legend.builtin.Pure.isToOneCall(nc.callee().qualifiedName())
                 && nc.args().size() == 1;
     }
 

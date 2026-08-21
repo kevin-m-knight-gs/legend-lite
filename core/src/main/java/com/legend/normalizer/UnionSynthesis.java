@@ -947,7 +947,7 @@ final class UnionSynthesis {
                     // toOne types both threads identically (literal vs NULL
                     // cast); lowering is erasure — the witness stays NULL
                     ValueSpecification w = own ? new CBoolean(true)
-                            : new AppliedFunction("toOne", List.of(
+                            : new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(
                                     new AppliedFunction("cast", List.of(
                                             new PureCollection(List.of()),
                                             new TypeAnnotation.Named(
@@ -981,7 +981,7 @@ final class UnionSynthesis {
                             new TypeAnnotation.Named(
                                     new TypeExpression.NameRef("String"))));
                 }
-                value = new AppliedFunction("toOne", List.of(value));
+                value = new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(value));
                 cols.add(new ColSpec(ClassMapping.subTypeColumn(stEn.getKey(), prop),
                         new LambdaFunction(List.of(pp.rowBind()),
                                 List.of(value)), null));
@@ -1018,7 +1018,7 @@ final class UnionSynthesis {
                     new TypeAnnotation.Named(
                             new TypeExpression.NameRef("String"))));
         }
-        value = new AppliedFunction("toOne", List.of(value));
+        value = new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(value));
         cols.add(new ColSpec(ClassMapping.subTypeColumn(target, flatProp),
                 new LambdaFunction(List.of(pp.rowBind()),
                         List.of(value)), null));
@@ -1191,7 +1191,7 @@ final class UnionSynthesis {
                 // every member column aligns to [1] (toOne types both sides
                 // identically; lowering is erasure — the union's SQL columns
                 // are nullable regardless, engine parity)
-                value = new AppliedFunction("toOne", List.of(value));
+                value = new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(value));
                 cols.add(new ColSpec(prop, new LambdaFunction(
                         List.of(pp.rowBind()), List.of(value)), null));
             }
@@ -1210,7 +1210,7 @@ final class UnionSynthesis {
                                     key.getKey(), md, model);
                     // toOne types both threads identically (real read vs
                     // NULL cast); lowering is erasure — the key stays NULL
-                    read = new AppliedFunction("toOne", List.of(read));
+                    read = new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(read));
                     cols.add(new ColSpec(key.getValue(), new LambdaFunction(
                             List.of(pp.rowBind()), List.of(read)), null));
                 }
@@ -1356,7 +1356,7 @@ final class UnionSynthesis {
                                 new TypeAnnotation.Named(
                                         new TypeExpression.NameRef(kind))));
                     }
-                    read = new AppliedFunction("toOne", List.of(read));
+                    read = new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(read));
                     cols.add(new ColSpec(key.getValue(), new LambdaFunction(
                             List.of(pp.rowBind()), List.of(read)), null));
                 }
@@ -1488,7 +1488,7 @@ final class UnionSynthesis {
                             new TypeAnnotation.Named(
                                     new TypeExpression.NameRef("String"))));
                 }
-                sv = new AppliedFunction("toOne", List.of(sv));
+                sv = new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(sv));
                 cols.add(new ColSpec(embCol(epath, sub),
                         new LambdaFunction(List.of(pp.rowBind()),
                                 List.of(sv)), null));

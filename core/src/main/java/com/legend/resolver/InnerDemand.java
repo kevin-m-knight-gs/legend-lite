@@ -90,8 +90,7 @@ final class InnerDemand {
         }
         TypedSpec bb = b0;
         if (bb instanceof TypedNativeCall w && w.args().size() == 1
-                && w.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")) {
+                && com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())) {
             bb = w.args().get(0);
         }
         return bb instanceof TypedPropertyAccess pa1
@@ -212,7 +211,7 @@ final class InnerDemand {
         TypedSpec inner = binding;
         if (inner instanceof TypedNativeCall c
                 && c.args().size() == 1
-                && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
+                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
             inner = c.args().get(0);
         }
         if (inner instanceof TypedPropertyAccess pa
@@ -271,8 +270,7 @@ final class InnerDemand {
                 src = p.source();
             }
             while (src instanceof TypedNativeCall w && w.args().size() == 1
-                    && (w.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")
+                    && (com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())
                         || w.callee().qualifiedName().equals(
                             "meta::pure::functions::collection::first")
                         || w.callee().qualifiedName().equals(
@@ -437,8 +435,7 @@ final class InnerDemand {
             // filter chain (same recognizer — they must not drift)
             TypedSpec src = pna.source();
             while (src instanceof TypedNativeCall w && w.args().size() == 1
-                    && (w.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")
+                    && (com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())
                         || w.callee().qualifiedName().equals(
                             "meta::pure::functions::collection::first")
                         || w.callee().qualifiedName().equals(
@@ -468,8 +465,7 @@ final class InnerDemand {
     static TypedSpec instanceProjectSource(TypedProject tp) {
         TypedSpec src = tp.source();
         while (src instanceof TypedNativeCall w && w.args().size() == 1
-                && (w.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
+                && (com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())
                     || w.callee().qualifiedName().equals(
                         "meta::pure::functions::collection::first")
                     || w.callee().qualifiedName().equals(

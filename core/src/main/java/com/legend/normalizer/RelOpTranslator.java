@@ -141,7 +141,7 @@ final class RelOpTranslator {
                     // get the scalar conform.
                     return targetVarOrNull == null
                             && a instanceof RelationalOperation.ColumnRef
-                            ? new AppliedFunction("toOne", List.of(t)) : t;
+                            ? new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(t)) : t;
                 })
                 .toList();
     }
@@ -151,7 +151,7 @@ final class RelOpTranslator {
      * lowering's erasure makes toOne free) — ONE spelling for every
      * dyna emission whose pure counterpart is strict [1]. */
     private static ValueSpecification toOne(ValueSpecification v) {
-        return new AppliedFunction("toOne", List.of(v));
+        return new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(v));
     }
 
     private static List<ValueSpecification> toOneAll(List<ValueSpecification> vs) {
@@ -473,7 +473,7 @@ final class RelOpTranslator {
                     // otherwise infect the whole arithmetic chain with [*]
                     // (SQL null-propagates; erasure makes toOne free)
                     new AppliedFunction("indexOf", List.of(
-                            new AppliedFunction("toOne", List.of(
+                            new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(
                                     translate(call.args().get(1), tableScope,
                                             targetVarOrNull, rowBindOrNull,
                                             pipeline))),
@@ -545,7 +545,7 @@ final class RelOpTranslator {
                             targetVarOrNull, rowBindOrNull, pipeline);
                     return targetVarOrNull == null
                             && o instanceof RelationalOperation.ColumnRef
-                            ? new AppliedFunction("toOne", List.of(t)) : t;
+                            ? new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(t)) : t;
                 };
                 AppliedFunction c = new AppliedFunction(
                         comparisonFn(cmp.op()),

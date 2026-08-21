@@ -3149,8 +3149,7 @@ final class StatementExecutor {
      * ZERO-row lower bound. */
     private static void enforceToOneReader(TypedSpec root, ExecutionResult res) {
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall tw
-                && "meta::pure::functions::multiplicity::toOne"
-                        .equals(tw.callee().qualifiedName())
+                && com.legend.builtin.Pure.isToOneCall(tw.callee().qualifiedName())
                 && !tw.args().isEmpty()
                 && com.legend.compiler.element.type.Type
                         .isRelation(tw.args().get(0).info().type())

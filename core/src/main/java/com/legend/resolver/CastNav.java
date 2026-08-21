@@ -79,8 +79,7 @@ final class CastNav {
     private static @com.legend.Nullable TypedSpec unwrapToOne(
             @com.legend.Nullable TypedSpec v) {
         return v instanceof TypedNativeCall c && c.args().size() == 1
-                && c.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
+                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())
                 ? c.args().get(0) : v;
     }
 

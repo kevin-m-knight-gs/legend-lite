@@ -61,8 +61,7 @@ final class CastPolicy {
             SqlExpr lowered, TypedSpec other) {
         TypedSpec t = typed;
         while (t instanceof TypedNativeCall nc && !nc.args().isEmpty()
-                && "meta::pure::functions::multiplicity::toOne"
-                        .equals(nc.callee().qualifiedName())) {
+                && com.legend.builtin.Pure.isToOneCall(nc.callee().qualifiedName())) {
             t = nc.args().get(0);
         }
         if (t instanceof TypedCast tc && tc.wire()
@@ -94,8 +93,7 @@ final class CastPolicy {
             return cellRootUnwrapWire(tc.source());
         }
         if (b instanceof TypedNativeCall nc
-                && "meta::pure::functions::multiplicity::toOne"
-                        .equals(nc.callee().qualifiedName())
+                && com.legend.builtin.Pure.isToOneCall(nc.callee().qualifiedName())
                 && !nc.args().isEmpty()) {
             TypedSpec inner = cellRootUnwrapWire(nc.args().get(0));
             if (inner != nc.args().get(0)) {

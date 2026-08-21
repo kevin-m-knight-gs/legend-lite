@@ -119,8 +119,7 @@ final class Pipelines {
     static TypedSpec unwrapToOne(TypedSpec n) {
         return n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                 && c.args().size() == 1
-                && c.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
+                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())
                 ? c.args().get(0) : n;
     }
 

@@ -71,7 +71,9 @@ class JavaEvalLedgerTest {
             // ambiguity, not evaluation
             Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java", 850),
             Map.entry("core/src/main/java/com/legend/exec/MetamodelWalk.java", 1307),
-            Map.entry("core/src/main/java/com/legend/MetamodelSteps.java", 195),
+            // 195→196 (audit slice 3): the walker's case list learns
+            // the trustOne spelling — recognition, not evaluation.
+            Map.entry("core/src/main/java/com/legend/MetamodelSteps.java", 196),
             // raw-line history: 888 -> 943 -> 957 (burn batches 1-2:
             // temp-table IN envelope emitters + PureExp let-allocation —
             // engine-parity plan TEXT, the register's own class);
@@ -98,7 +100,10 @@ class JavaEvalLedgerTest {
             // +25 (Phase 1 batch 2): owns() + the curated construction set
             // +~50 (Phase 1c endgame): chainBottom moved in from deleted
             // ResultNav (this predicate is the walker's last consumer)
-            Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 196),
+            // 196→199 (audit slice 3): the nav walker recognizes BOTH
+            // toOne spellings inline (invariant 6d keeps exec off the
+            // frontend) — recognition lines, not evaluation.
+            Map.entry("core/src/main/java/com/legend/exec/StoreNav.java", 199),
             Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 118),
             // Phase 1c endgame: the boundary resolver (stamp + marker
             // substitution over stamped schema — the DynamicPivot model;

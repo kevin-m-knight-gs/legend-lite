@@ -2447,7 +2447,7 @@ public final class MappingNormalizer {
                 // parse natives are strict String[1]; the column read is
                 // SQL-lane [0..1] — the toOne trust wrap (audit slice 2)
                 return new AppliedFunction(parseFn, List.of(
-                        new AppliedFunction("toOne", List.of(read))));
+                        new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(read))));
             }
         }
         return read;
@@ -3369,7 +3369,7 @@ public final class MappingNormalizer {
                         || af.function().equals(Pure.Lite.OTHERWISE)
                         || af.function().equals("new"));
             wrapped.put(name, toOneDeclared && !exempt
-                    ? new KeyExpression(new AppliedFunction("toOne", List.of(v)),
+                    ? new KeyExpression(new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(v)),
                             key.isAdd(), key.isLocal())
                     : new KeyExpression(v, key.isAdd(), key.isLocal()));
         });

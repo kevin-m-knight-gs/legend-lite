@@ -42,6 +42,7 @@ public final class StoreNav {
                     "meta::pure::functions::collection::size",
                     "meta::pure::functions::collection::indexOf",
                     "meta::pure::functions::multiplicity::toOne",
+                    "meta::legend::lite::trustOne",
                     "meta::pure::functions::string::toString");
 
     /** Walk the primary source chain (property access sources, fold/map
@@ -153,9 +154,13 @@ public final class StoreNav {
     private static @com.legend.Nullable List<Object> nav(TypedSpec n,
             Map<String, TypedSpec> lets, ModelContext ctx) {
         n = resolve(n, lets);
+        // exact FQNs INLINE — invariant 6d: exec never calls the
+        // frontend (both toOne spellings; audit slice 3 split)
         if (n instanceof TypedNativeCall nc && nc.args().size() == 1
-                && "meta::pure::functions::multiplicity::toOne"
-                        .equals(nc.callee().qualifiedName())) {
+                && ("meta::pure::functions::multiplicity::toOne"
+                        .equals(nc.callee().qualifiedName())
+                        || "meta::legend::lite::trustOne"
+                                .equals(nc.callee().qualifiedName()))) {
             return nav(nc.args().get(0), lets, ctx);
         }
         if (!(n instanceof TypedNativeCall nc)

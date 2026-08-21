@@ -2297,8 +2297,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                 break;
             }
             if (cur instanceof TypedNativeCall c && c.args().size() == 1
-                    && c.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")) {
+                    && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
                 final TypedNativeCall cc = c;
                 shell.push(x -> cc.withChildren(List.of(x)));
                 cur = c.args().get(0);

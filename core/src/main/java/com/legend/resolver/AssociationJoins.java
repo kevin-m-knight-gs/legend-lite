@@ -82,8 +82,7 @@ final class AssociationJoins {
         while (hop + 1 <= path.size() - 1) {
             TypedSpec inner = cur;
             if (inner instanceof TypedNativeCall c && c.args().size() == 1
-                    && c.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")) {
+                    && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
                 inner = c.args().get(0);
             }
             if (!(inner instanceof com.legend.compiler.spec.typed
@@ -1362,8 +1361,7 @@ final class AssociationJoins {
 
     private static TypedSpec unwrapOnes(TypedSpec n) {
         while (n instanceof TypedNativeCall w && w.args().size() == 1
-                && (w.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
+                && (com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())
                     || w.callee().qualifiedName().equals(
                         "meta::pure::functions::multiplicity::toOneMany")
                     || w.callee().qualifiedName().equals(
@@ -1395,8 +1393,7 @@ final class AssociationJoins {
                     srcVar, srcRow, hop.property(), leaf.property(), false);
         }
         if (n instanceof TypedNativeCall oneW && oneW.args().size() == 1
-                && (oneW.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
+                && (com.legend.builtin.Pure.isToOneCall(oneW.callee().qualifiedName())
                     || oneW.callee().qualifiedName().equals(
                         "meta::pure::functions::collection::first"))
                 && oneW.args().get(0)

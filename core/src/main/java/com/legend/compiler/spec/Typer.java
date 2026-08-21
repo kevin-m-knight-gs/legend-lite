@@ -333,7 +333,7 @@ final class Typer {
                                         .PlatformTypes.TDS_NULL_CELL))),
                         new com.legend.protocol.spec.LambdaFunction(List.of(),
                                 List.of(new AppliedFunction("toString", List.of(
-                                        new AppliedFunction("toOne",
+                                        new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE,
                                                 List.of(read)))))))), env);
             }
         }
@@ -386,7 +386,7 @@ final class Typer {
                                                                 .PlatformTypes.TDS_NULL_CELL))),
                                         new LambdaFunction(List.of(),
                                                 List.of(new AppliedFunction("cast", List.of(
-                                                        new AppliedFunction("toOne",
+                                                        new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE,
                                                                 List.of(cell)),
                                                         new com.legend.protocol.spec
                                                                 .TypeAnnotation.Named(
@@ -398,7 +398,7 @@ final class Typer {
                                 new LambdaFunction(List.of(rv), List.of(body)))), env);
                     }
                 }
-                return synth(new AppliedFunction("toOne", List.of(
+                return synth(new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(
                         new AppliedProperty(af.parameters().get(0), gcol.value()))), env);
             }
         }
@@ -534,7 +534,7 @@ final class Typer {
                 if (!(recv.info().multiplicity()
                         instanceof Multiplicity.Bounded rb1
                         && rb1.lower() == 1)) {
-                    qargs.set(0, new AppliedFunction("toOne",
+                    qargs.set(0, new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE,
                             List.of(qargs.get(0))));
                 }
                 return applyGeneric(new AppliedFunction(d.bodyFunctionFqn(),
@@ -984,8 +984,7 @@ final class Typer {
             return cs.value();
         }
         if (v instanceof AppliedFunction tf
-                && (tf.function().equals("toOne") || tf.function().equals(
-                        "meta::pure::functions::multiplicity::toOne"))
+                && (tf.function().equals("toOne") || com.legend.builtin.Pure.isToOneCall(tf.function()))
                 && tf.parameters().size() == 1) {
             return literalColName(tf.parameters().get(0));
         }
@@ -1015,7 +1014,8 @@ final class Typer {
             "meta::pure::functions::collection::at",
             "meta::pure::functions::collection::first",
             "meta::pure::functions::collection::last",
-            "meta::pure::functions::multiplicity::toOne");
+            "meta::pure::functions::multiplicity::toOne",
+            com.legend.builtin.Pure.Lite.TRUST_ONE);
 
     private static final java.util.Set<String> ROW_CELL_AT_FNS = java.util.Set.of(
             "at", "meta::pure::functions::collection::at");
@@ -1054,7 +1054,7 @@ final class Typer {
             int cc = wrt.columns().size();
             long k = wk.value().longValue();
             if (cc > 0 && k >= 0) {
-                return synth(new AppliedFunction("toOne", List.of(
+                return synth(new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(
                         new AppliedProperty(
                                 new AppliedFunction("at", List.of(
                                         vp.receiver(),
@@ -1082,7 +1082,7 @@ final class Typer {
                     + " where the collection is of size "
                     + prt.columns().size());
         }
-        return synth(new AppliedFunction("toOne", List.of(
+        return synth(new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(
                 new AppliedProperty(vp.receiver(),
                         prt.columns().get(k).name()))), env);
     }
@@ -2472,7 +2472,7 @@ final class Typer {
                         && b.lower() == 1)) {
             return cell;
         }
-        return synth(new AppliedFunction("toOne", List.of(
+        return synth(new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(
                 new AppliedProperty(af.parameters().get(0), colRef))), env);
     }
 
@@ -2714,7 +2714,7 @@ final class Typer {
             return applyGeneric(new AppliedFunction(d.bodyFunctionFqn(),
                     List.of(exactlyOne
                             ? ap.receiver()
-                            : new AppliedFunction("toOne",
+                            : new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE,
                                     List.of(ap.receiver())))), env);
         }
         // the AllVersions PROPERTY spelling (no parens): a version-sweep

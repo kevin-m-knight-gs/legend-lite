@@ -604,7 +604,8 @@ class MappingNormalizerTest {
         // column conforms by EMISSION (SQL null semantics; no [0..1]
         // guard conjunct in the lowered filter)
         AppliedFunction leftToOne = (AppliedFunction) condition.parameters().get(0);
-        assertEquals("toOne", leftToOne.function());
+        assertEquals(Pure.Lite.TRUST_ONE, leftToOne.function(),
+                "synth conformance spells trustOne (audit slice 3)");
         AppliedProperty left = (AppliedProperty) leftToOne.parameters().get(0);
         assertEquals("IS_ACTIVE", left.property());
         assertEquals(new Variable("row"), left.receiver());
@@ -2510,7 +2511,9 @@ class MappingNormalizerTest {
         // dyna operands are SQL-lane null-propagating; pure's plus is
         // strict [1], so the translator wraps each optional read — the
         // 'position' idiom made uniform) ...
-        if (v instanceof AppliedFunction t1 && t1.function().equals("toOne")
+        if (v instanceof AppliedFunction t1
+                && (t1.function().equals("toOne")
+                        || t1.function().equals(Pure.Lite.TRUST_ONE))
                 && t1.parameters().size() == 1) {
             v = t1.parameters().get(0);
         }
@@ -2530,8 +2533,10 @@ class MappingNormalizerTest {
      */
     private static ValueSpecification toOneInner(ValueSpecification v) {
         AppliedFunction af = assertInstanceOf(AppliedFunction.class, v,
-                "[1]-property ctor value must be toOne-wrapped");
-        assertEquals("toOne", af.function());
+                "[1]-property ctor value must be trust-wrapped");
+        assertEquals(Pure.Lite.TRUST_ONE, af.function(),
+                "synth conformance spells the SQL-lane trustOne"
+                + " (multiplicity audit slice 3 provenance split)");
         return sole(af.parameters());
     }
 
@@ -3383,7 +3388,8 @@ class MappingNormalizerTest {
         // the hoisted-chain read is a ColumnRef at translate time — the
         // relational comparison conforms by EMISSION (toOne wrap)
         AppliedFunction isActiveToOne = (AppliedFunction) eq.parameters().get(0);
-        assertEquals("toOne", isActiveToOne.function());
+        assertEquals(Pure.Lite.TRUST_ONE, isActiveToOne.function(),
+                "synth conformance spells trustOne (audit slice 3)");
         AppliedProperty isActive =
                 (AppliedProperty) isActiveToOne.parameters().get(0);
         assertEquals("IS_ACTIVE", isActive.property());

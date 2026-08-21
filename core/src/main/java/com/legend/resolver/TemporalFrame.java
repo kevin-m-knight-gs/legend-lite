@@ -1008,8 +1008,7 @@ final class TemporalFrame {
     private static TypedSpec unwrapToOne(TypedSpec d) {
         return d instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                 && c.args().size() == 1
-                && c.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
+                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())
                 ? c.args().get(0) : d;
     }
 
@@ -2599,8 +2598,7 @@ final class TemporalFrame {
         }
         if (d instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                 && c.args().size() == 1
-                && c.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
+                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())
                 && c.args().get(0)
                         instanceof com.legend.compiler.spec.typed.TypedVariable iv
                 && letEnv.containsKey(iv.name())) {

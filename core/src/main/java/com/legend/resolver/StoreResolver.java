@@ -1090,8 +1090,7 @@ public final class StoreResolver {
      * documented, weaker-but-never-silent stand-in). */
     static boolean isClassToOne(TypedNativeCall c) {
         return c.args().size() == 1
-                && "meta::pure::functions::multiplicity::toOne"
-                        .equals(c.callee().qualifiedName());
+                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName());
     }
 
     private static final String FIRST_FQN = "meta::pure::functions::collection::first";
@@ -1346,8 +1345,7 @@ public final class StoreResolver {
             while (true) {
                 TypedSpec inner = drill;
                 if (inner instanceof TypedNativeCall tc1 && tc1.args().size() == 1
-                        && tc1.callee().qualifiedName().equals(
-                                "meta::pure::functions::multiplicity::toOne")) {
+                        && com.legend.builtin.Pure.isToOneCall(tc1.callee().qualifiedName())) {
                     inner = tc1.args().get(0);
                 }
                 if (inner instanceof TypedNewInstance ni
@@ -1629,8 +1627,7 @@ public final class StoreResolver {
             if (leafBinding != null) {
                 TypedSpec inner = leafBinding;
                 if (inner instanceof TypedNativeCall c1 && c1.args().size() == 1
-                        && c1.callee().qualifiedName().equals(
-                                "meta::pure::functions::multiplicity::toOne")) {
+                        && com.legend.builtin.Pure.isToOneCall(c1.callee().qualifiedName())) {
                     inner = c1.args().get(0);
                 }
                 var pNavSteps = Pipelines.navSteps(parent.pipeline());

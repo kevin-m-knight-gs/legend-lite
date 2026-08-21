@@ -190,7 +190,7 @@ final class JsonSourceFrame {
                         "resolver bug: the String-key variant get overload"
                         + " is not in the catalog"));
         TypedFunction toOneFn = fn(ctx,
-                "meta::pure::functions::multiplicity::toOne", 1);
+                com.legend.builtin.Pure.Lite.TRUST_ONE, 1);
         Map<String, TypedSpec> bindings = new LinkedHashMap<>();
         for (var p : cls.properties()) {
             // Variant IS a column carrier; other class-typed properties

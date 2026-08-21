@@ -514,8 +514,7 @@ final class Substitution {
             }
             TypedSpec fn0 = fnList.get(0);
             if (fn0 instanceof TypedNativeCall c0 && c0.args().size() == 1
-                    && c0.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")) {
+                    && com.legend.builtin.Pure.isToOneCall(c0.callee().qualifiedName())) {
                 fn0 = c0.args().get(0);
             }
             if (!(fn0 instanceof TypedLambda fl)
@@ -689,8 +688,7 @@ final class Substitution {
     private static boolean piercesToOne(TypedSpec n) {
         while (true) {
             if (n instanceof TypedNativeCall c && c.args().size() == 1) {
-                if (c.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")) {
+                if (com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
                     return true;
                 }
                 n = c.args().get(0);
@@ -711,7 +709,7 @@ final class Substitution {
         // spelling after an optional navigation — the coercion is
         // multiplicity-only and transparent to the path (audit R3).
         if (n instanceof TypedNativeCall c && c.args().size() == 1
-                && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
+                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
             return pathOf(c.args().get(0), userVar);
         }
         // ->map(l|$l.prop...) is the auto-map spelling of the property
@@ -1216,8 +1214,7 @@ final class Substitution {
                     TypedSpec inner3 = leafBinding;
                     if (inner3 instanceof TypedNativeCall c3
                             && c3.args().size() == 1
-                            && c3.callee().qualifiedName().equals(
-                                    "meta::pure::functions::multiplicity::toOne")) {
+                            && com.legend.builtin.Pure.isToOneCall(c3.callee().qualifiedName())) {
                         inner3 = c3.args().get(0);
                     }
                     if (inner3 instanceof TypedPropertyAccess pa3
@@ -1263,8 +1260,7 @@ final class Substitution {
             while (cur != null && hop < path.size()) {
                 TypedSpec inner = cur;
                 if (inner instanceof TypedNativeCall c1 && c1.args().size() == 1
-                        && c1.callee().qualifiedName().equals(
-                                "meta::pure::functions::multiplicity::toOne")) {
+                        && com.legend.builtin.Pure.isToOneCall(c1.callee().qualifiedName())) {
                     inner = c1.args().get(0);
                 }
                 var ow = otherwiseOf(inner);
@@ -1296,8 +1292,7 @@ final class Substitution {
                     TypedSpec inner4 = curT;
                     if (inner4 instanceof TypedNativeCall c4
                             && c4.args().size() == 1
-                            && c4.callee().qualifiedName().equals(
-                                    "meta::pure::functions::multiplicity::toOne")) {
+                            && com.legend.builtin.Pure.isToOneCall(c4.callee().qualifiedName())) {
                         inner4 = c4.args().get(0);
                     }
                     var ow4 = otherwiseOf(inner4);
@@ -1359,7 +1354,7 @@ final class Substitution {
                 // not a "resolver bug" from the rewriter's vocabulary wall.
                 TypedSpec inner = binding;
                 if (inner instanceof TypedNativeCall c1 && c1.args().size() == 1
-                        && c1.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
+                        && com.legend.builtin.Pure.isToOneCall(c1.callee().qualifiedName())) {
                     inner = c1.args().get(0);
                 }
                 if (inner instanceof TypedNewInstance
@@ -1441,7 +1436,7 @@ final class Substitution {
     private boolean rootsAtUserVar(TypedSpec inst) {
         while (true) {
             if (inst instanceof TypedNativeCall w && w.args().size() == 1
-                    && ("meta::pure::functions::multiplicity::toOne".equals(
+                    && (com.legend.builtin.Pure.isToOneCall(
                             w.callee().qualifiedName())
                             || "meta::pure::functions::collection::first"
                                     .equals(w.callee().qualifiedName()))) {
@@ -1460,7 +1455,7 @@ final class Substitution {
     private TypedSpec objectReferenceInRewrite(TypedNativeCall oc) {
         TypedSpec refsArg = oc.args().get(1);
         while (refsArg instanceof TypedNativeCall w && w.args().size() == 1
-                && (w.callee().qualifiedName().endsWith("::toOne")
+                && (com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())
                         || w.callee().qualifiedName().endsWith("::first"))) {
             refsArg = w.args().get(0);
         }
@@ -1947,7 +1942,7 @@ final class Substitution {
         if (headBinding != null) {
             TypedSpec inner = headBinding;
             if (inner instanceof TypedNativeCall c && c.args().size() == 1
-                    && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
+                    && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
                 inner = c.args().get(0);
             }
             // A class-typed navigate-slot read ($row.alias): the step was
@@ -2599,7 +2594,7 @@ final class Substitution {
         // subquery must LIMIT 1
         while (src instanceof TypedNativeCall c && c.args().size() == 1) {
             String callee = c.callee().qualifiedName();
-            if (callee.equals("meta::pure::functions::multiplicity::toOne")) {
+            if (com.legend.builtin.Pure.isToOneCall(callee)) {
                 src = c.args().get(0);
                 unwrapped = false;
             } else if (callee.equals("meta::pure::functions::collection::first")
@@ -3052,7 +3047,7 @@ final class Substitution {
     static @com.legend.Nullable TypedNativeCall otherwiseOf(TypedSpec binding) {
         TypedSpec inner = binding;
         if (inner instanceof TypedNativeCall c && c.args().size() == 1
-                && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
+                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
             inner = c.args().get(0);
         }
         if (inner instanceof TypedNativeCall oc && oc.args().size() == 2
@@ -3093,8 +3088,7 @@ final class Substitution {
         while (cur != null && h < path.size()) {
             TypedSpec inner = cur;
             if (inner instanceof TypedNativeCall c && c.args().size() == 1
-                    && c.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")) {
+                    && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
                 inner = c.args().get(0);
             }
             var ow = otherwiseOf(inner);
@@ -3110,8 +3104,7 @@ final class Substitution {
             }
         }
         if (cur instanceof TypedNativeCall c && c.args().size() == 1
-                && c.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")) {
+                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
             cur = c.args().get(0);
         }
         return cur;

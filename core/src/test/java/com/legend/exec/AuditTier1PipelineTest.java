@@ -72,14 +72,18 @@ class AuditTier1PipelineTest {
     }
 
     @Test
-    @DisplayName("F: a [1..*]-typed result with zero values walls loudly")
+    @DisplayName("F: a [1..*]-typed result with zero values raises IN SQL")
     void lowerBoundShrinkWallsLoudly() {
-        IllegalStateException e = assertThrows(IllegalStateException.class,
+        // multiplicity audit slice 3: toOneMany is CHECKED at-least-one
+        // in the emitted SQL (tenet #1 — the database raises, with
+        // pure's own message), replacing the old egress-side wall.
+        Exception e = assertThrows(Exception.class,
                 () -> Compiler.execute("",
                         "{|[1, 2, 3]->filter(x | $x > 10)->toOneMany();}",
                         conn));
-        assertTrue(e.getMessage().contains("lower bound"),
-                "expected the declared-lower-bound wall, got: "
+        assertTrue(String.valueOf(e.getMessage())
+                        .contains("Cannot cast a collection of size 0"),
+                "expected pure's size-0 cast error, got: "
                 + e.getMessage());
     }
 

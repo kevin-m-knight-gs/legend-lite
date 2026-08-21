@@ -889,3 +889,43 @@ Slice 3 note: the trust-toOnes this slice emitted at SYNTH sites
 (translator, normalizer coercion, qualifier β-inline) are exactly the
 provenance-split population — user-toOne becomes CHECKED there while
 these stay SQL-lane erasures (the C2 provenance note in Scalars).
+
+### SLICE 3 LANDED — toOne honest: the C2 provenance split + checked bounds
+
+THE SPLIT: user toOne is CHECKED; synthesized conformance spells
+meta::legend::lite::trustOne (internal-only; IDENTITY lowering — the
+engine's processNoOp / no-guard behavior, finally NAMED). All 22 synth
+emission sites converted (translator, normalizer coercions and ctor
+wraps, union shims, qualifier β-inlines, getter desugars, json frames);
+~63 scattered raw-FQN toOne readers routed through ONE owner
+(Pure.isToOneCall — exact FQNs, which also killed three of the
+endsWith("::toOne") suffix-matches from audit §7); exec keeps inline
+FQNs (invariant 6d).
+
+CHECKED SEMANTICS, with the referee-drawn lane boundary: VALUE-LANE
+lists (ArrayLit literals, producesList calls) raise in the DATABASE
+with pure's own message — [1,2]->toOne() is now a USER error "Cannot
+cast a collection of size 2 to multiplicity [1]" (the audit's crash
+case), a runtime-emptied list raises size 0 (BOTH bounds — the old
+guard tested only >1), statically-empty [] raises at emission, and
+toOneMany is at-least-one checked with a re-carrier for to-one
+operands (it was an unconditional no-op). ROW-LANE reads — [0..1]
+scalar carriers AND many-stamped correlated collections — FLOW,
+ADJUDICATED against audit §3 with the ENGINE as the reference: its
+relational compilation of toOne is processNoOp, SQL cannot tell a
+NULL cell from an empty, and the milestoned-qualifier corpus row
+(testIsolationOfMilestoningFiltersReferencedInAllPartsOfIfStmt, an
+ENGINE-authored toOne over an 11-row correlated navigation) is the
+witness that raising there diverges from the reference. The same
+ruling covers egress: TABULAR keeps the engine's TDSNull-under-[1]
+convention; the audit's §3 egress items are ADJUDICATED engine-parity,
+not skipped. The [1..*]-lower-bound wall moved INTO the SQL (tenet #1:
+the database raises; AuditTier1 pin updated).
+
+Guardrails paid consciously: INTERNAL_DESUGAR 12→13 (trustOne),
+ArrayLit ratchet 34→35 (the toOneMany re-carrier), ledger pins
+MetamodelSteps/StoreNav (recognition lines), catalog golden +trustOne.
+Legacy↔clean-sheet convergence fixtures spell the trust form — the
+clean-sheet equivalent of legacy conformance IS trustOne. Core 4181/0;
+corpus zero regressions (ledger delta = one wall row's message
+spelling); ALL EIGHT GATES GREEN.

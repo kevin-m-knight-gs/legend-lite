@@ -89,7 +89,7 @@ final class GraphEmission {
             TypedSpec inner = e.getValue();
             if (inner instanceof TypedNativeCall c
                     && c.args().size() == 1
-                    && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
+                    && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
                 inner = c.args().get(0);
             }
             if (inner instanceof TypedNewInstance
@@ -298,7 +298,7 @@ final class GraphEmission {
             TypedSpec inner = binding;
             if (inner instanceof TypedNativeCall c
                     && c.args().size() == 1
-                    && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
+                    && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
                 inner = c.args().get(0);
             }
             TypedSerializeGraph.Child arrChild = primitiveArrayLeaf(
@@ -881,7 +881,7 @@ final class GraphEmission {
             }
             if (inner instanceof TypedNativeCall c1
                     && c1.args().size() == 1
-                    && c1.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
+                    && com.legend.builtin.Pure.isToOneCall(c1.callee().qualifiedName())) {
                 inner = c1.args().get(0);
             }
             if (inner instanceof TypedNewInstanceCast nic2) {
@@ -990,8 +990,7 @@ final class GraphEmission {
                 // serves QUERY-position reads only.
                 TypedSpec fb = ow2.args().get(1);
                 while (fb instanceof TypedNativeCall fw && fw.args().size() == 1
-                        && (fw.callee().qualifiedName().equals(
-                                "meta::pure::functions::multiplicity::toOne")
+                        && (com.legend.builtin.Pure.isToOneCall(fw.callee().qualifiedName())
                             || fw.callee().qualifiedName().equals(
                                 "meta::pure::functions::collection::first"))) {
                     fb = fw.args().get(0);
@@ -2117,8 +2116,7 @@ final class GraphEmission {
             }
             TypedSpec ei = e;
             if (ei instanceof TypedNativeCall tc1 && tc1.args().size() == 1
-                    && tc1.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")) {
+                    && com.legend.builtin.Pure.isToOneCall(tc1.callee().qualifiedName())) {
                 ei = tc1.args().get(0);
             }
             if (ei instanceof TypedNewInstance subCtor) {
@@ -2440,8 +2438,7 @@ final class GraphEmission {
         ClassSource cs = env.cs();
         StoreResolver.Context context = env.context();
         while (hop instanceof TypedNativeCall w && w.args().size() == 1
-                && (w.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
+                && (com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())
                     || w.callee().qualifiedName().equals(
                         "meta::pure::functions::collection::first"))) {
             hop = w.args().get(0);
@@ -2511,8 +2508,7 @@ final class GraphEmission {
             // conform-by-emission wrappers (toOne over the slot read) unwrap
             while (bindingRead instanceof TypedNativeCall bw
                     && bw.args().size() == 1
-                    && (bw.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")
+                    && (com.legend.builtin.Pure.isToOneCall(bw.callee().qualifiedName())
                         || bw.callee().qualifiedName().equals(
                             "meta::pure::functions::collection::first"))) {
                 bindingRead = bw.args().get(0);
@@ -2580,8 +2576,7 @@ final class GraphEmission {
             Type.RelationType parentRowType) {
         TypedSpec b = body;
         while (b instanceof TypedNativeCall w && w.args().size() == 1
-                && (w.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
+                && (com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())
                     || w.callee().qualifiedName().equals(
                         "meta::pure::functions::collection::first"))) {
             b = w.args().get(0);
@@ -2591,8 +2586,7 @@ final class GraphEmission {
         }
         TypedSpec hop = leaf.source();
         while (hop instanceof TypedNativeCall w2 && w2.args().size() == 1
-                && (w2.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
+                && (com.legend.builtin.Pure.isToOneCall(w2.callee().qualifiedName())
                     || w2.callee().qualifiedName().equals(
                         "meta::pure::functions::collection::first"))) {
             hop = w2.args().get(0);
@@ -2613,8 +2607,7 @@ final class GraphEmission {
                 hop = substVars(ccf.body().get(0), sub);
                 while (hop instanceof TypedNativeCall w4
                         && w4.args().size() == 1
-                        && (w4.callee().qualifiedName().equals(
-                                "meta::pure::functions::multiplicity::toOne")
+                        && (com.legend.builtin.Pure.isToOneCall(w4.callee().qualifiedName())
                             || w4.callee().qualifiedName().equals(
                                 "meta::pure::functions::collection::first"))) {
                     hop = w4.args().get(0);
@@ -2630,8 +2623,7 @@ final class GraphEmission {
                 && hf.predicate().body().size() == 1) {
             TypedSpec inner = hf.source();
             while (inner instanceof TypedNativeCall w3 && w3.args().size() == 1
-                    && (w3.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")
+                    && (com.legend.builtin.Pure.isToOneCall(w3.callee().qualifiedName())
                         || w3.callee().qualifiedName().equals(
                             "meta::pure::functions::collection::first"))) {
                 inner = w3.args().get(0);
@@ -2833,8 +2825,7 @@ final class GraphEmission {
      * is the read). */
     private static TypedSpec unwrapToOneFirst(TypedSpec v) {
         while (v instanceof TypedNativeCall w && w.args().size() == 1
-                && (w.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")
+                && (com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())
                     || w.callee().qualifiedName().equals(
                         "meta::pure::functions::collection::first"))) {
             v = w.args().get(0);
@@ -2865,8 +2856,7 @@ final class GraphEmission {
                 && emv.name().equals(thisVar)) {
             TypedSpec mb = bindings.get(mid.property());
             while (mb instanceof TypedNativeCall mw && mw.args().size() == 1
-                    && (mw.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")
+                    && (com.legend.builtin.Pure.isToOneCall(mw.callee().qualifiedName())
                         || mw.callee().qualifiedName().equals(
                             "meta::pure::functions::collection::first"))) {
                 mb = mw.args().get(0);

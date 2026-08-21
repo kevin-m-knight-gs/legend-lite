@@ -787,6 +787,15 @@ public final class Pure {
         /** The #TDS literal's desugar target (SpecParser spells this
          *  FQN literally — the parser stays free of this class). */
         public static final String TDS = PKG + "tds";
+        /** The SQL-LANE to-one conformance wrap (multiplicity audit
+         * slice 3, the C2 provenance split): synthesized machinery —
+         * dyna translation, mapping coercions, qualifier β-inlines,
+         * union shims — asserts [1] over an optional read WITHOUT a
+         * runtime guard (SQL null-propagates; the engine's own
+         * processNoOp / no-guard qualifier behavior). USER-written
+         * toOne is CHECKED (raises on size != 1, pure's semantics);
+         * this spelling is how the lowering tells them apart. */
+        public static final String TRUST_ONE = PKG + "trustOne";
 
         // -- ENGINE-VOCABULARY typing shims (per-name verified): the
         // NAME is legend-engine's own wire/dynaFn vocabulary
@@ -844,7 +853,7 @@ public final class Pure {
                     Lite.OTHERWISE, Lite.PARSE_DATE_FORMAT,
                     Lite.CONVERT_DATE_FORMAT, Lite.CONVERT_DATE_TIME_FORMAT,
                     Lite.CONVERT_TIME_ZONE_FORMAT, Lite.TDS,
-                    Lite.ADJUST_TEMPORAL)
+                    Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE)
                     .map(Pure::liteLocalName)
                     .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
@@ -862,6 +871,15 @@ public final class Pure {
     /** Bare names of the user-facing lite product natives (see
      *  {@link Lite#NAVIGATE}, {@link Lite#SOURCE_URL}): these STAY
      *  bare-name resolvable. */
+    /** THE to-one-wrapper recognizer — user toOne AND the lite trustOne
+     * conformance spelling (one owner; ~60 raw-FQN comparisons and the
+     * endsWith("::toOne") suffix-matches routed here — exact FQNs only,
+     * a user function named my::customToOne never matches). */
+    public static boolean isToOneCall(String qualifiedName) {
+        return "meta::pure::functions::multiplicity::toOne".equals(qualifiedName)
+                || Lite.TRUST_ONE.equals(qualifiedName);
+    }
+
     public static final java.util.Set<String> LITE_SURFACE =
             java.util.Set.of(liteLocalName(Lite.NAVIGATE),
                     liteLocalName(Lite.SOURCE_URL));
@@ -1140,6 +1158,10 @@ public final class Pure {
     // channel marker (Pure.Lite.ADJUST_TEMPORAL javadoc has the two-channel
     // engine evidence).
     public static final NativeFunctionDefinition ADJUST_TEMPORAL__DATE_1__INTEGER_1__DURATION_UNIT_1 = signature("native function meta::legend::lite::adjustTemporal(d:meta::pure::metamodel::type::Date[1], amount:meta::pure::metamodel::type::Integer[1], unit:meta::pure::functions::date::DurationUnit[1]):meta::pure::metamodel::type::Date[1];");
+    /** The SQL-lane to-one conformance wrap (see {@link Lite#TRUST_ONE}):
+     * types like toOne, lowers as IDENTITY — no runtime guard; the
+     * checked semantics belong to USER toOne alone. */
+    public static final NativeFunctionDefinition TRUST_ONE__T_MANY = signature("native function meta::legend::lite::trustOne<T>(values:T[*]):T[1];");
     public static final NativeFunctionDefinition AGGREGATE__RELATION_1__AGG_COL_SPEC_1 = signature("native function meta::pure::functions::relation::aggregate<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpec<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<R>[1];");
     public static final NativeFunctionDefinition AGGREGATE__RELATION_1__AGG_COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::aggregate<T,K,V,R>(r:meta::pure::metamodel::relation::Relation<T>[1], agg:meta::pure::metamodel::relation::AggColSpecArray<{T[1]->K[0..1]},{K[*]->V[0..1]},R>[1]):meta::pure::metamodel::relation::Relation<R>[1];");
     public static final NativeFunctionDefinition AND__BOOLEAN_1__BOOLEAN_1 = signature("native function meta::pure::functions::boolean::and(left:meta::pure::metamodel::type::Boolean[1], right:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Boolean[1];");

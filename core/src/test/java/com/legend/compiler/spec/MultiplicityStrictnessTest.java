@@ -92,6 +92,35 @@ class MultiplicityStrictnessTest {
     }
 
     @Test
+    @DisplayName("audit §2: [1,2]->toOne() raises PURE's user error in the database, not an internal assertion")
+    void literalCollectionToOneRaisesUserError() throws Exception {
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+            Exception e = assertThrows(Exception.class,
+                    () -> Compiler.execute("", "{| [1,2]->toOne() }", c));
+            assertTrue(String.valueOf(e.getMessage())
+                            .contains("Cannot cast a collection of size 2"
+                                    + " to multiplicity [1]"),
+                    e.getMessage());
+            // the singleton extracts — the guard is size-exact
+            var ok = Compiler.execute("", "{| [7]->toOne() }", c);
+            assertEquals(7L, ((Number) ((com.legend.exec.ExecutionResult
+                    .Scalar) ok).value()).longValue());
+        }
+    }
+
+    @Test
+    @DisplayName("audit §3: a runtime-emptied list through toOne() raises size-0 (the lower bound, checked in SQL)")
+    void runtimeEmptyListToOneRaises() throws Exception {
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+            Exception e = assertThrows(Exception.class, () -> Compiler.execute(
+                    "", "{| [1,2,3]->filter(x|$x > 10)->toOne() }", c));
+            assertTrue(String.valueOf(e.getMessage())
+                            .contains("Cannot cast a collection of size 0"),
+                    e.getMessage());
+        }
+    }
+
+    @Test
     @DisplayName("lambda-RESULT covariance: a [0..1] key conforms to sortBy's {T[1]->U[1]} (engine-observed)")
     void lambdaResultLowerBoundIsCovariant() {
         // the reference's own corpus compiles sortBy over optional

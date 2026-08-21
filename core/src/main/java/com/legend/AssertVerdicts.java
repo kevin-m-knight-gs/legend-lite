@@ -312,8 +312,7 @@ final class AssertVerdicts {
         TypedSpec s = t;
         while (true) {
             if (s instanceof com.legend.compiler.spec.typed.TypedNativeCall c
-                    && c.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")
+                    && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())
                     && !c.args().isEmpty()) {
                 s = c.args().get(0);
                 continue;

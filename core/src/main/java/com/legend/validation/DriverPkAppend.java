@@ -160,8 +160,7 @@ public final class DriverPkAppend {
         while (true) {
             if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
                     && nc.args().size() == 1
-                    && nc.callee().qualifiedName().equals(
-                            "meta::pure::functions::multiplicity::toOne")) {
+                    && com.legend.builtin.Pure.isToOneCall(nc.callee().qualifiedName())) {
                 n = nc.args().get(0);
             } else if (n instanceof com.legend.compiler.spec.typed
                     .TypedCast c) {

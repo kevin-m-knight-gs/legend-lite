@@ -48,8 +48,7 @@ public record TypedRawSqlRelation(String sql, ExprType info)
     public static @com.legend.Nullable TypedPropertyAccess lateBoundCellRead(
             TypedSpec n) {
         while (n instanceof TypedNativeCall w && w.args().size() == 1
-                && "meta::pure::functions::multiplicity::toOne"
-                        .equals(w.callee().qualifiedName())) {
+                && com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())) {
             n = w.args().get(0);
         }
         return n instanceof TypedPropertyAccess pa
