@@ -181,9 +181,16 @@ final class Scalars {
             // designed ArrayLit (List/instance/relation carriers never
             // type Boolean), and any other list would have THROWN at
             // the funnel. The stamp alone decides.
+            // EMPTY-IDENTITY FORK FIX (audit §4, slice 4): the old
+            // identity arm gated on upper==1, so a runtime-empty [0..1]
+            // returned NULL where pure defines and([]) = true. Split:
+            // exactlyOne = identity; [0..1] = coalesce to the identity.
             RULES.put(f, (n, args) -> args.size() == 1
-                    ? (isToOne(n.args().get(0))
+                    ? (Stamps.exactlyOne(n.args().get(0))
                             ? args.get(0)
+                            : isToOne(n.args().get(0))
+                            ? SqlExpr.Call.of(SqlFn.COALESCE, args.get(0),
+                                    new SqlExpr.BoolLit(true))
                             : SqlExpr.Call.of(SqlFn.COALESCE,
                                     new SqlExpr.Call(SqlFn.LIST_BOOL_AND, args),
                                     new SqlExpr.BoolLit(true)))
@@ -191,8 +198,11 @@ final class Scalars {
         }
         for (String f : Pure.nativeKeysAt("or")) {
             RULES.put(f, (n, args) -> args.size() == 1
-                    ? (isToOne(n.args().get(0))
+                    ? (Stamps.exactlyOne(n.args().get(0))
                             ? args.get(0)
+                            : isToOne(n.args().get(0))
+                            ? SqlExpr.Call.of(SqlFn.COALESCE, args.get(0),
+                                    new SqlExpr.BoolLit(false))
                             : SqlExpr.Call.of(SqlFn.COALESCE,
                                     new SqlExpr.Call(SqlFn.LIST_BOOL_OR, args),
                                     new SqlExpr.BoolLit(false)))
@@ -921,6 +931,14 @@ final class Scalars {
                 // are enforced-true; the h2 side is carried by the
                 // CarrierStrategies list encodings (the 320 floor is
                 // the referee).
+                // audit §4: an HONEST [0..1] source that is empty at
+                // runtime makeStrings to '' — pure's identity; the
+                // 'TDSNull' spelling is the TDS CELL convention and
+                // belongs to [1..1]-stamped (trust-wrapped) cell reads
+                // and the many-element arm ONLY. The leak of the
+                // sentinel as user data dies here.
+                boolean optionalScalar = !Stamps.exactlyOne(n.args().get(0))
+                        && isToOne(n.args().get(0));
                 SqlExpr coll = PureSql.asList(args.get(0),
                         !isToOne(n.args().get(0)));
                 SqlExpr strs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, coll,
@@ -928,7 +946,9 @@ final class Scalars {
                                 SqlExpr.Call.of(SqlFn.COALESCE,
                                         PureSql.elementText(n.args().get(0),
                                                 coll, new SqlExpr.Column(null, "x")),
-                                        new SqlExpr.StringLit(PlatformTypes.TDS_NULL_CELL))));
+                                        new SqlExpr.StringLit(optionalScalar
+                                                ? ""
+                                                : PlatformTypes.TDS_NULL_CELL))));
                 SqlExpr joined = SqlExpr.Call.of(SqlFn.COALESCE,
                         new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG, strs,
                                 List.of(sep)),
@@ -968,8 +988,13 @@ final class Scalars {
                 // a TO-ONE source IS the joined string; an EMPTY list
                 // joins to '' (list_aggregate over NULL/[] is NULL).
                 SqlExpr joined;
-                if (isToOne(n.args().get(0))) {
+                if (Stamps.exactlyOne(n.args().get(0))) {
                     joined = args.get(0);   // stamp decides (String args)
+                } else if (isToOne(n.args().get(0))) {
+                    // audit §4: a runtime-empty [0..1] joins to '' —
+                    // pure's empty identity, not NULL
+                    joined = SqlExpr.Call.of(SqlFn.COALESCE, args.get(0),
+                            new SqlExpr.StringLit(""));
                 } else {
                     SqlExpr sep = args.size() == 2 ? args.get(1)
                             : args.size() == 4 ? args.get(2) : new SqlExpr.StringLit("");
@@ -1470,7 +1495,13 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("add")) {
             RULES.put(f, (n, args) -> {
                 if (args.size() == 2) {
-                    return new SqlExpr.Call(SqlFn.LIST_APPEND, args);
+                    // audit §4: a to-one first operand carriers as its
+                    // one-element list (list_append(VARCHAR, x) is a
+                    // binder error — the missing asList wrap)
+                    return new SqlExpr.Call(SqlFn.LIST_APPEND, List.of(
+                            PureSql.asList(args.get(0),
+                                    !isToOne(n.args().get(0))),
+                            args.get(1)));
                 }
                 SqlExpr l = args.get(0);
                 SqlExpr idx = args.get(1);
@@ -1531,7 +1562,12 @@ final class Scalars {
         // collection::distinct = removeDuplicates (real distinct.pure) —
         // registered by the EXACT collection overload key.
         RULES.put(Pure.DISTINCT_COLLECTION_KEY,
-                (n, args) -> orderedDedup(args.get(0)));
+                // audit §4: the same to-one guard its synonym
+                // removeDuplicates always had (a [0..1] value hit the
+                // list-lambda binder)
+                (n, args) -> isToOne(n.args().get(0))
+                        ? new SqlExpr.ArrayLit(List.of(args.get(0)))
+                        : orderedDedup(args.get(0)));
         // print/println inside an expression (map(r|println(...))): the
         // NO-OP doctrine (StatementExecutor's print arm) — the value is
         // the Nil[0] cell, NULL; the argument is pure SQL computation and

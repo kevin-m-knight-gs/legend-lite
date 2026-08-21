@@ -929,3 +929,19 @@ Legacy↔clean-sheet convergence fixtures spell the trust form — the
 clean-sheet equivalent of legacy conformance IS trustOne. Core 4181/0;
 corpus zero regressions (ledger delta = one wall row's message
 spelling); ALL EIGHT GATES GREEN.
+
+### SLICE 4 LANDED — the empty-identity fork is closed
+
+The reduction identity arms split Stamps.exactlyOne (identity — the
+value is always present) from [0..1] (COALESCE to pure's empty
+identity): and([])=true, or()=false, joinStrings''=  '', makeString=''
+— the four audit-§4 wrong answers now give pure's answers, pinned
+end-to-end (emptyIdentityForkIsClosed). The TDSNull sentinel no longer
+leaks as user data: it remains ONLY the TDS-cell convention of
+[1..1]-stamped (trust-wrapped) reads and the many-element arm. The two
+adjacent binder bugs die with it: add() carriers its to-one first
+operand (the missing asList), and collection::distinct gets the same
+to-one guard its synonym removeDuplicates always had. Stamps.exactlyOne
+finally has callers. Ratchet ArrayLit 35→36 (the distinct re-carrier,
+justified). Core 4182/0; corpus ledger BYTE-IDENTICAL; all eight gates
+green.

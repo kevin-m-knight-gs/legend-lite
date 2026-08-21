@@ -121,6 +121,24 @@ class MultiplicityStrictnessTest {
     }
 
     @Test
+    @DisplayName("audit §4: runtime-empty [0..1] takes PURE's empty identities — and/or/joinStrings/makeString")
+    void emptyIdentityForkIsClosed() throws Exception {
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+            record Case(String q, Object want) { }
+            for (Case k : new Case[] {
+                    new Case("{| [true,false]->filter(x|false)->head()->and() }", true),
+                    new Case("{| [true,false]->filter(x|false)->head()->or() }", false),
+                    new Case("{| ['a','b']->filter(x|false)->head()->joinStrings('-') }", ""),
+                    new Case("{| ['a','b']->filter(x|false)->head()->makeString() }", ""),
+            }) {
+                Object got = ((com.legend.exec.ExecutionResult.Scalar)
+                        Compiler.execute("", k.q(), c)).value();
+                assertEquals(k.want(), got, k.q());
+            }
+        }
+    }
+
+    @Test
     @DisplayName("lambda-RESULT covariance: a [0..1] key conforms to sortBy's {T[1]->U[1]} (engine-observed)")
     void lambdaResultLowerBoundIsCovariant() {
         // the reference's own corpus compiles sortBy over optional

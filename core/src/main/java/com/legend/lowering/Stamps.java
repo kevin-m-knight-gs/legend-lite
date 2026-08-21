@@ -26,13 +26,13 @@ final class Stamps {
      * reading, preserved VERBATIM for the reduction rules: their
      * identity arms are correct for one value but WRONG for the empty
      * (and([]) is true, joinStrings([]) is '' — the empty-identity
-     * lives in the list arm's COALESCE). DISCOVERED FORK: a [0..1]
-     * operand that is empty AT RUNTIME takes the identity arm and
-     * yields NULL where pure defines an empty identity — WRONG ANSWERS
-     * user-visible (and()/or()/joinStrings''/makeString leaks the
-     * TDSNull sentinel). OWNED: slice 4 of the multiplicity-audit
-     * program (docs/MULTIPLICITY_AUDIT_2026_08_20.md §4; the earlier
-     * "PCT lane" attribution had no ledger row and was fictional). */
+     * lives in the list arm's COALESCE). THE FORK IS CLOSED (audit §4,
+     * slice 4): the reduction arms split {@link #exactlyOne} (identity)
+     * from [0..1] (coalesce to pure's empty identity — and([])=true,
+     * or()=false, joinStrings/makeString=''); the TDSNull sentinel no
+     * longer leaks as user data. This predicate remains the historical
+     * upper-bound reading for the arms whose semantics genuinely key on
+     * it. */
     static boolean toOne(TypedSpec spec) {
         return spec.info().multiplicity() instanceof Multiplicity.Bounded b
                 && Integer.valueOf(1).equals(b.upper());
