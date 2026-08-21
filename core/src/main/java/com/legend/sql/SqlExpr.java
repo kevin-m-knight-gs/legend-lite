@@ -15,6 +15,7 @@ public sealed interface SqlExpr
                 SqlExpr.OrderedListAgg,
                 SqlExpr.StructLit, SqlExpr.StructGet, SqlExpr.Call,
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.CheckedOne,
+                SqlExpr.CompactList,
                 SqlExpr.DeferredTdsString, SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
                 SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group,
@@ -77,6 +78,7 @@ public sealed interface SqlExpr
             case Exists ignored -> List.of();
             case ScalarSubquery ignored -> List.of();
             case CheckedOne co -> List.of(co.list());   // flags ride
+            case CompactList cl -> List.of(cl.list());
             case DeferredTdsString ignored -> List.of();
             case WindowCall w -> {
                 java.util.List<SqlExpr> out = new java.util.ArrayList<>();
@@ -141,6 +143,7 @@ public sealed interface SqlExpr
             case ScalarSubquery ignored -> this;
             case CheckedOne co2 -> new CheckedOne(cs.get(0),
                     co2.scalarCarrier(), co2.atLeastOnly());
+            case CompactList ignored -> new CompactList(cs.get(0));
             case DeferredTdsString ignored -> this;
             case Group ignored -> new Group(cs.get(0));
             case ArrayLit ignored -> new ArrayLit(cs);
@@ -412,6 +415,16 @@ public sealed interface SqlExpr
         public CheckedOne(SqlExpr list) {
             this(list, false, false);
         }
+    }
+
+    /** PURE-COLLECTION carrier compaction (shortcut audit §5, value
+     * lane): strips SQL NULL elements from a list carrier — a pure
+     * collection holds no empties, and a NULL in a value-lane carrier
+     * can only MEAN an empty (values of non-variant types are never
+     * carried null; a variant/Any JSON null decays to empty). SEMANTIC
+     * node: the dialect renderer owns the list-function spelling
+     * (carrier purity ratchet — the CheckedOne/D1 precedent). */
+    record CompactList(SqlExpr list) implements SqlExpr {
     }
 
     /** A relation-toString whose COLUMN LIST is dynamic (a pivot with

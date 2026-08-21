@@ -1184,3 +1184,252 @@ size limit paid with a REAL split (gridOracle helper). Guard census
 END STATE: mints outside compiler layers = ZERO, structurally frozen.
 
 Referee: suite 4185/0, corpus scoreboard byte-identical.
+
+## CANONICAL-RENDER VERDICTS LEG (user: "do it"; ordering ruling: render before JDBC gateway)
+
+Ordering rationale (ratified in-session): render DELETES JDBC surface
+the gateway would otherwise migrate (PureAsserts/GridCompare value-kind
+rows); render is the correctness leg and its blocker (stamp census
+zero) is cleared; the gateway's unique payoffs (validation, injection)
+only become real WITH the ingress prepared statements creates.
+
+### FALSE START RECORDED (2026-08-21, user-caught): the adapter hedge
+
+The first R1 attempt built compile-through of `equal()` to one SQL
+boolean with ASYMMETRIC TRUST (SQL true short-circuits, SQL false
+re-runs the whole host path) — the audit doc's fix-queue row 3. The
+user challenged it ("every time we try the adapter strategy it just
+turns out worse") and the challenge was CORRECT; reverted uncommitted.
+The tells, recorded so the shape is recognized next time:
+- It bumped the eval ledger UP (398→438) with an "it'll shrink later"
+  justification — on the ledger whose purpose is to shrink. A
+  transitional bridge pin-bump is the adapter disease's signature
+  (MODEL B: "the shims existed only because of the inversion";
+  D3-class adapter reverted; C2: producers+consumers move TOGETHER).
+- Two implementations stayed live with a conditional preference —
+  divergences get silently ABSORBED by the fallback. The repo's method
+  is the opposite: surface the divergence table loudly, adjudicate
+  each class, cut over hard. Measurement belongs in the REFEREE, not
+  as a permanent second path in production.
+- It drifted from the RATIFIED design (byte-compare of canonical
+  renders — equality semantics in ONE owner, the serialization
+  definition) back to an older idea (boolean equal() compile-through)
+  that then needed hedges for NaN/tolerance/sentinel — which under the
+  byte design are spec ROWS, not patches.
+
+### THE PLAN — homework, then spec, then hard cutovers
+
+**Homework (fact tables; every R0 row traceable to a source, a PCT
+pin, or a corpus witness — no guessing/sampling):**
+- H1 pure's normative print spec: toString/toRepresentation per
+  primitive from the REAL legend-pure checkout + PCT toString pins
+  (exact spellings: Float vs Integer forms, Decimal suffix, quoting,
+  +0000 temporals).
+- H2 engine's grid canonical form: the TDS print conventions (distinct
+  from scalar toString) from engine sources + wire notes.
+- H3 our emission census: what Render/dateLiteralPrint/STRFTIME-CONCAT
+  /PctTdsWrap already emit (corpus-pinned spellings); diff vs H1/H2 —
+  each mismatch is an R0 decision row.
+- H4 host-arm policy inventory: PureAsserts (kind lattice + repr +
+  temporal bridge + sorted/typeRank), GridCompare (sig-digit tolerance
+  heuristic), JsonCompare leaf rules, TDSNull sentinel scope — R0
+  absorbs or explicitly retires EACH.
+- H5 corpus assert distribution: assert-family × operand-kind counts;
+  and the structural fact that corpus expected literals ARE
+  engine-rendered canonical text — the strongest ground truth.
+- H6 edge witnesses: NaN/±Inf/-0.0/Decimal-scale/empty-in-collection
+  hunted in PCT+corpus so the edge catalog has witnesses.
+
+**R0** — the canonical-form spec doc, written FROM the tables: per-kind
+canonical render; where byte-equality ⟺ pure-equality holds; named
+exceptions (NaN; the 2-ULP tolerance as a declared numeric policy
+outside the byte channel until its census retires it).
+
+**R1** — the render owner (Render's SQL print forms grown into THE
+canonical serializer) + a HARNESS-side divergence instrument: across
+the full corpus, render(e)==render(a) computed NEXT TO
+PureAsserts.equal(e,a); publish the disagreement table. No production
+path changes.
+
+**R2** — per-family HARD cutover (assertEquals scalars → collections →
+grids): each family moves to byte-compare AND its host arms delete in
+the SAME slice — ledger pins go DOWN in every commit; disagreements
+fail loudly as rings.
+
+**R3/R4** — tolerance census re-read; World-2 paired probes guard only
+what SURVIVES by design.
+
+### SHORTCUT-AUDIT BLOCKER 1 LANDED (2026-08-21): null-drop into the lowerer
+
+COMPILER_SHORTCUT_AUDIT §5, ratified work order item 2a. The pure rule
+"a collection holds no empties" is now COMPILED, not an egress mask —
+placed at the carriers SQL does NOT null-skip for us:
+
+- **SQL aggregates need nothing**: COUNT/listagg/SUM/min/max skip NULL
+  inputs natively — that IS pure's drop on those consumptions, and the
+  engine's own SQL relies on it. (A first draft filtered at the
+  projection seam instead; the corpus caught it perturbing the
+  un-ORDER-BY'd row order under `listagg` —
+  testSubAggregationMultiLevelJoinString — and it was withdrawn.)
+- **LIST carriers compact**: the NEW `SqlExpr.CompactList` SEMANTIC
+  node (dialect renderer owns the list-filter spelling — CheckedOne/D1
+  precedent, carrier-ratchet pins untouched) wraps every optional-cell
+  LIST() collect (Lowerer columnList site + collectAsList) and every
+  value-lane COLLECTION-root explode. Order-preserving by construction.
+  toOne's agg-strip recognizes through the wrapper and the CheckedOne
+  guard counts the COMPACTED list (pure's null-free size).
+- **Row-wise egress filters**: COLLECTION-shape roots (single synthetic
+  map column, optional cell, many stamp) filter at the root select
+  (`Fold.collectionRootEgress` / `cellPresentFiltered`) — the Executor
+  reads rows directly there.
+- **Executor cutover**: the one-line `if (v != null)` mask is GONE — a
+  NULL reaching non-variant COLLECTION egress now WALLS as a lowering
+  defect. The variant/Any lane keeps its drop (JSON-null variant-decay
+  is a semantic rule of that lane, not a mask).
+
+TRAP RECORDED (cost one PCT + one corpus regression before the referee
+caught it): SqlRewriter's CheckedOne arm called the `expr()` HOOK
+instead of the recursive `rewriteExpr()` — a SHALLOW visit; copying the
+idiom for CompactList shielded whole subtrees from every dialect pass
+(SubstringClamp never reached a nested substr). Both arms now recurse,
+and the rebuild preserves CheckedOne's flags (the 1-arg ctor was
+silently erasing scalarCarrier/atLeastOnly on any rewrite).
+
+Pins: `OptionalCollectionNullDropTest` (e2e over DuckDB, JDBC-census
+registered) — size()/at()/indexOf()/toOne() all see the same pure
+collection; toOne over `[NULL,'Al','Cee']` raises size **2**, not 3.
+
+ENGINE GROUND (user-requested verification): the reference performs the
+SAME drop CLIENT-side — `relationalMappingExecution.pure:480`, the
+PrimitiveType result arm: `if(is($val->type(), SQLNull), |[], |$val)`
+inside `->map` (empties flatten out); the TDS arm (:539/:571) maps
+`SQLNull -> $tdsNull` instead — the two-channel split our lanes mirror
+(grids keep null cells, value collections drop). The engine never
+lowers at/indexOf/toOne INTO SQL, so its SQL never needs the filter;
+ours does (tenet #1), which is the whole divergence.
+
+ADJUDICATION (user: "option 1 bump"): the compiled drop adds one WHERE
+clause to value-collection egress SQL that engine goldens structurally
+cannot carry -> +10 advisory golden-SQL diffs on row-verified tests
+(functions/tests 8, mapping/join 1, aggregationAware/NOP 1; witness
+testAssociationToManyAutoMap). Ceilings moved WITH justification in the
+same commit: runner advisory 299->309, soft-ceiling sqldiff 247->257,
+adv-pass 293->303. Pass baseline unchanged (2332); PCT unchanged
+(1109/36 pinned). The WHERE folds INLINE per the fold policy
+(`Fold.cellPresentFiltered`) — the subselect wrap survives only where
+a WHERE is not clause-equivalent (grouping/window/LIMIT).
+
+### SHORTCUT-AUDIT BLOCKER 2 LANDED (2026-08-21): toOne lane from the TYPED node
+
+Audit §1a, ratified work order item 2b. `toOne`/`toOneMany` pick their
+checked lane from the OPERAND'S TYPED PROVENANCE (`CollectionLanes.
+valueLane` — literals/if-branches/native-transforms over value
+collections = VALUE lane, pure raising semantics; store/relation-rooted
+reads and unknown binders = ROW lane, the engine's processNoOp flow,
+default-conservative). The SQL-shape sniff (`instanceof ArrayLit ||
+producesList()`) is DELETED from the rules — it shared its evidence
+procedure with `StampCensus.listShaped`, so the "always-on" invariant
+fired zero times on the very shapes the rule missed (the audit's
+tautology, concrete form).
+
+Audit table now pins in `ToOneLaneTest` (e2e DuckDB, census-registered):
+slice's Case wrapper, lowered ifs, `range()`, descending sort and
+`reverse()` all raise pure's size error IN THE DATABASE; size-1 shapes
+extract. Census strengthened in the same slice (the ratified stopgap,
+now defense-in-depth rather than the decision procedure):
+`producesList` += RANGE_FN + LIST_SORT_DESC (the asc/desc guarantee
+asymmetry), `listShaped` += Case-of-list-branches + CompactList.
+
+ROW-lane note: shapes the old sniff accidentally checked (a row-lane
+`->sort()->toOne()` emitting LIST_SORT) now FLOW — that IS the
+engine's relational lane; the corpus referees the parity.
+
+THREE RULES THE REFEREE TAUGHT (one milestoning witness,
+testIsolationOfMilestoningFiltersReferencedInAllPartsOfIfStmt, three
+consecutive gate rounds — each grounded in the engine golden or pure
+semantics, NOT in making the test pass; flagged for the R1
+paired-probe pass):
+1. The value-lane guard counts the COMPACTED carrier
+   (CheckedOne(CompactList(x))) — pure's size is over PRESENT
+   elements; SQL list slots include NULLs for empty [0..1] reads.
+2. A collection LITERAL carries its ELEMENTS' lane — [$p.a, $p.b] is
+   the engine's relational lane (flow), [1,2] is the value lane
+   (raise); §4 per-lane ruling, engine-relational is the target.
+3. if() arrives as a NATIVE with zero-param thunks (thunk bodies carry
+   the lane; parameterized lambdas stay excluded), and an if whose
+   branches are ALL to-one-stamped lowers on the SCALAR carrier
+   (bare CASE, loose [*] stamp notwithstanding) — no list exists to
+   count; toOne FLOWS it, exactly the engine's compilation
+   (CollectionLanes.scalarCarriedIf — typed facts only).
+
+### SHORTCUT-AUDIT BLOCKER 3 LANDED (2026-08-21): referee integrity #9–13
+
+The guards now cover the code they claim to govern:
+- **#9** HarnessDisciplineTest walks `src/main/com/legend/exec` (the
+  comparison policy MOVED there and out of scope — the audit's central
+  relocation finding) and its regex knows the `pool.remove(` loop
+  spelling. The widened net immediately CAUGHT a 4th uninstrumented
+  pool loop in EngineTestExecutor (assertSameElements' value multiset —
+  pure-spec order-insensitivity, registered + tagged).
+- **#10** all five `[ord]` sites emit DISTINCT tags (row-multiset /
+  row-tuple / text-line-multiset / sameElements-values / h2-oracle) —
+  the 358-count census can now separate loose-cell from row-tuple.
+- **#11** SkipCensusTest walks sibling modules (parser-equivalence +
+  pct; coverage floor 270) — 8 previously invisible assumption-skipping
+  files registered with the oracle-absent justification.
+- **#12** every ChannelB suite ASSERTS its wall count shrink-only
+  (essential 20 / relation 23 / standard 20 / unclassified 27), the
+  relation suite pins the two denominator-blocking walls BY NAME
+  (over.pure, pctQualifiers.pure) so burning either forces the 287
+  discovery pin toward the 348 REFERENCE scope, and the 287 assert's
+  message states the honest denominator. Essential's garbled floor
+  message fixed (said "< 290" while checking >= 295).
+- **#13** the four soft-pass ceilings bind LIVE in the corpus runner
+  against the sweep's own outcomes (sqldiff 257 / adv 303 / 0-asserts
+  27 / rescued 613, next to the advisory ceiling);
+  CorpusSoftCeilingTest — which read the committed markdown and could
+  never go red in CI — is DELETED.
+
+### AUDIT OF BLOCKERS 1+2 (2026-08-21, user-directed post-landing pass)
+
+Method: executable probes + walker sweep, evidence = code and
+execution only. Nine e2e probes (zip, let-bound, eval'd thunk,
+empty-cast toOneMany, scalar-if, optional-element literal, fold-inner
+toOne) ALL pure-correct — the classifier's conservative defaults
+(TypedLet/Variable/Eval → ROW) never bite because the inliner reduces
+them before the rules run.
+
+FOUND + FIXED: `FoldToListReduce.unwrapElemRefs` claimed "EXHAUSTIVE"
+but its CheckedOne/CompactList arms were SHALLOW (the same class as
+SqlRewriter's arm fixed in b0a163af) — an elem ref under a value-lane
+guard inside a fold body stayed un-rewritten on the H2
+list-accumulator path. Both arms now recurse; zip + optional-element
+rows pinned in ToOneLaneTest.
+
+FOUND + RECORDED (no action): (a) Exists/ScalarSubquery/WindowCall
+arms in the same walker share the shallow hole PRE-EXISTING — the fold
+recognizer does not currently produce the combination; noted in-source.
+(b) h2-replay unverifiable 143→145 across Blocker 1: compacted
+carriers reaching H2 decline LOUDLY (no lambda list encoding there) —
+honest wall, not silent wrong rows; a CarrierStrategies CompactList
+strategy for H2 is a future leg. (c) CarrierStrategies' recognizers
+no-match CompactList-wrapped collects (conservative no-op; corpus
+green bounds the impact).
+
+VERIFIED CLEAN: every engine-TEXT view (DB2/Composite extend
+EngineStyleH2) renders CompactList verbatim consistently; H2 EXECUTION
+extends AnsiSqlRenderer and gets the real list_filter spelling (walls
+where unsupported); no volatile SqlFns exist for the whereSafe
+double-evaluation to bite; the Executor wall's variant/Any boundary
+mirrors the engine's SQLNull→[] vs tdsNull two-channel split.
+
+### PROVENANCE CORRECTION (2026-08-21, owed to COMPILER_SHORTCUT_AUDIT)
+
+Egress slice A (d1c968e0) cited "engine resultSizeRange parity". The
+audit verified the reference and the citation is WRONG: the engine
+reads resultSizeRange only via isUpperBoundEqualTo(1) to choose
+realize-vs-stream (ExecutionNodeResultHelper.java:32-41) — there is no
+lower-bound row-count check in the reference executor. The FIX stands
+on the PURE-SPEC ground (size-0 into a required bound raises pure's
+cast error, PCT-witnessed), not on engine parity. The behavior is
+unchanged; the claim is corrected.

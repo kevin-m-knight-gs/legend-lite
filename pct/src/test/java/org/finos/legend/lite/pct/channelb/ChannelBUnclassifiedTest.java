@@ -38,9 +38,15 @@ class ChannelBUnclassifiedTest {
         Path scope = engineRoot().resolve(
                 "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure"
                         + "/src/main/resources/core_functions_unclassified");
+        java.util.List<String> walls = new java.util.ArrayList<>();
         List<ChannelB.Outcome> out = ChannelB.run(
-                List.of(platform, scope), List.of(scope),
-                new java.util.ArrayList<>());
+                List.of(platform, scope), List.of(scope), walls);
+        walls.forEach(w -> System.out.println("[chB-Unclassified-wall] " + w));
+        System.out.println("[chB-Unclassified] walls=" + walls.size());
+        // audit-of-audits #12: walls ASSERTED shrink-only (27 measured
+        // 2026-08-21); growth silently shrinks the discovery universe
+        assertTrue(walls.size() <= 27,
+                "unclassified walls grew: " + walls.size() + " > 27");
         Map<ChannelB.Status, Integer> census =
                 new EnumMap<>(ChannelB.Status.class);
         for (ChannelB.Outcome o : out) {

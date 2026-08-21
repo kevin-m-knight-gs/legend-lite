@@ -573,13 +573,61 @@ public class RelationalCorpusRunner {
             // row-verified pass carries divergent advisory SQL text
             // (net: pass 2336->2341, sqldiff-pass 246->247, zero
             // pass-count regressions).
-            int maxAdvisorySqlDiffs = 299;
+            // +10 2026-08-21 (shortcut-audit Blocker 1, ADJUDICATED):
+            // the null-drop moved into the compiler — value-collection
+            // egress now emits WHERE <cell> IS NOT NULL. The engine
+            // performs the SAME drop CLIENT-side (SQLNull -> [] in
+            // relationalMappingExecution.pure:480), so its golden text
+            // structurally cannot carry the filter; the 10 diffs are
+            // that one clause on row-verified tests (functions/tests 8,
+            // mapping/join 1, aggregationAware/NOP 1 — witness:
+            // testAssociationToManyAutoMap). Rows identical everywhere;
+            // pass baseline unchanged at 2332.
+            int maxAdvisorySqlDiffs = 309;
             org.junit.jupiter.api.Assertions.assertTrue(
                     advisorySqlDiffs <= maxAdvisorySqlDiffs,
                     "advisory golden-SQL diffs grew: " + advisorySqlDiffs
                             + " > ceiling " + maxAdvisorySqlDiffs);
             System.out.println("[rcorpus] advisory sql diffs: "
                     + advisorySqlDiffs + " (ceiling " + maxAdvisorySqlDiffs + ")");
+            // LIVE SOFT-PASS CEILINGS (audit-of-audits #13):
+            // CorpusSoftCeilingTest read the COMMITTED markdown while
+            // the corpus never runs in CI — it could not go red on a
+            // live regression, binding only through the human commit
+            // loop. The ceilings now bind HERE, against THIS sweep's
+            // own outcomes, and that test is DELETED. Down-only; bump
+            // only with a written justification in the same commit
+            // (2026-08-21 adjudication set sqldiff 257 / adv 303).
+            java.util.List<Runner.Outcome> passes = byFamily.values().stream()
+                    .flatMap(java.util.List::stream)
+                    .filter(o -> o.status() == Runner.Status.PASS)
+                    .toList();
+            final long softDiff = passes.stream()
+                    .filter(o -> o.sqlDiffs() > 0).count();
+            final long softAdv = passes.stream()
+                    .filter(o -> o.advisory() > 0).count();
+            final long softZero = passes.stream()
+                    .filter(o -> o.detail().startsWith("0 asserts")).count();
+            final long softRescued = passes.stream()
+                    .filter(o -> o.rescued() > 0).count();
+            org.junit.jupiter.api.Assertions.assertAll(
+                    () -> org.junit.jupiter.api.Assertions.assertTrue(
+                            softDiff <= 257, "sqldiff-pass grew: " + softDiff
+                                    + " > 257 — exact passes may have been"
+                                    + " demoted; bump only with written"
+                                    + " justification"),
+                    () -> org.junit.jupiter.api.Assertions.assertTrue(
+                            softAdv <= 303, "adv-pass grew: " + softAdv
+                                    + " > 303"),
+                    () -> org.junit.jupiter.api.Assertions.assertTrue(
+                            softZero <= 27, "0-assert passes grew: "
+                                    + softZero + " > 27"),
+                    () -> org.junit.jupiter.api.Assertions.assertTrue(
+                            softRescued <= 613, "text-rescued passes grew: "
+                                    + softRescued + " > 613"));
+            System.out.println("[rcorpus] soft ceilings: sqldiff " + softDiff
+                    + "/257, adv " + softAdv + "/303, 0-asserts " + softZero
+                    + "/27, rescued " + softRescued + "/613");
         }
         org.junit.jupiter.api.Assertions.assertTrue(regressions.isEmpty(),
                 "CORPUS REGRESSION vs committed docs/RELATIONAL_CORPUS.md: "

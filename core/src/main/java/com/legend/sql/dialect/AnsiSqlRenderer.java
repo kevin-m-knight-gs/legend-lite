@@ -346,6 +346,22 @@ public class AnsiSqlRenderer implements SqlDialect {
                         co.list(), new SqlExpr.IntLit(1))), parentPrec);
     }
 
+    /** PURE-COLLECTION carrier compaction (semantic node, audit §5
+     * value lane): execution dialects strip SQL NULL elements with
+     * their list-filter spelling — a pure collection holds no empties,
+     * so a NULL in the carrier can only MEAN empty. Engine-TEXT
+     * subclasses override to the verbatim inner value (the engine's
+     * textual view has no compaction — it drops host-side; the
+     * checkedOne/processNoOp precedent). */
+    protected String compactList(SqlExpr.CompactList cl, int parentPrec) {
+        return expr(SqlExpr.Call.of(
+                com.legend.sql.SqlFn.LIST_FILTER, cl.list(),
+                new SqlExpr.Lambda(java.util.List.of("x"),
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NOT_NULL,
+                                new SqlExpr.Column(null, "x")))),
+                parentPrec);
+    }
+
     protected String expr(SqlExpr e, int parentPrec) {
         return switch (e) {
             case SqlExpr.Group g -> "(" + expr(g.inner(), 0) + ")";
@@ -394,6 +410,7 @@ public class AnsiSqlRenderer implements SqlDialect {
             // Engine-TEXT renderers override with the verbatim inner
             // value (processNoOp view).
             case SqlExpr.CheckedOne co -> checkedOne(co, parentPrec);
+            case SqlExpr.CompactList cl -> compactList(cl, parentPrec);
             case SqlExpr.DeferredTdsString d -> throw new IllegalStateException(
                     "deferred relation-toString reached the renderer — the"
                     + " execution boundary must resolve the dynamic column"

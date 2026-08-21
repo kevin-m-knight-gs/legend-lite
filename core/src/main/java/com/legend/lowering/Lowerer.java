@@ -236,9 +236,11 @@ public final class Lowerer {
         }
         // ANY relation-ish root — a table, the .rows collection, or ONE
         // ROW (an at()-pick: a one-row TABULAR, matching ResultShape) —
-        // lowers through the relation pipeline.
-        if (Type.schemaView(spec.info().type()) != null) {
-            return relation(spec);
+        // lowers through the relation pipeline; a COLLECTION-shaped root
+        // filters empty cells at egress (Fold#collectionRootEgress).
+        if (Type.schemaView(spec.info().type()) instanceof Type.RelationType rrt) {
+            return Fold.collectionRootEgress(relation(spec), rrt,
+                    isMany(spec), this::nextAlias);
         }
         // relation->map(row|scalar) at the ROOT is the single-column
         // projection (pure: a VALUE collection derived from rows; the
@@ -255,14 +257,8 @@ public final class Lowerer {
                     ml.info().type() instanceof Type.FunctionType fnT
                             ? fnT.result().multiplicity()
                             : Multiplicity.Bounded.ZERO_ONE;
-            SqlSelect proj = relation(new TypedProject(
-                    m.source(),
-                    List.of(new TypedFuncCol("value", ml)),
-                    new ExprType(
-                            Type.relation(new Type.RelationType(List.of(
-                                    new Type.RelationType.Column("value",
-                                            spec.info().type(), colMult)))),
-                            Multiplicity.Bounded.ONE)));
+            SqlSelect proj = relation(ValueCollections.valueColumnProject(
+                    m.source(), ml, spec.info().type(), colMult));
             // SCALAR-STAMPED cells (C1) are one element per row ALREADY —
             // the explode is identity, and UNNEST(scalar) does not bind.
             boolean scalarCells = ml.body().get(ml.body().size() - 1)
@@ -270,6 +266,12 @@ public final class Lowerer {
                             instanceof Multiplicity.Bounded cb
                     && cb.upper() != null && cb.upper() <= 1;
             if (!collectionMapper || scalarCells) {
+                // NULL-DROP at COLLECTION egress (shortcut audit §5,
+                // relation lane): Fold#cellPresentFiltered.
+                if (isMany(spec) && Fold.optionalScalarCell(colMult)) {
+                    return Fold.cellPresentFiltered(proj, "value",
+                            nextAlias());
+                }
                 return proj;
             }
             String sub = nextAlias();
@@ -292,9 +294,11 @@ public final class Lowerer {
             });
         }
         // COLLECTION roots explode to N rows (the result-shape contract:
-        // Executor reads a collection as N rows x 1 column).
+        // Executor reads a collection as N rows x 1 column); the carrier
+        // COMPACTS first (audit §5 value lane — a pure collection holds
+        // no empties), so egress holds a WALL, not a mask.
         if (isMany(spec)) {
-            e = SqlExpr.Call.of(SqlFn.UNNEST, e);
+            e = SqlExpr.Call.of(SqlFn.UNNEST, new SqlExpr.CompactList(e));
         }
         return new SqlSelect(
                 List.of(new SqlSelect.Projection(e, "value")), false,
@@ -339,13 +343,19 @@ public final class Lowerer {
         });
         // only the exact LIST-collecting shape carries an honest row
         // count; anything else (value-lane lists already CheckedOne'd
-        // inside the rule, opaque calls) lowers through the normal path
-        return Scalars.aggStrip(op) != null ? new SqlExpr.CheckedOne(op) : null;
+        // inside the rule, opaque calls) lowers through the normal path.
+        // A COMPACTED carrier (audit §5) recognizes through its wrapper;
+        // the guard counts the COMPACTED list — pure's null-free size.
+        SqlExpr carrier = op instanceof SqlExpr.CompactList cl
+                ? cl.list() : op;
+        return Scalars.aggStrip(carrier) != null
+                ? new SqlExpr.CheckedOne(op) : null;
     }
 
     String nextAlias() {
         return "t" + aliasCounter++;
     }
+
 
     // ==================================================================
     // Relation ops
@@ -2744,14 +2754,8 @@ public final class Lowerer {
                         ml2.info().type() instanceof Type.FunctionType fnT2
                                 ? fnT2.result().multiplicity()
                                 : Multiplicity.Bounded.ZERO_ONE;
-                SqlSelect proj = relation(new TypedProject(
-                        m2.source(),
-                        List.of(new TypedFuncCol("value", ml2)),
-                        new ExprType(
-                                Type.relation(new Type.RelationType(List.of(
-                                        new Type.RelationType.Column("value",
-                                                m2.info().type(), colMult2)))),
-                                Multiplicity.Bounded.ONE)));
+                SqlSelect proj = relation(ValueCollections.valueColumnProject(
+                        m2.source(), ml2, m2.info().type(), colMult2));
                 // pure map FLATTENS collection-valued mappers ($r.values):
                 // the list-of-cell-arrays flattens one level
                 boolean collMapper = ValueCollections.isCollectionMapper(ml2);
@@ -2769,29 +2773,22 @@ public final class Lowerer {
                         && mb2.upper() != null && mb2.upper() <= 1) {
                     yield new SqlExpr.ScalarSubquery(proj);
                 }
-                String sub = nextAlias();
                 // COLLECTION-MAPPER cells with scalar per-cell STAMPS lower
                 // as true scalars (C1); the flatten contract needs list-of-
                 // lists, so the collect re-boxes each cell BY STAMP.
-                SqlExpr cellRead = new SqlExpr.Column(sub, "value");
                 boolean scalarCells = collMapper
                         && ml2.body().get(ml2.body().size() - 1).info()
                                 .multiplicity()
                                 instanceof Multiplicity.Bounded cellB
                         && cellB.upper() != null && cellB.upper() <= 1;
-                SqlExpr collected = scalarCells
-                        ? new SqlExpr.ArrayLit(List.of(cellRead)) : cellRead;
-                SqlSelect agg = SqlSelect.starOf(new SqlSource.Subselect(proj, sub, null))
-                        .withProjections(List.of(new SqlSelect.Projection(
-                                        new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
-                                                collected), false, java.util.List.of()),
-                                        null)),
-                                List.of(new OutputCol("value",
-                                        SqlType.Scalar.VARCHAR, true)));
-                SqlExpr listed = new SqlExpr.ScalarSubquery(agg);
-                yield collMapper
-                        ? SqlExpr.Call.of(SqlFn.LIST_FLATTEN, listed)
-                        : listed;
+                SqlExpr collected = ValueCollections.collectAsList(proj,
+                        collMapper, scalarCells, nextAlias());
+                // NULL-DROP (audit §5): LIST() keeps NULL cells, so an
+                // optional-cell collect COMPACTS (order untouched).
+                yield m2.info().multiplicity().isMany() && !collMapper
+                        && Fold.optionalScalarCell(colMult2)
+                        ? new SqlExpr.CompactList(collected)
+                        : collected;
             }
             // A COLUMN READ over a relation chain in scalar position
             // ($tds.rows.id — the TDS getter desugar): narrow to the one
@@ -2856,9 +2853,15 @@ public final class Lowerer {
                     if (!toMany) {
                         yield new SqlExpr.ScalarSubquery(relation(rel));
                     }
-                    yield new SqlExpr.ScalarSubquery(
+                    SqlExpr listed = new SqlExpr.ScalarSubquery(
                             ValueCollections.columnList(relation(rel),
                                     rt.columns().get(0).name(), nextAlias()));
+                    // NULL-DROP (audit §5): LIST() keeps NULL cells, so
+                    // an optional-cell collect COMPACTS (order untouched).
+                    yield Fold.optionalScalarCell(
+                                    rt.columns().get(0).multiplicity())
+                            ? new SqlExpr.CompactList(listed)
+                            : listed;
                 } finally {
                     enclosing.pop();
                 }

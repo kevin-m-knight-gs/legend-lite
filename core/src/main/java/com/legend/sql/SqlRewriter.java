@@ -190,9 +190,20 @@ public abstract class SqlRewriter {
                 SqlQuery sub = rewrite(ex.subquery());
                 yield sub == ex.subquery() ? ex : new SqlExpr.Exists(sub);
             }
+            // rewriteExpr, NOT the expr() hook: the hook alone is a
+            // SHALLOW visit — nothing under the wrapper gets walked, so
+            // dialect passes (SubstringClamp) never reach nested calls.
+            // The CompactList copy of the old expr() spelling cost a PCT
+            // regression (removeDuplicatesBy: the un-clamped substr) —
+            // and the CheckedOne original had the same latent hole.
             case SqlExpr.CheckedOne co -> {
-                SqlExpr in = expr(co.list());
-                yield in == co.list() ? co : new SqlExpr.CheckedOne(in);
+                SqlExpr in = rewriteExpr(co.list());
+                yield in == co.list() ? co : new SqlExpr.CheckedOne(in,
+                        co.scalarCarrier(), co.atLeastOnly());
+            }
+            case SqlExpr.CompactList cl -> {
+                SqlExpr in = rewriteExpr(cl.list());
+                yield in == cl.list() ? cl : new SqlExpr.CompactList(in);
             }
             case SqlExpr.ScalarSubquery sq -> {
                 SqlQuery sub = rewrite(sq.subquery());

@@ -74,7 +74,7 @@ public final class GridCompare {
         }
         // C0.4: a multiset pass the POSITIONAL compare would reject is a
         // pass that depends on order leniency — countable per sweep
-        ordLeniency(() -> rowsPositional(e, a));
+        ordLeniency("row-multiset", () -> rowsPositional(e, a));
         return true;
     }
 
@@ -98,7 +98,7 @@ public final class GridCompare {
             ap.remove(hit);
         }
         // F2.4: row-tuple multiset leniency, instrumented
-        ordLeniency(() -> {
+        ordLeniency("row-tuple", () -> {
             for (int i = 0; i < e.size(); i++) {
                 if (!PureAsserts.equalScalar(e.get(i), a.get(i))) {
                     return false;
@@ -203,12 +203,14 @@ public final class GridCompare {
     /** C0.4: under {@code LL_ORD_COUNT}, emit an {@code [ord]} line when
      * a comparison passed ONLY because of multiset row leniency —
      * {@code strictHolds} is the order-strict re-check. Measurement
-     * only; never changes the verdict. */
-    public static void ordLeniency(
+     * only; never changes the verdict. {@code tag} (audit-of-audits
+     * #10) names the SITE so the census separates loose-cell matching
+     * from row-tuple matching in the counted population. */
+    public static void ordLeniency(String tag,
             java.util.function.BooleanSupplier strictHolds) {
         if (System.getenv("LL_ORD_COUNT") != null
                 && !strictHolds.getAsBoolean()) {
-            System.err.println("[ord] order-leniency-dependent pass");
+            System.err.println("[ord] " + tag + " order-leniency-dependent pass");
         }
     }
 
@@ -303,7 +305,7 @@ public final class GridCompare {
         final String[] alf = al;
         final int from = dataFrom;
         final int to = dataTo;
-        ordLeniency(() -> {
+        ordLeniency("text-line-multiset", () -> {
             for (int i = from; i < to; i++) {
                 if (!lineEquals(elf[i], alf[i])) {
                     return false;

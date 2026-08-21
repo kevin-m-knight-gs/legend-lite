@@ -37,6 +37,15 @@ class ChannelBEssentialTest {
         List<ChannelB.Outcome> out = ChannelB.run(modelRoot, List.of(scope), walls);
         walls.forEach(w -> System.out.println("[chB-wall] " + w));
         System.out.println("[chB] walls=" + walls.size());
+        // audit-of-audits #12: the wall count is ASSERTED shrink-only —
+        // 20 measured live (8 are legend-lite parse failures on the
+        // reference's own pure; 3 essential PCT tests vanish with
+        // them, 330 on disk vs 327 discovered). A GROWTH here is the
+        // suite quietly shrinking its own denominator.
+        assertTrue(walls.size() <= 20,
+                "channel-B essential walls grew: " + walls.size()
+                        + " > 20 — dropped source files shrink the test"
+                        + " universe silently; burn or adjudicate");
         Map<ChannelB.Status, Integer> census =
                 new EnumMap<>(ChannelB.Status.class);
         for (ChannelB.Outcome o : out) {
@@ -58,7 +67,7 @@ class ChannelBEssentialTest {
         // patch was written for
         assertTrue(pass >= 295,
                 "channel-B essential PASS fell below the pinned floor: "
-                        + pass + " < 290");
+                        + pass + " < 295");
 
         // THE THREE-BUCKET DIFF (plan addendum #6): channel A's outcome
         // per test is its suite ledger — the expectedFailures list IS

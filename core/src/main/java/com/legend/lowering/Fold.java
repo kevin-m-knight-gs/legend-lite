@@ -562,6 +562,87 @@ final class Fold {
         return sourceColumn(src, column);
     }
 
+    /** The row-wise-egress NULL-DROP (COMPILER_SHORTCUT_AUDIT §5): an
+     * optional scalar cell landing NULL is a pure EMPTY and the value
+     * collection holds no empties. Applied ONLY at COLLECTION-shape
+     * roots (the Executor reads rows directly there); every other
+     * consumer either null-skips natively (SQL aggregates) or compacts
+     * its LIST carrier ({@code SqlExpr.CompactList}) — a WHERE at inner
+     * seams perturbs the un-ORDER-BY'd row order order-sensitive
+     * consumers ride (corpus witness:
+     * testSubAggregationMultiLevelJoinString).
+     *
+     * <p>FOLD-IN per the fold policy (the sql package's own doctrine:
+     * one SqlSelect extends through compatible clauses; a fresh nesting
+     * level only when forced): when the projection select carries no
+     * grouping/window/limit machinery, the condition ANDs into ITS
+     * where-clause over the cell's own expression — {@code SELECT
+     * t1.LASTNAME … WHERE t1.LASTNAME IS NOT NULL}, no wrapper. The
+     * subselect wrap survives only for shapes where a WHERE is not
+     * clause-equivalent (pre-aggregation vs post-aggregation, window
+     * partitions, LIMIT). */
+    static SqlSelect cellPresentFiltered(SqlSelect proj, String col,
+            String sub) {
+        if (proj.groupBy().isEmpty() && proj.having() == null
+                && proj.qualify() == null && proj.limit() == null
+                && proj.offset() == null && !proj.distinct()
+                && proj.projections().size() == 1
+                && whereSafe(proj.projections().get(0).expr())) {
+            SqlExpr cond = SqlExpr.Call.of(SqlFn.IS_NOT_NULL,
+                    proj.projections().get(0).expr());
+            return proj.withWhere(proj.where() == null ? cond
+                    : SqlExpr.Call.of(SqlFn.AND, proj.where(), cond));
+        }
+        return SqlSelect.starOf(new SqlSource.Subselect(proj, sub, null))
+                .withWhere(SqlExpr.Call.of(SqlFn.IS_NOT_NULL,
+                        new SqlExpr.Column(sub, col)));
+    }
+
+    /** A projection expression that may be repeated in WHERE: no window
+     * calls (partition semantics), no aggregate reducers (illegal in
+     * WHERE), no subqueries (double evaluation of a correlated read). */
+    private static boolean whereSafe(SqlExpr e) {
+        if (e instanceof SqlExpr.WindowCall
+                || e instanceof com.legend.sql.SqlAgg.Reducer
+                || e instanceof SqlExpr.ScalarSubquery
+                || e instanceof SqlExpr.Exists) {
+            return false;
+        }
+        for (SqlExpr c : e.children()) {
+            if (!whereSafe(c)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** A per-row cell that CAN be empty: {@code [0..1]} stamped. */
+    static boolean optionalScalarCell(
+            com.legend.compiler.element.type.Multiplicity m) {
+        return m instanceof com.legend.compiler.element.type
+                        .Multiplicity.Bounded b
+                && b.lower() == 0 && b.upper() != null && b.upper() <= 1;
+    }
+
+    /** A relation-rooted query at the statement root: a COLLECTION-shaped
+     * root (single synthetic map column, optional cell, many stamp — the
+     * ResultShape.COLLECTION classification) filters empty cells at
+     * egress, because row-wise reads are the ONE carrier SQL does not
+     * null-skip for us (audit §5; aggregates skip natively, LIST
+     * collects compact via CompactList). Everything else rides through. */
+    static SqlSelect collectionRootEgress(SqlSelect rel,
+            com.legend.compiler.element.type.Type.RelationType rt,
+            boolean many, java.util.function.Supplier<String> alias) {
+        if (rt.columns().size() != 1 || !many) {
+            return rel;
+        }
+        var col = rt.columns().get(0);
+        return col.name().startsWith(SqlSelect.SYNTH_MAP_COL)
+                && optionalScalarCell(col.multiplicity())
+                ? cellPresentFiltered(rel, col.name(), alias.get())
+                : rel;
+    }
+
     /** {@code SELECT UNNEST(a.col) AS out FROM (src) a} — the ONE
      * select-list row-explosion emission (carrier-purity ratchet): the
      * list always arrives as a LOCAL column of the wrapped source, never

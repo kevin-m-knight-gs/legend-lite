@@ -87,6 +87,20 @@ final class ListEncodings {
                 sliced);
     }
 
+    /**
+     * FIRST-OCCURRENCE dedup (real removeDuplicates semantics — its PCT
+     * asserts order without sorting). LIST_DISTINCT is UNORDERED in DuckDB;
+     * keep element x at 1-based index i iff its first position is i.
+     */
+    static SqlExpr orderedDedup(SqlExpr list) {
+        return new SqlExpr.Call(SqlFn.LIST_FILTER, List.of(list,
+                new SqlExpr.Lambda(List.of("_ddx", "_ddi"),
+                        new SqlExpr.Call(SqlFn.EQUAL, List.of(
+                                SqlExpr.Call.of(SqlFn.LIST_POSITION, list,
+                                        new SqlExpr.Column(null, "_ddx")),
+                                new SqlExpr.Column(null, "_ddi"))))));
+    }
+
     /** Clamp a (possibly negative) index to zero — PCT's slice/drop/take edge semantics. */
     static SqlExpr clamp0(SqlExpr e) {
         return e instanceof SqlExpr.IntLit i
