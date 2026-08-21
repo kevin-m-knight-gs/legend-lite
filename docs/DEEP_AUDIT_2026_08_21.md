@@ -616,6 +616,70 @@ discipline this round was run for.
 
 ---
 
+## Addendum — three commits landed after this audit's base (`7f04dce1`)
+
+Re-measured at `7c1db9ac`. Suite **4200 → 4206, 0 failures**. Full probe
+battery re-run: **no new regressions**; everything previously fixed is
+still fixed.
+
+**`7cf086e4` — `VerdictWorld2ConsistencyTest` is BUILT.** This is the
+guard chartered in `HOST_LOGIC_AUDIT_2026_08_20` as "the guard that keeps
+it fixed" and flagged as unbuilt in three consecutive audits. It runs each
+host-side semantic arm's computation through the full SQL pipeline and
+asserts the two worlds agree, with an **explicit shrink-only divergence
+register** — rows expected to agree fail on divergence, rows registered as
+known divergences fail when they *start* agreeing. Its javadoc states it
+would have caught §5 (`size()`=2 vs `toOne()`="size 3") and §6 (`decodeAny`
+precision loss) on day one. Correct — both were exactly two-worlds
+disagreements.
+
+This is the only fix in the series that closes the **pattern** rather than
+an instance.
+
+**`382795b2` — three findings burned, verified by probe:**
+
+| finding | before | at `7c1db9ac` |
+|---|---|---|
+| §3a `ExistsJoinForm` collapsing correlation keys | compared `DEPT_NAME` to a person's name; wrong rows | **FIXED** — emits `SELECT DISTINCT t1.NAME, t2.NAME AS NAME_1, …` and the ON references `t3.NAME_1`; correct row |
+| §3b `joinStrings` 3-arg dropping union order | `[aa,bb,zz,yy]` | **FIXED** — `[zz,yy,aa,bb]`, matching the 1-arg form |
+| `cast()` unchecked | everything silent | **PARTIAL** |
+
+The `cast()` boundary, mapped:
+
+```
+1->cast(@Boolean)          => Cast exception ✓      true->cast(@Integer)  => Cast exception ✓
+'a'->cast(@Boolean)        => Cast exception ✓      true->cast(@String)   => Cast exception ✓
+1->cast(@Date)             => Cast exception ✓      1->cast(@Number)      => 1  ✓ (a real upcast)
+1->cast(@String)           => SCALAR(1) STRING  ✗    1->cast(@Float)      => 1.0  ✗
+1.5->cast(@Integer)        => SCALAR(2)         ✗    %2024-01-01->cast(@String) => "2024-01-01" ✗
+```
+
+Unrelated-type pairs now raise; **convertible-primitive pairs still
+silently convert**. That residue is the declared "pure's cast never
+converts" divergence at `Lowerer.java:3156-3158`, so it is a known
+boundary rather than an oversight — but it is still a silent wrong value
+on the most common shape (`Integer → String`).
+
+**`7c1db9ac` — §7b adjudicated with engine witnesses, no code change.**
+The correct outcome: the reference goldens refute the finding (see §1).
+
+**What these commits did NOT touch** — and what therefore sits at the top
+of the queue:
+
+1. **R1** — `[1,2]->take(1)->toOne()` still aborts the compile
+   (`CollectionLanes` still has no `TypedLimit` arm; `grep -c` → 0).
+2. **R2** — `map(p|$p.x->toOne())` over a nullable column still throws
+   `NULL cell reached COLLECTION egress`.
+3. §2 filter-grows-the-set (3 → 5), §3 `['ACTIVE']->contains('TIV')`,
+   §5b inverted function-parameter variance, `isDistinct()`, `1/0` →
+   `Infinity`, `[]->map({v|$v})`.
+
+**Net: helped.** Two confirmed wrong answers burned, one partially, and
+the structural guard finally built. The only cost is bookkeeping — three
+rows of this report's open list were stale within hours of writing it.
+
+---
+
 ## Appendix — the standing pattern, restated
 
 Across four audits the failure mode has been consistent, and it is not
