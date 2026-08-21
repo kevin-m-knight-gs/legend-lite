@@ -1,8 +1,11 @@
-# THE GATE, enforced (NULL_GATE_VERIFICATION G0.2): the same protocol
-# docs/ENGINEERING_LOG.md prescribes by hand — clean core build (NullAway
-# null gate + guardrails run only on a cold compile), then the corpus
-# sweep, which self-checks against docs/RELATIONAL_CORPUS.md and fails
-# on any family regression.
+# CI GATE — HONEST SCOPE (multiplicity audit s6): this workflow runs the
+# core suite (NullAway null gate + guardrails on a cold compile) ONLY.
+# The corpus sweep and the PCT suites need the local oracle checkouts
+# (legend-engine / legend-pure) and CANNOT run here — the standing full
+# gate is LOCAL: tools/allgates.sh with LEGEND_ENGINE_ROOT/
+# LEGEND_PURE_ROOT at the baselined checkouts. The old third step
+# invoked the corpus runner knowing it would assume-skip on a bare
+# runner — a vacuously green step claiming coverage it never had.
 name: gate
 on:
   push:
@@ -24,5 +27,6 @@ jobs:
         run: mvn -B -pl core clean test
       - name: install core
         run: mvn -B -pl core install -DskipTests
-      - name: corpus sweep (self-checks vs committed scoreboard)
-        run: mvn -B -pl core test -Dtest=RelationalCorpusRunner
+      - name: corpus + PCT NOT RUN here (oracle checkouts absent)
+        run: echo "::warning ::Corpus sweep and PCT are NOT run in CI - they require the local legend-engine/legend-pure oracle checkouts. The standing full gate is tools/allgates.sh run locally against the baselined roots."
+

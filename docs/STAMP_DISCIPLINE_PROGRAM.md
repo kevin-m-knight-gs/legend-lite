@@ -945,3 +945,18 @@ to-one guard its synonym removeDuplicates always had. Stamps.exactlyOne
 finally has callers. Ratchet ArrayLit 35→36 (the distinct re-carrier,
 justified). Core 4182/0; corpus ledger BYTE-IDENTICAL; all eight gates
 green.
+
+### SLICE 5 LANDED — exact-FQN recognizers + honest CI
+
+The endsWith("::toOne") suffix-matches were already killed in slice 3
+(every reader routes through Pure.isToOneCall — exact FQNs; a user
+function named my::customToOne can no longer be hijacked). CI honesty
+(audit §6): the workflow's third step invoked the corpus runner
+knowing it would assume-skip on a bare runner — a vacuously green
+step named "corpus sweep (self-checks vs committed scoreboard)" that
+never ran a sweep. The workflow now states its honest scope (core
+suite only), and the third step is an explicit ::warning that the
+corpus and PCT run ONLY in the local tools/allgates.sh gate against
+the baselined oracle roots. The two harness swallow sites the audit
+flagged (§6) are recorded as follow-ups on the harness-platformization
+program, not silently kept.
