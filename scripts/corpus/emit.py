@@ -205,6 +205,25 @@ def external_data_element(c: Corpus, tables: dict[str, list[dict]]) -> str:
     return "\n".join(out)
 
 
+def _shorten(v):
+    """Replace 4-byte column values with the shortest decimal that round-trips through them.
+
+    json's C encoder calls float.__repr__ directly, so a float SUBCLASS cannot change how it
+    serialises -- which is why this is a walk over the payload rather than a __repr__ on the
+    value. The engine prints a FLOAT column as 16.1 and computes with 16.100000381469727;
+    the value carries the second into arithmetic and this renders the first.
+    """
+    import flat
+
+    if isinstance(v, dict):
+        return {k: _shorten(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_shorten(x) for x in v]
+    if isinstance(v, flat.F32):
+        return float(repr(v))
+    return v
+
+
 def test_suite(spec: Spec, expected: list[dict], note: str) -> str:
     """The testSuites block.
 
@@ -215,7 +234,7 @@ def test_suite(spec: Spec, expected: list[dict], note: str) -> str:
     """
     payload = expected if spec.graph is None else {
         "builder": {"_type": "json"}, "values": expected}
-    payload = _pure_str(json.dumps(payload, separators=(",", ":")))
+    payload = _pure_str(json.dumps(_shorten(payload), separators=(",", ":")))
     return f"""  testSuites:
   [
     {spec.short}_suite:

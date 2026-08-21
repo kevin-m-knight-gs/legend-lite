@@ -107,6 +107,7 @@ Mapping stress::AllMapping
     include fxexotics::FxexoticsMapping
     include eqexotics::EqexoticsMapping
     include brokerage::BrokerageMapping
+    include largeexp::LargeExposureMapping
     include schedule::ScheduleMapping
     include curves::CurvesMapping
     include timeseries::TimeSeriesMapping

@@ -808,6 +808,13 @@ def _exact_addsub(op, a, b):
     """
     from decimal import Decimal, InvalidOperation
     plain = {"+": lambda x, y: x + y, "-": lambda x, y: x - y, "*": lambda x, y: x * y}[op]
+    # A 4-byte column stays 4-byte through arithmetic. `25.0 - pct` over a FLOAT column is
+    # computed in single precision and printed as -4.799999, not -4.799999237060547 -- so
+    # the narrowing has to survive the operation rather than only the read. Same shape as
+    # the _Dbl division taint below, and checked first because F32 is the narrower claim.
+    import flat
+    if isinstance(a, flat.F32) or isinstance(b, flat.F32):
+        return flat.F32(plain(float(a), float(b)))
     if op == "*" and (isinstance(a, _Dbl) or isinstance(b, _Dbl)):
         return _Dbl(plain(a, b))
     if isinstance(a, bool) or isinstance(b, bool):
@@ -1962,7 +1969,13 @@ class _Eval:
             elif op == "*":
                 v = _exact_addsub("*", v, r)
             else:
-                v = None if r == 0 else _Dbl(v / r)
+                import flat
+                if r == 0:
+                    v = None
+                elif isinstance(v, flat.F32) or isinstance(r, flat.F32):
+                    v = flat.F32(float(v) / float(r))
+                else:
+                    v = _Dbl(v / r)
         return v
 
     def factor(self):
@@ -2446,7 +2459,12 @@ def render(value, kind: str):
     if kind == "int":
         return int(value)
     if kind == "float":
-        return float(value)
+        # `float(value)` would strip flat.F32, which is a float SUBCLASS carrying the
+        # narrowed value of a 4-byte column. The engine prints such a column as 16.1 and
+        # computes with 16.100000381469727; dropping the tag here rendered the second,
+        # against an engine printing the first, on a row whose every other column agreed.
+        import flat
+        return value if isinstance(value, flat.F32) else float(value)
     if kind == "timestamp":
         return _timestamp(value)
     if kind in ("string", "date"):

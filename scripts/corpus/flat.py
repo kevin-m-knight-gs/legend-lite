@@ -194,7 +194,73 @@ def all_tables(c: model.Corpus) -> dict[str, list[dict]]:
     # FORM pairs deterministically. Last, because it reads rows the expansion produced.
     import combos
     combos.derive_alt(c, tables)
+    _narrow_single_precision(c, tables)
     return tables
+
+
+class F32(float):
+    """A value in a 4-byte column: narrowed for arithmetic, shortest-repr for display.
+
+    The engine does BOTH things and they disagree. A FLOAT column holding 16.1 really holds
+    16.100000381469727, so `25.0 - pct` comes back as -4.799999237060547 -- and projecting
+    the same column prints `16.1`, because the shortest decimal that round-trips through
+    four bytes is what gets serialised.
+
+    Modelling only the first gave an expectation of 16.100000381469727 against the engine's
+    16.1; modelling only the second gave -4.8 against its -4.799999237060547. So this is a
+    float whose VALUE is the narrowed one and whose repr is the short one, and the JSON
+    encoder is told to use the repr.
+    """
+
+    def __new__(cls, v):
+        import struct
+        return super().__new__(cls, struct.unpack("f", struct.pack("f", float(v)))[0])
+
+    def __repr__(self):
+        # The shortest decimal that still round-trips through four bytes. 9 significant
+        # digits always round-trips; fewer usually does, and the engine prints the fewest.
+        import struct
+        for digits in range(1, 10):
+            s = f"%.{digits}g" % float(self)
+            if struct.pack("f", float(s)) == struct.pack("f", float(self)):
+                return repr(float(s))
+        return repr(float(self))
+
+
+def _narrow_single_precision(c: model.Corpus, tables: dict[str, list[dict]]) -> None:
+    """Round every FLOAT/REAL column to what a 4-byte column can actually hold.
+
+    A DECIMAL or DOUBLE column stores what the seed says. A FLOAT does not: it is four
+    bytes, so 29.8 becomes 29.799999237060547 the moment it is written, and `25.0 - pct`
+    is -4.799999237060547 rather than -4.8.
+
+    That is not a defect and nothing is wrong with the engine's answer -- it is what FLOAT
+    means. It is a defect in an ORACLE that reads the seed as written and then does exact
+    decimal arithmetic on it, which is what this one did: the first FLOAT column in the
+    corpus made a subtraction disagree in the seventh decimal place while the column itself
+    still projected as 29.8, so the row that failed and the value that caused it looked
+    unrelated.
+
+    Applied to the assembled tables rather than to the seed source, so the ###Data element
+    still carries the number a person wrote and the database still does the narrowing.
+    """
+    def narrow(v):
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            return v
+        return F32(v)
+
+    for name, rows in tables.items():
+        spec = c.tables.get(name)
+        if spec is None:
+            continue
+        cols = [n for n, col in spec.columns.items()
+                if str(col.type or "").upper().split("(")[0] in ("FLOAT", "REAL")]
+        if not cols:
+            continue
+        for r in rows:
+            for n in cols:
+                if r.get(n) is not None:
+                    r[n] = narrow(r[n])
 
 
 if __name__ == "__main__":

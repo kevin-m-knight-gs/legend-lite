@@ -4780,6 +4780,430 @@ Service stress::SC2_ScheduleAsOf
   ]
 }
 
+Service stress::LE0_ExposureLines
+{
+    pattern: '/stress/le0';
+    documentation: 'Every large-exposure line: the three-column key, the enum-mapped exposure class, what credit risk mitigation bought, the headroom to the 25% limit and the net exposure converted at a supplied rate. The table is schema-qualified -- the first one in this corpus any mapping reads -- and carries SMALLINT, CHAR, NUMERIC and REAL columns, four types nothing had declared before.';
+    execution: Single
+    {
+    query: |largeexp::ExposureLine.all()
+        ->project(~[
+            reportId:x|$x.reportId,
+            cobDate:x|$x.cobDate,
+            lineNumber:x|$x.lineNumber,
+            counterpartyId:x|$x.counterpartyId,
+            groupId:x|$x.groupId,
+            countryCode:x|$x.countryCode,
+            exposureClass:x|$x.exposureClass,
+            grossExposure:x|$x.grossExposure,
+            netExposure:x|$x.netExposure,
+            pctOfCapital:x|$x.pctOfCapital,
+            mitigationRatio:x|$x.mitigationRatio,
+            headroomToLimit:x|$x.headroomToLimit,
+            netExposureGbp:x|$x.netExposureIn(0.79),
+            reportedAt:x|$x.reportedAt,
+            isExempt:x|$x.isExempt
+        ])
+        ->sort([~reportId->ascending(), ~cobDate->ascending(), ~lineNumber->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    LE0_ExposureLines_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 12 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":1,"counterpartyId":"CP-0001","groupId":"GRP-ALPHA","countryCode":"US","exposureClass":"INSTITUTION","grossExposure":4100000000.0,"netExposure":3200000000.0,"pctOfCapital":16.1,"mitigationRatio":0.21951219512195122,"headroomToLimit":8.9,"netExposureGbp":2528000000.0,"reportedAt":"2024-03-28T18:30:00.000000000+0000","isExempt":false},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":2,"counterpartyId":"CP-0003","groupId":"GRP-BETA","countryCode":"DE","exposureClass":"CORPORATE","grossExposure":6900000000.0,"netExposure":6550000000.0,"pctOfCapital":29.8,"mitigationRatio":0.050724637681159424,"headroomToLimit":-4.799999,"netExposureGbp":5174500000.0,"reportedAt":"2024-03-28T18:30:00.000000000+0000","isExempt":false},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":3,"counterpartyId":"CP-0006","groupId":null,"countryCode":"CH","exposureClass":"INSTITUTION","grossExposure":1750000000.0,"netExposure":1675000000.0,"pctOfCapital":7.9,"mitigationRatio":0.04285714285714286,"headroomToLimit":17.1,"netExposureGbp":1323250000.0,"reportedAt":"2024-03-28T18:30:00.000000000+0000","isExempt":false},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":1,"counterpartyId":"CP-0001","groupId":"GRP-ALPHA","countryCode":"US","exposureClass":"INSTITUTION","grossExposure":4850000000.0,"netExposure":3650000000.0,"pctOfCapital":18.4,"mitigationRatio":0.24742268041237114,"headroomToLimit":6.6000004,"netExposureGbp":2883500000.0,"reportedAt":"2024-06-28T18:30:00.000000000+0000","isExempt":false},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":2,"counterpartyId":"CP-0002","groupId":"GRP-ALPHA","countryCode":"GB","exposureClass":"INSTITUTION","grossExposure":2100000000.0,"netExposure":1950000000.0,"pctOfCapital":9.2,"mitigationRatio":0.07142857142857142,"headroomToLimit":15.8,"netExposureGbp":1540500000.0,"reportedAt":"2024-06-28T18:30:00.000000000+0000","isExempt":false},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":3,"counterpartyId":"CP-0003","groupId":"GRP-BETA","countryCode":"DE","exposureClass":"CORPORATE","grossExposure":7400000000.0,"netExposure":7000000000.0,"pctOfCapital":31.7,"mitigationRatio":0.05405405405405406,"headroomToLimit":-6.700001,"netExposureGbp":5530000000.0,"reportedAt":"2024-06-28T18:30:00.000000000+0000","isExempt":false},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":4,"counterpartyId":"CP-0004","groupId":"GRP-GAMMA","countryCode":"FR","exposureClass":"CORPORATE","grossExposure":980000000.0,"netExposure":980000000.0,"pctOfCapital":4.6,"mitigationRatio":0.0,"headroomToLimit":20.4,"netExposureGbp":774200000.0,"reportedAt":"2024-06-28T18:30:00.000000000+0000","isExempt":false},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":5,"counterpartyId":"CP-0005","groupId":null,"countryCode":"JP","exposureClass":"SOVEREIGN","grossExposure":15200000000.0,"netExposure":15200000000.0,"pctOfCapital":71.3,"mitigationRatio":0.0,"headroomToLimit":-46.300003,"netExposureGbp":12008000000.0,"reportedAt":"2024-06-28T18:30:00.000000000+0000","isExempt":true},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":6,"counterpartyId":"CP-0001","groupId":"GRP-ALPHA","countryCode":"US","exposureClass":"COVERED_BOND","grossExposure":640000000.0,"netExposure":0.0,"pctOfCapital":0.0,"mitigationRatio":1.0,"headroomToLimit":25.0,"netExposureGbp":0.0,"reportedAt":"2024-06-28T18:30:00.000000000+0000","isExempt":false},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":1,"counterpartyId":"CP-0007","groupId":"GRP-DELTA","countryCode":"IE","exposureClass":"FUND","grossExposure":3300000000.0,"netExposure":3100000000.0,"pctOfCapital":14.5,"mitigationRatio":0.06060606060606061,"headroomToLimit":10.5,"netExposureGbp":2449000000.0,"reportedAt":"2024-06-28T18:30:00.000000000+0000","isExempt":false},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":2,"counterpartyId":"CP-0008","groupId":"GRP-DELTA","countryCode":"LU","exposureClass":"FUND","grossExposure":880000000.0,"netExposure":880000000.0,"pctOfCapital":4.1,"mitigationRatio":0.0,"headroomToLimit":20.9,"netExposureGbp":695200000.0,"reportedAt":"2024-06-28T18:30:00.000000000+0000","isExempt":false},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":3,"counterpartyId":"CP-0009","groupId":null,"countryCode":"SG","exposureClass":"INSTITUTION","grossExposure":2450000000.0,"netExposure":2150000000.0,"pctOfCapital":10.1,"mitigationRatio":0.12244897959183673,"headroomToLimit":14.9,"netExposureGbp":1698500000.0,"reportedAt":"2024-06-28T18:30:00.000000000+0000","isExempt":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::LE1_BandedExposures
+{
+    pattern: '/stress/le1';
+    documentation: 'Each line with the threshold band its percentage falls in, reached by a RANGE join from a three-column key: `pct >= floor and pct < ceiling`, with no key to join on because which band applies is a property of the number. One line sits at exactly 0.0, the floor of the first band, which is the boundary a half-open range gets wrong first.';
+    execution: Single
+    {
+    query: |largeexp::ExposureLine.all()
+        ->project(~[
+            reportId:x|$x.reportId,
+            cobDate:x|$x.cobDate,
+            lineNumber:x|$x.lineNumber,
+            pctOfCapital:x|$x.pctOfCapital,
+            bandId:x|$x.thresholdBand.bandId,
+            bandName:x|$x.thresholdBand.bandName,
+            isReportable:x|$x.thresholdBand.isReportable,
+            isBreach:x|$x.thresholdBand.isBreach
+        ])
+        ->sort([~reportId->ascending(), ~cobDate->ascending(), ~lineNumber->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    LE1_BandedExposures_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 12 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":1,"pctOfCapital":16.1,"bandId":"TH-MONITOR","bandName":"Monitored","isReportable":true,"isBreach":false},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":2,"pctOfCapital":29.8,"bandId":"TH-BREACH","bandName":"Limit breach","isReportable":true,"isBreach":true},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":3,"pctOfCapital":7.9,"bandId":"TH-REPORT","bandName":"Reportable","isReportable":true,"isBreach":false},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":1,"pctOfCapital":18.4,"bandId":"TH-MONITOR","bandName":"Monitored","isReportable":true,"isBreach":false},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":2,"pctOfCapital":9.2,"bandId":"TH-REPORT","bandName":"Reportable","isReportable":true,"isBreach":false},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":3,"pctOfCapital":31.7,"bandId":"TH-BREACH","bandName":"Limit breach","isReportable":true,"isBreach":true},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":4,"pctOfCapital":4.6,"bandId":"TH-NIL","bandName":"Below reporting threshold","isReportable":false,"isBreach":false},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":5,"pctOfCapital":71.3,"bandId":"TH-BREACH","bandName":"Limit breach","isReportable":true,"isBreach":true},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":6,"pctOfCapital":0.0,"bandId":"TH-NIL","bandName":"Below reporting threshold","isReportable":false,"isBreach":false},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":1,"pctOfCapital":14.5,"bandId":"TH-MONITOR","bandName":"Monitored","isReportable":true,"isBreach":false},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":2,"pctOfCapital":4.1,"bandId":"TH-NIL","bandName":"Below reporting threshold","isReportable":false,"isBreach":false},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":3,"pctOfCapital":10.1,"bandId":"TH-MONITOR","bandName":"Monitored","isReportable":true,"isBreach":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::LE2_ExemptionMatches
+{
+    pattern: '/stress/le2';
+    documentation: 'How many exemption rules reach each line, over a join that matches on counterparty OR on country. A rule carries one or the other and never both, so the `or` is a real disjunction. Quarantined under F6: five of the twelve lines match no rule at all and count() over an empty to-many returns 1. LE6 counts the same join from the rule side, where every rule reaches a line, and passes.';
+    execution: Single
+    {
+    query: |largeexp::ExposureLine.all()
+        ->project(~[
+            reportId:x|$x.reportId,
+            cobDate:x|$x.cobDate,
+            lineNumber:x|$x.lineNumber,
+            counterpartyId:x|$x.counterpartyId,
+            countryCode:x|$x.countryCode,
+            isExempt:x|$x.isExempt,
+            matchingRules:x|$x.exemptionRules->count()
+        ])
+        ->sort([~reportId->ascending(), ~cobDate->ascending(), ~lineNumber->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    LE2_ExemptionMatches_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 12 rows; 6 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":1,"counterpartyId":"CP-0001","countryCode":"US","isExempt":false,"matchingRules":0},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":2,"counterpartyId":"CP-0003","countryCode":"DE","isExempt":false,"matchingRules":1},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":3,"counterpartyId":"CP-0006","countryCode":"CH","isExempt":false,"matchingRules":1},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":1,"counterpartyId":"CP-0001","countryCode":"US","isExempt":false,"matchingRules":0},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":2,"counterpartyId":"CP-0002","countryCode":"GB","isExempt":false,"matchingRules":0},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":3,"counterpartyId":"CP-0003","countryCode":"DE","isExempt":false,"matchingRules":1},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":4,"counterpartyId":"CP-0004","countryCode":"FR","isExempt":false,"matchingRules":0},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":5,"counterpartyId":"CP-0005","countryCode":"JP","isExempt":true,"matchingRules":1},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":6,"counterpartyId":"CP-0001","countryCode":"US","isExempt":false,"matchingRules":0},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":1,"counterpartyId":"CP-0007","countryCode":"IE","isExempt":false,"matchingRules":1},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":2,"counterpartyId":"CP-0008","countryCode":"LU","isExempt":false,"matchingRules":0},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":3,"counterpartyId":"CP-0009","countryCode":"SG","isExempt":false,"matchingRules":1}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::LE3_ReportableLines
+{
+    pattern: '/stress/le3';
+    documentation: 'Only the lines at or above the 5% reporting threshold, through the subtype\'s ~filter over a schema-qualified table. Ten of twelve, so a filter that had stopped working would return twelve with no error.';
+    execution: Single
+    {
+    query: |largeexp::ReportableLine.all()
+        ->project(~[
+            reportId:x|$x.reportId,
+            cobDate:x|$x.cobDate,
+            lineNumber:x|$x.lineNumber,
+            pctOfCapital:x|$x.pctOfCapital,
+            exposureClass:x|$x.exposureClass,
+            netExposure:x|$x.netExposure
+        ])
+        ->sort([~reportId->ascending(), ~cobDate->ascending(), ~lineNumber->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    LE3_ReportableLines_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 9 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":1,"pctOfCapital":16.1,"exposureClass":"INSTITUTION","netExposure":3200000000.0},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":2,"pctOfCapital":29.8,"exposureClass":"CORPORATE","netExposure":6550000000.0},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":3,"pctOfCapital":7.9,"exposureClass":"INSTITUTION","netExposure":1675000000.0},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":1,"pctOfCapital":18.4,"exposureClass":"INSTITUTION","netExposure":3650000000.0},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":2,"pctOfCapital":9.2,"exposureClass":"INSTITUTION","netExposure":1950000000.0},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":3,"pctOfCapital":31.7,"exposureClass":"CORPORATE","netExposure":7000000000.0},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":5,"pctOfCapital":71.3,"exposureClass":"SOVEREIGN","netExposure":15200000000.0},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":1,"pctOfCapital":14.5,"exposureClass":"FUND","netExposure":3100000000.0},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":3,"pctOfCapital":10.1,"exposureClass":"INSTITUTION","netExposure":2150000000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::LE4_ReturnHeaders
+{
+    pattern: '/stress/le4';
+    documentation: 'The distinct (report, cob date) pairs, read ~distinct off the line table. Twelve rows collapse to three, and the reference beside them is built by a dynafunction in the mapping rather than stored.';
+    execution: Single
+    {
+    query: |largeexp::ReturnHeader.all()
+        ->project(~[
+            reportId:x|$x.reportId,
+            cobDate:x|$x.cobDate,
+            returnRef:x|$x.returnRef
+        ])
+        ->sort([~reportId->ascending(), ~cobDate->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    LE4_ReturnHeaders_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 11 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","returnRef":"LE-2024Q1-01US"},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","returnRef":"LE-2024Q1-01DE"},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","returnRef":"LE-2024Q1-01CH"},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","returnRef":"LE-2024Q2-01US"},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","returnRef":"LE-2024Q2-01GB"},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","returnRef":"LE-2024Q2-01DE"},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","returnRef":"LE-2024Q2-01FR"},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","returnRef":"LE-2024Q2-01JP"},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","returnRef":"LE-2024Q2-02IE"},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","returnRef":"LE-2024Q2-02LU"},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","returnRef":"LE-2024Q2-02SG"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::LE5_ReturnTotals
+{
+    pattern: '/stress/le5';
+    documentation: 'Per return: how many lines, the largest single exposure, the total net and the mean percentage. Grouped over a schema-qualified composite-key table, and three of the twelve lines belong to no connected group at all -- the null a grouping rule has to survive.';
+    execution: Single
+    {
+    query: |largeexp::ExposureLine.all()
+        ->project(~[
+            reportId:x|$x.reportId,
+            netExposure:x|$x.netExposure
+        ])
+        ->groupBy(~[reportId], ~[
+            lineCount: x|$x.netExposure : agg|$agg->count(),
+            largestExposure: x|$x.netExposure : agg|$agg->max(),
+            smallestExposure: x|$x.netExposure : agg|$agg->min(),
+            totalNet: x|$x.netExposure : agg|$agg->sum(),
+            meanNet: x|$x.netExposure : agg|$agg->average()
+        ])
+        ->sort(~reportId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    LE5_ReturnTotals_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"reportId":"LE-2024Q1-01","lineCount":3,"largestExposure":6550000000.0,"smallestExposure":1675000000.0,"totalNet":11425000000.0,"meanNet":3808333333.3333335},{"reportId":"LE-2024Q2-01","lineCount":6,"largestExposure":15200000000.0,"smallestExposure":0.0,"totalNet":28780000000.0,"meanNet":4796666666.666667},{"reportId":"LE-2024Q2-02","lineCount":3,"largestExposure":3100000000.0,"smallestExposure":880000000.0,"totalNet":6130000000.0,"meanNet":2043333333.3333333}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::LE6_ExemptionRules
+{
+    pattern: '/stress/le6';
+    documentation: 'The exemption rules themselves. Each carries a counterparty or a country and never both, so exactly one of the two columns is null on every row -- which is what makes the join behind LE2 a disjunction rather than two conditions that happen to agree.';
+    execution: Single
+    {
+    query: |largeexp::ExemptionRule.all()
+        ->project(~[
+            ruleId:x|$x.ruleId,
+            exemptCounterpartyId:x|$x.exemptCounterpartyId,
+            exemptCountryCode:x|$x.exemptCountryCode,
+            basis:x|$x.basis,
+            linesReached:x|$x.exemptedLines->count()
+        ])
+        ->sort(~ruleId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    LE6_ExemptionRules_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"ruleId":"EX-CPTY-06","exemptCounterpartyId":"CP-0006","exemptCountryCode":null,"basis":"CENTRAL_BANK","linesReached":1},{"ruleId":"EX-CTY-DE","exemptCounterpartyId":null,"exemptCountryCode":"DE","basis":"INTRAGROUP_LOCAL","linesReached":2},{"ruleId":"EX-CTY-IE","exemptCounterpartyId":null,"exemptCountryCode":"IE","basis":"COVERED_BOND_RELIEF","linesReached":1},{"ruleId":"EX-CTY-SG","exemptCounterpartyId":null,"exemptCountryCode":"SG","basis":"TRADE_FINANCE_RELIEF","linesReached":1},{"ruleId":"EX-SOV-JP","exemptCounterpartyId":"CP-0005","exemptCountryCode":null,"basis":"SOVEREIGN_EXPOSURE","linesReached":1}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::F10_RatingsAsOf2019
 {
     pattern: '/stress/t10';
@@ -15924,6 +16348,116 @@ Service stress::AA_DebtSecurityCounts
                   #{
                     contentType: 'application/json';
                     data: '[{"securityId":"DE000A289N78","couponPeriodsCount":7},{"securityId":"US037833DX90","couponPeriodsCount":12},{"securityId":"US912810TM08","couponPeriodsCount":60},{"securityId":"US912828YY08","couponPeriodsCount":20},{"securityId":"XS1002801758","couponPeriodsCount":20},{"securityId":"XS2056430215","couponPeriodsCount":11}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::AA_ExemptionRuleCounts
+{
+    pattern: '/stress/aa_exemptionrule';
+    documentation: 'Generated aggregate on largeexp::ExemptionRule: 1 count(s) over to-many associations, every parent of which HAS children. This is the non-empty half of the property the F-series pins on the empty half -- F6 makes count() over an empty to-many return 1, so an end with any childless parent is excluded here rather than quarantined. Several counts on one root so the outer joins interact; a single-aggregate probe cannot show that. Generated by scripts/corpus/aggregates.py.';
+    execution: Single
+    {
+    query: |largeexp::ExemptionRule.all()
+        ->project(~[
+            ruleId:x|$x.ruleId,
+            exemptedLinesCount:x|$x.exemptedLines->count()
+        ])
+        ->sort(~ruleId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    AA_ExemptionRuleCounts_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"ruleId":"EX-CPTY-06","exemptedLinesCount":1},{"ruleId":"EX-CTY-DE","exemptedLinesCount":2},{"ruleId":"EX-CTY-IE","exemptedLinesCount":1},{"ruleId":"EX-CTY-SG","exemptedLinesCount":1},{"ruleId":"EX-SOV-JP","exemptedLinesCount":1}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::AA_ThresholdBandCounts
+{
+    pattern: '/stress/aa_thresholdband';
+    documentation: 'Generated aggregate on largeexp::ThresholdBand: 1 count(s) over to-many associations, every parent of which HAS children. This is the non-empty half of the property the F-series pins on the empty half -- F6 makes count() over an empty to-many return 1, so an end with any childless parent is excluded here rather than quarantined. Several counts on one root so the outer joins interact; a single-aggregate probe cannot show that. Generated by scripts/corpus/aggregates.py.';
+    execution: Single
+    {
+    query: |largeexp::ThresholdBand.all()
+        ->project(~[
+            bandId:x|$x.bandId,
+            bandedLinesCount:x|$x.bandedLines->count()
+        ])
+        ->sort(~bandId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    AA_ThresholdBandCounts_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"bandId":"TH-BREACH","bandedLinesCount":3},{"bandId":"TH-MONITOR","bandedLinesCount":4},{"bandId":"TH-NIL","bandedLinesCount":3},{"bandId":"TH-REPORT","bandedLinesCount":2}]';
                   }#;
               }#
           ]
@@ -131895,6 +132429,71 @@ Service stress::SP_defYieldCurveEmpty
   ]
 }
 
+Service stress::SP_defExposureLineGroup
+{
+    pattern: '/stress/sp_defexposurelinegroup';
+    documentation: 'Coverage-directed stack on largeexp::ExposureLine (Group), reusing the reach of LE1_BandedExposures and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |largeexp::ExposureLine.all()
+        ->filter({x|($x.reportId > ' ')})
+        ->project(~[
+            reportId:x|$x.reportId,
+            cobDate:x|$x.cobDate,
+            lineNumber:x|$x.lineNumber,
+            pctOfCapital:x|$x.pctOfCapital,
+            bandId:x|$x.thresholdBand.bandId,
+            bandName:x|$x.thresholdBand.bandName,
+            isReportable:x|$x.thresholdBand.isReportable,
+            isBreach:x|$x.thresholdBand.isBreach
+        ])
+        ->groupBy(~[reportId], ~[
+            n: x|$x.lineNumber : agg|$agg->count(),
+            tot: x|$x.lineNumber : agg|$agg->sum()
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defExposureLineGroup_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"reportId":"LE-2024Q2-01","n":6,"tot":21},{"reportId":"LE-2024Q1-01","n":3,"tot":6},{"reportId":"LE-2024Q2-02","n":3,"tot":6}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::SP_defDailyPnLEmpty
 {
     pattern: '/stress/sp_defdailypnlempty';
@@ -132283,85 +132882,6 @@ Service stress::SP_IssuerProdIssuerGraph
   ]
 }
 
-Service stress::SP_ComboSummaryGroup
-{
-    pattern: '/stress/sp_combosummarygroup';
-    documentation: 'Coverage-directed stack on combo::Summary (Group), reusing the reach of CB_SchemaQualified and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |combo::Summary.all()
-        ->filter({x|($x.rootId > ' ')})
-        ->project(~[
-            rootId:x|$x.rootId,
-            sm_b_nl1:x|$x.sm_b_nl1,
-            sm_b_nn1:x|$x.sm_b_nn1,
-            sm_bi_nl1:x|$x.sm_bi_nl1,
-            sm_bi_nn1:x|$x.sm_bi_nn1,
-            sm_c_nl1:x|$x.sm_c_nl1,
-            sm_c_nn1:x|$x.sm_c_nn1,
-            sm_de_nl1:x|$x.sm_de_nl1,
-            sm_de_nn1:x|$x.sm_de_nn1,
-            sm_dt_nl1:x|$x.sm_dt_nl1,
-            sm_dt_nn1:x|$x.sm_dt_nn1,
-            sm_f_nl1:x|$x.sm_f_nl1,
-            sm_f_nn1:x|$x.sm_f_nn1,
-            sm_i_nl1:x|$x.sm_i_nl1,
-            sm_i_nn1:x|$x.sm_i_nn1,
-            sm_s_nl1:x|$x.sm_s_nl1,
-            sm_s_nn1:x|$x.sm_s_nn1,
-            sm_si_nl1:x|$x.sm_si_nl1,
-            sm_si_nn1:x|$x.sm_si_nn1,
-            sm_ts_nl1:x|$x.sm_ts_nl1,
-            sm_ts_nn1:x|$x.sm_ts_nn1,
-            summaryId:x|$x.summaryId
-        ])
-        ->groupBy(~[rootId], ~[
-            n: x|$x.sm_bi_nl1 : agg|$agg->count(),
-            tot: x|$x.sm_bi_nl1 : agg|$agg->sum()
-        ]);
-        mapping: combo::ComboMapping;
-        runtime: combo::ComboRT;
-    }
-  testSuites:
-  [
-    SP_ComboSummaryGroup_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          comboEnv:
-            Reference
-            #{
-              combo::ComboData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"rootId":"CR-0001-GONE","n":1,"tot":59},{"rootId":"CR-0001","n":1,"tot":66},{"rootId":"CR-0002","n":0,"tot":null},{"rootId":"CR-0003","n":1,"tot":80}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
 Service stress::SP_defCurvePointGroup
 {
     pattern: '/stress/sp_defcurvepointgroup';
@@ -132417,6 +132937,135 @@ Service stress::SP_defCurvePointGroup
                   #{
                     contentType: 'application/json';
                     data: '[{"curveId":"USD.SOFR.OIS","n":24,"tot":68540},{"curveId":"USD.LIBOR.3M","n":24,"tot":68540},{"curveId":"EUR.ESTR.OIS","n":24,"tot":68540},{"curveId":"EUR.EURIBOR.6M","n":24,"tot":68540},{"curveId":"GBP.SONIA.OIS","n":24,"tot":68540},{"curveId":"JPY.TONA.OIS","n":24,"tot":68540},{"curveId":"USD.UST.GOVT","n":24,"tot":68540},{"curveId":"EUR.DBR.GOVT","n":24,"tot":68540}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::SP_defReportableLineGraph
+{
+    pattern: '/stress/sp_defreportablelinegraph';
+    documentation: 'Coverage-directed stack on largeexp::ReportableLine (Graph), reusing the reach of LE3_ReportableLines and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |largeexp::ReportableLine.all()
+        ->graphFetch(#{
+  largeexp::ReportableLine
+  {
+    reportId,
+    cobDate,
+    lineNumber,
+    pctOfCapital,
+    exposureClass,
+    netExposure
+  }
+}#)
+        ->serialize(#{
+  largeexp::ReportableLine
+  {
+    reportId,
+    cobDate,
+    lineNumber,
+    pctOfCapital,
+    exposureClass,
+    netExposure
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defReportableLineGraph_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 9 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":1,"pctOfCapital":18.4,"exposureClass":"INSTITUTION","netExposure":3650000000.0},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":2,"pctOfCapital":9.2,"exposureClass":"INSTITUTION","netExposure":1950000000.0},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":3,"pctOfCapital":31.7,"exposureClass":"CORPORATE","netExposure":7000000000.0},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":5,"pctOfCapital":71.3,"exposureClass":"SOVEREIGN","netExposure":15200000000.0},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":1,"pctOfCapital":16.1,"exposureClass":"INSTITUTION","netExposure":3200000000.0},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":2,"pctOfCapital":29.8,"exposureClass":"CORPORATE","netExposure":6550000000.0},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":3,"pctOfCapital":7.9,"exposureClass":"INSTITUTION","netExposure":1675000000.0},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":1,"pctOfCapital":14.5,"exposureClass":"FUND","netExposure":3100000000.0},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":3,"pctOfCapital":10.1,"exposureClass":"INSTITUTION","netExposure":2150000000.0}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::SP_defReturnHeaderFilter
+{
+    pattern: '/stress/sp_defreturnheaderfilter';
+    documentation: 'Coverage-directed stack on largeexp::ReturnHeader (Filter), reusing the reach of LE4_ReturnHeaders and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |largeexp::ReturnHeader.all()
+        ->filter({x|($x.reportId > ' ')})
+        ->project(~[
+            reportId:x|$x.reportId,
+            cobDate:x|$x.cobDate,
+            returnRef:x|$x.returnRef
+        ])
+        ->sort(~reportId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defReturnHeaderFilter_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 11 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","returnRef":"LE-2024Q1-01US"},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","returnRef":"LE-2024Q1-01DE"},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","returnRef":"LE-2024Q1-01CH"},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","returnRef":"LE-2024Q2-01US"},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","returnRef":"LE-2024Q2-01GB"},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","returnRef":"LE-2024Q2-01DE"},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","returnRef":"LE-2024Q2-01FR"},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","returnRef":"LE-2024Q2-01JP"},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","returnRef":"LE-2024Q2-02IE"},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","returnRef":"LE-2024Q2-02LU"},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","returnRef":"LE-2024Q2-02SG"}]';
                   }#;
               }#
           ]
@@ -132499,139 +133148,6 @@ Service stress::SP_defTradeGroup
   ]
 }
 
-Service stress::SP_defCurveDateFilter
-{
-    pattern: '/stress/sp_defcurvedatefilter';
-    documentation: 'Coverage-directed stack on curves::CurveDate (Filter), reusing the reach of CV8_CurveDates and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |curves::CurveDate.all()
-        ->filter({x|($x.curveId > ' ')})
-        ->project(~[
-            curveId:x|$x.curveId,
-            cobDate:x|$x.cobDate,
-            curveLabel:x|$x.curveLabel
-        ])
-        ->sort(~curveId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    SP_defCurveDateFilter_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 16 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","curveLabel":"EUR.DBR.GOVTGOVT"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","curveLabel":"EUR.DBR.GOVTGOVT"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","curveLabel":"EUR.ESTR.OISOIS"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","curveLabel":"EUR.ESTR.OISOIS"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","curveLabel":"EUR.EURIBOR.6MIBOR_SWAP"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","curveLabel":"EUR.EURIBOR.6MIBOR_SWAP"},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","curveLabel":"GBP.SONIA.OISOIS"},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","curveLabel":"GBP.SONIA.OISOIS"},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","curveLabel":"JPY.TONA.OISOIS"},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","curveLabel":"JPY.TONA.OISOIS"},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","curveLabel":"USD.LIBOR.3MIBOR_SWAP"},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","curveLabel":"USD.LIBOR.3MIBOR_SWAP"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","curveLabel":"USD.SOFR.OISOIS"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","curveLabel":"USD.SOFR.OISOIS"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","curveLabel":"USD.UST.GOVTGOVT"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","curveLabel":"USD.UST.GOVTGOVT"}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::SP_ExecutedExecutedTradeGraph
-{
-    pattern: '/stress/sp_executedexecutedtradegraph';
-    documentation: 'Coverage-directed stack on trading::ExecutedTrade (Graph), reusing the reach of E1_ExecutedByMapping and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |trading::ExecutedTrade.all()
-        ->graphFetch(#{
-  trading::ExecutedTrade
-  {
-    tradeId,
-    tradeDate,
-    quantity,
-    price,
-    notional,
-    side,
-    status,
-    currency
-  }
-}#)
-        ->serialize(#{
-  trading::ExecutedTrade
-  {
-    tradeId,
-    tradeDate,
-    quantity,
-    price,
-    notional,
-    side,
-    status,
-    currency
-  }
-}#);
-        mapping: trading::ExecutedMapping;
-        runtime: stress::ExecutedRT;
-    }
-  testSuites:
-  [
-    SP_ExecutedExecutedTradeGraph_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 15 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"tradeId":"TRD-0001","tradeDate":"2024-06-03","quantity":1000.0,"price":190.5,"notional":190500.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0002","tradeDate":"2024-06-03","quantity":2500.0,"price":191.0,"notional":477500.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0003","tradeDate":"2024-06-03","quantity":500.0,"price":500.0,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0004","tradeDate":"2024-06-03","quantity":1250.0,"price":200.0,"notional":250000.0,"side":"SELL","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0005","tradeDate":"2024-06-03","quantity":2000.0,"price":125.0,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0006","tradeDate":"2024-06-03","quantity":800.0,"price":312.5,"notional":250000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0007","tradeDate":"2024-06-03","quantity":1500.0,"price":188.0,"notional":282000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0010","tradeDate":"2024-06-04","quantity":1200.0,"price":415.0,"notional":498000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0011","tradeDate":"2024-06-04","quantity":400.0,"price":418.25,"notional":167300.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0013","tradeDate":"2024-06-05","quantity":25000.0,"price":6.85,"notional":171250.0,"side":"SELL","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0014","tradeDate":"2024-06-05","quantity":10000.0,"price":6.9,"notional":69000.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0016","tradeDate":"2024-06-06","quantity":1500.0,"price":176.4,"notional":264600.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0017","tradeDate":"2024-06-06","quantity":2200.0,"price":175.0,"notional":385000.0,"side":"SELL","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0018","tradeDate":"2024-06-07","quantity":5000000.0,"price":0.9825,"notional":4912500.0,"side":"BUY","status":"EXECUTED","currency":"USD"},{"tradeId":"TRD-0019","tradeDate":"2024-06-07","quantity":2000000.0,"price":0.98,"notional":1960000.0,"side":"BUY","status":"EXECUTED","currency":"USD"}]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
 Service stress::SP_defYieldCurveCount
 {
     pattern: '/stress/sp_defyieldcurvecount';
@@ -132691,78 +133207,38 @@ Service stress::SP_defYieldCurveCount
   ]
 }
 
-Service stress::SP_ComboSummaryGraph
+Service stress::SP_defExemptionRuleCount
 {
-    pattern: '/stress/sp_combosummarygraph';
-    documentation: 'Coverage-directed stack on combo::Summary (Graph), reusing the reach of CB_SchemaQualified and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    pattern: '/stress/sp_defexemptionrulecount';
+    documentation: 'Coverage-directed stack on largeexp::ExemptionRule (Count), reusing the reach of LE6_ExemptionRules and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
     execution: Single
     {
-    query: |combo::Summary.all()
-        ->graphFetch(#{
-  combo::Summary
-  {
-    rootId,
-    sm_b_nl1,
-    sm_b_nn1,
-    sm_bi_nl1,
-    sm_bi_nn1,
-    sm_c_nl1,
-    sm_c_nn1,
-    sm_de_nl1,
-    sm_de_nn1,
-    sm_dt_nl1,
-    sm_dt_nn1,
-    sm_f_nl1,
-    sm_f_nn1,
-    sm_i_nl1,
-    sm_i_nn1,
-    sm_s_nl1,
-    sm_s_nn1,
-    sm_si_nl1,
-    sm_si_nn1,
-    summaryId
-  }
-}#)
-        ->serialize(#{
-  combo::Summary
-  {
-    rootId,
-    sm_b_nl1,
-    sm_b_nn1,
-    sm_bi_nl1,
-    sm_bi_nn1,
-    sm_c_nl1,
-    sm_c_nn1,
-    sm_de_nl1,
-    sm_de_nn1,
-    sm_dt_nl1,
-    sm_dt_nn1,
-    sm_f_nl1,
-    sm_f_nn1,
-    sm_i_nl1,
-    sm_i_nn1,
-    sm_s_nl1,
-    sm_s_nn1,
-    sm_si_nl1,
-    sm_si_nn1,
-    summaryId
-  }
-}#);
-        mapping: combo::ComboMapping;
-        runtime: combo::ComboRT;
+    query: |largeexp::ExemptionRule.all()
+        ->filter({x|($x.ruleId > ' ')})
+        ->project(~[
+            ruleId:x|$x.ruleId,
+            exemptCounterpartyId:x|$x.exemptCounterpartyId,
+            exemptCountryCode:x|$x.exemptCountryCode,
+            basis:x|$x.basis,
+            exemptedLinesCount:x|$x.exemptedLines->count()
+        ])
+        ->sort(~ruleId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
     }
   testSuites:
   [
-    SP_ComboSummaryGraph_suite:
+    SP_defExemptionRuleCount_suite:
     {
       data:
       [
         connections:
         [
-          comboEnv:
+          environment:
             Reference
             #{
-              combo::ComboData
+              stress::TestData
             }#
         ]
       ]
@@ -132771,6 +133247,7 @@ Service stress::SP_ComboSummaryGraph
         // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
         expected_rows:
         {
+          serializationFormat: PURE_TDSOBJECT;
           asserts:
           [
             matchesOracle:
@@ -132780,7 +133257,7 @@ Service stress::SP_ComboSummaryGraph
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"rootId":null,"sm_b_nl1":false,"sm_b_nn1":false,"sm_bi_nl1":52,"sm_bi_nn1":52,"sm_c_nl1":"SM-C-NL1-001","sm_c_nn1":"SM-C-NN1-001","sm_de_nl1":325.0,"sm_de_nn1":325.0,"sm_dt_nl1":"2024-07-07","sm_dt_nn1":"2024-07-07","sm_f_nl1":325.0,"sm_f_nn1":325.0,"sm_i_nl1":52,"sm_i_nn1":52,"sm_s_nl1":"SM-S-NL1-001","sm_s_nn1":"SM-S-NN1-001","sm_si_nl1":null,"sm_si_nn1":52,"summaryId":"CS-0001"},{"rootId":"CR-0001-GONE","sm_b_nl1":null,"sm_b_nn1":true,"sm_bi_nl1":59,"sm_bi_nn1":59,"sm_c_nl1":"SM-C-NL1-002","sm_c_nn1":"SM-C-NN1-002","sm_de_nl1":362.5,"sm_de_nn1":362.5,"sm_dt_nl1":"2024-08-08","sm_dt_nn1":"2024-08-08","sm_f_nl1":362.5,"sm_f_nn1":362.5,"sm_i_nl1":null,"sm_i_nn1":59,"sm_s_nl1":"SM-S-NL1-002","sm_s_nn1":"SM-S-NN1-002","sm_si_nl1":59,"sm_si_nn1":59,"summaryId":"CS-0002"},{"rootId":"CR-0001","sm_b_nl1":true,"sm_b_nn1":true,"sm_bi_nl1":66,"sm_bi_nn1":66,"sm_c_nl1":"SM-C-NL1-003","sm_c_nn1":"SM-C-NN1-003","sm_de_nl1":400.0,"sm_de_nn1":400.0,"sm_dt_nl1":"2024-09-09","sm_dt_nn1":"2024-09-09","sm_f_nl1":null,"sm_f_nn1":400.0,"sm_i_nl1":66,"sm_i_nn1":66,"sm_s_nl1":null,"sm_s_nn1":"SM-S-NN1-003","sm_si_nl1":66,"sm_si_nn1":66,"summaryId":"CS-0003"},{"rootId":"CR-0002","sm_b_nl1":false,"sm_b_nn1":false,"sm_bi_nl1":null,"sm_bi_nn1":73,"sm_c_nl1":"SM-C-NL1-004","sm_c_nn1":"SM-C-NN1-004","sm_de_nl1":437.5,"sm_de_nn1":437.5,"sm_dt_nl1":null,"sm_dt_nn1":"2024-10-10","sm_f_nl1":437.5,"sm_f_nn1":437.5,"sm_i_nl1":73,"sm_i_nn1":73,"sm_s_nl1":"SM-S-NL1-004","sm_s_nn1":"SM-S-NN1-004","sm_si_nl1":73,"sm_si_nn1":73,"summaryId":"CS-0004"},{"rootId":"CR-0003","sm_b_nl1":true,"sm_b_nn1":true,"sm_bi_nl1":80,"sm_bi_nn1":80,"sm_c_nl1":null,"sm_c_nn1":"SM-C-NN1-005","sm_de_nl1":null,"sm_de_nn1":475.0,"sm_dt_nl1":"2024-11-11","sm_dt_nn1":"2024-11-11","sm_f_nl1":475.0,"sm_f_nn1":475.0,"sm_i_nl1":80,"sm_i_nn1":80,"sm_s_nl1":"SM-S-NL1-005","sm_s_nn1":"SM-S-NN1-005","sm_si_nl1":80,"sm_si_nn1":80,"summaryId":"CS-0005"}]}';
+                    data: '[{"ruleId":"EX-CPTY-06","exemptCounterpartyId":"CP-0006","exemptCountryCode":null,"basis":"CENTRAL_BANK","exemptedLinesCount":1},{"ruleId":"EX-CTY-DE","exemptCounterpartyId":null,"exemptCountryCode":"DE","basis":"INTRAGROUP_LOCAL","exemptedLinesCount":2},{"ruleId":"EX-CTY-IE","exemptCounterpartyId":null,"exemptCountryCode":"IE","basis":"COVERED_BOND_RELIEF","exemptedLinesCount":1},{"ruleId":"EX-CTY-SG","exemptCounterpartyId":null,"exemptCountryCode":"SG","basis":"TRADE_FINANCE_RELIEF","exemptedLinesCount":1},{"ruleId":"EX-SOV-JP","exemptCounterpartyId":"CP-0005","exemptCountryCode":null,"basis":"SOVEREIGN_EXPOSURE","exemptedLinesCount":1}]';
                   }#;
               }#
           ]
@@ -132957,6 +133434,87 @@ Service stress::SP_defCurveSummaryGraph
                   #{
                     contentType: 'application/json';
                     data: '{"builder":{"_type":"json"},"values":[{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.34,"lowestRate":3.96,"summarised":{"curveName":"USD SOFR Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.34,"lowestRate":3.98,"summarised":{"curveName":"USD SOFR Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.6,"lowestRate":4.21,"summarised":{"curveName":"USD 3M LIBOR Swap (legacy)","interpolation":"CUBIC_SPLINE"}},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.59,"lowestRate":4.23,"summarised":{"curveName":"USD 3M LIBOR Swap (legacy)","interpolation":"CUBIC_SPLINE"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":3.66,"lowestRate":2.5,"summarised":{"curveName":"EUR Euro Short Term Rate OIS","interpolation":"LINEAR_ZERO"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":3.65,"lowestRate":2.47,"summarised":{"curveName":"EUR Euro Short Term Rate OIS","interpolation":"LINEAR_ZERO"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","pillarCount":12,"highestRate":3.79,"lowestRate":2.73,"summarised":{"curveName":"EUR 6M Euribor Swap","interpolation":"CUBIC_SPLINE"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","pillarCount":12,"highestRate":3.78,"lowestRate":2.7,"summarised":{"curveName":"EUR 6M Euribor Swap","interpolation":"CUBIC_SPLINE"}},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.19,"lowestRate":3.55,"summarised":{"curveName":"GBP SONIA Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.19,"lowestRate":3.58,"summarised":{"curveName":"GBP SONIA Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":1.87,"lowestRate":0.08,"summarised":{"curveName":"JPY TONA Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":1.96,"lowestRate":0.08,"summarised":{"curveName":"JPY TONA Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.42,"lowestRate":4.29,"summarised":{"curveName":"US Treasury Zero Curve","interpolation":"BOOTSTRAP"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.43,"lowestRate":4.26,"summarised":{"curveName":"US Treasury Zero Curve","interpolation":"BOOTSTRAP"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","pillarCount":12,"highestRate":3.61,"lowestRate":2.51,"summarised":{"curveName":"German Bund Zero Curve","interpolation":"BOOTSTRAP"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","pillarCount":12,"highestRate":3.6,"lowestRate":2.46,"summarised":{"curveName":"German Bund Zero Curve","interpolation":"BOOTSTRAP"}}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::SP_defExposureLineGraph
+{
+    pattern: '/stress/sp_defexposurelinegraph';
+    documentation: 'Coverage-directed stack on largeexp::ExposureLine (Graph), reusing the reach of LE1_BandedExposures and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |largeexp::ExposureLine.all()
+        ->graphFetch(#{
+  largeexp::ExposureLine
+  {
+    reportId,
+    cobDate,
+    lineNumber,
+    pctOfCapital,
+    thresholdBand
+    {
+      bandId,
+      bandName,
+      isReportable,
+      isBreach
+    }
+  }
+}#)
+        ->serialize(#{
+  largeexp::ExposureLine
+  {
+    reportId,
+    cobDate,
+    lineNumber,
+    pctOfCapital,
+    thresholdBand
+    {
+      bandId,
+      bandName,
+      isReportable,
+      isBreach
+    }
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defExposureLineGraph_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 12 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":1,"pctOfCapital":18.4,"thresholdBand":{"bandId":"TH-MONITOR","bandName":"Monitored","isReportable":true,"isBreach":false}},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":2,"pctOfCapital":9.2,"thresholdBand":{"bandId":"TH-REPORT","bandName":"Reportable","isReportable":true,"isBreach":false}},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":3,"pctOfCapital":31.7,"thresholdBand":{"bandId":"TH-BREACH","bandName":"Limit breach","isReportable":true,"isBreach":true}},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":4,"pctOfCapital":4.6,"thresholdBand":{"bandId":"TH-NIL","bandName":"Below reporting threshold","isReportable":false,"isBreach":false}},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":5,"pctOfCapital":71.3,"thresholdBand":{"bandId":"TH-BREACH","bandName":"Limit breach","isReportable":true,"isBreach":true}},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":6,"pctOfCapital":0.0,"thresholdBand":{"bandId":"TH-NIL","bandName":"Below reporting threshold","isReportable":false,"isBreach":false}},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":1,"pctOfCapital":16.1,"thresholdBand":{"bandId":"TH-MONITOR","bandName":"Monitored","isReportable":true,"isBreach":false}},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":2,"pctOfCapital":29.8,"thresholdBand":{"bandId":"TH-BREACH","bandName":"Limit breach","isReportable":true,"isBreach":true}},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":3,"pctOfCapital":7.9,"thresholdBand":{"bandId":"TH-REPORT","bandName":"Reportable","isReportable":true,"isBreach":false}},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":1,"pctOfCapital":14.5,"thresholdBand":{"bandId":"TH-MONITOR","bandName":"Monitored","isReportable":true,"isBreach":false}},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":2,"pctOfCapital":4.1,"thresholdBand":{"bandId":"TH-NIL","bandName":"Below reporting threshold","isReportable":false,"isBreach":false}},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":3,"pctOfCapital":10.1,"thresholdBand":{"bandId":"TH-MONITOR","bandName":"Monitored","isReportable":true,"isBreach":false}}]}';
                   }#;
               }#
           ]

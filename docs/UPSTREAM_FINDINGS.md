@@ -1690,3 +1690,31 @@ because a guess returns a well-formed set from the wrong direction. Whatever the
 engine needs the same information from somewhere.
 
 Repro: `repro/self-join-aggregate/`, `scripts/corpus/probe_ineq_aggregate.py`.
+
+## F53 — A `REAL` column cannot be read under DuckDB
+
+    Table T ( K VARCHAR(8) PRIMARY KEY, C_REAL REAL )
+
+    Execution error at (resource:/core_relational_duckdb/relational/typeConversion.pure
+    line:59 column:12), "Match failure: RealObject instanceOf Real"
+
+The failure is at table creation rather than at projection, so one `REAL` column takes down
+every service reading any table in the same file, and the message names neither the column
+nor the table nor the type as written.
+
+Thirteen types were tried, one model each -- a type that cannot be created takes every other
+type in the file with it, so they cannot share one. `REAL` is the only failure. `VARCHAR`,
+`CHAR`, `INTEGER`, `SMALLINT`, `BIGINT`, `TINYINT`, `DOUBLE`, `FLOAT`, `DECIMAL`, `NUMERIC`,
+`DATE` and `BIT` all round-trip correctly.
+
+`FLOAT` passing is what makes this worth reporting rather than filing as an unsupported type:
+in DuckDB `REAL` and `FLOAT` are the same 4-byte type, so the two declarations describe the
+same column and only one of them can be read.
+
+It went unfound because every one of this corpus's ~370 tables used `VARCHAR`, `DOUBLE`,
+`INTEGER`, `DATE`, `TIMESTAMP` or `BIT`. `REAL` is ISO SQL, accepted by the grammar, and the
+obvious declaration for a percentage -- it had never been written.
+
+Workaround: `FLOAT` or `DOUBLE`.
+
+Repro: `repro/real-column-type/`, `scripts/corpus/probe_column_types.py`.

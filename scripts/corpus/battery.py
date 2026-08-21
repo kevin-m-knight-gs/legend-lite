@@ -1805,9 +1805,150 @@ def _schedule_specs():
 SCHEDULE = _schedule_specs()
 
 
+def _large_exposure_specs():
+    """A composite key, in a schema, reached by a range join and a disjunction.
+
+    62 of the corpus's remaining uncovered pairs had `composite PK`, `join non-equality` or
+    `join with or` on one side, always because each lived alone on a class carrying nothing
+    else. These put all three on one class, in a schema-qualified table, with an enum
+    transformer, a ~filter subtype, a ~distinct set, class constraints and four datatypes
+    nothing had previously declared.
+    """
+    out = []
+
+    KEY = [Proj("reportId", ["reportId"]), Proj("cobDate", ["cobDate"]),
+           Proj("lineNumber", ["lineNumber"])]
+    KEY_SORT = [("reportId", False), ("cobDate", False), ("lineNumber", False)]
+
+    # The return itself. Composite key over a SCHEMA-qualified table, the enum through a
+    # transformer, both derived properties and the qualified one.
+    lines = Spec("stress::LE0_ExposureLines", "/stress/le0",
+                 "Every large-exposure line: the three-column key, the enum-mapped exposure "
+                 "class, what credit risk mitigation bought, the headroom to the 25% limit "
+                 "and the net exposure converted at a supplied rate. The table is "
+                 "schema-qualified -- the first one in this corpus any mapping reads -- and "
+                 "carries SMALLINT, CHAR, NUMERIC and REAL columns, four types nothing had "
+                 "declared before.",
+                 "largeexp::ExposureLine")
+    lines.projections = KEY + [
+        Proj("counterpartyId", ["counterpartyId"]),
+        Proj("groupId", ["groupId"]),
+        Proj("countryCode", ["countryCode"]),
+        Proj("exposureClass", ["exposureClass"]),
+        Proj("grossExposure", ["grossExposure"]),
+        Proj("netExposure", ["netExposure"]),
+        Proj("pctOfCapital", ["pctOfCapital"]),
+        Proj("mitigationRatio", ["mitigationRatio"]),
+        Proj("headroomToLimit", ["headroomToLimit"]),
+        Proj("netExposureGbp", ["netExposureIn"], args=[0.79]),
+        Proj("reportedAt", ["reportedAt"]),
+        Proj("isExempt", ["isExempt"])]
+    lines.sort = KEY_SORT
+    out.append(lines)
+
+    # The RANGE join, from the composite key out to the band. Two lines are above 25% and
+    # one is at exactly 0.0, which is the floor of the first band -- the boundary a
+    # half-open range gets wrong first.
+    banded = Spec("stress::LE1_BandedExposures", "/stress/le1",
+                  "Each line with the threshold band its percentage falls in, reached by a "
+                  "RANGE join from a three-column key: `pct >= floor and pct < ceiling`, "
+                  "with no key to join on because which band applies is a property of the "
+                  "number. One line sits at exactly 0.0, the floor of the first band, which "
+                  "is the boundary a half-open range gets wrong first.",
+                  "largeexp::ExposureLine")
+    banded.projections = KEY + [
+        Proj("pctOfCapital", ["pctOfCapital"]),
+        Proj("bandId", ["thresholdBand", "bandId"]),
+        Proj("bandName", ["thresholdBand", "bandName"]),
+        Proj("isReportable", ["thresholdBand", "isReportable"]),
+        Proj("isBreach", ["thresholdBand", "isBreach"])]
+    banded.sort = KEY_SORT
+    out.append(banded)
+
+    # The DISJUNCTION, asked as a count because it is genuinely to-many: a rule attaches to
+    # a counterparty or to a country, and a line can match on both axes.
+    exempt = Spec("stress::LE2_ExemptionMatches", "/stress/le2",
+                  "How many exemption rules reach each line, over a join that matches on "
+                  "counterparty OR on country. A rule carries one or the other and never "
+                  "both, so the `or` is a real disjunction. Quarantined under F6: five of "
+                  "the twelve lines match no rule at all and count() over an empty to-many "
+                  "returns 1. LE6 counts the same join from the rule side, where every rule "
+                  "reaches a line, and passes.",
+                  "largeexp::ExposureLine")
+    exempt.projections = KEY + [
+        Proj("counterpartyId", ["counterpartyId"]),
+        Proj("countryCode", ["countryCode"]),
+        Proj("isExempt", ["isExempt"]),
+        Proj("matchingRules", ["exemptionRules"], agg="count")]
+    exempt.sort = KEY_SORT
+    out.append(exempt)
+
+    # The ~filter subtype: ten lines of twelve, so the filter is doing real work.
+    reportable = Spec("stress::LE3_ReportableLines", "/stress/le3",
+                      "Only the lines at or above the 5% reporting threshold, through the "
+                      "subtype's ~filter over a schema-qualified table. Ten of twelve, so a "
+                      "filter that had stopped working would return twelve with no error.",
+                      "largeexp::ReportableLine")
+    reportable.projections = KEY + [
+        Proj("pctOfCapital", ["pctOfCapital"]),
+        Proj("exposureClass", ["exposureClass"]),
+        Proj("netExposure", ["netExposure"])]
+    reportable.sort = KEY_SORT
+    out.append(reportable)
+
+    # ~distinct with a dynafunction beside it: twelve lines collapse to three returns.
+    headers = Spec("stress::LE4_ReturnHeaders", "/stress/le4",
+                   "The distinct (report, cob date) pairs, read ~distinct off the line "
+                   "table. Twelve rows collapse to three, and the reference beside them is "
+                   "built by a dynafunction in the mapping rather than stored.",
+                   "largeexp::ReturnHeader")
+    headers.projections = [Proj("reportId", ["reportId"]),
+                           Proj("cobDate", ["cobDate"]),
+                           Proj("returnRef", ["returnRef"])]
+    headers.sort = [("reportId", False), ("cobDate", False)]
+    out.append(headers)
+
+    # Per-return aggregates over a composite-key table, with a group whose groupId is NULL.
+    totals = Spec("stress::LE5_ReturnTotals", "/stress/le5",
+                  "Per return: how many lines, the largest single exposure, the total net "
+                  "and the mean percentage. Grouped over a schema-qualified composite-key "
+                  "table, and three of the twelve lines belong to no connected group at "
+                  "all -- the null a grouping rule has to survive.",
+                  "largeexp::ExposureLine")
+    totals.projections = [Proj("reportId", ["reportId"]), Proj("netExposure", ["netExposure"])]
+    totals.group_by = ["reportId"]
+    totals.aggs = [("lineCount", "netExposure", "count"),
+                   ("largestExposure", "netExposure", "max"),
+                   ("smallestExposure", "netExposure", "min"),
+                   ("totalNet", "netExposure", "sum"),
+                   ("meanNet", "netExposure", "average")]
+    totals.sort = ("reportId", False)
+    out.append(totals)
+
+    # The rule table from the other side, with both null halves visible.
+    rules = Spec("stress::LE6_ExemptionRules", "/stress/le6",
+                 "The exemption rules themselves. Each carries a counterparty or a country "
+                 "and never both, so exactly one of the two columns is null on every row -- "
+                 "which is what makes the join behind LE2 a disjunction rather than two "
+                 "conditions that happen to agree.",
+                 "largeexp::ExemptionRule")
+    rules.projections = [Proj("ruleId", ["ruleId"]),
+                         Proj("exemptCounterpartyId", ["exemptCounterpartyId"]),
+                         Proj("exemptCountryCode", ["exemptCountryCode"]),
+                         Proj("basis", ["basis"]),
+                         Proj("linesReached", ["exemptedLines"], agg="count")]
+    rules.sort = ("ruleId", False)
+    out.append(rules)
+
+    return out
+
+
+LARGE_EXPOSURES = _large_exposure_specs()
+
+
 SPECS = (STACK + INVARIANCE + AGGREGATION
          + [XSTORE, XSTORE_PROJECTION, MODELJOIN, MEASURE,
-            CANONICAL_WITH_ENUM, OTHERWISE, CONFLUENCE]) + FIXED_INCOME + OTC + RISK + MIDDLE_OFFICE + BACK_OFFICE + MARKET_DATA + CURVES + BROKERAGE + SCHEDULE + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
+            CANONICAL_WITH_ENUM, OTHERWISE, CONFLUENCE]) + FIXED_INCOME + OTC + RISK + MIDDLE_OFFICE + BACK_OFFICE + MARKET_DATA + CURVES + BROKERAGE + SCHEDULE + LARGE_EXPOSURES + TEMPORAL + BITEMPORAL + GRAPH + ROLLUP + SELF_JOIN + DERIVED + [
     _spec(0, "InstrumentChildCounts", "products::Instrument",
           "Fan-out: per-instrument child counts. INST-NESN is childless on every end, "
           "which is the count-over-outer-join case.",

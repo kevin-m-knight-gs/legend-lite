@@ -40,6 +40,16 @@ ENGINE_QUARANTINE: dict[str, tuple[str, str]] = {
 #
 # The corpus had never filtered on a derived property at all before this -- a thousand
 # services projected them constantly, which is a different code path and a working one.
+# F6 again, on a disjunction: five of the twelve exposure lines match no exemption rule at
+# all, and count() over that empty set returns 1 rather than 0. Not a new defect -- the same
+# one the F-series pins -- but worth an instance here because the join is an `or` between two
+# tables rather than a foreign key, and nothing had asked F6's question over one of those.
+#
+# The construct is still covered green: LE6 counts the same join from the RULE side, where
+# every rule reaches at least one line, and LE1 reaches the range join the same way.
+ENGINE_QUARANTINE["stress::LE2_ExemptionMatches"] = (
+    "F6", "count() over an empty to-many returns 1, not 0")
+
 ENGINE_QUARANTINE["stress::MD7_UnrevisedPrintsEq"] = (
     "F50", "derived Boolean == boolean literal in a filter generates invalid SQL")
 

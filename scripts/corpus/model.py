@@ -528,7 +528,11 @@ _JOIN_HEAD = re.compile(r"^\s*Join\s+(\w+)\s*\((.*)\)\s*$")
 _COLDEF = re.compile(r'^(\w+|"[^"]+")\s+(\w+(?:\(\d+(?:\s*,\s*\d+)?\))?)'
                      r'(?:\s+(?:PRIMARY KEY|NOT NULL))?$', re.I)
 _FILTER_DECL = re.compile(
-    r"^\s*(?:MultiGrain)?Filter\s+(\w+)\s*\(\s*(?:\[[\w:]+\]\s*)?(\w+)\.(\w+)\s*"
+    # `(?:\w+\.)?` is a SCHEMA qualifier -- the fifth pattern in this reader to need one,
+    # after _MAIN, _COLMAP, _ENUMCOLMAP and _BINDINGMAP. A filter over a schema-qualified
+    # table matched nothing and was silently absent from c.filters, which check() then
+    # reported as "uses undeclared store filter" against the CLASS rather than the filter.
+    r"^\s*(?:MultiGrain)?Filter\s+(\w+)\s*\(\s*(?:\[[\w:]+\]\s*)?(?:\w+\.)?(\w+)\.(\w+)\s*"
     r"(?:(=|<>|<=|>=|<|>)\s*(.+?)|(is\s+not\s+null|is\s+null))\s*\)\s*$")
 _CLS_FILTER = re.compile(r"^\s*~filter\s*\[[\w:]+\]\s*(\w+)\s*$")
 # `~filter [db]@J1 > @J2 | [db]NAME` -- a filter reached through a JOIN CHAIN. The predicate
@@ -672,14 +676,19 @@ _SCOPE_QUAL = re.compile(r"(?:^|,)\s*(\w+)\s*:\s*(\w+)\.(\w+)\s*(?:,|$)")
 _EMBED_OPEN = re.compile(r"^\s*(?!scope\b|AssociationMapping\b)([a-z]\w*)\s*\($")
 _EMBED_NAME = re.compile(r"^\s*(?!scope\b|AssociationMapping\b)([a-z]\w*)\s*,?\s*$")
 
+# The `(?:\w+\.)?` is a SCHEMA qualifier. _COLMAP and _MAIN had it and these two did not,
+# so a schema-qualified table could be mapped column by column and not through an enum
+# transformer or a binding -- the schema was captured as the table name and the check
+# reported "maps to regrpt, not mainTable EXPOSURE_LINE", which names neither the schema nor
+# the pattern that lost it.
 _BINDINGMAP = re.compile(
-    r"(\w+)\s*:\s*Binding\s+([\w:]+)\s*:\s*(?:\[[\w:]+\]\s*)?(\w+)\.(\w+)")
+    r"(\w+)\s*:\s*Binding\s+([\w:]+)\s*:\s*(?:\[[\w:]+\]\s*)?(?:\w+\.)?(\w+)\.(\w+)")
 
 _LEFTOVER_PROP = re.compile(r"(?:^|,)\s*(\w+)\s*:\s*\S", re.M)
 # `prop: EnumerationMapping <Name>: [db] TABLE.COL` — must be stripped BEFORE _COLMAP
 # runs, or _COLMAP matches the tail and records the mapping NAME as the property.
 _ENUMCOLMAP = re.compile(
-    r"(\w+)\s*:\s*EnumerationMapping\s+(\w+)\s*:\s*\[[\w:]+\]\s*(\w+)\.(\w+)")
+    r"(\w+)\s*:\s*EnumerationMapping\s+(\w+)\s*:\s*\[[\w:]+\]\s*(?:\w+\.)?(\w+)\.(\w+)")
 _ENUMMAP_HEAD = re.compile(r"^\s*([\w:]+)\s*:\s*EnumerationMapping\s+(\w+)\s*$")
 # An enum value maps from a BRACKETED list of source values or from a SINGLE one, and a
 # source value may be a string, an integer or a reference to another enum. Only the
