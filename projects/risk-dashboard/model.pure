@@ -1,0 +1,651 @@
+###Pure
+
+// risk-dashboard -- what a chief risk officer actually looks at before nine o'clock, and the
+// widest fan-in in this graph. Layer 3: it depends on margin-calc, credit-limits and
+// pnl-attribution, and on nothing else.
+//
+// THREE CLOSURES MEET HERE. margin-calc brings position-keeping and risk-core (and through
+// them core-instrument, core-account, core-price); credit-limits brings credit-core and
+// limit-core (and through them core-party, core-ratings, core-book); pnl-attribution brings
+// position-keeping again and valuation-core. So position-keeping, core-account,
+// core-instrument and core-price each arrive down TWO paths and must resolve to one of each.
+// Nothing below names any of them: every fact this project needs from them is reached through
+// one of its three declared dependencies, which is what makes the declared list the true one.
+//
+// The two constructs this project carries for the graph:
+//
+//   AGGREGATION  four store Views, each mapped onto a class whose ~primaryKey IS its
+//                ~groupBy. One instance of RdbTileDayTotal is a dashboard and a day, never a
+//                tile. Three more aggregations are READ rather than declared -- the tiles
+//                navigate into margin-calc's MGN_PORTFOLIO_MARGIN_TOTAL and into
+//                pnl-attribution's PNL_ACCOUNT_DAY_TOTAL and PNL_INSTRUMENT_DAY_TOTAL -- so a
+//                dashboard that shows a book's whole day sums nothing itself.
+//
+//   VIEW         the same four, declared with ~groupBy in the store. They are Legend views,
+//                not database ones: no DDL, nothing seeds them, and the engine folds the
+//                GROUP BY into the SQL. An owner with no exceptions on a date forms NO GROUP
+//                and is absent, which on this dashboard is the right answer: an empty queue
+//                is not a queue.
+//
+// The modelling claim, which is the whole design:
+//
+//   A DASHBOARD TILE IS A QUERY WITH A THRESHOLD AND AN OWNER.
+//
+// A number on a screen that nobody owns and nothing compares against is decoration. So
+// RdbTile carries the measure and the source it reads, RdbThresholdPolicy carries the amber
+// and red levels and which direction is bad, RdbOwner carries the person who has to do
+// something, and RdbTileSnapshot is what that tile said on one morning. When a snapshot goes
+// red it raises an RdbException, which is a row with a due time, an escalation chain and a
+// decision -- because the exceptions that need a decision today are the only part of a risk
+// dashboard that is not a report.
+//
+// The six panels, which are the six things a CRO reads in order:
+//
+//   1  limit utilisation and its breaches      RdbLimitPanelRow, RdbLimitBreachRow
+//   2  margin calls outstanding                RdbMarginCallRow, RdbMarginShortfallRow
+//   3  P&L against its explain                 RdbExplainRow, RdbResidualRow
+//   4  the largest movers                      RdbMoverRow
+//   5  the concentrations                      RdbConcentrationRow
+//   6  the exceptions needing a decision       RdbException and its three subtypes
+//
+// and two roll-ups that only exist because all three sources are present at once:
+// RdbCounterpartyRollUp (one name's limit, margin and P&L in one row) and RdbDeskRollUp.
+//
+// Prefixes per the project contract: classes Rdb*, tables RDB_*, joins Rdb_*, filters Rdb*,
+// set ids rdb*.
+
+// ---------------------------------------------------------------- the board
+
+// FOR: the board itself -- which tiles are on it, who it is for, and what currency its
+// numbers are stated in. A firm has several: the CRO's, the treasurer's, the desk head's, and
+// they differ in which tiles they carry rather than in where the numbers come from.
+Class risk_dashboard::RdbDashboard
+[
+   tileCountNotNegative: ($this.tileCount >= 0)
+]
+{
+   // The key.
+   dashboardId: String[1];
+   dashboardName: String[1];
+   // CRO, TREASURER, DESK_HEAD, PRODUCT_CONTROL. Who this board is laid out for.
+   audienceRole: String[1];
+   // The person accountable for the board being right, as distinct from the tile owners.
+   ownerId: String[1];
+   // When it refreshes, as the scheduler states it.
+   refreshCron: String[1];
+   // ISO 4217 every money tile on it is converted to.
+   reportingCurrency: String[1];
+   // SMALLINT: how many tiles it carries, denormalised for the header.
+   tileCount: Integer[1];
+   // True for the board opened when nobody chose one.
+   isDefault: Boolean[1];
+   // Absent while the board is in use. A null test, which is what the store filter screens on.
+   retiredOn: StrictDate[0..1];
+
+   // Whether anyone still opens it.
+   isLive() { $this.retiredOn->isEmpty() } : Boolean[1];
+
+   owner: risk_dashboard::RdbOwner[0..1];
+   tiles: risk_dashboard::RdbTile[*];
+   // INTO THE AGGREGATION: one row per day, never a tile.
+   dayTotals: risk_dashboard::RdbTileDayTotal[*];
+}
+
+// FOR: **the central claim of this project** -- a tile is a QUERY with a THRESHOLD and an
+// OWNER. The query is the measure and the source binding; the threshold is the policy it is
+// compared against; the owner is who has to act when it breaches. Drop any of the three and
+// the tile is decoration: a number with no comparison cannot be wrong, and one with no owner
+// cannot be fixed.
+Class risk_dashboard::RdbTile
+[
+   sortOrderNotNegative: ($this.sortOrder >= 0),
+   // A tile whose data may be infinitely old is not being monitored.
+   maxAgeIsPositive: ($this.maxAgeMinutes > 0)
+]
+{
+   // The key.
+   tileId: String[1];
+   // The board it sits on.
+   dashboardId: String[1];
+   // A stable short code, so a tile can be referred to in a policy document.
+   tileCode: String[1];
+   // What the tile is called on the screen.
+   title: String[1];
+   // Which of the six panels it belongs to: LIMIT, MARGIN, EXPLAIN, MOVER, CONCENTRATION,
+   // EXCEPTION.
+   panelCode: String[1];
+   // The measure the query returns, e.g. UTILISATION_PCT or OUTSTANDING_CALL_AMOUNT.
+   measureCode: String[1];
+   // AMOUNT, PCT, COUNT or RATIO -- what the headline number IS, without which a threshold
+   // cannot be compared to it.
+   unitCode: String[1];
+   // THE THRESHOLD, by reference. Policies are shared across tiles on purpose.
+   policyCode: String[1];
+   // THE OWNER, by reference.
+   ownerId: String[1];
+   // SMALLINT: where it appears on the page. Order is a risk statement, not a layout choice.
+   sortOrder: Integer[1];
+   // SMALLINT: how stale the underlying data may be before the tile itself is a problem.
+   maxAgeMinutes: Integer[1];
+   // True when a red on this tile stops the morning sign-off rather than merely appearing.
+   isBlocking: Boolean[1];
+   // Absent while the tile is on the board.
+   retiredOn: StrictDate[0..1];
+
+   isLive() { $this.retiredOn->isEmpty() } : Boolean[1];
+   // The tile as one string, for a report header that has no room for three columns.
+   tileLabel() { $this.panelCode + '/' + $this.tileCode } : String[1];
+
+   dashboard: risk_dashboard::RdbDashboard[0..1];
+   owner: risk_dashboard::RdbOwner[0..1];
+   policy: risk_dashboard::RdbThresholdPolicy[0..1];
+   // THE QUERY HALF: which upstream elements this tile actually reads.
+   bindings: risk_dashboard::RdbSourceBinding[*];
+   snapshots: risk_dashboard::RdbTileSnapshot[*];
+   commentary: risk_dashboard::RdbCommentary[*];
+   exceptions: risk_dashboard::RdbException[*];
+}
+
+// FOR: the threshold half of a tile, held once and shared -- the amber level, the red level,
+// and WHICH DIRECTION IS BAD, because a utilisation of 95% is red and a collateral coverage
+// of 95% is also red and they are not the same comparison. The absolute floor stops a
+// percentage rule raising an exception on a trivially small number.
+Class risk_dashboard::RdbThresholdPolicy
+[
+   // Amber is the earlier warning, so on an ABOVE policy it sits below red. Stated as a
+   // separation rather than an ordering, because a BELOW policy inverts it.
+   levelsAreDistinct: (($this.redLevel - $this.amberLevel)->abs() > 0.0),
+   escalationLevelIsPositive: ($this.escalationLevel >= 1),
+   responseIsPositive: ($this.responseMinutes > 0)
+]
+{
+   // The key.
+   policyCode: String[1];
+   policyName: String[1];
+   // ABOVE (bigger is worse) or BELOW (smaller is worse). The direction of the comparison.
+   direction: String[1];
+   // The warning level.
+   amberLevel: Float[1];
+   // The level that raises an exception.
+   redLevel: Float[1];
+   // Beneath this amount the percentage rule is not applied at all: a 200% breach of a
+   // hundred-unit limit is not the CRO's morning.
+   absoluteFloor: Float[1];
+   // SMALLINT: 1 desk, 2 business, 3 CRO. How far up a red goes on its own.
+   escalationLevel: Integer[1];
+   // SMALLINT: how long the owner has before it escalates further.
+   responseMinutes: Integer[1];
+   // True for the fallback used by a tile with no more specific policy.
+   isDefault: Boolean[1];
+
+   // The width of the amber band -- how much warning the policy actually gives.
+   bandWidth() { ($this.redLevel - $this.amberLevel)->abs() } : Float[1];
+   // Whether a value the caller supplies is red under THIS policy, direction included. The
+   // one place the direction is interpreted, so no tile has to decide it again.
+   isRedAt(value: Float[1]) { if($this.direction == 'ABOVE', |$value >= $this.redLevel, |$value <= $this.redLevel) } : Boolean[1];
+   // And whether it is at least amber.
+   isAmberAt(value: Float[1]) { if($this.direction == 'ABOVE', |$value >= $this.amberLevel, |$value <= $this.amberLevel) } : Boolean[1];
+
+   tiles: risk_dashboard::RdbTile[*];
+}
+
+// FOR: the owner half of a tile and of every exception it raises -- the named human or role
+// that has to do something today. An exception assigned to a team is assigned to nobody.
+Class risk_dashboard::RdbOwner
+{
+   // The key.
+   ownerId: String[1];
+   ownerName: String[1];
+   // CRO, CREDIT_OFFICER, MARGIN_OPS, PRODUCT_CONTROL, DESK_HEAD.
+   roleCode: String[1];
+   // The desk they sit on, where they sit on one.
+   deskCode: String[0..1];
+   // Who this owner escalates to. Held as an id rather than a navigation: the chain is data
+   // that changes on a rota and is read upwards, one level at a time.
+   escalatesToId: String[0..1];
+   contactEmail: String[1];
+   // True for the person actually reachable this morning, which is not always the owner.
+   isOnCall: Boolean[1];
+
+   // Whether there is anywhere above this owner to go.
+   hasEscalation() { $this.escalatesToId->isNotEmpty() } : Boolean[1];
+   // The owner as one string for a queue header.
+   ownerLabel() { $this.roleCode + ':' + $this.ownerName } : String[1];
+
+   tiles: risk_dashboard::RdbTile[*];
+   dashboards: risk_dashboard::RdbDashboard[*];
+   exceptions: risk_dashboard::RdbException[*];
+   // INTO THE AGGREGATION: this owner's whole queue on a day, as one row.
+   queueTotals: risk_dashboard::RdbOwnerQueueTotal[*];
+}
+
+// FOR: the query half of a tile, stated as data -- which project, which element, and which
+// expression the tile's number came out of. This is the provenance row: without it "limit
+// utilisation" on a screen is a number whose definition lives in somebody's head, and the
+// first argument about it cannot be settled.
+Class risk_dashboard::RdbSourceBinding
+[
+   sourceSeqIsPositive: ($this.sourceSeq >= 1)
+]
+{
+   // Part 1 of the key.
+   tileId: String[1];
+   // Part 2: a tile may read more than one source, and a tile that reads three is exactly
+   // what this project is for.
+   sourceSeq: Integer[1];
+   // margin-calc, credit-limits or pnl-attribution. The only three legal values, because
+   // they are the only three declared dependencies.
+   sourceProject: String[1];
+   // The element read, e.g. margin_calc::MgnMarginCall or pnl_attribution::PnlAccountDayTotal.
+   sourceElement: String[1];
+   // CLASS, VIEW or FUNCTION -- whether the tile reads rows, reads a GROUP BY somebody else
+   // declared, or calls a rule somebody else owns.
+   sourceKind: String[1];
+   // The expression, as published in the data dictionary.
+   measureExpression: String[1];
+   // True for the binding the headline number comes from; the others are context.
+   isPrimary: Boolean[1];
+
+   // The element as one fully-qualified string.
+   provenance() { $this.sourceProject + ' -> ' + $this.sourceElement } : String[1];
+   // Whether this binding reads an aggregation rather than rows. A tile bound to a view
+   // costs one grouped read and cannot drift from the group it is showing.
+   readsAnAggregate() { $this.sourceKind == 'VIEW' } : Boolean[1];
+
+   tile: risk_dashboard::RdbTile[0..1];
+}
+
+// FOR: what a tile SAID on one morning -- the number, the two thresholds it was judged
+// against, and the verdict. Its own row per day rather than a mutable current value, because
+// a dashboard that cannot be replayed cannot be argued with, and every morning meeting is
+// eventually an argument about what the screen showed.
+Class risk_dashboard::RdbTileSnapshot
+[
+   exceptionCountNotNegative: ($this.exceptionCount >= 0),
+   lagNotNegative: ($this.refreshLagMinutes >= 0)
+]
+{
+   // Part 1 of the key.
+   tileId: String[1];
+   // Part 2. One snapshot per tile per business date.
+   cobDate: StrictDate[1];
+   // Denormalised from the tile so the day view can group on it without a join.
+   dashboardId: String[1];
+   // Which morning run produced it.
+   runSeq: Integer[1];
+   // THE NUMBER. Whatever the tile's unitCode says it is.
+   headlineValue: Float[1];
+   // Yesterday's, carried forward, so a move is visible without reading another row.
+   priorValue: Float[1];
+   // The two levels, copied off the policy so a later re-calibration does not silently
+   // re-judge a closed morning.
+   amberThreshold: Float[1];
+   redThreshold: Float[1];
+   // headlineValue / redThreshold as computed. Above 1.0 on an ABOVE policy is a red.
+   breachRatio: Float[1];
+   // The money this tile puts at risk today -- an uncollateralised shortfall, an unapproved
+   // excess, an unexplained residual. Zero for a tile that is a count.
+   amountAtRisk: Float[1];
+   // SMALLINT: how many exceptions this tile raised this morning.
+   exceptionCount: Integer[1];
+   // GREEN, AMBER or RED as the run recorded it.
+   statusCode: String[1];
+   // SMALLINT: how old the underlying data was when the tile was computed.
+   refreshLagMinutes: Integer[1];
+   // How many source rows it stood on. A tile computed from nothing is green and wrong.
+   sourceRowCount: Integer[1];
+   computedAt: DateTime[1];
+
+   // The move since yesterday, in the tile's own unit.
+   dayMove() { $this.headlineValue - $this.priorValue } : Float[1];
+   // The same as a fraction of yesterday. `/` widens to Float regardless of its operands.
+   dayMovePct() { ($this.headlineValue - $this.priorValue) / $this.priorValue } : Float[1];
+   // The verdict re-derived from the two thresholds rather than read off statusCode -- the
+   // data-quality screen on the run's own colouring.
+   derivedStatus() { if($this.headlineValue >= $this.redThreshold, |'RED', |if($this.headlineValue >= $this.amberThreshold, |'AMBER', |'GREEN')) } : String[1];
+   // Whether the tile agrees with itself.
+   statusIsConsistent() { $this.statusCode == if($this.headlineValue >= $this.redThreshold, |'RED', |if($this.headlineValue >= $this.amberThreshold, |'AMBER', |'GREEN')) } : Boolean[1];
+   // Whether the number is old enough that the tile is reporting on the past. Read from the
+   // TILE's tolerance, not from a constant here.
+   isStale() { $this.refreshLagMinutes > $this.tile->toOne().maxAgeMinutes } : Boolean[1];
+   // A tile computed from no rows at all. Green because there was nothing to be red about,
+   // which is the single most dangerous state on a risk dashboard.
+   isEmptyGreen() { ($this.sourceRowCount == 0) && ($this.statusCode == 'GREEN') } : Boolean[1];
+   // What share of this tile's exceptions this morning are the whole day's amount at risk.
+   averageExceptionSize() { $this.amountAtRisk / $this.exceptionCount } : Float[1];
+
+   tile: risk_dashboard::RdbTile[0..1];
+   run: risk_dashboard::RdbMorningRun[0..1];
+   exceptions: risk_dashboard::RdbException[*];
+   // INTO THE AGGREGATION.
+   dayTotal: risk_dashboard::RdbTileDayTotal[0..1];
+}
+
+// FOR: **the fan-in, declared once at batch level.** One refresh of the board names the
+// margin run, the credit report and the P&L attribution run it read -- all three, by their
+// own keys, on one row. Three upstream batches that know nothing about each other are
+// reconciled here or nowhere, and a dashboard built from a complete margin run, yesterday's
+// credit report and a failed attribution is a dashboard that looks fine.
+Class risk_dashboard::RdbMorningRun
+[
+   tileCountIsPositive: ($this.tileCount > 0),
+   // The three colours partition the tiles, so they cannot exceed them.
+   coloursWithinTiles: (($this.greenCount + $this.amberCount + $this.redCount) <= $this.tileCount)
+]
+{
+   // Part 1 of the key: the business date the board is showing.
+   cobDate: StrictDate[1];
+   // Part 2: which refresh on that date. The 07:00 build and the 11:00 rebuild are both kept.
+   runSeq: Integer[1];
+   // SOURCE 1 -- margin-calc. Its run is keyed (COB_DATE, RUN_SEQ), so only the sequence is
+   // needed beside our own date.
+   marginRunSeq: Integer[1];
+   // SOURCE 2 -- credit-limits. Its daily report is keyed by a report id alone.
+   creditReportId: String[1];
+   // SOURCE 3 -- pnl-attribution. Its run is keyed by an attribution id alone.
+   attributionId: String[1];
+   // EOD, INTRADAY or REBUILD.
+   runType: String[1];
+   // PENDING, RUNNING, COMPLETE, FAILED, PARTIAL. PARTIAL is the one that matters: it means
+   // fewer than three sources arrived.
+   status: String[1];
+   // SMALLINT: the shape of the board this morning.
+   tileCount: Integer[1];
+   greenCount: Integer[1];
+   amberCount: Integer[1];
+   redCount: Integer[1];
+   // How many exceptions the whole refresh raised.
+   exceptionCount: Integer[1];
+   // The money the board puts at risk, totalled over its tiles.
+   totalAmountAtRisk: Float[1];
+   startedAt: DateTime[1];
+   completedAt: DateTime[0..1];
+
+   isComplete() { $this.status == 'COMPLETE' } : Boolean[1];
+   // Share of the board that is red. Integer / Integer widens to Float on its own.
+   redPct() { $this.redCount / $this.tileCount } : Float[1];
+   // Share that is not green, which is what the CRO actually counts.
+   notGreenPct() { ($this.amberCount + $this.redCount) / $this.tileCount } : Float[1];
+   // THE FAN-IN TEST. All three upstream batches resolved, or the board is showing a mixture
+   // of this morning and some other one. Each navigation is [0..1] into a different project.
+   allThreeSourcesResolved() { ($this.marginRun->isNotEmpty() && $this.creditReport->isNotEmpty()) && $this.attributionRun->isNotEmpty() } : Boolean[1];
+   // The three source keys as one string, for the header of a board that has to be explained
+   // to somebody a week later.
+   sourceLabel() { $this.creditReportId + ' | ' + $this.attributionId + ' | ' + $this.marginRunSeq->toString() } : String[1];
+   // Whether the P&L half was signed off before the board published it. A red board built on
+   // an unsigned run is a red board about the run and not about the risk.
+   pnlSignedOff() { $this.attributionRun->toOne().isSignedOff } : Boolean[1];
+   // Whether the margin half finished. margin-calc states completeness on its status column.
+   marginRunComplete() { $this.marginRun->toOne().isComplete() } : Boolean[1];
+
+   // CROSS-PROJECT, ALL THREE, ON ONE CLASS. This is the widest fan-in in the graph, and it
+   // is three property mappings.
+   marginRun: margin_calc::MgnMarginRun[0..1];
+   creditReport: credit_limits::ClmDailyLimitReport[0..1];
+   attributionRun: pnl_attribution::PnlAttributionRun[0..1];
+
+   snapshots: risk_dashboard::RdbTileSnapshot[*];
+}
+
+// ---------------------------------------------------------------- panel 1: the limits
+
+// FOR: one credit limit's utilisation as the board shows it this morning -- the first thing
+// on the page, because a limit is a promise the firm made and utilisation is how close it is
+// to breaking it. The numbers are FROZEN onto this row rather than navigated for, so the
+// board can be reprinted; `utilisationLine` is the live source and the drift between them is
+// the screen on whether the board is stale.
+Class risk_dashboard::RdbLimitPanelRow
+[
+   appliedThresholdIsPositive: ($this.appliedThreshold > 0.0),
+   utilisedNotNegative: ($this.utilisedAmount >= 0.0),
+   // A percentage may pass 100 -- that is what a breach is -- but not go negative.
+   pctNotNegative: ($this.utilisationPct >= 0.0)
+]
+{
+   // Part 1 of the key.
+   cobDate: StrictDate[1];
+   // Part 2: credit-limits' own anchor id.
+   creditLimitId: String[1];
+   // The counterparty, carried so the counterparty roll-up can group on it without a join.
+   counterpartyId: String[1];
+   // The obligor and the limit-core triple, carried for the same reason: a board row that
+   // cannot say WHOSE limit it is has to be joined before it can be read.
+   obligorId: String[1];
+   bookId: String[1];
+   measureCode: String[1];
+   // NUMERIC(24,8), as published this morning.
+   utilisedAmount: Float[1];
+   appliedThreshold: Float[1];
+   // Negative here is an excess, so it deliberately carries no non-negative constraint.
+   headroomAmount: Float[1];
+   utilisationPct: Float[1];
+   // The agency symbol in force, frozen. A downgrade is the commonest cause of a breach
+   // nobody traded into, and the frozen symbol is how that is told from trading.
+   ratingSymbol: String[0..1];
+   currencyCode: String[1];
+   // SMALLINT: how many exposures rolled into the number.
+   contributorCount: Integer[1];
+   isBreached: Boolean[1];
+   // SMALLINT: where this row sits when the panel is sorted worst-first.
+   rankPosition: Integer[1];
+   // The tile this row appears under.
+   tileId: String[1];
+
+   // The ratio, from the two numbers on this row. Float[1] because `/` widens.
+   utilisationRatio() { $this.utilisedAmount / $this.appliedThreshold } : Float[1];
+   // What is left as a percentage. Below zero when the limit is over.
+   headroomPct() { 100.0 - $this.utilisationPct } : Float[1];
+   isOverLimit() { $this.utilisedAmount > $this.appliedThreshold } : Boolean[1];
+   // THE STALENESS SCREEN: what the board printed, less what credit-limits says now. Any
+   // non-zero here means the board and the source have diverged since the run.
+   utilisationDrift() { $this.utilisedAmount - $this.utilisationLine.utilisedAmount->toOne() } : Float[1];
+   // This limit's share of everything the same counterparty is using, read out of our own
+   // aggregation rather than by summing the other rows.
+   shareOfCounterparty() { $this.utilisedAmount / $this.counterpartyTotal.totalUtilised->toOne() } : Float[1];
+
+   // ROUTE 1 THROUGH credit-limits' MILESTONING -- its own <<temporal.businesstemporal>>
+   // ClmLimitStanding, wrapped twice: once by credit-limits as approvedThresholdOn, once
+   // here. The dated form is compulsory; `$l.standing` with no date does not compile.
+   // Returns Float[*] because a business date can select a span that is not there.
+   approvedThresholdOn(businessDate: Date[1])
+   {
+      $this.creditLimit->toOne().approvedThresholdOn($businessDate)
+   } : Float[*];
+
+   // ROUTE 2, WHICH IS SOMEBODY ELSE'S MILESTONING -- through credit-limits, through
+   // credit-core, to core-ratings' milestoned rating version. String[*] and not a rating
+   // object: core-ratings is transitive here and is deliberately never named.
+   ratingSymbolOn(businessDate: Date[1])
+   {
+      $this.creditLimit->toOne().ratingSymbolOn($businessDate)
+   } : String[*];
+
+   // CROSS-PROJECT: the live utilisation line, on (limit, date), and the limit itself.
+   utilisationLine: credit_limits::ClmUtilisationLine[0..1];
+   creditLimit: credit_limits::ClmCreditLimit[0..1];
+   tile: risk_dashboard::RdbTile[0..1];
+   // INTO OUR OWN AGGREGATION.
+   counterpartyTotal: risk_dashboard::RdbCounterpartyLimitTotal[0..1];
+}
+
+// FOR: a limit breach as an item on the board rather than as a credit record -- with the age,
+// the owner and whether it needs a decision TODAY, none of which credit-limits holds because
+// none of them is a fact about the excess. The excess is what happened; this is the queue.
+Class risk_dashboard::RdbLimitBreachRow
+[
+   excessNotNegative: ($this.excessAmount >= 0.0),
+   severityInRange: (($this.severity >= 1) && ($this.severity <= 5)),
+   ageNotNegative: ($this.ageDays >= 0)
+]
+{
+   // Part 1 of the key.
+   cobDate: StrictDate[1];
+   // Part 2: credit-limits' excess id.
+   excessId: String[1];
+   creditLimitId: String[1];
+   counterpartyId: String[1];
+   // NUMERIC(24,8): the threshold crossed, the usage seen, the gap, and how much of the gap
+   // has actually been signed for.
+   breachedThreshold: Float[1];
+   observedAmount: Float[1];
+   excessAmount: Float[1];
+   approvedAmount: Float[1];
+   // SMALLINT: 1 to 5, copied from the excess.
+   severity: Integer[1];
+   // LOW, MED, HIGH, CRIT -- the escalation ladder's own word for the same thing.
+   severityCode: String[1];
+   // The escalation ticket credit-limits raised, where it raised one.
+   ticketId: String[0..1];
+   // SMALLINT: how many days this breach has been open. The number that turns a breach into
+   // an escalation without anything else changing.
+   ageDays: Integer[1];
+   currencyCode: String[1];
+   ownerId: String[1];
+   detectedAt: DateTime[1];
+   // Absent while the breach is open, which is how the open-breach filter is written.
+   clearedOn: StrictDate[0..1];
+
+   isOpen() { $this.clearedOn->isEmpty() } : Boolean[1];
+   isCritical() { $this.severity >= 4 } : Boolean[1];
+   // What is still unapproved -- the number that decides whether this escalates tonight.
+   unapprovedAmount() { $this.excessAmount - $this.approvedAmount } : Float[1];
+   // The size of the breach relative to the limit it broke.
+   excessRatio() { $this.excessAmount / $this.breachedThreshold } : Float[1];
+   // THE MORNING QUESTION. Open, material, and either critical or older than a day: this is
+   // the row that needs a decision before lunch.
+   needsDecisionToday() { ($this.clearedOn->isEmpty() && ($this.excessAmount > $this.approvedAmount)) && (($this.severity >= 4) || ($this.ageDays >= 1)) } : Boolean[1];
+   // Whether the board's severity still agrees with the source's.
+   severityAgrees() { $this.severity == $this.excess.severity->toOne() } : Boolean[1];
+   // Whether anybody has answered the escalation. Read from credit-limits' ticket, which is
+   // where the answer actually lands.
+   escalationOutstanding() { $this.ticket->toOne().isOutstanding() } : Boolean[1];
+
+   // CROSS-PROJECT.
+   excess: credit_limits::ClmExcess[0..1];
+   ticket: credit_limits::ClmEscalationTicket[0..1];
+}
+
+// ---------------------------------------------------------------- panel 2: the margin
+
+// FOR: the margin calls outstanding this morning -- one row per agreement, with what was
+// demanded, what the MTA suppressed, and whether the collateral has turned up. The
+// suppressed amount is on the board on purpose: it is uncollateralised exposure that appears
+// on no call report, and margin-calc goes to some trouble to keep it separate.
+Class risk_dashboard::RdbMarginCallRow
+[
+   requiredNotNegative: ($this.requiredMargin >= 0.0),
+   mtaNotNegative: ($this.minimumTransferAmount >= 0.0)
+]
+{
+   // Part 1 of the key.
+   cobDate: StrictDate[1];
+   // Part 2: margin-calc's agreement id.
+   agreementId: String[1];
+   counterpartyId: String[1];
+   // DELIVER or RETURN.
+   callDirection: String[1];
+   // NUMERIC(24,8), copied off the call so the board can be reprinted.
+   requiredMargin: Float[1];
+   collateralValue: Float[1];
+   threshold: Float[1];
+   minimumTransferAmount: Float[1];
+   // The shortfall that exists, and the amount that may be demanded. Two columns, because
+   // margin-calc keeps them apart and collapsing them here would undo that.
+   grossCallAmount: Float[1];
+   callAmount: Float[1];
+   callCurrency: String[1];
+   isCallMade: Boolean[1];
+   isSettled: Boolean[1];
+   // Absent unless the counterparty is arguing.
+   disputeCode: String[0..1];
+   // SMALLINT: hours since the notice went out. A call unsettled past its deadline is the
+   // margin panel's only real alarm.
+   ageHours: Integer[1];
+   // SMALLINT: the contractual settlement deadline, in hours from issue.
+   deadlineHours: Integer[1];
+   ownerId: String[1];
+   rankPosition: Integer[1];
+
+   // The shortfall from first principles, using MARGIN-CALC'S OWN FUNCTION rather than
+   // subtracting the threshold here -- so the board cannot deduct it twice.
+   recomputedShortfall() { margin_calc::mgnCallAmount($this.requiredMargin, $this.collateralValue, $this.threshold) } : Float[1];
+   // THE MTA TEST, also margin-calc's.
+   meetsMinimumTransfer() { margin_calc::mgnMeetsMta($this.grossCallAmount, $this.minimumTransferAmount) } : Boolean[1];
+   // Exposure left standing BECAUSE of the MTA: the whole gross when suppressed, nothing when
+   // called. The number the margin panel exists to show, and the one the call report cannot.
+   uncollateralisedByMta() { if(margin_calc::mgnMeetsMta($this.grossCallAmount, $this.minimumTransferAmount), |0.0, |$this.grossCallAmount) } : Float[1];
+   // Held against required. Below 1.0 is a shortfall.
+   coverageRatio() { $this.collateralValue / $this.requiredMargin } : Float[1];
+   // Called and not yet settled -- the definition of outstanding.
+   isOutstanding() { $this.isCallMade && $this.isSettled->not() } : Boolean[1];
+   // Outstanding past its deadline.
+   isOverdue() { ($this.isCallMade && $this.isSettled->not()) && ($this.ageHours > $this.deadlineHours) } : Boolean[1];
+   // Whether the board's figure still matches margin-calc's. Non-zero means the board is
+   // showing a number the margin system has since revised.
+   callDrift() { $this.callAmount - $this.call.callAmount->toOne() } : Float[1];
+   // The agreement's own trigger level, read rather than re-derived: threshold plus MTA.
+   callTriggerLevel() { $this.agreement->toOne().callTriggerLevel() } : Float[1];
+
+   // CROSS-PROJECT.
+   call: margin_calc::MgnMarginCall[0..1];
+   agreement: margin_calc::MgnMarginAgreement[0..1];
+}
+
+// FOR: the initial margin required of a netting set against the collateral actually sitting
+// there -- the panel's second row, and the one that says whether a call is COMING rather than
+// whether one was made. It reads margin-calc's portfolio aggregation for the set's whole day
+// instead of summing positions.
+Class risk_dashboard::RdbMarginShortfallRow
+[
+   horizonIsPositive: ($this.closeOutPeriodDays > 0),
+   marginNotNegative: ($this.totalInitialMargin >= 0.0)
+]
+{
+   // Part 1 of the key.
+   cobDate: StrictDate[1];
+   // Part 2: margin-calc's netting set.
+   marginPortfolioId: String[1];
+   // Part 3: the model. The regulatory number and the internal one are both on the board,
+   // because the difference between them is itself a risk statement.
+   methodCode: String[1];
+   agreementId: String[1];
+   counterpartyId: String[1];
+   // NUMERIC(24,8): the four components of the charge, copied off margin-calc.
+   oneDayMargin: Float[1];
+   scaledMargin: Float[1];
+   concentrationAddOn: Float[1];
+   liquidityAddOn: Float[1];
+   totalInitialMargin: Float[1];
+   // SMALLINT: the margin period of risk this row was scaled to.
+   closeOutPeriodDays: Integer[1];
+   // What is actually pledged, after haircut.
+   collateralHeld: Float[1];
+   // Required less held. Negative is an excess of collateral, which is also worth seeing.
+   shortfallAmount: Float[1];
+   imCurrency: String[1];
+   rankPosition: Integer[1];
+
+   // Both add-ons together.
+   addOnTotal() { $this.concentrationAddOn + $this.liquidityAddOn } : Float[1];
+   // What share of the charge is add-on rather than model. A large share means the model is
+   // being corrected rather than used.
+   addOnPct() { ($this.concentrationAddOn + $this.liquidityAddOn) / $this.scaledMargin } : Float[1];
+   // THE WHOLE CALCULATION, from margin-calc's function: scale the one-day number to the
+   // close-out period, then stack the add-ons -- which are NOT scaled a second time.
+   marginFromModel() { margin_calc::mgnTotalInitialMargin($this.oneDayMargin, $this.closeOutPeriodDays, $this.concentrationAddOn, $this.liquidityAddOn) } : Float[1];
+   // The gap between what the board shows and what the rule produces. Should be zero.
+   modelDrift() { $this.totalInitialMargin - margin_calc::mgnTotalInitialMargin($this.oneDayMargin, $this.closeOutPeriodDays, $this.concentrationAddOn, $this.liquidityAddOn) } : Float[1];
+   // The square-root-of-time multiplier this row's horizon implies, also margin-calc's.
+   horizonScalar() { margin_calc::mgnCloseOutScalar($this.closeOutPeriodDays) } : Float[1];
+   coverageRatio() { $this.collateralHeld / $this.totalInitialMargin } : Float[1];
+   isUndercollateralised() { $this.collateralHeld < $this.totalInitialMargin } : Boolean[1];
+   // READING SOMEBODY ELSE'S AGGREGATION: this method's charge against the set's whole
+   // margin for the day, out of margin-calc's own GROUP BY. Nothing here sums a position.
+   shareOfPortfolioMargin() { $this.totalInitialMargin / $this.portfolioTotal.totalInitialMargin->toOne() } : Float[1];
+   // And whether that whole set is really one position wearing a portfolio's clothes.
+   isSinglePositionDriven() { $this.portfolioTotal->toOne().isSinglePositionDriven() } : Boolean[1];
+
+   // CROSS-PROJECT: the row, and the GROUP.
+   initialMargin: margin_calc::MgnInitialMargin[0..1];
+   portfolioTotal: margin_calc::MgnPortfolioMarginTotal[0..1];
+}

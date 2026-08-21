@@ -1,0 +1,1416 @@
+###Pure
+
+// regulatory-capital -- what the firm must hold against what it is exposed to, and what it
+// is allowed to pay out once it holds it. Layer 3, and a THREE-WAY FAN-IN: the credit
+// exposure comes up from exposure-agg, the counterparty and margin numbers from margin-calc,
+// and the reported view of the same trades from regulatory-extract. Those three, and
+// nothing else. Their transitive closures are large and every table in them is visible from
+// here; naming one is the undeclared-dependency defect this graph exists to catch, so no
+// `credit_`, `collateral_`, `trade_`, `reference_`, `client_`, `position_` or `risk_`
+// package name appears anywhere in these three files.
+//
+// The two constructs this project carries for the graph:
+//
+//   ~filter SUBTYPES  RCP_EXPOSURE is one table and five sets. `[rcpExposure]` is the ROOT
+//                     (`*`), so RcpExposure.all() is the whole book. Five sets extend it,
+//                     each with one ~filter and only the columns that mean something once
+//                     the row is known to be of that type. They are NOT disjoint: an IRB
+//                     exposure that has defaulted is a row of `rcpIrb` and of
+//                     `rcpDefaulted`, because the approach is an identity and default is a
+//                     state, and a hierarchy that forced them apart could not express "the
+//                     defaulted IRB book".
+//
+//   AGGREGATION       three store Views, each mapped onto a class whose ~primaryKey IS its
+//                     ~groupBy. RcpRwaByApproachClass is a (date, approach, exposure class)
+//                     cell of the credit risk template; RcpEntityRwaTotal is the entity's
+//                     whole denominator; RcpCounterpartyCcrTotal groups SA-CCR up from the
+//                     netting set to the counterparty, which is the grain the large
+//                     exposure and CVA numbers are argued at. A fourth aggregation is READ
+//                     rather than declared: RcpExposure.counterpartyDayNet navigates into
+//                     exposure-agg's own view EXA_COUNTERPARTY_DAY_NET.
+//
+// The calculation, in the order the numbers are produced:
+//
+//   1  every exposure is classified into an EXPOSURE CLASS and put on an APPROACH. Under
+//      the STANDARDISED approach the risk weight is read off a published grid indexed by
+//      exposure class and credit quality step; under IRB it is computed from the firm's own
+//      PD, LGD and maturity through the supervisory formula.
+//   2  CREDIT RISK MITIGATION reduces it: financial collateral through the comprehensive
+//      approach reduces the exposure value after supervisory haircuts, and a guarantee
+//      SUBSTITUTES the protection provider's risk weight for the obligor's on the covered
+//      part -- which is a transfer of the requirement, not a deletion of it.
+//   3  derivatives get COUNTERPARTY CREDIT RISK under SA-CCR: EAD = alpha * (RC + PFE),
+//      alpha = 1.4, with PFE built from per-asset-class add-ons inside hedging sets.
+//   4  the same derivative book attracts a CVA CAPITAL CHARGE for the mark-to-market loss
+//      on the counterparty's own credit spread, reducible by eligible hedges.
+//   5  OPERATIONAL RISK under the standardised approach is a Business Indicator Component
+//      scaled by an Internal Loss Multiplier built from ten years of internal losses.
+//   6  the OUTPUT FLOOR puts a floor under the modelled total at 72.5% of what the same
+//      book would have been under the standardised approaches. A modelled RWA below the
+//      floor is not the number; the floor is.
+//   7  own funds are divided by the floored RWA to give the ratios, the BUFFERS stack above
+//      the minimum, and breaching the combined buffer requirement does not close the firm:
+//      it puts it in an MDA bucket and RESTRICTS DISTRIBUTIONS.
+//
+// Prefixes per the project contract: classes Rcp*, tables RCP_*, joins Rcp_*, filters Rcp*,
+// set ids rcp*.
+
+// ---------------------------------------------------------------- the run and the entity
+
+// One execution of the capital calculation. FOR: reproducibility -- "what was the CET1 ratio
+// on the 31st" is only answerable if the run that produced it is a row, and a run that did
+// not complete every approach is a run whose ratios must not be filed.
+Class regulatory_capital::RcpCapitalRun
+{
+   // The key: one batch.
+   runId: String[1];
+   // The regulatory reporting date the whole run is as of.
+   reportingDate: StrictDate[1];
+   // QUARTER_END, MONTH_END, ADHOC or RESTATEMENT. A restatement replaces a filed number.
+   runType: String[1];
+   // COREP taxonomy version the templates were built against.
+   frameworkVersion: String[0..1];
+   startedAt: DateTime[0..1];
+   // Null while running. An incomplete run is not a run with missing rows; it is unreadable.
+   completedAt: DateTime[0..1];
+   exposureCount: Integer[0..1];
+   // How many exposures fell out because they could not be classified at all.
+   unclassifiedCount: Integer[0..1];
+   triggeredBy: String[0..1];
+
+   exposures: regulatory_capital::RcpExposure[*];
+
+   isComplete() { !$this.completedAt->isEmpty() } : Boolean[1];
+   // The share of the book the run could not put in an exposure class. Anything above zero
+   // is a filing problem, because an unclassified exposure gets no risk weight at all.
+   unclassifiedPct()
+   {
+      $this.unclassifiedCount->orElse(0)->toFloat() / $this.exposureCount->orElse(1)->toFloat()
+   } : Float[1];
+}
+
+// The entity capital is measured FOR. A banking group reports at more than one level -- the
+// consolidated group, each regulated subsidiary on a solo basis -- and the same exposure can
+// be in two of them at different amounts, so this is a scope of consolidation and not a
+// company.
+Class regulatory_capital::RcpReportingEntity
+{
+   entityId: String[1];
+   entityName: String[1];
+   // CONSOLIDATED, SUB_CONSOLIDATED or SOLO. The three answers are different numbers.
+   consolidationBasis: String[1];
+   // The competent authority that supervises this level.
+   competentAuthority: String[0..1];
+   // Home jurisdiction, which decides which national discretions apply.
+   jurisdiction: String[1];
+   // ISO 4217 the whole return is denominated in.
+   reportingCurrency: String[1];
+   // The key regulatory-extract holds the same firm entity under, so the capital return and
+   // the transaction reports can be reconciled to one legal person.
+   regulatoryEntityId: String[0..1];
+   // True where this level is a globally systemically important institution, which is what
+   // gives it a G-SII buffer at all.
+   isGloballySystemic: Boolean[0..1];
+   // Null while the entity is in scope of consolidation.
+   deconsolidatedOn: StrictDate[0..1];
+
+   // ACROSS THE BOUNDARY into regulatory-extract: the same firm as the reporting side sees
+   // it. Deliberately a link and not a merge -- the two systems disagreeing is a finding.
+   reportingProfile: regulatory_extract::RexReportingEntity[0..1];
+
+   ownFunds: regulatory_capital::RcpOwnFunds[*];
+   requirements: regulatory_capital::RcpCapitalRequirement[*];
+   rwaTotals: regulatory_capital::RcpEntityRwaTotal[*];
+
+   isInScope() { $this.deconsolidatedOn->isEmpty() } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- the exposure and its five faces
+
+// ONE REGULATORY EXPOSURE on one reporting date -- the root of the five ~filter sets. FOR:
+// being the single row every credit risk-weighted asset is computed from, whichever approach
+// it is on, so the standardised and modelled totals are two columns of one table rather than
+// two tables that have to be reconciled.
+Class regulatory_capital::RcpExposure
+[
+   // An exposure value below zero is a booking error, not a negative risk.
+   exposureValueIsNotNegative: ($this.exposureValue >= 0.0),
+   // A risk weight is a percentage of the exposure. Zero is legal (a sovereign in its own
+   // currency); above 1250% is not, because that is already a full deduction.
+   riskWeightIsInRange: (($this.riskWeightPct >= 0.0) && ($this.riskWeightPct <= 12.5)),
+   // The RWA has to be the exposure after mitigation times the weight. Where the stored
+   // number disagrees, an override was applied and should be visible.
+   rwaIsNotNegative: ($this.riskWeightedAmount >= 0.0)
+]
+{
+   exposureId: String[1];
+   // Whose return this exposure is in. The same trade appears twice at group and at solo.
+   entityId: String[1];
+   reportingDate: StrictDate[1];
+   runId: String[0..1];
+   // The obligor, as exposure-agg keys counterparties.
+   counterpartyId: String[1];
+   // SA or IRB -- the DISCRIMINATOR of the first two subtype sets.
+   approachCode: String[1];
+   // Sovereign, institution, corporate, retail, equity, ... The grid index.
+   exposureClassCode: String[1];
+   // ON_BALANCE, OFF_BALANCE, DERIVATIVE, SFT. The DISCRIMINATOR of the CCR subtype set.
+   exposureTypeCode: String[1];
+   // What is drawn, before any credit conversion.
+   originalExposure: Float[1];
+   // The undrawn commitment, which only becomes exposure after the CCF.
+   undrawnAmount: Float[0..1];
+   // The credit conversion factor applied to the undrawn part: 0%, 20%, 50% or 100%.
+   creditConversionFactor: Float[0..1];
+   // Post-CCF, post-provision exposure at default before mitigation.
+   exposureValue: Float[1];
+   // Exposure value after credit risk mitigation -- what the weight is actually applied to.
+   exposureAfterCrm: Float[1];
+   // A percentage expressed as a ratio: 1.0 is 100%, 0.2 is 20%.
+   riskWeightPct: Float[1];
+   riskWeightedAmount: Float[1];
+   // Residual maturity in years, which the IRB formula needs and the SA grid ignores.
+   residualMaturityYears: Float[0..1];
+   // ISO 4217 of the exposure itself, which need not be the reporting currency.
+   currency: String[1];
+   // The mitigation applied, if any. NULL is the DISCRIMINATOR of the unmitigated set.
+   crmId: String[0..1];
+   // regulatory-extract's report id, where this exposure came from a reported trade.
+   reportId: String[0..1];
+   // exposure-agg's net exposure row this was measured from.
+   netExposureId: String[0..1];
+
+   // ---- the SA block; only meaningful on [rcpSaExposure]
+   // The external rating the credit quality step was derived from.
+   ecaiRatingSymbol: String[0..1];
+   // 1..6, or null for unrated. Unrated is a step in its own right, not a gap.
+   creditQualityStep: Integer[0..1];
+   // True where the risk weight came from the unrated row of the grid.
+   isUnrated: Boolean[0..1];
+   // The SME supporting factor, where the national discretion applies it.
+   supportingFactor: Float[0..1];
+
+   // ---- the IRB block; only meaningful on [rcpIrbExposure]
+   modelId: String[0..1];
+   ratingGrade: String[0..1];
+   // Probability of default over one year, as a ratio. Floored at 0.03% for most classes.
+   pointInTimePd: Float[0..1];
+   // Loss given default as a ratio. 45% senior unsecured under foundation IRB.
+   lossGivenDefault: Float[0..1];
+   // The correlation the supervisory formula uses, which is a function of PD by asset class.
+   assetCorrelation: Float[0..1];
+   // The maturity adjustment factor, which is 1.0 at one year by construction.
+   maturityAdjustment: Float[0..1];
+   // Expected loss = PD * LGD * EAD, which is covered by provisions and not by capital.
+   expectedLossAmount: Float[0..1];
+
+   // ---- the CCR block; only meaningful on [rcpCcrExposure]
+   nettingSetId: String[0..1];
+   // Replacement cost -- what it costs today to replace the book at current marks.
+   replacementCost: Float[0..1];
+   // Potential future exposure, the add-on for what it might cost before close-out.
+   potentialFutureExposure: Float[0..1];
+   // 1.4 by regulation. Not a model output and not negotiable.
+   alphaFactor: Float[0..1];
+
+   // ---- the default block; only meaningful on [rcpDefaultedExposure]
+   defaultStatus: String[0..1];
+   defaultedOn: StrictDate[0..1];
+   // Specific credit risk adjustments already taken against this exposure.
+   specificProvision: Float[0..1];
+   // Realised loss, once the workout has closed.
+   realisedLoss: Float[0..1];
+
+   // ---- this project's graph
+   exposureClass: regulatory_capital::RcpExposureClass[0..1];
+   creditRiskMitigation: regulatory_capital::RcpCreditRiskMitigation[0..1];
+   run: regulatory_capital::RcpCapitalRun[0..1];
+   entity: regulatory_capital::RcpReportingEntity[0..1];
+   nettingSetCapital: regulatory_capital::RcpNettingSetCapital[0..1];
+   rwaCell: regulatory_capital::RcpRwaByApproachClass[0..1];
+   entityRwaTotal: regulatory_capital::RcpEntityRwaTotal[0..1];
+
+   // ---- ACROSS THE BOUNDARY. Three projects reached from one row, which is the whole
+   // point of this project sitting where it does.
+   netExposure: exposure_agg::ExaNetExposure[0..1];
+   // Into somebody else's VIEW: exposure-agg's per-counterparty per-day group.
+   counterpartyDayNet: exposure_agg::ExaCounterpartyDayNet[0..1];
+   transactionReport: regulatory_extract::RexTransactionReport[0..1];
+
+   // ---- flattened, for a return that groups without navigating
+   // exposure-agg's own net number, next to ours. They are measured differently on purpose.
+   creditSystemNetExposure: Float[0..1];
+   creditSystemCollateralValue: Float[0..1];
+   // Which regime the same trade was reported under, if it was reported at all.
+   reportedRegimeCode: String[0..1];
+
+   // What the CCF turns the undrawn commitment into.
+   convertedUndrawn()
+   {
+      $this.undrawnAmount->orElse(0.0) * $this.creditConversionFactor->orElse(0.0)
+   } : Float[1];
+   // The weight applied to the mitigated exposure. Where this disagrees with the stored
+   // riskWeightedAmount, an override or a supporting factor is in play.
+   derivedRwa() { $this.exposureAfterCrm * $this.riskWeightPct } : Float[1];
+   // The 8% minimum against this one exposure, which is what actually consumes capital.
+   capitalRequirement() { $this.riskWeightedAmount * 0.08 } : Float[1];
+   // How much of the exposure the mitigation took away. Never negative in a correct run.
+   crmBenefit() { $this.exposureValue - $this.exposureAfterCrm } : Float[1];
+   isMitigated() { !$this.crmId->isEmpty() } : Boolean[1];
+   // The density: RWA over exposure. A book at 20% and a book at 100% are different books
+   // even where the totals match.
+   rwaDensity() { $this.riskWeightedAmount / $this.exposureValue } : Float[1];
+   // PD * LGD * EAD, recomputed. Only meaningful on the IRB set.
+   derivedExpectedLoss()
+   {
+      $this.pointInTimePd->orElse(0.0) * $this.lossGivenDefault->orElse(0.0) * $this.exposureAfterCrm
+   } : Float[1];
+   // alpha * (RC + PFE). Only meaningful on the CCR set, where alpha is 1.4.
+   saccrEad()
+   {
+      $this.alphaFactor->orElse(1.4) * ($this.replacementCost->orElse(0.0) + $this.potentialFutureExposure->orElse(0.0))
+   } : Float[1];
+}
+
+// The STANDARDISED face of an exposure: the risk weight came off a published grid rather
+// than out of a model. FOR: the fixed columns -- rating, credit quality step, unrated flag --
+// that only mean something once the row is known to be on the standardised approach.
+Class regulatory_capital::RcpStandardisedExposure extends regulatory_capital::RcpExposure
+{
+   // The step drives the grid lookup and is the only thing about the rating that matters.
+   qualityStep: regulatory_capital::RcpCreditQualityStep[0..1];
+   gridWeight: regulatory_capital::RcpRiskWeight[0..1];
+
+   // The grid weight before the SME or infrastructure supporting factor is applied.
+   weightBeforeSupportingFactor()
+   {
+      $this.riskWeightPct / $this.supportingFactor->orElse(1.0)
+   } : Float[1];
+   // An unrated corporate is 100%, which is neither the best nor the worst rated row.
+   isUnratedCorporate() { $this.isUnrated->orElse(false) } : Boolean[1];
+}
+
+// The IRB face: the weight was computed from the firm's own estimates through the
+// supervisory formula. FOR: carrying the parameters a supervisor will ask to see -- which
+// model, which grade, what PD and LGD went in -- rather than only the weight that came out.
+Class regulatory_capital::RcpIrbExposure extends regulatory_capital::RcpExposure
+{
+   model: regulatory_capital::RcpIrbModel[0..1];
+   parameterSet: regulatory_capital::RcpIrbParameterSet[0..1];
+
+   // Expected loss is provisioned for, not capitalised. Unexpected loss is the RWA.
+   unexpectedLoss()
+   {
+      $this.riskWeightedAmount * 0.08 - $this.expectedLossAmount->orElse(0.0)
+   } : Float[1];
+   // The PD floor: 0.03% for everything but sovereigns, so a model output below it is not
+   // the number used.
+   pdAfterFloor() { [$this.pointInTimePd->orElse(0.0), 0.0003]->max() } : Float[1];
+   // Foundation IRB fixes LGD at 45% senior unsecured; anything else is an advanced model.
+   isAdvanced() { $this.lossGivenDefault->orElse(0.45) != 0.45 } : Boolean[1];
+}
+
+// The COUNTERPARTY CREDIT RISK face: a derivative or SFT, where the exposure is not what was
+// lent but what it would cost to replace the book. FOR: the SA-CCR decomposition -- RC, PFE,
+// alpha -- and the netting set the three are computed over.
+Class regulatory_capital::RcpCounterpartyCreditExposure extends regulatory_capital::RcpExposure
+{
+   nettingSet: regulatory_capital::RcpNettingSetCapital[0..1];
+   ccrTotal: regulatory_capital::RcpCounterpartyCcrTotal[0..1];
+
+   // How much of the EAD is the add-on rather than today's cost. A book that is flat today
+   // and long-dated is nearly all PFE.
+   pfeShare()
+   {
+      $this.potentialFutureExposure->orElse(0.0) / $this.saccrEad()
+   } : Float[1];
+   // In the money to us. An out-of-the-money book has an RC of zero and a PFE that is not.
+   isInTheMoney() { $this.replacementCost->orElse(0.0) > 0.0 } : Boolean[1];
+}
+
+// The DEFAULTED face. FOR: the exposures where the risk weight stops being a forecast --
+// what is provided against, what was realised, and how long the workout has been open.
+// Overlaps the SA and IRB sets on purpose: default is a state, not an approach.
+Class regulatory_capital::RcpDefaultedExposure extends regulatory_capital::RcpExposure
+{
+   // OPEN, IN_RECOVERY, CLOSED. A default that has closed still counts for the back-test.
+   workoutStatus: String[0..1];
+   // Cash actually recovered so far, which is what an LGD estimate is judged against.
+   recoveryToDate: Float[0..1];
+   // The days past due that triggered the default, where it was a days-past-due default
+   // rather than an unlikeliness-to-pay one.
+   daysPastDue: Integer[0..1];
+
+   // Provisions over exposure. Above 20% moves a defaulted SA exposure from 150% to 100%.
+   provisionCoverage()
+   {
+      $this.specificProvision->orElse(0.0) / $this.exposureValue
+   } : Float[1];
+   // The unsecured, unprovided part -- the only part still consuming capital.
+   uncoveredAfterProvision()
+   {
+      $this.exposureAfterCrm - $this.specificProvision->orElse(0.0)
+   } : Float[1];
+   // The realised loss against what the model said would be lost. This is the back-test.
+   lossVersusExpected()
+   {
+      $this.realisedLoss->orElse(0.0) - $this.expectedLossAmount->orElse(0.0)
+   } : Float[1];
+}
+
+// The UNMITIGATED face: exposures with no eligible collateral, guarantee or credit
+// derivative behind them. FOR: sizing what the mitigation programme has not reached, which a
+// total RWA hides because the mitigated and unmitigated rows add up the same way.
+Class regulatory_capital::RcpUnmitigatedExposure extends regulatory_capital::RcpExposure
+{
+   // Why there is no protection: NOT_OFFERED, INELIGIBLE, NOT_SOUGHT, PENDING_DOCUMENTATION.
+   mitigationGapReason: String[0..1];
+   // The credit policy exception that let the exposure be taken unsecured.
+   policyExceptionRef: String[0..1];
+
+   // With no CRM the two exposure numbers must be equal; where they are not, mitigation was
+   // applied without a CRM row, which is worse than either.
+   crmRowIsMissing() { $this.exposureValue != $this.exposureAfterCrm } : Boolean[1];
+   // The whole exposure at the whole weight.
+   grossRequirement() { $this.exposureValue * $this.riskWeightPct * 0.08 } : Float[1];
+}
+
+// ---------------------------------------------------------------- the standardised grid
+
+// A REGULATORY EXPOSURE CLASS as a row: sovereign, institution, corporate, retail, secured by
+// mortgages, equity, and the rest. FOR: being the axis the standardised grid is indexed on,
+// so a class's treatment is data rather than a branch in code.
+Class regulatory_capital::RcpExposureClass
+{
+   exposureClassCode: String[1];
+   exposureClassName: String[1];
+   // The article of the regulation that defines it, so a disputed classification has a cite.
+   legalReference: String[0..1];
+   // True where the class may be rated by an ECAI at all. Retail may not be.
+   isRatingSensitive: Boolean[1];
+   // The weight applied where nothing else in the grid matches.
+   defaultRiskWeightPct: Float[1];
+   // True where the class is eligible for the IRB approach with permission.
+   isIrbEligible: Boolean[0..1];
+   // The IRB asset correlation floor for this class, which drives the supervisory formula.
+   correlationFloor: Float[0..1];
+   retiredOn: StrictDate[0..1];
+
+   riskWeights: regulatory_capital::RcpRiskWeight[*];
+   exposures: regulatory_capital::RcpExposure[*];
+
+   isCurrent() { $this.retiredOn->isEmpty() } : Boolean[1];
+}
+
+// The mapping from an external rating to a CREDIT QUALITY STEP. FOR: making the ECAI's
+// alphabet supervisory data -- one agency's A- and another's A3 are the same step, and the
+// grid is indexed on the step and never on the symbol. Composite key (ECAI, symbol).
+Class regulatory_capital::RcpCreditQualityStep
+{
+   // The recognised agency the symbol belongs to. A symbol alone is ambiguous across them.
+   ecaiCode: String[1];
+   ratingSymbol: String[1];
+   // 1 is the best. 6 is the worst that is still a step rather than a default.
+   qualityStep: Integer[1];
+   // The long-run default rate the mapping was calibrated against.
+   benchmarkDefaultRate: Float[0..1];
+   isLongTerm: Boolean[1];
+   mappedFrom: StrictDate[0..1];
+   mappedTo: StrictDate[0..1];
+
+   // Investment grade is steps 1 to 3, which is a threshold that appears all over the
+   // framework and is worth stating once.
+   isInvestmentGrade() { $this.qualityStep <= 3 } : Boolean[1];
+   isCurrent() { $this.mappedTo->isEmpty() } : Boolean[1];
+}
+
+// ONE CELL of the standardised risk weight grid: an exposure class and a credit quality step
+// give a weight. FOR: holding the grid AS DATA, so a change to a national discretion is a
+// row and not a release. Composite key (exposure class, step).
+Class regulatory_capital::RcpRiskWeight
+{
+   exposureClassCode: String[1];
+   // The step this row is for. The unrated row carries its own sentinel step.
+   creditQualityStep: Integer[1];
+   // The weight as a ratio: 0.2 is 20%.
+   riskWeightPct: Float[1];
+   // The weight for the same cell at a short original maturity, where the grid splits.
+   shortTermRiskWeightPct: Float[0..1];
+   // The jurisdiction whose discretion this row expresses. Not every cell is harmonised.
+   jurisdiction: String[0..1];
+   effectiveFrom: StrictDate[0..1];
+   supersededOn: StrictDate[0..1];
+
+   exposureClass: regulatory_capital::RcpExposureClass[0..1];
+
+   isCurrent() { $this.supersededOn->isEmpty() } : Boolean[1];
+   // What one unit of exposure in this cell costs in capital, at the 8% minimum.
+   capitalPerUnit() { $this.riskWeightPct * 0.08 } : Float[1];
+}
+
+// ---------------------------------------------------------------- the modelled side
+
+// AN IRB MODEL, with the permission that lets it be used. FOR: the fact that a model without
+// a live supervisory approval produces numbers that may not be filed, however good they are.
+Class regulatory_capital::RcpIrbModel
+{
+   modelId: String[1];
+   modelName: String[1];
+   // FOUNDATION or ADVANCED. Foundation means the firm estimates PD only.
+   irbApproach: String[1];
+   // Which exposure class the permission covers. Permissions are class by class.
+   exposureClassCode: String[1];
+   // The reference the competent authority gave the approval.
+   approvalReference: String[0..1];
+   approvedOn: StrictDate[0..1];
+   // Null while the permission stands. A withdrawn model reverts the book to standardised.
+   withdrawnOn: StrictDate[0..1];
+   // When the model was last validated, which is what an approval is conditional on.
+   lastValidatedOn: StrictDate[0..1];
+   // A supervisory add-on imposed where validation found the model optimistic.
+   supervisoryMultiplier: Float[0..1];
+
+   parameterSets: regulatory_capital::RcpIrbParameterSet[*];
+
+   isApproved() { $this.withdrawnOn->isEmpty() && !$this.approvedOn->isEmpty() } : Boolean[1];
+   // A model with no add-on has a multiplier of one, not of nothing.
+   effectiveMultiplier() { $this.supervisoryMultiplier->orElse(1.0) } : Float[1];
+}
+
+// ONE RATING GRADE of one model, with the parameters it assigns. FOR: being the calibration
+// an exposure is risk-weighted through, held per grade so a recalibration is a new row
+// rather than a silent restatement of yesterday's RWA. Composite key (model, grade).
+Class regulatory_capital::RcpIrbParameterSet
+{
+   modelId: String[1];
+   ratingGrade: String[1];
+   // The through-the-cycle PD the grade is calibrated to, as a ratio.
+   gradePd: Float[1];
+   // Downturn LGD, as a ratio. Foundation IRB uses 0.45 senior unsecured.
+   gradeLgd: Float[0..1];
+   // The exposure at default conversion for undrawn commitments under advanced IRB.
+   gradeEadFactor: Float[0..1];
+   // Assumed maturity in years where the actual one is not used. 2.5 under foundation.
+   assumedMaturityYears: Float[0..1];
+   // How many obligors sit in this grade, which is what makes the calibration credible.
+   obligorCount: Integer[0..1];
+   // The default rate actually observed in the grade last year -- the back-test.
+   observedDefaultRate: Float[0..1];
+   calibratedOn: StrictDate[0..1];
+
+   model: regulatory_capital::RcpIrbModel[0..1];
+
+   // Observed against assigned. Persistently positive means the grade is optimistic.
+   calibrationGap() { $this.observedDefaultRate->orElse(0.0) - $this.gradePd } : Float[1];
+   // The 0.03% floor applied to the grade itself.
+   pdAfterFloor() { [$this.gradePd, 0.0003]->max() } : Float[1];
+   // Expected loss per unit of exposure in this grade.
+   expectedLossRate() { $this.gradePd * $this.gradeLgd->orElse(0.45) } : Float[1];
+}
+
+// ---------------------------------------------------------------- credit risk mitigation
+
+// ONE PIECE OF CREDIT RISK MITIGATION: financial collateral, a guarantee, or a credit
+// derivative. FOR: recording that the reduction in the requirement has a legal basis, an
+// eligibility test and a haircut, none of which the reduced number itself shows.
+Class regulatory_capital::RcpCreditRiskMitigation
+{
+   crmId: String[1];
+   // FUNDED (collateral) or UNFUNDED (a guarantee or credit derivative). Different maths.
+   protectionType: String[1];
+   // COMPREHENSIVE or SIMPLE, for funded protection. Comprehensive haircuts the collateral;
+   // simple substitutes the collateral's risk weight on the covered part.
+   methodCode: String[1];
+   collateralTypeCode: String[0..1];
+   // The market value before any haircut.
+   collateralValue: Float[0..1];
+   // The supervisory haircut on the collateral itself, as a ratio.
+   collateralHaircutPct: Float[0..1];
+   // The haircut for a currency mismatch between the collateral and the exposure.
+   fxHaircutPct: Float[0..1];
+   // The haircut for a maturity mismatch, where the protection expires first.
+   maturityMismatchAdjustment: Float[0..1];
+   // How much of the exposure the protection reaches at all.
+   coveredAmount: Float[1];
+   // True where the eligibility test passed. Ineligible protection reduces nothing.
+   isEligible: Boolean[1];
+   // Why it failed, where it did.
+   ineligibilityReason: String[0..1];
+   protectionStart: StrictDate[0..1];
+   protectionEnd: StrictDate[0..1];
+
+   guarantee: regulatory_capital::RcpGuarantee[0..1];
+   haircutSchedule: regulatory_capital::RcpSupervisoryHaircut[0..1];
+   exposures: regulatory_capital::RcpExposure[*];
+
+   // A haircut MULTIPLIES by (1 - h); it does not subtract h. Both haircuts compound.
+   valueAfterHaircut()
+   {
+      $this.collateralValue->orElse(0.0) * (1.0 - $this.collateralHaircutPct->orElse(0.0)) * (1.0 - $this.fxHaircutPct->orElse(0.0))
+   } : Float[1];
+   // The two haircuts as one number, which is what a review actually argues over.
+   effectiveHaircutPct()
+   {
+      1.0 - ((1.0 - $this.collateralHaircutPct->orElse(0.0)) * (1.0 - $this.fxHaircutPct->orElse(0.0)))
+   } : Float[1];
+   // Ineligible protection is worth zero for capital, whatever it is worth commercially.
+   recognisedValue()
+   {
+      if($this.isEligible, | $this.valueAfterHaircut() * (1.0 - $this.maturityMismatchAdjustment->orElse(0.0)), | 0.0)
+   } : Float[1];
+   isLive() { $this.protectionEnd->isEmpty() } : Boolean[1];
+}
+
+// THE SUPERVISORY HAIRCUT TABLE for financial collateral under the comprehensive approach.
+// FOR: holding the published grid as data, keyed on what actually drives it -- the collateral
+// type and the residual maturity band -- rather than on the instrument. Composite key.
+Class regulatory_capital::RcpSupervisoryHaircut
+{
+   collateralTypeCode: String[1];
+   // '0_1Y', '1_5Y', '5Y_PLUS'. A band and not a number, because the grid is banded.
+   residualMaturityBand: String[1];
+   // The haircut as a ratio: 0.04 is 4%.
+   haircutPct: Float[1];
+   // The additional haircut where collateral and exposure are in different currencies.
+   fxMismatchHaircutPct: Float[0..1];
+   // The holding period the haircut was calibrated for, in business days.
+   holdingPeriodDays: Integer[1];
+   // The credit quality step the row applies to, where the grid splits on issuer quality.
+   creditQualityStep: Integer[0..1];
+   // True where the collateral is a sovereign issue, which gets the lower row.
+   isSovereignIssue: Boolean[0..1];
+
+   // Rescaling a haircut to a longer holding period goes as sqrt of the ratio of the
+   // periods, not linearly. Ten days against five is 1.41 times, not two.
+   scaledToHoldingPeriod(days: Integer[1])
+   {
+      $this.haircutPct * ($days->toFloat() / $this.holdingPeriodDays->toFloat())->sqrt()
+   } : Float[1];
+   // What a unit of this collateral is worth after the haircut.
+   valueRetainedPct() { 1.0 - $this.haircutPct } : Float[1];
+}
+
+// A GUARANTEE or credit derivative, and the substitution it causes. FOR: making explicit
+// that unfunded protection does not delete a requirement -- it MOVES it from the obligor to
+// the protection provider, at the provider's risk weight, and leaves the uncovered part
+// where it was.
+Class regulatory_capital::RcpGuarantee
+{
+   guaranteeId: String[1];
+   // Whose promise it is. The covered part is risk-weighted as an exposure to THIS party.
+   protectionProviderId: String[1];
+   // GUARANTEE, CREDIT_DERIVATIVE or CREDIT_LINKED_NOTE.
+   instrumentType: String[1];
+   // The obligor whose exposure is protected.
+   protectedObligorId: String[1];
+   // The face amount of the protection.
+   notionalAmount: Float[1];
+   // How much of the exposure it actually covers, which the notional may exceed.
+   coveredExposureAmount: Float[1];
+   // The provider's own risk weight, which is what gets substituted in.
+   providerRiskWeightPct: Float[1];
+   // The obligor's weight, kept so the benefit of the substitution is visible.
+   originalRiskWeightPct: Float[1];
+   // True where the protection is unconditional and irrevocable, which is the eligibility
+   // test. A guarantee the provider can walk away from mitigates nothing.
+   isUnconditional: Boolean[1];
+   // For credit derivatives: whether restructuring is a credit event. If it is not, the
+   // recognised amount is capped at 60%.
+   coversRestructuring: Boolean[0..1];
+   maturityDate: StrictDate[0..1];
+
+   // The RWA saved by substituting the provider's weight on the covered part. Negative
+   // where the provider is worse than the obligor, which is a real and legal outcome.
+   substitutionBenefit()
+   {
+      $this.coveredExposureAmount * ($this.originalRiskWeightPct - $this.providerRiskWeightPct)
+   } : Float[1];
+   // What the covered part weighs after substitution.
+   substitutedRwa() { $this.coveredExposureAmount * $this.providerRiskWeightPct } : Float[1];
+   // The cap where restructuring is not a credit event.
+   recognisedCoverage()
+   {
+      if($this.coversRestructuring->orElse(true), | $this.coveredExposureAmount, | $this.coveredExposureAmount * 0.6)
+   } : Float[1];
+   isEligible() { $this.isUnconditional } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- counterparty credit risk
+
+// SA-CCR FOR ONE NETTING SET on one date: EAD = alpha * (RC + PFE). FOR: being the row that
+// joins the regulatory calculation to what the collateral and margin systems already know,
+// so the replacement cost here and the exposure over there are comparable rather than merely
+// similar. Composite key (netting set, reporting date).
+Class regulatory_capital::RcpNettingSetCapital
+[
+   // Alpha is fixed at 1.4 by regulation. Anything else is a data error.
+   alphaIsRegulatory: ($this.alphaFactor == 1.4),
+   // A replacement cost is floored at zero: a book that is out of the money costs nothing
+   // to replace today, and a negative RC would be a claim we do not have.
+   replacementCostIsNotNegative: ($this.replacementCost >= 0.0)
+]
+{
+   nettingSetId: String[1];
+   reportingDate: StrictDate[1];
+   counterpartyId: String[1];
+   entityId: String[1];
+   // MARGINED or UNMARGINED. The maturity factor and the RC formula both differ.
+   marginedStatus: String[1];
+   // Current mark-to-market of the set, which may be negative.
+   currentMarkToMarket: Float[1];
+   // Collateral held against it, net of what we have posted.
+   netCollateralHeld: Float[1];
+   // max(MTM - collateral, threshold + MTA - NICA, 0) for a margined set.
+   replacementCost: Float[1];
+   // The aggregate add-on across hedging sets, after the multiplier.
+   potentialFutureExposure: Float[1];
+   // The over-collateralisation multiplier, floored at 5%. Excess collateral reduces PFE
+   // but never to nothing.
+   pfeMultiplier: Float[0..1];
+   // Sum of add-ons before the multiplier.
+   aggregateAddOn: Float[1];
+   // 1.4.
+   alphaFactor: Float[1];
+   // alpha * (RC + PFE).
+   exposureAtDefault: Float[1];
+   // The margin period of risk in days, which the maturity factor scales by.
+   marginPeriodOfRiskDays: Integer[0..1];
+   // margin-calc's netting set key, so the two systems' numbers can be put side by side.
+   marginPortfolioId: String[0..1];
+   // The initial margin method margin-calc computed under: SIMM, GRID, SCHEDULE.
+   marginMethodCode: String[0..1];
+
+   hedgingSets: regulatory_capital::RcpHedgingSet[*];
+   cvaCharge: regulatory_capital::RcpCvaCharge[0..1];
+   ccrTotal: regulatory_capital::RcpCounterpartyCcrTotal[0..1];
+
+   // ---- ACROSS THE BOUNDARY, two ways into the same netting set
+   // exposure-agg's legal view of it: is it enforceable, and in which jurisdiction.
+   exaNettingSet: exposure_agg::ExaNettingSet[0..1];
+   // margin-calc's view: the netting set as a margin portfolio.
+   marginPortfolio: margin_calc::MgnMarginPortfolio[0..1];
+   // And the number margin-calc actually computed, at its three-column grain.
+   modelInitialMargin: margin_calc::MgnInitialMargin[0..1];
+
+   // ---- flattened
+   // The total initial margin margin-calc holds against this set. Regulatory IM and model
+   // IM are different numbers for the same collateral, and the gap is the finding.
+   modelTotalInitialMargin: Float[0..1];
+
+   // alpha * (RC + PFE), recomputed. Disagreement with exposureAtDefault means an override.
+   derivedEad()
+   {
+      $this.alphaFactor * ($this.replacementCost + $this.potentialFutureExposure)
+   } : Float[1];
+   // The whole benefit of the SA-CCR treatment: what the set would be at gross MTM.
+   grossVersusEad() { $this.currentMarkToMarket - $this.exposureAtDefault } : Float[1];
+   // The multiplier is floored at 5%: over-collateralisation reduces PFE, never removes it.
+   effectiveMultiplier() { [$this.pfeMultiplier->orElse(1.0), 0.05]->max() } : Float[1];
+   isMargined() { $this.marginedStatus == 'MARGINED' } : Boolean[1];
+   // How much collateral there is per unit of replacement cost.
+   collateralCoverage() { $this.netCollateralHeld / $this.replacementCost } : Float[1];
+   // Where the regulatory number and the model number disagree, by how much.
+   marginGap()
+   {
+      $this.netCollateralHeld - $this.modelTotalInitialMargin->orElse(0.0)
+   } : Float[1];
+}
+
+// A HEDGING SET inside a netting set. FOR: being the level at which offsets are ALLOWED. Two
+// interest rate trades in the same currency offset; an interest rate trade and an equity
+// trade do not, and putting them in one bucket would net risk that does not net.
+Class regulatory_capital::RcpHedgingSet
+{
+   hedgingSetId: String[1];
+   nettingSetId: String[1];
+   reportingDate: StrictDate[1];
+   // INTEREST_RATE, FX, CREDIT, EQUITY, COMMODITY.
+   assetClass: String[1];
+   // The currency for a rate hedging set, or the pair for an FX one. Null elsewhere.
+   hedgingSetKey: String[0..1];
+   // The number of trades in it, which is what makes an offset credible.
+   tradeCount: Integer[0..1];
+   // Sum of adjusted notionals, signed -- long and short cancel here and only here.
+   netAdjustedNotional: Float[1];
+   // Sum of absolute adjusted notionals, which is what would be charged with no offset.
+   grossAdjustedNotional: Float[1];
+   // The supervisory factor for the asset class, as a ratio.
+   supervisoryFactor: Float[1];
+   // The maturity factor, which is sqrt(MPOR/250) for a margined set.
+   maturityFactor: Float[0..1];
+
+   nettingSet: regulatory_capital::RcpNettingSetCapital[0..1];
+   addOns: regulatory_capital::RcpSaccrAddOn[*];
+
+   // What the offset inside the set is worth. One is no offset at all.
+   offsetRatio() { $this.netAdjustedNotional->abs() / $this.grossAdjustedNotional } : Float[1];
+   // The add-on before any aggregation across hedging sets.
+   standaloneAddOn()
+   {
+      $this.netAdjustedNotional->abs() * $this.supervisoryFactor * $this.maturityFactor->orElse(1.0)
+   } : Float[1];
+   // What the same trades would cost with no recognition of offset at all.
+   addOnWithoutOffset()
+   {
+      $this.grossAdjustedNotional * $this.supervisoryFactor * $this.maturityFactor->orElse(1.0)
+   } : Float[1];
+}
+
+// ONE ADD-ON, per hedging set per asset class. FOR: showing where the PFE came from. An
+// aggregate add-on is a number nobody can challenge; the same number split by asset class is
+// a conversation about which desk is consuming the capital. Composite key.
+Class regulatory_capital::RcpSaccrAddOn
+{
+   hedgingSetId: String[1];
+   assetClass: String[1];
+   // The supervisory delta, which is 1 for a long linear trade and N(d1) for an option.
+   supervisoryDelta: Float[1];
+   // Notional adjusted by the supervisory duration for a rate trade.
+   adjustedNotional: Float[1];
+   // The published factor for the class: 0.5% for rates, 4% for FX, 32% for equity single.
+   supervisoryFactor: Float[1];
+   maturityFactor: Float[1];
+   // The add-on this row contributes.
+   addOnAmount: Float[1];
+   // The correlation used to aggregate this class into the total, where the class uses one.
+   aggregationCorrelation: Float[0..1];
+
+   hedgingSet: regulatory_capital::RcpHedgingSet[0..1];
+
+   // delta * adjusted notional * MF * SF, recomputed as the data-quality screen.
+   derivedAddOn()
+   {
+      $this.supervisoryDelta * $this.adjustedNotional * $this.maturityFactor * $this.supervisoryFactor
+   } : Float[1];
+   // A short leg has a negative delta, and that is what makes offset possible.
+   isDirectional() { $this.supervisoryDelta < 0.0 } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- CVA
+
+// THE CVA CAPITAL CHARGE for one counterparty on one date. FOR: the loss that is not a
+// default -- the counterparty's credit spread widening makes the derivative book worth less
+// today, and that mark-to-market loss is a separate charge from the default risk on the same
+// trades. Composite key (counterparty, reporting date).
+Class regulatory_capital::RcpCvaCharge
+{
+   counterpartyId: String[1];
+   reportingDate: StrictDate[1];
+   entityId: String[1];
+   // BA_CVA (basic) or SA_CVA (standardised, which needs permission).
+   approachCode: String[1];
+   // Effective EAD across the counterparty's netting sets, discounted.
+   effectiveExposure: Float[1];
+   // Effective maturity in years, weighted by exposure.
+   effectiveMaturityYears: Float[1];
+   // The supervisory risk weight for the counterparty's sector and quality.
+   creditSpreadRiskWeight: Float[1];
+   // The discount factor for the effective maturity.
+   discountFactor: Float[0..1];
+   // The charge before hedges are recognised.
+   standaloneCharge: Float[1];
+   // The recognised value of the hedges.
+   hedgeBenefit: Float[0..1];
+   // The charge after hedges. This is the number that enters the requirement.
+   cvaCapitalCharge: Float[1];
+   // The charge as RWA, which is the charge divided by 8%.
+   cvaRiskWeightedAmount: Float[1];
+   // True where the counterparty is exempt -- a non-financial below the clearing threshold,
+   // a sovereign, a pension scheme. An exemption is a policy choice, not an absence of risk.
+   isExempt: Boolean[0..1];
+   exemptionReason: String[0..1];
+
+   hedges: regulatory_capital::RcpCvaHedge[*];
+   ccrTotal: regulatory_capital::RcpCounterpartyCcrTotal[0..1];
+
+   // ACROSS THE BOUNDARY: the counterparty as exposure-agg's apex row.
+   counterparty: exposure_agg::ExaCounterparty[0..1];
+
+   // What the hedges took off, as a share of the standalone charge.
+   hedgeEffectiveness()
+   {
+      $this.hedgeBenefit->orElse(0.0) / $this.standaloneCharge
+   } : Float[1];
+   // The charge grossed to RWA at the 8% minimum.
+   derivedRwa() { $this.cvaCapitalCharge / 0.08 } : Float[1];
+   // An exempt counterparty contributes nothing, however large the exposure.
+   contributedCharge()
+   {
+      if($this.isExempt->orElse(false), | 0.0, | $this.cvaCapitalCharge)
+   } : Float[1];
+   // Charge per unit of exposure -- comparable across counterparties of different sizes.
+   chargeRate() { $this.cvaCapitalCharge / $this.effectiveExposure } : Float[1];
+}
+
+// AN ELIGIBLE CVA HEDGE. FOR: recording that only some hedges count. A single-name CDS on
+// the counterparty is fully recognised; an index CDS is partially recognised; a hedge of the
+// exposure rather than of the spread is not recognised at all, however well it works.
+Class regulatory_capital::RcpCvaHedge
+{
+   hedgeId: String[1];
+   counterpartyId: String[1];
+   reportingDate: StrictDate[1];
+   // SINGLE_NAME_CDS, INDEX_CDS or CONTINGENT_CDS.
+   hedgeType: String[1];
+   // What was bought, and on whom.
+   referenceEntityId: String[0..1];
+   notionalAmount: Float[1];
+   maturityYears: Float[1];
+   // The supervisory correlation between the index and the counterparty, for an index hedge.
+   indexCorrelation: Float[0..1];
+   // True only for hedges of the CVA spread risk itself.
+   isEligible: Boolean[1];
+   ineligibilityReason: String[0..1];
+   // The recognised value after the correlation haircut.
+   recognisedAmount: Float[1];
+
+   charge: regulatory_capital::RcpCvaCharge[0..1];
+
+   // An index hedge is only recognised to the extent it correlates. A single name is 1.0.
+   recognitionFactor()
+   {
+      if($this.hedgeType == 'INDEX_CDS', | $this.indexCorrelation->orElse(0.5), | 1.0)
+   } : Float[1];
+   // Notional times the recognition factor, floored at zero by ineligibility.
+   derivedRecognisedAmount()
+   {
+      if($this.isEligible, | $this.notionalAmount * $this.recognitionFactor(), | 0.0)
+   } : Float[1];
+   // A hedge that matures before the exposure leaves the tail uncovered.
+   coversFullMaturity(exposureMaturityYears: Float[1])
+   {
+      $this.maturityYears >= $exposureMaturityYears
+   } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- operational risk
+
+// THE BUSINESS INDICATOR for one entity for one financial year. FOR: being the size proxy the
+// standardised operational risk charge is built on -- three components, each a three-year
+// average, because operational risk scales with the business and not with the balance sheet.
+// Composite key (entity, financial year).
+Class regulatory_capital::RcpOperationalRiskIndicator
+{
+   entityId: String[1];
+   // The year the components are averaged over, e.g. 2025.
+   financialYear: Integer[1];
+   // Interest, leases and dividends component -- the banking book's contribution.
+   ildcComponent: Float[1];
+   // Services component: fee income and expense, taken as the larger of the two absolutes.
+   servicesComponent: Float[1];
+   // Financial component: trading and banking book P&L, absolute.
+   financialComponent: Float[1];
+   // The three summed. This is the Business Indicator.
+   businessIndicator: Float[1];
+   // Which of the three published buckets the BI falls in: 1, 2 or 3.
+   biBucket: Integer[1];
+   // The marginal coefficient for the bucket: 12%, 15%, 18%.
+   marginalCoefficient: Float[1];
+   isAudited: Boolean[0..1];
+
+   charges: regulatory_capital::RcpOperationalRiskCharge[*];
+
+   // The three components summed, recomputed as the screen on the stored total.
+   derivedBusinessIndicator()
+   {
+      $this.ildcComponent + $this.servicesComponent + $this.financialComponent
+   } : Float[1];
+   // The BIC for this bucket, marginal rather than flat: the coefficient applies to the
+   // slice in the bucket and not to the whole indicator.
+   bucketContribution() { $this.businessIndicator * $this.marginalCoefficient } : Float[1];
+   // Bucket 1 firms have their ILM set to one by national discretion in many jurisdictions.
+   isSmallestBucket() { $this.biBucket == 1 } : Boolean[1];
+}
+
+// THE OPERATIONAL RISK CAPITAL CHARGE: BIC times ILM. FOR: making the loss history visible in
+// the number. Two firms of the same size get different charges because one of them has lost
+// money operationally and the other has not, and the Internal Loss Multiplier is where that
+// enters. Composite key (entity, reporting date).
+Class regulatory_capital::RcpOperationalRiskCharge
+{
+   entityId: String[1];
+   reportingDate: StrictDate[1];
+   // Which year's business indicator it was built from.
+   financialYear: Integer[1];
+   // The Business Indicator Component: the marginal-coefficient sum over the buckets.
+   businessIndicatorComponent: Float[1];
+   // Fifteen times the ten-year average annual loss.
+   lossComponent: Float[1];
+   // How many years of internal loss data there actually are. Below five, the ILM is one.
+   lossDataYears: Integer[0..1];
+   // The average annual loss over the window.
+   averageAnnualLoss: Float[0..1];
+   // The single largest loss in the window, which an average hides.
+   largestSingleLoss: Float[0..1];
+   // The Internal Loss Multiplier: ln(e - 1 + (LC/BIC)^0.8). One where LC equals BIC.
+   internalLossMultiplier: Float[1];
+   // BIC * ILM.
+   operationalRiskCapital: Float[1];
+   // The charge grossed to RWA at 8%.
+   operationalRiskWeightedAmount: Float[1];
+   // True where the national discretion sets ILM to one regardless of losses.
+   ilmIsNeutralised: Boolean[0..1];
+
+   indicator: regulatory_capital::RcpOperationalRiskIndicator[0..1];
+
+   // The ratio the ILM is a function of. Above one means losses exceed the size proxy.
+   lossToBicRatio() { $this.lossComponent / $this.businessIndicatorComponent } : Float[1];
+   // BIC * ILM, recomputed.
+   derivedCapital()
+   {
+      $this.businessIndicatorComponent * $this.effectiveIlm()
+   } : Float[1];
+   // Under five years of data, or where the discretion applies, the multiplier is one.
+   effectiveIlm()
+   {
+      if($this.ilmIsNeutralised->orElse(false) || ($this.lossDataYears->orElse(0) < 5), | 1.0, | $this.internalLossMultiplier)
+   } : Float[1];
+   // What the loss history added to the charge, in money.
+   lossHistoryCost()
+   {
+      $this.businessIndicatorComponent * ($this.effectiveIlm() - 1.0)
+   } : Float[1];
+   // The tail: one loss against the average of ten years of them.
+   tailConcentration()
+   {
+      $this.largestSingleLoss->orElse(0.0) / $this.averageAnnualLoss->orElse(1.0)
+   } : Float[1];
+}
+
+// ---------------------------------------------------------------- own funds and the total
+
+// OWN FUNDS for one entity on one date, in the three tiers. FOR: being the numerator. The
+// tiers are not interchangeable -- CET1 absorbs losses while the firm is a going concern and
+// AT1 and T2 largely do not -- so a single "capital" number would hide the only distinction
+// that matters in a stress. Composite key (entity, reporting date).
+Class regulatory_capital::RcpOwnFunds
+[
+   // CET1 cannot exceed the total it is a component of.
+   cet1WithinTotal: ($this.commonEquityTier1 <= $this.totalCapital),
+   // Deductions are held positive and subtracted, never signed.
+   deductionsArePositive: ($this.cet1Deductions >= 0.0)
+]
+{
+   entityId: String[1];
+   reportingDate: StrictDate[1];
+   // Paid-in capital, share premium, retained earnings, accumulated OCI, reserves.
+   commonEquityTier1: Float[1];
+   // Goodwill, intangibles, DTAs on future profitability, significant investments.
+   cet1Deductions: Float[1];
+   // CET1 after deductions -- the only CET1 number that counts.
+   cet1AfterDeductions: Float[1];
+   // Perpetual instruments with a discretionary coupon and a conversion trigger.
+   additionalTier1: Float[1];
+   // Subordinated debt with at least five years to maturity, amortised in the last five.
+   tier2Capital: Float[1];
+   // CET1 + AT1.
+   tier1Capital: Float[1];
+   // Tier 1 + Tier 2.
+   totalCapital: Float[1];
+   // Profit not yet verified by the auditor may not be counted, however real it is.
+   unverifiedInterimProfit: Float[0..1];
+   // The leverage exposure measure, which is not RWA and deliberately not risk-sensitive.
+   leverageExposureMeasure: Float[0..1];
+
+   entity: regulatory_capital::RcpReportingEntity[0..1];
+
+   // CET1 less deductions, recomputed.
+   derivedCet1() { $this.commonEquityTier1 - $this.cet1Deductions } : Float[1];
+   // The leverage ratio: Tier 1 over exposure, with no risk weighting at all. It exists to
+   // catch a book that is enormous and weighted at nearly nothing.
+   leverageRatio()
+   {
+      $this.tier1Capital / $this.leverageExposureMeasure->orElse(1.0)
+   } : Float[1];
+   // How much of the stack is the good stuff.
+   cet1ShareOfTotal() { $this.cet1AfterDeductions / $this.totalCapital } : Float[1];
+   // The deductions as a share of gross CET1 -- the intangibility of the balance sheet.
+   deductionRate() { $this.cet1Deductions / $this.commonEquityTier1 } : Float[1];
+}
+
+// THE PILLAR 1 REQUIREMENT for one entity on one date: every risk type's RWA in one row, and
+// the ratios that come out of it. FOR: being the single row a supervisor reads, and the
+// place the output floor is applied -- because the floor operates on the total and not on
+// any one risk type. Composite key (entity, reporting date).
+Class regulatory_capital::RcpCapitalRequirement
+[
+   // A total RWA of zero would make every ratio infinite.
+   rwaIsPositive: ($this.totalRiskWeightedAmount > 0.0)
+]
+{
+   entityId: String[1];
+   reportingDate: StrictDate[1];
+   runId: String[0..1];
+   // Credit risk RWA under whichever approaches the entity is permitted to use.
+   creditRiskWeightedAmount: Float[1];
+   // The same book under the standardised approaches only -- the floor's input.
+   standardisedCreditRwa: Float[1];
+   // Counterparty credit risk RWA, from SA-CCR.
+   counterpartyCreditRwa: Float[1];
+   // The CVA charge as RWA.
+   cvaRiskWeightedAmount: Float[1];
+   // Market risk RWA.
+   marketRiskWeightedAmount: Float[1];
+   // Operational risk RWA.
+   operationalRiskWeightedAmount: Float[1];
+   // The modelled total, before the floor.
+   preFloorRiskWeightedAmount: Float[1];
+   // The total after the floor, which is the denominator of every ratio below.
+   totalRiskWeightedAmount: Float[1];
+   // 8% of the total.
+   minimumCapitalRequirement: Float[1];
+   // The Pillar 2 requirement the supervisor has set on top, as a ratio of RWA.
+   pillar2RequirementPct: Float[0..1];
+   // The ratios, stored as filed rather than recomputed at read time.
+   cet1Ratio: Float[1];
+   tier1Ratio: Float[1];
+   totalCapitalRatio: Float[1];
+   filedOn: StrictDate[0..1];
+
+   entity: regulatory_capital::RcpReportingEntity[0..1];
+   ownFunds: regulatory_capital::RcpOwnFunds[0..1];
+   outputFloor: regulatory_capital::RcpOutputFloor[0..1];
+   bufferRequirement: regulatory_capital::RcpBufferRequirement[0..1];
+   operationalRiskCharge: regulatory_capital::RcpOperationalRiskCharge[0..1];
+
+   // The six components summed, as the screen on the stored pre-floor total.
+   derivedPreFloorRwa()
+   {
+      $this.creditRiskWeightedAmount + $this.counterpartyCreditRwa + $this.cvaRiskWeightedAmount + $this.marketRiskWeightedAmount + $this.operationalRiskWeightedAmount
+   } : Float[1];
+   // What the floor added. Zero where the modelled number was already above it.
+   floorImpact()
+   {
+      $this.totalRiskWeightedAmount - $this.preFloorRiskWeightedAmount
+   } : Float[1];
+   // True where the floor is the binding constraint, which means the models are no longer
+   // deciding the requirement.
+   isFloorBinding() { $this.totalRiskWeightedAmount > $this.preFloorRiskWeightedAmount } : Boolean[1];
+   // 8% of RWA, recomputed.
+   derivedMinimum() { $this.totalRiskWeightedAmount * 0.08 } : Float[1];
+   // The minimum plus whatever Pillar 2 the supervisor added.
+   totalSrepRequirement()
+   {
+      $this.totalRiskWeightedAmount * (0.08 + $this.pillar2RequirementPct->orElse(0.0))
+   } : Float[1];
+   // The share of the denominator that is credit risk, which in most banks is most of it.
+   creditShareOfRwa()
+   {
+      $this.creditRiskWeightedAmount / $this.totalRiskWeightedAmount
+   } : Float[1];
+   isFiled() { !$this.filedOn->isEmpty() } : Boolean[1];
+}
+
+// THE OUTPUT FLOOR. FOR: the rule that a modelled total may not fall below 72.5% of what the
+// same book would have been under the standardised approaches. It exists because internal
+// models drifted apart across firms for the same risk, and it means a firm can lose the
+// benefit of every model it was ever approved for by being on the wrong side of one number.
+// Composite key (entity, reporting date).
+Class regulatory_capital::RcpOutputFloor
+[
+   // The calibration is a ratio between zero and one, phased in over years.
+   calibrationIsRatio: (($this.floorCalibrationPct > 0.0) && ($this.floorCalibrationPct <= 1.0))
+]
+{
+   entityId: String[1];
+   reportingDate: StrictDate[1];
+   // The whole book restated under the standardised approaches -- credit, CCR, CVA, market,
+   // operational. This is a full parallel calculation, not an adjustment.
+   fullStandardisedRwa: Float[1];
+   // The modelled total, before the floor.
+   modelledRwa: Float[1];
+   // 0.725 at the end of the phase-in; lower during it.
+   floorCalibrationPct: Float[1];
+   // fullStandardisedRwa * calibration.
+   flooredRwa: Float[1];
+   // The larger of the two, which is the number that is used.
+   appliedRwa: Float[1];
+   // True where the floor bit.
+   isFloorBinding: Boolean[1];
+   // The phase-in year the calibration came from.
+   phaseInYear: Integer[0..1];
+   // Where a transitional cap limits how much the floor may raise RWA in one year.
+   transitionalCapPct: Float[0..1];
+
+   requirement: regulatory_capital::RcpCapitalRequirement[0..1];
+
+   // The floor level, recomputed.
+   derivedFloor() { $this.fullStandardisedRwa * $this.floorCalibrationPct } : Float[1];
+   // What the models are worth: how far the modelled number sits below the standardised one.
+   modelBenefit() { $this.fullStandardisedRwa - $this.modelledRwa } : Float[1];
+   // How much of that benefit the floor gives back.
+   benefitLostToFloor() { $this.appliedRwa - $this.modelledRwa } : Float[1];
+   // Modelled over standardised. Below the calibration, the floor binds.
+   modelledDensity() { $this.modelledRwa / $this.fullStandardisedRwa } : Float[1];
+   // The headroom before the floor starts to bind, in RWA.
+   headroomToFloor() { $this.modelledRwa - $this.derivedFloor() } : Float[1];
+}
+
+// ---------------------------------------------------------------- buffers and distributions
+
+// ONE CAPITAL BUFFER as a row: the conservation buffer, the countercyclical buffer, the
+// systemic ones. FOR: holding each buffer's own rate, authority and phase-in separately,
+// because they are set by different bodies on different timetables and only the SUM of them
+// is a single number.
+Class regulatory_capital::RcpCapitalBuffer
+{
+   bufferCode: String[1];
+   bufferName: String[1];
+   // CCOB, CCYB, GSII, OSII, SYRB.
+   bufferType: String[1];
+   // The rate as a ratio of RWA: 0.025 is 2.5%.
+   bufferRatePct: Float[1];
+   // Which body sets it. The countercyclical rate is set by each jurisdiction separately.
+   settingAuthority: String[0..1];
+   // The jurisdiction, for a countercyclical rate that is geographically weighted.
+   jurisdiction: String[0..1];
+   // Which tier of capital may meet it. All of them must be met with CET1.
+   meetableWithTier: String[1];
+   // The G-SII bucket, 1 to 5, where the buffer is the systemic one.
+   systemicBucket: Integer[0..1];
+   announcedOn: StrictDate[0..1];
+   effectiveFrom: StrictDate[0..1];
+   // Null while the buffer is in force.
+   revokedOn: StrictDate[0..1];
+
+   isInForce() { $this.revokedOn->isEmpty() } : Boolean[1];
+   // A buffer rate against a given RWA, in money.
+   amountAgainst(riskWeightedAmount: Float[1]) { $riskWeightedAmount * $this.bufferRatePct } : Float[1];
+   // Every buffer must be met with CET1, which is why they stack on the CET1 minimum and
+   // not on the total capital one.
+   requiresCet1() { $this.meetableWithTier == 'CET1' } : Boolean[1];
+}
+
+// THE COMBINED BUFFER REQUIREMENT for one entity on one date: every applicable buffer summed,
+// and how much CET1 there is above the minimum to meet it with. FOR: being the row that
+// decides whether the firm is free to pay dividends, because a buffer is not a minimum -- it
+// is a stack you may run into, at a cost. Composite key (entity, reporting date).
+Class regulatory_capital::RcpBufferRequirement
+{
+   entityId: String[1];
+   reportingDate: StrictDate[1];
+   // 2.5% for everyone.
+   conservationBufferPct: Float[1];
+   // The institution-specific rate: each jurisdiction's rate weighted by where the
+   // exposures are, which is why two banks in one country have different rates.
+   countercyclicalBufferPct: Float[1];
+   // The G-SII buffer, from the bucket.
+   globalSystemicBufferPct: Float[0..1];
+   // The O-SII buffer, set nationally.
+   otherSystemicBufferPct: Float[0..1];
+   // The systemic risk buffer, which may overlap the two above or stack on them.
+   systemicRiskBufferPct: Float[0..1];
+   // All of the above, summed.
+   combinedBufferPct: Float[1];
+   // The same, in money.
+   combinedBufferAmount: Float[1];
+   // The CET1 available above the 4.5% minimum and above what AT1 and T2 shortfalls eat.
+   cet1AvailableForBuffer: Float[1];
+   // True where available CET1 is below the combined requirement.
+   isBreached: Boolean[1];
+
+   requirement: regulatory_capital::RcpCapitalRequirement[0..1];
+   restriction: regulatory_capital::RcpDistributionRestriction[0..1];
+
+   // The five rates summed, recomputed.
+   derivedCombinedPct()
+   {
+      $this.conservationBufferPct + $this.countercyclicalBufferPct + $this.globalSystemicBufferPct->orElse(0.0) + $this.otherSystemicBufferPct->orElse(0.0) + $this.systemicRiskBufferPct->orElse(0.0)
+   } : Float[1];
+   // How much CET1 there is above the buffer, which is the real distributable headroom.
+   bufferHeadroom() { $this.cet1AvailableForBuffer - $this.combinedBufferAmount } : Float[1];
+   // How far into the buffer the firm has eaten, as a share of it. Above one is a breach.
+   bufferUtilisation()
+   {
+      1.0 - ($this.cet1AvailableForBuffer / $this.combinedBufferAmount)
+   } : Float[1];
+   // The shortfall, floored at zero: a firm above the buffer has no shortfall.
+   bufferShortfall()
+   {
+      [0.0, $this.combinedBufferAmount - $this.cet1AvailableForBuffer]->max()
+   } : Float[1];
+}
+
+// WHAT A BUFFER BREACH ACTUALLY DOES. FOR: the fact that breaching a buffer is not a breach
+// of a minimum -- the firm keeps operating and keeps its licence, but a percentage of its
+// profits stops being its own to distribute. The quartile decides the percentage, the
+// percentage decides the Maximum Distributable Amount, and the MDA is a hard cap on dividends,
+// buybacks and discretionary bonuses together. Composite key (entity, reporting date).
+Class regulatory_capital::RcpDistributionRestriction
+{
+   entityId: String[1];
+   reportingDate: StrictDate[1];
+   // 1 to 4. Quartile 1 is the deepest breach and restricts the most.
+   mdaQuartile: Integer[1];
+   // 0.0, 0.2, 0.4 or 0.6 -- the share of distributable profits that may be paid out.
+   payoutFactorPct: Float[1];
+   // Interim and year-end profits not yet distributed, before tax.
+   distributableProfits: Float[1];
+   // profits * factor. The cap.
+   maximumDistributableAmount: Float[1];
+   // What has already been paid out in the period, which consumes the cap.
+   distributionsMadeInPeriod: Float[0..1];
+   // Dividends the board has proposed but not yet paid.
+   proposedDividend: Float[0..1];
+   // Discretionary bonuses, which count against the same cap as the dividend.
+   proposedVariableRemuneration: Float[0..1];
+   // True while the restriction is live.
+   isRestricted: Boolean[1];
+   // The plan filed with the supervisor to get back above the buffer.
+   capitalConservationPlanRef: String[0..1];
+   // When the supervisor accepted it. Null means the plan is outstanding.
+   planApprovedOn: StrictDate[0..1];
+
+   bufferRequirement: regulatory_capital::RcpBufferRequirement[0..1];
+
+   // profits * factor, recomputed.
+   derivedMda() { $this.distributableProfits * $this.payoutFactorPct } : Float[1];
+   // What is left of the cap after what has already gone out.
+   remainingCapacity()
+   {
+      $this.maximumDistributableAmount - $this.distributionsMadeInPeriod->orElse(0.0)
+   } : Float[1];
+   // The dividend and the bonus pool together, because the cap covers both.
+   totalProposedDistribution()
+   {
+      $this.proposedDividend->orElse(0.0) + $this.proposedVariableRemuneration->orElse(0.0)
+   } : Float[1];
+   // True where what the board has proposed exceeds what it is allowed to pay.
+   exceedsCap()
+   {
+      $this.totalProposedDistribution() > $this.remainingCapacity()
+   } : Boolean[1];
+   // The most restrictive quartile pays out nothing at all.
+   isFullyRestricted() { $this.mdaQuartile == 1 } : Boolean[1];
+   hasApprovedPlan() { !$this.planApprovedOn->isEmpty() } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- the aggregations
+
+// ONE CELL OF THE CREDIT RISK TEMPLATE: a reporting date, an approach and an exposure class.
+// FOR: being the grain the return is actually filed at. An instance of this is a GROUP and
+// never an exposure -- navigating into it crosses a GROUP BY and cannot come back out to a
+// row. A class with no exposures on a date forms no group and is ABSENT, which is not a zero.
+Class regulatory_capital::RcpRwaByApproachClass
+{
+   reportingDate: StrictDate[1];
+   approachCode: String[1];
+   exposureClassCode: String[1];
+
+   exposureCount: Integer[1];
+   totalOriginalExposure: Float[0..1];
+   totalExposureValue: Float[0..1];
+   totalExposureAfterCrm: Float[0..1];
+   totalRiskWeightedAmount: Float[0..1];
+   // The single largest exposure in the cell, which a total hides: one exposure at a
+   // billion and forty at ten million are not the same cell.
+   largestExposureValue: Float[0..1];
+   totalExpectedLoss: Float[0..1];
+
+   exposures: regulatory_capital::RcpExposure[*];
+   exposureClass: regulatory_capital::RcpExposureClass[0..1];
+
+   // The average risk weight actually achieved in the cell, which is the number a
+   // supervisor benchmarks across firms. `/` widens, so Float.
+   averageRiskWeight()
+   {
+      $this.totalRiskWeightedAmount->orElse(0.0) / $this.totalExposureAfterCrm->orElse(1.0)
+   } : Float[1];
+   // What the mitigation took off the cell.
+   crmBenefit()
+   {
+      $this.totalExposureValue->orElse(0.0) - $this.totalExposureAfterCrm->orElse(0.0)
+   } : Float[1];
+   // The 8% against the cell.
+   capitalRequirement() { $this.totalRiskWeightedAmount->orElse(0.0) * 0.08 } : Float[1];
+   averageExposureSize()
+   {
+      $this.totalExposureValue->orElse(0.0) / $this.exposureCount->toFloat()
+   } : Float[1];
+   // True where one exposure is more than half the cell, which makes the average weight
+   // a statement about that one exposure.
+   isSingleNameDriven()
+   {
+      $this.largestExposureValue->orElse(0.0) > ($this.totalExposureValue->orElse(0.0) / 2.0)
+   } : Boolean[1];
+}
+
+// THE ENTITY'S WHOLE CREDIT DENOMINATOR, grouped out of the same exposure table by entity and
+// date. FOR: the one number every ratio divides by, computed from the rows rather than
+// asserted alongside them -- if this and RcpCapitalRequirement.creditRiskWeightedAmount
+// disagree, an adjustment was made outside the exposure table and that is worth seeing.
+Class regulatory_capital::RcpEntityRwaTotal
+{
+   entityId: String[1];
+   reportingDate: StrictDate[1];
+
+   exposureCount: Integer[1];
+   totalExposureValue: Float[0..1];
+   totalExposureAfterCrm: Float[0..1];
+   totalRiskWeightedAmount: Float[0..1];
+   largestRiskWeightedAmount: Float[0..1];
+   totalExpectedLoss: Float[0..1];
+
+   entity: regulatory_capital::RcpReportingEntity[0..1];
+   exposures: regulatory_capital::RcpExposure[*];
+
+   // RWA over exposure across the whole book: the firm's risk density in one number.
+   rwaDensity()
+   {
+      $this.totalRiskWeightedAmount->orElse(0.0) / $this.totalExposureValue->orElse(1.0)
+   } : Float[1];
+   capitalRequirement() { $this.totalRiskWeightedAmount->orElse(0.0) * 0.08 } : Float[1];
+   averageExposureSize()
+   {
+      $this.totalExposureValue->orElse(0.0) / $this.exposureCount->toFloat()
+   } : Float[1];
+   // Expected loss over exposure. Where this exceeds the provisions the firm has taken,
+   // the shortfall is deducted from CET1.
+   expectedLossRate()
+   {
+      $this.totalExpectedLoss->orElse(0.0) / $this.totalExposureAfterCrm->orElse(1.0)
+   } : Float[1];
+}
+
+// SA-CCR ROLLED UP TO THE COUNTERPARTY, grouped out of the netting set table. FOR: the grain
+// the counterparty-level questions are asked at -- the CVA charge, the large exposure limit
+// and the credit line are all per counterparty, while SA-CCR is computed per netting set. One
+// instance is a GROUP: it sums netting sets, which is right for a credit line and wrong for a
+// legal claim, because two netting sets do not net with each other.
+Class regulatory_capital::RcpCounterpartyCcrTotal
+{
+   counterpartyId: String[1];
+   reportingDate: StrictDate[1];
+
+   nettingSetCount: Integer[1];
+   totalReplacementCost: Float[0..1];
+   totalPotentialFutureExposure: Float[0..1];
+   totalExposureAtDefault: Float[0..1];
+   totalCollateralHeld: Float[0..1];
+   largestNettingSetEad: Float[0..1];
+
+   nettingSets: regulatory_capital::RcpNettingSetCapital[*];
+   cvaCharge: regulatory_capital::RcpCvaCharge[0..1];
+
+   // How much of the counterparty's EAD is the forward-looking add-on rather than today's
+   // cost. A flat, long-dated book is nearly all PFE.
+   pfeShare()
+   {
+      $this.totalPotentialFutureExposure->orElse(0.0) / $this.totalExposureAtDefault->orElse(1.0)
+   } : Float[1];
+   // Collateral against replacement cost across every set with this counterparty.
+   collateralCoverage()
+   {
+      $this.totalCollateralHeld->orElse(0.0) / $this.totalReplacementCost->orElse(1.0)
+   } : Float[1];
+   averageEadPerSet()
+   {
+      $this.totalExposureAtDefault->orElse(0.0) / $this.nettingSetCount->toFloat()
+   } : Float[1];
+   // True where one netting set is more than half the counterparty exposure, which means
+   // the counterparty total is really a statement about one agreement.
+   isSingleSetDriven()
+   {
+      $this.largestNettingSetEad->orElse(0.0) > ($this.totalExposureAtDefault->orElse(0.0) / 2.0)
+   } : Boolean[1];
+}

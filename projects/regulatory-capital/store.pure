@@ -1,0 +1,653 @@
+###Relational
+// The regulatory-capital store. It INCLUDES all three dependency stores, which is what lets
+// a join declared here name EXA_NET_EXPOSURE, EXA_NETTING_SET, EXA_COUNTERPARTY, the view
+// EXA_COUNTERPARTY_DAY_NET, MGN_MARGIN_PORTFOLIO, MGN_INITIAL_MARGIN and rex.REX_TRANSACTION
+// directly. There is no import in Legend and no copy of those tables here either.
+//
+// THE FAN-IN, and what arrives with it. exposure_agg::Store drags in credit-core and
+// collateral-core; regulatory_extract::Store drags in trade-capture, reference-data and
+// client-core and, behind them, core-instrument, core-party, core-book and core-geo;
+// margin_calc::Store drags in position-keeping and risk-core. Every one of those tables is
+// VISIBLE from this file and not one of them is named in it. Including any of them a second
+// time would be both a redundant include and a reference to an undeclared dependency.
+//
+// SCHEMAS. This project's own tables are in the default schema, like exposure-agg's and
+// margin-calc's. regulatory-extract puts its tables in a schema of its own, so the single
+// join into it has to write `rex.REX_TRANSACTION` -- the store, then the schema, then the
+// table. Forgetting the `rex.` segment fails with an error naming the column.
+//
+// THE FILTER SUBTYPES live here, not in the mapping: a `~filter` in a mapping set names a
+// Filter declared in a store, and the five that discriminate RCP_EXPOSURE are the five at
+// the bottom of this file. None uses a boolean literal -- `Filter X(T.IS_X = true)` fails
+// with `Unexpected token 'true'` -- so each is a string comparison or a null test.
+//
+// THE AGGREGATION SHAPE is the three Views. They are Legend views and not database ones: no
+// DDL is created, nothing seeds them, and the engine folds the GROUP BY into the SQL. Their
+// `~groupBy` columns ARE their primary key, which is both what makes them joinable and what
+// they mean -- one row of RCP_ENTITY_RWA_TOTAL is an entity and a date, never an exposure.
+// `~groupBy` takes COLUMN REFERENCES and never expressions.
+//
+// Datatypes: NUMERIC(24,8) for money, because a capital return is filed to the unit; FLOAT
+// for anything that is a ratio -- a risk weight, a PD, a haircut, a buffer rate, a
+// calibration; SMALLINT where the number is bounded by construction (a credit quality step,
+// an MDA quartile, a G-SII bucket); CHAR(3) for a currency. REAL is not used anywhere: it
+// parses and then cannot be read back at execution (docs/UPSTREAM_FINDINGS.md F53).
+Database regulatory_capital::Store
+(
+   include exposure_agg::Store
+   include regulatory_extract::Store
+   include margin_calc::Store
+
+   // ---------------------------------------------------------- the run and the entity
+
+   Table RCP_CAPITAL_RUN
+   (
+      RUN_ID VARCHAR(40) PRIMARY KEY,
+      REPORTING_DATE DATE NOT NULL,
+      RUN_TYPE VARCHAR(24) NOT NULL,
+      FRAMEWORK_VERSION VARCHAR(24),
+      STARTED_AT TIMESTAMP,
+      COMPLETED_AT TIMESTAMP,
+      EXPOSURE_COUNT INTEGER,
+      UNCLASSIFIED_COUNT INTEGER,
+      TRIGGERED_BY VARCHAR(60)
+   )
+
+   // The scope of consolidation, not the company: the same legal person appears once at
+   // group and once on a solo basis, at different numbers.
+   Table RCP_REPORTING_ENTITY
+   (
+      ENTITY_ID VARCHAR(40) PRIMARY KEY,
+      ENTITY_NAME VARCHAR(200) NOT NULL,
+      CONSOLIDATION_BASIS VARCHAR(20) NOT NULL,
+      COMPETENT_AUTHORITY VARCHAR(60),
+      JURISDICTION VARCHAR(40) NOT NULL,
+      REPORTING_CURRENCY CHAR(3) NOT NULL,
+      REGULATORY_ENTITY_ID VARCHAR(40),
+      IS_GLOBALLY_SYSTEMIC BIT,
+      DECONSOLIDATED_ON DATE
+   )
+
+   // ---------------------------------------------------------- the one table with five faces
+
+   // THE table of this project. One row is one regulatory exposure on one reporting date,
+   // and the five mapping sets over it are the five things it can simultaneously be.
+   //
+   // The blocks after the base are deliberately nullable: an IRB exposure has no credit
+   // quality step and a standardised one has no PD, and forcing either to a sentinel would
+   // make an absent parameter indistinguishable from a zero one. The mapping does not expose
+   // a block on the root set except where the number means something to every row.
+   Table RCP_EXPOSURE
+   (
+      EXPOSURE_ID VARCHAR(40) PRIMARY KEY,
+      ENTITY_ID VARCHAR(40) NOT NULL,
+      REPORTING_DATE DATE NOT NULL,
+      RUN_ID VARCHAR(40),
+      COUNTERPARTY_ID VARCHAR(40) NOT NULL,
+      // the discriminator of rcpSaExposure / rcpIrbExposure
+      APPROACH_CODE VARCHAR(8) NOT NULL,
+      EXPOSURE_CLASS_CODE VARCHAR(24) NOT NULL,
+      // the discriminator of rcpCcrExposure
+      EXPOSURE_TYPE_CODE VARCHAR(16) NOT NULL,
+      ORIGINAL_EXPOSURE NUMERIC(24,8),
+      UNDRAWN_AMOUNT NUMERIC(24,8),
+      CREDIT_CONVERSION_FACTOR FLOAT,
+      EXPOSURE_VALUE NUMERIC(24,8),
+      EXPOSURE_AFTER_CRM NUMERIC(24,8),
+      RISK_WEIGHT_PCT FLOAT,
+      RISK_WEIGHTED_AMOUNT NUMERIC(24,8),
+      RESIDUAL_MATURITY_YEARS FLOAT,
+      CURRENCY CHAR(3) NOT NULL,
+      // null is the discriminator of rcpUnmitigatedExposure
+      CRM_ID VARCHAR(40),
+      REPORT_ID VARCHAR(40),
+      NET_EXPOSURE_ID VARCHAR(40),
+
+      // the standardised block
+      ECAI_RATING_SYMBOL VARCHAR(16),
+      CREDIT_QUALITY_STEP SMALLINT,
+      IS_UNRATED BIT,
+      SUPPORTING_FACTOR FLOAT,
+      ECAI_CODE VARCHAR(24),
+
+      // the IRB block
+      MODEL_ID VARCHAR(40),
+      RATING_GRADE VARCHAR(16),
+      POINT_IN_TIME_PD FLOAT,
+      LOSS_GIVEN_DEFAULT FLOAT,
+      ASSET_CORRELATION FLOAT,
+      MATURITY_ADJUSTMENT FLOAT,
+      EXPECTED_LOSS_AMOUNT NUMERIC(24,8),
+
+      // the counterparty credit risk block
+      NETTING_SET_ID VARCHAR(40),
+      REPLACEMENT_COST NUMERIC(24,8),
+      POTENTIAL_FUTURE_EXPOSURE NUMERIC(24,8),
+      ALPHA_FACTOR FLOAT,
+
+      // the default block; the discriminator of rcpDefaultedExposure
+      DEFAULT_STATUS VARCHAR(16),
+      DEFAULTED_ON DATE,
+      SPECIFIC_PROVISION NUMERIC(24,8),
+      REALISED_LOSS NUMERIC(24,8),
+      WORKOUT_STATUS VARCHAR(20),
+      RECOVERY_TO_DATE NUMERIC(24,8),
+      DAYS_PAST_DUE INTEGER,
+
+      // the unmitigated block
+      MITIGATION_GAP_REASON VARCHAR(40),
+      POLICY_EXCEPTION_REF VARCHAR(40)
+   )
+
+   // ---------------------------------------------------------- the standardised grid
+
+   Table RCP_EXPOSURE_CLASS
+   (
+      EXPOSURE_CLASS_CODE VARCHAR(24) PRIMARY KEY,
+      EXPOSURE_CLASS_NAME VARCHAR(120) NOT NULL,
+      LEGAL_REFERENCE VARCHAR(80),
+      IS_RATING_SENSITIVE BIT,
+      DEFAULT_RISK_WEIGHT_PCT FLOAT,
+      IS_IRB_ELIGIBLE BIT,
+      CORRELATION_FLOOR FLOAT,
+      RETIRED_ON DATE
+   )
+
+   // COMPOSITE KEY. A rating symbol alone is ambiguous: one agency's A- and another's A3
+   // are the same step and are not the same symbol.
+   Table RCP_CREDIT_QUALITY_STEP
+   (
+      ECAI_CODE VARCHAR(24) PRIMARY KEY,
+      RATING_SYMBOL VARCHAR(16) PRIMARY KEY,
+      QUALITY_STEP SMALLINT NOT NULL,
+      BENCHMARK_DEFAULT_RATE FLOAT,
+      IS_LONG_TERM BIT,
+      MAPPED_FROM DATE,
+      MAPPED_TO DATE
+   )
+
+   // COMPOSITE KEY: the grid is indexed on both axes, and a weight without the class it was
+   // published for means nothing.
+   Table RCP_RISK_WEIGHT
+   (
+      EXPOSURE_CLASS_CODE VARCHAR(24) PRIMARY KEY,
+      CREDIT_QUALITY_STEP SMALLINT PRIMARY KEY,
+      RISK_WEIGHT_PCT FLOAT NOT NULL,
+      SHORT_TERM_RISK_WEIGHT_PCT FLOAT,
+      JURISDICTION VARCHAR(40),
+      EFFECTIVE_FROM DATE,
+      SUPERSEDED_ON DATE
+   )
+
+   // ---------------------------------------------------------- the modelled side
+
+   Table RCP_IRB_MODEL
+   (
+      MODEL_ID VARCHAR(40) PRIMARY KEY,
+      MODEL_NAME VARCHAR(160) NOT NULL,
+      IRB_APPROACH VARCHAR(16) NOT NULL,
+      EXPOSURE_CLASS_CODE VARCHAR(24) NOT NULL,
+      APPROVAL_REFERENCE VARCHAR(60),
+      APPROVED_ON DATE,
+      WITHDRAWN_ON DATE,
+      LAST_VALIDATED_ON DATE,
+      SUPERVISORY_MULTIPLIER FLOAT
+   )
+
+   // COMPOSITE KEY (model, grade): a grade is a grade of a model, and grade 5 of one model
+   // is not grade 5 of another.
+   Table RCP_IRB_PARAMETER_SET
+   (
+      MODEL_ID VARCHAR(40) PRIMARY KEY,
+      RATING_GRADE VARCHAR(16) PRIMARY KEY,
+      GRADE_PD FLOAT NOT NULL,
+      GRADE_LGD FLOAT,
+      GRADE_EAD_FACTOR FLOAT,
+      ASSUMED_MATURITY_YEARS FLOAT,
+      OBLIGOR_COUNT INTEGER,
+      OBSERVED_DEFAULT_RATE FLOAT,
+      CALIBRATED_ON DATE
+   )
+
+   // ---------------------------------------------------------- credit risk mitigation
+
+   Table RCP_CRM
+   (
+      CRM_ID VARCHAR(40) PRIMARY KEY,
+      PROTECTION_TYPE VARCHAR(16) NOT NULL,
+      METHOD_CODE VARCHAR(20) NOT NULL,
+      COLLATERAL_TYPE_CODE VARCHAR(24),
+      RESIDUAL_MATURITY_BAND VARCHAR(12),
+      COLLATERAL_VALUE NUMERIC(24,8),
+      COLLATERAL_HAIRCUT_PCT FLOAT,
+      FX_HAIRCUT_PCT FLOAT,
+      MATURITY_MISMATCH_ADJUSTMENT FLOAT,
+      COVERED_AMOUNT NUMERIC(24,8),
+      IS_ELIGIBLE BIT,
+      INELIGIBILITY_REASON VARCHAR(200),
+      GUARANTEE_ID VARCHAR(40),
+      PROTECTION_START DATE,
+      PROTECTION_END DATE
+   )
+
+   // COMPOSITE KEY (collateral type, maturity band): the published grid is banded on both.
+   Table RCP_SUPERVISORY_HAIRCUT
+   (
+      COLLATERAL_TYPE_CODE VARCHAR(24) PRIMARY KEY,
+      RESIDUAL_MATURITY_BAND VARCHAR(12) PRIMARY KEY,
+      HAIRCUT_PCT FLOAT NOT NULL,
+      FX_MISMATCH_HAIRCUT_PCT FLOAT,
+      HOLDING_PERIOD_DAYS SMALLINT NOT NULL,
+      CREDIT_QUALITY_STEP SMALLINT,
+      IS_SOVEREIGN_ISSUE BIT
+   )
+
+   Table RCP_GUARANTEE
+   (
+      GUARANTEE_ID VARCHAR(40) PRIMARY KEY,
+      PROTECTION_PROVIDER_ID VARCHAR(40) NOT NULL,
+      INSTRUMENT_TYPE VARCHAR(24) NOT NULL,
+      PROTECTED_OBLIGOR_ID VARCHAR(40) NOT NULL,
+      NOTIONAL_AMOUNT NUMERIC(24,8),
+      COVERED_EXPOSURE_AMOUNT NUMERIC(24,8),
+      PROVIDER_RISK_WEIGHT_PCT FLOAT,
+      ORIGINAL_RISK_WEIGHT_PCT FLOAT,
+      IS_UNCONDITIONAL BIT,
+      COVERS_RESTRUCTURING BIT,
+      MATURITY_DATE DATE
+   )
+
+   // ---------------------------------------------------------- counterparty credit risk
+
+   // COMPOSITE KEY (netting set, reporting date): SA-CCR is recomputed every day and
+   // yesterday's EAD for the same set is a different row, not a superseded one.
+   Table RCP_NETTING_SET_CAPITAL
+   (
+      NETTING_SET_ID VARCHAR(40) PRIMARY KEY,
+      REPORTING_DATE DATE PRIMARY KEY,
+      COUNTERPARTY_ID VARCHAR(40) NOT NULL,
+      ENTITY_ID VARCHAR(40) NOT NULL,
+      MARGINED_STATUS VARCHAR(16) NOT NULL,
+      CURRENT_MARK_TO_MARKET NUMERIC(24,8),
+      NET_COLLATERAL_HELD NUMERIC(24,8),
+      REPLACEMENT_COST NUMERIC(24,8),
+      POTENTIAL_FUTURE_EXPOSURE NUMERIC(24,8),
+      PFE_MULTIPLIER FLOAT,
+      AGGREGATE_ADD_ON NUMERIC(24,8),
+      ALPHA_FACTOR FLOAT,
+      EXPOSURE_AT_DEFAULT NUMERIC(24,8),
+      MARGIN_PERIOD_OF_RISK_DAYS SMALLINT,
+      MARGIN_PORTFOLIO_ID VARCHAR(32),
+      MARGIN_METHOD_CODE VARCHAR(16)
+   )
+
+   Table RCP_HEDGING_SET
+   (
+      HEDGING_SET_ID VARCHAR(40) PRIMARY KEY,
+      NETTING_SET_ID VARCHAR(40) NOT NULL,
+      REPORTING_DATE DATE NOT NULL,
+      ASSET_CLASS VARCHAR(20) NOT NULL,
+      HEDGING_SET_KEY VARCHAR(24),
+      TRADE_COUNT INTEGER,
+      NET_ADJUSTED_NOTIONAL NUMERIC(24,8),
+      GROSS_ADJUSTED_NOTIONAL NUMERIC(24,8),
+      SUPERVISORY_FACTOR FLOAT,
+      MATURITY_FACTOR FLOAT
+   )
+
+   // COMPOSITE KEY (hedging set, asset class): one hedging set can carry more than one
+   // add-on row where a basis or volatility bucket splits it.
+   Table RCP_SACCR_ADD_ON
+   (
+      HEDGING_SET_ID VARCHAR(40) PRIMARY KEY,
+      ASSET_CLASS VARCHAR(20) PRIMARY KEY,
+      SUPERVISORY_DELTA FLOAT NOT NULL,
+      ADJUSTED_NOTIONAL NUMERIC(24,8),
+      SUPERVISORY_FACTOR FLOAT,
+      MATURITY_FACTOR FLOAT,
+      ADD_ON_AMOUNT NUMERIC(24,8),
+      AGGREGATION_CORRELATION FLOAT
+   )
+
+   // ---------------------------------------------------------- CVA
+
+   // COMPOSITE KEY (counterparty, reporting date).
+   Table RCP_CVA_CHARGE
+   (
+      COUNTERPARTY_ID VARCHAR(40) PRIMARY KEY,
+      REPORTING_DATE DATE PRIMARY KEY,
+      ENTITY_ID VARCHAR(40) NOT NULL,
+      APPROACH_CODE VARCHAR(8) NOT NULL,
+      EFFECTIVE_EXPOSURE NUMERIC(24,8),
+      EFFECTIVE_MATURITY_YEARS FLOAT,
+      CREDIT_SPREAD_RISK_WEIGHT FLOAT,
+      DISCOUNT_FACTOR FLOAT,
+      STANDALONE_CHARGE NUMERIC(24,8),
+      HEDGE_BENEFIT NUMERIC(24,8),
+      CVA_CAPITAL_CHARGE NUMERIC(24,8),
+      CVA_RISK_WEIGHTED_AMOUNT NUMERIC(24,8),
+      IS_EXEMPT BIT,
+      EXEMPTION_REASON VARCHAR(200)
+   )
+
+   Table RCP_CVA_HEDGE
+   (
+      HEDGE_ID VARCHAR(40) PRIMARY KEY,
+      COUNTERPARTY_ID VARCHAR(40) NOT NULL,
+      REPORTING_DATE DATE NOT NULL,
+      HEDGE_TYPE VARCHAR(24) NOT NULL,
+      REFERENCE_ENTITY_ID VARCHAR(40),
+      NOTIONAL_AMOUNT NUMERIC(24,8),
+      MATURITY_YEARS FLOAT,
+      INDEX_CORRELATION FLOAT,
+      IS_ELIGIBLE BIT,
+      INELIGIBILITY_REASON VARCHAR(200),
+      RECOGNISED_AMOUNT NUMERIC(24,8)
+   )
+
+   // ---------------------------------------------------------- operational risk
+
+   // COMPOSITE KEY (entity, financial year): the business indicator is a three-year average
+   // published per year, and last year's is still the input to last year's charge.
+   Table RCP_OP_RISK_INDICATOR
+   (
+      ENTITY_ID VARCHAR(40) PRIMARY KEY,
+      FINANCIAL_YEAR INTEGER PRIMARY KEY,
+      ILDC_COMPONENT NUMERIC(24,8),
+      SERVICES_COMPONENT NUMERIC(24,8),
+      FINANCIAL_COMPONENT NUMERIC(24,8),
+      BUSINESS_INDICATOR NUMERIC(24,8),
+      BI_BUCKET SMALLINT NOT NULL,
+      MARGINAL_COEFFICIENT FLOAT,
+      IS_AUDITED BIT
+   )
+
+   // COMPOSITE KEY (entity, reporting date).
+   Table RCP_OP_RISK_CHARGE
+   (
+      ENTITY_ID VARCHAR(40) PRIMARY KEY,
+      REPORTING_DATE DATE PRIMARY KEY,
+      FINANCIAL_YEAR INTEGER NOT NULL,
+      BUSINESS_INDICATOR_COMPONENT NUMERIC(24,8),
+      LOSS_COMPONENT NUMERIC(24,8),
+      LOSS_DATA_YEARS SMALLINT,
+      AVERAGE_ANNUAL_LOSS NUMERIC(24,8),
+      LARGEST_SINGLE_LOSS NUMERIC(24,8),
+      INTERNAL_LOSS_MULTIPLIER FLOAT,
+      OPERATIONAL_RISK_CAPITAL NUMERIC(24,8),
+      OPERATIONAL_RISK_WEIGHTED_AMOUNT NUMERIC(24,8),
+      ILM_IS_NEUTRALISED BIT
+   )
+
+   // ---------------------------------------------------------- own funds and the total
+
+   // COMPOSITE KEY (entity, reporting date).
+   Table RCP_OWN_FUNDS
+   (
+      ENTITY_ID VARCHAR(40) PRIMARY KEY,
+      REPORTING_DATE DATE PRIMARY KEY,
+      COMMON_EQUITY_TIER_1 NUMERIC(24,8),
+      CET1_DEDUCTIONS NUMERIC(24,8),
+      CET1_AFTER_DEDUCTIONS NUMERIC(24,8),
+      ADDITIONAL_TIER_1 NUMERIC(24,8),
+      TIER_2_CAPITAL NUMERIC(24,8),
+      TIER_1_CAPITAL NUMERIC(24,8),
+      TOTAL_CAPITAL NUMERIC(24,8),
+      UNVERIFIED_INTERIM_PROFIT NUMERIC(24,8),
+      LEVERAGE_EXPOSURE_MEASURE NUMERIC(24,8)
+   )
+
+   // COMPOSITE KEY (entity, reporting date). PRE_FLOOR and TOTAL are two columns on purpose:
+   // the difference between them is what the output floor did, and a single column would
+   // erase it.
+   Table RCP_CAPITAL_REQUIREMENT
+   (
+      ENTITY_ID VARCHAR(40) PRIMARY KEY,
+      REPORTING_DATE DATE PRIMARY KEY,
+      RUN_ID VARCHAR(40),
+      CREDIT_RISK_WEIGHTED_AMOUNT NUMERIC(24,8),
+      STANDARDISED_CREDIT_RWA NUMERIC(24,8),
+      COUNTERPARTY_CREDIT_RWA NUMERIC(24,8),
+      CVA_RISK_WEIGHTED_AMOUNT NUMERIC(24,8),
+      MARKET_RISK_WEIGHTED_AMOUNT NUMERIC(24,8),
+      OPERATIONAL_RISK_WEIGHTED_AMOUNT NUMERIC(24,8),
+      PRE_FLOOR_RISK_WEIGHTED_AMOUNT NUMERIC(24,8),
+      TOTAL_RISK_WEIGHTED_AMOUNT NUMERIC(24,8),
+      MINIMUM_CAPITAL_REQUIREMENT NUMERIC(24,8),
+      PILLAR_2_REQUIREMENT_PCT FLOAT,
+      CET1_RATIO FLOAT,
+      TIER_1_RATIO FLOAT,
+      TOTAL_CAPITAL_RATIO FLOAT,
+      FILED_ON DATE
+   )
+
+   // COMPOSITE KEY (entity, reporting date).
+   Table RCP_OUTPUT_FLOOR
+   (
+      ENTITY_ID VARCHAR(40) PRIMARY KEY,
+      REPORTING_DATE DATE PRIMARY KEY,
+      FULL_STANDARDISED_RWA NUMERIC(24,8),
+      MODELLED_RWA NUMERIC(24,8),
+      FLOOR_CALIBRATION_PCT FLOAT,
+      FLOORED_RWA NUMERIC(24,8),
+      APPLIED_RWA NUMERIC(24,8),
+      IS_FLOOR_BINDING BIT,
+      PHASE_IN_YEAR INTEGER,
+      TRANSITIONAL_CAP_PCT FLOAT
+   )
+
+   // ---------------------------------------------------------- buffers and distributions
+
+   Table RCP_CAPITAL_BUFFER
+   (
+      BUFFER_CODE VARCHAR(24) PRIMARY KEY,
+      BUFFER_NAME VARCHAR(120) NOT NULL,
+      BUFFER_TYPE VARCHAR(16) NOT NULL,
+      BUFFER_RATE_PCT FLOAT NOT NULL,
+      SETTING_AUTHORITY VARCHAR(60),
+      JURISDICTION VARCHAR(40),
+      MEETABLE_WITH_TIER VARCHAR(8) NOT NULL,
+      SYSTEMIC_BUCKET SMALLINT,
+      ANNOUNCED_ON DATE,
+      EFFECTIVE_FROM DATE,
+      REVOKED_ON DATE
+   )
+
+   // COMPOSITE KEY (entity, reporting date).
+   Table RCP_BUFFER_REQUIREMENT
+   (
+      ENTITY_ID VARCHAR(40) PRIMARY KEY,
+      REPORTING_DATE DATE PRIMARY KEY,
+      CONSERVATION_BUFFER_PCT FLOAT,
+      COUNTERCYCLICAL_BUFFER_PCT FLOAT,
+      GLOBAL_SYSTEMIC_BUFFER_PCT FLOAT,
+      OTHER_SYSTEMIC_BUFFER_PCT FLOAT,
+      SYSTEMIC_RISK_BUFFER_PCT FLOAT,
+      COMBINED_BUFFER_PCT FLOAT,
+      COMBINED_BUFFER_AMOUNT NUMERIC(24,8),
+      CET1_AVAILABLE_FOR_BUFFER NUMERIC(24,8),
+      IS_BREACHED BIT
+   )
+
+   // COMPOSITE KEY (entity, reporting date).
+   Table RCP_DISTRIBUTION_RESTRICTION
+   (
+      ENTITY_ID VARCHAR(40) PRIMARY KEY,
+      REPORTING_DATE DATE PRIMARY KEY,
+      MDA_QUARTILE SMALLINT NOT NULL,
+      PAYOUT_FACTOR_PCT FLOAT NOT NULL,
+      DISTRIBUTABLE_PROFITS NUMERIC(24,8),
+      MAXIMUM_DISTRIBUTABLE_AMOUNT NUMERIC(24,8),
+      DISTRIBUTIONS_MADE_IN_PERIOD NUMERIC(24,8),
+      PROPOSED_DIVIDEND NUMERIC(24,8),
+      PROPOSED_VARIABLE_REMUNERATION NUMERIC(24,8),
+      IS_RESTRICTED BIT,
+      CAPITAL_CONSERVATION_PLAN_REF VARCHAR(60),
+      PLAN_APPROVED_ON DATE
+   )
+
+   // ---------------------------------------------------------- the aggregations
+
+   // A cell of the credit risk template. THREE grouping columns, because an approach and an
+   // exposure class are both part of what the cell MEANS: grouping by date alone would add a
+   // sovereign at 0% to an equity at 250% and call the result a risk weight.
+   View RCP_RWA_BY_APPROACH_CLASS
+   (
+      ~groupBy
+      (
+         RCP_EXPOSURE.REPORTING_DATE,
+         RCP_EXPOSURE.APPROACH_CODE,
+         RCP_EXPOSURE.EXPOSURE_CLASS_CODE
+      )
+      REPORTING_DATE: RCP_EXPOSURE.REPORTING_DATE PRIMARY KEY,
+      APPROACH_CODE: RCP_EXPOSURE.APPROACH_CODE PRIMARY KEY,
+      EXPOSURE_CLASS_CODE: RCP_EXPOSURE.EXPOSURE_CLASS_CODE PRIMARY KEY,
+      EXPOSURE_COUNT: count(RCP_EXPOSURE.EXPOSURE_ID),
+      TOTAL_ORIGINAL_EXPOSURE: sum(RCP_EXPOSURE.ORIGINAL_EXPOSURE),
+      TOTAL_EXPOSURE_VALUE: sum(RCP_EXPOSURE.EXPOSURE_VALUE),
+      TOTAL_EXPOSURE_AFTER_CRM: sum(RCP_EXPOSURE.EXPOSURE_AFTER_CRM),
+      TOTAL_RISK_WEIGHTED_AMOUNT: sum(RCP_EXPOSURE.RISK_WEIGHTED_AMOUNT),
+      LARGEST_EXPOSURE_VALUE: max(RCP_EXPOSURE.EXPOSURE_VALUE),
+      TOTAL_EXPECTED_LOSS: sum(RCP_EXPOSURE.EXPECTED_LOSS_AMOUNT)
+   )
+
+   // The whole denominator, grouped out of the same table by the two columns every ratio is
+   // per. An entity with no exposures on a date forms NO group and is absent; a return that
+   // needs a zero row has to supply it.
+   View RCP_ENTITY_RWA_TOTAL
+   (
+      ~groupBy
+      (
+         RCP_EXPOSURE.ENTITY_ID,
+         RCP_EXPOSURE.REPORTING_DATE
+      )
+      ENTITY_ID: RCP_EXPOSURE.ENTITY_ID PRIMARY KEY,
+      REPORTING_DATE: RCP_EXPOSURE.REPORTING_DATE PRIMARY KEY,
+      EXPOSURE_COUNT: count(RCP_EXPOSURE.EXPOSURE_ID),
+      TOTAL_EXPOSURE_VALUE: sum(RCP_EXPOSURE.EXPOSURE_VALUE),
+      TOTAL_EXPOSURE_AFTER_CRM: sum(RCP_EXPOSURE.EXPOSURE_AFTER_CRM),
+      TOTAL_RISK_WEIGHTED_AMOUNT: sum(RCP_EXPOSURE.RISK_WEIGHTED_AMOUNT),
+      LARGEST_RISK_WEIGHTED_AMOUNT: max(RCP_EXPOSURE.RISK_WEIGHTED_AMOUNT),
+      TOTAL_EXPECTED_LOSS: sum(RCP_EXPOSURE.EXPECTED_LOSS_AMOUNT)
+   )
+
+   // Grouped out of the NETTING SET table rather than the exposure table, and by the one
+   // dimension SA-CCR does not compute at: the counterparty. Summing netting sets is right
+   // for a credit line and wrong for a legal claim, because two netting sets with the same
+   // counterparty do not net with each other.
+   View RCP_COUNTERPARTY_CCR_TOTAL
+   (
+      ~groupBy
+      (
+         RCP_NETTING_SET_CAPITAL.COUNTERPARTY_ID,
+         RCP_NETTING_SET_CAPITAL.REPORTING_DATE
+      )
+      COUNTERPARTY_ID: RCP_NETTING_SET_CAPITAL.COUNTERPARTY_ID PRIMARY KEY,
+      REPORTING_DATE: RCP_NETTING_SET_CAPITAL.REPORTING_DATE PRIMARY KEY,
+      NETTING_SET_COUNT: count(RCP_NETTING_SET_CAPITAL.NETTING_SET_ID),
+      TOTAL_REPLACEMENT_COST: sum(RCP_NETTING_SET_CAPITAL.REPLACEMENT_COST),
+      TOTAL_POTENTIAL_FUTURE_EXPOSURE: sum(RCP_NETTING_SET_CAPITAL.POTENTIAL_FUTURE_EXPOSURE),
+      TOTAL_EXPOSURE_AT_DEFAULT: sum(RCP_NETTING_SET_CAPITAL.EXPOSURE_AT_DEFAULT),
+      TOTAL_COLLATERAL_HELD: sum(RCP_NETTING_SET_CAPITAL.NET_COLLATERAL_HELD),
+      LARGEST_NETTING_SET_EAD: max(RCP_NETTING_SET_CAPITAL.EXPOSURE_AT_DEFAULT)
+   )
+
+   // ---------------------------------------------------------- joins, within this project
+
+   Join Rcp_RunExposures(RCP_CAPITAL_RUN.RUN_ID = RCP_EXPOSURE.RUN_ID)
+   Join Rcp_EntityExposures(RCP_REPORTING_ENTITY.ENTITY_ID = RCP_EXPOSURE.ENTITY_ID)
+   Join Rcp_EntityOwnFunds(RCP_REPORTING_ENTITY.ENTITY_ID = RCP_OWN_FUNDS.ENTITY_ID)
+   Join Rcp_EntityRequirements(RCP_REPORTING_ENTITY.ENTITY_ID = RCP_CAPITAL_REQUIREMENT.ENTITY_ID)
+
+   Join Rcp_ExposureClass(RCP_EXPOSURE.EXPOSURE_CLASS_CODE = RCP_EXPOSURE_CLASS.EXPOSURE_CLASS_CODE)
+   Join Rcp_ExposureCrm(RCP_EXPOSURE.CRM_ID = RCP_CRM.CRM_ID)
+   // TWO COLUMNS, because a netting set's capital is recomputed daily and matching on the
+   // set alone would return every date's SA-CCR row.
+   Join Rcp_ExposureNettingSetCapital(RCP_EXPOSURE.NETTING_SET_ID = RCP_NETTING_SET_CAPITAL.NETTING_SET_ID and RCP_EXPOSURE.REPORTING_DATE = RCP_NETTING_SET_CAPITAL.REPORTING_DATE)
+   // TWO COLUMNS into the credit quality mapping: a rating symbol alone is ambiguous across
+   // agencies, which is exactly what the composite key of RCP_CREDIT_QUALITY_STEP says.
+   Join Rcp_ExposureQualityStep(RCP_EXPOSURE.ECAI_CODE = RCP_CREDIT_QUALITY_STEP.ECAI_CODE and RCP_EXPOSURE.ECAI_RATING_SYMBOL = RCP_CREDIT_QUALITY_STEP.RATING_SYMBOL)
+   // TWO COLUMNS into the grid: the weight is the cell, not the row.
+   Join Rcp_ExposureGridWeight(RCP_EXPOSURE.EXPOSURE_CLASS_CODE = RCP_RISK_WEIGHT.EXPOSURE_CLASS_CODE and RCP_EXPOSURE.CREDIT_QUALITY_STEP = RCP_RISK_WEIGHT.CREDIT_QUALITY_STEP)
+   Join Rcp_ExposureModel(RCP_EXPOSURE.MODEL_ID = RCP_IRB_MODEL.MODEL_ID)
+   // TWO COLUMNS: a grade belongs to a model.
+   Join Rcp_ExposureParameterSet(RCP_EXPOSURE.MODEL_ID = RCP_IRB_PARAMETER_SET.MODEL_ID and RCP_EXPOSURE.RATING_GRADE = RCP_IRB_PARAMETER_SET.RATING_GRADE)
+
+   Join Rcp_ClassRiskWeights(RCP_EXPOSURE_CLASS.EXPOSURE_CLASS_CODE = RCP_RISK_WEIGHT.EXPOSURE_CLASS_CODE)
+   Join Rcp_ModelParameterSets(RCP_IRB_MODEL.MODEL_ID = RCP_IRB_PARAMETER_SET.MODEL_ID)
+
+   Join Rcp_CrmGuarantee(RCP_CRM.GUARANTEE_ID = RCP_GUARANTEE.GUARANTEE_ID)
+   // TWO COLUMNS into the supervisory grid, which is banded on both axes.
+   Join Rcp_CrmHaircutSchedule(RCP_CRM.COLLATERAL_TYPE_CODE = RCP_SUPERVISORY_HAIRCUT.COLLATERAL_TYPE_CODE and RCP_CRM.RESIDUAL_MATURITY_BAND = RCP_SUPERVISORY_HAIRCUT.RESIDUAL_MATURITY_BAND)
+   Join Rcp_CrmExposures(RCP_CRM.CRM_ID = RCP_EXPOSURE.CRM_ID)
+
+   // TWO COLUMNS: hedging sets are per set per date.
+   Join Rcp_NettingSetHedgingSets(RCP_NETTING_SET_CAPITAL.NETTING_SET_ID = RCP_HEDGING_SET.NETTING_SET_ID and RCP_NETTING_SET_CAPITAL.REPORTING_DATE = RCP_HEDGING_SET.REPORTING_DATE)
+   Join Rcp_HedgingSetAddOns(RCP_HEDGING_SET.HEDGING_SET_ID = RCP_SACCR_ADD_ON.HEDGING_SET_ID)
+   // TWO COLUMNS: the CVA charge is per counterparty per date, and so is the netting set row.
+   Join Rcp_NettingSetCvaCharge(RCP_NETTING_SET_CAPITAL.COUNTERPARTY_ID = RCP_CVA_CHARGE.COUNTERPARTY_ID and RCP_NETTING_SET_CAPITAL.REPORTING_DATE = RCP_CVA_CHARGE.REPORTING_DATE)
+   Join Rcp_CvaChargeHedges(RCP_CVA_CHARGE.COUNTERPARTY_ID = RCP_CVA_HEDGE.COUNTERPARTY_ID and RCP_CVA_CHARGE.REPORTING_DATE = RCP_CVA_HEDGE.REPORTING_DATE)
+
+   Join Rcp_IndicatorCharges(RCP_OP_RISK_INDICATOR.ENTITY_ID = RCP_OP_RISK_CHARGE.ENTITY_ID and RCP_OP_RISK_INDICATOR.FINANCIAL_YEAR = RCP_OP_RISK_CHARGE.FINANCIAL_YEAR)
+
+   Join Rcp_RequirementOwnFunds(RCP_CAPITAL_REQUIREMENT.ENTITY_ID = RCP_OWN_FUNDS.ENTITY_ID and RCP_CAPITAL_REQUIREMENT.REPORTING_DATE = RCP_OWN_FUNDS.REPORTING_DATE)
+   Join Rcp_RequirementOutputFloor(RCP_CAPITAL_REQUIREMENT.ENTITY_ID = RCP_OUTPUT_FLOOR.ENTITY_ID and RCP_CAPITAL_REQUIREMENT.REPORTING_DATE = RCP_OUTPUT_FLOOR.REPORTING_DATE)
+   Join Rcp_RequirementBuffer(RCP_CAPITAL_REQUIREMENT.ENTITY_ID = RCP_BUFFER_REQUIREMENT.ENTITY_ID and RCP_CAPITAL_REQUIREMENT.REPORTING_DATE = RCP_BUFFER_REQUIREMENT.REPORTING_DATE)
+   Join Rcp_RequirementOpRisk(RCP_CAPITAL_REQUIREMENT.ENTITY_ID = RCP_OP_RISK_CHARGE.ENTITY_ID and RCP_CAPITAL_REQUIREMENT.REPORTING_DATE = RCP_OP_RISK_CHARGE.REPORTING_DATE)
+   Join Rcp_BufferRestriction(RCP_BUFFER_REQUIREMENT.ENTITY_ID = RCP_DISTRIBUTION_RESTRICTION.ENTITY_ID and RCP_BUFFER_REQUIREMENT.REPORTING_DATE = RCP_DISTRIBUTION_RESTRICTION.REPORTING_DATE)
+
+   // ---------------------------------------------------------- joins into the aggregations
+   // Each of these leaves a row and lands on a GROUP. There is no way back to another row.
+
+   Join Rcp_ExposureRwaCell(RCP_EXPOSURE.REPORTING_DATE = RCP_RWA_BY_APPROACH_CLASS.REPORTING_DATE and RCP_EXPOSURE.APPROACH_CODE = RCP_RWA_BY_APPROACH_CLASS.APPROACH_CODE and RCP_EXPOSURE.EXPOSURE_CLASS_CODE = RCP_RWA_BY_APPROACH_CLASS.EXPOSURE_CLASS_CODE)
+   Join Rcp_ExposureEntityTotal(RCP_EXPOSURE.ENTITY_ID = RCP_ENTITY_RWA_TOTAL.ENTITY_ID and RCP_EXPOSURE.REPORTING_DATE = RCP_ENTITY_RWA_TOTAL.REPORTING_DATE)
+   Join Rcp_EntityRwaTotals(RCP_REPORTING_ENTITY.ENTITY_ID = RCP_ENTITY_RWA_TOTAL.ENTITY_ID)
+   Join Rcp_ClassRwaCells(RCP_EXPOSURE_CLASS.EXPOSURE_CLASS_CODE = RCP_RWA_BY_APPROACH_CLASS.EXPOSURE_CLASS_CODE)
+   Join Rcp_NettingSetCcrTotal(RCP_NETTING_SET_CAPITAL.COUNTERPARTY_ID = RCP_COUNTERPARTY_CCR_TOTAL.COUNTERPARTY_ID and RCP_NETTING_SET_CAPITAL.REPORTING_DATE = RCP_COUNTERPARTY_CCR_TOTAL.REPORTING_DATE)
+   Join Rcp_CvaChargeCcrTotal(RCP_CVA_CHARGE.COUNTERPARTY_ID = RCP_COUNTERPARTY_CCR_TOTAL.COUNTERPARTY_ID and RCP_CVA_CHARGE.REPORTING_DATE = RCP_COUNTERPARTY_CCR_TOTAL.REPORTING_DATE)
+   Join Rcp_ExposureCcrTotal(RCP_EXPOSURE.COUNTERPARTY_ID = RCP_COUNTERPARTY_CCR_TOTAL.COUNTERPARTY_ID and RCP_EXPOSURE.REPORTING_DATE = RCP_COUNTERPARTY_CCR_TOTAL.REPORTING_DATE)
+
+   // ---------------------------------------------------------- joins that LEAVE this project
+   // Legal only because of the three includes above. Nothing outside the three dependencies
+   // is named here, although a great deal more is visible.
+
+   // into exposure-agg: the credit system's own net exposure row, and its per-counterparty
+   // per-day GROUP -- a join into somebody else's VIEW.
+   Join Rcp_ExposureNetExposure(RCP_EXPOSURE.NET_EXPOSURE_ID = EXA_NET_EXPOSURE.NET_EXPOSURE_ID)
+   Join Rcp_ExposureCounterpartyDayNet(RCP_EXPOSURE.COUNTERPARTY_ID = EXA_COUNTERPARTY_DAY_NET.COUNTERPARTY_ID and RCP_EXPOSURE.REPORTING_DATE = EXA_COUNTERPARTY_DAY_NET.AS_OF_DATE)
+   Join Rcp_NettingSetExaNettingSet(RCP_NETTING_SET_CAPITAL.NETTING_SET_ID = EXA_NETTING_SET.NETTING_SET_ID)
+   Join Rcp_CvaChargeCounterparty(RCP_CVA_CHARGE.COUNTERPARTY_ID = EXA_COUNTERPARTY.COUNTERPARTY_ID)
+
+   // into margin-calc: the same netting set as a margin portfolio, and the initial margin
+   // the model produced for it -- THREE columns, into MGN_INITIAL_MARGIN's composite key.
+   Join Rcp_NettingSetMarginPortfolio(RCP_NETTING_SET_CAPITAL.MARGIN_PORTFOLIO_ID = MGN_MARGIN_PORTFOLIO.MARGIN_PORTFOLIO_ID)
+   Join Rcp_NettingSetInitialMargin(RCP_NETTING_SET_CAPITAL.MARGIN_PORTFOLIO_ID = MGN_INITIAL_MARGIN.MARGIN_PORTFOLIO_ID and RCP_NETTING_SET_CAPITAL.REPORTING_DATE = MGN_INITIAL_MARGIN.COB_DATE and RCP_NETTING_SET_CAPITAL.MARGIN_METHOD_CODE = MGN_INITIAL_MARGIN.METHOD_CODE)
+
+   // into regulatory-extract, which owns a SCHEMA: the reported view of the same trade, and
+   // the same firm entity as the reporting side holds it.
+   Join Rcp_ExposureTransactionReport(RCP_EXPOSURE.REPORT_ID = rex.REX_TRANSACTION.REPORT_ID)
+   Join Rcp_EntityReportingProfile(RCP_REPORTING_ENTITY.REGULATORY_ENTITY_ID = rex.REX_REPORTING_ENTITY.REPORTING_ENTITY_ID)
+
+   // ---------------------------------------------------------- filters
+   // The first five are the subtype discriminators. Every one is a string comparison or a
+   // null test: a Filter will not take a boolean literal.
+
+   // The approach is an IDENTITY: an exposure is on one approach or the other.
+   Filter RcpStandardisedRows(RCP_EXPOSURE.APPROACH_CODE = 'SA')
+   Filter RcpIrbRows(RCP_EXPOSURE.APPROACH_CODE = 'IRB')
+   // The type is also an identity, and cuts across the approach: a derivative can be on
+   // either, so rcpCcrExposure OVERLAPS both of the above.
+   Filter RcpCounterpartyRiskRows(RCP_EXPOSURE.EXPOSURE_TYPE_CODE = 'DERIVATIVE')
+   // Default is a STATE, so this one overlaps all three above on purpose.
+   Filter RcpDefaultedRows(RCP_EXPOSURE.DEFAULT_STATUS = 'DEFAULTED')
+   // The absence of mitigation, as a null test rather than a flag: a CRM id that is present
+   // and a CRM row that is missing are different problems.
+   Filter RcpUnmitigatedRows(RCP_EXPOSURE.CRM_ID is null)
+
+   // Declared and unapplied, for a downstream mapping to reference.
+   Filter RcpApprovedModels(RCP_IRB_MODEL.WITHDRAWN_ON is null)
+   Filter RcpCurrentRiskWeights(RCP_RISK_WEIGHT.SUPERSEDED_ON is null)
+   Filter RcpLiveProtection(RCP_CRM.PROTECTION_END is null)
+   Filter RcpInForceBuffers(RCP_CAPITAL_BUFFER.REVOKED_ON is null)
+   Filter RcpUnfiledReturns(RCP_CAPITAL_REQUIREMENT.FILED_ON is null)
+)

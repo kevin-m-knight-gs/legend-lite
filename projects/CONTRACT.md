@@ -103,5 +103,11 @@ Must print `compiles`. That is the whole acceptance test.
   the property, not the set it was wrongly written in.
 * A `~distinct` set needs an explicit `~primaryKey` naming the column you are deduplicating
   ON. Keyed on the table's own key it collapses nothing, and nothing says so.
+* An association end must NOT also be declared as a property in the class body. Declaring it
+  in both places is a duplicate-property failure. Two projects wrote their first draft that
+  way, having copied a project that maps its edges as PLAIN PROPERTIES over joins rather than
+  as associations -- both styles are valid and they cannot be mixed on one property.
+* A class CONSTRAINT can only compare `[1]` properties. A `>= 0` over a `[0..1]` does not
+  type-check; express the "is it set" rule as a derived property using `->isEmpty()` instead.
 * Do not use the SQL type `REAL` — it is accepted by the grammar and cannot be read at
   execution (docs/UPSTREAM_FINDINGS.md F53). Use `FLOAT` or `DOUBLE`.

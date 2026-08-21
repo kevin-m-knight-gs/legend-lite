@@ -1,0 +1,24 @@
+###Mapping
+
+Mapping firm_balance_sheet::Mapping
+(
+   include pnl_attribution::Mapping
+   include exposure_agg::Mapping
+   include liquidity_view::Mapping
+
+   firm_balance_sheet::FbsLineItem[fbsLineItem]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.LINE_ID )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM
+      lineId: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.LINE_ID,
+      amount: [firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.AMOUNT
+   }
+
+   firm_balance_sheet::FbsCategoryTotal[fbsCategoryTotal]: Relational
+   {
+      ~primaryKey ( [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.CATEGORY_CODE )
+      ~mainTable [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL
+      categoryCode: [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.CATEGORY_CODE,
+      totalAmount: [firm_balance_sheet::Store]fbs.FBS_CATEGORY_TOTAL.TOTAL_AMOUNT
+   }
+)

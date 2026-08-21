@@ -1,5 +1,607 @@
 ###Pure
-Class ops_control::OpsProbe
+// ops-control -- OPERATIONAL CONTROLS OVER RECONCILIATION AND SETTLEMENT.
+//
+// Layer 3. Depends on custody-recon and settlement-flow and on nothing else. It does not
+// re-model a break, an instruction or a cash movement: it models the CONTROL that is
+// supposed to catch them, and reaches the things being controlled by ASSOCIATION.
+//
+// The sentence this project is made of:
+//
+//     a control has an owner, a frequency, an evidence requirement and a tolerance;
+//     on a given day it either OPERATED or it did not;
+//     a control that failed raises an ISSUE, and an issue has a remediation date;
+//     somebody ATTESTS -- signs -- that the control ran;
+//     and three KRIs say how bad it is getting: ageing breaks, unmatched instructions,
+//     unreconciled cash.
+//
+// The two constructs this project exists to exercise:
+//
+//   ASSOCIATIONS REACHING BOTH DEPENDENCIES. An OpsIssue acquires `reconBreak` pointing at
+//   custody_recon::ReconBreak and `settlementBreak` pointing at
+//   settlement_flow::SflReconciliationBreak, and both of those classes acquire an
+//   `opsIssues` property they know nothing about. Neither dependency is edited and neither
+//   has heard of this project.
+//
+//   CLASS CONSTRAINTS. Every count, every tolerance and every threshold on this model has a
+//   stated rule, because a control framework whose numbers can go negative is not a control
+//   framework. Each constraint is FULLY PARENTHESISED -- `&&` binds tighter than `>=` in
+//   Pure, so `$this.a >= 0 && $this.b >= 0` parses as `$this.a >= (0 && $this.b) >= 0` and
+//   does not compile.
+//
+// Constraints are stated only over [1] properties. A constraint over a [0..1] property does
+// not type-check, which is why the dated `...On` columns are tested with `->isEmpty()` in a
+// derived property instead.
+
+// ---------------------------------------------------------------- the standing set-up
+
+// WHAT A CONTROL IS: the standing definition of one check somebody is accountable for --
+// its owner, how often it must run, what evidence it must leave behind, and how big a
+// difference it is allowed to see before it has failed. Not an execution; the executions
+// are OpsControlRun.
+Class ops_control::OpsControl
+[
+   // A tolerance is a size, so it has no sign. A negative tolerance would pass everything.
+   toleranceAmountNotNegative: ($this.toleranceAmount >= 0.0),
+   tolerancePercentInRange: (($this.tolerancePercent >= 0.0) && ($this.tolerancePercent <= 100.0)),
+   // A frequency of zero days is not a frequency; it is a control that never runs.
+   frequencyDaysPositive: ($this.frequencyDays >= 1),
+   remediationDaysNotNegative: ($this.remediationDays >= 0)
+]
 {
-   probeId: String[1];
+   controlCode: String[1];
+   controlName: String[1];
+   // RECON, SETTLEMENT or CASH -- which of the two dependencies this control watches.
+   controlDomain: String[1];
+   frequency: String[1];
+   frequencyDays: Integer[1];
+   toleranceAmount: Float[1];
+   tolerancePercent: Float[1];
+   toleranceCurrency: String[0..1];
+   // How many days an issue raised by this control gets before its remediation date.
+   remediationDays: Integer[1];
+   isKeyControl: Boolean[1];
+   // The reconciliation this control is stated over, when it is a recon control. Nullable,
+   // because a settlement control has no recon code.
+   reconCode: String[0..1];
+   introducedOn: StrictDate[1];
+   retiredOn: StrictDate[0..1];
+
+   isLive() { $this.retiredOn->isEmpty() } : Boolean[1];
+
+   // Integer / Integer widens to Float on its own, so this is Float and not Integer.
+   runsPerYear() { 365 / $this.frequencyDays } : Float[1];
+}
+
+// WHO CARRIES THE CONTROL. One named person or desk, and the person the failure goes to
+// next. A control with no owner is an intention, so the owner is a first-class row rather
+// than a string on the control.
+Class ops_control::OpsControlOwner
+[
+   escalationLevelInRange: (($this.escalationLevel >= 1) && ($this.escalationLevel <= 5))
+]
+{
+   ownerId: String[1];
+   ownerName: String[1];
+   ownerTeam: String[1];
+   deskName: String[0..1];
+   escalationTo: String[0..1];
+   // 1 is the desk, 5 is the board. What a breach costs in attention.
+   escalationLevel: Integer[1];
+   contactEmail: String[0..1];
+
+   isFirstLine() { $this.escalationLevel <= 2 } : Boolean[1];
+}
+
+// WHAT PROOF THE CONTROL MUST LEAVE. A control that ran and left nothing behind cannot be
+// evidenced to an auditor, so the requirement -- kind of artefact, how many, how long it is
+// kept, whether it needs a signature -- is stated once and pointed at by many controls.
+Class ops_control::OpsEvidenceRequirement
+[
+   retentionDaysPositive: ($this.retentionDays >= 1),
+   // "At least one artefact" is the minimum meaningful requirement.
+   minArtefactsPositive: ($this.minArtefacts >= 1)
+]
+{
+   evidenceCode: String[1];
+   evidenceKind: String[1];
+   description: String[0..1];
+   retentionDays: Integer[1];
+   minArtefacts: Integer[1];
+   requiresSignature: Boolean[1];
+   requiresFourEyes: Boolean[1];
+
+   isDualControl() { $this.requiresFourEyes } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- did it operate?
+
+// ONE DAY OF ONE CONTROL, AND THE WHOLE POINT OF THE PROJECT: it either operated or it did
+// not. `operatedOn` null is the not-operated case, and it is a worse finding than a fail --
+// a failed control saw something, a control that did not operate saw nothing.
+//
+// Keyed (controlCode, cobDate): a control operates once per business date, and a re-run on
+// the same date replaces rather than adds.
+Class ops_control::OpsControlRun
+[
+   itemsCheckedNotNegative: ($this.itemsChecked >= 0),
+   exceptionCountNotNegative: ($this.exceptionCount >= 0),
+   // You cannot find more exceptions than you looked at items.
+   exceptionsWithinItems: ($this.exceptionCount <= $this.itemsChecked),
+   toleranceAppliedNotNegative: ($this.toleranceApplied >= 0.0),
+   evidenceCountNotNegative: ($this.evidenceCount >= 0)
+]
+{
+   controlCode: String[1];
+   cobDate: StrictDate[1];
+
+   dueOn: StrictDate[1];
+   // NULL means the control did not operate at all. Everything downstream turns on this.
+   operatedOn: StrictDate[0..1];
+   operatedBy: String[0..1];
+   // PASS, FAIL or NOT_OPERATED.
+   outcome: String[1];
+   itemsChecked: Integer[1];
+   exceptionCount: Integer[1];
+   // The largest difference the control saw, against the tolerance in force that day. The
+   // tolerance is copied onto the run rather than read from the control, because a control
+   // whose tolerance is widened next quarter must not retrospectively pass today.
+   observedAmount: Float[1];
+   toleranceApplied: Float[1];
+   evidenceCount: Integer[1];
+   // The recon run this control operated over, when it is a recon control. These three
+   // columns are custody-recon's THREE-column run key; a control run pins itself to a
+   // reconciliation run rather than re-deriving one.
+   reconCode: String[0..1];
+   runSeq: Integer[0..1];
+
+   operated() { $this.operatedOn->isEmpty()->not() } : Boolean[1];
+   isWithinTolerance() { $this.observedAmount <= $this.toleranceApplied } : Boolean[1];
+   isClean() { ($this.exceptionCount == 0) && ($this.observedAmount <= $this.toleranceApplied) } : Boolean[1];
+
+   // Integer / Integer widens to Float.
+   exceptionRate() { $this.exceptionCount / $this.itemsChecked } : Float[1];
+}
+
+// ONE ARTEFACT LODGED AGAINST ONE DAY'S OPERATION -- the screenshot, the extract, the signed
+// checklist. The evidence REQUIREMENT says what must exist; this says what actually does.
+Class ops_control::OpsEvidenceItem
+[
+   artefactSeqPositive: ($this.artefactSeq >= 1)
+]
+{
+   controlCode: String[1];
+   cobDate: StrictDate[1];
+   artefactSeq: Integer[1];
+
+   artefactKind: String[1];
+   artefactRef: String[1];
+   lodgedOn: StrictDate[1];
+   lodgedBy: String[1];
+   isComplete: Boolean[1];
+
+}
+
+// SOMEBODY SIGNS THAT THE CONTROL RAN. This is the attestation, and it is a separate row
+// from the run on purpose: the run is what the system observed, the attestation is what a
+// person asserted, and the two can disagree. Several rows per day where a countersignature
+// is required, which is what `attestationSeq` is for.
+//
+// An attestation can be REVOKED -- withdrawn after the fact, when the evidence turns out not
+// to support it -- and a revoked signature is not deleted, because the fact that it was
+// given is itself evidence.
+Class ops_control::OpsAttestation
+[
+   attestationSeqPositive: ($this.attestationSeq >= 1),
+   // Signed before it was due is zero days late, never negative days early.
+   daysLateNotNegative: ($this.daysLate >= 0)
+]
+{
+   controlCode: String[1];
+   cobDate: StrictDate[1];
+   attestationSeq: Integer[1];
+
+   attestedBy: String[1];
+   // PREPARER, REVIEWER or APPROVER.
+   attestedRole: String[1];
+   attestedOn: StrictDate[1];
+   statement: String[0..1];
+   isCountersignature: Boolean[1];
+   daysLate: Integer[1];
+   revokedOn: StrictDate[0..1];
+
+   isValid() { $this.revokedOn->isEmpty() } : Boolean[1];
+   isLate() { $this.daysLate > 0 } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- when it fails
+
+// A FAILED CONTROL IS AN ISSUE, AND AN ISSUE HAS A REMEDIATION DATE. Keyed by its own id
+// because one day's failure can raise several issues and each is worked separately.
+//
+// The issue is where BOTH dependencies are reached at once. The seven `break*` columns are
+// custody-recon's SEVEN-column break key carried in full -- recon, date, institution,
+// account, instrument, depot and break type -- and `settlementBreakId` / `claimId` are
+// settlement-flow's synthetic ids. An issue raised by a recon control names a recon break;
+// an issue raised by a settlement control names a settlement break or a claim; nothing
+// forces it to be only one.
+Class ops_control::OpsIssue
+[
+   severityInRange: (($this.severity >= 1) && ($this.severity <= 5)),
+   // An impact is a magnitude. Direction lives in the break, not here.
+   impactAmountNotNegative: ($this.impactAmount >= 0.0),
+   extensionsNotNegative: ($this.extensionCount >= 0)
+]
+{
+   issueId: String[1];
+   controlCode: String[1];
+   cobDate: StrictDate[1];
+
+   issueType: String[1];
+   severity: Integer[1];
+   raisedOn: StrictDate[1];
+   raisedBy: String[1];
+   // THE REMEDIATION DATE. Not nullable: an issue with no date by which it will be fixed is
+   // an issue nobody has accepted.
+   remediationDueOn: StrictDate[1];
+   closedOn: StrictDate[0..1];
+   impactAmount: Float[1];
+   impactCurrency: String[0..1];
+   // How many times the remediation date has been moved. The number auditors read first.
+   extensionCount: Integer[1];
+
+   // custody-recon's seven-column break key, carried so the join can match it in full.
+   breakReconCode: String[0..1];
+   breakCobDate: StrictDate[0..1];
+   breakInstitutionId: String[0..1];
+   breakAccountNo: String[0..1];
+   breakInstrumentId: String[0..1];
+   breakDepotCode: String[0..1];
+   breakType: String[0..1];
+   // settlement-flow's ids.
+   settlementBreakId: String[0..1];
+   claimId: String[0..1];
+
+   isOpen() { $this.closedOn->isEmpty() } : Boolean[1];
+   isSevere() { $this.severity >= 4 } : Boolean[1];
+   hasBeenExtended() { $this.extensionCount > 0 } : Boolean[1];
+   isFromReconciliation() { $this.breakReconCode->isEmpty()->not() } : Boolean[1];
+   isFromSettlement() { ($this.settlementBreakId->isEmpty()->not()) || ($this.claimId->isEmpty()->not()) } : Boolean[1];
+}
+
+// ONE STEP TOWARDS CLOSING AN ISSUE, with a named owner and a date. `originalDueOn` is kept
+// beside `dueOn` so an extension is visible rather than absorbed: an action on its fourth
+// due date is a different animal from one on its first.
+Class ops_control::OpsRemediationAction
+[
+   actionSeqPositive: ($this.actionSeq >= 1),
+   extensionCountNotNegative: ($this.extensionCount >= 0)
+]
+{
+   issueId: String[1];
+   actionSeq: Integer[1];
+
+   ownerId: String[0..1];
+   actionText: String[1];
+   actionStatus: String[1];
+   dueOn: StrictDate[1];
+   originalDueOn: StrictDate[1];
+   completedOn: StrictDate[0..1];
+   extensionCount: Integer[1];
+
+   isComplete() { $this.completedOn->isEmpty()->not() } : Boolean[1];
+   hasSlipped() { $this.extensionCount > 0 } : Boolean[1];
+}
+
+// ---------------------------------------------------------------- the KRIs
+
+// A NAMED KEY RISK INDICATOR: what is measured, in what unit, and the two thresholds that
+// turn it amber and then red. The definition, not the reading -- readings are
+// OpsKriObservation and the three family tables underneath it.
+Class ops_control::OpsKri
+[
+   amberNotNegative: ($this.amberThreshold >= 0.0),
+   // Amber comes before red. If red were the lower of the two the RAG would be unreadable.
+   redBeyondAmber: ($this.redThreshold >= $this.amberThreshold)
+]
+{
+   kriCode: String[1];
+   kriName: String[1];
+   // AGEING_BREAK, UNMATCHED_INSTRUCTION or UNRECONCILED_CASH -- the three families this
+   // project measures, one table each.
+   kriFamily: String[1];
+   controlCode: String[0..1];
+   ownerId: String[0..1];
+   measureUnit: String[1];
+   amberThreshold: Float[1];
+   redThreshold: Float[1];
+   direction: String[1];
+   reportingFrequency: String[1];
+
+   amberToRedSpan() { $this.redThreshold - $this.amberThreshold } : Float[1];
+}
+
+// ONE READING OF ONE KRI ON ONE DAY. The thresholds are copied onto the observation, not
+// read from the definition: re-baselining a KRI must not retint last month's chart.
+Class ops_control::OpsKriObservation
+[
+   observedCountNotNegative: ($this.observedCount >= 0),
+   thresholdsOrdered: ($this.redThreshold >= $this.amberThreshold)
+]
+{
+   kriCode: String[1];
+   cobDate: StrictDate[1];
+
+   observedValue: Float[1];
+   observedCount: Integer[1];
+   amberThreshold: Float[1];
+   redThreshold: Float[1];
+   ragStatus: String[1];
+   breachedOn: StrictDate[0..1];
+   commentary: String[0..1];
+
+   isRed() { $this.observedValue >= $this.redThreshold } : Boolean[1];
+   isAmber() { ($this.observedValue >= $this.amberThreshold) && ($this.observedValue < $this.redThreshold) } : Boolean[1];
+   headroomToRed() { $this.redThreshold - $this.observedValue } : Float[1];
+}
+
+// KRI ONE -- AGEING BREAKS. One row per (reconciliation, date, break type), which is
+// custody-recon's RCN_BREAK_TYPE_TOTAL key exactly, so the reading sits straight on top of
+// the dependency's own daily aggregation instead of recounting its break rows.
+//
+// The ladder 30/60/90 is cumulative downwards: everything 90 days old is also 60 days old.
+Class ops_control::OpsAgeingBreakKri
+[
+   openBreakCountNotNegative: ($this.openBreakCount >= 0),
+   aged30NotNegative: ($this.aged30Count >= 0),
+   // The ladder, stated as a rule rather than trusted: 90 <= 60 <= 30 <= open.
+   agedLadder: (($this.aged90Count <= $this.aged60Count) && ($this.aged60Count <= $this.aged30Count)),
+   agedWithinOpen: ($this.aged30Count <= $this.openBreakCount),
+   oldestAgeNotNegative: ($this.oldestAgeDays >= 0)
+]
+{
+   reconCode: String[1];
+   cobDate: StrictDate[1];
+   breakType: String[1];
+
+   kriCode: String[1];
+   openBreakCount: Integer[1];
+   aged30Count: Integer[1];
+   aged60Count: Integer[1];
+   aged90Count: Integer[1];
+   oldestAgeDays: Integer[1];
+   totalBreakValue: Float[1];
+   breakCurrency: String[0..1];
+   // The person whose queue this sits in -- matched against custody-recon's assignee
+   // aggregation, whose grouping deliberately drops the date.
+   assignedTo: String[0..1];
+
+   agedShare() { $this.aged30Count / $this.openBreakCount } : Float[1];
+   isStale() { $this.oldestAgeDays >= 90 } : Boolean[1];
+}
+
+// KRI TWO -- UNMATCHED INSTRUCTIONS. One row per (date, settlement link): an instruction
+// whose cash leg has not been matched to a movement, and how long it has been that way.
+// The link itself is settlement-flow's, reached by association and not copied.
+Class ops_control::OpsUnmatchedInstructionKri
+[
+   ageDaysNotNegative: ($this.ageDays >= 0),
+   expectedAmountNotNegative: ($this.expectedAmount >= 0.0)
+]
+{
+   cobDate: StrictDate[1];
+   linkId: String[1];
+
+   kriCode: String[1];
+   linkStatus: String[1];
+   expectedAmount: Float[1];
+   currencyCode: String[1];
+   ageDays: Integer[1];
+   isEscalated: Boolean[1];
+   expectedValueDate: StrictDate[1];
+   claimId: String[0..1];
+
+   isAged() { $this.ageDays >= 5 } : Boolean[1];
+   hasClaim() { $this.claimId->isEmpty()->not() } : Boolean[1];
+}
+
+// KRI THREE -- UNRECONCILED CASH. One row per (date, settlement reconciliation): money that
+// has moved and has not been agreed. Keyed on settlement-flow's RECON_ID, so the reading is
+// one-to-one with the reconciliation it grades.
+Class ops_control::OpsUnreconciledCashKri
+[
+   itemCountNotNegative: ($this.itemCount >= 0),
+   ageDaysNotNegative: ($this.ageDays >= 0)
+]
+{
+   cobDate: StrictDate[1];
+   reconId: String[1];
+
+   kriCode: String[1];
+   institutionId: String[1];
+   accountNo: String[1];
+   currencyCode: String[1];
+   // Signed: a debit that has not been agreed and a credit that has not been agreed are
+   // different problems and must not net to nothing.
+   unreconciledAmount: Float[1];
+   itemCount: Integer[1];
+   ageDays: Integer[1];
+   settlementBreakId: String[0..1];
+
+   // Float / Integer is not Float, so the count is widened first.
+   averageItemAmount() { $this.unreconciledAmount / $this.itemCount->toFloat() } : Float[1];
+   isAged() { $this.ageDays >= 3 } : Boolean[1];
+}
+
+// ================================================================ ASSOCIATIONS
+//
+// Inside this project first, then the ones that cross the boundary. A cross-boundary
+// association ADDS a property to a class this project does not own and cannot edit: after
+// this file compiles, custody_recon::ReconBreak has an `opsIssues` property and
+// settlement_flow::SflCashSettlementLink has `opsUnmatchedKris`, without either project
+// having heard of ops-control.
+
+// ---- inside this project ---------------------------------------------------------------
+
+Association ops_control::OpsControlOwnership
+{
+   owner: ops_control::OpsControlOwner[0..1];
+   ownedControls: ops_control::OpsControl[*];
+}
+
+Association ops_control::OpsControlEvidence
+{
+   evidenceRequirement: ops_control::OpsEvidenceRequirement[0..1];
+   requiringControls: ops_control::OpsControl[*];
+}
+
+Association ops_control::OpsControlRuns
+{
+   runs: ops_control::OpsControlRun[*];
+   control: ops_control::OpsControl[1];
+}
+
+Association ops_control::OpsRunEvidence
+{
+   evidenceItems: ops_control::OpsEvidenceItem[*];
+   evidencedRun: ops_control::OpsControlRun[1];
+}
+
+Association ops_control::OpsRunAttestations
+{
+   attestations: ops_control::OpsAttestation[*];
+   attestedRun: ops_control::OpsControlRun[1];
+}
+
+Association ops_control::OpsRunIssues
+{
+   issues: ops_control::OpsIssue[*];
+   failedRun: ops_control::OpsControlRun[1];
+}
+
+Association ops_control::OpsIssueRemediation
+{
+   actions: ops_control::OpsRemediationAction[*];
+   remediatedIssue: ops_control::OpsIssue[1];
+}
+
+Association ops_control::OpsActionOwner
+{
+   actionOwner: ops_control::OpsControlOwner[0..1];
+   assignedActions: ops_control::OpsRemediationAction[*];
+}
+
+Association ops_control::OpsControlKris
+{
+   kris: ops_control::OpsKri[*];
+   kriControl: ops_control::OpsControl[0..1];
+}
+
+Association ops_control::OpsKriOwnership
+{
+   kriOwner: ops_control::OpsControlOwner[0..1];
+   ownedKris: ops_control::OpsKri[*];
+}
+
+Association ops_control::OpsKriObservations
+{
+   observations: ops_control::OpsKriObservation[*];
+   kri: ops_control::OpsKri[1];
+}
+
+Association ops_control::OpsKriAgeingBreaks
+{
+   ageingBreaks: ops_control::OpsAgeingBreakKri[*];
+   ageingKri: ops_control::OpsKri[1];
+}
+
+Association ops_control::OpsKriUnmatched
+{
+   unmatchedInstructions: ops_control::OpsUnmatchedInstructionKri[*];
+   unmatchedKri: ops_control::OpsKri[1];
+}
+
+Association ops_control::OpsKriUnreconciled
+{
+   unreconciledCash: ops_control::OpsUnreconciledCashKri[*];
+   cashKri: ops_control::OpsKri[1];
+}
+
+// ---- across the boundary, into custody-recon --------------------------------------------
+
+// The control stated over a reconciliation. custody_recon::ReconDefinition gains an
+// `opsControls` property; nothing in custody-recon changes.
+Association ops_control::OpsControlReconDefinition
+{
+   reconDefinition: custody_recon::ReconDefinition[0..1];
+   opsControls: ops_control::OpsControl[*];
+}
+
+// One day's control operation against the reconciliation execution it was checking. The
+// join underneath matches custody-recon's THREE-column run key in full.
+Association ops_control::OpsRunReconRun
+{
+   reconRun: custody_recon::ReconRun[0..1];
+   opsControlRuns: ops_control::OpsControlRun[*];
+}
+
+// THE ONE THAT MATTERS ON THE RECON SIDE: the issue and the break it came from, matched on
+// all SEVEN of custody-recon's break key columns.
+Association ops_control::OpsIssueReconBreak
+{
+   reconBreak: custody_recon::ReconBreak[0..1];
+   opsIssues: ops_control::OpsIssue[*];
+}
+
+// The ageing KRI sitting on the dependency's own daily break-type aggregation.
+Association ops_control::OpsAgeingBreakTypes
+{
+   breakTypeTotal: custody_recon::BreakTypeTotal[0..1];
+   opsAgeingKris: ops_control::OpsAgeingBreakKri[*];
+}
+
+// ...and on its per-assignee queue, whose grouping drops the date.
+Association ops_control::OpsAgeingAssignee
+{
+   assigneeQueue: custody_recon::AssigneeLoad[0..1];
+   opsQueueKris: ops_control::OpsAgeingBreakKri[*];
+}
+
+// ---- across the boundary, into settlement-flow ------------------------------------------
+
+// THE ONE THAT MATTERS ON THE SETTLEMENT SIDE, and the twin of OpsIssueReconBreak: the same
+// issue class reaching the other dependency.
+Association ops_control::OpsIssueSettlementBreak
+{
+   settlementBreak: settlement_flow::SflReconciliationBreak[0..1];
+   opsIssues: ops_control::OpsIssue[*];
+}
+
+Association ops_control::OpsIssueSettlementClaim
+{
+   settlementClaim: settlement_flow::SflSettlementClaim[0..1];
+   opsIssues: ops_control::OpsIssue[*];
+}
+
+Association ops_control::OpsUnmatchedLink
+{
+   cashLink: settlement_flow::SflCashSettlementLink[0..1];
+   opsUnmatchedKris: ops_control::OpsUnmatchedInstructionKri[*];
+}
+
+Association ops_control::OpsUnmatchedClaim
+{
+   unmatchedClaim: settlement_flow::SflSettlementClaim[0..1];
+   opsUnmatchedKris: ops_control::OpsUnmatchedInstructionKri[*];
+}
+
+Association ops_control::OpsUnreconciledReconciliation
+{
+   cashReconciliation: settlement_flow::SflReconciliation[0..1];
+   opsCashKris: ops_control::OpsUnreconciledCashKri[*];
+}
+
+Association ops_control::OpsUnreconciledBreak
+{
+   cashSettlementBreak: settlement_flow::SflReconciliationBreak[0..1];
+   opsCashKris: ops_control::OpsUnreconciledCashKri[*];
 }

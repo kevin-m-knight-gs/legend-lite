@@ -19,6 +19,8 @@ Each of these cost one project a failed compile, and each is now in `CONTRACT.md
 | `~groupBy` | takes column REFERENCES, not expressions. A banded value must be stamped on the row to be grouped on. |
 | `sum()` in a view | is nullable, so aggregate totals are `Float[0..1]` and arithmetic over them needs `->orElse(0.0)`. |
 | an empty group | produces NO ROW at all, not a zero. A completeness report has to read that case from the parent. |
+| an association end declared twice | as an end AND as a class property is a duplicate-property failure. Two projects wrote it that way first, having copied one that maps its edges as plain properties instead. |
+| a constraint over `[0..1]` | does not type-check. The "is it set" rule has to be a derived property using `->isEmpty()`. |
 
 Two things reported as engine limits turned out not to be, and are worth recording as
 corrections rather than quietly dropping:
@@ -64,6 +66,12 @@ corrections rather than quietly dropping:
   order-execution. Those names are a shared namespace nobody owns. Three projects reported
   checking the others' MANIFESTs before naming an end, which works only because they thought
   to look.
+* **Two valid styles for the same edge, and they cannot be mixed.** A project may model a
+  relationship as an `Association` with mapped ends, or as a plain property over a join in the
+  set implementation. Both compile and both are used here. What does not compile is declaring
+  one property BOTH ways — which is what happens when a project copies the shape of a
+  dependency that chose the other style. Two projects hit this, and neither could have known
+  without reading the other's source rather than its manifest.
 * **The same column is two widths on either side of a join.** `INSTRUMENT_ID` is `VARCHAR(60)`
   in position-keeping and `VARCHAR(20)` in valuation-core; the join across them compiles.
   Whichever side is narrower is the one that truncates, and nothing says so at compile time.

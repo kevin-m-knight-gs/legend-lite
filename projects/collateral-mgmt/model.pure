@@ -1,0 +1,649 @@
+###Pure
+// ============================================================
+// collateral-mgmt -- collateral management under netting agreements
+// ============================================================
+// collateral-opt answers "which piece is cheapest to deliver". legal-netting answers "what is
+// the enforceable population and what is it worth net". Neither of them runs the DAY.
+//
+// The day is this project. Every morning, per agreement:
+//
+//   MEASURE   exposure on the netting set against the collateral already held
+//   GATE      subtract the THRESHOLD -- the uncollateralised exposure the CSA tolerates --
+//             and then test the remainder against the MINIMUM TRANSFER AMOUNT. A call for
+//             less than the MTA is NOT MADE. That gate is the single most consequential
+//             piece of arithmetic here: it is why a desk with a 25m exposure move can send
+//             nothing at all, and why `CmgMarginCall` keeps a row for the call it did not
+//             make instead of having no row.
+//   CALL      issue it, with a deadline
+//   DISPUTE   the counterparty agrees part and disputes the rest. The DISPUTED AMOUNT is the
+//             number the collateral desk chases for days; the UNDISPUTED part still moves
+//             today, which is why `CmgAgreedTransfer` is not the same number as the call.
+//   AGREE     what will actually be transferred
+//   DELIVER   instruct the movements -- cash or securities, out or back
+//   SETTLE    and then find out it failed at the custodian
+//
+// And two things that run alongside the cycle rather than inside it:
+//
+//   SUBSTITUTION  a piece already pledged is wanted back and something else offered in its
+//                 place. It needs the taker's CONSENT, which is what makes it a request and
+//                 not an instruction, and it is the one place this project reaches back into
+//                 the optimiser's proposal.
+//   INTEREST      cash collateral earns interest daily and is paid monthly. It is not a fee:
+//                 the rate is a CSA election, it can be negative, and the accrual can be
+//                 netted into the next call rather than paid. A collateral system that
+//                 forgets it is out by the interest on every cash balance it holds.
+//
+// Layer 3. Depends on collateral-opt and legal-netting. Nothing else.
+//
+// THE NETTING SET, AND WHOSE ONE THIS PROJECT USES.
+// legal-netting's MANIFEST flags that `legal_netting::NetSet` and `exposure_agg::ExaNettingSet`
+// are different classes about the same `nettingSetId`. This project treats `NetSet` as the
+// authoritative one and never reaches for the other -- see MANIFEST.md for the reasoning; the
+// short version is that a margin call is a CONTRACTUAL act. The threshold, the MTA, the
+// rounding and the consent right are all clauses of the master agreement, and NetSet is the
+// closure of that agreement. exposure-agg's grouping key is a measurement artefact and is also
+// not a declared dependency of this project.
+//
+// Package root collateral_mgmt::, prefixes CMG_ / Cmg_ / Cmg / cmg per the contract.
+
+// ------------------------------------------------------------------ the terms that gate the call
+
+// FOR: the economic clauses of one Credit Support Annex -- threshold, minimum transfer amount,
+// rounding and independent amount -- which together decide whether a call is made at all.
+//
+// Keyed by its own id and not by the agreement, because one master carries separate VM and IM
+// terms, they are re-papered on different dates, and the terms that supported yesterday's call
+// have to still be readable after today's amendment.
+Class collateral_mgmt::CmgMarginTerms
+{
+   termsId: String[1];
+   agreementId: String[1];
+   // The set the terms secure. See the header: this is legal-netting's set id.
+   nettingSetId: String[0..1];
+   // VM or IM. IM terms have a zero threshold and are held gross at a third party; VM terms
+   // do not. Collapsing the two is how a desk calls for variation margin against an initial
+   // margin balance it is not allowed to touch.
+   marginType: String[1];
+   baseCurrency: String[1];
+   // THE THRESHOLD: unsecured exposure the taker tolerates before any collateral is owed. Not
+   // a rounding tolerance -- it is a deliberate, priced credit line, and it is asymmetric:
+   // the two sides of one CSA routinely have different ones.
+   thresholdAmount: Float[1];
+   // THE MINIMUM TRANSFER AMOUNT: below this, no transfer is made even though the exposure is
+   // over the threshold. It exists to stop both desks settling trivial amounts every day.
+   minimumTransferAmount: Float[1];
+   // Calls are rounded UP when calling and DOWN when returning, to this increment.
+   roundingIncrement: Float[1];
+   // Independent amount / initial margin add-on, owed regardless of mark-to-market.
+   independentAmount: Float[1];
+   callFrequency: String[1];
+   // The contractual notification time. A call issued after it is a next-day call, which is a
+   // day of exposure nobody notices until the counterparty defaults.
+   notificationTime: String[0..1];
+   // Whether the taker may refuse a substitution. If it may, a substitution is a request.
+   substitutionConsentRequired: Boolean[1];
+   effectiveDate: StrictDate[1];
+   terminatedDate: StrictDate[0..1];
+
+   // Terms still in force. Terms end by a date, never by deleting the row.
+   isCurrent() { $this.terminatedDate->isEmpty() } : Boolean[1];
+   // What has to be exceeded before anything is owed at all: the tolerated unsecured line
+   // plus the add-on that is owed regardless of it.
+   effectiveThreshold() { $this.thresholdAmount + $this.independentAmount } : Float[1];
+}
+
+// ------------------------------------------------------------------ the call
+
+// FOR: one day's margin call under one agreement -- the exposure, the collateral already held,
+// the threshold and MTA that were applied, and the amount that resulted.
+//
+// A row EXISTS even when no call was made. `isBelowMta` is the reason, and it is a fact the
+// desk has to be able to evidence: "we were 4m over the threshold and the MTA is 5m" is an
+// answer, whereas a missing row is indistinguishable from a system that failed to run.
+//
+// The threshold and MTA are copied onto the call and not read live off `CmgMarginTerms`. They
+// are the values that were APPLIED on the day; the terms can be amended tomorrow and the call
+// must not silently change.
+Class collateral_mgmt::CmgMarginCall
+{
+   callId: String[1];
+   cobDate: StrictDate[1];
+   // The reach into legal-netting.
+   nettingSetId: String[1];
+   agreementId: String[1];
+   termsId: String[0..1];
+   // The optimiser run's plan that decided what to send. Null when the call is a RETURN, or
+   // when it was answered with cash and no optimisation was needed.
+   planId: String[0..1];
+   // DELIVER (they owe us) or RETURN (we owe them collateral back). A return is not a
+   // negative call: it settles the other way, it is rounded the other way, and the piece
+   // coming back is chosen by whoever holds it.
+   direction: String[1];
+   exposureAmount: Float[1];
+   collateralHeldValue: Float[1];
+   // The values APPLIED on the day, copied from the terms.
+   thresholdApplied: Float[1];
+   mtaApplied: Float[1];
+   // Exposure less collateral less threshold, before rounding and before the MTA gate.
+   creditSupportAmount: Float[1];
+   // What was actually called, after rounding. Zero when the MTA gate closed.
+   roundedCallAmount: Float[1];
+   callCurrency: String[1];
+   // ISSUED, DISPUTED, PARTIALLY_AGREED, AGREED, INSTRUCTED, SETTLED, FAILED, NOT_MADE
+   callStatus: String[1];
+   issuedAt: DateTime[0..1];
+   responseDeadline: DateTime[0..1];
+   // THE GATE. True means the amount was owed and still not called.
+   isBelowMta: Boolean[1];
+   closedOn: StrictDate[0..1];
+
+   // The uncollateralised exposure before any contractual gate is applied.
+   uncoveredExposure() { $this.exposureAmount - $this.collateralHeldValue } : Float[1];
+   // Over the threshold. Necessary for a call and not sufficient -- the MTA still has to be
+   // cleared, which is the point of keeping the two tests apart.
+   exceedsThreshold() { ($this.exposureAmount - $this.collateralHeldValue) > $this.thresholdApplied } : Boolean[1];
+   // The MTA gate, stated positively. This is the whole "is a call made at all" question.
+   clearsMinimumTransfer() { $this.creditSupportAmount >= $this.mtaApplied } : Boolean[1];
+   // What rounding gave away or gained relative to the raw requirement.
+   roundingDifference() { $this.roundedCallAmount - $this.creditSupportAmount } : Float[1];
+   isOpen() { $this.closedOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: the audit trail of one call moving through the cycle -- issued, disputed, agreed,
+// instructed, settled -- one row per transition.
+//
+// Keyed (call, sequence) because the same status recurs: a call disputed, agreed, and then
+// re-disputed after a failed delivery has two DISPUTED events, and a status column on the call
+// alone cannot say when either happened or who did it.
+Class collateral_mgmt::CmgCallEvent
+{
+   callId: String[1];
+   eventSeq: Integer[1];
+   // ISSUED, RECEIVED, DISPUTED, PART_AGREED, AGREED, INSTRUCTED, SETTLED, FAILED, CANCELLED
+   eventType: String[1];
+   eventAt: DateTime[1];
+   // OURS or THEIRS. Which side moved the call along, because a dispute the counterparty
+   // raised and a dispute we raised are chased by different people.
+   raisedBySide: String[1];
+   actor: String[0..1];
+   eventNote: String[0..1];
+}
+
+// ------------------------------------------------------------------ the dispute
+
+// FOR: the counterparty's rejection of part of a call -- and specifically the DISPUTED AMOUNT,
+// the number a collateral desk chases until it is resolved.
+//
+// A dispute is not a rejection of the call. It splits it: the undisputed part is transferred
+// TODAY under the CSA's dispute mechanics, and only the difference is argued about. Holding
+// both numbers is what lets the desk answer "how much is actually at risk" rather than
+// "how much is being talked about".
+//
+// `cobDate` and `disputeStatus` are denormalised onto this table because the day-summary view
+// below groups on them, and a Legend view groups over columns of its own table.
+Class collateral_mgmt::CmgDispute
+{
+   disputeId: String[1];
+   callId: String[1];
+   cobDate: StrictDate[1];
+   // OURS or THEIRS.
+   raisedBySide: String[1];
+   // THE NUMBER THAT IS CHASED.
+   disputedAmount: Float[1];
+   // The part both sides agree on. It moves today regardless.
+   undisputedAmount: Float[1];
+   // TRADE_POPULATION, VALUATION, COLLATERAL_VALUATION, FX_RATE, ELIGIBILITY, TERMS
+   disputeReason: String[1];
+   // OPEN, IN_RECONCILIATION, ESCALATED, RESOLVED, WITHDRAWN
+   disputeStatus: String[1];
+   raisedOn: StrictDate[1];
+   // Escalation is a contractual step with a clock on it, not an opinion about severity.
+   escalatedOn: StrictDate[0..1];
+   resolvedOn: StrictDate[0..1];
+   // RECONCILED, DEALER_POLL, SPLIT_THE_DIFFERENCE, CONCEDED, WITHDRAWN
+   resolutionMethod: String[0..1];
+   ageInDays: Integer[1];
+
+   isOpen() { $this.resolvedOn->isEmpty() } : Boolean[1];
+   isEscalated() { $this.escalatedOn->isNotEmpty() } : Boolean[1];
+   // How much of the call is in argument. Float because `/` widens.
+   disputedProportion() { $this.disputedAmount / ($this.disputedAmount + $this.undisputedAmount) } : Float[1];
+}
+
+// FOR: one line of the reconciliation that resolves a dispute -- our number, their number, and
+// the difference -- so the disputed total is attributable rather than merely asserted.
+//
+// Keyed (dispute, item) because a single dispute is almost never one cause: a portfolio breaks
+// on three trades, one FX rate and one bond price at once, and the desk fixes them separately.
+Class collateral_mgmt::CmgDisputeItem
+{
+   disputeId: String[1];
+   itemCode: String[1];
+   // TRADE, COLLATERAL_PIECE, FX_RATE, POPULATION, INDEPENDENT_AMOUNT
+   itemCategory: String[1];
+   // The exposure line this item is about, when it is about one. Null for an FX or a
+   // population break, which are about the portfolio and not about a trade.
+   exposureId: String[0..1];
+   collateralId: String[0..1];
+   ourAmount: Float[1];
+   theirAmount: Float[1];
+   itemCurrency: String[1];
+   // OPEN, AGREED_OURS, AGREED_THEIRS, SPLIT
+   itemStatus: String[1];
+   resolvedOn: StrictDate[0..1];
+
+   // The break, signed. Positive means we mark it higher than they do.
+   difference() { $this.ourAmount - $this.theirAmount } : Float[1];
+   isResolved() { $this.resolvedOn->isNotEmpty() } : Boolean[1];
+}
+
+// FOR: what the two sides finally agreed to transfer for one call -- which is the call amount
+// only when nothing was disputed.
+//
+// A separate class and not a column on the call, because agreement is a dated bilateral act
+// with its own author and its own settlement date. When a dispute took three days, the agreed
+// transfer settles on day three against day one's exposure, and both facts have to survive.
+Class collateral_mgmt::CmgAgreedTransfer
+{
+   callId: String[1];
+   agreedAmount: Float[1];
+   agreedCurrency: String[1];
+   agreedOn: StrictDate[1];
+   agreedBy: String[0..1];
+   settlementDate: StrictDate[1];
+   // True when only the undisputed part was agreed and the rest is still being chased.
+   isPartialAgreement: Boolean[1];
+   // What the call asked for, kept alongside so the shortfall is readable without a join.
+   originalCallAmount: Float[1];
+   agreementNote: String[0..1];
+
+   // What the call asked for and did not get. The desk's exposure to the dispute, in one number.
+   shortfallAmount() { $this.originalCallAmount - $this.agreedAmount } : Float[1];
+}
+
+// ------------------------------------------------------------------ delivery and settlement
+
+// FOR: one instructed movement of collateral against a call -- a piece of stock or an amount of
+// cash, going out or coming back.
+//
+// The grain is the MOVEMENT and not the call: one agreed transfer is routinely met with three
+// bonds and a residual of cash, and a substitution is two movements in opposite directions that
+// have to settle together or not at all.
+Class collateral_mgmt::CmgCollateralMovement
+{
+   movementId: String[1];
+   callId: String[0..1];
+   // The optimiser's lot this movement delivers. Null for cash and for anything coming back.
+   lotId: String[0..1];
+   // DELIVERY, RETURN, SUBSTITUTION_IN, SUBSTITUTION_OUT, INTEREST
+   movementType: String[1];
+   // CASH or SECURITY. The two settle through different pipes and fail for different reasons.
+   collateralKind: String[1];
+   instrumentId: String[0..1];
+   quantity: Float[0..1];
+   marketValue: Float[1];
+   // The haircut applied on the day. Posting 100 of a 15%-haircut bond delivers 85 of value,
+   // so the call is met by POST_VALUE and never by market value.
+   haircutPct: Float[1];
+   postValue: Float[1];
+   movementCurrency: String[1];
+   valueDate: StrictDate[1];
+   // DRAFT, INSTRUCTED, ACKNOWLEDGED, SETTLED, FAILED, CANCELLED
+   instructionStatus: String[1];
+   substitutionId: String[0..1];
+
+   // Market value less the haircut. What this movement is actually worth against the call.
+   valueNetOfHaircut() { $this.marketValue * (1.0 - $this.haircutPct / 100.0) } : Float[1];
+   isCash() { $this.collateralKind == 'CASH' } : Boolean[1];
+}
+
+// FOR: what the custodian actually did with an instructed movement -- and, when it failed, why
+// and for how long.
+//
+// Separate from the movement because an instruction is ours and a settlement is the market's.
+// A movement instructed on Monday and still failing on Thursday is three days of a call that
+// the books show as met and the exposure is not.
+Class collateral_mgmt::CmgSettlement
+{
+   movementId: String[1];
+   // PENDING, SETTLED, PARTIAL, FAILED, CANCELLED
+   settlementStatus: String[1];
+   instructedValue: Float[1];
+   settledValue: Float[1];
+   settledOn: StrictDate[0..1];
+   // INSUFFICIENT_STOCK, SSI_MISMATCH, CUTOFF_MISSED, COUNTERPARTY_FAIL, RECALL
+   failReason: String[0..1];
+   // Days it has been failing. The number that turns a settlement problem into a credit one.
+   failDays: Integer[1];
+   custodianRef: String[0..1];
+   isPartial: Boolean[1];
+
+   isFailed() { $this.failReason->isNotEmpty() } : Boolean[1];
+   // Instructed less settled. Nonzero on a partial as well as on an outright fail.
+   unsettledValue() { $this.instructedValue - $this.settledValue } : Float[1];
+}
+
+// FOR: a request to take back a piece already pledged and put another in its place -- and the
+// taker's CONSENT, which is what makes it a request rather than an instruction.
+//
+// This is where the optimiser's proposal meets the counterparty. `CopSubstitutionProposal` says
+// the swap saves money; this class says whether the other side allowed it, by when, and what
+// happened when they did not. A proposal with no consent is a cost saving that never occurred.
+Class collateral_mgmt::CmgSubstitution
+{
+   substitutionId: String[1];
+   agreementId: String[1];
+   // The optimiser proposal this request implements, when there was one. A desk also
+   // substitutes for reasons the optimiser knows nothing about -- a recall, a corporate
+   // action, a coupon it does not want to chase -- so this is optional.
+   proposalId: String[0..1];
+   outgoingCollateralId: String[1];
+   incomingLotId: String[0..1];
+   substitutionReason: String[1];
+   requestedOn: StrictDate[1];
+   // REQUESTED, CONSENTED, REFUSED, LAPSED, WITHDRAWN
+   consentStatus: String[1];
+   consentDeadline: StrictDate[0..1];
+   consentReceivedOn: StrictDate[0..1];
+   outgoingValue: Float[1];
+   incomingValue: Float[1];
+   refusalReason: String[0..1];
+
+   isConsented() { $this.consentReceivedOn->isNotEmpty() } : Boolean[1];
+   // What the swap does to the collateral balance. A substitution that delivers less value
+   // than it takes back creates a call, which is how a "free" swap becomes a funding event.
+   valueGap() { $this.incomingValue - $this.outgoingValue } : Float[1];
+}
+
+// ------------------------------------------------------------------ cash collateral and its interest
+
+// FOR: the cash collateral balance held under one agreement in one currency on one day -- the
+// thing interest accrues on.
+//
+// Keyed (agreement, currency, date). Cash posted under a CSA is not a deposit and not a
+// custody position: it is transferred outright, it sits on the taker's balance sheet, and the
+// poster's claim is a contractual return obligation. Which is exactly why it earns interest.
+Class collateral_mgmt::CmgCashBalance
+{
+   agreementId: String[1];
+   balanceCurrency: String[1];
+   cobDate: StrictDate[1];
+   nettingSetId: String[0..1];
+   openingBalance: Float[1];
+   deliveries: Float[1];
+   returns: Float[1];
+   closingBalance: Float[1];
+   // Which way the cash is held. Interest is owed BY whoever holds it, so this decides the
+   // direction of every accrual below.
+   isPostedByUs: Boolean[1];
+
+   // Today's net cash movement.
+   netMovement() { $this.deliveries - $this.returns } : Float[1];
+}
+
+// FOR: the interest rate election that applies to cash collateral -- either the rate negotiated
+// in one CSA, or the house rate for a currency when the CSA says nothing special.
+//
+// THE DISJUNCTIVE CLASS, and this project's OR-JOIN. Exactly one of `agreementId` and
+// `rateCurrency` is populated per row, and `rateBasis` records which. A balance picks up a rate
+// on either axis: its own agreement's negotiated spread, or the currency default. Because the
+// join is an unqualified `or`, BOTH ends are to-many -- a balance under an agreement with a
+// bespoke rate matches its own row AND the currency default, and the agreement-specific one
+// governs. Read `$balance.applicableRates` and pick, do not assume one.
+//
+// This is a different disjunction from the two already in the graph: collateral-core's is
+// issuer-or-asset-class and decides eligibility, collateral-opt's is instrument-or-issuer and
+// decides opportunity cost. This one is agreement-or-currency and decides what the cash earns.
+Class collateral_mgmt::CmgCashRateSchedule
+{
+   rateSetId: String[1];
+   // AGREEMENT or CURRENCY_DEFAULT. Which axis this row is written on.
+   rateBasis: String[1];
+   // Axis one: the CSA-specific election.
+   agreementId: String[0..1];
+   // Axis two: the currency's house rate.
+   rateCurrency: String[0..1];
+   // ESTR, SOFR, SONIA, FED_FUNDS -- the CSA's designated overnight rate.
+   rateIndex: String[1];
+   spreadBps: Float[1];
+   // A CSA may floor the rate at zero. Where it does not, the accrual is NEGATIVE and the
+   // poster of cash pays to have posted it. That is not a data error and must not be clamped.
+   hasZeroFloor: Boolean[1];
+   dayCountBasis: String[1];
+   compoundingMethod: String[1];
+   effectiveFrom: StrictDate[1];
+   expiryDate: StrictDate[0..1];
+
+   // The two halves of the disjunction, on one row.
+   isAgreementSpecific() { $this.agreementId->isNotEmpty() } : Boolean[1];
+   isCurrencyDefault() { $this.rateCurrency->isNotEmpty() } : Boolean[1];
+   isLive() { $this.expiryDate->isEmpty() } : Boolean[1];
+   spreadFraction() { $this.spreadBps / 10000.0 } : Float[1];
+}
+
+// FOR: one day's interest on one cash collateral balance -- accrued daily, whether or not it is
+// paid, and negative when the rate is.
+//
+// Keyed (agreement, currency, date), the same grain as the balance, because that is the grain
+// the rate applies at. Storing the rate and the day-count fraction alongside the amount is
+// what makes the number reproducible three months later when the index is restated.
+Class collateral_mgmt::CmgInterestAccrual
+{
+   agreementId: String[1];
+   accrualCurrency: String[1];
+   accrualDate: StrictDate[1];
+   // The rate schedule that won on the day. The or-join can return two.
+   rateSetId: String[0..1];
+   balanceAmount: Float[1];
+   // Index plus spread, as applied. A percentage, and it can be below zero.
+   appliedRatePct: Float[1];
+   dayCountFraction: Float[1];
+   accruedAmount: Float[1];
+   // Negative accrual: the poster pays. Kept as its own flag because it is the case every
+   // downstream report gets wrong.
+   isNegativeAccrual: Boolean[1];
+   paymentId: String[0..1];
+
+   // The stored accrual restated from its parts. All Floats, so no widening surprise.
+   recomputedAccrual() { $this.balanceAmount * ($this.appliedRatePct / 100.0) * $this.dayCountFraction } : Float[1];
+   isPaid() { $this.paymentId->isNotEmpty() } : Boolean[1];
+}
+
+// FOR: the periodic settlement of accrued interest on cash collateral -- typically monthly,
+// and often netted into the next margin call rather than paid as cash.
+//
+// The netting option is the reason this is a class. Interest that is netted into a call is not
+// a payment and never appears in a cash statement; interest that is paid is. A system that
+// models only the paid case reconciles to the custodian and not to the counterparty.
+Class collateral_mgmt::CmgInterestPayment
+{
+   paymentId: String[1];
+   agreementId: String[1];
+   paymentCurrency: String[1];
+   periodStart: StrictDate[1];
+   periodEnd: StrictDate[1];
+   accruedTotal: Float[1];
+   paidAmount: Float[1];
+   // True when the amount was rolled into a margin call instead of being transferred.
+   isNettedIntoCall: Boolean[1];
+   nettedIntoCallId: String[0..1];
+   // ACCRUING, DUE, PAID, NETTED, DISPUTED
+   paymentStatus: String[1];
+   paidOn: StrictDate[0..1];
+
+   // Accrued and not yet settled either way.
+   unpaidAmount() { $this.accruedTotal - $this.paidAmount } : Float[1];
+}
+
+// ------------------------------------------------------------------ THE AGGREGATION
+
+// FOR: the collateral desk's daily worklist -- how many disputes are open on a date in each
+// status, and how much money is in argument.
+//
+// Rooted on a store VIEW whose `~groupBy` is (date, status), so an instance IS a group and
+// never a single dispute; the GROUP BY is folded into the generated SQL and nothing is
+// materialised. This is the one number a head of collateral asks for every morning, and
+// reconstructing it from the dispute rows every time is how it ends up computed three
+// different ways in three different reports.
+//
+// A grouping produces NO ROW for an empty group: a date on which nothing is ESCALATED is
+// absent here, not present at zero.
+Class collateral_mgmt::CmgDisputeDaySummary
+{
+   cobDate: StrictDate[1];
+   disputeStatus: String[1];
+   // count and sum over a group that exists are never null, so these are [1].
+   disputeCount: Integer[1];
+   totalDisputed: Float[1];
+   totalUndisputed: Float[1];
+   largestDisputed: Float[1];
+
+   // `Float / Integer` types as Number and Number is not a Float, so the count is converted
+   // before the division rather than after it.
+   averageDisputed() { $this.totalDisputed / $this.disputeCount->toFloat() } : Float[1];
+}
+
+// ------------------------------------------------------------------ associations, inside this project
+
+Association collateral_mgmt::CmgTermsCalls
+{
+   governingTerms: collateral_mgmt::CmgMarginTerms[0..1];
+   governedCalls: collateral_mgmt::CmgMarginCall[*];
+}
+
+Association collateral_mgmt::CmgCallEvents
+{
+   eventCall: collateral_mgmt::CmgMarginCall[1];
+   callEvents: collateral_mgmt::CmgCallEvent[*];
+}
+
+Association collateral_mgmt::CmgCallDisputes
+{
+   disputedCall: collateral_mgmt::CmgMarginCall[1];
+   disputes: collateral_mgmt::CmgDispute[*];
+}
+
+// The reconciliation lines that make the disputed total attributable.
+Association collateral_mgmt::CmgDisputeItems
+{
+   itemDispute: collateral_mgmt::CmgDispute[1];
+   disputeItems: collateral_mgmt::CmgDisputeItem[*];
+}
+
+// One agreed transfer per call, at most. The call may end without one.
+Association collateral_mgmt::CmgCallAgreed
+{
+   agreedCall: collateral_mgmt::CmgMarginCall[0..1];
+   agreedTransfer: collateral_mgmt::CmgAgreedTransfer[0..1];
+}
+
+Association collateral_mgmt::CmgCallMovements
+{
+   movementCall: collateral_mgmt::CmgMarginCall[0..1];
+   movements: collateral_mgmt::CmgCollateralMovement[*];
+}
+
+Association collateral_mgmt::CmgMovementSettlement
+{
+   settledMovement: collateral_mgmt::CmgCollateralMovement[0..1];
+   settlement: collateral_mgmt::CmgSettlement[0..1];
+}
+
+// A substitution is two movements in opposite directions, which is why this end is to-many.
+Association collateral_mgmt::CmgSubstitutionMovements
+{
+   substitution: collateral_mgmt::CmgSubstitution[0..1];
+   substitutionMovements: collateral_mgmt::CmgCollateralMovement[*];
+}
+
+// Three-column join: (agreement, currency, date) on both sides. Two columns would attach every
+// day's accrual to every day's balance.
+Association collateral_mgmt::CmgBalanceAccrual
+{
+   accruedBalance: collateral_mgmt::CmgCashBalance[0..1];
+   accrual: collateral_mgmt::CmgInterestAccrual[0..1];
+}
+
+// THE OR-JOIN. To-many on BOTH ends: an unqualified `or` returns the agreement-specific
+// election and the currency default alike, and the agreement-specific one governs.
+Association collateral_mgmt::CmgApplicableCashRates
+{
+   applicableRates: collateral_mgmt::CmgCashRateSchedule[*];
+   ratedBalances: collateral_mgmt::CmgCashBalance[*];
+}
+
+Association collateral_mgmt::CmgPaymentAccruals
+{
+   interestPayment: collateral_mgmt::CmgInterestPayment[0..1];
+   paidAccruals: collateral_mgmt::CmgInterestAccrual[*];
+}
+
+// Interest netted into a call instead of paid. The link that stops the amount being counted twice.
+Association collateral_mgmt::CmgCallNettedInterest
+{
+   nettedIntoCall: collateral_mgmt::CmgMarginCall[0..1];
+   nettedInterestPayments: collateral_mgmt::CmgInterestPayment[*];
+}
+
+// The dispute against its own daily rollup. Two-column join, (date, status).
+Association collateral_mgmt::CmgDisputeSummaryLink
+{
+   daySummary: collateral_mgmt::CmgDisputeDaySummary[0..1];
+   disputesInDay: collateral_mgmt::CmgDispute[*];
+}
+
+// ------------------------------------------------------------------ associations across to collateral-opt
+
+// What the optimiser decided to send, against the call that asked for it.
+Association collateral_mgmt::CmgCallFundingPlan
+{
+   fundingPlan: collateral_opt::CopPostingPlan[0..1];
+   answeredCalls: collateral_mgmt::CmgMarginCall[*];
+}
+
+// The lot that actually went out. A plan line is an intention; this is the instruction.
+Association collateral_mgmt::CmgMovementLot
+{
+   deliveredLot: collateral_opt::CopInventoryLot[0..1];
+   deliveringMovements: collateral_mgmt::CmgCollateralMovement[*];
+}
+
+// The optimiser's swap proposal, against the request that asked the counterparty to allow it.
+Association collateral_mgmt::CmgSubstitutionProposalLink
+{
+   optimiserProposal: collateral_opt::CopSubstitutionProposal[0..1];
+   substitutionRequests: collateral_mgmt::CmgSubstitution[*];
+}
+
+// ------------------------------------------------------------------ associations across to legal-netting
+
+// The defining reach. A call is made under an agreement against the population that agreement
+// covers, and legal_netting::NetSet IS that population.
+Association collateral_mgmt::CmgCallNettingSet
+{
+   nettingSet: legal_netting::NetSet[0..1];
+   marginCalls: collateral_mgmt::CmgMarginCall[*];
+}
+
+// The CSA's economics against the master agreement's netting set.
+Association collateral_mgmt::CmgTermsNettingSet
+{
+   securedSet: legal_netting::NetSet[0..1];
+   marginTerms: collateral_mgmt::CmgMarginTerms[*];
+}
+
+// Cash held under the agreement, against the set it collateralises.
+Association collateral_mgmt::CmgBalanceNettingSet
+{
+   collateralisedSet: legal_netting::NetSet[0..1];
+   cashBalances: collateral_mgmt::CmgCashBalance[*];
+}
+
+// TWO-column join, (set, date). The exposure a call was struck against is the RECOGNISED one
+// for that day -- gross if no clean opinion reaches the set -- and matching on the set alone
+// would attach every day's treatment to every day's call.
+Association collateral_mgmt::CmgCallCapitalTreatment
+{
+   capitalTreatment: legal_netting::NetCapitalTreatment[0..1];
+   marginCallsRaised: collateral_mgmt::CmgMarginCall[*];
+}

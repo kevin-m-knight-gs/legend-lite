@@ -1,0 +1,885 @@
+###Pure
+// product-catalogue -- the product catalogue as distributed to sales.
+//
+// Layer 3. It depends on product-pricing (what the firm sells and how it is priced) and on
+// static-distribution (how a published dataset gets to a consumer and is acknowledged). It
+// refers to nothing else.
+//
+// The question this project answers is the salesperson's, not the manufacturer's: WHAT MAY I
+// ACTUALLY OFFER, TO WHOM, WITH WHAT IN MY HAND? Everything here is a narrowing of that:
+//
+//    the approved products      a catalogue entry over a priced product -- so the model, the
+//                               desk and the reserve arrive inherited, never retyped
+//    their target market        one positive profile, and the exclusions that go with it
+//    the client categories      retail / professional / eligible counterparty, per product,
+//                               with the rationale and the review date attached
+//    the documentation          what each product needs before sale, and which document
+//                               instance actually satisfies it, in which language
+//    the jurisdictions          where it may NOT be sold, and until when
+//    the withdrawn ones         still in the catalogue, because clients still hold them
+//
+// Two constructs carry the shape:
+//
+//  * INHERITANCE ACROSS A PROJECT BOUNDARY. PctCatalogueProduct extends
+//    product_pricing::PprPricedProduct, and its mapping set extends [pprPricedProduct],
+//    which extends product-core's [prdProduct], which extends core-instrument's [ciBase].
+//    Four links, three project boundaries, one row. PctCataloguedAutocall goes down the
+//    other branch and extends product_pricing::PprPricedAutocall / [pprAutocall], because
+//    what a salesperson has to say about an autocall is a fact about that payoff.
+//    Every property a subclass adds is mapped on its OWN set: a property declared on a
+//    subclass cannot be mapped on the parent's.
+//
+//  * TWO ~DISTINCT SETS, neither with a table of its own. `PctBarredJurisdiction` collapses
+//    pct.PCT_JURISDICTION_BAR to its distinct JURISDICTION_CODE -- the bar table carries one
+//    row per (product, jurisdiction), so a country barred for forty products is forty rows
+//    there and one here. `PctManufacturingDesk` collapses product-pricing's
+//    PPR_PRODUCT_PRICING to its distinct PRICING_DESK, across the project boundary.
+//    In both, ~primaryKey names the COLLAPSED column, never the source table's own key.
+//
+// Prefixes per the project contract: classes Pct*, tables PCT_*, joins Pct_*, filters Pct*,
+// set ids pct*.
+//
+// This project declares no enums, no profiles, no functions and no associations, and no
+// ###Data element or Runtime. It exports classes, a store and a mapping.
+
+// ============================================================ the catalogue entry
+
+// FOR: the product as a salesperson meets it -- the sellable face of a product the pricing
+// desk already owns. It adds nothing about the payoff or the model, which are inherited
+// three projects deep; it adds only the facts that decide whether the product can be put in
+// front of a client at all: which catalogue it is in, which desk and channel carry it, the
+// smallest ticket that will be taken and whether it is still listed.
+Class product_catalogue::PctCatalogueProduct extends product_pricing::PprPricedProduct
+{
+   // OFFERABLE, RESTRICTED, WITHDRAWN or PIPELINE. The discriminator the four subtype sets
+   // below filter on, and the single fact a salesperson checks first.
+   salesStatus: String[1];
+   // Which catalogue edition this entry belongs to.
+   catalogueCode: String[0..1];
+   // The name used in front of a client, which is not always the instrument's legal name.
+   salesName: String[0..1];
+   // The one-line pitch printed on the catalogue page.
+   salesHeadline: String[0..1];
+   // The route to the client this entry is primarily carried on.
+   primaryChannelCode: String[0..1];
+   // The sales desk that owns the client relationship for this product.
+   salesDeskCode: String[0..1];
+   // The positive target-market profile this product was designed for.
+   targetMarketCode: String[0..1];
+   // ADVISED, EXECUTION_ONLY or PORTFOLIO_MGMT -- how it may be distributed.
+   strategyCode: String[0..1];
+   // The competency a salesperson must hold before offering it.
+   trainingCode: String[0..1];
+   // The sales wrapper as the catalogue describes it (AUTOCALL_NOTE, PLAIN_NOTE, FUND_UNIT
+   // ...). A second discriminator, on a different branch of the taxonomy from salesStatus.
+   salesWrapper: String[0..1];
+   // The smallest order that will be accepted, in minimumTicketCurrency.
+   minimumTicketAmount: Float[0..1];
+   // ISO 4217 the minimum ticket is quoted in.
+   minimumTicketCurrency: String[0..1];
+   // When it first appeared in a published catalogue.
+   listedOn: StrictDate[0..1];
+   // When it left the catalogue front pages. Null while listed. Note this is not the same as
+   // the inherited withdrawalDate: a product can be de-listed from one edition and still be
+   // manufactured.
+   deListedOn: StrictDate[0..1];
+   // True when it is on the front page of the edition rather than in the long tail.
+   isFeatured: Boolean[1];
+   // Where it sorts on the page. Presentation, but sales argue about it.
+   salesRank: Integer[0..1];
+   // The named bundle of documents this product ships with.
+   documentPackCode: String[0..1];
+
+   // The catalogue edition this entry is published in.
+   catalogue: product_catalogue::PctCatalogue[0..1];
+   // The channel it is carried on.
+   channel: product_catalogue::PctSalesChannel[0..1];
+   // The desk that sells it.
+   salesDesk: product_catalogue::PctSalesDesk[0..1];
+   // Who it was designed for.
+   targetMarketProfile: product_catalogue::PctTargetMarket[0..1];
+   // How it may be distributed.
+   distributionStrategy: product_catalogue::PctDistributionStrategy[0..1];
+   // What the salesperson must have passed first.
+   requiredTraining: product_catalogue::PctSalesTraining[0..1];
+   // Which client categories it may be sold to, one verdict each.
+   categoryEligibilities: product_catalogue::PctCategoryEligibility[*];
+   // Where it may not be sold.
+   jurisdictionBars: product_catalogue::PctJurisdictionBar[*];
+   // What documentation it needs.
+   documentRequirements: product_catalogue::PctDocumentRequirement[*];
+   // The document instances that exist for it.
+   documents: product_catalogue::PctDocument[*];
+   // Standing restrictions on how it is offered.
+   salesRestrictions: product_catalogue::PctSalesRestriction[*];
+   // The indicative prices shown in the catalogue.
+   indicativePrices: product_catalogue::PctIndicativePrice[*];
+   // What the salesperson earns on it, per channel.
+   commissionTerms: product_catalogue::PctCommissionTerm[*];
+
+   // Still on the catalogue pages. A de-listed product stays here for ever, because clients
+   // still hold it and it still has to be documented.
+   isListed() { $this.deListedOn->isEmpty() } : Boolean[1];
+   // Whether any jurisdiction bar has ever been recorded against it, which is the question
+   // that decides whether the cross-border checklist has to be opened at all.
+   hasJurisdictionBar() { $this.jurisdictionBars->isNotEmpty() } : Boolean[1];
+   // The minimum ticket in thousands, which is the unit a sales sheet quotes. `/` widens to
+   // Float even on two Integers, so this is Float[1].
+   minimumTicketInThousands() { $this.minimumTicketAmount->toOne() / 1000.0 } : Float[1];
+   // What the catalogue page prints as the entry's heading.
+   salesLabel() { $this.salesName->toOne() + ' [' + $this.salesStatus + ']' } : String[1];
+}
+
+// FOR: a product a salesperson may offer today with no further permission -- the ordinary
+// case, and the only status that reaches a self-service channel. What distinguishes it is
+// that everything it needs is already true, so the extra facts are about SPEED: how fast a
+// quote comes back and whether a client can transact without picking up the telephone.
+Class product_catalogue::PctOfferableProduct extends product_catalogue::PctCatalogueProduct
+{
+   // The date offering opened. Before it, the entry is a pipeline entry.
+   offerableFrom: StrictDate[0..1];
+   // The largest ticket the desk will take without escalation.
+   maximumTicketAmount: Float[0..1];
+   // True when the client-facing factsheet is on the portal rather than in a mailbox.
+   hasOnlineFactsheet: Boolean[1];
+   // How long a quote takes, in minutes. The number sales quotes to the client.
+   quoteTurnaroundMinutes: Integer[0..1];
+   // True when a client may transact unattended on a digital channel.
+   isSelfServiceEligible: Boolean[1];
+
+   // Whether a quote comes back inside the hour, which is the promise a sales desk makes.
+   isImmediateQuote() { $this.quoteTurnaroundMinutes->toOne() <= 60 } : Boolean[1];
+}
+
+// FOR: a product that may still be sold, but only with a named person's sign-off. What
+// distinguishes it from an offerable product is that the permission is per trade rather than
+// standing, so the facts that matter are WHO signs, WHEN the restriction is next reviewed and
+// HOW MANY clients may be shown it in a month.
+Class product_catalogue::PctRestrictedProduct extends product_catalogue::PctCatalogueProduct
+{
+   // Why the restriction exists: CAPACITY, CONCENTRATION, LEGAL_REVIEW, ISSUER_WATCH.
+   restrictionReason: String[0..1];
+   // The role that must sign each offer. A role, not a person, so holidays do not stop sales.
+   approverRole: String[0..1];
+   // True when a second, independent sign-off is needed on top of the first.
+   needsSecondSignoff: Boolean[1];
+   // When the restriction is next looked at. A restriction with no review date is a ban.
+   restrictionReviewOn: StrictDate[0..1];
+   // The monthly cap on how many clients may be approached.
+   maxClientsPerMonth: Integer[0..1];
+
+   // Whether the restriction is time-boxed rather than open-ended.
+   hasReviewDate() { $this.restrictionReviewOn->isNotEmpty() } : Boolean[1];
+}
+
+// FOR: a product no longer offered but still held -- the case a catalogue that only listed
+// what is on sale would lose. It stays here because clients own it, it still has to be
+// valued, documented and reported, and somebody still has to answer the telephone about it.
+Class product_catalogue::PctWithdrawnProduct extends product_catalogue::PctCatalogueProduct
+{
+   // Why it stopped being offered: ISSUER_EXIT, POOR_OUTCOME, REGULATORY, SUPERSEDED.
+   withdrawnReason: String[0..1];
+   // True when existing holdings run to maturity rather than being bought back. This is the
+   // fact that decides whether the product is a run-off or a remediation.
+   holdingsMayContinue: Boolean[1];
+   // The last date a new trade was accepted.
+   lastTradeOn: StrictDate[0..1];
+   // When the last holding is expected to be gone. Null while holdings still exist.
+   runoffEndOn: StrictDate[0..1];
+   // The product offered in its place, when there is one.
+   successorProductCode: String[0..1];
+
+   // Withdrawn from sale and still on clients' books -- the population this project exists
+   // to keep visible.
+   isStillHeld() { $this.holdingsMayContinue && $this.runoffEndOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: a product approved in principle but not yet launched, so sales can see what is coming
+// without being able to offer it. What distinguishes it is that its facts are all about a
+// date that has not happened: the stage it has reached and what is stopping it.
+Class product_catalogue::PctPipelineProduct extends product_catalogue::PctCatalogueProduct
+{
+   // DESIGN, APPROVAL, DOCUMENTATION, PILOT.
+   pipelineStage: String[0..1];
+   // When it is expected to become offerable.
+   expectedLaunchOn: StrictDate[0..1];
+   // The desk sponsoring the launch, which is who chases the blocker.
+   sponsorDesk: String[0..1];
+   // What is stopping it. Null means nothing is.
+   launchBlocker: String[0..1];
+   // How many clients are in the pilot, when there is one.
+   pilotClientCount: Integer[0..1];
+
+   // Whether something is actually in the way, as opposed to the date simply being future.
+   isBlocked() { $this.launchBlocker->isNotEmpty() } : Boolean[1];
+}
+
+// FOR: the sales view of an autocallable note specifically. It extends the PRICED autocall
+// rather than the catalogue entry, because what a salesperson has to say about an autocall --
+// the headline coupon, the capital-at-risk warning, how many illustration scenarios the
+// client must be shown -- is a fact about that payoff and about nothing else in the
+// catalogue. Its properties are mapped on its own set for the same reason.
+Class product_catalogue::PctCataloguedAutocall extends product_pricing::PprPricedAutocall
+{
+   // The pitch as it is printed, in the words compliance approved.
+   salesPitchSummary: String[0..1];
+   // The coupon quoted on the page, as a percentage. Not the modelled one: this is the
+   // headline number, and it is displayed rounded.
+   couponDisplayPercent: Float[0..1];
+   // True when the page must carry the capital-at-risk warning above the fold.
+   isCapitalAtRiskFlagged: Boolean[1];
+   // How many performance scenarios the client is shown. PRIIPs sets a floor.
+   illustrationScenarioCount: Integer[0..1];
+   // True when a recorded risk-warning call is required before the order is taken.
+   requiresRiskWarningCall: Boolean[1];
+
+   // The headline coupon as a rate, so the page and the term sheet agree on the scale.
+   headlineCouponRate() { $this.couponDisplayPercent->toOne() / 100.0 } : Float[1];
+}
+
+// ============================================================ the catalogue itself
+
+// FOR: one edition of the catalogue -- a named, owned list of products for one audience in
+// one region. It exists because there is never one catalogue: private banking in Asia and
+// institutional sales in Europe are shown different products, and the difference is
+// governed, not incidental.
+Class product_catalogue::PctCatalogue
+{
+   // The edition key.
+   catalogueCode: String[1];
+   // What it is called in front of the business.
+   catalogueName: String[1];
+   // ANNUAL, QUARTERLY or ROLLING -- how often a new version is cut.
+   edition: String[0..1];
+   // The region it is published for.
+   regionCode: String[0..1];
+   // PRIVATE_BANK, INSTITUTIONAL, WEALTH or DIGITAL -- who it is written for.
+   audience: String[0..1];
+   // The desk that owns the edition and signs each version off.
+   ownerDesk: String[0..1];
+   // The static-distribution dataset this catalogue is shipped as. The catalogue is not
+   // distributed by this project; it is distributed by that one, and this is the handle.
+   datasetCode: String[0..1];
+   // Null while the edition is still cut.
+   retiredOn: StrictDate[0..1];
+
+   // Every version of this edition ever published.
+   versions: product_catalogue::PctCatalogueVersion[*];
+   // The distribution dataset it ships as.
+   dataset: static_distribution::SdiDataset[0..1];
+
+   // Whether the edition is still being produced.
+   isLive() { $this.retiredOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: one published version of one catalogue edition -- the thing sales actually has a copy
+// of. It exists so that "what could I offer on the twelfth" has an answer: the catalogue is
+// a moving list, and only a version is a fact.
+Class product_catalogue::PctCatalogueVersion
+{
+   // The version key.
+   versionId: String[1];
+   // The edition it is a version of.
+   catalogueCode: String[0..1];
+   // Monotonic within the edition.
+   versionNumber: Integer[0..1];
+   // When it went out.
+   publishedOn: StrictDate[0..1];
+   // The static-distribution publication that carried it. Null if it was never distributed,
+   // which is itself worth being able to ask about.
+   publicationId: String[0..1];
+   // How many entries it contains.
+   entryCount: Integer[1];
+   // How many of those are withdrawn-but-still-held. The number that tells you whether the
+   // catalogue is a sales document or a run-off report.
+   withdrawnCount: Integer[1];
+   // Who signed it off.
+   approvedBy: String[0..1];
+   // When the next version replaced it. Null on the current one.
+   supersededOn: StrictDate[0..1];
+
+   // The edition.
+   catalogue: product_catalogue::PctCatalogue[0..1];
+   // The entries on its pages.
+   lines: product_catalogue::PctCatalogueLine[*];
+   // The distribution run that carried it out of the building.
+   publication: static_distribution::SdiPublication[0..1];
+   // Who it was sent to.
+   distributions: product_catalogue::PctCatalogueDistribution[*];
+
+   // Whether this is the version sales is holding right now.
+   isCurrent() { $this.supersededOn->isEmpty() } : Boolean[1];
+   // The share of the version that is actually offerable. Integer / Integer widens to Float
+   // on its own, which is why this is Float[1].
+   offerableShare() { ($this.entryCount - $this.withdrawnCount) / $this.entryCount } : Float[1];
+}
+
+// FOR: one product's line on one version's pages -- the join of a product to an edition, and
+// the place the presentation facts live so they cannot leak onto the product itself. It has
+// a composite key because the pair IS the line.
+Class product_catalogue::PctCatalogueLine
+{
+   // The version this line is on.
+   versionId: String[1];
+   // The instrument the line is about.
+   instrumentId: String[1];
+   // Where it sorts on the page.
+   pagePosition: Integer[0..1];
+   // The headline as printed in this version, which can differ between editions.
+   headline: String[0..1];
+   // The indicative offer price printed against it.
+   printedOfferPrice: Float[0..1];
+   // True when the line is new since the previous version -- the "what's new" page.
+   isNewThisEdition: Boolean[1];
+   // True when it is boxed out rather than in the table.
+   isHighlighted: Boolean[1];
+   // Why it will not appear next time, written when the decision is taken.
+   removalNote: String[0..1];
+
+   // The version.
+   version: product_catalogue::PctCatalogueVersion[0..1];
+   // The catalogue entry, reached across the inheritance chain to CI_INSTRUMENT.
+   product: product_catalogue::PctCatalogueProduct[0..1];
+
+   // Whether this line has already been marked for removal from the next version.
+   isMarkedForRemoval() { $this.removalNote->isNotEmpty() } : Boolean[1];
+}
+
+// FOR: one product's dispatch of one catalogue version to one static-distribution consumer,
+// and the acknowledgement that came back. It exists because a catalogue that was published
+// but not received is a compliance problem, not a publishing one: the unacknowledged
+// dispatch is what a sales-supervision report is looking for.
+Class product_catalogue::PctCatalogueDistribution
+{
+   // The version sent.
+   versionId: String[1];
+   // The consumer it was sent to -- a static-distribution consumer id.
+   consumerId: String[1];
+   // The publication it travelled in, which is how the acknowledgement is found.
+   publicationId: String[0..1];
+   // When it left.
+   sentAt: DateTime[0..1];
+   // PDF, JSON or XML.
+   deliveryFormat: String[0..1];
+   // How many salespeople the consumer says it reaches.
+   recipientCount: Integer[0..1];
+   // Null on success. A failure code here means sales is working from the previous version.
+   failureCode: String[0..1];
+
+   // The version that was sent.
+   version: product_catalogue::PctCatalogueVersion[0..1];
+   // The receiving system, in static-distribution's terms.
+   consumer: static_distribution::SdiConsumer[0..1];
+   // The acknowledgement row, whose acknowledgedAt is null until the consumer fills it in.
+   acknowledgement: static_distribution::SdiAcknowledgement[0..1];
+
+   // Whether it got there at all.
+   wasDelivered() { $this.failureCode->isEmpty() } : Boolean[1];
+}
+
+// ============================================================ who may be sold what
+
+// FOR: the route to the client -- private bank, institutional voice, wealth adviser, digital.
+// It exists because the same product is a different sale on each: the suitability work, the
+// minimum client size and whether advice is given all change with the channel and not with
+// the product.
+Class product_catalogue::PctSalesChannel
+{
+   // The channel key.
+   channelCode: String[1];
+   // What it is called.
+   channelName: String[1];
+   // VOICE, ADVISER, DIGITAL or THIRD_PARTY.
+   channelKind: String[0..1];
+   // True when advice is given on this channel, which pulls in the suitability regime.
+   isAdvised: Boolean[1];
+   // True when an appropriateness test is required before a complex product is shown.
+   needsSuitabilityTest: Boolean[1];
+   // The smallest client the channel serves.
+   minimumClientAssets: Float[0..1];
+   // Null while the channel is open.
+   retiredOn: StrictDate[0..1];
+
+   // Whether the channel is still carrying business.
+   isOpen() { $this.retiredOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: the sales desk that owns the client relationship, as distinct from the pricing desk
+// that owns the mark. It exists because those two are almost never the same team, and the
+// question "who do I ring about this price" and "who do I ring about this client" have
+// different answers.
+Class product_catalogue::PctSalesDesk
+{
+   // The desk key.
+   deskCode: String[1];
+   // What it is called.
+   deskName: String[1];
+   // The region it covers.
+   regionCode: String[0..1];
+   // The jurisdiction it books in, which is what a cross-border check is run against.
+   jurisdictionCode: String[0..1];
+   // The pricing desk it faces, in product-pricing's own vocabulary. This is the string the
+   // ~distinct manufacturing-desk set is resolved against.
+   manufacturingDeskName: String[0..1];
+   // Who runs it.
+   headOfDesk: String[0..1];
+   // How many salespeople sit on it.
+   headcount: Integer[0..1];
+   // Null while the desk exists.
+   closedOn: StrictDate[0..1];
+
+   // The manufacturing desk behind it, resolved to the distinct set of pricing desks.
+   manufacturer: product_catalogue::PctManufacturingDesk[0..1];
+
+   // Whether the desk is still trading.
+   isOpen() { $this.closedOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: the regulatory categorisation of a client -- retail, professional, eligible
+// counterparty. It exists because it is the first gate on every sale: the category decides
+// which tests must be run and which documents must be handed over, before anything about the
+// product is considered.
+Class product_catalogue::PctClientCategory
+{
+   // The category key.
+   categoryCode: String[1];
+   // What it is called.
+   categoryName: String[1];
+   // MIFID_II, FCA_COBS or LOCAL -- the rule the categorisation is made under.
+   regulatoryBasis: String[0..1];
+   // True when an appropriateness test is required for a complex product.
+   needsAppropriatenessTest: Boolean[1];
+   // True when a suitability report must be produced and kept.
+   needsSuitabilityReport: Boolean[1];
+   // The highest product complexity score this category may be shown, 1 to 7.
+   maxComplexityScore: Integer[0..1];
+
+   // Every verdict recorded for this category, across products.
+   eligibilities: product_catalogue::PctCategoryEligibility[*];
+}
+
+// FOR: one verdict -- may this product be sold to this client category, and on what grounds.
+// It exists because the answer is neither a property of the product nor of the category but
+// of the pair, and because the grounds and the review date matter as much as the verdict:
+// an eligibility nobody has re-read in three years is not an eligibility.
+Class product_catalogue::PctCategoryEligibility
+{
+   // The product half of the key.
+   instrumentId: String[1];
+   // The category half of the key.
+   categoryCode: String[1];
+   // PERMITTED, PERMITTED_WITH_ADVICE or PROHIBITED.
+   eligibilityStatus: String[1];
+   // Why. Free text, and the only part of this row a committee ever argues about.
+   rationale: String[0..1];
+   // When the verdict was reached.
+   assessedOn: StrictDate[0..1];
+   // When it must be re-reached.
+   reviewDueOn: StrictDate[0..1];
+   // Who signed it.
+   approvedBy: String[0..1];
+
+   // The category.
+   category: product_catalogue::PctClientCategory[0..1];
+   // The product.
+   product: product_catalogue::PctCatalogueProduct[0..1];
+
+   // Whether a sale to this category is allowed at all, in any form.
+   mayBeSold() { $this.eligibilityStatus != 'PROHIBITED' } : Boolean[1];
+}
+
+// FOR: the positive target market -- the investor the product was designed for. It exists
+// because the manufacturer has to state it and the distributor has to sell inside it, and
+// the statement is a profile rather than a single label: type, knowledge, tolerance, horizon
+// and capacity to bear loss are five separate tests.
+Class product_catalogue::PctTargetMarket
+{
+   // The profile key.
+   targetMarketCode: String[1];
+   // RETAIL, PROFESSIONAL or ELIGIBLE_COUNTERPARTY.
+   investorType: String[0..1];
+   // BASIC, INFORMED or ADVANCED -- how much the investor is assumed to know.
+   knowledgeLevel: String[0..1];
+   // LOW, MEDIUM or HIGH.
+   riskTolerance: String[0..1];
+   // The intended holding period, in months.
+   horizonMonths: Integer[0..1];
+   // NONE, LIMITED, UP_TO_CAPITAL or BEYOND_CAPITAL -- how much of the money may be lost.
+   lossBearing: String[0..1];
+   // PRESERVATION, INCOME, GROWTH or HEDGING.
+   objective: String[0..1];
+
+   // Who this profile explicitly excludes.
+   exclusions: product_catalogue::PctNegativeTarget[*];
+
+   // The horizon in years, which is the unit the client conversation uses.
+   horizonYears() { $this.horizonMonths->toOne() / 12 } : Float[1];
+   // Whether the profile admits losing more than the money put in, which is the single
+   // sentence that changes who may be shown the product.
+   canLoseMoreThanCapital() { $this.lossBearing == 'BEYOND_CAPITAL' } : Boolean[1];
+}
+
+// FOR: the negative target market -- who the product must NOT be sold to, stated separately
+// from who it may be. It exists because the two are not complements: a product designed for
+// informed investors is not thereby barred from everyone else, but a product with a stated
+// negative market IS barred, and only the explicit statement carries that force.
+Class product_catalogue::PctNegativeTarget
+{
+   // The profile this exclusion belongs to.
+   targetMarketCode: String[1];
+   // The exclusion key within the profile.
+   exclusionCode: String[1];
+   // KNOWLEDGE, HORIZON, LOSS_CAPACITY, OBJECTIVE or CATEGORY -- which test it fails.
+   exclusionKind: String[0..1];
+   // The exclusion in the words the manufacturer published.
+   exclusionText: String[0..1];
+   // True when it is an absolute bar rather than a warning to be documented past.
+   isHardBar: Boolean[1];
+   // When it was added.
+   addedOn: StrictDate[0..1];
+
+   // The profile it narrows.
+   targetMarket: product_catalogue::PctTargetMarket[0..1];
+}
+
+// FOR: how the product may be distributed -- advised, execution-only, or inside a managed
+// portfolio. It exists because the strategy, not the product, decides which tests are run:
+// the same note is a different regulatory event on each of the three.
+Class product_catalogue::PctDistributionStrategy
+{
+   // The strategy key.
+   strategyCode: String[1];
+   // What it is called.
+   strategyName: String[1];
+   // True when advice must be given and recorded.
+   requiresAdvice: Boolean[1];
+   // True when an appropriateness test must be passed first.
+   requiresAppropriateness: Boolean[1];
+   // True when a client may simply buy, unadvised.
+   allowsExecutionOnly: Boolean[1];
+   // The cooling-off window, in days, when there is one.
+   coolingOffDays: Integer[0..1];
+}
+
+// ============================================================ where it may not be sold
+
+// FOR: one jurisdiction one product may not be sold in, and why. It exists because the bar
+// is per (product, jurisdiction) and time-boxed: a product barred in a country pending a
+// prospectus filing is a different fact from one barred there permanently, and the lifted
+// date is what tells them apart.
+Class product_catalogue::PctJurisdictionBar
+{
+   // The product half of the key.
+   instrumentId: String[1];
+   // The jurisdiction half of the key, ISO 3166 alpha-2.
+   jurisdictionCode: String[1];
+   // The jurisdiction's name, carried on every bar row for it -- denormalised on purpose, so
+   // the ~distinct jurisdiction set has something to say beyond the code.
+   jurisdictionName: String[0..1];
+   // The region the jurisdiction sits in, likewise per-jurisdiction rather than per-bar.
+   jurisdictionRegion: String[0..1];
+   // ABSOLUTE, PENDING_FILING, PROFESSIONAL_ONLY or REVERSE_SOLICITATION_ONLY.
+   barType: String[0..1];
+   // NO_PROSPECTUS, SANCTIONS, TAX, LICENCE or LOCAL_RULE.
+   reasonCode: String[0..1];
+   // The rule or filing the bar rests on. A bar with no reference is an opinion.
+   legalReference: String[0..1];
+   // When it was imposed.
+   imposedOn: StrictDate[0..1];
+   // When it was lifted. Null means the bar is live -- a null test over rows that exist,
+   // rather than an anti-join against rows that do not.
+   liftedOn: StrictDate[0..1];
+
+   // The product barred.
+   product: product_catalogue::PctCatalogueProduct[0..1];
+
+   // Whether the bar still applies.
+   isInForce() { $this.liftedOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: the universe of jurisdictions the catalogue is barred in anywhere -- the distinct
+// countries a cross-border check has to know about, without one row per product. It has no
+// table of its own: it is pct.PCT_JURISDICTION_BAR collapsed to its distinct JURISDICTION_CODE,
+// which is why a country barred for forty products is forty rows there and one row here.
+Class product_catalogue::PctBarredJurisdiction
+{
+   // The collapsed column, ISO 3166 alpha-2.
+   jurisdictionCode: String[1];
+   // The jurisdiction's name.
+   jurisdictionName: String[0..1];
+   // The region it sits in.
+   jurisdictionRegion: String[0..1];
+
+   // What a cross-border checklist prints.
+   label() { $this.jurisdictionCode + ' - ' + $this.jurisdictionName->toOne() } : String[1];
+}
+
+// FOR: the universe of pricing desks that manufacture anything in the catalogue -- the
+// distinct desks, not one row per product they price. It has no table of its own either: it
+// is product-pricing's PPR_PRODUCT_PRICING collapsed to its distinct PRICING_DESK, across
+// the project boundary, which is what turns a per-product column into a desk list.
+Class product_catalogue::PctManufacturingDesk
+{
+   // The collapsed column: the pricing desk's name as product-pricing records it.
+   manufacturingDeskName: String[1];
+
+   // What a sales desk directory prints against the sales desk.
+   label() { 'manufactured by ' + $this.manufacturingDeskName } : String[1];
+}
+
+// FOR: a standing restriction on how a product is offered, as distinct from an outright bar.
+// It exists because most limits are neither yes nor no: a ticket ceiling on the digital
+// channel, a professional-only rule in one jurisdiction, a cooling-off period. Each has an
+// effective window, so the restriction that lapsed last month does not stop a sale today.
+Class product_catalogue::PctSalesRestriction
+{
+   // The restriction key.
+   restrictionId: String[1];
+   // The product restricted.
+   instrumentId: String[0..1];
+   // MAX_TICKET, MIN_TICKET, CHANNEL_BAR, PROFESSIONAL_ONLY or COOLING_OFF.
+   restrictionKind: String[1];
+   // The channel it applies to, when it applies to only one.
+   channelCode: String[0..1];
+   // The jurisdiction it applies in, resolved against the distinct barred-jurisdiction set.
+   jurisdictionCode: String[0..1];
+   // The threshold, when the restriction is a number.
+   thresholdAmount: Float[0..1];
+   // ISO 4217 the threshold is in.
+   thresholdCurrency: String[0..1];
+   // When it starts.
+   effectiveOn: StrictDate[0..1];
+   // When it stops. Null means it is open-ended.
+   expiresOn: StrictDate[0..1];
+   // What a salesperson is told when the restriction fires.
+   note: String[0..1];
+
+   // The channel it applies to.
+   channel: product_catalogue::PctSalesChannel[0..1];
+   // The jurisdiction, resolved to the distinct universe of barred ones.
+   barredJurisdiction: product_catalogue::PctBarredJurisdiction[0..1];
+   // The product.
+   product: product_catalogue::PctCatalogueProduct[0..1];
+
+   // Whether it still bites.
+   isInForce() { $this.expiresOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: the record of a product being withdrawn from sale, kept separately from the entry
+// because the decision has an author, a reason and a run-off plan that outlive the flag on
+// the entry. It is the paperwork behind PctWithdrawnProduct.
+Class product_catalogue::PctWithdrawal
+{
+   // The withdrawal key.
+   withdrawalId: String[1];
+   // The product withdrawn.
+   instrumentId: String[0..1];
+   // When the decision took effect.
+   withdrawnOn: StrictDate[0..1];
+   // ISSUER_EXIT, POOR_OUTCOME, REGULATORY, SUPERSEDED or CAPACITY.
+   reasonCode: String[0..1];
+   // The reason as minuted.
+   reasonText: String[0..1];
+   // True when existing holdings run to maturity rather than being bought back.
+   holdingsMayContinue: Boolean[1];
+   // When the last holding is expected to be gone. Null while holdings still exist.
+   runoffEndOn: StrictDate[0..1];
+   // The product offered instead, when there is one.
+   successorInstrumentId: String[0..1];
+   // Who took the decision.
+   decidedBy: String[0..1];
+
+   // The product.
+   product: product_catalogue::PctCatalogueProduct[0..1];
+
+   // Withdrawn and still on the books -- the population the catalogue must keep carrying.
+   isStillHeld() { $this.holdingsMayContinue && $this.runoffEndOn->isEmpty() } : Boolean[1];
+}
+
+// ============================================================ what has to be in the pack
+
+// FOR: the documentation a product needs before it may be sold -- one row per document type
+// required. It exists because the requirement and the document are different things: a KID
+// that is required and missing is the interesting case, and only a row for the requirement
+// can express it.
+Class product_catalogue::PctDocumentRequirement
+{
+   // The product half of the key.
+   instrumentId: String[1];
+   // The document type half: KID, PROSPECTUS, TERM_SHEET, FACTSHEET, SUITABILITY_NOTE.
+   documentType: String[1];
+   // True when it must be in the client's hands BEFORE the order, not after.
+   isPreSale: Boolean[1];
+   // How old the document may be, in days, before it must be refreshed.
+   maxAgeDays: Integer[0..1];
+   // PRIIPS, MIFID_II, PROSPECTUS_REG or LOCAL.
+   regulationCode: String[0..1];
+   // NOT_ALLOWED, DESK_HEAD or COMPLIANCE -- who, if anyone, may waive it.
+   waiverStatus: String[0..1];
+
+   // The document instances that satisfy this requirement.
+   documents: product_catalogue::PctDocument[*];
+   // The product.
+   product: product_catalogue::PctCatalogueProduct[0..1];
+
+   // The refresh interval in months, which is the unit the document calendar runs on.
+   maxAgeMonths() { $this.maxAgeDays->toOne() / 30.0 } : Float[1];
+}
+
+// FOR: an actual document that exists -- a specific version of a specific factsheet, with a
+// date it takes effect and a date it goes stale. It exists so that "the KID is out of date"
+// is a query rather than an assertion.
+Class product_catalogue::PctDocument
+{
+   // The document key.
+   documentId: String[1];
+   // The product it is about.
+   instrumentId: String[0..1];
+   // Which requirement it satisfies.
+   documentType: String[1];
+   // The published version label, as printed on the document.
+   versionLabel: String[0..1];
+   // When it becomes the one to hand over.
+   effectiveOn: StrictDate[0..1];
+   // When it stops being. Null while it is current.
+   expiresOn: StrictDate[0..1];
+   // The language it was written in, before translation.
+   primaryLanguage: String[0..1];
+   // Where the file lives.
+   storageUri: String[0..1];
+   // Who approved it for client use.
+   approvedBy: String[0..1];
+
+   // The requirement it answers, matched on product and type.
+   requirement: product_catalogue::PctDocumentRequirement[0..1];
+   // The translations of it.
+   languages: product_catalogue::PctDocumentLanguage[*];
+
+   // Whether it may still be handed to a client.
+   isCurrent() { $this.expiresOn->isEmpty() } : Boolean[1];
+}
+
+// FOR: one translated version of one document. It exists because a catalogue distributed
+// across a region is distributed in several languages, and a translation that has not been
+// verified is not a document a salesperson may hand over.
+Class product_catalogue::PctDocumentLanguage
+{
+   // The document half of the key.
+   documentId: String[1];
+   // The language half, ISO 639-1.
+   languageCode: String[1];
+   // The title as translated.
+   translatedTitle: String[0..1];
+   // When the translation was produced.
+   translatedOn: StrictDate[0..1];
+   // Who produced it.
+   translator: String[0..1];
+   // True once a qualified reviewer has signed the translation off.
+   isVerified: Boolean[1];
+
+   // The document translated.
+   document: product_catalogue::PctDocument[0..1];
+
+   // Whether this version may actually be given to a client.
+   isUsable() { $this.isVerified && $this.translatedOn->isNotEmpty() } : Boolean[1];
+}
+
+// ============================================================ price and reward
+
+// FOR: the indicative price printed against a product in the catalogue, as of a date. It
+// exists because the catalogue quotes a number sales will be held to, and that number is not
+// the model price: it is the model price plus a spread, and the difference between them is
+// the thing the desk has to be able to explain.
+Class product_catalogue::PctIndicativePrice
+{
+   // The product half of the key.
+   instrumentId: String[1];
+   // The date half of the key.
+   asOfDate: StrictDate[1];
+   // What the desk would buy it back at.
+   indicativeBid: Float[0..1];
+   // What the client pays.
+   indicativeOffer: Float[0..1];
+   // The model price the offer was built from, carried here so the two can be compared
+   // without leaving the row.
+   modelPrice: Float[0..1];
+   // The quoted spread in basis points.
+   spreadBasisPoints: Float[0..1];
+   // ISO 4217 the price is quoted in.
+   priceCurrency: String[0..1];
+   // The product-pricing run the model price came from.
+   runId: String[0..1];
+   // True when the price is older than its revaluation frequency allows.
+   isStale: Boolean[1];
+
+   // The pricing run behind the model price.
+   pricingRun: product_pricing::PprPricingRun[0..1];
+   // The product.
+   product: product_catalogue::PctCatalogueProduct[0..1];
+
+   // The mid of the quoted two-way price.
+   midPrice() { ($this.indicativeBid->toOne() + $this.indicativeOffer->toOne()) / 2.0 } : Float[1];
+   // The offer against the model, through product-pricing's own deviation function, so a
+   // catalogue break and a pricing break are the same number computed once.
+   offerVsModelPct() { product_pricing::pprModelVsMarketPct($this.indicativeOffer->toOne(), $this.modelPrice->toOne()) } : Float[1];
+   // The spread as a rate rather than basis points.
+   spreadRate() { $this.spreadBasisPoints->toOne() / 10000.0 } : Float[1];
+}
+
+// FOR: what the firm pays for the sale, per product and channel. It exists because the
+// commission is a distribution fact, not a product fact -- the same note pays differently
+// through an adviser and through a portal -- and because most of it must be disclosed to
+// the client, which makes it part of the sales pack rather than an internal number.
+Class product_catalogue::PctCommissionTerm
+{
+   // The product half of the key.
+   instrumentId: String[1];
+   // The channel half of the key.
+   channelCode: String[1];
+   // Paid once, at the sale, in basis points of notional.
+   upfrontBasisPoints: Float[0..1];
+   // Paid every year the client holds it, in basis points.
+   trailBasisPoints: Float[0..1];
+   // The ceiling on the upfront, when there is one.
+   capAmount: Float[0..1];
+   // ISO 4217 the cap is in.
+   capCurrency: String[0..1];
+   // True when the client must be told. Almost always true, and the exceptions are audited.
+   mustBeDisclosed: Boolean[1];
+   // When these terms start applying.
+   effectiveOn: StrictDate[0..1];
+
+   // The channel.
+   channel: product_catalogue::PctSalesChannel[0..1];
+   // The product.
+   product: product_catalogue::PctCatalogueProduct[0..1];
+
+   // The upfront as a rate, so the pack and the invoice agree on the scale.
+   upfrontRate() { $this.upfrontBasisPoints->toOne() / 10000.0 } : Float[1];
+   // Everything the firm earns in year one, in basis points.
+   firstYearBasisPoints() { $this.upfrontBasisPoints->toOne() + $this.trailBasisPoints->toOne() } : Float[1];
+}
+
+// FOR: the competency a salesperson must hold before offering a product. It exists because
+// "who may offer this" has two halves -- the desk and the person -- and the person's half is
+// a training record with an expiry on it.
+Class product_catalogue::PctSalesTraining
+{
+   // The training key.
+   trainingCode: String[1];
+   // What it is called.
+   trainingName: String[1];
+   // How long it takes.
+   hours: Integer[0..1];
+   // How often it must be retaken, in months.
+   refreshMonths: Integer[0..1];
+   // True when there is an examination rather than attendance.
+   needsExam: Boolean[1];
+   // The pass mark, as a percentage.
+   passMarkPercent: Integer[0..1];
+   // Who runs it.
+   providedBy: String[0..1];
+
+   // The refresh interval in years, which is the unit a training calendar uses.
+   refreshYears() { $this.refreshMonths->toOne() / 12 } : Float[1];
+}

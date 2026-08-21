@@ -1,13 +1,517 @@
 ###Mapping
+// ops_control::Mapping -- thirteen class sets and twenty-five association mappings.
+//
+// It INCLUDES both dependency mappings, and that is not optional: an association end typed
+// custody_recon::ReconBreak can only be mapped if the set that maps it is in scope. Every
+// one of those sets has an EXPLICIT id, so every end here names it -- `rcnBreak`,
+// `sflReconciliationBreak` -- because the default ids (`custody_recon_ReconBreak`) do not
+// exist at all.
+//
+// The same is true of this project's own sets: all thirteen are named `ops*`, so an
+// AssociationMapping end must give BOTH ids, `[sourceSetId, targetSetId]`. The bare
+// `prop: [db]@Join` form only resolves against default ids and would fail here naming the
+// property rather than the id it could not find.
 Mapping ops_control::Mapping
 (
    include custody_recon::Mapping
    include settlement_flow::Mapping
 
-   *ops_control::OpsProbe[opsProbe]: Relational
+   // ---------------------------------------------------------- the standing set-up
+
+   *ops_control::OpsControl[opsControl]: Relational
    {
-      ~primaryKey ( [ops_control::Store]OPS_PROBE.PROBE_ID )
-      ~mainTable [ops_control::Store]OPS_PROBE
-      probeId: [ops_control::Store]OPS_PROBE.PROBE_ID
+      ~primaryKey ( [ops_control::Store]OPS_CONTROL.CONTROL_CODE )
+      ~mainTable [ops_control::Store]OPS_CONTROL
+      controlCode: [ops_control::Store]OPS_CONTROL.CONTROL_CODE,
+      controlName: [ops_control::Store]OPS_CONTROL.CONTROL_NAME,
+      controlDomain: [ops_control::Store]OPS_CONTROL.CONTROL_DOMAIN,
+      frequency: [ops_control::Store]OPS_CONTROL.FREQUENCY,
+      frequencyDays: [ops_control::Store]OPS_CONTROL.FREQUENCY_DAYS,
+      toleranceAmount: [ops_control::Store]OPS_CONTROL.TOLERANCE_AMOUNT,
+      tolerancePercent: [ops_control::Store]OPS_CONTROL.TOLERANCE_PERCENT,
+      toleranceCurrency: [ops_control::Store]OPS_CONTROL.TOLERANCE_CURRENCY,
+      remediationDays: [ops_control::Store]OPS_CONTROL.REMEDIATION_DAYS,
+      isKeyControl: [ops_control::Store]OPS_CONTROL.IS_KEY_CONTROL,
+      reconCode: [ops_control::Store]OPS_CONTROL.RECON_CODE,
+      introducedOn: [ops_control::Store]OPS_CONTROL.INTRODUCED_ON,
+      retiredOn: [ops_control::Store]OPS_CONTROL.RETIRED_ON
+   }
+
+   *ops_control::OpsControlOwner[opsControlOwner]: Relational
+   {
+      ~primaryKey ( [ops_control::Store]OPS_OWNER.OWNER_ID )
+      ~mainTable [ops_control::Store]OPS_OWNER
+      ownerId: [ops_control::Store]OPS_OWNER.OWNER_ID,
+      ownerName: [ops_control::Store]OPS_OWNER.OWNER_NAME,
+      ownerTeam: [ops_control::Store]OPS_OWNER.OWNER_TEAM,
+      deskName: [ops_control::Store]OPS_OWNER.DESK_NAME,
+      escalationTo: [ops_control::Store]OPS_OWNER.ESCALATION_TO,
+      escalationLevel: [ops_control::Store]OPS_OWNER.ESCALATION_LEVEL,
+      contactEmail: [ops_control::Store]OPS_OWNER.CONTACT_EMAIL
+   }
+
+   *ops_control::OpsEvidenceRequirement[opsEvidenceRequirement]: Relational
+   {
+      ~primaryKey ( [ops_control::Store]OPS_EVIDENCE_REQUIREMENT.EVIDENCE_CODE )
+      ~mainTable [ops_control::Store]OPS_EVIDENCE_REQUIREMENT
+      evidenceCode: [ops_control::Store]OPS_EVIDENCE_REQUIREMENT.EVIDENCE_CODE,
+      evidenceKind: [ops_control::Store]OPS_EVIDENCE_REQUIREMENT.EVIDENCE_KIND,
+      description: [ops_control::Store]OPS_EVIDENCE_REQUIREMENT.DESCRIPTION,
+      retentionDays: [ops_control::Store]OPS_EVIDENCE_REQUIREMENT.RETENTION_DAYS,
+      minArtefacts: [ops_control::Store]OPS_EVIDENCE_REQUIREMENT.MIN_ARTEFACTS,
+      requiresSignature: [ops_control::Store]OPS_EVIDENCE_REQUIREMENT.REQUIRES_SIGNATURE,
+      requiresFourEyes: [ops_control::Store]OPS_EVIDENCE_REQUIREMENT.REQUIRES_FOUR_EYES
+   }
+
+   // ---------------------------------------------------------- did it operate?
+
+   // TWO primary key columns. `operatedOn` is mapped and nullable -- the whole
+   // did-it-operate question is that column being null or not.
+   *ops_control::OpsControlRun[opsControlRun]: Relational
+   {
+      ~primaryKey
+      (
+         [ops_control::Store]OPS_CONTROL_RUN.CONTROL_CODE,
+         [ops_control::Store]OPS_CONTROL_RUN.COB_DATE
+      )
+      ~mainTable [ops_control::Store]OPS_CONTROL_RUN
+      controlCode: [ops_control::Store]OPS_CONTROL_RUN.CONTROL_CODE,
+      cobDate: [ops_control::Store]OPS_CONTROL_RUN.COB_DATE,
+      dueOn: [ops_control::Store]OPS_CONTROL_RUN.DUE_ON,
+      operatedOn: [ops_control::Store]OPS_CONTROL_RUN.OPERATED_ON,
+      operatedBy: [ops_control::Store]OPS_CONTROL_RUN.OPERATED_BY,
+      outcome: [ops_control::Store]OPS_CONTROL_RUN.OUTCOME,
+      itemsChecked: [ops_control::Store]OPS_CONTROL_RUN.ITEMS_CHECKED,
+      exceptionCount: [ops_control::Store]OPS_CONTROL_RUN.EXCEPTION_COUNT,
+      observedAmount: [ops_control::Store]OPS_CONTROL_RUN.OBSERVED_AMOUNT,
+      toleranceApplied: [ops_control::Store]OPS_CONTROL_RUN.TOLERANCE_APPLIED,
+      evidenceCount: [ops_control::Store]OPS_CONTROL_RUN.EVIDENCE_COUNT,
+      reconCode: [ops_control::Store]OPS_CONTROL_RUN.RECON_CODE,
+      runSeq: [ops_control::Store]OPS_CONTROL_RUN.RUN_SEQ
+   }
+
+   *ops_control::OpsEvidenceItem[opsEvidenceItem]: Relational
+   {
+      ~primaryKey
+      (
+         [ops_control::Store]OPS_EVIDENCE_ITEM.CONTROL_CODE,
+         [ops_control::Store]OPS_EVIDENCE_ITEM.COB_DATE,
+         [ops_control::Store]OPS_EVIDENCE_ITEM.ARTEFACT_SEQ
+      )
+      ~mainTable [ops_control::Store]OPS_EVIDENCE_ITEM
+      controlCode: [ops_control::Store]OPS_EVIDENCE_ITEM.CONTROL_CODE,
+      cobDate: [ops_control::Store]OPS_EVIDENCE_ITEM.COB_DATE,
+      artefactSeq: [ops_control::Store]OPS_EVIDENCE_ITEM.ARTEFACT_SEQ,
+      artefactKind: [ops_control::Store]OPS_EVIDENCE_ITEM.ARTEFACT_KIND,
+      artefactRef: [ops_control::Store]OPS_EVIDENCE_ITEM.ARTEFACT_REF,
+      lodgedOn: [ops_control::Store]OPS_EVIDENCE_ITEM.LODGED_ON,
+      lodgedBy: [ops_control::Store]OPS_EVIDENCE_ITEM.LODGED_BY,
+      isComplete: [ops_control::Store]OPS_EVIDENCE_ITEM.IS_COMPLETE
+   }
+
+   // THE SIGNATURE, three key columns -- a four-eyes control is signed twice.
+   *ops_control::OpsAttestation[opsAttestation]: Relational
+   {
+      ~primaryKey
+      (
+         [ops_control::Store]OPS_ATTESTATION.CONTROL_CODE,
+         [ops_control::Store]OPS_ATTESTATION.COB_DATE,
+         [ops_control::Store]OPS_ATTESTATION.ATTESTATION_SEQ
+      )
+      ~mainTable [ops_control::Store]OPS_ATTESTATION
+      controlCode: [ops_control::Store]OPS_ATTESTATION.CONTROL_CODE,
+      cobDate: [ops_control::Store]OPS_ATTESTATION.COB_DATE,
+      attestationSeq: [ops_control::Store]OPS_ATTESTATION.ATTESTATION_SEQ,
+      attestedBy: [ops_control::Store]OPS_ATTESTATION.ATTESTED_BY,
+      attestedRole: [ops_control::Store]OPS_ATTESTATION.ATTESTED_ROLE,
+      attestedOn: [ops_control::Store]OPS_ATTESTATION.ATTESTED_ON,
+      statement: [ops_control::Store]OPS_ATTESTATION.STATEMENT,
+      isCountersignature: [ops_control::Store]OPS_ATTESTATION.IS_COUNTERSIGNATURE,
+      daysLate: [ops_control::Store]OPS_ATTESTATION.DAYS_LATE,
+      revokedOn: [ops_control::Store]OPS_ATTESTATION.REVOKED_ON
+   }
+
+   // ---------------------------------------------------------- when it fails
+
+   *ops_control::OpsIssue[opsIssue]: Relational
+   {
+      ~primaryKey ( [ops_control::Store]OPS_ISSUE.ISSUE_ID )
+      ~mainTable [ops_control::Store]OPS_ISSUE
+      issueId: [ops_control::Store]OPS_ISSUE.ISSUE_ID,
+      controlCode: [ops_control::Store]OPS_ISSUE.CONTROL_CODE,
+      cobDate: [ops_control::Store]OPS_ISSUE.COB_DATE,
+      issueType: [ops_control::Store]OPS_ISSUE.ISSUE_TYPE,
+      severity: [ops_control::Store]OPS_ISSUE.SEVERITY,
+      raisedOn: [ops_control::Store]OPS_ISSUE.RAISED_ON,
+      raisedBy: [ops_control::Store]OPS_ISSUE.RAISED_BY,
+      remediationDueOn: [ops_control::Store]OPS_ISSUE.REMEDIATION_DUE_ON,
+      closedOn: [ops_control::Store]OPS_ISSUE.CLOSED_ON,
+      impactAmount: [ops_control::Store]OPS_ISSUE.IMPACT_AMOUNT,
+      impactCurrency: [ops_control::Store]OPS_ISSUE.IMPACT_CURRENCY,
+      extensionCount: [ops_control::Store]OPS_ISSUE.EXTENSION_COUNT,
+      breakReconCode: [ops_control::Store]OPS_ISSUE.BREAK_RECON_CODE,
+      breakCobDate: [ops_control::Store]OPS_ISSUE.BREAK_COB_DATE,
+      breakInstitutionId: [ops_control::Store]OPS_ISSUE.BREAK_INSTITUTION_ID,
+      breakAccountNo: [ops_control::Store]OPS_ISSUE.BREAK_ACCOUNT_NO,
+      breakInstrumentId: [ops_control::Store]OPS_ISSUE.BREAK_INSTRUMENT_ID,
+      breakDepotCode: [ops_control::Store]OPS_ISSUE.BREAK_DEPOT_CODE,
+      breakType: [ops_control::Store]OPS_ISSUE.BREAK_TYPE,
+      settlementBreakId: [ops_control::Store]OPS_ISSUE.SETTLEMENT_BREAK_ID,
+      claimId: [ops_control::Store]OPS_ISSUE.CLAIM_ID
+   }
+
+   *ops_control::OpsRemediationAction[opsRemediationAction]: Relational
+   {
+      ~primaryKey
+      (
+         [ops_control::Store]OPS_REMEDIATION_ACTION.ISSUE_ID,
+         [ops_control::Store]OPS_REMEDIATION_ACTION.ACTION_SEQ
+      )
+      ~mainTable [ops_control::Store]OPS_REMEDIATION_ACTION
+      issueId: [ops_control::Store]OPS_REMEDIATION_ACTION.ISSUE_ID,
+      actionSeq: [ops_control::Store]OPS_REMEDIATION_ACTION.ACTION_SEQ,
+      ownerId: [ops_control::Store]OPS_REMEDIATION_ACTION.OWNER_ID,
+      actionText: [ops_control::Store]OPS_REMEDIATION_ACTION.ACTION_TEXT,
+      actionStatus: [ops_control::Store]OPS_REMEDIATION_ACTION.ACTION_STATUS,
+      dueOn: [ops_control::Store]OPS_REMEDIATION_ACTION.DUE_ON,
+      originalDueOn: [ops_control::Store]OPS_REMEDIATION_ACTION.ORIGINAL_DUE_ON,
+      completedOn: [ops_control::Store]OPS_REMEDIATION_ACTION.COMPLETED_ON,
+      extensionCount: [ops_control::Store]OPS_REMEDIATION_ACTION.EXTENSION_COUNT
+   }
+
+   // ---------------------------------------------------------- the KRIs
+
+   *ops_control::OpsKri[opsKri]: Relational
+   {
+      ~primaryKey ( [ops_control::Store]OPS_KRI.KRI_CODE )
+      ~mainTable [ops_control::Store]OPS_KRI
+      kriCode: [ops_control::Store]OPS_KRI.KRI_CODE,
+      kriName: [ops_control::Store]OPS_KRI.KRI_NAME,
+      kriFamily: [ops_control::Store]OPS_KRI.KRI_FAMILY,
+      controlCode: [ops_control::Store]OPS_KRI.CONTROL_CODE,
+      ownerId: [ops_control::Store]OPS_KRI.OWNER_ID,
+      measureUnit: [ops_control::Store]OPS_KRI.MEASURE_UNIT,
+      amberThreshold: [ops_control::Store]OPS_KRI.AMBER_THRESHOLD,
+      redThreshold: [ops_control::Store]OPS_KRI.RED_THRESHOLD,
+      direction: [ops_control::Store]OPS_KRI.DIRECTION,
+      reportingFrequency: [ops_control::Store]OPS_KRI.REPORTING_FREQUENCY
+   }
+
+   *ops_control::OpsKriObservation[opsKriObservation]: Relational
+   {
+      ~primaryKey
+      (
+         [ops_control::Store]OPS_KRI_OBSERVATION.KRI_CODE,
+         [ops_control::Store]OPS_KRI_OBSERVATION.COB_DATE
+      )
+      ~mainTable [ops_control::Store]OPS_KRI_OBSERVATION
+      kriCode: [ops_control::Store]OPS_KRI_OBSERVATION.KRI_CODE,
+      cobDate: [ops_control::Store]OPS_KRI_OBSERVATION.COB_DATE,
+      observedValue: [ops_control::Store]OPS_KRI_OBSERVATION.OBSERVED_VALUE,
+      observedCount: [ops_control::Store]OPS_KRI_OBSERVATION.OBSERVED_COUNT,
+      amberThreshold: [ops_control::Store]OPS_KRI_OBSERVATION.AMBER_THRESHOLD,
+      redThreshold: [ops_control::Store]OPS_KRI_OBSERVATION.RED_THRESHOLD,
+      ragStatus: [ops_control::Store]OPS_KRI_OBSERVATION.RAG_STATUS,
+      breachedOn: [ops_control::Store]OPS_KRI_OBSERVATION.BREACHED_ON,
+      commentary: [ops_control::Store]OPS_KRI_OBSERVATION.COMMENTARY
+   }
+
+   // KRI ONE, keyed exactly like custody-recon's daily break-type aggregation.
+   *ops_control::OpsAgeingBreakKri[opsAgeingBreakKri]: Relational
+   {
+      ~primaryKey
+      (
+         [ops_control::Store]OPS_AGEING_BREAK.RECON_CODE,
+         [ops_control::Store]OPS_AGEING_BREAK.COB_DATE,
+         [ops_control::Store]OPS_AGEING_BREAK.BREAK_TYPE
+      )
+      ~mainTable [ops_control::Store]OPS_AGEING_BREAK
+      reconCode: [ops_control::Store]OPS_AGEING_BREAK.RECON_CODE,
+      cobDate: [ops_control::Store]OPS_AGEING_BREAK.COB_DATE,
+      breakType: [ops_control::Store]OPS_AGEING_BREAK.BREAK_TYPE,
+      kriCode: [ops_control::Store]OPS_AGEING_BREAK.KRI_CODE,
+      openBreakCount: [ops_control::Store]OPS_AGEING_BREAK.OPEN_BREAK_COUNT,
+      aged30Count: [ops_control::Store]OPS_AGEING_BREAK.AGED_30_COUNT,
+      aged60Count: [ops_control::Store]OPS_AGEING_BREAK.AGED_60_COUNT,
+      aged90Count: [ops_control::Store]OPS_AGEING_BREAK.AGED_90_COUNT,
+      oldestAgeDays: [ops_control::Store]OPS_AGEING_BREAK.OLDEST_AGE_DAYS,
+      totalBreakValue: [ops_control::Store]OPS_AGEING_BREAK.TOTAL_BREAK_VALUE,
+      breakCurrency: [ops_control::Store]OPS_AGEING_BREAK.BREAK_CURRENCY,
+      assignedTo: [ops_control::Store]OPS_AGEING_BREAK.ASSIGNED_TO
+   }
+
+   *ops_control::OpsUnmatchedInstructionKri[opsUnmatchedInstructionKri]: Relational
+   {
+      ~primaryKey
+      (
+         [ops_control::Store]OPS_UNMATCHED_INSTRUCTION.COB_DATE,
+         [ops_control::Store]OPS_UNMATCHED_INSTRUCTION.LINK_ID
+      )
+      ~mainTable [ops_control::Store]OPS_UNMATCHED_INSTRUCTION
+      cobDate: [ops_control::Store]OPS_UNMATCHED_INSTRUCTION.COB_DATE,
+      linkId: [ops_control::Store]OPS_UNMATCHED_INSTRUCTION.LINK_ID,
+      kriCode: [ops_control::Store]OPS_UNMATCHED_INSTRUCTION.KRI_CODE,
+      linkStatus: [ops_control::Store]OPS_UNMATCHED_INSTRUCTION.LINK_STATUS,
+      expectedAmount: [ops_control::Store]OPS_UNMATCHED_INSTRUCTION.EXPECTED_AMOUNT,
+      currencyCode: [ops_control::Store]OPS_UNMATCHED_INSTRUCTION.CURRENCY_CODE,
+      ageDays: [ops_control::Store]OPS_UNMATCHED_INSTRUCTION.AGE_DAYS,
+      isEscalated: [ops_control::Store]OPS_UNMATCHED_INSTRUCTION.IS_ESCALATED,
+      expectedValueDate: [ops_control::Store]OPS_UNMATCHED_INSTRUCTION.EXPECTED_VALUE_DATE,
+      claimId: [ops_control::Store]OPS_UNMATCHED_INSTRUCTION.CLAIM_ID
+   }
+
+   *ops_control::OpsUnreconciledCashKri[opsUnreconciledCashKri]: Relational
+   {
+      ~primaryKey
+      (
+         [ops_control::Store]OPS_UNRECONCILED_CASH.COB_DATE,
+         [ops_control::Store]OPS_UNRECONCILED_CASH.RECON_ID
+      )
+      ~mainTable [ops_control::Store]OPS_UNRECONCILED_CASH
+      cobDate: [ops_control::Store]OPS_UNRECONCILED_CASH.COB_DATE,
+      reconId: [ops_control::Store]OPS_UNRECONCILED_CASH.RECON_ID,
+      kriCode: [ops_control::Store]OPS_UNRECONCILED_CASH.KRI_CODE,
+      institutionId: [ops_control::Store]OPS_UNRECONCILED_CASH.INSTITUTION_ID,
+      accountNo: [ops_control::Store]OPS_UNRECONCILED_CASH.ACCOUNT_NO,
+      currencyCode: [ops_control::Store]OPS_UNRECONCILED_CASH.CURRENCY_CODE,
+      unreconciledAmount: [ops_control::Store]OPS_UNRECONCILED_CASH.UNRECONCILED_AMOUNT,
+      itemCount: [ops_control::Store]OPS_UNRECONCILED_CASH.ITEM_COUNT,
+      ageDays: [ops_control::Store]OPS_UNRECONCILED_CASH.AGE_DAYS,
+      settlementBreakId: [ops_control::Store]OPS_UNRECONCILED_CASH.SETTLEMENT_BREAK_ID
+   }
+
+   // ================================================= association mappings, inside ========
+
+   ops_control::OpsControlOwnership: Relational
+   {
+      AssociationMapping
+      (
+         owner[opsControl, opsControlOwner]: [ops_control::Store]@Ops_ControlOwner,
+         ownedControls[opsControlOwner, opsControl]: [ops_control::Store]@Ops_ControlOwner
+      )
+   }
+
+   ops_control::OpsControlEvidence: Relational
+   {
+      AssociationMapping
+      (
+         evidenceRequirement[opsControl, opsEvidenceRequirement]: [ops_control::Store]@Ops_ControlEvidenceRequirement,
+         requiringControls[opsEvidenceRequirement, opsControl]: [ops_control::Store]@Ops_ControlEvidenceRequirement
+      )
+   }
+
+   ops_control::OpsControlRuns: Relational
+   {
+      AssociationMapping
+      (
+         runs[opsControl, opsControlRun]: [ops_control::Store]@Ops_ControlRuns,
+         control[opsControlRun, opsControl]: [ops_control::Store]@Ops_ControlRuns
+      )
+   }
+
+   ops_control::OpsRunEvidence: Relational
+   {
+      AssociationMapping
+      (
+         evidenceItems[opsControlRun, opsEvidenceItem]: [ops_control::Store]@Ops_RunEvidenceItems,
+         evidencedRun[opsEvidenceItem, opsControlRun]: [ops_control::Store]@Ops_RunEvidenceItems
+      )
+   }
+
+   ops_control::OpsRunAttestations: Relational
+   {
+      AssociationMapping
+      (
+         attestations[opsControlRun, opsAttestation]: [ops_control::Store]@Ops_RunAttestations,
+         attestedRun[opsAttestation, opsControlRun]: [ops_control::Store]@Ops_RunAttestations
+      )
+   }
+
+   ops_control::OpsRunIssues: Relational
+   {
+      AssociationMapping
+      (
+         issues[opsControlRun, opsIssue]: [ops_control::Store]@Ops_RunIssues,
+         failedRun[opsIssue, opsControlRun]: [ops_control::Store]@Ops_RunIssues
+      )
+   }
+
+   ops_control::OpsIssueRemediation: Relational
+   {
+      AssociationMapping
+      (
+         actions[opsIssue, opsRemediationAction]: [ops_control::Store]@Ops_IssueActions,
+         remediatedIssue[opsRemediationAction, opsIssue]: [ops_control::Store]@Ops_IssueActions
+      )
+   }
+
+   ops_control::OpsActionOwner: Relational
+   {
+      AssociationMapping
+      (
+         actionOwner[opsRemediationAction, opsControlOwner]: [ops_control::Store]@Ops_ActionOwner,
+         assignedActions[opsControlOwner, opsRemediationAction]: [ops_control::Store]@Ops_ActionOwner
+      )
+   }
+
+   ops_control::OpsControlKris: Relational
+   {
+      AssociationMapping
+      (
+         kris[opsControl, opsKri]: [ops_control::Store]@Ops_ControlKris,
+         kriControl[opsKri, opsControl]: [ops_control::Store]@Ops_ControlKris
+      )
+   }
+
+   ops_control::OpsKriOwnership: Relational
+   {
+      AssociationMapping
+      (
+         kriOwner[opsKri, opsControlOwner]: [ops_control::Store]@Ops_KriOwner,
+         ownedKris[opsControlOwner, opsKri]: [ops_control::Store]@Ops_KriOwner
+      )
+   }
+
+   ops_control::OpsKriObservations: Relational
+   {
+      AssociationMapping
+      (
+         observations[opsKri, opsKriObservation]: [ops_control::Store]@Ops_KriObservations,
+         kri[opsKriObservation, opsKri]: [ops_control::Store]@Ops_KriObservations
+      )
+   }
+
+   ops_control::OpsKriAgeingBreaks: Relational
+   {
+      AssociationMapping
+      (
+         ageingBreaks[opsKri, opsAgeingBreakKri]: [ops_control::Store]@Ops_KriAgeingBreaks,
+         ageingKri[opsAgeingBreakKri, opsKri]: [ops_control::Store]@Ops_KriAgeingBreaks
+      )
+   }
+
+   ops_control::OpsKriUnmatched: Relational
+   {
+      AssociationMapping
+      (
+         unmatchedInstructions[opsKri, opsUnmatchedInstructionKri]: [ops_control::Store]@Ops_KriUnmatchedInstructions,
+         unmatchedKri[opsUnmatchedInstructionKri, opsKri]: [ops_control::Store]@Ops_KriUnmatchedInstructions
+      )
+   }
+
+   ops_control::OpsKriUnreconciled: Relational
+   {
+      AssociationMapping
+      (
+         unreconciledCash[opsKri, opsUnreconciledCashKri]: [ops_control::Store]@Ops_KriUnreconciledCash,
+         cashKri[opsUnreconciledCashKri, opsKri]: [ops_control::Store]@Ops_KriUnreconciledCash
+      )
+   }
+
+   // ============================ association mappings, into custody-recon =================
+   // Every target id here is custody-recon's own explicit one. `custody_recon_ReconBreak`
+   // does not exist and naming it would fail with a message about the id, not the project.
+
+   ops_control::OpsControlReconDefinition: Relational
+   {
+      AssociationMapping
+      (
+         reconDefinition[opsControl, rcnDefinition]: [ops_control::Store]@Ops_ControlReconDefinition,
+         opsControls[rcnDefinition, opsControl]: [ops_control::Store]@Ops_ControlReconDefinition
+      )
+   }
+
+   ops_control::OpsRunReconRun: Relational
+   {
+      AssociationMapping
+      (
+         reconRun[opsControlRun, rcnRun]: [ops_control::Store]@Ops_RunReconRun,
+         opsControlRuns[rcnRun, opsControlRun]: [ops_control::Store]@Ops_RunReconRun
+      )
+   }
+
+   // THE SEVEN-COLUMN ONE. custody_recon::ReconBreak gains `opsIssues` here, and
+   // custody-recon does not know it.
+   ops_control::OpsIssueReconBreak: Relational
+   {
+      AssociationMapping
+      (
+         reconBreak[opsIssue, rcnBreak]: [ops_control::Store]@Ops_IssueReconBreak,
+         opsIssues[rcnBreak, opsIssue]: [ops_control::Store]@Ops_IssueReconBreak
+      )
+   }
+
+   ops_control::OpsAgeingBreakTypes: Relational
+   {
+      AssociationMapping
+      (
+         breakTypeTotal[opsAgeingBreakKri, rcnBreakTypeTotal]: [ops_control::Store]@Ops_AgeingBreakTypeTotal,
+         opsAgeingKris[rcnBreakTypeTotal, opsAgeingBreakKri]: [ops_control::Store]@Ops_AgeingBreakTypeTotal
+      )
+   }
+
+   ops_control::OpsAgeingAssignee: Relational
+   {
+      AssociationMapping
+      (
+         assigneeQueue[opsAgeingBreakKri, rcnAssigneeLoad]: [ops_control::Store]@Ops_AgeingAssigneeLoad,
+         opsQueueKris[rcnAssigneeLoad, opsAgeingBreakKri]: [ops_control::Store]@Ops_AgeingAssigneeLoad
+      )
+   }
+
+   // =========================== association mappings, into settlement-flow ================
+
+   ops_control::OpsIssueSettlementBreak: Relational
+   {
+      AssociationMapping
+      (
+         settlementBreak[opsIssue, sflReconciliationBreak]: [ops_control::Store]@Ops_IssueSettlementBreak,
+         opsIssues[sflReconciliationBreak, opsIssue]: [ops_control::Store]@Ops_IssueSettlementBreak
+      )
+   }
+
+   ops_control::OpsIssueSettlementClaim: Relational
+   {
+      AssociationMapping
+      (
+         settlementClaim[opsIssue, sflSettlementClaim]: [ops_control::Store]@Ops_IssueSettlementClaim,
+         opsIssues[sflSettlementClaim, opsIssue]: [ops_control::Store]@Ops_IssueSettlementClaim
+      )
+   }
+
+   ops_control::OpsUnmatchedLink: Relational
+   {
+      AssociationMapping
+      (
+         cashLink[opsUnmatchedInstructionKri, sflCashSettlementLink]: [ops_control::Store]@Ops_UnmatchedLink,
+         opsUnmatchedKris[sflCashSettlementLink, opsUnmatchedInstructionKri]: [ops_control::Store]@Ops_UnmatchedLink
+      )
+   }
+
+   ops_control::OpsUnmatchedClaim: Relational
+   {
+      AssociationMapping
+      (
+         unmatchedClaim[opsUnmatchedInstructionKri, sflSettlementClaim]: [ops_control::Store]@Ops_UnmatchedClaim,
+         opsUnmatchedKris[sflSettlementClaim, opsUnmatchedInstructionKri]: [ops_control::Store]@Ops_UnmatchedClaim
+      )
+   }
+
+   ops_control::OpsUnreconciledReconciliation: Relational
+   {
+      AssociationMapping
+      (
+         cashReconciliation[opsUnreconciledCashKri, sflReconciliation]: [ops_control::Store]@Ops_UnreconciledReconciliation,
+         opsCashKris[sflReconciliation, opsUnreconciledCashKri]: [ops_control::Store]@Ops_UnreconciledReconciliation
+      )
+   }
+
+   ops_control::OpsUnreconciledBreak: Relational
+   {
+      AssociationMapping
+      (
+         cashSettlementBreak[opsUnreconciledCashKri, sflReconciliationBreak]: [ops_control::Store]@Ops_UnreconciledSettlementBreak,
+         opsCashKris[sflReconciliationBreak, opsUnreconciledCashKri]: [ops_control::Store]@Ops_UnreconciledSettlementBreak
+      )
    }
 )

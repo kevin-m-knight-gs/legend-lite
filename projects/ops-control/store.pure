@@ -1,11 +1,300 @@
 ###Relational
+// ops_control::Store -- thirteen OPS_ tables and the joins that carry the associations.
+//
+// It INCLUDES both dependency stores, and that is what puts RCN_*, SFL_* -- and, further
+// up, CST_*, PK_*, SC_*, CSH_* -- in scope. Do NOT include anything else: core-account
+// arrives here by FOUR routes already (custody-core and position-keeping under
+// custody-recon, cash-core under settlement-flow), and the diamond compiles only because
+// nothing re-declares it. Adding `include core_account::Store` would.
+//
+// Every table is OPS_, every join Ops_, every filter Ops. Those three namespaces are GLOBAL
+// across the compiled graph: a collision fails every project at once with a message naming
+// only the element.
+//
+// The cross-boundary joins at the bottom are the load-bearing part. Each matches its target's
+// key IN FULL -- one column to RCN_DEFINITION, three to RCN_RUN, SEVEN to RCN_BREAK, three
+// to the RCN_BREAK_TYPE_TOTAL view, two to RCN_ASSIGNEE_TOTAL, and one apiece to
+// settlement-flow's synthetic ids. A partial match would fan out silently.
 Database ops_control::Store
 (
    include custody_recon::Store
    include settlement_flow::Store
 
-   Table OPS_PROBE
+   // ---------------------------------------------------------- the standing set-up
+
+   Table OPS_CONTROL
    (
-      PROBE_ID VARCHAR(40) PRIMARY KEY
+      CONTROL_CODE VARCHAR(30) PRIMARY KEY,
+      CONTROL_NAME VARCHAR(200) NOT NULL,
+      CONTROL_DOMAIN VARCHAR(20) NOT NULL,
+      // -> OPS_OWNER.OWNER_ID
+      OWNER_ID VARCHAR(40),
+      FREQUENCY VARCHAR(20) NOT NULL,
+      FREQUENCY_DAYS INTEGER NOT NULL,
+      // -> OPS_EVIDENCE_REQUIREMENT.EVIDENCE_CODE
+      EVIDENCE_CODE VARCHAR(30),
+      // DOUBLE and not REAL: REAL parses and then cannot be read back.
+      TOLERANCE_AMOUNT DOUBLE NOT NULL,
+      TOLERANCE_PERCENT DOUBLE NOT NULL,
+      TOLERANCE_CURRENCY VARCHAR(3),
+      REMEDIATION_DAYS INTEGER NOT NULL,
+      IS_KEY_CONTROL BIT,
+      // -> RCN_DEFINITION.RECON_CODE, in custody-recon. Nullable: a settlement control has
+      // no reconciliation behind it.
+      RECON_CODE VARCHAR(30),
+      INTRODUCED_ON DATE NOT NULL,
+      RETIRED_ON DATE
    )
+
+   Table OPS_OWNER
+   (
+      OWNER_ID VARCHAR(40) PRIMARY KEY,
+      OWNER_NAME VARCHAR(120) NOT NULL,
+      OWNER_TEAM VARCHAR(60) NOT NULL,
+      DESK_NAME VARCHAR(60),
+      ESCALATION_TO VARCHAR(120),
+      ESCALATION_LEVEL INTEGER NOT NULL,
+      CONTACT_EMAIL VARCHAR(120)
+   )
+
+   Table OPS_EVIDENCE_REQUIREMENT
+   (
+      EVIDENCE_CODE VARCHAR(30) PRIMARY KEY,
+      EVIDENCE_KIND VARCHAR(30) NOT NULL,
+      DESCRIPTION VARCHAR(400),
+      RETENTION_DAYS INTEGER NOT NULL,
+      MIN_ARTEFACTS INTEGER NOT NULL,
+      REQUIRES_SIGNATURE BIT,
+      REQUIRES_FOUR_EYES BIT
+   )
+
+   // ---------------------------------------------------------- did it operate?
+
+   // TWO key columns. One control, one business date, one answer.
+   // OPERATED_ON null is the did-not-operate case and the filter OpsNotOperated below reads
+   // exactly that -- a null test, because a Filter will not take a boolean literal.
+   Table OPS_CONTROL_RUN
+   (
+      CONTROL_CODE VARCHAR(30) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      DUE_ON DATE NOT NULL,
+      OPERATED_ON DATE,
+      OPERATED_BY VARCHAR(60),
+      OUTCOME VARCHAR(20) NOT NULL,
+      ITEMS_CHECKED INTEGER NOT NULL,
+      EXCEPTION_COUNT INTEGER NOT NULL,
+      OBSERVED_AMOUNT DOUBLE NOT NULL,
+      TOLERANCE_APPLIED DOUBLE NOT NULL,
+      EVIDENCE_COUNT INTEGER NOT NULL,
+      // With COB_DATE these three are custody-recon's THREE-column run key.
+      RECON_CODE VARCHAR(30),
+      RUN_SEQ INTEGER
+   )
+
+   Table OPS_EVIDENCE_ITEM
+   (
+      CONTROL_CODE VARCHAR(30) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      ARTEFACT_SEQ INTEGER PRIMARY KEY,
+      ARTEFACT_KIND VARCHAR(30) NOT NULL,
+      ARTEFACT_REF VARCHAR(200) NOT NULL,
+      LODGED_ON DATE NOT NULL,
+      LODGED_BY VARCHAR(60) NOT NULL,
+      IS_COMPLETE BIT
+   )
+
+   // THE SIGNATURE. Three key columns because a four-eyes control is signed twice -- the
+   // preparer and the countersigning approver are two rows, not one row with two names.
+   Table OPS_ATTESTATION
+   (
+      CONTROL_CODE VARCHAR(30) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      ATTESTATION_SEQ INTEGER PRIMARY KEY,
+      ATTESTED_BY VARCHAR(60) NOT NULL,
+      ATTESTED_ROLE VARCHAR(20) NOT NULL,
+      ATTESTED_ON DATE NOT NULL,
+      STATEMENT VARCHAR(400),
+      IS_COUNTERSIGNATURE BIT,
+      DAYS_LATE INTEGER NOT NULL,
+      // A revoked signature is not deleted: that it was given is itself evidence.
+      REVOKED_ON DATE
+   )
+
+   // ---------------------------------------------------------- when it fails
+
+   // THE TABLE THAT TOUCHES BOTH DEPENDENCIES. BREAK_RECON_CODE .. BREAK_TYPE are
+   // custody-recon's SEVEN-column break key carried whole; SETTLEMENT_BREAK_ID and CLAIM_ID
+   // are settlement-flow's synthetic ones. All nullable: an issue points at whichever side
+   // raised it.
+   Table OPS_ISSUE
+   (
+      ISSUE_ID VARCHAR(40) PRIMARY KEY,
+      CONTROL_CODE VARCHAR(30) NOT NULL,
+      COB_DATE DATE NOT NULL,
+      ISSUE_TYPE VARCHAR(30) NOT NULL,
+      SEVERITY INTEGER NOT NULL,
+      RAISED_ON DATE NOT NULL,
+      RAISED_BY VARCHAR(60) NOT NULL,
+      REMEDIATION_DUE_ON DATE NOT NULL,
+      CLOSED_ON DATE,
+      IMPACT_AMOUNT DOUBLE NOT NULL,
+      IMPACT_CURRENCY VARCHAR(3),
+      EXTENSION_COUNT INTEGER NOT NULL,
+      BREAK_RECON_CODE VARCHAR(30),
+      BREAK_COB_DATE DATE,
+      BREAK_INSTITUTION_ID VARCHAR(20),
+      BREAK_ACCOUNT_NO VARCHAR(34),
+      BREAK_INSTRUMENT_ID VARCHAR(60),
+      BREAK_DEPOT_CODE VARCHAR(20),
+      BREAK_TYPE VARCHAR(20),
+      SETTLEMENT_BREAK_ID VARCHAR(40),
+      CLAIM_ID VARCHAR(40)
+   )
+
+   Table OPS_REMEDIATION_ACTION
+   (
+      ISSUE_ID VARCHAR(40) PRIMARY KEY,
+      ACTION_SEQ INTEGER PRIMARY KEY,
+      OWNER_ID VARCHAR(40),
+      ACTION_TEXT VARCHAR(400) NOT NULL,
+      ACTION_STATUS VARCHAR(20) NOT NULL,
+      DUE_ON DATE NOT NULL,
+      // Kept beside DUE_ON so an extension is visible rather than absorbed.
+      ORIGINAL_DUE_ON DATE NOT NULL,
+      COMPLETED_ON DATE,
+      EXTENSION_COUNT INTEGER NOT NULL
+   )
+
+   // ---------------------------------------------------------- the KRIs
+
+   Table OPS_KRI
+   (
+      KRI_CODE VARCHAR(30) PRIMARY KEY,
+      KRI_NAME VARCHAR(200) NOT NULL,
+      KRI_FAMILY VARCHAR(30) NOT NULL,
+      CONTROL_CODE VARCHAR(30),
+      OWNER_ID VARCHAR(40),
+      MEASURE_UNIT VARCHAR(20) NOT NULL,
+      AMBER_THRESHOLD DOUBLE NOT NULL,
+      RED_THRESHOLD DOUBLE NOT NULL,
+      DIRECTION VARCHAR(10) NOT NULL,
+      REPORTING_FREQUENCY VARCHAR(20) NOT NULL
+   )
+
+   Table OPS_KRI_OBSERVATION
+   (
+      KRI_CODE VARCHAR(30) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      OBSERVED_VALUE DOUBLE NOT NULL,
+      OBSERVED_COUNT INTEGER NOT NULL,
+      // Copied, not read from OPS_KRI: re-baselining must not retint last month's chart.
+      AMBER_THRESHOLD DOUBLE NOT NULL,
+      RED_THRESHOLD DOUBLE NOT NULL,
+      RAG_STATUS VARCHAR(6) NOT NULL,
+      BREACHED_ON DATE,
+      COMMENTARY VARCHAR(400)
+   )
+
+   // KRI ONE. The key is custody-recon's RCN_BREAK_TYPE_TOTAL key exactly -- recon, date,
+   // break type -- so Ops_AgeingBreakTypeTotal is a clean three-column join onto a view.
+   Table OPS_AGEING_BREAK
+   (
+      RECON_CODE VARCHAR(30) PRIMARY KEY,
+      COB_DATE DATE PRIMARY KEY,
+      BREAK_TYPE VARCHAR(20) PRIMARY KEY,
+      KRI_CODE VARCHAR(30) NOT NULL,
+      OPEN_BREAK_COUNT INTEGER NOT NULL,
+      AGED_30_COUNT INTEGER NOT NULL,
+      AGED_60_COUNT INTEGER NOT NULL,
+      AGED_90_COUNT INTEGER NOT NULL,
+      OLDEST_AGE_DAYS INTEGER NOT NULL,
+      TOTAL_BREAK_VALUE DOUBLE NOT NULL,
+      BREAK_CURRENCY VARCHAR(3),
+      // With RECON_CODE this matches RCN_ASSIGNEE_TOTAL, whose grouping drops the date.
+      ASSIGNED_TO VARCHAR(60)
+   )
+
+   // KRI TWO. One row per settlement link per day.
+   Table OPS_UNMATCHED_INSTRUCTION
+   (
+      COB_DATE DATE PRIMARY KEY,
+      LINK_ID VARCHAR(40) PRIMARY KEY,
+      KRI_CODE VARCHAR(30) NOT NULL,
+      LINK_STATUS VARCHAR(12) NOT NULL,
+      EXPECTED_AMOUNT DOUBLE NOT NULL,
+      CURRENCY_CODE VARCHAR(3) NOT NULL,
+      AGE_DAYS INTEGER NOT NULL,
+      IS_ESCALATED BIT,
+      EXPECTED_VALUE_DATE DATE NOT NULL,
+      CLAIM_ID VARCHAR(40)
+   )
+
+   // KRI THREE. One row per settlement reconciliation per day.
+   Table OPS_UNRECONCILED_CASH
+   (
+      COB_DATE DATE PRIMARY KEY,
+      RECON_ID VARCHAR(40) PRIMARY KEY,
+      KRI_CODE VARCHAR(30) NOT NULL,
+      INSTITUTION_ID VARCHAR(20) NOT NULL,
+      ACCOUNT_NO VARCHAR(34) NOT NULL,
+      CURRENCY_CODE VARCHAR(3) NOT NULL,
+      UNRECONCILED_AMOUNT DOUBLE NOT NULL,
+      ITEM_COUNT INTEGER NOT NULL,
+      AGE_DAYS INTEGER NOT NULL,
+      SETTLEMENT_BREAK_ID VARCHAR(40)
+   )
+
+   // ---------------------------------------------------------- joins, inside the project
+
+   Join Ops_ControlOwner(OPS_CONTROL.OWNER_ID = OPS_OWNER.OWNER_ID)
+   Join Ops_ControlEvidenceRequirement(OPS_CONTROL.EVIDENCE_CODE = OPS_EVIDENCE_REQUIREMENT.EVIDENCE_CODE)
+   Join Ops_ControlRuns(OPS_CONTROL.CONTROL_CODE = OPS_CONTROL_RUN.CONTROL_CODE)
+
+   // Two columns, because a run is keyed by two.
+   Join Ops_RunEvidenceItems(OPS_CONTROL_RUN.CONTROL_CODE = OPS_EVIDENCE_ITEM.CONTROL_CODE and OPS_CONTROL_RUN.COB_DATE = OPS_EVIDENCE_ITEM.COB_DATE)
+   Join Ops_RunAttestations(OPS_CONTROL_RUN.CONTROL_CODE = OPS_ATTESTATION.CONTROL_CODE and OPS_CONTROL_RUN.COB_DATE = OPS_ATTESTATION.COB_DATE)
+   Join Ops_RunIssues(OPS_CONTROL_RUN.CONTROL_CODE = OPS_ISSUE.CONTROL_CODE and OPS_CONTROL_RUN.COB_DATE = OPS_ISSUE.COB_DATE)
+
+   Join Ops_IssueActions(OPS_ISSUE.ISSUE_ID = OPS_REMEDIATION_ACTION.ISSUE_ID)
+   Join Ops_ActionOwner(OPS_REMEDIATION_ACTION.OWNER_ID = OPS_OWNER.OWNER_ID)
+
+   Join Ops_ControlKris(OPS_CONTROL.CONTROL_CODE = OPS_KRI.CONTROL_CODE)
+   Join Ops_KriOwner(OPS_KRI.OWNER_ID = OPS_OWNER.OWNER_ID)
+   Join Ops_KriObservations(OPS_KRI.KRI_CODE = OPS_KRI_OBSERVATION.KRI_CODE)
+   Join Ops_KriAgeingBreaks(OPS_KRI.KRI_CODE = OPS_AGEING_BREAK.KRI_CODE)
+   Join Ops_KriUnmatchedInstructions(OPS_KRI.KRI_CODE = OPS_UNMATCHED_INSTRUCTION.KRI_CODE)
+   Join Ops_KriUnreconciledCash(OPS_KRI.KRI_CODE = OPS_UNRECONCILED_CASH.KRI_CODE)
+
+   // ---------------------------------------------------------- joins, into custody-recon
+
+   Join Ops_ControlReconDefinition(OPS_CONTROL.RECON_CODE = RCN_DEFINITION.RECON_CODE)
+
+   // THREE columns: custody-recon's run key in full. Matching two of them would attach this
+   // day's control to every re-run of the day, which is the opposite of evidence.
+   Join Ops_RunReconRun(OPS_CONTROL_RUN.RECON_CODE = RCN_RUN.RECON_CODE and OPS_CONTROL_RUN.COB_DATE = RCN_RUN.COB_DATE and OPS_CONTROL_RUN.RUN_SEQ = RCN_RUN.RUN_SEQ)
+
+   // SEVEN columns -- the longest join in the project and the one the theme rests on. An
+   // issue names the break it came from by that break's whole natural key, including
+   // BREAK_TYPE, because one item wrong in two ways is two breaks and two issues.
+   Join Ops_IssueReconBreak(OPS_ISSUE.BREAK_RECON_CODE = RCN_BREAK.RECON_CODE and OPS_ISSUE.BREAK_COB_DATE = RCN_BREAK.COB_DATE and OPS_ISSUE.BREAK_INSTITUTION_ID = RCN_BREAK.INSTITUTION_ID and OPS_ISSUE.BREAK_ACCOUNT_NO = RCN_BREAK.ACCOUNT_NO and OPS_ISSUE.BREAK_INSTRUMENT_ID = RCN_BREAK.INSTRUMENT_ID and OPS_ISSUE.BREAK_DEPOT_CODE = RCN_BREAK.DEPOT_CODE and OPS_ISSUE.BREAK_TYPE = RCN_BREAK.BREAK_TYPE)
+
+   // Onto the dependency's VIEWS -- a reading of an aggregation, not of its rows.
+   Join Ops_AgeingBreakTypeTotal(OPS_AGEING_BREAK.RECON_CODE = RCN_BREAK_TYPE_TOTAL.RECON_CODE and OPS_AGEING_BREAK.COB_DATE = RCN_BREAK_TYPE_TOTAL.COB_DATE and OPS_AGEING_BREAK.BREAK_TYPE = RCN_BREAK_TYPE_TOTAL.BREAK_TYPE)
+   Join Ops_AgeingAssigneeLoad(OPS_AGEING_BREAK.RECON_CODE = RCN_ASSIGNEE_TOTAL.RECON_CODE and OPS_AGEING_BREAK.ASSIGNED_TO = RCN_ASSIGNEE_TOTAL.ASSIGNED_TO)
+
+   // ---------------------------------------------------------- joins, into settlement-flow
+
+   Join Ops_IssueSettlementBreak(OPS_ISSUE.SETTLEMENT_BREAK_ID = SFL_RECON_BREAK.BREAK_ID)
+   Join Ops_IssueSettlementClaim(OPS_ISSUE.CLAIM_ID = SFL_SETTLEMENT_CLAIM.CLAIM_ID)
+   Join Ops_UnmatchedLink(OPS_UNMATCHED_INSTRUCTION.LINK_ID = SFL_CASH_SETTLEMENT_LINK.LINK_ID)
+   Join Ops_UnmatchedClaim(OPS_UNMATCHED_INSTRUCTION.CLAIM_ID = SFL_SETTLEMENT_CLAIM.CLAIM_ID)
+   Join Ops_UnreconciledReconciliation(OPS_UNRECONCILED_CASH.RECON_ID = SFL_RECONCILIATION.RECON_ID)
+   Join Ops_UnreconciledSettlementBreak(OPS_UNRECONCILED_CASH.SETTLEMENT_BREAK_ID = SFL_RECON_BREAK.BREAK_ID)
+
+   // ---------------------------------------------------------- filters
+   // Null tests, never boolean literals: `= true` is not accepted by the filter grammar.
+   Filter OpsLiveControl(OPS_CONTROL.RETIRED_ON is null)
+   Filter OpsOpenIssue(OPS_ISSUE.CLOSED_ON is null)
+   // The finding that matters most: the control that never ran.
+   Filter OpsNotOperated(OPS_CONTROL_RUN.OPERATED_ON is null)
 )

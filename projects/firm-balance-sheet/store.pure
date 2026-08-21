@@ -1,0 +1,807 @@
+###Relational
+
+// ============================================================================================
+// firm_balance_sheet::Store -- 26 tables and 4 aggregation views in the `fbs` SCHEMA
+// ============================================================================================
+// THE SCHEMA, which is one of the two constructs this project is here to carry. Everything
+// this project owns lives in `fbs` and not in the default schema, and that is not tidiness:
+//
+//   * A published balance sheet is not a trading table. It is produced once per period,
+//     signed, kept for as long as the companies act says, and restored as a unit when an
+//     auditor asks about a number from three years ago. Its own schema is what lets a DBA
+//     grant, back up and retain it separately from the seventeen projects underneath it.
+//   * A schema-qualified name cannot collide. `fbs.FBS_LINE_ITEM` is unambiguous even in a
+//     database that also holds PNL_LINE, EXA_NET_EXPOSURE and LQV_FLOW, all of which are
+//     present here through the includes below.
+//   * It costs something, and the cost is worth naming: every reference to one of these
+//     tables -- here, in mapping.pure, and in anything downstream -- must be
+//     `[firm_balance_sheet::Store]fbs.FBS_LINE_ITEM.COLUMN`, four segments deep. Dropping the
+//     `fbs.` produces an error that names the COLUMN and not the missing schema, which is the
+//     commonest way a schema-owning project fails to compile.
+//
+// The three dependency stores put their tables in the DEFAULT schema, so every reference to
+// one of theirs below has no schema segment at all. Both forms appear in the joins section.
+//
+// THE THREE INCLUDES, AND THE DIAMOND UNDERNEATH THEM. This store includes all three
+// dependency stores and no others:
+//
+//    pnl_attribution::Store  -> position-keeping, valuation-core -> core-instrument,
+//                               core-account, core-price, core-fx, core-types
+//    exposure_agg::Store     -> credit-core, collateral-core -> core-party, core-ratings, ...
+//    liquidity_view::Store   -> cash-core, funding-core -> core-account, core-tenor, core-types
+//
+// Seventeen projects arrive transitively and several arrive TWICE: core-account through both
+// position-keeping and cash-core, core-types through both valuation-core and cash-core,
+// core-party through credit-core and collateral-core. An include reaching the same database
+// by two routes resolves to ONE database and nothing needs to be done about it. What would
+// not be fine is `include core_account::Store` here as well -- a redundant include AND a
+// reference to a project this one does not declare, which is exactly the defect the graph
+// exists to detect. No `core_`, `position_keeping`, `valuation_core`, `credit_core`,
+// `collateral_core`, `cash_core` or `funding_core` name appears anywhere in this file.
+//
+// THE AGGREGATION SHAPE, the other required construct: four `~groupBy` VIEWS at the foot of
+// the schema, all over `fbs.FBS_LINE_ITEM`, at four widths -- by category (what prints), by
+// basis and side (the IFRS 9 disclosure), by book and side (the boundary), and by side alone
+// (the balance check). `~groupBy` takes COLUMN references and nothing else, which is why
+// FBS_LINE_ITEM carries SIDE, CATEGORY_CODE, BASIS_CODE and BOOK_CODE as stamped columns
+// rather than anything derived. These are Legend views, not database views: no DDL, nothing
+// seeds them, and the engine folds the GROUP BY into its SQL.
+//
+// Every join condition is on ONE line. A wrapped one compiles, but scripts/corpus/model.py
+// refuses it, and these files are meant to stay readable by it.
+//
+// Every table is FBS_ and lives in `fbs`; every join is Fbs_; every filter is Fbs. Filter
+// names are a GLOBAL namespace across the whole graph, so an unprefixed `AssetRows` here
+// would fail all fifty-odd projects with a message naming the id and not this file.
+//
+// Money is NUMERIC because a balance sheet has to reconcile to the last unit. Rates, ratios
+// and percentages are FLOAT because they are compared against a threshold rather than for
+// equality. `REAL` is not used anywhere: it parses, compiles, and cannot be read back at
+// execution (docs/UPSTREAM_FINDINGS.md F53).
+//
+// Tables are declared and unseeded. No ###Data element, no Runtime.
+Database firm_balance_sheet::Store
+(
+   include pnl_attribution::Store
+   include exposure_agg::Store
+   include liquidity_view::Store
+
+   Schema fbs
+   (
+      // ---------------------------------------------------------------- the statement ------
+
+      // One published balance sheet. The composite key is the only sensible one: the same
+      // institution on the same date has a different statement in each reporting currency,
+      // and none of them is the "real" one.
+      Table FBS_STATEMENT
+      (
+         INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+         AS_OF_DATE DATE PRIMARY KEY,
+         REPORTING_CURRENCY VARCHAR(3) PRIMARY KEY,
+         BASIS_OF_PREPARATION VARCHAR(24) NOT NULL,
+         CONSOLIDATION_SCOPE VARCHAR(24) NOT NULL,
+         STATEMENT_STATUS VARCHAR(16) NOT NULL,
+         RUN_ID VARCHAR(40),
+         // pnl-attribution's batch id, so the P&L that fed retained earnings is nameable.
+         PNL_ATTRIBUTION_ID VARCHAR(24),
+         // liquidity-view keys its ratios on a currency column of its own; this is the value
+         // used when joining out, held separately because a statement may report the ratio
+         // for a currency it is not itself denominated in.
+         NSFR_SCENARIO_CURRENCY VARCHAR(3),
+         TOTAL_ASSETS NUMERIC(24,2),
+         TOTAL_LIABILITIES NUMERIC(24,2),
+         TOTAL_EQUITY NUMERIC(24,2),
+         PREPARED_BY VARCHAR(60),
+         PREPARED_AT TIMESTAMP,
+         SIGNED_OFF_ON DATE
+      )
+
+      // The batch. EXPOSURE_RUN_ID and PNL_ATTRIBUTION_ID are the two upstream batches this
+      // one consumed: a statement that moved because exposure-agg reran is a different
+      // story from one that moved because the accounting changed, and without both ids on
+      // the row there is no way to tell which happened.
+      Table FBS_RUN
+      (
+         RUN_ID VARCHAR(40) PRIMARY KEY,
+         AS_OF_DATE DATE NOT NULL,
+         RUN_TYPE VARCHAR(24) NOT NULL,
+         RUN_STATUS VARCHAR(16) NOT NULL,
+         STARTED_AT TIMESTAMP,
+         COMPLETED_AT TIMESTAMP,
+         LINE_COUNT INTEGER,
+         REJECTED_LINE_COUNT INTEGER,
+         EXPOSURE_RUN_ID VARCHAR(40),
+         PNL_ATTRIBUTION_ID VARCHAR(24),
+         TRIGGERED_BY VARCHAR(60)
+      )
+
+      // ---------------------------------------------------------------- the line grain -----
+
+      // THE CENTRAL FACT, and the table all four views group. One table for all three sides,
+      // narrowed into subtypes by FbsAssetRows / FbsLiabilityRows / FbsEquityRows at the foot
+      // of this file; a column belonging to a side a row is not on is simply null.
+      //
+      // SIDE, CATEGORY_CODE, BASIS_CODE and BOOK_CODE are all stamped rather than derived,
+      // because `~groupBy` names columns and cannot name an expression. They are also the
+      // four axes anybody actually reads a balance sheet along.
+      //
+      // Note what is NOT here: no instrument name, no counterparty name, no rating. Every one
+      // of those is reachable by join into one of the three dependencies, and a copy of it on
+      // this row would be the stale value that ends up in a published statement.
+      Table FBS_LINE_ITEM
+      (
+         LINE_ID VARCHAR(48) PRIMARY KEY,
+         INSTITUTION_ID VARCHAR(20) NOT NULL,
+         AS_OF_DATE DATE NOT NULL,
+         REPORTING_CURRENCY VARCHAR(3) NOT NULL,
+         // ASSET, LIABILITY, EQUITY. The subtype discriminator and a `~groupBy` axis.
+         SIDE VARCHAR(12) NOT NULL,
+         CATEGORY_CODE VARCHAR(24) NOT NULL,
+         // AC, FVOCI, FVTPL.
+         BASIS_CODE VARCHAR(20) NOT NULL,
+         // TRADING, BANKING.
+         BOOK_CODE VARCHAR(16) NOT NULL,
+         FAIR_VALUE_LEVEL VARCHAR(4),
+         CARRYING_AMOUNT NUMERIC(24,2),
+         GROSS_AMOUNT NUMERIC(24,2),
+         IMPAIRMENT_AMOUNT NUMERIC(24,2),
+         PRIOR_CARRYING_AMOUNT NUMERIC(24,2),
+         LOCAL_CURRENCY VARCHAR(3),
+         LOCAL_AMOUNT NUMERIC(24,2),
+         FX_RATE FLOAT,
+         RUN_ID VARCHAR(40),
+
+         // ---- ASSET rows only, read by [fbsAssetLine].
+         IS_HQLA BIT,
+         HQLA_LEVEL_CODE VARCHAR(8),
+         ENCUMBERED_AMOUNT NUMERIC(24,2),
+         LIQUIDITY_DAYS INTEGER,
+         HQLA_HOLDING_ID VARCHAR(40),
+
+         // ---- LIABILITY rows only, read by [fbsLiabilityLine].
+         MATURITY_DATE DATE,
+         IS_SECURED BIT,
+         FUNDING_TYPE VARCHAR(24),
+         COUNTERPARTY_ID VARCHAR(40),
+         IS_DEMAND_DEPOSIT BIT,
+
+         // ---- EQUITY rows only, read by [fbsEquityLine].
+         EQUITY_COMPONENT_CODE VARCHAR(24),
+         IS_CET1_ELIGIBLE BIT,
+         NON_CONTROLLING_INTEREST NUMERIC(24,2),
+
+         // ---- the foreign key OUT of this project. Not mapped to a property: reached as an
+         // object through Fbs_LineNetExposure.
+         NET_EXPOSURE_ID VARCHAR(40)
+      )
+
+      // ---------------------------------------------------------------- the classifiers ----
+
+      // PARENT_CODE is a plain column and there is deliberately no self-join on it: a
+      // balance-sheet taxonomy has three levels and forty rows, and walking it in the model
+      // costs nothing while a self-join costs every query that does not need it.
+      Table FBS_CATEGORY
+      (
+         CATEGORY_CODE VARCHAR(24) PRIMARY KEY,
+         CATEGORY_NAME VARCHAR(120) NOT NULL,
+         PARENT_CODE VARCHAR(24),
+         SIDE VARCHAR(12) NOT NULL,
+         STATEMENT_ORDER SMALLINT,
+         IS_SUBTOTAL BIT,
+         NOTE_REFERENCE VARCHAR(12),
+         RETIRED_ON DATE
+      )
+
+      // MOVEMENTS_THROUGH is the whole of IFRS 9 in one column: 'PL', 'OCI' or 'NONE'.
+      Table FBS_MEASUREMENT_BASIS
+      (
+         BASIS_CODE VARCHAR(20) PRIMARY KEY,
+         BASIS_NAME VARCHAR(80) NOT NULL,
+         STANDARD_REFERENCE VARCHAR(24),
+         MOVEMENTS_THROUGH VARCHAR(12) NOT NULL,
+         IS_FAIR_VALUE BIT,
+         REQUIRES_ECL BIT,
+         RECYCLES_TO_PL BIT
+      )
+
+      Table FBS_BOOK_CLASSIFICATION
+      (
+         BOOK_CODE VARCHAR(16) PRIMARY KEY,
+         BOOK_NAME VARCHAR(80) NOT NULL,
+         INTENT VARCHAR(60) NOT NULL,
+         IS_TRADING BIT,
+         DEFAULT_BASIS_CODE VARCHAR(20),
+         CAPITAL_TREATMENT VARCHAR(24),
+         BOUNDARY_POLICY_REF VARCHAR(60)
+      )
+
+      Table FBS_FAIR_VALUE_LEVEL
+      (
+         LEVEL_CODE VARCHAR(4) PRIMARY KEY,
+         LEVEL_NAME VARCHAR(60) NOT NULL,
+         INPUT_TYPE VARCHAR(60) NOT NULL,
+         IS_OBSERVABLE BIT,
+         REQUIRES_DISCLOSURE BIT,
+         LEVEL_RANK SMALLINT
+      )
+
+      // ------------------------------------------------- trading book vs banking book ------
+
+      // Keyed on LINE_ID, one-to-one with an FBS_LINE_ITEM row: the trading detail is its own
+      // table rather than thirteen more columns on the line because it is read on its own,
+      // by a different desk, at a different time of day.
+      //
+      // The four columns after LINE_ID are pnl-attribution's primary key minus the
+      // attribution id, which is the fifth. Together they are Fbs_TradingPositionPnlLine.
+      Table FBS_TRADING_POSITION
+      (
+         LINE_ID VARCHAR(48) PRIMARY KEY,
+         INSTITUTION_ID VARCHAR(20) NOT NULL,
+         ACCOUNT_NO VARCHAR(34),
+         // VARCHAR(60), matching pnl-attribution's own width. The wider of two candidate
+         // widths is the only one that cannot truncate.
+         INSTRUMENT_ID VARCHAR(60),
+         COB_DATE DATE,
+         PNL_ATTRIBUTION_ID VARCHAR(24),
+         QUANTITY NUMERIC(20,6),
+         FAIR_VALUE NUMERIC(24,2),
+         DAY_ONE_PROFIT NUMERIC(24,2),
+         BID_OFFER_RESERVE NUMERIC(24,2),
+         MODEL_RESERVE NUMERIC(24,2),
+         IS_LONG BIT,
+         DESK_CODE VARCHAR(20)
+      )
+
+      Table FBS_BANKING_ASSET
+      (
+         LINE_ID VARCHAR(48) PRIMARY KEY,
+         PRODUCT_TYPE VARCHAR(24) NOT NULL,
+         ORIGINATION_DATE DATE,
+         MATURITY_DATE DATE,
+         GROSS_CARRYING_AMOUNT NUMERIC(24,2),
+         EFFECTIVE_INTEREST_RATE FLOAT,
+         UNAMORTISED_PREMIUM NUMERIC(24,2),
+         ACCRUED_INTEREST NUMERIC(24,2),
+         // 1, 2 or 3. The single column that decides twelve-month against lifetime ECL.
+         ECL_STAGE SMALLINT,
+         ALLOWANCE_AMOUNT NUMERIC(24,2),
+         IS_PURCHASED_CREDIT_IMPAIRED BIT,
+         NET_EXPOSURE_ID VARCHAR(40)
+      )
+
+      // ------------------------------------------- derivatives, before any netting ---------
+
+      Table FBS_DERIVATIVE_ASSET
+      (
+         DERIVATIVE_ASSET_ID VARCHAR(48) PRIMARY KEY,
+         INSTITUTION_ID VARCHAR(20) NOT NULL,
+         AS_OF_DATE DATE NOT NULL,
+         NETTING_SET_ID VARCHAR(40),
+         NET_EXPOSURE_ID VARCHAR(40),
+         COUNTERPARTY_ID VARCHAR(40),
+         PRODUCT_CLASS VARCHAR(24) NOT NULL,
+         NOTIONAL NUMERIC(24,2),
+         GROSS_POSITIVE_VALUE NUMERIC(24,2),
+         CVA_ADJUSTMENT NUMERIC(24,2),
+         FVA_ADJUSTMENT NUMERIC(24,2),
+         IS_CLEARED BIT,
+         CURRENCY VARCHAR(3),
+         LINE_ID VARCHAR(48)
+      )
+
+      Table FBS_DERIVATIVE_LIABILITY
+      (
+         DERIVATIVE_LIABILITY_ID VARCHAR(48) PRIMARY KEY,
+         INSTITUTION_ID VARCHAR(20) NOT NULL,
+         AS_OF_DATE DATE NOT NULL,
+         NETTING_SET_ID VARCHAR(40),
+         NET_EXPOSURE_ID VARCHAR(40),
+         COUNTERPARTY_ID VARCHAR(40),
+         PRODUCT_CLASS VARCHAR(24) NOT NULL,
+         NOTIONAL NUMERIC(24,2),
+         GROSS_NEGATIVE_VALUE NUMERIC(24,2),
+         DVA_ADJUSTMENT NUMERIC(24,2),
+         FVA_ADJUSTMENT NUMERIC(24,2),
+         IS_CLEARED BIT,
+         CURRENCY VARCHAR(3),
+         LINE_ID VARCHAR(48)
+      )
+
+      // COMPOSITE KEY on set and date: an offset restruck tomorrow is a new row, because the
+      // statement that was published was published on the old one.
+      Table FBS_NETTING_ADJUSTMENT
+      (
+         NETTING_SET_ID VARCHAR(40) PRIMARY KEY,
+         AS_OF_DATE DATE PRIMARY KEY,
+         INSTITUTION_ID VARCHAR(20) NOT NULL,
+         GROSS_ASSET_AMOUNT NUMERIC(24,2),
+         GROSS_LIABILITY_AMOUNT NUMERIC(24,2),
+         OFFSET_AMOUNT NUMERIC(24,2),
+         NET_ASSET_AMOUNT NUMERIC(24,2),
+         NET_LIABILITY_AMOUNT NUMERIC(24,2),
+         IS_BALANCE_SHEET_NETTED BIT,
+         // 'IAS32' or 'ASC815'. The same book is a different size under each.
+         OFFSET_BASIS VARCHAR(24),
+         LEGAL_OPINION_REF VARCHAR(60)
+      )
+
+      Table FBS_COLLATERAL_OFFSET
+      (
+         OFFSET_ID VARCHAR(48) PRIMARY KEY,
+         NETTING_SET_ID VARCHAR(40) NOT NULL,
+         // exposure-agg's EXA_COLLATERAL_POSITION key. Held, not copied: the haircut, the
+         // issuer and the asset class all stay on their side of the boundary.
+         POSITION_ID VARCHAR(40),
+         AS_OF_DATE DATE NOT NULL,
+         CASH_COLLATERAL_AMOUNT NUMERIC(24,2),
+         SECURITIES_COLLATERAL_AMOUNT NUMERIC(24,2),
+         OFFSET_APPLIED_AMOUNT NUMERIC(24,2),
+         IS_CASH BIT,
+         CURRENCY VARCHAR(3),
+         REHYPOTHECATED_AMOUNT NUMERIC(24,2)
+      )
+
+      // ---------------------------------------------------------------- HQLA by level ------
+
+      // COMPOSITE KEY of four, which is deliberately the grain liquidity-view's LCR result
+      // is keyed at minus the scenario: institution, date, level, currency. SCENARIO_ID is a
+      // column rather than a key part because the balance-sheet stock does not depend on the
+      // stress; only the ratio it feeds does.
+      Table FBS_HQLA_STOCK
+      (
+         INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+         AS_OF_DATE DATE PRIMARY KEY,
+         HQLA_LEVEL_CODE VARCHAR(8) PRIMARY KEY,
+         REPORTING_CURRENCY VARCHAR(3) PRIMARY KEY,
+         BALANCE_SHEET_AMOUNT NUMERIC(24,2),
+         UNENCUMBERED_AMOUNT NUMERIC(24,2),
+         HAIRCUT_AMOUNT NUMERIC(24,2),
+         WEIGHTED_AMOUNT NUMERIC(24,2),
+         // What the L2 cap threw away. Real assets, real liquidity, no regulatory credit.
+         CAP_EXCESS_AMOUNT NUMERIC(24,2),
+         HOLDING_COUNT INTEGER,
+         SCENARIO_ID VARCHAR(20)
+      )
+
+      // ------------------------------------ goodwill, intangibles, and the deductions ------
+
+      Table FBS_GOODWILL
+      (
+         GOODWILL_ID VARCHAR(40) PRIMARY KEY,
+         INSTITUTION_ID VARCHAR(20) NOT NULL,
+         AS_OF_DATE DATE NOT NULL,
+         CASH_GENERATING_UNIT VARCHAR(80) NOT NULL,
+         ACQUISITION_DATE DATE,
+         GROSS_GOODWILL NUMERIC(24,2),
+         ACCUMULATED_IMPAIRMENT NUMERIC(24,2),
+         CARRYING_AMOUNT NUMERIC(24,2),
+         RECOVERABLE_AMOUNT NUMERIC(24,2),
+         LAST_TESTED_ON DATE,
+         DISCOUNT_RATE FLOAT,
+         LINE_ID VARCHAR(48)
+      )
+
+      Table FBS_INTANGIBLE
+      (
+         INTANGIBLE_ID VARCHAR(40) PRIMARY KEY,
+         INSTITUTION_ID VARCHAR(20) NOT NULL,
+         AS_OF_DATE DATE NOT NULL,
+         INTANGIBLE_TYPE VARCHAR(24) NOT NULL,
+         COST_AMOUNT NUMERIC(24,2),
+         ACCUMULATED_AMORTISATION NUMERIC(24,2),
+         CARRYING_AMOUNT NUMERIC(24,2),
+         USEFUL_LIFE_YEARS SMALLINT,
+         IS_INTERNALLY_GENERATED BIT,
+         LINE_ID VARCHAR(48)
+      )
+
+      // The reconciling table between accounting equity and regulatory capital. Both
+      // DEDUCTED_AMOUNT and RISK_WEIGHTED_REMAINDER are on one row because a threshold
+      // deduction takes some of the balance and risk-weights the rest, and reporting only
+      // the deducted half understates the exposure.
+      Table FBS_CAPITAL_DEDUCTION
+      (
+         DEDUCTION_ID VARCHAR(40) PRIMARY KEY,
+         INSTITUTION_ID VARCHAR(20) NOT NULL,
+         AS_OF_DATE DATE NOT NULL,
+         DEDUCTION_CODE VARCHAR(24) NOT NULL,
+         // CET1, AT1, T2.
+         DEDUCTION_TIER VARCHAR(8) NOT NULL,
+         BALANCE_SHEET_AMOUNT NUMERIC(24,2),
+         THRESHOLD_AMOUNT NUMERIC(24,2),
+         DEDUCTED_AMOUNT NUMERIC(24,2),
+         RISK_WEIGHTED_REMAINDER NUMERIC(24,2),
+         REGULATION_REFERENCE VARCHAR(60),
+         IS_FULLY_DEDUCTED BIT,
+         GOODWILL_ID VARCHAR(40),
+         INTANGIBLE_ID VARCHAR(40),
+         LINE_ID VARCHAR(48)
+      )
+
+      // ---------------------------------------------------------------- provisions ---------
+
+      Table FBS_PROVISION
+      (
+         PROVISION_ID VARCHAR(40) PRIMARY KEY,
+         INSTITUTION_ID VARCHAR(20) NOT NULL,
+         AS_OF_DATE DATE NOT NULL,
+         PROVISION_TYPE VARCHAR(24) NOT NULL,
+         OPENING_BALANCE NUMERIC(24,2),
+         CHARGE_AMOUNT NUMERIC(24,2),
+         UTILISED_AMOUNT NUMERIC(24,2),
+         RELEASED_AMOUNT NUMERIC(24,2),
+         CLOSING_BALANCE NUMERIC(24,2),
+         EXPECTED_SETTLEMENT_DATE DATE,
+         IS_DISCOUNTED BIT,
+         LINE_ID VARCHAR(48)
+      )
+
+      Table FBS_ECL_ALLOWANCE
+      (
+         ALLOWANCE_ID VARCHAR(40) PRIMARY KEY,
+         INSTITUTION_ID VARCHAR(20) NOT NULL,
+         AS_OF_DATE DATE NOT NULL,
+         ECL_STAGE SMALLINT NOT NULL,
+         PORTFOLIO_CODE VARCHAR(32) NOT NULL,
+         GROSS_EXPOSURE_AMOUNT NUMERIC(24,2),
+         TWELVE_MONTH_ECL NUMERIC(24,2),
+         LIFETIME_ECL NUMERIC(24,2),
+         ALLOWANCE_AMOUNT NUMERIC(24,2),
+         MODEL_CODE VARCHAR(24),
+         // The credit committee's overlay, held apart so it cannot be read as modelled.
+         POST_MODEL_ADJUSTMENT NUMERIC(24,2),
+         NET_EXPOSURE_ID VARCHAR(40)
+      )
+
+      // ---------------------------------------------------------------- the equity ---------
+
+      Table FBS_EQUITY_COMPONENT
+      (
+         COMPONENT_CODE VARCHAR(24) PRIMARY KEY,
+         COMPONENT_NAME VARCHAR(80) NOT NULL,
+         COMPONENT_TYPE VARCHAR(24) NOT NULL,
+         CAPITAL_TIER VARCHAR(8),
+         IS_DISTRIBUTABLE BIT,
+         IS_RECYCLABLE BIT,
+         PRESENTATION_ORDER SMALLINT
+      )
+
+      // COMPOSITE KEY of four, matching FBS_STATEMENT's three plus the component.
+      Table FBS_EQUITY_BALANCE
+      (
+         INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+         AS_OF_DATE DATE PRIMARY KEY,
+         COMPONENT_CODE VARCHAR(24) PRIMARY KEY,
+         REPORTING_CURRENCY VARCHAR(3) PRIMARY KEY,
+         OPENING_BALANCE NUMERIC(24,2),
+         MOVEMENT_AMOUNT NUMERIC(24,2),
+         CLOSING_BALANCE NUMERIC(24,2),
+         ATTRIBUTABLE_TO_PARENT NUMERIC(24,2),
+         NON_CONTROLLING_INTEREST NUMERIC(24,2),
+         LINE_ID VARCHAR(48)
+      )
+
+      Table FBS_OCI_RESERVE
+      (
+         RESERVE_ID VARCHAR(40) PRIMARY KEY,
+         INSTITUTION_ID VARCHAR(20) NOT NULL,
+         AS_OF_DATE DATE NOT NULL,
+         RESERVE_TYPE VARCHAR(24) NOT NULL,
+         BASIS_CODE VARCHAR(20),
+         GROSS_RESERVE NUMERIC(24,2),
+         DEFERRED_TAX NUMERIC(24,2),
+         NET_RESERVE NUMERIC(24,2),
+         RECYCLED_TO_PL NUMERIC(24,2),
+         IS_RECYCLABLE BIT,
+         COMPONENT_CODE VARCHAR(24)
+      )
+
+      // Keyed exactly as FBS_STATEMENT: one roll-forward per statement, no more.
+      Table FBS_RETAINED_EARNINGS
+      (
+         INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+         AS_OF_DATE DATE PRIMARY KEY,
+         REPORTING_CURRENCY VARCHAR(3) PRIMARY KEY,
+         OPENING_RETAINED NUMERIC(24,2),
+         PROFIT_FOR_PERIOD NUMERIC(24,2),
+         DIVIDENDS_DECLARED NUMERIC(24,2),
+         OTHER_MOVEMENTS NUMERIC(24,2),
+         CLOSING_RETAINED NUMERIC(24,2),
+         PNL_ATTRIBUTION_ID VARCHAR(24),
+         IS_VERIFIED BIT
+      )
+
+      // ---------------------------------------------------------------- control ------------
+
+      Table FBS_ADJUSTMENT
+      (
+         ADJUSTMENT_ID VARCHAR(40) PRIMARY KEY,
+         LINE_ID VARCHAR(48) NOT NULL,
+         AS_OF_DATE DATE NOT NULL,
+         ADJUSTMENT_TYPE VARCHAR(24) NOT NULL,
+         ADJUSTMENT_AMOUNT NUMERIC(24,2),
+         REASON VARCHAR(400),
+         RAISED_BY VARCHAR(60),
+         RAISED_ON DATE,
+         APPROVED_BY VARCHAR(60),
+         APPROVED_ON DATE,
+         REVERSED_ON DATE
+      )
+
+      Table FBS_BALANCE_CHECK
+      (
+         CHECK_ID VARCHAR(40) PRIMARY KEY,
+         INSTITUTION_ID VARCHAR(20) NOT NULL,
+         AS_OF_DATE DATE NOT NULL,
+         REPORTING_CURRENCY VARCHAR(3) NOT NULL,
+         CHECK_TYPE VARCHAR(24) NOT NULL,
+         LEFT_AMOUNT NUMERIC(24,2),
+         RIGHT_AMOUNT NUMERIC(24,2),
+         DIFFERENCE_AMOUNT NUMERIC(24,2),
+         TOLERANCE_AMOUNT NUMERIC(24,2),
+         SEVERITY VARCHAR(12),
+         DETECTED_AT TIMESTAMP,
+         RESOLVED_ON DATE,
+         OWNER VARCHAR(60)
+      )
+
+      Table FBS_ATTESTATION
+      (
+         INSTITUTION_ID VARCHAR(20) PRIMARY KEY,
+         AS_OF_DATE DATE PRIMARY KEY,
+         ROLE_CODE VARCHAR(24) PRIMARY KEY,
+         ATTESTED_BY VARCHAR(60),
+         ATTESTED_AT TIMESTAMP,
+         ATTESTATION_STATUS VARCHAR(16) NOT NULL,
+         COMMENTARY VARCHAR(400),
+         WITHDRAWN_ON DATE
+      )
+
+      // ==================================================================================
+      // THE AGGREGATION SHAPE -- four `~groupBy` views over fbs.FBS_LINE_ITEM
+      // ==================================================================================
+      // `~groupBy` comes FIRST, before the columns, and names COLUMNS only -- never an
+      // expression. Every grouping column is repeated as a PRIMARY KEY output column,
+      // because the mapping's `~primaryKey` has to name the grain the view produces.
+      //
+      // Inside a schema the references are schema-qualified on BOTH sides: the `~groupBy`
+      // list and every column source say `fbs.FBS_LINE_ITEM`. A view declared inside the
+      // schema is itself schema-qualified for everything downstream, so the mapping says
+      // `[firm_balance_sheet::Store]fbs.FBS_SIDE_TOTAL.TOTAL_CARRYING`.
+      //
+      // A group with no rows FORMS NO GROUP and is absent, not zero. A category with nothing
+      // in it on a date simply does not appear.
+
+      // The statement as printed: one row per category per statement.
+      View FBS_CATEGORY_TOTAL
+      (
+         ~groupBy
+         (
+            fbs.FBS_LINE_ITEM.INSTITUTION_ID,
+            fbs.FBS_LINE_ITEM.AS_OF_DATE,
+            fbs.FBS_LINE_ITEM.REPORTING_CURRENCY,
+            fbs.FBS_LINE_ITEM.CATEGORY_CODE
+         )
+         INSTITUTION_ID: fbs.FBS_LINE_ITEM.INSTITUTION_ID PRIMARY KEY,
+         AS_OF_DATE: fbs.FBS_LINE_ITEM.AS_OF_DATE PRIMARY KEY,
+         REPORTING_CURRENCY: fbs.FBS_LINE_ITEM.REPORTING_CURRENCY PRIMARY KEY,
+         CATEGORY_CODE: fbs.FBS_LINE_ITEM.CATEGORY_CODE PRIMARY KEY,
+         LINE_COUNT: count(fbs.FBS_LINE_ITEM.LINE_ID),
+         TOTAL_CARRYING: sum(fbs.FBS_LINE_ITEM.CARRYING_AMOUNT),
+         TOTAL_GROSS: sum(fbs.FBS_LINE_ITEM.GROSS_AMOUNT),
+         TOTAL_IMPAIRMENT: sum(fbs.FBS_LINE_ITEM.IMPAIRMENT_AMOUNT),
+         TOTAL_PRIOR_CARRYING: sum(fbs.FBS_LINE_ITEM.PRIOR_CARRYING_AMOUNT),
+         // max and min beside the sum, because a category total of zero built from two
+         // enormous opposite numbers is not a total of zero in any useful sense.
+         LARGEST_LINE: max(fbs.FBS_LINE_ITEM.CARRYING_AMOUNT),
+         SMALLEST_LINE: min(fbs.FBS_LINE_ITEM.CARRYING_AMOUNT)
+      )
+
+      // The IFRS 9 disclosure: how much of each side is at AC, at FVOCI and at FVTPL.
+      // Grouped by basis AND side, because the netted answer is meaningless.
+      View FBS_BASIS_TOTAL
+      (
+         ~groupBy
+         (
+            fbs.FBS_LINE_ITEM.INSTITUTION_ID,
+            fbs.FBS_LINE_ITEM.AS_OF_DATE,
+            fbs.FBS_LINE_ITEM.REPORTING_CURRENCY,
+            fbs.FBS_LINE_ITEM.BASIS_CODE,
+            fbs.FBS_LINE_ITEM.SIDE
+         )
+         INSTITUTION_ID: fbs.FBS_LINE_ITEM.INSTITUTION_ID PRIMARY KEY,
+         AS_OF_DATE: fbs.FBS_LINE_ITEM.AS_OF_DATE PRIMARY KEY,
+         REPORTING_CURRENCY: fbs.FBS_LINE_ITEM.REPORTING_CURRENCY PRIMARY KEY,
+         BASIS_CODE: fbs.FBS_LINE_ITEM.BASIS_CODE PRIMARY KEY,
+         SIDE: fbs.FBS_LINE_ITEM.SIDE PRIMARY KEY,
+         LINE_COUNT: count(fbs.FBS_LINE_ITEM.LINE_ID),
+         TOTAL_CARRYING: sum(fbs.FBS_LINE_ITEM.CARRYING_AMOUNT),
+         TOTAL_GROSS: sum(fbs.FBS_LINE_ITEM.GROSS_AMOUNT),
+         TOTAL_IMPAIRMENT: sum(fbs.FBS_LINE_ITEM.IMPAIRMENT_AMOUNT),
+         LARGEST_LINE: max(fbs.FBS_LINE_ITEM.CARRYING_AMOUNT)
+      )
+
+      // The book boundary in money. Drops the currency on purpose: the boundary is a capital
+      // question and capital is measured in one currency per institution.
+      View FBS_BOOK_TOTAL
+      (
+         ~groupBy
+         (
+            fbs.FBS_LINE_ITEM.INSTITUTION_ID,
+            fbs.FBS_LINE_ITEM.AS_OF_DATE,
+            fbs.FBS_LINE_ITEM.BOOK_CODE,
+            fbs.FBS_LINE_ITEM.SIDE
+         )
+         INSTITUTION_ID: fbs.FBS_LINE_ITEM.INSTITUTION_ID PRIMARY KEY,
+         AS_OF_DATE: fbs.FBS_LINE_ITEM.AS_OF_DATE PRIMARY KEY,
+         BOOK_CODE: fbs.FBS_LINE_ITEM.BOOK_CODE PRIMARY KEY,
+         SIDE: fbs.FBS_LINE_ITEM.SIDE PRIMARY KEY,
+         LINE_COUNT: count(fbs.FBS_LINE_ITEM.LINE_ID),
+         TOTAL_CARRYING: sum(fbs.FBS_LINE_ITEM.CARRYING_AMOUNT),
+         TOTAL_PRIOR_CARRYING: sum(fbs.FBS_LINE_ITEM.PRIOR_CARRYING_AMOUNT),
+         LARGEST_LINE: max(fbs.FBS_LINE_ITEM.CARRYING_AMOUNT)
+      )
+
+      // THE BALANCE CHECK ITSELF. Three rows per statement -- ASSET, LIABILITY, EQUITY --
+      // straight off the line table, with nothing between the identity and the data.
+      // FBS_STATEMENT.TOTAL_ASSETS is what was published; this is what the lines say.
+      View FBS_SIDE_TOTAL
+      (
+         ~groupBy
+         (
+            fbs.FBS_LINE_ITEM.INSTITUTION_ID,
+            fbs.FBS_LINE_ITEM.AS_OF_DATE,
+            fbs.FBS_LINE_ITEM.REPORTING_CURRENCY,
+            fbs.FBS_LINE_ITEM.SIDE
+         )
+         INSTITUTION_ID: fbs.FBS_LINE_ITEM.INSTITUTION_ID PRIMARY KEY,
+         AS_OF_DATE: fbs.FBS_LINE_ITEM.AS_OF_DATE PRIMARY KEY,
+         REPORTING_CURRENCY: fbs.FBS_LINE_ITEM.REPORTING_CURRENCY PRIMARY KEY,
+         SIDE: fbs.FBS_LINE_ITEM.SIDE PRIMARY KEY,
+         LINE_COUNT: count(fbs.FBS_LINE_ITEM.LINE_ID),
+         TOTAL_CARRYING: sum(fbs.FBS_LINE_ITEM.CARRYING_AMOUNT),
+         TOTAL_GROSS: sum(fbs.FBS_LINE_ITEM.GROSS_AMOUNT),
+         TOTAL_IMPAIRMENT: sum(fbs.FBS_LINE_ITEM.IMPAIRMENT_AMOUNT),
+         TOTAL_PRIOR_CARRYING: sum(fbs.FBS_LINE_ITEM.PRIOR_CARRYING_AMOUNT)
+      )
+   )
+
+   // ==========================================================================================
+   // JOINS INSIDE THE `fbs` SCHEMA -- both sides schema-qualified, one line each
+   // ==========================================================================================
+
+   // The line to its statement, on all three key columns. Two of them would join a sterling
+   // line to a dollar statement.
+   Join Fbs_LineStatement(fbs.FBS_LINE_ITEM.INSTITUTION_ID = fbs.FBS_STATEMENT.INSTITUTION_ID and fbs.FBS_LINE_ITEM.AS_OF_DATE = fbs.FBS_STATEMENT.AS_OF_DATE and fbs.FBS_LINE_ITEM.REPORTING_CURRENCY = fbs.FBS_STATEMENT.REPORTING_CURRENCY)
+   Join Fbs_LineCategory(fbs.FBS_LINE_ITEM.CATEGORY_CODE = fbs.FBS_CATEGORY.CATEGORY_CODE)
+   Join Fbs_LineBasis(fbs.FBS_LINE_ITEM.BASIS_CODE = fbs.FBS_MEASUREMENT_BASIS.BASIS_CODE)
+   Join Fbs_LineBook(fbs.FBS_LINE_ITEM.BOOK_CODE = fbs.FBS_BOOK_CLASSIFICATION.BOOK_CODE)
+   Join Fbs_LineFairValueLevel(fbs.FBS_LINE_ITEM.FAIR_VALUE_LEVEL = fbs.FBS_FAIR_VALUE_LEVEL.LEVEL_CODE)
+   Join Fbs_LineRun(fbs.FBS_LINE_ITEM.RUN_ID = fbs.FBS_RUN.RUN_ID)
+   Join Fbs_LineAdjustment(fbs.FBS_ADJUSTMENT.LINE_ID = fbs.FBS_LINE_ITEM.LINE_ID)
+   Join Fbs_LineTradingPosition(fbs.FBS_TRADING_POSITION.LINE_ID = fbs.FBS_LINE_ITEM.LINE_ID)
+   Join Fbs_LineBankingAsset(fbs.FBS_BANKING_ASSET.LINE_ID = fbs.FBS_LINE_ITEM.LINE_ID)
+   Join Fbs_LineGoodwill(fbs.FBS_GOODWILL.LINE_ID = fbs.FBS_LINE_ITEM.LINE_ID)
+   Join Fbs_LineIntangible(fbs.FBS_INTANGIBLE.LINE_ID = fbs.FBS_LINE_ITEM.LINE_ID)
+   Join Fbs_LineDeduction(fbs.FBS_CAPITAL_DEDUCTION.LINE_ID = fbs.FBS_LINE_ITEM.LINE_ID)
+   Join Fbs_LineProvision(fbs.FBS_PROVISION.LINE_ID = fbs.FBS_LINE_ITEM.LINE_ID)
+   Join Fbs_LineEquityBalance(fbs.FBS_EQUITY_BALANCE.LINE_ID = fbs.FBS_LINE_ITEM.LINE_ID)
+   Join Fbs_LineDerivativeAsset(fbs.FBS_DERIVATIVE_ASSET.LINE_ID = fbs.FBS_LINE_ITEM.LINE_ID)
+   Join Fbs_LineDerivativeLiability(fbs.FBS_DERIVATIVE_LIABILITY.LINE_ID = fbs.FBS_LINE_ITEM.LINE_ID)
+
+   Join Fbs_StatementRun(fbs.FBS_STATEMENT.RUN_ID = fbs.FBS_RUN.RUN_ID)
+   Join Fbs_StatementBalanceCheck(fbs.FBS_BALANCE_CHECK.INSTITUTION_ID = fbs.FBS_STATEMENT.INSTITUTION_ID and fbs.FBS_BALANCE_CHECK.AS_OF_DATE = fbs.FBS_STATEMENT.AS_OF_DATE and fbs.FBS_BALANCE_CHECK.REPORTING_CURRENCY = fbs.FBS_STATEMENT.REPORTING_CURRENCY)
+   // Two columns only: an attestation is of the statement, not of one currency cut of it, so
+   // every currency statement for a date shares the same signatures.
+   Join Fbs_StatementAttestation(fbs.FBS_ATTESTATION.INSTITUTION_ID = fbs.FBS_STATEMENT.INSTITUTION_ID and fbs.FBS_ATTESTATION.AS_OF_DATE = fbs.FBS_STATEMENT.AS_OF_DATE)
+   Join Fbs_StatementRetainedEarnings(fbs.FBS_RETAINED_EARNINGS.INSTITUTION_ID = fbs.FBS_STATEMENT.INSTITUTION_ID and fbs.FBS_RETAINED_EARNINGS.AS_OF_DATE = fbs.FBS_STATEMENT.AS_OF_DATE and fbs.FBS_RETAINED_EARNINGS.REPORTING_CURRENCY = fbs.FBS_STATEMENT.REPORTING_CURRENCY)
+   Join Fbs_StatementHqlaStock(fbs.FBS_HQLA_STOCK.INSTITUTION_ID = fbs.FBS_STATEMENT.INSTITUTION_ID and fbs.FBS_HQLA_STOCK.AS_OF_DATE = fbs.FBS_STATEMENT.AS_OF_DATE and fbs.FBS_HQLA_STOCK.REPORTING_CURRENCY = fbs.FBS_STATEMENT.REPORTING_CURRENCY)
+   Join Fbs_StatementEquityBalance(fbs.FBS_EQUITY_BALANCE.INSTITUTION_ID = fbs.FBS_STATEMENT.INSTITUTION_ID and fbs.FBS_EQUITY_BALANCE.AS_OF_DATE = fbs.FBS_STATEMENT.AS_OF_DATE and fbs.FBS_EQUITY_BALANCE.REPORTING_CURRENCY = fbs.FBS_STATEMENT.REPORTING_CURRENCY)
+
+   // The netting hub: both derivative sides land on the same (set, date) row, which is the
+   // only place in this project where the gross asset and the gross liability meet.
+   Join Fbs_DerivativeAssetNetting(fbs.FBS_DERIVATIVE_ASSET.NETTING_SET_ID = fbs.FBS_NETTING_ADJUSTMENT.NETTING_SET_ID and fbs.FBS_DERIVATIVE_ASSET.AS_OF_DATE = fbs.FBS_NETTING_ADJUSTMENT.AS_OF_DATE)
+   Join Fbs_DerivativeLiabilityNetting(fbs.FBS_DERIVATIVE_LIABILITY.NETTING_SET_ID = fbs.FBS_NETTING_ADJUSTMENT.NETTING_SET_ID and fbs.FBS_DERIVATIVE_LIABILITY.AS_OF_DATE = fbs.FBS_NETTING_ADJUSTMENT.AS_OF_DATE)
+   Join Fbs_NettingCollateralOffset(fbs.FBS_COLLATERAL_OFFSET.NETTING_SET_ID = fbs.FBS_NETTING_ADJUSTMENT.NETTING_SET_ID and fbs.FBS_COLLATERAL_OFFSET.AS_OF_DATE = fbs.FBS_NETTING_ADJUSTMENT.AS_OF_DATE)
+
+   Join Fbs_BookDefaultBasis(fbs.FBS_BOOK_CLASSIFICATION.DEFAULT_BASIS_CODE = fbs.FBS_MEASUREMENT_BASIS.BASIS_CODE)
+   Join Fbs_OciReserveBasis(fbs.FBS_OCI_RESERVE.BASIS_CODE = fbs.FBS_MEASUREMENT_BASIS.BASIS_CODE)
+   Join Fbs_OciReserveComponent(fbs.FBS_OCI_RESERVE.COMPONENT_CODE = fbs.FBS_EQUITY_COMPONENT.COMPONENT_CODE)
+   Join Fbs_EquityBalanceComponent(fbs.FBS_EQUITY_BALANCE.COMPONENT_CODE = fbs.FBS_EQUITY_COMPONENT.COMPONENT_CODE)
+   Join Fbs_DeductionGoodwill(fbs.FBS_CAPITAL_DEDUCTION.GOODWILL_ID = fbs.FBS_GOODWILL.GOODWILL_ID)
+   Join Fbs_DeductionIntangible(fbs.FBS_CAPITAL_DEDUCTION.INTANGIBLE_ID = fbs.FBS_INTANGIBLE.INTANGIBLE_ID)
+   // The banking asset to its allowance, on the credit key both rows carry.
+   Join Fbs_BankingAssetEcl(fbs.FBS_BANKING_ASSET.NET_EXPOSURE_ID = fbs.FBS_ECL_ALLOWANCE.NET_EXPOSURE_ID)
+
+   // ---- into the four aggregation views -----------------------------------------------------
+   // Each of these crosses into a GROUP BY, never into another line. Navigating
+   // `line.sideTotal` reaches the group the line is IN and not a sibling row.
+   Join Fbs_LineCategoryTotal(fbs.FBS_LINE_ITEM.INSTITUTION_ID = fbs.FBS_CATEGORY_TOTAL.INSTITUTION_ID and fbs.FBS_LINE_ITEM.AS_OF_DATE = fbs.FBS_CATEGORY_TOTAL.AS_OF_DATE and fbs.FBS_LINE_ITEM.REPORTING_CURRENCY = fbs.FBS_CATEGORY_TOTAL.REPORTING_CURRENCY and fbs.FBS_LINE_ITEM.CATEGORY_CODE = fbs.FBS_CATEGORY_TOTAL.CATEGORY_CODE)
+   Join Fbs_LineBasisTotal(fbs.FBS_LINE_ITEM.INSTITUTION_ID = fbs.FBS_BASIS_TOTAL.INSTITUTION_ID and fbs.FBS_LINE_ITEM.AS_OF_DATE = fbs.FBS_BASIS_TOTAL.AS_OF_DATE and fbs.FBS_LINE_ITEM.REPORTING_CURRENCY = fbs.FBS_BASIS_TOTAL.REPORTING_CURRENCY and fbs.FBS_LINE_ITEM.BASIS_CODE = fbs.FBS_BASIS_TOTAL.BASIS_CODE and fbs.FBS_LINE_ITEM.SIDE = fbs.FBS_BASIS_TOTAL.SIDE)
+   Join Fbs_LineBookTotal(fbs.FBS_LINE_ITEM.INSTITUTION_ID = fbs.FBS_BOOK_TOTAL.INSTITUTION_ID and fbs.FBS_LINE_ITEM.AS_OF_DATE = fbs.FBS_BOOK_TOTAL.AS_OF_DATE and fbs.FBS_LINE_ITEM.BOOK_CODE = fbs.FBS_BOOK_TOTAL.BOOK_CODE and fbs.FBS_LINE_ITEM.SIDE = fbs.FBS_BOOK_TOTAL.SIDE)
+   Join Fbs_LineSideTotal(fbs.FBS_LINE_ITEM.INSTITUTION_ID = fbs.FBS_SIDE_TOTAL.INSTITUTION_ID and fbs.FBS_LINE_ITEM.AS_OF_DATE = fbs.FBS_SIDE_TOTAL.AS_OF_DATE and fbs.FBS_LINE_ITEM.REPORTING_CURRENCY = fbs.FBS_SIDE_TOTAL.REPORTING_CURRENCY and fbs.FBS_LINE_ITEM.SIDE = fbs.FBS_SIDE_TOTAL.SIDE)
+   // From the statement into two of the views, so a reader gets the printed lines and the
+   // balance check without touching FBS_LINE_ITEM at all.
+   Join Fbs_StatementCategoryTotal(fbs.FBS_STATEMENT.INSTITUTION_ID = fbs.FBS_CATEGORY_TOTAL.INSTITUTION_ID and fbs.FBS_STATEMENT.AS_OF_DATE = fbs.FBS_CATEGORY_TOTAL.AS_OF_DATE and fbs.FBS_STATEMENT.REPORTING_CURRENCY = fbs.FBS_CATEGORY_TOTAL.REPORTING_CURRENCY)
+   Join Fbs_StatementSideTotal(fbs.FBS_STATEMENT.INSTITUTION_ID = fbs.FBS_SIDE_TOTAL.INSTITUTION_ID and fbs.FBS_STATEMENT.AS_OF_DATE = fbs.FBS_SIDE_TOTAL.AS_OF_DATE and fbs.FBS_STATEMENT.REPORTING_CURRENCY = fbs.FBS_SIDE_TOTAL.REPORTING_CURRENCY)
+   // And from the three classifiers into their own totals, so "everything at FVTPL" is one
+   // navigation from the basis rather than a scan of the line table.
+   Join Fbs_CategoryCategoryTotal(fbs.FBS_CATEGORY.CATEGORY_CODE = fbs.FBS_CATEGORY_TOTAL.CATEGORY_CODE)
+   Join Fbs_BasisBasisTotal(fbs.FBS_MEASUREMENT_BASIS.BASIS_CODE = fbs.FBS_BASIS_TOTAL.BASIS_CODE)
+   Join Fbs_BookBookTotal(fbs.FBS_BOOK_CLASSIFICATION.BOOK_CODE = fbs.FBS_BOOK_TOTAL.BOOK_CODE)
+
+   // ==========================================================================================
+   // THE JOINS THAT LEAVE THIS PROJECT -- sixteen of them, five hops from a leaf
+   // ==========================================================================================
+   // Legal only because of the three `include`s at the top. Every one lands on a table or a
+   // VIEW owned by a DIRECT dependency: PNL_ is pnl-attribution's, EXA_ is exposure-agg's,
+   // LQV_ is liquidity-view's. None is schema-qualified on the far side, because all three
+   // of those projects put their tables in the default schema; ours are, because we did not.
+   //
+   // Note what is NOT here. There is no join to CA_ACCOUNT, CI_INSTRUMENT, CP_LEGAL_ENTITY or
+   // CT_CURRENCY. All four are reachable -- the includes drag seventeen projects in -- and
+   // naming any of them would be a reference to a project this one does not declare. The
+   // model navigates `$line.netExposure.counterparty` and `$position.pnlLine.position`
+   // instead, which is the dependency's own association and costs this project nothing.
+
+   // ---- into pnl-attribution -----------------------------------------------------------------
+   // FIVE COLUMNS, which is exactly PNL_LINE's primary key. This is the deepest single
+   // reference in the graph: PNL_LINE is itself the apex of pnl-attribution's diamond over
+   // position-keeping and valuation-core, each of which sits on core-instrument, core-account,
+   // core-price and core-fx, each of which sits on core-types. Five hops.
+   Join Fbs_TradingPositionPnlLine(fbs.FBS_TRADING_POSITION.PNL_ATTRIBUTION_ID = PNL_LINE.ATTRIBUTION_ID and fbs.FBS_TRADING_POSITION.INSTITUTION_ID = PNL_LINE.INSTITUTION_ID and fbs.FBS_TRADING_POSITION.ACCOUNT_NO = PNL_LINE.ACCOUNT_NO and fbs.FBS_TRADING_POSITION.INSTRUMENT_ID = PNL_LINE.INSTRUMENT_ID and fbs.FBS_TRADING_POSITION.COB_DATE = PNL_LINE.COB_DATE)
+   // Into pnl-attribution's own `~groupBy` VIEW: the firm's whole day of P&L as one row.
+   // View-to-row, from two different tables, because both the statement and the retained
+   // earnings roll-forward need the same number and neither should recompute it.
+   Join Fbs_StatementPnlRunTotal(fbs.FBS_STATEMENT.PNL_ATTRIBUTION_ID = PNL_RUN_TOTAL.ATTRIBUTION_ID)
+   Join Fbs_RetainedEarningsPnlRunTotal(fbs.FBS_RETAINED_EARNINGS.PNL_ATTRIBUTION_ID = PNL_RUN_TOTAL.ATTRIBUTION_ID)
+   Join Fbs_RunPnlRun(fbs.FBS_RUN.PNL_ATTRIBUTION_ID = PNL_RUN.ATTRIBUTION_ID)
+
+   // ---- into exposure-agg --------------------------------------------------------------------
+   Join Fbs_LineNetExposure(fbs.FBS_LINE_ITEM.NET_EXPOSURE_ID = EXA_NET_EXPOSURE.NET_EXPOSURE_ID)
+   Join Fbs_BankingAssetNetExposure(fbs.FBS_BANKING_ASSET.NET_EXPOSURE_ID = EXA_NET_EXPOSURE.NET_EXPOSURE_ID)
+   Join Fbs_EclNetExposure(fbs.FBS_ECL_ALLOWANCE.NET_EXPOSURE_ID = EXA_NET_EXPOSURE.NET_EXPOSURE_ID)
+   Join Fbs_DerivativeAssetNetExposure(fbs.FBS_DERIVATIVE_ASSET.NET_EXPOSURE_ID = EXA_NET_EXPOSURE.NET_EXPOSURE_ID)
+   Join Fbs_DerivativeLiabilityNetExposure(fbs.FBS_DERIVATIVE_LIABILITY.NET_EXPOSURE_ID = EXA_NET_EXPOSURE.NET_EXPOSURE_ID)
+   // The legal answer to what may be offset. This project reads enforceability; it does not
+   // re-derive it.
+   Join Fbs_NettingAdjustmentNettingSet(fbs.FBS_NETTING_ADJUSTMENT.NETTING_SET_ID = EXA_NETTING_SET.NETTING_SET_ID)
+   Join Fbs_DerivativeAssetNettingSet(fbs.FBS_DERIVATIVE_ASSET.NETTING_SET_ID = EXA_NETTING_SET.NETTING_SET_ID)
+   Join Fbs_DerivativeLiabilityNettingSet(fbs.FBS_DERIVATIVE_LIABILITY.NETTING_SET_ID = EXA_NETTING_SET.NETTING_SET_ID)
+   Join Fbs_CollateralOffsetPosition(fbs.FBS_COLLATERAL_OFFSET.POSITION_ID = EXA_COLLATERAL_POSITION.POSITION_ID)
+   // Into exposure-agg's `~groupBy` VIEW: this counterparty's whole day, one row.
+   Join Fbs_DerivativeAssetCounterpartyDayNet(fbs.FBS_DERIVATIVE_ASSET.COUNTERPARTY_ID = EXA_COUNTERPARTY_DAY_NET.COUNTERPARTY_ID and fbs.FBS_DERIVATIVE_ASSET.AS_OF_DATE = EXA_COUNTERPARTY_DAY_NET.AS_OF_DATE)
+   Join Fbs_RunExposureRun(fbs.FBS_RUN.EXPOSURE_RUN_ID = EXA_RUN.RUN_ID)
+
+   // ---- into liquidity-view ------------------------------------------------------------------
+   Join Fbs_HqlaStockLevel(fbs.FBS_HQLA_STOCK.HQLA_LEVEL_CODE = LQV_HQLA_LEVEL.LEVEL_CODE)
+   // Four columns, which is exactly LQV_LCR_RESULT's key. REPORTING_CURRENCY meets
+   // CURRENCY_CODE: the two projects name the same fact differently and the join is where
+   // that is reconciled, once, rather than in every query.
+   Join Fbs_HqlaStockLcrResult(fbs.FBS_HQLA_STOCK.INSTITUTION_ID = LQV_LCR_RESULT.INSTITUTION_ID and fbs.FBS_HQLA_STOCK.REPORTING_CURRENCY = LQV_LCR_RESULT.CURRENCY_CODE and fbs.FBS_HQLA_STOCK.AS_OF_DATE = LQV_LCR_RESULT.AS_OF_DATE and fbs.FBS_HQLA_STOCK.SCENARIO_ID = LQV_LCR_RESULT.SCENARIO_ID)
+   Join Fbs_AssetLineHqlaHolding(fbs.FBS_LINE_ITEM.HQLA_HOLDING_ID = LQV_HQLA_HOLDING.HOLDING_ID)
+   Join Fbs_StatementNsfrResult(fbs.FBS_STATEMENT.INSTITUTION_ID = LQV_NSFR_RESULT.INSTITUTION_ID and fbs.FBS_STATEMENT.NSFR_SCENARIO_CURRENCY = LQV_NSFR_RESULT.CURRENCY_CODE and fbs.FBS_STATEMENT.AS_OF_DATE = LQV_NSFR_RESULT.AS_OF_DATE)
+
+   // ==========================================================================================
+   // FILTERS -- a GLOBAL namespace, so every one is Fbs-prefixed
+   // ==========================================================================================
+   // The three applied ones are the subtype discriminators, referenced from the mapping as
+   // [firm_balance_sheet::Store]FbsAssetRows. Not one filter here is a boolean literal:
+   // `Filter X(T.IS_HQLA = true)` fails to parse with `Unexpected token 'true'`, so a flag is
+   // tested as a string comparison against a code column or as a null test.
+   //
+   // Unlike regulatory-extract's overlapping regime/state filters, these three are DISJOINT
+   // and exhaustive: a row is on exactly one side of a balance sheet, which is the one place
+   // in accounting where a three-way split really is a partition.
+   Filter FbsAssetRows(fbs.FBS_LINE_ITEM.SIDE = 'ASSET')
+   Filter FbsLiabilityRows(fbs.FBS_LINE_ITEM.SIDE = 'LIABILITY')
+   Filter FbsEquityRows(fbs.FBS_LINE_ITEM.SIDE = 'EQUITY')
+
+   // Declared and unapplied, for a downstream project to reference.
+   Filter FbsOpenBalanceChecks(fbs.FBS_BALANCE_CHECK.RESOLVED_ON is null)
+   Filter FbsLiveCategories(fbs.FBS_CATEGORY.RETIRED_ON is null)
+   Filter FbsLiveAdjustments(fbs.FBS_ADJUSTMENT.REVERSED_ON is null)
+   Filter FbsCurrentAttestations(fbs.FBS_ATTESTATION.WITHDRAWN_ON is null)
+   Filter FbsPublishedStatements(fbs.FBS_STATEMENT.SIGNED_OFF_ON is null)
+   Filter FbsFairValuedLines(fbs.FBS_LINE_ITEM.BASIS_CODE = 'FVTPL')
+)
