@@ -42,9 +42,15 @@ class ChannelBStandardTest {
                         + "/legend-engine-pure-code-functions-standard"
                         + "/legend-engine-pure-functions-standard-pure"
                         + "/src/main/resources/core_functions_standard");
+        java.util.List<String> walls = new java.util.ArrayList<>();
         List<ChannelB.Outcome> out = ChannelB.run(
-                List.of(platform, standard), List.of(standard),
-                new java.util.ArrayList<>());
+                List.of(platform, standard), List.of(standard), walls);
+        walls.forEach(w -> System.out.println("[chB-Standard-wall] " + w));
+        System.out.println("[chB-Standard] walls=" + walls.size());
+        // audit-of-audits #12: walls ASSERTED shrink-only (20 measured
+        // 2026-08-21); growth silently shrinks the discovery universe
+        assertTrue(walls.size() <= 20,
+                "standard walls grew: " + walls.size() + " > 20");
         Map<ChannelB.Status, Integer> census =
                 new EnumMap<>(ChannelB.Status.class);
         for (ChannelB.Outcome o : out) {

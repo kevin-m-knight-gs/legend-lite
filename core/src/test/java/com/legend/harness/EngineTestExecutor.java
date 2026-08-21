@@ -3021,8 +3021,10 @@ public final class EngineTestExecutor {
             }
             pool.remove(hit);
         }
-        // F2.4: loose-pool cell multiset — previously uninstrumented
-        com.legend.exec.GridCompare.ordLeniency(() -> {
+        // F2.4: loose-pool cell multiset — previously uninstrumented.
+        // The tag (audit #10) separates THIS site — assertSameElements'
+        // pure-spec order-insensitivity — from genuine row leniency.
+        com.legend.exec.GridCompare.ordLeniency("sameElements-values", () -> {
             for (int i = 0; i < e.size(); i++) {
                 if (!com.legend.exec.PureAsserts.equalScalar(e.get(i), a.get(i))) {
                     return false;

@@ -1362,6 +1362,34 @@ paired-probe pass):
    count; toOne FLOWS it, exactly the engine's compilation
    (CollectionLanes.scalarCarriedIf — typed facts only).
 
+### SHORTCUT-AUDIT BLOCKER 3 LANDED (2026-08-21): referee integrity #9–13
+
+The guards now cover the code they claim to govern:
+- **#9** HarnessDisciplineTest walks `src/main/com/legend/exec` (the
+  comparison policy MOVED there and out of scope — the audit's central
+  relocation finding) and its regex knows the `pool.remove(` loop
+  spelling. The widened net immediately CAUGHT a 4th uninstrumented
+  pool loop in EngineTestExecutor (assertSameElements' value multiset —
+  pure-spec order-insensitivity, registered + tagged).
+- **#10** all five `[ord]` sites emit DISTINCT tags (row-multiset /
+  row-tuple / text-line-multiset / sameElements-values / h2-oracle) —
+  the 358-count census can now separate loose-cell from row-tuple.
+- **#11** SkipCensusTest walks sibling modules (parser-equivalence +
+  pct; coverage floor 270) — 8 previously invisible assumption-skipping
+  files registered with the oracle-absent justification.
+- **#12** every ChannelB suite ASSERTS its wall count shrink-only
+  (essential 20 / relation 23 / standard 20 / unclassified 27), the
+  relation suite pins the two denominator-blocking walls BY NAME
+  (over.pure, pctQualifiers.pure) so burning either forces the 287
+  discovery pin toward the 348 REFERENCE scope, and the 287 assert's
+  message states the honest denominator. Essential's garbled floor
+  message fixed (said "< 290" while checking >= 295).
+- **#13** the four soft-pass ceilings bind LIVE in the corpus runner
+  against the sweep's own outcomes (sqldiff 257 / adv 303 / 0-asserts
+  27 / rescued 613, next to the advisory ceiling);
+  CorpusSoftCeilingTest — which read the committed markdown and could
+  never go red in CI — is DELETED.
+
 ### AUDIT OF BLOCKERS 1+2 (2026-08-21, user-directed post-landing pass)
 
 Method: executable probes + walker sweep, evidence = code and

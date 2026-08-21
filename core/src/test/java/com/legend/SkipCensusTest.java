@@ -53,7 +53,22 @@ class SkipCensusTest {
             "RelationalCorpusRunner.java",
             // skips when the generated expected/ dir is absent — the
             // differential needs its oracle materialized first
-            "CorpusDifferentialTest.java");
+            "CorpusDifferentialTest.java",
+            // ---- parser-equivalence (audit-of-audits #11: the walk
+            // now covers sibling modules — these 8 carried the exact
+            // vacuous-green pattern c4386547 was written to kill,
+            // uncensused). All skip on the ORACLE CHECKOUT being
+            // absent (legend.engine/pure roots); gate 8's
+            // roots_present + skipped() detection is the loud
+            // back-stop that keeps the skip from reading as a pass.
+            "CorpusCensusTest.java",
+            "CorpusManifestTest.java",
+            "CorpusSweepTest.java",
+            "MigrationSizingTest.java",
+            "OwnDialectCensusTest.java",
+            "ParseSpeedBenchmarkTest.java",
+            "SectionParseSentinelTest.java",
+            "SurfaceCensusTest.java");
 
     private static final Pattern DISABLED =
             Pattern.compile("@Disabled\\(\"([^\"]*)\"\\)");
@@ -120,8 +135,25 @@ class SkipCensusTest {
     }
 
     private static List<Path> testSources() throws IOException {
-        try (Stream<Path> s = Files.walk(Path.of("src/test/java"))) {
-            return s.filter(p -> p.toString().endsWith(".java")).toList();
+        List<Path> out = new ArrayList<>();
+        // audit-of-audits #11: the census walks SIBLING MODULES too —
+        // core-only scope let 8 assumption-skipping files sit invisible
+        // in parser-equivalence (the exact scope-rot this file's own
+        // header warns about). pct is included for the same reason.
+        for (Path root : List.of(Path.of("src/test/java"),
+                Path.of("../parser-equivalence/src/test/java"),
+                Path.of("../pct/src/test/java"))) {
+            if (!Files.isDirectory(root)) {
+                continue;
+            }
+            try (Stream<Path> s = Files.walk(root)) {
+                out.addAll(s.filter(p -> p.toString().endsWith(".java"))
+                        .toList());
+            }
         }
+        // floor 270: core 223 + siblings 60 measured 2026-08-21 — a
+        // drop below means a MODULE fell out of the walk
+        GuardCoverage.assertFloor("SkipCensusTest", out.size(), 270);
+        return out;
     }
 }

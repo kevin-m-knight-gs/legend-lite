@@ -53,20 +53,47 @@ class HarnessDisciplineTest {
      *  The 15th (2026-08-20): the h2-verdicts.txt roster dump sorts by
      *  key for a DIFFABLE diagnostic file (the floor-attribution
      *  instrument) — deterministic output, never comparison. */
-    private static final Map<String, Integer> ALLOWED = Map.of(
+    private static final Map<String, Integer> ALLOWED = Map.ofEntries(
             // F4.3 ratchet-DOWN 5 -> 3: the harness RENDERER died (the
             // platform's RENDER lowerings produce the text; the probe and
             // its sorts died with it) — the survivors are the makeString
-            // split-multiset order policy
-            "EngineTestExecutor.java", 3,
-            "H2Verify.java", 2,
-            "JsonAssertCanon.java", 1,
-            "LineageForm.java", 1,
-            "Runner.java", 2,
-            "RelationalCorpusRunner.java", 15,
+            // split-multiset order policy. 3 -> 4 (audit-of-audits #9):
+            // the pool.remove( spelling joined the regex and FOUND the
+            // assertSameElements value-multiset loop this guard had
+            // never seen — order-insensitivity there is the assert's
+            // own PURE-SPEC semantics (assertSameElements), not
+            // leniency; registered, [ord]-tagged.
+            Map.entry("EngineTestExecutor.java", 4),
+            Map.entry("H2Verify.java", 2),
+            Map.entry("JsonAssertCanon.java", 1),
+            Map.entry("LineageForm.java", 1),
+            Map.entry("Runner.java", 2),
+            Map.entry("RelationalCorpusRunner.java", 15),
             // PX.1: TreeSet as a deterministic-iteration REGISTRY
             // (workspace names), not a result reorder
-            "DuckWorkspaces.java", 1);
+            Map.entry("DuckWorkspaces.java", 1),
+            // ---- src/main/com/legend/exec (audit-of-audits #9): the
+            // comparison policy MOVED here from the harness and walked
+            // out of this guard's scope — the walk now covers it. ----
+            // GridCompare: the three POOL-MATCHING loops (row multiset,
+            // CSVJOIN cell multiset, text line multiset) — two-sided
+            // comparison policy gated on the chain's sortedness, each
+            // with a distinct [ord] tag (audit #10)
+            Map.entry("GridCompare.java", 3),
+            // PureAsserts: the typeRank sort inside sameElements — the
+            // pure total-order comparator applied to BOTH sides
+            Map.entry("PureAsserts.java", 1),
+            // Executor: the opt-in TIMING DIAGNOSTIC dump orders by
+            // elapsed time (deterministic output, never comparison)
+            Map.entry("Executor.java", 1),
+            // TimingLedger: TreeMap render of the diagnostic dump
+            // (deterministic output, never comparison)
+            Map.entry("TimingLedger.java", 1),
+            // MetamodelWalk: `.distinct()` here is the RECORD ACCESSOR
+            // cm().distinct() (a mapping fact), not a stream reorder —
+            // counted because the spelling matches; the honest fix is
+            // reading the register, not renaming the accessor
+            Map.entry("MetamodelWalk.java", 3));
 
     /** Extremum spellings joined 2026-08-18 (Tier-2 audit; the
      * original audit's probe 12 — {@code Collections.max} in the
@@ -77,7 +104,12 @@ class HarnessDisciplineTest {
             + "|\\.sort\\(|new TreeSet|new TreeMap"
             + "|Collections\\.max\\(|Collections\\.min\\("
             + "|new PriorityQueue|\\.stream\\(\\)\\.max\\("
-            + "|\\.stream\\(\\)\\.min\\(");
+            + "|\\.stream\\(\\)\\.min\\("
+            // audit-of-audits #9: the POOL-MATCHING loop spelling —
+            // GridCompare's hand-rolled multiset compares carry no
+            // .sorted( for the regex to find; `pool.remove(` is the
+            // loose-match idiom's one stable token
+            + "|pool\\.remove\\(");
 
     @Test
     void resultReorderingIsEnumeratedComparisonPolicyOnly()
@@ -86,7 +118,11 @@ class HarnessDisciplineTest {
         int scanned = 0;
         for (Path root : new Path[] {
                 Path.of("src/test/java/com/legend/harness"),
-                Path.of("src/test/java/com/legend/rcorpus")}) {
+                Path.of("src/test/java/com/legend/rcorpus"),
+                // audit-of-audits #9: the comparison policy lives in
+                // PRODUCTION exec now (GridCompare/PureAsserts moved
+                // from the harness) — the discipline follows the code
+                Path.of("src/main/java/com/legend/exec")}) {
             try (Stream<Path> files = Files.walk(root)) {
                 for (Path f : files
                         .filter(p -> p.toString().endsWith(".java"))
