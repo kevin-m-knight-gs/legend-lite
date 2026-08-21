@@ -376,7 +376,8 @@ final class StatementExecutor {
         java.util.Map<String, String> union = null;
         for (var e : execFrames.entrySet()) {
             if (e.getValue().tableReplace().isEmpty()
-                    || !referencesVar(stmt, e.getKey())) {
+                    || !com.legend.compiler.spec.UserCallInliner
+                            .referencesVar(stmt, e.getKey())) {
                 continue;
             }
             if (union == null) {
@@ -1813,16 +1814,6 @@ final class StatementExecutor {
             java.util.Map<String, String> tableReplace) {
     }
 
-    /** Envelope-read recognizers — generic natives identified by EXACT FQN
-     * (never suffix matching). */
-    private static final String AT_FQN = "meta::pure::functions::collection::at";
-    private static final String FIRST_FQN = "meta::pure::functions::collection::first";
-    private static final String TO_ONE_FQN =
-            "meta::pure::functions::multiplicity::toOne";
-    private static final java.util.Set<String> SIZE_FQNS = java.util.Set.of(
-            "meta::pure::functions::relation::size",
-            "meta::pure::functions::collection::size");
-
     /**
      * Build the frame for one {@code execute(f, mapping, runtime, ext)}
      * call: fold the query lambda's (and the caller's) lets, attach the
@@ -2129,7 +2120,8 @@ final class StatementExecutor {
                         || "second".equals(pp2.property()))
                 && pp2.source() instanceof com.legend.compiler.spec
                         .typed.TypedNativeCall pc2
-                && pc2.callee().qualifiedName().endsWith("::pair")
+                && "meta::pure::functions::collection::pair"
+                        .equals(pc2.callee().qualifiedName())
                 && pc2.args().size() == 2) {
             n = pc2.args().get("first".equals(pp2.property()) ? 0 : 1);
         }
@@ -2180,11 +2172,11 @@ final class StatementExecutor {
                 continue;
             }
             if (cur instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                    && (AT_FQN.equals(nc.callee().qualifiedName())
-                            || TO_ONE_FQN.equals(nc.callee().qualifiedName())
-                            || FIRST_FQN.equals(nc.callee().qualifiedName()))
+                    && (com.legend.compiler.spec.ResultEnvelopeSplice.AT_FQN.equals(nc.callee().qualifiedName())
+                            || com.legend.compiler.spec.ResultEnvelopeSplice.TO_ONE_FQN.equals(nc.callee().qualifiedName())
+                            || com.legend.compiler.spec.ResultEnvelopeSplice.FIRST_FQN.equals(nc.callee().qualifiedName()))
                     && !nc.args().isEmpty()) {
-                if (AT_FQN.equals(nc.callee().qualifiedName())
+                if (com.legend.compiler.spec.ResultEnvelopeSplice.AT_FQN.equals(nc.callee().qualifiedName())
                         && !(nc.args().size() == 2 && nc.args().get(1)
                                 instanceof com.legend.compiler.spec.typed.TypedCInteger k
                                 && k.value().longValue() == 0)) {
@@ -2209,364 +2201,48 @@ final class StatementExecutor {
     }
 
     /**
-     * The TYPED splice — rides the inliner's per-node hook: {@code $r.values}
-     * becomes the frame's query chain; {@code ->at(0)}/{@code ->toOne()}
-     * over it collapse for a relation root (real selections for a class or
-     * scalar root); {@code $r->size()} over a relation-rooted frame is the
-     * envelope's ONE; an inline {@code execute(...).values} splices in place.
+     * The TYPED splice — the REWRITE RULES live in the compiler
+     * ({@link com.legend.compiler.spec.ResultEnvelopeSplice}, Invariant
+     * 7: minting typed nodes is compiler work); this adapter supplies
+     * the execution-bound half only — frame lookup, inline-execute
+     * frame builds (JDBC), and the aggregationAware rewrittenQuery
+     * print.
      */
     private static java.util.function.BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> spliceHook(
             java.util.Map<String, ExecFrame> allFrames,
             java.util.List<TypedSpec> letPrefix, SpecCompiler specs, ExecEnv env) {
-        return (n, boundVars) -> {
-            // a lambda-bound variable spelled like an exec-let is NOT a frame
-            // read (corpus: `let r = execute(...)` + `->map(r|$r.values...)`
-            // — the map binder's $r.values is the ROW's cells, never the
-            // Result envelope); shadowed names drop out of the frame map
-            java.util.Map<String, ExecFrame> execFrames = allFrames;
-            if (!boundVars.isEmpty()
-                    && boundVars.stream().anyMatch(allFrames::containsKey)) {
-                execFrames = new java.util.LinkedHashMap<>(allFrames);
-                execFrames.keySet().removeAll(boundVars);
+        return com.legend.compiler.spec.ResultEnvelopeSplice.hook(
+                new com.legend.compiler.spec.ResultEnvelopeSplice.Frames() {
+            @Override
+            public com.legend.compiler.spec.ResultEnvelopeSplice
+                    .@com.legend.Nullable View frame(String name) {
+                ExecFrame f = allFrames.get(name);
+                return f == null ? null
+                        : new com.legend.compiler.spec.ResultEnvelopeSplice
+                                .View(f.chain(), f.relationRooted());
             }
-            // $result.rows->size(): POST-EXECUTE row count. The engine
-            // counts the MATERIALIZED rows in memory; the in-query
-            // single-column count(col) rule (processRowCount, null-
-            // skipping) must not apply to this splice — a nullable
-            // projected column would under-count (inline-embedded
-            // golden: 5 rows, 3 TDSNull). A constant-1 projection makes
-            // the size lowering emit COUNT(1) = the bare row count.
-            if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall szr
-                    && SIZE_FQNS.contains(szr.callee().qualifiedName())
-                    && szr.args().size() == 1
-                    && szr.args().get(0) instanceof
-                            com.legend.compiler.spec.typed.TypedPropertyAccess rp0
-                    && rp0.property().equals("rows")
-                    && com.legend.compiler.element.type.Type.relationSchema(
-                            rp0.source().info().type()) instanceof
-                            com.legend.compiler.element.type.Type.RelationType rrt) {
-                var one1 = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
-                var intT = com.legend.compiler.element.type.Type.Primitive.INTEGER;
-                var lam = new com.legend.compiler.spec.typed.TypedLambda(
-                        java.util.List.of("_cntRow"),
-                        java.util.List.of(new com.legend.compiler.spec.typed
-                                .TypedCInteger(1L,
-                                new com.legend.compiler.element.type.ExprType(
-                                        intT, one1))),
-                        new com.legend.compiler.element.type.ExprType(
-                                new com.legend.compiler.element.type.Type.FunctionType(
-                                        java.util.List.of(new com.legend.compiler
-                                                .element.type.Type.Param(rrt, one1)),
-                                        new com.legend.compiler.element.type
-                                                .Type.Param(intT, one1)), one1));
-                var cntRow = new com.legend.compiler.element.type.Type.RelationType(
-                        java.util.List.of(new com.legend.compiler.element.type
-                                .Type.Column("cnt", intT, one1)),
-                        java.util.List.of());
-                TypedSpec proj = new com.legend.compiler.spec.typed.TypedProject(
-                        rp0.source(),
-                        java.util.List.of(new com.legend.compiler.spec.typed
-                                .TypedFuncCol("cnt", lam)),
-                        new com.legend.compiler.element.type.ExprType(
-                                com.legend.compiler.element.type.Type
-                                        .relation(cntRow), one1));
-                return new com.legend.compiler.spec.typed.TypedNativeCall(
-                        szr.callee(), java.util.List.of(proj), szr.info());
-            }
-            // the Typer's `.rows` MARKER (identity over a relation value):
-            // it exists so the arms below can tell a REAL row index
-            // ($r.values.rows->at(k)) from the Result envelope
-            // ($r.values->at(k)) — once seen, it erases to its source.
-            if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess rp
-                    && rp.property().equals("rows")
-                    && com.legend.compiler.element.type.Type
-                            .isRelation(rp.source().info().type())) {
-                return rp.source();
-            }
-            // the Typer's `.columns.documentation` MARKER: the receiver is
-            // spliced by the time this hook sees the node — walk to the
-            // PROJECT and fold col()'s doc metadata (String[0..1] per
-            // column: undocumented columns flatten away)
-            if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess dm
-                    && dm.property().equals("columns.documentation")) {
-                TypedSpec un = dm.source();
-                boolean walked = true;
-                while (walked) {
-                    walked = false;
-                    if (un instanceof com.legend.compiler.spec.typed.TypedFrom f2) {
-                        un = f2.source();
-                        walked = true;
-                    } else if (un instanceof com.legend.compiler.spec.typed
-                            .TypedNativeCall w2
-                            && !w2.args().isEmpty()
-                            && com.legend.compiler.element.type.Type
-                                    .isRelation(w2.args().get(0).info().type())) {
-                        un = w2.args().get(0);
-                        walked = true;
-                    } else if (un instanceof com.legend.compiler.spec.typed
-                            .TypedPropertyAccess pv2) {
-                        // an UNSPLICED envelope read ($result.values):
-                        // resolve through the exec frame ourselves
-                        TypedSpec spl = spliceValuesRead(pv2, execFrames,
-                                letPrefix, specs, env);
-                        if (spl != null) {
-                            un = spl;
-                            walked = true;
-                        }
-                    }
-                }
-                if (un instanceof com.legend.compiler.spec.typed.TypedProject tp2) {
-                    return tp2.docsFold();
-                }
-                throw new IllegalStateException("columns.documentation read"
-                        + " did not reach a project after the splice (source="
-                        + un.getClass().getSimpleName() + ")");
-            }
-            // $r->size() / $tds->size(): ONE TDS value, never the row count
-            if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall sz
-                    && SIZE_FQNS.contains(sz.callee().qualifiedName())
-                    && sz.args().size() == 1
-                    && sz.args().get(0)
-                            instanceof com.legend.compiler.spec.typed.TypedVariable sv
-                    && execFrames.containsKey(sv.name())
-                    && execFrames.get(sv.name()).relationRooted()) {
-                return new com.legend.compiler.spec.typed.TypedCInteger(1L,
-                        sz.info());
-            }
-            // size(execute(...)) over an INLINE execute call (ledger
-            // cluster 52): the Result envelope is Result<T|m>[1] — size
-            // is 1, never the row count. eager MUST be true: nothing
-            // downstream consumes the chain, so a lazy frame would
-            // silently skip the query (Pure is strict). NOT gated on
-            // relationRooted() — the query may be class-rooted.
-            if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall szi
-                    && SIZE_FQNS.contains(szi.callee().qualifiedName())
-                    && szi.args().size() == 1) {
-                TypedSpec earg = szi.args().get(0);
-                while (earg instanceof com.legend.compiler.spec.typed.TypedFrom ef) {
-                    earg = ef.source();
-                }
-                if (earg instanceof com.legend.compiler.spec.typed
-                                .TypedNativeCall ec2
-                        && com.legend.compiler.element.type.PlatformTypes
-                                .isExecuteFqn(ec2.callee().qualifiedName())) {
-                    try {
-                        buildFrame(ec2, letPrefix, true, specs, env);
-                    } catch (java.sql.SQLException e) {
-                        throw new IllegalStateException(e);
-                    }
-                    return new com.legend.compiler.spec.typed.TypedCInteger(
-                            1L, szi.info());
-                }
-            }
-            // $r.values->at(k) / ->toOne(): collapse (relation root) or a
-            // REAL selection over the spliced chain (class/scalar root)
-            if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall w
-                    && (AT_FQN.equals(w.callee().qualifiedName())
-                            || TO_ONE_FQN.equals(w.callee().qualifiedName())
-                            || FIRST_FQN.equals(w.callee().qualifiedName()))
-                    && !w.args().isEmpty()) {
-                TypedSpec spliced = spliceValuesRead(w.args().get(0),
-                        execFrames, letPrefix, specs, env);
-                if (spliced != null) {
-                    // relation-rootedness IS the spliced chain's root type
-                    boolean relation = com.legend.compiler.element.type.Type
-                            .relationValued(spliced.info());
-                    if (relation) {
-                        if (AT_FQN.equals(w.callee().qualifiedName())
-                                && !(w.args().size() == 2 && w.args().get(1)
-                                        instanceof com.legend.compiler.spec.typed
-                                                .TypedCInteger k
-                                        && k.value().longValue() == 0)) {
-                            throw new IllegalStateException(
-                                    "Result.values->at(k>0) on a relation-rooted"
-                                    + " query — the values envelope holds one TDS");
-                        }
-                        return spliced;
-                    }
-                    java.util.List<TypedSpec> args =
-                            new java.util.ArrayList<>(w.args());
-                    args.set(0, spliced);
-                    return new com.legend.compiler.spec.typed.TypedNativeCall(
-                            w.callee(), args, w.info());
-                }
-            }
-            // aggregationAware rewrittenQuery: a DERIVED read — the routed
-            // print recomputed from the frame's actual chain
-            TypedSpec act = activityEnvelopeRead(n, execFrames, env);
-            if (act != null) {
-                return act;
-            }
-            // F6.1: $r.activities — the engine's execution-activity trail.
-            // We record NONE, and we no longer pretend otherwise: the old
-            // empty-collection fold made absence asserts pass for the wrong
-            // reason (filter predicates never evaluated) and a fabricated
-            // UUID trace comment satisfied regex asserts the platform never
-            // earned. Any activities read the derived arm above cannot
-            // answer is a loud wall.
-            if ((n instanceof com.legend.compiler.spec.typed.TypedFilter tf
-                    && activitiesRead(tf.source(), execFrames))
-                    || activitiesRead(n, execFrames)) {
-                throw new com.legend.error.NotImplementedException(
-                        "execution activities are not recorded");
-            }
-            // $r.values / execute(...).values → the spliced chain
-            TypedSpec direct = spliceValuesRead(n, execFrames, letPrefix,
-                    specs, env);
-            if (direct != null) {
-                return direct;
-            }
-            // a BARE frame variable reads as the chain (harness parity)
-            if (n instanceof com.legend.compiler.spec.typed.TypedVariable bv
-                    && execFrames.containsKey(bv.name())) {
-                return execFrames.get(bv.name()).chain();
-            }
-            return n;
-        };
-    }
 
-    /** The one activity read the platform can DERIVE: aggregationAware
-     * {@code rewrittenQuery} — the routed print recomputed from the
-     * frame's actual chain via {@link AggAwareActivities}. Null when not
-     * this shape. (F6.1: the trace-comment arm — a Java-manufactured
-     * '-- "executionTraceID" : "&lt;uuid&gt;"' string — was fabrication
-     * and is gone; those reads wall.) */
-    private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedSpec
-            activityEnvelopeRead(com.legend.compiler.spec.typed.TypedSpec n,
-            java.util.Map<String, ExecFrame> execFrames, ExecEnv env) {
-        if (!(n instanceof com.legend.compiler.spec.typed
-                .TypedPropertyAccess pa)
-                || !pa.property().equals("rewrittenQuery")) {
-            return null;
-        }
-        com.legend.compiler.spec.typed.TypedSpec inner = pa.source();
-        while (true) {
-            if (inner instanceof com.legend.compiler.spec.typed
-                    .TypedCast tc) {
-                inner = tc.source();
-            } else if (inner instanceof com.legend.compiler.spec.typed
-                    .TypedNativeCall w
-                    && !w.args().isEmpty()
-                    && (AT_FQN.equals(w.callee().qualifiedName())
-                        || FIRST_FQN.equals(w.callee().qualifiedName())
-                        || TO_ONE_FQN.equals(w.callee().qualifiedName()))) {
-                inner = w.args().get(0);
-            } else {
-                break;
-            }
-        }
-        if (inner instanceof com.legend.compiler.spec.typed
-                        .TypedFilter af
-                && activitiesRead(af.source(), execFrames)
-                && af.source() instanceof com.legend.compiler.spec.typed
-                        .TypedPropertyAccess ap2
-                && ap2.source() instanceof com.legend.compiler.spec.typed
-                        .TypedVariable av2) {
-            ExecFrame afr = execFrames.get(av2.name());
-            String rq = afr == null ? null
-                    : AggAwareActivities.rewrittenQuery(afr.chain(), env.ctx());
-            if (rq != null) {
-                return new com.legend.compiler.spec.typed.TypedCString(
-                        rq, n.info());
-            }
-        }
-        return null;
-    }
-
-    /** A {@code <frameVar>.activities} read (the Result envelope's
-     * execution-activity trail). */
-    private static boolean activitiesRead(TypedSpec n,
-            java.util.Map<String, ExecFrame> execFrames) {
-        return n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess ap
-                && ap.property().equals("activities")
-                && ap.source()
-                        instanceof com.legend.compiler.spec.typed.TypedVariable av
-                && execFrames.containsKey(av.name());
-    }
-
-    /** The frame behind a {@code <frameVar>.values} read; null otherwise. */
-    private static @com.legend.Nullable ExecFrame valuesFrame(TypedSpec n,
-            java.util.Map<String, ExecFrame> execFrames) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
-                && pa.property().equals("values")
-                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
-                && execFrames.containsKey(v.name())) {
-            return execFrames.get(v.name());
-        }
-        return null;
-    }
-
-    /** Splice a {@code .values} read (over a frame variable or an INLINE
-     * execute call) into the underlying typed query chain; null when the
-     * node is not a values read the frames can answer. */
-    private static @com.legend.Nullable TypedSpec spliceValuesRead(TypedSpec n,
-            java.util.Map<String, ExecFrame> execFrames,
-            java.util.List<TypedSpec> letPrefix, SpecCompiler specs, ExecEnv env) {
-        ExecFrame f = valuesFrame(n, execFrames);
-        if (f != null) {
-            return f.chain();
-        }
-        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
-                && pa.property().equals("values")) {
-            TypedSpec src = pa.source();
-            while (src instanceof com.legend.compiler.spec.typed.TypedFrom sf) {
-                src = sf.source();
-            }
-            if (src instanceof com.legend.compiler.spec.typed.TypedNativeCall ec
-                    && com.legend.compiler.element.type.PlatformTypes
-                            .isExecuteFqn(ec.callee().qualifiedName())) {
+            @Override
+            public com.legend.compiler.spec.ResultEnvelopeSplice.View
+                    inlineExecute(com.legend.compiler.spec.typed
+                            .TypedNativeCall ec, boolean eager) {
                 try {
-                    // inline read: the value is observed where it stands —
-                    // no separate eager run (it would execute twice)
-                    return buildFrame(ec, letPrefix, false, specs, env).chain();
+                    ExecFrame f = buildFrame(ec, letPrefix, eager, specs, env);
+                    return new com.legend.compiler.spec.ResultEnvelopeSplice
+                            .View(f.chain(), f.relationRooted());
                 } catch (java.sql.SQLException e) {
                     throw new IllegalStateException(e);
                 }
             }
-        }
-        return null;
+
+            @Override
+            public @com.legend.Nullable String aggAwareRewrittenQuery(
+                    TypedSpec chain) {
+                return AggAwareActivities.rewrittenQuery(chain, env.ctx());
+            }
+        });
     }
 
-    /** Bind an effectful map's parameter: TypedVariable(param) reads in
-     * the body's native-call arguments replace with the STRING literal
-     * (the corpus shape: executeInDb($sql, $connection)); a read anywhere
-     * deeper is loud — never silently unbound. */
-    private static TypedSpec bindParam(TypedSpec node, String param, String value) {
-        var lit = new com.legend.compiler.spec.typed.TypedCString(value,
-                com.legend.compiler.element.type.ExprType.one(
-                        com.legend.compiler.element.type.Type.Primitive.STRING));
-        if (node instanceof com.legend.compiler.spec.typed.TypedVariable tv
-                && tv.name().equals(param)) {
-            return lit;
-        }
-        if (node instanceof com.legend.compiler.spec.typed.TypedNativeCall nc) {
-            java.util.List<TypedSpec> args = new java.util.ArrayList<>();
-            for (TypedSpec a : nc.args()) {
-                args.add(a instanceof com.legend.compiler.spec.typed.TypedVariable v2
-                        && v2.name().equals(param) ? lit : a);
-            }
-            return new com.legend.compiler.spec.typed.TypedNativeCall(
-                    nc.callee(), args, nc.info());
-        }
-        if (referencesVar(node, param)) {
-            throw new IllegalStateException("effectful map body reads the"
-                    + " parameter '" + param + "' in an unsupported position");
-        }
-        return node;
-    }
-
-    private static boolean referencesVar(TypedSpec node, String name) {
-        if (node instanceof com.legend.compiler.spec.typed.TypedVariable tv
-                && tv.name().equals(name)) {
-            return true;
-        }
-        for (TypedSpec c : node.children()) {
-            if (referencesVar(c, name)) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     /** The member name of a typed enum-shaped read (DatabaseType.H2). */
     /** Engine stream-input rule (storeContract.pure:221 supportsStream +
@@ -3070,7 +2746,8 @@ final class StatementExecutor {
                 java.util.List<TypedSpec> one = new java.util.ArrayList<>(
                         body.subList(0, body.size() - 1));
                 for (TypedSpec stmt2 : tm.mapper().body()) {
-                    one.add(bindParam(stmt2, param, sv));
+                    one.add(com.legend.compiler.spec.UserCallInliner
+                            .bindStringParam(stmt2, param, sv));
                 }
                 last = executeTyped(one, env);
             }

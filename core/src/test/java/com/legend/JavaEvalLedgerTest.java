@@ -240,10 +240,15 @@ class JavaEvalLedgerTest {
             new LinkedHashMap<>();
 
     static {
-        // E4 — StatementExecutor's walk family
+        // E4 — StatementExecutor's walk family. 42→40 (2026-08-21):
+        // activityEnvelopeRead moved to compiler.spec.ResultEnvelopeSplice
+        // (splice-ownership leg slice 1, Invariant 7) — there it is a
+        // private REWRITE RULE; the Java-side derivation it asks for
+        // (AggAwareActivities.rewrittenQuery) stays executor-side behind
+        // the Frames SPI and stays on this ledger's radar.
         EVICT_NAMES.put("core/src/main/java/com/legend/StatementExecutor.java",
                 new Object[]{"(planWalk|walkProp|walkFilter|walkResult|planModel|planConnOf|constructNode|constructOp|nodeValue|typeRefSimple|activityEnvelopeRead|connectionStoreElementOf)\\(",
-                        42});
+                        40});
         // E4.d batch 1 LANDED (2026-08-17, user-ratified "engine-exact
         // text is a lower TARGET"): the second DDL speller is DEAD —
         // dropTableStatementText/createTableStatementText/engineSpell

@@ -1064,3 +1064,55 @@ semantics land WITH the future ingress that creates the
 Java-holds-value moment — the prepared-statements program (JDBC
 setObject binding), which is chartered separately and owns injection
 safety, statement caching, and wire type fidelity as its payoffs.
+
+## SPLICE-OWNERSHIP LEG (user: "Need to fix the compiler first for sure")
+
+The user's question "Statement Exec does compiler work? (Splice?)"
+named a real debt. Census (measured, not guessed): exactly FOUR files
+outside the compiler layers construct typed-HIR nodes —
+StatementExecutor, AssertVerdicts, exec.RawGridSchema,
+validation.DriverPkAppend.
+
+### INVARIANT 7 LANDED — typed nodes are minted only by compiler layers
+
+New ArchitectureTest rule: constructors of
+`com.legend.compiler.spec.typed.*` are callable only from
+compiler/resolver/normalizer/lowering; READING (pattern-matching,
+dispatch) is free everywhere — the executor consumes the tree, it must
+not grow it. The four census files are pinned exceptions with written
+justifications; the list only SHRINKS, additions need a necessity
+proof (a runtime fact that cannot exist at compile time). The rule was
+PROBED before trust: removing a pin surfaced the exact 19-site mint
+roster with line numbers — which became slice 1's work list.
+
+### SLICE 1 LANDED — the splice rules move home
+
+- `compiler.spec.ResultEnvelopeSplice`: spliceHook's rewrite rules
+  (row-count COUNT(1) projection, `.rows` marker erasure,
+  columns.documentation fold, envelope size-is-ONE, values-read
+  collapse, activities wall, aggAware rewrittenQuery) moved VERBATIM
+  behind a `Frames` SPI (`frame(name)` / `inlineExecute(ec, eager)` /
+  `aggAwareRewrittenQuery(chain)`). The executor's adapter supplies
+  the execution-bound half ONLY: frame lookup, JDBC frame builds, the
+  derived print. The compiler owns WHAT a splice means; the executor
+  owns WHEN a frame's value exists.
+- `UserCallInliner.bindStringParam` + `referencesVar`: the effectful-
+  map β-bind folds into the one β-engine's file — the SECOND partial
+  β-implementation dies as a species (deliberately still narrow: the
+  deep-read wall documents untested positions).
+- foldPairProjection's `endsWith("::pair")` fixed to the exact FQN
+  (exact-FQN doctrine — read-side, stays executor).
+- JavaEvalLedger E4 pin PAID 42→40 (activityEnvelopeRead left the
+  file; the Java-side derivation stays on the ledger's radar).
+
+REMAINING in the pin (slice 2): buildFrame's chain ASSEMBLY
+(β-expansion of map-built lambda collections, the
+concatenateTemporalTdsQueries fold-by-emission, from-attachment — 6
+mints) + two staging TypedLets (executeCallStatement,
+withQueryLetPrefix — which also instantiates a Lowerer in the
+executor). AssertVerdicts (K-arm verdict-query builder),
+RawGridSchema (Phase-1c late-bound schema, runtime probe — genuine
+boundary), DriverPkAppend (pure tree→tree pass — just MOVE it under
+resolver/) each carry their route out in the rule javadoc.
+
+Referee: suite 4185/0, corpus scoreboard byte-identical.

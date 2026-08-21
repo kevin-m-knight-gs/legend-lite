@@ -590,5 +590,52 @@ public final class UserCallInliner {
         return out;
     }
 
+    // =====================================================================
+    // Narrow β-binds for the executor's staging loops (Invariant 7: the
+    // SUBSTITUTION is compiler work; the executor supplies the runtime
+    // value and the moment). Owned here beside the full engine so a
+    // second partial β-implementation never grows elsewhere again.
+    // =====================================================================
 
+    /** Bind an effectful map's parameter: {@code TypedVariable(param)}
+     * reads at the node root or in native-call arguments replace with
+     * the STRING literal (the corpus shape:
+     * {@code executeInDb($sql, $connection)}); a read anywhere deeper is
+     * LOUD — a wall, never silently unbound. Deliberately NARROWER than
+     * {@link #inlineBody}: the wall documents the untested positions. */
+    public static TypedSpec bindStringParam(TypedSpec node, String param,
+            String value) {
+        var lit = new com.legend.compiler.spec.typed.TypedCString(value,
+                com.legend.compiler.element.type.ExprType.one(
+                        com.legend.compiler.element.type.Type.Primitive.STRING));
+        if (node instanceof TypedVariable tv && tv.name().equals(param)) {
+            return lit;
+        }
+        if (node instanceof TypedNativeCall nc) {
+            List<TypedSpec> args = new ArrayList<>();
+            for (TypedSpec a : nc.args()) {
+                args.add(a instanceof TypedVariable v2
+                        && v2.name().equals(param) ? lit : a);
+            }
+            return new TypedNativeCall(nc.callee(), args, nc.info());
+        }
+        if (referencesVar(node, param)) {
+            throw new IllegalStateException("effectful map body reads the"
+                    + " parameter '" + param + "' in an unsupported position");
+        }
+        return node;
+    }
+
+    /** Whether {@code node} (transitively) reads the variable. */
+    public static boolean referencesVar(TypedSpec node, String name) {
+        if (node instanceof TypedVariable tv && tv.name().equals(name)) {
+            return true;
+        }
+        for (TypedSpec c : node.children()) {
+            if (referencesVar(c, name)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

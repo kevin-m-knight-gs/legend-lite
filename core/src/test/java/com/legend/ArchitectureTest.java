@@ -746,4 +746,71 @@ final class ArchitectureTest {
               + "com.legend.cache on ContentStore (Hash-keyed). See core/README.md.")
             .check(CORE_PROD_CLASSES);
     }
+
+    /**
+     * <strong>Invariant 7 — compiler work lives in the compiler.</strong>
+     * Constructing (minting/rewriting) typed-HIR nodes IS compiler work:
+     * it decides stamps and tree shape, the facts the whole stamp
+     * discipline pins. Only the compiler layers — {@code compiler},
+     * {@code resolver}, {@code normalizer}, {@code lowering} — may
+     * construct {@code com.legend.compiler.spec.typed.*} nodes. Reading
+     * (pattern-matching, dispatch) is fine anywhere: the executor
+     * consumes the tree; it must not grow it.
+     *
+     * <p>The pinned exceptions are today's census (2026-08-21), each with
+     * a standing justification, and the list only SHRINKS — never add a
+     * row without a necessity proof on OUR tenets (a runtime fact that
+     * cannot exist at compile time), recorded here:
+     * <ul>
+     *   <li>{@code StatementExecutor} — slice 1 of the splice-ownership
+     *       leg moved the splice RULES to
+     *       {@code compiler.spec.ResultEnvelopeSplice} and the β-binds
+     *       to {@code UserCallInliner}; the REMAINING mints are
+     *       buildFrame's chain assembly (β-expansion, the
+     *       concatenateTemporalTdsQueries fold-by-emission, from-
+     *       attachment) plus two staging TypedLets — slice 2 extracts
+     *       the chain assembly and deletes this pin.</li>
+     *   <li>{@code AssertVerdicts} — the K-arm verdict-query synthesis
+     *       (Phase-4 redesign, ratified): builds the predicate-vector
+     *       query from the assert's own typed arguments. Candidate for a
+     *       compiler-owned builder; pinned with that follow-up.</li>
+     *   <li>{@code exec.RawGridSchema} — Phase 1c late-bound raw-grid
+     *       schema: the column roster is a RUNTIME fact (probed over the
+     *       connection); the boundary resolver owns the schema stamp by
+     *       ratified design.</li>
+     *   <li>{@code validation.DriverPkAppend} — the engine's
+     *       addDriverTablePkForProject execution-context flag (#45); a
+     *       pure tree→tree pass with no runtime facts — candidate to
+     *       move under resolver/, which would delete the pin.</li>
+     * </ul>
+     */
+    @Test
+    void typedNodesAreMintedOnlyByCompilerLayers() {
+        noClasses()
+            .that().resideOutsideOfPackages(
+                    "com.legend.compiler..",
+                    "com.legend.resolver..",
+                    "com.legend.normalizer..",
+                    "com.legend.lowering..")
+            .and().doNotBelongToAnyOf(
+                    com.legend.StatementExecutor.class,
+                    com.legend.AssertVerdicts.class,
+                    com.legend.exec.RawGridSchema.class,
+                    com.legend.validation.DriverPkAppend.class)
+            .should().callCodeUnitWhere(
+                    com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                            com.tngtech.archunit.core.domain.properties.HasName
+                                    .Predicates.name("<init>"))
+                    .and(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                            com.tngtech.archunit.core.domain.properties.HasOwner
+                                    .Predicates.With.<com.tngtech.archunit.core
+                                            .domain.JavaClass>owner(
+                                    com.tngtech.archunit.core.domain.JavaClass
+                                            .Predicates.resideInAPackage(
+                                                    "com.legend.compiler.spec.typed")))))
+            .as("Invariant 7: typed-HIR nodes are minted only by the compiler"
+                    + " layers (compiler/resolver/normalizer/lowering) — the"
+                    + " pinned exceptions only shrink; see the rule javadoc")
+            .check(CORE_PROD_CLASSES);
+    }
 }
