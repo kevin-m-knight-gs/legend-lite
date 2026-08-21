@@ -517,8 +517,16 @@ final class Scalars {
         // CONTRACT includes Pure's empty-collection semantics (exists([]) =
         // false, forAll([]) = true) — every dialect's expansion must honor
         // them (DuckDB: coalesce over list_bool_* lambdas).
-        family(SqlFn.LIST_EXISTS, "exists");
-        family(SqlFn.LIST_FOR_ALL, "forAll");
+        // c1-literal COLLECTION params box (DEEP_AUDIT §3: [7] bare)
+        for (var fx : List.of(Map.entry(SqlFn.LIST_EXISTS, "exists"),
+                Map.entry(SqlFn.LIST_FOR_ALL, "forAll"))) {
+            for (var f : Pure.nativeKeysAt(fx.getValue())) {
+                RULES.put(f, (n, args) -> new SqlExpr.Call(fx.getKey(),
+                        List.of(PureSql.asList(args.get(0),
+                                !CollectionLanes.c1Literal(n.args().get(0))),
+                                args.get(1))));
+            }
+        }
 
         // ---- the registration grind (corpus-driven; MUST-honor templates) ----
         // Math (ROUND is banker's per the semantics contract).
@@ -1331,32 +1339,13 @@ final class Scalars {
         // zip(a, b) -> Pair<T,U>[*]: index over the SHORTER list (real pure
         // truncates; DuckDB's native list_zip PADS with NULL — wrong
         // semantics), each element a struct with Pair's first/second layout.
+        // zip: c1-literal sides box (DEEP_AUDIT §3); ListEncodings.zip
         for (String f : Pure.nativeKeysAt("zip")) {
-            RULES.put(f, (n, args) -> {
-                SqlExpr a = args.get(0), b = args.get(1);
-                // An EMPTY side is SQL NULL and len(NULL) is NULL — which
-                // LEAST would IGNORE (it skips nulls), silently zipping
-                // against the non-empty side. Zero it explicitly.
-                SqlExpr count = SqlExpr.Call.of(SqlFn.LEAST,
-                        SqlExpr.Call.of(SqlFn.COALESCE,
-                                SqlExpr.Call.of(SqlFn.LIST_LENGTH, a), new SqlExpr.IntLit(0)),
-                        SqlExpr.Call.of(SqlFn.COALESCE,
-                                SqlExpr.Call.of(SqlFn.LIST_LENGTH, b), new SqlExpr.IntLit(0)));
-                SqlExpr i = new SqlExpr.Column(null, "_zip_i");
-                SqlExpr body = new SqlExpr.StructLit(List.of(
-                        new SqlExpr.StructLit.Field("first",
-                                SqlExpr.Call.of(SqlFn.LIST_GET, a, i)),
-                        new SqlExpr.StructLit.Field("second",
-                                SqlExpr.Call.of(SqlFn.LIST_GET, b, i))));
-                // An EMPTY side lowers as SQL NULL — the whole zip is then
-                // NULL; the Pure contract is the EMPTY list.
-                return SqlExpr.Call.of(SqlFn.COALESCE,
-                        SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
-                                SqlExpr.Call.of(SqlFn.RANGE_FN,
-                                        new SqlExpr.IntLit(1), plusOne(count)),
-                                new SqlExpr.Lambda(List.of("_zip_i"), body)),
-                        new SqlExpr.ArrayLit(List.of()));
-            });
+            RULES.put(f, (n, args) -> ListEncodings.zip(
+                    PureSql.asList(args.get(0),
+                            !CollectionLanes.c1Literal(n.args().get(0))),
+                    PureSql.asList(args.get(1),
+                            !CollectionLanes.c1Literal(n.args().get(1)))));
         }
         for (String name : List.of("mean", "average")) {
             for (String f : Pure.nativeKeysAt(name)) {
@@ -2063,6 +2052,17 @@ final class Scalars {
         }
         for (String f : Pure.nativeKeysAt("contains")) {
             RULES.put(f, (n, args) -> {
+                // COLLECTION-callee c1-LITERALS box (DEEP_AUDIT §3);
+                // dispatch by the RESOLVED CALLEE's param mult (C1
+                // indexOf pattern) — string::contains keeps the scalar.
+                boolean collCallee = !(n.callee().parameters().get(0)
+                        .multiplicity() instanceof Multiplicity.Bounded pb0
+                        && pb0.upper() != null && pb0.upper() <= 1);
+                if (collCallee) {
+                    args = new java.util.ArrayList<>(args);
+                    args.set(0, PureSql.asList(args.get(0),
+                            !CollectionLanes.c1Literal(n.args().get(0))));
+                }
                 // contains(coll, val, comparator): filter by the comparator
                 // against the needle, then non-empty. SQL lambdas are
                 // positional and list_filter is 1-param — the needle
@@ -2081,7 +2081,7 @@ final class Scalars {
                                                     List.of(comp.params().get(1)), body))),
                             new SqlExpr.IntLit(0)));
                 }
-                // a TO-ONE singleton-literal needle (['ISIN2']) unwraps
+                // TO-ONE singleton-literal needle (['ISIN2']) unwraps
                 if (args.get(1) instanceof SqlExpr.ArrayLit al
                         && al.elements().size() == 1
                         && isToOne(n.args().get(1))) {

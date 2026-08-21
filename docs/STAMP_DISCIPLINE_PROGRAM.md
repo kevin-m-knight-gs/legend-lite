@@ -1506,6 +1506,31 @@ property reads) keeps its NULL cells, because TDSNull is DATA on the
 grid convention (the engine's tdsNull channel). The first draft
 compacted any literal with a lower-0 element and ate a grid cell.
 
+### D2 LANDED: the c1-singleton binder leaks (DEEP_AUDIT §3)
+
+The six hard crashes fixed — a C1-COLLAPSED LITERAL ([7]) reaching a
+collection op as a bare scalar re-boxes (PureSql.asList): take/drop/
+slice at the Lowerer's Typed arms, exists/forAll at their
+registrations, contains and zip at their rules. zip's pair emission
+moved to ListEncodings (file-length guard).
+
+SECOND REFEREE LESSON (corpus witness testContainsEscapePercentage):
+the box is scoped to `CollectionLanes.c1Literal` — a to-one-stamped
+COLLECTION LITERAL, exactly the deep audit's own "Bounded: literal
+collections only". A to-one PROPERTY READ must NOT box: the corpus
+pins its null-guarded scalar arms (`comments->contains('%')` over
+String[0..1] = `IS NOT NULL AND strpos(...)`, never list_contains).
+The first draft boxed by bare to-one stamp and broke that arm.
+
+ADJUDICATED pure-faithful (the audit's "want" column was wrong — its
+own §1 retraction class): `['ACTIVE']->contains('TIV')` is TRUE in
+real pure — [x] == x is pure's own law, the checker resolves
+string::contains for a String[1] operand, and substring semantics IS
+pure's answer. The contains rule dispatches by the RESOLVED CALLEE's
+param mult (boxes only the collection overload). Same ruling covers
+`['abc']->indexOf('b')` (string overload + the adjudicated engine
+1-based lane). Pins: BurnLaneTest#singletonCollectionOps.
+
 ### §7b ADJUDICATION (2026-08-21, ratified item f — witnesses, no reflex fix)
 
 **Question 1 — TRUST_ONE wrapping user `[1]` declarations / the

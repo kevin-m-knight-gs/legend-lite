@@ -218,6 +218,20 @@ final class CollectionLanes {
                 : arg;
     }
 
+    /** A C1-COLLAPSED LITERAL operand ({@code [7]} — a to-one-stamped
+     * collection literal lowered as its bare element, DEEP_AUDIT §3):
+     * the ONE population that must re-box before a list-consuming
+     * emission. A to-one PROPERTY READ must NOT box — the corpus pins
+     * its null-guarded scalar arms (testContainsEscapePercentage:
+     * {@code comments->contains('%')} over String[0..1] is
+     * {@code IS NOT NULL AND strpos(...)}, never list_contains). */
+    static boolean c1Literal(TypedSpec t) {
+        return t instanceof TypedCollection
+                && t.info().multiplicity() instanceof
+                        com.legend.compiler.element.type.Multiplicity.Bounded b
+                && b.upper() != null && b.upper() <= 1;
+    }
+
     /** An if whose branch thunks are ALL to-one-stamped lowers on the
      * SCALAR carrier (MixedEncoding.lubCase — a bare CASE), a loose
      * {@code [*]} outer stamp notwithstanding: there is no list to

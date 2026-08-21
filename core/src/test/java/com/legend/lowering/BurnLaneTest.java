@@ -113,6 +113,35 @@ class BurnLaneTest {
                 "the reducer must gain ORDER BY u_ord, got:\n" + sql);
     }
 
+    // ---- DEEP_AUDIT §3 (D2): singleton literals through collection ops ----
+
+    @Test
+    @DisplayName("D2: c1-collapsed singletons box by stamp at collection consumers")
+    void singletonCollectionOps() throws Exception {
+        try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
+            record P(String q, String want) {
+            }
+            for (P p : List.of(
+                    // the six former hard Binder errors
+                    new P("{|[7]->take(1)}", "[7]"),
+                    new P("{|[7]->drop(0)}", "[7]"),
+                    new P("{|[7]->slice(0,1)}", "[7]"),
+                    new P("{|[7]->contains(7)}", "true"),
+                    new P("{|[7]->exists(x|$x > 1)}", "true"),
+                    new P("{|[7]->zip([8])}", "[{first=7, second=8}]"),
+                    // ADJUDICATED pure-faithful (pure's [x] == x law: the
+                    // checker resolves string::contains for a String[1]
+                    // operand — substring semantics IS pure's answer)
+                    new P("{|['ACTIVE']->contains('TIV')}", "true"))) {
+                ExecutionResult r = Compiler.execute("", p.q(), conn);
+                Object v = r instanceof ExecutionResult.Scalar s ? s.value()
+                        : r instanceof ExecutionResult.Collection c
+                                ? c.values() : r;
+                assertEquals(p.want(), String.valueOf(v), p.q());
+            }
+        }
+    }
+
     // ---- cast(): cross-kind raises pure's message ----
 
     @Test

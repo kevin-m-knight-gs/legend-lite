@@ -2656,13 +2656,19 @@ public final class Lowerer {
                             scalar(f.predicate(), columns));
             // slice(start, stop) — ListEncodings.slice owns the bounds
             // clamps and real pure's inverted-bounds error
+            // slice/drop/take consume the LIST carrier — a to-one-stamped
+            // source ([7], the c1 collapse) BOXES by stamp (DEEP_AUDIT §3:
+            // six collection ops were hard Binder errors on singletons)
             case TypedSlice s when !Type.relationValued(s.source().info()) ->
-                    ListEncodings.slice(scalar(s.source(), columns),
+                    ListEncodings.slice(
+                            PureSql.asList(scalar(s.source(), columns),
+                                    !CollectionLanes.c1Literal(s.source())),
                             scalar(s.start(), columns),
                             scalar(s.stop(), columns));
             // drop(n): the suffix from n+1; negative n drops nothing (PCT).
             case TypedDrop d when !Type.relationValued(d.source().info()) -> {
-                SqlExpr src = scalar(d.source(), columns);
+                SqlExpr src = PureSql.asList(scalar(d.source(), columns),
+                        !CollectionLanes.c1Literal(d.source()));
                 yield SqlExpr.Call.of(SqlFn.LIST_SLICE, src,
                         ListEncodings.onePlus(ListEncodings.clamp0(scalar(d.count(), columns))),
                         SqlExpr.Call.of(SqlFn.LIST_LENGTH, src));
@@ -2671,7 +2677,9 @@ public final class Lowerer {
             // matters because DuckDB reads a negative bound FROM THE END.
             case TypedLimit t when !Type.relationValued(t.source().info()) ->
                     SqlExpr.Call.of(SqlFn.LIST_SLICE,
-                            scalar(t.source(), columns), new SqlExpr.IntLit(1),
+                            PureSql.asList(scalar(t.source(), columns),
+                                    !CollectionLanes.c1Literal(t.source())),
+                            new SqlExpr.IntLit(1),
                             ListEncodings.clamp0(scalar(t.count(), columns)));
             // A let in EXPRESSION position (a callee shape the statement
             // folder didn't reach): bind and yield — the let IS its value.
