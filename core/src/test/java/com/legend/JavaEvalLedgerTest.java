@@ -212,7 +212,15 @@ class JavaEvalLedgerTest {
             // RUNTIME-KIND refinement from the fetched values — pure's
             // own Number-equality dispatch. Routing + kind classification
             // over DB-produced values; zero evaluation.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 612),
+            // 612→628 (2026-08-22 X-slice close): the USER-RATIFIED
+            // 2-ULP dialect-arithmetic policy arm on the byte verdict —
+            // runtime-kind refinement widened the byte channel's claim
+            // into territory the unrefined-NUMBER decline used to route
+            // to the host policy; the policy must ride the claim
+            // EXPLICITLY (sqlUlpPolicy census) or it silently retires.
+            // PureAsserts owns the tolerance; this only vectorizes the
+            // pair check + counts. Zero value evaluation.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 628),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

@@ -60,20 +60,17 @@ public final class CanonicalRenderSql {
         return null;
     }
 
-    /** Decimal: scale-normalized, integral renders BARE (spec §2 —
-     * forced by pure's numeric equality). CAST preserves scale
-     * ('8.00'); strip trailing zeros after the dot, then a terminal
-     * dot entirely. */
+    /** Decimal: SCALE-PRESERVING (X2, VERDICT_RULE_AUDIT — engine
+     * Decimal equality is getValue().equals, scale-sensitive; the old
+     * scale-normalized canon followed the deleted compareTo grant).
+     * CAST already preserves scale ('8.00'); only the wire's 'D'
+     * representation suffix (variant/identity VARCHAR channel: 2D,
+     * 1.0D) normalizes away. */
     private static SqlExpr decimalCanon(SqlExpr v) {
-        // the wire's Decimal REPRESENTATION spelling carries pure's 'D'
-        // suffix on the variant/identity VARCHAR channel (2D, 1.0D) —
-        // normalize it away first, same rule shape as the temporal
-        // +0000 strip (V6 round 2, user-caught canon-path divergence)
-        SqlExpr bare = SqlExpr.Call.of(SqlFn.REGEXP_REPLACE,
+        return SqlExpr.Call.of(SqlFn.REGEXP_REPLACE,
                 new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR),
                 new SqlExpr.StringLit("[Dd]$"),
                 new SqlExpr.StringLit(""));
-        return stripDot(stripTrailingZeros(bare), "");
     }
 
     /**
@@ -214,28 +211,6 @@ public final class CanonicalRenderSql {
         return SqlExpr.Call.of(SqlFn.REGEXP_REPLACE, text,
                 new SqlExpr.StringLit("(\\.\\d*?)0+$"),
                 new SqlExpr.StringLit("\\1"));
-    }
-
-    /**
-     * The NUMERIC-VALUE canon (spec §3 pair rules): pure's numeric
-     * equality is NON-TRANSITIVE (8 == 8D, 8D == 8.0, 8 != 8.0), so
-     * one text cannot serve every pair — when a Decimal meets any
-     * numeric, both sides compare by VALUE spelling (integral bare,
-     * trailing zeros stripped); int×int and float×float compare their
-     * EXACT canon; int×float is statically FALSE. This is the value
-     * form: the exact canon with a terminal {@code .0} dropped.
-     */
-    public static @com.legend.Nullable SqlExpr numericValueCanon(SqlExpr v,
-            Type t) {
-        SqlExpr exact = scalarCanon(v, t);
-        if (exact == null) {
-            return null;
-        }
-        // FULL value normalization regardless of the side's spelling
-        // channel: strip ALL trailing fractional zeros, then a bare
-        // terminal dot — '353791.470'→'353791.47', '8.0'→'8',
-        // '4.4'→'4.4' (the decimal canon applied to any numeric text)
-        return stripDot(stripTrailingZeros(exact), "");
     }
 
     /** A TERMINAL dot rewrites to {@code replacement} ('' = integral

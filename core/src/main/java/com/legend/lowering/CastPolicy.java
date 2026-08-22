@@ -106,6 +106,14 @@ final class CastPolicy {
         }
         // The dialect may render this cast through its text-extraction idiom
         // (DuckDB ->>) — that is RENDERING knowledge; the IR keeps the access.
+        // KIND/SCALE PRESERVATION (X-audit): engine cast-to-Decimal keeps
+        // the VALUE's own scale — an INTEGER source is a scale-0 Decimal,
+        // never the blanket (38,18) fabrication
+        if ((c.target() == Type.Primitive.DECIMAL)
+                && c.source().info().type() == Type.Primitive.INTEGER) {
+            return new SqlExpr.Cast(value,
+                    new com.legend.sql.SqlType.Decimal(38, 0));
+        }
         return new SqlExpr.Cast(value, PureSql.type(c.target()));
     }
 

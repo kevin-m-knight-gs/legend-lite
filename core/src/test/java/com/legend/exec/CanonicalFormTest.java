@@ -50,12 +50,13 @@ class CanonicalFormTest {
         assertEquals("0.01", text(.01));
     }
 
-    /** Spec §2 Decimal: scale-normalized; integral renders BARE —
-     * forced by pure numeric equality (assertEq(8D, toDecimal(8))). */
+    /** X2 (VERDICT_RULE_AUDIT): SCALE-PRESERVING — engine Decimal
+     * equality is getValue().equals, so scale IS identity and the
+     * canon keeps it. */
     @Test
-    void decimalsScaleNormalized() {
-        assertEquals("8", text(new BigDecimal("8.00")));
-        assertEquals("3.8", text(new BigDecimal("3.80")));
+    void decimalsScalePreserving() {
+        assertEquals("8.00", text(new BigDecimal("8.00")));
+        assertEquals("3.80", text(new BigDecimal("3.80")));
         assertEquals("800", text(new BigDecimal("8.00E+2")));
     }
 
@@ -124,14 +125,14 @@ class CanonicalFormTest {
         CanonicalDivergence.probeEqual("assertEquals",
                 List.of((Object) "2014-01-01"),
                 List.of((Object) PureDateLiteral.parse("2014-01-01")), false);
-        // numeric tower: Integer 8 vs integral Decimal byte-agree
+        // X1: cross-kind numeric is FALSE on BOTH channels now
         CanonicalDivergence.probeEqual("assertEquals",
                 List.of((Object) 8L),
-                List.of((Object) new BigDecimal("8.00")), true);
+                List.of((Object) new BigDecimal("8.00")), false);
         CanonicalDivergence.probeEqual("assertEquals",
                 List.of((Object) 1L), List.of((Object) 2L), false);
         assertEquals("agree=4 disagree=0 residue=0 | sql-verdict"
-                + " agree=0 disagree=0 declined=0",
+                + " agree=0 disagree=0 declined=0 ulp-policy=0",
                 CanonicalDivergence.summary());
         CanonicalDivergence.reset();
     }

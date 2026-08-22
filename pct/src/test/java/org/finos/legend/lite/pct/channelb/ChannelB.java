@@ -180,6 +180,22 @@ public final class ChannelB {
             Compiler.ParsedModule module, ModelContext ctx) {
         String fqn = fd.qualifiedName();
         com.legend.lowering.StampCensus.CONTEXT.set(fqn);
+        // dual-verdict attribution: name the test that grows the
+        // disagreement census (the alarm's diagnosis needs the WHO)
+        long disagreeBefore =
+                com.legend.exec.CanonicalDivergence.sqlDisagreeCount();
+        try {
+            return runOneInner(fd, module, ctx, fqn);
+        } finally {
+            if (com.legend.exec.CanonicalDivergence.sqlDisagreeCount()
+                    > disagreeBefore) {
+                System.out.println("[chB] DUAL-VERDICT-DISAGREE in " + fqn);
+            }
+        }
+    }
+
+    private static Outcome runOneInner(FunctionDefinition fd,
+            Compiler.ParsedModule module, ModelContext ctx, String fqn) {
         if (fd.parameters().size() != 1) {
             return new Outcome(fqn, Status.DECLINED,
                     "non-adapter signature (" + fd.parameters().size()

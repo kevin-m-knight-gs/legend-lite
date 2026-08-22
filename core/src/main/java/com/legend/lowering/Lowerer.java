@@ -287,17 +287,10 @@ public final class Lowerer {
      */
     private SqlSelect scalarRoot(TypedSpec spec) {
         SqlExpr e = requiredOneEgress(spec);
-        // D-arc: a temporal LITERAL at the egress ROOT projects its
-        // WRITTEN spelling under the TIMESTAMP-stamped output (the
-        // precision-faithful VARCHAR convention, same wire the date()
-        // ctor rides) — a SQL TIMESTAMP round-trip destroys hour/minute
-        // precision and subsecond DIGIT COUNT (%2024-…T00:32:34.000000000
-        // is engine-spec data: timeBucket.pure:53). Computation sites
-        // keep MatchFold.dateLit's padded timestamp — only the root
-        // spelling swaps.
-        if (e == null && spec instanceof TypedCDate cd
-                && fragileTemporalPrecision(cd.value())) {
-            e = new SqlExpr.StringLit(cd.value().toEngineString());
+        // KIND-FRAGILE root literals swap to kind-carrying spellings
+        // (RootLiterals — the D-arc temporal + X-audit decimal rules)
+        if (e == null) {
+            e = RootLiterals.swap(spec);
         }
         if (e == null) {
             e = scalar(spec, (var, name) -> {
@@ -318,21 +311,6 @@ public final class Lowerer {
                 null, List.of(), null, null, List.of(), null, null,
                 List.of(new OutputCol("value", sqlTypeOf(spec.info().type()),
                         PureSql.nullable(spec.info().multiplicity()))));
-    }
-
-    /** Precisions a SQL TIMESTAMP round-trip cannot reproduce: padded
-     * HOUR/MINUTE forms, and any written subsecond block — digit count
-     * is per-value data (trailing zeros; >6 digits exceed DuckDB's
-     * microsecond TIMESTAMP). Year/YearMonth ride StringLit already;
-     * StrictDate/DateWithSecond round-trip exactly. */
-    private static boolean fragileTemporalPrecision(
-            com.legend.values.PureDateLiteral d) {
-        return switch (d) {
-            case com.legend.values.PureDateLiteral.DateWithHour h -> true;
-            case com.legend.values.PureDateLiteral.DateWithMinute m -> true;
-            case com.legend.values.PureDateLiteral.DateWithSubsecond s -> true;
-            default -> false;
-        };
     }
 
     /**

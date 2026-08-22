@@ -53,11 +53,9 @@ public final class CanonicalForm {
             case String s -> new Result.Text(s);
             case Float f -> renderFloat(f.doubleValue());
             case Double d -> renderFloat(d);
-            // Decimal: SCALE-NORMALIZED; integral renders BARE (no .0),
-            // matching Integer — forced by pure's numeric equality
-            // (spec §2/§3, assertEq(8D, toDecimal(8)) pin)
-            case BigDecimal bd ->
-                    new Result.Text(bd.stripTrailingZeros().toPlainString());
+            // Decimal: SCALE-PRESERVING (X2 — engine equality is
+            // getValue().equals; the scale IS identity)
+            case BigDecimal bd -> new Result.Text(bd.toPlainString());
             // TEMPORAL: PureDateLiteral is THE wire carrier (D-arc) —
             // written precision survives, so the render is exact per H1:
             // date-only precisions print bare, time-bearing forms take

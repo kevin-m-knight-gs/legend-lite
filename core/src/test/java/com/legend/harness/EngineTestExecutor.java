@@ -85,7 +85,58 @@ public final class EngineTestExecutor {
                 && da instanceof com.legend.values.PureDateLiteral pa) {
             return engineNine(pe).equals(engineNine(pa));
         }
+        // X-audit lane doctrine: the PRODUCTION lattice is engine-exact
+        // (no cross-kind numeric equality) — but THIS seam's expected
+        // side is DECODED FROM GOLDEN TEXT, which cannot carry kind or
+        // scale fidelity (a golden '22.3' decodes at the text's scale
+        // while the wire carries the column's declared scale). The
+        // golden seam therefore compares numerics BY VALUE — the one
+        // place the old grants legitimately belonged, quarantined here,
+        // mirroring the temporal engineNine normalization above.
+        // The arm is NARROW: only pairs touching a BigDecimal and free
+        // of integral values, because golden text DOES carry the
+        // integral-vs-fractional distinction ('30' vs '30.0' — pure
+        // kind semantics stay strict, numericKindIsStrict pins it);
+        // what text cannot carry is Decimal SCALE and the decode
+        // CARRIER (a golden '22.3' decodes at the text's scale/as a
+        // Double while the wire carries the column's declared scale).
+        if (de instanceof Number ne && da instanceof Number na
+                && !(de instanceof com.legend.values.PureDateLiteral)
+                && (ne instanceof java.math.BigDecimal
+                        || na instanceof java.math.BigDecimal)
+                && !integral(ne) && !integral(na)
+                && numericValue(ne) != null && numericValue(na) != null) {
+            java.math.BigDecimal ve = numericValue(ne);
+            java.math.BigDecimal va = numericValue(na);
+            if (ve != null && va != null && ve.compareTo(va) == 0) {
+                return true;
+            }
+            // value-differing pairs FALL THROUGH: the lattice keeps its
+            // engine-exact kind rules AND the declared 2-ULP dialect-
+            // arithmetic policy (OPEN_REGISTER §5 — cross-libm last-ULP
+            // drift on transcendentals; user-ratified 2026-08-22)
+        }
         return com.legend.exec.PureAsserts.equalScalar(de, da);
+    }
+
+    private static boolean integral(Number n) {
+        return n instanceof Long || n instanceof Integer
+                || n instanceof Short || n instanceof Byte
+                || n instanceof java.math.BigInteger;
+    }
+
+    /** Finite numeric value, or null for non-finite floats (those keep
+     * the lattice's IEEE rules). */
+    private static java.math.@com.legend.Nullable BigDecimal numericValue(
+            Number n) {
+        if ((n instanceof Double d && !Double.isFinite(d))
+                || (n instanceof Float f && !Float.isFinite(f))) {
+            return null;
+        }
+        return n instanceof java.math.BigDecimal bd ? bd
+                : n instanceof java.math.BigInteger bi
+                        ? new java.math.BigDecimal(bi)
+                        : new java.math.BigDecimal(String.valueOf(n));
     }
 
     /** The engine wire convention ({@code fromSQLTimestamp %09d}):

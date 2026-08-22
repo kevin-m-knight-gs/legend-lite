@@ -2404,21 +2404,17 @@ final class StatementExecutor {
         }
     }
 
-    /** Stage 2: render the prepared side in the PAIR-chosen mode
-     * ({@code valueMode} = the numeric-VALUE spelling, chosen when a
-     * Decimal meets the pair) and execute — one scalar VARCHAR query. */
+    /** Stage 2: render the prepared side (X4: the value-mode died with
+     * the cross-kind grants — every kind renders its ONE exact canon)
+     * and execute — one scalar VARCHAR query. */
     static StatementExecutor.@com.legend.Nullable Canon runCanon(
             CanonPrep prep, ExecEnv env, boolean canonicalOrder,
-            boolean valueMode,
             com.legend.compiler.element.type.@com.legend.Nullable Type renderKind) {
         try {
             com.legend.compiler.element.type.Type kind =
                     renderKind != null ? renderKind : prep.canonType();
-            com.legend.sql.SqlExpr canonExpr = valueMode
-                    ? com.legend.lowering.CanonicalRenderSql.numericValueCanon(
-                            new com.legend.sql.SqlExpr.Column(null, "value"),
-                            kind)
-                    : com.legend.lowering.CanonicalRenderSql.scalarCanon(
+            com.legend.sql.SqlExpr canonExpr =
+                    com.legend.lowering.CanonicalRenderSql.scalarCanon(
                             new com.legend.sql.SqlExpr.Column(null, "value"),
                             kind);
             if (canonExpr == null) {

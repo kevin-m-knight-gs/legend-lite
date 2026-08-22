@@ -515,15 +515,14 @@ final class AssertVerdicts {
                     "side-a: " + typeName(aSpec));
             return null;
         }
-        // THE PAIR RULES (spec §3 amendment): pure numeric equality is
-        // NON-TRANSITIVE (8 == 8D, 8D == 8.0, 8 != 8.0) — the compare
-        // mode is a property of the PAIR: int×float is statically
-        // FALSE; a Decimal beside any numeric compares by VALUE
-        // spelling; same-kind pairs compare their EXACT canon. An
-        // abstract Number STAMP refines from the RUNTIME value kinds
-        // (pure's own Number-equality dispatch — the plan's OutputCol
-        // is stamp-derived and therefore circular; V6 round 2).
-        boolean valueMode = false;
+        // X4 (VERDICT_RULE_AUDIT): the engine has NO cross-primitive-
+        // kind equality (EqualityUtilities.eq requires the same
+        // primitive type name) — the numeric "tower" kind class and its
+        // value-mode DIED with the grants. Numeric pairs must be the
+        // SAME fine kind (abstract Number stamps refine from the
+        // RUNTIME value kinds — pure's own Number dispatch); cross-kind
+        // pairs decline to the host lattice, which now answers the
+        // engine's FALSE (empty-vs-empty stays host-decided too).
         com.legend.compiler.element.type.Type renderE = null;
         com.legend.compiler.element.type.Type renderA = null;
         if (ke.equals("numeric")) {
@@ -543,32 +542,63 @@ final class AssertVerdicts {
                                 + typeName(aSpec));
                 return null;
             }
-            if ((fe.equals("integer") && fa.equals("float"))
-                    || (fe.equals("float") && fa.equals("integer"))) {
-                return new SqlVerdict(false,
-                        "static int-x-float " + fe + "/" + fa);
+            if (!fe.equals(fa)) {
+                com.legend.exec.CanonicalDivergence.sqlDeclined(
+                        "cross-kind-numeric: " + fe + "/" + fa);
+                return null;
             }
-            valueMode = fe.equals("decimal") || fa.equals("decimal");
         }
         StatementExecutor.Canon ce = StatementExecutor.runCanon(
-                pe, env, canonicalOrder, valueMode, renderE);
+                pe, env, canonicalOrder, renderE);
         if (ce == null) {
             com.legend.exec.CanonicalDivergence.sqlDeclined(
                     "render-e: " + typeName(eSpec));
             return null;
         }
         StatementExecutor.Canon ca = StatementExecutor.runCanon(
-                pa, env, canonicalOrder, valueMode, renderA);
+                pa, env, canonicalOrder, renderA);
         if (ca == null) {
             com.legend.exec.CanonicalDivergence.sqlDeclined(
                     "render-a: " + typeName(aSpec));
             return null;
         }
-        return new SqlVerdict(
-                java.util.Objects.equals(ce.text(), ca.text()),
-                "kinds=" + pe.canonType() + "/" + pa.canonType()
-                        + (valueMode ? " valueMode" : "")
-                        + " e<" + ce.text() + "> a<" + ca.text() + ">");
+        boolean byteEqual = java.util.Objects.equals(ce.text(), ca.text());
+        String detail = "kinds=" + pe.canonType() + "/" + pa.canonType()
+                + " e<" + ce.text() + "> a<" + ca.text() + ">";
+        // DECLARED 2-ULP dialect-arithmetic policy (OPEN_REGISTER §5,
+        // X6/R3 owns its retirement): cross-dialect libm computes
+        // transcendentals a last ULP apart (H2-derived corpus goldens
+        // vs DuckDB acos/log/tan). The policy rides ON TOP of the byte
+        // channel — byte-differing all-finite-Double pairs within
+        // 2 ULP hold BY POLICY, counted in their own census row (the
+        // host lattice carries the same policy, so this is never a
+        // disagreement rescue). Before runtime-kind refinement these
+        // pairs declined as unrefined NUMBER and the host policy
+        // decided; the refinement must not silently retire the policy.
+        if (!byteEqual && withinDeclaredUlp(eVals, aVals)) {
+            com.legend.exec.CanonicalDivergence.sqlUlpPolicy(detail);
+            return new SqlVerdict(true, "2ulp-policy " + detail);
+        }
+        return new SqlVerdict(byteEqual, detail);
+    }
+
+    /** True iff both sides are same-length all-finite-Double vectors
+     * whose pairs each hold under the lattice's declared 2-ULP arm —
+     * PureAsserts OWNS the tolerance, this only vectorizes it. */
+    private static boolean withinDeclaredUlp(List<Object> eVals,
+            List<Object> aVals) {
+        if (eVals.isEmpty() || eVals.size() != aVals.size()) {
+            return false;
+        }
+        for (int i = 0; i < eVals.size(); i++) {
+            if (!(eVals.get(i) instanceof Double de
+                    && aVals.get(i) instanceof Double da
+                    && Double.isFinite(de) && Double.isFinite(da)
+                    && PureAsserts.equalScalar(de, da))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** The RUNTIME numeric kind of a side's fetched values (uniform, or

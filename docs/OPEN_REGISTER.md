@@ -15,17 +15,14 @@ L (a program leg).
 |---|---|---|---|
 | V7 | Corpus-lane cutover + harness arm DELETION | L | decoded-golden-text + grid problems are corpus-only; LAST, after PCT lane proves the system. PREREQUISITES V10a/V10b below. |
 
-| V8 | R3 tolerance census: 2-ULP + the 21 cross-engine float rows | M | retire or declare; both counted today |
+| V8 | R3 tolerance census: 2-ULP + the 21 cross-engine float rows | M | retire or declare; both counted today. Candidate retirement design (2026-08-22, user-briefed): same-arithmetic H2 referee — byte-differing Double pairs re-compare EXACTLY on H2 (the goldens' own libm); tolerance dies |
 | V9 | Grid byte cutover closing slice (after V4/V8) | S | ledger says: ORDER BY + policy + GridCompare arm deletion, no emission |
+| V11 | Single-query canon (user-ratified 2026-08-22): collapse CanonicalRenderSql into the side query — `SELECT value, canon(value)` like the m2m in-query JSON return; one execution, prepCanon/runCanon merge, the containsEffect double-execution gate DELETES | M | first slice after X1–X4 lands |
 
 ## 1b. VERDICT RULE AUDIT (docs/VERDICT_RULE_AUDIT_2026_08_22.md — every rule vs engine source)
 
 | # | Item | Size |
 |---|---|---|
-| X1 | Delete integral×Decimal grant (mis-cited witness; engine cross-kind FALSE) + stamp-driven Decimal decode guard | S/M |
-| X2 | Tighten Decimal compareTo → scale-sensitive equals (engine truth); breaks = OUR scale drift, fix at emission | M |
-| X3 | Delete Float×Decimal fp-grant (engine cross-kind FALSE) | S |
-| X4 | Replace numeric-tower kind class with engine's per-kind classifier gate | S |
 | X5 | Model-defined equality.Key at the K-arm (engine: Key properties or FALSE; wireTree stays for JSON/SQL-struct domains) — claims the 91 declines + 2 PCT exclusions; our Pair/List declarations must CARRY the stereotypes | M |
 | X6 | 2-ULP reclassified: compensates IEEE-double carrier vs engine's exact-decimal floats — R3 decides declared-policy vs decimal carriage | R3 |
 
@@ -72,10 +69,18 @@ L (a program leg).
 
 - Corpus temporal golden compares are INSTANT-based (goldenEqualScalar,
   H2Verify.norm) — the engine's two-subsecond-spellings adjudication.
-- 2-ULP Double×Double host tolerance; GridCompare sig-digit cell
-  tolerance (the 21 rows). Both quarantined outside the byte channel.
-- Float canon DECIMAL(38,18) unfold + non-finite pass-through
-  (witness-free edges, referee-guarded).
+- 2-ULP Double×Double dialect-arithmetic policy — USER-RATIFIED
+  2026-08-22 as declared+counted (cross-libm last-ULP drift on
+  transcendentals: H2/Java-minted goldens vs DuckDB acos/log/tan; no
+  emission fix exists). Lives in TWO counted places: the host lattice
+  arm (LL_TOL_COUNT instrument) and the byte-verdict policy arm
+  (sqlUlpPolicy census); the golden seam falls through to the lattice
+  rather than judging value-differing numeric pairs itself. GridCompare
+  sig-digit cell tolerance (the 21 rows) unchanged. R3/V8 owns
+  retirement (H2 same-arithmetic referee design).
+- Float canon non-finite pass-through (witness-free edge,
+  referee-guarded); the DECIMAL(38,18) unfold is DEAD (V10c textual
+  exponent unfold).
 - Latent Float×Decimal integral tension (host true / byte false) —
   zero witnesses, documented in R0 §3.
 - STRING_AGG input-order contract (Render precedent, not a guarantee).
@@ -112,6 +117,23 @@ L (a program leg).
   partial-DATE precisions ride dedicated lowering rules (DateShifts),
   not the padded-timestamp path. The root-only scalarRoot swap covers
   the whole witnessed domain — 921c80c3+1
+- X1–X4 CLOSED (2026-08-22, VERDICT_RULE_AUDIT execution): all
+  cross-kind grants DELETED — the lattice is engine-exact
+  (EqualityUtilities: same-primitive-kind only, Decimal scale-sensitive
+  equals, BigInteger-widened integral equality); canonical Decimal
+  render REVERSED to scale-preserving; kind-class value-mode replaced
+  by runtime-kind refinement from fetched values (pure's own Number
+  dispatch — the plan-refinement was circular). Deleting the grants
+  exposed SIX real wire bugs, all fixed at emission: round/divide
+  constant-scale DECIMAL casts + toDecimal input-kind scale
+  (DecimalKindRules), scale≤0 DecimalLit root-only cast (RootLiterals —
+  a blanket renderer cast measurably truncated VALUES columns),
+  longValue() BigInteger overflow (the X1 grant had MASKED it),
+  INTEGER-declared BigDecimal decode guard (Executor). Golden seam
+  quarantine: goldenEqualScalar compares numerics BY VALUE (golden text
+  carries no kind/scale) and falls through to the lattice on value
+  difference so the declared 2-ULP policy still judges cross-libm
+  drift. Dual-render conformance battery pins DB canon == host canon.
 - V6b the 97 survivors DECLARED (class instances + wire-tree
   containers per spec §4, + unrefinable Numbers) and CEILING-pinned
   (sqlDeclined ≤ 100, shrink-only, all five ChannelB suites) — the

@@ -2096,3 +2096,69 @@ declined 91.
 Remaining non-derived surface: F10 (variant-aware canon — the carrier
 strips + mixed-collection decline) and the R3 tolerance census — both
 registered, neither silent.
+
+### X1–X4 LANDED: the engine-exact lattice — every grant deleted
+
+(user: "fix all the hacks by doing the right fix instead")
+
+The host lattice now IS EqualityUtilities.eq: NO cross-primitive-kind
+equality (X1 integral×Decimal grant deleted — its witness was
+mis-cited; X3 Float×Decimal fp-grant deleted; X4 the numeric-tower
+kind class replaced by per-kind classes, cross-kind pairs decline to
+the host's engine-FALSE); X2 Decimal equality tightened to
+scale-sensitive equals, and the canonical Decimal render REVERSED to
+scale-preserving (the old normalization followed the deleted grant).
+
+THE TIGHTENING NAMED SIX REAL WIRE BUGS, each fixed at its seam
+(the method working exactly as designed — every break was a
+compensated defect, not a needed leniency):
+1. round(Decimal, scale) lost the Decimal kind (SQL round → DOUBLE) —
+   constant scales restore DECIMAL-at-that-scale (DecimalKindRules).
+2. divide(,,scale) — same drift, same fix.
+3. toDecimal fabricated scale 18 — input-stamp-driven (INTEGER → 0).
+4. Scale≤0 Decimal LITERALS spelled dotless type INTEGER in SQL —
+   fixed at the EGRESS ROOT only (RootLiterals; a blanket renderer
+   cast measurably truncated VALUES columns and re-kinded divide).
+5. Host integral equality OVERFLOWED BigInteger via longValue() — a
+   pre-existing bug the deleted X1 grant had been MASKING
+   (testLargePlus exposed it the moment the grant died).
+6. INTEGER-declared cells decoding as scale-0 BigDecimal (DuckDB types
+   beyond-int64 literals DECIMAL) — the declared-type-drives-codec
+   decode guard (the H2 DOUBLE-arm doctrine).
+
+Dual-verdict attribution added (ChannelB names the test that grows the
+disagreement census). File guard honored by REAL extractions
+(RootLiterals, DecimalKindRules). CENSUS: sql-verdict agree 1492,
+disagree 0, declined 91 — full coverage retained with ZERO grants.
+
+## X-SLICE CORPUS ADJUDICATION — the 2-ULP policy survives, EXPLICIT (2026-08-22)
+
+The corpus sweep caught what the PCT lane could not: seven
+tests/mapping/sqlFunction tests (acos/asin/atan2/log/tan) failed under
+the tightened seam. Root cause was NOT the DECIMAL casts (the h2-exec
+text floor recovered to 320 the moment the tests passed — the earlier
+316 was a symptom, and the floor was reverted untouched): the new
+goldenEqualScalar numeric BY-VALUE arm returned false on value
+difference instead of falling through, which SILENTLY RETIRED the
+declared 2-ULP dialect-arithmetic policy at that seam.
+
+The diff is irreducible cross-libm drift: the corpus expected literals
+were minted on Java/H2's math library; DuckDB's libm computes the same
+transcendentals 1–2 ULP apart, and IEEE 754 does not require correctly
+rounded transcendentals. No emission, type, or canon fix exists.
+
+USER-RATIFIED RESOLUTION: the 2-ULP policy stays a DECLARED, COUNTED
+leniency — never implicit-in-a-decline again:
+- goldenEqualScalar: value-equal → true; value-differ → FALL THROUGH
+  to the lattice (engine-exact kinds + the declared policy).
+- sqlByteVerdict: byte-differ + all-finite-Double pairs within 2 ULP →
+  policy verdict, counted in its own census row (sqlUlpPolicy in the
+  [canon] summary) — the runtime-kind refinement must not silently
+  retire what the unrefined-NUMBER decline used to route to policy.
+The honest retirement design (same-arithmetic H2 referee: byte-differ
+Double pairs re-compare EXACTLY on the goldens' own libm) is recorded
+on V8/R3; user chose the counted policy for now.
+
+V11 REGISTERED (user, twice): collapse the canon render INTO the side
+query — SELECT value, canon(value), one execution, like the m2m
+in-query JSON return; the containsEffect double-execution gate deletes.

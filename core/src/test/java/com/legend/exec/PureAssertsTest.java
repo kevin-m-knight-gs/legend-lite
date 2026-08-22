@@ -115,8 +115,16 @@ class PureAssertsTest {
     @Test
     @DisplayName("policy: Decimal by compareTo (scale-blind); 2-ULP doubles only")
     void numericPolicies() {
-        assertTrue(PureAsserts.equalScalar(
+        // X2 (VERDICT_RULE_AUDIT): engine Decimal equality is
+        // getValue().equals — SCALE-SENSITIVE
+        assertFalse(PureAsserts.equalScalar(
                 new BigDecimal("1.50"), new BigDecimal("1.5")));
+        assertTrue(PureAsserts.equalScalar(
+                new BigDecimal("1.5"), new BigDecimal("1.5")));
+        // X1/X3: NO cross-primitive-kind equality (engine eq requires
+        // the same primitive type name)
+        assertFalse(PureAsserts.equalScalar(8L, new BigDecimal("8")));
+        assertFalse(PureAsserts.equalScalar(8.0d, new BigDecimal("8.0")));
         double base = 0.1 + 0.2;   // 0.30000000000000004
         assertTrue(PureAsserts.equalScalar(base, 0.3 + Math.ulp(0.3)),
                 "within 2 ULP compares equal (dialect libm)");

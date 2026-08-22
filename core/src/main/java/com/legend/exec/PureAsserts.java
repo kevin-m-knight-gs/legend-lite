@@ -230,46 +230,52 @@ public final class PureAsserts {
         if (e == null || a == null) {
             return e == a;
         }
+        // X1-X4 (VERDICT_RULE_AUDIT, engine EqualityUtilities.eq):
+        // primitive equality requires the SAME primitive kind — there
+        // is NO cross-kind numeric equality in the engine (the old
+        // integral×Decimal grant MIS-CITED its witness; Float×Decimal
+        // and every other cross pair are FALSE). Same-kind rules:
         boolean eInt = isIntegral(e);
         boolean aInt = isIntegral(a);
         if (eInt || aInt) {
-            // SPEC: integral kinds compare by value. Integral vs DECIMAL
-            // is NUMERIC — the spec's own witness is PCT testIntToDecimal
-            // (assertEquals(8, 8->toDecimal()) passes interpreted);
-            // integral vs FLOAT stays FALSE (no witness grants it — the
-            // two-worlds fixture pins the divergence from SQL coercion).
-            if (eInt && a instanceof BigDecimal ad) {
-                return BigDecimal.valueOf(((Number) e).longValue())
-                        .compareTo(ad) == 0;
+            if (!(eInt && aInt)) {
+                return false;
             }
-            if (aInt && e instanceof BigDecimal ed) {
-                return ed.compareTo(BigDecimal.valueOf(
-                        ((Number) a).longValue())) == 0;
+            // HUGEINT range: longValue() OVERFLOWS BigInteger carriers —
+            // a genuine bug the deleted X1 cross-kind grant had been
+            // masking (testLargePlus exposed it the moment the grant
+            // died); integral equality widens to BigInteger when needed
+            if (e instanceof BigInteger || a instanceof BigInteger) {
+                return toBigInteger(e).equals(toBigInteger(a));
             }
-            return eInt && aInt
-                    && ((Number) e).longValue() == ((Number) a).longValue();
+            return ((Number) e).longValue() == ((Number) a).longValue();
         }
-        if (e instanceof BigDecimal be && a instanceof BigDecimal ba) {
-            // SPEC: pure Decimal equality is numeric (scale-blind)
-            return be.compareTo(ba) == 0;
+        if (e instanceof BigDecimal || a instanceof BigDecimal) {
+            // X2: engine Decimal equality is getValue().equals —
+            // SCALE-SENSITIVE (its tests spell the exact SQL-arithmetic
+            // scale and pass strict in both engine lanes); a break here
+            // is OUR scale drift, fixed at emission, never re-blurred
+            return e instanceof BigDecimal be && a instanceof BigDecimal ba
+                    && be.equals(ba);
         }
-        boolean eFp = e instanceof Double || e instanceof Float
-                || e instanceof BigDecimal;
-        boolean aFp = a instanceof Double || a instanceof Float
-                || a instanceof BigDecimal;
+        boolean eFp = e instanceof Double || e instanceof Float;
+        boolean aFp = a instanceof Double || a instanceof Float;
         if (eFp || aFp) {
             if (!(eFp && aFp)) {
                 return false;
             }
-            // NON-FINITE first (latent in the harness copy, exposed by
-            // the spec pins): NaN never equals anything (IEEE + pure);
-            // infinities compare by identity — BigDecimal can parse
-            // neither
+            // NON-FINITE first: NaN never equals anything (IEEE; the
+            // engine's BigDecimal-backed floats cannot even hold it);
+            // infinities compare by identity
             if (nonFinite(e) || nonFinite(a)) {
                 return e instanceof Double de2 && a instanceof Double da2
                         ? de2.doubleValue() == da2.doubleValue()
                         : e.equals(a);
             }
+            // engine Float equality = equals over CANONICALIZED
+            // BigDecimal (FloatCoreInstance.canonicalizeBigDecimal) —
+            // for finite doubles the shortest-repr string compare IS
+            // that canonical-form equality (and unifies zeros)
             if (new BigDecimal(String.valueOf(e))
                     .compareTo(new BigDecimal(String.valueOf(a))) == 0) {
                 return true;
@@ -312,6 +318,11 @@ public final class PureAsserts {
     private static boolean nonFinite(Object v) {
         return (v instanceof Double d && !Double.isFinite(d))
                 || (v instanceof Float f && !Float.isFinite(f));
+    }
+
+    private static BigInteger toBigInteger(Object v) {
+        return v instanceof BigInteger bi ? bi
+                : BigInteger.valueOf(((Number) v).longValue());
     }
 
     private static boolean isIntegral(Object v) {

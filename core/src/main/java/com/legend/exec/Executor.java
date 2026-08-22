@@ -563,6 +563,18 @@ public final class Executor {
         // cell is the precision-faithful string convention and PARSES,
         // so written precision finally survives onto the wire.
         v = dialect.normalize(v, type);
+        // the DECLARED type drives the codec (the H2 DOUBLE-arm
+        // doctrine): an INTEGRAL-declared cell arriving as a scale-0
+        // BigDecimal (DuckDB types beyond-int64 literals DECIMAL)
+        // decodes to its EXACT integral carrier — the pure Integer kind
+        // never blurs into Decimal on the wire (X-audit decode guard)
+        if (v instanceof java.math.BigDecimal bd
+                && (type == com.legend.sql.SqlType.Scalar.BIGINT
+                        || type == com.legend.sql.SqlType.Scalar.INTEGER
+                        || type == com.legend.sql.SqlType.Scalar.HUGEINT)) {
+            java.math.BigInteger bi = bd.toBigIntegerExact();
+            return bi.bitLength() < 63 ? (Object) bi.longValue() : bi;
+        }
         return switch (v) {
             case java.sql.Timestamp ts ->
                     // struct/array leaves never pass fetch()'s BC-safe

@@ -53,11 +53,12 @@ class SqlCanonConformanceTest {
                     Type.Primitive.INTEGER));
             assertEquals("true", dbCanon(c, new SqlExpr.BoolLit(true),
                     Type.Primitive.BOOLEAN));
-            assertEquals("8", dbCanon(c,
+            // X2: scale-preserving Decimal canon
+            assertEquals("8.00", dbCanon(c,
                     new SqlExpr.Cast(new SqlExpr.StringLit("8.00"),
                             new SqlType.Decimal(10, 2)),
                     Type.Primitive.DECIMAL));
-            assertEquals("3.8", dbCanon(c,
+            assertEquals("3.80", dbCanon(c,
                     new SqlExpr.Cast(new SqlExpr.StringLit("3.80"),
                             new SqlType.Decimal(10, 2)),
                     Type.Primitive.DECIMAL));

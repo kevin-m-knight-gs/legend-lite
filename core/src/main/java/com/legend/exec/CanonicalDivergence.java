@@ -40,6 +40,7 @@ public final class CanonicalDivergence {
     private static final AtomicLong SQL_AGREE = new AtomicLong();
     private static final AtomicLong SQL_DISAGREE = new AtomicLong();
     private static final AtomicLong SQL_DECLINED = new AtomicLong();
+    private static final AtomicLong SQL_ULP_POLICY = new AtomicLong();
     private static final int SAMPLE_CAP = 200;
     private static final ConcurrentLinkedQueue<Row> SAMPLES =
             new ConcurrentLinkedQueue<>();
@@ -223,12 +224,27 @@ public final class CanonicalDivergence {
         return SQL_DECLINED.get();
     }
 
+    /** OPEN_REGISTER §5 / X6: a byte-differing Double pair the DECLARED
+     * 2-ULP dialect-arithmetic policy adjudicated equal (cross-dialect
+     * libm last-ULP drift — H2-derived corpus goldens vs DuckDB
+     * transcendentals). Counted so the R3 census can retire or ratify
+     * the policy from its real witness set. */
+    public static void sqlUlpPolicy(String detail) {
+        SQL_ULP_POLICY.incrementAndGet();
+        sample(new Row("sqlUlpPolicy", true, detail));
+    }
+
+    public static long sqlUlpPolicyCount() {
+        return SQL_ULP_POLICY.get();
+    }
+
     public static String summary() {
         return "agree=" + AGREE.get() + " disagree=" + DISAGREE.get()
                 + " residue=" + RESIDUE.get()
                 + " | sql-verdict agree=" + SQL_AGREE.get()
                 + " disagree=" + SQL_DISAGREE.get()
-                + " declined=" + SQL_DECLINED.get();
+                + " declined=" + SQL_DECLINED.get()
+                + " ulp-policy=" + SQL_ULP_POLICY.get();
     }
 
     public static long disagreeCount() {
@@ -250,6 +266,7 @@ public final class CanonicalDivergence {
         SQL_AGREE.set(0);
         SQL_DISAGREE.set(0);
         SQL_DECLINED.set(0);
+        SQL_ULP_POLICY.set(0);
         SAMPLES.clear();
     }
 }
