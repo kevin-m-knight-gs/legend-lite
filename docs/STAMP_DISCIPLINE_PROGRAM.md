@@ -2041,3 +2041,21 @@ R1a residue 27→26 (the negative zero became agreement). Families
 DB-decided: assertEquals, assertNotEquals, assertSameElements,
 assertEq. Next: the 207 declines burn (V6), then the decoupled-PCT
 completion burn on a finished verdict system.
+
+### V6 ROUND 1: the decline burn and the pair rules
+
+Declines 207→97, disagreement HELD AT 0 through three alarm-caught
+adjudications: (1) numericValueCanon = full value normalization of any
+numeric text ('353791.470'→'353791.47'); (2) THE PAIR RULES — pure's
+numeric equality is NON-TRANSITIVE (8==8D, 8D==8.0, 8≠8.0), so the
+compare mode is a property of the PAIR: stamp-certain int×float is
+statically FALSE, a Decimal or a plan-REFINED kind beside any numeric
+compares by VALUE spelling (plan-type refinement can lie about runtime
+cells — rem's DOUBLE-stamped output returns integral; the alarm guards
+the corner); (3) the MIXED-KIND-COLLECTION gate — SQL column promotion
+erases element kinds ([−2.0, 1, 5.0] becomes one DOUBLE column), so
+sides whose HOST-fetched elements mix integral and floating DECLINE
+(a routing fact, not a verdict). NUMBER stamps refine via the plan's
+own output SQL type; PrecisionDecimal IS Decimal; enum values claimed
+(per-enumeration kind class, name canon). Census: sql-verdict
+agree 1486, disagree 0, declined 97.

@@ -39,8 +39,17 @@ public final class CanonicalRenderSql {
             // dates ISO — already the H1 forms
             return new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
         }
-        if (t == Type.Primitive.DECIMAL) {
+        if (t == Type.Primitive.DECIMAL
+                || t instanceof Type.PrecisionDecimal) {
+            // PrecisionDecimal IS Decimal with a declared shape — same
+            // scale-normalized canonical form (V6 burn)
             return decimalCanon(v);
+        }
+        if (t instanceof Type.EnumType) {
+            // enum values ride the wire as their NAMES (the canonical
+            // form per H1: bare member name) — the kind gate already
+            // scoped equality to the SAME enumeration
+            return v;
         }
         if (t == Type.Primitive.FLOAT) {
             return floatCanon(v);
@@ -129,6 +138,28 @@ public final class CanonicalRenderSql {
         return SqlExpr.Call.of(SqlFn.REGEXP_REPLACE, text,
                 new SqlExpr.StringLit("(\\.\\d*?)0+$"),
                 new SqlExpr.StringLit("\\1"));
+    }
+
+    /**
+     * The NUMERIC-VALUE canon (spec §3 pair rules): pure's numeric
+     * equality is NON-TRANSITIVE (8 == 8D, 8D == 8.0, 8 != 8.0), so
+     * one text cannot serve every pair — when a Decimal meets any
+     * numeric, both sides compare by VALUE spelling (integral bare,
+     * trailing zeros stripped); int×int and float×float compare their
+     * EXACT canon; int×float is statically FALSE. This is the value
+     * form: the exact canon with a terminal {@code .0} dropped.
+     */
+    public static @com.legend.Nullable SqlExpr numericValueCanon(SqlExpr v,
+            Type t) {
+        SqlExpr exact = scalarCanon(v, t);
+        if (exact == null) {
+            return null;
+        }
+        // FULL value normalization regardless of the side's spelling
+        // channel: strip ALL trailing fractional zeros, then a bare
+        // terminal dot — '353791.470'→'353791.47', '8.0'→'8',
+        // '4.4'→'4.4' (the decimal canon applied to any numeric text)
+        return stripDot(stripTrailingZeros(exact), "");
     }
 
     /** A TERMINAL dot rewrites to {@code replacement} ('' = integral

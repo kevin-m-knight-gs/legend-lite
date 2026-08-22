@@ -185,19 +185,34 @@ public final class CanonicalDivergence {
      * host lattice. Disagreement is the permanent referee's alarm. */
     public static void probeSqlVerdict(String family, boolean hostHeld,
             boolean sqlHeld) {
+        probeSqlVerdict(family, hostHeld, sqlHeld, "");
+    }
+
+    /** {@code detail} carries the two canon texts + fine kinds so a
+     * disagreement names its own diagnosis in the census. */
+    public static void probeSqlVerdict(String family, boolean hostHeld,
+            boolean sqlHeld, String detail) {
         if (hostHeld == sqlHeld) {
             SQL_AGREE.incrementAndGet();
         } else {
             SQL_DISAGREE.incrementAndGet();
             sample(new Row(family, hostHeld,
-                    "sql-verdict host=" + hostHeld + " sql=" + sqlHeld));
+                    "sql-verdict host=" + hostHeld + " sql=" + sqlHeld
+                            + " " + detail));
         }
     }
 
     /** R2a: a side the SQL channel declined (non-scalar kind, unclaimed
-     * render, lowering refusal) — the host lattice judged instead. */
+     * render, lowering refusal) — the host lattice judged instead. The
+     * REASON rides the sample buffer so the V6 burn targets families,
+     * not a bare count. */
     public static void sqlDeclined() {
+        sqlDeclined("unclassified");
+    }
+
+    public static void sqlDeclined(String reason) {
         SQL_DECLINED.incrementAndGet();
+        sample(new Row("sqlDecline", false, reason));
     }
 
     public static long sqlDisagreeCount() {

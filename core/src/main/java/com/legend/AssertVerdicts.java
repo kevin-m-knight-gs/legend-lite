@@ -120,15 +120,14 @@ final class AssertVerdicts {
                 // is a pinned census row, never a rescue. A decline
                 // (collection side, unclaimed kind, lowering refusal)
                 // is counted and the host verdict judges.
-                Boolean byteVerdict = sqlByteVerdict(args.get(0),
-                        args.get(1), letPrefix, specs, env, false);
-                if (byteVerdict == null) {
-                    com.legend.exec.CanonicalDivergence.sqlDeclined();
-                } else {
+                SqlVerdict byteVerdict = sqlByteVerdict(args.get(0),
+                        args.get(1), letPrefix, specs, env, false, e, a);
+                if (byteVerdict != null) {
                     com.legend.exec.CanonicalDivergence.probeSqlVerdict(
-                            name, equal, byteVerdict);
+                            name, equal, byteVerdict.held(),
+                            byteVerdict.detail());
                 }
-                boolean held = byteVerdict != null ? byteVerdict : equal;
+                boolean held = byteVerdict != null ? byteVerdict.held() : equal;
                 if (name.equals("assertNotEquals")) {
                     return held
                             ? fail("assertNotEquals: both sides are equal")
@@ -155,15 +154,14 @@ final class AssertVerdicts {
                 // V4 — the multiset BYTE VERDICT OF RECORD: both sides
                 // aggregate ORDER BY canon text in the DATABASE; the
                 // host multiset judgment above is the parallel referee.
-                Boolean byteVerdict = sqlByteVerdict(args.get(0),
-                        args.get(1), letPrefix, specs, env, true);
-                if (byteVerdict == null) {
-                    com.legend.exec.CanonicalDivergence.sqlDeclined();
-                } else {
+                SqlVerdict byteVerdict = sqlByteVerdict(args.get(0),
+                        args.get(1), letPrefix, specs, env, true, e, a);
+                if (byteVerdict != null) {
                     com.legend.exec.CanonicalDivergence.probeSqlVerdict(
-                            "assertSameElements", d == null, byteVerdict);
+                            "assertSameElements", d == null,
+                            byteVerdict.held(), byteVerdict.detail());
                 }
-                boolean held = byteVerdict != null ? byteVerdict : d == null;
+                boolean held = byteVerdict != null ? byteVerdict.held() : d == null;
                 if (held) {
                     return ok();
                 }
@@ -199,15 +197,16 @@ final class AssertVerdicts {
                         java.util.Collections.singletonList(aa), d == null);
                 // V5 — byte verdict of record (primitive eq coincides
                 // with equal; the identity rule already walled above)
-                Boolean byteVerdict = sqlByteVerdict(args.get(0),
-                        args.get(1), letPrefix, specs, env, false);
-                if (byteVerdict == null) {
-                    com.legend.exec.CanonicalDivergence.sqlDeclined();
-                } else {
+                SqlVerdict byteVerdict = sqlByteVerdict(args.get(0),
+                        args.get(1), letPrefix, specs, env, false,
+                        java.util.Collections.singletonList(ee),
+                        java.util.Collections.singletonList(aa));
+                if (byteVerdict != null) {
                     com.legend.exec.CanonicalDivergence.probeSqlVerdict(
-                            "assertEq", d == null, byteVerdict);
+                            "assertEq", d == null, byteVerdict.held(),
+                            byteVerdict.detail());
                 }
-                boolean held = byteVerdict != null ? byteVerdict : d == null;
+                boolean held = byteVerdict != null ? byteVerdict.held() : d == null;
                 if (held) {
                     return ok();
                 }
@@ -479,26 +478,127 @@ final class AssertVerdicts {
      * verdict is equality of the two DB-computed canonical texts
      * (null text = EMPTY side; empty==empty holds, empty==value
      * fails — pure's own rule). */
-    private static @com.legend.Nullable Boolean sqlByteVerdict(
+    record SqlVerdict(boolean held, String detail) {
+    }
+
+    private static @com.legend.Nullable SqlVerdict sqlByteVerdict(
             TypedSpec eSpec, TypedSpec aSpec, List<TypedSpec> letPrefix,
             SpecCompiler specs, StatementExecutor.ExecEnv env,
-            boolean canonicalOrder) {
+            boolean canonicalOrder, List<Object> eVals, List<Object> aVals) {
+        // MIXED-KIND numeric collections are unsound under SQL column
+        // promotion (pure refuses 1 == 1.0 element-wise; one DOUBLE
+        // column erases the distinction) — the HOST-fetched element
+        // kinds gate the route (a routing fact, not a verdict).
+        if (mixedNumericKinds(eVals) || mixedNumericKinds(aVals)) {
+            com.legend.exec.CanonicalDivergence.sqlDeclined(
+                    "mixed-kind-collection");
+            return null;
+        }
         String ke = kindClassOf(eSpec.info().type());
         String ka = kindClassOf(aSpec.info().type());
         if (ke == null || ka == null || !ke.equals(ka)) {
+            com.legend.exec.CanonicalDivergence.sqlDeclined("kind-gate: "
+                    + typeName(eSpec) + " / " + typeName(aSpec));
             return null;
         }
-        StatementExecutor.Canon ce = StatementExecutor.evalCanon(
-                eSpec, letPrefix, specs, env, canonicalOrder);
+        StatementExecutor.CanonPrep pe = StatementExecutor.prepCanon(
+                eSpec, letPrefix, specs, env);
+        if (pe == null) {
+            com.legend.exec.CanonicalDivergence.sqlDeclined(
+                    "side-e: " + typeName(eSpec));
+            return null;
+        }
+        StatementExecutor.CanonPrep pa = StatementExecutor.prepCanon(
+                aSpec, letPrefix, specs, env);
+        if (pa == null) {
+            com.legend.exec.CanonicalDivergence.sqlDeclined(
+                    "side-a: " + typeName(aSpec));
+            return null;
+        }
+        // THE PAIR RULES (spec §3 amendment): pure numeric equality is
+        // NON-TRANSITIVE (8 == 8D, 8D == 8.0, 8 != 8.0) — the compare
+        // mode is a property of the PAIR: int×float is statically
+        // FALSE; a Decimal beside any numeric compares by VALUE
+        // spelling; same-kind pairs compare their EXACT canon.
+        boolean valueMode = false;
+        if (ke.equals("numeric")) {
+            String fe = fineNumericKind(pe.canonType());
+            String fa = fineNumericKind(pa.canonType());
+            if (fe == null || fa == null) {
+                com.legend.exec.CanonicalDivergence.sqlDeclined(
+                        "unrefined-number: " + typeName(eSpec) + " / "
+                                + typeName(aSpec));
+                return null;
+            }
+            boolean anyRefined = pe.refined() || pa.refined();
+            // STATIC int×float FALSE only on STAMP-certain kinds — a
+            // plan-refined kind can lie about the runtime cell (rem's
+            // DOUBLE-stamped output returns integral cells); refined
+            // pairs compare by VALUE and the dual-verdict alarm guards
+            // the pure int≠float corner.
+            if (!anyRefined
+                    && ((fe.equals("integer") && fa.equals("float"))
+                            || (fe.equals("float") && fa.equals("integer")))) {
+                return new SqlVerdict(false,
+                        "static int-x-float " + fe + "/" + fa);
+            }
+            valueMode = anyRefined
+                    || fe.equals("decimal") || fa.equals("decimal");
+        }
+        StatementExecutor.Canon ce = StatementExecutor.runCanon(
+                pe, env, canonicalOrder, valueMode);
         if (ce == null) {
+            com.legend.exec.CanonicalDivergence.sqlDeclined(
+                    "render-e: " + typeName(eSpec));
             return null;
         }
-        StatementExecutor.Canon ca = StatementExecutor.evalCanon(
-                aSpec, letPrefix, specs, env, canonicalOrder);
+        StatementExecutor.Canon ca = StatementExecutor.runCanon(
+                pa, env, canonicalOrder, valueMode);
         if (ca == null) {
+            com.legend.exec.CanonicalDivergence.sqlDeclined(
+                    "render-a: " + typeName(aSpec));
             return null;
         }
-        return java.util.Objects.equals(ce.text(), ca.text());
+        return new SqlVerdict(
+                java.util.Objects.equals(ce.text(), ca.text()),
+                "kinds=" + pe.canonType() + "/" + pa.canonType()
+                        + (valueMode ? " valueMode" : "")
+                        + " e<" + ce.text() + "> a<" + ca.text() + ">");
+    }
+
+    private static boolean mixedNumericKinds(List<Object> vals) {
+        boolean integral = false;
+        boolean floating = false;
+        for (Object v : vals) {
+            if (v instanceof Long || v instanceof Integer
+                    || v instanceof Short || v instanceof Byte
+                    || v instanceof java.math.BigInteger) {
+                integral = true;
+            } else if (v instanceof Double || v instanceof Float) {
+                floating = true;
+            }
+        }
+        return integral && floating;
+    }
+
+    private static @com.legend.Nullable String fineNumericKind(
+            com.legend.compiler.element.type.Type t) {
+        if (t == com.legend.compiler.element.type.Type.Primitive.INTEGER) {
+            return "integer";
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
+            return "float";
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                || t instanceof com.legend.compiler.element.type.Type.PrecisionDecimal) {
+            return "decimal";
+        }
+        return null;   // an unrefined Number — decline, never guess
+    }
+
+    private static String typeName(TypedSpec spec) {
+        var t = spec.info().type();
+        return t.getClass().getSimpleName() + ":" + t;
     }
 
     /** Pure's equality kind classes over STAMPS (spec §3: the numeric
@@ -507,8 +607,18 @@ final class AssertVerdicts {
             com.legend.compiler.element.type.Type t) {
         if (t == com.legend.compiler.element.type.Type.Primitive.INTEGER
                 || t == com.legend.compiler.element.type.Type.Primitive.FLOAT
-                || t == com.legend.compiler.element.type.Type.Primitive.DECIMAL) {
+                || t == com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                // NUMBER is the numeric tower's supertype — the concrete
+                // render refines from the PLAN's SQL type (V6 burn)
+                || t == com.legend.compiler.element.type.Type.Primitive.NUMBER
+                || t instanceof com.legend.compiler.element.type.Type.PrecisionDecimal) {
             return "numeric";
+        }
+        if (t instanceof com.legend.compiler.element.type.Type.EnumType et) {
+            // per-ENUMERATION kind class: values of different enums are
+            // never equal in pure, and an enum never equals its name
+            // string — the fqn IS the kind
+            return "enum:" + et.fqn();
         }
         if (t == com.legend.compiler.element.type.Type.Primitive.STRING) {
             return "string";

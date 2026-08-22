@@ -13,12 +13,7 @@ L (a program leg).
 
 | # | Item | Size | Notes |
 |---|---|---|---|
-| V1 | Pin sql-verdict disagree=0 (ChannelB asserts + corpus runner) | S | self-audit 2026-08-22: census prints but nothing asserts it |
-| V2 | evalCanon broad catch adjudication | S | decline-counted, but the catch shape is unreviewed |
-| V3 | ArchUnit: host-verdict reachable only from the verdict/referee seam | S | the ratified design's structural pin |
-| V4 | assertSameElements byte cutover (canonical ORDER BY) | M | 402 sites; same mechanism burns the 6 grid row-order rows |
-| V5 | assertEq + small families onto the canon machinery | S | assertSize is already COUNT-shaped |
-| V6 | Burn the 128 evalCanon declines to 0-or-DECLARED | M | enums cheap; instances/wire-trees likely declared residue |
+| V6b | Burn the 97 remaining declines to 0-or-DECLARED | S/M | remaining: containers (Map/Pair/List instances), class instances, cross-kind gates — mostly declared-residue candidates |
 | V7 | Corpus-lane cutover + harness arm DELETION | L | decoded-golden-text + grid problems are corpus-only; LAST, after PCT lane proves the system |
 | V8 | R3 tolerance census: 2-ULP + the 21 cross-engine float rows | M | retire or declare; both counted today |
 | V9 | Grid byte cutover closing slice (after V4/V8) | S | ledger says: ORDER BY + policy + GridCompare arm deletion, no emission |
@@ -77,4 +72,14 @@ L (a program leg).
 
 ## CLOSED
 
-(rows move here with their closing commit hash)
+- V1 sql-verdict disagreement alarm pinned (all five ChannelB suites +
+  corpus runner) — closed in the V1–V5 slice (32eb39ac) and this one
+- V2 evalCanon broad catch adjudicated (error-shape register; split
+  into prepCanon/runCanon tunnels this slice)
+- V3 ArchUnit host-verdict reachability rule (32eb39ac)
+- V4 assertSameElements byte cutover (32eb39ac)
+- V5 assertEq onto the canon machinery (32eb39ac)
+- V6 decline burn round 1: 207→97 (NUMBER plan-refinement,
+  PrecisionDecimal=Decimal, enums claimed; PAIR RULES for pure's
+  non-transitive numeric equality; mixed-kind-collection gate;
+  zeros-unify amendment) — this commit

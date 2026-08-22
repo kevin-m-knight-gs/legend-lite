@@ -198,7 +198,15 @@ class JavaEvalLedgerTest {
             // 455→486 (2026-08-22 V4/V5): assertSameElements (canonical
             // ORDER BY multiset byte verdict) and assertEq join the DB
             // verdict of record — same routing shape, same census.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 486),
+            // 486→573 (2026-08-22 V6): the decline burn — PAIR RULES for
+            // pure's NON-TRANSITIVE numeric equality (stamp-certain
+            // int×float static FALSE; Decimal/refined pairs by VALUE
+            // spelling), the mixed-kind-collection gate (a ROUTING fact
+            // read from host-fetched kinds — SQL column promotion erases
+            // element kinds), decline REASONS + verdict detail into the
+            // census. Verdict routing + diagnosis text, zero value
+            // evaluation; declines fell 207→97.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 573),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

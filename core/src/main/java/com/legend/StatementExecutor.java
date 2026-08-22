@@ -2340,33 +2340,32 @@ final class StatementExecutor {
 
     /** A DB-computed canonical text: {@code text} null = the side is
      * EMPTY (SQL NULL) — distinct from a DECLINE, which returns the
-     * record-less null from {@link #evalCanon}. */
+     * record-less null from {@link #runCanon}. */
     record Canon(@com.legend.Nullable String text) {
     }
 
-    /**
-     * R2a — the byte-channel side render, computed IN THE DATABASE
-     * (CANONICAL_FORM_SPEC §0/§2): lower the side like {@link #evalValue}
-     * and wrap the plan in the SQL canonical render for its STAMPED
-     * kind. Returns null (DECLINE — counted by the caller) when the
-     * side is non-scalar, its kind is unclaimed, or lowering refuses:
-     * the fallback is the host lattice, and every decline is census
-     * fuel, never a silent rescue.
-     */
-    static StatementExecutor.@com.legend.Nullable Canon evalCanon(
-            TypedSpec value, java.util.List<TypedSpec> letPrefix,
-            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
-        return evalCanon(value, letPrefix, specs, env, false);
+    /** A PREPARED byte-verdict side: the lowered plan plus its
+     * CONCRETE canon kind (an abstract Number stamp refines via the
+     * plan's own output SQL type — the stamp names the tower, the plan
+     * names the member). Preparation is split from rendering because
+     * the render MODE is a property of the PAIR (spec §3 pair rules —
+     * pure numeric equality is non-transitive), so both sides must be
+     * prepared before either renders. */
+    record CanonPrep(com.legend.sql.SqlQuery plan,
+            com.legend.compiler.element.type.Type canonType, boolean many,
+            boolean refined) {
     }
 
-    /** {@code canonicalOrder}: multiset verdicts (assertSameElements)
-     * aggregate elements ORDER BY their canon text — any consistent
-     * total order proves multiset equality; text order is the SQL
-     * spelling of the census's sorted-renders stand-in. */
-    static StatementExecutor.@com.legend.Nullable Canon evalCanon(
+    /**
+     * R2a — stage 1 of the byte-verdict side (CANONICAL_FORM_SPEC
+     * §0/§2): inline/resolve/lower like {@link #evalValue} and refine
+     * the canon kind. Returns null (DECLINE — counted by the caller)
+     * when lowering refuses; the fallback is the host lattice, and
+     * every decline is census fuel, never a silent rescue.
+     */
+    static StatementExecutor.@com.legend.Nullable CanonPrep prepCanon(
             TypedSpec value, java.util.List<TypedSpec> letPrefix,
-            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            boolean canonicalOrder) {
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         try {
             java.util.List<TypedSpec> single =
                     new java.util.ArrayList<>(letPrefix);
@@ -2383,19 +2382,60 @@ final class StatementExecutor {
             }
             var mult = root.info().multiplicity().requireBounded("canon side");
             boolean many = mult.upper() == null || mult.upper() > 1;
-            com.legend.sql.SqlExpr canon =
-                    com.legend.lowering.CanonicalRenderSql.scalarCanon(
+            com.legend.sql.SqlQuery plan = lowerAndPrepare(body, env,
+                    env.ctx(), env.dialect(), env.connection());
+            com.legend.compiler.element.type.Type canonType =
+                    root.info().type();
+            boolean refined = false;
+            if (canonType == com.legend.compiler.element.type.Type.Primitive.NUMBER
+                    && !plan.outputs().isEmpty()) {
+                refined = true;
+                canonType = switch (plan.outputs().get(0).type()) {
+                    case com.legend.sql.SqlType.Scalar sc -> switch (sc) {
+                        case INTEGER, BIGINT, HUGEINT ->
+                                com.legend.compiler.element.type.Type.Primitive.INTEGER;
+                        case DOUBLE ->
+                                com.legend.compiler.element.type.Type.Primitive.FLOAT;
+                        default -> canonType;
+                    };
+                    case com.legend.sql.SqlType.Decimal ignored ->
+                            com.legend.compiler.element.type.Type.Primitive.DECIMAL;
+                    default -> canonType;
+                };
+            }
+            return new CanonPrep(plan, canonType, many, refined);
+        } catch (java.sql.SQLException | RuntimeException e) {
+            // DECLINE, counted at the call site (the error-shape
+            // register's adjudicated decline tunnel)
+            return null;
+        }
+    }
+
+    /** Stage 2: render the prepared side in the PAIR-chosen mode
+     * ({@code valueMode} = the numeric-VALUE spelling, chosen when a
+     * Decimal meets the pair) and execute — one scalar VARCHAR query. */
+    static StatementExecutor.@com.legend.Nullable Canon runCanon(
+            CanonPrep prep, ExecEnv env, boolean canonicalOrder,
+            boolean valueMode) {
+        try {
+            com.legend.sql.SqlExpr canonExpr = valueMode
+                    ? com.legend.lowering.CanonicalRenderSql.numericValueCanon(
                             new com.legend.sql.SqlExpr.Column(null, "value"),
-                            root.info().type());
-            if (canon == null) {
+                            prep.canonType())
+                    : com.legend.lowering.CanonicalRenderSql.scalarCanon(
+                            new com.legend.sql.SqlExpr.Column(null, "value"),
+                            prep.canonType());
+            if (canonExpr == null) {
                 return null;
             }
-            if (many) {
+            com.legend.sql.SqlExpr canon = canonExpr;
+            if (prep.many()) {
                 // R2b — the COLLECTION side form (CanonicalForm.renderSide
                 // mirrored in SQL): one element renders as the scalar,
                 // N as '[a, b, c]', empty as '[]'. STRING_AGG rides the
                 // side query's row order — the same input-order contract
-                // Render's corpus-proven grid text stands on.
+                // Render's corpus-proven grid text stands on;
+                // canonicalOrder (assertSameElements) sorts by canon text.
                 com.legend.sql.SqlExpr n = new com.legend.sql.SqlAgg.Reducer(
                         com.legend.sql.SqlAgg.Fn.COUNT,
                         java.util.List.of(new com.legend.sql.SqlExpr.IntLit(1)),
@@ -2432,13 +2472,12 @@ final class StatementExecutor {
                                 new com.legend.sql.SqlExpr.StringLit("]")));
             }
             com.legend.sql.dialect.SqlDialect dialect = env.dialect();
-            com.legend.sql.SqlQuery plan = lowerAndPrepare(body, env,
-                    env.ctx(), dialect, env.connection());
             com.legend.sql.SqlQuery wrapped = new com.legend.sql.SqlSelect(
                     java.util.List.of(new com.legend.sql.SqlSelect.Projection(
                             canon, "canon")),
                     false,
-                    new com.legend.sql.SqlSource.Subselect(plan, "side", null),
+                    new com.legend.sql.SqlSource.Subselect(prep.plan(),
+                            "side", null),
                     null, java.util.List.of(), null, null,
                     java.util.List.of(), null, null,
                     java.util.List.of(new com.legend.sql.OutputCol("canon",
@@ -2450,13 +2489,10 @@ final class StatementExecutor {
                                     .STRING),
                     com.legend.exec.ResultShape.SCALAR, env.connection(),
                     dialect);
-            return r instanceof ExecutionResult.Scalar s
-                    ? new Canon(s.value() instanceof String str ? str : null)
+            return r instanceof ExecutionResult.Scalar sc
+                    ? new Canon(sc.value() instanceof String str ? str : null)
                     : null;
         } catch (java.sql.SQLException | RuntimeException e) {
-            // DECLINE, counted at the call site: a side the SQL channel
-            // cannot lower/execute falls back to the host lattice — the
-            // decline census keeps this from becoming a silent rescue
             return null;
         }
     }
