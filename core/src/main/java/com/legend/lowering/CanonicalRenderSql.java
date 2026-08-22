@@ -105,6 +105,20 @@ public final class CanonicalRenderSql {
         List<SqlExpr> canons = new java.util.ArrayList<>();
         String instFqn = com.legend.compiler.element.EqualityKeys.fqnOf(t);
         if (instFqn != null
+                && com.legend.compiler.element.type.PlatformTypes
+                        .isMapCarrier(t)) {
+            // F12 — the engine's OWN map rule (EqualityUtilities.
+            // mapEquals): equal key SETS then per-key values,
+            // order-INSENSITIVE — the canon is the SORTED entry list,
+            // so order-insensitivity is byte-decidable.
+            SqlExpr c = mapCanon(valueRef, valueCol.type(), instFqn);
+            if (c == null) {
+                return CanonWrap.decline(plan,
+                        "map-key-shape: " + valueCol.type());
+            }
+            candidates = List.of(t);
+            canons.add(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
+        } else if (instFqn != null
                 && com.legend.compiler.element.type.PlatformTypes.isNil(t)) {
             // the []-born BOTTOM type: a Nil side is the EMPTY value —
             // zero rows, the canon column is never read (the frame's
@@ -124,8 +138,8 @@ public final class CanonicalRenderSql {
             SqlExpr c = instanceCanon(valueRef, instanceKeys,
                     valueCol.type());
             if (c == null) {
-                return CanonWrap.decline(plan,
-                        "instance-key-shape: " + instFqn);
+                return CanonWrap.decline(plan, "instance-key-shape: "
+                        + instFqn + " layout=" + valueCol.type());
             }
             candidates = List.of(t);
             // the ROOT canon is byte text (nested levels stay
@@ -273,6 +287,47 @@ public final class CanonicalRenderSql {
                 SqlExpr.Call.of(SqlFn.IS_NULL, v),
                 new SqlExpr.NullLit())),
                 new SqlExpr.JsonObject(kv));
+    }
+
+    /** F12 — the MAP canon: entry texts {@code [kLeaf, vLeaf]} built
+     * per key (map_extract pairs each key with its value), SORTED (the
+     * engine's order-insensitive mapEquals becomes byte-decidable),
+     * JSON-framed with the carrier fqn. Leaf spellings are pure
+     * literals (quoted strings end unambiguously, so the entry text
+     * cannot collide across different key/value splits). Key and value
+     * kinds come from the MAP layout's static types; an unclaimable
+     * kind declines, counted. */
+    private static @com.legend.Nullable SqlExpr mapCanon(SqlExpr v,
+            SqlType layout, String fqn) {
+        if (!(layout instanceof SqlType.Map mt)) {
+            return null;
+        }
+        SqlExpr k = new SqlExpr.Column(null, "__k");
+        SqlExpr kLeaf = taggedLeaf(k, mt.key(), null);
+        SqlExpr vLeaf = taggedLeaf(SqlExpr.Call.of(SqlFn.LIST_GET,
+                SqlExpr.Call.of(SqlFn.MAP_EXTRACT, v, k),
+                new SqlExpr.IntLit(1)), mt.value(), null);
+        if (kLeaf == null || vLeaf == null) {
+            return null;
+        }
+        SqlExpr entry = SqlExpr.Call.of(SqlFn.CONCAT,
+                SqlExpr.Call.of(SqlFn.CONCAT,
+                        SqlExpr.Call.of(SqlFn.CONCAT,
+                                new SqlExpr.StringLit("["), kLeaf),
+                        new SqlExpr.StringLit(", ")),
+                SqlExpr.Call.of(SqlFn.CONCAT, vLeaf,
+                        new SqlExpr.StringLit("]")));
+        SqlExpr entries = SqlExpr.Call.of(SqlFn.LIST_SORT,
+                SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
+                        SqlExpr.Call.of(SqlFn.MAP_KEYS, v),
+                        new SqlExpr.Lambda(List.of("__k"), entry)));
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.IS_NULL, v),
+                new SqlExpr.NullLit())),
+                new SqlExpr.JsonObject(List.of(
+                        new SqlExpr.StringLit("_type"),
+                        new SqlExpr.StringLit(fqn),
+                        new SqlExpr.StringLit("entries"), entries)));
     }
 
     /** One key LEAF: a nested keyed instance recurses (JSON-typed,

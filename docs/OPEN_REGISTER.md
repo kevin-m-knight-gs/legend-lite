@@ -54,7 +54,6 @@ L (a program leg).
 | F7 | Dup-FQN coverage: services/connections/mappings namespaces | S |
 | F8 | {target} + foreign-db join-ref validation (D6b skipped conservatively) | S |
 | F9 | Invariant-3 register burn-down: wrap 21 write-once tables immutable | M |
-| F12 | Map byte canon (mapEquals): the engine's OWN map rule — equal key SETS then per-key values, order-insensitive; SQL = map_entries → per-entry canon → sort by key canon → JSON frame. Also absorbs the 3 Pair unclaimable-leaf rows (array/map-typed key fields recurse through the same machinery) | S/M |
 | F13 | SYNTHETIC INSTANCE IDENTITY (user idea 2026-08-22, design candidate — the ONLY path to the keyless bucket + the eq() wall): identity as DATA, the F10 pattern applied to reference identity (the engine's object refs made explicit). HARD PART: id stability across query splicing — a let-bound instance referenced from both assert sides must carry ONE id, so ids mint DETERMINISTICALLY from the binding site (+ per-row component for ->map construction), never per-evaluation uuid(). Claims keyless-instance declines and eq() identity semantics | M/L |
 | F11 | Effectful-assert byte coverage: the containsEffect gate routes effectful assert statements to body inlining (host verdicts only) — the gate stands on statement-orchestration grounds (V11 adjudication at the gate site), so claiming these needs the side path to learn sequential effect execution; V7-territory sizing | S/M |
 | F15 | Reference-adapter parser ingress: ExecuteLegendLiteQuery's SIX source-extraction regexes + reEscapeStringLiterals are a SHADOW PARSER (standing tenet violation, predates parser parity 6489/0) — parse PCT source with THE parser, splice from the AST, delete the patterns | S/M |
@@ -94,6 +93,12 @@ L (a program leg).
 
 ## CLOSED
 
+- F12 CLOSED (2026-08-22, the Map canon): mapEquals byte-decidable —
+  entry texts [kLeaf, vLeaf] per key (map_extract pairs), SORTED (the
+  engine's order-insensitive rule becomes byte comparison), JSON-framed
+  with the carrier fqn; leaf kinds from the MAP layout's static types.
+  Host referee already mapEquals-shaped (wireTree key-set + per-key).
+  Declines 35→25; the 3 Pair unclaimable-leaf rows went with it.
 - F14 OPENED AND CLOSED SAME DAY (2026-08-22, user chain of catches):
   the "unSQLable NUL string" was never a value-domain fact — DuckDB
   VARCHAR holds NUL fine (chr(0) concatenates/compares exactly,

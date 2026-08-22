@@ -102,10 +102,14 @@ class   CarrierPurityRatchetTest {
             // the canon-exec tunnel declines, counted — a wrong verdict
             // is impossible. Migrates to the carrier strategy with
             // F3/F10 (the H2 list-encoding leg).
+            // 129→132 (2026-08-22 F12): the map canon's THREE sites
+            // (LIST_GET on map_extract, LIST_SORT + LIST_TRANSFORM over
+            // the entry texts) — same verdict-lane-only argument, same
+            // F3/F10 migration note.
             // 129→127 (D1): checkedExtract's guard spelling moved INTO the
             // renderer behind the CheckedOne SEMANTIC NODE — the exact
             // re-absorption its justification promised.
-            "SqlFn\\.LIST_", 129,
+            "SqlFn\\.LIST_", 132,
             "SqlFn\\.UNNEST", 12,
             // the collect-carrier reducer (R1 recognizes it for fusion;
             // burns with R3/R4 when sources/values migrate)
