@@ -1804,3 +1804,53 @@ one.
 
 Repro: `repro/graphfetch-included-mapping/`,
 `scripts/corpus/probe_graphfetch_included_mapping.py`.
+
+## F56 — A subtype set that `extends` a filtered set does not inherit the parent's `~filter`
+
+    xf::Equity[xfEquity] extends [xfBase]: Relational
+    { ~filter [xf::DB]XfEquityRows        // INSTRUMENT_TYPE = 'EQUITY'
+      ... }
+
+    xf::CommonStock[xfCommon] extends [xfEquity]: Relational
+    { ~filter [xf::DB]XfCommonRows        // INSTRUMENT_SUBTYPE = 'COMMON'
+      ... }
+
+`CommonStock.all()` applies the child's filter ALONE. With six rows, one of them a BOND whose
+subtype column says `COMMON`:
+
+| query | returns |
+| --- | --- |
+| `Instrument.all()` — root set, unfiltered | all six |
+| `Equity.all()` | the three equities; correctly excludes the bond |
+| `CommonStock.all()` | `I-EQ-COMMON` **and the bond** |
+
+`Class CommonStock extends Equity`, so every CommonStock is an Equity — yet `CommonStock.all()`
+returns a row `Equity.all()` excludes. A subclass instance that is not an instance of its
+superclass, from two queries that both succeed silently.
+
+The second case has unrelated columns and is worse:
+
+    Filter XfCallRows(XF_INSTRUMENT.PUT_CALL = 'CALL')
+    xf::CallOption[xfCall] extends [xfOption]: Relational { ~filter XfCallRows ... }
+
+`CallOption.all()` returns a row whose `INSTRUMENT_TYPE` is `SWAP` — it carries a `PUT_CALL`
+value, and that is the entire test. `Option.all()` returns nothing.
+
+This is the standard instrument-master shape: one wide table, a discriminator, a set per
+subtype. Child filters are WRITTEN as though they compose — `INSTRUMENT_SUBTYPE = 'COMMON'`
+says nothing about the type, because the type is the parent's business. If they do not
+compose, every child filter must restate its whole ancestry, and one that does not is
+silently wrong rather than rejected.
+
+It bites only on rows whose discriminators disagree, which a seed built to be tidy never
+contains. Found by asking the question before seeding a project shaped this way, rather than
+by hitting it.
+
+If it is by design, the case to answer is that nothing enforces it: `extends [parentSet]`
+inherits the parent's main table and property mappings, so dropping only the filter is a
+special case neither the grammar nor any diagnostic mentions.
+
+Workaround: restate the ancestry in every child filter — `INSTRUMENT_TYPE = 'EQUITY' and
+INSTRUMENT_SUBTYPE = 'COMMON'`.
+
+Repro: `repro/extends-filter-not-inherited/`, `scripts/corpus/probe_extends_filter.py`.
