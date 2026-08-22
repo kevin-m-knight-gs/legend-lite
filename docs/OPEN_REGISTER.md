@@ -17,7 +17,6 @@ L (a program leg).
 
 | V8 | R3 tolerance census: 2-ULP + the 21 cross-engine float rows | M | retire or declare; both counted today. Candidate retirement design (2026-08-22, user-briefed): same-arithmetic H2 referee — byte-differing Double pairs re-compare EXACTLY on H2 (the goldens' own libm); tolerance dies |
 | V9 | Grid byte cutover closing slice (after V4/V8) | S | ledger says: ORDER BY + policy + GridCompare arm deletion, no emission |
-| V11 | Single-query canon (user-ratified 2026-08-22): collapse CanonicalRenderSql into the side query — `SELECT value, canon(value)` like the m2m in-query JSON return; one execution, prepCanon/runCanon merge, the containsEffect double-execution gate DELETES | M | first slice after X1–X4 lands |
 
 ## 1b. VERDICT RULE AUDIT (docs/VERDICT_RULE_AUDIT_2026_08_22.md — every rule vs engine source)
 
@@ -54,7 +53,7 @@ L (a program leg).
 | F7 | Dup-FQN coverage: services/connections/mappings namespaces | S |
 | F8 | {target} + foreign-db join-ref validation (D6b skipped conservatively) | S |
 | F9 | Invariant-3 register burn-down: wrap 21 write-once tables immutable | M |
-| F10 | Variant-aware byte canon: the canon consumes TYPED values with carrier decode owned by the carrier — covers the mixed-kind-collection decline AND retires the accumulating carrier-text strips (+0000, D-suffix regexes) which are the tell of canon parsing raw carrier text | M |
+| F10 | Variant-aware byte canon: the canon consumes TYPED values with carrier decode owned by the carrier — covers the mixed-kind-collection decline AND retires the accumulating carrier-text strips (+0000, D-suffix regexes) which are the tell of canon parsing raw carrier text. NEW WITNESS (V11): the mixed-identity VARCHAR carrier errors under candidate canon casts and rides the canon-exec decline tunnel — undetectable at wrap time because OutputCol types are stamp-derived | M |
 
 ## 4. Parked BY THE RATIFIED ARC ORDER (sequenced, not debt)
 
@@ -89,6 +88,24 @@ L (a program leg).
 
 ## CLOSED
 
+- V11 CLOSED (2026-08-22, user-ratified twice — "collapse the renderer
+  into the original query like m2m JSON"): the canon rides the side
+  query itself (CanonicalRenderSql.wrapWithCanon → `SELECT value,
+  canon(value) FROM (plan) side`, CanonRider carries the harvested
+  texts out of the ONE execution) — prepCanon/runCanon and the
+  double-execution soundness obligation DELETED (StatementExecutor
+  eval-ledger BANKED DOWN 2728→2326; total verdict-system surface
+  −355). Unrefined Number sides project one candidate column per fine
+  kind; runtime value kinds SELECT (never evaluate). Collection framing
+  ('[', ', ', ']') moved to the verdict layer over DB-computed element
+  texts + DB-computed canonical order. LiteralFold yields to a
+  canon-riding side (the DB must compute the canon), surviving only as
+  the last-resort value source for unSQLable literals (NUL-bearing
+  strings), counted decline. The canon-exec decline tunnel re-executes
+  BARE on wrapped-query failure — a canon column can never poison the
+  value fetch (witness: mixed-identity VARCHAR carrier, F10). All five
+  ChannelB suites green: discovery 287/137, disagree 0, declines 97
+  ≤ 100; corpus green, h2-exec 320+632 unchanged.
 - V1 sql-verdict disagreement alarm pinned (all five ChannelB suites +
   corpus runner) — closed in the V1–V5 slice (32eb39ac) and this one
 - V2 evalCanon broad catch adjudicated (error-shape register; split

@@ -60,6 +60,86 @@ public final class CanonicalRenderSql {
         return null;
     }
 
+    /**
+     * V11 — wrap a lowered side plan so the canon rides the SAME query
+     * ({@code SELECT value, canon(value) FROM (plan) side}): one
+     * execution produces values and canon texts together, deleting the
+     * double-execution obligation. Declines (recorded on the rider,
+     * plan returned unchanged) when the plan is not a single-column
+     * scalar shape or no candidate kind is claimed.
+     *
+     * <p>An unrefined NUMBER root projects one candidate column per
+     * fine kind (the plan's OutputCol type is stamp-derived and cannot
+     * name the member — V6-round-2 circularity); the verdict layer
+     * selects by runtime value kind. canonicalOrder (assertSameElements)
+     * sorts rows by the canon text IN THE DATABASE — declined for
+     * multi-candidate sides (no single ordering key exists).
+     */
+    /** The wrap outcome: a wrapped plan with its candidate kinds, or a
+     * decline reason with the plan unchanged. Lowering stays pure of
+     * the exec layer (Invariant 6h) — the driver records this on its
+     * rider. */
+    public record CanonWrap(com.legend.sql.SqlQuery plan,
+            List<Type> kinds, boolean many,
+            @com.legend.Nullable String declineReason) {
+
+        static CanonWrap decline(com.legend.sql.SqlQuery plan,
+                String reason) {
+            return new CanonWrap(plan, List.of(), false, reason);
+        }
+    }
+
+    public static CanonWrap wrapWithCanon(com.legend.sql.SqlQuery plan,
+            com.legend.compiler.element.type.ExprType rootInfo,
+            boolean canonicalOrder) {
+        if (plan.outputs().size() != 1) {
+            return CanonWrap.decline(plan, "non-scalar plan shape: "
+                    + plan.outputs().size() + " columns");
+        }
+        Type t = rootInfo.type();
+        List<Type> candidates = t == Type.Primitive.NUMBER
+                ? List.of(Type.Primitive.INTEGER, Type.Primitive.FLOAT,
+                        Type.Primitive.DECIMAL)
+                : List.of(t);
+        com.legend.sql.OutputCol valueCol = plan.outputs().get(0);
+        SqlExpr valueRef = new SqlExpr.Column(null, valueCol.name());
+        List<SqlExpr> canons = new java.util.ArrayList<>(candidates.size());
+        for (Type k : candidates) {
+            SqlExpr c = scalarCanon(valueRef, k);
+            if (c == null) {
+                return CanonWrap.decline(plan, "unclaimed kind: " + k);
+            }
+            canons.add(c);
+        }
+        if (canonicalOrder && canons.size() > 1) {
+            return CanonWrap.decline(plan,
+                    "canonical-order over an unrefined Number side");
+        }
+        var mult = rootInfo.multiplicity().requireBounded("canon side");
+        boolean many = mult.upper() == null || mult.upper() > 1;
+        List<com.legend.sql.SqlSelect.Projection> projections =
+                new java.util.ArrayList<>();
+        projections.add(new com.legend.sql.SqlSelect.Projection(
+                valueRef, valueCol.name()));
+        List<com.legend.sql.OutputCol> outputs = new java.util.ArrayList<>();
+        outputs.add(valueCol);
+        for (int i = 0; i < canons.size(); i++) {
+            projections.add(new com.legend.sql.SqlSelect.Projection(
+                    canons.get(i), "__canon" + i));
+            outputs.add(new com.legend.sql.OutputCol("__canon" + i,
+                    SqlType.Scalar.VARCHAR, true));
+        }
+        List<com.legend.sql.SqlSelect.SortKey> sort = canonicalOrder
+                ? List.of(new com.legend.sql.SqlSelect.SortKey(
+                        canons.get(0), true, null, null))
+                : List.of();
+        return new CanonWrap(new com.legend.sql.SqlSelect(projections,
+                false,
+                new com.legend.sql.SqlSource.Subselect(plan, "side", null),
+                null, List.of(), null, null, sort, null, null, outputs),
+                candidates, many, null);
+    }
+
     /** Decimal: SCALE-PRESERVING (X2, VERDICT_RULE_AUDIT — engine
      * Decimal equality is getValue().equals, scale-sensitive; the old
      * scale-normalized canon followed the deleted compareTo grant).

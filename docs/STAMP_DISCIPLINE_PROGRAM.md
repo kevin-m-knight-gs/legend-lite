@@ -2162,3 +2162,44 @@ on V8/R3; user chose the counted policy for now.
 V11 REGISTERED (user, twice): collapse the canon render INTO the side
 query — SELECT value, canon(value), one execution, like the m2m
 in-query JSON return; the containsEffect double-execution gate deletes.
+
+## V11 LANDED — the single-query canon (2026-08-22)
+
+The user's question ("why a second query? collapse it like the m2m
+JSON return") became the slice: the canonical render now rides the
+side query itself. wrapWithCanon (lowering-owned, exec-pure per
+Invariant 6h — returns a CanonWrap the driver records on the
+CanonRider) wraps the lowered plan as `SELECT value, canon(value)
+FROM (plan) side`; the Executor harvests the appended VARCHAR columns
+row-aligned with the value decode; the verdict layer frames and
+compares. DELETED: prepCanon, runCanon, their records, and the V10c
+double-execution soundness obligation (nothing runs twice).
+StatementExecutor banked DOWN 2728→2326 stripped lines; the whole
+verdict system shrank 355.
+
+Derivation points settled en route:
+- Candidate columns for unrefined Number stamps (OutputCol types are
+  stamp-derived — the V6 circularity — so the plan cannot name the
+  member): the DB computes every candidate render; the runtime value
+  kinds SELECT the column, by the same refinement that gates the
+  equality rule. Selection, never evaluation.
+- LiteralFold YIELDS to a canon-riding side: the fold is a value-fetch
+  optimization, but a requested canon is computed by the database.
+  Same execution count as the deleted runCanon round trip. The fold
+  survives as the last-resort value source for literals SQL cannot
+  spell (NUL-bearing strings — testEmptyChar) with a counted decline.
+- The canon-exec decline tunnel (the V11 form of prepCanon's catch):
+  a wrapped-query failure re-executes the BARE plan and declines the
+  canon — a canon column can never poison the value fetch. Witness:
+  the mixed-identity VARCHAR carrier ('7.345D') under candidate casts,
+  wrap-time-undetectable (stamp-derived OutputCol) → F10's newest row.
+- Guardrails honored the hard way: Invariant 6h dependency inversion,
+  CanonRider registered in the exec closed register with its tenet
+  argument, JDBC accessor ratchet 12→13 (one getString of DB-composed
+  text bought a deleted execution), executeTyped split at the seam.
+
+TRAP RECORDED TWICE OVER: ChannelB suites read -Dlegend.pure.root /
+-Dlegend.engine.root SYSTEM PROPERTIES (like rcorpus), not env vars —
+env-only runs silently referee the STALE $HOME checkout and fake a
+7-test relation discovery regression (280 != 287). The X-slice pushed
+with those pins unvalidated because ChannelB is not in allgates.

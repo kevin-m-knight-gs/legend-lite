@@ -106,7 +106,14 @@ class ErrorShapeGuardrailTest {
     /** Designed catch-return sentinels at review time: harness
      * Unsupported buckets, UnfoldableRef isolation, overflow to
      * BigInteger, join-side search. Shrink-only. */
-    private static final int CATCH_RETURNS_VALUE = 13;   // re-pinned 2026-08-16 F1.2: harness left src/main (was 20)
+    // re-pinned 2026-08-16 F1.2: harness left src/main (was 20).
+    // 13→15 (2026-08-22 V11): the single-query canon's decline tunnel
+    // adds two catch-returns (wrapped→bare, bare→fold) — each IS the
+    // designed sentinel this guardrail asks for: caught failure →
+    // counted rider decline + derived fallback value, never a silent
+    // rescue. (prepCanon/runCanon's dead catches returned null and were
+    // never in this count.)
+    private static final int CATCH_RETURNS_VALUE = 15;
 
     /** {@code endsWith("::…")} identification sites — the suffix-match
      * idiom exact-FQN doctrine retires; may only shrink. */

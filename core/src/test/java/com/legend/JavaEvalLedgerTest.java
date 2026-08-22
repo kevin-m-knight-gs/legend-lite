@@ -220,7 +220,16 @@ class JavaEvalLedgerTest {
             // EXPLICITLY (sqlUlpPolicy census) or it silently retires.
             // PureAsserts owns the tolerance; this only vectorizes the
             // pair check + counts. Zero value evaluation.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 628),
+            // 628→675 (2026-08-22 V11 single-query canon): candidate-
+            // column SELECTION (runtime kind picks which DB-computed
+            // render judges) + renderSide FRAMING (spec separators over
+            // DB-computed element texts) moved here when the canon
+            // collapsed into the side query. In exchange the WHOLE
+            // prepCanon/runCanon execution arm left StatementExecutor
+            // (−402): the verdict system's total surface SHRANK 355.
+            // The DB still computes every element text and the
+            // canonical order — framing writes '[', ', ', ']' only.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 675),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -236,7 +245,12 @@ class JavaEvalLedgerTest {
             // 2724→2728 (2026-08-20 Row-vs-Relation model B): table
             // tests spell Type.isRelation/relationSchema on the wrapped
             // form — multiline type-spelling only, zero new evaluation.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2728),
+            // 2728→2363 BANKED DOWN (2026-08-22 V11): prepCanon/runCanon
+            // and their records DELETED — the canon rides the side query
+            // itself (wrapWithCanon), one execution per side; the
+            // residual +37 over the first cut is the decline tunnel
+            // (wrapped→bare→fold, the designed sentinel chain).
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2363),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
@@ -386,6 +400,15 @@ class JavaEvalLedgerTest {
                     // render of record into SQL; these stay as the
                     // permanent parallel-referee half.
                     "CanonicalForm.java", "CanonicalDivergence.java",
+                    // V11 (2026-08-22, user-ratified single-query
+                    // canon): the rider that carries DB-computed canon
+                    // texts OUT of the one side execution — pure
+                    // carriage state (candidate kinds + harvested
+                    // VARCHAR cells + decline reason); no JDBC, no
+                    // evaluation, no verdict logic. It EXISTS so the
+                    // second per-side execution (runCanon) could be
+                    // deleted — tenet #1's number went DOWN with it.
+                    "CanonRider.java",
                     "package-info.java");
 
     /** The other two funnel packages (documented-debts 2026-08-18,

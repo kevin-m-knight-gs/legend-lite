@@ -71,13 +71,26 @@ public final class Executor {
                                           ResultShape shape, Connection connection,
                                           com.legend.sql.dialect.SqlDialect dialect)
             throws SQLException {
+        return execute(sql, plan, rootType, shape, connection, dialect, null);
+    }
+
+    /** V11 rider entry: when {@code rider} is a wrapped canon carrier,
+     * the SCALAR/COLLECTION arms harvest the appended canon columns
+     * row-aligned with the value decode — one execution serves both
+     * the value fetch and the byte verdict. */
+    public static ExecutionResult execute(String sql, SqlQuery plan, ExprType rootType,
+                                          ResultShape shape, Connection connection,
+                                          com.legend.sql.dialect.SqlDialect dialect,
+                                          @com.legend.Nullable CanonRider rider)
+            throws SQLException {
         // TEMPORARY (2026-08-15 G4-vs-G5 wall accounting): whole
         // plan-execution boundary — prepare + executeQuery + result
         // materialization/shaping. Histogram by RESULT SHAPE (scalar
         // value-evals vs tabular/graph) + SQL duplication stats.
         long qt0 = System.nanoTime();
         try {
-            return execute0(sql, plan, rootType, shape, connection, dialect);
+            return execute0(sql, plan, rootType, shape, connection, dialect,
+                    rider);
         } finally {
             com.legend.exec.TimingLedger.add("query.exec",
                     System.nanoTime() - qt0);
@@ -137,7 +150,8 @@ public final class Executor {
 
     private static ExecutionResult execute0(String sql, SqlQuery plan, ExprType rootType,
                                           ResultShape shape, Connection connection,
-                                          com.legend.sql.dialect.SqlDialect dialect)
+                                          com.legend.sql.dialect.SqlDialect dialect,
+                                          @com.legend.Nullable CanonRider rider)
             throws SQLException {
         boolean anyRoot = PlatformTypes.isAny(rootType.type());
         boolean variantRoot = rootType.type()
@@ -150,7 +164,7 @@ public final class Executor {
         // errors were unreadable); prepare() surfaces the actual message
         try {
             return executePrepared(connection, sql, shape, plan, rootType,
-                    dialect, anyRoot, variantRoot);
+                    dialect, anyRoot, variantRoot, rider);
         } catch (SQLException e) {
             // error-path echo under the same diagnostic flag: a sweep's
             // failing statement is otherwise invisible (pre-exec dump
@@ -246,7 +260,8 @@ public final class Executor {
     private static ExecutionResult executePrepared(Connection connection,
             String sql, ResultShape shape, SqlQuery plan, ExprType rootType,
             com.legend.sql.dialect.SqlDialect dialect, boolean anyRoot,
-            boolean variantRoot) throws SQLException {
+            boolean variantRoot, @com.legend.Nullable CanonRider rider)
+            throws SQLException {
         try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
              ResultSet rs = st.executeQuery()) {
             return switch (shape) {
@@ -270,6 +285,9 @@ public final class Executor {
                             ? latticeKind(cell(rs, plan, dialect, anyRoot, variantRoot),
                                     rootType.type())
                             : null;
+                    if (hasRow) {
+                        harvestCanon(rs, rider);
+                    }
                     // a SECOND row under a scalar-shaped root is a resolver/
                     // lowering bug (e.g. a to-one stand-in leaking rows) —
                     // reading only the first would be a SILENT wrong value
@@ -288,6 +306,7 @@ public final class Executor {
                         anyRow = true;
                         Object v = latticeKind(cell(rs, plan, dialect, anyRoot, variantRoot),
                                 rootType.type());
+                        harvestCanon(rs, rider);
                         // THE LOWERER OWNS THE NULL-DROP (shortcut audit §5):
                         // pure's "a collection holds no empties" is compiled
                         // — the resolver filters optional-cell projections,
@@ -348,6 +367,22 @@ public final class Executor {
                         rootType.type());
             };
         }
+    }
+
+    /** V11: read the appended canon columns (2..1+k) of the current
+     * row into the rider, row-aligned with the value decode. A wrapped
+     * rider implies a non-variant scalar shape, so no value row is
+     * ever dropped out of alignment (the COLLECTION null wall). */
+    private static void harvestCanon(ResultSet rs,
+            @com.legend.Nullable CanonRider rider) throws SQLException {
+        if (rider == null || !rider.wrapped()) {
+            return;
+        }
+        String[] cs = new String[rider.kinds().size()];
+        for (int i = 0; i < cs.length; i++) {
+            cs[i] = rs.getString(2 + i);
+        }
+        rider.rows().add(cs);
     }
 
     private static @com.legend.Nullable Object cell(ResultSet rs, SqlQuery plan,

@@ -2327,6 +2327,16 @@ final class StatementExecutor {
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env)
             throws java.sql.SQLException {
+        return evalValue(value, letPrefix, specs, env, null);
+    }
+
+    /** V11 rider entry: the canon rides the value query itself — one
+     * execution serves the host referee AND the byte verdict. */
+    static @com.legend.Nullable ExecutionResult evalValue(TypedSpec value,
+            java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
+            com.legend.exec.@com.legend.Nullable CanonRider rider)
+            throws java.sql.SQLException {
         java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
         single.add(value);
         var inliner = new com.legend.compiler.spec.UserCallInliner(specs);
@@ -2335,164 +2345,22 @@ final class StatementExecutor {
         body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
                 .withLetBindings(env.queryLets())
                 .resolve(body, env.runtimeFqn());
-        return executeTyped(body, env);
-    }
-
-    /** A DB-computed canonical text: {@code text} null = the side is
-     * EMPTY (SQL NULL) — distinct from a DECLINE, which returns the
-     * record-less null from {@link #runCanon}. */
-    record Canon(@com.legend.Nullable String text) {
-    }
-
-    /** A PREPARED byte-verdict side: the lowered plan plus its
-     * CONCRETE canon kind (an abstract Number stamp refines via the
-     * plan's own output SQL type — the stamp names the tower, the plan
-     * names the member). Preparation is split from rendering because
-     * the render MODE is a property of the PAIR (spec §3 pair rules —
-     * pure numeric equality is non-transitive), so both sides must be
-     * prepared before either renders. */
-    record CanonPrep(com.legend.sql.SqlQuery plan,
-            com.legend.compiler.element.type.Type canonType, boolean many) {
-    }
-
-    /**
-     * R2a — stage 1 of the byte-verdict side (CANONICAL_FORM_SPEC
-     * §0/§2): inline/resolve/lower like {@link #evalValue} and refine
-     * the canon kind. Returns null (DECLINE — counted by the caller)
-     * when lowering refuses; the fallback is the host lattice, and
-     * every decline is census fuel, never a silent rescue.
-     *
-     * <p>DOUBLE-EXECUTION SOUNDNESS (V10c, derived): assert sides run
-     * once for values and once for the canon; this is sound because
-     * EFFECTFUL statements never reach the K-arm — the caller's
-     * {@code containsEffect} gate routes them to
-     * {@code executeCallStatement} upstream — so both runs see the
-     * same pure expression over the same seeded state.
-     */
-    static StatementExecutor.@com.legend.Nullable CanonPrep prepCanon(
-            TypedSpec value, java.util.List<TypedSpec> letPrefix,
-            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
-        try {
-            java.util.List<TypedSpec> single =
-                    new java.util.ArrayList<>(letPrefix);
-            single.add(value);
-            var inliner = new com.legend.compiler.spec.UserCallInliner(specs);
-            java.util.List<TypedSpec> body = inliner.inlineBody(single);
-            env.queryLets().putAll(inliner.queryLets());
-            body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
-                    .withLetBindings(env.queryLets())
-                    .resolve(body, env.runtimeFqn());
-            TypedSpec root = body.get(body.size() - 1);
-            while (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
-                root = fr.source();
-            }
-            var mult = root.info().multiplicity().requireBounded("canon side");
-            boolean many = mult.upper() == null || mult.upper() > 1;
-            com.legend.sql.SqlQuery plan = lowerAndPrepare(body, env,
-                    env.ctx(), env.dialect(), env.connection());
-            // NO plan-type refinement: OutputCol.type() derives from the
-            // pure STAMP (sqlTypeOf(NUMBER) is a blanket DOUBLE), so
-            // reading it back is CIRCULAR — it can never carry new
-            // information (V6 round 2, user-caught). An abstract Number
-            // stamp refines from the RUNTIME value kinds at the verdict
-            // seam — pure's own Number-equality semantics.
-            return new CanonPrep(plan, root.info().type(), many);
-        } catch (java.sql.SQLException | RuntimeException e) {
-            // DECLINE, counted at the call site (the error-shape
-            // register's adjudicated decline tunnel)
-            return null;
-        }
-    }
-
-    /** Stage 2: render the prepared side (X4: the value-mode died with
-     * the cross-kind grants — every kind renders its ONE exact canon)
-     * and execute — one scalar VARCHAR query. */
-    static StatementExecutor.@com.legend.Nullable Canon runCanon(
-            CanonPrep prep, ExecEnv env, boolean canonicalOrder,
-            com.legend.compiler.element.type.@com.legend.Nullable Type renderKind) {
-        try {
-            com.legend.compiler.element.type.Type kind =
-                    renderKind != null ? renderKind : prep.canonType();
-            com.legend.sql.SqlExpr canonExpr =
-                    com.legend.lowering.CanonicalRenderSql.scalarCanon(
-                            new com.legend.sql.SqlExpr.Column(null, "value"),
-                            kind);
-            if (canonExpr == null) {
-                return null;
-            }
-            com.legend.sql.SqlExpr canon = canonExpr;
-            if (prep.many()) {
-                // R2b — the COLLECTION side form (CanonicalForm.renderSide
-                // mirrored in SQL): one element renders as the scalar,
-                // N as '[a, b, c]', empty as '[]'. ORDER CONTRACT
-                // (V10c, derived): DuckDB's preserve_insertion_order
-                // setting (documented, default TRUE) guarantees
-                // row order for queries without ORDER BY — STRING_AGG
-                // rides that contract, not luck; canonicalOrder
-                // (assertSameElements) sorts by canon text explicitly.
-                com.legend.sql.SqlExpr n = new com.legend.sql.SqlAgg.Reducer(
-                        com.legend.sql.SqlAgg.Fn.COUNT,
-                        java.util.List.of(new com.legend.sql.SqlExpr.IntLit(1)),
-                        false, java.util.List.of());
-                com.legend.sql.SqlExpr joined = new com.legend.sql.SqlAgg.Reducer(
-                        com.legend.sql.SqlAgg.Fn.STRING_AGG,
-                        java.util.List.of(canon,
-                                new com.legend.sql.SqlExpr.StringLit(", ")),
-                        false, canonicalOrder
-                                ? java.util.List.of(
-                                        new com.legend.sql.SqlSelect.SortKey(
-                                                canon, true, null, null))
-                                : java.util.List.of());
-                com.legend.sql.SqlExpr lone = new com.legend.sql.SqlAgg.Reducer(
-                        com.legend.sql.SqlAgg.Fn.MIN,
-                        java.util.List.of(canon), false, java.util.List.of());
-                canon = new com.legend.sql.SqlExpr.Case(java.util.List.of(
-                        new com.legend.sql.SqlExpr.Case.When(
-                                com.legend.sql.SqlExpr.Call.of(
-                                        com.legend.sql.SqlFn.EQUAL, n,
-                                        new com.legend.sql.SqlExpr.IntLit(0)),
-                                new com.legend.sql.SqlExpr.StringLit("[]")),
-                        new com.legend.sql.SqlExpr.Case.When(
-                                com.legend.sql.SqlExpr.Call.of(
-                                        com.legend.sql.SqlFn.EQUAL, n,
-                                        new com.legend.sql.SqlExpr.IntLit(1)),
-                                lone)),
-                        com.legend.sql.SqlExpr.Call.of(
-                                com.legend.sql.SqlFn.CONCAT,
-                                com.legend.sql.SqlExpr.Call.of(
-                                        com.legend.sql.SqlFn.CONCAT,
-                                        new com.legend.sql.SqlExpr.StringLit("["),
-                                        joined),
-                                new com.legend.sql.SqlExpr.StringLit("]")));
-            }
-            com.legend.sql.dialect.SqlDialect dialect = env.dialect();
-            com.legend.sql.SqlQuery wrapped = new com.legend.sql.SqlSelect(
-                    java.util.List.of(new com.legend.sql.SqlSelect.Projection(
-                            canon, "canon")),
-                    false,
-                    new com.legend.sql.SqlSource.Subselect(prep.plan(),
-                            "side", null),
-                    null, java.util.List.of(), null, null,
-                    java.util.List.of(), null, null,
-                    java.util.List.of(new com.legend.sql.OutputCol("canon",
-                            com.legend.sql.SqlType.Scalar.VARCHAR, true)));
-            ExecutionResult r = Executor.execute(dialect.render(wrapped),
-                    wrapped,
-                    com.legend.compiler.element.type.ExprType.one(
-                            com.legend.compiler.element.type.Type.Primitive
-                                    .STRING),
-                    com.legend.exec.ResultShape.SCALAR, env.connection(),
-                    dialect);
-            return r instanceof ExecutionResult.Scalar sc
-                    ? new Canon(sc.value() instanceof String str ? str : null)
-                    : null;
-        } catch (java.sql.SQLException | RuntimeException e) {
-            return null;
-        }
+        return executeTyped(body, env, rider);
     }
 
     static ExecutionResult executeTyped(
             java.util.List<TypedSpec> body, ExecEnv env)
+            throws java.sql.SQLException {
+        return executeTyped(body, env, null);
+    }
+
+    /** V11: {@code rider} non-null asks the SQL path to carry the
+     * canonical renders as appended columns (wrapWithCanon); every
+     * non-SQL arm leaves the rider's initial "non-sql-arm" decline in
+     * place — counted at the verdict seam, never silent. */
+    static ExecutionResult executeTyped(
+            java.util.List<TypedSpec> body, ExecEnv env,
+            com.legend.exec.@com.legend.Nullable CanonRider rider)
             throws java.sql.SQLException {
         ModelContext ctx = env.ctx();
         String runtimeFqn = env.runtimeFqn();
@@ -2546,61 +2414,9 @@ final class StatementExecutor {
             return new ExecutionResult.Scalar(ddlStatementString(ds, env),
                     ds.info().type());
         }
-        // CONNECTION/RUNTIME values are ORCHESTRATION HANDLES (the
-        // executeInDb convention below: connections are harness-ambient,
-        // never host object graphs). A setup returning ^Runtime(...) or
-        // binding connectionByElement(...) must not force them through
-        // the SQL pipeline. Effects nested in ctor args would be dropped
-        // — loud, never silent.
-        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall cbe
-                && "meta::core::runtime::connectionByElement"
-                        .equals(cbe.callee().qualifiedName())) {
-            return new ExecutionResult.Scalar(null, cbe.info().type());
-        }
-        if (root instanceof com.legend.compiler.spec.typed.TypedCast castC
-                && castC.source()
-                        instanceof com.legend.compiler.spec.typed.TypedNativeCall cbe2
-                && "meta::core::runtime::connectionByElement"
-                        .equals(cbe2.callee().qualifiedName())) {
-            return new ExecutionResult.Scalar(null, castC.info().type());
-        }
-        if (root instanceof com.legend.compiler.spec.typed.TypedNewInstance rni
-                && ("meta::core::runtime::Runtime".equals(rni.classFqn())
-                        || "meta::core::runtime::ConnectionStore"
-                                .equals(rni.classFqn()))) {
-            if (containsEffectfulNode(new java.util.ArrayList<>(
-                    rni.properties().values()))) {
-                throw new IllegalStateException("^" + rni.classFqn()
-                        + "(...) constructor argument carries an"
-                        + " executeInDb-family effect; the orchestration-"
-                        + "handle arm never evaluates arguments");
-            }
-            return new ExecutionResult.Scalar(null, rni.info().type());
-        }
-        // TYPE-driven handle rule (XStore slice 2b): a CONNECTION/RUNTIME-
-        // typed VALUE is an orchestration handle regardless of expression
-        // shape — the corpus's connection-picking idiom
-        // (testRuntime().connectionStores->filter(c|...)->toOne()) must
-        // never lower to SQL (it list_filter'd a struct literal). Same
-        // effect guard as the ctor arm: nested effects never drop silently.
-        if (root.info().type()
-                instanceof com.legend.compiler.element.type.Type.ClassType hct
-                // Nil (the []-born BOTTOM type) subtypes EVERYTHING —
-                // including Connection — but a Nil-typed root is an empty
-                // VALUE ([]->tail() is an empty collection), never an
-                // orchestration handle: the handle arm returned Scalar(null)
-                // where the caller expects an empty Collection
-                && !com.legend.compiler.element.type.PlatformTypes.isNil(hct)
-                && ("meta::core::runtime::Runtime".equals(hct.fqn())
-                        || "meta::core::runtime::ConnectionStore".equals(hct.fqn())
-                        || env.ctx().isSubtype(hct.fqn(),
-                                "meta::core::runtime::Connection"))) {
-            if (containsEffectfulNode(java.util.List.of(root))) {
-                throw new IllegalStateException("a connection-typed value"
-                        + " expression carries an executeInDb-family effect;"
-                        + " the orchestration-handle arm never evaluates it");
-            }
-            return new ExecutionResult.Scalar(null, root.info().type());
+        ExecutionResult handle = orchestrationHandleArm(root, env);
+        if (handle != null) {
+            return handle;
         }
         // a COLLECTION whose elements include DDL string generators (the
         // aggregationAware setup shape: [dropSchemaStatement(..), ...]
@@ -2702,8 +2518,16 @@ final class StatementExecutor {
                         .equals(sc.callee().qualifiedName())) {
             return dropAndCreateSchemaInDb(body, sc, env);
         }
+        // V11: a canon-riding side SKIPS the literal fold — the fold is
+        // a value-fetch optimization, but a requested canon is computed
+        // BY THE DATABASE, so the side executes (same cost as the
+        // deleted runCanon round trip; the values now come through the
+        // full pipeline too, one road for both). The fold survives as
+        // the LAST-RESORT value source for literals SQL cannot spell
+        // (NUL-bearing strings — DuckDB VARCHAR is NUL-free): the
+        // executePlan tunnel returns it with a counted decline.
         com.legend.exec.ExecutionResult folded = LiteralFold.fold(root);
-        if (folded != null) {
+        if (folded != null && rider == null) {
             return folded;
         }
         if (System.getenv("LL_DUMP_RESOLVED") != null) {
@@ -2729,15 +2553,145 @@ final class StatementExecutor {
                         .isRelation(root.info().type())) {
             return executePctTds(plan, root, dialect, connection);
         }
-        ExecutionResult res = Executor.execute(
-                dialect.render(plan), plan,
-                collectionDeclared ? java.util.Objects.requireNonNull(declaredInfo, "declaredInfo")
-                        : root.info(),
-                collectionDeclared ? com.legend.exec.ResultShape.COLLECTION
-                        : com.legend.exec.ResultShape.of(root),
-                connection, dialect);
+        ExecutionResult res = executePlan(plan, root,
+                collectionDeclared ? declaredInfo : null, rider, folded, env);
         enforceToOneReader(root, res);
         return res;
+    }
+
+    /** ORCHESTRATION-HANDLE arms of {@link #executeTyped} (extracted at
+     * the file guard, V11): connection/runtime values never lower.
+     * Null = not a handle (the caller continues). */
+    private static @com.legend.Nullable ExecutionResult orchestrationHandleArm(
+            TypedSpec root, ExecEnv env) {
+        // CONNECTION/RUNTIME values are ORCHESTRATION HANDLES (the
+        // executeInDb convention below: connections are harness-ambient,
+        // never host object graphs). A setup returning ^Runtime(...) or
+        // binding connectionByElement(...) must not force them through
+        // the SQL pipeline. Effects nested in ctor args would be dropped
+        // — loud, never silent.
+        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall cbe
+                && "meta::core::runtime::connectionByElement"
+                        .equals(cbe.callee().qualifiedName())) {
+            return new ExecutionResult.Scalar(null, cbe.info().type());
+        }
+        if (root instanceof com.legend.compiler.spec.typed.TypedCast castC
+                && castC.source()
+                        instanceof com.legend.compiler.spec.typed.TypedNativeCall cbe2
+                && "meta::core::runtime::connectionByElement"
+                        .equals(cbe2.callee().qualifiedName())) {
+            return new ExecutionResult.Scalar(null, castC.info().type());
+        }
+        if (root instanceof com.legend.compiler.spec.typed.TypedNewInstance rni
+                && ("meta::core::runtime::Runtime".equals(rni.classFqn())
+                        || "meta::core::runtime::ConnectionStore"
+                                .equals(rni.classFqn()))) {
+            if (containsEffectfulNode(new java.util.ArrayList<>(
+                    rni.properties().values()))) {
+                throw new IllegalStateException("^" + rni.classFqn()
+                        + "(...) constructor argument carries an"
+                        + " executeInDb-family effect; the orchestration-"
+                        + "handle arm never evaluates arguments");
+            }
+            return new ExecutionResult.Scalar(null, rni.info().type());
+        }
+        // TYPE-driven handle rule (XStore slice 2b): a CONNECTION/RUNTIME-
+        // typed VALUE is an orchestration handle regardless of expression
+        // shape — the corpus's connection-picking idiom
+        // (testRuntime().connectionStores->filter(c|...)->toOne()) must
+        // never lower to SQL (it list_filter'd a struct literal). Same
+        // effect guard as the ctor arm: nested effects never drop silently.
+        if (root.info().type()
+                instanceof com.legend.compiler.element.type.Type.ClassType hct
+                // Nil (the []-born BOTTOM type) subtypes EVERYTHING —
+                // including Connection — but a Nil-typed root is an empty
+                // VALUE ([]->tail() is an empty collection), never an
+                // orchestration handle: the handle arm returned Scalar(null)
+                // where the caller expects an empty Collection
+                && !com.legend.compiler.element.type.PlatformTypes.isNil(hct)
+                && ("meta::core::runtime::Runtime".equals(hct.fqn())
+                        || "meta::core::runtime::ConnectionStore".equals(hct.fqn())
+                        || env.ctx().isSubtype(hct.fqn(),
+                                "meta::core::runtime::Connection"))) {
+            if (containsEffectfulNode(java.util.List.of(root))) {
+                throw new IllegalStateException("a connection-typed value"
+                        + " expression carries an executeInDb-family effect;"
+                        + " the orchestration-handle arm never evaluates it");
+            }
+            return new ExecutionResult.Scalar(null, root.info().type());
+        }
+        return null;
+    }
+
+    /** The plan-execution tail of {@link #executeTyped}: V11 canon
+     * wrap (when a rider asks) + the one Executor call. */
+    private static ExecutionResult executePlan(com.legend.sql.SqlQuery plan,
+            TypedSpec root,
+            com.legend.compiler.element.type.@com.legend.Nullable ExprType declaredInfo,
+            com.legend.exec.@com.legend.Nullable CanonRider rider,
+            @com.legend.Nullable ExecutionResult folded, ExecEnv env)
+            throws java.sql.SQLException {
+        com.legend.compiler.element.type.ExprType shapeInfo =
+                declaredInfo != null ? declaredInfo : root.info();
+        com.legend.sql.SqlQuery bare = plan;
+        if (rider != null) {
+            var w = com.legend.lowering.CanonicalRenderSql.wrapWithCanon(
+                    plan, shapeInfo, rider.canonicalOrder());
+            if (w.declineReason() != null) {
+                rider.decline(w.declineReason());
+            } else {
+                rider.wrap(w.kinds(), w.many());
+                plan = w.plan();
+            }
+        }
+        com.legend.sql.dialect.SqlDialect dialect = env.dialect();
+        com.legend.exec.ResultShape shape = declaredInfo != null
+                ? com.legend.exec.ResultShape.COLLECTION
+                : com.legend.exec.ResultShape.of(root);
+        if (rider == null) {
+            return Executor.execute(dialect.render(plan), plan, shapeInfo,
+                    shape, env.connection(), dialect, null);
+        }
+        try {
+            return Executor.execute(dialect.render(plan), plan, shapeInfo,
+                    shape, env.connection(), dialect, rider);
+        } catch (java.sql.SQLException | RuntimeException e) {
+            // THE DECLINE TUNNEL, V11 form (prepCanon/runCanon caught
+            // exactly this class — a caught failure becomes the DESIGNED
+            // decline sentinel, counted, never a rescue): a canon column
+            // must never poison the value fetch. Witness: the
+            // MIXED-ELEMENT IDENTITY carrier (F10) — pure PRINT-FORM
+            // VARCHAR ('7.345D') errors under the candidate casts,
+            // undetectable at wrap time (OutputCol types are
+            // stamp-derived, the V6 circularity). The side re-executes
+            // BARE (pure SELECT — effectful statements never reach the
+            // K-arm) and the canon declines.
+            boolean wasWrapped = rider.wrapped();
+            rider.rows().clear();
+            if (wasWrapped) {
+                rider.decline("canon-exec: "
+                        + String.valueOf(e.getMessage()).split("\\n")[0]);
+            }
+            try {
+                if (!wasWrapped) {
+                    // the canon never rode (wrap already declined) —
+                    // the failure is the side's own
+                    throw e;
+                }
+                return Executor.execute(dialect.render(bare), bare,
+                        shapeInfo, shape, env.connection(), dialect, null);
+            } catch (java.sql.SQLException | RuntimeException e2) {
+                // the BARE side itself cannot execute: an unSQLable
+                // literal (NUL-bearing string — DuckDB VARCHAR is
+                // NUL-free). The literal fold answers, canon declines.
+                if (folded != null) {
+                    rider.decline("unsqlable-literal: "
+                            + String.valueOf(e2.getMessage()).split("\\n")[0]);
+                    return folded;
+                }
+                throw e2;
+            }
+        }
     }
 
     /** E1: probe (pivot plans only) → lowering-side wrap → SCALAR
