@@ -2173,6 +2173,64 @@ def _project_link_specs():
     fees.sort = ("productCode", False)
     out.append(fees)
 
+    # ---- core-instrument: a three-level subtype hierarchy over ONE wide table ----
+    #
+    # The root set carries no ~filter, so this is every row whatever it turns out to be --
+    # including the equity with no subtype, which belongs to Equity and to neither of
+    # Equity's own subtypes. Both enum transformers are MANY-TO-ONE ('EQ' and 'EQUITY' both
+    # mean EQUITY, 'A' and 'ACTIVE' both mean ACTIVE) and both forms are seeded, so a
+    # transformer that had lost half its entries would show up here as a null.
+    census = Spec("stress::PL12_InstrumentTypeCensus", "/stress/pl12",
+                  "Every row of a project's instrument master through its UNFILTERED root "
+                  "set, with both enum transformers resolved. The asset class and the "
+                  "status are each seeded in both of their accepted source forms, because a "
+                  "many-to-one enumeration mapping that had lost half its entries reads as "
+                  "a null rather than as an error.",
+                  "core_instrument::Instrument")
+    census.projections = [Proj("instrumentId", ["instrumentId"]),
+                          Proj("instrumentType", ["instrumentType"]),
+                          Proj("subType", ["instrumentSubType"]),
+                          Proj("assetClass", ["assetClass"]),
+                          Proj("status", ["status"]),
+                          Proj("currency", ["currency"])]
+    census.sort = ("instrumentId", False)
+    out.append(census)
+
+    # A THIRD-level set: ciConvertibleBond extends ciBond extends ciBase. It declares four
+    # columns of its own and inherits the rest through two levels of `extends`, so this
+    # reads a property mapping from each level of the chain in one projection.
+    conv = Spec("stress::PL13_ConvertibleBondTerms", "/stress/pl13",
+                "A THIRD-level subtype set -- ciConvertibleBond extends ciBond extends "
+                "ciBase -- projecting one property from each level: the name from the root "
+                "set, the coupon and its enum from the middle one, the conversion terms "
+                "from its own. An `extends` that failed to inherit property mappings would "
+                "leave the first two null while the third stayed right.",
+                "core_instrument::ConvertibleBond")
+    conv.projections = [Proj("instrumentId", ["instrumentId"]),
+                        Proj("name", ["name"]),
+                        Proj("couponRate", ["couponRate"]),
+                        Proj("couponType", ["couponType"]),
+                        Proj("conversionRatio", ["conversionRatio"]),
+                        Proj("conversionPrice", ["conversionPrice"])]
+    conv.sort = ("instrumentId", False)
+    out.append(conv)
+
+    # The one subtype told apart by a column that is NOT the subtype discriminator: the call
+    # filter tests PUT_CALL. Every seeded PUT_CALL sits on a row whose type really is OPTION
+    # -- see F56 for what happens when it does not, and why no such row is seeded here.
+    calls = Spec("stress::PL14_CallOptionStrikes", "/stress/pl14",
+                 "A subtype set whose ~filter tests a column unrelated to the subtype "
+                 "discriminator -- PUT_CALL rather than INSTRUMENT_SUBTYPE. Its sibling "
+                 "PutOption reads the same table through the opposite predicate, so the two "
+                 "partition the options and neither may return the other's row.",
+                 "core_instrument::CallOption")
+    calls.projections = [Proj("instrumentId", ["instrumentId"]),
+                         Proj("strikePrice", ["strikePrice"]),
+                         Proj("optionStyle", ["optionStyle"]),
+                         Proj("underlyingInstrumentId", ["underlyingInstrumentId"])]
+    calls.sort = ("instrumentId", False)
+    out.append(calls)
+
     return out
 
 

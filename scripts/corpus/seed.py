@@ -19961,6 +19961,175 @@ FEE_WAIVER = [
 ]
 
 
+# ---- the linked project: core-instrument (layer 0) ----
+#
+# An instrument master in the shape real ones take: ONE wide table, every asset class in it,
+# told apart by INSTRUMENT_TYPE, then by INSTRUMENT_SUBTYPE, then -- for options -- by
+# PUT_CALL. Twenty-three classes over three tables, and a three-level subtype hierarchy in
+# which every set `extends` its parent's set and adds a `~filter`.
+#
+# That shape is what makes it worth linking. Nothing in the executable corpus has a mapping
+# hierarchy this deep, and nothing reaches one across a project boundary.
+#
+# EVERY ROW HERE HAS DISCRIMINATORS THAT AGREE: no bond carries an equity subtype, no swap
+# carries a PUT_CALL. That is deliberate and it costs the sharpest test in the file.
+#
+# F56: a set that `extends` a filtered set does NOT inherit the parent's filter, so
+# `CommonStock.all()` is `INSTRUMENT_SUBTYPE = 'COMMON'` alone and returns a BOND whose
+# subtype column happens to say COMMON. Seeding such a row would let the corpus assert the
+# current behaviour -- and the corpus would then have to be rewritten if it is ever fixed,
+# having quietly become the thing that certifies it. So the disagreeing rows live in
+# scripts/corpus/probe_extends_filter.py, where the question is the subject rather than an
+# assumption, and what is asserted here is what BOTH readings agree on.
+#
+# The enum transformers are many-to-one -- CiAssetClassMapping accepts 'EQ' and 'EQUITY' for
+# the same value -- so both forms are seeded. A corpus that only ever used the short code
+# would not notice a transformer that had lost half its entries.
+CI_ASSET_CLASS = [
+    dict(CODE="EQ", DISPLAY_NAME="Equity", REGULATORY_CATEGORY="CASH", IS_DERIVATIVE=False),
+    dict(CODE="FI", DISPLAY_NAME="Fixed income", REGULATORY_CATEGORY="CASH",
+         IS_DERIVATIVE=False),
+    dict(CODE="LD", DISPLAY_NAME="Listed derivative", REGULATORY_CATEGORY="DERIV",
+         IS_DERIVATIVE=True),
+    dict(CODE="OTC", DISPLAY_NAME="OTC derivative", REGULATORY_CATEGORY="DERIV",
+         IS_DERIVATIVE=True),
+    dict(CODE="FND", DISPLAY_NAME="Fund", REGULATORY_CATEGORY="CASH", IS_DERIVATIVE=False),
+    dict(CODE="STR", DISPLAY_NAME="Structured", REGULATORY_CATEGORY="CASH",
+         IS_DERIVATIVE=False),
+]
+
+
+def _ci(iid, itype, name, ac, status, ccy, sub=None, **rest):
+    """One instrument row. The columns every asset class shares are positional; the ones
+    that mean something for only one of them are keywords, and everything unnamed reads
+    NULL -- which is what a wide shared table looks like from any single subtype's side."""
+    return dict(INSTRUMENT_ID=iid, INSTRUMENT_TYPE=itype, INSTRUMENT_SUBTYPE=sub,
+                NAME=name, ASSET_CLASS=ac, STATUS=status, CURRENCY=ccy,
+                IS_ACTIVE=(status == "ACTIVE" or status == "A"), **rest)
+
+
+CI_INSTRUMENT = [
+    # ---- EQUITY, and its two subtypes ----
+    _ci("CI-EQ-001", "EQUITY", "Aventine Industries ordinary", "EQ", "A", "USD",
+        sub="COMMON", ISIN="US0011223344", CUSIP="001122334", SEDOL="B01ABC1",
+        PRIMARY_EXCHANGE_MIC="XNYS", COUNTRY_OF_ISSUE="US", LOT_SIZE=100,
+        LISTING_DATE=_iso(2015, 3, 12), SHARE_CLASS="A", SHARES_OUTSTANDING=482000000.0,
+        VOTING_RIGHTS_PER_SHARE=1.0, DIVIDEND_YIELD=0.0182, FREE_FLOAT_PCT=0.78,
+        GICS_SECTOR="Industrials"),
+    _ci("CI-EQ-002", "EQUITY", "Aventine Industries preferred B", "EQUITY", "ACTIVE", "USD",
+        sub="PREFERRED", ISIN="US0011223351", PRIMARY_EXCHANGE_MIC="XNYS",
+        COUNTRY_OF_ISSUE="US", LOT_SIZE=100, SHARE_CLASS="B",
+        SHARES_OUTSTANDING=12000000.0, VOTING_RIGHTS_PER_SHARE=0.0,
+        PREFERRED_DIVIDEND_RATE=0.0625, IS_CUMULATIVE=True,
+        LIQUIDATION_PREFERENCE=25.0, IS_CONVERTIBLE_TO_COMMON=False),
+    # An EQUITY with NO subtype: an Equity, and neither CommonStock nor PreferredStock. The
+    # two readings of F56 agree on this one, because no child filter matches an empty column.
+    _ci("CI-EQ-003", "EQUITY", "Northgate Holdings unclassified line", "EQ", "S", "GBP",
+        ISIN="GB0099887766", SEDOL="B99XYZ2", PRIMARY_EXCHANGE_MIC="XLON",
+        COUNTRY_OF_ISSUE="GB", LOT_SIZE=1, SHARE_CLASS="ORD"),
+
+    # ---- BOND, and its three subtypes ----
+    _ci("CI-BD-001", "BOND", "Republic of Testland 2.5% 2031", "FI", "ACTIVE", "EUR",
+        sub="GOVERNMENT", ISIN="XS0123456789", COUNTRY_OF_ISSUE="DE",
+        MATURITY_DATE=_iso(2031, 6, 15), COUPON_RATE=2.5, COUPON_TYPE="FIX",
+        COUPON_FREQUENCY=2, FACE_VALUE=1000.0, DAY_COUNT_CONVENTION="ACT/ACT",
+        ISSUE_DATE=_iso(2021, 6, 15), IS_CALLABLE=False, ISSUING_SOVEREIGN="Testland",
+        IS_INFLATION_LINKED=False, AUCTION_DATE=_iso(2021, 6, 1), CREDIT_RATING="AA+"),
+    _ci("CI-BD-002", "BOND", "Aventine Industries 5.125% 2029 callable", "FIXED_INCOME",
+        "A", "USD", sub="CORPORATE", ISIN="US0011229999", MATURITY_DATE=_iso(2029, 9, 1),
+        COUPON_RATE=5.125, COUPON_TYPE="FIXED", COUPON_FREQUENCY=2, FACE_VALUE=1000.0,
+        DAY_COUNT_CONVENTION="30/360", SENIORITY="SENIOR_UNSECURED",
+        ISSUE_DATE=_iso(2019, 9, 1), IS_CALLABLE=True, FIRST_CALL_DATE=_iso(2026, 9, 1),
+        ISSUER_TICKER="AVI", INDUSTRY_SECTOR="Industrials", IS_SECURED=False,
+        COVENANT_PACKAGE="INCURRENCE", CREDIT_RATING="BBB"),
+    _ci("CI-BD-003", "BOND", "Northgate 1.75% 2027 convertible", "FI", "ACTIVE", "GBP",
+        sub="CONVERTIBLE", ISIN="XS0987654321", MATURITY_DATE=_iso(2027, 3, 31),
+        COUPON_RATE=1.75, COUPON_TYPE="ZC", COUPON_FREQUENCY=1, FACE_VALUE=100000.0,
+        ISSUE_DATE=_iso(2022, 3, 31), IS_CALLABLE=False, CONVERSION_RATIO=18.4,
+        CONVERSION_PRICE=54.35, UNDERLYING_EQUITY_ID="CI-EQ-003", IS_MANDATORY=False,
+        CREDIT_RATING="BB+"),
+
+    # ---- FUTURE, and its two subtypes ----
+    _ci("CI-FU-001", "FUTURE", "Crude oil futures Dec 2024", "LD", "ACTIVE", "USD",
+        sub="COMMODITY", PRIMARY_EXCHANGE_MIC="XNYM", CONTRACT_MONTH="2024-12",
+        CONTRACT_SIZE=1000.0, TICK_SIZE=0.01, TICK_VALUE=10.0,
+        LAST_TRADING_DATE=_iso(2024, 11, 20), FIRST_NOTICE_DATE=_iso(2024, 11, 21),
+        SETTLEMENT_METHOD="P", INITIAL_MARGIN=6800.0, DELIVERY_LOCATION="Cushing OK",
+        GRADE_SPECIFICATION="WTI light sweet", STORAGE_COST_PER_UNIT=0.42),
+    _ci("CI-FU-002", "FUTURE", "Testland 100 index future Sep 2024", "LISTED_DERIV",
+        "ACTIVE", "EUR", sub="EQUITY_INDEX", PRIMARY_EXCHANGE_MIC="XEUR",
+        CONTRACT_MONTH="2024-09", CONTRACT_SIZE=10.0, TICK_SIZE=0.5, TICK_VALUE=5.0,
+        LAST_TRADING_DATE=_iso(2024, 9, 20), SETTLEMENT_METHOD="C",
+        INITIAL_MARGIN=9400.0, UNDERLYING_INDEX_NAME="Testland 100",
+        INDEX_MULTIPLIER=10.0),
+
+    # ---- OPTION: the subtype discriminator is PUT_CALL, not INSTRUMENT_SUBTYPE ----
+    _ci("CI-OP-001", "OPTION", "Aventine Dec 2024 60 call", "LD", "ACTIVE", "USD",
+        PRIMARY_EXCHANGE_MIC="XCBO", STRIKE_PRICE=60.0, EXPIRY_DATE=_iso(2024, 12, 20),
+        OPTION_STYLE="AMER", SETTLEMENT_METHOD="PHYSICAL", CONTRACT_SIZE=100.0,
+        UNDERLYING_INSTRUMENT_ID="CI-EQ-001", PUT_CALL="CALL"),
+    _ci("CI-OP-002", "OPTION", "Aventine Dec 2024 45 put", "LISTED_DERIV", "ACTIVE", "USD",
+        PRIMARY_EXCHANGE_MIC="XCBO", STRIKE_PRICE=45.0, EXPIRY_DATE=_iso(2024, 12, 20),
+        OPTION_STYLE="EURO", SETTLEMENT_METHOD="C", CONTRACT_SIZE=100.0,
+        UNDERLYING_INSTRUMENT_ID="CI-EQ-001", PUT_CALL="PUT"),
+
+    # ---- SWAP, and its three subtypes. None carries a PUT_CALL. ----
+    _ci("CI-SW-001", "SWAP", "USD 5y fixed-float IRS", "OTC", "ACTIVE", "USD",
+        sub="IRS", NOTIONAL=25000000.0, FIXED_RATE=3.85, FLOATING_INDEX="SOFR",
+        FLOATING_SPREAD=0.0, EFFECTIVE_DATE=_iso(2024, 2, 1),
+        TERMINATION_DATE=_iso(2029, 2, 1), PAYMENT_FREQUENCY="QUARTERLY",
+        DAY_COUNT_CONVENTION="ACT/360", IS_CLEARED=True, CLEARING_HOUSE="LCH",
+        RESET_FREQUENCY="QUARTERLY"),
+    _ci("CI-SW-002", "SWAP", "Aventine 5y CDS", "OTC_DERIV", "ACTIVE", "USD",
+        sub="CDS", NOTIONAL=10000000.0, FIXED_RATE=1.0,
+        EFFECTIVE_DATE=_iso(2024, 3, 20), TERMINATION_DATE=_iso(2029, 6, 20),
+        PAYMENT_FREQUENCY="QUARTERLY", IS_CLEARED=True, CLEARING_HOUSE="ICE",
+        REFERENCE_ENTITY="Aventine Industries", REFERENCE_OBLIGATION="US0011229999",
+        RECOVERY_RATE=0.4, RESTRUCTURING_CLAUSE="MM"),
+    _ci("CI-SW-003", "SWAP", "Total return swap on Northgate", "OTC", "SUSPENDED", "GBP",
+        sub="TRS", NOTIONAL=5000000.0, EFFECTIVE_DATE=_iso(2024, 1, 15),
+        TERMINATION_DATE=_iso(2025, 1, 15), PAYMENT_FREQUENCY="MONTHLY",
+        IS_CLEARED=False, REFERENCE_ASSET_ID="CI-EQ-003", FUNDING_SPREAD=0.85,
+        RETURN_PAYER_NAME="Northgate Prime"),
+
+    # ---- the level-1 types with no subtype of their own ----
+    _ci("CI-ET-001", "ETF", "Testland broad market ETF", "FND", "ACTIVE", "USD",
+        ISIN="US7788990011", PRIMARY_EXCHANGE_MIC="ARCX", LOT_SIZE=1,
+        FUND_NAME="Testland Broad Market", TRACKING_INDEX_NAME="Testland 3000",
+        EXPENSE_RATIO=0.0003, NET_ASSET_VALUE=112.44, TRACKING_ERROR=0.0011),
+    _ci("CI-WR-001", "WARRANT", "Aventine 2026 warrant", "STR", "ACTIVE", "USD",
+        STRIKE_PRICE=75.0, EXPIRY_DATE=_iso(2026, 6, 30),
+        UNDERLYING_INSTRUMENT_ID="CI-EQ-001", EXERCISE_RATIO=0.1,
+        IS_COVERED=True, IS_DILUTIVE=False, NOTICE_PERIOD_DAYS=14),
+    # MATURED, so a status filter has something that is not ACTIVE and isDated() is true.
+    _ci("CI-DR-001", "DEPOSITARY_RECEIPT", "Northgate ADR", "EQUITY", "M", "USD",
+        ISIN="US6655443322", PRIMARY_EXCHANGE_MIC="XNAS", COUNTRY_OF_ISSUE="US",
+        MATURITY_DATE=_iso(2024, 5, 31), UNDERLYING_INSTRUMENT_ID="CI-EQ-003",
+        RATIO_TO_UNDERLYING=4.0, DEPOSITARY_BANK="Meridian Bank", IS_SPONSORED=True,
+        HOME_MARKET_MIC="XLON", PROGRAMME_LEVEL="II"),
+]
+
+# The composite key is (INSTRUMENT_ID, SCHEME), so an instrument carries one row per scheme
+# and no instrument has two of the same. CI-EQ-003 has none at all, which is the to-many
+# navigation landing on an empty set.
+CI_INSTRUMENT_XREF = [
+    dict(INSTRUMENT_ID="CI-EQ-001", SCHEME="ISIN", IDENTIFIER_VALUE="US0011223344",
+         IS_PRIMARY=True, ASSIGNED_DATE=_iso(2015, 3, 12)),
+    dict(INSTRUMENT_ID="CI-EQ-001", SCHEME="CUSIP", IDENTIFIER_VALUE="001122334",
+         IS_PRIMARY=False, ASSIGNED_DATE=_iso(2015, 3, 12)),
+    dict(INSTRUMENT_ID="CI-EQ-001", SCHEME="FIGI", IDENTIFIER_VALUE="BBG000BLNNH6",
+         IS_PRIMARY=False, ASSIGNED_DATE=_iso(2016, 1, 4)),
+    dict(INSTRUMENT_ID="CI-BD-001", SCHEME="ISIN", IDENTIFIER_VALUE="XS0123456789",
+         IS_PRIMARY=True, ASSIGNED_DATE=_iso(2021, 6, 15)),
+    dict(INSTRUMENT_ID="CI-BD-002", SCHEME="ISIN", IDENTIFIER_VALUE="US0011229999",
+         IS_PRIMARY=True, ASSIGNED_DATE=_iso(2019, 9, 1)),
+    dict(INSTRUMENT_ID="CI-OP-001", SCHEME="OCC", IDENTIFIER_VALUE="AVI241220C00060000",
+         IS_PRIMARY=True, ASSIGNED_DATE=_iso(2024, 1, 8)),
+    dict(INSTRUMENT_ID="CI-ET-001", SCHEME="ISIN", IDENTIFIER_VALUE="US7788990011",
+         IS_PRIMARY=True, ASSIGNED_DATE=_iso(2012, 11, 5)),
+]
+
+
 # ---- the linked project: core-fx ----
 #
 # Real June 2024 levels for four majors. The corpus's own trades are all USD, so what the
@@ -20133,6 +20302,9 @@ TABLES: dict[str, list[dict]] = {
     "FEE_TIER": FEE_TIER,
     "FEE_SCHEDULE": FEE_SCHEDULE,
     "FEE_WAIVER": FEE_WAIVER,
+    "CI_INSTRUMENT": CI_INSTRUMENT,
+    "CI_INSTRUMENT_XREF": CI_INSTRUMENT_XREF,
+    "CI_ASSET_CLASS": CI_ASSET_CLASS,
     "EXPOSURE_LINE": EXPOSURE_LINE,
     "EXPOSURE_THRESHOLD": EXPOSURE_THRESHOLD,
     "EXEMPTION_RULE": EXEMPTION_RULE,

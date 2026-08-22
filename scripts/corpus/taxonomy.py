@@ -24,6 +24,28 @@ from query import Proj, Spec
 
 # (base class, the property carrying the discriminator, a short tag for the service name)
 TAXONOMIES = [
+    # ---- core-instrument, the only NESTED discriminated taxonomy in the corpus ----
+    #
+    # Every other entry below is one level deep: a base class and its subtypes, told apart by
+    # one discriminator. This one is three, and the corpus's twelve classes whose set has a
+    # ~filter AND whose supertype's set has one too are all here.
+    #
+    # Each level is registered separately because each is told apart by a DIFFERENT column:
+    # the asset class by INSTRUMENT_TYPE, its subtypes by INSTRUMENT_SUBTYPE, and options by
+    # PUT_CALL -- which is not a subtype column at all, just the column that happens to
+    # separate calls from puts.
+    #
+    # See F56 for what the levels do NOT do: a child's ~filter replaces its parent's rather
+    # than composing with it, so `CommonStock.all()` is `INSTRUMENT_SUBTYPE = 'COMMON'` and
+    # nothing more. The seed keeps every row's discriminators consistent, so these services
+    # assert the same rows under either reading.
+    ("core_instrument::Instrument", "instrumentType", "CI"),
+    ("core_instrument::Equity", "instrumentSubType", "CIEQ"),
+    ("core_instrument::Bond", "instrumentSubType", "CIBD"),
+    ("core_instrument::Future", "instrumentSubType", "CIFU"),
+    ("core_instrument::Swap", "instrumentSubType", "CISW"),
+    ("core_instrument::Option", "putCall", "CIOP"),
+
     ("derivatives::OtcTrade", "productType", "TX"),
     ("risk::RiskMeasure", "measureType", "TXR"),
     ("risk::Sensitivity", "measureType", "TXS"),
@@ -846,6 +868,15 @@ EXTRAS = {
 
 # An identifier per base, so the service has something stable to sort on.
 IDENT = {
+    # Every level of the instrument hierarchy is keyed by the same column: they are all one
+    # table, which is the point of the shape.
+    "core_instrument::Instrument": "instrumentId",
+    "core_instrument::Equity": "instrumentId",
+    "core_instrument::Bond": "instrumentId",
+    "core_instrument::Future": "instrumentId",
+    "core_instrument::Swap": "instrumentId",
+    "core_instrument::Option": "instrumentId",
+
     "derivatives::OtcTrade": "otcId",
     "risk::RiskMeasure": "measureId",
     "risk::Sensitivity": "sensitivityId",

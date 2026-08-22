@@ -7,7 +7,7 @@ Two bodies of work live here and they run differently.
 | the **corpus** | ~2260 executable services with seeded data | run against legend-engine, every answer compared to an independently computed expectation | `core/src/test/resources/stress/` |
 | the **project graph** | 56 Legend projects that depend on each other | compiled only — no data, no runtimes, no services | `projects/` |
 
-Five of the 56 projects are also pulled into the corpus and executed; see
+Some of the 56 are also pulled into the corpus and executed; see
 [the boundary](#the-boundary) below.
 
 ## Prerequisites
@@ -142,8 +142,13 @@ slice of the graph is pulled into the executable corpus:
 
 ```python
 # scripts/corpus/model.py
-LINKED_PROJECTS = ["core-tenor", "core-fx", "core-ratings"]
+LINKED_PROJECTS = ["core-types", "core-tenor", "core-fx", "core-ratings",
+                   "core-instrument", "fee-core"]
 ```
+
+**Order is load-bearing: dependencies before dependents.** `fee-core` depends on the two
+before it, and `core-types` is in the list only because fee-core needs it — it exports no
+store and no mapping at all.
 
 Adding a project to that list is not enough on its own. It also needs:
 
@@ -157,6 +162,27 @@ Adding a project to that list is not enough on its own. It also needs:
    set ids named on **both** ends. The project side names its ids explicitly; the corpus side
    mostly does not, so the two halves of one association follow opposite conventions and
    neither is guessable from the class name.
+
+Two things that a project brings and the corpus does not have, which cost a build each:
+
+- **a class declared over several lines**, with stereotypes and tagged values above its name,
+  and **a qualified property whose body wraps**. The reader is line-based and folds both, but
+  only because it RAISED rather than skipping them — an unparsed class has no properties, no
+  mapping and no service, and nothing would have said so.
+- **an enum over a string column.** A generator that picks a filter column by the column's
+  type will pick it and emit `> ' '`, which fails to compile and takes the whole file with
+  it. Choose by the DECLARED property type.
+- **a mapping set that `extends` another.** It inherits the parent's main table, its column
+  mappings AND their transformers — copying the columns without the enum transformers read
+  `'ZC'` off the row where the engine returns `ZERO`, and only a subtype whose enum property
+  is declared on an ANCESTOR set shows it. It does NOT inherit the parent's `~filter`; that
+  is F56, and it is the engine's behaviour rather than the reader's choice.
+
+A project whose value is its SUBTYPES rather than its navigation will generate almost
+nothing on its own: `stacks.py` wants two distinct navigation targets and `graphs.py` wants
+to-one branches, and a wide flat master table has neither. Register it in
+`taxonomy.py`'s `TAXONOMIES` and `IDENT` instead — one entry per LEVEL, since each level is
+told apart by a different column — and one service per subtype falls out.
 
 ## The rule the whole thing rests on
 

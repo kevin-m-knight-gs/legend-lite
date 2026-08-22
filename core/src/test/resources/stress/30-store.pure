@@ -20,6 +20,10 @@ Database store::DB
     // So this is a DIAMOND rather than a chain, and whether the same store reached by two
     // paths is merged or duplicated is a question only execution answers.
     include fee_core::Store
+    // 23 classes over THREE tables: one wide instrument master, a subtype hierarchy three
+    // levels deep told apart by ~filter, and twenty filters in a namespace that is global
+    // across the whole graph.
+    include core_instrument::Store
 
     // ---- from 31-products-store.pure ----
     Table INSTRUMENT (INSTRUMENT_ID VARCHAR(200) PRIMARY KEY, TICKER VARCHAR(200), NAME VARCHAR(200), ISIN VARCHAR(200), CUSIP VARCHAR(200), SEDOL VARCHAR(200), ASSET_CLASS VARCHAR(200), PRODUCT_TYPE VARCHAR(200), IS_ACTIVE BIT, LISTING_DATE DATE, MATURITY_DATE DATE, NOTIONAL_AMOUNT DOUBLE, CURRENCY VARCHAR(200), DESCRIPTION VARCHAR(200), ISSUE_DATE DATE, EQUITY_ID VARCHAR(200), BOND_ID VARCHAR(200), FUTURE_ID VARCHAR(200), FX_FORWARD_ID VARCHAR(200), SWAP_ID VARCHAR(200), CDS_ID VARCHAR(200), STRUCTURED_PRODUCT_ID VARCHAR(200), ETF_ID VARCHAR(200), CURRENCY_CODE VARCHAR(200), EXCHANGE_MIC VARCHAR(200), SECTOR_ID VARCHAR(200))

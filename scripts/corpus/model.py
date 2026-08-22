@@ -56,7 +56,8 @@ PROJECTS = Path(__file__).resolve().parents[2] / "projects"
 # Dependencies BEFORE dependents: fee-core needs core-types and core-tenor to have been
 # parsed. core-types exports no store and no mapping at all -- it is enums and functions --
 # so it is here purely to satisfy fee-core, which is what a transitive dependency looks like.
-LINKED_PROJECTS = ["core-types", "core-tenor", "core-fx", "core-ratings", "fee-core"]
+LINKED_PROJECTS = ["core-types", "core-tenor", "core-fx", "core-ratings",
+                   "core-instrument", "fee-core"]
 
 
 # Section order within a project, not alphabetical. A .pure file with no `###` header
@@ -1421,6 +1422,22 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                     c.main_table.setdefault(cur, c.main_table.get(parent_cls, ""))
                     for pp, pcol in c.columns.get(parent_cls, {}).items():
                         c.columns.setdefault(cur, {}).setdefault(pp, pcol)
+                    # A column inherited through `extends` keeps its TRANSFORMER. Copying
+                    # the column and not the enum transformer read the raw source code off
+                    # the row -- 'ZC' where the engine returns ZERO, 'AMER' where it returns
+                    # AMERICAN -- and only a subtype whose enum property is declared on an
+                    # ANCESTOR set shows it. Every enum in the corpus's own model is declared
+                    # on the set that is queried, so nothing had ever inherited one.
+                    for (pcls, pp), emap in list(c.enum_props.items()):
+                        if pcls == parent_cls:
+                            c.enum_props.setdefault((cur, pp), emap)
+                    # Same argument for the other two transformer kinds.
+                    for (pcls, pp), b in list(c.bindings.items()):
+                        if pcls == parent_cls:
+                            c.bindings.setdefault((cur, pp), b)
+                    for (pcls, pp), ch in list(c.chains.items()):
+                        if pcls == parent_cls:
+                            c.chains.setdefault((cur, pp), ch)
             # WHICH mapping declared this class mapping. The reader is otherwise
             # mapping-agnostic, and deriving a service's mapping from the class's TABLE
             # instead got it wrong the moment a mapping spanned two stores: hier::

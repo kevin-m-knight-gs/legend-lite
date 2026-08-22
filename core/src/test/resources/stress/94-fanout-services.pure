@@ -5844,6 +5844,181 @@ Service stress::PL11_FeeScheduleGrossFee
   ]
 }
 
+Service stress::PL12_InstrumentTypeCensus
+{
+    pattern: '/stress/pl12';
+    documentation: 'Every row of a project\'s instrument master through its UNFILTERED root set, with both enum transformers resolved. The asset class and the status are each seeded in both of their accepted source forms, because a many-to-one enumeration mapping that had lost half its entries reads as a null rather than as an error.';
+    execution: Single
+    {
+    query: |core_instrument::Instrument.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentType:x|$x.instrumentType,
+            subType:x|$x.instrumentSubType,
+            assetClass:x|$x.assetClass,
+            status:x|$x.status,
+            currency:x|$x.currency
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    PL12_InstrumentTypeCensus_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 16 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-BD-001","instrumentType":"BOND","subType":"GOVERNMENT","assetClass":"FIXED_INCOME","status":"ACTIVE","currency":"EUR"},{"instrumentId":"CI-BD-002","instrumentType":"BOND","subType":"CORPORATE","assetClass":"FIXED_INCOME","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-BD-003","instrumentType":"BOND","subType":"CONVERTIBLE","assetClass":"FIXED_INCOME","status":"ACTIVE","currency":"GBP"},{"instrumentId":"CI-DR-001","instrumentType":"DEPOSITARY_RECEIPT","subType":null,"assetClass":"EQUITY","status":"MATURED","currency":"USD"},{"instrumentId":"CI-EQ-001","instrumentType":"EQUITY","subType":"COMMON","assetClass":"EQUITY","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-EQ-002","instrumentType":"EQUITY","subType":"PREFERRED","assetClass":"EQUITY","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-EQ-003","instrumentType":"EQUITY","subType":null,"assetClass":"EQUITY","status":"SUSPENDED","currency":"GBP"},{"instrumentId":"CI-ET-001","instrumentType":"ETF","subType":null,"assetClass":"FUND","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-FU-001","instrumentType":"FUTURE","subType":"COMMODITY","assetClass":"LISTED_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-FU-002","instrumentType":"FUTURE","subType":"EQUITY_INDEX","assetClass":"LISTED_DERIVATIVE","status":"ACTIVE","currency":"EUR"},{"instrumentId":"CI-OP-001","instrumentType":"OPTION","subType":null,"assetClass":"LISTED_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-OP-002","instrumentType":"OPTION","subType":null,"assetClass":"LISTED_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-SW-001","instrumentType":"SWAP","subType":"IRS","assetClass":"OTC_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-SW-002","instrumentType":"SWAP","subType":"CDS","assetClass":"OTC_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-SW-003","instrumentType":"SWAP","subType":"TRS","assetClass":"OTC_DERIVATIVE","status":"SUSPENDED","currency":"GBP"},{"instrumentId":"CI-WR-001","instrumentType":"WARRANT","subType":null,"assetClass":"STRUCTURED","status":"ACTIVE","currency":"USD"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::PL13_ConvertibleBondTerms
+{
+    pattern: '/stress/pl13';
+    documentation: 'A THIRD-level subtype set -- ciConvertibleBond extends ciBond extends ciBase -- projecting one property from each level: the name from the root set, the coupon and its enum from the middle one, the conversion terms from its own. An `extends` that failed to inherit property mappings would leave the first two null while the third stayed right.';
+    execution: Single
+    {
+    query: |core_instrument::ConvertibleBond.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            name:x|$x.name,
+            couponRate:x|$x.couponRate,
+            couponType:x|$x.couponType,
+            conversionRatio:x|$x.conversionRatio,
+            conversionPrice:x|$x.conversionPrice
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    PL13_ConvertibleBondTerms_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-BD-003","name":"Northgate 1.75% 2027 convertible","couponRate":1.75,"couponType":"ZERO","conversionRatio":18.4,"conversionPrice":54.35}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::PL14_CallOptionStrikes
+{
+    pattern: '/stress/pl14';
+    documentation: 'A subtype set whose ~filter tests a column unrelated to the subtype discriminator -- PUT_CALL rather than INSTRUMENT_SUBTYPE. Its sibling PutOption reads the same table through the opposite predicate, so the two partition the options and neither may return the other\'s row.';
+    execution: Single
+    {
+    query: |core_instrument::CallOption.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            strikePrice:x|$x.strikePrice,
+            optionStyle:x|$x.optionStyle,
+            underlyingInstrumentId:x|$x.underlyingInstrumentId
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    PL14_CallOptionStrikes_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-OP-001","strikePrice":60.0,"optionStyle":"AMERICAN","underlyingInstrumentId":"CI-EQ-001"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::F10_RatingsAsOf2019
 {
     pattern: '/stress/t10';
@@ -17707,6 +17882,1436 @@ Service stress::TM_CollateralAgreementEmpty
   ]
 }
 
+Service stress::CI_All
+{
+    pattern: '/stress/ci_all';
+    documentation: 'Every row of core_instrument::Instrument, unfiltered. The subtype services partition this same table by discriminator; this is the whole of it, and therefore the only service that would show a row whose type code matches no subtype at all. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::Instrument.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentType:x|$x.instrumentType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CI_All_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 16 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-BD-001","instrumentType":"BOND"},{"instrumentId":"CI-BD-002","instrumentType":"BOND"},{"instrumentId":"CI-BD-003","instrumentType":"BOND"},{"instrumentId":"CI-DR-001","instrumentType":"DEPOSITARY_RECEIPT"},{"instrumentId":"CI-EQ-001","instrumentType":"EQUITY"},{"instrumentId":"CI-EQ-002","instrumentType":"EQUITY"},{"instrumentId":"CI-EQ-003","instrumentType":"EQUITY"},{"instrumentId":"CI-ET-001","instrumentType":"ETF"},{"instrumentId":"CI-FU-001","instrumentType":"FUTURE"},{"instrumentId":"CI-FU-002","instrumentType":"FUTURE"},{"instrumentId":"CI-OP-001","instrumentType":"OPTION"},{"instrumentId":"CI-OP-002","instrumentType":"OPTION"},{"instrumentId":"CI-SW-001","instrumentType":"SWAP"},{"instrumentId":"CI-SW-002","instrumentType":"SWAP"},{"instrumentId":"CI-SW-003","instrumentType":"SWAP"},{"instrumentId":"CI-WR-001","instrumentType":"WARRANT"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CI_Core_instrumentBond
+{
+    pattern: '/stress/ci_core_instrumentbond';
+    documentation: 'core_instrument::Bond only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::Bond.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentType:x|$x.instrumentType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CI_Core_instrumentBond_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-BD-001","instrumentType":"BOND"},{"instrumentId":"CI-BD-002","instrumentType":"BOND"},{"instrumentId":"CI-BD-003","instrumentType":"BOND"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CI_DepositaryReceipt
+{
+    pattern: '/stress/ci_depositaryreceipt';
+    documentation: 'core_instrument::DepositaryReceipt only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::DepositaryReceipt.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentType:x|$x.instrumentType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CI_DepositaryReceipt_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-DR-001","instrumentType":"DEPOSITARY_RECEIPT"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CI_Core_instrumentEquity
+{
+    pattern: '/stress/ci_core_instrumentequity';
+    documentation: 'core_instrument::Equity only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::Equity.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentType:x|$x.instrumentType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CI_Core_instrumentEquity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-EQ-001","instrumentType":"EQUITY"},{"instrumentId":"CI-EQ-002","instrumentType":"EQUITY"},{"instrumentId":"CI-EQ-003","instrumentType":"EQUITY"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CI_Core_instrumentExchangeTradedFund
+{
+    pattern: '/stress/ci_core_instrumentexchangetradedfund';
+    documentation: 'core_instrument::ExchangeTradedFund only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::ExchangeTradedFund.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentType:x|$x.instrumentType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CI_Core_instrumentExchangeTradedFund_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-ET-001","instrumentType":"ETF"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CI_Core_instrumentFuture
+{
+    pattern: '/stress/ci_core_instrumentfuture';
+    documentation: 'core_instrument::Future only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::Future.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentType:x|$x.instrumentType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CI_Core_instrumentFuture_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-FU-001","instrumentType":"FUTURE"},{"instrumentId":"CI-FU-002","instrumentType":"FUTURE"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CI_Core_instrumentOption
+{
+    pattern: '/stress/ci_core_instrumentoption';
+    documentation: 'core_instrument::Option only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::Option.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentType:x|$x.instrumentType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CI_Core_instrumentOption_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-OP-001","instrumentType":"OPTION"},{"instrumentId":"CI-OP-002","instrumentType":"OPTION"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CI_Core_instrumentSwap
+{
+    pattern: '/stress/ci_core_instrumentswap';
+    documentation: 'core_instrument::Swap only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::Swap.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentType:x|$x.instrumentType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CI_Core_instrumentSwap_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-SW-001","instrumentType":"SWAP"},{"instrumentId":"CI-SW-002","instrumentType":"SWAP"},{"instrumentId":"CI-SW-003","instrumentType":"SWAP"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CI_Core_instrumentWarrant
+{
+    pattern: '/stress/ci_core_instrumentwarrant';
+    documentation: 'core_instrument::Warrant only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::Warrant.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentType:x|$x.instrumentType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CI_Core_instrumentWarrant_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-WR-001","instrumentType":"WARRANT"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CIEQ_All
+{
+    pattern: '/stress/cieq_all';
+    documentation: 'Every row of core_instrument::Equity, unfiltered. The subtype services partition this same table by discriminator; this is the whole of it, and therefore the only service that would show a row whose type code matches no subtype at all. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::Equity.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentSubType:x|$x.instrumentSubType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CIEQ_All_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-EQ-001","instrumentSubType":"COMMON"},{"instrumentId":"CI-EQ-002","instrumentSubType":"PREFERRED"},{"instrumentId":"CI-EQ-003","instrumentSubType":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CIEQ_Core_instrumentCommonStock
+{
+    pattern: '/stress/cieq_core_instrumentcommonstock';
+    documentation: 'core_instrument::CommonStock only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::CommonStock.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentSubType:x|$x.instrumentSubType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CIEQ_Core_instrumentCommonStock_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-EQ-001","instrumentSubType":"COMMON"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CIEQ_Core_instrumentPreferredStock
+{
+    pattern: '/stress/cieq_core_instrumentpreferredstock';
+    documentation: 'core_instrument::PreferredStock only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::PreferredStock.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentSubType:x|$x.instrumentSubType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CIEQ_Core_instrumentPreferredStock_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-EQ-002","instrumentSubType":"PREFERRED"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CIBD_All
+{
+    pattern: '/stress/cibd_all';
+    documentation: 'Every row of core_instrument::Bond, unfiltered. The subtype services partition this same table by discriminator; this is the whole of it, and therefore the only service that would show a row whose type code matches no subtype at all. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::Bond.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentSubType:x|$x.instrumentSubType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CIBD_All_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-BD-001","instrumentSubType":"GOVERNMENT"},{"instrumentId":"CI-BD-002","instrumentSubType":"CORPORATE"},{"instrumentId":"CI-BD-003","instrumentSubType":"CONVERTIBLE"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CIBD_Core_instrumentConvertibleBond
+{
+    pattern: '/stress/cibd_core_instrumentconvertiblebond';
+    documentation: 'core_instrument::ConvertibleBond only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::ConvertibleBond.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentSubType:x|$x.instrumentSubType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CIBD_Core_instrumentConvertibleBond_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-BD-003","instrumentSubType":"CONVERTIBLE"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CIBD_Core_instrumentCorporateBond
+{
+    pattern: '/stress/cibd_core_instrumentcorporatebond';
+    documentation: 'core_instrument::CorporateBond only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::CorporateBond.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentSubType:x|$x.instrumentSubType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CIBD_Core_instrumentCorporateBond_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-BD-002","instrumentSubType":"CORPORATE"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CIBD_Core_instrumentGovernmentBond
+{
+    pattern: '/stress/cibd_core_instrumentgovernmentbond';
+    documentation: 'core_instrument::GovernmentBond only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::GovernmentBond.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentSubType:x|$x.instrumentSubType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CIBD_Core_instrumentGovernmentBond_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-BD-001","instrumentSubType":"GOVERNMENT"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CIFU_All
+{
+    pattern: '/stress/cifu_all';
+    documentation: 'Every row of core_instrument::Future, unfiltered. The subtype services partition this same table by discriminator; this is the whole of it, and therefore the only service that would show a row whose type code matches no subtype at all. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::Future.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentSubType:x|$x.instrumentSubType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CIFU_All_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-FU-001","instrumentSubType":"COMMODITY"},{"instrumentId":"CI-FU-002","instrumentSubType":"EQUITY_INDEX"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CIFU_CommodityFuture
+{
+    pattern: '/stress/cifu_commodityfuture';
+    documentation: 'core_instrument::CommodityFuture only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::CommodityFuture.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentSubType:x|$x.instrumentSubType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CIFU_CommodityFuture_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-FU-001","instrumentSubType":"COMMODITY"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CIFU_EquityIndexFuture
+{
+    pattern: '/stress/cifu_equityindexfuture';
+    documentation: 'core_instrument::EquityIndexFuture only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::EquityIndexFuture.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentSubType:x|$x.instrumentSubType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CIFU_EquityIndexFuture_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-FU-002","instrumentSubType":"EQUITY_INDEX"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CISW_All
+{
+    pattern: '/stress/cisw_all';
+    documentation: 'Every row of core_instrument::Swap, unfiltered. The subtype services partition this same table by discriminator; this is the whole of it, and therefore the only service that would show a row whose type code matches no subtype at all. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::Swap.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentSubType:x|$x.instrumentSubType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CISW_All_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-SW-001","instrumentSubType":"IRS"},{"instrumentId":"CI-SW-002","instrumentSubType":"CDS"},{"instrumentId":"CI-SW-003","instrumentSubType":"TRS"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CISW_Core_instrumentCreditDefaultSwap
+{
+    pattern: '/stress/cisw_core_instrumentcreditdefaultswap';
+    documentation: 'core_instrument::CreditDefaultSwap only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::CreditDefaultSwap.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentSubType:x|$x.instrumentSubType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CISW_Core_instrumentCreditDefaultSwap_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-SW-002","instrumentSubType":"CDS"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CISW_Core_instrumentInterestRateSwap
+{
+    pattern: '/stress/cisw_core_instrumentinterestrateswap';
+    documentation: 'core_instrument::InterestRateSwap only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::InterestRateSwap.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentSubType:x|$x.instrumentSubType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CISW_Core_instrumentInterestRateSwap_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-SW-001","instrumentSubType":"IRS"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CISW_TotalReturnSwap
+{
+    pattern: '/stress/cisw_totalreturnswap';
+    documentation: 'core_instrument::TotalReturnSwap only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::TotalReturnSwap.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            instrumentSubType:x|$x.instrumentSubType
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CISW_TotalReturnSwap_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-SW-003","instrumentSubType":"TRS"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CIOP_All
+{
+    pattern: '/stress/ciop_all';
+    documentation: 'Every row of core_instrument::Option, unfiltered. The subtype services partition this same table by discriminator; this is the whole of it, and therefore the only service that would show a row whose type code matches no subtype at all. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::Option.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            putCall:x|$x.putCall
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CIOP_All_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-OP-001","putCall":"CALL"},{"instrumentId":"CI-OP-002","putCall":"PUT"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CIOP_CallOption
+{
+    pattern: '/stress/ciop_calloption';
+    documentation: 'core_instrument::CallOption only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::CallOption.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            putCall:x|$x.putCall
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CIOP_CallOption_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-OP-001","putCall":"CALL"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::CIOP_PutOption
+{
+    pattern: '/stress/ciop_putoption';
+    documentation: 'core_instrument::PutOption only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
+    execution: Single
+    {
+    query: |core_instrument::PutOption.all()
+        ->project(~[
+            instrumentId:x|$x.instrumentId,
+            putCall:x|$x.putCall
+        ])
+        ->sort(~instrumentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    CIOP_PutOption_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 1 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-OP-002","putCall":"PUT"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::TX_All
 {
     pattern: '/stress/tx_all';
@@ -20587,9 +22192,9 @@ Service stress::TX_InterestRateFloor
   ]
 }
 
-Service stress::TX_InterestRateSwap
+Service stress::TX_DerivativesInterestRateSwap
 {
-    pattern: '/stress/tx_interestrateswap';
+    pattern: '/stress/tx_derivativesinterestrateswap';
     documentation: 'derivatives::InterestRateSwap only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
     execution: Single
     {
@@ -20609,7 +22214,7 @@ Service stress::TX_InterestRateSwap
     }
   testSuites:
   [
-    TX_InterestRateSwap_suite:
+    TX_DerivativesInterestRateSwap_suite:
     {
       data:
       [
@@ -27126,9 +28731,9 @@ Service stress::TXM_CommercialPaper
   ]
 }
 
-Service stress::TXM_CommonStock
+Service stress::TXM_SecuritiesCommonStock
 {
-    pattern: '/stress/txm_commonstock';
+    pattern: '/stress/txm_securitiescommonstock';
     documentation: 'securities::CommonStock only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
     execution: Single
     {
@@ -27147,7 +28752,7 @@ Service stress::TXM_CommonStock
     }
   testSuites:
   [
-    TXM_CommonStock_suite:
+    TXM_SecuritiesCommonStock_suite:
     {
       data:
       [
@@ -27185,9 +28790,9 @@ Service stress::TXM_CommonStock
   ]
 }
 
-Service stress::TXM_ConvertibleBond
+Service stress::TXM_SecuritiesConvertibleBond
 {
-    pattern: '/stress/txm_convertiblebond';
+    pattern: '/stress/txm_securitiesconvertiblebond';
     documentation: 'securities::ConvertibleBond only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
     execution: Single
     {
@@ -27206,7 +28811,7 @@ Service stress::TXM_ConvertibleBond
     }
   testSuites:
   [
-    TXM_ConvertibleBond_suite:
+    TXM_SecuritiesConvertibleBond_suite:
     {
       data:
       [
@@ -27244,9 +28849,9 @@ Service stress::TXM_ConvertibleBond
   ]
 }
 
-Service stress::TXM_CorporateBond
+Service stress::TXM_SecuritiesCorporateBond
 {
-    pattern: '/stress/txm_corporatebond';
+    pattern: '/stress/txm_securitiescorporatebond';
     documentation: 'securities::CorporateBond only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
     execution: Single
     {
@@ -27265,7 +28870,7 @@ Service stress::TXM_CorporateBond
     }
   testSuites:
   [
-    TXM_CorporateBond_suite:
+    TXM_SecuritiesCorporateBond_suite:
     {
       data:
       [
@@ -27716,9 +29321,9 @@ Service stress::TXM_GlobalDepositaryReceipt
   ]
 }
 
-Service stress::TXM_GovernmentBond
+Service stress::TXM_SecuritiesGovernmentBond
 {
-    pattern: '/stress/txm_governmentbond';
+    pattern: '/stress/txm_securitiesgovernmentbond';
     documentation: 'securities::GovernmentBond only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
     execution: Single
     {
@@ -27737,7 +29342,7 @@ Service stress::TXM_GovernmentBond
     }
   testSuites:
   [
-    TXM_GovernmentBond_suite:
+    TXM_SecuritiesGovernmentBond_suite:
     {
       data:
       [
@@ -28306,9 +29911,9 @@ Service stress::TXM_PerpetualBond
   ]
 }
 
-Service stress::TXM_PreferredStock
+Service stress::TXM_SecuritiesPreferredStock
 {
-    pattern: '/stress/txm_preferredstock';
+    pattern: '/stress/txm_securitiespreferredstock';
     documentation: 'securities::PreferredStock only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
     execution: Single
     {
@@ -28327,7 +29932,7 @@ Service stress::TXM_PreferredStock
     }
   testSuites:
   [
-    TXM_PreferredStock_suite:
+    TXM_SecuritiesPreferredStock_suite:
     {
       data:
       [
@@ -28719,9 +30324,9 @@ Service stress::TXM_TreasuryBill
   ]
 }
 
-Service stress::TXM_Warrant
+Service stress::TXM_SecuritiesWarrant
 {
-    pattern: '/stress/txm_warrant';
+    pattern: '/stress/txm_securitieswarrant';
     documentation: 'securities::Warrant only. The subtype\'s ~filter is the whole test: if it were wrong this would return every row of the base table instead of its own, with no error and no type mismatch. Generated by scripts/corpus/taxonomy.py.';
     execution: Single
     {
@@ -28740,7 +30345,7 @@ Service stress::TXM_Warrant
     }
   testSuites:
   [
-    TXM_Warrant_suite:
+    TXM_SecuritiesWarrant_suite:
     {
       data:
       [
@@ -133147,69 +134752,6 @@ Service stress::SP_OtherwiseTradeGroup
   ]
 }
 
-Service stress::SP_IssuerProdIssuerGraph
-{
-    pattern: '/stress/sp_issuerprodissuergraph';
-    documentation: 'Coverage-directed stack on hier::Issuer (Graph), reusing the reach of H_IssuerProd and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |hier::Issuer.all()
-        ->graphFetch(#{
-  hier::Issuer
-  {
-    issuerId,
-    legalName
-  }
-}#)
-        ->serialize(#{
-  hier::Issuer
-  {
-    issuerId,
-    legalName
-  }
-}#);
-        mapping: hier::IssuerMappingProd;
-        runtime: hier::IssuerProdRT;
-    }
-  testSuites:
-  [
-    SP_IssuerProdIssuerGraph_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          issuerProdEnv:
-            Reference
-            #{
-              hier::IssuerProdData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"issuerId":"HI-0001","legalName":"Northbridge"},{"issuerId":"HI-0002","legalName":"Kestrel"},{"issuerId":"HI-0003","legalName":"Aldgate"},{"issuerId":"HI-0004","legalName":"Fenwick"},{"issuerId":"HI-0005","legalName":"Thameside"}]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
 Service stress::SP_defReportableLineGraph
 {
     pattern: '/stress/sp_defreportablelinegraph';
@@ -133272,6 +134814,69 @@ Service stress::SP_defReportableLineGraph
                   #{
                     contentType: 'application/json';
                     data: '{"builder":{"_type":"json"},"values":[{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":1,"pctOfCapital":18.4,"exposureClass":"INSTITUTION","netExposure":3650000000.0},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":2,"pctOfCapital":9.2,"exposureClass":"INSTITUTION","netExposure":1950000000.0},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":3,"pctOfCapital":31.7,"exposureClass":"CORPORATE","netExposure":7000000000.0},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":5,"pctOfCapital":71.3,"exposureClass":"SOVEREIGN","netExposure":15200000000.0},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":1,"pctOfCapital":16.1,"exposureClass":"INSTITUTION","netExposure":3200000000.0},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":2,"pctOfCapital":29.8,"exposureClass":"CORPORATE","netExposure":6550000000.0},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":3,"pctOfCapital":7.9,"exposureClass":"INSTITUTION","netExposure":1675000000.0},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":1,"pctOfCapital":14.5,"exposureClass":"FUND","netExposure":3100000000.0},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":3,"pctOfCapital":10.1,"exposureClass":"INSTITUTION","netExposure":2150000000.0}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::SP_IssuerProdIssuerGraph
+{
+    pattern: '/stress/sp_issuerprodissuergraph';
+    documentation: 'Coverage-directed stack on hier::Issuer (Graph), reusing the reach of H_IssuerProd and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |hier::Issuer.all()
+        ->graphFetch(#{
+  hier::Issuer
+  {
+    issuerId,
+    legalName
+  }
+}#)
+        ->serialize(#{
+  hier::Issuer
+  {
+    issuerId,
+    legalName
+  }
+}#);
+        mapping: hier::IssuerMappingProd;
+        runtime: hier::IssuerProdRT;
+    }
+  testSuites:
+  [
+    SP_IssuerProdIssuerGraph_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          issuerProdEnv:
+            Reference
+            #{
+              hier::IssuerProdData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"issuerId":"HI-0001","legalName":"Northbridge"},{"issuerId":"HI-0002","legalName":"Kestrel"},{"issuerId":"HI-0003","legalName":"Aldgate"},{"issuerId":"HI-0004","legalName":"Fenwick"},{"issuerId":"HI-0005","legalName":"Thameside"}]}';
                   }#;
               }#
           ]
@@ -133744,87 +135349,6 @@ Service stress::SP_defCurveSummaryGraph
                   #{
                     contentType: 'application/json';
                     data: '{"builder":{"_type":"json"},"values":[{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","summarised":{"currency":"USD","curveType":"OIS"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","summarised":{"currency":"USD","curveType":"OIS"}},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","summarised":{"currency":"USD","curveType":"SWAP"}},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","summarised":{"currency":"USD","curveType":"SWAP"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","summarised":{"currency":"EUR","curveType":"OIS"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","summarised":{"currency":"EUR","curveType":"OIS"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","summarised":{"currency":"EUR","curveType":"SWAP"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","summarised":{"currency":"EUR","curveType":"SWAP"}},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","summarised":{"currency":"GBP","curveType":"OIS"}},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","summarised":{"currency":"GBP","curveType":"OIS"}},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","summarised":{"currency":"JPY","curveType":"OIS"}},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","summarised":{"currency":"JPY","curveType":"OIS"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","summarised":{"currency":"USD","curveType":"GOVERNMENT"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","summarised":{"currency":"USD","curveType":"GOVERNMENT"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","summarised":{"currency":"EUR","curveType":"GOVERNMENT"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","summarised":{"currency":"EUR","curveType":"GOVERNMENT"}}]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::SP_defExposureLineGraph
-{
-    pattern: '/stress/sp_defexposurelinegraph';
-    documentation: 'Coverage-directed stack on largeexp::ExposureLine (Graph), reusing the reach of LE1_BandedExposures and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |largeexp::ExposureLine.all()
-        ->graphFetch(#{
-  largeexp::ExposureLine
-  {
-    reportId,
-    cobDate,
-    lineNumber,
-    pctOfCapital,
-    thresholdBand
-    {
-      bandId,
-      bandName,
-      isReportable,
-      isBreach
-    }
-  }
-}#)
-        ->serialize(#{
-  largeexp::ExposureLine
-  {
-    reportId,
-    cobDate,
-    lineNumber,
-    pctOfCapital,
-    thresholdBand
-    {
-      bandId,
-      bandName,
-      isReportable,
-      isBreach
-    }
-  }
-}#);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    SP_defExposureLineGraph_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 12 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":1,"pctOfCapital":18.4,"thresholdBand":{"bandId":"TH-MONITOR","bandName":"Monitored","isReportable":true,"isBreach":false}},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":2,"pctOfCapital":9.2,"thresholdBand":{"bandId":"TH-REPORT","bandName":"Reportable","isReportable":true,"isBreach":false}},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":3,"pctOfCapital":31.7,"thresholdBand":{"bandId":"TH-BREACH","bandName":"Limit breach","isReportable":true,"isBreach":true}},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":4,"pctOfCapital":4.6,"thresholdBand":{"bandId":"TH-NIL","bandName":"Below reporting threshold","isReportable":false,"isBreach":false}},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":5,"pctOfCapital":71.3,"thresholdBand":{"bandId":"TH-BREACH","bandName":"Limit breach","isReportable":true,"isBreach":true}},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":6,"pctOfCapital":0.0,"thresholdBand":{"bandId":"TH-NIL","bandName":"Below reporting threshold","isReportable":false,"isBreach":false}},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":1,"pctOfCapital":16.1,"thresholdBand":{"bandId":"TH-MONITOR","bandName":"Monitored","isReportable":true,"isBreach":false}},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":2,"pctOfCapital":29.8,"thresholdBand":{"bandId":"TH-BREACH","bandName":"Limit breach","isReportable":true,"isBreach":true}},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":3,"pctOfCapital":7.9,"thresholdBand":{"bandId":"TH-REPORT","bandName":"Reportable","isReportable":true,"isBreach":false}},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":1,"pctOfCapital":14.5,"thresholdBand":{"bandId":"TH-MONITOR","bandName":"Monitored","isReportable":true,"isBreach":false}},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":2,"pctOfCapital":4.1,"thresholdBand":{"bandId":"TH-NIL","bandName":"Below reporting threshold","isReportable":false,"isBreach":false}},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":3,"pctOfCapital":10.1,"thresholdBand":{"bandId":"TH-MONITOR","bandName":"Monitored","isReportable":true,"isBreach":false}}]}';
                   }#;
               }#
           ]
