@@ -474,6 +474,102 @@ soft-pass ceilings binding live; `ConnectionResolver` content-keyed;
 replaced with a real closure. Three of this sweep's own rows went stale
 *while it was measuring them*.
 
+---
+
+# PART 2c — THE NUMBER NOBODY HAD COMPUTED
+
+The Java-eval ledger pins **7,024 stripped lines** as host-side debt.
+Classified line by line, for the first time:
+
+| bucket | lines | % |
+|---|---:|---:|
+| **PERMANENT BY NATURE** | **5,248** | **74.7%** |
+| Misplaced compiler work — leaves the *executor*, not Java | 698 | 9.9% |
+| SQL-burnable, product path | **590** | 8.4% |
+| SQL-burnable, test-scope only | 415 | 5.9% |
+| Pure semantics in Java, not SQL-burnable | 73 | 1.0% |
+
+**Three-quarters of the pile is permanent and mislabelled as debt.** Only
+**590 burnable lines actually ship in the product.** `PlanText` is 746 of
+750 lines pure compile-time text composition; `AggAwareActivities` is
+225/225 (its `equal` arm *composes the string `" == "`*); `JsonCompare`
+64/64; `GridProbe` 26/26. All sit on a shrink-only eviction register for
+no reason — which makes the pile look four times more damning than it is
+*and* hides the 1,000 lines that genuinely burn.
+
+## The 434-line "win" that burned nothing
+
+`StatementExecutor` is pinned 2728 and measures 2294 — 434 lines of
+apparent slack. Reconstructed per commit: `8610762e` moved −401 lines out
+and created `ResultEnvelopeSplice` (+365); `e88521b5`/`3410bcd0` moved
+−272 into `ExecuteChainAssembly` (+179) and `SeedableLets` (+30). **Net
+repo change: +75. Zero lines burned.**
+
+The ledger is a *per-file* register with **no cross-file conservation
+check**, so an Invariant-7 relocation reads as a burn and leaves 434 lines
+of silent-regrowth headroom on the one file whose own row says it "absorbs
+by design." The watch is blind by 19% on its largest surface.
+
+## The unregistered pile is bigger than the folds
+
+| pile | stripped | on a size register? |
+|---|---:|---|
+| Corpus harness (`EngineTestExecutor` 2397, `H2Verify` 437) | **2,834** | no |
+| `exec` with no size pin — **`Executor.java` 503**, `Ddl` 331, … | **1,255** | no |
+| Relocated out of ledgered files (2026-08-21) | **714** | no |
+| Compile-time folds (`StaticFold` 496, +4 others) | **677** | no |
+
+**`Executor.java` — 503 lines, the egress decode cluster, named in the
+ledger's own prose and adjudicated in an audit — has no size pin at all.**
+
+## The folds disagree with the SQL lowering — and they ship
+
+`StaticFold` is reachable from an **ordinary product query**: any query
+containing `<relation>.columns->map(...)` routes arbitrary Pure
+expressions through the Java interpreter and reifies the result into SQL
+as a literal (`Typer.java:618-625`, widened at `:1360-1369`). **No test
+anywhere exercises its arithmetic or equality vocabulary.** Running the
+same expression bare and wrapped gives two answers from one compiler:
+
+| expression | Java fold | SQL lane |
+|---|---|---|
+| `[9223372036854775807,1]->plus()` | **−9223372036854775808** | `9223372036854775808` |
+| `1 == 1.0` | `StaticFold` **false** / `LiteralFolds` **true** | true |
+| `1->in([1.0])` | false | true |
+| `1e10->toString()` | `"1.0E10"` | `"10000000000.0"` |
+| `hasSubsecond` literal vs column | `false` (Boolean) | `1` (Integer) |
+
+The first is a **sign flip on a real arithmetic answer** —
+`StaticFold.java:254-256` is `args.stream().mapToLong(a -> (Long) a).sum()`,
+an unchecked `long` sum. The second means **the two compile-time folders
+sit on opposite sides of a divergence the tree has ratified** at
+`EqualityWorldsConformanceTest:98-99`. The fifth flips the answer *and*
+the wire kind depending on whether the operand is a literal or a column.
+
+Two further confirmed defects on the same surface: `'a'->instanceOf(String)`
+**aborts the compile** (`Scalars.java:2530-2543` can only emit
+`BoolLit(true)`; anything else throws), and `limit(0-1)` yields `[]` on
+the list lane while the relation lane emits `LIMIT -1` and raises
+(`ConstBounds.java:40-55` validates nothing).
+
+**And a test is defending one of these.** `ExtendCheckerTest:2022`
+comments *"DuckDB returns integers for has\* functions (1 = true, 0 =
+false)"* and asserts `intValue() != 0`. DuckDB returns nothing —
+`Scalars.java:808` emits the constant `1`.
+
+## Two ledger claims that do not survive contact with code
+
+- `JavaEvalLedgerTest:36` cites `wrapH2Boolean` as an exemplar. **That
+  symbol does not exist anywhere in the tree** — grep hits only that
+  javadoc line. `EVICT_NAMES` drift detection does not cover prose.
+- `ArchitectureTest.theInterpreterPerformsNoJdbc` does **not** establish
+  "no database value can enter the channel" — it bans JDBC *types*, and a
+  decoded value is a `String`/`Long`/`LocalDateTime` with zero JDBC
+  dependency. Its regex is a full match, so all 17 nested records
+  (`$NodeH`, `$JtnH`, …) are uncovered; the `(\$.*)?` idiom that fixes it
+  is used twice elsewhere in the same file. The claim is true today by the
+  shape of `planWalk`, and nothing guards it.
+
 # PART 3 — WHAT TO DO
 
 ## Today, no design decisions
