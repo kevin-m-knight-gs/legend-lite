@@ -1722,3 +1722,43 @@ Referee: core suite 4215/0; full DuckDB corpus scoreboard diff EMPTY
 (the early scoped run that the dup-FQN risk demanded); pins
 LeniencyD6Test (JDBC-census registered: the valid-neighbor control and
 the moved-to-parser bad-date pin execute e2e).
+
+### D5 LANDED: ConnectionResolver content-keyed + the field-level Invariant 3 (DEEP_AUDIT §11b)
+
+The server's connection cache had every defect Invariant 3 exists to
+prevent, invisible to the CLASS-NAME funnel because it was a FIELD
+(`static Map CACHE`):
+
+- **Check-then-act race**: two threads could both open; the losing
+  connection leaked UNCLOSED. Now `HandleStore.getOrOpen` — atomic
+  compute, no loser exists. Race pinned by an 8-thread latch test.
+- **FQN-keyed identity** (engine planCache scar): an edited connection
+  definition kept resolving onto the stale database. Now content-keyed:
+  Hash(definition record content + FQN) — same definition keeps its
+  database across requests (tables persist, the feature); an edited
+  definition gets a fresh one.
+- **Shared `jdbc:h2:mem:testdb`** in the default H2 arm (the same A19
+  disease the EmbeddedH2 arm was already cured of): now named per
+  definition content.
+- **Dead-handle replacement**: a closed cached connection is replaced
+  in the same atomic step; a failed open never poisons the key.
+
+`HandleStore<T>` lives in com.legend.cache (Invariant 3 funnel) and is
+GENERIC on purpose: java.sql stays at the chartered seams (F1.3) — the
+first design (ConnectionStore holding Connection in cache) tripped that
+rule, and the fix was genericizing, not widening the funnel. Its two
+broad catches are the checked-exception carrier, reviewed + pinned.
+
+**Invariant 3, field level** (the ArchUnit charter item): a
+declared-type rule is BLIND here — every field spells `Map<...>`
+whether the value is Map.of() or a ConcurrentHashMap — so the new
+guard REFLECTS ON RUNTIME VALUES: every static collection field
+outside com.legend.cache must hold an immutable collection or appear
+in a justified register (21 adjudicated rows: write-once init tables
+= burn-down candidates; TimingLedger + SUPPRESSED_ONCE = genuinely
+mutable, justified). The guard found and adjudicated 9 sites the
+grep census missed. Old CACHE deleted same-slice (no adapter hedges).
+
+Pins: HandleStoreTest (5, JDBC-free — the census stays clean by
+DESIGN: the pin uses IOException). Referee: core suite 4221/0 + full
+chain green.

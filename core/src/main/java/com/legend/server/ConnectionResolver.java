@@ -6,26 +6,41 @@ import com.legend.model.ConnectionSpecification;
 import com.legend.model.ParsedModel;
 import com.legend.model.RuntimeDefinition;
 
+import com.legend.cache.HandleStore;
+import com.legend.cache.Hash;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Runtime-name &rarr; live JDBC connection, resolved directly from the core
  * parse ({@code com.legend.model} records — the engine-lite bridge record
- * round-trip is gone). In-memory connections are cached per connection FQN so
- * tables persist across requests; a spec kind the original resolver folded to
- * in-memory (e.g. {@code LocalH2}) keeps that fold. Unsupported database
- * types stay LOUD.
+ * round-trip is gone). In-memory connections are cached in the
+ * content-addressed {@link HandleStore} (D5): the key hashes the
+ * connection DEFINITION + FQN, so the same definition keeps its
+ * database across requests (tables persist — the feature) while an
+ * EDITED definition gets a fresh one (an FQN-only key desynced: engine
+ * planCache scar). A spec kind the original resolver folded to
+ * in-memory (e.g. {@code LocalH2}) keeps that fold. Unsupported
+ * database types stay LOUD.
  */
 final class ConnectionResolver {
 
     private ConnectionResolver() {
     }
 
-    private static final Map<String, Connection> CACHE = new ConcurrentHashMap<>();
+    private static final HandleStore<Connection> STORE = new HandleStore<>();
+
+    /** A connection is DEAD when closed — or unanswerable, which only a
+     * broken handle produces; treating it live would cache the wreck. */
+    private static boolean dead(Connection c) {
+        try {
+            return c.isClosed();
+        } catch (SQLException e) {
+            return true;
+        }
+    }
 
     static Connection resolve(String pureSource, String runtimeName)
             throws SQLException {
@@ -66,6 +81,15 @@ final class ConnectionResolver {
         return connect(def);
     }
 
+    /** Content key: the definition's full record content + FQN. Two
+     * connections are the same database iff they are the same
+     * DEFINITION — record toString covers every component (type, spec,
+     * auth) deterministically. */
+    private static Hash contentKey(ConnectionDefinition def) {
+        return Hash.combine(Hash.ofUtf8(def.qualifiedName()),
+                Hash.ofUtf8(def.toString()));
+    }
+
     private static Connection connect(ConnectionDefinition def) throws SQLException {
         return switch (def.databaseType()) {
             case DuckDB -> switch (def.specification()) {
@@ -73,13 +97,15 @@ final class ConnectionResolver {
                         DriverManager.getConnection("jdbc:duckdb:" + path);
                 // InMemory — and every spec kind the legacy resolver folded
                 // to in-memory (LocalH2, static specs DuckDB can't reach)
-                default -> cached("duckdb:inmemory:" + def.qualifiedName(),
+                default -> STORE.getOrOpen(contentKey(def),
+                        ConnectionResolver::dead,
                         () -> DriverManager.getConnection("jdbc:duckdb:"));
             };
             case SQLite -> switch (def.specification()) {
                 case ConnectionSpecification.LocalFile(String path) ->
                         DriverManager.getConnection("jdbc:sqlite:" + path);
-                default -> cached("sqlite:inmemory:" + def.qualifiedName(),
+                default -> STORE.getOrOpen(contentKey(def),
+                        ConnectionResolver::dead,
                         () -> DriverManager.getConnection("jdbc:sqlite::memory:"));
             };
             case H2 -> auth(DriverManager.getConnection(switch (def.specification()) {
@@ -93,7 +119,13 @@ final class ConnectionResolver {
                 case ConnectionSpecification.EmbeddedH2(String dbName,
                         String dir, boolean auto) ->
                         "jdbc:h2:mem:" + dbName + ";DB_CLOSE_DELAY=-1";
-                default -> "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1";
+                // D5: the default arm shared ONE fixed testdb across
+                // every unnamed in-memory H2 connection (the same A19
+                // disease one arm up) — name per DEFINITION content,
+                // same persistence semantics as the cached arms
+                default -> "jdbc:h2:mem:c_"
+                        + contentKey(def).hex().substring(0, 16)
+                        + ";DB_CLOSE_DELAY=-1";
             }), def);
             case Postgres -> {
                 if (!(def.specification()
@@ -118,22 +150,6 @@ final class ConnectionResolver {
         }
         // NoAuth / DefaultH2 / TestAuth: nothing to apply.
         return connection;
-    }
-
-    private static Connection cached(String key, ConnectionSupplier supplier)
-            throws SQLException {
-        Connection existing = CACHE.get(key);
-        if (existing != null && !existing.isClosed()) {
-            return existing;
-        }
-        Connection fresh = supplier.get();
-        CACHE.put(key, fresh);
-        return fresh;
-    }
-
-    @FunctionalInterface
-    private interface ConnectionSupplier {
-        Connection get() throws SQLException;
     }
 
     private static String simpleName(String fqn) {
