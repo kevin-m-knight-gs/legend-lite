@@ -99,7 +99,15 @@ def _expect(c, spec, TABLES):
     """The expectation for a spec, following `mirrors` when the oracle cannot evaluate."""
     src = getattr(spec, "mirrors", None)
     if src is None:
-        return oracle.as_json_rows(c, spec, oracle.evaluate(c, spec, TABLES))
+        try:
+            return oracle.as_json_rows(c, spec, oracle.evaluate(c, spec, TABLES))
+        except (oracle.Fanout, oracle.Unsupported):
+            raise
+        except Exception as e:
+            # An oracle crash used to arrive as a bare TypeError from inside _cmp, naming
+            # neither the service nor the generator that produced it -- so finding which of
+            # ~4700 specs was at fault meant bisecting the generators by hand.
+            raise type(e)(f"{spec.name} (root {spec.root}): {e}") from e
     # For a grouped spec the RESULT aliases are the keys plus the aggregate names, not
     # the projection list -- comparing projections would reject a valid pairing.
     def result_aliases(s):
@@ -192,6 +200,14 @@ def generate() -> dict[Path, str]:
     # One service per subtype of every discriminated taxonomy: the only way a wrong ~filter
     # is visible, since it fails by returning the WHOLE table rather than by erroring.
     generated += taxonomy.build(c, seeded_now, TABLES)
+    # STACKED query shapes over those same taxonomies and roots. taxonomy.py gives each
+    # subtype one bare projection, which proves its ~filter and nothing else; this stacks a
+    # filter, an aggregation, an ordering and a computation on top, and reaches four hops
+    # deep on the 45 roots that can navigate at all. The bare services are kept as the
+    # control -- a stacked query is only interpretable if a simple one over the same rows
+    # passes, and a wrong ~filter is only visible in the simple one.
+    import deepstack
+    generated += deepstack.build(c, seeded_now, TABLES)
     # Coverage-directed services: chosen by which feature COMBINATIONS they close rather
     # than by walking the model, which is what every generator above does. Runs last
     # because it needs to know what the others already cover.
@@ -304,8 +320,13 @@ def _id_collisions() -> list[str]:
     heads = list(re.finditer(r"^Mapping\s+([\w:]+)", src, re.M))
     for i, h in enumerate(heads):
         end = heads[i + 1].start() if i + 1 < len(heads) else len(src)
+        # A class mapping DECLARES a set id -- `Class[id]: Relational`. A property mapping
+        # merely NAMES one as its target -- `prop[id]: [store]@Join` -- and 72 taxonomies
+        # pointing at one shared `posBook` are not 72 declarations of it. Requiring the
+        # `: Relational` tail is what tells them apart.
         by_mapping[h.group(1)] = re.findall(
-            r"^\s*\*?[\w:]+\[(\w+)\]", src[h.start():end], re.M)
+            r"^\s*\*?[\w:]+\[(\w+)\](?:\s+extends\s*\[\w+\])?\s*:\s*Relational",
+            src[h.start():end], re.M)
     for name, included in sorted(executed.include_closure().items()):
         seen = collections.Counter(
             sid for m in included for sid in by_mapping.get(m, ()))

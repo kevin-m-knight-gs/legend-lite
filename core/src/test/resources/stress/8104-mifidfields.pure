@@ -12,6 +12,9 @@
 // whole table.
 Class mifidfields::TransactionReportField
 {
+   // The book this record belongs to. Declared on the BASE class and mapped
+   // on the BASE set, so every subtype inherits both and can navigate it.
+   book: positions::Book[0..1];
    recordId: String[1];
    recordType: String[1];
    bookId: String[1];
@@ -126,7 +129,8 @@ Mapping mifidfields::MifidfieldsMapping
       maturityDate: [store::DB]TRANSACTION_REPORT_FIELD.MATURITY_DATE,
       status: [store::DB]TRANSACTION_REPORT_FIELD.STATUS,
       isActive: [store::DB]TRANSACTION_REPORT_FIELD.IS_ACTIVE,
-      riskScore: [store::DB]TRANSACTION_REPORT_FIELD.RISK_SCORE
+      riskScore: [store::DB]TRANSACTION_REPORT_FIELD.RISK_SCORE,
+      book[positions_Book]: [store::DB]@MifidfieldsBaseBook
    }
 
    mifidfields::ExecutingEntityIdentifier[trfExecutingEntityId] extends [mifidfieldsBase]: Relational

@@ -110,11 +110,24 @@ def main() -> None:
     chunks = [names[i:i + BATCH] for i in range(0, len(names), BATCH)] or [[]]
     parts = []
     for chunk in chunks:
-        r = subprocess.run(
-            [f"{JAVA_HOME}/bin/java", "-cp", f"{RUNNER}/target/classes:{cp}",
-             "perf.TestableMain", *files, *(f"--testable={n}" for n in chunk)],
-            capture_output=True, text=True, env=env, cwd=RUNNER, timeout=3600)
-        parts.append(r.stdout + r.stderr)
+        # A batch that HANGS used to kill the whole run: subprocess.run raised
+        # TimeoutExpired after an hour and 50 minutes of results went with it, naming
+        # nothing. Now the batch is abandoned, its testables are reported, and the suite
+        # carries on -- so a hang costs one batch instead of everything, and the batch that
+        # hung is named rather than inferred.
+        #
+        # The timeout is per batch and generous: a batch of 40 takes about 35 seconds, so
+        # 300 is two orders of magnitude of headroom and still fails fast.
+        try:
+            r = subprocess.run(
+                [f"{JAVA_HOME}/bin/java", "-cp", f"{RUNNER}/target/classes:{cp}",
+                 "perf.TestableMain", *files, *(f"--testable={n}" for n in chunk)],
+                capture_output=True, text=True, env=env, cwd=RUNNER, timeout=300)
+            parts.append(r.stdout + r.stderr)
+        except subprocess.TimeoutExpired:
+            print(f"BATCH HUNG after 300s, abandoned. Its {len(chunk)} testables:\n  "
+                  + "\n  ".join(chunk), flush=True)
+            parts.append("")
     out = "\n".join(parts)
 
     # A service that throws during test-suite INITIALISATION kills the JVM its batch runs in.

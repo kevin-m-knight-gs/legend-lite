@@ -12,6 +12,9 @@
 // whole table.
 Class securitisation::SecuritisationTranche
 {
+   // The book this record belongs to. Declared on the BASE class and mapped
+   // on the BASE set, so every subtype inherits both and can navigate it.
+   book: positions::Book[0..1];
    recordId: String[1];
    recordType: String[1];
    bookId: String[1];
@@ -126,7 +129,8 @@ Mapping securitisation::SecuritisationMapping
       maturityDate: [store::DB]SECURITISATION_TRANCHE.MATURITY_DATE,
       status: [store::DB]SECURITISATION_TRANCHE.STATUS,
       isActive: [store::DB]SECURITISATION_TRANCHE.IS_ACTIVE,
-      riskScore: [store::DB]SECURITISATION_TRANCHE.RISK_SCORE
+      riskScore: [store::DB]SECURITISATION_TRANCHE.RISK_SCORE,
+      book[positions_Book]: [store::DB]@SecuritisationBaseBook
    }
 
    securitisation::SeniorAaaTranche[secSeniorAaa] extends [securitisationBase]: Relational

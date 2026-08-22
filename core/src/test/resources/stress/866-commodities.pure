@@ -12,6 +12,9 @@
 // whole table.
 Class commodities::CommodityContract
 {
+   // The book this record belongs to. Declared on the BASE class and mapped
+   // on the BASE set, so every subtype inherits both and can navigate it.
+   book: positions::Book[0..1];
    recordId: String[1];
    recordType: String[1];
    bookId: String[1];
@@ -126,7 +129,8 @@ Mapping commodities::CommoditiesMapping
       maturityDate: [store::DB]COMMODITY_CONTRACT.MATURITY_DATE,
       status: [store::DB]COMMODITY_CONTRACT.STATUS,
       isActive: [store::DB]COMMODITY_CONTRACT.IS_ACTIVE,
-      riskScore: [store::DB]COMMODITY_CONTRACT.RISK_SCORE
+      riskScore: [store::DB]COMMODITY_CONTRACT.RISK_SCORE,
+      book[positions_Book]: [store::DB]@CommoditiesBaseBook
    }
 
    commodities::WtiCrudeFuture[cmdWtiFuture] extends [commoditiesBase]: Relational

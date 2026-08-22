@@ -12,6 +12,9 @@
 // whole table.
 Class settlementfails::SettlementFail
 {
+   // The book this record belongs to. Declared on the BASE class and mapped
+   // on the BASE set, so every subtype inherits both and can navigate it.
+   book: positions::Book[0..1];
    recordId: String[1];
    recordType: String[1];
    bookId: String[1];
@@ -126,7 +129,8 @@ Mapping settlementfails::SettlementfailsMapping
       maturityDate: [store::DB]SETL_FAIL_REASON.MATURITY_DATE,
       status: [store::DB]SETL_FAIL_REASON.STATUS,
       isActive: [store::DB]SETL_FAIL_REASON.IS_ACTIVE,
-      riskScore: [store::DB]SETL_FAIL_REASON.RISK_SCORE
+      riskScore: [store::DB]SETL_FAIL_REASON.RISK_SCORE,
+      book[positions_Book]: [store::DB]@SettlementfailsBaseBook
    }
 
    settlementfails::InsufficientSecurities[faiInsufficientSecurities] extends [settlementfailsBase]: Relational

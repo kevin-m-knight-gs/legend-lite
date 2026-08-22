@@ -12,6 +12,9 @@
 // whole table.
 Class regimes::RegulatoryRegime
 {
+   // The book this record belongs to. Declared on the BASE class and mapped
+   // on the BASE set, so every subtype inherits both and can navigate it.
+   book: positions::Book[0..1];
    recordId: String[1];
    recordType: String[1];
    bookId: String[1];
@@ -126,7 +129,8 @@ Mapping regimes::RegimesMapping
       maturityDate: [store::DB]REGULATORY_REGIME.MATURITY_DATE,
       status: [store::DB]REGULATORY_REGIME.STATUS,
       isActive: [store::DB]REGULATORY_REGIME.IS_ACTIVE,
-      riskScore: [store::DB]REGULATORY_REGIME.RISK_SCORE
+      riskScore: [store::DB]REGULATORY_REGIME.RISK_SCORE,
+      book[positions_Book]: [store::DB]@RegimesBaseBook
    }
 
    regimes::MifidTwoRegime[rgmMifid2] extends [regimesBase]: Relational

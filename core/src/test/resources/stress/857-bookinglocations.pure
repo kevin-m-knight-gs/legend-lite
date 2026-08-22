@@ -12,6 +12,9 @@
 // whole table.
 Class bookinglocations::BookingLocation
 {
+   // The book this record belongs to. Declared on the BASE class and mapped
+   // on the BASE set, so every subtype inherits both and can navigate it.
+   book: positions::Book[0..1];
    recordId: String[1];
    recordType: String[1];
    bookId: String[1];
@@ -126,7 +129,8 @@ Mapping bookinglocations::BookinglocationsMapping
       maturityDate: [store::DB]BOOKING_LOCATION.MATURITY_DATE,
       status: [store::DB]BOOKING_LOCATION.STATUS,
       isActive: [store::DB]BOOKING_LOCATION.IS_ACTIVE,
-      riskScore: [store::DB]BOOKING_LOCATION.RISK_SCORE
+      riskScore: [store::DB]BOOKING_LOCATION.RISK_SCORE,
+      book[positions_Book]: [store::DB]@BookinglocationsBaseBook
    }
 
    bookinglocations::UkBranch[bklUkBranch] extends [bookinglocationsBase]: Relational

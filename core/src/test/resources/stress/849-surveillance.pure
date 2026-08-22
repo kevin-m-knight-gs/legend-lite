@@ -12,6 +12,9 @@
 // whole table.
 Class surveillance::SurveillanceAlert
 {
+   // The book this record belongs to. Declared on the BASE class and mapped
+   // on the BASE set, so every subtype inherits both and can navigate it.
+   book: positions::Book[0..1];
    recordId: String[1];
    recordType: String[1];
    bookId: String[1];
@@ -126,7 +129,8 @@ Mapping surveillance::SurveillanceMapping
       maturityDate: [store::DB]SURVEILLANCE_ALERT.MATURITY_DATE,
       status: [store::DB]SURVEILLANCE_ALERT.STATUS,
       isActive: [store::DB]SURVEILLANCE_ALERT.IS_ACTIVE,
-      riskScore: [store::DB]SURVEILLANCE_ALERT.RISK_SCORE
+      riskScore: [store::DB]SURVEILLANCE_ALERT.RISK_SCORE,
+      book[positions_Book]: [store::DB]@SurveillanceBaseBook
    }
 
    surveillance::SpoofingAlert[srvSpoofing] extends [surveillanceBase]: Relational

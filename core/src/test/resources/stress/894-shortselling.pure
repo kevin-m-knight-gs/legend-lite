@@ -12,6 +12,9 @@
 // whole table.
 Class shortselling::ShortPositionItem
 {
+   // The book this record belongs to. Declared on the BASE class and mapped
+   // on the BASE set, so every subtype inherits both and can navigate it.
+   book: positions::Book[0..1];
    recordId: String[1];
    recordType: String[1];
    bookId: String[1];
@@ -126,7 +129,8 @@ Mapping shortselling::ShortsellingMapping
       maturityDate: [store::DB]SHORT_POSITION_ITEM.MATURITY_DATE,
       status: [store::DB]SHORT_POSITION_ITEM.STATUS,
       isActive: [store::DB]SHORT_POSITION_ITEM.IS_ACTIVE,
-      riskScore: [store::DB]SHORT_POSITION_ITEM.RISK_SCORE
+      riskScore: [store::DB]SHORT_POSITION_ITEM.RISK_SCORE,
+      book[positions_Book]: [store::DB]@ShortsellingBaseBook
    }
 
    shortselling::CoveredShortPosition[shoCoveredShort] extends [shortsellingBase]: Relational

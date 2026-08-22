@@ -20465,6 +20465,38 @@ PROJECTLINK_TRADE_FX = [
 ]
 
 
+# The books the ~100 TAXONOMY tables reference. Every taxonomy row carries a BOOK_ID, and
+# until now not one of those ids existed in BOOK -- the two sets were disjoint, so the
+# taxonomies were 1811 classes joined to nothing. That is what made 88% of the corpus's
+# services single-hop: not a defect, just an edge nobody drew.
+#
+# BK-COMMOD is deliberately NOT added. Its taxonomy rows navigate to a book that does not
+# exist, so the to-one lands on nothing and every projection through it must read null --
+# the case a seed where everything matches can never show.
+BOOK += [
+    dict(BOOK_ID="BK-EQ", NAME="Equity derivatives", BOOK_TYPE="TRADING", CURRENCY="USD",
+         IS_ACTIVE=True, OPEN_DATE=_iso(2014, 2, 3), CLOSE_DATE=None,
+         LEGAL_ENTITY="LE-US-BD", STRATEGY="Volatility", PNL_YTD=1875220.5,
+         POSITION_COUNT=0, RISK_LIMIT=22000000.0,
+         DESCRIPTION="Listed and OTC equity derivatives", DESK_ID='DSK-CASH'),
+    dict(BOOK_ID="BK-FX", NAME="FX trading", BOOK_TYPE="TRADING", CURRENCY="USD",
+         IS_ACTIVE=True, OPEN_DATE=_iso(2011, 9, 19), CLOSE_DATE=None,
+         LEGAL_ENTITY="LE-UK-BR", STRATEGY="Market Making", PNL_YTD=-402118.25,
+         POSITION_COUNT=0, RISK_LIMIT=40000000.0,
+         DESCRIPTION="G10 and EM spot, forward and swap", DESK_ID='DSK-CASH'),
+    dict(BOOK_ID="BK-RATES", NAME="Rates trading", BOOK_TYPE="TRADING", CURRENCY="EUR",
+         IS_ACTIVE=True, OPEN_DATE=_iso(2010, 4, 12), CLOSE_DATE=None,
+         LEGAL_ENTITY="LE-EU-BK", STRATEGY="Relative Value", PNL_YTD=6640980.0,
+         POSITION_COUNT=0, RISK_LIMIT=75000000.0,
+         DESCRIPTION="Government bonds and interest rate swaps", DESK_ID='DSK-CASH'),
+    # Closed, so a filter on isActive has something to drop on the far side of the join.
+    dict(BOOK_ID="BK-CREDIT", NAME="Credit trading", BOOK_TYPE="TRADING", CURRENCY="USD",
+         IS_ACTIVE=False, OPEN_DATE=_iso(2013, 7, 1), CLOSE_DATE=_iso(2024, 3, 28),
+         LEGAL_ENTITY="LE-US-BD", STRATEGY="Flow Credit", PNL_YTD=118004.4,
+         POSITION_COUNT=0, RISK_LIMIT=18000000.0,
+         DESCRIPTION="Cash credit and CDS, wound down in 2024", DESK_ID='DSK-CASH'),
+]
+
 TABLES: dict[str, list[dict]] = {
     "PROJECTLINK_TRADE_FX": PROJECTLINK_TRADE_FX,
     "CFX_CURRENCY_PAIR": CFX_CURRENCY_PAIR,

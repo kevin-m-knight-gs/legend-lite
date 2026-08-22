@@ -12,6 +12,9 @@
 // whole table.
 Class tradefinance::TradeFinanceItem
 {
+   // The book this record belongs to. Declared on the BASE class and mapped
+   // on the BASE set, so every subtype inherits both and can navigate it.
+   book: positions::Book[0..1];
    recordId: String[1];
    recordType: String[1];
    bookId: String[1];
@@ -126,7 +129,8 @@ Mapping tradefinance::TradefinanceMapping
       maturityDate: [store::DB]TRADE_FINANCE_ITEM.MATURITY_DATE,
       status: [store::DB]TRADE_FINANCE_ITEM.STATUS,
       isActive: [store::DB]TRADE_FINANCE_ITEM.IS_ACTIVE,
-      riskScore: [store::DB]TRADE_FINANCE_ITEM.RISK_SCORE
+      riskScore: [store::DB]TRADE_FINANCE_ITEM.RISK_SCORE,
+      book[positions_Book]: [store::DB]@TradefinanceBaseBook
    }
 
    tradefinance::SightLetterOfCredit[tfiLetterOfCreditSight] extends [tradefinanceBase]: Relational

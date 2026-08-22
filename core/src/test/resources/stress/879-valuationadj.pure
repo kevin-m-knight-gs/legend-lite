@@ -12,6 +12,9 @@
 // whole table.
 Class valuationadj::ValuationAdjustment
 {
+   // The book this record belongs to. Declared on the BASE class and mapped
+   // on the BASE set, so every subtype inherits both and can navigate it.
+   book: positions::Book[0..1];
    recordId: String[1];
    recordType: String[1];
    bookId: String[1];
@@ -126,7 +129,8 @@ Mapping valuationadj::ValuationadjMapping
       maturityDate: [store::DB]XVA_ADJUSTMENT.MATURITY_DATE,
       status: [store::DB]XVA_ADJUSTMENT.STATUS,
       isActive: [store::DB]XVA_ADJUSTMENT.IS_ACTIVE,
-      riskScore: [store::DB]XVA_ADJUSTMENT.RISK_SCORE
+      riskScore: [store::DB]XVA_ADJUSTMENT.RISK_SCORE,
+      book[positions_Book]: [store::DB]@ValuationadjBaseBook
    }
 
    valuationadj::CreditValuationAdjustment[xvaCva] extends [valuationadjBase]: Relational

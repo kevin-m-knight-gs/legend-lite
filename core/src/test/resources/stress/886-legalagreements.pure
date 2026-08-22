@@ -12,6 +12,9 @@
 // whole table.
 Class legalagreements::LegalAgreement
 {
+   // The book this record belongs to. Declared on the BASE class and mapped
+   // on the BASE set, so every subtype inherits both and can navigate it.
+   book: positions::Book[0..1];
    recordId: String[1];
    recordType: String[1];
    bookId: String[1];
@@ -126,7 +129,8 @@ Mapping legalagreements::LegalagreementsMapping
       maturityDate: [store::DB]LEGAL_AGREEMENT.MATURITY_DATE,
       status: [store::DB]LEGAL_AGREEMENT.STATUS,
       isActive: [store::DB]LEGAL_AGREEMENT.IS_ACTIVE,
-      riskScore: [store::DB]LEGAL_AGREEMENT.RISK_SCORE
+      riskScore: [store::DB]LEGAL_AGREEMENT.RISK_SCORE,
+      book[positions_Book]: [store::DB]@LegalagreementsBaseBook
    }
 
    legalagreements::IsdaMasterAgreement2002[lglIsdaMaster2002] extends [legalagreementsBase]: Relational

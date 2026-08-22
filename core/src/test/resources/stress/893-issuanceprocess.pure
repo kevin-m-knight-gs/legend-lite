@@ -12,6 +12,9 @@
 // whole table.
 Class issuanceprocess::IssuanceStage
 {
+   // The book this record belongs to. Declared on the BASE class and mapped
+   // on the BASE set, so every subtype inherits both and can navigate it.
+   book: positions::Book[0..1];
    recordId: String[1];
    recordType: String[1];
    bookId: String[1];
@@ -126,7 +129,8 @@ Mapping issuanceprocess::IssuanceprocessMapping
       maturityDate: [store::DB]ISSUANCE_STAGE.MATURITY_DATE,
       status: [store::DB]ISSUANCE_STAGE.STATUS,
       isActive: [store::DB]ISSUANCE_STAGE.IS_ACTIVE,
-      riskScore: [store::DB]ISSUANCE_STAGE.RISK_SCORE
+      riskScore: [store::DB]ISSUANCE_STAGE.RISK_SCORE,
+      book[positions_Book]: [store::DB]@IssuanceprocessBaseBook
    }
 
    issuanceprocess::MandateAwarded[issMandateAwarded] extends [issuanceprocessBase]: Relational

@@ -12,6 +12,9 @@
 // whole table.
 Class balancesheet::BalanceSheetItem
 {
+   // The book this record belongs to. Declared on the BASE class and mapped
+   // on the BASE set, so every subtype inherits both and can navigate it.
+   book: positions::Book[0..1];
    recordId: String[1];
    recordType: String[1];
    bookId: String[1];
@@ -126,7 +129,8 @@ Mapping balancesheet::BalancesheetMapping
       maturityDate: [store::DB]BALANCE_SHEET_ITEM.MATURITY_DATE,
       status: [store::DB]BALANCE_SHEET_ITEM.STATUS,
       isActive: [store::DB]BALANCE_SHEET_ITEM.IS_ACTIVE,
-      riskScore: [store::DB]BALANCE_SHEET_ITEM.RISK_SCORE
+      riskScore: [store::DB]BALANCE_SHEET_ITEM.RISK_SCORE,
+      book[positions_Book]: [store::DB]@BalancesheetBaseBook
    }
 
    balancesheet::LoansAtAmortisedCost[bsiLoansAmortised] extends [balancesheetBase]: Relational

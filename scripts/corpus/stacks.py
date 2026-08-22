@@ -119,15 +119,25 @@ _LABELLISH = ("name", "legalname", "region", "status", "currency", "jurisdiction
 
 
 def _inherited_ends(c: model.Corpus, cls: str) -> set[str]:
-    """End names `cls` gets from a supertype rather than declaring itself.
+    """End names `cls` gets from a supertype rather than declaring itself, and CANNOT use.
 
     The reader propagates a supertype's ends onto every subclass, correctly -- Pure does the
-    same. What it cannot propagate is the MAPPING: there is one association and its ends
-    already name a source and a target set, so navigating one from a subtype set fails.
+    same. What it cannot propagate is an ASSOCIATION's mapping: there is one association, its
+    ends already name a source and a target set, and a query rooted at the subtype is not
+    that set. That is F49, and it is fatal at test-suite initialisation.
+
+    A property mapped over a JOIN is different and is NOT excluded. The subtype's set
+    `extends` the parent's and inherits its property mappings, and navigating one from the
+    subtype works -- proved directly against the engine before relying on it. The two are
+    told apart by `assoc`, which a property-over-join end leaves None.
+
+    Excluding both was costing 1968 of 2215 seeded roots their entire reach: the taxonomies
+    carry their edge on the base class, so every subtype gets it by inheritance and nothing
+    else.
     """
     out, parent = set(), c.classes[cls].supertype if cls in c.classes else None
     while parent:
-        out |= {n for (owner, n) in c.ends if owner == parent}
+        out |= {n for (owner, n), e in c.ends.items() if owner == parent and e.assoc}
         parent = c.classes[parent].supertype if parent in c.classes else None
     return out
 

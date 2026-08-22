@@ -12,6 +12,9 @@
 // whole table.
 Class eqexotics::EquityExoticPayoff
 {
+   // The book this record belongs to. Declared on the BASE class and mapped
+   // on the BASE set, so every subtype inherits both and can navigate it.
+   book: positions::Book[0..1];
    recordId: String[1];
    recordType: String[1];
    bookId: String[1];
@@ -126,7 +129,8 @@ Mapping eqexotics::EqexoticsMapping
       maturityDate: [store::DB]EQ_EXOTIC_PAYOFF.MATURITY_DATE,
       status: [store::DB]EQ_EXOTIC_PAYOFF.STATUS,
       isActive: [store::DB]EQ_EXOTIC_PAYOFF.IS_ACTIVE,
-      riskScore: [store::DB]EQ_EXOTIC_PAYOFF.RISK_SCORE
+      riskScore: [store::DB]EQ_EXOTIC_PAYOFF.RISK_SCORE,
+      book[positions_Book]: [store::DB]@EqexoticsBaseBook
    }
 
    eqexotics::AutocallableNote[eqxAutocallable] extends [eqexoticsBase]: Relational

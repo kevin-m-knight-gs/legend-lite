@@ -12,6 +12,9 @@
 // whole table.
 Class fxexotics::FxExoticStructure
 {
+   // The book this record belongs to. Declared on the BASE class and mapped
+   // on the BASE set, so every subtype inherits both and can navigate it.
+   book: positions::Book[0..1];
    recordId: String[1];
    recordType: String[1];
    bookId: String[1];
@@ -126,7 +129,8 @@ Mapping fxexotics::FxexoticsMapping
       maturityDate: [store::DB]FX_EXOTIC_STRUCTURE.MATURITY_DATE,
       status: [store::DB]FX_EXOTIC_STRUCTURE.STATUS,
       isActive: [store::DB]FX_EXOTIC_STRUCTURE.IS_ACTIVE,
-      riskScore: [store::DB]FX_EXOTIC_STRUCTURE.RISK_SCORE
+      riskScore: [store::DB]FX_EXOTIC_STRUCTURE.RISK_SCORE,
+      book[positions_Book]: [store::DB]@FxexoticsBaseBook
    }
 
    fxexotics::OneTouchOption[fxxOneTouch] extends [fxexoticsBase]: Relational

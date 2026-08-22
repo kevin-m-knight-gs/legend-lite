@@ -12,6 +12,9 @@
 // whole table.
 Class securitieslending::SecLendingItem
 {
+   // The book this record belongs to. Declared on the BASE class and mapped
+   // on the BASE set, so every subtype inherits both and can navigate it.
+   book: positions::Book[0..1];
    recordId: String[1];
    recordType: String[1];
    bookId: String[1];
@@ -126,7 +129,8 @@ Mapping securitieslending::SecuritieslendingMapping
       maturityDate: [store::DB]SEC_LENDING_ITEM.MATURITY_DATE,
       status: [store::DB]SEC_LENDING_ITEM.STATUS,
       isActive: [store::DB]SEC_LENDING_ITEM.IS_ACTIVE,
-      riskScore: [store::DB]SEC_LENDING_ITEM.RISK_SCORE
+      riskScore: [store::DB]SEC_LENDING_ITEM.RISK_SCORE,
+      book[positions_Book]: [store::DB]@SecuritieslendingBaseBook
    }
 
    securitieslending::AgencyLendingArrangement[sleAgencyLending] extends [securitieslendingBase]: Relational

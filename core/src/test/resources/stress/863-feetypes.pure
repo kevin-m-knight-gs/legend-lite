@@ -12,6 +12,9 @@
 // whole table.
 Class feetypes::FeeChargeType
 {
+   // The book this record belongs to. Declared on the BASE class and mapped
+   // on the BASE set, so every subtype inherits both and can navigate it.
+   book: positions::Book[0..1];
    recordId: String[1];
    recordType: String[1];
    bookId: String[1];
@@ -126,7 +129,8 @@ Mapping feetypes::FeetypesMapping
       maturityDate: [store::DB]FEE_CHARGE_TYPE.MATURITY_DATE,
       status: [store::DB]FEE_CHARGE_TYPE.STATUS,
       isActive: [store::DB]FEE_CHARGE_TYPE.IS_ACTIVE,
-      riskScore: [store::DB]FEE_CHARGE_TYPE.RISK_SCORE
+      riskScore: [store::DB]FEE_CHARGE_TYPE.RISK_SCORE,
+      book[positions_Book]: [store::DB]@FeetypesBaseBook
    }
 
    feetypes::ExecutionCommission[chgExecutionCommission] extends [feetypesBase]: Relational

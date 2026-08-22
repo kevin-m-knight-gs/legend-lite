@@ -12,6 +12,9 @@
 // whole table.
 Class clientaccess::ClientAccessArrangement
 {
+   // The book this record belongs to. Declared on the BASE class and mapped
+   // on the BASE set, so every subtype inherits both and can navigate it.
+   book: positions::Book[0..1];
    recordId: String[1];
    recordType: String[1];
    bookId: String[1];
@@ -126,7 +129,8 @@ Mapping clientaccess::ClientaccessMapping
       maturityDate: [store::DB]CLIENT_ACCESS_ARRANGEMENT.MATURITY_DATE,
       status: [store::DB]CLIENT_ACCESS_ARRANGEMENT.STATUS,
       isActive: [store::DB]CLIENT_ACCESS_ARRANGEMENT.IS_ACTIVE,
-      riskScore: [store::DB]CLIENT_ACCESS_ARRANGEMENT.RISK_SCORE
+      riskScore: [store::DB]CLIENT_ACCESS_ARRANGEMENT.RISK_SCORE,
+      book[positions_Book]: [store::DB]@ClientaccessBaseBook
    }
 
    clientaccess::DirectExchangeMembership[accDirectMembership] extends [clientaccessBase]: Relational
