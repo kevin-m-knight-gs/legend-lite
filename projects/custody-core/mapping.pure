@@ -34,10 +34,10 @@ Mapping custody_core::Mapping
       isAffiliate: [custody_core::Store]CST_CUSTODIAN.IS_AFFILIATE,
       onboardedOn: [custody_core::Store]CST_CUSTODIAN.ONBOARDED_ON,
       terminatedOn: [custody_core::Store]CST_CUSTODIAN.TERMINATED_ON,
-      depots: [custody_core::Store]@Cst_DepotCustodian,
-      linksAsGlobal: [custody_core::Store]@Cst_LinkGlobalCustodian,
-      linksAsSub: [custody_core::Store]@Cst_LinkSubCustodian,
-      memberships: [custody_core::Store]@Cst_MembershipCustodian
+      depots[cstDepot]: [custody_core::Store]@Cst_DepotCustodian,
+      linksAsGlobal[cstSubCustodianLink]: [custody_core::Store]@Cst_LinkGlobalCustodian,
+      linksAsSub[cstSubCustodianLink]: [custody_core::Store]@Cst_LinkSubCustodian,
+      memberships[cstDepositoryMembership]: [custody_core::Store]@Cst_MembershipCustodian
    }
 
    custody_core::Depository[cstDepository]: Relational
@@ -52,9 +52,9 @@ Mapping custody_core::Mapping
       marketCode: [custody_core::Store]CST_DEPOSITORY.MARKET_CODE,
       settlementCycleDays: [custody_core::Store]CST_DEPOSITORY.SETTLEMENT_CYCLE_DAYS,
       isActive: [custody_core::Store]CST_DEPOSITORY.IS_ACTIVE,
-      market: [custody_core::Store]@Cst_DepositoryMarket,
-      memberships: [custody_core::Store]@Cst_MembershipDepository,
-      depots: [custody_core::Store]@Cst_DepotDepository
+      market[cstMarket]: [custody_core::Store]@Cst_DepositoryMarket,
+      memberships[cstDepositoryMembership]: [custody_core::Store]@Cst_MembershipDepository,
+      depots[cstDepot]: [custody_core::Store]@Cst_DepotDepository
    }
 
    custody_core::CustodyMarket[cstMarket]: Relational
@@ -67,9 +67,9 @@ Mapping custody_core::Mapping
       settlementCurrency: [custody_core::Store]CST_MARKET.SETTLEMENT_CURRENCY,
       timeZone: [custody_core::Store]CST_MARKET.TIME_ZONE,
       isEmerging: [custody_core::Store]CST_MARKET.IS_EMERGING,
-      depositories: [custody_core::Store]@Cst_DepositoryMarket,
-      depots: [custody_core::Store]@Cst_DepotMarket,
-      subCustodianLinks: [custody_core::Store]@Cst_LinkMarket
+      depositories[cstDepository]: [custody_core::Store]@Cst_DepositoryMarket,
+      depots[cstDepot]: [custody_core::Store]@Cst_DepotMarket,
+      subCustodianLinks[cstSubCustodianLink]: [custody_core::Store]@Cst_LinkMarket
    }
 
    // Three key columns: the appointment is per (global, market, sub).
@@ -91,9 +91,9 @@ Mapping custody_core::Mapping
       terminatedOn: [custody_core::Store]CST_SUB_CUSTODIAN_LINK.TERMINATED_ON,
       isCashCorrespondent: [custody_core::Store]CST_SUB_CUSTODIAN_LINK.IS_CASH_CORRESPONDENT,
       serviceLevel: [custody_core::Store]CST_SUB_CUSTODIAN_LINK.SERVICE_LEVEL,
-      globalCustodian: [custody_core::Store]@Cst_LinkGlobalCustodian,
-      subCustodian: [custody_core::Store]@Cst_LinkSubCustodian,
-      market: [custody_core::Store]@Cst_LinkMarket
+      globalCustodian[cstCustodian]: [custody_core::Store]@Cst_LinkGlobalCustodian,
+      subCustodian[cstCustodian]: [custody_core::Store]@Cst_LinkSubCustodian,
+      market[cstMarket]: [custody_core::Store]@Cst_LinkMarket
    }
 
    custody_core::DepositoryMembership[cstDepositoryMembership]: Relational
@@ -110,8 +110,8 @@ Mapping custody_core::Mapping
       membershipType: [custody_core::Store]CST_DEPOSITORY_MEMBERSHIP.MEMBERSHIP_TYPE,
       joinedOn: [custody_core::Store]CST_DEPOSITORY_MEMBERSHIP.JOINED_ON,
       resignedOn: [custody_core::Store]CST_DEPOSITORY_MEMBERSHIP.RESIGNED_ON,
-      custodian: [custody_core::Store]@Cst_MembershipCustodian,
-      depository: [custody_core::Store]@Cst_MembershipDepository
+      custodian[cstCustodian]: [custody_core::Store]@Cst_MembershipCustodian,
+      depository[cstDepository]: [custody_core::Store]@Cst_MembershipDepository
    }
 
    // THE THREE-COLUMN COMPOSITE PRIMARY KEY.
@@ -137,11 +137,11 @@ Mapping custody_core::Mapping
       baseCurrency: [custody_core::Store]CST_DEPOT.BASE_CURRENCY,
       openedOn: [custody_core::Store]CST_DEPOT.OPENED_ON,
       closedOn: [custody_core::Store]CST_DEPOT.CLOSED_ON,
-      account: [custody_core::Store]@Cst_DepotAccount,
-      custodian: [custody_core::Store]@Cst_DepotCustodian,
-      depository: [custody_core::Store]@Cst_DepotDepository,
-      market: [custody_core::Store]@Cst_DepotMarket,
-      holdings: [custody_core::Store]@Cst_HoldingDepot
+      account[caAccount]: [custody_core::Store]@Cst_DepotAccount,
+      custodian[cstCustodian]: [custody_core::Store]@Cst_DepotCustodian,
+      depository[cstDepository]: [custody_core::Store]@Cst_DepotDepository,
+      market[cstMarket]: [custody_core::Store]@Cst_DepotMarket,
+      holdings[cstHolding]: [custody_core::Store]@Cst_HoldingDepot
    }
 
    // The root set of this project, and the two embedded blocks.
@@ -190,12 +190,12 @@ Mapping custody_core::Mapping
             isSegregated: [custody_core::Store]CST_HOLDING.POS_REG_IS_SEGREGATED
          )
       ),
-      account: [custody_core::Store]@Cst_HoldingAccount,
-      instrument: [custody_core::Store]@Cst_HoldingInstrument,
-      depot: [custody_core::Store]@Cst_HoldingDepot,
-      movements: [custody_core::Store]@Cst_HoldingMovements,
-      encumbrances: [custody_core::Store]@Cst_HoldingEncumbrances,
-      statementLines: [custody_core::Store]@Cst_HoldingStatementLines
+      account[caAccount]: [custody_core::Store]@Cst_HoldingAccount,
+      instrument[ciBase]: [custody_core::Store]@Cst_HoldingInstrument,
+      depot[cstDepot]: [custody_core::Store]@Cst_HoldingDepot,
+      movements[cstPendingMovement]: [custody_core::Store]@Cst_HoldingMovements,
+      encumbrances[cstHoldingEncumbrance]: [custody_core::Store]@Cst_HoldingEncumbrances,
+      statementLines[cstStatementLine]: [custody_core::Store]@Cst_HoldingStatementLines
    }
 
    custody_core::PendingMovement[cstPendingMovement]: Relational
@@ -225,7 +225,7 @@ Mapping custody_core::Mapping
       settlementCurrency: [custody_core::Store]CST_PENDING_MOVEMENT.SETTLEMENT_CURRENCY,
       counterpartyBic: [custody_core::Store]CST_PENDING_MOVEMENT.COUNTERPARTY_BIC,
       failReasonCode: [custody_core::Store]CST_PENDING_MOVEMENT.FAIL_REASON_CODE,
-      holding: [custody_core::Store]@Cst_HoldingMovements
+      holding[cstHolding]: [custody_core::Store]@Cst_HoldingMovements
    }
 
    custody_core::HoldingEncumbrance[cstHoldingEncumbrance]: Relational
@@ -249,7 +249,7 @@ Mapping custody_core::Mapping
       beneficiaryName: [custody_core::Store]CST_HOLDING_ENCUMBRANCE.BENEFICIARY_NAME,
       createdOn: [custody_core::Store]CST_HOLDING_ENCUMBRANCE.CREATED_ON,
       releasedOn: [custody_core::Store]CST_HOLDING_ENCUMBRANCE.RELEASED_ON,
-      holding: [custody_core::Store]@Cst_HoldingEncumbrances
+      holding[cstHolding]: [custody_core::Store]@Cst_HoldingEncumbrances
    }
 
    custody_core::CustodyStatementLine[cstStatementLine]: Relational
@@ -273,6 +273,6 @@ Mapping custody_core::Mapping
       custodianStatus: [custody_core::Store]CST_STATEMENT_LINE.CUSTODIAN_STATUS,
       receivedOn: [custody_core::Store]CST_STATEMENT_LINE.RECEIVED_ON,
       isFinal: [custody_core::Store]CST_STATEMENT_LINE.IS_FINAL,
-      holding: [custody_core::Store]@Cst_HoldingStatementLines
+      holding[cstHolding]: [custody_core::Store]@Cst_HoldingStatementLines
    }
 )

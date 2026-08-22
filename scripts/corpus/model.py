@@ -57,7 +57,7 @@ PROJECTS = Path(__file__).resolve().parents[2] / "projects"
 # parsed. core-types exports no store and no mapping at all -- it is enums and functions --
 # so it is here purely to satisfy fee-core, which is what a transitive dependency looks like.
 LINKED_PROJECTS = ["core-types", "core-tenor", "core-fx", "core-ratings",
-                   "core-instrument", "fee-core"]
+                   "core-instrument", "core-calendar", "fee-core"]
 
 
 # Section order within a project, not alphabetical. A .pure file with no `###` header

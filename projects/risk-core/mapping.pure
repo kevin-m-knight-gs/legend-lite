@@ -44,15 +44,15 @@ Mapping risk_core::Mapping
       startDate: [risk_core::Store]RSK_RISK_FACTOR.START_DATE,
       // Across the boundary into core-instrument: the join lands on CI_INSTRUMENT and the
       // instance comes out of the upstream root set.
-      underlying: [risk_core::Store]@Rsk_FactorInstrument,
+      underlying[ciBase]: [risk_core::Store]@Rsk_FactorInstrument,
       // And into core-price: every consensus mark on the underlying.
-      driverPrices: [risk_core::Store]@Rsk_FactorPrice,
-      curvePoints: [risk_core::Store]@Rsk_FactorCurvePoint,
-      sensitivities: [risk_core::Store]@Rsk_SensitivityFactor,
+      driverPrices[cprConsensus]: [risk_core::Store]@Rsk_FactorPrice,
+      curvePoints[rskCurvePoint]: [risk_core::Store]@Rsk_FactorCurvePoint,
+      sensitivities[rskSensitivity]: [risk_core::Store]@Rsk_SensitivityFactor,
       // Into the VIEW. Navigating a factor to its totals crosses a join into a GROUP BY and
       // never touches a leg row.
-      dailyTotals: [risk_core::Store]@Rsk_FactorTotal,
-      shocks: [risk_core::Store]@Rsk_ShockFactor
+      dailyTotals[rskFactorTotal]: [risk_core::Store]@Rsk_FactorTotal,
+      shocks[rskScenarioShock]: [risk_core::Store]@Rsk_ShockFactor
    }
 
    // ---- the six factor types ----
@@ -188,10 +188,10 @@ Mapping risk_core::Mapping
       tenorDays: [risk_core::Store]RSK_SENSITIVITY.TENOR_DAYS,
       isMaterial: [risk_core::Store]RSK_SENSITIVITY.IS_MATERIAL,
       calculatedAt: [risk_core::Store]RSK_SENSITIVITY.CALCULATED_AT,
-      factor: [risk_core::Store]@Rsk_SensitivityFactor,
-      portfolio: [risk_core::Store]@Rsk_SensitivityPortfolio,
-      instrument: [risk_core::Store]@Rsk_SensitivityInstrument,
-      consensusPrice: [risk_core::Store]@Rsk_SensitivityPrice
+      factor[rskFactor]: [risk_core::Store]@Rsk_SensitivityFactor,
+      portfolio[rskPortfolio]: [risk_core::Store]@Rsk_SensitivityPortfolio,
+      instrument[ciBase]: [risk_core::Store]@Rsk_SensitivityInstrument,
+      consensusPrice[cprConsensus]: [risk_core::Store]@Rsk_SensitivityPrice
    }
 
    // The material legs: the same table and the same key, narrowed by a ~filter. Everything
@@ -238,7 +238,7 @@ Mapping risk_core::Mapping
       cobDate: [risk_core::Store]RSK_FACTOR_TOTAL.COB_DATE,
       totalDelta: [risk_core::Store]RSK_FACTOR_TOTAL.TOTAL_DELTA,
       legCount: [risk_core::Store]RSK_FACTOR_TOTAL.LEG_COUNT,
-      factor: [risk_core::Store]@Rsk_FactorTotal
+      factor[rskFactor]: [risk_core::Store]@Rsk_FactorTotal
    }
 
    // TWO: the view as an index. The AGGREGATION shape.
@@ -316,9 +316,9 @@ Mapping risk_core::Mapping
       totalValue: [risk_core::Store]RSK_LADDER.TOTAL_VALUE,
       currency: [risk_core::Store]RSK_LADDER.CURRENCY,
       isComplete: [risk_core::Store]RSK_LADDER.IS_COMPLETE,
-      buckets: [risk_core::Store]@Rsk_LadderBucket,
-      factor: [risk_core::Store]@Rsk_LadderFactor,
-      greek: [risk_core::Store]@Rsk_LadderGreek
+      buckets[rskLadderBucket]: [risk_core::Store]@Rsk_LadderBucket,
+      factor[rskFactor]: [risk_core::Store]@Rsk_LadderFactor,
+      greek[rskGreekMeasure]: [risk_core::Store]@Rsk_LadderGreek
    }
 
    risk_core::RskLadderBucket[rskLadderBucket]: Relational
@@ -338,7 +338,7 @@ Mapping risk_core::Mapping
       bucketValue: [risk_core::Store]RSK_LADDER_BUCKET.BUCKET_VALUE,
       weightPct: [risk_core::Store]RSK_LADDER_BUCKET.WEIGHT_PCT,
       isPillar: [risk_core::Store]RSK_LADDER_BUCKET.IS_PILLAR,
-      ladder: [risk_core::Store]@Rsk_LadderBucket
+      ladder[rskLadder]: [risk_core::Store]@Rsk_LadderBucket
    }
 
    // ---- portfolios and their measures ----
@@ -356,9 +356,9 @@ Mapping risk_core::Mapping
       hierarchyLevel: [risk_core::Store]RSK_PORTFOLIO.HIERARCHY_LEVEL,
       isTrading: [risk_core::Store]RSK_PORTFOLIO.IS_TRADING,
       openDate: [risk_core::Store]RSK_PORTFOLIO.OPEN_DATE,
-      sensitivities: [risk_core::Store]@Rsk_SensitivityPortfolio,
-      varMeasures: [risk_core::Store]@Rsk_PortfolioVar,
-      limits: [risk_core::Store]@Rsk_LimitPortfolio
+      sensitivities[rskSensitivity]: [risk_core::Store]@Rsk_SensitivityPortfolio,
+      varMeasures[rskVar]: [risk_core::Store]@Rsk_PortfolioVar,
+      limits[rskLimit]: [risk_core::Store]@Rsk_LimitPortfolio
    }
 
    // Five key columns, which is what it takes to identify a VaR number.
@@ -384,8 +384,8 @@ Mapping risk_core::Mapping
       scenarioCount: [risk_core::Store]RSK_VAR_MEASURE.SCENARIO_COUNT,
       isApproved: [risk_core::Store]RSK_VAR_MEASURE.IS_APPROVED,
       computedAt: [risk_core::Store]RSK_VAR_MEASURE.COMPUTED_AT,
-      portfolio: [risk_core::Store]@Rsk_PortfolioVar,
-      expectedShortfall: [risk_core::Store]@Rsk_VarShortfall
+      portfolio[rskPortfolio]: [risk_core::Store]@Rsk_PortfolioVar,
+      expectedShortfall[rskExpectedShortfall]: [risk_core::Store]@Rsk_VarShortfall
    }
 
    risk_core::RskExpectedShortfall[rskExpectedShortfall]: Relational
@@ -444,8 +444,8 @@ Mapping risk_core::Mapping
       isRegulatory: [risk_core::Store]RSK_STRESS_SCENARIO.IS_REGULATORY,
       ownerTeam: [risk_core::Store]RSK_STRESS_SCENARIO.OWNER_TEAM,
       approvedOn: [risk_core::Store]RSK_STRESS_SCENARIO.APPROVED_ON,
-      shocks: [risk_core::Store]@Rsk_ScenarioShock,
-      results: [risk_core::Store]@Rsk_ScenarioResult
+      shocks[rskScenarioShock]: [risk_core::Store]@Rsk_ScenarioShock,
+      results[rskStressResult]: [risk_core::Store]@Rsk_ScenarioResult
    }
 
    risk_core::RskScenarioShock[rskScenarioShock]: Relational
@@ -462,8 +462,8 @@ Mapping risk_core::Mapping
       shockValue: [risk_core::Store]RSK_SCENARIO_SHOCK.SHOCK_VALUE,
       shockUnit: [risk_core::Store]RSK_SCENARIO_SHOCK.SHOCK_UNIT,
       isRelative: [risk_core::Store]RSK_SCENARIO_SHOCK.IS_RELATIVE,
-      scenario: [risk_core::Store]@Rsk_ScenarioShock,
-      factor: [risk_core::Store]@Rsk_ShockFactor
+      scenario[rskScenario]: [risk_core::Store]@Rsk_ScenarioShock,
+      factor[rskFactor]: [risk_core::Store]@Rsk_ShockFactor
    }
 
    risk_core::RskStressResult[rskStressResult]: Relational
@@ -485,8 +485,8 @@ Mapping risk_core::Mapping
       currency: [risk_core::Store]RSK_STRESS_RESULT.CURRENCY,
       isBreach: [risk_core::Store]RSK_STRESS_RESULT.IS_BREACH,
       computedAt: [risk_core::Store]RSK_STRESS_RESULT.COMPUTED_AT,
-      scenario: [risk_core::Store]@Rsk_ScenarioResult,
-      portfolio: [risk_core::Store]@Rsk_ResultPortfolio
+      scenario[rskScenario]: [risk_core::Store]@Rsk_ScenarioResult,
+      portfolio[rskPortfolio]: [risk_core::Store]@Rsk_ResultPortfolio
    }
 
    // ---- limits ----
@@ -507,9 +507,9 @@ Mapping risk_core::Mapping
       effectiveTo: [risk_core::Store]RSK_RISK_LIMIT.EFFECTIVE_TO,
       ownerTeam: [risk_core::Store]RSK_RISK_LIMIT.OWNER_TEAM,
       isHard: [risk_core::Store]RSK_RISK_LIMIT.IS_HARD,
-      portfolio: [risk_core::Store]@Rsk_LimitPortfolio,
-      utilisations: [risk_core::Store]@Rsk_LimitUtilisation,
-      breaches: [risk_core::Store]@Rsk_LimitBreach
+      portfolio[rskPortfolio]: [risk_core::Store]@Rsk_LimitPortfolio,
+      utilisations[rskLimitUtilisation]: [risk_core::Store]@Rsk_LimitUtilisation,
+      breaches[rskLimitBreach]: [risk_core::Store]@Rsk_LimitBreach
    }
 
    risk_core::RskLimitUtilisation[rskLimitUtilisation]: Relational
@@ -528,7 +528,7 @@ Mapping risk_core::Mapping
       headroom: [risk_core::Store]RSK_LIMIT_UTILISATION.HEADROOM,
       isWarning: [risk_core::Store]RSK_LIMIT_UTILISATION.IS_WARNING,
       isBreach: [risk_core::Store]RSK_LIMIT_UTILISATION.IS_BREACH,
-      limit: [risk_core::Store]@Rsk_LimitUtilisation
+      limit[rskLimit]: [risk_core::Store]@Rsk_LimitUtilisation
    }
 
    risk_core::RskLimitBreach[rskLimitBreach]: Relational
@@ -549,7 +549,7 @@ Mapping risk_core::Mapping
       status: [risk_core::Store]RSK_LIMIT_BREACH.STATUS,
       approvedBy: [risk_core::Store]RSK_LIMIT_BREACH.APPROVED_BY,
       closedOn: [risk_core::Store]RSK_LIMIT_BREACH.CLOSED_ON,
-      limit: [risk_core::Store]@Rsk_LimitBreach
+      limit[rskLimit]: [risk_core::Store]@Rsk_LimitBreach
    }
 
    // ---- the instrument, extended across the boundary ----

@@ -1854,3 +1854,41 @@ Workaround: restate the ancestry in every child filter — `INSTRUMENT_TYPE = 'E
 INSTRUMENT_SUBTYPE = 'COMMON'`.
 
 Repro: `repro/extends-filter-not-inherited/`, `scripts/corpus/probe_extends_filter.py`.
+
+## F57 — A class-typed property mapped over a join with no target set id fails at execution
+
+    market: [core_calendar::Store] @Cc_MarketCycle
+
+compiles; navigating it fails at test-suite initialisation with
+
+    "meta::pure::router::store::routing::Void not supported!"
+
+naming no class, no property, no mapping, no store and no file. `market[ccMarket]: ...`
+passes. Six cases establish that the id is simply REQUIRED: it fails identically whether the
+query resolves against the property's own mapping or one that includes it, and marking the
+target set `*` does not stand in for it.
+
+A join CHAIN ending `| [store]TABLE.COLUMN` lands on a column rather than a class and needs
+no id — 281 of those are fine.
+
+Two things make this worth reporting beyond the missing diagnostic.
+
+**It is silent until execution.** All 56 projects in `projects/` compile — alone with their
+declared closure and all together — and a sweep found **112 of these in 8 of them**: risk-core
+31, custody-core 29, cash-core 28, core-account 11, core-calendar 5, core-units 4,
+product-core 3, core-instrument 1. Every one would fail the moment it was navigated. One of
+those projects is already linked into the executable corpus with 29 passing services, and it
+passes only because nothing navigates the property that carries it.
+
+**The message cannot be acted on.** `Void not supported!` is raised from a routing assert with
+no context, and it is fatal at test-suite INITIALISATION rather than at execution — so it
+takes every service sharing its JVM with it, and they report as `MISSING` with no cause. It
+was seen once, misattributed to hop count and to a schema, and reverted; a fourteen-case
+navigation probe then exonerated both and could not reproduce it, because every property in
+that probe was written with an id. The corpus always writes them, so the absent thing was
+never the variable.
+
+Workaround: name the target set id on every class-typed property mapped over a join.
+
+Repro: `repro/join-property-no-set-id/`, `scripts/corpus/probe_missing_setid.py`. Prevented
+going forward by `unroutable()` in `scripts/projects/check.py`.

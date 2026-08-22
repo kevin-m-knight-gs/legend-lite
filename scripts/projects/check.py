@@ -79,6 +79,41 @@ def substance(names) -> list[str]:
     return out
 
 
+_JOINPROP = re.compile(r"^\s*(\w+)(\[\w+\])?\s*:\s*\[[\w:]+\]\s*@([^\n]*)$", re.M)
+
+
+def unroutable(names) -> list[str]:
+    """Class-typed properties mapped over a join with no TARGET SET ID.
+
+    `market: [Store] @Cc_MarketCycle` compiles. Navigating it fails at execution with
+
+        meta::pure::router::store::routing::Void not supported!
+
+    naming no class, no property, no mapping and no file. `market[ccMarket]: ...` works. The
+    set id is REQUIRED and the `*` root marker does not stand in for it -- see F57.
+
+    This is the check the graph most needed and did not have. 112 of these were sitting in
+    8 of the 56 projects, every one compiling perfectly, and they were found only when a
+    project carrying them was executed for the first time. A compile-only graph cannot see
+    this class of defect at all, which is the argument for the boundary in one line.
+
+    A join CHAIN that ends `| [store]TABLE.COLUMN` lands on a column rather than a class and
+    correctly needs no set id, so it is not flagged.
+    """
+    out = []
+    for n in sorted(names):
+        f = ROOT / n / "mapping.pure"
+        if not f.is_file():
+            continue
+        for m in _JOINPROP.finditer(f.read_text()):
+            prop, setid, tail = m.group(1), m.group(2), m.group(3)
+            if "|" in tail or setid:
+                continue
+            out.append(f"{n}: {prop} is mapped over a join with no target set id -- "
+                       f"compiles, then fails at execution with `Void not supported!`")
+    return out
+
+
 def compile_set(names, label: str) -> tuple[bool, str]:
     cp = (runner.RUNNER / "cp.txt").read_text().strip()
     r = subprocess.run(
@@ -116,6 +151,13 @@ def main() -> None:
                                f"ALL {len(spec.PROJECTS)} together")
         bad += not ok
         print(line)
+
+    routing = unroutable(names)
+    if routing:
+        print("\nCOMPILES BUT CANNOT BE NAVIGATED:")
+        for line in routing:
+            print(f"  {line}")
+        bad += len(routing)
 
     thin = substance(names)
     if thin:

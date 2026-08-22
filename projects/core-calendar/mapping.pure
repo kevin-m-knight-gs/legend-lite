@@ -12,10 +12,10 @@ Mapping core_calendar::Mapping
         timeZone: [core_calendar::Store] CC_CALENDAR.TIME_ZONE,
         weekendDays: [core_calendar::Store] CC_CALENDAR.WEEKEND_DAYS,
         isActive: [core_calendar::Store] CC_CALENDAR.IS_ACTIVE,
-        holidays: [core_calendar::Store] @Cc_CalendarHoliday,
+        holidays[ccHoliday]: [core_calendar::Store] @Cc_CalendarHoliday,
         // The reason the View exists: navigating from a calendar to its counts
         // crosses a join into a GROUP BY, never into the holiday rows themselves.
-        holidayCounts: [core_calendar::Store] @Cc_CalendarHolidayCount
+        holidayCounts[ccHolidayCount]: [core_calendar::Store] @Cc_CalendarHolidayCount
     }
 
     core_calendar::CcHoliday[ccHoliday]: Relational
@@ -28,7 +28,7 @@ Mapping core_calendar::Mapping
         holidayName: [core_calendar::Store] CC_HOLIDAY.HOLIDAY_NAME,
         isObserved: [core_calendar::Store] CC_HOLIDAY.IS_OBSERVED,
         isHalfDay: [core_calendar::Store] CC_HOLIDAY.IS_HALF_DAY,
-        calendar: [core_calendar::Store] @Cc_CalendarHoliday
+        calendar[ccCalendar]: [core_calendar::Store] @Cc_CalendarHoliday
     }
 
     core_calendar::CcMarket[ccMarket]: Relational
@@ -39,8 +39,8 @@ Mapping core_calendar::Mapping
         marketName: [core_calendar::Store] CC_MARKET.MARKET_NAME,
         settlementCurrency: [core_calendar::Store] CC_MARKET.SETTLEMENT_CURRENCY,
         isActive: [core_calendar::Store] CC_MARKET.IS_ACTIVE,
-        calendar: [core_calendar::Store] @Cc_MarketCalendar,
-        settlementCycles: [core_calendar::Store] @Cc_MarketCycle
+        calendar[ccCalendar]: [core_calendar::Store] @Cc_MarketCalendar,
+        settlementCycles[ccSettlementCycle]: [core_calendar::Store] @Cc_MarketCycle
     }
 
     core_calendar::CcSettlementCycle[ccSettlementCycle]: Relational
@@ -53,7 +53,7 @@ Mapping core_calendar::Mapping
         settlementDays: [core_calendar::Store] CC_SETTLEMENT_CYCLE.SETTLEMENT_DAYS,
         cutoffTime: [core_calendar::Store] CC_SETTLEMENT_CYCLE.CUTOFF_TIME,
         effectiveFrom: [core_calendar::Store] CC_SETTLEMENT_CYCLE.EFFECTIVE_FROM,
-        market: [core_calendar::Store] @Cc_MarketCycle
+        market[ccMarket]: [core_calendar::Store] @Cc_MarketCycle
     }
 
     // Rooted at the VIEW, not at a table. Its primary key is the grouping, so one

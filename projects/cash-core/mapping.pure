@@ -101,10 +101,10 @@ Mapping cash_core::Mapping
       poolId: [cash_core::Store]CSH_CASH_ACCOUNT_PROFILE.POOL_ID,
       openedForCashOn: [cash_core::Store]CSH_CASH_ACCOUNT_PROFILE.OPENED_FOR_CASH_ON,
       closedForCashOn: [cash_core::Store]CSH_CASH_ACCOUNT_PROFILE.CLOSED_FOR_CASH_ON,
-      account: [cash_core::Store]@Csh_ProfileAccount,
-      pool: [cash_core::Store]@Csh_PoolMembers,
-      movements: [cash_core::Store]@Csh_MovementProfile,
-      balances: [cash_core::Store]@Csh_BalanceProfile
+      account[caAccount]: [cash_core::Store]@Csh_ProfileAccount,
+      pool[cshCashPool]: [cash_core::Store]@Csh_PoolMembers,
+      movements[cshCashMovement]: [cash_core::Store]@Csh_MovementProfile,
+      balances[cshCashBalance]: [cash_core::Store]@Csh_BalanceProfile
    }
 
    // The embedded payment reference is the whole reason CSH_CASH_MOVEMENT is wide.
@@ -146,9 +146,9 @@ Mapping cash_core::Mapping
             country: EnumerationMapping CshCountryMapping: [cash_core::Store]CSH_CASH_MOVEMENT.PAY_ORD_COUNTRY
          )
       ),
-      account: [cash_core::Store]@Csh_MovementAccount,
-      profile: [cash_core::Store]@Csh_MovementProfile,
-      statusHistory: [cash_core::Store]@Csh_MovementStatusEvents
+      account[caAccount]: [cash_core::Store]@Csh_MovementAccount,
+      profile[cshCashAccountProfile]: [cash_core::Store]@Csh_MovementProfile,
+      statusHistory[cshMovementStatusEvent]: [cash_core::Store]@Csh_MovementStatusEvents
    }
 
    cash_core::CshMovementStatusEvent[cshMovementStatusEvent]: Relational
@@ -169,7 +169,7 @@ Mapping cash_core::Mapping
       changedOn: [cash_core::Store]CSH_MOVEMENT_STATUS_EVENT.CHANGED_ON,
       reasonCode: [cash_core::Store]CSH_MOVEMENT_STATUS_EVENT.REASON_CODE,
       changedBy: [cash_core::Store]CSH_MOVEMENT_STATUS_EVENT.CHANGED_BY,
-      movement: [cash_core::Store]@Csh_MovementStatusEvents
+      movement[cshCashMovement]: [cash_core::Store]@Csh_MovementStatusEvents
    }
 
    // Four key columns, one of which is the currency -- and the currency is the enum, not
@@ -195,11 +195,11 @@ Mapping cash_core::Mapping
       pendingCredits: [cash_core::Store]CSH_CASH_BALANCE.PENDING_CREDITS,
       pendingDebits: [cash_core::Store]CSH_CASH_BALANCE.PENDING_DEBITS,
       isFinal: [cash_core::Store]CSH_CASH_BALANCE.IS_FINAL,
-      account: [cash_core::Store]@Csh_BalanceAccount,
-      profile: [cash_core::Store]@Csh_BalanceProfile,
-      statement: [cash_core::Store]@Csh_BalanceStatement,
-      breaks: [cash_core::Store]@Csh_BalanceBreaks,
-      accruals: [cash_core::Store]@Csh_BalanceAccruals
+      account[caAccount]: [cash_core::Store]@Csh_BalanceAccount,
+      profile[cshCashAccountProfile]: [cash_core::Store]@Csh_BalanceProfile,
+      statement[cshStatement]: [cash_core::Store]@Csh_BalanceStatement,
+      breaks[cshBalanceBreak]: [cash_core::Store]@Csh_BalanceBreaks,
+      accruals[cshInterestAccrual]: [cash_core::Store]@Csh_BalanceAccruals
    }
 
    cash_core::CshStatement[cshStatement]: Relational
@@ -222,8 +222,8 @@ Mapping cash_core::Mapping
       lineCount: [cash_core::Store]CSH_STATEMENT.LINE_COUNT,
       receivedOn: [cash_core::Store]CSH_STATEMENT.RECEIVED_ON,
       formatCode: [cash_core::Store]CSH_STATEMENT.FORMAT_CODE,
-      account: [cash_core::Store]@Csh_StatementAccount,
-      lines: [cash_core::Store]@Csh_StatementLines
+      account[caAccount]: [cash_core::Store]@Csh_StatementAccount,
+      lines[cshStatementLine]: [cash_core::Store]@Csh_StatementLines
    }
 
    // The SECOND embedded payment reference: the same value type, a different table.
@@ -266,8 +266,8 @@ Mapping cash_core::Mapping
             country: EnumerationMapping CshCountryMapping: [cash_core::Store]CSH_STATEMENT_LINE.PAY_ORD_COUNTRY
          )
       ),
-      statement: [cash_core::Store]@Csh_StatementLines,
-      movement: [cash_core::Store]@Csh_StatementLineMovement
+      statement[cshStatement]: [cash_core::Store]@Csh_StatementLines,
+      movement[cshCashMovement]: [cash_core::Store]@Csh_StatementLineMovement
    }
 
    cash_core::CshBalanceBreak[cshBalanceBreak]: Relational
@@ -291,7 +291,7 @@ Mapping cash_core::Mapping
       resolvedOn: [cash_core::Store]CSH_BALANCE_BREAK.RESOLVED_ON,
       assignedTo: [cash_core::Store]CSH_BALANCE_BREAK.ASSIGNED_TO,
       commentary: [cash_core::Store]CSH_BALANCE_BREAK.COMMENTARY,
-      balance: [cash_core::Store]@Csh_BalanceBreaks
+      balance[cshCashBalance]: [cash_core::Store]@Csh_BalanceBreaks
    }
 
    cash_core::CshCashPool[cshCashPool]: Relational
@@ -306,9 +306,9 @@ Mapping cash_core::Mapping
       headerAccountNo: [cash_core::Store]CSH_CASH_POOL.HEADER_ACCOUNT_NO,
       isNotional: [cash_core::Store]CSH_CASH_POOL.IS_NOTIONAL,
       effectiveFrom: [cash_core::Store]CSH_CASH_POOL.EFFECTIVE_FROM,
-      headerAccount: [cash_core::Store]@Csh_PoolHeaderAccount,
-      sweepRules: [cash_core::Store]@Csh_PoolSweepRules,
-      members: [cash_core::Store]@Csh_PoolMembers
+      headerAccount[caAccount]: [cash_core::Store]@Csh_PoolHeaderAccount,
+      sweepRules[cshSweepRule]: [cash_core::Store]@Csh_PoolSweepRules,
+      members[cshCashAccountProfile]: [cash_core::Store]@Csh_PoolMembers
    }
 
    // Two account properties, two DIFFERENT joins, one target table. Getting these the wrong
@@ -336,10 +336,10 @@ Mapping cash_core::Mapping
       cutoffTime: [cash_core::Store]CSH_SWEEP_RULE.CUTOFF_TIME,
       activatedOn: [cash_core::Store]CSH_SWEEP_RULE.ACTIVATED_ON,
       deactivatedOn: [cash_core::Store]CSH_SWEEP_RULE.DEACTIVATED_ON,
-      sourceAccount: [cash_core::Store]@Csh_SweepRuleSourceAccount,
-      targetAccount: [cash_core::Store]@Csh_SweepRuleTargetAccount,
-      pool: [cash_core::Store]@Csh_PoolSweepRules,
-      executions: [cash_core::Store]@Csh_SweepRuleExecutions
+      sourceAccount[caAccount]: [cash_core::Store]@Csh_SweepRuleSourceAccount,
+      targetAccount[caAccount]: [cash_core::Store]@Csh_SweepRuleTargetAccount,
+      pool[cshCashPool]: [cash_core::Store]@Csh_PoolSweepRules,
+      executions[cshSweepExecution]: [cash_core::Store]@Csh_SweepRuleExecutions
    }
 
    cash_core::CshSweepExecution[cshSweepExecution]: Relational
@@ -362,8 +362,8 @@ Mapping cash_core::Mapping
       balanceBefore: [cash_core::Store]CSH_SWEEP_EXECUTION.BALANCE_BEFORE,
       balanceAfter: [cash_core::Store]CSH_SWEEP_EXECUTION.BALANCE_AFTER,
       failureReason: [cash_core::Store]CSH_SWEEP_EXECUTION.FAILURE_REASON,
-      rule: [cash_core::Store]@Csh_SweepRuleExecutions,
-      movement: [cash_core::Store]@Csh_SweepExecutionMovement
+      rule[cshSweepRule]: [cash_core::Store]@Csh_SweepRuleExecutions,
+      movement[cshCashMovement]: [cash_core::Store]@Csh_SweepExecutionMovement
    }
 
    cash_core::CshInterestAccrual[cshInterestAccrual]: Relational
@@ -386,6 +386,6 @@ Mapping cash_core::Mapping
       balanceUsed: [cash_core::Store]CSH_INTEREST_ACCRUAL.BALANCE_USED,
       rateSource: [cash_core::Store]CSH_INTEREST_ACCRUAL.RATE_SOURCE,
       isDebitInterest: [cash_core::Store]CSH_INTEREST_ACCRUAL.IS_DEBIT_INTEREST,
-      account: [cash_core::Store]@Csh_AccrualAccount
+      account[caAccount]: [cash_core::Store]@Csh_AccrualAccount
    }
 )

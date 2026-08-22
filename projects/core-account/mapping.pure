@@ -37,7 +37,7 @@ Mapping core_account::Mapping
       city: [core_account::Store]CA_BRANCH.CITY,
       countryCode: [core_account::Store]CA_BRANCH.COUNTRY_CODE,
       isActive: [core_account::Store]CA_BRANCH.IS_ACTIVE,
-      institution: [core_account::Store]@Ca_BranchInstitution
+      institution[caInstitution]: [core_account::Store]@Ca_BranchInstitution
    }
 
    core_account::Account[caAccount]: Relational
@@ -81,12 +81,12 @@ Mapping core_account::Mapping
          countryCode: [core_account::Store]CA_ACCOUNT.CORR_COUNTRY_CODE,
          email: [core_account::Store]CA_ACCOUNT.CORR_EMAIL
       ),
-      institution: [core_account::Store]@Ca_AccountInstitution,
-      branch: [core_account::Store]@Ca_AccountBranch,
-      identifiers: [core_account::Store]@Ca_AccountIdentifiers,
-      statusHistory: [core_account::Store]@Ca_AccountStatusEvents,
-      restrictions: [core_account::Store]@Ca_AccountRestrictions,
-      mandates: [core_account::Store]@Ca_AccountMandates
+      institution[caInstitution]: [core_account::Store]@Ca_AccountInstitution,
+      branch[caBranch]: [core_account::Store]@Ca_AccountBranch,
+      identifiers[caAccountIdentifier]: [core_account::Store]@Ca_AccountIdentifiers,
+      statusHistory[caAccountStatusEvent]: [core_account::Store]@Ca_AccountStatusEvents,
+      restrictions[caAccountRestriction]: [core_account::Store]@Ca_AccountRestrictions,
+      mandates[caAccountMandate]: [core_account::Store]@Ca_AccountMandates
    }
 
    core_account::AccountIdentifier[caAccountIdentifier]: Relational
@@ -104,7 +104,7 @@ Mapping core_account::Mapping
       identifierValue: [core_account::Store]CA_ACCOUNT_IDENTIFIER.IDENTIFIER_VALUE,
       isPrimary: [core_account::Store]CA_ACCOUNT_IDENTIFIER.IS_PRIMARY,
       assignedOn: [core_account::Store]CA_ACCOUNT_IDENTIFIER.ASSIGNED_ON,
-      account: [core_account::Store]@Ca_AccountIdentifiers
+      account[caAccount]: [core_account::Store]@Ca_AccountIdentifiers
    }
 
    core_account::AccountStatusEvent[caAccountStatusEvent]: Relational
@@ -122,7 +122,7 @@ Mapping core_account::Mapping
       status: [core_account::Store]CA_ACCOUNT_STATUS_EVENT.STATUS,
       reasonCode: [core_account::Store]CA_ACCOUNT_STATUS_EVENT.REASON_CODE,
       recordedBy: [core_account::Store]CA_ACCOUNT_STATUS_EVENT.RECORDED_BY,
-      account: [core_account::Store]@Ca_AccountStatusEvents
+      account[caAccount]: [core_account::Store]@Ca_AccountStatusEvents
    }
 
    core_account::AccountRestriction[caAccountRestriction]: Relational
@@ -141,7 +141,7 @@ Mapping core_account::Mapping
       liftedOn: [core_account::Store]CA_ACCOUNT_RESTRICTION.LIFTED_ON,
       imposedBy: [core_account::Store]CA_ACCOUNT_RESTRICTION.IMPOSED_BY,
       isBlocking: [core_account::Store]CA_ACCOUNT_RESTRICTION.IS_BLOCKING,
-      account: [core_account::Store]@Ca_AccountRestrictions
+      account[caAccount]: [core_account::Store]@Ca_AccountRestrictions
    }
 
    core_account::AccountMandate[caAccountMandate]: Relational
@@ -167,6 +167,6 @@ Mapping core_account::Mapping
          idNumber: [core_account::Store]CA_ACCOUNT_MANDATE.HOLDER_ID_NUMBER,
          countryCode: [core_account::Store]CA_ACCOUNT_MANDATE.HOLDER_COUNTRY_CODE
       ),
-      account: [core_account::Store]@Ca_AccountMandates
+      account[caAccount]: [core_account::Store]@Ca_AccountMandates
    }
 )

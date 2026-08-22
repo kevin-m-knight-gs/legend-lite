@@ -70,9 +70,9 @@ Mapping product_core::Mapping
       distributionChannel: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.DISTRIBUTION_CHANNEL,
       bookingDesk: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.BOOKING_DESK,
       productOwner: [product_core::Store]@Prd_ProductInstrument | PRD_PRODUCT.PRODUCT_OWNER,
-      approvals: [product_core::Store]@Prd_ProductInstrument > @Prd_ProductApproval,
-      regulatoryCategory: [product_core::Store]@Prd_ProductInstrument > @Prd_ProductRegCategory,
-      riskIndicators: [product_core::Store]@Prd_ProductInstrument > @Prd_ProductRiskIndicator
+      approvals[prdApproval]: [product_core::Store]@Prd_ProductInstrument > @Prd_ProductApproval,
+      regulatoryCategory[prdRegulatoryCategory]: [product_core::Store]@Prd_ProductInstrument > @Prd_ProductRegCategory,
+      riskIndicators[prdRiskIndicator]: [product_core::Store]@Prd_ProductInstrument > @Prd_ProductRiskIndicator
    }
 
    // ---- the five families, on INSTRUMENT_TYPE ----

@@ -6019,6 +6019,124 @@ Service stress::PL14_CallOptionStrikes
   ]
 }
 
+Service stress::PL15_HolidayCountView
+{
+    pattern: '/stress/pl15';
+    documentation: 'A VIEW with a ~groupBy, mapped as a class\'s ~mainTable and read across a project boundary. Nothing seeds it: the engine folds the GROUP BY into the SQL and the oracle aggregates the underlying rows independently. One calendar has holidays in two years, one in a single year, and one has none at all and so forms no group -- which is the difference between an aggregation and an outer join, and is invisible unless a seed contains the empty case.';
+    execution: Single
+    {
+    query: |core_calendar::CcHolidayCount.all()
+        ->project(~[
+            calendarId:x|$x.calendarId,
+            holidayYear:x|$x.holidayYear,
+            holidayCount:x|$x.holidayCount,
+            businessDays:x|$x->core_calendar::ccBusinessDaysInYear()
+        ])
+        ->sort(~calendarId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    PL15_HolidayCountView_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"calendarId":"GBLO","holidayYear":2025,"holidayCount":3,"businessDays":258},{"calendarId":"TARGET","holidayYear":2025,"holidayCount":2,"businessDays":259},{"calendarId":"USNY","holidayYear":2025,"holidayCount":3,"businessDays":258},{"calendarId":"USNY","holidayYear":2026,"holidayCount":1,"businessDays":260}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::PL16_SettlementCycleChain
+{
+    pattern: '/stress/pl16';
+    documentation: 'Two hops of navigation entirely WITHIN a dependency, and two functions whose parameter is a class rather than a number. The settlement lag is read both as a column and through the project\'s own accessor, so a function that lowered wrongly would disagree with the column beside it.';
+    execution: Single
+    {
+    query: |core_calendar::CcSettlementCycle.all()
+        ->project(~[
+            cycleId:x|$x.cycleId,
+            assetClass:x|$x.assetClass,
+            settlementDays:x|$x.settlementDays,
+            mic:x|$x.market.mic,
+            calendarId:x|$x.market.calendar.calendarId,
+            centre:x|$x.market.calendar.financialCentre,
+            lag:x|$x->core_calendar::ccSettlementLagDays(),
+            isTPlusTwo:x|$x->core_calendar::ccIsTPlusTwo()
+        ])
+        ->sort(~cycleId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    PL16_SettlementCycleChain_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"cycleId":"CY-XETR-EQ","assetClass":"EQUITY","settlementDays":2,"mic":"XETR","calendarId":"TARGET","centre":"Frankfurt","lag":2,"isTPlusTwo":true},{"cycleId":"CY-XLON-EQ","assetClass":"EQUITY","settlementDays":2,"mic":"XLON","calendarId":"GBLO","centre":"London","lag":2,"isTPlusTwo":true},{"cycleId":"CY-XNYS-BOND","assetClass":"BOND","settlementDays":2,"mic":"XNYS","calendarId":"USNY","centre":"New York","lag":2,"isTPlusTwo":true},{"cycleId":"CY-XNYS-EQ","assetClass":"EQUITY","settlementDays":1,"mic":"XNYS","calendarId":"USNY","centre":"New York","lag":1,"isTPlusTwo":false},{"cycleId":"CY-XTKS-JGB","assetClass":"BOND","settlementDays":1,"mic":"XTKS","calendarId":"JPTO","centre":"Tokyo","lag":1,"isTPlusTwo":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::F10_RatingsAsOf2019
 {
     pattern: '/stress/t10';
@@ -16156,40 +16274,40 @@ Service stress::GG_VariationMarginTree
   ]
 }
 
-Service stress::GG_CrRatingActionTree
+Service stress::GG_CcHolidayTree
 {
-    pattern: '/stress/gg_crratingaction';
-    documentation: 'Generated graph fetch on core_ratings::CrRatingAction: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
+    pattern: '/stress/gg_ccholiday';
+    documentation: 'Generated graph fetch on core_calendar::CcHoliday: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
     execution: Single
     {
-    query: |core_ratings::CrRatingAction.all()
+    query: |core_calendar::CcHoliday.all()
         ->graphFetch(#{
-  core_ratings::CrRatingAction
+  core_calendar::CcHoliday
   {
-    actionId,
-    actionType,
-    entityId,
-    newRating,
-    actionAgency
+    holidayId,
+    holidayDate,
+    holidayName,
+    holidayYear,
+    calendar
     {
-      agencyId,
-      agencyName,
-      scaleFamily
+      calendarId,
+      calendarName,
+      countryCode
     }
   }
 }#)
         ->serialize(#{
-  core_ratings::CrRatingAction
+  core_calendar::CcHoliday
   {
-    actionId,
-    actionType,
-    entityId,
-    newRating,
-    actionAgency
+    holidayId,
+    holidayDate,
+    holidayName,
+    holidayYear,
+    calendar
     {
-      agencyId,
-      agencyName,
-      scaleFamily
+      calendarId,
+      calendarName,
+      countryCode
     }
   }
 }#);
@@ -16198,7 +16316,7 @@ Service stress::GG_CrRatingActionTree
     }
   testSuites:
   [
-    GG_CrRatingActionTree_suite:
+    GG_CcHolidayTree_suite:
     {
       data:
       [
@@ -16213,7 +16331,7 @@ Service stress::GG_CrRatingActionTree
       ]
       tests:
       [
-        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        // 9 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
         expected_rows:
         {
           asserts:
@@ -16225,7 +16343,7 @@ Service stress::GG_CrRatingActionTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"actionId":"ACT-0001","actionType":"DOWNGRADE","entityId":"CP-0001","newRating":"A-","actionAgency":{"agencyId":"SPGI","agencyName":"S&P Global Ratings","scaleFamily":"ALPHA"}},{"actionId":"ACT-0002","actionType":"DOWNGRADE","entityId":"CP-0003","newRating":"BB+","actionAgency":{"agencyId":"SPGI","agencyName":"S&P Global Ratings","scaleFamily":"ALPHA"}},{"actionId":"ACT-0003","actionType":"AFFIRM","entityId":"CP-0002","newRating":"AA+","actionAgency":{"agencyId":"SPGI","agencyName":"S&P Global Ratings","scaleFamily":"ALPHA"}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"holidayId":"H-USNY-2025-0101","holidayDate":"2025-01-01","holidayName":"New Year\'s Day","holidayYear":2025,"calendar":{"calendarId":"USNY","calendarName":"United States (New York)","countryCode":"US"}},{"holidayId":"H-USNY-2025-0704","holidayDate":"2025-07-04","holidayName":"Independence Day","holidayYear":2025,"calendar":{"calendarId":"USNY","calendarName":"United States (New York)","countryCode":"US"}},{"holidayId":"H-USNY-2025-1128","holidayDate":"2025-11-28","holidayName":"Day after Thanksgiving","holidayYear":2025,"calendar":{"calendarId":"USNY","calendarName":"United States (New York)","countryCode":"US"}},{"holidayId":"H-USNY-2026-0101","holidayDate":"2026-01-01","holidayName":"New Year\'s Day","holidayYear":2026,"calendar":{"calendarId":"USNY","calendarName":"United States (New York)","countryCode":"US"}},{"holidayId":"H-GBLO-2025-0418","holidayDate":"2025-04-18","holidayName":"Good Friday","holidayYear":2025,"calendar":{"calendarId":"GBLO","calendarName":"United Kingdom (London)","countryCode":"GB"}},{"holidayId":"H-GBLO-2025-0505","holidayDate":"2025-05-05","holidayName":"Early May bank holiday","holidayYear":2025,"calendar":{"calendarId":"GBLO","calendarName":"United Kingdom (London)","countryCode":"GB"}},{"holidayId":"H-GBLO-2025-1225T","holidayDate":"2025-12-25","holidayName":"Christmas Day (true date)","holidayYear":2025,"calendar":{"calendarId":"GBLO","calendarName":"United Kingdom (London)","countryCode":"GB"}},{"holidayId":"H-TARGET-2025-0101","holidayDate":"2025-01-01","holidayName":"New Year\'s Day","holidayYear":2025,"calendar":{"calendarId":"TARGET","calendarName":"TARGET2 euro area","countryCode":"DE"}},{"holidayId":"H-TARGET-2025-0501","holidayDate":"2025-05-01","holidayName":"Labour Day (not observed)","holidayYear":2025,"calendar":{"calendarId":"TARGET","calendarName":"TARGET2 euro area","countryCode":"DE"}}]}';
                   }#;
               }#
           ]
@@ -16504,6 +16622,61 @@ Service stress::AA_ClearingRouteCounts
                   #{
                     contentType: 'application/json';
                     data: '[{"routeId":"RTE-AGENCY","routedTradesCount":17},{"routeId":"RTE-BATS","routedTradesCount":4},{"routeId":"RTE-IEXG","routedTradesCount":4},{"routeId":"RTE-PRINCIPAL","routedTradesCount":3},{"routeId":"RTE-XLON","routedTradesCount":3},{"routeId":"RTE-XNAS","routedTradesCount":4},{"routeId":"RTE-XNYS","routedTradesCount":4}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::AA_CcMarketCounts
+{
+    pattern: '/stress/aa_ccmarket';
+    documentation: 'Generated aggregate on core_calendar::CcMarket: 1 count(s) over to-many associations, every parent of which HAS children. This is the non-empty half of the property the F-series pins on the empty half -- F6 makes count() over an empty to-many return 1, so an end with any childless parent is excluded here rather than quarantined. Several counts on one root so the outer joins interact; a single-aggregate probe cannot show that. Generated by scripts/corpus/aggregates.py.';
+    execution: Single
+    {
+    query: |core_calendar::CcMarket.all()
+        ->project(~[
+            mic:x|$x.mic,
+            settlementCyclesCount:x|$x.settlementCycles->count()
+        ])
+        ->sort(~mic->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    AA_CcMarketCounts_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"mic":"XETR","settlementCyclesCount":1},{"mic":"XLON","settlementCyclesCount":1},{"mic":"XNYS","settlementCyclesCount":2},{"mic":"XTKS","settlementCyclesCount":1}]';
                   }#;
               }#
           ]

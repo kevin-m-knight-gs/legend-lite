@@ -78,7 +78,7 @@ Mapping core_instrument::Mapping
       maturityDate: [core_instrument::Store]CI_INSTRUMENT.MATURITY_DATE,
       isActive: [core_instrument::Store]CI_INSTRUMENT.IS_ACTIVE,
       description: [core_instrument::Store]CI_INSTRUMENT.DESCRIPTION,
-      identifiers: [core_instrument::Store]@Ci_InstrumentIdentifier
+      identifiers[ciInstrumentIdentifier]: [core_instrument::Store]@Ci_InstrumentIdentifier
    }
 
    // ---- the eight asset classes ----

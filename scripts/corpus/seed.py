@@ -20130,6 +20130,95 @@ CI_INSTRUMENT_XREF = [
 ]
 
 
+# ---- the linked project: core-calendar (layer 0) ----
+#
+# Linked for two constructs the boundary has not carried before.
+#
+# A VIEW WITH A ~groupBy, CC_HOLIDAY_COUNT, which is the ~mainTable of a mapped class. No DDL
+# is created for it and nothing seeds it -- the engine folds the GROUP BY into the SQL -- so
+# the oracle has to aggregate CC_HOLIDAY itself and the two must agree. The seed is built so
+# that the view's own semantics are visible: a calendar with holidays in two years forms two
+# groups, one with holidays in a single year forms one, and JPTO -- which has NO holiday rows
+# at all -- forms NO GROUP AND IS SIMPLY ABSENT rather than appearing with a count of zero.
+# A seed where every calendar had holidays could not tell those last two apart.
+#
+# FUNCTIONS WHOSE PARAMETER IS A CLASS rather than a scalar, called extension-style:
+# `$cycle->core_calendar::ccSettlementLagDays()`. Every cross-project function executed so far
+# takes numbers.
+#
+# IS_OBSERVED is false on two rows, so the CcObservedHolidays filter has something to drop --
+# a holiday falling at a weekend is observed on the adjacent weekday, and the true date is
+# still a row.
+CC_CALENDAR = [
+    dict(CALENDAR_ID="TARGET", CALENDAR_NAME="TARGET2 euro area", FINANCIAL_CENTRE="Frankfurt",
+         COUNTRY_CODE="DE", TIME_ZONE="Europe/Berlin", WEEKEND_DAYS="SAT,SUN", IS_ACTIVE=True),
+    dict(CALENDAR_ID="USNY", CALENDAR_NAME="United States (New York)",
+         FINANCIAL_CENTRE="New York", COUNTRY_CODE="US", TIME_ZONE="America/New_York",
+         WEEKEND_DAYS="SAT,SUN", IS_ACTIVE=True),
+    dict(CALENDAR_ID="GBLO", CALENDAR_NAME="United Kingdom (London)", FINANCIAL_CENTRE="London",
+         COUNTRY_CODE="GB", TIME_ZONE="Europe/London", WEEKEND_DAYS="SAT,SUN", IS_ACTIVE=True),
+    # No holiday rows at all -- see the note above on what the view does with it.
+    dict(CALENDAR_ID="JPTO", CALENDAR_NAME="Japan (Tokyo)", FINANCIAL_CENTRE="Tokyo",
+         COUNTRY_CODE="JP", TIME_ZONE="Asia/Tokyo", WEEKEND_DAYS="SAT,SUN", IS_ACTIVE=False),
+]
+
+CC_HOLIDAY = [
+    # USNY: two years, so it forms two groups.
+    dict(HOLIDAY_ID="H-USNY-2025-0101", CALENDAR_ID="USNY", HOLIDAY_DATE=_iso(2025, 1, 1),
+         HOLIDAY_YEAR=2025, HOLIDAY_NAME="New Year's Day", IS_OBSERVED=True, IS_HALF_DAY=False),
+    dict(HOLIDAY_ID="H-USNY-2025-0704", CALENDAR_ID="USNY", HOLIDAY_DATE=_iso(2025, 7, 4),
+         HOLIDAY_YEAR=2025, HOLIDAY_NAME="Independence Day", IS_OBSERVED=True,
+         IS_HALF_DAY=False),
+    dict(HOLIDAY_ID="H-USNY-2025-1128", CALENDAR_ID="USNY", HOLIDAY_DATE=_iso(2025, 11, 28),
+         HOLIDAY_YEAR=2025, HOLIDAY_NAME="Day after Thanksgiving", IS_OBSERVED=True,
+         IS_HALF_DAY=True),
+    dict(HOLIDAY_ID="H-USNY-2026-0101", CALENDAR_ID="USNY", HOLIDAY_DATE=_iso(2026, 1, 1),
+         HOLIDAY_YEAR=2026, HOLIDAY_NAME="New Year's Day", IS_OBSERVED=True, IS_HALF_DAY=False),
+    # GBLO: one year only, so it forms exactly one group.
+    dict(HOLIDAY_ID="H-GBLO-2025-0418", CALENDAR_ID="GBLO", HOLIDAY_DATE=_iso(2025, 4, 18),
+         HOLIDAY_YEAR=2025, HOLIDAY_NAME="Good Friday", IS_OBSERVED=True, IS_HALF_DAY=False),
+    dict(HOLIDAY_ID="H-GBLO-2025-0505", CALENDAR_ID="GBLO", HOLIDAY_DATE=_iso(2025, 5, 5),
+         HOLIDAY_YEAR=2025, HOLIDAY_NAME="Early May bank holiday", IS_OBSERVED=True,
+         IS_HALF_DAY=False),
+    # The true date of a holiday that fell at a weekend: a row, but not an OBSERVED one.
+    dict(HOLIDAY_ID="H-GBLO-2025-1225T", CALENDAR_ID="GBLO", HOLIDAY_DATE=_iso(2025, 12, 25),
+         HOLIDAY_YEAR=2025, HOLIDAY_NAME="Christmas Day (true date)", IS_OBSERVED=False,
+         IS_HALF_DAY=False),
+    # TARGET: one year, and one of its two rows is unobserved.
+    dict(HOLIDAY_ID="H-TARGET-2025-0101", CALENDAR_ID="TARGET", HOLIDAY_DATE=_iso(2025, 1, 1),
+         HOLIDAY_YEAR=2025, HOLIDAY_NAME="New Year's Day", IS_OBSERVED=True, IS_HALF_DAY=False),
+    dict(HOLIDAY_ID="H-TARGET-2025-0501", CALENDAR_ID="TARGET", HOLIDAY_DATE=_iso(2025, 5, 1),
+         HOLIDAY_YEAR=2025, HOLIDAY_NAME="Labour Day (not observed)", IS_OBSERVED=False,
+         IS_HALF_DAY=False),
+]
+
+CC_MARKET = [
+    dict(MARKET_MIC="XNYS", MARKET_NAME="New York Stock Exchange", CALENDAR_ID="USNY",
+         SETTLEMENT_CURRENCY="USD", IS_ACTIVE=True),
+    dict(MARKET_MIC="XLON", MARKET_NAME="London Stock Exchange", CALENDAR_ID="GBLO",
+         SETTLEMENT_CURRENCY="GBP", IS_ACTIVE=True),
+    dict(MARKET_MIC="XETR", MARKET_NAME="Xetra", CALENDAR_ID="TARGET",
+         SETTLEMENT_CURRENCY="EUR", IS_ACTIVE=True),
+    dict(MARKET_MIC="XTKS", MARKET_NAME="Tokyo Stock Exchange", CALENDAR_ID="JPTO",
+         SETTLEMENT_CURRENCY="JPY", IS_ACTIVE=False),
+]
+
+# SETTLEMENT_DAYS is the n of T+n, and both 1 and 2 are seeded so ccIsTPlusTwo has a true
+# case and a false one. A predicate that is true everywhere asserts nothing.
+CC_SETTLEMENT_CYCLE = [
+    dict(CYCLE_ID="CY-XNYS-EQ", MARKET_MIC="XNYS", ASSET_CLASS="EQUITY", CYCLE_CODE="T+1",
+         SETTLEMENT_DAYS=1, CUTOFF_TIME="16:00", EFFECTIVE_FROM=_iso(2024, 5, 28)),
+    dict(CYCLE_ID="CY-XNYS-BOND", MARKET_MIC="XNYS", ASSET_CLASS="BOND", CYCLE_CODE="T+2",
+         SETTLEMENT_DAYS=2, CUTOFF_TIME="15:00", EFFECTIVE_FROM=_iso(2020, 1, 1)),
+    dict(CYCLE_ID="CY-XLON-EQ", MARKET_MIC="XLON", ASSET_CLASS="EQUITY", CYCLE_CODE="T+2",
+         SETTLEMENT_DAYS=2, CUTOFF_TIME="16:30", EFFECTIVE_FROM=_iso(2014, 10, 6)),
+    dict(CYCLE_ID="CY-XETR-EQ", MARKET_MIC="XETR", ASSET_CLASS="EQUITY", CYCLE_CODE="T+2",
+         SETTLEMENT_DAYS=2, CUTOFF_TIME="17:30", EFFECTIVE_FROM=_iso(2014, 10, 6)),
+    dict(CYCLE_ID="CY-XTKS-JGB", MARKET_MIC="XTKS", ASSET_CLASS="BOND", CYCLE_CODE="T+1",
+         SETTLEMENT_DAYS=1, CUTOFF_TIME="14:00", EFFECTIVE_FROM=_iso(2018, 5, 1)),
+]
+
+
 # ---- the linked project: core-fx ----
 #
 # Real June 2024 levels for four majors. The corpus's own trades are all USD, so what the
@@ -20305,6 +20394,10 @@ TABLES: dict[str, list[dict]] = {
     "CI_INSTRUMENT": CI_INSTRUMENT,
     "CI_INSTRUMENT_XREF": CI_INSTRUMENT_XREF,
     "CI_ASSET_CLASS": CI_ASSET_CLASS,
+    "CC_CALENDAR": CC_CALENDAR,
+    "CC_HOLIDAY": CC_HOLIDAY,
+    "CC_MARKET": CC_MARKET,
+    "CC_SETTLEMENT_CYCLE": CC_SETTLEMENT_CYCLE,
     "EXPOSURE_LINE": EXPOSURE_LINE,
     "EXPOSURE_THRESHOLD": EXPOSURE_THRESHOLD,
     "EXEMPTION_RULE": EXEMPTION_RULE,
@@ -20464,12 +20557,22 @@ def check(c: Corpus) -> list[str]:
             if len(set(keys)) != len(keys):
                 dupes = {k for k in keys if keys.count(k) > 1}
                 bad.append(f"{name}: duplicate primary key {t.pk}: {sorted(dupes)[:3]}")
-        # A value containing a comma or a newline would need CSV quoting, whose support
-        # in ###Data we have not proven. Refuse it rather than emit something unverified.
+        # RFC4180 quoting in a ###Data element IS supported, and this guard used to refuse
+        # it. It had already gone stale: emit._csv_cell quotes correctly and says so, while
+        # this said the support was unproven, so the corpus carried both claims at once and
+        # the strict one won. Re-proved directly -- a field wrapped in double quotes carries
+        # an embedded COMMA, and a doubled "" carries an embedded quote, both round-tripping
+        # through DuckDB unchanged.
+        #
+        # A NEWLINE is still refused, and that is not laziness: the data element is built as
+        # a concatenation of Pure string literals, one per row, so a real newline inside a
+        # value would end the literal rather than the record. Quoting cannot save it and
+        # nothing has shown otherwise.
         for i, r in enumerate(rows):
             for k, v in r.items():
-                if isinstance(v, str) and ("," in v or "\n" in v or '"' in v):
-                    bad.append(f"{name}[{i}].{k}: value needs CSV quoting: {v!r}")
+                if isinstance(v, str) and "\n" in v:
+                    bad.append(f"{name}[{i}].{k}: a newline cannot survive the ###Data "
+                               f"element's line-per-literal encoding: {v!r}")
 
     def has(msg, cond):
         if not cond:

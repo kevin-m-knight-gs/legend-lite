@@ -2231,6 +2231,56 @@ def _project_link_specs():
     calls.sort = ("instrumentId", False)
     out.append(calls)
 
+    # ---- core-calendar: a VIEW as a mapped class, and functions over a CLASS ----
+    #
+    # CC_HOLIDAY_COUNT is a View with a ~groupBy. No DDL is created for it and nothing seeds
+    # it -- the engine folds the GROUP BY into the SQL -- so the oracle aggregates CC_HOLIDAY
+    # itself and the two have to agree about grouping, about counting, and about what happens
+    # to a calendar that forms no group at all. JPTO has no holiday rows, so it must be
+    # ABSENT here rather than present with a count of zero, which is the one thing a
+    # ~groupBy view does that an outer join would not.
+    counts = Spec("stress::PL15_HolidayCountView", "/stress/pl15",
+                  "A VIEW with a ~groupBy, mapped as a class's ~mainTable and read across a "
+                  "project boundary. Nothing seeds it: the engine folds the GROUP BY into "
+                  "the SQL and the oracle aggregates the underlying rows independently. One "
+                  "calendar has holidays in two years, one in a single year, and one has "
+                  "none at all and so forms no group -- which is the difference between an "
+                  "aggregation and an outer join, and is invisible unless a seed contains "
+                  "the empty case.",
+                  "core_calendar::CcHolidayCount")
+    counts.projections = [Proj("calendarId", ["calendarId"]),
+                          Proj("holidayYear", ["holidayYear"]),
+                          Proj("holidayCount", ["holidayCount"]),
+                          # A function whose PARAMETER IS A CLASS, called extension-style on
+                          # the root: `$x->core_calendar::ccBusinessDaysInYear()`. Every
+                          # cross-project function executed so far takes numbers.
+                          Proj("businessDays", [], None, [],
+                               "core_calendar::ccBusinessDaysInYear")]
+    counts.sort = ("calendarId", False)
+    out.append(counts)
+
+    # Two hops of to-one navigation INSIDE a dependency -- cycle to market to calendar --
+    # rather than from the corpus into one. Plus both class-parameter predicates, on a seed
+    # where T+1 and T+2 both occur: a predicate that is true everywhere asserts nothing.
+    cycles = Spec("stress::PL16_SettlementCycleChain", "/stress/pl16",
+                  "Two hops of navigation entirely WITHIN a dependency, and two functions "
+                  "whose parameter is a class rather than a number. The settlement lag is "
+                  "read both as a column and through the project's own accessor, so a "
+                  "function that lowered wrongly would disagree with the column beside it.",
+                  "core_calendar::CcSettlementCycle")
+    cycles.projections = [Proj("cycleId", ["cycleId"]),
+                          Proj("assetClass", ["assetClass"]),
+                          Proj("settlementDays", ["settlementDays"]),
+                          Proj("mic", ["market", "mic"]),
+                          Proj("calendarId", ["market", "calendar", "calendarId"]),
+                          Proj("centre", ["market", "calendar", "financialCentre"]),
+                          Proj("lag", [], None, [],
+                               "core_calendar::ccSettlementLagDays"),
+                          Proj("isTPlusTwo", [], None, [],
+                               "core_calendar::ccIsTPlusTwo")]
+    cycles.sort = ("cycleId", False)
+    out.append(cycles)
+
     return out
 
 
