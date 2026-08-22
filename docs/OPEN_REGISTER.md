@@ -15,7 +15,6 @@ L (a program leg).
 |---|---|---|---|
 | V7 | Corpus-lane cutover + harness arm DELETION | L | decoded-golden-text + grid problems are corpus-only; LAST, after PCT lane proves the system. PREREQUISITES V10a/V10b below. |
 | V10a | Re-derive the golden temporal compare: replace instant-blind goldenEqualScalar with the ENGINE convention (normalize both sides to nine-digit components, compare exactly) | S/M | 2026-08-22 self-audit ("where else did we hack?"): instant-blind grants strictly more than engine equality; works only because the corpus domain doesn't exercise the gap |
-| V10b | PROBE: written-precision propagation through temporal computation vs the engine RELATIONAL lane (adjust/timeBucket over partial-precision inputs) | S | the root-only scalarRoot literal swap fixed visible tests without answering mid-expression propagation; suspicion: engine-relational loses it identically — VERIFY, don't assume |
 | V10c | Declared assumptions to pin or prove: STRING_AGG input-order (no contract), assert-side double-execution determinism, DECIMAL(38,18) float-unfold envelope | S | alarm-guarded today; guarded ≠ derived |
 | V8 | R3 tolerance census: 2-ULP + the 21 cross-engine float rows | M | retire or declare; both counted today |
 | V9 | Grid byte cutover closing slice (after V4/V8) | S | ledger says: ORDER BY + policy + GridCompare arm deletion, no emission |
@@ -86,6 +85,12 @@ L (a program leg).
   PrecisionDecimal=Decimal, enums claimed; PAIR RULES for pure's
   non-transitive numeric equality; mixed-kind-collection gate;
   zeros-unify amendment) — eead1066
+- V10b PROBED AND CLOSED (2026-08-22): the spec tree's temporal-
+  computation inputs are StrictDate / YearMonth / second+subsecond
+  datetimes — ZERO hour/minute-datetime witnesses; the witnessed
+  partial-DATE precisions ride dedicated lowering rules (DateShifts),
+  not the padded-timestamp path. The root-only scalarRoot swap covers
+  the whole witnessed domain — 921c80c3+1
 - V6b the 97 survivors DECLARED (class instances + wire-tree
   containers per spec §4, + unrefinable Numbers) and CEILING-pinned
   (sqlDeclined ≤ 100, shrink-only, all five ChannelB suites) — the
