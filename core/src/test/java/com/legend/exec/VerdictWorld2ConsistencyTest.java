@@ -110,4 +110,29 @@ class VerdictWorld2ConsistencyTest {
         assertTrue("a".equals(world1("[[]->first(), 'a']->toOne()")),
                 "toOne disagrees with the compacted carrier");
     }
+
+    @Test
+    @DisplayName("egress: the FULL positional battery over a carrier holding empties (audit-of-R1)")
+    void section5FullBattery() throws Exception {
+        // the audit-of-R1 pass found consumer-site compaction was
+        // whack-a-mole — 7 of these were wrong until the compaction
+        // moved to the LITERAL'S CONSTRUCTION and the checker's
+        // element-count multiplicity stamp ([2..2] for [1..2]) was
+        // fixed. Every consumer must tell the same one-element story.
+        String lit = "[[]->first(), 'a']";
+        record P(String op, String want) {
+        }
+        for (P p : java.util.List.of(
+                new P("->head()", "a"), new P("->first()", "a"),
+                new P("->last()", "a"), new P("->tail()", "[]"),
+                new P("->init()", "[]"), new P("->drop(1)", "[]"),
+                new P("->take(1)", "[a]"), new P("->reverse()", "[a]"),
+                new P("->sort()", "[a]"), new P("->isEmpty()", "false"),
+                new P("->makeString(',')", "a"))) {
+            Object got = world1(lit + p.op());
+            assertTrue(p.want().equals(String.valueOf(got)),
+                    lit + p.op() + " => " + got + " (pure: " + p.want()
+                            + ")");
+        }
+    }
 }

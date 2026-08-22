@@ -63,10 +63,16 @@ class CorpusManifestTest {
 
         if (System.getProperty("corpus.manifest.regen") != null
                 || !Files.exists(MANIFEST)) {
-            Assumptions.assumeTrue(Files.exists(MANIFEST),
-                    "no committed manifest — regenerated at"
-                            + " target/corpus-manifest.tsv; copy it into"
-                            + " src/test/resources to pin the corpus");
+            // DEEP_AUDIT §11c: with the regen flag AND a committed
+            // manifest this reported a GENUINE PASS having asserted
+            // nothing — invisible to the skipped() detector and the
+            // rename-goes-red loop. A regen run now SKIPS loudly.
+            Assumptions.assumeTrue(false,
+                    "corpus manifest NOT checked this run (regen"
+                            + " requested or no committed manifest) —"
+                            + " regenerated at target/corpus-manifest.tsv;"
+                            + " copy into src/test/resources and rerun"
+                            + " without the flag");
             return;
         }
 

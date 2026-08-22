@@ -748,6 +748,99 @@ final class ArchitectureTest {
     }
 
     /**
+     * <strong>Invariant 3, field level (D5).</strong> The class-name rule
+     * above is a funnel a FIELD walks straight past: ConnectionResolver's
+     * {@code static Map CACHE} was a name-/version-keyed cache with a
+     * check-then-act race and no reviewer, invisible to a {@code *Cache}
+     * class-name check. A declared-type ArchUnit rule cannot close this
+     * either — every field spells {@code Map<...>} whether the value is
+     * {@code Map.of(...)} or {@code new ConcurrentHashMap<>()} — so this
+     * guard reflects on the RUNTIME VALUES: every static collection field
+     * outside {@code com.legend.cache} must hold an immutable collection,
+     * or appear in the register below with a written justification.
+     *
+     * <p>Register discipline (see the corpus ratchets): rows only move
+     * with same-commit justification; write-once init tables are burn-down
+     * candidates (wrap in {@code Map.copyOf} and delete the row).
+     */
+    @Test
+    void staticCollectionStateIsImmutableOrRegistered() throws Exception {
+        java.util.Set<String> register = java.util.Set.of(
+                // write-once static-init tables (populated once in <clinit>,
+                // read-only thereafter) — burn-down: wrap immutable
+                "com.legend.lexer.Lexer.KEYWORDS",
+                "com.legend.lowering.Windows.FNS",
+                "com.legend.lowering.Windows.AGGREGATES",
+                "com.legend.lowering.Scalars.RULES",
+                "com.legend.lowering.Aggregates.REDUCERS",
+                "com.legend.compiler.spec.CoreFn.BY_NAME",
+                "com.legend.builtin.Pure.ALL_CLASSES",
+                "com.legend.builtin.Pure.ALL_ENUMS",
+                "com.legend.builtin.Pure.ALL",
+                "com.legend.builtin.Pure$Index.CLASS_BY_FQN",
+                "com.legend.builtin.Pure$Index.ENUM_BY_FQN",
+                "com.legend.builtin.Pure$Index.FN_BY_FQN",
+                "com.legend.builtin.Pure$Index.FN_BY_BARE",
+                "com.legend.builtin.Pure$Index.KEYS_BY_NAME",
+                "com.legend.compiler.NameResolver.PRELUDE_TYPES",
+                "com.legend.compiler.NameResolver.PRELUDE_COLLISIONS",
+                "com.legend.parser.SectionGrammarRegistry.REGISTRY",
+                // warn-once diagnostic suppression set: genuinely mutable
+                // runtime state, bounded by the model's FQN universe
+                "com.legend.compiler.element.FunctionCompiler.SUPPRESSED_ONCE",
+                // live diagnostic ledger (Phase 0 honesty instrument):
+                // accumulates timings at runtime; content-addressing is
+                // meaningless for a metrics sink
+                "com.legend.exec.TimingLedger.NS",
+                "com.legend.exec.TimingLedger.COUNT",
+                // serializer registry: written once at static init; the
+                // ConcurrentHashMap spelling is for safe publication
+                "com.legend.server.serial.SerializerRegistry.SERIALIZERS");
+        java.util.List<String> violations = new java.util.ArrayList<>();
+        for (com.tngtech.archunit.core.domain.JavaClass jc : CORE_PROD_CLASSES) {
+            if (jc.getPackageName().startsWith("com.legend.cache")) {
+                continue;
+            }
+            Class<?> cls;
+            try {
+                cls = Class.forName(jc.getName());
+            } catch (Throwable t) {
+                continue; // unloadable in the test JVM — nothing to inspect
+            }
+            for (java.lang.reflect.Field f : cls.getDeclaredFields()) {
+                if (!java.lang.reflect.Modifier.isStatic(f.getModifiers())
+                        || !(java.util.Map.class.isAssignableFrom(f.getType())
+                                || java.util.Collection.class.isAssignableFrom(f.getType()))) {
+                    continue;
+                }
+                String id = cls.getName() + "." + f.getName();
+                if (register.contains(id)) {
+                    continue;
+                }
+                f.setAccessible(true);
+                Object v = f.get(null);
+                if (v == null || !isKnownImmutable(v)) {
+                    violations.add(id + " holds "
+                            + (v == null ? "null" : v.getClass().getName()));
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(violations.isEmpty(),
+                "Invariant 3 (field level): static collection state outside "
+                        + "com.legend.cache must be immutable or registered "
+                        + "with justification:\n  "
+                        + String.join("\n  ", violations));
+    }
+
+    private static boolean isKnownImmutable(Object v) {
+        String n = v.getClass().getName();
+        return n.startsWith("java.util.ImmutableCollections")
+                || n.startsWith("java.util.Collections$Unmodifiable")
+                || n.startsWith("java.util.Collections$Empty")
+                || n.startsWith("java.util.Collections$Singleton");
+    }
+
+    /**
      * <strong>Invariant 7 — compiler work lives in the compiler.</strong>
      * Constructing (minting/rewriting) typed-HIR nodes IS compiler work:
      * it decides stamps and tree shape, the facts the whole stamp

@@ -2756,8 +2756,14 @@ final class GraphEmission {
 
     /** The [0..1] scalar-subquery tail shared by the nav-leaf and
      * otherwise-fallback emissions: project ONE leaf column over the
-     * corr-filtered relation, LIMIT 1 (pure toOne semantics — a plain
-     * scalar subquery, never a LIST aggregation). */
+     * corr-filtered relation, DEDUPED — the ENGINE's graph-fetch
+     * discipline (D6, witness graphFetchCommon.pure:163: distinct=true
+     * + hard-fail; no row-cap vocabulary exists in the reference).
+     * Identical rows collapse; genuinely-multiple distinct values hit
+     * the backend's own more-than-one-row subquery error. The old
+     * {@code LIMIT 1} (commented "pure toOne semantics" — wrong on any
+     * lane, pure raises on 2) silently picked a winner in the case the
+     * engine treats as fatal AND suppressed that free backend check. */
     static TypedSpec scalarLeafSubquery(TypedSpec rel, String rowVar,
             Type.RelationType targetRow, String leafName, TypedSpec leafBind) {
         var leafFn = new Type.FunctionType(
@@ -2778,9 +2784,8 @@ final class GraphEmission {
                 new ExprType(Type.relation(oneCol),
                         com.legend.compiler.element.type
                                 .Multiplicity.Bounded.ZERO_MANY));
-        return new com.legend.compiler.spec.typed.TypedLimit(proj,
-                new com.legend.compiler.spec.typed.TypedCInteger(1L,
-                        ExprType.one(Type.Primitive.INTEGER)),
+        return new com.legend.compiler.spec.typed.TypedDistinct(proj,
+                List.of(),
                 new ExprType(Type.relation(oneCol),
                         com.legend.compiler.element.type
                                 .Multiplicity.Bounded.ZERO_ONE));

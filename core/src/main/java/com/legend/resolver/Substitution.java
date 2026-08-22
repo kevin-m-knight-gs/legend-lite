@@ -1867,6 +1867,9 @@ final class Substitution {
             // subquery (parentNavCondReads / navLeafSubquery emissions):
             // its correlation binds a FRESH row var, never this scope's
             case TypedLimit rl when Type.isRelation(rl.source().info().type()) -> n;
+            // ...and its D6a successor (graph-leaf DISTINCT, not LIMIT 1)
+            case com.legend.compiler.spec.typed.TypedDistinct rd
+                    when Type.isRelation(rd.source().info().type()) -> n;
             case com.legend.compiler.spec.typed.TypedTds ignored -> n;
             // graphFetch in VALUE position is SOURCE-PRESERVING (engine
             // GraphFetchLowering = lower(source); the tree shapes only a

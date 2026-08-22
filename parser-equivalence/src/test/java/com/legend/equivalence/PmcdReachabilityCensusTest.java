@@ -119,7 +119,14 @@ class PmcdReachabilityCensusTest {
         }
 
         // ---- verdicts over the uncovered set ----
+        // SELF-SUFFICIENT (user ruling 2026-08-21 — no skipping class
+        // on a gate roster): the roster this reads is materialized HERE
+        // when absent (DEEP_AUDIT §11c: this was a raw
+        // NoSuchFileException ERROR dependent on class run order).
         Path roster = Path.of("target", "protocol-roster.txt");
+        if (!Files.exists(roster)) {
+            ProtocolRosterCensusTest.materializeRoster();
+        }
         List<String> lines = Files.readAllLines(roster);
         Map<String, List<String>> inScope = new TreeMap<>();
         int outOfScope = 0;

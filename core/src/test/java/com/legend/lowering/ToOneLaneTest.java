@@ -95,6 +95,17 @@ class ToOneLaneTest {
     }
 
     @Test
+    @DisplayName("DEEP_AUDIT R1: take/limit carry the lane (the whitelist's TypedLimit hole)")
+    void takeLimitCarryTheLane() throws Exception {
+        assertEquals(1L, ((Number) run("{|[1,2]->take(1)->toOne()}"))
+                .longValue());
+        assertSizeError("{|[1,2]->take(2)->toOne()}", 2);
+        assertSizeError("{|[1,2]->limit(2)->toOne()}", 2);
+        // (value-lane sortBy itself is an honest unimplemented wall —
+        // its lane arm is in place for when the emission lands)
+    }
+
+    @Test
     @DisplayName("compacted count: a literal of optional elements counts PRESENT")
     void optionalElementsCountPresent() throws Exception {
         assertEquals("a", run("{|[[]->first(), 'a']->toOne()}"));

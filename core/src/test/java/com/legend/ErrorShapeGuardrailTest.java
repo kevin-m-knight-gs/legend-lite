@@ -55,6 +55,13 @@ class ErrorShapeGuardrailTest {
             // before the extraction (LL_SQLTEXT_DEBUG surfaces the cause)
             Map.entry("ExecCallFinder.java", 1),
             Map.entry("FunctionCompiler.java", 1),
+            // D5 (reviewed): the generic checked-exception carrier —
+            // getOrOpen tunnels the caller's E through compute's
+            // unchecked boundary; catch(RuntimeException) rethrows
+            // as-is, catch(Exception) wraps in the carrier, unwrapped
+            // and rethrown as E at the method boundary. Both catches
+            // ARE the tunnel, not swallows.
+            Map.entry("HandleStore.java", 2),
             // 4 = the derived/implicit-child PROBE-AND-FALLBACK set
             // (reviewed): navHeadRelation's assoc probe, hopJoin's
             // assoc-vs-slot probe, inlineDerivedCalls' compilable-callee

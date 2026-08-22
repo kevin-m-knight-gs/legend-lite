@@ -72,6 +72,9 @@ roots_present() {
 # pass. Returns 0 (true) when the run was entirely skipped.
 skipped() {
   # awk, not a grep backreference — ERE backrefs are not portable to BSD grep.
+  # STRICT BY DESIGN (user ruling 2026-08-21): ANY fully-skipped class
+  # marks the gate — a class that always skips inside a gate is roster
+  # theater; make it self-sufficient or take it off the roster.
   awk '/Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+/ {
          run=0; skip=0
          for (i = 1; i <= NF; i++) {
@@ -185,8 +188,12 @@ if want 8; then
   # CLEAN is load-bearing here too: a warm target/ runs test classes
   # compiled against the PREVIOUS core jar (stale-class NoSuchMethodError,
   # or worse, stale tests silently passing old behavior)
+  # ROSTER = EVERY test class in the module (DEEP_AUDIT §11c: seven
+  # classes sat outside the old 20-class list, so the module was RED at
+  # HEAD while this gate was green — the surgical fix appends them; the
+  # allowlist + rename-goes-red discipline stays).
   mvn ${SFLAG[@]+"${SFLAG[@]}"} -pl parser-equivalence -am clean test \
-      -Dtest='CorpusSweepTest,RejectionParityTest,SectionParseSentinelTest,FixtureAdjudicationTest,EngineSectionRosterTest,EngineElementRosterTest,ViewFilterParityTest,ComparatorSelfTest,QuotedImportParityTest,CorpusManifestTest,OffsetCompositionParityTest,AdversarialParityTest,MessageParityTest,OwnCorpusConformanceTest,OwnDialectCensusTest,SurfaceCensusTest,FixtureCorpusParityTest,MutationFuzzTest,GrammarCoverageCensusTest,GenerativeDualParseTest' \
+      -Dtest='CorpusSweepTest,RejectionParityTest,SectionParseSentinelTest,FixtureAdjudicationTest,EngineSectionRosterTest,EngineElementRosterTest,ViewFilterParityTest,ComparatorSelfTest,QuotedImportParityTest,CorpusManifestTest,OffsetCompositionParityTest,AdversarialParityTest,MessageParityTest,OwnCorpusConformanceTest,OwnDialectCensusTest,SurfaceCensusTest,FixtureCorpusParityTest,MutationFuzzTest,GrammarCoverageCensusTest,GenerativeDualParseTest,CorpusCensusTest,GrammarKeywordCensusTest,MigrationSizingTest,ParseSpeedBenchmarkTest,PctParseCensusTest,PmcdReachabilityCensusTest,ProtocolRosterCensusTest' \
       -Dsurefire.failIfNoSpecifiedTests=false "$R1" "$R2" > "$OUT/g8.out" 2>&1
   G8=$?
   # RENAME-GOES-RED (deep-audit M1/§5): failIfNoSpecifiedTests=false is
@@ -201,7 +208,10 @@ if want 8; then
       FixtureCorpusParityTest \
       MutationFuzzTest \
       MessageParityTest OwnCorpusConformanceTest OwnDialectCensusTest \
-      GrammarCoverageCensusTest GenerativeDualParseTest; do
+      GrammarCoverageCensusTest GenerativeDualParseTest \
+      CorpusCensusTest GrammarKeywordCensusTest MigrationSizingTest \
+      ParseSpeedBenchmarkTest PctParseCensusTest \
+      PmcdReachabilityCensusTest ProtocolRosterCensusTest; do
     if ! grep -q "in com.legend.equivalence.$tc" "$OUT/g8.out"; then
       echo "G8 MISSING TEST CLASS: $tc did not run — rename/delete goes RED." >> "$L"; G8=1
     fi
@@ -217,13 +227,19 @@ if want 8; then
   fi
 fi
 
+# PX.1 tripwire runs UNCONDITIONALLY (DEEP_AUDIT §11c: it only ran on
+# all-green chains, so a failed-gate chain never checked tree
+# mutation) and REPORTS FAILURE to automated callers (it printed
+# FAILED then `exit 0` — the one branch detecting a poisoned
+# certification was the one reporting success).
+TREE1=$(git status --porcelain | grep -v "docs/RELATIONAL_CORPUS.md")
+if [ "$TREE0" != "$TREE1" ]; then
+  echo "ALLGATES_DONE — FAILED: TREE MUTATED MID-CHAIN (PX.1 tripwire)" >> "$L"
+  echo "ALLGATES_DONE — FAILED: TREE MUTATED MID-CHAIN (PX.1 tripwire)"
+  diff <(echo "$TREE0") <(echo "$TREE1") | head -10
+  exit 1
+fi
 if [ ${#FAILED[@]} -eq 0 ]; then
-  TREE1=$(git status --porcelain | grep -v "docs/RELATIONAL_CORPUS.md")
-  if [ "$TREE0" != "$TREE1" ]; then
-    echo "ALLGATES_DONE — FAILED: TREE MUTATED MID-CHAIN (PX.1 tripwire)"
-    diff <(echo "$TREE0") <(echo "$TREE1") | head -10
-    exit 0
-  fi
   echo "ALLGATES_DONE — GREEN (gates: $WANT)" >> "$L"
   echo "ALLGATES_DONE — GREEN (gates: $WANT)"
   exit 0

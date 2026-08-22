@@ -930,10 +930,13 @@ public final class SpecParser implements TokenStreamCursor {
             throw error("Unexpected token '%" + value + "'");
         }
         try {
-            // STRICT surfaces defer component-range validation like the
-            // engine (%2024-02-30 parses there; the compiler validates) —
-            // the platform dialect validates at parse, legend-pure style
-            return new CDate(PureDateLiteral.parse(value, !dialect.refusesPlatformDialect()),
+            // Component-range validation by dialect (D6b): LEGEND_ENGINE
+            // defers like the engine's parser (%2024-02-30 parses there —
+            // oracle byte-parity; THEIR compiler validates downstream);
+            // LEGEND_PLATFORM and LEGEND_LITE validate at parse — the
+            // product surface must not ship a date the database later
+            // refuses with an unattributed conversion error.
+            return new CDate(PureDateLiteral.parse(value, dialect != Dialect.LEGEND_ENGINE),
                     value, spanOf(datePos, datePos));
         } catch (IllegalArgumentException e) {
             throw TokenStreamCursor.throwAt(tokens, datePos,

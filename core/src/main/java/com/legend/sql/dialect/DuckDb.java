@@ -197,6 +197,15 @@ public final class DuckDb extends AnsiSqlRenderer {
         return listPredicate(args, "list_bool_and", true);
     }
 
+    /** len(list_distinct(x)) = len(x) — no duplicates iff dedup is a
+     * no-op; NULL (empty) coalesces to true. */
+    @Override
+    protected String allDistinct(List<SqlExpr> args) {
+        String x = expr(args.get(0), 0);
+        return "coalesce(len(list_distinct(" + x + ")) = len(" + x
+                + "), TRUE)";
+    }
+
     private String listPredicate(List<SqlExpr> args, String agg, boolean emptyDefault) {
         return "coalesce(" + agg + "(" + fn("list_transform", args) + "), "
                 + boolLit(emptyDefault) + ")";

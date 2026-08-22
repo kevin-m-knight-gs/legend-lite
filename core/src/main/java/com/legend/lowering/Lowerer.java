@@ -2313,8 +2313,25 @@ public final class Lowerer {
                 if (ValueCollections.c1Singleton(c)) {
                     yield scalar(c.elements().get(0), columns);
                 }
-                yield new SqlExpr.ArrayLit(
+                SqlExpr arr = new SqlExpr.ArrayLit(
                         c.elements().stream().map(e -> scalar(e, columns)).toList());
+                // pure LITERAL FLATTENING at CONSTRUCTION (audit-of-R1:
+                // consumer-site compaction was whack-a-mole — head/tail/
+                // drop/take/makeString all read raw slots): an element
+                // that CAN be empty ([0..1]/[0..*] stamped) contributes
+                // nothing when empty, so the carrier compacts ONCE here
+                // and every consumer sees the pure collection.
+                // VALUE-LANE literals ONLY (corpus witness
+                // testSelfJoinPropertyMapping): a ROW-cells list
+                // ($r.values / hand-written property reads) keeps its
+                // NULL cells — TDSNull is DATA on the grid convention.
+                yield CollectionLanes.valueLane(c)
+                        && c.elements().stream().anyMatch(e ->
+                                e.info().multiplicity()
+                                        instanceof Multiplicity.Bounded b
+                                && b.lower() == 0)
+                        ? new SqlExpr.CompactList(arr)
+                        : arr;
             }
             // $r.alias.COL — a NAVIGATE slot's struct column flattens to
             // its prefixed physical column (alias_COL).
@@ -2639,13 +2656,19 @@ public final class Lowerer {
                             scalar(f.predicate(), columns));
             // slice(start, stop) — ListEncodings.slice owns the bounds
             // clamps and real pure's inverted-bounds error
+            // slice/drop/take consume the LIST carrier — a to-one-stamped
+            // source ([7], the c1 collapse) BOXES by stamp (DEEP_AUDIT §3:
+            // six collection ops were hard Binder errors on singletons)
             case TypedSlice s when !Type.relationValued(s.source().info()) ->
-                    ListEncodings.slice(scalar(s.source(), columns),
+                    ListEncodings.slice(
+                            PureSql.asList(scalar(s.source(), columns),
+                                    !CollectionLanes.c1Literal(s.source())),
                             scalar(s.start(), columns),
                             scalar(s.stop(), columns));
             // drop(n): the suffix from n+1; negative n drops nothing (PCT).
             case TypedDrop d when !Type.relationValued(d.source().info()) -> {
-                SqlExpr src = scalar(d.source(), columns);
+                SqlExpr src = PureSql.asList(scalar(d.source(), columns),
+                        !CollectionLanes.c1Literal(d.source()));
                 yield SqlExpr.Call.of(SqlFn.LIST_SLICE, src,
                         ListEncodings.onePlus(ListEncodings.clamp0(scalar(d.count(), columns))),
                         SqlExpr.Call.of(SqlFn.LIST_LENGTH, src));
@@ -2654,7 +2677,9 @@ public final class Lowerer {
             // matters because DuckDB reads a negative bound FROM THE END.
             case TypedLimit t when !Type.relationValued(t.source().info()) ->
                     SqlExpr.Call.of(SqlFn.LIST_SLICE,
-                            scalar(t.source(), columns), new SqlExpr.IntLit(1),
+                            PureSql.asList(scalar(t.source(), columns),
+                                    !CollectionLanes.c1Literal(t.source())),
+                            new SqlExpr.IntLit(1),
                             ListEncodings.clamp0(scalar(t.count(), columns)));
             // A let in EXPRESSION position (a callee shape the statement
             // folder didn't reach): bind and yield — the let IS its value.
@@ -2844,13 +2869,26 @@ public final class Lowerer {
                     // a VALUE COLLECTION whatever its stamp — [1] is the
                     // relation VALUE's mult, not the row count; the
                     // correlated-scalar route serves [0..1] nav encodings
-                    boolean toMany = rel instanceof TypedDistinct
+                    // a [0..1]-STAMPED single-column DISTINCT is the
+                    // graph-leaf scalar subquery (D6: the engine's
+                    // dedup-then-hard-fail discipline replaced LIMIT 1;
+                    // the backend's own >1-row error is the raise) —
+                    // the TDS distinct/restrict SPLICE stays a value
+                    // collection ([1]-stamped, the relation VALUE)
+                    boolean zeroOneDistinct = rel instanceof TypedDistinct
+                            && rel.info().multiplicity()
+                                    instanceof com.legend.compiler.element
+                                            .type.Multiplicity.Bounded zb
+                            && zb.lower() == 0 && zb.upper() != null
+                            && zb.upper() == 1;
+                    boolean toMany = !zeroOneDistinct
+                            && (rel instanceof TypedDistinct
                             || rel instanceof com.legend.compiler.spec.typed
                                     .TypedSort
                             || !(rel.info().multiplicity()
                             instanceof com.legend.compiler.element.type
                                     .Multiplicity.Bounded mb1
-                            && mb1.isToOne());
+                            && mb1.isToOne()));
                     if (!toMany) {
                         yield new SqlExpr.ScalarSubquery(relation(rel));
                     }

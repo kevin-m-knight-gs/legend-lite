@@ -45,8 +45,17 @@ final class ModelIntegrity {
     static void check(ModelBuilder model, TypeClassifier classifier,
             FunctionCompiler functions,
             java.util.@com.legend.Nullable Map<String, String> wallSink) {
+        // D6b: element-identity first, so a duplicated FQN poisons with
+        // ITS reason rather than a downstream confusion from whichever
+        // definition happened to win the last-wins slot.
+        model.duplicateElements().forEach((fqn, msg) ->
+                withElement(fqn, () -> {
+                    throw new com.legend.error.ModelException(
+                            com.legend.error.LegendCompileException.Phase.MODEL, msg);
+                }, wallSink));
         model.classes().forEach(cd -> withElement(cd.qualifiedName(),
                 () -> checkClass(cd, classifier, functions), wallSink));
+        checkInheritanceAcyclic(model, classifier, wallSink);
         model.functions().forEach(f -> withElement(f.qualifiedName(),
                 () -> checkFunction(f, classifier), wallSink));
         checkDuplicateSignatures(model, wallSink);
@@ -54,6 +63,10 @@ final class ModelIntegrity {
             classifier.classify(a.property1().targetClass(), List.of());
             classifier.classify(a.property2().targetClass(), List.of());
         }, wallSink));
+        model.enums().forEach(ed -> withElement(ed.qualifiedName(),
+                () -> checkEnum(ed), wallSink));
+        model.databases().forEach(db -> withElement(db.qualifiedName(),
+                () -> checkDatabase(db, model), wallSink));
         model.mappings().forEach(md -> withElement(md.qualifiedName(),
                 () -> checkMapping(md, model, classifier, functions), wallSink));
     }
@@ -78,17 +91,37 @@ final class ModelIntegrity {
         }
     }
 
-    /** Class references: property/derived types + realizer functions + constraint shapes. */
+    /** Class references: property/derived types + realizer functions + constraint shapes.
+     * D6b additions: duplicate stored-property names (engine parity:
+     * "Found duplicated property") and EAGER multiplicity-bound
+     * validation — the {@code Bounded} constructor guard otherwise fires
+     * lazily at first class demand as a raw, unattributed
+     * {@code IllegalArgumentException}. (Derived-property NAME dups stay
+     * accepted: qualified properties legally overload.) */
     private static void checkClass(ClassDefinition cd, TypeClassifier classifier,
                                    FunctionCompiler functions) {
         List<String> typeParams = cd.typeParams();
+        java.util.Set<String> propertyNames = new java.util.HashSet<>();
         for (ClassDefinition.PropertyDefinition pd : cd.properties()) {
+            if (!propertyNames.add(pd.name())) {
+                throw new com.legend.error.ModelException(
+                        com.legend.error.LegendCompileException.Phase.MODEL,
+                        "Found duplicated property '" + pd.name()
+                                + "' in class '" + cd.qualifiedName() + "'");
+            }
             classifier.classify(pd.type(), typeParams);
+            requireValidBounds(pd.multiplicity(),
+                    "property '" + pd.name() + "' of " + cd.qualifiedName());
         }
         for (DerivedPropertyDefinition dp : cd.derivedProperties()) {
             classifier.classify(dp.type(), typeParams);
+            requireValidBounds(dp.multiplicity(),
+                    "derived property '" + dp.name() + "' of " + cd.qualifiedName());
             for (ParameterDefinition p : dp.parameters()) {
                 classifier.classify(p.type(), typeParams);
+                requireValidBounds(p.multiplicity(),
+                        "parameter '" + p.name() + "' of derived property '"
+                                + dp.name() + "' of " + cd.qualifiedName());
             }
             functions.requireFunction(
                     realizedFqn(dp.realization(), SynthFqn.prop(cd.qualifiedName(), dp.name())),
@@ -170,5 +203,203 @@ final class ModelIntegrity {
 
     private static String realizedFqn(Realization r, String liftedFqn) {
         return r instanceof Realization.Ref ref ? ref.functionFqn() : liftedFqn;
+    }
+
+    // ====================================================================
+    // D6b frontend-leniency batch: checks below reject models the engine
+    // rejects at compile but that previously slid through to a lazy crash
+    // (StackOverflow on cyclic extends), a silent last-wins, or wrong SQL.
+    // ====================================================================
+
+    /** Protocol multiplicity bounds must be well-formed ({@code [2..1]}
+     * previously surfaced lazily as a bare IllegalArgumentException). */
+    private static void requireValidBounds(
+            com.legend.protocol.Multiplicity m, String site) {
+        try {
+            TypeClassifier.multiplicity(m);
+        } catch (IllegalArgumentException e) {
+            throw new com.legend.error.ModelException(
+                    com.legend.error.LegendCompileException.Phase.MODEL,
+                    site + ": invalid multiplicity — " + e.getMessage());
+        }
+    }
+
+    /** Engine parity: "Found duplicated value 'X' in enumeration 'E'". */
+    private static void checkEnum(com.legend.model.EnumDefinition ed) {
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (String v : ed.values()) {
+            if (!seen.add(v)) {
+                throw new com.legend.error.ModelException(
+                        com.legend.error.LegendCompileException.Phase.MODEL,
+                        "Found duplicated value '" + v + "' in enumeration '"
+                                + ed.qualifiedName() + "'");
+            }
+        }
+    }
+
+    /** Inheritance must be acyclic — a cycle previously compiled fine and
+     * blew the stack only when the class was DEMANDED. Walks resolved
+     * supers ({@code headFqn} + classDef lookup); unresolvable heads are
+     * the classify checks' concern, not this walk's. */
+    private static void checkInheritanceAcyclic(ModelBuilder model,
+            TypeClassifier classifier,
+            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+        java.util.Set<String> acyclic = new java.util.HashSet<>();
+        model.classes().forEach(cd -> withElement(cd.qualifiedName(),
+                () -> walkSupers(cd, classifier,
+                        new java.util.LinkedHashSet<>(), acyclic), wallSink));
+    }
+
+    private static void walkSupers(ClassDefinition cd, TypeClassifier classifier,
+            java.util.LinkedHashSet<String> path, java.util.Set<String> acyclic) {
+        String fqn = cd.qualifiedName();
+        if (acyclic.contains(fqn)) {
+            return;
+        }
+        if (!path.add(fqn)) {
+            throw new com.legend.error.ModelException(
+                    com.legend.error.LegendCompileException.Phase.MODEL,
+                    "Inheritance cycle: "
+                            + String.join(" -> ", path) + " -> " + fqn);
+        }
+        for (com.legend.protocol.TypeExpression sup : cd.superClasses()) {
+            String supFqn;
+            try {
+                supFqn = TypeClassifier.headFqn(sup);
+            } catch (com.legend.error.ModelException e) {
+                continue; // malformed head — checkClass's classify reports it
+            }
+            classifier.classDef(supFqn)
+                    .ifPresent(sc -> walkSupers(sc, classifier, path, acyclic));
+        }
+        path.remove(fqn);
+        acyclic.add(fqn);
+    }
+
+    /**
+     * Ghost store cross-refs: every {@code ColumnRef} inside a join or
+     * filter condition must name a table (or view) declared in the
+     * database's include closure, and a column declared ON that table —
+     * previously accepted and shipped as SQL that failed (or silently
+     * misbehaved) in the database. Conservative by design: {@code
+     * &lcub;target&rcub;} refs and refs whose home cannot be resolved
+     * unambiguously (explicit foreign {@code databaseName}) are SKIPPED,
+     * never false-positived.
+     */
+    private static void checkDatabase(com.legend.model.DatabaseDefinition db,
+            ModelBuilder model) {
+        for (var j : db.joins()) {
+            checkStoreRefs(db, model, j.operation(), "join '" + j.name() + "'");
+        }
+        for (var f : db.filters()) {
+            checkStoreRefs(db, model, f.condition(), "filter '" + f.name() + "'");
+        }
+        for (var f : db.multiGrainFilters()) {
+            checkStoreRefs(db, model, f.condition(),
+                    "multigrain filter '" + f.name() + "'");
+        }
+    }
+
+    private static void checkStoreRefs(com.legend.model.DatabaseDefinition db,
+            ModelBuilder model, com.legend.model.RelationalOperation op,
+            String site) {
+        if (op instanceof com.legend.model.RelationalOperation.ColumnRef cr) {
+            // An explicit FOREIGN database qualifier resolves through
+            // model-level lookup subtleties this pass doesn't own — skip.
+            if (cr.databaseName() == null
+                    || cr.databaseName().equals(db.qualifiedName())) {
+                checkColumnRef(db, model, cr, site);
+            }
+        }
+        for (com.legend.model.RelationalOperation child : op.children()) {
+            checkStoreRefs(db, model, child, site);
+        }
+    }
+
+    private static void checkColumnRef(com.legend.model.DatabaseDefinition db,
+            ModelBuilder model,
+            com.legend.model.RelationalOperation.ColumnRef cr, String site) {
+        var table = findTableInClosure(model, db, cr.table(),
+                new java.util.HashSet<>());
+        if (table.isPresent()) {
+            if (!hasColumn(table.get(), cr.column())) {
+                throw new com.legend.error.ModelException(
+                        com.legend.error.LegendCompileException.Phase.MODEL,
+                        "The column '" + cr.column()
+                                + "' can't be found in the table '"
+                                + table.get().name() + "' (" + site
+                                + " of database '" + db.qualifiedName() + "')");
+            }
+            return;
+        }
+        var view = model.findView(db.qualifiedName(), cr.table());
+        if (view.isPresent()) {
+            boolean hit = view.get().columnMappings().stream()
+                    .anyMatch(cm -> cm.name().equals(cr.column()));
+            if (!hit) {
+                throw new com.legend.error.ModelException(
+                        com.legend.error.LegendCompileException.Phase.MODEL,
+                        "The column '" + cr.column()
+                                + "' can't be found in the view '"
+                                + view.get().name() + "' (" + site
+                                + " of database '" + db.qualifiedName() + "')");
+            }
+            return;
+        }
+        throw new com.legend.error.ModelException(
+                com.legend.error.LegendCompileException.Phase.MODEL,
+                "The table '" + cr.table()
+                        + "' can't be found in the database '"
+                        + db.qualifiedName() + "' (" + site + ")");
+    }
+
+    /** Declared columns + milestoning-declared temporal columns; matches
+     * the quote-bearing identity (StoreCompiler ledger cluster 7). */
+    private static boolean hasColumn(
+            com.legend.model.DatabaseDefinition.TableDefinition td, String name) {
+        for (var c : td.columns()) {
+            if (c.name().equals(name)
+                    || (c.quoted() && ("\"" + c.name() + "\"").equals(name))) {
+                return true;
+            }
+        }
+        var m = td.milestoning();
+        if (m != null) {
+            var b = m.business();
+            var p = m.processing();
+            for (String mc : new String[] {
+                    b == null ? null : b.from(), b == null ? null : b.thru(),
+                    b == null ? null : b.snapshotDate(),
+                    p == null ? null : p.in(), p == null ? null : p.out(),
+                    p == null ? null : p.snapshotDate()}) {
+                if (name.equals(mc)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static java.util.Optional<com.legend.model.DatabaseDefinition.TableDefinition>
+            findTableInClosure(ModelBuilder model,
+                    com.legend.model.DatabaseDefinition db, String name,
+                    java.util.Set<String> seen) {
+        if (!seen.add(db.qualifiedName())) {
+            return java.util.Optional.empty();
+        }
+        var own = StoreCompiler.findTableDef(db, name);
+        if (own.isPresent()) {
+            return own;
+        }
+        for (String inc : db.includes()) {
+            var included = model.findDatabase(inc);
+            if (included.isPresent()) {
+                var hit = findTableInClosure(model, included.get(), name, seen);
+                if (hit.isPresent()) {
+                    return hit;
+                }
+            }
+        }
+        return java.util.Optional.empty();
     }
 }

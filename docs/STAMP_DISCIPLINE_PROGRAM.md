@@ -1438,6 +1438,169 @@ rows fail on divergence, KNOWN rows fail when they START agreeing.
 Pins: `BurnLaneTest` (§3a and §3b at the IR seam, cast e2e over
 DuckDB, census-registered).
 
+### AUDIT OF BLOCKER 3 + R1 + BURN LANE (2026-08-21, user-directed)
+
+Same method as the Blockers-1+2 audit: probes + sweep, code and
+execution only. NUL-byte sweep of every session-touched file: clean
+(the one ExistsJoinForm incident was already fixed).
+
+FOUND + FIXED (four):
+1. **Type-checker stamp bug** (the biggest catch): collection-literal
+   multiplicity was the ELEMENT COUNT ([2..2] for `[[]->first(),'a']`),
+   not the SUM of element bounds ([1..2], pure). The §5 egress wall had
+   been correctly firing on it (reverse/sort walling on a correct
+   one-element result). Typer#collection now sums bounds.
+2. **Compaction moved to the literal's CONSTRUCTION**: a 12-probe
+   battery showed consumer-site compaction was whack-a-mole — head/
+   first returned null, tail/drop/take were off-by-slot, makeString
+   printed TDSNull. A value-lane literal with any lower-0 element now
+   compacts ONCE at the ArrayLit build; all 12 probes pure-correct,
+   pinned as VerdictWorld2ConsistencyTest#section5FullBattery.
+3. **The pool-loop regex had its own blind spot**: `pool\.remove\(`
+   missed rowTupleMultiset's `ap.remove(hit)` — the guard widened in
+   Blocker 3 was still spelling-bound. Regex now `\.remove\(hit\)`
+   (the idiom's true token); GridCompare register 3→4.
+4. **ChannelBGrammarTest was the one suite #12 missed** — walls now
+   captured, printed, and pinned (20) like its four siblings.
+
+RECORDED (no action): §3b orderUnionAggregateExpr orders the FIRST
+nested reducer only (one union source per agg projection — the real
+shape; a second unordered reducer in one wrapped expr has no witness);
+cast BYTE-family (BINARY) cross-casts now raise (pure-right, no corpus
+witness either way); the live soft ceilings bind in the hand-run gate
+only (the corpus never runs in CI — same boundary as every corpus
+guard, now honest rather than vacuous).
+
+CROSS-CHECKED against the PARALLEL DEEP_AUDIT_2026_08_21 (branch
+worktree-e2e-deep-diagnosis, user-directed read): its two claimed
+regressions from our blockers were CONFIRMED BY PROBE and are FIXED in
+this slice —
+- **R1**: `take(1)->toOne()` aborted the compile — `CollectionLanes`'
+  whitelist had no `TypedLimit` arm (`default -> false` re-created the
+  blind-spot class the whitelist replaced, exactly as the deep audit
+  diagnosed). Fixed with the DURABLE form both audits converge on: the
+  switch is now EXHAUSTIVE over the sealed TypedSpec hierarchy — javac
+  refuses a new node type until it is classified. Pins:
+  take/limit rows in ToOneLaneTest.
+- **R2**: `map(p|$p.nick->toOne())` hit the §5 egress WALL — the
+  flow-adjudicated toOne wrap stamps [1] but its SQL cell CAN be NULL
+  (§7b witness: the engine emits no guard and drops client-side).
+  `ScalarValueReads` now descends through toOne-family wraps when
+  computing the u_map__ COLUMN mult, so the carrier's truth ([0..1])
+  drives the egress filter — result [Al, Cee], the engine's
+  SQLNull->[] equivalence. Pin: flowedToOneCellDrops.
+The deep audit's remaining findings were RATIFIED as the next work
+order (user: "do it"; queue D1–D6). D1 ADJUDICATED NO-CHANGE during
+recon: filter-grows-the-set is the ENGINE'S PINNED semantics — its own
+testInNegated golden asserts the duplicated-parent count
+(assertSize 10) AND the `or ... is null` admission arm, and
+testConsistencyWithNullsInJoin pins the isEmpty()||-equivalence plus
+the eq/notEq partition law. Our AUDIT-9 comment
+(StoreResolver:2304-2308) had already recorded exactly this; the deep
+audit's §2 lands in the same retraction class as its own §1 rows.
+
+REFEREE LESSON from this slice (corpus witness
+testSelfJoinPropertyMapping): construction-site compaction must be
+VALUE-LANE-scoped — a ROW-cells literal ($r.values / hand-written
+property reads) keeps its NULL cells, because TDSNull is DATA on the
+grid convention (the engine's tdsNull channel). The first draft
+compacted any literal with a lower-0 element and ate a grid cell.
+
+### D6a LANDED: isDistinct + the graph-leaf discipline (DEEP_AUDIT §5k, §1)
+
+- **isDistinct**: the blanket family() had routed the 1-ARG collection
+  form into the binary IS DISTINCT FROM — AIOOBE on any input. Split:
+  2-arg = SQL IS DISTINCT FROM; 1-arg = the NEW `SqlFn.ALL_DISTINCT`
+  semantic entry (carrier-ratchet honest: the lowering emits MEANING,
+  DuckDb expands len(list_distinct(x))=len(x), the base renderer walls
+  loudly, SpellingsTest CODED row). A to-one operand is trivially true;
+  c1 literals box.
+- **Graph-leaf toOne**: `GraphEmission.scalarLeafSubquery`'s LIMIT 1
+  (comment claimed "pure toOne semantics" — wrong on any lane) is now
+  the ENGINE's discipline (witness graphFetchCommon.pure:163:
+  distinct=true + hard-fail; no row-cap vocabulary exists): DEDUP via
+  TypedDistinct, then the backend's own more-than-one-row subquery
+  error fires — the LIMIT had been suppressing that free check while
+  silently picking a winner. A [0..1]-STAMPED single-column distinct
+  reads as the scalar subquery in the value-position arm (the
+  [1]-stamped TDS distinct/restrict SPLICE stays a value collection).
+  This closes §7b Q2 (previously OPEN pending exactly this witness).
+- concatSide moved to ListEncodings (file-length guard).
+
+Pins: BurnLaneTest isDistinct rows. The nested-nav TypedLimit at
+GraphEmission:2714 is the SAME family — recorded for the next touch.
+
+### D4 LANDED: function-slot variance + the subtype cycle guard (DEEP_AUDIT §5b)
+
+- **Contravariant parameter positions** (reference TypeMatch matches
+  params with `!covariant`): the InferenceKernel FunctionType arm SWAPS
+  the unify direction for parameter types — the actual's param must be
+  a SUPERTYPE of the formal's — killing the wrong-accept (an
+  Integer[1] lambda receiving 1.5 → silent 2.5) and the wrong-reject
+  (a Number-taking function refused an Integer-taking slot, the useful
+  case) in one edit. The multiplicity check FLIPS instead of skipping
+  (formal range ⊆ actual range) — still admits the recorded
+  equal(Any[*],Any[*]) comparator doctrine ([1] ⊆ [*]), finally
+  rejects genuinely-wrong widths. UNBOUND formal type/mult VARIABLES
+  keep the binding order (variance is moot for a fresh var; the swap
+  would move it to the non-binding side).
+- **ModelContext.isSubtype gains a visited set**: an inheritance cycle
+  (which the frontend still accepts — D6's leniency batch owns the
+  reject) was a StackOverflowError on the first miss; the guard
+  existed in ancestorsOf but not in the primitive everything calls.
+
+Pins: VarianceD4Test (both directions e2e through eval + the finite
+cycle). Suite 4213/0 with the flip — nothing depended on the inverted
+direction.
+
+### D3 LANDED: gate integrity (DEEP_AUDIT §11c) — two user rulings
+
+- **Tripwire**: PX.1 now `exit 1`s (it printed FAILED then exit 0 — the
+  one branch detecting a poisoned certification reported success) and
+  runs UNCONDITIONALLY (it only ran on all-green chains, so a
+  failed-gate chain never checked tree mutation).
+- **Gate 5 asserts**: the H2 sweep gains its first assertions — pass
+  floor 1361 (ratchets UP), failed-seeds ≤ 6, capability walls ≤ 945
+  (measured 2026-08-21). "1362 could become 1 without moving the
+  verdict" is dead.
+- **Gate 8 roster** (USER RULING: surgical, not restructure): the
+  allowlist + rename-goes-red discipline stays; the 7 previously
+  invisible classes append to BOTH lists (27 total — the module was
+  RED at HEAD while the gate was green).
+- **No skipping class on a gate roster** (USER RULING): the strict
+  skipped() detector STAYS (any fully-skipped class marks the gate);
+  PmcdReachabilityCensusTest became SELF-SUFFICIENT instead — it
+  materializes the protocol roster itself
+  (ProtocolRosterCensusTest.materializeRoster) rather than skipping on
+  class order; its SkipCensus registration removed (census SHRANK).
+- **manifest.regen** now produces a loud SKIP, never a fake PASS
+  (it reported a genuine PASS having asserted nothing).
+
+### D2 LANDED: the c1-singleton binder leaks (DEEP_AUDIT §3)
+
+The six hard crashes fixed — a C1-COLLAPSED LITERAL ([7]) reaching a
+collection op as a bare scalar re-boxes (PureSql.asList): take/drop/
+slice at the Lowerer's Typed arms, exists/forAll at their
+registrations, contains and zip at their rules. zip's pair emission
+moved to ListEncodings (file-length guard).
+
+SECOND REFEREE LESSON (corpus witness testContainsEscapePercentage):
+the box is scoped to `CollectionLanes.c1Literal` — a to-one-stamped
+COLLECTION LITERAL, exactly the deep audit's own "Bounded: literal
+collections only". A to-one PROPERTY READ must NOT box: the corpus
+pins its null-guarded scalar arms (`comments->contains('%')` over
+String[0..1] = `IS NOT NULL AND strpos(...)`, never list_contains).
+The first draft boxed by bare to-one stamp and broke that arm.
+
+ADJUDICATED pure-faithful (the audit's "want" column was wrong — its
+own §1 retraction class): `['ACTIVE']->contains('TIV')` is TRUE in
+real pure — [x] == x is pure's own law, the checker resolves
+string::contains for a String[1] operand, and substring semantics IS
+pure's answer. The contains rule dispatches by the RESOLVED CALLEE's
+param mult (boxes only the collection overload). Same ruling covers
+`['abc']->indexOf('b')` (string overload + the adjudicated engine
+1-based lane). Pins: BurnLaneTest#singletonCollectionOps.
+
 ### §7b ADJUDICATION (2026-08-21, ratified item f — witnesses, no reflex fix)
 
 **Question 1 — TRUST_ONE wrapping user `[1]` declarations / the
@@ -1513,3 +1676,158 @@ lower-bound row-count check in the reference executor. The FIX stands
 on the PURE-SPEC ground (size-0 into a required bound raises pure's
 cast error, PCT-witnessed), not on engine parity. The behavior is
 unchanged; the claim is corrected.
+
+### D6b LANDED: the frontend-leniency batch (DEEP_AUDIT §10)
+
+Seven probed leniency holes — models the engine rejects at compile that
+we ACCEPTED (probe: ScratchLeniencyTest, results recorded here; probe
+deleted, pins live in LeniencyD6Test):
+
+- **Inheritance cycles** (was: accepted, StackOverflow at first
+  demand): ModelIntegrity.checkInheritanceAcyclic — resolved-supers
+  DFS with a shared acyclic memo; message names the cycle path.
+- **Duplicate stored properties** (was: silent first-wins): engine
+  spelling "Found duplicated property 'x' in class 'A'". Derived-name
+  dups stay accepted — qualified properties legally overload; an
+  identical-signature derived dup is a recorded follow-up.
+- **Duplicate element FQNs** (was: silent LAST-wins at
+  ModelBuilder.putAtId): ONE shared packageable-element namespace
+  (classes/enums/associations/profiles/databases — cross-KIND dups
+  reject too), recorded at phase-2 ingest (`internElement`), THROWN by
+  ModelIntegrity so poison-not-drop/wallSink applies uniformly.
+  Engine spelling "Duplicated element 'x'". The compile-once corpus
+  global model was the feared casualty — scoreboard diff EMPTY.
+- **Duplicate enum values**: "Found duplicated value 'A' in
+  enumeration 'E'".
+- **Inverted bounds `[2..1]`** (was: lazy bare IllegalArgumentException
+  from the Bounded ctor at class demand): eager requireValidBounds on
+  stored/derived/parameter multiplicities, attributed to the property
+  site.
+- **Ghost store cross-refs** (was: accepted; SQL failed or misbehaved
+  only in the DB): every ColumnRef in join/filter/multigrain
+  conditions must resolve table (include-closure, views,
+  milestoning-declared temporal columns, quote-bearing identity per
+  StoreCompiler cluster 7) and column. CONSERVATIVE: {target} refs and
+  explicit foreign-db refs are SKIPPED, never false-positived.
+- **Out-of-range dates `%2020-99-99`** (was: DuckDB "Conversion
+  Error" at run time): SpecParser validates components for
+  LEGEND_PLATFORM + LEGEND_LITE; LEGEND_ENGINE stays deferred — the
+  oracle's parser accepts these byte-for-byte (gate 8 parity) and the
+  engine validates in ITS compiler, which is not our parity surface.
+
+ADJUDICATED KEPT: the ElementParser stray-paren skip is bounded ("skip
+exactly this token") and corpus-witnessed engine tolerance — not a hole.
+
+Referee: core suite 4215/0; full DuckDB corpus scoreboard diff EMPTY
+(the early scoped run that the dup-FQN risk demanded); pins
+LeniencyD6Test (JDBC-census registered: the valid-neighbor control and
+the moved-to-parser bad-date pin execute e2e).
+
+### D5 LANDED: ConnectionResolver content-keyed + the field-level Invariant 3 (DEEP_AUDIT §11b)
+
+The server's connection cache had every defect Invariant 3 exists to
+prevent, invisible to the CLASS-NAME funnel because it was a FIELD
+(`static Map CACHE`):
+
+- **Check-then-act race**: two threads could both open; the losing
+  connection leaked UNCLOSED. Now `HandleStore.getOrOpen` — atomic
+  compute, no loser exists. Race pinned by an 8-thread latch test.
+- **FQN-keyed identity** (engine planCache scar): an edited connection
+  definition kept resolving onto the stale database. Now content-keyed:
+  Hash(definition record content + FQN) — same definition keeps its
+  database across requests (tables persist, the feature); an edited
+  definition gets a fresh one.
+- **Shared `jdbc:h2:mem:testdb`** in the default H2 arm (the same A19
+  disease the EmbeddedH2 arm was already cured of): now named per
+  definition content.
+- **Dead-handle replacement**: a closed cached connection is replaced
+  in the same atomic step; a failed open never poisons the key.
+
+`HandleStore<T>` lives in com.legend.cache (Invariant 3 funnel) and is
+GENERIC on purpose: java.sql stays at the chartered seams (F1.3) — the
+first design (ConnectionStore holding Connection in cache) tripped that
+rule, and the fix was genericizing, not widening the funnel. Its two
+broad catches are the checked-exception carrier, reviewed + pinned.
+
+**Invariant 3, field level** (the ArchUnit charter item): a
+declared-type rule is BLIND here — every field spells `Map<...>`
+whether the value is Map.of() or a ConcurrentHashMap — so the new
+guard REFLECTS ON RUNTIME VALUES: every static collection field
+outside com.legend.cache must hold an immutable collection or appear
+in a justified register (21 adjudicated rows: write-once init tables
+= burn-down candidates; TimingLedger + SUPPRESSED_ONCE = genuinely
+mutable, justified). The guard found and adjudicated 9 sites the
+grep census missed. Old CACHE deleted same-slice (no adapter hedges).
+
+Pins: HandleStoreTest (5, JDBC-free — the census stays clean by
+DESIGN: the pin uses IOException). Referee: core suite 4221/0 + full
+chain green.
+
+## THE RATIFIED ARC (2026-08-21, user: "ratified, go")
+
+Order: (1) verdict-in-DB — DB verdict of record, HOST VERDICT KEPT
+PERMANENTLY as a parallel REFEREE (disagreement = pinned shrink-only
+census, NEVER a rescue; ArchUnit pins it unreachable from the product
+path); (2) decoupled-PCT burn to COMPLETE — finish ONE of the three
+harnesses (PCT / relational corpus / ###Data corpus) entirely before
+opening a new front; (3) ###Data execution (census first) →
+test-corpus branch; (4) relational corpus burndown resume (2347/2575).
+Prepared statements deliberately LATE: they perturb the golden-SQL
+TEXT lane; land after row/verdict refereeing dominates.
+
+**Finished-harness definition (PCT)**: every test passes through the
+DECOUPLED channel (platform wire, zero harness compensations);
+reference-vs-decoupled diff census 0 with compensation code DELETED
+(the reference channel itself SURVIVES as the permanent cross-lane
+referee — engine-derived spec, not our second impl); exclusions 0 or
+declared feature-leg rows; DB verdict of record.
+
+### Decoupled-PCT census (read-only slice, measured 2026-08-21)
+
+Channel-B state (discovered/AGREE-PASS/AGREE-FAIL/WIRE-BUG/B-FIXES-A):
+Essential 327/291/21/11/4 · Grammar 137/126/6/1/4 · Relation
+287/286/0/0/1 · Standard 204/204/0/0/0 · Unclassified 95/95/0/0/0.
+Total discovered 1050 vs reference 1115.
+
+**TRUE-WIRE-BUG = 0 across all five suites.** All 12 WIRE-BUG rows are
+ENGINE-FRONTIER: the engine's OWN relational-DuckDB executor fails
+them too. The decoupled channel has no true wire debt today — the
+completion delta is walls + exclusions, not wire bugs.
+
+Completion delta, bucketed (design legs, NOT a onesie tail):
+
+1. **Platform-source walls** (~50 files, hiding the 65 undiscovered
+   tests incl. Relation's 287→348 gap):
+   a. REFLECTION meta-types family (~14 files): Multiplicity /
+      ValueSpecification / Package / PackageableElement / FunctionType
+      not modeled (isToOne/isToMany/bounds, elementToPath,
+      functionType, reactivate, routing.pure, support.pure).
+   b. Grammar-gaps family: m3.pure top-level ^Instance(...), new.pure
+      brace form, pct_core.pure generics, addColumns '@' column types,
+      unit files (newUnit/getUnitValue), over.pure '?' wildcard.
+2. **Reference exclusions 36** (Essential 25, Grammar 10, Relation 1),
+   clustered: instance-universe-in-PCT ~13 (fold/find/filter/getAll/
+   map-relationship/head-complex/match over Person-class instances);
+   date ERROR-parity 5 + adjust-big-number 4; indexOf/substring base
+   3 (the §4 PER-LANE adjudication rows — engine witnesses required);
+   sort-with-key/function-vars 3; primitive-extension eq/equal 2;
+   misc 3 (toString complex, at error, variant joinStrings).
+3. **ENGINE-FRONTIER 12**: adjudication rows — engine parity says
+   these stay declared (we match the engine's relational executor,
+   including its frontier), pinned so they burn if the engine moves.
+
+### Verdict-in-DB scoping (task #16, read-only slice)
+
+Homework H1–H6 COMPLETE (docs/CANONICAL_RENDER_HOMEWORK.md). R0 next =
+the canonical-form spec doc (decisions already ruled in the homework
+verdict). R1 = Render grown into THE canonical serializer (scalar
+channel: no-exponent float format expr + scale-normalized Decimal;
+grid channel ALREADY IS engine toCSV) + the corpus-wide divergence
+instrument render(e)==render(a) NEXT TO PureAsserts. R2 = per-family
+hard cutover (assertEquals scalars → collections → grids →
+assertSameElements = 1,803 of 2,039 sites), eval-ledger pins DOWN
+every commit. RATIFIED AMENDMENT to R2's "host arms delete":
+PureAsserts' equality lattice SURVIVES as the permanent parallel-host
+referee (the ratified dual-verdict design) — what deletes is every
+harness-compensation arm and every verdict-AFFECTING host path;
+PureAsserts moves to the referee, disagreement census pinned at 0.

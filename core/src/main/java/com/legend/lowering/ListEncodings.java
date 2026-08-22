@@ -63,6 +63,33 @@ final class ListEncodings {
                 : transformed;
     }
 
+    /** {@code zip(a, b)}: pairwise {first, second} structs up to the
+     * SHORTER side. An EMPTY side is SQL NULL and len(NULL) is NULL —
+     * which LEAST would IGNORE (it skips nulls), silently zipping
+     * against the non-empty side — so the count zeroes explicitly, and
+     * a NULL whole-zip coalesces to pure's EMPTY list. */
+    static SqlExpr zip(SqlExpr a, SqlExpr b) {
+        SqlExpr count = SqlExpr.Call.of(SqlFn.LEAST,
+                SqlExpr.Call.of(SqlFn.COALESCE,
+                        SqlExpr.Call.of(SqlFn.LIST_LENGTH, a),
+                        new SqlExpr.IntLit(0)),
+                SqlExpr.Call.of(SqlFn.COALESCE,
+                        SqlExpr.Call.of(SqlFn.LIST_LENGTH, b),
+                        new SqlExpr.IntLit(0)));
+        SqlExpr i = new SqlExpr.Column(null, "_zip_i");
+        SqlExpr body = new SqlExpr.StructLit(List.of(
+                new SqlExpr.StructLit.Field("first",
+                        SqlExpr.Call.of(SqlFn.LIST_GET, a, i)),
+                new SqlExpr.StructLit.Field("second",
+                        SqlExpr.Call.of(SqlFn.LIST_GET, b, i))));
+        return SqlExpr.Call.of(SqlFn.COALESCE,
+                SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
+                        SqlExpr.Call.of(SqlFn.RANGE_FN,
+                                new SqlExpr.IntLit(1), onePlus(count)),
+                        new SqlExpr.Lambda(List.of("_zip_i"), body)),
+                new SqlExpr.ArrayLit(List.of()));
+    }
+
     /** {@code slice(start, stop)}: 0-based exclusive-stop → 1-based
      * inclusive array_slice; NEGATIVE bounds clamp to the list head
      * (PCT — DuckDB reads a negative bound FROM THE END), and inverted
@@ -99,6 +126,23 @@ final class ListEncodings {
                                 SqlExpr.Call.of(SqlFn.LIST_POSITION, list,
                                         new SqlExpr.Column(null, "_ddx")),
                                 new SqlExpr.Column(null, "_ddi"))))));
+    }
+
+    /** A concatenate SIDE: scalar encodings (TO-ONE stamps, many-
+     * stamped CASE optionals) wrap null-guarded — SQL NULL is pure's
+     * EMPTY, so the side contributes [], never [NULL]. Many-stamped
+     * lists pass; the STAMP decides ({@code toOne} = the caller's
+     * Stamps.toOne read). Moved from Scalars (file-length guard). */
+    static SqlExpr concatSide(boolean toOne, SqlExpr e) {
+        if (e instanceof SqlExpr.NullLit
+                || !(toOne || e instanceof SqlExpr.Case)) {
+            return e;
+        }
+        return new SqlExpr.Case(
+                List.of(new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.IS_NULL, e),
+                        new SqlExpr.ArrayLit(List.of()))),
+                new SqlExpr.ArrayLit(List.of(e)));
     }
 
     /** Clamp a (possibly negative) index to zero — PCT's slice/drop/take edge semantics. */
