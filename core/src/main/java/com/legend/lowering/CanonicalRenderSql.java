@@ -437,10 +437,16 @@ public final class CanonicalRenderSql {
         return new SqlExpr.Case(List.of(
                 // ZEROS UNIFY (spec §3, witness parseFloat('-000.000')):
                 // pure grants 0.0 == -0.0, so the canonical render of
-                // every zero is '0.0' — SQL's v = 0 catches both signs
+                // every zero is '0.0'. Detected TEXTUALLY (F10 slice 1):
+                // the old v = 0.0 compare forced SQL to cast the COLUMN
+                // to DOUBLE, which errored the whole wrapped query on
+                // print-form identity carriers ('7.345D') — the canon
+                // must be TOTAL over any column it can meet. For genuine
+                // DOUBLE columns the zero texts are exactly 0.0/-0.0,
+                // so the regex is equivalence, not leniency.
                 new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.EQUAL, v,
-                                new SqlExpr.FloatLit(0.0)),
+                        SqlExpr.Call.of(SqlFn.REGEXP_FULL_MATCH, base,
+                                new SqlExpr.StringLit("-?0+(\\.0+)?")),
                         new SqlExpr.StringLit("0.0")),
                 new SqlExpr.Case.When(has(base, "e"), unfolded),
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.NOT,
