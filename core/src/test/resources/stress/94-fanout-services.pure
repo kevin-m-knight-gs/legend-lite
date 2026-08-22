@@ -5725,6 +5725,125 @@ Service stress::PL9_CounterpartyRatingCount
   ]
 }
 
+Service stress::PL10_FeeScheduleTenorBand
+{
+    pattern: '/stress/pl10';
+    documentation: 'Which core-tenor band each fee schedule falls in, resolved by a RANGE join declared in fee-core over a table it only includes -- a project-to-project edge executed. Every seeded tenor is a band boundary or outside every band, so an off-by-one in the half-open range changes an answer here. The last row matches no band at all and must read null rather than the nearest one.';
+    execution: Single
+    {
+    query: |fee_core::FeeSchedule.all()
+        ->project(~[
+            productCode:x|$x.productCode,
+            tierCode:x|$x.tierCode,
+            effectiveDate:x|$x.effectiveDate,
+            days:x|$x.daysToMaturity,
+            bucketId:x|$x.bucket.bucketId,
+            band:x|$x.bucket.band,
+            bandLabel:x|$x.bucket.label
+        ])
+        ->sort(~productCode->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    PL10_FeeScheduleTenorBand_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 8 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"productCode":"FP-EQOPT","tierCode":"RETAIL","effectiveDate":"2024-03-15","days":366,"bucketId":"CTN-06","band":"Y1_3","bandLabel":"1-3y"},{"productCode":"FP-EQOPT","tierCode":"INST","effectiveDate":"2024-03-15","days":3654,"bucketId":"CTN-09","band":"Y10_PLUS","bandLabel":"10y+"},{"productCode":"FP-FXFWD","tierCode":"RETAIL","effectiveDate":"2024-01-01","days":8,"bucketId":"CTN-02","band":"D8_30","bandLabel":"8-30d"},{"productCode":"FP-FXFWD","tierCode":"INST","effectiveDate":"2024-01-01","days":365,"bucketId":"CTN-05","band":"M6_12","bandLabel":"6-12m"},{"productCode":"FP-IRS","tierCode":"RETAIL","effectiveDate":"2024-01-01","days":7,"bucketId":"CTN-01","band":"D0_7","bandLabel":"0-7d"},{"productCode":"FP-IRS","tierCode":"RETAIL","effectiveDate":"2024-07-01","days":7,"bucketId":"CTN-01","band":"D0_7","bandLabel":"0-7d"},{"productCode":"FP-IRS","tierCode":"INST","effectiveDate":"2024-01-01","days":7,"bucketId":"CTN-01","band":"D0_7","bandLabel":"0-7d"},{"productCode":"FP-RETIRED","tierCode":"PRIVATE","effectiveDate":"2024-02-01","days":40000,"bucketId":null,"band":null,"bandLabel":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::PL11_FeeScheduleGrossFee
+{
+    pattern: '/stress/pl11';
+    documentation: 'A derived property and a qualified property TAKING AN ARGUMENT, both calling core_types::ctBasisPointsToRate across two project boundaries at once: the corpus links fee-core, and fee-core is why core-types is here at all. The oracle reimplements that function from core-types\' own source rather than reading the engine\'s answer back.';
+    execution: Single
+    {
+    query: |fee_core::FeeSchedule.all()
+        ->project(~[
+            productCode:x|$x.productCode,
+            tierCode:x|$x.tierCode,
+            effectiveDate:x|$x.effectiveDate,
+            bps:x|$x.rateBasisPoints,
+            rate:x|$x.rate,
+            grossOnMillion:x|$x.grossFee(1000000.0)
+        ])
+        ->sort(~productCode->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    PL11_FeeScheduleGrossFee_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 8 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"productCode":"FP-EQOPT","tierCode":"RETAIL","effectiveDate":"2024-03-15","bps":60.0,"rate":0.006,"grossOnMillion":6000.0},{"productCode":"FP-EQOPT","tierCode":"INST","effectiveDate":"2024-03-15","bps":35.0,"rate":0.0035,"grossOnMillion":3500.0},{"productCode":"FP-FXFWD","tierCode":"RETAIL","effectiveDate":"2024-01-01","bps":8.0,"rate":0.0008,"grossOnMillion":800.0},{"productCode":"FP-FXFWD","tierCode":"INST","effectiveDate":"2024-01-01","bps":4.5,"rate":0.00045,"grossOnMillion":450.0},{"productCode":"FP-IRS","tierCode":"RETAIL","effectiveDate":"2024-01-01","bps":25.0,"rate":0.0025,"grossOnMillion":2500.0},{"productCode":"FP-IRS","tierCode":"RETAIL","effectiveDate":"2024-07-01","bps":22.5,"rate":0.00225,"grossOnMillion":2250.0},{"productCode":"FP-IRS","tierCode":"INST","effectiveDate":"2024-01-01","bps":12.0,"rate":0.0012,"grossOnMillion":1200.0},{"productCode":"FP-RETIRED","tierCode":"PRIVATE","effectiveDate":"2024-02-01","bps":150.0,"rate":0.015,"grossOnMillion":15000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::F10_RatingsAsOf2019
 {
     pattern: '/stress/t10';
@@ -9531,6 +9650,68 @@ Service stress::D_OrderDense
   ]
 }
 
+Service stress::D_FeeWaiverDense
+{
+    pattern: '/stress/d_feewaiver';
+    documentation: 'Dense stack on fee_core::FeeWaiver: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |fee_core::FeeWaiver.all()
+        ->filter({x|($x.reasonCode > ' ')})
+        ->project(~[
+            waiverId:x|$x.waiverId,
+            scheduleBucketLadderName:x|$x.schedule.bucket.ladder.name,
+            scheduleProductName:x|$x.schedule.product.name,
+            scheduleTierName:x|$x.schedule.tier.name,
+            scheduleProductBillingCurrency:x|$x.schedule.product.billingCurrency,
+            scheduleBucketSpanDays:x|$x.schedule.bucket.spanDays,
+            scheduleGrossFeeQ:x|$x.schedule.grossFee(0.5)
+        ])
+        ->sort(~waiverId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D_FeeWaiverDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"waiverId":"WV-1","scheduleBucketLadderName":"Standard swap ladder","scheduleProductName":"Interest rate swap","scheduleTierName":"Retail","scheduleProductBillingCurrency":"USD","scheduleBucketSpanDays":8,"scheduleGrossFeeQ":0.00125},{"waiverId":"WV-2","scheduleBucketLadderName":"Standard swap ladder","scheduleProductName":"Interest rate swap","scheduleTierName":"Retail","scheduleProductBillingCurrency":"USD","scheduleBucketSpanDays":8,"scheduleGrossFeeQ":0.00125},{"waiverId":"WV-3","scheduleBucketLadderName":null,"scheduleProductName":null,"scheduleTierName":null,"scheduleProductBillingCurrency":null,"scheduleBucketSpanDays":null,"scheduleGrossFeeQ":null},{"waiverId":"WV-4","scheduleBucketLadderName":"Standard swap ladder","scheduleProductName":"Equity option","scheduleTierName":"Institutional","scheduleProductBillingCurrency":"JPY","scheduleBucketSpanDays":36346,"scheduleGrossFeeQ":0.00175}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::D_ClientInteractionDense
 {
     pattern: '/stress/d_clientinteraction';
@@ -10294,6 +10475,68 @@ Service stress::D_CurvePointDense
                   #{
                     contentType: 'application/json';
                     data: '[{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"10Y","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"Y5_10","tenorYears":10.008219178082191,"presentValueOfQ":0.38893094},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"15Y","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"Y10_PLUS","tenorYears":15.01095890410959,"presentValueOfQ":0.336911365},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"1M","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"D8_30","tenorYears":0.0821917808219178,"presentValueOfQ":0.498518635},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"1Y","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"M6_12","tenorYears":1.0,"presentValueOfQ":0.48405963},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"20Y","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"Y10_PLUS","tenorYears":20.013698630136986,"presentValueOfQ":0.293607465},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"2Y","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"Y1_3","tenorYears":2.0,"presentValueOfQ":0.471447665},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"30Y","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"Y10_PLUS","tenorYears":30.02191780821918,"presentValueOfQ":0.223636215},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"3M","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"M1_3","tenorYears":0.2493150684931507,"presentValueOfQ":0.495594185},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"3Y","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"Y1_3","tenorYears":3.0,"presentValueOfQ":0.46040572},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"5Y","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"Y3_5","tenorYears":5.002739726027397,"presentValueOfQ":0.44011596},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"6M","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"M3_6","tenorYears":0.4986301369863014,"presentValueOfQ":0.4914967},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","tenorLabel":"7Y","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"Y5_10","tenorYears":7.002739726027397,"presentValueOfQ":0.418818975},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"10Y","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"Y5_10","tenorYears":10.008219178082191,"presentValueOfQ":0.39088207},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"15Y","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"Y10_PLUS","tenorYears":15.01095890410959,"presentValueOfQ":0.338431995},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"1M","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"D8_30","tenorYears":0.0821917808219178,"presentValueOfQ":0.498522735},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"1Y","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"M6_12","tenorYears":1.0,"presentValueOfQ":0.48425329},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"20Y","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"Y10_PLUS","tenorYears":20.013698630136986,"presentValueOfQ":0.29478505},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"2Y","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"Y1_3","tenorYears":2.0,"presentValueOfQ":0.472108155},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"30Y","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"Y10_PLUS","tenorYears":30.02191780821918,"presentValueOfQ":0.224308625},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"3M","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"M1_3","tenorYears":0.2493150684931507,"presentValueOfQ":0.49560654},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"3Y","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"Y1_3","tenorYears":3.0,"presentValueOfQ":0.46151202},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"5Y","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"Y3_5","tenorYears":5.002739726027397,"presentValueOfQ":0.44165991},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"6M","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"M3_6","tenorYears":0.4986301369863014,"presentValueOfQ":0.491545715},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","tenorLabel":"7Y","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"Y5_10","tenorYears":7.002739726027397,"presentValueOfQ":0.420582405},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","tenorLabel":"10Y","tenorBucketLadderName":"Standard swap ladder","tenorBucketBand":"Y5_10","tenorYears":10.008219178082191,"presentValueOfQ":0.38582937}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D_FeeScheduleDense
+{
+    pattern: '/stress/d_feeschedule';
+    documentation: 'Dense stack on fee_core::FeeSchedule: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |fee_core::FeeSchedule.all()
+        ->filter({x|($x.productCode > ' ')})
+        ->project(~[
+            productCode:x|$x.productCode,
+            tierCode:x|$x.tierCode,
+            effectiveDate:x|$x.effectiveDate,
+            bucketLadderName:x|$x.bucket.ladder.name,
+            productBillingCurrency:x|$x.product.billingCurrency,
+            rate:x|$x.rate,
+            grossFeeQ:x|$x.grossFee(0.5)
+        ])
+        ->sort([~productCode->ascending(), ~tierCode->ascending(), ~effectiveDate->ascending()])
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D_FeeScheduleDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 8 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"productCode":"FP-EQOPT","tierCode":"INST","effectiveDate":"2024-03-15","bucketLadderName":"Standard swap ladder","productBillingCurrency":"JPY","rate":0.0035,"grossFeeQ":0.00175},{"productCode":"FP-EQOPT","tierCode":"RETAIL","effectiveDate":"2024-03-15","bucketLadderName":"Standard swap ladder","productBillingCurrency":"JPY","rate":0.006,"grossFeeQ":0.003},{"productCode":"FP-FXFWD","tierCode":"INST","effectiveDate":"2024-01-01","bucketLadderName":"Standard swap ladder","productBillingCurrency":"EUR","rate":0.00045,"grossFeeQ":0.000225},{"productCode":"FP-FXFWD","tierCode":"RETAIL","effectiveDate":"2024-01-01","bucketLadderName":"Standard swap ladder","productBillingCurrency":"EUR","rate":0.0008,"grossFeeQ":0.0004},{"productCode":"FP-IRS","tierCode":"INST","effectiveDate":"2024-01-01","bucketLadderName":"Standard swap ladder","productBillingCurrency":"USD","rate":0.0012,"grossFeeQ":0.0006},{"productCode":"FP-IRS","tierCode":"RETAIL","effectiveDate":"2024-01-01","bucketLadderName":"Standard swap ladder","productBillingCurrency":"USD","rate":0.0025,"grossFeeQ":0.00125},{"productCode":"FP-IRS","tierCode":"RETAIL","effectiveDate":"2024-07-01","bucketLadderName":"Standard swap ladder","productBillingCurrency":"USD","rate":0.00225,"grossFeeQ":0.001125},{"productCode":"FP-RETIRED","tierCode":"PRIVATE","effectiveDate":"2024-02-01","bucketLadderName":null,"productBillingCurrency":"GBP","rate":0.015,"grossFeeQ":0.0075}]';
                   }#;
               }#
           ]
@@ -11328,9 +11571,9 @@ Service stress::D_CtnBucketProfileDense
         ->filter({x|($x.profileId > ' ')})
         ->project(~[
             profileId:x|$x.profileId,
+            bucketBucketId:x|$x.bucket.bucketId,
             bucketLadderName:x|$x.bucket.ladder.name,
             bucketBand:x|$x.bucket.band,
-            bucketBand2:x|$x.bucket.band,
             bucketSpanDays:x|$x.bucket.spanDays
         ])
         ->sort(~profileId->ascending())
@@ -11368,7 +11611,7 @@ Service stress::D_CtnBucketProfileDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"profileId":"CBP-0001","bucketLadderName":null,"bucketBand":null,"bucketBand2":null,"bucketSpanDays":null},{"profileId":"CBP-0002","bucketLadderName":null,"bucketBand":null,"bucketBand2":null,"bucketSpanDays":null},{"profileId":"CBP-0003","bucketLadderName":"Standard swap ladder","bucketBand":"D0_7","bucketBand2":"D0_7","bucketSpanDays":8},{"profileId":"CBP-0004","bucketLadderName":"Standard swap ladder","bucketBand":"D8_30","bucketBand2":"D8_30","bucketSpanDays":23},{"profileId":"CBP-0005","bucketLadderName":"Standard swap ladder","bucketBand":"M1_3","bucketBand2":"M1_3","bucketSpanDays":61}]';
+                    data: '[{"profileId":"CBP-0001","bucketBucketId":null,"bucketLadderName":null,"bucketBand":null,"bucketSpanDays":null},{"profileId":"CBP-0002","bucketBucketId":null,"bucketLadderName":null,"bucketBand":null,"bucketSpanDays":null},{"profileId":"CBP-0003","bucketBucketId":"CTN-01","bucketLadderName":"Standard swap ladder","bucketBand":"D0_7","bucketSpanDays":8},{"profileId":"CBP-0004","bucketBucketId":"CTN-02","bucketLadderName":"Standard swap ladder","bucketBand":"D8_30","bucketSpanDays":23},{"profileId":"CBP-0005","bucketBucketId":"CTN-03","bucketLadderName":"Standard swap ladder","bucketBand":"M1_3","bucketSpanDays":61}]';
                   }#;
               }#
           ]
@@ -12671,6 +12914,97 @@ Service stress::GG_MarginCallTree
                   #{
                     contentType: 'application/json';
                     data: '{"builder":{"_type":"json"},"values":[{"marginCallId":"MC-0001","agreedAmount":1487.5,"disputeReason":"none","disputedAmount":1487.5,"agreement":null,"counterparty":null},{"marginCallId":"MC-0002","agreedAmount":1525.0,"disputeReason":"late data","disputedAmount":1525.0,"agreement":null,"counterparty":null},{"marginCallId":"MC-0003","agreedAmount":1562.5,"disputeReason":null,"disputedAmount":1562.5,"agreement":{"agreementId":"CSA-0001","agreementType":"CSA","currency":"USD","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER"}},"counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}}},{"marginCallId":"MC-0004","agreedAmount":null,"disputeReason":"none","disputedAmount":1600.0,"agreement":{"agreementId":"CSA-0002","agreementType":"CSA","currency":"GBP","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER"}},"counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}}},{"marginCallId":"MC-0005","agreedAmount":1637.5,"disputeReason":"reconciled","disputedAmount":null,"agreement":{"agreementId":"CSA-0003","agreementType":"GMRA","currency":"EUR","counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND"}},"counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND","creditRating":"BBB","country":{"countryCode":"DE","capitalCity":"Berlin"}}}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::GG_FeeScheduleTree
+{
+    pattern: '/stress/gg_feeschedule';
+    documentation: 'Generated graph fetch on fee_core::FeeSchedule: 6 keys, 2 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
+    execution: Single
+    {
+    query: |fee_core::FeeSchedule.all()
+        ->graphFetch(#{
+  fee_core::FeeSchedule
+  {
+    productCode,
+    daysToMaturity,
+    effectiveDate,
+    maximumFee,
+    product
+    {
+      productCode,
+      assetClass,
+      isActive
+    },
+    tier
+    {
+      tierCode,
+      minNotional,
+      name
+    }
+  }
+}#)
+        ->serialize(#{
+  fee_core::FeeSchedule
+  {
+    productCode,
+    daysToMaturity,
+    effectiveDate,
+    maximumFee,
+    product
+    {
+      productCode,
+      assetClass,
+      isActive
+    },
+    tier
+    {
+      tierCode,
+      minNotional,
+      name
+    }
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    GG_FeeScheduleTree_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 8 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"productCode":"FP-IRS","daysToMaturity":7,"effectiveDate":"2024-01-01","maximumFee":5000.0,"product":{"productCode":"FP-IRS","assetClass":"RATES","isActive":true},"tier":{"tierCode":"RETAIL","minNotional":0.0,"name":"Retail"}},{"productCode":"FP-IRS","daysToMaturity":7,"effectiveDate":"2024-07-01","maximumFee":5000.0,"product":{"productCode":"FP-IRS","assetClass":"RATES","isActive":true},"tier":{"tierCode":"RETAIL","minNotional":0.0,"name":"Retail"}},{"productCode":"FP-IRS","daysToMaturity":7,"effectiveDate":"2024-01-01","maximumFee":null,"product":{"productCode":"FP-IRS","assetClass":"RATES","isActive":true},"tier":{"tierCode":"INST","minNotional":1000000.0,"name":"Institutional"}},{"productCode":"FP-FXFWD","daysToMaturity":8,"effectiveDate":"2024-01-01","maximumFee":1200.0,"product":{"productCode":"FP-FXFWD","assetClass":"FX","isActive":true},"tier":{"tierCode":"RETAIL","minNotional":0.0,"name":"Retail"}},{"productCode":"FP-FXFWD","daysToMaturity":365,"effectiveDate":"2024-01-01","maximumFee":null,"product":{"productCode":"FP-FXFWD","assetClass":"FX","isActive":true},"tier":{"tierCode":"INST","minNotional":1000000.0,"name":"Institutional"}},{"productCode":"FP-EQOPT","daysToMaturity":366,"effectiveDate":"2024-03-15","maximumFee":250000.0,"product":{"productCode":"FP-EQOPT","assetClass":"EQUITY","isActive":true},"tier":{"tierCode":"RETAIL","minNotional":0.0,"name":"Retail"}},{"productCode":"FP-EQOPT","daysToMaturity":3654,"effectiveDate":"2024-03-15","maximumFee":null,"product":{"productCode":"FP-EQOPT","assetClass":"EQUITY","isActive":true},"tier":{"tierCode":"INST","minNotional":1000000.0,"name":"Institutional"}},{"productCode":"FP-RETIRED","daysToMaturity":40000,"effectiveDate":"2024-02-01","maximumFee":null,"product":{"productCode":"FP-RETIRED","assetClass":"CREDIT","isActive":false},"tier":{"tierCode":"PRIVATE","minNotional":50000000.0,"name":"Private placement"}}]}';
                   }#;
               }#
           ]
@@ -15726,85 +16060,6 @@ Service stress::GG_CrRatingActionTree
   ]
 }
 
-Service stress::GG_CtnTenorBucketTree
-{
-    pattern: '/stress/gg_ctntenorbucket';
-    documentation: 'Generated graph fetch on core_tenor::CtnTenorBucket: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
-    execution: Single
-    {
-    query: |core_tenor::CtnTenorBucket.all()
-        ->graphFetch(#{
-  core_tenor::CtnTenorBucket
-  {
-    bucketId,
-    label,
-    maxDays,
-    minDays,
-    ladder
-    {
-      ladderId,
-      dayCountConvention,
-      isDefault
-    }
-  }
-}#)
-        ->serialize(#{
-  core_tenor::CtnTenorBucket
-  {
-    bucketId,
-    label,
-    maxDays,
-    minDays,
-    ladder
-    {
-      ladderId,
-      dayCountConvention,
-      isDefault
-    }
-  }
-}#);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    GG_CtnTenorBucketTree_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 9 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"bucketId":"CTN-01","label":"0-7d","maxDays":8,"minDays":0,"ladder":{"ladderId":"LDR-SWAP","dayCountConvention":"ACT/365","isDefault":true}},{"bucketId":"CTN-02","label":"8-30d","maxDays":31,"minDays":8,"ladder":{"ladderId":"LDR-SWAP","dayCountConvention":"ACT/365","isDefault":true}},{"bucketId":"CTN-03","label":"1-3m","maxDays":92,"minDays":31,"ladder":{"ladderId":"LDR-SWAP","dayCountConvention":"ACT/365","isDefault":true}},{"bucketId":"CTN-04","label":"3-6m","maxDays":184,"minDays":92,"ladder":{"ladderId":"LDR-SWAP","dayCountConvention":"ACT/365","isDefault":true}},{"bucketId":"CTN-05","label":"6-12m","maxDays":366,"minDays":184,"ladder":{"ladderId":"LDR-SWAP","dayCountConvention":"ACT/365","isDefault":true}},{"bucketId":"CTN-06","label":"1-3y","maxDays":1096,"minDays":366,"ladder":{"ladderId":"LDR-SWAP","dayCountConvention":"ACT/365","isDefault":true}},{"bucketId":"CTN-07","label":"3-5y","maxDays":1827,"minDays":1096,"ladder":{"ladderId":"LDR-SWAP","dayCountConvention":"ACT/365","isDefault":true}},{"bucketId":"CTN-08","label":"5-10y","maxDays":3654,"minDays":1827,"ladder":{"ladderId":"LDR-SWAP","dayCountConvention":"ACT/365","isDefault":true}},{"bucketId":"CTN-09","label":"10y+","maxDays":40000,"minDays":3654,"ladder":{"ladderId":"LDR-SWAP","dayCountConvention":"ACT/365","isDefault":true}}]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
 Service stress::AA_CurvesYieldCurveCounts
 {
     pattern: '/stress/aa_curvesyieldcurve';
@@ -16184,6 +16439,116 @@ Service stress::AA_CtnTenorLadderCounts
                   #{
                     contentType: 'application/json';
                     data: '[{"ladderId":"LDR-SWAP","bucketsCount":9}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::AA_FeeProductCounts
+{
+    pattern: '/stress/aa_feeproduct';
+    documentation: 'Generated aggregate on fee_core::FeeProduct: 1 count(s) over to-many associations, every parent of which HAS children. This is the non-empty half of the property the F-series pins on the empty half -- F6 makes count() over an empty to-many return 1, so an end with any childless parent is excluded here rather than quarantined. Several counts on one root so the outer joins interact; a single-aggregate probe cannot show that. Generated by scripts/corpus/aggregates.py.';
+    execution: Single
+    {
+    query: |fee_core::FeeProduct.all()
+        ->project(~[
+            productCode:x|$x.productCode,
+            schedulesCount:x|$x.schedules->count()
+        ])
+        ->sort(~productCode->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    AA_FeeProductCounts_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"productCode":"FP-EQOPT","schedulesCount":2},{"productCode":"FP-FXFWD","schedulesCount":2},{"productCode":"FP-IRS","schedulesCount":3},{"productCode":"FP-RETIRED","schedulesCount":1}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::AA_FeeTierCounts
+{
+    pattern: '/stress/aa_feetier';
+    documentation: 'Generated aggregate on fee_core::FeeTier: 1 count(s) over to-many associations, every parent of which HAS children. This is the non-empty half of the property the F-series pins on the empty half -- F6 makes count() over an empty to-many return 1, so an end with any childless parent is excluded here rather than quarantined. Several counts on one root so the outer joins interact; a single-aggregate probe cannot show that. Generated by scripts/corpus/aggregates.py.';
+    execution: Single
+    {
+    query: |fee_core::FeeTier.all()
+        ->project(~[
+            tierCode:x|$x.tierCode,
+            schedulesCount:x|$x.schedules->count()
+        ])
+        ->sort(~tierCode->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    AA_FeeTierCounts_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tierCode":"INST","schedulesCount":3},{"tierCode":"PRIVATE","schedulesCount":1},{"tierCode":"RETAIL","schedulesCount":4}]';
                   }#;
               }#
           ]

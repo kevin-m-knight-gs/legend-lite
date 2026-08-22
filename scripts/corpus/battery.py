@@ -2123,6 +2123,56 @@ def _project_link_specs():
     rated.sort = ("counterpartyId", False)
     out.append(rated)
 
+    # ---- fee-core: the first linked project that DEPENDS ON another linked project ----
+    #
+    # Every seeded DAYS_TO_MATURITY is a band boundary of core-tenor's ladder or is outside
+    # every band -- 7 and 8 straddle CTN-01/CTN-02, 365 and 366 straddle CTN-05/CTN-06, 3654
+    # is exactly CTN-09's first day, and 40000 is past its last. A midpoint would pass
+    # whether the range join is half-open, closed, or off by one; these do not.
+    #
+    # The band is asserted, not the ladder name: a wrong lowering of a RANGE join returns a
+    # plausible neighbouring band, which is the failure that looks like a correct answer.
+    band = Spec("stress::PL10_FeeScheduleTenorBand", "/stress/pl10",
+                "Which core-tenor band each fee schedule falls in, resolved by a RANGE join "
+                "declared in fee-core over a table it only includes -- a project-to-project "
+                "edge executed. Every seeded tenor is a band boundary or outside every band, "
+                "so an off-by-one in the half-open range changes an answer here. The last "
+                "row matches no band at all and must read null rather than the nearest one.",
+                "fee_core::FeeSchedule")
+    band.projections = [Proj("productCode", ["productCode"]),
+                        Proj("tierCode", ["tierCode"]),
+                        Proj("effectiveDate", ["effectiveDate"]),
+                        Proj("days", ["daysToMaturity"]),
+                        Proj("bucketId", ["bucket", "bucketId"]),
+                        # An ENUM read through core-tenor's own EnumerationMapping, at the
+                        # far end of a range join declared in a third project.
+                        Proj("band", ["bucket", "band"]),
+                        Proj("bandLabel", ["bucket", "label"])]
+    # The composite key, in its declared order -- and it takes all three to order these rows,
+    # because the same product and tier appear twice and so do the same product and date.
+    band.sort = ("productCode", False)
+    out.append(band)
+
+    # A derived and a QUALIFIED property whose bodies both call a function belonging to
+    # core-types -- a project the corpus does not link for itself and reaches only because
+    # fee-core depends on it. `grossFee` takes an argument, which no other linked-project
+    # service exercises.
+    fees = Spec("stress::PL11_FeeScheduleGrossFee", "/stress/pl11",
+                "A derived property and a qualified property TAKING AN ARGUMENT, both "
+                "calling core_types::ctBasisPointsToRate across two project boundaries at "
+                "once: the corpus links fee-core, and fee-core is why core-types is here at "
+                "all. The oracle reimplements that function from core-types' own source "
+                "rather than reading the engine's answer back.",
+                "fee_core::FeeSchedule")
+    fees.projections = [Proj("productCode", ["productCode"]),
+                        Proj("tierCode", ["tierCode"]),
+                        Proj("effectiveDate", ["effectiveDate"]),
+                        Proj("bps", ["rateBasisPoints"]),
+                        Proj("rate", ["rate"]),
+                        Proj("grossOnMillion", ["grossFee"], args=[1000000.0])]
+    fees.sort = ("productCode", False)
+    out.append(fees)
+
     return out
 
 

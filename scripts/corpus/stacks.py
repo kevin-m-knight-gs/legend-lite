@@ -175,8 +175,19 @@ def _leaf(c: model.Corpus, cls: str, kind: str = "string", not_null: bool = Fals
     if table is None:
         return None
     fallback = None
+    props = c.classes[cls].props if cls in c.classes else {}
     for prop, col in sorted(cols.items()):
         if table.columns[col].kind != kind:
+            continue
+        # The COLUMN being a string does not make the PROPERTY one. An EnumerationMapping
+        # reads an enum off a CHAR(3), so `feeCurrency` is a `CtCurrency` over a string
+        # column -- and filtering it with `> ' '` fails to compile with
+        # `Can't find a match for function 'greaterThan(CtCurrency[1],String[1])'`, which
+        # takes the whole file down before any service runs. spread.py already chooses by
+        # DECLARED type for the same reason; this is the other half of that lesson, found
+        # when a linked project first brought an enum over a string column into range.
+        pr = props.get(prop)
+        if pr is not None and pr.type in c.enums:
             continue
         if not_null and not table.columns[col].not_null:
             continue

@@ -53,7 +53,10 @@ PROJECTS = Path(__file__).resolve().parents[2] / "projects"
 #   core-fx       FUNCTIONS called across the boundary from a corpus derived property.
 #   core-ratings  MILESTONING across the boundary -- `all(%date)` on a class that lives in
 #                 another project, which projects/ could only ever compile.
-LINKED_PROJECTS = ["core-tenor", "core-fx", "core-ratings"]
+# Dependencies BEFORE dependents: fee-core needs core-types and core-tenor to have been
+# parsed. core-types exports no store and no mapping at all -- it is enums and functions --
+# so it is here purely to satisfy fee-core, which is what a transitive dependency looks like.
+LINKED_PROJECTS = ["core-types", "core-tenor", "core-fx", "core-ratings", "fee-core"]
 
 
 # Section order within a project, not alphabetical. A .pure file with no `###` header
@@ -89,6 +92,22 @@ def linked_files() -> list[Path]:
         fs = sorted((PROJECTS / n).glob("*.pure"))
         out += sorted(fs, key=lambda f: (_SECTION_ORDER.get(f.name, 99), f.name))
     return out
+
+
+def mapping_closure(c: "Corpus", name: str) -> set:
+    """Every Mapping reachable from `name` by `include`, transitively.
+
+    Transitive because the corpus reaches core-tenor two ways: directly, and through
+    fee_core::Mapping which includes it. A one-level check would call the second one a
+    sibling and miss F55 on exactly the edge that found it.
+    """
+    seen, stack = set(), [name]
+    while stack:
+        for n in c.mapping_includes.get(stack.pop(), ()):
+            if n not in seen:
+                seen.add(n)
+                stack.append(n)
+    return seen
 
 
 # ---------------------------------------------------------------- data model
@@ -401,6 +420,13 @@ class Corpus:
     # `Table with name X does not exist` -- which reads as a missing table rather than as a
     # table nobody seeded.
     store_includes: dict = field(default_factory=dict)
+
+    # Mapping fqn -> the Mappings it `include`s DIRECTLY. Needed because "these two sets are
+    # in different Mappings" says nothing on its own -- the corpus's ~150 domain mappings are
+    # all siblings under stress::AllMapping and graph-fetch across them is fine. What is not
+    # fine is a set reaching into a mapping its OWN mapping includes (F55), and only these
+    # edges distinguish the two.
+    mapping_includes: dict = field(default_factory=dict)
 
     # Classes whose set implementation carries ~distinct. The reader skipped the directive
     # as noise for a long time and the oracle never deduped, which was invisible while the
@@ -1123,8 +1149,88 @@ def _explode_oneliners(text: str) -> str:
     return "\n".join(out)
 
 
+def _fold_class_headers(text: str) -> str:
+    """Join a `Class` declaration that is spread over several lines into one.
+
+    The reader is line-based, and every class in the corpus itself declares itself on a
+    single line. A linked project need not: core-types writes a governed class as
+
+        Class <<core_types::CtGovernance.reviewed>>
+              {core_types::CtGovernance.owner = 'ref-data-team',
+               core_types::CtGovernance.since = '2024-01-15'}
+              core_types::CtMoney
+
+    -- four lines, of which only the last carries the name. Without folding, the guard below
+    fires on the first line and the whole build stops, which is the right failure but not a
+    useful one.
+
+    Only the HEADER is folded, never a body: accumulation stops at the opening brace, and a
+    header that has not become parseable by then is left exactly as it was so the guard can
+    still report it verbatim.
+    """
+    out, pending = [], None
+    for raw in text.splitlines():
+        if pending is None:
+            if re.match(r"^\s*(?:'[^']*'\s*)?Class\s", raw) and not _CLASS.match(_strip(raw)):
+                pending = raw
+                continue
+            out.append(raw)
+            continue
+        # A line that is EXACTLY `{` opens the body, so the header is over -- parseable or
+        # not. It has to be exactly that: a tagged-value block opens with `{` too, and
+        # treating that as the body is what the first version of this did.
+        if _strip(raw).strip() == "{":
+            out += [pending, raw]
+            pending = None
+            continue
+        pending = pending.rstrip() + " " + raw.strip()
+        if _CLASS.match(_strip(pending)):
+            out.append(pending)
+            pending = None
+    if pending is not None:
+        out.append(pending)
+    return "\n".join(out)
+
+
+def _fold_qualified_props(text: str) -> str:
+    """Join a qualified property whose body is on its own lines.
+
+    The corpus writes these on one line -- `rate() { ... } : Float[1];` -- and so does most
+    of fee-core. But a body long enough to wrap gets written out:
+
+        grossFee(notional: Float[1])
+        {
+           $notional * core_types::ctBasisPointsToRate($this.rateBasisPoints)
+        } : Float[1];
+
+    which is the same property in the same grammar, and the reader saw four lines of which
+    none was a property. The trigger is deliberately narrow -- a line that is a name and a
+    parameter list and NOTHING else -- so an ordinary property can never start an
+    accumulation. Joining stops when the braces balance and the statement is terminated.
+    """
+    out, pending, depth = [], None, 0
+    for raw in text.splitlines():
+        if pending is None:
+            if re.match(r"^\s*\w+\s*\([^)]*\)\s*$", _strip(raw)):
+                pending, depth = raw, 0
+                continue
+            out.append(raw)
+            continue
+        s = _strip(raw).strip()
+        pending = pending.rstrip() + " " + s
+        depth += s.count("{") - s.count("}")
+        if depth == 0 and pending.rstrip().endswith(";"):
+            out.append(pending)
+            pending = None
+    if pending is not None:
+        out.append(pending)
+    return "\n".join(out)
+
+
 def _parse_domain(text: str, c: Corpus) -> None:
     text = _explode_oneliners(text)
+    text = _fold_class_headers(text)
+    text = _fold_qualified_props(text)
     cur_class = cur_assoc = cur_enum = None
     cur_func = None
     ends: list[tuple[str, str, int, int | None]] = []
@@ -1235,6 +1341,9 @@ def _split_mappings(body: str) -> list[str]:
 
 
 def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> None:
+    if mapping_name:
+        c.mapping_includes.setdefault(mapping_name, []).extend(
+            re.findall(r"^\s*include\s+([\w:]+)\s*$", text, re.M))
     cur = None
     cur_id = None
     cur_op = None

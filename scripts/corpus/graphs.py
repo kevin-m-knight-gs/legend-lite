@@ -94,6 +94,15 @@ def _branches(c: model.Corpus, root: str, seeded: set[str]) -> list[tuple[str, s
             continue
         if c.main_table.get(end.target) not in seeded:
             continue
+        # F55: a graphFetch sub-object whose target set was contributed by an INCLUDED
+        # mapping dies at test-suite initialisation with "RelationalPropertyMapping cannot
+        # be cast to XStorePropertyMapping", taking its whole batch with it -- so this is
+        # removed from the corpus rather than quarantined, which is what a fatal-at-init
+        # defect always costs. The same edge PROJECTS correctly, and D_FeeScheduleDense
+        # reads two hops of it, so only the tree form is given up.
+        if c.declared_in.get(end.target) in model.mapping_closure(
+                c, c.declared_in.get(root, "")):
+            continue
         out.append((name, end.target))
     return out
 

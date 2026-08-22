@@ -19860,6 +19860,107 @@ CTN_DATED_ITEM: list[dict] = []
 CTN_BUCKET_PROFILE: list[dict] = []
 
 
+# ---- the linked project: fee-core (layer 1) ----
+#
+# The first linked project that DEPENDS ON ANOTHER LINKED PROJECT. fee_core::Store includes
+# core_tenor::Store and fee_core::Mapping includes core_tenor::Mapping, so pulling fee-core
+# across the line pulls a project-to-project edge across with it -- and the corpus already
+# includes core-tenor directly, which makes this a DIAMOND include rather than a chain.
+# Nothing in the compile-only graph could tell you whether that diamond executes.
+#
+# Four things here are new to the executable corpus:
+#
+#   * a THREE-COLUMN composite primary key (product, tier, effective date)
+#   * an EnumerationMapping applied across the boundary, on two different columns
+#   * a RANGE join whose far table belongs to another project
+#   * a qualified property TAKING AN ARGUMENT, whose body calls a third project's function
+#
+# DAYS_TO_MATURITY is picked against core-tenor's CTN_BUCKET bands, which are half-open
+# [MIN_DAYS, MAX_DAYS). Every value below is either a band boundary or deliberately outside
+# every band -- a midpoint would pass whether the join is half-open, closed, or off by one.
+FEE_PRODUCT = [
+    dict(PRODUCT_CODE="FP-IRS", NAME="Interest rate swap", ASSET_CLASS="RATES",
+         BILLING_CCY="USD", IS_ACTIVE=True),
+    dict(PRODUCT_CODE="FP-FXFWD", NAME="FX forward", ASSET_CLASS="FX",
+         BILLING_CCY="EUR", IS_ACTIVE=True),
+    # JPY has ZERO minor units, which is the case core-types' rounding helper exists for.
+    dict(PRODUCT_CODE="FP-EQOPT", NAME="Equity option", ASSET_CLASS="EQUITY",
+         BILLING_CCY="JPY", IS_ACTIVE=True),
+    # Inactive, so a filter on isActive has something to exclude.
+    dict(PRODUCT_CODE="FP-RETIRED", NAME="Retired structured note", ASSET_CLASS="CREDIT",
+         BILLING_CCY="GBP", IS_ACTIVE=False),
+]
+
+FEE_TIER = [
+    dict(TIER_CODE="RETAIL", NAME="Retail", TIER_RANK=1, MIN_NOTIONAL=0.0),
+    dict(TIER_CODE="INST", NAME="Institutional", TIER_RANK=2, MIN_NOTIONAL=1000000.0),
+    dict(TIER_CODE="PRIVATE", NAME="Private placement", TIER_RANK=3, MIN_NOTIONAL=50000000.0),
+]
+
+# The composite key earns its keep here. FP-IRS/RETAIL appears TWICE on different effective
+# dates (a repricing), and FP-IRS on 2024-01-01 appears twice at different tiers. Drop any
+# one of the three columns and rows that are genuinely distinct collapse into one instance.
+FEE_SCHEDULE = [
+    # days 7 -> CTN-01 (0-7d, MAX_DAYS 8 exclusive): the last day INSIDE the first band.
+    dict(PRODUCT_CODE="FP-IRS", TIER_CODE="RETAIL", EFFECTIVE_DATE=_iso(2024, 1, 1),
+         DAYS_TO_MATURITY=7, RATE_BASIS_POINTS=25.0, MINIMUM_FEE=100.0,
+         MAXIMUM_FEE=5000.0, FEE_CCY="USD"),
+    # Same product, same tier, LATER date -- the repricing.
+    dict(PRODUCT_CODE="FP-IRS", TIER_CODE="RETAIL", EFFECTIVE_DATE=_iso(2024, 7, 1),
+         DAYS_TO_MATURITY=7, RATE_BASIS_POINTS=22.5, MINIMUM_FEE=100.0,
+         MAXIMUM_FEE=5000.0, FEE_CCY="USD"),
+    # Same product, same date, DIFFERENT tier -- institutional pays less.
+    dict(PRODUCT_CODE="FP-IRS", TIER_CODE="INST", EFFECTIVE_DATE=_iso(2024, 1, 1),
+         DAYS_TO_MATURITY=7, RATE_BASIS_POINTS=12.0, MINIMUM_FEE=250.0,
+         MAXIMUM_FEE=None, FEE_CCY="USD"),
+    # days 8 -> CTN-02 (8-30d, MIN_DAYS 8 inclusive): the first day of the NEXT band. With
+    # 7 above, these two straddle the boundary and a closed range would put both in CTN-02.
+    dict(PRODUCT_CODE="FP-FXFWD", TIER_CODE="RETAIL", EFFECTIVE_DATE=_iso(2024, 1, 1),
+         DAYS_TO_MATURITY=8, RATE_BASIS_POINTS=8.0, MINIMUM_FEE=50.0,
+         MAXIMUM_FEE=1200.0, FEE_CCY="EUR"),
+    # days 365 -> CTN-05 (6-12m, 184..366), the last day inside it.
+    dict(PRODUCT_CODE="FP-FXFWD", TIER_CODE="INST", EFFECTIVE_DATE=_iso(2024, 1, 1),
+         DAYS_TO_MATURITY=365, RATE_BASIS_POINTS=4.5, MINIMUM_FEE=500.0,
+         MAXIMUM_FEE=None, FEE_CCY="EUR"),
+    # days 366 -> CTN-06 (1-3y): the very next day, and the next band.
+    dict(PRODUCT_CODE="FP-EQOPT", TIER_CODE="RETAIL", EFFECTIVE_DATE=_iso(2024, 3, 15),
+         DAYS_TO_MATURITY=366, RATE_BASIS_POINTS=60.0, MINIMUM_FEE=10000.0,
+         MAXIMUM_FEE=250000.0, FEE_CCY="JPY"),
+    # days 3654 -> CTN-09 (10y+), whose MIN_DAYS is exactly 3654.
+    dict(PRODUCT_CODE="FP-EQOPT", TIER_CODE="INST", EFFECTIVE_DATE=_iso(2024, 3, 15),
+         DAYS_TO_MATURITY=3654, RATE_BASIS_POINTS=35.0, MINIMUM_FEE=10000.0,
+         MAXIMUM_FEE=None, FEE_CCY="JPY"),
+    # days 40000 -> NO BUCKET AT ALL. CTN-09 ends at 40000 exclusive, so this row's range
+    # join lands on nothing and `bucket` is null. A seed where every row finds its band
+    # would never show the difference between "no match" and "wrong match".
+    dict(PRODUCT_CODE="FP-RETIRED", TIER_CODE="PRIVATE", EFFECTIVE_DATE=_iso(2024, 2, 1),
+         DAYS_TO_MATURITY=40000, RATE_BASIS_POINTS=150.0, MINIMUM_FEE=25000.0,
+         MAXIMUM_FEE=None, FEE_CCY="GBP"),
+]
+
+# A waiver has to match all THREE key columns to find its schedule, which is what a composite
+# key costs on the way back. WV-3 matches a product and a tier that both exist but on a date
+# that has no schedule -- so it joins to nothing, and a two-column join would wrongly find one.
+FEE_WAIVER = [
+    dict(WAIVER_ID="WV-1", PRODUCT_CODE="FP-IRS", TIER_CODE="RETAIL",
+         EFFECTIVE_DATE=_iso(2024, 1, 1), REASON_CODE="PROMO",
+         WAIVED_BASIS_POINTS=5.0, IS_FULL_WAIVER=False,
+         GRANTED_ON=_iso(2024, 1, 15), EXPIRES_ON=_iso(2024, 6, 30)),
+    dict(WAIVER_ID="WV-2", PRODUCT_CODE="FP-IRS", TIER_CODE="RETAIL",
+         EFFECTIVE_DATE=_iso(2024, 1, 1), REASON_CODE="NEGOTIATED",
+         WAIVED_BASIS_POINTS=2.5, IS_FULL_WAIVER=False,
+         GRANTED_ON=_iso(2024, 2, 1), EXPIRES_ON=None),
+    dict(WAIVER_ID="WV-3", PRODUCT_CODE="FP-IRS", TIER_CODE="RETAIL",
+         EFFECTIVE_DATE=_iso(2024, 9, 1), REASON_CODE="ORPHAN",
+         WAIVED_BASIS_POINTS=1.0, IS_FULL_WAIVER=False,
+         GRANTED_ON=_iso(2024, 9, 2), EXPIRES_ON=None),
+    dict(WAIVER_ID="WV-4", PRODUCT_CODE="FP-EQOPT", TIER_CODE="INST",
+         EFFECTIVE_DATE=_iso(2024, 3, 15), REASON_CODE="REGULATORY",
+         WAIVED_BASIS_POINTS=35.0, IS_FULL_WAIVER=True,
+         GRANTED_ON=_iso(2024, 4, 1), EXPIRES_ON=None),
+]
+
+
 # ---- the linked project: core-fx ----
 #
 # Real June 2024 levels for four majors. The corpus's own trades are all USD, so what the
@@ -20028,6 +20129,10 @@ TABLES: dict[str, list[dict]] = {
     "CTN_BUCKET": CTN_BUCKET,
     "CTN_DATED_ITEM": CTN_DATED_ITEM,
     "CTN_BUCKET_PROFILE": CTN_BUCKET_PROFILE,
+    "FEE_PRODUCT": FEE_PRODUCT,
+    "FEE_TIER": FEE_TIER,
+    "FEE_SCHEDULE": FEE_SCHEDULE,
+    "FEE_WAIVER": FEE_WAIVER,
     "EXPOSURE_LINE": EXPOSURE_LINE,
     "EXPOSURE_THRESHOLD": EXPOSURE_THRESHOLD,
     "EXEMPTION_RULE": EXEMPTION_RULE,

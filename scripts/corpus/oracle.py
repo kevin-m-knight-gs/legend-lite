@@ -970,6 +970,23 @@ IMPL = {
     # `core_fx::midOf(bid, ask) { ($bid + $ask) / 2.0 }`
     "core_fx::midOf": _propagating(
         lambda b, a: _Dbl(float(_exact_addsub("+", b, a)) / 2.0), 2),
+
+    # `core_types::ctBasisPointsToRate(bp) { $bp / 10000.0 }`
+    #
+    # core-types is reached TRANSITIVELY: the corpus links fee-core, whose FeeSchedule calls
+    # this, and core-types is linked only because fee-core needs it. So this entry is the
+    # first oracle implementation of a function belonging to a project the corpus does not
+    # itself depend on -- which is precisely the position a real consumer is in, having to
+    # reimplement a fact it inherited without asking for it.
+    #
+    # `_Dbl` because `/` yields a Float whatever the operands were, and the corpus's
+    # exact-decimal path must not claim more precision than the engine has.
+    "core_types::ctBasisPointsToRate": _propagating(lambda bp: _Dbl(float(bp) / 10000.0), 1),
+    # `core_types::ctMinorUnits(ccy)` -- ISO 4217 minor-unit digits, defaulting to 2. The
+    # membership lists are core-types' own, transcribed rather than inferred.
+    "core_types::ctMinorUnits": _propagating(
+        lambda ccy: (0 if ccy in ("JPY", "KRW", "CLP", "ISK", "VND")
+                     else 3 if ccy in ("KWD", "BHD", "JOD", "OMR", "TND") else 2), 1),
     # Trigonometry: total over the reals, so no domain guard is needed.
     # Well defined on part of the domain, refusing only outside it -- see _guarded.
     "sqrt": _guarded(math.sqrt, lambda v: v >= 0,

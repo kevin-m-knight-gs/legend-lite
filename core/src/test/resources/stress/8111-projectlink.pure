@@ -91,6 +91,7 @@ Mapping projectlink::ProjectLinkMapping
    include core_tenor::Mapping
    include core_fx::Mapping
    include core_ratings::Mapping
+   include fee_core::Mapping
 
    projectlink::CounterpartyRatings: Relational
    {

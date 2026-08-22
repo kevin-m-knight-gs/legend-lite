@@ -1753,3 +1753,54 @@ a project had just been linked into the executable corpus, which changed what wa
 
 Repro: `repro/qualified-property-broken-chain/`,
 `scripts/corpus/probe_qualified_broken_chain.py`.
+
+## F55 — `graphFetch` of a sub-object mapped in an INCLUDED mapping dies at initialisation
+
+    Mapping down::M ( include up::M   ... down::Root ... )
+
+    |down::Root.all()->graphFetch(#{ down::Root { rootId, midByProperty { midName } } }#)
+
+    Execution error at (resource:/core_relational/relational/graphFetch/
+      relationalGraphFetch.pure line:557 column:68),
+      "Cast exception: RelationalPropertyMapping cannot be cast to XStorePropertyMapping"
+
+`midByProperty` is an ordinary relational property over an ordinary join between two tables
+in one database. `XStorePropertyMapping` is what Legend uses for a property whose ends are in
+DIFFERENT STORES, so something on the graphFetch path has decided that a set contributed by
+an included mapping is in another store.
+
+Seven cases separate it, each in its own file because the failure is fatal at
+initialisation:
+
+| root's mapping | sub-object's set from | edge | |
+| --- | --- | --- | --- |
+| `up::M` | `up::M` | property over join | initialises |
+| `up::M` | `up::M` | association | initialises |
+| `down::M` | — (no sub-object) | — | initialises |
+| `down::M` | `up::M`, **root too** | property over join | initialises |
+| `down::M` | `up::M` | property over join | **fails** |
+| `down::M` | `up::M` | association | **fails** |
+| `down::M` | `up::M` | two hops | **fails** |
+
+The fourth row is what pins it: the same tree, the same join, the same including mapping,
+differing only in that the ROOT is also in the included mapping — and it works. So it is not
+the include, the edge style, the hop count, or graphFetch generally. It is an edge that
+leaves the including mapping for a mapping that mapping includes.
+
+The same edge PROJECTS correctly. `$x.bucket.ladder.name` reads two hops across the same
+boundary and returns the right rows, so the join lowers fine and only the tree form fails.
+
+Why a large corpus never found it: ~150 domain mappings included side by side into one
+`stress::AllMapping` are SIBLINGS, and no include relation holds between any two of them.
+The shape needs a mapping that includes a mapping — which first appeared when a linked
+project that itself depends on another linked project was pulled into the executable corpus.
+
+It is fatal at test-suite INITIALISATION, so it cannot be quarantined: a quarantine excuses a
+failure and this one never reports one. Everything sharing its JVM batch reports `MISSING`
+with no cause named.
+
+Workaround: project the fields instead of fetching the tree, or flatten the two mappings into
+one.
+
+Repro: `repro/graphfetch-included-mapping/`,
+`scripts/corpus/probe_graphfetch_included_mapping.py`.
