@@ -65,8 +65,15 @@ public final class CanonicalRenderSql {
      * ('8.00'); strip trailing zeros after the dot, then a terminal
      * dot entirely. */
     private static SqlExpr decimalCanon(SqlExpr v) {
-        return stripDot(stripTrailingZeros(
-                new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR)), "");
+        // the wire's Decimal REPRESENTATION spelling carries pure's 'D'
+        // suffix on the variant/identity VARCHAR channel (2D, 1.0D) —
+        // normalize it away first, same rule shape as the temporal
+        // +0000 strip (V6 round 2, user-caught canon-path divergence)
+        SqlExpr bare = SqlExpr.Call.of(SqlFn.REGEXP_REPLACE,
+                new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR),
+                new SqlExpr.StringLit("[Dd]$"),
+                new SqlExpr.StringLit(""));
+        return stripDot(stripTrailingZeros(bare), "");
     }
 
     /**

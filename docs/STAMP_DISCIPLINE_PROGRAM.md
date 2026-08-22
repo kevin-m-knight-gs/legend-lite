@@ -2044,18 +2044,28 @@ completion burn on a finished verdict system.
 
 ### V6 ROUND 1: the decline burn and the pair rules
 
-Declines 207→97, disagreement HELD AT 0 through three alarm-caught
-adjudications: (1) numericValueCanon = full value normalization of any
-numeric text ('353791.470'→'353791.47'); (2) THE PAIR RULES — pure's
-numeric equality is NON-TRANSITIVE (8==8D, 8D==8.0, 8≠8.0), so the
-compare mode is a property of the PAIR: stamp-certain int×float is
-statically FALSE, a Decimal or a plan-REFINED kind beside any numeric
-compares by VALUE spelling (plan-type refinement can lie about runtime
-cells — rem's DOUBLE-stamped output returns integral; the alarm guards
-the corner); (3) the MIXED-KIND-COLLECTION gate — SQL column promotion
-erases element kinds ([−2.0, 1, 5.0] becomes one DOUBLE column), so
-sides whose HOST-fetched elements mix integral and floating DECLINE
-(a routing fact, not a verdict). NUMBER stamps refine via the plan's
-own output SQL type; PrecisionDecimal IS Decimal; enum values claimed
-(per-enumeration kind class, name canon). Census: sql-verdict
-agree 1486, disagree 0, declined 97.
+Declines 207→91 across two rounds, disagreement HELD AT 0.
+
+ROUND 2 (user-caught: "are we sure these are not OUR bugs?" — they
+partly were): the plan-type refinement was CIRCULAR — OutputCol.type()
+derives from the pure stamp (sqlTypeOf(NUMBER) = blanket DOUBLE), so
+reading it back never carried information; rem's "DOUBLE" and times's
+"FLOAT" were the stamp mapping, not reality. DELETED, replaced by
+RUNTIME-KIND refinement from the fetched values — pure's own
+Number-equality dispatch (the interpreted runtime decides by runtime
+kind), so the "refinement can lie" special rule DIED and static
+int×float re-tightened. Also: the wire's D-suffixed Decimal
+representation (variant/identity VARCHAR channel: 2D, 1.0D)
+normalizes in decimalCanon like the temporal +0000.
+
+THE STANDING RULES: (1) numericValueCanon = full value normalization
+of any numeric text; (2) PAIR RULES — pure's numeric equality is
+NON-TRANSITIVE (8==8D, 8D==8.0, 8≠8.0): runtime/stamp-certain
+int×float statically FALSE, Decimal-involved pairs by VALUE spelling;
+(3) MIXED-KIND-COLLECTION gate — reclassified from declared-residue to
+a CLAIMABLE canon-path limitation: the MAIN wire preserves element
+kinds (mixed-identity carrier) but the canon side-query re-lowers into
+a promoted column; the proper burn is variant-aware canon rendering by
+runtime kind (OPEN_REGISTER F10). PrecisionDecimal IS Decimal; enum
+values claimed. Census: sql-verdict agree 1492, disagree 0,
+declined 91.

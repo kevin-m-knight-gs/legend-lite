@@ -519,41 +519,46 @@ final class AssertVerdicts {
         // NON-TRANSITIVE (8 == 8D, 8D == 8.0, 8 != 8.0) — the compare
         // mode is a property of the PAIR: int×float is statically
         // FALSE; a Decimal beside any numeric compares by VALUE
-        // spelling; same-kind pairs compare their EXACT canon.
+        // spelling; same-kind pairs compare their EXACT canon. An
+        // abstract Number STAMP refines from the RUNTIME value kinds
+        // (pure's own Number-equality dispatch — the plan's OutputCol
+        // is stamp-derived and therefore circular; V6 round 2).
         boolean valueMode = false;
+        com.legend.compiler.element.type.Type renderE = null;
+        com.legend.compiler.element.type.Type renderA = null;
         if (ke.equals("numeric")) {
             String fe = fineNumericKind(pe.canonType());
             String fa = fineNumericKind(pa.canonType());
+            if (fe == null) {
+                fe = runtimeNumericKind(eVals);
+                renderE = kindType(fe);
+            }
+            if (fa == null) {
+                fa = runtimeNumericKind(aVals);
+                renderA = kindType(fa);
+            }
             if (fe == null || fa == null) {
                 com.legend.exec.CanonicalDivergence.sqlDeclined(
                         "unrefined-number: " + typeName(eSpec) + " / "
                                 + typeName(aSpec));
                 return null;
             }
-            boolean anyRefined = pe.refined() || pa.refined();
-            // STATIC int×float FALSE only on STAMP-certain kinds — a
-            // plan-refined kind can lie about the runtime cell (rem's
-            // DOUBLE-stamped output returns integral cells); refined
-            // pairs compare by VALUE and the dual-verdict alarm guards
-            // the pure int≠float corner.
-            if (!anyRefined
-                    && ((fe.equals("integer") && fa.equals("float"))
-                            || (fe.equals("float") && fa.equals("integer")))) {
+            if ((fe.equals("integer") && fa.equals("float"))
+                    || (fe.equals("float") && fa.equals("integer"))) {
                 return new SqlVerdict(false,
                         "static int-x-float " + fe + "/" + fa);
             }
-            valueMode = anyRefined
-                    || fe.equals("decimal") || fa.equals("decimal");
+            valueMode = fe.equals("decimal") || fa.equals("decimal");
         }
         StatementExecutor.Canon ce = StatementExecutor.runCanon(
-                pe, env, canonicalOrder, valueMode);
+                pe, env, canonicalOrder, valueMode, renderE);
         if (ce == null) {
             com.legend.exec.CanonicalDivergence.sqlDeclined(
                     "render-e: " + typeName(eSpec));
             return null;
         }
         StatementExecutor.Canon ca = StatementExecutor.runCanon(
-                pa, env, canonicalOrder, valueMode);
+                pa, env, canonicalOrder, valueMode, renderA);
         if (ca == null) {
             com.legend.exec.CanonicalDivergence.sqlDeclined(
                     "render-a: " + typeName(aSpec));
@@ -564,6 +569,42 @@ final class AssertVerdicts {
                 "kinds=" + pe.canonType() + "/" + pa.canonType()
                         + (valueMode ? " valueMode" : "")
                         + " e<" + ce.text() + "> a<" + ca.text() + ">");
+    }
+
+    /** The RUNTIME numeric kind of a side's fetched values (uniform, or
+     * null when empty/unknowable — the mixed case gated earlier). */
+    private static @com.legend.Nullable String runtimeNumericKind(
+            List<Object> vals) {
+        String kind = null;
+        for (Object v : vals) {
+            String k = v instanceof java.math.BigDecimal ? "decimal"
+                    : (v instanceof Double || v instanceof Float) ? "float"
+                    : (v instanceof Long || v instanceof Integer
+                            || v instanceof Short || v instanceof Byte
+                            || v instanceof java.math.BigInteger) ? "integer"
+                    : null;
+            if (k == null) {
+                return null;
+            }
+            kind = k;
+        }
+        return kind;
+    }
+
+    private static com.legend.compiler.element.type.@com.legend.Nullable Type
+            kindType(@com.legend.Nullable String fine) {
+        if (fine == null) {
+            return null;
+        }
+        return switch (fine) {
+            case "integer" ->
+                    com.legend.compiler.element.type.Type.Primitive.INTEGER;
+            case "float" ->
+                    com.legend.compiler.element.type.Type.Primitive.FLOAT;
+            case "decimal" ->
+                    com.legend.compiler.element.type.Type.Primitive.DECIMAL;
+            default -> null;
+        };
     }
 
     private static boolean mixedNumericKinds(List<Object> vals) {

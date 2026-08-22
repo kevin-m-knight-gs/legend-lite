@@ -219,6 +219,10 @@ public final class CanonicalDivergence {
         return SQL_DISAGREE.get();
     }
 
+    public static long sqlDeclinedCount() {
+        return SQL_DECLINED.get();
+    }
+
     public static String summary() {
         return "agree=" + AGREE.get() + " disagree=" + DISAGREE.get()
                 + " residue=" + RESIDUE.get()

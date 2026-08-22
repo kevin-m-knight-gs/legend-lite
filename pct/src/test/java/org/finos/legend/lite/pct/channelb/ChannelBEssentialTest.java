@@ -150,6 +150,16 @@ class ChannelBEssentialTest {
                 "DUAL-VERDICT DISAGREEMENT: "
                         + com.legend.exec.CanonicalDivergence.summary());
 
+        // V6b (OPEN_REGISTER): the decline CEILING — the surviving
+        // declines are DECLARED residue (class instances + wire-tree
+        // containers, out of the byte channel's claimed domain per
+        // CANONICAL_FORM_SPEC §4, + a handful of unrefinable Number
+        // stamps). Shrink-only: a NEW undeclared decline family fails
+        // here and must be claimed or declared.
+        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 100,
+                "byte-verdict declines grew past the declared residue: "
+                        + com.legend.exec.CanonicalDivergence.summary());
+
         // THE PHASE-4 MILESTONE NUMBER: rows OUR platform fails that BOTH
         // reference channels pass. ZERO (2026-08-19) — every remaining
         // failure is corroborated by a reference channel. Stays zero.

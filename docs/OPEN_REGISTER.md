@@ -13,8 +13,10 @@ L (a program leg).
 
 | # | Item | Size | Notes |
 |---|---|---|---|
-| V6b | Burn the 97 remaining declines to 0-or-DECLARED | S/M | remaining: containers (Map/Pair/List instances), class instances, cross-kind gates — mostly declared-residue candidates |
-| V7 | Corpus-lane cutover + harness arm DELETION | L | decoded-golden-text + grid problems are corpus-only; LAST, after PCT lane proves the system |
+| V7 | Corpus-lane cutover + harness arm DELETION | L | decoded-golden-text + grid problems are corpus-only; LAST, after PCT lane proves the system. PREREQUISITES V10a/V10b below. |
+| V10a | Re-derive the golden temporal compare: replace instant-blind goldenEqualScalar with the ENGINE convention (normalize both sides to nine-digit components, compare exactly) | S/M | 2026-08-22 self-audit ("where else did we hack?"): instant-blind grants strictly more than engine equality; works only because the corpus domain doesn't exercise the gap |
+| V10b | PROBE: written-precision propagation through temporal computation vs the engine RELATIONAL lane (adjust/timeBucket over partial-precision inputs) | S | the root-only scalarRoot literal swap fixed visible tests without answering mid-expression propagation; suspicion: engine-relational loses it identically — VERIFY, don't assume |
+| V10c | Declared assumptions to pin or prove: STRING_AGG input-order (no contract), assert-side double-execution determinism, DECIMAL(38,18) float-unfold envelope | S | alarm-guarded today; guarded ≠ derived |
 | V8 | R3 tolerance census: 2-ULP + the 21 cross-engine float rows | M | retire or declare; both counted today |
 | V9 | Grid byte cutover closing slice (after V4/V8) | S | ledger says: ORDER BY + policy + GridCompare arm deletion, no emission |
 
@@ -46,6 +48,7 @@ L (a program leg).
 | F7 | Dup-FQN coverage: services/connections/mappings namespaces | S |
 | F8 | {target} + foreign-db join-ref validation (D6b skipped conservatively) | S |
 | F9 | Invariant-3 register burn-down: wrap 21 write-once tables immutable | M |
+| F10 | Variant-aware byte canon: the canon consumes TYPED values with carrier decode owned by the carrier — covers the mixed-kind-collection decline AND retires the accumulating carrier-text strips (+0000, D-suffix regexes) which are the tell of canon parsing raw carrier text | M |
 
 ## 4. Parked BY THE RATIFIED ARC ORDER (sequenced, not debt)
 
@@ -82,4 +85,9 @@ L (a program leg).
 - V6 decline burn round 1: 207→97 (NUMBER plan-refinement,
   PrecisionDecimal=Decimal, enums claimed; PAIR RULES for pure's
   non-transitive numeric equality; mixed-kind-collection gate;
-  zeros-unify amendment) — this commit
+  zeros-unify amendment) — eead1066
+- V6b the 97 survivors DECLARED (class instances + wire-tree
+  containers per spec §4, + unrefinable Numbers) and CEILING-pinned
+  (sqlDeclined ≤ 100, shrink-only, all five ChannelB suites) — the
+  PCT-lane verdict system is COMPLETE: four families byte-decided,
+  disagreement pinned 0, declines pinned and declared — this commit

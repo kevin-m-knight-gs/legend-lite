@@ -2352,8 +2352,7 @@ final class StatementExecutor {
      * pure numeric equality is non-transitive), so both sides must be
      * prepared before either renders. */
     record CanonPrep(com.legend.sql.SqlQuery plan,
-            com.legend.compiler.element.type.Type canonType, boolean many,
-            boolean refined) {
+            com.legend.compiler.element.type.Type canonType, boolean many) {
     }
 
     /**
@@ -2384,26 +2383,13 @@ final class StatementExecutor {
             boolean many = mult.upper() == null || mult.upper() > 1;
             com.legend.sql.SqlQuery plan = lowerAndPrepare(body, env,
                     env.ctx(), env.dialect(), env.connection());
-            com.legend.compiler.element.type.Type canonType =
-                    root.info().type();
-            boolean refined = false;
-            if (canonType == com.legend.compiler.element.type.Type.Primitive.NUMBER
-                    && !plan.outputs().isEmpty()) {
-                refined = true;
-                canonType = switch (plan.outputs().get(0).type()) {
-                    case com.legend.sql.SqlType.Scalar sc -> switch (sc) {
-                        case INTEGER, BIGINT, HUGEINT ->
-                                com.legend.compiler.element.type.Type.Primitive.INTEGER;
-                        case DOUBLE ->
-                                com.legend.compiler.element.type.Type.Primitive.FLOAT;
-                        default -> canonType;
-                    };
-                    case com.legend.sql.SqlType.Decimal ignored ->
-                            com.legend.compiler.element.type.Type.Primitive.DECIMAL;
-                    default -> canonType;
-                };
-            }
-            return new CanonPrep(plan, canonType, many, refined);
+            // NO plan-type refinement: OutputCol.type() derives from the
+            // pure STAMP (sqlTypeOf(NUMBER) is a blanket DOUBLE), so
+            // reading it back is CIRCULAR — it can never carry new
+            // information (V6 round 2, user-caught). An abstract Number
+            // stamp refines from the RUNTIME value kinds at the verdict
+            // seam — pure's own Number-equality semantics.
+            return new CanonPrep(plan, root.info().type(), many);
         } catch (java.sql.SQLException | RuntimeException e) {
             // DECLINE, counted at the call site (the error-shape
             // register's adjudicated decline tunnel)
@@ -2416,15 +2402,18 @@ final class StatementExecutor {
      * Decimal meets the pair) and execute — one scalar VARCHAR query. */
     static StatementExecutor.@com.legend.Nullable Canon runCanon(
             CanonPrep prep, ExecEnv env, boolean canonicalOrder,
-            boolean valueMode) {
+            boolean valueMode,
+            com.legend.compiler.element.type.@com.legend.Nullable Type renderKind) {
         try {
+            com.legend.compiler.element.type.Type kind =
+                    renderKind != null ? renderKind : prep.canonType();
             com.legend.sql.SqlExpr canonExpr = valueMode
                     ? com.legend.lowering.CanonicalRenderSql.numericValueCanon(
                             new com.legend.sql.SqlExpr.Column(null, "value"),
-                            prep.canonType())
+                            kind)
                     : com.legend.lowering.CanonicalRenderSql.scalarCanon(
                             new com.legend.sql.SqlExpr.Column(null, "value"),
-                            prep.canonType());
+                            kind);
             if (canonExpr == null) {
                 return null;
             }

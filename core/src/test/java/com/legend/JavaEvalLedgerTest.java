@@ -206,7 +206,13 @@ class JavaEvalLedgerTest {
             // element kinds), decline REASONS + verdict detail into the
             // census. Verdict routing + diagnosis text, zero value
             // evaluation; declines fell 207→97.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 573),
+            // 573→612 (2026-08-22 V6 round 2, user-caught): the CIRCULAR
+            // plan-type refinement DELETED (OutputCol.type() is
+            // stamp-derived — it carried no information), replaced by
+            // RUNTIME-KIND refinement from the fetched values — pure's
+            // own Number-equality dispatch. Routing + kind classification
+            // over DB-produced values; zero evaluation.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 612),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
