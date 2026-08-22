@@ -648,6 +648,7 @@ public class AnsiSqlRenderer implements SqlDialect {
                  LIST_POSITION ->
                     listCall(c.fn(), a);
             case LIST_EXISTS -> listExists(a);
+            case ALL_DISTINCT -> allDistinct(a);
             case LIST_FOR_ALL -> listForAll(a);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
             case PARSE_INT -> "CAST(" + expr(a.get(0), 0) + " AS BIGINT)";
@@ -690,6 +691,13 @@ public class AnsiSqlRenderer implements SqlDialect {
     protected String listExists(List<SqlExpr> args) {
         throw new DialectCapability("collection exists reached a dialect"
                 + " without a list-predicate encoding");
+    }
+
+    /** 1-arg collection isDistinct (D6): true iff no duplicate
+     * elements; empty and singleton are trivially true. */
+    protected String allDistinct(List<SqlExpr> args) {
+        throw new DialectCapability("collection isDistinct reached a"
+                + " dialect without a list encoding");
     }
 
     /** Contract includes Pure's empty-collection semantics: {@code forAll([]) = true}. */

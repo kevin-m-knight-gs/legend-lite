@@ -57,6 +57,9 @@ class SpellingsTest {
             SqlFn.LC_FIRST,
             SqlFn.LESS,
             SqlFn.LESS_EQUAL,
+            // D6: 1-arg collection isDistinct — dialect-coded
+            // expansion (DuckDb len(list_distinct)=len; base walls)
+            SqlFn.ALL_DISTINCT,
             SqlFn.LIST_APPEND,
             SqlFn.LIST_AVG,
             SqlFn.LIST_BOOL_AND,

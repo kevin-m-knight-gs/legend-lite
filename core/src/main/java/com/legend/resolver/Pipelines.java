@@ -1256,6 +1256,13 @@ final class Pipelines {
                     rewriteRowReads(tl.source(), rowVar, prefixes, stripped,
                             varRewrite),
                     tl.count(), tl.info());
+            // D6a: the graph-leaf scalar subquery dedups (TypedDistinct)
+            // where it used to LIMIT 1 — same source-carrying rewrite
+            case com.legend.compiler.spec.typed.TypedDistinct td ->
+                    new com.legend.compiler.spec.typed.TypedDistinct(
+                            rewriteRowReads(td.source(), rowVar, prefixes,
+                                    stripped, varRewrite),
+                            td.columns(), td.info());
             case TypedProject tp -> new TypedProject(
                     rewriteRowReads(tp.source(), rowVar, prefixes, stripped,
                             varRewrite),

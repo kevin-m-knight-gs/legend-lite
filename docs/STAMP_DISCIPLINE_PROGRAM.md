@@ -1506,6 +1506,30 @@ property reads) keeps its NULL cells, because TDSNull is DATA on the
 grid convention (the engine's tdsNull channel). The first draft
 compacted any literal with a lower-0 element and ate a grid cell.
 
+### D6a LANDED: isDistinct + the graph-leaf discipline (DEEP_AUDIT §5k, §1)
+
+- **isDistinct**: the blanket family() had routed the 1-ARG collection
+  form into the binary IS DISTINCT FROM — AIOOBE on any input. Split:
+  2-arg = SQL IS DISTINCT FROM; 1-arg = the NEW `SqlFn.ALL_DISTINCT`
+  semantic entry (carrier-ratchet honest: the lowering emits MEANING,
+  DuckDb expands len(list_distinct(x))=len(x), the base renderer walls
+  loudly, SpellingsTest CODED row). A to-one operand is trivially true;
+  c1 literals box.
+- **Graph-leaf toOne**: `GraphEmission.scalarLeafSubquery`'s LIMIT 1
+  (comment claimed "pure toOne semantics" — wrong on any lane) is now
+  the ENGINE's discipline (witness graphFetchCommon.pure:163:
+  distinct=true + hard-fail; no row-cap vocabulary exists): DEDUP via
+  TypedDistinct, then the backend's own more-than-one-row subquery
+  error fires — the LIMIT had been suppressing that free check while
+  silently picking a winner. A [0..1]-STAMPED single-column distinct
+  reads as the scalar subquery in the value-position arm (the
+  [1]-stamped TDS distinct/restrict SPLICE stays a value collection).
+  This closes §7b Q2 (previously OPEN pending exactly this witness).
+- concatSide moved to ListEncodings (file-length guard).
+
+Pins: BurnLaneTest isDistinct rows. The nested-nav TypedLimit at
+GraphEmission:2714 is the SAME family — recorded for the next touch.
+
 ### D4 LANDED: function-slot variance + the subtype cycle guard (DEEP_AUDIT §5b)
 
 - **Contravariant parameter positions** (reference TypeMatch matches

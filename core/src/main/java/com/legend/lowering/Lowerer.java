@@ -2869,13 +2869,26 @@ public final class Lowerer {
                     // a VALUE COLLECTION whatever its stamp — [1] is the
                     // relation VALUE's mult, not the row count; the
                     // correlated-scalar route serves [0..1] nav encodings
-                    boolean toMany = rel instanceof TypedDistinct
+                    // a [0..1]-STAMPED single-column DISTINCT is the
+                    // graph-leaf scalar subquery (D6: the engine's
+                    // dedup-then-hard-fail discipline replaced LIMIT 1;
+                    // the backend's own >1-row error is the raise) —
+                    // the TDS distinct/restrict SPLICE stays a value
+                    // collection ([1]-stamped, the relation VALUE)
+                    boolean zeroOneDistinct = rel instanceof TypedDistinct
+                            && rel.info().multiplicity()
+                                    instanceof com.legend.compiler.element
+                                            .type.Multiplicity.Bounded zb
+                            && zb.lower() == 0 && zb.upper() != null
+                            && zb.upper() == 1;
+                    boolean toMany = !zeroOneDistinct
+                            && (rel instanceof TypedDistinct
                             || rel instanceof com.legend.compiler.spec.typed
                                     .TypedSort
                             || !(rel.info().multiplicity()
                             instanceof com.legend.compiler.element.type
                                     .Multiplicity.Bounded mb1
-                            && mb1.isToOne());
+                            && mb1.isToOne()));
                     if (!toMany) {
                         yield new SqlExpr.ScalarSubquery(relation(rel));
                     }

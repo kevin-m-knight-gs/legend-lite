@@ -132,7 +132,12 @@ class BurnLaneTest {
                     // ADJUDICATED pure-faithful (pure's [x] == x law: the
                     // checker resolves string::contains for a String[1]
                     // operand — substring semantics IS pure's answer)
-                    new P("{|['ACTIVE']->contains('TIV')}", "true"))) {
+                    new P("{|['ACTIVE']->contains('TIV')}", "true"),
+                    // D6: the 1-arg collection isDistinct was an
+                    // ArrayIndexOutOfBoundsException on ANY input
+                    new P("{|[1,2,3]->isDistinct()}", "true"),
+                    new P("{|[1,2,2]->isDistinct()}", "false"),
+                    new P("{|[7]->isDistinct()}", "true"))) {
                 ExecutionResult r = Compiler.execute("", p.q(), conn);
                 Object v = r instanceof ExecutionResult.Scalar s ? s.value()
                         : r instanceof ExecutionResult.Collection c

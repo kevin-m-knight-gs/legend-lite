@@ -128,6 +128,23 @@ final class ListEncodings {
                                 new SqlExpr.Column(null, "_ddi"))))));
     }
 
+    /** A concatenate SIDE: scalar encodings (TO-ONE stamps, many-
+     * stamped CASE optionals) wrap null-guarded — SQL NULL is pure's
+     * EMPTY, so the side contributes [], never [NULL]. Many-stamped
+     * lists pass; the STAMP decides ({@code toOne} = the caller's
+     * Stamps.toOne read). Moved from Scalars (file-length guard). */
+    static SqlExpr concatSide(boolean toOne, SqlExpr e) {
+        if (e instanceof SqlExpr.NullLit
+                || !(toOne || e instanceof SqlExpr.Case)) {
+            return e;
+        }
+        return new SqlExpr.Case(
+                List.of(new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.IS_NULL, e),
+                        new SqlExpr.ArrayLit(List.of()))),
+                new SqlExpr.ArrayLit(List.of(e)));
+    }
+
     /** Clamp a (possibly negative) index to zero — PCT's slice/drop/take edge semantics. */
     static SqlExpr clamp0(SqlExpr e) {
         return e instanceof SqlExpr.IntLit i

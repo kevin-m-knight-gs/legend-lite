@@ -1841,7 +1841,8 @@ final class Scalars {
                 // scalar-encoded sides wrap null-guarded (concatSide)
                 List<SqlExpr> args2 = new ArrayList<>(args.size());
                 for (int i = 0; i < args.size(); i++) {
-                    args2.add(concatSide(n.args().get(i), args.get(i)));
+                    args2.add(ListEncodings.concatSide(
+                            isToOne(n.args().get(i)), args.get(i)));
                 }
                 args = args2;
                 if (!PlatformTypes.isAny(n.info().type())) {
@@ -2233,7 +2234,21 @@ final class Scalars {
                 return pureToString(t, args.get(0));
             });
         }
-        family(SqlFn.IS_DISTINCT, "isDistinct");
+        // isDistinct (DEEP_AUDIT §5k): 2-ARG = SQL IS DISTINCT FROM;
+        // 1-ARG = the ALL_DISTINCT semantic node (a blanket family()
+        // routed it into the binary SQL — AIOOBE on any input).
+        for (String f : Pure.nativeKeysAt("isDistinct", 2)) {
+            RULES.put(f, (n, args) ->
+                    new SqlExpr.Call(SqlFn.IS_DISTINCT, args));
+        }
+        for (String f : Pure.nativeKeysAt("isDistinct", 1)) {
+            RULES.put(f, (n, args) -> isToOne(n.args().get(0))
+                    ? new SqlExpr.BoolLit(true)
+                    : SqlExpr.Call.of(SqlFn.ALL_DISTINCT,
+                            PureSql.asList(args.get(0),
+                                    !CollectionLanes.c1Literal(
+                                            n.args().get(0)))));
+        }
         // parseInteger is 64-BIT (PCT pins Long.MIN/MAX round-trips) —
         // the SqlFn.PARSE_INT semantic entry lets each dialect spell it:
         // BIGINT cast in execution, the golden 'integer' in engine style
@@ -3389,23 +3404,6 @@ final class Scalars {
                         r.args().get(0),
                         ss.projections().get(0).alias())),
                 ss.outputs()));
-    }
-
-    /** A concatenate SIDE: scalar encodings (TO-ONE stamps, many-
-     * stamped CASE optionals) wrap null-guarded — SQL NULL is pure's
-     * EMPTY, so the side contributes [], never [NULL]. Many-stamped
-     * lists pass; the STAMP decides. Moved from the dissolved
-     * ListShapes. */
-    private static SqlExpr concatSide(TypedSpec pureArg, SqlExpr e) {
-        if (e instanceof SqlExpr.NullLit
-                || !(isToOne(pureArg) || e instanceof SqlExpr.Case)) {
-            return e;
-        }
-        return new SqlExpr.Case(
-                List.of(new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.IS_NULL, e),
-                        new SqlExpr.ArrayLit(List.of()))),
-                new SqlExpr.ArrayLit(List.of(e)));
     }
 
     /** The reduction rules' identity-arm guard — Stamps.toOne, the
