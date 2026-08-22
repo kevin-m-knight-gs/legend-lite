@@ -35,6 +35,11 @@ public final class CanonicalDivergence {
     private static final AtomicLong AGREE = new AtomicLong();
     private static final AtomicLong DISAGREE = new AtomicLong();
     private static final AtomicLong RESIDUE = new AtomicLong();
+    // R2a — the DUAL-VERDICT census (the ratified permanent referee):
+    // SQL byte verdict vs host lattice, plus counted declines
+    private static final AtomicLong SQL_AGREE = new AtomicLong();
+    private static final AtomicLong SQL_DISAGREE = new AtomicLong();
+    private static final AtomicLong SQL_DECLINED = new AtomicLong();
     private static final int SAMPLE_CAP = 200;
     private static final ConcurrentLinkedQueue<Row> SAMPLES =
             new ConcurrentLinkedQueue<>();
@@ -176,9 +181,35 @@ public final class CanonicalDivergence {
         }
     }
 
+    /** R2a: one dual-verdict row — the DB byte verdict against the
+     * host lattice. Disagreement is the permanent referee's alarm. */
+    public static void probeSqlVerdict(String family, boolean hostHeld,
+            boolean sqlHeld) {
+        if (hostHeld == sqlHeld) {
+            SQL_AGREE.incrementAndGet();
+        } else {
+            SQL_DISAGREE.incrementAndGet();
+            sample(new Row(family, hostHeld,
+                    "sql-verdict host=" + hostHeld + " sql=" + sqlHeld));
+        }
+    }
+
+    /** R2a: a side the SQL channel declined (non-scalar kind, unclaimed
+     * render, lowering refusal) — the host lattice judged instead. */
+    public static void sqlDeclined() {
+        SQL_DECLINED.incrementAndGet();
+    }
+
+    public static long sqlDisagreeCount() {
+        return SQL_DISAGREE.get();
+    }
+
     public static String summary() {
         return "agree=" + AGREE.get() + " disagree=" + DISAGREE.get()
-                + " residue=" + RESIDUE.get();
+                + " residue=" + RESIDUE.get()
+                + " | sql-verdict agree=" + SQL_AGREE.get()
+                + " disagree=" + SQL_DISAGREE.get()
+                + " declined=" + SQL_DECLINED.get();
     }
 
     public static long disagreeCount() {
@@ -197,6 +228,9 @@ public final class CanonicalDivergence {
         AGREE.set(0);
         DISAGREE.set(0);
         RESIDUE.set(0);
+        SQL_AGREE.set(0);
+        SQL_DISAGREE.set(0);
+        SQL_DECLINED.set(0);
         SAMPLES.clear();
     }
 }

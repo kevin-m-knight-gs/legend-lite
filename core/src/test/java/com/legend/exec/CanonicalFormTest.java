@@ -127,7 +127,8 @@ class CanonicalFormTest {
                 List.of((Object) new BigDecimal("8.00")), true);
         CanonicalDivergence.probeEqual("assertEquals",
                 List.of((Object) 1L), List.of((Object) 2L), false);
-        assertEquals("agree=4 disagree=0 residue=0",
+        assertEquals("agree=4 disagree=0 residue=0 | sql-verdict"
+                + " agree=0 disagree=0 declined=0",
                 CanonicalDivergence.summary());
         CanonicalDivergence.reset();
     }

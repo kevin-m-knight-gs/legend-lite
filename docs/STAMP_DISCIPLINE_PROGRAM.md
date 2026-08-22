@@ -1970,3 +1970,36 @@ Census PINNED in the runner (disagree ≤ 27, shrink-only, same-commit
 justification to move). R2 grid scope is therefore: canonical ORDER BY
 (6) + policy adjudication (21) + GridCompare arm deletion — no
 emission work.
+
+### R2a LANDED: the byte verdict of record (assertEquals scalars)
+
+THE FLIP (ratified dual-verdict design): for scalar-kind assertEquals
+sides, the DATABASE computes both canonical renders
+(lowering/CanonicalRenderSql — Integer/Boolean/String/Float no-exponent
+unfold/Decimal scale-normalized/temporal +0000 pipeline, every rule
+mirroring the host reference CanonicalForm) and Java's whole remaining
+act is comparing two DB-computed byte strings. The host lattice is now
+the PERMANENT PARALLEL REFEREE: disagreement = census row, never a
+rescue; declines (collection sides, unclaimed kinds, lowering
+refusals) are COUNTED and fall back to the host verdict.
+
+Wire shape: evalCanon (StatementExecutor) lowers each side like
+evalValue and wraps the plan in the canon projection — one extra
+SCALAR query per side, no cross-side SQL composition (sides can live
+on different runtimes), all executeTyped channels untouched. Kind gate
+on STAMPS (numeric tower = one class; cross-kind incl. empty-vs-empty
+declines to the host — never a static guess).
+
+**FIRST MEASUREMENT (ChannelB, all suites): 983 verdicts decided by
+the DB byte compare, sql-verdict disagree = 0, declined = 228.** The
+one divergence family the flip caught on round 1 — the
+variant-identity channel's temporal texts already carry +0000 and the
+canon double-suffixed (5 least/greatest/max Date tests) — fixed by
+suffix normalization in temporalCanon; round 2 clean. Eval-ledger
+AssertVerdicts 398→455 with written justification (verdict ROUTING
+toward the database — the ledger's own direction). AssertVerdicts'
+raw-array side decode leak (Timestamp→LocalDateTime) fixed to
+PureDateLiteral while there.
+
+R2b queue: collection sides (list canon in SQL), assertSameElements
+(canonical ORDER BY), the 27-row grid ledger, tolerance census (R3).

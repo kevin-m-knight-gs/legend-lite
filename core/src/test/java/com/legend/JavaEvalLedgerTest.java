@@ -186,7 +186,16 @@ class JavaEvalLedgerTest {
             // let-bound instance provenance. Verdict adjudication of
             // compile-time facts, never value evaluation; every other
             // shape falls through to is()'s missing SQL rule and walls.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 398),
+            // 398→455 (2026-08-22 R2a, CANONICAL_FORM_SPEC §0): the BYTE
+            // VERDICT OF RECORD — sqlByteVerdict routes scalar-kind
+            // assertEquals verdicts to DB-COMPUTED canonical renders
+            // (CanonicalRenderSql; Java compares two byte strings) with
+            // the host lattice demoted to the permanent parallel
+            // referee. The growth is verdict ROUTING toward the
+            // database — the ledger's own direction — plus the counted
+            // decline/divergence census hooks; zero new value
+            // evaluation.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 455),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

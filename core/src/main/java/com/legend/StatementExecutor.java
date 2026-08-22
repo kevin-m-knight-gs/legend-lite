@@ -2338,6 +2338,79 @@ final class StatementExecutor {
         return executeTyped(body, env);
     }
 
+    /** A DB-computed canonical text: {@code text} null = the side is
+     * EMPTY (SQL NULL) — distinct from a DECLINE, which returns the
+     * record-less null from {@link #evalCanon}. */
+    record Canon(@com.legend.Nullable String text) {
+    }
+
+    /**
+     * R2a — the byte-channel side render, computed IN THE DATABASE
+     * (CANONICAL_FORM_SPEC §0/§2): lower the side like {@link #evalValue}
+     * and wrap the plan in the SQL canonical render for its STAMPED
+     * kind. Returns null (DECLINE — counted by the caller) when the
+     * side is non-scalar, its kind is unclaimed, or lowering refuses:
+     * the fallback is the host lattice, and every decline is census
+     * fuel, never a silent rescue.
+     */
+    static StatementExecutor.@com.legend.Nullable Canon evalCanon(
+            TypedSpec value, java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
+        try {
+            java.util.List<TypedSpec> single =
+                    new java.util.ArrayList<>(letPrefix);
+            single.add(value);
+            var inliner = new com.legend.compiler.spec.UserCallInliner(specs);
+            java.util.List<TypedSpec> body = inliner.inlineBody(single);
+            env.queryLets().putAll(inliner.queryLets());
+            body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
+                    .withLetBindings(env.queryLets())
+                    .resolve(body, env.runtimeFqn());
+            TypedSpec root = body.get(body.size() - 1);
+            while (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
+                root = fr.source();
+            }
+            var mult = root.info().multiplicity().requireBounded("canon side");
+            if (mult.upper() == null || mult.upper() > 1) {
+                return null;   // collections are R2b's family
+            }
+            com.legend.sql.SqlExpr canon =
+                    com.legend.lowering.CanonicalRenderSql.scalarCanon(
+                            new com.legend.sql.SqlExpr.Column(null, "value"),
+                            root.info().type());
+            if (canon == null) {
+                return null;
+            }
+            com.legend.sql.dialect.SqlDialect dialect = env.dialect();
+            com.legend.sql.SqlQuery plan = lowerAndPrepare(body, env,
+                    env.ctx(), dialect, env.connection());
+            com.legend.sql.SqlQuery wrapped = new com.legend.sql.SqlSelect(
+                    java.util.List.of(new com.legend.sql.SqlSelect.Projection(
+                            canon, "canon")),
+                    false,
+                    new com.legend.sql.SqlSource.Subselect(plan, "side", null),
+                    null, java.util.List.of(), null, null,
+                    java.util.List.of(), null, null,
+                    java.util.List.of(new com.legend.sql.OutputCol("canon",
+                            com.legend.sql.SqlType.Scalar.VARCHAR, true)));
+            ExecutionResult r = Executor.execute(dialect.render(wrapped),
+                    wrapped,
+                    com.legend.compiler.element.type.ExprType.one(
+                            com.legend.compiler.element.type.Type.Primitive
+                                    .STRING),
+                    com.legend.exec.ResultShape.SCALAR, env.connection(),
+                    dialect);
+            return r instanceof ExecutionResult.Scalar s
+                    ? new Canon(s.value() instanceof String str ? str : null)
+                    : null;
+        } catch (java.sql.SQLException | RuntimeException e) {
+            // DECLINE, counted at the call site: a side the SQL channel
+            // cannot lower/execute falls back to the host lattice — the
+            // decline census keeps this from becoming a silent rescue
+            return null;
+        }
+    }
+
     static ExecutionResult executeTyped(
             java.util.List<TypedSpec> body, ExecEnv env)
             throws java.sql.SQLException {

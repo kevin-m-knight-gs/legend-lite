@@ -108,17 +108,40 @@ final class AssertVerdicts {
                 List<Object> e = side(args.get(0), letPrefix, specs, env);
                 List<Object> a = side(args.get(1), letPrefix, specs, env);
                 boolean equal = PureAsserts.equal(e, a);
-                // R1 divergence instrument (CANONICAL_FORM_SPEC §0):
-                // measurement only, cannot affect the verdict
+                // R1a divergence instrument (CANONICAL_FORM_SPEC §0):
+                // host lattice vs host byte channel, measurement only
                 com.legend.exec.CanonicalDivergence.probeEqual(
                         name, e, a, equal);
+                // R2a — THE BYTE VERDICT OF RECORD for scalar-kind
+                // sides: the DATABASE computes both canonical renders
+                // (CanonicalRenderSql); Java compares two byte strings.
+                // The host lattice above becomes the PERMANENT PARALLEL
+                // REFEREE (ratified dual-verdict design): disagreement
+                // is a pinned census row, never a rescue. A decline
+                // (collection side, unclaimed kind, lowering refusal)
+                // is counted and the host verdict judges.
+                Boolean byteVerdict = sqlByteVerdict(args.get(0),
+                        args.get(1), letPrefix, specs, env);
+                if (byteVerdict == null) {
+                    com.legend.exec.CanonicalDivergence.sqlDeclined();
+                } else {
+                    com.legend.exec.CanonicalDivergence.probeSqlVerdict(
+                            name, equal, byteVerdict);
+                }
+                boolean held = byteVerdict != null ? byteVerdict : equal;
                 if (name.equals("assertNotEquals")) {
-                    return equal
+                    return held
                             ? fail("assertNotEquals: both sides are equal")
                             : ok();
                 }
+                if (held) {
+                    return ok();
+                }
                 String d = PureAsserts.assertEquals(e, a);
-                return d == null ? ok() : fail(d);
+                return fail(d != null ? d
+                        : "byte-verdict: canonical renders differ (host"
+                                + " lattice agreed — dual-verdict divergence,"
+                                + " see [canon] census)");
             }
             case "assertSameElements" -> {
                 if (args.size() < 2) {
@@ -413,6 +436,56 @@ final class AssertVerdicts {
     /** One assert SIDE: the argument expression executed in the
      * database through the ordinary pipeline, flattened to wire values
      * (a null scalar is the EMPTY collection — pure [0..1] emptiness). */
+    /** R2a kind gate + DB renders: both sides must have the SAME
+     * statically-stamped kind class (cross-kind incl. empty-vs-empty
+     * stays the host lattice's — DECLINE, not a guess); the byte
+     * verdict is equality of the two DB-computed canonical texts
+     * (null text = EMPTY side; empty==empty holds, empty==value
+     * fails — pure's own rule). */
+    private static @com.legend.Nullable Boolean sqlByteVerdict(
+            TypedSpec eSpec, TypedSpec aSpec, List<TypedSpec> letPrefix,
+            SpecCompiler specs, StatementExecutor.ExecEnv env) {
+        String ke = kindClassOf(eSpec.info().type());
+        String ka = kindClassOf(aSpec.info().type());
+        if (ke == null || ka == null || !ke.equals(ka)) {
+            return null;
+        }
+        StatementExecutor.Canon ce = StatementExecutor.evalCanon(
+                eSpec, letPrefix, specs, env);
+        if (ce == null) {
+            return null;
+        }
+        StatementExecutor.Canon ca = StatementExecutor.evalCanon(
+                aSpec, letPrefix, specs, env);
+        if (ca == null) {
+            return null;
+        }
+        return java.util.Objects.equals(ce.text(), ca.text());
+    }
+
+    /** Pure's equality kind classes over STAMPS (spec §3: the numeric
+     * tower is ONE class; everything else compares within its kind). */
+    private static @com.legend.Nullable String kindClassOf(
+            com.legend.compiler.element.type.Type t) {
+        if (t == com.legend.compiler.element.type.Type.Primitive.INTEGER
+                || t == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                || t == com.legend.compiler.element.type.Type.Primitive.DECIMAL) {
+            return "numeric";
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive.STRING) {
+            return "string";
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive.BOOLEAN) {
+            return "boolean";
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE
+                || t == com.legend.compiler.element.type.Type.Primitive.DATE_TIME
+                || t == com.legend.compiler.element.type.Type.Primitive.DATE) {
+            return "temporal";
+        }
+        return null;
+    }
+
     private static List<Object> side(TypedSpec arg, List<TypedSpec> letPrefix,
             SpecCompiler specs, StatementExecutor.ExecEnv env)
             throws java.sql.SQLException {
@@ -427,17 +500,19 @@ final class AssertVerdicts {
                     // the collection IS the side, flattened
                     try {
                         for (Object el : (Object[]) arr.getArray()) {
-                            // ONE-CARRIER normalization: raw JDBC array
-                            // elements arrive as driver temporals — the
-                            // java.time carrier is the platform's one
-                            // convention (the invisible-diff bug: a
-                            // Timestamp reprs identically to the
-                            // LocalDateTime it never equals)
-                            out.add(el instanceof java.sql.Timestamp ts
-                                    ? ts.toLocalDateTime()
-                                    : el instanceof java.sql.Date sd
-                                            ? sd.toLocalDate()
-                                            : el);
+                            // ONE-CARRIER normalization at this raw JDBC
+                            // read: the wire temporal is PureDateLiteral
+                            // (D-arc) — driver temporals convert in one
+                            // hop, same as the Executor seam
+                            out.add(switch (el) {
+                                case java.sql.Timestamp ts ->
+                                        com.legend.values.PureDateLiteral
+                                                .fromLocalDateTime(ts.toLocalDateTime());
+                                case java.sql.Date sd ->
+                                        com.legend.values.PureDateLiteral
+                                                .fromLocalDate(sd.toLocalDate());
+                                case null, default -> el;
+                            });
                         }
                     } catch (java.sql.SQLException ex) {
                         throw new IllegalStateException(
