@@ -1762,3 +1762,72 @@ grep census missed. Old CACHE deleted same-slice (no adapter hedges).
 Pins: HandleStoreTest (5, JDBC-free — the census stays clean by
 DESIGN: the pin uses IOException). Referee: core suite 4221/0 + full
 chain green.
+
+## THE RATIFIED ARC (2026-08-21, user: "ratified, go")
+
+Order: (1) verdict-in-DB — DB verdict of record, HOST VERDICT KEPT
+PERMANENTLY as a parallel REFEREE (disagreement = pinned shrink-only
+census, NEVER a rescue; ArchUnit pins it unreachable from the product
+path); (2) decoupled-PCT burn to COMPLETE — finish ONE of the three
+harnesses (PCT / relational corpus / ###Data corpus) entirely before
+opening a new front; (3) ###Data execution (census first) →
+test-corpus branch; (4) relational corpus burndown resume (2347/2575).
+Prepared statements deliberately LATE: they perturb the golden-SQL
+TEXT lane; land after row/verdict refereeing dominates.
+
+**Finished-harness definition (PCT)**: every test passes through the
+DECOUPLED channel (platform wire, zero harness compensations);
+reference-vs-decoupled diff census 0 with compensation code DELETED
+(the reference channel itself SURVIVES as the permanent cross-lane
+referee — engine-derived spec, not our second impl); exclusions 0 or
+declared feature-leg rows; DB verdict of record.
+
+### Decoupled-PCT census (read-only slice, measured 2026-08-21)
+
+Channel-B state (discovered/AGREE-PASS/AGREE-FAIL/WIRE-BUG/B-FIXES-A):
+Essential 327/291/21/11/4 · Grammar 137/126/6/1/4 · Relation
+287/286/0/0/1 · Standard 204/204/0/0/0 · Unclassified 95/95/0/0/0.
+Total discovered 1050 vs reference 1115.
+
+**TRUE-WIRE-BUG = 0 across all five suites.** All 12 WIRE-BUG rows are
+ENGINE-FRONTIER: the engine's OWN relational-DuckDB executor fails
+them too. The decoupled channel has no true wire debt today — the
+completion delta is walls + exclusions, not wire bugs.
+
+Completion delta, bucketed (design legs, NOT a onesie tail):
+
+1. **Platform-source walls** (~50 files, hiding the 65 undiscovered
+   tests incl. Relation's 287→348 gap):
+   a. REFLECTION meta-types family (~14 files): Multiplicity /
+      ValueSpecification / Package / PackageableElement / FunctionType
+      not modeled (isToOne/isToMany/bounds, elementToPath,
+      functionType, reactivate, routing.pure, support.pure).
+   b. Grammar-gaps family: m3.pure top-level ^Instance(...), new.pure
+      brace form, pct_core.pure generics, addColumns '@' column types,
+      unit files (newUnit/getUnitValue), over.pure '?' wildcard.
+2. **Reference exclusions 36** (Essential 25, Grammar 10, Relation 1),
+   clustered: instance-universe-in-PCT ~13 (fold/find/filter/getAll/
+   map-relationship/head-complex/match over Person-class instances);
+   date ERROR-parity 5 + adjust-big-number 4; indexOf/substring base
+   3 (the §4 PER-LANE adjudication rows — engine witnesses required);
+   sort-with-key/function-vars 3; primitive-extension eq/equal 2;
+   misc 3 (toString complex, at error, variant joinStrings).
+3. **ENGINE-FRONTIER 12**: adjudication rows — engine parity says
+   these stay declared (we match the engine's relational executor,
+   including its frontier), pinned so they burn if the engine moves.
+
+### Verdict-in-DB scoping (task #16, read-only slice)
+
+Homework H1–H6 COMPLETE (docs/CANONICAL_RENDER_HOMEWORK.md). R0 next =
+the canonical-form spec doc (decisions already ruled in the homework
+verdict). R1 = Render grown into THE canonical serializer (scalar
+channel: no-exponent float format expr + scale-normalized Decimal;
+grid channel ALREADY IS engine toCSV) + the corpus-wide divergence
+instrument render(e)==render(a) NEXT TO PureAsserts. R2 = per-family
+hard cutover (assertEquals scalars → collections → grids →
+assertSameElements = 1,803 of 2,039 sites), eval-ledger pins DOWN
+every commit. RATIFIED AMENDMENT to R2's "host arms delete":
+PureAsserts' equality lattice SURVIVES as the permanent parallel-host
+referee (the ratified dual-verdict design) — what deletes is every
+harness-compensation arm and every verdict-AFFECTING host path;
+PureAsserts moves to the referee, disagreement census pinned at 0.
