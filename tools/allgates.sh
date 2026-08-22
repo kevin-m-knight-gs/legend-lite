@@ -25,8 +25,8 @@ SFLAG=()
 # cold ~/.m2 and MUST resolve, so it sets MVN_OFFLINE=0.
 OFF=()
 [ "${MVN_OFFLINE:-1}" = "1" ] && OFF=(-o)
-# Gate subset: GATES=1,2,3 runs only those. Default is all eight.
-WANT=${GATES:-1,2,4,5,6,7,8}
+# Gate subset: GATES=1,2,3 runs only those. Default is all nine.
+WANT=${GATES:-1,2,4,5,6,7,8,9}
 want() { case ",$WANT," in *",$1,"*) return 0;; *) return 1;; esac; }
 # Default the log to a PER-USER path. A fixed /tmp/gates.log is shared across
 # accounts on this box (it was found owned by another user), so writes fail
@@ -174,6 +174,31 @@ if want 7; then
     echo "G7 no surefire summary found — treating as failure" >> "$L"
   fi
   rec 7 $G7; echo "${G7_LINE:-<no summary>}" >> "$L"
+fi
+
+if want 9; then
+  if ! roots_present; then
+    echo "G9 NOT RUN — upstream checkout absent. NOT a pass." >> "$L"
+    rec 9 1
+  else
+  g "GATE9 ChannelB dual-verdict suites (discovery + disagree-0 + decline ceilings)"
+  # ChannelB reads -Dlegend.pure.root / -Dlegend.engine.root SYSTEM
+  # PROPERTIES (like rcorpus) — an env-only invocation silently referees
+  # the stale $HOME checkout and fakes a discovery regression (V11
+  # trap, recorded 2026-08-22). Added as a gate because the X-slice
+  # pushed with these pins unvalidated: the suites were in no gate.
+  ( cd pct && mvn "${OFF[@]}" test -Dtest='ChannelB*' "$R1" "$R2" ) > "$OUT/g9.out" 2>&1
+  G9_LINE=$(grep -E "Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+" "$OUT/g9.out" | tail -1)
+  G9=1
+  if [[ "$G9_LINE" =~ Tests\ run:\ ([0-9]+),\ Failures:\ ([0-9]+),\ Errors:\ ([0-9]+) ]]; then
+    R=${BASH_REMATCH[1]}; F=${BASH_REMATCH[2]}; E=${BASH_REMATCH[3]}
+    [ "$R" -ge 5 ] && [ "$F" -eq 0 ] && [ "$E" -eq 0 ] && G9=0
+  else
+    echo "G9 no surefire summary found — treating as failure" >> "$L"
+  fi
+  rec 9 $G9; echo "${G9_LINE:-<no summary>}" >> "$L"
+  grep -hE "census=|canon: " "$OUT/g9.out" | head -10 >> "$L"
+  fi
 fi
 
 if want 8; then

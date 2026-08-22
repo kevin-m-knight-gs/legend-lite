@@ -172,6 +172,14 @@ final class StatementExecutor {
             // (Phase 1c: a grid VALUE READ never reaches here as a user
             // call — the Typer types it as a relation property read; the
             // TYPE decides, no recognizer needed)
+            // EFFECTFUL call statements need the STATEMENT-ORCHESTRATION
+            // machinery (sequential effect execution, recursion guard,
+            // argument frames) — a nested executeInDb cannot lower, so
+            // the side path can never claim these. This is the gate's
+            // OWN ground (V11 adjudication: the old double-execution
+            // citation died with runCanon; the gate did not). Effectful
+            // ASSERTS therefore route to body inlining and get host
+            // verdicts, not byte verdicts — register row, V7 territory.
             if (bare instanceof com.legend.compiler.spec.typed.TypedUserCall call
                     && containsEffect(call, specs, effectMemo)) {
                 result = executeCallStatement(call, letPrefix, specs, env, frames);

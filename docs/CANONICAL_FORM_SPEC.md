@@ -89,6 +89,37 @@ OUT (loud residue — walls or the declared policy, never silent):
 - Class instances: identity ids are not canonical (H1) — instance
   equality stays a host/referee concern, out of the byte channel.
 
+## 4b. THE PERMANENT BOUNDARY (V11 close, user-converged 2026-08-22)
+
+The DB channel was never going to claim everything, and this section
+makes the boundary a finished design statement instead of unmet
+ambition. The DB is the verdict of record FOR THE CLAIMED DOMAIN; the
+host lattice is the verdict of record FOR THE RESIDUE BELOW (openly,
+not as a fallback); the host shadows every DB verdict as the permanent
+referee. Declines are a boundary census, NOT debt — each lands in one
+of three tiers:
+
+- **Tier A — outside the DB's VALUE domain (hard edges, no fix):**
+  NUL-bearing strings (DuckDB VARCHAR is NUL-free — the literal fails
+  in the DB's own parser; witness testEmptyChar); decimals beyond 38
+  significant digits / integers beyond HUGEINT as native kinds.
+- **Tier B — erased by SQL's TYPE system but encodable as data
+  (CLAIMABLE; the pattern is proven):** per-element kind variance
+  (mixed collections, if-branch CASE promotion, the print-form
+  identity carrier) → F10 variant carrier; temporal written-precision
+  → ALREADY CLAIMED via the precision-faithful VARCHAR convention.
+  When the type channel erases, move the information into the value
+  channel — never guess.
+- **Tier C — not data at all (permanently host/model territory):**
+  model-defined equality (equality.Key stereotypes — X5 claims the
+  byte compare via key-derived canon, the SEMANTICS stay model-owned);
+  object identity (eq() on non-primitives — rows have no identity);
+  orchestration handles (Connection/Runtime); the metamodel itself
+  (Package/Multiplicity/ValueSpecification, lambdas as values).
+
+Every decline reason maps to a tier; a decline that fits no tier is a
+bug in the wrap, not a new category.
+
 ## 5. Cutover order (R2, per-family hard cutovers)
 
 By H5 distribution (assert sites over the corpus universe):

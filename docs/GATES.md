@@ -14,6 +14,14 @@ gate 1; gates 4/5 run `-pl core`. Gate numbers stay stable in
 quoting one; the ratchet constants in the test sources are the authority, and
 they move.
 
+**2026-08-22: GATE 9 added — the ChannelB dual-verdict suites** (all five:
+Standard/Essential/Grammar/Unclassified/Relation; discovery pins 287/137,
+sql-verdict disagree=0, decline ceilings). Added because the X-slice pushed
+with a ChannelB pin unvalidated: the suites were in NO gate, and their
+discovery pins depend on `-Dlegend.pure.root`/`-Dlegend.engine.root` SYSTEM
+properties (env-only hand-runs silently referee the stale `$HOME` checkout
+and fake a 280!=287 "regression" — same trap class as the corpus root).
+
 ---
 
 ## The root flag is a SYSTEM PROPERTY, and the fallback is silent

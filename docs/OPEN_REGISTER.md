@@ -53,6 +53,7 @@ L (a program leg).
 | F7 | Dup-FQN coverage: services/connections/mappings namespaces | S |
 | F8 | {target} + foreign-db join-ref validation (D6b skipped conservatively) | S |
 | F9 | Invariant-3 register burn-down: wrap 21 write-once tables immutable | M |
+| F11 | Effectful-assert byte coverage: the containsEffect gate routes effectful assert statements to body inlining (host verdicts only) — the gate stands on statement-orchestration grounds (V11 adjudication at the gate site), so claiming these needs the side path to learn sequential effect execution; V7-territory sizing | S/M |
 | F10 | Variant-aware byte canon: the canon consumes TYPED values with carrier decode owned by the carrier — covers the mixed-kind-collection decline AND retires the accumulating carrier-text strips (+0000, D-suffix regexes) which are the tell of canon parsing raw carrier text. NEW WITNESS (V11): the mixed-identity VARCHAR carrier errors under candidate canon casts and rides the canon-exec decline tunnel — undetectable at wrap time because OutputCol types are stamp-derived | M |
 
 ## 4. Parked BY THE RATIFIED ARC ORDER (sequenced, not debt)
