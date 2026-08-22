@@ -187,8 +187,10 @@ public final class PureAsserts {
             case java.math.BigDecimal ignored -> "Decimal";
             case Boolean ignored -> "Boolean";
             case String ignored -> "String";
-            case java.time.LocalDate ignored -> "StrictDate";
-            case java.time.LocalDateTime ignored -> "DateTime";
+            case com.legend.values.PureDateLiteral.Year ignored -> "Date";
+            case com.legend.values.PureDateLiteral.YearMonth ignored -> "Date";
+            case com.legend.values.PureDateLiteral.StrictDate ignored -> "StrictDate";
+            case com.legend.values.PureDateLiteral d -> "DateTime";
             case java.time.OffsetDateTime ignored -> "DateTime";
             default -> v.getClass().getSimpleName();
         };
@@ -287,20 +289,13 @@ public final class PureAsserts {
             }
             return false;
         }
-        // POLICY: the temporal string-carrier bridge, SYMMETRIC — the
-        // platform's DESIGNED carrier for partial-precision temporals is
-        // a STRING, so a string may legitimately sit on EITHER side of a
-        // temporal compare (2026-08-19 redesign: the K-arm's wire
-        // crossing witnessed actual-side carrier strings; the old
-        // one-direction rule predated the designed carrier). A
-        // non-parsing string still fails — the typing-bug catch is the
-        // parse, not the direction.
-        if (e instanceof String es && isTemporal(a)) {
-            return temporalEquals(es, a);
-        }
-        if (a instanceof String as2 && isTemporal(e)) {
-            return temporalEquals(as2, e);
-        }
+        // TEMPORALS: PureDateLiteral record equality IS the engine's
+        // precision-sensitive PureDate.equals (their variants compare
+        // every component INCLUDING precision) — the old string-carrier
+        // bridge died with the D-arc cutover: partial-precision values
+        // now ride the wire as PureDateLiteral (the fetch seam parses
+        // the precision-faithful VARCHAR convention), so a string
+        // beside a temporal is a TYPE mismatch, false like pure.
         // WIRE-VALUE TREES (struct cells decoded to maps at egress, and
         // any lists nested inside them): the ONE walker owns the
         // structure, THIS method stays the leaf rule (P2-4/P2-6,
@@ -326,55 +321,13 @@ public final class PureAsserts {
     }
 
     private static boolean isTemporal(Object v) {
-        return v instanceof java.sql.Timestamp || v instanceof java.sql.Date
-                || v instanceof java.time.LocalDate
-                || v instanceof java.time.LocalDateTime
-                || v instanceof java.time.OffsetDateTime;
+        // THE wire temporal type ONLY (D-arc 2026-08-21): a java.sql or
+        // java.time temporal reaching a compare is a fetch-seam LEAK —
+        // it falls through to e.equals(a) (never true cross-kind) and
+        // the canonical-divergence census reports it as unmodeled-kind
+        return v instanceof com.legend.values.PureDateLiteral;
     }
 
-    private static boolean temporalEquals(String s, Object t) {
-        // Pure DateTime equality is INSTANT-based and a bare (naive)
-        // DateTime means UTC (parseDate.pure's own expectations:
-        // %...T10:01:35.231 == parse('...T10:01:35.231Z') and
-        // %...T10:01-0500 == %...T15:01+0000). Normalize BOTH sides to
-        // a UTC-local before comparing; wire temporals without offsets
-        // are already UTC-normalized.
-        String v = s.trim().replaceFirst("Z$", "+0000").replace(' ', 'T');
-        java.time.ZoneOffset zo = null;
-        java.util.regex.Matcher off = java.util.regex.Pattern
-                .compile("([+-])(\\d{2}):?(\\d{2})$").matcher(v);
-        if (off.find()) {
-            zo = java.time.ZoneOffset.of(
-                    off.group(1) + off.group(2) + ":" + off.group(3));
-            v = v.substring(0, off.start());
-        }
-        try {
-            if (t instanceof java.sql.Date d) {
-                return java.time.LocalDate.parse(v).equals(d.toLocalDate());
-            }
-            if (t instanceof java.time.LocalDate ld) {
-                return java.time.LocalDate.parse(v).equals(ld);
-            }
-            java.time.LocalDateTime other = t instanceof java.sql.Timestamp ts
-                    ? ts.toLocalDateTime()
-                    : t instanceof java.time.LocalDateTime ldt ? ldt
-                    : t instanceof java.time.OffsetDateTime odt
-                            ? odt.withOffsetSameInstant(
-                                    java.time.ZoneOffset.UTC).toLocalDateTime()
-                            : null;
-            if (other == null) {
-                return false;
-            }
-            String norm = v.contains("T") ? v : v + "T00:00";
-            java.time.LocalDateTime lit = java.time.LocalDateTime.parse(norm);
-            java.time.LocalDateTime litUtc = zo == null ? lit
-                    : lit.atOffset(zo).withOffsetSameInstant(
-                            java.time.ZoneOffset.UTC).toLocalDateTime();
-            return litUtc.equals(other);
-        } catch (java.time.format.DateTimeParseException ex) {
-            return false;
-        }
-    }
 
     // ================================================================
     // toRepresentation() — pure source spelling of a value (ONE owner;
@@ -394,16 +347,10 @@ public final class PureAsserts {
             case BigDecimal d -> d.toPlainString() + "D";
             case Number n -> n.toString();
             case Boolean b -> b.toString();
-            case java.sql.Date d -> "%" + d.toLocalDate();
-            case java.time.LocalDate d -> "%" + d;
-            case java.sql.Timestamp ts -> "%" + ts.toLocalDateTime();
-            case java.time.LocalDateTime ldt -> "%" + ldt;
-            // pure prints offset datetimes with the +HHMM form
-            // (%2014-02-27T10:01:35.231+0000 — parseDate.pure's own
-            // expectations)
-            case java.time.OffsetDateTime odt -> "%" + odt.toLocalDateTime()
-                    + odt.getOffset().getId().replace(":", "")
-                            .replace("Z", "+0000");
+            // THE wire temporal type (D-arc: sql/java.time never escape
+            // the fetch) — %-prefixed engine spelling, UTC-normalized
+            case com.legend.values.PureDateLiteral d ->
+                    "%" + d.toEngineString();
             default -> throw new com.legend.error.NotImplementedException(
                     "toRepresentation for " + v.getClass().getName()
                     + " is not modeled (spec: '<id instanceOf Type>' —"
@@ -450,10 +397,7 @@ public final class PureAsserts {
             case Number n -> 1;
             case String s -> 2;
             case Boolean b -> 3;
-            case java.sql.Date d -> 4;
-            case java.sql.Timestamp t -> 4;
-            case java.time.LocalDate d -> 4;
-            case java.time.LocalDateTime d -> 4;
+            case com.legend.values.PureDateLiteral d -> 4;
             case Map<?, ?> m -> 5;
             default -> throw new com.legend.error.NotImplementedException(
                     "assertSameElements sort over "
@@ -472,10 +416,7 @@ public final class PureAsserts {
             // section contract said instant, the code said text — a
             // date-only vs midnight-datetime mix text-sorted wrong;
             // the reference native compares temporals by components)
-            case java.sql.Date d -> d.toLocalDate().atStartOfDay();
-            case java.time.LocalDate d -> d.atStartOfDay();
-            case java.sql.Timestamp t -> t.toLocalDateTime();
-            case java.time.LocalDateTime t -> t;
+            case com.legend.values.PureDateLiteral d -> d.toInstantFloor();
             default -> String.valueOf(v);   // maps: stable text order
         };
     }

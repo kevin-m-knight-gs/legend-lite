@@ -5,11 +5,9 @@ package com.legend.exec;
 
 import org.junit.jupiter.api.Test;
 
+import com.legend.values.PureDateLiteral;
+
 import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -70,19 +68,27 @@ class CanonicalFormTest {
         assertEquals("negative-zero", residue(-0.0));
     }
 
-    /** H1/H2 temporals, scalar channel: date bare ISO; DateTime
-     * T-separated, UTC-normalized, minimal subseconds, +0000. */
+    /** H1 temporals over THE wire carrier (PureDateLiteral, D-arc):
+     * date-only precisions print bare; time-bearing take +0000;
+     * WRITTEN precision survives (.000 ≠ none — the wire limit the
+     * java.time carrier had is GONE). A java temporal is residue. */
     @Test
     void temporals() {
-        assertEquals("2014-01-01", text(LocalDate.of(2014, 1, 1)));
-        assertEquals("2014-01-01T00:00:00+0000",
-                text(LocalDateTime.of(2014, 1, 1, 0, 0)));
+        assertEquals("2014", text(PureDateLiteral.parse("2014")));
+        assertEquals("2014-01", text(PureDateLiteral.parse("2014-01")));
+        assertEquals("2014-01-01", text(PureDateLiteral.parse("2014-01-01")));
+        assertEquals("2014-01-01T00:00+0000",
+                text(PureDateLiteral.parse("2014-01-01T00:00")));
         assertEquals("2014-01-01T10:01:35.231+0000",
-                text(LocalDateTime.of(2014, 1, 1, 10, 1, 35, 231_000_000)));
+                text(PureDateLiteral.parse("2014-01-01T10:01:35.231")));
+        assertEquals("2014-01-01T10:01:35.000+0000",
+                text(PureDateLiteral.parse("2014-01-01T10:01:35.000")));
         // GMT normalization: -0500 input prints shifted +0000 (H1)
-        assertEquals("2014-01-01T15:01:00+0000",
-                text(OffsetDateTime.of(2014, 1, 1, 10, 1, 0, 0,
-                        ZoneOffset.ofHours(-5))));
+        assertEquals("2014-01-01T15:01+0000",
+                text(PureDateLiteral.parse("2014-01-01T10:01-0500")));
+        // fetch-seam leak detector: a java.time temporal is RESIDUE
+        assertEquals("unmodeled-kind:LocalDate",
+                residue(java.time.LocalDate.of(2014, 1, 1)));
     }
 
     /** H1 testListToString: multi-element sides take the list form;
@@ -100,21 +106,28 @@ class CanonicalFormTest {
                 CanonicalForm.renderSide(List.of())).value());
     }
 
-    /** The instrument's bridge: a string paired against a temporal
-     * canonicalizes through the parse — bridge pairs byte-agree exactly
-     * where the lattice's bridge grants equality. */
+    /** The KIND-QUALIFIED byte compare (spec §3 amendment): the render
+     * is not injective across kinds — String "8" vs Integer 8 must NOT
+     * byte-agree, and the numeric tower shares one kind class so
+     * Integer 8 vs Decimal 8D still does. */
     @Test
-    void divergenceProbeBridge() {
+    void kindQualifiedByteCompare() {
         CanonicalDivergence.reset();
+        // cross-kind same-text: lattice false, byte false — AGREE
+        CanonicalDivergence.probeEqual("assertEquals",
+                List.of((Object) "8"), List.of((Object) 8L), false);
+        // string vs temporal: a type mismatch on both channels now
+        // (the string-carrier bridge died with the D-arc cutover)
         CanonicalDivergence.probeEqual("assertEquals",
                 List.of((Object) "2014-01-01"),
-                List.of((Object) LocalDate.of(2014, 1, 1)), true);
-        assertEquals(0, CanonicalDivergence.disagreeCount(),
-                "string-vs-temporal bridge pair must byte-agree");
+                List.of((Object) PureDateLiteral.parse("2014-01-01")), false);
+        // numeric tower: Integer 8 vs integral Decimal byte-agree
+        CanonicalDivergence.probeEqual("assertEquals",
+                List.of((Object) 8L),
+                List.of((Object) new BigDecimal("8.00")), true);
         CanonicalDivergence.probeEqual("assertEquals",
                 List.of((Object) 1L), List.of((Object) 2L), false);
-        assertEquals(0, CanonicalDivergence.disagreeCount());
-        assertEquals("agree=2 disagree=0 residue=0",
+        assertEquals("agree=4 disagree=0 residue=0",
                 CanonicalDivergence.summary());
         CanonicalDivergence.reset();
     }

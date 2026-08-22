@@ -80,7 +80,7 @@ class AuditRound5Test {
     @Test
     @DisplayName("audit: fractional seconds are legal up to (not including) 60")
     void fractionalSecondsStayLegal() throws Exception {
-        assertEquals("2016-01-01T00:00:59.999",
+        assertEquals("2016-01-01T00:00:59.999+0000",
                 String.valueOf(scalar("|date(2016, 1, 1, 0, 0, 59.999)")));
     }
 

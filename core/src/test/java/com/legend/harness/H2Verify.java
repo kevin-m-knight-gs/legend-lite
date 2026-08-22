@@ -624,11 +624,20 @@ public final class H2Verify {
             }
         }
         // temporal CARRIERS canonicalize before any toString — the
-        // Executor now hands java.time (one-carrier rule, documented-
-        // debts 2026-08-18) while the H2 replay side reads raw
-        // Timestamps; same instant, different box spellings
-        // ('2015-08-26T00:00' vs '2015-08-26 00:00:00.0'). This is the
-        // method's own contract sentence applied to dates.
+        // Executor hands PureDateLiteral (THE wire temporal, D-arc
+        // 2026-08-21) while the H2 replay side reads raw Timestamps;
+        // same instant, different box spellings. Both funnel into ONE
+        // comparison spelling here (instant-level: the replay side
+        // carries no written precision, so norm is precision-blind BY
+        // CONTRACT — it compares instants, not literals).
+        if (v instanceof com.legend.values.PureDateLiteral pd) {
+            if (pd.precision().atLeast(
+                    com.legend.values.PureDateLiteral.Precision.HOUR)) {
+                v = pd.toInstantFloor();
+            } else {
+                return pd.toEngineString();
+            }
+        }
         if (v instanceof java.sql.Timestamp ts) {
             v = ts.toLocalDateTime();
         }

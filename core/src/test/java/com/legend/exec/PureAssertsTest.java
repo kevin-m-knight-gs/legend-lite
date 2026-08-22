@@ -126,22 +126,21 @@ class PureAssertsTest {
     }
 
     @Test
-    @DisplayName("policy: temporal string-carrier bridge is SYMMETRIC (re-adjudicated 2026-08-19)")
-    void temporalBridge() {
-        assertTrue(PureAsserts.equalScalar("2014-01-01",
-                java.time.LocalDate.of(2014, 1, 1)));
-        assertTrue(PureAsserts.equalScalar("2014-01-01T00:00:00Z",
-                java.time.LocalDateTime.of(2014, 1, 1, 0, 0)));
-        // RE-ADJUDICATED at the Clause-2c redesign: the platform's
-        // DESIGNED carrier for partial-precision temporals is a STRING,
-        // so a carrier string legitimately sits on EITHER side; the
-        // typing-bug catch is the PARSE (a non-parsing string still
-        // fails), not the direction.
-        assertTrue(PureAsserts.equalScalar(
-                java.time.LocalDate.of(2014, 1, 1), "2014-01-01"));
+    @DisplayName("D-arc: PureDateLiteral is THE wire temporal — precision-sensitive engine equality, bridge DEAD")
+    void temporalEquality() {
+        var d = com.legend.values.PureDateLiteral.parse("2014-01-01");
+        assertTrue(PureAsserts.equalScalar(d,
+                com.legend.values.PureDateLiteral.parse("2014-01-01")));
+        // engine PureDate.equals is PRECISION-SENSITIVE: same instant,
+        // different written precision -> not equal
         assertFalse(PureAsserts.equalScalar(
-                java.time.LocalDate.of(2014, 1, 1), "not-a-date"),
-                "a non-parsing string still fails — the typing-bug catch");
+                com.legend.values.PureDateLiteral.parse("2014-01-01T10:00"),
+                com.legend.values.PureDateLiteral.parse("2014-01-01T10:00:00")));
+        // the string-carrier bridge DIED with the cutover (partial
+        // precision rides the wire natively now): string vs temporal is
+        // a TYPE mismatch, false like pure
+        assertFalse(PureAsserts.equalScalar("2014-01-01", d));
+        assertFalse(PureAsserts.equalScalar(d, "2014-01-01"));
     }
 
     // ---- toRepresentation (the one owner) -----------------------------
@@ -151,8 +150,12 @@ class PureAssertsTest {
     void representation() {
         assertEquals("'a\\'b'", PureAsserts.repr("a'b"));
         assertEquals("'a\\nb'", PureAsserts.repr("a\nb"));
-        assertEquals("%2014-01-01",
-                PureAsserts.repr(java.time.LocalDate.of(2014, 1, 1)));
+        assertEquals("%2014-01-01", PureAsserts.repr(
+                com.legend.values.PureDateLiteral.parse("2014-01-01")));
+        // partial precision reprs exactly as written — impossible on
+        // the old java.time carrier
+        assertEquals("%2014-01", PureAsserts.repr(
+                com.legend.values.PureDateLiteral.parse("2014-01")));
         assertEquals("3.14D", PureAsserts.repr(new BigDecimal("3.14")));
         assertEquals("1", PureAsserts.repr(1L));
         assertEquals("true", PureAsserts.repr(Boolean.TRUE));
@@ -180,8 +183,8 @@ class PureAssertsTest {
     @DisplayName("P2-2: assertSameElements sorts temporals BY INSTANT")
     void temporalSortByInstant() {
         // date-only vs datetime mixes must order by instant, not text
-        Object d2 = java.time.LocalDate.parse("2014-01-02");
-        Object t1 = java.time.LocalDateTime.parse("2014-01-01T05:00:00");
+        Object d2 = com.legend.values.PureDateLiteral.parse("2014-01-02");
+        Object t1 = com.legend.values.PureDateLiteral.parse("2014-01-01T05:00:00");
         // instant order: t1 (Jan 1 05:00) before d2 (Jan 2 00:00);
         // TEXT order would put "2014-01-01 05:00:00" vs "2014-01-02" at
         // the mercy of the space-vs-dash byte

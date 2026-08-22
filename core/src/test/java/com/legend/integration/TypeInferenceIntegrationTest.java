@@ -488,7 +488,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|1973->date(11, 13, 23)",
                                 "test::TestRuntime", connection);
-                assertEquals("1973-11-13T23", result.rows().get(0).get(0).toString());
+                assertEquals("1973-11-13T23+0000", result.rows().get(0).get(0).toString());
         }
 
         @Test
@@ -498,7 +498,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|1973->date(11, 13, 23, 9)",
                                 "test::TestRuntime", connection);
-                assertEquals("1973-11-13T23:09", result.rows().get(0).get(0).toString());
+                assertEquals("1973-11-13T23:09+0000", result.rows().get(0).get(0).toString());
         }
 
         @Test
@@ -509,7 +509,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|1973->date(11, 13, 23, 9, 11.0)",
                                 "test::TestRuntime", connection);
-                assertEquals("1973-11-13T23:09:11.0", result.rows().get(0).get(0).toString());
+                assertEquals("1973-11-13T23:09:11.0+0000", result.rows().get(0).get(0).toString());
         }
 
         @Test
@@ -1006,7 +1006,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|%2024-01-31->timeBucket(1, meta::pure::functions::date::DurationUnit.DAYS)",
                                 "test::TestRuntime", connection);
-                assertEquals(java.time.LocalDate.of(2024, 1, 31), result.rows().get(0).get(0));
+                assertEquals(com.legend.values.PureDateLiteral.parse("2024-01-31"), result.rows().get(0).get(0));
         }
 
         @Test
@@ -1017,7 +1017,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|%2024-01-31->timeBucket(2, meta::pure::functions::date::DurationUnit.DAYS)",
                                 "test::TestRuntime", connection);
-                assertEquals(java.time.LocalDate.of(2024, 1, 30), result.rows().get(0).get(0));
+                assertEquals(com.legend.values.PureDateLiteral.parse("2024-01-30"), result.rows().get(0).get(0));
         }
 
         @Test
@@ -1031,12 +1031,12 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "|%2024-01-31T00:32:34+0000->timeBucket(1, meta::pure::functions::date::DurationUnit.DAYS)",
                                 "test::TestRuntime", connection);
                 Object value = result.rows().get(0).get(0);
-                // one-carrier rule (documented-debts 2026-08-18):
-                // timestamp cells arrive as java.time
-                assertEquals(java.time.LocalDateTime.of(2024, 1, 31, 0, 0), value);
+                // one-carrier rule (D-arc 2026-08-21): timestamp cells
+                // arrive as THE wire temporal, PureDateLiteral
+                assertEquals(com.legend.values.PureDateLiteral.parse("2024-01-31T00:00:00"), value);
                 // Verify nanosecond precision is preserved (TIMESTAMP_NS)
-                assertInstanceOf(java.time.LocalDateTime.class, value);
-                assertEquals(0, ((java.time.LocalDateTime) value).getNano(),
+                assertInstanceOf(com.legend.values.PureDateLiteral.class, value);
+                assertEquals(0, ((com.legend.values.PureDateLiteral) value).toInstantFloor().getNano(),
                                 "timeBucket should use TIMESTAMP_NS for nanosecond precision");
         }
 
@@ -1048,7 +1048,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|%2024-01-31->timeBucket(2, meta::pure::functions::date::DurationUnit.WEEKS)",
                                 "test::TestRuntime", connection);
-                assertEquals(java.time.LocalDate.of(2024, 1, 29), result.rows().get(0).get(0));
+                assertEquals(com.legend.values.PureDateLiteral.parse("2024-01-29"), result.rows().get(0).get(0));
         }
 
         @Test
@@ -1058,7 +1058,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|%2024-01-31T00:32:34+0000->timeBucket(2, meta::pure::functions::date::DurationUnit.WEEKS)",
                                 "test::TestRuntime", connection);
-                assertEquals(java.time.LocalDateTime.of(2024, 1, 29, 0, 0),
+                assertEquals(com.legend.values.PureDateLiteral.parse("2024-01-29T00:00:00"),
                                 result.rows().get(0).get(0));
         }
 
@@ -2417,9 +2417,10 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "|'2014-02-27T10:01:35.231-0500'->meta::pure::functions::string::parseDate()",
                                 "test::TestRuntime", connection);
                 Object value = result.rows().get(0).get(0);
-            assertInstanceOf(java.time.LocalDateTime.class, value,
-                    "Expected naive-UTC LocalDateTime but got: " + value.getClass().getName());
-                java.time.LocalDateTime utc = (java.time.LocalDateTime) value;
+                // D-arc: THE wire temporal is PureDateLiteral — naive-UTC
+                assertInstanceOf(com.legend.values.PureDateLiteral.class, value,
+                        "Expected PureDateLiteral but got: " + value.getClass().getName());
+                var utc = ((com.legend.values.PureDateLiteral) value).toInstantFloor();
                 assertEquals(15, utc.getHour(), "Expected UTC hour 15 but got: " + utc);
                 assertEquals(1, utc.getMinute());
                 assertEquals(35, utc.getSecond());
@@ -3859,7 +3860,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testStrictDateLiteralScalar() throws SQLException {
-                // PCT edge case: date literal should return as java.sql.Date/LocalDate, not
+                // PCT edge case: date literal returns as the WIRE temporal, not
                 // String
                 var result = queryService.execute(
                                 getCompletePureModelWithRuntime(),
@@ -3870,7 +3871,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 // Must be a date type, not a String with quotes
                 assertFalse(value instanceof String,
                                 "Date literal should not return as String, got: '" + value + "'");
-                assertTrue(value instanceof java.sql.Date || value instanceof java.time.LocalDate,
+                assertTrue(value instanceof com.legend.values.PureDateLiteral.StrictDate,
                                 "Expected Date type but got " + value.getClass().getSimpleName() + " = " + value);
         }
 
@@ -3897,7 +3898,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 Object value = result.rows().get(0).get(0);
                 assertNotNull(value);
                 // Should be a date (not datetime with time component)
-                assertTrue(value instanceof java.sql.Date || value instanceof java.time.LocalDate,
+                assertTrue(value instanceof com.legend.values.PureDateLiteral.StrictDate,
                                 "Expected StrictDate but got " + value.getClass().getSimpleName() + " = " + value);
         }
 

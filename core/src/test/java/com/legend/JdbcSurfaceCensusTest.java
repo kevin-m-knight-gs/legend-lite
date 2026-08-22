@@ -95,13 +95,10 @@ class JdbcSurfaceCensusTest {
             // RETIRED: moved to compiler/spec/CatalogGrids — pure
             // SQL-text composition.)
             "core/src/main/java/com/legend/exec/GridProbe.java",
-            // Phase 2: the platform assert family — java.sql VALUE KINDS
-            // only (Timestamp/Date arms of the ONE equality owner);
-            // no connection ever reaches it
-            "core/src/main/java/com/legend/exec/PureAsserts.java",
-            // Phase 2b: grid/tolerance compare — java.sql VALUE KINDS
-            // only (temporal epoch arms); no connection ever reaches it
-            "core/src/main/java/com/legend/exec/GridCompare.java",
+            // (PureAsserts + GridCompare rows RETIRED 2026-08-21, the
+            // D-arc dividend: PureDateLiteral is THE wire temporal
+            // carrier, so the comparison layer's java.sql value arms
+            // are GONE — sql types never escape the fetch seam.)
             "core/src/main/java/com/legend/exec/Executor.java",
             "core/src/main/java/com/legend/exec/PctProbe.java",
             "core/src/main/java/com/legend/server/ConnectionResolver.java",

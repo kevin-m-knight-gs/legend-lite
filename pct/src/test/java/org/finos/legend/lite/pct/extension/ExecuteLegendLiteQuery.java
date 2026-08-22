@@ -502,32 +502,30 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         if (value instanceof Number n) {
             return modelRepository.newFloatCoreInstance(BigDecimal.valueOf(n.doubleValue()));
         }
-        // Dates
-        if (value instanceof java.sql.Date sqlDate) {
-            return toPureDateInstance(sqlDate.toLocalDate());
-        }
-        if (value instanceof LocalDate ld) {
-            return toPureDateInstance(ld);
-        }
-        if (value instanceof java.sql.Timestamp ts) {
-            // Type tells us if this was originally a StrictDate promoted to Timestamp
-            if (type instanceof Type.Primitive p && p == Type.Primitive.STRICT_DATE) {
-                return toPureDateInstance(ts.toLocalDateTime().toLocalDate());
+        // Dates — THE wire temporal (D-arc 2026-08-21): PureDateLiteral
+        // carries written precision; engine's own parser reconstructs
+        // the precision-exact PureDate class from the spelling. The
+        // declared-type narrowing survives from the old Timestamp arm
+        // (a STRICT_DATE-typed value arriving time-bearing narrows to
+        // its day). The old java.sql/java.time arms are DELETED
+        // (cut-over-hard): a raw driver temporal reaching this
+        // extension is a fetch-seam leak and hits the terminal
+        // no-typed-conversion wall, loudly.
+        if (value instanceof com.legend.values.PureDateLiteral pdl) {
+            com.legend.values.PureDateLiteral narrowed = pdl;
+            if (type instanceof Type.Primitive p
+                    && p == Type.Primitive.STRICT_DATE
+                    && pdl.strictDatePart() != null) {
+                narrowed = pdl.strictDatePart();
             }
-            return toPureDateTimeInstance(ts.toLocalDateTime());
-        }
-        if (value instanceof LocalDateTime ldt) {
-            // the SAME declared-type narrowing as the Timestamp arm
-            // (documented-debts 2026-08-18: the Executor now carries all
-            // timestamp cells as java.time — this arm silently skipped
-            // the consult and re-classified StrictDates as DateTime)
-            if (type instanceof Type.Primitive p && p == Type.Primitive.STRICT_DATE) {
-                return toPureDateInstance(ldt.toLocalDate());
-            }
-            return toPureDateTimeInstance(ldt);
-        }
-        if (value instanceof OffsetDateTime odt) {
-            return toPureDateTimeInstance(odt.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime());
+            PureDate pd = DateFunctions.parsePureDate(narrowed.toEngineString());
+            String topLevel = switch (narrowed.precision()) {
+                case YEAR, MONTH -> "Date";
+                case DAY -> "StrictDate";
+                default -> "DateTime";
+            };
+            return modelRepository.newCoreInstance(pd.toString(),
+                    modelRepository.getTopLevel(topLevel), null);
         }
         if (value instanceof LocalTime lt) {
             PureDate pd = DateFunctions.newPureDate(1, 1, 1, lt.getHour(), lt.getMinute(), lt.getSecond());
@@ -701,26 +699,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         return instance;
     }
 
-    private CoreInstance toPureDateInstance(LocalDate ld) {
-        PureDate pd = DateFunctions.newPureDate(ld.getYear(), ld.getMonthValue(), ld.getDayOfMonth());
-        return modelRepository.newCoreInstance(pd.toString(),
-                modelRepository.getTopLevel("StrictDate"), null);
-    }
 
-    private CoreInstance toPureDateTimeInstance(LocalDateTime ldt) {
-        PureDate pd;
-        int nanos = ldt.getNano();
-        if (nanos > 0) {
-            String subsecond = stripTrailingZeros(String.format("%09d", nanos));
-            pd = DateFunctions.newPureDate(ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
-                    ldt.getHour(), ldt.getMinute(), ldt.getSecond(), subsecond);
-        } else {
-            pd = DateFunctions.newPureDate(ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
-                    ldt.getHour(), ldt.getMinute(), ldt.getSecond());
-        }
-        return modelRepository.newCoreInstance(pd.toString(),
-                modelRepository.getTopLevel("DateTime"), null);
-    }
 
     // ===== TDS formatting =====
 

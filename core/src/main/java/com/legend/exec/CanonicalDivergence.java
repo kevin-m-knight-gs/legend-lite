@@ -41,9 +41,11 @@ public final class CanonicalDivergence {
 
     /** Census an equal-family verdict ({@code assertEquals}/{@code
      * assertEq}): {@code held} is the lattice answer already computed by
-     * the K-arm; the byte answer is the canonical-render compare with
-     * the temporal string-carrier bridge applied PAIRWISE (mirroring
-     * {@code PureAsserts.equalScalar}'s designed-carrier policy). */
+     * the K-arm; the byte answer is the KIND-QUALIFIED canonical-render
+     * compare — (kindClass, text) pairs, because the render is not
+     * injective across kinds (String "8" and Integer 8 both spell "8";
+     * CANONICAL_FORM_SPEC §3 amendment). The numeric tower shares one
+     * kind class (pure's cross-kind numeric equality). */
     public static void probeEqual(String family, List<Object> e,
             List<Object> a, boolean held) {
         record(family, held, byteEqual(e, a, false));
@@ -69,16 +71,16 @@ public final class CanonicalDivergence {
         List<String> er = new ArrayList<>(e.size());
         List<String> ar = new ArrayList<>(a.size());
         for (int i = 0; i < e.size(); i++) {
-            Object left = renderBridged(e.get(i), a.get(i));
-            Object right = renderBridged(a.get(i), e.get(i));
-            if (left instanceof CanonicalForm.Result.Residue r) {
-                return "residue:" + r.reason();
+            String left = keyOf(e.get(i));
+            String right = keyOf(a.get(i));
+            if (left.startsWith("residue:")) {
+                return left;
             }
-            if (right instanceof CanonicalForm.Result.Residue r) {
-                return "residue:" + r.reason();
+            if (right.startsWith("residue:")) {
+                return right;
             }
-            er.add(((CanonicalForm.Result.Text) left).value());
-            ar.add(((CanonicalForm.Result.Text) right).value());
+            er.add(left);
+            ar.add(right);
         }
         if (sorted) {
             er.sort(String::compareTo);
@@ -87,52 +89,32 @@ public final class CanonicalDivergence {
         return er.equals(ar) ? "EQUAL" : "DIFFER";
     }
 
-    /** Render {@code v}; when it is a STRING paired against a temporal
-     * (either direction of the designed string-carrier bridge), the
-     * string canonicalizes through the temporal parse so bridge pairs
-     * byte-agree exactly where the lattice's bridge grants equality. A
-     * non-parsing string stays verbatim (the typing-bug catch is the
-     * parse — same rule as the lattice). */
-    private static CanonicalForm.Result renderBridged(
-            @com.legend.Nullable Object v, @com.legend.Nullable Object other) {
-        if (v instanceof String s && isTemporalCarrier(other)) {
-            Object parsed = parseTemporal(s);
-            if (parsed != null) {
-                v = parsed;
-            }
-        }
-        return CanonicalForm.render(v);
+    /** The byte-channel comparison key: kindClass + canonical text
+     * (spec §3 amendment — the render alone is not injective across
+     * kinds), or a residue marker. */
+    private static String keyOf(@com.legend.Nullable Object v) {
+        return switch (CanonicalForm.render(v)) {
+            case CanonicalForm.Result.Text t -> kindClass(v) + "\u0000" + t.value();
+            case CanonicalForm.Result.Residue r -> "residue:" + r.reason();
+        };
     }
 
-    private static boolean isTemporalCarrier(@com.legend.Nullable Object v) {
-        // java.time ONLY — sql types never escape the fetch (a java.sql
-        // carrier here would surface as an unmodeled-kind residue)
-        return v instanceof java.time.LocalDate
-                || v instanceof java.time.LocalDateTime
-                || v instanceof java.time.OffsetDateTime;
-    }
-
-    private static @com.legend.Nullable Object parseTemporal(String s) {
-        String v = s.trim().replaceFirst("Z$", "+0000").replace(' ', 'T');
-        java.time.ZoneOffset zo = null;
-        java.util.regex.Matcher off = java.util.regex.Pattern
-                .compile("([+-])(\\d{2}):?(\\d{2})$").matcher(v);
-        if (off.find()) {
-            zo = java.time.ZoneOffset.of(
-                    off.group(1) + off.group(2) + ":" + off.group(3));
-            v = v.substring(0, off.start());
-        }
-        try {
-            if (!v.contains("T")) {
-                return java.time.LocalDate.parse(v);
-            }
-            java.time.LocalDateTime ldt = java.time.LocalDateTime.parse(v);
-            return zo == null ? ldt
-                    : ldt.atOffset(zo).withOffsetSameInstant(
-                            java.time.ZoneOffset.UTC).toLocalDateTime();
-        } catch (java.time.format.DateTimeParseException ex) {
-            return null;
-        }
+    /** Pure's equality kind classes: the numeric tower is ONE class
+     * (cross-kind numeric equality); everything else compares only
+     * within its own kind. */
+    private static String kindClass(@com.legend.Nullable Object v) {
+        return switch (v) {
+            case null -> "null";
+            case Number n -> "numeric";
+            case Boolean b -> "boolean";
+            case String s -> "string";
+            case com.legend.values.PureDateLiteral d -> "temporal";
+            // unreachable: keyOf calls this only for values render()
+            // accepted, and render's default is Residue — throwing keeps
+            // the no-plausible-bucket rule (Charter C2.4)
+            default -> throw new IllegalStateException(
+                    "kindClass over unrendered kind: " + v.getClass());
+        };
     }
 
     private static void record(String family, boolean held, String byteAns) {

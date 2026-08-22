@@ -1352,6 +1352,20 @@ public final class TestDataGenerator {
                     "testDataGen: NULL row-identifier cell — a primary"
                     + " key produced no value");
         }
+        // this generator reads its OWN ResultSet (registered JDBC seam)
+        // — driver temporals convert to THE wire carrier here, at the
+        // seam, before any shared formatter sees them (D-arc rule)
+        v = switch (v) {
+            case java.sql.Date d -> com.legend.values.PureDateLiteral
+                    .fromLocalDate(d.toLocalDate());
+            case java.sql.Timestamp ts -> com.legend.values.PureDateLiteral
+                    .fromLocalDateTime(ts.toLocalDateTime());
+            case java.time.LocalDate ld ->
+                    com.legend.values.PureDateLiteral.fromLocalDate(ld);
+            case java.time.LocalDateTime ldt ->
+                    com.legend.values.PureDateLiteral.fromLocalDateTime(ldt);
+            default -> v;
+        };
         return com.legend.exec.PureAsserts.repr(v);
     }
 

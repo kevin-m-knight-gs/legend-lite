@@ -7,6 +7,7 @@ import com.legend.compiler.element.type.Type;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlQuery;
+import com.legend.values.PureDateLiteral;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -554,14 +555,37 @@ public final class Executor {
             return out;
         }
         // the ONE-CARRIER rule at every LEAF (documented-debts
-        // 2026-08-18): array elements and struct attributes arrive as
-        // raw driver objects that never pass fetch() — the timestamp
-        // box converts here so NO egress path can leak
-        // java.sql.Timestamp beside the java.time carrier
-        if (v instanceof java.sql.Timestamp ts) {
-            v = ts.toLocalDateTime();
-        }
-        return dialect.normalize(v, type);
+        // 2018-08-18, HARDENED 2026-08-21 user directive): the wire's
+        // temporal type is PureDateLiteral, FULL STOP — java.sql and
+        // java.time temporals never escape this seam. Driver objects
+        // convert in ONE hop here (java.time appears below only as the
+        // driver's extraction vehicle); a declared-temporal VARCHAR
+        // cell is the precision-faithful string convention and PARSES,
+        // so written precision finally survives onto the wire.
+        v = dialect.normalize(v, type);
+        return switch (v) {
+            case java.sql.Timestamp ts ->
+                    // struct/array leaves never pass fetch()'s BC-safe
+                    // re-fetch; Timestamp is faithful for AD years
+                    PureDateLiteral.fromLocalDateTime(ts.toLocalDateTime());
+            case java.sql.Date d ->
+                    PureDateLiteral.fromLocalDate(d.toLocalDate());
+            case java.time.LocalDate ld -> PureDateLiteral.fromLocalDate(ld);
+            case java.time.LocalDateTime ldt ->
+                    PureDateLiteral.fromLocalDateTime(ldt);
+            case java.time.OffsetDateTime odt ->
+                    PureDateLiteral.fromLocalDateTime(odt.withOffsetSameInstant(
+                            java.time.ZoneOffset.UTC).toLocalDateTime());
+            case String s when isTemporalType(type) ->
+                    PureDateLiteral.parse(s.trim().replace(' ', 'T'));
+            case null, default -> v;
+        };
+    }
+
+    private static boolean isTemporalType(com.legend.sql.@com.legend.Nullable SqlType type) {
+        return type == com.legend.sql.SqlType.Scalar.DATE
+                || type == com.legend.sql.SqlType.Scalar.TIMESTAMP
+                || type == com.legend.sql.SqlType.Scalar.TIMESTAMPTZ;
     }
 
     /**

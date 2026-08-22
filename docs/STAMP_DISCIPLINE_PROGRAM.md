@@ -1860,3 +1860,91 @@ Temporal wire limit recorded in-code: LocalDateTime cannot carry
 WRITTEN subsecond precision (.000 vs .0) — the render emits minimal
 precision; the census decides if a precision-carrying wire type is
 ever needed (zero hits so far).
+
+### PUREDATE WIRE CUTOVER LANDED (user: "sql types never escape the fetch; pure types on the wire")
+
+**PureDateLiteral is THE wire temporal carrier** — the type half the
+system already used (TypedCDate.value() was always PureDateLiteral);
+this slice unified the DB egress with it. ONE conversion hop at the
+fetch seam (Executor.unwrap tail: sql.Date→StrictDate,
+Timestamp/LocalDateTime→DateWith* at DB precision, and the
+precision-faithful VARCHAR convention now PARSES — written precision
+finally survives onto the wire). java.time appears only as the
+driver's extraction vehicle inside fetch() (BC-safe re-fetch).
+
+Boxing principle settled (user ratified): box ONLY lossy carriers.
+Temporals box (precision is per-value data no stamp supplies);
+BigDecimal already carries scale (= PureDecimal, no box);
+Int/Bool/String/Float are value-complete; struct identity lives in the
+column schema. A per-value type tag elsewhere = a SECOND OWNER of a
+stamp-owned fact — the desync disease.
+
+Downstream, the comparison layer keeps NO java temporal arms:
+PureAsserts (equality = record equals = engine's PRECISION-SENSITIVE
+PureDate.equals; typeRank/withinRank via toInstantFloor; repr =
+%+toEngineString), GridCompare (instant floor), CanonicalForm (exact
+render incl. written precision — the wire-limit caveat DELETED).
+toString on time-bearing variants = pure's print (+0000, H1);
+toEngineString stays the parse-round-trip literal body.
+
+**JDBC census SHRANK by 2** (PureAsserts + GridCompare rows retired) —
+the D-arc dividend. Byte-channel byteEqual is now KIND-QUALIFIED
+((kindClass, text) — render is not injective across kinds; spec §3
+amendment; numeric tower = one class).
+
+THE STRING-CARRIER BRIDGE IS DEAD in production. Its one real consumer
+surfaced as 13 corpus regressions ("execution activities are not
+recorded" — a misleading DOWNSTREAM symptom): the HARNESS's expected
+side is decoded from engine golden TEXT, so temporal expectations are
+strings; when its equalScalar compares flipped false the harness
+declined its arms and asserts fell onto the platform wall. Fix at the
+HARNESS's own seam: goldenEqualScalar decodes a string beside a wire
+temporal via PureDateLiteral.parse (space→T), then the ONE production
+lattice judges; non-parsing strings fail like pure. These arms delete
+wholesale at R2. (Bisect lesson: -Drcorpus.only=aggregationAware fails
+AT HEAD — scoped-seeding artifact — so scoped runs cannot referee this
+family; full sweeps only.)
+
+Also: H2Verify.norm PureDateLiteral arm (replay lane compares
+instants, precision-blind BY CONTRACT); TestDataGenerator converts at
+ITS registered read; five print pins updated to the H1 +0000 spec form
+their old spellings predated. Referee: corpus 320+632/0 diverged,
+scoreboard byte-identical; core suite 4228/0.
+
+**PCT half of the cutover** (gate-6 referee round): (1) the EXPECTED
+side of PCT temporal asserts lost written precision through the SQL
+TIMESTAMP round-trip (engine spec pins NINE-ZERO subseconds:
+timeBucket.pure:53 %…34.000000000) — fixed at the EGRESS ROOT:
+Lowerer.scalarRoot projects a fragile-precision literal
+(hour/minute/subsecond) as its WRITTEN spelling under the
+TIMESTAMP-stamped output (the same VARCHAR convention the date() ctor
+rides); MatchFold.dateLit's padded timestamp stays for computation
+sites. (2) ExecuteLegendLiteQuery gains the ONE PureDateLiteral→
+PureDate arm (engine's own parsePureDate reconstructs the
+precision-exact class) and the five dead java temporal arms DELETE
+(cut-over-hard; eval ledger enforced eviction-over-bump — the file
+SHRANK). DIVIDEND: essential WIRE-BUG 11→10 — one engine-frontier row
+now passes through our platform. STALE-JAR TRAP hit again
+([[corpus-runs-need-fresh-core-install]]): pct referees the INSTALLED
+core jar — install before every pct run.
+
+**Temporal-decode ADJUDICATION (2026-08-22, closes the cutover's last
+referee round).** The engine has TWO subsecond spellings that one
+decode cannot match: relational reads are NINE-DIGIT
+(DateFunctions.fromSQLTimestamp %09d — why its test authors assert
+%…00.000000000 against DB cells) while computed/interpreted values
+carry DERIVED precision (adjust → .338001, parseDate → .231). Ruling:
+the wire carries the canonical-MINIMAL decode (seconds; subseconds
+only when nonzero, trailing-stripped); the CORPUS harness compares
+temporal goldens BY INSTANT (goldenEqualScalar — precision-blind by
+contract, the engine's own cross-lane leniency, same rule as
+H2Verify.norm); written precision rides the VARCHAR convention +
+scalarRoot literal swap. Referee: corpus 320+632/0 baseline-exact AND
+PCT 1115/0 AND core 4228/0 — first time all three agreed this round.
+Diagnosis dividend: the aggregationAware "activities not recorded"
+cluster was ALWAYS a downstream symptom of one harness temporal
+compare declining — three different root causes produced the identical
+13-test set (bridge deletion, literal-precision loss, golden-digit
+mismatch); the set is a canary, not a family. Bisect lesson repeated:
+-Drcorpus.only cannot referee aggregationAware (fails at HEAD,
+scoped-seeding artifact) — full sweeps only.

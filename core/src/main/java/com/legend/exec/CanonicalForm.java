@@ -5,10 +5,6 @@ package com.legend.exec;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 
 /**
@@ -62,15 +58,17 @@ public final class CanonicalForm {
             // (spec §2/§3, assertEq(8D, toDecimal(8)) pin)
             case BigDecimal bd ->
                     new Result.Text(bd.stripTrailingZeros().toPlainString());
-            // TEMPORAL CARRIERS: java.time ONLY — java.sql kinds are a
-            // FETCH-SEAM leak (user directive 2026-08-21: sql types
-            // never escape the fetch); if one ever reaches an assert it
-            // reports as unmodeled-kind residue = an egress bug, never
-            // an arm here. Measured: zero in 1,555 probes.
-            case LocalDate ld -> new Result.Text(ld.toString());
-            case LocalDateTime ldt -> new Result.Text(renderDateTime(ldt));
-            case OffsetDateTime odt -> new Result.Text(renderDateTime(
-                    odt.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime()));
+            // TEMPORAL: PureDateLiteral is THE wire carrier (D-arc) —
+            // written precision survives, so the render is exact per H1:
+            // date-only precisions print bare, time-bearing forms take
+            // the GMT-normalized +0000 suffix. A java.sql or java.time
+            // temporal reaching here is a fetch-seam LEAK and reports
+            // as unmodeled-kind residue, never grows an arm.
+            case com.legend.values.PureDateLiteral d ->
+                    new Result.Text(d.precision().atLeast(
+                            com.legend.values.PureDateLiteral.Precision.HOUR)
+                            ? d.toEngineString() + "+0000"
+                            : d.toEngineString());
             default -> new Result.Residue(
                     "unmodeled-kind:" + v.getClass().getSimpleName());
         };
@@ -116,29 +114,5 @@ public final class CanonicalForm {
         // integral doubles keep .0 (Double.toString gives "17.0");
         // BigDecimal.valueOf(17.0) has scale 1 so toPlainString keeps it
         return new Result.Text(plain.contains(".") ? plain : plain + ".0");
-    }
-
-    /**
-     * DateTime scalar form: {@code yyyy-MM-ddTHH:mm:ss[.f+]+0000},
-     * UTC-normalized (H1). WIRE LIMIT, measured not hidden: pure
-     * preserves WRITTEN subsecond precision ({@code .000} ≠ {@code .0}),
-     * but the wire's LocalDateTime carrier cannot carry written
-     * precision — this render emits minimal precision (subseconds only
-     * when nonzero, trailing zeros stripped). Where that loses a
-     * distinction the divergence census shows it as a row; the census
-     * decides whether a precision-carrying wire type is needed.
-     */
-    private static String renderDateTime(LocalDateTime ldt) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(String.format("%04d-%02d-%02dT%02d:%02d:%02d",
-                ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(),
-                ldt.getHour(), ldt.getMinute(), ldt.getSecond()));
-        int nanos = ldt.getNano();
-        if (nanos != 0) {
-            String frac = String.format("%09d", nanos)
-                    .replaceFirst("0+$", "");
-            sb.append('.').append(frac);
-        }
-        return sb.append("+0000").toString();
     }
 }
