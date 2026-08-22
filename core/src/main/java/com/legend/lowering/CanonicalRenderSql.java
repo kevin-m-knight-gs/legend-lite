@@ -88,9 +88,7 @@ public final class CanonicalRenderSql {
      */
     private static SqlExpr floatCanon(SqlExpr v) {
         SqlExpr base = new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
-        SqlExpr unfolded = stripDot(stripTrailingZeros(new SqlExpr.Cast(
-                new SqlExpr.Cast(v, new SqlType.Decimal(38, 18)),
-                SqlType.Scalar.VARCHAR)), ".0");
+        SqlExpr unfolded = exponentUnfold(base);
         return new SqlExpr.Case(List.of(
                 // ZEROS UNIFY (spec §3, witness parseFloat('-000.000')):
                 // pure grants 0.0 == -0.0, so the canonical render of
@@ -130,6 +128,77 @@ public final class CanonicalRenderSql {
                 SqlExpr.Call.of(SqlFn.CONCAT, stripped,
                         new SqlExpr.StringLit("+0000")))),
                 stripped);
+    }
+
+    /**
+     * COMPLETE textual exponent unfold (V10c — replaces the bounded
+     * DECIMAL(38,18) cast, which silently zeroed values beyond its
+     * envelope): the shortest-repr mantissa digits shift by the
+     * exponent as TEXT, so any finite double prints fixed-point
+     * exactly — {@code 1.3421e-08 → 0.000000013421},
+     * {@code 1e+300 → 1000…000.0}. Pure never prints exponent
+     * notation (H1); now neither can we, for any magnitude.
+     */
+    private static SqlExpr exponentUnfold(SqlExpr base) {
+        SqlExpr sign = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.STARTS_WITH, base,
+                        new SqlExpr.StringLit("-")),
+                new SqlExpr.StringLit("-"))),
+                new SqlExpr.StringLit(""));
+        // mantissa without sign, e.g. '1.3421'; its digits '13421';
+        // intLen = digits before the dot; exp as an integer
+        SqlExpr mant = SqlExpr.Call.of(SqlFn.REGEXP_EXTRACT, base,
+                new SqlExpr.StringLit("-?([0-9]+(?:\\.[0-9]+)?)e"),
+                new SqlExpr.IntLit(1));
+        SqlExpr digits = SqlExpr.Call.of(SqlFn.REPLACE, mant,
+                new SqlExpr.StringLit("."), new SqlExpr.StringLit(""));
+        SqlExpr dotPos = SqlExpr.Call.of(SqlFn.STRPOS, mant,
+                new SqlExpr.StringLit("."));
+        SqlExpr intLen = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.EQUAL, dotPos, new SqlExpr.IntLit(0)),
+                SqlExpr.Call.of(SqlFn.LENGTH, mant))),
+                SqlExpr.Call.of(SqlFn.MINUS, dotPos, new SqlExpr.IntLit(1)));
+        SqlExpr exp = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.REGEXP_EXTRACT,
+                base, new SqlExpr.StringLit("e([+-]?[0-9]+)$"),
+                new SqlExpr.IntLit(1)), SqlType.Scalar.INTEGER);
+        SqlExpr pointPos = SqlExpr.Call.of(SqlFn.PLUS, intLen, exp);
+        SqlExpr dLen = SqlExpr.Call.of(SqlFn.LENGTH, digits);
+        // three shapes by where the point lands
+        SqlExpr tiny = SqlExpr.Call.of(SqlFn.CONCAT,
+                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("0."),
+                        zeros(SqlExpr.Call.of(SqlFn.MINUS,
+                                new SqlExpr.IntLit(0), pointPos))),
+                digits);
+        SqlExpr huge = SqlExpr.Call.of(SqlFn.CONCAT,
+                SqlExpr.Call.of(SqlFn.CONCAT, digits,
+                        zeros(SqlExpr.Call.of(SqlFn.MINUS, pointPos, dLen))),
+                new SqlExpr.StringLit(".0"));
+        SqlExpr mid = SqlExpr.Call.of(SqlFn.CONCAT,
+                SqlExpr.Call.of(SqlFn.CONCAT,
+                        SqlExpr.Call.of(SqlFn.SUBSTRING, digits,
+                                new SqlExpr.IntLit(1), pointPos),
+                        new SqlExpr.StringLit(".")),
+                SqlExpr.Call.of(SqlFn.SUBSTRING, digits,
+                        SqlExpr.Call.of(SqlFn.PLUS, pointPos,
+                                new SqlExpr.IntLit(1))));
+        SqlExpr body = new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.LESS_EQUAL,
+                        pointPos, new SqlExpr.IntLit(0)), tiny),
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.GREATER_EQUAL,
+                        pointPos, dLen), huge)),
+                mid);
+        return SqlExpr.Call.of(SqlFn.CONCAT, sign, body);
+    }
+
+    /** {@code n} zeros (RPAD over empty; negative n yields ''). */
+    private static SqlExpr zeros(SqlExpr n) {
+        // rpad's length parameter binds INTEGER, not BIGINT
+        return SqlExpr.Call.of(SqlFn.RPAD, new SqlExpr.StringLit(""),
+                new SqlExpr.Cast(
+                        SqlExpr.Call.of(SqlFn.GREATEST, n,
+                                new SqlExpr.IntLit(0)),
+                        SqlType.Scalar.INTEGER),
+                new SqlExpr.StringLit("0"));
     }
 
     private static SqlExpr has(SqlExpr text, String needle) {

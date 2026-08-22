@@ -72,18 +72,37 @@ public final class EngineTestExecutor {
             @com.legend.Nullable Object a) {
         Object de = goldenTemporalDecode(e, a);
         Object da = goldenTemporalDecode(a, e);
-        // Temporal golden compares are INSTANT-BASED, precision-blind BY
-        // CONTRACT (the H2Verify.norm rule): golden text spells whatever
-        // subsecond form its author wrote ('.0', none, nine zeros) while
-        // the wire carries the engine-exact NINE-DIGIT decode
-        // (fromSQLTimestamp %09d) — written-digit equality can never
-        // match across those spellings, and the harness compares
-        // INSTANTS, not literals.
+        // V10a (derived, replacing the instant-blind fit): temporal
+        // golden compares follow THE ENGINE'S OWN CONVENTION —
+        // DateFunctions.fromSQLTimestamp makes every DB-derived value a
+        // NINE-DIGIT DateWithSubsecond, so both sides normalize
+        // time-bearing precision to nine digits and compare by EXACT
+        // record equality (AbstractPureDate.equals: components + exact
+        // subsecond string). STRICTER than the old instant compare:
+        // a date-only value never equals a midnight datetime — exactly
+        // as the engine rules it.
         if (de instanceof com.legend.values.PureDateLiteral pe
                 && da instanceof com.legend.values.PureDateLiteral pa) {
-            return pe.toInstantFloor().equals(pa.toInstantFloor());
+            return engineNine(pe).equals(engineNine(pa));
         }
         return com.legend.exec.PureAsserts.equalScalar(de, da);
+    }
+
+    /** The engine wire convention ({@code fromSQLTimestamp %09d}):
+     * time-bearing values carry nine subsecond digits; date-only
+     * precisions are untouched (the engine's StrictDate stays
+     * StrictDate). */
+    private static com.legend.values.PureDateLiteral engineNine(
+            com.legend.values.PureDateLiteral d) {
+        if (!d.precision().atLeast(
+                com.legend.values.PureDateLiteral.Precision.HOUR)) {
+            return d;
+        }
+        java.time.LocalDateTime f = d.toInstantFloor();
+        return new com.legend.values.PureDateLiteral.DateWithSubsecond(
+                f.getYear(), f.getMonthValue(), f.getDayOfMonth(),
+                f.getHour(), f.getMinute(), f.getSecond(),
+                String.format("%09d", f.getNano()));
     }
 
     private static @com.legend.Nullable Object goldenTemporalDecode(

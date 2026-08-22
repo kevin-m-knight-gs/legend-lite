@@ -2361,6 +2361,13 @@ final class StatementExecutor {
      * the canon kind. Returns null (DECLINE — counted by the caller)
      * when lowering refuses; the fallback is the host lattice, and
      * every decline is census fuel, never a silent rescue.
+     *
+     * <p>DOUBLE-EXECUTION SOUNDNESS (V10c, derived): assert sides run
+     * once for values and once for the canon; this is sound because
+     * EFFECTFUL statements never reach the K-arm — the caller's
+     * {@code containsEffect} gate routes them to
+     * {@code executeCallStatement} upstream — so both runs see the
+     * same pure expression over the same seeded state.
      */
     static StatementExecutor.@com.legend.Nullable CanonPrep prepCanon(
             TypedSpec value, java.util.List<TypedSpec> letPrefix,
@@ -2421,10 +2428,12 @@ final class StatementExecutor {
             if (prep.many()) {
                 // R2b — the COLLECTION side form (CanonicalForm.renderSide
                 // mirrored in SQL): one element renders as the scalar,
-                // N as '[a, b, c]', empty as '[]'. STRING_AGG rides the
-                // side query's row order — the same input-order contract
-                // Render's corpus-proven grid text stands on;
-                // canonicalOrder (assertSameElements) sorts by canon text.
+                // N as '[a, b, c]', empty as '[]'. ORDER CONTRACT
+                // (V10c, derived): DuckDB's preserve_insertion_order
+                // setting (documented, default TRUE) guarantees
+                // row order for queries without ORDER BY — STRING_AGG
+                // rides that contract, not luck; canonicalOrder
+                // (assertSameElements) sorts by canon text explicitly.
                 com.legend.sql.SqlExpr n = new com.legend.sql.SqlAgg.Reducer(
                         com.legend.sql.SqlAgg.Fn.COUNT,
                         java.util.List.of(new com.legend.sql.SqlExpr.IntLit(1)),

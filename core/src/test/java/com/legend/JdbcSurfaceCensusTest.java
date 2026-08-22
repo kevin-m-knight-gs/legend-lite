@@ -137,6 +137,10 @@ class JdbcSurfaceCensusTest {
             // D4: variance pins run eval() e2e — the accepted direction
             // must EXECUTE, not merely type-check
             "core/src/test/java/com/legend/compiler/spec/VarianceD4Test.java",
+            // V10c: the dual-render conformance battery — the DATABASE
+            // computes the SQL canon text; agreement with the host
+            // reference render IS the assertion
+            "core/src/test/java/com/legend/lowering/SqlCanonConformanceTest.java",
             // D6b: the leniency pins run Compiler.execute e2e — the
             // valid-neighbor control must EXECUTE, and the bad-date pin
             // proves rejection moved from the DB to the parser

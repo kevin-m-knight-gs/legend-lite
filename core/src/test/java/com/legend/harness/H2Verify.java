@@ -624,12 +624,13 @@ public final class H2Verify {
             }
         }
         // temporal CARRIERS canonicalize before any toString — the
-        // Executor hands PureDateLiteral (THE wire temporal, D-arc
-        // 2026-08-21) while the H2 replay side reads raw Timestamps;
-        // same instant, different box spellings. Both funnel into ONE
-        // comparison spelling here (instant-level: the replay side
-        // carries no written precision, so norm is precision-blind BY
-        // CONTRACT — it compares instants, not literals).
+        // Executor hands PureDateLiteral (THE wire temporal) while the
+        // H2 replay side reads raw Timestamps. DERIVED (V10a): BOTH
+        // sides of this seam are DB reads, and the engine convention
+        // (fromSQLTimestamp %09d) makes every DB temporal a full
+        // nine-digit value — component equality of two DB reads IS
+        // instant equality, so the instant-level funnel here is the
+        // engine's own semantics for this seam, not a leniency.
         if (v instanceof com.legend.values.PureDateLiteral pd) {
             if (pd.precision().atLeast(
                     com.legend.values.PureDateLiteral.Precision.HOUR)) {

@@ -2069,3 +2069,30 @@ a promoted column; the proper burn is variant-aware canon rendering by
 runtime kind (OPEN_REGISTER F10). PrecisionDecimal IS Decimal; enum
 values claimed. Census: sql-verdict agree 1492, disagree 0,
 declined 91.
+
+### V10 CLOSED: every remaining hack replaced by its derivation
+
+(user: "lets fix all the hacks we did by doing the right fix instead")
+
+- **V10a**: goldenEqualScalar's instant-blind compare RETIRED for the
+  ENGINE CONVENTION — both sides normalize time-bearing precision to
+  fromSQLTimestamp's nine digits, then EXACT record equality
+  (AbstractPureDate.equals). Strictly closer to engine semantics: a
+  date-only value no longer equals a midnight datetime.
+  H2Verify.norm's instant funnel re-justified as DERIVED (both sides
+  of that seam are DB reads = nine-digit by convention).
+- **V10c-order**: STRING_AGG collection canon rides DuckDB's
+  DOCUMENTED preserve_insertion_order default — a contract, not luck.
+- **V10c-determinism**: double execution of assert sides is sound BY
+  THE UPSTREAM EFFECT GATE (containsEffect routes effectful statements
+  away before the K-arm) — derived, not assumed.
+- **V10c-envelope**: the DECIMAL(38,18) float unfold REPLACED by a
+  complete TEXTUAL EXPONENT SHIFT — any finite double prints
+  fixed-point exactly (1e-30, 1e300 included). NEW dual-render
+  conformance battery (SqlCanonConformanceTest) pins DB canon text ==
+  host canon text across the magnitude battery — the two
+  implementations of the one spec can no longer drift silently.
+
+Remaining non-derived surface: F10 (variant-aware canon — the carrier
+strips + mixed-collection decline) and the R3 tolerance census — both
+registered, neither silent.

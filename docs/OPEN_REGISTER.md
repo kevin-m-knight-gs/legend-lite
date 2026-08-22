@@ -14,10 +14,20 @@ L (a program leg).
 | # | Item | Size | Notes |
 |---|---|---|---|
 | V7 | Corpus-lane cutover + harness arm DELETION | L | decoded-golden-text + grid problems are corpus-only; LAST, after PCT lane proves the system. PREREQUISITES V10a/V10b below. |
-| V10a | Re-derive the golden temporal compare: replace instant-blind goldenEqualScalar with the ENGINE convention (normalize both sides to nine-digit components, compare exactly) | S/M | 2026-08-22 self-audit ("where else did we hack?"): instant-blind grants strictly more than engine equality; works only because the corpus domain doesn't exercise the gap |
-| V10c | Declared assumptions to pin or prove: STRING_AGG input-order (no contract), assert-side double-execution determinism, DECIMAL(38,18) float-unfold envelope | S | alarm-guarded today; guarded ≠ derived |
+
 | V8 | R3 tolerance census: 2-ULP + the 21 cross-engine float rows | M | retire or declare; both counted today |
 | V9 | Grid byte cutover closing slice (after V4/V8) | S | ledger says: ORDER BY + policy + GridCompare arm deletion, no emission |
+
+## 1b. VERDICT RULE AUDIT (docs/VERDICT_RULE_AUDIT_2026_08_22.md — every rule vs engine source)
+
+| # | Item | Size |
+|---|---|---|
+| X1 | Delete integral×Decimal grant (mis-cited witness; engine cross-kind FALSE) + stamp-driven Decimal decode guard | S/M |
+| X2 | Tighten Decimal compareTo → scale-sensitive equals (engine truth); breaks = OUR scale drift, fix at emission | M |
+| X3 | Delete Float×Decimal fp-grant (engine cross-kind FALSE) | S |
+| X4 | Replace numeric-tower kind class with engine's per-kind classifier gate | S |
+| X5 | Model-defined equality.Key at the K-arm (engine: Key properties or FALSE; wireTree stays for JSON/SQL-struct domains) — claims the 91 declines + 2 PCT exclusions; our Pair/List declarations must CARRY the stereotypes | M |
+| X6 | 2-ULP reclassified: compensates IEEE-double carrier vs engine's exact-decimal floats — R3 decides declared-policy vs decimal carriage | R3 |
 
 ## 2. Audit findings still open
 
@@ -85,6 +95,17 @@ L (a program leg).
   PrecisionDecimal=Decimal, enums claimed; PAIR RULES for pure's
   non-transitive numeric equality; mixed-kind-collection gate;
   zeros-unify amendment) — eead1066
+- V10a CLOSED: goldenEqualScalar now compares by THE ENGINE CONVENTION
+  (fromSQLTimestamp nine-digit normalization + exact record equality —
+  STRICTER than the retired instant compare: date-only never equals a
+  midnight datetime); H2Verify.norm re-justified as DERIVED (both
+  sides of that seam are DB reads = nine-digit by convention)
+- V10c CLOSED, all three derived: STRING_AGG order = DuckDB's
+  documented preserve_insertion_order default; double-execution
+  soundness = the upstream containsEffect gate; the DECIMAL(38,18)
+  unfold REPLACED by a complete textual exponent shift (any finite
+  double prints fixed-point exactly; dual-render conformance battery
+  pins DB text == host text incl. 1e-30 and 1e300)
 - V10b PROBED AND CLOSED (2026-08-22): the spec tree's temporal-
   computation inputs are StrictDate / YearMonth / second+subsecond
   datetimes — ZERO hour/minute-datetime witnesses; the witnessed
