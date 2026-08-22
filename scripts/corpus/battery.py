@@ -2281,6 +2281,54 @@ def _project_link_specs():
     cycles.sort = ("cycleId", False)
     out.append(cycles)
 
+    # ---- core-units: two joins to the SAME table, and exact decimals in a schema ----
+    #
+    # CuConversion reaches CuUnit twice -- once as fromUnit, once as toUnit -- over two
+    # different joins into one table. F51 and F52 are both in that neighbourhood, and this
+    # is the first time the corpus has executed the shape across a project boundary.
+    #
+    # The factors are NUMERIC(20,8) and are definitions rather than measurements: 0.45359237
+    # IS the international pound. A conversion carried through a double and back would round
+    # somewhere in the eighth place, which is precisely what these columns exist to prevent.
+    conv = Spec("stress::PL17_UnitConversionPair", "/stress/pl17",
+                "A conversion and its inverse are two rows under a composite key on an "
+                "ORDERED pair, and each reaches the unit table TWICE over two different "
+                "joins -- once as the source unit and once as the target. The factors are "
+                "NUMERIC(20,8), so a value that went through a double would differ in the "
+                "eighth place; the temperature rows carry a non-zero offset, one of them "
+                "negative, which a conversion written as a bare multiply gets wrong and "
+                "nothing else does.",
+                "core_units::CuConversion")
+    conv.projections = [Proj("fromUnitCode", ["fromUnitCode"]),
+                        Proj("toUnitCode", ["toUnitCode"]),
+                        Proj("factor", ["factor"]),
+                        Proj("offsetValue", ["offsetValue"]),
+                        # The same table, reached two different ways, in one projection.
+                        Proj("fromName", ["fromUnit", "unitName"]),
+                        Proj("toName", ["toUnit", "unitName"]),
+                        Proj("converted", ["convert"], None, [100.0])]
+    conv.sort = ("fromUnitCode", False)
+    out.append(conv)
+
+    # A qualified property that CONCATENATES -- F54's shape -- but on a chain that always
+    # lands, plus a derived Boolean and a qualified property taking a number. The unit table
+    # lives in the `uom` SCHEMA, so every column here is reached as [db]uom.TABLE.COL.
+    units = Spec("stress::PL18_UnitLabels", "/stress/pl18",
+                 "Every unit with its label built by a qualified property that "
+                 "concatenates, its base-unit predicate, and a quantity converted to the "
+                 "base unit. The tables are in a SCHEMA rather than the default one, and "
+                 "the navigation to the quantity kind crosses out of it and back.",
+                 "core_units::CuUnit")
+    units.projections = [Proj("unitCode", ["unitCode"]),
+                         Proj("label", ["label"]),
+                         Proj("isBaseUnit", ["isBaseUnit"]),
+                         Proj("factorToBase", ["factorToBase"]),
+                         Proj("inBase", ["toBase"], None, [2.5]),
+                         Proj("kindName", ["quantityKind", "kindName"]),
+                         Proj("isRatio", ["quantityKind", "isRatioScale"])]
+    units.sort = ("unitCode", False)
+    out.append(units)
+
     return out
 
 

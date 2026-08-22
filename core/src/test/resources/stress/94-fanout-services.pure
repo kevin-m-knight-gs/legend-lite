@@ -6137,6 +6137,126 @@ Service stress::PL16_SettlementCycleChain
   ]
 }
 
+Service stress::PL17_UnitConversionPair
+{
+    pattern: '/stress/pl17';
+    documentation: 'A conversion and its inverse are two rows under a composite key on an ORDERED pair, and each reaches the unit table TWICE over two different joins -- once as the source unit and once as the target. The factors are NUMERIC(20,8), so a value that went through a double would differ in the eighth place; the temperature rows carry a non-zero offset, one of them negative, which a conversion written as a bare multiply gets wrong and nothing else does.';
+    execution: Single
+    {
+    query: |core_units::CuConversion.all()
+        ->project(~[
+            fromUnitCode:x|$x.fromUnitCode,
+            toUnitCode:x|$x.toUnitCode,
+            factor:x|$x.factor,
+            offsetValue:x|$x.offsetValue,
+            fromName:x|$x.fromUnit.unitName,
+            toName:x|$x.toUnit.unitName,
+            converted:x|$x.convert(100.0)
+        ])
+        ->sort(~fromUnitCode->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    PL17_UnitConversionPair_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 6 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"fromUnitCode":"CEL","toUnitCode":"FAH","factor":1.8,"offsetValue":32.0,"fromName":"Celsius","toName":"Fahrenheit","converted":212.0},{"fromUnitCode":"FAH","toUnitCode":"CEL","factor":0.55555556,"offsetValue":-17.77777778,"fromName":"Fahrenheit","toName":"Celsius","converted":37.77777822},{"fromUnitCode":"KG","toUnitCode":"LB","factor":2.20462262,"offsetValue":0.0,"fromName":"Kilogram","toName":"Pound","converted":220.462262},{"fromUnitCode":"KG","toUnitCode":"G","factor":1000.0,"offsetValue":0.0,"fromName":"Kilogram","toName":"Gram","converted":100000.0},{"fromUnitCode":"LB","toUnitCode":"KG","factor":0.45359237,"offsetValue":0.0,"fromName":"Pound","toName":"Kilogram","converted":45.359237},{"fromUnitCode":"OZT","toUnitCode":"G","factor":31.1034768,"offsetValue":0.0,"fromName":"Troy ounce","toName":"Gram","converted":3110.34768}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::PL18_UnitLabels
+{
+    pattern: '/stress/pl18';
+    documentation: 'Every unit with its label built by a qualified property that concatenates, its base-unit predicate, and a quantity converted to the base unit. The tables are in a SCHEMA rather than the default one, and the navigation to the quantity kind crosses out of it and back.';
+    execution: Single
+    {
+    query: |core_units::CuUnit.all()
+        ->project(~[
+            unitCode:x|$x.unitCode,
+            label:x|$x.label,
+            isBaseUnit:x|$x.isBaseUnit,
+            factorToBase:x|$x.factorToBase,
+            inBase:x|$x.toBase(2.5),
+            kindName:x|$x.quantityKind.kindName,
+            isRatio:x|$x.quantityKind.isRatioScale
+        ])
+        ->sort(~unitCode->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    PL18_UnitLabels_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 8 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"unitCode":"BBL","label":"Barrel (bbl)","isBaseUnit":false,"factorToBase":158.98729493,"inBase":397.468237325,"kindName":"Volume","isRatio":true},{"unitCode":"CEL","label":"Celsius (degC)","isBaseUnit":true,"factorToBase":1.0,"inBase":2.5,"kindName":"Temperature","isRatio":false},{"unitCode":"FAH","label":"Fahrenheit (degF)","isBaseUnit":false,"factorToBase":0.55555556,"inBase":1.3888889,"kindName":"Temperature","isRatio":false},{"unitCode":"G","label":"Gram (g)","isBaseUnit":false,"factorToBase":0.001,"inBase":0.0025,"kindName":"Mass","isRatio":true},{"unitCode":"KG","label":"Kilogram (kg)","isBaseUnit":true,"factorToBase":1.0,"inBase":2.5,"kindName":"Mass","isRatio":true},{"unitCode":"L","label":"Litre (L)","isBaseUnit":true,"factorToBase":1.0,"inBase":2.5,"kindName":"Volume","isRatio":true},{"unitCode":"LB","label":"Pound (lb)","isBaseUnit":false,"factorToBase":0.45359237,"inBase":1.133980925,"kindName":"Mass","isRatio":true},{"unitCode":"OZT","label":"Troy ounce (ozt)","isBaseUnit":false,"factorToBase":0.03110348,"inBase":0.0777587,"kindName":"Mass","isRatio":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::F10_RatingsAsOf2019
 {
     pattern: '/stress/t10';
@@ -11914,31 +12034,30 @@ Service stress::D_CtnBucketProfileDense
   ]
 }
 
-Service stress::D_CurveSummaryDense
+Service stress::D_CuConversionDense
 {
-    pattern: '/stress/d_curvesummary';
-    documentation: 'Dense stack on curves::CurveSummary: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    pattern: '/stress/d_cuconversion';
+    documentation: 'Dense stack on core_units::CuConversion: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
-    query: |curves::CurveSummary.all()
-        ->filter({x|($x.curveId > ' ')})
+    query: |core_units::CuConversion.all()
+        ->filter({x|($x.fromUnitCode > ' ')})
         ->project(~[
-            curveId:x|$x.curveId,
-            cobDate:x|$x.cobDate,
-            summarisedBenchmarkSeriesCurrency:x|$x.summarised.benchmarkSeries.currency,
-            summarisedCurrency:x|$x.summarised.currency,
-            summarisedCurveType:x|$x.summarised.curveType,
-            summarisedBenchmarkSeriesIsDaily:x|$x.summarised.benchmarkSeries.isDaily,
-            summarisedBenchmarkSeriesTickerOnQ:x|$x.summarised.benchmarkSeries.tickerOn('BBG')
+            fromUnitCode:x|$x.fromUnitCode,
+            toUnitCode:x|$x.toUnitCode,
+            fromUnitQuantityKindBaseUnitCode:x|$x.fromUnit.quantityKind.baseUnitCode,
+            fromUnitKindCode:x|$x.fromUnit.kindCode,
+            fromUnitIsBaseUnit:x|$x.fromUnit.isBaseUnit,
+            convertQ:x|$x.convert(0.5)
         ])
-        ->sort([~curveId->ascending(), ~cobDate->ascending()])
+        ->sort([~fromUnitCode->ascending(), ~toUnitCode->ascending()])
         ->limit(25);
         mapping: stress::AllMapping;
         runtime: stress::RT;
     }
   testSuites:
   [
-    D_CurveSummaryDense_suite:
+    D_CuConversionDense_suite:
     {
       data:
       [
@@ -11953,7 +12072,7 @@ Service stress::D_CurveSummaryDense
       ]
       tests:
       [
-        // 16 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        // 6 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -11966,7 +12085,68 @@ Service stress::D_CurveSummaryDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","summarisedBenchmarkSeriesCurrency":"EUR","summarisedCurrency":"EUR","summarisedCurveType":"GOVERNMENT","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/BUNDESBANK:DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","summarisedBenchmarkSeriesCurrency":"EUR","summarisedCurrency":"EUR","summarisedCurveType":"GOVERNMENT","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/BUNDESBANK:DBR.10Y"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","summarisedBenchmarkSeriesCurrency":"EUR","summarisedCurrency":"EUR","summarisedCurveType":"OIS","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/EMMI:EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","summarisedBenchmarkSeriesCurrency":"EUR","summarisedCurrency":"EUR","summarisedCurveType":"OIS","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/EMMI:EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","summarisedBenchmarkSeriesCurrency":"EUR","summarisedCurrency":"EUR","summarisedCurveType":"SWAP","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/EMMI:EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","summarisedBenchmarkSeriesCurrency":"EUR","summarisedCurrency":"EUR","summarisedCurveType":"SWAP","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/EMMI:EURIBOR.3M"},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","summarisedBenchmarkSeriesCurrency":null,"summarisedCurrency":"GBP","summarisedCurveType":"OIS","summarisedBenchmarkSeriesIsDaily":null,"summarisedBenchmarkSeriesTickerOnQ":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","summarisedBenchmarkSeriesCurrency":null,"summarisedCurrency":"GBP","summarisedCurveType":"OIS","summarisedBenchmarkSeriesIsDaily":null,"summarisedBenchmarkSeriesTickerOnQ":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","summarisedBenchmarkSeriesCurrency":null,"summarisedCurrency":"JPY","summarisedCurveType":"OIS","summarisedBenchmarkSeriesIsDaily":null,"summarisedBenchmarkSeriesTickerOnQ":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","summarisedBenchmarkSeriesCurrency":null,"summarisedCurrency":"JPY","summarisedCurveType":"OIS","summarisedBenchmarkSeriesIsDaily":null,"summarisedBenchmarkSeriesTickerOnQ":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","summarisedBenchmarkSeriesCurrency":null,"summarisedCurrency":"USD","summarisedCurveType":"SWAP","summarisedBenchmarkSeriesIsDaily":null,"summarisedBenchmarkSeriesTickerOnQ":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","summarisedBenchmarkSeriesCurrency":null,"summarisedCurrency":"USD","summarisedCurveType":"SWAP","summarisedBenchmarkSeriesIsDaily":null,"summarisedBenchmarkSeriesTickerOnQ":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","summarisedBenchmarkSeriesCurrency":"USD","summarisedCurrency":"USD","summarisedCurveType":"OIS","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/NYFED:SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","summarisedBenchmarkSeriesCurrency":"USD","summarisedCurrency":"USD","summarisedCurveType":"OIS","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/NYFED:SOFR.ON"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","summarisedBenchmarkSeriesCurrency":"USD","summarisedCurrency":"USD","summarisedCurveType":"GOVERNMENT","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/FEDH15:UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","summarisedBenchmarkSeriesCurrency":"USD","summarisedCurrency":"USD","summarisedCurveType":"GOVERNMENT","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/FEDH15:UST.10Y"}]';
+                    data: '[{"fromUnitCode":"CEL","toUnitCode":"FAH","fromUnitQuantityKindBaseUnitCode":"CEL","fromUnitKindCode":"TEMP","fromUnitIsBaseUnit":true,"convertQ":32.9},{"fromUnitCode":"FAH","toUnitCode":"CEL","fromUnitQuantityKindBaseUnitCode":"CEL","fromUnitKindCode":"TEMP","fromUnitIsBaseUnit":false,"convertQ":-17.5},{"fromUnitCode":"KG","toUnitCode":"G","fromUnitQuantityKindBaseUnitCode":"KG","fromUnitKindCode":"MASS","fromUnitIsBaseUnit":true,"convertQ":500.0},{"fromUnitCode":"KG","toUnitCode":"LB","fromUnitQuantityKindBaseUnitCode":"KG","fromUnitKindCode":"MASS","fromUnitIsBaseUnit":true,"convertQ":1.10231131},{"fromUnitCode":"LB","toUnitCode":"KG","fromUnitQuantityKindBaseUnitCode":"KG","fromUnitKindCode":"MASS","fromUnitIsBaseUnit":false,"convertQ":0.226796185},{"fromUnitCode":"OZT","toUnitCode":"G","fromUnitQuantityKindBaseUnitCode":"KG","fromUnitKindCode":"MASS","fromUnitIsBaseUnit":false,"convertQ":15.5517384}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D_CuUnitPrecisionDense
+{
+    pattern: '/stress/d_cuunitprecision';
+    documentation: 'Dense stack on core_units::CuUnitPrecision: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |core_units::CuUnitPrecision.all()
+        ->filter({x|($x.contextCode > ' ')})
+        ->project(~[
+            unitCode:x|$x.unitCode,
+            contextCode:x|$x.contextCode,
+            unitQuantityKindBaseUnitCode:x|$x.unit.quantityKind.baseUnitCode,
+            unitKindCode:x|$x.unit.kindCode,
+            unitIsBaseUnit:x|$x.unit.isBaseUnit,
+            unitToBaseQ:x|$x.unit.toBase(0.5)
+        ])
+        ->sort([~unitCode->ascending(), ~contextCode->ascending()])
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D_CuUnitPrecisionDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"unitCode":"BBL","contextCode":"PHYSICAL","unitQuantityKindBaseUnitCode":"L","unitKindCode":"VOL","unitIsBaseUnit":false,"unitToBaseQ":79.493647465},{"unitCode":"KG","contextCode":"FINANCE","unitQuantityKindBaseUnitCode":"KG","unitKindCode":"MASS","unitIsBaseUnit":true,"unitToBaseQ":0.5},{"unitCode":"KG","contextCode":"PHYSICAL","unitQuantityKindBaseUnitCode":"KG","unitKindCode":"MASS","unitIsBaseUnit":true,"unitToBaseQ":0.5},{"unitCode":"OZT","contextCode":"FINANCE","unitQuantityKindBaseUnitCode":"KG","unitKindCode":"MASS","unitIsBaseUnit":false,"unitToBaseQ":0.01555174}]';
                   }#;
               }#
           ]
@@ -13207,6 +13387,117 @@ Service stress::GG_MarginCallTree
                   #{
                     contentType: 'application/json';
                     data: '{"builder":{"_type":"json"},"values":[{"marginCallId":"MC-0001","agreedAmount":1487.5,"disputeReason":"none","disputedAmount":1487.5,"agreement":null,"counterparty":null},{"marginCallId":"MC-0002","agreedAmount":1525.0,"disputeReason":"late data","disputedAmount":1525.0,"agreement":null,"counterparty":null},{"marginCallId":"MC-0003","agreedAmount":1562.5,"disputeReason":null,"disputedAmount":1562.5,"agreement":{"agreementId":"CSA-0001","agreementType":"CSA","currency":"USD","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER"}},"counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}}},{"marginCallId":"MC-0004","agreedAmount":null,"disputeReason":"none","disputedAmount":1600.0,"agreement":{"agreementId":"CSA-0002","agreementType":"CSA","currency":"GBP","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER"}},"counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}}},{"marginCallId":"MC-0005","agreedAmount":1637.5,"disputeReason":"reconciled","disputedAmount":null,"agreement":{"agreementId":"CSA-0003","agreementType":"GMRA","currency":"EUR","counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND"}},"counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND","creditRating":"BBB","country":{"countryCode":"DE","capitalCity":"Berlin"}}}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::GG_CuConversionTree
+{
+    pattern: '/stress/gg_cuconversion';
+    documentation: 'Generated graph fetch on core_units::CuConversion: 6 keys, 2 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
+    execution: Single
+    {
+    query: |core_units::CuConversion.all()
+        ->graphFetch(#{
+  core_units::CuConversion
+  {
+    fromUnitCode,
+    effectiveFrom,
+    factor,
+    offsetValue,
+    fromUnit
+    {
+      unitCode,
+      decimals,
+      factorToBase,
+      quantityKind
+      {
+        kindCode,
+        baseUnitCode
+      }
+    },
+    toUnit
+    {
+      unitCode,
+      decimals,
+      factorToBase,
+      quantityKind
+      {
+        kindCode,
+        baseUnitCode
+      }
+    }
+  }
+}#)
+        ->serialize(#{
+  core_units::CuConversion
+  {
+    fromUnitCode,
+    effectiveFrom,
+    factor,
+    offsetValue,
+    fromUnit
+    {
+      unitCode,
+      decimals,
+      factorToBase,
+      quantityKind
+      {
+        kindCode,
+        baseUnitCode
+      }
+    },
+    toUnit
+    {
+      unitCode,
+      decimals,
+      factorToBase,
+      quantityKind
+      {
+        kindCode,
+        baseUnitCode
+      }
+    }
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    GG_CuConversionTree_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 6 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"fromUnitCode":"KG","effectiveFrom":"2019-01-01","factor":2.20462262,"offsetValue":0.0,"fromUnit":{"unitCode":"KG","decimals":3,"factorToBase":1.0,"quantityKind":{"kindCode":"MASS","baseUnitCode":"KG"}},"toUnit":{"unitCode":"LB","decimals":4,"factorToBase":0.45359237,"quantityKind":{"kindCode":"MASS","baseUnitCode":"KG"}}},{"fromUnitCode":"LB","effectiveFrom":"2019-01-01","factor":0.45359237,"offsetValue":0.0,"fromUnit":{"unitCode":"LB","decimals":4,"factorToBase":0.45359237,"quantityKind":{"kindCode":"MASS","baseUnitCode":"KG"}},"toUnit":{"unitCode":"KG","decimals":3,"factorToBase":1.0,"quantityKind":{"kindCode":"MASS","baseUnitCode":"KG"}}},{"fromUnitCode":"KG","effectiveFrom":"2015-06-01","factor":1000.0,"offsetValue":0.0,"fromUnit":{"unitCode":"KG","decimals":3,"factorToBase":1.0,"quantityKind":{"kindCode":"MASS","baseUnitCode":"KG"}},"toUnit":{"unitCode":"G","decimals":1,"factorToBase":0.001,"quantityKind":{"kindCode":"MASS","baseUnitCode":"KG"}}},{"fromUnitCode":"OZT","effectiveFrom":"2016-03-15","factor":31.1034768,"offsetValue":0.0,"fromUnit":{"unitCode":"OZT","decimals":6,"factorToBase":0.03110348,"quantityKind":{"kindCode":"MASS","baseUnitCode":"KG"}},"toUnit":{"unitCode":"G","decimals":1,"factorToBase":0.001,"quantityKind":{"kindCode":"MASS","baseUnitCode":"KG"}}},{"fromUnitCode":"CEL","effectiveFrom":"2013-08-01","factor":1.8,"offsetValue":32.0,"fromUnit":{"unitCode":"CEL","decimals":1,"factorToBase":1.0,"quantityKind":{"kindCode":"TEMP","baseUnitCode":"CEL"}},"toUnit":{"unitCode":"FAH","decimals":1,"factorToBase":0.55555556,"quantityKind":{"kindCode":"TEMP","baseUnitCode":"CEL"}}},{"fromUnitCode":"FAH","effectiveFrom":"2013-08-01","factor":0.55555556,"offsetValue":-17.77777778,"fromUnit":{"unitCode":"FAH","decimals":1,"factorToBase":0.55555556,"quantityKind":{"kindCode":"TEMP","baseUnitCode":"CEL"}},"toUnit":{"unitCode":"CEL","decimals":1,"factorToBase":1.0,"quantityKind":{"kindCode":"TEMP","baseUnitCode":"CEL"}}}]}';
                   }#;
               }#
           ]
@@ -16265,85 +16556,6 @@ Service stress::GG_VariationMarginTree
                   #{
                     contentType: 'application/json';
                     data: '{"builder":{"_type":"json"},"values":[{"vmId":"VM-0001","changeMtm":2612.5,"excessDeficit":null,"postedAmount":2612.5,"agreement":null},{"vmId":"VM-0002","changeMtm":null,"excessDeficit":2650.0,"postedAmount":2650.0,"agreement":null},{"vmId":"VM-0003","changeMtm":2687.5,"excessDeficit":2687.5,"postedAmount":2687.5,"agreement":{"agreementId":"CSA-0001","agreementType":"CSA","currency":"USD","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER"}}},{"vmId":"VM-0004","changeMtm":2725.0,"excessDeficit":2725.0,"postedAmount":null,"agreement":{"agreementId":"CSA-0002","agreementType":"CSA","currency":"GBP","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER"}}},{"vmId":"VM-0005","changeMtm":2762.5,"excessDeficit":2762.5,"postedAmount":2762.5,"agreement":{"agreementId":"CSA-0003","agreementType":"GMRA","currency":"EUR","counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND"}}}]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::GG_CcHolidayTree
-{
-    pattern: '/stress/gg_ccholiday';
-    documentation: 'Generated graph fetch on core_calendar::CcHoliday: 5 keys, 1 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
-    execution: Single
-    {
-    query: |core_calendar::CcHoliday.all()
-        ->graphFetch(#{
-  core_calendar::CcHoliday
-  {
-    holidayId,
-    holidayDate,
-    holidayName,
-    holidayYear,
-    calendar
-    {
-      calendarId,
-      calendarName,
-      countryCode
-    }
-  }
-}#)
-        ->serialize(#{
-  core_calendar::CcHoliday
-  {
-    holidayId,
-    holidayDate,
-    holidayName,
-    holidayYear,
-    calendar
-    {
-      calendarId,
-      calendarName,
-      countryCode
-    }
-  }
-}#);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    GG_CcHolidayTree_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 9 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"holidayId":"H-USNY-2025-0101","holidayDate":"2025-01-01","holidayName":"New Year\'s Day","holidayYear":2025,"calendar":{"calendarId":"USNY","calendarName":"United States (New York)","countryCode":"US"}},{"holidayId":"H-USNY-2025-0704","holidayDate":"2025-07-04","holidayName":"Independence Day","holidayYear":2025,"calendar":{"calendarId":"USNY","calendarName":"United States (New York)","countryCode":"US"}},{"holidayId":"H-USNY-2025-1128","holidayDate":"2025-11-28","holidayName":"Day after Thanksgiving","holidayYear":2025,"calendar":{"calendarId":"USNY","calendarName":"United States (New York)","countryCode":"US"}},{"holidayId":"H-USNY-2026-0101","holidayDate":"2026-01-01","holidayName":"New Year\'s Day","holidayYear":2026,"calendar":{"calendarId":"USNY","calendarName":"United States (New York)","countryCode":"US"}},{"holidayId":"H-GBLO-2025-0418","holidayDate":"2025-04-18","holidayName":"Good Friday","holidayYear":2025,"calendar":{"calendarId":"GBLO","calendarName":"United Kingdom (London)","countryCode":"GB"}},{"holidayId":"H-GBLO-2025-0505","holidayDate":"2025-05-05","holidayName":"Early May bank holiday","holidayYear":2025,"calendar":{"calendarId":"GBLO","calendarName":"United Kingdom (London)","countryCode":"GB"}},{"holidayId":"H-GBLO-2025-1225T","holidayDate":"2025-12-25","holidayName":"Christmas Day (true date)","holidayYear":2025,"calendar":{"calendarId":"GBLO","calendarName":"United Kingdom (London)","countryCode":"GB"}},{"holidayId":"H-TARGET-2025-0101","holidayDate":"2025-01-01","holidayName":"New Year\'s Day","holidayYear":2025,"calendar":{"calendarId":"TARGET","calendarName":"TARGET2 euro area","countryCode":"DE"}},{"holidayId":"H-TARGET-2025-0501","holidayDate":"2025-05-01","holidayName":"Labour Day (not observed)","holidayYear":2025,"calendar":{"calendarId":"TARGET","calendarName":"TARGET2 euro area","countryCode":"DE"}}]}';
                   }#;
               }#
           ]
@@ -134267,6 +134479,71 @@ Service stress::SP_defClearedTradeEmpty
   ]
 }
 
+Service stress::SP_defCurveSummaryGroup
+{
+    pattern: '/stress/sp_defcurvesummarygroup';
+    documentation: 'Coverage-directed stack on curves::CurveSummary (Group), reusing the reach of CV9_CurveSummaries and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |curves::CurveSummary.all()
+        ->filter({x|($x.curveId > ' ')})
+        ->project(~[
+            curveId:x|$x.curveId,
+            cobDate:x|$x.cobDate,
+            pillarCount:x|$x.pillarCount,
+            highestRate:x|$x.highestRate,
+            lowestRate:x|$x.lowestRate,
+            curveName:x|$x.summarised.curveName,
+            interpolation:x|$x.summarised.interpolation,
+            summarisedBenchmarkSeriesIsDaily:x|$x.summarised.benchmarkSeries.isDaily
+        ])
+        ->groupBy(~[curveId], ~[
+            n: x|$x.pillarCount : agg|$agg->count(),
+            tot: x|$x.pillarCount : agg|$agg->sum()
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defCurveSummaryGroup_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 8 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"curveId":"USD.SOFR.OIS","n":2,"tot":24},{"curveId":"USD.LIBOR.3M","n":2,"tot":24},{"curveId":"EUR.ESTR.OIS","n":2,"tot":24},{"curveId":"EUR.EURIBOR.6M","n":2,"tot":24},{"curveId":"GBP.SONIA.OIS","n":2,"tot":24},{"curveId":"JPY.TONA.OIS","n":2,"tot":24},{"curveId":"USD.UST.GOVT","n":2,"tot":24},{"curveId":"EUR.DBR.GOVT","n":2,"tot":24}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::SP_defTradeCount
 {
     pattern: '/stress/sp_deftradecount';
@@ -134398,33 +134675,31 @@ Service stress::SP_defYieldCurveEmpty
   ]
 }
 
-Service stress::SP_defPricedTradeGroup
+Service stress::SP_defDailyPnLEmpty
 {
-    pattern: '/stress/sp_defpricedtradegroup';
-    documentation: 'Coverage-directed stack on projectlink::PricedTrade (Group), reusing the reach of PL5_ConvertedNotional and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    pattern: '/stress/sp_defdailypnlempty';
+    documentation: 'Coverage-directed stack on pnl::DailyPnL (Empty), reusing the reach of D_DailyPnLDense and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
     execution: Single
     {
-    query: |projectlink::PricedTrade.all()
-        ->filter({x|($x.tradeId > ' ')})
+    query: |pnl::DailyPnL.all()
+        ->filter({x|($x.pnlId > ' ')})
         ->project(~[
-            tradeId:x|$x.tradeId,
-            notional:x|$x.notional,
-            fxMid:x|$x.fxMid,
-            notionalConverted:x|$x.notionalConverted,
-            backConverted:x|$x.backConverted,
-            fxRatePairCode:x|$x.fxRate.pairCode,
-            fxRateSpread:x|$x.fxRate.spread
+            pnlId:x|$x.pnlId,
+            traderDeskBusinessUnitName:x|$x.trader.desk.businessUnit.name,
+            traderManagerDeskName:x|$x.trader.manager.desk.name,
+            traderManagerManagerBadge:x|$x.trader.manager.manager.badge,
+            pnlInQ:x|$x.pnlIn(0.5),
+            bookRollupBookCurrency:x|$x.book.rollup.book.currency,
+            hasNone:x|$x.attributions->isEmpty()
         ])
-        ->groupBy(~[tradeId], ~[
-            n: x|$x.notional : agg|$agg->count(),
-            tot: x|$x.notional : agg|$agg->sum()
-        ]);
+        ->sort(~pnlId->ascending())
+        ->limit(25);
         mapping: stress::AllMapping;
         runtime: stress::RT;
     }
   testSuites:
   [
-    SP_defPricedTradeGroup_suite:
+    SP_defDailyPnLEmpty_suite:
     {
       data:
       [
@@ -134439,7 +134714,7 @@ Service stress::SP_defPricedTradeGroup
       ]
       tests:
       [
-        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        // 7 rows; 3 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -134452,7 +134727,7 @@ Service stress::SP_defPricedTradeGroup
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"tradeId":"TRD-0001","n":1,"tot":190500.0},{"tradeId":"TRD-0002","n":1,"tot":477500.0},{"tradeId":"TRD-0003","n":1,"tot":250000.0},{"tradeId":"TRD-0004","n":1,"tot":250000.0},{"tradeId":"TRD-0005","n":1,"tot":250000.0},{"tradeId":"TRD-0006","n":1,"tot":250000.0},{"tradeId":"TRD-0007","n":1,"tot":282000.0},{"tradeId":"TRD-0008","n":1,"tot":18975.0},{"tradeId":"TRD-0009","n":1,"tot":576750.0},{"tradeId":"TRD-0010","n":1,"tot":498000.0},{"tradeId":"TRD-0011","n":1,"tot":167300.0},{"tradeId":"TRD-0012","n":1,"tot":369000.0},{"tradeId":"TRD-0013","n":1,"tot":171250.0},{"tradeId":"TRD-0014","n":1,"tot":69000.0},{"tradeId":"TRD-0015","n":1,"tot":35000.0},{"tradeId":"TRD-0016","n":1,"tot":264600.0},{"tradeId":"TRD-0017","n":1,"tot":385000.0},{"tradeId":"TRD-0018","n":1,"tot":4912500.0},{"tradeId":"TRD-0019","n":1,"tot":1960000.0},{"tradeId":"TRD-0020","n":1,"tot":975000.0}]';
+                    data: '[{"pnlId":"PNL-0001","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"pnlInQ":64200.125,"bookRollupBookCurrency":"USD","hasNone":false},{"pnlId":"PNL-0002","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":-20600.25,"bookRollupBookCurrency":"USD","hasNone":false},{"pnlId":"PNL-0003","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":9375.0,"bookRollupBookCurrency":"EUR","hasNone":false},{"pnlId":"PNL-0004","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"pnlInQ":0.0,"bookRollupBookCurrency":"EUR","hasNone":true},{"pnlId":"PNL-0005","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":201050.375,"bookRollupBookCurrency":"USD","hasNone":true},{"pnlId":"PNL-0006","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"pnlInQ":7950.0,"bookRollupBookCurrency":"USD","hasNone":true},{"pnlId":"PNL-0007","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":-1250.0,"bookRollupBookCurrency":null,"hasNone":true}]';
                   }#;
               }#
           ]
@@ -134535,104 +134810,33 @@ Service stress::SP_InlineFlatTradeGroup
   ]
 }
 
-Service stress::SP_defDailyPnLEmpty
+Service stress::SP_defPricedTradeGroup
 {
-    pattern: '/stress/sp_defdailypnlempty';
-    documentation: 'Coverage-directed stack on pnl::DailyPnL (Empty), reusing the reach of D_DailyPnLDense and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    pattern: '/stress/sp_defpricedtradegroup';
+    documentation: 'Coverage-directed stack on projectlink::PricedTrade (Group), reusing the reach of PL5_ConvertedNotional and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
     execution: Single
     {
-    query: |pnl::DailyPnL.all()
-        ->filter({x|($x.pnlId > ' ')})
-        ->project(~[
-            pnlId:x|$x.pnlId,
-            traderDeskBusinessUnitName:x|$x.trader.desk.businessUnit.name,
-            traderManagerDeskName:x|$x.trader.manager.desk.name,
-            traderManagerManagerBadge:x|$x.trader.manager.manager.badge,
-            pnlInQ:x|$x.pnlIn(0.5),
-            bookRollupBookCurrency:x|$x.book.rollup.book.currency,
-            hasNone:x|$x.attributions->isEmpty()
-        ])
-        ->sort(~pnlId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    SP_defDailyPnLEmpty_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 7 rows; 3 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"pnlId":"PNL-0001","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"pnlInQ":64200.125,"bookRollupBookCurrency":"USD","hasNone":false},{"pnlId":"PNL-0002","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":-20600.25,"bookRollupBookCurrency":"USD","hasNone":false},{"pnlId":"PNL-0003","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":9375.0,"bookRollupBookCurrency":"EUR","hasNone":false},{"pnlId":"PNL-0004","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"pnlInQ":0.0,"bookRollupBookCurrency":"EUR","hasNone":true},{"pnlId":"PNL-0005","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":201050.375,"bookRollupBookCurrency":"USD","hasNone":true},{"pnlId":"PNL-0006","traderDeskBusinessUnitName":null,"traderManagerDeskName":null,"traderManagerManagerBadge":null,"pnlInQ":7950.0,"bookRollupBookCurrency":"USD","hasNone":true},{"pnlId":"PNL-0007","traderDeskBusinessUnitName":null,"traderManagerDeskName":"Cash Equities","traderManagerManagerBadge":null,"pnlInQ":-1250.0,"bookRollupBookCurrency":null,"hasNone":true}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::SP_defTradeGroup
-{
-    pattern: '/stress/sp_deftradegroup';
-    documentation: 'Coverage-directed stack on trading::Trade (Group), reusing the reach of F30_TradeEverything and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |trading::Trade.all()
+    query: |projectlink::PricedTrade.all()
         ->filter({x|($x.tradeId > ' ')})
         ->project(~[
             tradeId:x|$x.tradeId,
-            side:x|$x.side,
-            status:x|$x.status,
-            quantity:x|$x.quantity,
-            price:x|$x.price,
-            sectorName:x|$x.instrument.sector.name,
-            sectorGics:x|$x.instrument.sector.gicsCode,
-            deskName:x|$x.book.desk.name,
-            deskRegion:x|$x.book.desk.region,
-            cptyCountry:x|$x.counterparty.country.name,
-            cptyRegion:x|$x.counterparty.country.region,
-            traderDesk:x|$x.trader.desk.name,
-            grossAmount:x|$x.grossAmount,
-            grossGbp:x|$x.grossAmountIn(0.79),
-            grossEur:x|$x.grossAmountIn(0.92),
-            isLarge:x|$x->stress::rules::isLargeTrade()
+            notional:x|$x.notional,
+            fxMid:x|$x.fxMid,
+            notionalConverted:x|$x.notionalConverted,
+            backConverted:x|$x.backConverted,
+            fxRatePairCode:x|$x.fxRate.pairCode,
+            fxRateSpread:x|$x.fxRate.spread
         ])
         ->groupBy(~[tradeId], ~[
-            n: x|$x.quantity : agg|$agg->count(),
-            tot: x|$x.quantity : agg|$agg->sum()
+            n: x|$x.notional : agg|$agg->count(),
+            tot: x|$x.notional : agg|$agg->sum()
         ]);
         mapping: stress::AllMapping;
         runtime: stress::RT;
     }
   testSuites:
   [
-    SP_defTradeGroup_suite:
+    SP_defPricedTradeGroup_suite:
     {
       data:
       [
@@ -134660,72 +134864,7 @@ Service stress::SP_defTradeGroup
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"tradeId":"TRD-0001","n":1,"tot":1000.0},{"tradeId":"TRD-0002","n":1,"tot":2500.0},{"tradeId":"TRD-0003","n":1,"tot":500.0},{"tradeId":"TRD-0004","n":1,"tot":1250.0},{"tradeId":"TRD-0005","n":1,"tot":2000.0},{"tradeId":"TRD-0006","n":1,"tot":800.0},{"tradeId":"TRD-0007","n":1,"tot":1500.0},{"tradeId":"TRD-0008","n":1,"tot":100.0},{"tradeId":"TRD-0009","n":1,"tot":3000.0},{"tradeId":"TRD-0010","n":1,"tot":1200.0},{"tradeId":"TRD-0011","n":1,"tot":400.0},{"tradeId":"TRD-0012","n":1,"tot":900.0},{"tradeId":"TRD-0013","n":1,"tot":25000.0},{"tradeId":"TRD-0014","n":1,"tot":10000.0},{"tradeId":"TRD-0015","n":1,"tot":5000.0},{"tradeId":"TRD-0016","n":1,"tot":1500.0},{"tradeId":"TRD-0017","n":1,"tot":2200.0},{"tradeId":"TRD-0018","n":1,"tot":5000000.0},{"tradeId":"TRD-0019","n":1,"tot":2000000.0},{"tradeId":"TRD-0020","n":1,"tot":1000000.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::SP_defExposureLineGroup
-{
-    pattern: '/stress/sp_defexposurelinegroup';
-    documentation: 'Coverage-directed stack on largeexp::ExposureLine (Group), reusing the reach of LE1_BandedExposures and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |largeexp::ExposureLine.all()
-        ->filter({x|($x.reportId > ' ')})
-        ->project(~[
-            reportId:x|$x.reportId,
-            cobDate:x|$x.cobDate,
-            lineNumber:x|$x.lineNumber,
-            pctOfCapital:x|$x.pctOfCapital,
-            bandId:x|$x.thresholdBand.bandId,
-            bandName:x|$x.thresholdBand.bandName,
-            isReportable:x|$x.thresholdBand.isReportable,
-            isBreach:x|$x.thresholdBand.isBreach
-        ])
-        ->groupBy(~[reportId], ~[
-            n: x|$x.lineNumber : agg|$agg->count(),
-            tot: x|$x.lineNumber : agg|$agg->sum()
-        ]);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    SP_defExposureLineGroup_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"reportId":"LE-2024Q2-01","n":6,"tot":21},{"reportId":"LE-2024Q1-01","n":3,"tot":6},{"reportId":"LE-2024Q2-02","n":3,"tot":6}]';
+                    data: '[{"tradeId":"TRD-0001","n":1,"tot":190500.0},{"tradeId":"TRD-0002","n":1,"tot":477500.0},{"tradeId":"TRD-0003","n":1,"tot":250000.0},{"tradeId":"TRD-0004","n":1,"tot":250000.0},{"tradeId":"TRD-0005","n":1,"tot":250000.0},{"tradeId":"TRD-0006","n":1,"tot":250000.0},{"tradeId":"TRD-0007","n":1,"tot":282000.0},{"tradeId":"TRD-0008","n":1,"tot":18975.0},{"tradeId":"TRD-0009","n":1,"tot":576750.0},{"tradeId":"TRD-0010","n":1,"tot":498000.0},{"tradeId":"TRD-0011","n":1,"tot":167300.0},{"tradeId":"TRD-0012","n":1,"tot":369000.0},{"tradeId":"TRD-0013","n":1,"tot":171250.0},{"tradeId":"TRD-0014","n":1,"tot":69000.0},{"tradeId":"TRD-0015","n":1,"tot":35000.0},{"tradeId":"TRD-0016","n":1,"tot":264600.0},{"tradeId":"TRD-0017","n":1,"tot":385000.0},{"tradeId":"TRD-0018","n":1,"tot":4912500.0},{"tradeId":"TRD-0019","n":1,"tot":1960000.0},{"tradeId":"TRD-0020","n":1,"tot":975000.0}]';
                   }#;
               }#
           ]
@@ -134925,77 +135064,6 @@ Service stress::SP_OtherwiseTradeGroup
   ]
 }
 
-Service stress::SP_defReportableLineGraph
-{
-    pattern: '/stress/sp_defreportablelinegraph';
-    documentation: 'Coverage-directed stack on largeexp::ReportableLine (Graph), reusing the reach of LE3_ReportableLines and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |largeexp::ReportableLine.all()
-        ->graphFetch(#{
-  largeexp::ReportableLine
-  {
-    reportId,
-    cobDate,
-    lineNumber,
-    pctOfCapital,
-    exposureClass,
-    netExposure
-  }
-}#)
-        ->serialize(#{
-  largeexp::ReportableLine
-  {
-    reportId,
-    cobDate,
-    lineNumber,
-    pctOfCapital,
-    exposureClass,
-    netExposure
-  }
-}#);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    SP_defReportableLineGraph_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 9 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":1,"pctOfCapital":18.4,"exposureClass":"INSTITUTION","netExposure":3650000000.0},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":2,"pctOfCapital":9.2,"exposureClass":"INSTITUTION","netExposure":1950000000.0},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":3,"pctOfCapital":31.7,"exposureClass":"CORPORATE","netExposure":7000000000.0},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":5,"pctOfCapital":71.3,"exposureClass":"SOVEREIGN","netExposure":15200000000.0},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":1,"pctOfCapital":16.1,"exposureClass":"INSTITUTION","netExposure":3200000000.0},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":2,"pctOfCapital":29.8,"exposureClass":"CORPORATE","netExposure":6550000000.0},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":3,"pctOfCapital":7.9,"exposureClass":"INSTITUTION","netExposure":1675000000.0},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":1,"pctOfCapital":14.5,"exposureClass":"FUND","netExposure":3100000000.0},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":3,"pctOfCapital":10.1,"exposureClass":"INSTITUTION","netExposure":2150000000.0}]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
 Service stress::SP_IssuerProdIssuerGraph
 {
     pattern: '/stress/sp_issuerprodissuergraph';
@@ -135050,6 +135118,71 @@ Service stress::SP_IssuerProdIssuerGraph
                   #{
                     contentType: 'application/json';
                     data: '{"builder":{"_type":"json"},"values":[{"issuerId":"HI-0001","legalName":"Northbridge"},{"issuerId":"HI-0002","legalName":"Kestrel"},{"issuerId":"HI-0003","legalName":"Aldgate"},{"issuerId":"HI-0004","legalName":"Fenwick"},{"issuerId":"HI-0005","legalName":"Thameside"}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::SP_defExposureLineGroup
+{
+    pattern: '/stress/sp_defexposurelinegroup';
+    documentation: 'Coverage-directed stack on largeexp::ExposureLine (Group), reusing the reach of LE1_BandedExposures and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |largeexp::ExposureLine.all()
+        ->filter({x|($x.reportId > ' ')})
+        ->project(~[
+            reportId:x|$x.reportId,
+            cobDate:x|$x.cobDate,
+            lineNumber:x|$x.lineNumber,
+            pctOfCapital:x|$x.pctOfCapital,
+            bandId:x|$x.thresholdBand.bandId,
+            bandName:x|$x.thresholdBand.bandName,
+            isReportable:x|$x.thresholdBand.isReportable,
+            isBreach:x|$x.thresholdBand.isBreach
+        ])
+        ->groupBy(~[reportId], ~[
+            n: x|$x.lineNumber : agg|$agg->count(),
+            tot: x|$x.lineNumber : agg|$agg->sum()
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defExposureLineGroup_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"reportId":"LE-2024Q2-01","n":6,"tot":21},{"reportId":"LE-2024Q1-01","n":3,"tot":6},{"reportId":"LE-2024Q2-02","n":3,"tot":6}]';
                   }#;
               }#
           ]
@@ -135117,31 +135250,42 @@ Service stress::SP_defReturnHeaderFilter
   ]
 }
 
-Service stress::SP_defCurveSummaryFilter
+Service stress::SP_defTradeGroup
 {
-    pattern: '/stress/sp_defcurvesummaryfilter';
-    documentation: 'Coverage-directed stack on curves::CurveSummary (Filter), reusing the reach of D_CurveSummaryDense and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    pattern: '/stress/sp_deftradegroup';
+    documentation: 'Coverage-directed stack on trading::Trade (Group), reusing the reach of F30_TradeEverything and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
     execution: Single
     {
-    query: |curves::CurveSummary.all()
-        ->filter({x|($x.curveId > ' ')})
+    query: |trading::Trade.all()
+        ->filter({x|($x.tradeId > ' ')})
         ->project(~[
-            curveId:x|$x.curveId,
-            cobDate:x|$x.cobDate,
-            summarisedBenchmarkSeriesCurrency:x|$x.summarised.benchmarkSeries.currency,
-            summarisedCurrency:x|$x.summarised.currency,
-            summarisedCurveType:x|$x.summarised.curveType,
-            summarisedBenchmarkSeriesIsDaily:x|$x.summarised.benchmarkSeries.isDaily,
-            summarisedBenchmarkSeriesTickerOnQ:x|$x.summarised.benchmarkSeries.tickerOn('BBG')
+            tradeId:x|$x.tradeId,
+            side:x|$x.side,
+            status:x|$x.status,
+            quantity:x|$x.quantity,
+            price:x|$x.price,
+            sectorName:x|$x.instrument.sector.name,
+            sectorGics:x|$x.instrument.sector.gicsCode,
+            deskName:x|$x.book.desk.name,
+            deskRegion:x|$x.book.desk.region,
+            cptyCountry:x|$x.counterparty.country.name,
+            cptyRegion:x|$x.counterparty.country.region,
+            traderDesk:x|$x.trader.desk.name,
+            grossAmount:x|$x.grossAmount,
+            grossGbp:x|$x.grossAmountIn(0.79),
+            grossEur:x|$x.grossAmountIn(0.92),
+            isLarge:x|$x->stress::rules::isLargeTrade()
         ])
-        ->sort(~curveId->ascending())
-        ->limit(25);
+        ->groupBy(~[tradeId], ~[
+            n: x|$x.quantity : agg|$agg->count(),
+            tot: x|$x.quantity : agg|$agg->sum()
+        ]);
         mapping: stress::AllMapping;
         runtime: stress::RT;
     }
   testSuites:
   [
-    SP_defCurveSummaryFilter_suite:
+    SP_defTradeGroup_suite:
     {
       data:
       [
@@ -135156,7 +135300,7 @@ Service stress::SP_defCurveSummaryFilter
       ]
       tests:
       [
-        // 16 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        // 20 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -135169,7 +135313,7 @@ Service stress::SP_defCurveSummaryFilter
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","summarisedBenchmarkSeriesCurrency":"EUR","summarisedCurrency":"EUR","summarisedCurveType":"GOVERNMENT","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/BUNDESBANK:DBR.10Y"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","summarisedBenchmarkSeriesCurrency":"EUR","summarisedCurrency":"EUR","summarisedCurveType":"GOVERNMENT","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/BUNDESBANK:DBR.10Y"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","summarisedBenchmarkSeriesCurrency":"EUR","summarisedCurrency":"EUR","summarisedCurveType":"OIS","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/EMMI:EURIBOR.3M"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","summarisedBenchmarkSeriesCurrency":"EUR","summarisedCurrency":"EUR","summarisedCurveType":"OIS","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/EMMI:EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","summarisedBenchmarkSeriesCurrency":"EUR","summarisedCurrency":"EUR","summarisedCurveType":"SWAP","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/EMMI:EURIBOR.3M"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","summarisedBenchmarkSeriesCurrency":"EUR","summarisedCurrency":"EUR","summarisedCurveType":"SWAP","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/EMMI:EURIBOR.3M"},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","summarisedBenchmarkSeriesCurrency":null,"summarisedCurrency":"GBP","summarisedCurveType":"OIS","summarisedBenchmarkSeriesIsDaily":null,"summarisedBenchmarkSeriesTickerOnQ":null},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","summarisedBenchmarkSeriesCurrency":null,"summarisedCurrency":"GBP","summarisedCurveType":"OIS","summarisedBenchmarkSeriesIsDaily":null,"summarisedBenchmarkSeriesTickerOnQ":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","summarisedBenchmarkSeriesCurrency":null,"summarisedCurrency":"JPY","summarisedCurveType":"OIS","summarisedBenchmarkSeriesIsDaily":null,"summarisedBenchmarkSeriesTickerOnQ":null},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","summarisedBenchmarkSeriesCurrency":null,"summarisedCurrency":"JPY","summarisedCurveType":"OIS","summarisedBenchmarkSeriesIsDaily":null,"summarisedBenchmarkSeriesTickerOnQ":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","summarisedBenchmarkSeriesCurrency":null,"summarisedCurrency":"USD","summarisedCurveType":"SWAP","summarisedBenchmarkSeriesIsDaily":null,"summarisedBenchmarkSeriesTickerOnQ":null},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","summarisedBenchmarkSeriesCurrency":null,"summarisedCurrency":"USD","summarisedCurveType":"SWAP","summarisedBenchmarkSeriesIsDaily":null,"summarisedBenchmarkSeriesTickerOnQ":null},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","summarisedBenchmarkSeriesCurrency":"USD","summarisedCurrency":"USD","summarisedCurveType":"OIS","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/NYFED:SOFR.ON"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","summarisedBenchmarkSeriesCurrency":"USD","summarisedCurrency":"USD","summarisedCurveType":"OIS","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/NYFED:SOFR.ON"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","summarisedBenchmarkSeriesCurrency":"USD","summarisedCurrency":"USD","summarisedCurveType":"GOVERNMENT","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/FEDH15:UST.10Y"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","summarisedBenchmarkSeriesCurrency":"USD","summarisedCurrency":"USD","summarisedCurveType":"GOVERNMENT","summarisedBenchmarkSeriesIsDaily":true,"summarisedBenchmarkSeriesTickerOnQ":"BBG/FEDH15:UST.10Y"}]';
+                    data: '[{"tradeId":"TRD-0001","n":1,"tot":1000.0},{"tradeId":"TRD-0002","n":1,"tot":2500.0},{"tradeId":"TRD-0003","n":1,"tot":500.0},{"tradeId":"TRD-0004","n":1,"tot":1250.0},{"tradeId":"TRD-0005","n":1,"tot":2000.0},{"tradeId":"TRD-0006","n":1,"tot":800.0},{"tradeId":"TRD-0007","n":1,"tot":1500.0},{"tradeId":"TRD-0008","n":1,"tot":100.0},{"tradeId":"TRD-0009","n":1,"tot":3000.0},{"tradeId":"TRD-0010","n":1,"tot":1200.0},{"tradeId":"TRD-0011","n":1,"tot":400.0},{"tradeId":"TRD-0012","n":1,"tot":900.0},{"tradeId":"TRD-0013","n":1,"tot":25000.0},{"tradeId":"TRD-0014","n":1,"tot":10000.0},{"tradeId":"TRD-0015","n":1,"tot":5000.0},{"tradeId":"TRD-0016","n":1,"tot":1500.0},{"tradeId":"TRD-0017","n":1,"tot":2200.0},{"tradeId":"TRD-0018","n":1,"tot":5000000.0},{"tradeId":"TRD-0019","n":1,"tot":2000000.0},{"tradeId":"TRD-0020","n":1,"tot":1000000.0}]';
                   }#;
               }#
           ]
@@ -135179,32 +135323,41 @@ Service stress::SP_defCurveSummaryFilter
   ]
 }
 
-Service stress::SP_defBookRollupGroup
+Service stress::SP_defReportableLineGraph
 {
-    pattern: '/stress/sp_defbookrollupgroup';
-    documentation: 'Coverage-directed stack on reporting::BookRollup (Group), reusing the reach of F20_NotionalByBook and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    pattern: '/stress/sp_defreportablelinegraph';
+    documentation: 'Coverage-directed stack on largeexp::ReportableLine (Graph), reusing the reach of LE3_ReportableLines and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
     execution: Single
     {
-    query: |reporting::BookRollup.all()
-        ->filter({x|($x.bookId > ' ')})
-        ->project(~[
-            bookId:x|$x.bookId,
-            tradeCount:x|$x.tradeCount,
-            totalNotional:x|$x.totalNotional,
-            maxNotional:x|$x.maxNotional,
-            bookRollupBookCurrency:x|$x.book.rollup.book.currency,
-            bookDeskBusinessUnitName:x|$x.book.desk.businessUnit.name
-        ])
-        ->groupBy(~[bookId], ~[
-            n: x|$x.tradeCount : agg|$agg->count(),
-            tot: x|$x.tradeCount : agg|$agg->sum()
-        ]);
+    query: |largeexp::ReportableLine.all()
+        ->graphFetch(#{
+  largeexp::ReportableLine
+  {
+    reportId,
+    cobDate,
+    lineNumber,
+    pctOfCapital,
+    exposureClass,
+    netExposure
+  }
+}#)
+        ->serialize(#{
+  largeexp::ReportableLine
+  {
+    reportId,
+    cobDate,
+    lineNumber,
+    pctOfCapital,
+    exposureClass,
+    netExposure
+  }
+}#);
         mapping: stress::AllMapping;
         runtime: stress::RT;
     }
   testSuites:
   [
-    SP_defBookRollupGroup_suite:
+    SP_defReportableLineGraph_suite:
     {
       data:
       [
@@ -135219,10 +135372,9 @@ Service stress::SP_defBookRollupGroup
       ]
       tests:
       [
-        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        // 9 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
         expected_rows:
         {
-          serializationFormat: PURE_TDSOBJECT;
           asserts:
           [
             matchesOracle:
@@ -135232,7 +135384,7 @@ Service stress::SP_defBookRollupGroup
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"bookId":"BK-CASH-US","n":1,"tot":10},{"bookId":"BK-VOL-01","n":1,"tot":5},{"bookId":"BK-CASH-EU","n":1,"tot":5}]';
+                    data: '{"builder":{"_type":"json"},"values":[{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":1,"pctOfCapital":18.4,"exposureClass":"INSTITUTION","netExposure":3650000000.0},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":2,"pctOfCapital":9.2,"exposureClass":"INSTITUTION","netExposure":1950000000.0},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":3,"pctOfCapital":31.7,"exposureClass":"CORPORATE","netExposure":7000000000.0},{"reportId":"LE-2024Q2-01","cobDate":"2024-06-28","lineNumber":5,"pctOfCapital":71.3,"exposureClass":"SOVEREIGN","netExposure":15200000000.0},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":1,"pctOfCapital":16.1,"exposureClass":"INSTITUTION","netExposure":3200000000.0},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":2,"pctOfCapital":29.8,"exposureClass":"CORPORATE","netExposure":6550000000.0},{"reportId":"LE-2024Q1-01","cobDate":"2024-03-28","lineNumber":3,"pctOfCapital":7.9,"exposureClass":"INSTITUTION","netExposure":1675000000.0},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":1,"pctOfCapital":14.5,"exposureClass":"FUND","netExposure":3100000000.0},{"reportId":"LE-2024Q2-02","cobDate":"2024-06-28","lineNumber":3,"pctOfCapital":10.1,"exposureClass":"INSTITUTION","netExposure":2150000000.0}]}';
                   }#;
               }#
           ]
@@ -135461,7 +135613,7 @@ Service stress::SP_ComboScopedGraph
 Service stress::SP_defCurveSummaryGraph
 {
     pattern: '/stress/sp_defcurvesummarygraph';
-    documentation: 'Coverage-directed stack on curves::CurveSummary (Graph), reusing the reach of D_CurveSummaryDense and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    documentation: 'Coverage-directed stack on curves::CurveSummary (Graph), reusing the reach of CV9_CurveSummaries and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
     execution: Single
     {
     query: |curves::CurveSummary.all()
@@ -135470,10 +135622,13 @@ Service stress::SP_defCurveSummaryGraph
   {
     curveId,
     cobDate,
+    pillarCount,
+    highestRate,
+    lowestRate,
     summarised
     {
-      currency,
-      curveType
+      curveName,
+      interpolation
     }
   }
 }#)
@@ -135482,10 +135637,13 @@ Service stress::SP_defCurveSummaryGraph
   {
     curveId,
     cobDate,
+    pillarCount,
+    highestRate,
+    lowestRate,
     summarised
     {
-      currency,
-      curveType
+      curveName,
+      interpolation
     }
   }
 }#);
@@ -135521,7 +135679,7 @@ Service stress::SP_defCurveSummaryGraph
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","summarised":{"currency":"USD","curveType":"OIS"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","summarised":{"currency":"USD","curveType":"OIS"}},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","summarised":{"currency":"USD","curveType":"SWAP"}},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","summarised":{"currency":"USD","curveType":"SWAP"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","summarised":{"currency":"EUR","curveType":"OIS"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","summarised":{"currency":"EUR","curveType":"OIS"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","summarised":{"currency":"EUR","curveType":"SWAP"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","summarised":{"currency":"EUR","curveType":"SWAP"}},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","summarised":{"currency":"GBP","curveType":"OIS"}},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","summarised":{"currency":"GBP","curveType":"OIS"}},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","summarised":{"currency":"JPY","curveType":"OIS"}},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","summarised":{"currency":"JPY","curveType":"OIS"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","summarised":{"currency":"USD","curveType":"GOVERNMENT"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","summarised":{"currency":"USD","curveType":"GOVERNMENT"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","summarised":{"currency":"EUR","curveType":"GOVERNMENT"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","summarised":{"currency":"EUR","curveType":"GOVERNMENT"}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.34,"lowestRate":3.96,"summarised":{"curveName":"USD SOFR Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.34,"lowestRate":3.98,"summarised":{"curveName":"USD SOFR Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.6,"lowestRate":4.21,"summarised":{"curveName":"USD 3M LIBOR Swap (legacy)","interpolation":"CUBIC_SPLINE"}},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.59,"lowestRate":4.23,"summarised":{"curveName":"USD 3M LIBOR Swap (legacy)","interpolation":"CUBIC_SPLINE"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":3.66,"lowestRate":2.5,"summarised":{"curveName":"EUR Euro Short Term Rate OIS","interpolation":"LINEAR_ZERO"}},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":3.65,"lowestRate":2.47,"summarised":{"curveName":"EUR Euro Short Term Rate OIS","interpolation":"LINEAR_ZERO"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","pillarCount":12,"highestRate":3.79,"lowestRate":2.73,"summarised":{"curveName":"EUR 6M Euribor Swap","interpolation":"CUBIC_SPLINE"}},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","pillarCount":12,"highestRate":3.78,"lowestRate":2.7,"summarised":{"curveName":"EUR 6M Euribor Swap","interpolation":"CUBIC_SPLINE"}},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.19,"lowestRate":3.55,"summarised":{"curveName":"GBP SONIA Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.19,"lowestRate":3.58,"summarised":{"curveName":"GBP SONIA Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","pillarCount":12,"highestRate":1.87,"lowestRate":0.08,"summarised":{"curveName":"JPY TONA Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","pillarCount":12,"highestRate":1.96,"lowestRate":0.08,"summarised":{"curveName":"JPY TONA Overnight Index Swap","interpolation":"LINEAR_ZERO"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","pillarCount":12,"highestRate":5.42,"lowestRate":4.29,"summarised":{"curveName":"US Treasury Zero Curve","interpolation":"BOOTSTRAP"}},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","pillarCount":12,"highestRate":5.43,"lowestRate":4.26,"summarised":{"curveName":"US Treasury Zero Curve","interpolation":"BOOTSTRAP"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","pillarCount":12,"highestRate":3.61,"lowestRate":2.51,"summarised":{"curveName":"German Bund Zero Curve","interpolation":"BOOTSTRAP"}},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","pillarCount":12,"highestRate":3.6,"lowestRate":2.46,"summarised":{"curveName":"German Bund Zero Curve","interpolation":"BOOTSTRAP"}}]}';
                   }#;
               }#
           ]

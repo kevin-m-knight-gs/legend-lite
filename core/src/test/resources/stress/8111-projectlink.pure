@@ -94,6 +94,7 @@ Mapping projectlink::ProjectLinkMapping
    include fee_core::Mapping
    include core_instrument::Mapping
    include core_calendar::Mapping
+   include core_units::Mapping
 
    projectlink::CounterpartyRatings: Relational
    {

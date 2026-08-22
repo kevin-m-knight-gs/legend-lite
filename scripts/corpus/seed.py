@@ -20219,6 +20219,98 @@ CC_SETTLEMENT_CYCLE = [
 ]
 
 
+# ---- the linked project: core-units (layer 0) ----
+#
+# The other half of the pair whose linking first produced `Void not supported!`. That is F57
+# now -- four of core-units' own property mappings named no target set id -- so this is the
+# project the fix has to be demonstrated on, not merely the one it was found from.
+#
+# Four constructs arrive with it:
+#
+#   * A SCHEMA. Every table sits in `uom`, so every reference is `[db]uom.TABLE.COL`, in this
+#     project's mapping and in the corpus store that includes it.
+#   * NUMERIC(20,8). The conversion factors are exact decimals and must not lose a digit --
+#     0.45359237 is the DEFINITION of a pound, not an approximation of one. Seeded as floats
+#     rather than quoted strings: the emitter writes repr(), the oracle's exact path goes
+#     through Decimal(str(v)), and every digit survives either way -- whereas a STRING is
+#     compared as a string, which made `$this.factorToBase == 1.0` false for "1.00000000".
+#
+#     The engine returns these padded to the column's scale (1.00000000, and 2.5 * a scale-8
+#     factor at scale 9). That is not a mismatch: EqualToJson compares numbers numerically,
+#     so 1.0 and 1.00000000 are equal and only the VALUE has to agree.
+#   * A composite key on an ORDERED PAIR. A conversion and its inverse are two different
+#     rows, and (KG,LB) is not (LB,KG).
+#   * TWO joins from one class to the SAME table: CuConversion reaches CuUnit as `fromUnit`
+#     and again as `toUnit`. F51 and F52 both live in that neighbourhood.
+CU_QUANTITY_KIND = [
+    dict(KIND_CODE="MASS", KIND_NAME="Mass", BASE_UNIT_CODE="KG", IS_RATIO_SCALE=True),
+    dict(KIND_CODE="VOL", KIND_NAME="Volume", BASE_UNIT_CODE="L", IS_RATIO_SCALE=True),
+    # NOT a ratio scale, which is exactly why its conversions carry an offset: 0 degrees is
+    # not "no temperature", so a factor alone cannot convert it.
+    dict(KIND_CODE="TEMP", KIND_NAME="Temperature", BASE_UNIT_CODE="CEL",
+         IS_RATIO_SCALE=False),
+]
+
+CU_UNIT = [
+    # factorToBase == 1.0 is what isBaseUnit() tests, so each kind has exactly one.
+    dict(UNIT_CODE="KG", UNIT_NAME="Kilogram", SYMBOL="kg", KIND_CODE="MASS", DECIMALS=3,
+         FACTOR_TO_BASE=1.0, IS_SI_UNIT=True),
+    dict(UNIT_CODE="G", UNIT_NAME="Gram", SYMBOL="g", KIND_CODE="MASS", DECIMALS=1,
+         FACTOR_TO_BASE=0.001, IS_SI_UNIT=True),
+    # The exact definition of the international pound, to all eight places.
+    dict(UNIT_CODE="LB", UNIT_NAME="Pound", SYMBOL="lb", KIND_CODE="MASS", DECIMALS=4,
+         FACTOR_TO_BASE=0.45359237, IS_SI_UNIT=False),
+    dict(UNIT_CODE="OZT", UNIT_NAME="Troy ounce", SYMBOL="ozt", KIND_CODE="MASS",
+         DECIMALS=6, FACTOR_TO_BASE=0.03110348, IS_SI_UNIT=False),
+    dict(UNIT_CODE="L", UNIT_NAME="Litre", SYMBOL="L", KIND_CODE="VOL", DECIMALS=3,
+         FACTOR_TO_BASE=1.0, IS_SI_UNIT=True),
+    dict(UNIT_CODE="BBL", UNIT_NAME="Barrel", SYMBOL="bbl", KIND_CODE="VOL", DECIMALS=2,
+         FACTOR_TO_BASE=158.98729493, IS_SI_UNIT=False),
+    dict(UNIT_CODE="CEL", UNIT_NAME="Celsius", SYMBOL="degC", KIND_CODE="TEMP", DECIMALS=1,
+         FACTOR_TO_BASE=1.0, IS_SI_UNIT=True),
+    dict(UNIT_CODE="FAH", UNIT_NAME="Fahrenheit", SYMBOL="degF", KIND_CODE="TEMP",
+         DECIMALS=1, FACTOR_TO_BASE=0.55555556, IS_SI_UNIT=False),
+]
+
+# The ordered pair is the key. KG->LB and LB->KG are both here and carry DIFFERENT factors,
+# so a join that lost the direction would return a plausible number rather than no row.
+# The temperature pairs are the ones with a non-zero OFFSET_VALUE, and one of them is
+# negative -- a conversion implemented as a bare multiply gets those two wrong and only
+# those two.
+CU_CONVERSION = [
+    dict(FROM_UNIT="KG", TO_UNIT="LB", FACTOR=2.20462262, OFFSET_VALUE=0.0,
+         SOURCE_NAME="NIST SP 811", REVISION=2, EFFECTIVE_FROM=_iso(2019, 1, 1),
+         TOLERANCE_PCT=0.0),
+    dict(FROM_UNIT="LB", TO_UNIT="KG", FACTOR=0.45359237, OFFSET_VALUE=0.0,
+         SOURCE_NAME="NIST SP 811", REVISION=2, EFFECTIVE_FROM=_iso(2019, 1, 1),
+         TOLERANCE_PCT=0.0),
+    dict(FROM_UNIT="KG", TO_UNIT="G", FACTOR=1000.0, OFFSET_VALUE=0.0,
+         SOURCE_NAME="SI", REVISION=1, EFFECTIVE_FROM=_iso(2015, 6, 1), TOLERANCE_PCT=0.0),
+    dict(FROM_UNIT="OZT", TO_UNIT="G", FACTOR=31.1034768, OFFSET_VALUE=0.0,
+         SOURCE_NAME="LBMA", REVISION=1, EFFECTIVE_FROM=_iso(2016, 3, 15),
+         TOLERANCE_PCT=0.0001),
+    dict(FROM_UNIT="CEL", TO_UNIT="FAH", FACTOR=1.8, OFFSET_VALUE=32.0,
+         SOURCE_NAME="ISO 80000-5", REVISION=1, EFFECTIVE_FROM=_iso(2013, 8, 1),
+         TOLERANCE_PCT=0.0),
+    dict(FROM_UNIT="FAH", TO_UNIT="CEL", FACTOR=0.55555556,
+         OFFSET_VALUE=-17.77777778, SOURCE_NAME="ISO 80000-5", REVISION=1,
+         EFFECTIVE_FROM=_iso(2013, 8, 1), TOLERANCE_PCT=0.0),
+]
+
+# Composite key again, this time (unit, context): the same unit is quoted to a different
+# precision on a physical delivery than on a financial settlement.
+CU_UNIT_PRECISION = [
+    dict(UNIT_CODE="KG", CONTEXT_CODE="PHYSICAL", DECIMALS=3, MIN_INCREMENT=0.001,
+         ROUNDING_MODE="HALF_UP", LOT_SIZE=1),
+    dict(UNIT_CODE="KG", CONTEXT_CODE="FINANCE", DECIMALS=2, MIN_INCREMENT=0.01,
+         ROUNDING_MODE="HALF_EVEN", LOT_SIZE=1000),
+    dict(UNIT_CODE="BBL", CONTEXT_CODE="PHYSICAL", DECIMALS=2, MIN_INCREMENT=0.01,
+         ROUNDING_MODE="FLOOR", LOT_SIZE=1000),
+    dict(UNIT_CODE="OZT", CONTEXT_CODE="FINANCE", DECIMALS=6, MIN_INCREMENT=1e-06,
+         ROUNDING_MODE="HALF_EVEN", LOT_SIZE=100),
+]
+
+
 # ---- the linked project: core-fx ----
 #
 # Real June 2024 levels for four majors. The corpus's own trades are all USD, so what the
@@ -20398,6 +20490,10 @@ TABLES: dict[str, list[dict]] = {
     "CC_HOLIDAY": CC_HOLIDAY,
     "CC_MARKET": CC_MARKET,
     "CC_SETTLEMENT_CYCLE": CC_SETTLEMENT_CYCLE,
+    "CU_QUANTITY_KIND": CU_QUANTITY_KIND,
+    "CU_UNIT": CU_UNIT,
+    "CU_CONVERSION": CU_CONVERSION,
+    "CU_UNIT_PRECISION": CU_UNIT_PRECISION,
     "EXPOSURE_LINE": EXPOSURE_LINE,
     "EXPOSURE_THRESHOLD": EXPOSURE_THRESHOLD,
     "EXEMPTION_RULE": EXEMPTION_RULE,
