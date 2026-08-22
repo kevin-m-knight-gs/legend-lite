@@ -386,6 +386,94 @@ Three stale rule messages describe a state the code does not hold:
 
 ---
 
+---
+
+# PART 2b — THE DEBT NO CHECK CAN SEE
+
+**53 distinct pieces of debt are invisible to every automated check**: 19
+measured numbers with no pin, 24 chartered guards never built, 10 named
+owners or tracking ids that resolve to nothing.
+
+## `nlq` is RED at HEAD, and the cause is an over-correction
+
+```
+mvn -o -pl nlq -am test  ->  208 tests, 1 error, BUILD FAILURE
+NlqCdmModelTest.setup: Found duplicated value 'provision'
+                       in enumeration 'observable::PriceTypeEnum'
+```
+
+The chain: the frontend audit found `Enum m::E { A, A }` silently accepted
+→ commit `e5984b02` ("seven eager rejections") made it a **hard
+rejection** → the real CDM model contains `provision,` twice
+(`cdm-model.pure:2574-2575`) → the module has been red since.
+
+**And the rejection is stricter than the reference.** legend-engine's
+`EnumerationValidator.java:47` emits a **`Warning`**, not an error, and its
+own test expects `null` errors alongside
+`"COMPILATION warning at [3:4-6]: Found duplicated value 'TEA'"`. The
+model compiles there.
+
+Two lessons, both on the audit rather than the fix:
+- **A leniency finding must carry the reference's *severity*, not just its
+  existence.** "The engine rejects this" and "the engine warns about this"
+  are different fixes.
+- **A module outside every gate will absorb a regression silently.** The
+  prior audit named this exact risk — *"adding `nlq` to `allgates.sh` is
+  the cheapest coverage win in the repo"* — four commits before the break.
+  It was not done.
+
+## Numbers that drifted while nobody re-derived them
+
+| source | written | actual today |
+|---|---|---|
+| `AUDIT_23` censused scope (says **"Complete"**) | ~37k LOC | **80,282** (+87%) |
+| — its resolver slice | 14 files / 12.1k | **31 files / 26,067** (+107%) |
+| `AUDIT_23` tolerance census (**"task #75 closed"**) | ~25 sites | **38 sites / 28 tests** |
+| order-leniency (measured yesterday) | 393 / 2434 | **403 / 2434**, 495 sites |
+| `DESIGN_DEBT` M6 "Lowerer is ~1100 lines" | 1,186 | **3,472** (+193%, ledger untouched 46 days) |
+| `STATE_AUDIT` voids / records | 306 / 476 | **555 / 878** (+81% / +85%; "Start at S0" never started) |
+| `GATES.md` chain budget ("re-pin pending") | 398s | **780s** |
+
+## Owners that don't exist
+
+**There is no task registry anywhere in this repo**, yet `task #NN` is
+cited **44 times** across 15 production files. The sharpest instance:
+`FunctionCompiler.java:157` hands a live silent-wrong-dispatch bug — a
+signature-broken overload silently re-dispatching to a healthy sibling —
+to **`task #56`**, which appears in zero docs, zero source, zero commits.
+`StoreResolver.java:2241` cites "audit 13", a document that does not exist.
+`MissProbe.java:20-23` says a gap is "filed in FOUNDATIONS_PLAN §9"; §9
+contains no such row.
+
+## A ledger generator aimed at the wrong repository
+
+`scripts/outstanding.py:14` sets `REPO = "/Users/neema/legend/legend-lite"`
+— **a different user's separate checkout** — and opens
+`docs/OUTSTANDING.md` with mode `"w"`. That file's 15 hand-appended
+`@Disabled("GAP:")` rows are the only record of 15 declared platform gaps,
+and they sit below the generated body. One run destroys them. The script
+is invoked by no gate, which is the only reason it hasn't happened.
+
+## Chartered and never built — 24 of 43
+
+Dominated by charters older than a week, while the *built* column is
+almost entirely the last 48 hours. Notable still-open ones: the union
+arm-factory leg (6 `TRUST_ONE` shims live in `UnionSynthesis`); an H2
+`RAISE_ERROR` mechanism the docs describe that has **0 hits** in source;
+compile-through equality and grid compile-through; an exhaustiveness
+ratchet (the durable fix for the `default -> false` class); the
+`lowering ↛ sql.dialect` rule (`ArchitectureTest:479` still allows it);
+and the `static final` cross-layer constant ban — both violations
+(`EngineStyleH2:179`, `SnapshotEnvelope:133,139`) still inlined past
+ArchUnit.
+
+**Credit where the burn is real:** `VerdictWorld2ConsistencyTest` built;
+`parser-equivalence` now green (47/0/0) with GATE8's roster widened 20 → 27;
+soft-pass ceilings binding live; `ConnectionResolver` content-keyed;
+`endsWith("::toOne")` gone; `Stamps.java`'s fictional "PCT lane" owner
+replaced with a real closure. Three of this sweep's own rows went stale
+*while it was measuring them*.
+
 # PART 3 — WHAT TO DO
 
 ## Today, no design decisions
