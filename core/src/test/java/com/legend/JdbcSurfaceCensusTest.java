@@ -137,6 +137,9 @@ class JdbcSurfaceCensusTest {
             // burn lane: the cast cross-kind raise is the DATABASE's
             // error — the session is the assertion subject
             "core/src/test/java/com/legend/lowering/BurnLaneTest.java",
+            // D4: variance pins run eval() e2e — the accepted direction
+            // must EXECUTE, not merely type-check
+            "core/src/test/java/com/legend/compiler/spec/VarianceD4Test.java",
             "core/src/test/java/com/legend/JdbcSurfaceCensusTest.java",
             "core/src/test/java/com/legend/AuditRound3Test.java",
             // multiplicity audit slice 2: the strictness negative

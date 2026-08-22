@@ -225,7 +225,11 @@ class OwnCorpusConformanceTest {
         // pattern-default was CONFORMED away (required on both surfaces);
         // every remaining class is DECIDED-KEEP or proposed-KEEP there.
         Map<String, Integer> pins = new TreeMap<>(Map.ofEntries(
-                Map.entry("PURE-DIALECT-function-types", 13),
+                // 13 -> 15 (2026-08-21, REVIEWED): the D4 variance pins
+                // (VarianceD4Test, extension host declared in
+                // OwnDialectCensusTest) — the contravariance spec cannot
+                // be written without Function<{...}> parameter signatures
+                Map.entry("PURE-DIALECT-function-types", 15),
                 Map.entry("PURE-DIALECT-generics", 7),
                 Map.entry("DIALECT-milestoning-range", 1),
                 Map.entry("ENGINE-TEST-SCOPED-section", 1),

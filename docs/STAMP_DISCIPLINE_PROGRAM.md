@@ -1506,6 +1506,29 @@ property reads) keeps its NULL cells, because TDSNull is DATA on the
 grid convention (the engine's tdsNull channel). The first draft
 compacted any literal with a lower-0 element and ate a grid cell.
 
+### D4 LANDED: function-slot variance + the subtype cycle guard (DEEP_AUDIT §5b)
+
+- **Contravariant parameter positions** (reference TypeMatch matches
+  params with `!covariant`): the InferenceKernel FunctionType arm SWAPS
+  the unify direction for parameter types — the actual's param must be
+  a SUPERTYPE of the formal's — killing the wrong-accept (an
+  Integer[1] lambda receiving 1.5 → silent 2.5) and the wrong-reject
+  (a Number-taking function refused an Integer-taking slot, the useful
+  case) in one edit. The multiplicity check FLIPS instead of skipping
+  (formal range ⊆ actual range) — still admits the recorded
+  equal(Any[*],Any[*]) comparator doctrine ([1] ⊆ [*]), finally
+  rejects genuinely-wrong widths. UNBOUND formal type/mult VARIABLES
+  keep the binding order (variance is moot for a fresh var; the swap
+  would move it to the non-binding side).
+- **ModelContext.isSubtype gains a visited set**: an inheritance cycle
+  (which the frontend still accepts — D6's leniency batch owns the
+  reject) was a StackOverflowError on the first miss; the guard
+  existed in ancestorsOf but not in the primitive everything calls.
+
+Pins: VarianceD4Test (both directions e2e through eval + the finite
+cycle). Suite 4213/0 with the flip — nothing depended on the inverted
+direction.
+
 ### D3 LANDED: gate integrity (DEEP_AUDIT §11c) — two user rulings
 
 - **Tripwire**: PX.1 now `exit 1`s (it printed FAILED then exit 0 — the

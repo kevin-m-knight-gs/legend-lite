@@ -201,10 +201,37 @@ public final class InferenceKernel {
                         if (formalParam instanceof Type.ClassType c && c.fqn().equals(NIL_FQN)) {
                             continue;   // bottom type: any actual param conforms
                         }
-                        unify(formalParam, af.params().get(i).type(), b);
-                        unifyMult(f.params().get(i).multiplicity(),
-                                af.params().get(i).multiplicity(),
-                                af.params().get(i).type(), b, true);
+                        // CONTRAVARIANT parameter positions (DEEP_AUDIT
+                        // §5b; reference TypeMatch matches params with
+                        // !covariant): the ACTUAL's param must be a
+                        // SUPERTYPE of the formal's — arguments SWAP.
+                        // The old covariant order both wrong-ACCEPTED
+                        // (an Integer[1] lambda receiving 1.5) and
+                        // wrong-REJECTED (Employee[*]->map(Person-fn)).
+                        // An UNBOUND formal type/mult VARIABLE keeps the
+                        // binding order — variance is moot for a fresh
+                        // var and the swap would move it to the
+                        // non-binding side.
+                        if (formalParam instanceof Type.TypeVar) {
+                            unify(formalParam, af.params().get(i).type(), b);
+                        } else {
+                            unify(af.params().get(i).type(), formalParam, b);
+                        }
+                        // the mult check FLIPS instead of skipping
+                        // (formal range must sit INSIDE the actual's —
+                        // still admits the equal(Any[*],Any[*])
+                        // comparator doctrine, [1] ⊆ [*]; rejects a
+                        // [2..3]-taking actual in a [1] slot)
+                        if (f.params().get(i).multiplicity()
+                                instanceof Multiplicity.Var) {
+                            unifyMult(f.params().get(i).multiplicity(),
+                                    af.params().get(i).multiplicity(),
+                                    af.params().get(i).type(), b, true);
+                        } else {
+                            unifyMult(af.params().get(i).multiplicity(),
+                                    f.params().get(i).multiplicity(),
+                                    f.params().get(i).type(), b, false);
+                        }
                     }
                 } finally {
                     b.exitContravariant();

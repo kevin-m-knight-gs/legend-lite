@@ -221,6 +221,17 @@ public interface ModelContext {
      * carried as {@link TypedClass} superclass chains.
      */
     default boolean isSubtype(String childFqn, String parentFqn) {
+        return isSubtype(childFqn, parentFqn, new java.util.HashSet<>());
+    }
+
+    /** The walk with a VISITED set (DEEP_AUDIT §5b: an inheritance
+     * CYCLE — `A extends B` / `B extends A`, which the frontend still
+     * accepts — was a StackOverflowError on the first miss; the guard
+     * existed in InferenceKernel.ancestorsOf but not in the primitive
+     * everything else calls). A revisited node simply contributes no
+     * new ancestors. */
+    private boolean isSubtype(String childFqn, String parentFqn,
+            java.util.Set<String> visited) {
         if (childFqn.equals(parentFqn)) {
             return true;
         }
@@ -231,12 +242,15 @@ public interface ModelContext {
         if (childFqn.equals(com.legend.compiler.element.type.PlatformTypes.NIL)) {
             return true;
         }
+        if (!visited.add(childFqn)) {
+            return false;
+        }
         Optional<TypedClass> child = findClass(childFqn);
         if (child.isEmpty()) {
             return false;
         }
         for (String superFqn : child.get().superClassFqns()) {
-            if (isSubtype(superFqn, parentFqn)) {
+            if (isSubtype(superFqn, parentFqn, visited)) {
                 return true;
             }
         }

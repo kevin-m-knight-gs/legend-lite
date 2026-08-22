@@ -66,7 +66,10 @@ class OwnDialectCensusTest {
                     // hosted zero extension rows — a stale declaration
                     "PureModelContextTest.java",
                     "CleanSheetProtocolShapeTest.java",
-                    "SQLiteIntegrationTest.java");
+                    "SQLiteIntegrationTest.java",
+                    // D4 variance pins (2026-08-21): the contravariance
+                    // spec REQUIRES Function<{...}> parameter signatures
+                    "VarianceD4Test.java");
 
     /** F3.7 per-host accounting, both directions EXACT: membership alone
      *  gave a 3,483-line file unbounded excuse capacity (audit §7.5). A
@@ -100,7 +103,12 @@ class OwnDialectCensusTest {
                     java.util.Map.entry("TdsLambdaProbeTest.java", 1),
                     java.util.Map.entry("TypeCheckerTest.java", 1),
                     java.util.Map.entry("UserCallInlinerTest.java", 1),
-                    java.util.Map.entry("UserFunctionIntegrationTest.java", 6));
+                    java.util.Map.entry("UserFunctionIntegrationTest.java", 6),
+                    // D4 variance pins: the contravariance spec REQUIRES
+                    // function-typed parameter signatures
+                    // (Function<{Number[1]->String[1]}>) — pure-dialect
+                    // grammar, host declared consciously
+                    java.util.Map.entry("VarianceD4Test.java", 2));
 
     private static String hostOf(String id) {
         String f = id.substring(id.lastIndexOf('/') + 1);
