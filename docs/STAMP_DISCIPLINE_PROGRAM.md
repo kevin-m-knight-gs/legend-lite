@@ -2003,3 +2003,13 @@ PureDateLiteral while there.
 
 R2b queue: collection sides (list canon in SQL), assertSameElements
 (canonical ORDER BY), the 27-row grid ledger, tolerance census (R3).
+
+### R2b LANDED: collection sides join the byte verdict
+
+evalCanon's many-stamped sides render CanonicalForm.renderSide in SQL:
+one element = the scalar form, N = '[a, b, c]' via STRING_AGG (the
+input-order contract Render's corpus-proven grid text stands on),
+empty = '[]' — so empty==empty and [3]==3-as-collection hold exactly
+as pure rules them. MEASURED: sql-verdict 983→1083 agree, disagree
+STILL 0, declined 228→128 (remaining: unclaimed kinds — Any-stamped,
+class instances, wire trees, enums — the shrinking R2c ledger).

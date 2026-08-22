@@ -2371,15 +2371,50 @@ final class StatementExecutor {
                 root = fr.source();
             }
             var mult = root.info().multiplicity().requireBounded("canon side");
-            if (mult.upper() == null || mult.upper() > 1) {
-                return null;   // collections are R2b's family
-            }
+            boolean many = mult.upper() == null || mult.upper() > 1;
             com.legend.sql.SqlExpr canon =
                     com.legend.lowering.CanonicalRenderSql.scalarCanon(
                             new com.legend.sql.SqlExpr.Column(null, "value"),
                             root.info().type());
             if (canon == null) {
                 return null;
+            }
+            if (many) {
+                // R2b — the COLLECTION side form (CanonicalForm.renderSide
+                // mirrored in SQL): one element renders as the scalar,
+                // N as '[a, b, c]', empty as '[]'. STRING_AGG rides the
+                // side query's row order — the same input-order contract
+                // Render's corpus-proven grid text stands on.
+                com.legend.sql.SqlExpr n = new com.legend.sql.SqlAgg.Reducer(
+                        com.legend.sql.SqlAgg.Fn.COUNT,
+                        java.util.List.of(new com.legend.sql.SqlExpr.IntLit(1)),
+                        false, java.util.List.of());
+                com.legend.sql.SqlExpr joined = new com.legend.sql.SqlAgg.Reducer(
+                        com.legend.sql.SqlAgg.Fn.STRING_AGG,
+                        java.util.List.of(canon,
+                                new com.legend.sql.SqlExpr.StringLit(", ")),
+                        false, java.util.List.of());
+                com.legend.sql.SqlExpr lone = new com.legend.sql.SqlAgg.Reducer(
+                        com.legend.sql.SqlAgg.Fn.MIN,
+                        java.util.List.of(canon), false, java.util.List.of());
+                canon = new com.legend.sql.SqlExpr.Case(java.util.List.of(
+                        new com.legend.sql.SqlExpr.Case.When(
+                                com.legend.sql.SqlExpr.Call.of(
+                                        com.legend.sql.SqlFn.EQUAL, n,
+                                        new com.legend.sql.SqlExpr.IntLit(0)),
+                                new com.legend.sql.SqlExpr.StringLit("[]")),
+                        new com.legend.sql.SqlExpr.Case.When(
+                                com.legend.sql.SqlExpr.Call.of(
+                                        com.legend.sql.SqlFn.EQUAL, n,
+                                        new com.legend.sql.SqlExpr.IntLit(1)),
+                                lone)),
+                        com.legend.sql.SqlExpr.Call.of(
+                                com.legend.sql.SqlFn.CONCAT,
+                                com.legend.sql.SqlExpr.Call.of(
+                                        com.legend.sql.SqlFn.CONCAT,
+                                        new com.legend.sql.SqlExpr.StringLit("["),
+                                        joined),
+                                new com.legend.sql.SqlExpr.StringLit("]")));
             }
             com.legend.sql.dialect.SqlDialect dialect = env.dialect();
             com.legend.sql.SqlQuery plan = lowerAndPrepare(body, env,
