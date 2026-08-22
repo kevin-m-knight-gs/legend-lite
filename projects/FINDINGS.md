@@ -84,18 +84,27 @@ corrections rather than quietly dropping:
   one property BOTH ways — which is what happens when a project copies the shape of a
   dependency that chose the other style. Two projects hit this, and neither could have known
   without reading the other's source rather than its manifest.
-* **A multi-hop navigation across the boundary into a plain-property edge fails.** Attempted
-  and REVERTED, so this is an observation rather than a result. Linking core-calendar and
-  core-units and then navigating `corpusExchange.projectMarket.calendar.calendarId` -- two
-  hops, the second onto a property mapped as `prop[setId]: [db]@Join` rather than as an
-  Association -- fails at test-suite initialisation with `Void not supported!`, the same
-  anonymous assertion as F49. A ONE-hop navigation of the same edge style works: PL1 does it
-  and passes. Rooting at a class whose table lives in a project SCHEMA fails the same way.
+* **`Void not supported!` when linking a project — cause still unknown, and my first
+  explanation was wrong.** Linking core-calendar and core-units into the executable corpus
+  and navigating across failed at test-suite initialisation with
+  `meta::pure::router::store::routing::Void not supported!`, naming nothing. I recorded that
+  as hop count or a schema. `scripts/corpus/probe_boundary_navigation.py` rules out both,
+  and two more besides — fourteen cases over an upstream/downstream pair, every one PASSING:
 
-  Not reported as a finding, because two candidate causes are still tangled -- hop count and
-  the schema -- and separating them is a probe nobody has written yet. Recorded because the
-  next person to link a project with a schema or a plain-property edge will hit it, and the
-  message names nothing.
+  | ruled out | cases |
+  | --- | --- |
+  | hop count | one hop and two hops across the boundary, all four edge-style combinations |
+  | schema | a dependency table inside a `Schema` block, reached at one hop and at two |
+  | edge style | `Association` with mapped ends, and a class-typed property over a join |
+  | a missing `~primaryKey` | a downstream set declaring only `~mainTable`, as much of the corpus does |
+
+  So it is none of those ALONE. What is left is something about the corpus specifically —
+  its scale, or an interaction with one of its ~170 included mappings — and that is not
+  something a small model reproduces by construction.
+
+  The probe is kept because ruling four things out is most of the work of finding the fifth,
+  and because the next person will otherwise start from the same four guesses. Not reported
+  upstream: an unreproducible error with a wrong first explanation is not a finding.
 
 * **The same column is two widths on either side of a join.** `INSTRUMENT_ID` is `VARCHAR(60)`
   in position-keeping and `VARCHAR(20)` in valuation-core; the join across them compiles.
