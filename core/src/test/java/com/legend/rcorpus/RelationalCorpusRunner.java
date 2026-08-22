@@ -664,7 +664,17 @@ public class RelationalCorpusRunner {
                                     .disagreeCount() <= 27,
                             "canonical-byte divergence grew: "
                                     + com.legend.exec.CanonicalDivergence
-                                            .summary() + " (pin 27)"));
+                                            .summary() + " (pin 27)"),
+                    // V1 (OPEN_REGISTER): the DUAL-VERDICT alarm — the
+                    // DB byte verdict and the host referee may NEVER
+                    // disagree silently; any disagreement fails the
+                    // sweep with the census line
+                    () -> org.junit.jupiter.api.Assertions.assertTrue(
+                            com.legend.exec.CanonicalDivergence
+                                    .sqlDisagreeCount() == 0,
+                            "DUAL-VERDICT DISAGREEMENT: "
+                                    + com.legend.exec.CanonicalDivergence
+                                            .summary()));
             System.out.println("[rcorpus] soft ceilings: sqldiff " + softDiff
                     + "/257, adv " + softAdv + "/303, 0-asserts " + softZero
                     + "/27, rescued " + softRescued + "/613");

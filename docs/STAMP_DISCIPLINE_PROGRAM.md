@@ -2013,3 +2013,31 @@ empty = '[]' — so empty==empty and [3]==3-as-collection hold exactly
 as pure rules them. MEASURED: sql-verdict 983→1083 agree, disagree
 STILL 0, declined 228→128 (remaining: unclaimed kinds — Any-stamped,
 class instances, wire trees, enums — the shrinking R2c ledger).
+
+### V1–V5 LANDED: the register, the alarm, and two more families
+
+docs/OPEN_REGISTER.md is now THE one list of every open item (rows
+move to CLOSED in the closing commit — maintenance is part of every
+slice's definition of done). Hygiene: the DUAL-VERDICT ALARM is pinned
+(sqlDisagreeCount == 0 asserted in all five ChannelB suites AND the
+corpus runner — a silent host/DB disagreement is now impossible);
+evalCanon's broad catch adjudicated into the error-shape register (the
+decline tunnel, counted); ArchUnit V3 pins host-verdict classes
+reachable ONLY from the verdict/referee seam (one legit dependent
+found and registered: JsonCompare, the one wire-tree walker).
+
+V4: assertSameElements joined the byte verdict — both sides aggregate
+ORDER BY canon text in the DATABASE (any consistent total order proves
+multiset equality). V5: assertEq joined (identity rule still walls
+loud first). THE ALARM EARNED ITS KEEP ON ROUND ONE: it caught
+parseFloat('-000.000') → -0.0, where pure grants 0.0 == -0.0 but the
+renders differed — adjudicated as ZEROS UNIFY (spec §2/§4 amendment:
+equality binds the canonical form; negative zero moved INTO the
+claimed domain with its first witness, H6's zero-witness claim
+retired).
+
+CENSUS: sql-verdict agree 1083→1376, disagree 0, declined 207;
+R1a residue 27→26 (the negative zero became agreement). Families
+DB-decided: assertEquals, assertNotEquals, assertSameElements,
+assertEq. Next: the 207 declines burn (V6), then the decoupled-PCT
+completion burn on a finished verdict system.

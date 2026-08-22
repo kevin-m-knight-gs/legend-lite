@@ -65,7 +65,10 @@ class CanonicalFormTest {
     void residues() {
         assertEquals("non-finite-float", residue(Double.NaN));
         assertEquals("non-finite-float", residue(Double.POSITIVE_INFINITY));
-        assertEquals("negative-zero", residue(-0.0));
+        // zeros UNIFY (spec §3 — pure grants 0.0 == -0.0; witness
+        // parseFloat('-000.000') from the PCT relational lane)
+        assertEquals("0.0", text(-0.0));
+        assertEquals("0.0", text(0.0));
     }
 
     /** H1 temporals over THE wire carrier (PureDateLiteral, D-arc):

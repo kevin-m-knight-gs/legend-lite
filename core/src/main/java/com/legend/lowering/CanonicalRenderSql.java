@@ -76,6 +76,13 @@ public final class CanonicalRenderSql {
                 new SqlExpr.Cast(v, new SqlType.Decimal(38, 18)),
                 SqlType.Scalar.VARCHAR)), ".0");
         return new SqlExpr.Case(List.of(
+                // ZEROS UNIFY (spec §3, witness parseFloat('-000.000')):
+                // pure grants 0.0 == -0.0, so the canonical render of
+                // every zero is '0.0' — SQL's v = 0 catches both signs
+                new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.EQUAL, v,
+                                new SqlExpr.FloatLit(0.0)),
+                        new SqlExpr.StringLit("0.0")),
                 new SqlExpr.Case.When(has(base, "e"), unfolded),
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.NOT,
                         has(base, ".")),

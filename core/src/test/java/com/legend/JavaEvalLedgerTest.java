@@ -195,7 +195,10 @@ class JavaEvalLedgerTest {
             // database — the ledger's own direction — plus the counted
             // decline/divergence census hooks; zero new value
             // evaluation.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 455),
+            // 455→486 (2026-08-22 V4/V5): assertSameElements (canonical
+            // ORDER BY multiset byte verdict) and assertEq join the DB
+            // verdict of record — same routing shape, same census.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 486),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

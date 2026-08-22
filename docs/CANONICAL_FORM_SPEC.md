@@ -104,3 +104,16 @@ Each family cutover DELETES its verdict-affecting host arms in the
 same slice (eval-ledger pins DOWN every commit); PureAsserts moves to
 the referee as the permanent parallel host verdict, disagreement
 census pinned 0 shrink-only.
+
+## Amendments
+
+- **§3 kind qualification (R1a follow-on, 2026-08-22):** the byte
+  compare is over (kindClass, text) pairs — the render alone is not
+  injective across kinds (String "8" vs Integer 8). The numeric tower
+  is ONE kind class.
+- **§2/§4 zeros unify (2026-08-22, witness parseFloat('-000.000') via
+  the PCT relational lane):** pure grants 0.0 == -0.0, so the
+  canonical Float render of EVERY zero is "0.0" — negative zero moved
+  from residue INTO the claimed domain, unified. Same ruling shape as
+  integral Decimal: where print and equality conflict, equality binds
+  the canonical form.

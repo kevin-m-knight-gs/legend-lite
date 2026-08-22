@@ -81,6 +81,12 @@ class ErrorShapeGuardrailTest {
             // the seedability trial-lowering probe — broad by design,
             // reviewed 2026-08-21 (see the catch-site comment)
             Map.entry("SeedableLets.java", 1),
+            // V2 (OPEN_REGISTER, adjudicated 2026-08-22): evalCanon's
+            // DECLINE TUNNEL — a side the SQL byte channel cannot
+            // lower/execute falls back to the host lattice; the decline
+            // is COUNTED (CanonicalDivergence.sqlDeclined) so the broad
+            // catch can never become a silent rescue. The pin slot
+            // previously belonged to a deleted catch; re-earned here.
             Map.entry("StatementExecutor.java", 1),
             Map.entry("StaticFold.java", 1),
             Map.entry("EngineTestExecutor.java", 3),

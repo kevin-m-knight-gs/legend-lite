@@ -107,8 +107,12 @@ public final class CanonicalForm {
         if (!Double.isFinite(d)) {
             return new Result.Residue("non-finite-float");
         }
-        if (d == 0.0 && Double.doubleToRawLongBits(d) != 0L) {
-            return new Result.Residue("negative-zero");
+        if (d == 0.0) {
+            // ZEROS UNIFY (spec §3; witness parseFloat('-000.000') —
+            // pure grants 0.0 == -0.0, so the byte channel must render
+            // both '0.0'; the old negative-zero residue predated the
+            // witness)
+            return new Result.Text("0.0");
         }
         String plain = BigDecimal.valueOf(d).toPlainString();
         // integral doubles keep .0 (Double.toString gives "17.0");

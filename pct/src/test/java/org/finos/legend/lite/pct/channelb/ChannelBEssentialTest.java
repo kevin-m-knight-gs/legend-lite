@@ -142,6 +142,14 @@ class ChannelBEssentialTest {
         // agreement GROWS only.
         assertTrue(agreePass >= 288, "AGREE-PASS fell: " + agreePass);
         assertTrue(wireBug <= 11, "WIRE-BUG census grew: " + wireBug);
+        // V1 (OPEN_REGISTER): THE DUAL-VERDICT ALARM — the DB byte
+        // verdict of record and the host-lattice referee may never
+        // disagree silently; a disagreement fails the suite with the
+        // census line (CANONICAL_FORM_SPEC §0, ratified design).
+        assertTrue(com.legend.exec.CanonicalDivergence.sqlDisagreeCount() == 0,
+                "DUAL-VERDICT DISAGREEMENT: "
+                        + com.legend.exec.CanonicalDivergence.summary());
+
         // THE PHASE-4 MILESTONE NUMBER: rows OUR platform fails that BOTH
         // reference channels pass. ZERO (2026-08-19) — every remaining
         // failure is corroborated by a reference channel. Stays zero.

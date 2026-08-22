@@ -121,7 +121,7 @@ final class AssertVerdicts {
                 // (collection side, unclaimed kind, lowering refusal)
                 // is counted and the host verdict judges.
                 Boolean byteVerdict = sqlByteVerdict(args.get(0),
-                        args.get(1), letPrefix, specs, env);
+                        args.get(1), letPrefix, specs, env, false);
                 if (byteVerdict == null) {
                     com.legend.exec.CanonicalDivergence.sqlDeclined();
                 } else {
@@ -152,7 +152,25 @@ final class AssertVerdicts {
                 String d = PureAsserts.assertSameElements(e, a);
                 com.legend.exec.CanonicalDivergence.probeSameElements(
                         e, a, d == null);
-                return d == null ? ok() : fail(d);
+                // V4 — the multiset BYTE VERDICT OF RECORD: both sides
+                // aggregate ORDER BY canon text in the DATABASE; the
+                // host multiset judgment above is the parallel referee.
+                Boolean byteVerdict = sqlByteVerdict(args.get(0),
+                        args.get(1), letPrefix, specs, env, true);
+                if (byteVerdict == null) {
+                    com.legend.exec.CanonicalDivergence.sqlDeclined();
+                } else {
+                    com.legend.exec.CanonicalDivergence.probeSqlVerdict(
+                            "assertSameElements", d == null, byteVerdict);
+                }
+                boolean held = byteVerdict != null ? byteVerdict : d == null;
+                if (held) {
+                    return ok();
+                }
+                return fail(d != null ? d
+                        : "byte-verdict: canonical sorted renders differ"
+                                + " (host multiset agreed — dual-verdict"
+                                + " divergence, see [canon] census)");
             }
             case "assertSize" -> {
                 if (args.size() < 2) {
@@ -173,11 +191,30 @@ final class AssertVerdicts {
                         "assertEq expected");
                 Object aa = one(side(args.get(1), letPrefix, specs, env),
                         "assertEq actual");
+                // host judgment FIRST: eq's non-primitive identity rule
+                // throws LOUD here (P2-5) before any byte verdict
                 String d = PureAsserts.assertEq(ee, aa);
                 com.legend.exec.CanonicalDivergence.probeEqual("assertEq",
                         java.util.Collections.singletonList(ee),
                         java.util.Collections.singletonList(aa), d == null);
-                return d == null ? ok() : fail(d);
+                // V5 — byte verdict of record (primitive eq coincides
+                // with equal; the identity rule already walled above)
+                Boolean byteVerdict = sqlByteVerdict(args.get(0),
+                        args.get(1), letPrefix, specs, env, false);
+                if (byteVerdict == null) {
+                    com.legend.exec.CanonicalDivergence.sqlDeclined();
+                } else {
+                    com.legend.exec.CanonicalDivergence.probeSqlVerdict(
+                            "assertEq", d == null, byteVerdict);
+                }
+                boolean held = byteVerdict != null ? byteVerdict : d == null;
+                if (held) {
+                    return ok();
+                }
+                return fail(d != null ? d
+                        : "byte-verdict: canonical renders differ (host"
+                                + " lattice agreed — dual-verdict divergence,"
+                                + " see [canon] census)");
             }
             case "assertEqWithinTolerance" -> {
                 if (args.size() < 3) {
@@ -444,19 +481,20 @@ final class AssertVerdicts {
      * fails — pure's own rule). */
     private static @com.legend.Nullable Boolean sqlByteVerdict(
             TypedSpec eSpec, TypedSpec aSpec, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env) {
+            SpecCompiler specs, StatementExecutor.ExecEnv env,
+            boolean canonicalOrder) {
         String ke = kindClassOf(eSpec.info().type());
         String ka = kindClassOf(aSpec.info().type());
         if (ke == null || ka == null || !ke.equals(ka)) {
             return null;
         }
         StatementExecutor.Canon ce = StatementExecutor.evalCanon(
-                eSpec, letPrefix, specs, env);
+                eSpec, letPrefix, specs, env, canonicalOrder);
         if (ce == null) {
             return null;
         }
         StatementExecutor.Canon ca = StatementExecutor.evalCanon(
-                aSpec, letPrefix, specs, env);
+                aSpec, letPrefix, specs, env, canonicalOrder);
         if (ca == null) {
             return null;
         }

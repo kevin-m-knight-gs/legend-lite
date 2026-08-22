@@ -2356,6 +2356,17 @@ final class StatementExecutor {
     static StatementExecutor.@com.legend.Nullable Canon evalCanon(
             TypedSpec value, java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
+        return evalCanon(value, letPrefix, specs, env, false);
+    }
+
+    /** {@code canonicalOrder}: multiset verdicts (assertSameElements)
+     * aggregate elements ORDER BY their canon text — any consistent
+     * total order proves multiset equality; text order is the SQL
+     * spelling of the census's sorted-renders stand-in. */
+    static StatementExecutor.@com.legend.Nullable Canon evalCanon(
+            TypedSpec value, java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
+            boolean canonicalOrder) {
         try {
             java.util.List<TypedSpec> single =
                     new java.util.ArrayList<>(letPrefix);
@@ -2393,7 +2404,11 @@ final class StatementExecutor {
                         com.legend.sql.SqlAgg.Fn.STRING_AGG,
                         java.util.List.of(canon,
                                 new com.legend.sql.SqlExpr.StringLit(", ")),
-                        false, java.util.List.of());
+                        false, canonicalOrder
+                                ? java.util.List.of(
+                                        new com.legend.sql.SqlSelect.SortKey(
+                                                canon, true, null, null))
+                                : java.util.List.of());
                 com.legend.sql.SqlExpr lone = new com.legend.sql.SqlAgg.Reducer(
                         com.legend.sql.SqlAgg.Fn.MIN,
                         java.util.List.of(canon), false, java.util.List.of());
