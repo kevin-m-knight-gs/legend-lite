@@ -59,7 +59,12 @@ class   CarrierPurityRatchetTest {
             // 35→36 (audit slice 4): distinct's to-one guard — the
             // same one-element re-carrier its synonym removeDuplicates
             // always had (a [0..1] value hit the list-lambda binder).
-            "new SqlExpr\\.ArrayLit\\(", 36,
+            // 36→38 (2026-08-22 X5): the keyed-instance canon's TWO
+            // empty-list normalizers (COALESCE(list_transform(...), []) —
+            // NULL and empty are both the EMPTY key collection, engine
+            // equal([],[]) TRUE). Verdict-lane only, same F3/F10
+            // migration note as the LIST_ row above.
+            "new SqlExpr\\.ArrayLit\\(", 38,
             "new SqlExpr\\.OrderedListAgg\\(", 1,
             // 136→137 (2026-08-19): ListEncodings.map's LIST_GET — the
             // map SEMANTIC NODE's wire-shape rule (a to-one result
@@ -90,10 +95,17 @@ class   CarrierPurityRatchetTest {
             // metadata (function facts live on the enum, outside the
             // pre-dialect ban zone) and the dissolved ListShapes' dead
             // arms took their references with them.
+            // 127→129 (2026-08-22 X5): TWO sites in the keyed-instance
+            // canon (CanonicalRenderSql — list_transform over key-value
+            // collections). VERDICT-LANE ONLY, never product data flow:
+            // a dialect without the carrier fails the wrapped query and
+            // the canon-exec tunnel declines, counted — a wrong verdict
+            // is impossible. Migrates to the carrier strategy with
+            // F3/F10 (the H2 list-encoding leg).
             // 129→127 (D1): checkedExtract's guard spelling moved INTO the
             // renderer behind the CheckedOne SEMANTIC NODE — the exact
             // re-absorption its justification promised.
-            "SqlFn\\.LIST_", 127,
+            "SqlFn\\.LIST_", 129,
             "SqlFn\\.UNNEST", 12,
             // the collect-carrier reducer (R1 recognizes it for fusion;
             // burns with R3/R4 when sources/values migrate)

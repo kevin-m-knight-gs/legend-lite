@@ -821,6 +821,24 @@ public class AnsiSqlRenderer implements SqlDialect {
     }
 
     protected String stringLit(String value) {
+        // a raw NUL byte in the STATEMENT TEXT kills the SQL lexer
+        // ("unterminated quoted string") even though the VARCHAR value
+        // domain holds NUL fine (user-verified 2026-08-22: chr(0)
+        // concatenates, lengths, and compares exactly) — the spelling
+        // splices chr(0) between quoted segments. -1 keeps trailing
+        // empty segments so 'a\0' round-trips.
+        if (value.indexOf('\u0000') >= 0) {
+            String[] parts = value.split("\u0000", -1);
+            StringBuilder sb = new StringBuilder("(");
+            for (int i = 0; i < parts.length; i++) {
+                if (i > 0) {
+                    sb.append(" || chr(0) || ");
+                }
+                sb.append('\'').append(parts[i].replace("'", "''"))
+                        .append('\'');
+            }
+            return sb.append(')').toString();
+        }
         return "'" + value.replace("'", "''") + "'";
     }
 

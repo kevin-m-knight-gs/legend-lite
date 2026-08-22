@@ -92,4 +92,71 @@ class SqlCanonConformanceTest {
             return rs.getString(1);
         }
     }
+
+    @Test
+    void keyedInstanceCanonAgrees() throws Exception {
+        // X5 pin — the keyed-instance canon: JSON framing (escaping-
+        // safe), '_type' carries the classifier, leaves are PURE
+        // LITERAL SPELLINGS (bare 1, quoted 'a, b' — the engine's own
+        // kind-in-text grammar, no invented tags). Key order = model
+        // order.
+        var keys = new com.legend.compiler.element.EqualityKeys(
+                "meta::pure::functions::collection::Pair",
+                java.util.List.of(
+                        new com.legend.compiler.element.EqualityKeys.Key(
+                                "first", false, null),
+                        new com.legend.compiler.element.EqualityKeys.Key(
+                                "second", false, null)));
+        SqlType layout = new SqlType.Struct(java.util.List.of(
+                new SqlType.Struct.Field("first", SqlType.Scalar.BIGINT),
+                new SqlType.Struct.Field("second", SqlType.Scalar.VARCHAR)));
+        SqlExpr v = new SqlExpr.StructLit(java.util.List.of(
+                new SqlExpr.StructLit.Field("first", new SqlExpr.IntLit(1)),
+                new SqlExpr.StructLit.Field("second",
+                        new SqlExpr.StringLit("a, b"))));
+        SqlExpr canon = java.util.Objects.requireNonNull(
+                CanonicalRenderSql.instanceCanon(v, keys, layout));
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+            assertEquals("{\"_type\":\"meta::pure::functions::collection"
+                    + "::Pair\",\"first\":\"1\",\"second\":\"'a, b'\"}",
+                    dbText(c, new SqlExpr.Cast(canon,
+                            SqlType.Scalar.VARCHAR)));
+        }
+    }
+
+    @Test
+    void listCarrierCanonAgrees() throws Exception {
+        // the bare-array carrier (List<T>): the SQL value IS the one
+        // to-many key's collection; empty and NULL both render []
+        var keys = new com.legend.compiler.element.EqualityKeys(
+                "meta::pure::functions::collection::List",
+                java.util.List.of(
+                        new com.legend.compiler.element.EqualityKeys.Key(
+                                "values", true, null)));
+        SqlExpr v = new SqlExpr.ArrayLit(java.util.List.of(
+                new SqlExpr.IntLit(1), new SqlExpr.IntLit(2)));
+        SqlExpr canon = java.util.Objects.requireNonNull(
+                CanonicalRenderSql.instanceCanon(v, keys,
+                        new SqlType.Array(SqlType.Scalar.BIGINT)));
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+            assertEquals("{\"_type\":\"meta::pure::functions::collection"
+                    + "::List\",\"values\":[\"1\",\"2\"]}",
+                    dbText(c, new SqlExpr.Cast(canon,
+                            SqlType.Scalar.VARCHAR)));
+        }
+    }
+
+    private static String dbText(Connection c, SqlExpr expr)
+            throws Exception {
+        SqlSelect q = new SqlSelect(
+                List.of(new SqlSelect.Projection(expr, "t")),
+                false, new SqlSource.Dual(), null, List.of(), null, null,
+                List.of(), null, null,
+                List.of(new OutputCol("t", SqlType.Scalar.VARCHAR, true)));
+        try (Statement st = c.createStatement();
+                ResultSet rs = st.executeQuery(new DuckDb().render(q))) {
+            rs.next();
+            return rs.getString(1);
+        }
+    }
 }

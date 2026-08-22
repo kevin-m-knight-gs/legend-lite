@@ -99,7 +99,14 @@ class ChannelBStandardTest {
         // CANONICAL_FORM_SPEC §4, + a handful of unrefinable Number
         // stamps). Shrink-only: a NEW undeclared decline family fails
         // here and must be claimed or declared.
-        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 100,
+        // 100 -> 45 BANKED DOWN (2026-08-22 X5): keyed-instance byte
+        // verdicts (equality.Key canon — JSON framing, kind-tagged
+        // leaves, Pair struct + List array carriers) and the Nil/empty
+        // claim ('[]' canon unification) burned the class-instance and
+        // empty-side buckets; the remainder is the NAMED boundary
+        // (Map/mapEquals, Any wire trees, keyless classes,
+        // mixed-identity F10, NUL literal).
+        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 45,
                 "byte-verdict declines grew past the declared residue: "
                         + com.legend.exec.CanonicalDivergence.summary());
 

@@ -99,10 +99,15 @@ not as a fallback); the host shadows every DB verdict as the permanent
 referee. Declines are a boundary census, NOT debt — each lands in one
 of three tiers:
 
-- **Tier A — outside the DB's VALUE domain (hard edges, no fix):**
-  NUL-bearing strings (DuckDB VARCHAR is NUL-free — the literal fails
-  in the DB's own parser; witness testEmptyChar); decimals beyond 38
-  significant digits / integers beyond HUGEINT as native kinds.
+- **Tier A — no NATIVE type (nearly empty once carriers are allowed):**
+  decimals beyond 38 significant digits / integers beyond HUGEINT as
+  native kinds (text-encodable, so even these are Tier-B-with-work).
+  NUL-bearing strings turned out to be NEITHER tier (user catches
+  2026-08-22, twice): DuckDB VARCHAR holds NUL fine — the failure was
+  our StringLit renderer putting the raw byte into statement text
+  (lexer death). FIXED at the spelling (chr(0) splice). A "Tier A"
+  claim should be re-verified against the DB's actual value domain
+  before it is believed.
 - **Tier B — erased by SQL's TYPE system but encodable as data
   (CLAIMABLE; the pattern is proven):** per-element kind variance
   (mixed collections, if-branch CASE promotion, the print-form

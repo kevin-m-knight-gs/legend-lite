@@ -91,25 +91,58 @@ public final class CanonicalRenderSql {
 
     public static CanonWrap wrapWithCanon(com.legend.sql.SqlQuery plan,
             com.legend.compiler.element.type.ExprType rootInfo,
-            boolean canonicalOrder) {
+            boolean canonicalOrder,
+            com.legend.compiler.element.@com.legend.Nullable EqualityKeys
+                    instanceKeys) {
         if (plan.outputs().size() != 1) {
             return CanonWrap.decline(plan, "non-scalar plan shape: "
                     + plan.outputs().size() + " columns");
         }
         Type t = rootInfo.type();
-        List<Type> candidates = t == Type.Primitive.NUMBER
-                ? List.of(Type.Primitive.INTEGER, Type.Primitive.FLOAT,
-                        Type.Primitive.DECIMAL)
-                : List.of(t);
         com.legend.sql.OutputCol valueCol = plan.outputs().get(0);
         SqlExpr valueRef = new SqlExpr.Column(null, valueCol.name());
-        List<SqlExpr> canons = new java.util.ArrayList<>(candidates.size());
-        for (Type k : candidates) {
-            SqlExpr c = scalarCanon(valueRef, k);
-            if (c == null) {
-                return CanonWrap.decline(plan, "unclaimed kind: " + k);
+        List<Type> candidates;
+        List<SqlExpr> canons = new java.util.ArrayList<>();
+        String instFqn = com.legend.compiler.element.EqualityKeys.fqnOf(t);
+        if (instFqn != null
+                && com.legend.compiler.element.type.PlatformTypes.isNil(t)) {
+            // the []-born BOTTOM type: a Nil side is the EMPTY value —
+            // zero rows, the canon column is never read (the frame's
+            // empty rule renders '[]'); claim with a placeholder
+            candidates = List.of(t);
+            canons.add(new SqlExpr.NullLit());
+        } else if (instFqn != null) {
+            // X5 — a KEYED instance side: the canon is the key-property
+            // render (EqualityUtilities compares keyed classes by key
+            // properties only), compiled from the model. The DRIVER
+            // resolved the key tree — lowering stays model-free
+            // (Invariant 6h, same inversion as CanonWrap itself).
+            if (instanceKeys == null) {
+                return CanonWrap.decline(plan,
+                        "keyless-instance: " + instFqn);
             }
-            canons.add(c);
+            SqlExpr c = instanceCanon(valueRef, instanceKeys,
+                    valueCol.type());
+            if (c == null) {
+                return CanonWrap.decline(plan,
+                        "instance-key-shape: " + instFqn);
+            }
+            candidates = List.of(t);
+            // the ROOT canon is byte text (nested levels stay
+            // JSON-typed so they embed structurally)
+            canons.add(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
+        } else {
+            candidates = t == Type.Primitive.NUMBER
+                    ? List.of(Type.Primitive.INTEGER, Type.Primitive.FLOAT,
+                            Type.Primitive.DECIMAL)
+                    : List.of(t);
+            for (Type k : candidates) {
+                SqlExpr c = scalarCanon(valueRef, k);
+                if (c == null) {
+                    return CanonWrap.decline(plan, "unclaimed kind: " + k);
+                }
+                canons.add(c);
+            }
         }
         if (canonicalOrder && canons.size() > 1) {
             return CanonWrap.decline(plan,
@@ -138,6 +171,186 @@ public final class CanonicalRenderSql {
                 new com.legend.sql.SqlSource.Subselect(plan, "side", null),
                 null, List.of(), null, null, sort, null, null, outputs),
                 candidates, many, null);
+    }
+
+    /**
+     * X5 — the KEYED-INSTANCE canon: {@code Fqn(k1, k2, ...)} over the
+     * struct column's key fields, in the model's key order. The
+     * SPELLING of each leaf comes from the struct LAYOUT's field SQL
+     * type (the layout was built from the concrete lowered values, so
+     * it carries what the erased ClassType stamp cannot — the V11
+     * doctrine: SQL types pick the recipe, runtime values gate the
+     * rule); each leaf is KIND-TAGGED ('i:8' vs 'd:8') so cross-kind
+     * key values can never byte-collide — the engine's same-primitive-
+     * kind rule one level down. An empty [0..1] key value renders '[]'
+     * (the engine compares key VALUE COLLECTIONS — empty equals
+     * empty); a NULL instance cell stays NULL (EMPTY side semantics).
+     * Null = unclaimed shape (to-many key, unknown field, unclaimable
+     * leaf kind) — the caller declines, counted.
+     */
+    static @com.legend.Nullable SqlExpr instanceCanon(SqlExpr v,
+            com.legend.compiler.element.EqualityKeys keys, SqlType layout) {
+        // the BARE-ARRAY carrier (List<T>): the SQL value IS the one
+        // to-many key's collection (PureSql — List travels as an array,
+        // never a struct), so the key reads the value itself
+        if (layout instanceof SqlType.Array at
+                && keys.keys().size() == 1 && keys.keys().get(0).many()) {
+            var k = keys.keys().get(0);
+            SqlExpr leaf = taggedLeaf(new SqlExpr.Column(null, "__e"),
+                    at.element(), k.nested());
+            if (leaf == null) {
+                return null;
+            }
+            SqlExpr arr = SqlExpr.Call.of(SqlFn.COALESCE,
+                    SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, v,
+                            new SqlExpr.Lambda(List.of("__e"), leaf)),
+                    new SqlExpr.ArrayLit(List.of()));
+            return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                    SqlExpr.Call.of(SqlFn.IS_NULL, v),
+                    new SqlExpr.NullLit())),
+                    new SqlExpr.JsonObject(List.of(
+                            new SqlExpr.StringLit("_type"),
+                            new SqlExpr.StringLit(keys.classFqn()),
+                            new SqlExpr.StringLit(k.name()), arr)));
+        }
+        if (!(layout instanceof SqlType.Struct st)) {
+            return null;
+        }
+        // JSON is the FRAMING, never the SPELLING (user ruling
+        // 2026-08-22): every leaf value is OUR canonical string —
+        // json_object contributes structure and escaping only, so
+        // distinct key values can never collide ('a, b' vs 'a','b' —
+        // the concat-framing ambiguity class is dead here). '_type'
+        // carries the classifier FQN in the bytes themselves (the
+        // engine's classifier-must-match rule rides the text, not just
+        // the stamp gate). Nested keyed instances nest as JSON objects
+        // (JSON-typed values embed structurally, no double-escaping);
+        // to-many keys (List.values) are arrays of leaf canons via
+        // list_transform — the engine compares key value COLLECTIONS
+        // under the ordered list rule, which is exactly JSON array
+        // equality over the element texts.
+        List<SqlExpr> kv = new java.util.ArrayList<>();
+        kv.add(new SqlExpr.StringLit("_type"));
+        kv.add(new SqlExpr.StringLit(keys.classFqn()));
+        for (var k : keys.keys()) {
+            SqlType ft = st.fields().stream()
+                    .filter(f -> f.name().equals(k.name()))
+                    .map(SqlType.Struct.Field::type)
+                    .findFirst().orElse(null);
+            SqlExpr field = new SqlExpr.StructGet(v, k.name());
+            SqlExpr c;
+            if (k.many()) {
+                SqlType elem = ft instanceof SqlType.Array at
+                        ? at.element() : null;
+                SqlExpr leaf = elem == null ? null
+                        : taggedLeaf(new SqlExpr.Column(null, "__e"),
+                                elem, k.nested());
+                if (leaf == null) {
+                    return null;
+                }
+                // NULL and empty are both the EMPTY key collection
+                // (engine: empty equals empty) — normalize to []
+                c = SqlExpr.Call.of(SqlFn.COALESCE,
+                        SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, field,
+                                new SqlExpr.Lambda(List.of("__e"), leaf)),
+                        new SqlExpr.ArrayLit(List.of()));
+            } else if (ft == null) {
+                return null;
+            } else {
+                c = taggedLeaf(field, ft, k.nested());
+                if (c == null) {
+                    return null;
+                }
+                // an empty [0..1] key value is the EMPTY collection —
+                // renderSide '[]' (engine: empty equals empty)
+                c = SqlExpr.Call.of(SqlFn.COALESCE, c,
+                        new SqlExpr.StringLit("[]"));
+            }
+            kv.add(new SqlExpr.StringLit(k.name()));
+            kv.add(c);
+        }
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.IS_NULL, v),
+                new SqlExpr.NullLit())),
+                new SqlExpr.JsonObject(kv));
+    }
+
+    /** One key LEAF: a nested keyed instance recurses (JSON-typed,
+     * nests structurally); a scalar renders as PURE'S OWN LITERAL
+     * SPELLING (user ruling 2026-08-22 — no invented tag micro-format:
+     * the engine's grammar already carries kind in text). Integer is
+     * bare ({@code 1}), Float always has its point ({@code 1.0}),
+     * Decimal keeps its D suffix ({@code 8.00D}), String is
+     * pure-quoted with pure escaping ({@code 'a, b'}, {@code 'it\\'s'}),
+     * Boolean is bare, temporals carry pure's {@code %} prefix — six
+     * disjoint spellings, the engine's same-primitive-kind rule
+     * carried by engine syntax. */
+    private static @com.legend.Nullable SqlExpr taggedLeaf(SqlExpr field,
+            SqlType ft,
+            com.legend.compiler.element.@com.legend.Nullable EqualityKeys
+                    nested) {
+        if (nested != null) {
+            return instanceCanon(field, nested, ft);
+        }
+        Type kind = kindOfSqlType(ft);
+        if (kind == null) {
+            return null;
+        }
+        SqlExpr leaf = scalarCanon(field, kind);
+        if (leaf == null) {
+            return null;
+        }
+        if (kind == Type.Primitive.STRING) {
+            // pure string literal: backslash then quote escape, quoted
+            SqlExpr escaped = SqlExpr.Call.of(SqlFn.REPLACE,
+                    SqlExpr.Call.of(SqlFn.REPLACE, leaf,
+                            new SqlExpr.StringLit("\\"),
+                            new SqlExpr.StringLit("\\\\")),
+                    new SqlExpr.StringLit("'"),
+                    new SqlExpr.StringLit("\\'"));
+            return SqlExpr.Call.of(SqlFn.CONCAT,
+                    SqlExpr.Call.of(SqlFn.CONCAT,
+                            new SqlExpr.StringLit("'"), escaped),
+                    new SqlExpr.StringLit("'"));
+        }
+        if (kind == Type.Primitive.DECIMAL) {
+            return SqlExpr.Call.of(SqlFn.CONCAT, leaf,
+                    new SqlExpr.StringLit("D"));
+        }
+        if (kind == Type.Primitive.STRICT_DATE
+                || kind == Type.Primitive.DATE_TIME) {
+            return SqlExpr.Call.of(SqlFn.CONCAT,
+                    new SqlExpr.StringLit("%"), leaf);
+        }
+        return leaf;   // Integer bare, Float with its point, Boolean bare
+    }
+
+    /** The pure canon kind a struct field's SQL type spells — the
+     * layout is value-built, so this is a WIRE fact, not a stamp echo. */
+    private static @com.legend.Nullable Type kindOfSqlType(SqlType t) {
+        if (t == SqlType.Scalar.BIGINT || t == SqlType.Scalar.INTEGER
+                || t == SqlType.Scalar.HUGEINT) {
+            return Type.Primitive.INTEGER;
+        }
+        if (t == SqlType.Scalar.DOUBLE) {
+            return Type.Primitive.FLOAT;
+        }
+        if (t == SqlType.Scalar.BOOLEAN) {
+            return Type.Primitive.BOOLEAN;
+        }
+        if (t == SqlType.Scalar.VARCHAR) {
+            return Type.Primitive.STRING;
+        }
+        if (t instanceof SqlType.Decimal) {
+            return Type.Primitive.DECIMAL;
+        }
+        if (t == SqlType.Scalar.DATE) {
+            return Type.Primitive.STRICT_DATE;
+        }
+        if (t == SqlType.Scalar.TIMESTAMP) {
+            return Type.Primitive.DATE_TIME;
+        }
+        return null;
     }
 
     /** Decimal: SCALE-PRESERVING (X2, VERDICT_RULE_AUDIT — engine

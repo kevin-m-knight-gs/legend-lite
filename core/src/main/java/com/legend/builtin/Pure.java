@@ -546,10 +546,10 @@ public final class Pure {
     // ---- Collection carriers ----
     // REAL pure declares values (legend-pure platform/pure/anonymousCollections.pure:33-35,
     // <<equality.Key>>) — property access and ^List(values=...) construction validate against it.
-    public static final ClassDefinition LIST = nativeClass("native Class meta::pure::functions::collection::List<T>    extends meta::pure::metamodel::type::Any { values: T[*]; }");
+    public static final ClassDefinition LIST = nativeClass("native Class meta::pure::functions::collection::List<T>    extends meta::pure::metamodel::type::Any { <<equality.Key>> values: T[*]; }");
     // REAL pure declares first/second (legend-pure platform/pure/anonymousCollections.pure:17-25,
     // both <<equality.Key>>) — property access and instance construction validate against THEM.
-    public static final ClassDefinition PAIR = nativeClass("native Class meta::pure::functions::collection::Pair<U, V> extends meta::pure::metamodel::type::Any { first: U[1]; second: V[1]; }");
+    public static final ClassDefinition PAIR = nativeClass("native Class meta::pure::functions::collection::Pair<U, V> extends meta::pure::metamodel::type::Any { <<equality.Key>> first: U[1]; <<equality.Key>> second: V[1]; }");
     public static final ClassDefinition MAP = nativeClass("native Class meta::pure::functions::collection::Map<U, V> extends meta::pure::metamodel::type::Any {}");
 
     // ---- Math helper carrier (rowwise correlation/covariance inputs) ----

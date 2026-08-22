@@ -2643,8 +2643,13 @@ final class StatementExecutor {
                 declaredInfo != null ? declaredInfo : root.info();
         com.legend.sql.SqlQuery bare = plan;
         if (rider != null) {
+            String instFqn = com.legend.compiler.element.EqualityKeys
+                    .fqnOf(shapeInfo.type());
             var w = com.legend.lowering.CanonicalRenderSql.wrapWithCanon(
-                    plan, shapeInfo, rider.canonicalOrder());
+                    plan, shapeInfo, rider.canonicalOrder(),
+                    instFqn == null ? null
+                            : com.legend.compiler.element.EqualityKeys
+                                    .resolve(env.ctx(), instFqn));
             if (w.declineReason() != null) {
                 rider.decline(w.declineReason());
             } else {

@@ -45,7 +45,10 @@ final class ClassCompiler {
             properties.add(new Property.Stored(
                     pd.name(),
                     classifier.classify(pd.type(), typeParams),
-                    TypeClassifier.multiplicity(pd.multiplicity())));
+                    TypeClassifier.multiplicity(pd.multiplicity()),
+                    pd.stereotypes().stream().anyMatch(st ->
+                            "equality".equals(st.profileName())
+                                    && "Key".equals(st.stereotypeName()))));
         }
         for (DerivedPropertyDefinition dp : cd.derivedProperties()) {
             List<TypedParameter> params = new ArrayList<>(dp.parameters().size());

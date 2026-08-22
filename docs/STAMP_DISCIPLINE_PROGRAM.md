@@ -2203,3 +2203,36 @@ TRAP RECORDED TWICE OVER: ChannelB suites read -Dlegend.pure.root /
 env-only runs silently referee the STALE $HOME checkout and fake a
 7-test relation discovery regression (280 != 287). The X-slice pushed
 with those pins unvalidated because ChannelB is not in allgates.
+
+## X5 LANDED — equality.Key, DB-first (2026-08-22)
+
+User directive: push the DB as far as it goes before any flip decision
+— and the user's two design calls shaped the slice: (1) "doesn't the
+key tell you the columns to compare?" — YES: the key list is model
+metadata known at compile time, so keyed-instance equality COMPILES
+(my Tier-C placement had conflated rule-origin with execution-place);
+(2) "make it a JSON of the keys, with the class fqn" — adopted: JSON
+is the FRAMING (escaping kills the concat-collision class), our canon
+strings are the VALUES (to_json would be a second spelling authority),
+'_type' rides the bytes, kind-tagged leaves keep the engine's
+same-kind rule one level down, and the format converges with F10's
+carrier direction instead of inventing a disposable one.
+
+Ground truth (EqualityUtilities + _Class.getEqualityKeyProperties):
+keys = stereotyped simple properties in generalization order; each
+key's VALUES compare as collections under the ordered list rule;
+classifier must match; keyless = FALSE (identity is upstream).
+
+MEASUREMENT-DRIVEN CLAIMS (the decline histogram, not the plan,
+picked the buckets): the predicted Pair mountain was actually ~9 rows —
+the REAL mountains were Nil/empty sides (38) and GenericType stamps
+missed by a ClassType-only arm (18). Landed: Nil claim + '[]' empty
+unification, GenericType instance kinds, Pair struct canon, List
+bare-array carrier canon, host key restriction. Declines 97→35,
+agree +62, disagree 0 throughout, ceilings banked.
+
+TRAPS: the driver resolved keys for ClassType only while every Pair
+stamp is GenericType (fqnOf owns the mapping now); List is NOT a
+struct at the SQL boundary (PureSql: bare array — the array IS
+values); OutputCol layouts ARE trustworthy for carriers (PureSql
+builds them from concrete generic args) unlike scalar stamps.

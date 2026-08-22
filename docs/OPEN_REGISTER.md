@@ -17,12 +17,13 @@ L (a program leg).
 
 | V8 | R3 tolerance census: 2-ULP + the 21 cross-engine float rows | M | retire or declare; both counted today. Candidate retirement design (2026-08-22, user-briefed): same-arithmetic H2 referee — byte-differing Double pairs re-compare EXACTLY on H2 (the goldens' own libm); tolerance dies |
 | V9 | Grid byte cutover closing slice (after V4/V8) | S | ledger says: ORDER BY + policy + GridCompare arm deletion, no emission |
+| V12 | Single round trip per assert (user design 2026-08-22): side-tagged UNION ALL — per-side TYPED value columns NULL-padded (no promotion erasure), per-side canon columns, ORDER BY side+canon; literals INLINE in the same statement (never host-folded — testEmptyChar proved literal emission needs exercising); tunnel gains a rung (fused→split→bare→fold). GO/NO-GO: measure query.exec share via TimingLedger first | M |
+| V13 | WHOLE-FUNCTION fusion (user insight 2026-08-22: assert = the verdict OVERLAY, the graphFetch→serialize species — 4th overlay after graph/PCT-wire/snapshot): let IS WITH (materialized CTE = evaluate-once let semantics, also dissolves within-test F13 identity), verdict table out, typed list() evidence columns for the referee. HAZARD: eager evaluation vs pure first-failure sequencing → fusion-gradient tunnel. SEQUENCED AFTER V7 (perturbs the golden-text lane, like prepared statements). This IS the legend-sql thesis in miniature | L |
 
 ## 1b. VERDICT RULE AUDIT (docs/VERDICT_RULE_AUDIT_2026_08_22.md — every rule vs engine source)
 
 | # | Item | Size |
 |---|---|---|
-| X5 | Model-defined equality.Key at the K-arm (engine: Key properties or FALSE; wireTree stays for JSON/SQL-struct domains) — claims the 91 declines + 2 PCT exclusions; our Pair/List declarations must CARRY the stereotypes | M |
 | X6 | 2-ULP reclassified: compensates IEEE-double carrier vs engine's exact-decimal floats — R3 decides declared-policy vs decimal carriage | R3 |
 
 ## 2. Audit findings still open
@@ -38,7 +39,7 @@ L (a program leg).
 | A7 | Raw-SQL literal-aware rewriting | deep-audit tier-2 (merges into prepared-statements leg) | M |
 | A8 | static-final/ThreadLocal guard visibility | deep-audit tier-2, AWAITS RATIFICATION | S |
 | A9 | missing-[1] on ^new | deep-audit tier-2, AWAITS RATIFICATION | S |
-| A10 | nlq/server hardening (incl. uncached-connection closing) | deep-audit tier-2, AWAITS RATIFICATION | M |
+| A10 | nlq/server hardening (incl. uncached-connection closing). FLAKE WITNESS 2026-08-22: DiagramServiceTest.httpEndpointReturnsErrorForMissingCode 404-vs-400 once under the full G1 suite, 3/3 green standalone — port/leaked-server contention class | deep-audit tier-2, AWAITS RATIFICATION | M |
 
 ## 3. Recorded engineering follow-ups (each noted in code/doc at its site)
 
@@ -53,7 +54,11 @@ L (a program leg).
 | F7 | Dup-FQN coverage: services/connections/mappings namespaces | S |
 | F8 | {target} + foreign-db join-ref validation (D6b skipped conservatively) | S |
 | F9 | Invariant-3 register burn-down: wrap 21 write-once tables immutable | M |
+| F12 | Map byte canon (mapEquals): the engine's OWN map rule — equal key SETS then per-key values, order-insensitive; SQL = map_entries → per-entry canon → sort by key canon → JSON frame. Also absorbs the 3 Pair unclaimable-leaf rows (array/map-typed key fields recurse through the same machinery) | S/M |
+| F13 | SYNTHETIC INSTANCE IDENTITY (user idea 2026-08-22, design candidate — the ONLY path to the keyless bucket + the eq() wall): identity as DATA, the F10 pattern applied to reference identity (the engine's object refs made explicit). HARD PART: id stability across query splicing — a let-bound instance referenced from both assert sides must carry ONE id, so ids mint DETERMINISTICALLY from the binding site (+ per-row component for ->map construction), never per-evaluation uuid(). Claims keyless-instance declines and eq() identity semantics | M/L |
 | F11 | Effectful-assert byte coverage: the containsEffect gate routes effectful assert statements to body inlining (host verdicts only) — the gate stands on statement-orchestration grounds (V11 adjudication at the gate site), so claiming these needs the side path to learn sequential effect execution; V7-territory sizing | S/M |
+| F15 | Reference-adapter parser ingress: ExecuteLegendLiteQuery's SIX source-extraction regexes + reEscapeStringLiterals are a SHADOW PARSER (standing tenet violation, predates parser parity 6489/0) — parse PCT source with THE parser, splice from the AST, delete the patterns | S/M |
+| F16 | Adapter kind-consolidation: toCoreInstance re-decides kind narrowing the Executor codec now owns (X-audit) — adapter receives kind-faithful values and ONLY boxes; the declared-type consult arms decay as F10/stamp fidelity lands. remapErrorMessage dies with the error-composition leg | S (rides F10) |
 | F10 | Variant-aware byte canon: the canon consumes TYPED values with carrier decode owned by the carrier — covers the mixed-kind-collection decline AND retires the accumulating carrier-text strips (+0000, D-suffix regexes) which are the tell of canon parsing raw carrier text. NEW WITNESS (V11): the mixed-identity VARCHAR carrier errors under candidate canon casts and rides the canon-exec decline tunnel — undetectable at wrap time because OutputCol types are stamp-derived | M |
 
 ## 4. Parked BY THE RATIFIED ARC ORDER (sequenced, not debt)
@@ -89,6 +94,35 @@ L (a program leg).
 
 ## CLOSED
 
+- F14 OPENED AND CLOSED SAME DAY (2026-08-22, user chain of catches):
+  the "unSQLable NUL string" was never a value-domain fact — DuckDB
+  VARCHAR holds NUL fine (chr(0) concatenates/compares exactly,
+  user-verified empirically); the failure was OUR StringLit renderer
+  embedding the raw byte into statement text and killing the SQL
+  LEXER. Fixed at the spelling: stringLit splices chr(0) between
+  quoted segments. The BLOB-carrier design drafted in between is
+  RETIRED unneeded; "Tier A" lost its best member to a renderer bug.
+- X5 CLOSED (2026-08-22, equality.Key — DB-first per user directive):
+  our Pair/List declarations now CARRY the engine's <<equality.Key>>
+  stereotypes (root cause of the instance declines — the parser had
+  preserved property stereotypes all along, compilation dropped them;
+  Property.Stored gained the flag); EqualityKeys resolves the key tree
+  from the model (hierarchy walk, keyless/cyclic poison → null);
+  keyed-instance BYTE CANON in the DB — JSON framing with OUR canon
+  strings as values (user ruling: JSON is the framing, never the
+  spelling), '_type' carries the classifier in the bytes, kind-tagged
+  leaves ('i:8' vs 'd:8'), Pair struct + List bare-array carriers,
+  list_transform for to-many keys; host referee restricts both sides
+  to the key tree (the engine's own relation) before judging. PLUS the
+  Nil/empty claim: a Nil-stamped side is the EMPTY value, kind-gate
+  vacuous, and EVERY empty form canons '[]' (unification kills the
+  null-vs-'[]' latent hazard). PCT-lane declines 97→35 (agree
+  1486→1548, disagree 0); ceilings BANKED (100 → 5/30/35/35/45).
+  Residue named: Map (mapEquals — own rule, claimable later), Any wire
+  trees, genuinely keyless classes (engine-FALSE territory), 3 Pair
+  unclaimable-leaf shapes, mixed-identity (F10), NUL. The 2 PCT
+  eq/equal NonPrimitive exclusions adjudicate in the decoupled-PCT
+  burn (task #18) — eq is IDENTITY, not keyed equality.
 - V11 CLOSED (2026-08-22, user-ratified twice — "collapse the renderer
   into the original query like m2m JSON"): the canon rides the side
   query itself (CanonicalRenderSql.wrapWithCanon → `SELECT value,

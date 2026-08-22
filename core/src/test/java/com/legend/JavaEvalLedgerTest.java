@@ -229,7 +229,16 @@ class JavaEvalLedgerTest {
             // (−402): the verdict system's total surface SHRANK 355.
             // The DB still computes every element text and the
             // canonical order — framing writes '[', ', ', ']' only.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 675),
+            // 675→728 (2026-08-22 X5, equality.Key): the keyed-instance
+            // rules at the verdict layer — instanceKeys (the pair's
+            // shared key tree from the MODEL), restrictToKeys (the
+            // engine's keyed-equality relation applied as evidence
+            // projection before EITHER channel judges — EqualityUtilities
+            // compares key properties ONLY), the Nil/empty kind-gate
+            // bypass, and the '[]' empty-canon unification. Model-driven
+            // routing + projection; zero value evaluation — the DB still
+            // computes every render (instanceCanon, lowering-owned).
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 728),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -250,7 +259,9 @@ class JavaEvalLedgerTest {
             // itself (wrapWithCanon), one execution per side; the
             // residual +37 over the first cut is the decline tunnel
             // (wrapped→bare→fold, the designed sentinel chain).
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2363),
+            // 2363→2368 (X5): the driver resolves the key tree from the
+            // model for the wrap (five lines of ctx plumbing).
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2368),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

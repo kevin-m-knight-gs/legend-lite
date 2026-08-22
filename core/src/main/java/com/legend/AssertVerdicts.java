@@ -109,8 +109,14 @@ final class AssertVerdicts {
                         env, false);
                 SideFetch af = sideCanon(args.get(1), letPrefix, specs,
                         env, false);
-                List<Object> e = ef.values();
-                List<Object> a = af.values();
+                // X5: a same-class KEYED pair restricts both sides to
+                // the key tree — the engine's own equality relation for
+                // keyed classes, applied before EITHER channel judges
+                var ik = instanceKeys(args.get(0), args.get(1), env);
+                List<Object> e = ik != null
+                        ? restrictToKeys(ef.values(), ik) : ef.values();
+                List<Object> a = ik != null
+                        ? restrictToKeys(af.values(), ik) : af.values();
                 boolean equal = PureAsserts.equal(e, a);
                 // R1a divergence instrument (CANONICAL_FORM_SPEC §0):
                 // host lattice vs host byte channel, measurement only
@@ -154,8 +160,11 @@ final class AssertVerdicts {
                         env, true);
                 SideFetch af = sideCanon(args.get(1), letPrefix, specs,
                         env, true);
-                List<Object> e = ef.values();
-                List<Object> a = af.values();
+                var ik = instanceKeys(args.get(0), args.get(1), env);
+                List<Object> e = ik != null
+                        ? restrictToKeys(ef.values(), ik) : ef.values();
+                List<Object> a = ik != null
+                        ? restrictToKeys(af.values(), ik) : af.values();
                 String d = PureAsserts.assertSameElements(e, a);
                 com.legend.exec.CanonicalDivergence.probeSameElements(
                         e, a, d == null);
@@ -505,7 +514,16 @@ final class AssertVerdicts {
         }
         String ke = kindClassOf(eSpec.info().type());
         String ka = kindClassOf(aSpec.info().type());
-        if (ke == null || ka == null || !ke.equals(ka)) {
+        // X5: a Nil-stamped side is the []-born EMPTY value — pure
+        // equality against ANY kind is decided by emptiness alone
+        // (equal([], x) is element-wise vacuous), so the kind classes
+        // need not match; both canons frame '[]' when empty and any
+        // non-empty side byte-differs from '[]' — the engine's answer.
+        boolean anyNil = com.legend.compiler.element.type.PlatformTypes
+                .isNil(eSpec.info().type())
+                || com.legend.compiler.element.type.PlatformTypes
+                        .isNil(aSpec.info().type());
+        if (ke == null || ka == null || (!anyNil && !ke.equals(ka))) {
             com.legend.exec.CanonicalDivergence.sqlDeclined("kind-gate: "
                     + typeName(eSpec) + " / " + typeName(aSpec));
             return null;
@@ -531,7 +549,7 @@ final class AssertVerdicts {
         // pairs decline to the host lattice's engine-FALSE.
         int ei = 0;
         int ai = 0;
-        if (ke.equals("numeric")) {
+        if (!anyNil && ke.equals("numeric")) {
             String fe = selectedFineKind(ef, eVals);
             String fa = selectedFineKind(af, aVals);
             if (fe == null || fa == null) {
@@ -620,8 +638,13 @@ final class AssertVerdicts {
     private static Framed frame(SideFetch f, int idx) {
         List<String[]> rows = f.rider().rows();
         if (!f.rider().many()) {
-            if (rows.isEmpty()) {
-                return new Framed(null, null);
+            // EVERY empty form canons '[]' (X5 unification): pure has
+            // no null value — a [0..1] with no row and a NULL cell are
+            // both the EMPTY collection, and equal([],[]) holds across
+            // multiplicities, so scalar-empty must byte-match
+            // collection-empty ('[]' == '[]'), never null-vs-'[]'.
+            if (rows.isEmpty() || rows.get(0)[idx] == null) {
+                return new Framed("[]", null);
             }
             return new Framed(rows.get(0)[idx], null);
         }
@@ -751,7 +774,68 @@ final class AssertVerdicts {
                 || t == com.legend.compiler.element.type.Type.Primitive.DATE) {
             return "temporal";
         }
+        String fqn = com.legend.compiler.element.EqualityKeys.fqnOf(t);
+        if (fqn != null) {
+            // X5: instance equality is per-CLASS (EqualityUtilities —
+            // the classifiers must match exactly, so the fqn IS the
+            // kind; a parameterized GenericType names the same
+            // classifier); keyed-ness adjudicates at the wrap (a
+            // keyless class declines with its own reason).
+            return "instance:" + fqn;
+        }
         return null;
+    }
+
+    /** X5 — the pair's shared key tree: non-null iff BOTH stamps are
+     * the SAME keyed class (the engine's classifier-match precondition
+     * plus resolvable {@code <<equality.Key>>} identity). */
+    private static com.legend.compiler.element.@com.legend.Nullable EqualityKeys
+            instanceKeys(TypedSpec eSpec, TypedSpec aSpec,
+                    StatementExecutor.ExecEnv env) {
+        String ef = com.legend.compiler.element.EqualityKeys.fqnOf(
+                eSpec.info().type());
+        String af = com.legend.compiler.element.EqualityKeys.fqnOf(
+                aSpec.info().type());
+        if (ef != null && ef.equals(af)) {
+            return com.legend.compiler.element.EqualityKeys.resolve(
+                    env.ctx(), ef);
+        }
+        return null;
+    }
+
+    /** X5 — the HOST lattice's keyed-instance rule, applied as
+     * MODEL-DRIVEN evidence projection at the K-arm: EqualityUtilities
+     * compares a keyed class BY ITS KEY PROPERTIES ONLY, so both
+     * sides' wire maps restrict to the key tree before the ONE lattice
+     * judges (non-key fields are outside the equality relation — this
+     * is the engine's rule, not a leniency). Keyless classes are
+     * untouched (their sides never produce a non-null key tree). */
+    private static List<Object> restrictToKeys(List<Object> vals,
+            com.legend.compiler.element.EqualityKeys keys) {
+        List<Object> out = new ArrayList<>(vals.size());
+        for (Object v : vals) {
+            out.add(restrictOne(v, keys));
+        }
+        return out;
+    }
+
+    private static Object restrictOne(Object v,
+            com.legend.compiler.element.EqualityKeys keys) {
+        if (!(v instanceof java.util.Map<?, ?> m)) {
+            return v;
+        }
+        var out = new java.util.LinkedHashMap<String, Object>();
+        for (var k : keys.keys()) {
+            Object val = m.get(k.name());
+            if (k.nested() != null && val != null) {
+                val = val instanceof List<?> l
+                        ? l.stream().map(x -> restrictOne(x, k.nested()))
+                                .toList()
+                        : restrictOne(val, k.nested());
+            }
+            out.put(k.name(), val);
+        }
+        return out;
     }
 
     /** One assert side under V11: the values (host referee, gates,
