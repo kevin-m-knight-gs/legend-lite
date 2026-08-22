@@ -1676,3 +1676,49 @@ lower-bound row-count check in the reference executor. The FIX stands
 on the PURE-SPEC ground (size-0 into a required bound raises pure's
 cast error, PCT-witnessed), not on engine parity. The behavior is
 unchanged; the claim is corrected.
+
+### D6b LANDED: the frontend-leniency batch (DEEP_AUDIT §10)
+
+Seven probed leniency holes — models the engine rejects at compile that
+we ACCEPTED (probe: ScratchLeniencyTest, results recorded here; probe
+deleted, pins live in LeniencyD6Test):
+
+- **Inheritance cycles** (was: accepted, StackOverflow at first
+  demand): ModelIntegrity.checkInheritanceAcyclic — resolved-supers
+  DFS with a shared acyclic memo; message names the cycle path.
+- **Duplicate stored properties** (was: silent first-wins): engine
+  spelling "Found duplicated property 'x' in class 'A'". Derived-name
+  dups stay accepted — qualified properties legally overload; an
+  identical-signature derived dup is a recorded follow-up.
+- **Duplicate element FQNs** (was: silent LAST-wins at
+  ModelBuilder.putAtId): ONE shared packageable-element namespace
+  (classes/enums/associations/profiles/databases — cross-KIND dups
+  reject too), recorded at phase-2 ingest (`internElement`), THROWN by
+  ModelIntegrity so poison-not-drop/wallSink applies uniformly.
+  Engine spelling "Duplicated element 'x'". The compile-once corpus
+  global model was the feared casualty — scoreboard diff EMPTY.
+- **Duplicate enum values**: "Found duplicated value 'A' in
+  enumeration 'E'".
+- **Inverted bounds `[2..1]`** (was: lazy bare IllegalArgumentException
+  from the Bounded ctor at class demand): eager requireValidBounds on
+  stored/derived/parameter multiplicities, attributed to the property
+  site.
+- **Ghost store cross-refs** (was: accepted; SQL failed or misbehaved
+  only in the DB): every ColumnRef in join/filter/multigrain
+  conditions must resolve table (include-closure, views,
+  milestoning-declared temporal columns, quote-bearing identity per
+  StoreCompiler cluster 7) and column. CONSERVATIVE: {target} refs and
+  explicit foreign-db refs are SKIPPED, never false-positived.
+- **Out-of-range dates `%2020-99-99`** (was: DuckDB "Conversion
+  Error" at run time): SpecParser validates components for
+  LEGEND_PLATFORM + LEGEND_LITE; LEGEND_ENGINE stays deferred — the
+  oracle's parser accepts these byte-for-byte (gate 8 parity) and the
+  engine validates in ITS compiler, which is not our parity surface.
+
+ADJUDICATED KEPT: the ElementParser stray-paren skip is bounded ("skip
+exactly this token") and corpus-witnessed engine tolerance — not a hole.
+
+Referee: core suite 4215/0; full DuckDB corpus scoreboard diff EMPTY
+(the early scoped run that the dup-FQN risk demanded); pins
+LeniencyD6Test (JDBC-census registered: the valid-neighbor control and
+the moved-to-parser bad-date pin execute e2e).

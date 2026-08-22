@@ -176,6 +176,19 @@ public final class ModelBuilder {
      */
     private final Map<Integer, Map<String, ViewDefinition>> viewsByDb = new HashMap<>();
 
+    /**
+     * Element FQNs registered MORE THAN ONCE in the packageable-element
+     * namespace (classes, enums, associations, profiles, databases — one
+     * shared namespace, engine parity: {@code PureModelBuilder} rejects
+     * "Duplicated element"). Recorded here at ingest — last-wins slotting
+     * has already discarded the loser by the time integrity runs — and
+     * THROWN by {@code ModelIntegrity} so the poison-not-drop/wallSink
+     * discipline applies uniformly (D6b frontend-leniency batch).
+     * Insertion-ordered for deterministic first-error reporting.
+     */
+    private final java.util.LinkedHashMap<String, String> duplicateElements =
+            new java.util.LinkedHashMap<>();
+
     private final ImportScope imports;
     private final java.util.Map<String, ImportScope> elementImports;
 
@@ -239,15 +252,23 @@ public final class ModelBuilder {
         // Phase 2: data-model elements. Order within this phase is
         // arbitrary; each element only depends on the symbol table.
         // (Phase-F callers enter via from(NormalizedModel) below.)
+        // One shared element namespace across the kinds below: a second
+        // registration of ANY kind under an already-taken FQN is a
+        // duplicate (recorded, thrown by ModelIntegrity — D6b).
+        java.util.Set<Integer> registered = new java.util.HashSet<>();
         for (PackageableElement el : model.elements()) {
             switch (el) {
-                case ClassDefinition cd -> putAtId(mb.classes, mb.intern(cd.qualifiedName()), cd);
+                case ClassDefinition cd -> putAtId(mb.classes,
+                        mb.internElement(registered, cd.qualifiedName()), cd);
                 case com.legend.model.PrimitiveExtensionDefinition pe ->
                         mb.primitiveExtensions.put(pe.qualifiedName(), pe.baseTypeName());
-                case AssociationDefinition ad -> putAtId(mb.associations, mb.intern(ad.qualifiedName()), ad);
-                case EnumDefinition ed -> putAtId(mb.enums, mb.intern(ed.qualifiedName()), ed);
-                case ProfileDefinition pd -> putAtId(mb.profiles, mb.intern(pd.qualifiedName()), pd);
-                case DatabaseDefinition db -> mb.ingestDatabase(db);
+                case AssociationDefinition ad -> putAtId(mb.associations,
+                        mb.internElement(registered, ad.qualifiedName()), ad);
+                case EnumDefinition ed -> putAtId(mb.enums,
+                        mb.internElement(registered, ed.qualifiedName()), ed);
+                case ProfileDefinition pd -> putAtId(mb.profiles,
+                        mb.internElement(registered, pd.qualifiedName()), pd);
+                case DatabaseDefinition db -> mb.ingestDatabase(registered, db);
                 default -> { /* phase 3 */ }
             }
         }
@@ -290,8 +311,27 @@ public final class ModelBuilder {
         return mb;
     }
 
-    private void ingestDatabase(DatabaseDefinition db) {
-        int id = intern(db.qualifiedName());
+    /** Intern + record a duplicate when {@code fqn}'s slot is already
+     * taken in this build's shared element namespace (engine parity:
+     * "Duplicated element"). Registration still proceeds last-wins; the
+     * throw is ModelIntegrity's (poison-not-drop). */
+    private int internElement(java.util.Set<Integer> registered, String fqn) {
+        int id = intern(fqn);
+        if (!registered.add(id)) {
+            duplicateElements.putIfAbsent(fqn,
+                    "Duplicated element '" + fqn + "'");
+        }
+        return id;
+    }
+
+    /** Element FQNs registered more than once (see field doc). */
+    public java.util.Map<String, String> duplicateElements() {
+        return java.util.Collections.unmodifiableMap(duplicateElements);
+    }
+
+    private void ingestDatabase(java.util.Set<Integer> registered,
+            DatabaseDefinition db) {
+        int id = internElement(registered, db.qualifiedName());
         putAtId(databases, id, db);
         // Precompute filter, join, and view secondary indexes.
         if (!db.filters().isEmpty() || !db.multiGrainFilters().isEmpty()) {

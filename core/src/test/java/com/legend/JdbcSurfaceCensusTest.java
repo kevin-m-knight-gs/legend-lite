@@ -140,6 +140,10 @@ class JdbcSurfaceCensusTest {
             // D4: variance pins run eval() e2e — the accepted direction
             // must EXECUTE, not merely type-check
             "core/src/test/java/com/legend/compiler/spec/VarianceD4Test.java",
+            // D6b: the leniency pins run Compiler.execute e2e — the
+            // valid-neighbor control must EXECUTE, and the bad-date pin
+            // proves rejection moved from the DB to the parser
+            "core/src/test/java/com/legend/compiler/LeniencyD6Test.java",
             "core/src/test/java/com/legend/JdbcSurfaceCensusTest.java",
             "core/src/test/java/com/legend/AuditRound3Test.java",
             // multiplicity audit slice 2: the strictness negative
