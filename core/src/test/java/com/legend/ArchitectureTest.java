@@ -793,6 +793,10 @@ final class ArchitectureTest {
                 // meaningless for a metrics sink
                 "com.legend.exec.TimingLedger.NS",
                 "com.legend.exec.TimingLedger.COUNT",
+                // R1 divergence instrument (CANONICAL_FORM_SPEC §0):
+                // bounded witness sample for the harness-published
+                // table; measurement only, never verdict-affecting
+                "com.legend.exec.CanonicalDivergence.SAMPLES",
                 // serializer registry: written once at static init; the
                 // ConcurrentHashMap spelling is for safe publication
                 "com.legend.server.serial.SerializerRegistry.SERIALIZERS");

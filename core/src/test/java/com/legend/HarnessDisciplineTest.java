@@ -90,6 +90,12 @@ class HarnessDisciplineTest {
             // TimingLedger: TreeMap render of the diagnostic dump
             // (deterministic output, never comparison)
             Map.entry("TimingLedger.java", 1),
+            // CanonicalDivergence: the assertSameElements byte-channel
+            // stand-in sorts RENDERED STRINGS on BOTH sides (two-sided
+            // comparison policy — the census-side mirror of R2's
+            // canonical ORDER BY; CANONICAL_FORM_SPEC §0). Measurement
+            // only — the probe cannot affect a verdict.
+            Map.entry("CanonicalDivergence.java", 2),
             // MetamodelWalk: `.distinct()` here is the RECORD ACCESSOR
             // cm().distinct() (a mapping fact), not a stream reorder —
             // counted because the spelling matches; the honest fix is

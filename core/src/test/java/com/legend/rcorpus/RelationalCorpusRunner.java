@@ -559,6 +559,13 @@ public class RelationalCorpusRunner {
                 + " ms");
         // TEMPORARY (2026-08-15): full wall reconciliation ledger
         com.legend.exec.TimingLedger.dump();
+        // R1 canonical-byte-channel divergence table (CANONICAL_FORM_SPEC
+        // §0): does render(e)==render(a) agree with the host lattice
+        // across every K-arm assert this sweep computed? DISAGREE rows
+        // are R2 cutover blockers; RESIDUE sizes the walls.
+        System.out.println("[canon] " + com.legend.exec.CanonicalDivergence.summary());
+        com.legend.exec.CanonicalDivergence.samples().forEach(r ->
+                System.out.println("[canon] " + r.family() + " " + r.detail()));
         System.out.println("[rcorpus] walls (mappings + dropped base elements): "
                 + runner.walls().size());
         if (System.getProperty("rcorpus.walls") != null) {

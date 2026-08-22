@@ -342,7 +342,17 @@ class JavaEvalLedgerTest {
                     // compilation); only the probe stays in exec.
                     "GridProbe.java",
                     "ResultShape.java", "Row.java", "StoreNav.java",
-                    "TimingLedger.java", "package-info.java");
+                    "TimingLedger.java",
+                    // R1 (CANONICAL_FORM_SPEC §0): the byte-channel
+                    // REFERENCE render + its divergence census. Pure
+                    // MEASUREMENT beside the comparison layer — probes
+                    // consume two produced sides and count agreement;
+                    // neither class can produce a result or affect a
+                    // verdict (the probe returns void). R2 moves the
+                    // render of record into SQL; these stay as the
+                    // permanent parallel-referee half.
+                    "CanonicalForm.java", "CanonicalDivergence.java",
+                    "package-info.java");
 
     /** The other two funnel packages (documented-debts 2026-08-18,
      * audit item 9's remainder): server and testdatagen may touch JDBC

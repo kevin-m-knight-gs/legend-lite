@@ -1831,3 +1831,32 @@ PureAsserts' equality lattice SURVIVES as the permanent parallel-host
 referee (the ratified dual-verdict design) — what deletes is every
 harness-compensation arm and every verdict-AFFECTING host path;
 PureAsserts moves to the referee, disagreement census pinned at 0.
+
+### R1a LANDED: the scalar-channel divergence instrument (first measurement)
+
+CanonicalForm (R0 §2 host reference render) + CanonicalDivergence (the
+census ledger, TimingLedger idiom — Invariant-3 registered, bounded
+samples) + probes at the K-arm choke point (AssertVerdicts
+assertEquals/assertSameElements/assertEq — measurement only, cannot
+affect a verdict) + publication in the corpus runner and ChannelBDiff.
+
+**FIRST MEASUREMENT (ChannelB, all five suites): agree=1555
+disagree=0 residue=27.** The ⟺ claim (equal(e,a) iff byte-equal
+canonical renders) holds on EVERY in-domain platform-executed assert.
+Residues, all named: 23 LinkedHashMap + 3 ArrayList (wire-tree struct
+cells — JsonCompare's domain by design, H4 "clean, keep") and 1
+negative-zero (an assertEq -0.0 witness the H6 tree-scan missed — the
+§4 residue policy works as specified).
+
+SEAM FINDING: the corpus lane's grid verdicts do NOT flow through
+AssertVerdicts — they ride the harness compare arms (GridCompare +
+EngineTestExecutor equalScalar sites), the very arms R2 deletes. The
+corpus [canon] line honestly printed 0. **R1b** = the GRID-channel
+host reference render (H2 toCSV cell rules; Render.java is already the
+SQL-side owner) + the instrument at the corpus row-verify seam. R2
+cutovers stay gated on R1b's corpus-wide table.
+
+Temporal wire limit recorded in-code: LocalDateTime cannot carry
+WRITTEN subsecond precision (.000 vs .0) — the render emits minimal
+precision; the census decides if a precision-carrying wire type is
+ever needed (zero hits so far).

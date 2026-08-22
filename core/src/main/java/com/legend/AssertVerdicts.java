@@ -108,6 +108,10 @@ final class AssertVerdicts {
                 List<Object> e = side(args.get(0), letPrefix, specs, env);
                 List<Object> a = side(args.get(1), letPrefix, specs, env);
                 boolean equal = PureAsserts.equal(e, a);
+                // R1 divergence instrument (CANONICAL_FORM_SPEC §0):
+                // measurement only, cannot affect the verdict
+                com.legend.exec.CanonicalDivergence.probeEqual(
+                        name, e, a, equal);
                 if (name.equals("assertNotEquals")) {
                     return equal
                             ? fail("assertNotEquals: both sides are equal")
@@ -120,9 +124,11 @@ final class AssertVerdicts {
                 if (args.size() < 2) {
                     return null;
                 }
-                String d = PureAsserts.assertSameElements(
-                        side(args.get(0), letPrefix, specs, env),
-                        side(args.get(1), letPrefix, specs, env));
+                List<Object> e = side(args.get(0), letPrefix, specs, env);
+                List<Object> a = side(args.get(1), letPrefix, specs, env);
+                String d = PureAsserts.assertSameElements(e, a);
+                com.legend.exec.CanonicalDivergence.probeSameElements(
+                        e, a, d == null);
                 return d == null ? ok() : fail(d);
             }
             case "assertSize" -> {
@@ -140,11 +146,14 @@ final class AssertVerdicts {
                 if (args.size() < 2) {
                     return null;
                 }
-                String d = PureAsserts.assertEq(
-                        one(side(args.get(0), letPrefix, specs, env),
-                                "assertEq expected"),
-                        one(side(args.get(1), letPrefix, specs, env),
-                                "assertEq actual"));
+                Object ee = one(side(args.get(0), letPrefix, specs, env),
+                        "assertEq expected");
+                Object aa = one(side(args.get(1), letPrefix, specs, env),
+                        "assertEq actual");
+                String d = PureAsserts.assertEq(ee, aa);
+                com.legend.exec.CanonicalDivergence.probeEqual("assertEq",
+                        java.util.Collections.singletonList(ee),
+                        java.util.Collections.singletonList(aa), d == null);
                 return d == null ? ok() : fail(d);
             }
             case "assertEqWithinTolerance" -> {
