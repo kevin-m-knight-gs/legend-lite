@@ -650,7 +650,21 @@ public class RelationalCorpusRunner {
                                     + softZero + " > 27"),
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             softRescued <= 613, "text-rescued passes grew: "
-                                    + softRescued + " > 613"));
+                                    + softRescued + " > 613"),
+                    // R1b census pin (CANONICAL_FORM_SPEC §0, measured
+                    // 2026-08-22): 27 grid-text verdicts pass only via
+                    // the kept leniencies — 6 row-order-only (R2's
+                    // canonical ORDER BY burns them) + 21 cross-engine
+                    // float arithmetic (H2 decimal vs DuckDB binary —
+                    // VALUE differences, the declared numeric policy).
+                    // Shrink-only; a bump means a byte-exact verdict
+                    // regressed to leniency.
+                    () -> org.junit.jupiter.api.Assertions.assertTrue(
+                            com.legend.exec.CanonicalDivergence
+                                    .disagreeCount() <= 27,
+                            "canonical-byte divergence grew: "
+                                    + com.legend.exec.CanonicalDivergence
+                                            .summary() + " (pin 27)"));
             System.out.println("[rcorpus] soft ceilings: sqldiff " + softDiff
                     + "/257, adv " + softAdv + "/303, 0-asserts " + softZero
                     + "/27, rescued " + softRescued + "/613");

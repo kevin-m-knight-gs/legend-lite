@@ -213,6 +213,15 @@ public final class GridCompare {
      * tolerant. */
     public static boolean renderedText(String expected, String actual,
             String form, boolean sorted) {
+        boolean held = renderedTextVerdict(expected, actual, form, sorted);
+        // R1b divergence instrument — measurement only, cannot affect
+        // the verdict (CANONICAL_FORM_SPEC §0)
+        CanonicalDivergence.probeGridText(expected, actual, held);
+        return held;
+    }
+
+    private static boolean renderedTextVerdict(String expected, String actual,
+            String form, boolean sorted) {
         if (expected.equals(actual)) {
             return true;
         }

@@ -60,6 +60,46 @@ public final class CanonicalDivergence {
         record("assertSameElements", held, byteEqual(e, a, true));
     }
 
+    /** R1b — the GRID channel (toCSV text verdicts): the actual side is
+     * ALREADY the platform's SQL-side render (Render = engine toCSV,
+     * H3 headline), so the byte answer is plain string equality; the
+     * census measures how often GridCompare.renderedText's KEPT
+     * leniencies (row multiset, bounded float tolerance) do work the
+     * byte channel would refuse. */
+    public static void probeGridText(String expected, String actual,
+            boolean held) {
+        if (expected.equals(actual)) {
+            record("gridText", held, "EQUAL");
+            return;
+        }
+        // name the first difference so the census classifies WHICH
+        // leniency did the work (row order vs cell spelling)
+        String[] el = expected.split("\\n", -1);
+        String[] al = actual.split("\\n", -1);
+        String why;
+        if (el.length != al.length) {
+            why = "line-count " + el.length + "!=" + al.length;
+        } else {
+            int i = 0;
+            while (i < el.length && el[i].equals(al[i])) {
+                i++;
+            }
+            java.util.List<String> es = new java.util.ArrayList<>(List.of(el));
+            java.util.List<String> as = new java.util.ArrayList<>(List.of(al));
+            java.util.Collections.sort(es);
+            java.util.Collections.sort(as);
+            why = es.equals(as)
+                    ? "row-order-only@line" + i
+                    : "cell-diff@line" + i + " e<" + trunc(el[i]) + "> a<"
+                            + trunc(al[i]) + ">";
+        }
+        record("gridText", held, "DIFFER:" + why);
+    }
+
+    private static String trunc(String s) {
+        return s.length() > 60 ? s.substring(0, 60) + "…" : s;
+    }
+
     /** Byte-channel answer encoded as a STRING — {@code "EQUAL"},
      * {@code "DIFFER"}, or {@code "residue:<reason>"} naming what fell
      * out of the claimed domain (the census's wall-sizing detail). */
@@ -125,8 +165,8 @@ public final class CanonicalDivergence {
             AGREE.incrementAndGet();
         } else {
             DISAGREE.incrementAndGet();
-            sample(new Row(family, held,
-                    "lattice=" + held + " byte=" + byteAns.equals("EQUAL")));
+            sample(new Row(family, held, "lattice=" + held
+                    + " byte=" + byteAns.replaceFirst("^DIFFER", "false")));
         }
     }
 

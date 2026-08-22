@@ -93,9 +93,11 @@ class HarnessDisciplineTest {
             // CanonicalDivergence: the assertSameElements byte-channel
             // stand-in sorts RENDERED STRINGS on BOTH sides (two-sided
             // comparison policy — the census-side mirror of R2's
-            // canonical ORDER BY; CANONICAL_FORM_SPEC §0). Measurement
-            // only — the probe cannot affect a verdict.
-            Map.entry("CanonicalDivergence.java", 2),
+            // canonical ORDER BY; CANONICAL_FORM_SPEC §0), and the R1b
+            // grid-text CLASSIFIER sorts both sides' lines to name
+            // row-order-only divergences. Measurement only — no probe
+            // can affect a verdict. 2→4 (2026-08-22, R1b).
+            Map.entry("CanonicalDivergence.java", 4),
             // MetamodelWalk: `.distinct()` here is the RECORD ACCESSOR
             // cm().distinct() (a mapping fact), not a stream reorder —
             // counted because the spelling matches; the honest fix is

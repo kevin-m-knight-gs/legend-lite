@@ -1948,3 +1948,25 @@ compare declining — three different root causes produced the identical
 mismatch); the set is a canary, not a family. Bisect lesson repeated:
 -Drcorpus.only cannot referee aggregationAware (fails at HEAD,
 scoped-seeding artifact) — full sweeps only.
+
+### R1b LANDED: the grid-channel census (measurement decisive for R2)
+
+The grid channel's render of record ALREADY IS the platform (H3
+headline confirmed at the seam: toCSV verdicts compare engine expected
+text against Render's SQL-side output — "the platform emits the header
+now"). R1b instruments GridCompare.renderedText: byte answer = plain
+string equality NEXT TO the lenient verdict.
+
+**MEASURED (full corpus): 290 grid-text verdicts — 263 byte-exact
+(90.7%), 27 pass ONLY via the kept leniencies, 0 residue.** The 27
+classify into exactly two families:
+- 6 row-order-only → R2's canonical ORDER BY burns them.
+- 21 cross-engine float ARITHMETIC (H2 divides in exact decimal,
+  DuckDB in binary double: golden 5.59 vs our 5.590000000000001) —
+  VALUE differences no render can fix; the R0 §4 declared numeric
+  policy rows, pinned for the R3 tolerance census.
+
+Census PINNED in the runner (disagree ≤ 27, shrink-only, same-commit
+justification to move). R2 grid scope is therefore: canonical ORDER BY
+(6) + policy adjudication (21) + GridCompare arm deletion — no
+emission work.
