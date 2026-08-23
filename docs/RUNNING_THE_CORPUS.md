@@ -4,7 +4,7 @@ Two bodies of work live here and they run differently.
 
 | | what it is | how it is checked | where |
 | --- | --- | --- | --- |
-| the **corpus** | ~2260 executable services with seeded data | run against legend-engine, every answer compared to an independently computed expectation | `core/src/test/resources/stress/` |
+| the **corpus** | ~4690 executable services with seeded data | run against legend-engine, every answer compared to an independently computed expectation | `core/src/test/resources/stress/` |
 | the **project graph** | 56 Legend projects that depend on each other | compiled only — no data, no runtimes, no services | `projects/` |
 
 Some of the 56 are also pulled into the corpus and executed; see
@@ -63,7 +63,7 @@ than from a fresh stopwatch, so treat them as the right order rather than to the
 process stops working somewhere past ~170 testables. Its last line is the summary:
 
 ```
-4261 passed, 28 known-fail (quarantined), 1 not run (hangs), 0 unexpected, 4290 total
+4661 passed, 28 known-fail (quarantined), 1 not run (hangs), 0 unexpected, 4690 total
 ```
 
 **`0 unexpected` is the only acceptable result.** The other numbers are allowed to move.
@@ -93,6 +93,28 @@ single service, which is the whole intercept and no marginal.
 So raising `BATCH` only attacks the 12-minute slice, and walks back toward the ~170 point
 where one JVM stopped working. The 0.61s per service is the block worth attacking, and the
 open question is how much of it is re-creating and re-loading the seed for every suite.
+
+## The two generated layers
+
+The services fall into two layers, and the split is deliberate.
+
+**Bare projections**, one per subtype set, ~1830 of them. A wrong `~filter` fails by returning
+the WHOLE table rather than by erroring, and a bare projection over the subtype is the only
+thing that makes that visible. These are the control.
+
+**Stacked queries** from `scripts/corpus/deepstack.py`, ~2440 of them: four-hop chains
+filtered on a NAVIGATED column, `groupBy` on a joined key, `graphFetch` three and four levels
+deep, subtype roots navigating inherited edges, qualified properties taking arguments.
+
+A stacked query is only interpretable if a simple one over the same rows passes, which is why
+the bare ones were kept rather than upgraded. The same split already pays around F6
+(`aggregates.py` against `tomany.py`) and F28 (`CB_NotEqualsNull`).
+
+One pair is a true INVARIANCE. `DSDeep_X` filters on a model path before `project`, where the
+predicate can be pushed into the WHERE beside the join; `DSPost_X` applies the identical
+predicate to the projected ALIAS afterwards. All 400 pairs carry identical expectations,
+each computed independently from the seed -- so if the engine ever places one of them wrongly,
+exactly one side of the pair fails and names itself.
 
 ## Reading a failure
 
