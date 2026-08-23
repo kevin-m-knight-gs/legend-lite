@@ -30,7 +30,7 @@ L (a program leg).
 
 | # | Item | Source | Size |
 |---|---|---|---|
-| A1 | 1==1.0 / indexOf base / substring base — PER-LANE adjudication w/ engine witnesses | COMPILER_SHORTCUT_AUDIT §4 | M (rides PCT burn bucket 4) |
+| A1 | 1==1.0 / indexOf base / substring base — ADJUDICATED IRREDUCIBLE (user ruling 2026-08-23): 1-based indexing is REAL pure semantics in core_relational — a 0-based flip (even per-lane) conflicts with it, so the 5 indexOf/substring AGREE-FAIL rows are permanent ledger entries, not fixable divergence (both channels fail identically; reference-corroborated). Do NOT re-attempt the per-lane split; a semantic-node draft was built and REVERTED same day | CLOSED (ledger) |
 | A2 | Parser invention census (53 skew + 42 crash rows) | DEEP_AUDIT_HANDOFF | M |
 | A3 | Parser lenient→strict flip (LAST, after A2) | DEEP_AUDIT_HANDOFF:95 | M |
 | A4 | Foundations Phase 3 de-duplication | FOUNDATIONS_PLAN §4 | M |
