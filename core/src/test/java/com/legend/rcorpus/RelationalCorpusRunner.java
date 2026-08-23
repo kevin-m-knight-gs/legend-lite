@@ -669,6 +669,22 @@ public class RelationalCorpusRunner {
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             softRescued <= 614, "text-rescued passes grew: "
                                     + softRescued + " > 614"),
+                    // contract-program wire ratchets (2026-08-23):
+                    // corpus residue 181 (store cross-kind reads lead),
+                    // adopt-pending 130 (integer aggregates — contract
+                    // widens at construction)
+                    () -> org.junit.jupiter.api.Assertions.assertTrue(
+                            com.legend.exec.SqlTypeCensus
+                                    .wireDivergeCount() <= 181,
+                            "corpus wire divergence grew: "
+                                    + com.legend.exec.SqlTypeCensus
+                                            .summary()),
+                    () -> org.junit.jupiter.api.Assertions.assertTrue(
+                            com.legend.exec.SqlTypeCensus
+                                    .wireAdoptPendingCount() <= 130,
+                            "corpus wire adopt-pending grew: "
+                                    + com.legend.exec.SqlTypeCensus
+                                            .summary()),
                     // R1b census pin (CANONICAL_FORM_SPEC §0, measured
                     // 2026-08-22): 27 grid-text verdicts pass only via
                     // the kept leniencies — 6 row-order-only (R2's

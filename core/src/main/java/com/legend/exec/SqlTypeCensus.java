@@ -124,6 +124,9 @@ public final class SqlTypeCensus {
     public static final ThreadLocal<String> CONTEXT = new ThreadLocal<>();
 
     private static final LongAdder WIRE_AGREE = new LongAdder();
+    private static final LongAdder WIRE_DELIVERED = new LongAdder();
+    private static final LongAdder WIRE_ADOPT_PENDING = new LongAdder();
+    private static final LongAdder WIRE_NULL_AMBIG = new LongAdder();
     private static final LongAdder WIRE_DIVERGE = new LongAdder();
     private static final LongAdder WIRE_UNKNOWN = new LongAdder();
 
@@ -154,6 +157,36 @@ public final class SqlTypeCensus {
                 }
                 if (label.equals(meta)) {
                     WIRE_AGREE.increment();
+                } else if (delivers(outs.get(i).type(), meta)) {
+                    // THE DELIVERY RELATION (adjudicated 2026-08-23):
+                    // value-subset narrowing (every INTEGER fits the
+                    // BIGINT contract; DECIMAL(p,s) fits DECIMAL(P>=p,s))
+                    // and the registered carrier conventions — the
+                    // admissible() pairs read at the wire
+                    WIRE_DELIVERED.increment();
+                    classify("wire-delivered[" + dialect + "] " + label
+                            + " <- " + meta);
+                } else if (meta.equals("HUGEINT")
+                        && label.equals("BIGINT")) {
+                    // ADOPT-PENDING (the testLargePlus adjudication):
+                    // integer aggregates legitimately exceed 64 bits —
+                    // pure semantics sides with the WIRE; the CONTRACT
+                    // is what widens (at construction, the builder
+                    // slice). Counted visibly until labels widen —
+                    // decode is BigInteger-safe today.
+                    WIRE_ADOPT_PENDING.increment();
+                    classify("wire-adopt-pending[" + dialect
+                            + "] BIGINT <- HUGEINT");
+                } else if (meta.equals("INTEGER")
+                        && !integerFamily(outs.get(i).type())) {
+                    // AMBIGUOUS: DuckDB metadata spells an all-NULL
+                    // column INTEGER — indistinguishable from a real
+                    // integer wire without VALUE evidence (the decode
+                    // tripwire's territory, with the nullability
+                    // re-label). Own bucket, neither agree nor diverge.
+                    WIRE_NULL_AMBIG.increment();
+                    classify("wire-int-or-null[" + dialect + "] label="
+                            + label);
                 } else {
                     String cls = "wire[" + dialect + "] label=" + label
                             + " <> meta=" + meta;
@@ -167,6 +200,61 @@ public final class SqlTypeCensus {
             // execution — an unreadable metadata is a counted unknown
             WIRE_UNKNOWN.increment();
         }
+    }
+
+    /** Does the wire's factual type SATISFY the label's contract
+     * without value loss? Exact is handled by the caller; this covers
+     * value-subset narrowing and the registered carrier conventions
+     * (metaToType + admissible — ONE relation, read from both sides). */
+    private static boolean delivers(SqlType label, String meta) {
+        // integer-width chain: every narrower integer fits
+        if (label == SqlType.Scalar.BIGINT
+                && (meta.equals("INTEGER") || meta.equals("SMALLINT")
+                        || meta.equals("TINYINT"))) {
+            return true;
+        }
+        if (label == SqlType.Scalar.INTEGER
+                && (meta.equals("SMALLINT") || meta.equals("TINYINT"))) {
+            return true;
+        }
+        // decimal narrowing at the same scale
+        if (label instanceof SqlType.Decimal d && meta.startsWith("DECIMAL(")) {
+            try {
+                String[] ps = meta.substring(8, meta.length() - 1).split(",");
+                int p = Integer.parseInt(ps[0].trim());
+                int sc = Integer.parseInt(ps[1].trim());
+                return sc == d.scale() && p <= d.precision();
+            } catch (NumberFormatException | IndexOutOfBoundsException e) {
+                return false;
+            }
+        }
+        SqlType mt = metaToType(meta);
+        return mt != null && admissibleWire(label, mt);
+    }
+
+    private static boolean integerFamily(SqlType t) {
+        return t == SqlType.Scalar.BIGINT || t == SqlType.Scalar.INTEGER
+                || t == SqlType.Scalar.HUGEINT;
+    }
+
+    /** The carrier conventions read at the wire: the SAME registered
+     * pairs as {@link #admissible} (label may be delivered by its
+     * convention carrier). */
+    private static boolean admissibleWire(SqlType label, SqlType meta) {
+        return admissible(label, meta);
+    }
+
+    private static @com.legend.Nullable SqlType metaToType(String meta) {
+        return switch (meta) {
+            case "VARCHAR" -> SqlType.Scalar.VARCHAR;
+            case "JSON" -> SqlType.Scalar.JSON;
+            case "DATE" -> SqlType.Scalar.DATE;
+            case "TIMESTAMP" -> SqlType.Scalar.TIMESTAMP;
+            case "DOUBLE" -> SqlType.Scalar.DOUBLE;
+            case "BOOLEAN" -> SqlType.Scalar.BOOLEAN;
+            case "BIGINT" -> SqlType.Scalar.BIGINT;
+            default -> null;
+        };
     }
 
     /** Our label in the wire's own vocabulary (DuckDB-family type
@@ -394,6 +482,14 @@ public final class SqlTypeCensus {
         return MISMATCH.sum();
     }
 
+    public static long wireDivergeCount() {
+        return WIRE_DIVERGE.sum();
+    }
+
+    public static long wireAdoptPendingCount() {
+        return WIRE_ADOPT_PENDING.sum();
+    }
+
     public static String summary() {
         return "plans=" + PLANS.sum() + " cols: agree=" + AGREE.sum()
                 + " admissible=" + ADMISSIBLE.sum()
@@ -401,6 +497,9 @@ public final class SqlTypeCensus {
                 + " bottom-mult-backlog=" + BOTTOM_MULT.sum()
                 + " mismatch=" + MISMATCH.sum() + " untyped=" + UNTYPED.sum()
                 + " | wire: agree=" + WIRE_AGREE.sum()
+                + " delivered=" + WIRE_DELIVERED.sum()
+                + " adopt-pending=" + WIRE_ADOPT_PENDING.sum()
+                + " int-or-null=" + WIRE_NULL_AMBIG.sum()
                 + " diverge=" + WIRE_DIVERGE.sum()
                 + " unknown=" + WIRE_UNKNOWN.sum();
     }

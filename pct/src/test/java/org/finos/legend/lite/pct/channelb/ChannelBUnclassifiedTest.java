@@ -104,6 +104,18 @@ class ChannelBUnclassifiedTest {
         assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 5,
                 "byte-verdict declines grew past the declared residue: "
                         + com.legend.exec.CanonicalDivergence.summary());
+        // CONTRACT PROGRAM wire ratchets (adjudicated 2026-08-23,
+        // shrink-only): DIVERGE = the true residue (hash UBIGINT,
+        // percentile input-type, Number-erasure decimal delivery —
+        // witnesses attached); ADOPT-PENDING = integer aggregates
+        // whose CONTRACT widens at construction (testLargePlus rule).
+        assertTrue(com.legend.exec.SqlTypeCensus.wireDivergeCount() <= 80,
+                "wire divergence grew: "
+                        + com.legend.exec.SqlTypeCensus.summary());
+        assertTrue(com.legend.exec.SqlTypeCensus.wireAdoptPendingCount() <= 110,
+                "wire adopt-pending grew: "
+                        + com.legend.exec.SqlTypeCensus.summary());
+
 
     }
 }
