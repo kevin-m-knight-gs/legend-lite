@@ -121,6 +121,10 @@ class JdbcSurfaceCensusTest {
             // computes both verdict sides; the site-minted __id rides
             // the SQL and the verdict IS the test
             "core/src/test/java/com/legend/exec/InstanceIdentityTest.java",
+            // relation wall burn 2026-08-23: the aggregate-ORDER-BY
+            // null-placement pin — a DuckDB session renders the sorted
+            // toString; the produced text IS the assertion
+            "core/src/test/java/com/legend/lowering/AggOrderNullPlacementTest.java",
             // Phase 4: map wire-shape + rigid-lattice spec pins execute
             // through a DuckDB session (the wire IS the assertion)
             "core/src/test/java/com/legend/lowering/MapOptionalSourceTest.java",

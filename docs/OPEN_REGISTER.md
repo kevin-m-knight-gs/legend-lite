@@ -93,6 +93,22 @@ L (a program leg).
 
 ## CLOSED
 
+- RELATION WALL BURN CLOSED (2026-08-23, the 61-test discovery gap):
+  over.pure (68 window PCT tests) and pctQualifiers.pure compiled —
+  the '?' schema-algebra column wildcard classifies as the anonymous
+  TypeVar (the InferenceKernel UNKNOWN_COLUMN_TYPE convention), and
+  Profile self-stereotypes/tags parse in platform lanes and DROP
+  faithfully (the engine protocol Profile has no applied-annotation
+  field; the ENGINE GRAMMAR has no such slot — verified in
+  DomainParserGrammar — so the LEGEND dialect refuses verbatim,
+  refusesLiteExtensions-gated). Relation discovery 287 -> 355 (MORE
+  than channel A's own 348 — its qualifier config filters ~7); 66 of
+  68 new tests passed OUT OF THE BOX; the two failures were ONE
+  renderer bug — the aggregate-ORDER-BY hoist dropped declared null
+  placement (pure DESC NULLS FIRST sank to backend default;
+  AggOrderNullPlacementTest pins it). Relation walls 23 -> 20, suite
+  100% at the expanded universe (355/355, TRUE-WIRE-BUG 0). Channel B
+  totals: 1,082 pass / 1,118 discovered.
 - F13c CLOSED (2026-08-23, eq/equal identity IN CONDITIONS — user-driven:
   "do we pass the eq tests?"): the in-SQL eq/equal/contains/in arm
   family (InstanceEquality, identity lane only) compiles the ENGINE

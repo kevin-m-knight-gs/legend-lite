@@ -45,17 +45,13 @@ class ChannelBRelationTest {
         System.out.println("[chB-Relation] walls=" + walls.size());
         // audit-of-audits #12: walls ASSERTED shrink-only (23 measured
         // 2026-08-21); growth silently shrinks the discovery universe
-        assertTrue(walls.size() <= 23,
-                "relation walls grew: " + walls.size() + " > 23");
-        // the two SCOPE walls that hide 61 reference tests — pinned BY
-        // NAME so burning either forces the discovery pin below UP
-        assertTrue(walls.stream().anyMatch(w -> w.contains("over.pure")),
-                "over.pure no longer walls — raise the 287 discovery pin"
-                        + " toward the 348 reference scope");
-        assertTrue(walls.stream()
-                        .anyMatch(w -> w.contains("pctQualifiers.pure")),
-                "pctQualifiers.pure no longer walls — raise the 287"
-                        + " discovery pin toward the 348 reference scope");
+        assertTrue(walls.size() <= 20,
+                "relation walls grew: " + walls.size() + " > 20");
+        // 2026-08-23: the over.pure + pctQualifiers.pure walls BURNED
+        // (the '?' schema-algebra wildcard classifies as the anonymous
+        // TypeVar; Profile self-stereotypes parse in platform lanes,
+        // engine-grammar-refused in LEGEND) — their by-name tripwires
+        // retired, the discovery pin moved as they demanded.
         Map<ChannelB.Status, Integer> census =
                 new EnumMap<>(ChannelB.Status.class);
         for (ChannelB.Outcome o : out) {
@@ -77,21 +73,21 @@ class ChannelBRelationTest {
         // deeper non-identity adapter shapes; the TRUE tail (33, pinned
         // SHRINK-ONLY) is the recorded burn queue — window semantics,
         // pivot column orders, chunk, temporal precision.
-        // audit-of-audits #12: the honest denominator. The REFERENCE
-        // scope is 348 (channel A runs all 348); discovery here is 287
-        // because over.pure fails the model build (Unknown type '?')
-        // and pctQualifiers.pure fails to parse — 61 tests are
-        // UNREACHABLE behind those two walls (asserted by name above),
-        // not absent. This pin is a floor-and-ceiling on the CURRENT
-        // gap, never a claim of completeness: when a wall burns, this
-        // number must move TOWARD 348 in the same commit.
-        assertTrue(out.size() == 287,
-                "relation discovery moved: " + out.size() + " != 287"
-                        + " (reference scope 348; 61 behind the over.pure"
-                        + " + pctQualifiers.pure walls)");
+        // audit-of-audits #12: the honest denominator. 287 -> 355
+        // (2026-08-23, the wall burn): over.pure's 68 window tests and
+        // the qualifier profile are DISCOVERED — more than the 348 the
+        // reference suite itself enumerates (its qualifier config
+        // filters ~7). Exact in both directions, as before.
+        assertTrue(out.size() == 355,
+                "relation discovery moved: " + out.size() + " != 355");
         // 100% (2026-08-19): the DESC nulls-first sort burned the last
         // pair — pure null ordering is NULL-IS-LARGEST
-        assertTrue(c.pass() >= 287, "relation PASS fell: " + c.pass());
+        // 287 -> 355 (2026-08-23): 100% at the EXPANDED universe —
+        // 66 of the 68 new window tests passed out of the box; the two
+        // RANGE-with-nulls DESC failures were ONE renderer bug (the
+        // aggregate ORDER BY hoist dropped declared null placement —
+        // AggOrderNullPlacementTest pins it).
+        assertTrue(c.pass() >= 355, "relation PASS fell: " + c.pass());
         // 33→28 (slice 1: singleton extremes, carrier norm, chunk)
         // →24 (slice 4: CANONICAL variant text — to_json over the
         // JSON-cast value, compact with leaf quoting preserved)

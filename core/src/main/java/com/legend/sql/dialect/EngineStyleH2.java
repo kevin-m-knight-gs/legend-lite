@@ -1286,6 +1286,16 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return e + (k.ascending() ? " asc" : " desc");
     }
 
+    /** ENGINE-VERBATIM, the sortKey suppression's aggregate-internal
+     * twin: the engine never spells a NULLS clause inside an ordered
+     * aggregate either — the TEXT channel suppresses the IR's semantic
+     * null-order stamp (execution renderers keep it; witness the
+     * relation wall burn's rescued golden, 2026-08-23). */
+    @Override
+    protected String aggOrderNullPlacement(com.legend.sql.SqlSelect.SortKey k) {
+        return "";
+    }
+
     /** Engine window text is lowercase: {@code sum(...) over (partition
      * by ... order by ...)} (the window-col goldens' spelling). */
     @Override

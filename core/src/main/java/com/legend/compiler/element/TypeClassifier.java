@@ -88,6 +88,13 @@ final class TypeClassifier {
                 if (typeParams.contains(nr.name())) {
                     yield new Type.TypeVar(nr.name());
                 }
+                if ("?".equals(nr.name())) {
+                    // m3's schema-algebra column-pattern wildcard
+                    // ((?:?)⊆T, over.pure signatures) — the established
+                    // convention is the anonymous type variable
+                    // (InferenceKernel.UNKNOWN_COLUMN_TYPE)
+                    yield new Type.TypeVar("?");
+                }
                 yield findType(nr.name()).orElseThrow(() -> new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL, 
                         "Unknown type: '" + nr.name() + "' is not a known primitive, class, or enum"));
             }

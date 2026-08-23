@@ -96,7 +96,16 @@ public class CorpusSweepTest {
      *  2d: the population was unbounded — every row classifies, but
      *  nothing stopped the TOTAL from growing silently). Shrink-only;
      *  measured 2026-08-14. */
-    private static final int MAX_PLATFORM_CATALOG = 1559;   // 2026-08-15 doc-string burn: +47 adjudicated rows (PURE-DIALECT-doc-string=40 + members), A5 gap 273->226
+    // 2026-08-23 relation wall burn: +2 ADJUDICATED rows — Profile
+    // self-stereotypes (m4-pure syntax; the engine grammar has no such
+    // slot, verified in DomainParserGrammar, so the oracle refuses).
+    // The platform lane parses-and-DROPS them faithfully (the engine
+    // protocol Profile carries no applied-annotation field); the LEGEND
+    // dialect still refuses verbatim (refusesLiteExtensions-gated). The
+    // two sources are the PCT infrastructure files pct_core.pure +
+    // pctQualifiers.pure — the latter unlocked the 68-test over.pure
+    // window scope (relation discovery 287 -> 355).
+    private static final int MAX_PLATFORM_CATALOG = 1561;   // 2026-08-15 doc-string burn: +47 adjudicated rows (PURE-DIALECT-doc-string=40 + members), A5 gap 273->226
     // 2026-08-19 Phase-4 entry-gate m3 burn: +42 adjudicated rows — the
     // PCT test-file surface (236/236 now parses at LEGEND_PLATFORM):
     // tagged-value string concatenation, negative-year date literals,

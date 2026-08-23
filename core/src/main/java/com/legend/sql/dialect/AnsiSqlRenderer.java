@@ -801,10 +801,24 @@ public class AnsiSqlRenderer implements SqlDialect {
         String order = r.orderBy().isEmpty() ? "" : " ORDER BY "
                 + r.orderBy().stream()
                         .map(k -> expr(k.expr(), 0)
-                                + (k.ascending() ? " ASC" : " DESC"))
+                                + (k.ascending() ? " ASC" : " DESC")
+                                + aggOrderNullPlacement(k))
                         .collect(java.util.stream.Collectors.joining(", "));
         return r.fn() + "(" + (r.distinct() ? "DISTINCT " : "") + args
                 + order + ")";
+    }
+
+    /** A key with DECLARED null placement keeps it inside the aggregate
+     * (pure null-largest sorts hoisted into toString — witness PCT
+     * testRange_..._WithOrderByDESC: DESC NULLS FIRST died here and
+     * nulls sank to the backend default); legacy keys carry none. The
+     * ENGINE-TEXT channel overrides to suppress — the engine never
+     * spells a NULLS clause (the sortKey suppression's
+     * aggregate-internal twin). */
+    protected String aggOrderNullPlacement(SqlSelect.SortKey k) {
+        return k.nullOrder() == null ? ""
+                : k.nullOrder() == SqlSelect.SortKey.NullOrder.NULLS_FIRST
+                        ? " NULLS FIRST" : " NULLS LAST";
     }
 
     // ==================================================================

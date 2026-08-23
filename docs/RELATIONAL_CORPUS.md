@@ -84,7 +84,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
 | tests/mapping/join | 28 | 26 | 1 | 1 | 0 | 10 | 10 | 0 | 5 |
 | tests/mapping/merge | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/mapping/modelJoin | 48 | 44 | 1 | 3 | 0 | 11 | 11 | 0 | 30 |
+| tests/mapping/modelJoin | 48 | 45 | 0 | 3 | 0 | 11 | 11 | 0 | 31 |
 | tests/mapping/multigrain | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 2 |
 | tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/relation | 109 | 104 | 4 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2332** | 70 | 80 | 93 | 257 | 303 | 27 | 613 |
+| **total** | 2575 | **2333** | 69 | 80 | 93 | 257 | 303 | 27 | 614 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2332 PASS = 1397 clean + 935 carrying softness (sqldiff 257, advisory 303, 0-asserts 27, text-rescued 613; flags overlap — the union is 935).
+SOFT-PASS RECONCILIATION (F2.1): 2333 PASS = 1397 clean + 936 carrying softness (sqldiff 257, advisory 303, 0-asserts 27, text-rescued 614; flags overlap — the union is 936).
 
 ### mapping walls (dropped at assembly)
 
@@ -1347,7 +1347,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2332 PASS = 1397 clean + 935 carrying softness 
 - ERROR testForcedSubTypeProjectDirect [tests/mapping/inheritance]: property 'stc_meta__relational__tests__model__inheritance__Bicycle___person' of class 'meta::relational::tests::model::inheritance::RoadVehicle' has no binding in mapping 'meta::relational::tests::mapping::inheritance::relational::multiJoins::inheritance' (unmapped, or routed to a non-root mapping s
 - ERROR testChainedInnerJoinsWithQualifierInGroupBy [tests/mapping/join]: filtered-navigation leaf 'extraInformation' reads a join slot of 'meta::relational::tests::model::simple::Person' — slot-demanding leaves under value-position filters are not supported yet
 - FAIL testMultipleJoinsInPropertyMappingWithDatesInClass [tests/mapping/join]: assertSameElements: expected [Row1, Row2, Row3, Row1, Row2, Row3], got [Row1, Row2, Row3] [expected types=[String, String, String, String, String, String]; got types=[String, String, String]]
-- FAIL testChainedTwoHops [tests/mapping/modelJoin]: assertEquals: expected #TDS\n   'Legal Name','Project Name'\n   Apple,null\n   Apple,ProjectY\n   Apple,ProjectX\n   Google,ProjectZ\n#, got #TDS\n   'Legal Name','Project Name'\n   Apple,ProjectY\n   Apple,ProjectX\n   Apple,null\n   Google,ProjectZ\n#
 - ERROR testNestedModelJoinCompoundInnerCondition [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedModelJoinWithPropertyAccess' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Address': $person.profile has n
 - ERROR testQualifiedPropertyInQuery [tests/mapping/modelJoin]: nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
 - ERROR testSubFilter [tests/mapping/modelJoin]: nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet

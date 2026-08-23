@@ -648,9 +648,17 @@ public class RelationalCorpusRunner {
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             softZero <= 27, "0-assert passes grew: "
                                     + softZero + " > 27"),
+                    // 613 -> 614 (2026-08-23, relation wall burn): a
+                    // PREVIOUSLY-FAILING test (modelJoin testChainedTwoHops)
+                    // now PASSES — the aggregate-ORDER-BY hoist kept its
+                    // declared null placement (pure DESC null-largest:
+                    // 'Apple,null' leads), and its exec text differs from
+                    // the golden by exactly that semantic clause, so the
+                    // pass carries the rescue flag. Corpus 2332 -> 2333;
+                    // a gained pass, not text decay.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            softRescued <= 613, "text-rescued passes grew: "
-                                    + softRescued + " > 613"),
+                            softRescued <= 614, "text-rescued passes grew: "
+                                    + softRescued + " > 614"),
                     // R1b census pin (CANONICAL_FORM_SPEC §0, measured
                     // 2026-08-22): 27 grid-text verdicts pass only via
                     // the kept leniencies — 6 row-order-only (R2's
@@ -677,7 +685,7 @@ public class RelationalCorpusRunner {
                                             .summary()));
             System.out.println("[rcorpus] soft ceilings: sqldiff " + softDiff
                     + "/257, adv " + softAdv + "/303, 0-asserts " + softZero
-                    + "/27, rescued " + softRescued + "/613");
+                    + "/27, rescued " + softRescued + "/614");
         }
         org.junit.jupiter.api.Assertions.assertTrue(regressions.isEmpty(),
                 "CORPUS REGRESSION vs committed docs/RELATIONAL_CORPUS.md: "
