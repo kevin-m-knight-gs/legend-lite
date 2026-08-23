@@ -2538,6 +2538,12 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
         out = deduped
     if spec.group_by:
         out = _group(spec, out)
+    for f in getattr(spec, "post_filters", ()):
+        # After grouping, on the projected alias. A row whose value is NULL is dropped,
+        # which is what `>` does and what F28 says `!=` does not -- so post filters use the
+        # same comparison discipline as the pre-project ones.
+        out = [r for r in out
+               if r.get(f.path[0]) is not None and _cmp(f.op, r[f.path[0]], f.value)]
     keys = ([] if not spec.sort
             else spec.sort if isinstance(spec.sort, list) else [spec.sort])
     if keys:

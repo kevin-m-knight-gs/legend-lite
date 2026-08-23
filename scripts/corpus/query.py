@@ -117,6 +117,11 @@ class Spec:
     multi_key: str = "variant"
     group_by: list = field(default_factory=list)
     aggs: list = field(default_factory=list)
+    # Predicates applied AFTER project (and after groupBy), on PROJECTED ALIASES rather than
+    # on model paths. A different plan shape from `filters`: the join has already happened
+    # and the predicate is over the result, so the engine must decide whether it can be
+    # pushed back down. Nothing in the corpus had ever asked it to.
+    post_filters: list = field(default_factory=list)
 
     @property
     def short(self) -> str:

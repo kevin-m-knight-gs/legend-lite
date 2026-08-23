@@ -398,6 +398,11 @@ def query_text(spec: Spec) -> str:
             f"{name}: {VAR}|${VAR}.{src} : agg|$agg->{fn}()"
             for name, src, fn in spec.aggs)
         lines.append(f"        ->groupBy(~[{keys}], ~[\n            {parts}\n        ])")
+    if getattr(spec, "post_filters", None):
+        # On the RELATION, so the operands are projected aliases and not model paths.
+        conds = " && ".join(
+            f"(${VAR}.{f.path[0]} {f.op} {_literal(f.value)})" for f in spec.post_filters)
+        lines.append(f"        ->filter({{{VAR}|{conds}}})")
     if spec.sort:
         keys = spec.sort if isinstance(spec.sort, list) else [spec.sort]
         rendered = ", ".join(
