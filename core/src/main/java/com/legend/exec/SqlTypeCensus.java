@@ -41,6 +41,8 @@ public final class SqlTypeCensus {
 
     private static final LongAdder PLANS = new LongAdder();
     private static final LongAdder AGREE = new LongAdder();
+    private static final LongAdder BOTTOM_OK = new LongAdder();
+    private static final LongAdder BOTTOM_LIE = new LongAdder();
     private static final LongAdder MISMATCH = new LongAdder();
     private static final LongAdder UNTYPED = new LongAdder();
     /** declared-&gt;computed pair (mismatch) / expr shape (untyped)
@@ -77,16 +79,34 @@ public final class SqlTypeCensus {
                 continue;
             }
             OutputCol declared = s.outputs().get(i);
-            SqlType computed = SqlTyping.of(e, col -> resolve(col, leaves));
-            if (computed == null) {
-                UNTYPED.increment();
-                classify("untyped: " + shapeOf(e));
-            } else if (computed.equals(declared.type())) {
-                AGREE.increment();
-            } else {
-                MISMATCH.increment();
-                classify("declared " + declared.type() + " <> computed "
-                        + computed);
+            SqlTyping.Verdict v = SqlTyping.judge(e,
+                    col -> resolve(col, leaves));
+            switch (v) {
+                case SqlTyping.Verdict.Bottom b -> {
+                    // BOTTOM agrees with any NULLABLE label; a NULL
+                    // literal under a non-nullable label is a LIE the
+                    // "excluded" design would have discarded
+                    if (declared.nullable()) {
+                        BOTTOM_OK.increment();
+                    } else {
+                        BOTTOM_LIE.increment();
+                        classify("null-in-non-nullable: "
+                                + declared.type());
+                    }
+                }
+                case SqlTyping.Verdict.Unknown u -> {
+                    UNTYPED.increment();
+                    classify("untyped: " + shapeOf(e));
+                }
+                case SqlTyping.Verdict.Typed t -> {
+                    if (t.type().equals(declared.type())) {
+                        AGREE.increment();
+                    } else {
+                        MISMATCH.increment();
+                        classify("declared " + declared.type()
+                                + " <> computed " + t.type());
+                    }
+                }
             }
         }
     }
@@ -138,6 +158,8 @@ public final class SqlTypeCensus {
 
     public static String summary() {
         return "plans=" + PLANS.sum() + " cols: agree=" + AGREE.sum()
+                + " bottom-ok=" + BOTTOM_OK.sum()
+                + " bottom-lie=" + BOTTOM_LIE.sum()
                 + " mismatch=" + MISMATCH.sum() + " untyped=" + UNTYPED.sum();
     }
 

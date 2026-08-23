@@ -56,6 +56,25 @@ class SqlTypingTest {
     }
 
     @Test
+    @DisplayName("BOTTOM is first-class: NULL (and all-NULL cases) is"
+            + " the value admissible in any nullable slot — distinct"
+            + " from Unknown (no rule)")
+    void bottomVerdict() {
+        assertEquals(new SqlTyping.Verdict.Bottom(),
+                SqlTyping.judge(new SqlExpr.NullLit(), NO_SCOPE));
+        assertEquals(new SqlTyping.Verdict.Bottom(),
+                SqlTyping.judge(new SqlExpr.Case(List.of(
+                        new SqlExpr.Case.When(new SqlExpr.BoolLit(true),
+                                new SqlExpr.NullLit())), null), NO_SCOPE));
+        assertEquals(new SqlTyping.Verdict.Unknown(),
+                SqlTyping.judge(SqlExpr.Call.of(SqlFn.PLUS,
+                        new SqlExpr.IntLit(1), new SqlExpr.IntLit(2)),
+                        NO_SCOPE));
+        assertEquals(new SqlTyping.Verdict.Typed(SqlType.Scalar.BIGINT),
+                SqlTyping.judge(new SqlExpr.IntLit(1), NO_SCOPE));
+    }
+
+    @Test
     @DisplayName("partiality: numeric promotion and unknown shapes are"
             + " NULL — counted, never guessed")
     void partiality() {

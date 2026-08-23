@@ -27,6 +27,61 @@ public final class SqlTyping {
     private SqlTyping() {
     }
 
+    /** BOTTOM — the judgment's verdict for the NULL literal (and
+     * all-NULL compositions): the value that inhabits EVERY nullable
+     * slot (type theory's &perp;; DuckDB's own internal SQLNULL type,
+     * resolved by context). Deliberately NOT pure's {@code Nil} —
+     * pure's bottom types empty COLLECTIONS and pure has no null
+     * value; the frontend-emptiness/backend-NULL line is drawn by the
+     * verdict system and this name keeps it drawn. A BOTTOM column
+     * AGREES with any NULLABLE label and is a LIE against a
+     * non-nullable one — the distinction "excluded" would discard. */
+    public sealed interface Verdict {
+        record Typed(SqlType type) implements Verdict {
+        }
+
+        record Bottom() implements Verdict {
+        }
+
+        record Unknown() implements Verdict {
+        }
+    }
+
+    private static final Verdict BOTTOM = new Verdict.Bottom();
+    private static final Verdict UNKNOWN = new Verdict.Unknown();
+
+    /** The three-valued judgment: {@code Typed(t)} — the expression
+     * produces exactly {@code t}; {@code Bottom} — the NULL value,
+     * admissible in any nullable slot; {@code Unknown} — no rule yet
+     * (the coverage census). */
+    public static Verdict judge(SqlExpr e,
+            Function<SqlExpr.Column, @com.legend.Nullable SqlType> scope) {
+        if (e instanceof SqlExpr.NullLit) {
+            return BOTTOM;
+        }
+        if (allNullCase(e)) {
+            return BOTTOM;
+        }
+        SqlType t = of(e, scope);
+        return t == null ? UNKNOWN : new Verdict.Typed(t);
+    }
+
+    /** A CASE whose every branch is the NULL literal is itself the
+     * NULL value (the composition rule bottom already obeys inside
+     * {@code uniform}, surfaced at the verdict level). */
+    private static boolean allNullCase(SqlExpr e) {
+        if (!(e instanceof SqlExpr.Case cs)) {
+            return false;
+        }
+        for (SqlExpr.Case.When w : cs.whens()) {
+            if (!(w.then() instanceof SqlExpr.NullLit)) {
+                return false;
+            }
+        }
+        return cs.otherwise() == null
+                || cs.otherwise() instanceof SqlExpr.NullLit;
+    }
+
     /** The computed type of {@code e}, or null (no rule / unresolvable
      * reference). {@code scope} resolves column references to their
      * source's declared output type — the LEAF AXIOMS (store DDL, TDS
