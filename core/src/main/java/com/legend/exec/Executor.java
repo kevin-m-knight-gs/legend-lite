@@ -267,6 +267,10 @@ public final class Executor {
             throws SQLException {
         try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
              ResultSet rs = st.executeQuery()) {
+            // CONTRACT PROGRAM: the wire census — label vs the result's
+            // own metadata (rides with the data; no extra round trip)
+            SqlTypeCensus.probeWire(plan, rs,
+                    dialect.getClass().getSimpleName());
             return switch (shape) {
                 case TABULAR -> tabular(rs, plan, rootType, dialect);
                 case SCALAR -> {

@@ -123,6 +123,102 @@ public final class SqlTypeCensus {
      * (Invariant 6d). */
     public static final ThreadLocal<String> CONTEXT = new ThreadLocal<>();
 
+    private static final LongAdder WIRE_AGREE = new LongAdder();
+    private static final LongAdder WIRE_DIVERGE = new LongAdder();
+    private static final LongAdder WIRE_UNKNOWN = new LongAdder();
+
+    /** CONTRACT PROGRAM step 1 — THE WIRE CENSUS: our label (the
+     * contract) vs the ResultSet's OWN metadata (the factual wire, no
+     * extra round trip — it rides with the data). Ground truth per
+     * dialect, total expression coverage, zero inference. Phase 1 it
+     * MEASURES the guess-vs-reality gap (each divergence adjudicates
+     * adopt / conform / fix-emitter); phase 3 it is the always-green
+     * tripwire. FAILURE-ISOLATED like every instrument (the
+     * Dual.alias lesson): a metadata hiccup counts as unknown, never
+     * throws into execution. */
+    public static void probeWire(SqlQuery plan, java.sql.ResultSet rs,
+            String dialect) {
+        try {
+            java.sql.ResultSetMetaData md = rs.getMetaData();
+            List<OutputCol> outs = plan.outputs();
+            if (md.getColumnCount() != outs.size()) {
+                WIRE_UNKNOWN.increment();
+                return;
+            }
+            for (int i = 0; i < outs.size(); i++) {
+                String label = wireSpelling(outs.get(i).type());
+                String meta = normalizeMeta(md.getColumnTypeName(i + 1));
+                if (label == null || meta.isEmpty()) {
+                    WIRE_UNKNOWN.increment();
+                    continue;
+                }
+                if (label.equals(meta)) {
+                    WIRE_AGREE.increment();
+                } else {
+                    String cls = "wire[" + dialect + "] label=" + label
+                            + " <> meta=" + meta;
+                    WIRE_DIVERGE.increment();
+                    classify(cls);
+                    sample(cls, outs.get(i).name());
+                }
+            }
+        } catch (java.sql.SQLException | RuntimeException e) {
+            // instrument isolation: measurement must never throw into
+            // execution — an unreadable metadata is a counted unknown
+            WIRE_UNKNOWN.increment();
+        }
+    }
+
+    /** Our label in the wire's own vocabulary (DuckDB-family type
+     * names), for comparison against getColumnTypeName. Composites
+     * compare by HEAD (full struct field lists are driver-fragile).
+     * Null = no spelling (compare impossible — counted unknown). */
+    private static @com.legend.Nullable String wireSpelling(SqlType t) {
+        if (t instanceof SqlType.Scalar sc) {
+            return sc.name();
+        }
+        if (t instanceof SqlType.Decimal d) {
+            return "DECIMAL(" + d.precision() + "," + d.scale() + ")";
+        }
+        if (t instanceof SqlType.Array) {
+            return "ARRAY";
+        }
+        if (t instanceof SqlType.Struct) {
+            return "STRUCT";
+        }
+        if (t instanceof SqlType.Map) {
+            return "MAP";
+        }
+        return null;
+    }
+
+    private static String normalizeMeta(@com.legend.Nullable String name) {
+        if (name == null) {
+            return "";
+        }
+        String n = name.toUpperCase(java.util.Locale.ROOT).trim();
+        if (n.startsWith("STRUCT")) {
+            return "STRUCT";
+        }
+        if (n.startsWith("MAP")) {
+            return "MAP";
+        }
+        if (n.endsWith("[]") || n.startsWith("ARRAY")) {
+            return "ARRAY";
+        }
+        // driver spelling families -> our scalar names
+        if (n.equals("CHARACTER VARYING") || n.startsWith("VARCHAR")) {
+            return "VARCHAR";
+        }
+        if (n.startsWith("DECIMAL") || n.startsWith("NUMERIC")) {
+            return n.replace("NUMERIC", "DECIMAL").replace(" ", "");
+        }
+        if (n.startsWith("TIMESTAMP")) {
+            return "TIMESTAMP";
+        }
+        return n;
+    }
+
     public static void probe(SqlQuery plan) {
         PLANS.increment();
         walk(plan);
@@ -303,7 +399,10 @@ public final class SqlTypeCensus {
                 + " admissible=" + ADMISSIBLE.sum()
                 + " bottom-ok=" + BOTTOM_OK.sum()
                 + " bottom-mult-backlog=" + BOTTOM_MULT.sum()
-                + " mismatch=" + MISMATCH.sum() + " untyped=" + UNTYPED.sum();
+                + " mismatch=" + MISMATCH.sum() + " untyped=" + UNTYPED.sum()
+                + " | wire: agree=" + WIRE_AGREE.sum()
+                + " diverge=" + WIRE_DIVERGE.sum()
+                + " unknown=" + WIRE_UNKNOWN.sum();
     }
 
     /** The classified census, largest classes first. */

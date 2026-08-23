@@ -94,6 +94,11 @@ class ErrorShapeGuardrailTest {
             // decline, never a rescue (witness testRepeatStringNoString:
             // the BLOB wire under a STRING stamp).
             Map.entry("StatementExecutor.java", 3),
+            // contract program (2026-08-23): the wire census's
+            // INSTRUMENT-ISOLATION catch — measurement must never throw
+            // into execution (the Dual.alias lesson); an unreadable
+            // ResultSetMetaData is a counted unknown, never a failure
+            Map.entry("SqlTypeCensus.java", 1),
             Map.entry("StaticFold.java", 1),
             Map.entry("EngineTestExecutor.java", 3),
             Map.entry("QuotedSpecParser.java", 1),
