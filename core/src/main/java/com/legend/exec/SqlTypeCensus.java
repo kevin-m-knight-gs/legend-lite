@@ -43,7 +43,7 @@ public final class SqlTypeCensus {
     private static final LongAdder AGREE = new LongAdder();
     private static final LongAdder ADMISSIBLE = new LongAdder();
     private static final LongAdder BOTTOM_OK = new LongAdder();
-    private static final LongAdder BOTTOM_LIE = new LongAdder();
+    private static final LongAdder BOTTOM_MULT = new LongAdder();
     private static final LongAdder MISMATCH = new LongAdder();
     private static final LongAdder UNTYPED = new LongAdder();
 
@@ -117,6 +117,12 @@ public final class SqlTypeCensus {
             new ConcurrentHashMap<>();
     private static final int SAMPLES_PER_CLASS = 3;
 
+    /** The runners' per-test marker (set beside StampCensus.CONTEXT
+     * by ChannelB and the corpus Runner — test-side wiring): witness
+     * attribution without exec reaching into the middle-end
+     * (Invariant 6d). */
+    public static final ThreadLocal<String> CONTEXT = new ThreadLocal<>();
+
     public static void probe(SqlQuery plan) {
         PLANS.increment();
         walk(plan);
@@ -150,15 +156,26 @@ public final class SqlTypeCensus {
                     col -> resolve(col, leaves));
             switch (v) {
                 case SqlTyping.Verdict.Bottom b -> {
-                    // BOTTOM agrees with any NULLABLE label; a NULL
-                    // literal under a non-nullable label is a LIE the
-                    // "excluded" design would have discarded
+                    // ADJUDICATED (user challenge 2026-08-23): today the
+                    // nullable flag MEANS "the pure multiplicity is
+                    // required" (PureSql.nullable is its only writer) —
+                    // it is NOT a wire-nullability contract, so a
+                    // padding NULL under it is not a lie; it is the
+                    // measured DIVERGENCE between multiplicity-derived
+                    // labels and wire NULLs (union set-pk pads, subtype
+                    // markers — engine-side these are unlabeled
+                    // plumbing). The T4 flip re-labels WHOLESALE to
+                    // wire meaning — one meaning change, one owner;
+                    // this bucket is that flip's measured backlog,
+                    // never a per-site fixer's hunting ground (the
+                    // rejected NullPadLabels pass: builder+fixer split,
+                    // mixed-meaning flags).
                     if (declared.nullable()) {
                         BOTTOM_OK.increment();
                     } else {
-                        String cls = "null-in-non-nullable: "
+                        String cls = "null-under-required-multiplicity: "
                                 + declared.type();
-                        BOTTOM_LIE.increment();
+                        BOTTOM_MULT.increment();
                         classify(cls);
                         sample(cls, declared.name() + " := " + sketch(e));
                     }
@@ -234,7 +251,8 @@ public final class SqlTypeCensus {
                 k -> java.util.Collections.synchronizedList(
                         new ArrayList<>()));
         if (ws.size() < SAMPLES_PER_CLASS) {
-            ws.add(witness);
+            String ctx = CONTEXT.get();
+            ws.add(witness + (ctx == null ? "" : " [" + ctx + "]"));
         }
     }
 
@@ -284,7 +302,7 @@ public final class SqlTypeCensus {
         return "plans=" + PLANS.sum() + " cols: agree=" + AGREE.sum()
                 + " admissible=" + ADMISSIBLE.sum()
                 + " bottom-ok=" + BOTTOM_OK.sum()
-                + " bottom-lie=" + BOTTOM_LIE.sum()
+                + " bottom-mult-backlog=" + BOTTOM_MULT.sum()
                 + " mismatch=" + MISMATCH.sum() + " untyped=" + UNTYPED.sum();
     }
 

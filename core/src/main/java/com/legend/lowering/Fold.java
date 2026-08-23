@@ -142,8 +142,10 @@ final class Fold {
             return outs;
         }
         var w = new java.util.ArrayList<>(outs);
+        // label = wire truth (typed-IR census witness u_ord := IntLit):
+        // the ordinal literal IS a BIGINT
         w.add(new com.legend.sql.OutputCol("u_ord",
-                com.legend.sql.SqlType.Scalar.INTEGER, false));
+                com.legend.sql.SqlType.Scalar.BIGINT, false));
         return w;
     }
 
