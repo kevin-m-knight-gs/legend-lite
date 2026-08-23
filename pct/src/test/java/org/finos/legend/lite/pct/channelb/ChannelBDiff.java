@@ -89,6 +89,9 @@ final class ChannelBDiff {
                 + com.legend.exec.SqlTypeCensus.summary());
         com.legend.exec.SqlTypeCensus.classes(40).forEach(c ->
                 System.out.println("[" + tag + "] sqltypes-class: " + c));
+        com.legend.exec.SqlTypeCensus.allSamples().forEach((cls, ws) ->
+                ws.forEach(w -> System.out.println("[" + tag
+                        + "] sqltypes-witness: " + cls + " :: " + w)));
         return new Counts(pass, agreePass, agreeFail, wireBug, bFixesA,
                 declined, frontier, trueWireBug);
     }

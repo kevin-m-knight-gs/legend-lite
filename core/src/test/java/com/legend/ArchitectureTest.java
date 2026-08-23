@@ -836,6 +836,9 @@ final class ArchitectureTest {
                 // measurement only, never verdict-affecting — the
                 // CanonicalDivergence pattern
                 "com.legend.exec.SqlTypeCensus.CLASSES",
+                // T3: bounded per-class WITNESSES (3 max each) — the
+                // emission-seam locator; measurement only
+                "com.legend.exec.SqlTypeCensus.SAMPLES",
                 // serializer registry: written once at static init; the
                 // ConcurrentHashMap spelling is for safe publication
                 "com.legend.server.serial.SerializerRegistry.SERIALIZERS");

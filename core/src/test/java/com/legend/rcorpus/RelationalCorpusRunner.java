@@ -580,6 +580,10 @@ public class RelationalCorpusRunner {
                     + com.legend.exec.SqlTypeCensus.summary());
             com.legend.exec.SqlTypeCensus.classes(20).forEach(c ->
                     System.out.println("[rcorpus] sqltypes-class: " + c));
+            com.legend.exec.SqlTypeCensus.allSamples().forEach((cls, ws) ->
+                    ws.forEach(w -> System.out.println(
+                            "[rcorpus] sqltypes-witness: " + cls + " :: "
+                                    + w)));
         }
         // MECHANICAL REGRESSION GATE (audit: this runner carried NO
         // asserts — BUILD SUCCESS regardless of outcome). Every family

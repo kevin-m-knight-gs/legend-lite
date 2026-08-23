@@ -41,14 +41,81 @@ public final class SqlTypeCensus {
 
     private static final LongAdder PLANS = new LongAdder();
     private static final LongAdder AGREE = new LongAdder();
+    private static final LongAdder ADMISSIBLE = new LongAdder();
     private static final LongAdder BOTTOM_OK = new LongAdder();
     private static final LongAdder BOTTOM_LIE = new LongAdder();
     private static final LongAdder MISMATCH = new LongAdder();
     private static final LongAdder UNTYPED = new LongAdder();
+
+    /** THE ADMISSIBILITY RELATION (T3, user-audited 2026-08-23): the
+     * registered (declared, computed) carrier pairs — each a
+     * DELIBERATE representation choice with its justification.
+     * Everything NOT here that differs is a MISMATCH — the bug list.
+     *
+     * <p>HONESTY NOTE (recorded from the audit): these are TYPE-PAIR
+     * rules, and three of them are COARSER than their justifying
+     * conventions — the temporal-text pair's true scope is
+     * PARTIAL-PRECISION carriage (full-precision values should ride
+     * native temporals); the TIMESTAMP&larr;DATE pair is SUBSUMPTION
+     * (a StrictDate value in an ABSTRACT-Date slot — a DateTime-
+     * stamped slot receiving DATE would be a real kind bug the pair
+     * cannot distinguish); the DOUBLE&larr;VARCHAR pair is the
+     * NUMBER-slot identity carrier (pure literal spellings for ALL
+     * fine kinds — the DOUBLE label is where the abstract-Number
+     * stamp erases to), not a Float convention. Enforcement (T4)
+     * conditions these on the pure STAMP or retires them by emission;
+     * the census keeps every admitted class counted AND witnessed.
+     * The reverse temporal direction (DATE label &larr; TIMESTAMP
+     * wire: a datetime in a strict-date slot) is DELIBERATELY absent
+     * — that is a bug, never a carrier. A previously-registered
+     * INTEGER&larr;BIGINT rule was REMOVED same day: label-narrowing
+     * is only value-safe, which a type rule cannot see. */
+    private static boolean admissible(SqlType declared, SqlType computed) {
+        // partial-precision temporal carriage (D-arc): SQL temporals
+        // cannot hold pure's partial precisions, so temporal slots may
+        // carry the precision-faithful VARCHAR wire
+        if ((declared == SqlType.Scalar.TIMESTAMP
+                || declared == SqlType.Scalar.DATE)
+                && computed == SqlType.Scalar.VARCHAR) {
+            return true;
+        }
+        // SUBSUMPTION at the abstract-Date slot (F5.4): the TIMESTAMP
+        // label is where abstract Date erases; a StrictDate value's
+        // DATE wire is a subtype in a supertype slot
+        if (declared == SqlType.Scalar.TIMESTAMP
+                && computed == SqlType.Scalar.DATE) {
+            return true;
+        }
+        // the NUMBER-slot identity carrier: pure literal spellings
+        // (1 / 7.345 / 2D) keep every fine kind's identity in text;
+        // DOUBLE is where the abstract-Number stamp erases
+        if (declared == SqlType.Scalar.DOUBLE
+                && computed == SqlType.Scalar.VARCHAR) {
+            return true;
+        }
+        // serialize-as-text (the m2m/graphFetch egress): DuckDB serves
+        // JSON as its text; the conform-by-emission cast is a later,
+        // golden-text-gated slice
+        if (declared == SqlType.Scalar.VARCHAR
+                && computed == SqlType.Scalar.JSON) {
+            return true;
+        }
+        // Decimal WIDENING is lossless: a narrower computed decimal
+        // fits any wider label at the same scale
+        return declared instanceof SqlType.Decimal d
+                && computed instanceof SqlType.Decimal c2
+                && d.scale() == c2.scale()
+                && d.precision() >= c2.precision();
+    }
     /** declared-&gt;computed pair (mismatch) / expr shape (untyped)
      * &rarr; occurrence count. */
     private static final Map<String, LongAdder> CLASSES =
             new ConcurrentHashMap<>();
+    /** First few WITNESSES per class — enough detail to locate the
+     * emission seam (column name + expression sketch). Bounded. */
+    private static final Map<String, List<String>> SAMPLES =
+            new ConcurrentHashMap<>();
+    private static final int SAMPLES_PER_CLASS = 3;
 
     public static void probe(SqlQuery plan) {
         PLANS.increment();
@@ -89,9 +156,11 @@ public final class SqlTypeCensus {
                     if (declared.nullable()) {
                         BOTTOM_OK.increment();
                     } else {
+                        String cls = "null-in-non-nullable: "
+                                + declared.type();
                         BOTTOM_LIE.increment();
-                        classify("null-in-non-nullable: "
-                                + declared.type());
+                        classify(cls);
+                        sample(cls, declared.name() + " := " + sketch(e));
                     }
                 }
                 case SqlTyping.Verdict.Unknown u -> {
@@ -101,10 +170,18 @@ public final class SqlTypeCensus {
                 case SqlTyping.Verdict.Typed t -> {
                     if (t.type().equals(declared.type())) {
                         AGREE.increment();
+                    } else if (admissible(declared.type(), t.type())) {
+                        String cls = "admissible " + declared.type()
+                                + " <- " + t.type();
+                        ADMISSIBLE.increment();
+                        classify(cls);
+                        sample(cls, declared.name() + " := " + sketch(e));
                     } else {
+                        String cls = "declared " + declared.type()
+                                + " <> computed " + t.type();
                         MISMATCH.increment();
-                        classify("declared " + declared.type()
-                                + " <> computed " + t.type());
+                        classify(cls);
+                        sample(cls, declared.name() + " := " + sketch(e));
                     }
                 }
             }
@@ -152,12 +229,60 @@ public final class SqlTypeCensus {
         CLASSES.computeIfAbsent(cls, k -> new LongAdder()).increment();
     }
 
+    private static void sample(String cls, String witness) {
+        List<String> ws = SAMPLES.computeIfAbsent(cls,
+                k -> java.util.Collections.synchronizedList(
+                        new ArrayList<>()));
+        if (ws.size() < SAMPLES_PER_CLASS) {
+            ws.add(witness);
+        }
+    }
+
+    /** A one-line expression sketch — enough to grep the emission seam,
+     * never a full plan dump. */
+    private static String sketch(SqlExpr e) {
+        return switch (e) {
+            case SqlExpr.Call c -> c.fn() + "(" + c.args().stream()
+                    .map(SqlTypeCensus::sketchLeaf)
+                    .collect(java.util.stream.Collectors.joining(","))
+                    + ")";
+            case SqlExpr.Cast c -> "CAST(" + sketchLeaf(c.value()) + " AS "
+                    + c.target() + ")";
+            default -> sketchLeaf(e);
+        };
+    }
+
+    private static String sketchLeaf(SqlExpr e) {
+        return switch (e) {
+            case SqlExpr.Column c ->
+                    (c.table() == null ? "" : c.table() + ".") + c.name();
+            case SqlExpr.StringLit sl -> "'…'";
+            case SqlExpr.IntLit il -> String.valueOf(il.value());
+            case SqlExpr.Call c -> c.fn() + "(…)";
+            default -> e.getClass().getSimpleName();
+        };
+    }
+
+    /** Bounded witnesses for a class (attribution — the emission-seam
+     * locator). */
+    public static List<String> samplesOf(String cls) {
+        return List.copyOf(SAMPLES.getOrDefault(cls, List.of()));
+    }
+
+    /** Every sampled class with its witnesses. */
+    public static Map<String, List<String>> allSamples() {
+        Map<String, List<String>> out = new java.util.TreeMap<>();
+        SAMPLES.forEach((k, v) -> out.put(k, List.copyOf(v)));
+        return out;
+    }
+
     public static long mismatchCount() {
         return MISMATCH.sum();
     }
 
     public static String summary() {
         return "plans=" + PLANS.sum() + " cols: agree=" + AGREE.sum()
+                + " admissible=" + ADMISSIBLE.sum()
                 + " bottom-ok=" + BOTTOM_OK.sum()
                 + " bottom-lie=" + BOTTOM_LIE.sum()
                 + " mismatch=" + MISMATCH.sum() + " untyped=" + UNTYPED.sum();
