@@ -55,7 +55,20 @@ final class StatementExecutor {
             java.sql.Connection connection,
             boolean addDriverTablePk,
             java.util.Map<String, TypedSpec> queryLets,
-            java.util.Map<String, String> tableReplace) {
+            java.util.Map<String, String> tableReplace,
+            com.legend.exec.InstanceIds instanceIds) {
+        ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
+                com.legend.sql.dialect.SqlDialect dialect,
+                java.sql.Connection connection,
+                boolean addDriverTablePk,
+                java.util.Map<String, TypedSpec> queryLets,
+                java.util.Map<String, String> tableReplace) {
+            // F13: one site-id minter per env — both sides of every
+            // verdict share it, so identity ids agree across lowerings
+            this(ctx, runtimeFqn, dialect, connection, addDriverTablePk,
+                    queryLets, tableReplace, new com.legend.exec.InstanceIds());
+        }
+
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
@@ -172,6 +185,14 @@ final class StatementExecutor {
             // (Phase 1c: a grid VALUE READ never reaches here as a user
             // call — the Typer types it as a relation property read; the
             // TYPE decides, no recognizer needed)
+            // EFFECTFUL call statements need the STATEMENT-ORCHESTRATION
+            // machinery (sequential effect execution, recursion guard,
+            // argument frames) — a nested executeInDb cannot lower, so
+            // the side path can never claim these. This is the gate's
+            // OWN ground (V11 adjudication: the old double-execution
+            // citation died with runCanon; the gate did not). Effectful
+            // ASSERTS therefore route to body inlining and get host
+            // verdicts, not byte verdicts — register row, V7 territory.
             if (bare instanceof com.legend.compiler.spec.typed.TypedUserCall call
                     && containsEffect(call, specs, effectMemo)) {
                 result = executeCallStatement(call, letPrefix, specs, env, frames);
@@ -395,7 +416,8 @@ final class StatementExecutor {
         return union == null ? env
                 : new ExecEnv(env.ctx(), env.runtimeFqn(), env.dialect(),
                         env.connection(),
-                        env.addDriverTablePk(), env.queryLets(), union);
+                        env.addDriverTablePk(), env.queryLets(), union,
+                        env.instanceIds());
     }
 
     /**
@@ -1869,7 +1891,8 @@ final class StatementExecutor {
             if (!tr.isEmpty()) {
                 env = new ExecEnv(env.ctx(), env.runtimeFqn(), env.dialect(),
                         env.connection(),
-                        env.addDriverTablePk(), env.queryLets(), tr);
+                        env.addDriverTablePk(), env.queryLets(), tr,
+                        env.instanceIds());
             }
         }
         var assembled = com.legend.compiler.spec.ExecuteChainAssembly
@@ -2284,10 +2307,21 @@ final class StatementExecutor {
     private static com.legend.sql.SqlQuery lowerAndPrepare(
             java.util.List<TypedSpec> body, ExecEnv env, ModelContext ctx,
             com.legend.sql.dialect.SqlDialect dialect,
-            java.sql.Connection connection) throws java.sql.SQLException {
+            java.sql.Connection connection, boolean identity)
+            throws java.sql.SQLException {
+        // F13: identity-bearing layouts (keyless classes gain the __id
+        // field, minted per construction site) ride ONLY the verdict-
+        // side lane (canon rider) — golden-SQL text lanes and corpus
+        // value lanes keep the plain layout, unperturbed.
         com.legend.lowering.Lowerer lowerer = new com.legend.lowering.Lowerer(
-                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
+                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t,
+                        identity),
                 f -> ctx.findClass(f).isPresent()).withEngineExistsJoinForm();
+        if (identity) {
+            lowerer = lowerer.withInstanceIds(env.instanceIds()::idOf,
+                    t2 -> com.legend.compiler.element.EqualityKeys
+                            .resolve(ctx, t2));
+        }
         com.legend.sql.SqlQuery plan =
                 lowerer.lower(com.legend.lowering.SeedableLets
                         .withSeedableLetPrefix(body, env.queryLets(), ctx));
@@ -2327,6 +2361,29 @@ final class StatementExecutor {
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env)
             throws java.sql.SQLException {
+        return evalValue(value, letPrefix, specs, env, null, false);
+    }
+
+    /** V11 rider entry: the canon rides the value query itself — one
+     * execution serves the host referee AND the byte verdict. */
+    static @com.legend.Nullable ExecutionResult evalValue(TypedSpec value,
+            java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
+            com.legend.exec.@com.legend.Nullable CanonRider rider)
+            throws java.sql.SQLException {
+        return evalValue(value, letPrefix, specs, env, rider, false);
+    }
+
+    /** F13c: {@code identity} asks for the identity lane WITHOUT a
+     * canon rider — assert-CONDITION sides (the value is a boolean; the
+     * in-SQL eq/equal arm needs instance identity to compile the
+     * engine's equality relation). A rider implies identity. */
+    static @com.legend.Nullable ExecutionResult evalValue(TypedSpec value,
+            java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
+            com.legend.exec.@com.legend.Nullable CanonRider rider,
+            boolean identity)
+            throws java.sql.SQLException {
         java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
         single.add(value);
         var inliner = new com.legend.compiler.spec.UserCallInliner(specs);
@@ -2335,11 +2392,32 @@ final class StatementExecutor {
         body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
                 .withLetBindings(env.queryLets())
                 .resolve(body, env.runtimeFqn());
-        return executeTyped(body, env);
+        return executeTyped(body, env, rider, identity);
     }
 
     static ExecutionResult executeTyped(
             java.util.List<TypedSpec> body, ExecEnv env)
+            throws java.sql.SQLException {
+        return executeTyped(body, env, null, false);
+    }
+
+    static ExecutionResult executeTyped(
+            java.util.List<TypedSpec> body, ExecEnv env,
+            com.legend.exec.@com.legend.Nullable CanonRider rider)
+            throws java.sql.SQLException {
+        return executeTyped(body, env, rider, false);
+    }
+
+    /** V11: {@code rider} non-null asks the SQL path to carry the
+     * canonical renders as appended columns (wrapWithCanon); every
+     * non-SQL arm leaves the rider's initial "non-sql-arm" decline in
+     * place — counted at the verdict seam, never silent. F13c:
+     * {@code identityLane} joins the identity lane without a rider
+     * (assert-condition sides). */
+    static ExecutionResult executeTyped(
+            java.util.List<TypedSpec> body, ExecEnv env,
+            com.legend.exec.@com.legend.Nullable CanonRider rider,
+            boolean identityLane)
             throws java.sql.SQLException {
         ModelContext ctx = env.ctx();
         String runtimeFqn = env.runtimeFqn();
@@ -2393,61 +2471,9 @@ final class StatementExecutor {
             return new ExecutionResult.Scalar(ddlStatementString(ds, env),
                     ds.info().type());
         }
-        // CONNECTION/RUNTIME values are ORCHESTRATION HANDLES (the
-        // executeInDb convention below: connections are harness-ambient,
-        // never host object graphs). A setup returning ^Runtime(...) or
-        // binding connectionByElement(...) must not force them through
-        // the SQL pipeline. Effects nested in ctor args would be dropped
-        // — loud, never silent.
-        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall cbe
-                && "meta::core::runtime::connectionByElement"
-                        .equals(cbe.callee().qualifiedName())) {
-            return new ExecutionResult.Scalar(null, cbe.info().type());
-        }
-        if (root instanceof com.legend.compiler.spec.typed.TypedCast castC
-                && castC.source()
-                        instanceof com.legend.compiler.spec.typed.TypedNativeCall cbe2
-                && "meta::core::runtime::connectionByElement"
-                        .equals(cbe2.callee().qualifiedName())) {
-            return new ExecutionResult.Scalar(null, castC.info().type());
-        }
-        if (root instanceof com.legend.compiler.spec.typed.TypedNewInstance rni
-                && ("meta::core::runtime::Runtime".equals(rni.classFqn())
-                        || "meta::core::runtime::ConnectionStore"
-                                .equals(rni.classFqn()))) {
-            if (containsEffectfulNode(new java.util.ArrayList<>(
-                    rni.properties().values()))) {
-                throw new IllegalStateException("^" + rni.classFqn()
-                        + "(...) constructor argument carries an"
-                        + " executeInDb-family effect; the orchestration-"
-                        + "handle arm never evaluates arguments");
-            }
-            return new ExecutionResult.Scalar(null, rni.info().type());
-        }
-        // TYPE-driven handle rule (XStore slice 2b): a CONNECTION/RUNTIME-
-        // typed VALUE is an orchestration handle regardless of expression
-        // shape — the corpus's connection-picking idiom
-        // (testRuntime().connectionStores->filter(c|...)->toOne()) must
-        // never lower to SQL (it list_filter'd a struct literal). Same
-        // effect guard as the ctor arm: nested effects never drop silently.
-        if (root.info().type()
-                instanceof com.legend.compiler.element.type.Type.ClassType hct
-                // Nil (the []-born BOTTOM type) subtypes EVERYTHING —
-                // including Connection — but a Nil-typed root is an empty
-                // VALUE ([]->tail() is an empty collection), never an
-                // orchestration handle: the handle arm returned Scalar(null)
-                // where the caller expects an empty Collection
-                && !com.legend.compiler.element.type.PlatformTypes.isNil(hct)
-                && ("meta::core::runtime::Runtime".equals(hct.fqn())
-                        || "meta::core::runtime::ConnectionStore".equals(hct.fqn())
-                        || env.ctx().isSubtype(hct.fqn(),
-                                "meta::core::runtime::Connection"))) {
-            if (containsEffectfulNode(java.util.List.of(root))) {
-                throw new IllegalStateException("a connection-typed value"
-                        + " expression carries an executeInDb-family effect;"
-                        + " the orchestration-handle arm never evaluates it");
-            }
-            return new ExecutionResult.Scalar(null, root.info().type());
+        ExecutionResult handle = orchestrationHandleArm(root, env);
+        if (handle != null) {
+            return handle;
         }
         // a COLLECTION whose elements include DDL string generators (the
         // aggregationAware setup shape: [dropSchemaStatement(..), ...]
@@ -2549,8 +2575,16 @@ final class StatementExecutor {
                         .equals(sc.callee().qualifiedName())) {
             return dropAndCreateSchemaInDb(body, sc, env);
         }
+        // V11: a canon-riding side SKIPS the literal fold — the fold is
+        // a value-fetch optimization, but a requested canon is computed
+        // BY THE DATABASE, so the side executes (same cost as the
+        // deleted runCanon round trip; the values now come through the
+        // full pipeline too, one road for both). The fold survives as
+        // the LAST-RESORT value source for literals SQL cannot spell
+        // (NUL-bearing strings — DuckDB VARCHAR is NUL-free): the
+        // executePlan tunnel returns it with a counted decline.
         com.legend.exec.ExecutionResult folded = LiteralFold.fold(root);
-        if (folded != null) {
+        if (folded != null && rider == null) {
             return folded;
         }
         if (System.getenv("LL_DUMP_RESOLVED") != null) {
@@ -2558,7 +2592,7 @@ final class StatementExecutor {
         }
         com.legend.sql.dialect.SqlDialect dialect = env.dialect();
         com.legend.sql.SqlQuery plan = lowerAndPrepare(body, env, ctx,
-                dialect, connection);
+                dialect, connection, rider != null || identityLane);
         boolean collectionDeclared = declaredInfo != null
                 && declaredInfo.type()
                         instanceof com.legend.compiler.element.type.Type.Primitive
@@ -2576,15 +2610,179 @@ final class StatementExecutor {
                         .isRelation(root.info().type())) {
             return executePctTds(plan, root, dialect, connection);
         }
-        ExecutionResult res = Executor.execute(
-                dialect.render(plan), plan,
-                collectionDeclared ? java.util.Objects.requireNonNull(declaredInfo, "declaredInfo")
-                        : root.info(),
-                collectionDeclared ? com.legend.exec.ResultShape.COLLECTION
-                        : com.legend.exec.ResultShape.of(root),
-                connection, dialect);
+        ExecutionResult res = executePlan(plan, root,
+                collectionDeclared ? declaredInfo : null, rider, folded, env);
         enforceToOneReader(root, res);
         return res;
+    }
+
+    /** ORCHESTRATION-HANDLE arms of {@link #executeTyped} (extracted at
+     * the file guard, V11): connection/runtime values never lower.
+     * Null = not a handle (the caller continues). */
+    private static @com.legend.Nullable ExecutionResult orchestrationHandleArm(
+            TypedSpec root, ExecEnv env) {
+        // CONNECTION/RUNTIME values are ORCHESTRATION HANDLES (the
+        // executeInDb convention below: connections are harness-ambient,
+        // never host object graphs). A setup returning ^Runtime(...) or
+        // binding connectionByElement(...) must not force them through
+        // the SQL pipeline. Effects nested in ctor args would be dropped
+        // — loud, never silent.
+        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall cbe
+                && "meta::core::runtime::connectionByElement"
+                        .equals(cbe.callee().qualifiedName())) {
+            return new ExecutionResult.Scalar(null, cbe.info().type());
+        }
+        if (root instanceof com.legend.compiler.spec.typed.TypedCast castC
+                && castC.source()
+                        instanceof com.legend.compiler.spec.typed.TypedNativeCall cbe2
+                && "meta::core::runtime::connectionByElement"
+                        .equals(cbe2.callee().qualifiedName())) {
+            return new ExecutionResult.Scalar(null, castC.info().type());
+        }
+        if (root instanceof com.legend.compiler.spec.typed.TypedNewInstance rni
+                && ("meta::core::runtime::Runtime".equals(rni.classFqn())
+                        || "meta::core::runtime::ConnectionStore"
+                                .equals(rni.classFqn()))) {
+            if (containsEffectfulNode(new java.util.ArrayList<>(
+                    rni.properties().values()))) {
+                throw new IllegalStateException("^" + rni.classFqn()
+                        + "(...) constructor argument carries an"
+                        + " executeInDb-family effect; the orchestration-"
+                        + "handle arm never evaluates arguments");
+            }
+            return new ExecutionResult.Scalar(null, rni.info().type());
+        }
+        // TYPE-driven handle rule (XStore slice 2b): a CONNECTION/RUNTIME-
+        // typed VALUE is an orchestration handle regardless of expression
+        // shape — the corpus's connection-picking idiom
+        // (testRuntime().connectionStores->filter(c|...)->toOne()) must
+        // never lower to SQL (it list_filter'd a struct literal). Same
+        // effect guard as the ctor arm: nested effects never drop silently.
+        if (root.info().type()
+                instanceof com.legend.compiler.element.type.Type.ClassType hct
+                // Nil (the []-born BOTTOM type) subtypes EVERYTHING —
+                // including Connection — but a Nil-typed root is an empty
+                // VALUE ([]->tail() is an empty collection), never an
+                // orchestration handle: the handle arm returned Scalar(null)
+                // where the caller expects an empty Collection
+                && !com.legend.compiler.element.type.PlatformTypes.isNil(hct)
+                && ("meta::core::runtime::Runtime".equals(hct.fqn())
+                        || "meta::core::runtime::ConnectionStore".equals(hct.fqn())
+                        || env.ctx().isSubtype(hct.fqn(),
+                                "meta::core::runtime::Connection"))) {
+            if (containsEffectfulNode(java.util.List.of(root))) {
+                throw new IllegalStateException("a connection-typed value"
+                        + " expression carries an executeInDb-family effect;"
+                        + " the orchestration-handle arm never evaluates it");
+            }
+            return new ExecutionResult.Scalar(null, root.info().type());
+        }
+        return null;
+    }
+
+    /** The plan-execution tail of {@link #executeTyped}: V11 canon
+     * wrap (when a rider asks) + the one Executor call. */
+    private static ExecutionResult executePlan(com.legend.sql.SqlQuery plan,
+            TypedSpec root,
+            com.legend.compiler.element.type.@com.legend.Nullable ExprType declaredInfo,
+            com.legend.exec.@com.legend.Nullable CanonRider rider,
+            @com.legend.Nullable ExecutionResult folded, ExecEnv env)
+            throws java.sql.SQLException {
+        com.legend.compiler.element.type.ExprType shapeInfo =
+                declaredInfo != null ? declaredInfo : root.info();
+        com.legend.sql.SqlQuery bare = plan;
+        if (rider != null) {
+            var w = com.legend.lowering.CanonicalRenderSql.wrapWithCanon(
+                    plan, shapeInfo, rider.canonicalOrder(),
+                    // substitution-aware (Pair-of-Pairs): the stamp's
+                    // instantiation decides key nesting
+                    com.legend.compiler.element.EqualityKeys
+                            .resolve(env.ctx(), shapeInfo.type()));
+            if (w.declineReason() != null) {
+                rider.decline(w.declineReason());
+            } else {
+                rider.wrap(w.kinds(), w.many(), w.literalIndex());
+                plan = w.plan();
+            }
+        }
+        com.legend.sql.dialect.SqlDialect dialect = env.dialect();
+        com.legend.exec.ResultShape shape = declaredInfo != null
+                ? com.legend.exec.ResultShape.COLLECTION
+                : com.legend.exec.ResultShape.of(root);
+        if (rider == null) {
+            return Executor.execute(dialect.render(plan), plan, shapeInfo,
+                    shape, env.connection(), dialect, null);
+        }
+        try {
+            return Executor.execute(dialect.render(plan), plan, shapeInfo,
+                    shape, env.connection(), dialect, rider);
+        } catch (java.sql.SQLException | RuntimeException e) {
+            // THE DECLINE TUNNEL, V11 form (prepCanon/runCanon caught
+            // exactly this class — a caught failure becomes the DESIGNED
+            // decline sentinel, counted, never a rescue): a canon column
+            // must never poison the value fetch. Witness: the
+            // MIXED-ELEMENT IDENTITY carrier (F10) — pure PRINT-FORM
+            // VARCHAR ('7.345D') errors under the candidate casts,
+            // undetectable at wrap time (OutputCol types are
+            // stamp-derived, the V6 circularity). The side re-executes
+            // BARE (pure SELECT — effectful statements never reach the
+            // K-arm) and the canon declines.
+            boolean wasWrapped = rider.wrapped();
+            boolean hadDroppableLiteral = rider.literalIndex() >= 1;
+            rider.rows().clear();
+            if (wasWrapped) {
+                rider.decline("canon-exec: "
+                        + String.valueOf(e.getMessage()).split("\\n")[0]);
+            }
+            // MIDDLE RUNG (F10 v1): a TYPED side whose failure may be
+            // its literal candidate alone (stamp-derived column types
+            // lie about the wire — the BLOB byte carrier under a STRING
+            // stamp) re-wraps WITHOUT the literal channel: the bare
+            // candidates keep byte-deciding instead of demoting to the
+            // host. A second failure falls through to the bare rung.
+            if (wasWrapped && hadDroppableLiteral) {
+                try {
+                    var w2 = com.legend.lowering.CanonicalRenderSql
+                            .wrapWithCanon(bare, shapeInfo,
+                                    rider.canonicalOrder(),
+                                    com.legend.compiler.element.EqualityKeys
+                                            .resolve(env.ctx(),
+                                                    shapeInfo.type()),
+                                    false);
+                    if (w2.declineReason() == null) {
+                        rider.wrap(w2.kinds(), w2.many(), w2.literalIndex());
+                        return Executor.execute(
+                                dialect.render(w2.plan()), w2.plan(),
+                                shapeInfo, shape, env.connection(), dialect,
+                                rider);
+                    }
+                } catch (java.sql.SQLException | RuntimeException e15) {
+                    rider.rows().clear();
+                    rider.decline("canon-exec: "
+                            + String.valueOf(e15.getMessage())
+                                    .split("\\n")[0]);
+                }
+            }
+            try {
+                if (!wasWrapped) {
+                    // the canon never rode (wrap already declined) —
+                    // the failure is the side's own
+                    throw e;
+                }
+                return Executor.execute(dialect.render(bare), bare,
+                        shapeInfo, shape, env.connection(), dialect, null);
+            } catch (java.sql.SQLException | RuntimeException e2) {
+                // the BARE side itself cannot execute: an unSQLable
+                // literal (NUL-bearing string — DuckDB VARCHAR is
+                // NUL-free). The literal fold answers, canon declines.
+                if (folded != null) {
+                    rider.decline("unsqlable-literal: "
+                            + String.valueOf(e2.getMessage()).split("\\n")[0]);
+                    return folded;
+                }
+                throw e2;
+            }
+        }
     }
 
     /** E1: probe (pivot plans only) → lowering-side wrap → SCALAR

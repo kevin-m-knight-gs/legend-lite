@@ -489,7 +489,17 @@ spelling. AssertVerdicts 246→300 justified (the grid-verdict arm). Referee
 byte-identical; core 4166; ALLGATES GREEN. Remaining Phase-4 work: the burn
 queue (49 TRUE rows) and the adapter split.
 
-*BURN QUEUE SLICE 1 (2026-08-19):* three general fixes. (1) The EXTREME family's
+*ESSENTIAL RE-MEASUREMENT (2026-08-22, at F13 = 1405fb78):* the standing
+essential diff is **AGREE-PASS=292 AGREE-FAIL=21 WIRE-BUG=10 B-FIXES-A=4,
+ENGINE-FRONTIER=10, TRUE-WIRE-BUG=0** — 35 non-passing rows total (21 both
+channels fail, 10 all engine-frontier-corroborated, 4 our platform fixes over
+channel A). The movement from the last recorded 286/21/14/4 accumulated across
+the intervening slices (X1–X5, V11, F12) and had never been re-recorded here or
+ratcheted; the suite pins are now banked at the measured 292/10. F13 (synthetic
+instance identity) itself moved ZERO test-level outcomes — pre/post FAIL sets
+diffed byte-identical; what it moved is pair-level JUDGING: 6 keyless-instance
+pairs from host-referee decline to DB byte verdict (declines 19→13, sql-verdict
+agree 1564→1570), on engine-true identity instead of content fabrication. (1) The EXTREME family's
 identity arm (min/max/least/greatest, 6 sites) now carries the minus rule's
 singleton-list-literal guard — the reduction of [x] is x, never [x] (witness
 testLeast/Greatest_Single, where the whole DuckDB array came back as the value).

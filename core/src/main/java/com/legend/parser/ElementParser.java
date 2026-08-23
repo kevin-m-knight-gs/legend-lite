@@ -1411,6 +1411,23 @@ public final class ElementParser implements TokenStreamCursor {
     public com.legend.protocol.Protocol.PProfile parseProfileDefinition() {
         int declStart = pos;
         expect(TokenType.PROFILE);
+        // Stereotypes/tags ON the profile itself (m4-pure syntax —
+        // upstream pctQualifiers.pure: Profile <<PCT.testQualifierProfile>>
+        // ...). The ENGINE GRAMMAR has no such slot (DomainParserGrammar
+        // profile: PROFILE qualifiedName BRACE_OPEN — verified 2026-08-23),
+        // so the exact-engine surface refuses verbatim; platform-source
+        // lanes parse them and DROP them faithfully — the engine protocol
+        // Profile carries no applied-annotation field, so the engine's own
+        // PMCD transform drops them too.
+        List<com.legend.protocol.Protocol.PStereotype> selfStereotypes =
+                parseStereotypes();
+        List<com.legend.protocol.Protocol.PTaggedValue> selfTags =
+                parseTaggedValues();
+        if (dialect.refusesLiteExtensions()
+                && (!selfStereotypes.isEmpty() || !selfTags.isEmpty())) {
+            throw error("Profile stereotypes/tagged values are not"
+                    + " authorized in Legend Engine");
+        }
         String qualifiedName = parseQualifiedName();
         expect(TokenType.BRACE_OPEN);
 

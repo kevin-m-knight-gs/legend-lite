@@ -365,11 +365,8 @@ final class Scalars {
         // Integer arithmetic near the INT64 edge computes in HUGEINT
         // (2 * maxLong is a real PCT value).
         for (String f : Pure.nativeKeysAt("divide")) {
-            RULES.put(f, (n, args) -> args.size() == 3
-                    ? new SqlExpr.Call(SqlFn.ROUND_HALF_UP, List.of(
-                            SqlExpr.Call.of(SqlFn.DIVIDE, args.get(0), args.get(1)),
-                            args.get(2)))
-                    : new SqlExpr.Call(SqlFn.DIVIDE, args));
+            // Decimal kind preservation lives in DecimalKindRules (X-audit)
+            RULES.put(f, DecimalKindRules::divide);
         }
         family(SqlFn.MOD, "mod");
         // rem(a, 0): real pure raises 'Cannot divide 5 by zero'
@@ -1142,25 +1139,11 @@ final class Scalars {
                             List.of(dateArg(n.args().get(1), args.get(1))))));
         }
         for (String f : Pure.nativeKeysAt("toDecimal")) {
-            // LITERALS fold to a true-scale decimal (toDecimal(3.8) is 3.8D,
-            // toDecimal(8) is 8D) — CAST(x AS DECIMAL(38,18)) fabricates
-            // eighteen zeros of scale the value never had.
-            RULES.put(f, (n, args) -> switch (args.get(0)) {
-                case SqlExpr.IntLit i ->
-                        // a bare integral literal types INTEGER — cast keeps
-                        // it a scale-0 DECIMAL (8D)
-                        new SqlExpr.Cast(i, new SqlType.Decimal(38, 0));
-                case SqlExpr.DecimalLit d -> d;
-                case SqlExpr.FloatLit fl ->
-                        new SqlExpr.DecimalLit(java.math.BigDecimal.valueOf(fl.value()));
-                default -> new SqlExpr.Cast(args.get(0),
-                        new SqlType.Decimal(38, 18));
-            });
+            // literal folds + input-stamp-driven scale (DecimalKindRules)
+            RULES.put(f, DecimalKindRules::toDecimal);
         }
         for (String f : Pure.nativeKeysAt(Pure.Lite.DIVIDE_ROUND)) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.ROUND, List.of(
-                    SqlExpr.Call.of(SqlFn.DIVIDE, args.get(0), args.get(1)),
-                    args.get(2))));
+            RULES.put(f, DecimalKindRules::divideRound);
         }
         for (String f : Pure.nativeKeysAt(Pure.Lite.NOT_EQUAL_ANSI)) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.NOT_EQUAL,
@@ -1284,10 +1267,7 @@ final class Scalars {
         // then the integral cast the signature promises; round(x, scale)
         // keeps its operand's type.
         for (String f : Pure.nativeKeysAt("round")) {
-            RULES.put(f, (n, args) -> args.size() == 1
-                    ? new SqlExpr.Cast(new SqlExpr.Call(SqlFn.ROUND, args),
-                            SqlType.Scalar.BIGINT)
-                    : new SqlExpr.Call(SqlFn.ROUND, args));
+            RULES.put(f, DecimalKindRules::round);
         }
         // greatest/least/mode take ONE collection argument (real pure: values:X[*]);
         // like min/max/sum, a to-one argument is the identity and a list reduces

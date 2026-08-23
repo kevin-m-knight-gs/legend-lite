@@ -763,6 +763,40 @@ final class ArchitectureTest {
      * with same-commit justification; write-once init tables are burn-down
      * candidates (wrap in {@code Map.copyOf} and delete the row).
      */
+    /**
+     * <strong>V3 (OPEN_REGISTER) — the host verdict is referee-only.</strong>
+     * The ratified dual-verdict design: the DB byte compare is the
+     * verdict of record; the host lattice ({@code PureAsserts}) and the
+     * canonical instruments ({@code CanonicalForm}/{@code
+     * CanonicalDivergence}) exist ONLY at the verdict/referee seam. No
+     * other production class may reach them — a new dependent means a
+     * product path started making pure-equality decisions in Java,
+     * which is the disease the whole verdict program deletes. Tests
+     * (the harness IS the referee) are exempt by scope.
+     */
+    @Test
+    void hostVerdictIsReachableOnlyFromTheVerdictSeam() {
+        noClasses()
+            .that().doNotHaveFullyQualifiedName("com.legend.AssertVerdicts")
+            .and().doNotHaveFullyQualifiedName("com.legend.AssertErrorNative")
+            .and().doNotHaveFullyQualifiedName("com.legend.exec.PureAsserts")
+            .and().doNotHaveFullyQualifiedName("com.legend.exec.GridCompare")
+            .and().doNotHaveFullyQualifiedName("com.legend.exec.CanonicalForm")
+            .and().doNotHaveFullyQualifiedName("com.legend.exec.CanonicalDivergence")
+            // testdatagen composes seed SOURCE TEXT via the ONE repr
+            // owner — spelling, never an equality decision
+            .and().doNotHaveFullyQualifiedName("com.legend.testdatagen.TestDataGenerator")
+            // the ONE wire-tree walker (P2-4/P2-6): structure is its,
+            // the LEAF rule is the lattice's — comparison layer
+            .and().doNotHaveFullyQualifiedName("com.legend.exec.JsonCompare")
+            .should().dependOnClassesThat().haveNameMatching(
+                "com\\.legend\\.exec\\.(PureAsserts|CanonicalForm|CanonicalDivergence)")
+            .as("V3: host-verdict classes are reachable only from the"
+                    + " verdict/referee seam — register a new dependent"
+                    + " consciously or route through the DB byte verdict")
+            .check(CORE_PROD_CLASSES);
+    }
+
     @Test
     void staticCollectionStateIsImmutableOrRegistered() throws Exception {
         java.util.Set<String> register = java.util.Set.of(
@@ -793,6 +827,15 @@ final class ArchitectureTest {
                 // meaningless for a metrics sink
                 "com.legend.exec.TimingLedger.NS",
                 "com.legend.exec.TimingLedger.COUNT",
+                // R1 divergence instrument (CANONICAL_FORM_SPEC §0):
+                // bounded witness sample for the harness-published
+                // table; measurement only, never verdict-affecting
+                "com.legend.exec.CanonicalDivergence.SAMPLES",
+                // TYPED-IR Slice 1: the label-lie census's classified
+                // counters (declared-vs-computed pair -> count);
+                // measurement only, never verdict-affecting — the
+                // CanonicalDivergence pattern
+                "com.legend.exec.SqlTypeCensus.CLASSES",
                 // serializer registry: written once at static init; the
                 // ConcurrentHashMap spelling is for safe publication
                 "com.legend.server.serial.SerializerRegistry.SERIALIZERS");

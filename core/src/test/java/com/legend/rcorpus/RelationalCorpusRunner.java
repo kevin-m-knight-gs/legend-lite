@@ -559,6 +559,13 @@ public class RelationalCorpusRunner {
                 + " ms");
         // TEMPORARY (2026-08-15): full wall reconciliation ledger
         com.legend.exec.TimingLedger.dump();
+        // R1 canonical-byte-channel divergence table (CANONICAL_FORM_SPEC
+        // §0): does render(e)==render(a) agree with the host lattice
+        // across every K-arm assert this sweep computed? DISAGREE rows
+        // are R2 cutover blockers; RESIDUE sizes the walls.
+        System.out.println("[canon] " + com.legend.exec.CanonicalDivergence.summary());
+        com.legend.exec.CanonicalDivergence.samples().forEach(r ->
+                System.out.println("[canon] " + r.family() + " " + r.detail()));
         System.out.println("[rcorpus] walls (mappings + dropped base elements): "
                 + runner.walls().size());
         if (System.getProperty("rcorpus.walls") != null) {
@@ -567,6 +574,12 @@ public class RelationalCorpusRunner {
         }
         if (onlyFilters.isEmpty() && regressions.isEmpty()) {
             System.out.println("[rcorpus] scoreboard written to docs/RELATIONAL_CORPUS.md");
+            // TYPED-IR Slice 1: the label-lie census over the whole
+            // corpus sweep (instrument -> census -> flip)
+            System.out.println("[rcorpus] sqltypes: "
+                    + com.legend.exec.SqlTypeCensus.summary());
+            com.legend.exec.SqlTypeCensus.classes(20).forEach(c ->
+                    System.out.println("[rcorpus] sqltypes-class: " + c));
         }
         // MECHANICAL REGRESSION GATE (audit: this runner carried NO
         // asserts — BUILD SUCCESS regardless of outcome). Every family
@@ -641,12 +654,44 @@ public class RelationalCorpusRunner {
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             softZero <= 27, "0-assert passes grew: "
                                     + softZero + " > 27"),
+                    // 613 -> 614 (2026-08-23, relation wall burn): a
+                    // PREVIOUSLY-FAILING test (modelJoin testChainedTwoHops)
+                    // now PASSES — the aggregate-ORDER-BY hoist kept its
+                    // declared null placement (pure DESC null-largest:
+                    // 'Apple,null' leads), and its exec text differs from
+                    // the golden by exactly that semantic clause, so the
+                    // pass carries the rescue flag. Corpus 2332 -> 2333;
+                    // a gained pass, not text decay.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            softRescued <= 613, "text-rescued passes grew: "
-                                    + softRescued + " > 613"));
+                            softRescued <= 614, "text-rescued passes grew: "
+                                    + softRescued + " > 614"),
+                    // R1b census pin (CANONICAL_FORM_SPEC §0, measured
+                    // 2026-08-22): 27 grid-text verdicts pass only via
+                    // the kept leniencies — 6 row-order-only (R2's
+                    // canonical ORDER BY burns them) + 21 cross-engine
+                    // float arithmetic (H2 decimal vs DuckDB binary —
+                    // VALUE differences, the declared numeric policy).
+                    // Shrink-only; a bump means a byte-exact verdict
+                    // regressed to leniency.
+                    () -> org.junit.jupiter.api.Assertions.assertTrue(
+                            com.legend.exec.CanonicalDivergence
+                                    .disagreeCount() <= 27,
+                            "canonical-byte divergence grew: "
+                                    + com.legend.exec.CanonicalDivergence
+                                            .summary() + " (pin 27)"),
+                    // V1 (OPEN_REGISTER): the DUAL-VERDICT alarm — the
+                    // DB byte verdict and the host referee may NEVER
+                    // disagree silently; any disagreement fails the
+                    // sweep with the census line
+                    () -> org.junit.jupiter.api.Assertions.assertTrue(
+                            com.legend.exec.CanonicalDivergence
+                                    .sqlDisagreeCount() == 0,
+                            "DUAL-VERDICT DISAGREEMENT: "
+                                    + com.legend.exec.CanonicalDivergence
+                                            .summary()));
             System.out.println("[rcorpus] soft ceilings: sqldiff " + softDiff
                     + "/257, adv " + softAdv + "/303, 0-asserts " + softZero
-                    + "/27, rescued " + softRescued + "/613");
+                    + "/27, rescued " + softRescued + "/614");
         }
         org.junit.jupiter.api.Assertions.assertTrue(regressions.isEmpty(),
                 "CORPUS REGRESSION vs committed docs/RELATIONAL_CORPUS.md: "

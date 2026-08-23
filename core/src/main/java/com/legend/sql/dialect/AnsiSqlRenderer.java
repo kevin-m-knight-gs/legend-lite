@@ -801,10 +801,24 @@ public class AnsiSqlRenderer implements SqlDialect {
         String order = r.orderBy().isEmpty() ? "" : " ORDER BY "
                 + r.orderBy().stream()
                         .map(k -> expr(k.expr(), 0)
-                                + (k.ascending() ? " ASC" : " DESC"))
+                                + (k.ascending() ? " ASC" : " DESC")
+                                + aggOrderNullPlacement(k))
                         .collect(java.util.stream.Collectors.joining(", "));
         return r.fn() + "(" + (r.distinct() ? "DISTINCT " : "") + args
                 + order + ")";
+    }
+
+    /** A key with DECLARED null placement keeps it inside the aggregate
+     * (pure null-largest sorts hoisted into toString — witness PCT
+     * testRange_..._WithOrderByDESC: DESC NULLS FIRST died here and
+     * nulls sank to the backend default); legacy keys carry none. The
+     * ENGINE-TEXT channel overrides to suppress — the engine never
+     * spells a NULLS clause (the sortKey suppression's
+     * aggregate-internal twin). */
+    protected String aggOrderNullPlacement(SqlSelect.SortKey k) {
+        return k.nullOrder() == null ? ""
+                : k.nullOrder() == SqlSelect.SortKey.NullOrder.NULLS_FIRST
+                        ? " NULLS FIRST" : " NULLS LAST";
     }
 
     // ==================================================================
@@ -821,6 +835,24 @@ public class AnsiSqlRenderer implements SqlDialect {
     }
 
     protected String stringLit(String value) {
+        // a raw NUL byte in the STATEMENT TEXT kills the SQL lexer
+        // ("unterminated quoted string") even though the VARCHAR value
+        // domain holds NUL fine (user-verified 2026-08-22: chr(0)
+        // concatenates, lengths, and compares exactly) — the spelling
+        // splices chr(0) between quoted segments. -1 keeps trailing
+        // empty segments so 'a\0' round-trips.
+        if (value.indexOf('\u0000') >= 0) {
+            String[] parts = value.split("\u0000", -1);
+            StringBuilder sb = new StringBuilder("(");
+            for (int i = 0; i < parts.length; i++) {
+                if (i > 0) {
+                    sb.append(" || chr(0) || ");
+                }
+                sb.append('\'').append(parts[i].replace("'", "''"))
+                        .append('\'');
+            }
+            return sb.append(')').toString();
+        }
         return "'" + value.replace("'", "''") + "'";
     }
 

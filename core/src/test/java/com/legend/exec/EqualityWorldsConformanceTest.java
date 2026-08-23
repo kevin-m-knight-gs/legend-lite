@@ -82,11 +82,7 @@ class EqualityWorldsConformanceTest {
         agree(false, "%2014-01-01", "%2014-01-02",
                 java.sql.Date.valueOf("2014-01-01"),
                 java.sql.Date.valueOf("2014-01-02"));
-        agree(true, "3.0d", "3.00d",
-                new java.math.BigDecimal("3.0"), new java.math.BigDecimal("3.00"));
-        // R1 widening: integral vs Decimal is NUMERIC in both worlds
-        // (PCT testIntToDecimal is the spec witness)
-        agree(true, "8", "8D", 8L, new java.math.BigDecimal("8"));
+
     }
 
     @Test
@@ -108,5 +104,20 @@ class EqualityWorldsConformanceTest {
         // retire-vs-keep; a healed row tightens here.
         diverge(true, false, "(0.1 + 0.2)", "0.3", 0.1d + 0.2d, 0.3d,
                 "2-ULP declared policy vs exact IEEE compare");
+        // X2 (VERDICT_RULE_AUDIT): in-SQL '=' is SCALE-BLIND for
+        // decimals (both engine lanes lower == to SQL) while the
+        // interpreted ASSERT judgment is scale-sensitive
+        // (EqualityUtilities.eq: getValue().equals) — World 1 answers
+        // the engine's assert-seam FALSE, World 2 SQL's TRUE
+        // X1 (VERDICT_RULE_AUDIT): the old "integral×Decimal is
+        // numeric in both worlds" row MIS-CITED testIntToDecimal (that
+        // test is Decimal×Decimal) — the engine assert seam rules
+        // cross-primitive-kind FALSE; SQL '=' coerces TRUE
+        diverge(false, true, "8", "8D", 8L, new java.math.BigDecimal("8"),
+                "SQL numeric coercion vs engine same-kind-only eq");
+        diverge(false, true, "3.0d", "3.00d",
+                new java.math.BigDecimal("3.0"),
+                new java.math.BigDecimal("3.00"),
+                "SQL scale-blind '=' vs engine assert-seam equals");
     }
 }

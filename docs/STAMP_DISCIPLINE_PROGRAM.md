@@ -1831,3 +1831,408 @@ PureAsserts' equality lattice SURVIVES as the permanent parallel-host
 referee (the ratified dual-verdict design) — what deletes is every
 harness-compensation arm and every verdict-AFFECTING host path;
 PureAsserts moves to the referee, disagreement census pinned at 0.
+
+### R1a LANDED: the scalar-channel divergence instrument (first measurement)
+
+CanonicalForm (R0 §2 host reference render) + CanonicalDivergence (the
+census ledger, TimingLedger idiom — Invariant-3 registered, bounded
+samples) + probes at the K-arm choke point (AssertVerdicts
+assertEquals/assertSameElements/assertEq — measurement only, cannot
+affect a verdict) + publication in the corpus runner and ChannelBDiff.
+
+**FIRST MEASUREMENT (ChannelB, all five suites): agree=1555
+disagree=0 residue=27.** The ⟺ claim (equal(e,a) iff byte-equal
+canonical renders) holds on EVERY in-domain platform-executed assert.
+Residues, all named: 23 LinkedHashMap + 3 ArrayList (wire-tree struct
+cells — JsonCompare's domain by design, H4 "clean, keep") and 1
+negative-zero (an assertEq -0.0 witness the H6 tree-scan missed — the
+§4 residue policy works as specified).
+
+SEAM FINDING: the corpus lane's grid verdicts do NOT flow through
+AssertVerdicts — they ride the harness compare arms (GridCompare +
+EngineTestExecutor equalScalar sites), the very arms R2 deletes. The
+corpus [canon] line honestly printed 0. **R1b** = the GRID-channel
+host reference render (H2 toCSV cell rules; Render.java is already the
+SQL-side owner) + the instrument at the corpus row-verify seam. R2
+cutovers stay gated on R1b's corpus-wide table.
+
+Temporal wire limit recorded in-code: LocalDateTime cannot carry
+WRITTEN subsecond precision (.000 vs .0) — the render emits minimal
+precision; the census decides if a precision-carrying wire type is
+ever needed (zero hits so far).
+
+### PUREDATE WIRE CUTOVER LANDED (user: "sql types never escape the fetch; pure types on the wire")
+
+**PureDateLiteral is THE wire temporal carrier** — the type half the
+system already used (TypedCDate.value() was always PureDateLiteral);
+this slice unified the DB egress with it. ONE conversion hop at the
+fetch seam (Executor.unwrap tail: sql.Date→StrictDate,
+Timestamp/LocalDateTime→DateWith* at DB precision, and the
+precision-faithful VARCHAR convention now PARSES — written precision
+finally survives onto the wire). java.time appears only as the
+driver's extraction vehicle inside fetch() (BC-safe re-fetch).
+
+Boxing principle settled (user ratified): box ONLY lossy carriers.
+Temporals box (precision is per-value data no stamp supplies);
+BigDecimal already carries scale (= PureDecimal, no box);
+Int/Bool/String/Float are value-complete; struct identity lives in the
+column schema. A per-value type tag elsewhere = a SECOND OWNER of a
+stamp-owned fact — the desync disease.
+
+Downstream, the comparison layer keeps NO java temporal arms:
+PureAsserts (equality = record equals = engine's PRECISION-SENSITIVE
+PureDate.equals; typeRank/withinRank via toInstantFloor; repr =
+%+toEngineString), GridCompare (instant floor), CanonicalForm (exact
+render incl. written precision — the wire-limit caveat DELETED).
+toString on time-bearing variants = pure's print (+0000, H1);
+toEngineString stays the parse-round-trip literal body.
+
+**JDBC census SHRANK by 2** (PureAsserts + GridCompare rows retired) —
+the D-arc dividend. Byte-channel byteEqual is now KIND-QUALIFIED
+((kindClass, text) — render is not injective across kinds; spec §3
+amendment; numeric tower = one class).
+
+THE STRING-CARRIER BRIDGE IS DEAD in production. Its one real consumer
+surfaced as 13 corpus regressions ("execution activities are not
+recorded" — a misleading DOWNSTREAM symptom): the HARNESS's expected
+side is decoded from engine golden TEXT, so temporal expectations are
+strings; when its equalScalar compares flipped false the harness
+declined its arms and asserts fell onto the platform wall. Fix at the
+HARNESS's own seam: goldenEqualScalar decodes a string beside a wire
+temporal via PureDateLiteral.parse (space→T), then the ONE production
+lattice judges; non-parsing strings fail like pure. These arms delete
+wholesale at R2. (Bisect lesson: -Drcorpus.only=aggregationAware fails
+AT HEAD — scoped-seeding artifact — so scoped runs cannot referee this
+family; full sweeps only.)
+
+Also: H2Verify.norm PureDateLiteral arm (replay lane compares
+instants, precision-blind BY CONTRACT); TestDataGenerator converts at
+ITS registered read; five print pins updated to the H1 +0000 spec form
+their old spellings predated. Referee: corpus 320+632/0 diverged,
+scoreboard byte-identical; core suite 4228/0.
+
+**PCT half of the cutover** (gate-6 referee round): (1) the EXPECTED
+side of PCT temporal asserts lost written precision through the SQL
+TIMESTAMP round-trip (engine spec pins NINE-ZERO subseconds:
+timeBucket.pure:53 %…34.000000000) — fixed at the EGRESS ROOT:
+Lowerer.scalarRoot projects a fragile-precision literal
+(hour/minute/subsecond) as its WRITTEN spelling under the
+TIMESTAMP-stamped output (the same VARCHAR convention the date() ctor
+rides); MatchFold.dateLit's padded timestamp stays for computation
+sites. (2) ExecuteLegendLiteQuery gains the ONE PureDateLiteral→
+PureDate arm (engine's own parsePureDate reconstructs the
+precision-exact class) and the five dead java temporal arms DELETE
+(cut-over-hard; eval ledger enforced eviction-over-bump — the file
+SHRANK). DIVIDEND: essential WIRE-BUG 11→10 — one engine-frontier row
+now passes through our platform. STALE-JAR TRAP hit again
+([[corpus-runs-need-fresh-core-install]]): pct referees the INSTALLED
+core jar — install before every pct run.
+
+**Temporal-decode ADJUDICATION (2026-08-22, closes the cutover's last
+referee round).** The engine has TWO subsecond spellings that one
+decode cannot match: relational reads are NINE-DIGIT
+(DateFunctions.fromSQLTimestamp %09d — why its test authors assert
+%…00.000000000 against DB cells) while computed/interpreted values
+carry DERIVED precision (adjust → .338001, parseDate → .231). Ruling:
+the wire carries the canonical-MINIMAL decode (seconds; subseconds
+only when nonzero, trailing-stripped); the CORPUS harness compares
+temporal goldens BY INSTANT (goldenEqualScalar — precision-blind by
+contract, the engine's own cross-lane leniency, same rule as
+H2Verify.norm); written precision rides the VARCHAR convention +
+scalarRoot literal swap. Referee: corpus 320+632/0 baseline-exact AND
+PCT 1115/0 AND core 4228/0 — first time all three agreed this round.
+Diagnosis dividend: the aggregationAware "activities not recorded"
+cluster was ALWAYS a downstream symptom of one harness temporal
+compare declining — three different root causes produced the identical
+13-test set (bridge deletion, literal-precision loss, golden-digit
+mismatch); the set is a canary, not a family. Bisect lesson repeated:
+-Drcorpus.only cannot referee aggregationAware (fails at HEAD,
+scoped-seeding artifact) — full sweeps only.
+
+### R1b LANDED: the grid-channel census (measurement decisive for R2)
+
+The grid channel's render of record ALREADY IS the platform (H3
+headline confirmed at the seam: toCSV verdicts compare engine expected
+text against Render's SQL-side output — "the platform emits the header
+now"). R1b instruments GridCompare.renderedText: byte answer = plain
+string equality NEXT TO the lenient verdict.
+
+**MEASURED (full corpus): 290 grid-text verdicts — 263 byte-exact
+(90.7%), 27 pass ONLY via the kept leniencies, 0 residue.** The 27
+classify into exactly two families:
+- 6 row-order-only → R2's canonical ORDER BY burns them.
+- 21 cross-engine float ARITHMETIC (H2 divides in exact decimal,
+  DuckDB in binary double: golden 5.59 vs our 5.590000000000001) —
+  VALUE differences no render can fix; the R0 §4 declared numeric
+  policy rows, pinned for the R3 tolerance census.
+
+Census PINNED in the runner (disagree ≤ 27, shrink-only, same-commit
+justification to move). R2 grid scope is therefore: canonical ORDER BY
+(6) + policy adjudication (21) + GridCompare arm deletion — no
+emission work.
+
+### R2a LANDED: the byte verdict of record (assertEquals scalars)
+
+THE FLIP (ratified dual-verdict design): for scalar-kind assertEquals
+sides, the DATABASE computes both canonical renders
+(lowering/CanonicalRenderSql — Integer/Boolean/String/Float no-exponent
+unfold/Decimal scale-normalized/temporal +0000 pipeline, every rule
+mirroring the host reference CanonicalForm) and Java's whole remaining
+act is comparing two DB-computed byte strings. The host lattice is now
+the PERMANENT PARALLEL REFEREE: disagreement = census row, never a
+rescue; declines (collection sides, unclaimed kinds, lowering
+refusals) are COUNTED and fall back to the host verdict.
+
+Wire shape: evalCanon (StatementExecutor) lowers each side like
+evalValue and wraps the plan in the canon projection — one extra
+SCALAR query per side, no cross-side SQL composition (sides can live
+on different runtimes), all executeTyped channels untouched. Kind gate
+on STAMPS (numeric tower = one class; cross-kind incl. empty-vs-empty
+declines to the host — never a static guess).
+
+**FIRST MEASUREMENT (ChannelB, all suites): 983 verdicts decided by
+the DB byte compare, sql-verdict disagree = 0, declined = 228.** The
+one divergence family the flip caught on round 1 — the
+variant-identity channel's temporal texts already carry +0000 and the
+canon double-suffixed (5 least/greatest/max Date tests) — fixed by
+suffix normalization in temporalCanon; round 2 clean. Eval-ledger
+AssertVerdicts 398→455 with written justification (verdict ROUTING
+toward the database — the ledger's own direction). AssertVerdicts'
+raw-array side decode leak (Timestamp→LocalDateTime) fixed to
+PureDateLiteral while there.
+
+R2b queue: collection sides (list canon in SQL), assertSameElements
+(canonical ORDER BY), the 27-row grid ledger, tolerance census (R3).
+
+### R2b LANDED: collection sides join the byte verdict
+
+evalCanon's many-stamped sides render CanonicalForm.renderSide in SQL:
+one element = the scalar form, N = '[a, b, c]' via STRING_AGG (the
+input-order contract Render's corpus-proven grid text stands on),
+empty = '[]' — so empty==empty and [3]==3-as-collection hold exactly
+as pure rules them. MEASURED: sql-verdict 983→1083 agree, disagree
+STILL 0, declined 228→128 (remaining: unclaimed kinds — Any-stamped,
+class instances, wire trees, enums — the shrinking R2c ledger).
+
+### V1–V5 LANDED: the register, the alarm, and two more families
+
+docs/OPEN_REGISTER.md is now THE one list of every open item (rows
+move to CLOSED in the closing commit — maintenance is part of every
+slice's definition of done). Hygiene: the DUAL-VERDICT ALARM is pinned
+(sqlDisagreeCount == 0 asserted in all five ChannelB suites AND the
+corpus runner — a silent host/DB disagreement is now impossible);
+evalCanon's broad catch adjudicated into the error-shape register (the
+decline tunnel, counted); ArchUnit V3 pins host-verdict classes
+reachable ONLY from the verdict/referee seam (one legit dependent
+found and registered: JsonCompare, the one wire-tree walker).
+
+V4: assertSameElements joined the byte verdict — both sides aggregate
+ORDER BY canon text in the DATABASE (any consistent total order proves
+multiset equality). V5: assertEq joined (identity rule still walls
+loud first). THE ALARM EARNED ITS KEEP ON ROUND ONE: it caught
+parseFloat('-000.000') → -0.0, where pure grants 0.0 == -0.0 but the
+renders differed — adjudicated as ZEROS UNIFY (spec §2/§4 amendment:
+equality binds the canonical form; negative zero moved INTO the
+claimed domain with its first witness, H6's zero-witness claim
+retired).
+
+CENSUS: sql-verdict agree 1083→1376, disagree 0, declined 207;
+R1a residue 27→26 (the negative zero became agreement). Families
+DB-decided: assertEquals, assertNotEquals, assertSameElements,
+assertEq. Next: the 207 declines burn (V6), then the decoupled-PCT
+completion burn on a finished verdict system.
+
+### V6 ROUND 1: the decline burn and the pair rules
+
+Declines 207→91 across two rounds, disagreement HELD AT 0.
+
+ROUND 2 (user-caught: "are we sure these are not OUR bugs?" — they
+partly were): the plan-type refinement was CIRCULAR — OutputCol.type()
+derives from the pure stamp (sqlTypeOf(NUMBER) = blanket DOUBLE), so
+reading it back never carried information; rem's "DOUBLE" and times's
+"FLOAT" were the stamp mapping, not reality. DELETED, replaced by
+RUNTIME-KIND refinement from the fetched values — pure's own
+Number-equality dispatch (the interpreted runtime decides by runtime
+kind), so the "refinement can lie" special rule DIED and static
+int×float re-tightened. Also: the wire's D-suffixed Decimal
+representation (variant/identity VARCHAR channel: 2D, 1.0D)
+normalizes in decimalCanon like the temporal +0000.
+
+THE STANDING RULES: (1) numericValueCanon = full value normalization
+of any numeric text; (2) PAIR RULES — pure's numeric equality is
+NON-TRANSITIVE (8==8D, 8D==8.0, 8≠8.0): runtime/stamp-certain
+int×float statically FALSE, Decimal-involved pairs by VALUE spelling;
+(3) MIXED-KIND-COLLECTION gate — reclassified from declared-residue to
+a CLAIMABLE canon-path limitation: the MAIN wire preserves element
+kinds (mixed-identity carrier) but the canon side-query re-lowers into
+a promoted column; the proper burn is variant-aware canon rendering by
+runtime kind (OPEN_REGISTER F10). PrecisionDecimal IS Decimal; enum
+values claimed. Census: sql-verdict agree 1492, disagree 0,
+declined 91.
+
+### V10 CLOSED: every remaining hack replaced by its derivation
+
+(user: "lets fix all the hacks we did by doing the right fix instead")
+
+- **V10a**: goldenEqualScalar's instant-blind compare RETIRED for the
+  ENGINE CONVENTION — both sides normalize time-bearing precision to
+  fromSQLTimestamp's nine digits, then EXACT record equality
+  (AbstractPureDate.equals). Strictly closer to engine semantics: a
+  date-only value no longer equals a midnight datetime.
+  H2Verify.norm's instant funnel re-justified as DERIVED (both sides
+  of that seam are DB reads = nine-digit by convention).
+- **V10c-order**: STRING_AGG collection canon rides DuckDB's
+  DOCUMENTED preserve_insertion_order default — a contract, not luck.
+- **V10c-determinism**: double execution of assert sides is sound BY
+  THE UPSTREAM EFFECT GATE (containsEffect routes effectful statements
+  away before the K-arm) — derived, not assumed.
+- **V10c-envelope**: the DECIMAL(38,18) float unfold REPLACED by a
+  complete TEXTUAL EXPONENT SHIFT — any finite double prints
+  fixed-point exactly (1e-30, 1e300 included). NEW dual-render
+  conformance battery (SqlCanonConformanceTest) pins DB canon text ==
+  host canon text across the magnitude battery — the two
+  implementations of the one spec can no longer drift silently.
+
+Remaining non-derived surface: F10 (variant-aware canon — the carrier
+strips + mixed-collection decline) and the R3 tolerance census — both
+registered, neither silent.
+
+### X1–X4 LANDED: the engine-exact lattice — every grant deleted
+
+(user: "fix all the hacks by doing the right fix instead")
+
+The host lattice now IS EqualityUtilities.eq: NO cross-primitive-kind
+equality (X1 integral×Decimal grant deleted — its witness was
+mis-cited; X3 Float×Decimal fp-grant deleted; X4 the numeric-tower
+kind class replaced by per-kind classes, cross-kind pairs decline to
+the host's engine-FALSE); X2 Decimal equality tightened to
+scale-sensitive equals, and the canonical Decimal render REVERSED to
+scale-preserving (the old normalization followed the deleted grant).
+
+THE TIGHTENING NAMED SIX REAL WIRE BUGS, each fixed at its seam
+(the method working exactly as designed — every break was a
+compensated defect, not a needed leniency):
+1. round(Decimal, scale) lost the Decimal kind (SQL round → DOUBLE) —
+   constant scales restore DECIMAL-at-that-scale (DecimalKindRules).
+2. divide(,,scale) — same drift, same fix.
+3. toDecimal fabricated scale 18 — input-stamp-driven (INTEGER → 0).
+4. Scale≤0 Decimal LITERALS spelled dotless type INTEGER in SQL —
+   fixed at the EGRESS ROOT only (RootLiterals; a blanket renderer
+   cast measurably truncated VALUES columns and re-kinded divide).
+5. Host integral equality OVERFLOWED BigInteger via longValue() — a
+   pre-existing bug the deleted X1 grant had been MASKING
+   (testLargePlus exposed it the moment the grant died).
+6. INTEGER-declared cells decoding as scale-0 BigDecimal (DuckDB types
+   beyond-int64 literals DECIMAL) — the declared-type-drives-codec
+   decode guard (the H2 DOUBLE-arm doctrine).
+
+Dual-verdict attribution added (ChannelB names the test that grows the
+disagreement census). File guard honored by REAL extractions
+(RootLiterals, DecimalKindRules). CENSUS: sql-verdict agree 1492,
+disagree 0, declined 91 — full coverage retained with ZERO grants.
+
+## X-SLICE CORPUS ADJUDICATION — the 2-ULP policy survives, EXPLICIT (2026-08-22)
+
+The corpus sweep caught what the PCT lane could not: seven
+tests/mapping/sqlFunction tests (acos/asin/atan2/log/tan) failed under
+the tightened seam. Root cause was NOT the DECIMAL casts (the h2-exec
+text floor recovered to 320 the moment the tests passed — the earlier
+316 was a symptom, and the floor was reverted untouched): the new
+goldenEqualScalar numeric BY-VALUE arm returned false on value
+difference instead of falling through, which SILENTLY RETIRED the
+declared 2-ULP dialect-arithmetic policy at that seam.
+
+The diff is irreducible cross-libm drift: the corpus expected literals
+were minted on Java/H2's math library; DuckDB's libm computes the same
+transcendentals 1–2 ULP apart, and IEEE 754 does not require correctly
+rounded transcendentals. No emission, type, or canon fix exists.
+
+USER-RATIFIED RESOLUTION: the 2-ULP policy stays a DECLARED, COUNTED
+leniency — never implicit-in-a-decline again:
+- goldenEqualScalar: value-equal → true; value-differ → FALL THROUGH
+  to the lattice (engine-exact kinds + the declared policy).
+- sqlByteVerdict: byte-differ + all-finite-Double pairs within 2 ULP →
+  policy verdict, counted in its own census row (sqlUlpPolicy in the
+  [canon] summary) — the runtime-kind refinement must not silently
+  retire what the unrefined-NUMBER decline used to route to policy.
+The honest retirement design (same-arithmetic H2 referee: byte-differ
+Double pairs re-compare EXACTLY on the goldens' own libm) is recorded
+on V8/R3; user chose the counted policy for now.
+
+V11 REGISTERED (user, twice): collapse the canon render INTO the side
+query — SELECT value, canon(value), one execution, like the m2m
+in-query JSON return; the containsEffect double-execution gate deletes.
+
+## V11 LANDED — the single-query canon (2026-08-22)
+
+The user's question ("why a second query? collapse it like the m2m
+JSON return") became the slice: the canonical render now rides the
+side query itself. wrapWithCanon (lowering-owned, exec-pure per
+Invariant 6h — returns a CanonWrap the driver records on the
+CanonRider) wraps the lowered plan as `SELECT value, canon(value)
+FROM (plan) side`; the Executor harvests the appended VARCHAR columns
+row-aligned with the value decode; the verdict layer frames and
+compares. DELETED: prepCanon, runCanon, their records, and the V10c
+double-execution soundness obligation (nothing runs twice).
+StatementExecutor banked DOWN 2728→2326 stripped lines; the whole
+verdict system shrank 355.
+
+Derivation points settled en route:
+- Candidate columns for unrefined Number stamps (OutputCol types are
+  stamp-derived — the V6 circularity — so the plan cannot name the
+  member): the DB computes every candidate render; the runtime value
+  kinds SELECT the column, by the same refinement that gates the
+  equality rule. Selection, never evaluation.
+- LiteralFold YIELDS to a canon-riding side: the fold is a value-fetch
+  optimization, but a requested canon is computed by the database.
+  Same execution count as the deleted runCanon round trip. The fold
+  survives as the last-resort value source for literals SQL cannot
+  spell (NUL-bearing strings — testEmptyChar) with a counted decline.
+- The canon-exec decline tunnel (the V11 form of prepCanon's catch):
+  a wrapped-query failure re-executes the BARE plan and declines the
+  canon — a canon column can never poison the value fetch. Witness:
+  the mixed-identity VARCHAR carrier ('7.345D') under candidate casts,
+  wrap-time-undetectable (stamp-derived OutputCol) → F10's newest row.
+- Guardrails honored the hard way: Invariant 6h dependency inversion,
+  CanonRider registered in the exec closed register with its tenet
+  argument, JDBC accessor ratchet 12→13 (one getString of DB-composed
+  text bought a deleted execution), executeTyped split at the seam.
+
+TRAP RECORDED TWICE OVER: ChannelB suites read -Dlegend.pure.root /
+-Dlegend.engine.root SYSTEM PROPERTIES (like rcorpus), not env vars —
+env-only runs silently referee the STALE $HOME checkout and fake a
+7-test relation discovery regression (280 != 287). The X-slice pushed
+with those pins unvalidated because ChannelB is not in allgates.
+
+## X5 LANDED — equality.Key, DB-first (2026-08-22)
+
+User directive: push the DB as far as it goes before any flip decision
+— and the user's two design calls shaped the slice: (1) "doesn't the
+key tell you the columns to compare?" — YES: the key list is model
+metadata known at compile time, so keyed-instance equality COMPILES
+(my Tier-C placement had conflated rule-origin with execution-place);
+(2) "make it a JSON of the keys, with the class fqn" — adopted: JSON
+is the FRAMING (escaping kills the concat-collision class), our canon
+strings are the VALUES (to_json would be a second spelling authority),
+'_type' rides the bytes, kind-tagged leaves keep the engine's
+same-kind rule one level down, and the format converges with F10's
+carrier direction instead of inventing a disposable one.
+
+Ground truth (EqualityUtilities + _Class.getEqualityKeyProperties):
+keys = stereotyped simple properties in generalization order; each
+key's VALUES compare as collections under the ordered list rule;
+classifier must match; keyless = FALSE (identity is upstream).
+
+MEASUREMENT-DRIVEN CLAIMS (the decline histogram, not the plan,
+picked the buckets): the predicted Pair mountain was actually ~9 rows —
+the REAL mountains were Nil/empty sides (38) and GenericType stamps
+missed by a ClassType-only arm (18). Landed: Nil claim + '[]' empty
+unification, GenericType instance kinds, Pair struct canon, List
+bare-array carrier canon, host key restriction. Declines 97→35,
+agree +62, disagree 0 throughout, ceilings banked.
+
+TRAPS: the driver resolved keys for ClassType only while every Pair
+stamp is GenericType (fqnOf owns the mapping now); List is NOT a
+struct at the SQL boundary (PureSql: bare array — the array IS
+values); OutputCol layouts ARE trustworthy for carriers (PureSql
+builds them from concrete generic args) unlike scalar stamps.

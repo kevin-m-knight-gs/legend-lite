@@ -182,22 +182,12 @@ public final class GridCompare {
 
     private static @com.legend.Nullable Double epochSeconds(
             @com.legend.Nullable Object v) {
-        return switch (v) {
-            case java.time.LocalDate d -> (double) d.toEpochDay() * 86400.0;
-            case java.time.LocalDateTime dt ->
-                    (double) dt.toEpochSecond(java.time.ZoneOffset.UTC);
-            case java.time.Instant in -> (double) in.getEpochSecond();
-            // no JDBC value-accessor spellings (TenetRatchet C1.2): the
-            // instant/local conversions carry the same value — and the
-            // java.sql.Date arm now matches the LocalDate arm's UTC
-            // convention (the old default-TZ getTime() wobbled by the
-            // zone offset in mixed-kind compares)
-            case java.sql.Timestamp ts ->
-                    ts.toInstant().toEpochMilli() / 1000.0;
-            case java.sql.Date d ->
-                    (double) d.toLocalDate().toEpochDay() * 86400.0;
-            case null, default -> null;
-        };
+        // THE wire temporal type only (D-arc: sql/java.time temporals
+        // never escape the fetch seam) — instant floor, UTC
+        return v instanceof com.legend.values.PureDateLiteral d
+                ? (double) d.toInstantFloor()
+                        .toEpochSecond(java.time.ZoneOffset.UTC)
+                : null;
     }
 
     /** C0.4: under {@code LL_ORD_COUNT}, emit an {@code [ord]} line when
@@ -222,6 +212,15 @@ public final class GridCompare {
      * per the chain's sortedness; cells string-equal or bounded-float-
      * tolerant. */
     public static boolean renderedText(String expected, String actual,
+            String form, boolean sorted) {
+        boolean held = renderedTextVerdict(expected, actual, form, sorted);
+        // R1b divergence instrument — measurement only, cannot affect
+        // the verdict (CANONICAL_FORM_SPEC §0)
+        CanonicalDivergence.probeGridText(expected, actual, held);
+        return held;
+    }
+
+    private static boolean renderedTextVerdict(String expected, String actual,
             String form, boolean sorted) {
         if (expected.equals(actual)) {
             return true;

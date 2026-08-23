@@ -39,10 +39,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * DELETED and the assertTestData getLong double-read hoisted to a
  * local — TestDataGenerator 6 -> 3 raw sites minus one pureRepr read;
  * Executor 7 with the one-carrier timestamp re-fetch.
+ * 12 -> 13 (2026-08-22 V11 single-query canon): harvestCanon's ONE
+ * getString in the codec owner carries the DB-computed canonical
+ * VARCHAR — pure text carriage (Charter C1.2's allowed class), and it
+ * DELETED a whole per-side execution (runCanon) in exchange.
  */
 class TenetRatchetTest {
 
-    private static final int RESULT_SET_ACCESSOR_SITES = 12;
+    private static final int RESULT_SET_ACCESSOR_SITES = 13;
 
     private static final Pattern ACCESSOR = Pattern.compile(
             "\\.get(String|Object|Int|Long|Double|Boolean|BigDecimal"

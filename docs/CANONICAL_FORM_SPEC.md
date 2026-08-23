@@ -89,6 +89,42 @@ OUT (loud residue — walls or the declared policy, never silent):
 - Class instances: identity ids are not canonical (H1) — instance
   equality stays a host/referee concern, out of the byte channel.
 
+## 4b. THE PERMANENT BOUNDARY (V11 close, user-converged 2026-08-22)
+
+The DB channel was never going to claim everything, and this section
+makes the boundary a finished design statement instead of unmet
+ambition. The DB is the verdict of record FOR THE CLAIMED DOMAIN; the
+host lattice is the verdict of record FOR THE RESIDUE BELOW (openly,
+not as a fallback); the host shadows every DB verdict as the permanent
+referee. Declines are a boundary census, NOT debt — each lands in one
+of three tiers:
+
+- **Tier A — no NATIVE type (nearly empty once carriers are allowed):**
+  decimals beyond 38 significant digits / integers beyond HUGEINT as
+  native kinds (text-encodable, so even these are Tier-B-with-work).
+  NUL-bearing strings turned out to be NEITHER tier (user catches
+  2026-08-22, twice): DuckDB VARCHAR holds NUL fine — the failure was
+  our StringLit renderer putting the raw byte into statement text
+  (lexer death). FIXED at the spelling (chr(0) splice). A "Tier A"
+  claim should be re-verified against the DB's actual value domain
+  before it is believed.
+- **Tier B — erased by SQL's TYPE system but encodable as data
+  (CLAIMABLE; the pattern is proven):** per-element kind variance
+  (mixed collections, if-branch CASE promotion, the print-form
+  identity carrier) → F10 variant carrier; temporal written-precision
+  → ALREADY CLAIMED via the precision-faithful VARCHAR convention.
+  When the type channel erases, move the information into the value
+  channel — never guess.
+- **Tier C — not data at all (permanently host/model territory):**
+  model-defined equality (equality.Key stereotypes — X5 claims the
+  byte compare via key-derived canon, the SEMANTICS stay model-owned);
+  object identity (eq() on non-primitives — rows have no identity);
+  orchestration handles (Connection/Runtime); the metamodel itself
+  (Package/Multiplicity/ValueSpecification, lambdas as values).
+
+Every decline reason maps to a tier; a decline that fits no tier is a
+bug in the wrap, not a new category.
+
 ## 5. Cutover order (R2, per-family hard cutovers)
 
 By H5 distribution (assert sites over the corpus universe):
@@ -104,3 +140,16 @@ Each family cutover DELETES its verdict-affecting host arms in the
 same slice (eval-ledger pins DOWN every commit); PureAsserts moves to
 the referee as the permanent parallel host verdict, disagreement
 census pinned 0 shrink-only.
+
+## Amendments
+
+- **§3 kind qualification (R1a follow-on, 2026-08-22):** the byte
+  compare is over (kindClass, text) pairs — the render alone is not
+  injective across kinds (String "8" vs Integer 8). The numeric tower
+  is ONE kind class.
+- **§2/§4 zeros unify (2026-08-22, witness parseFloat('-000.000') via
+  the PCT relational lane):** pure grants 0.0 == -0.0, so the
+  canonical Float render of EVERY zero is "0.0" — negative zero moved
+  from residue INTO the claimed domain, unified. Same ruling shape as
+  integral Decimal: where print and equality conflict, equality binds
+  the canonical form.

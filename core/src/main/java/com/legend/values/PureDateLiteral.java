@@ -190,35 +190,120 @@ public sealed interface PureDateLiteral
     }
 
     // ---------------------------------------------------------------
-    // Variants
+    // Wire-value model (D-arc 2026-08-21: PureDateLiteral is THE
+    // temporal wire carrier — sql/java.time temporals never escape the
+    // fetch seam; these are the seam's constructors and the comparison
+    // layer's ordering floor)
+    // ---------------------------------------------------------------
+
+    /** The fetch seam's DATE decode: a driver date is day-precision. */
+    static StrictDate fromLocalDate(java.time.LocalDate d) {
+        return new StrictDate(d.getYear(), d.getMonthValue(),
+                d.getDayOfMonth());
+    }
+
+    /**
+     * The fetch seam's TIMESTAMP decode: canonical-MINIMAL — second
+     * precision, subseconds only when nonzero (trailing zeros
+     * stripped). ADJUDICATED against the engine's two conventions
+     * (2026-08-22): the engine's relational reads are 9-digit
+     * ({@code fromSQLTimestamp %09d}) while its computed/interpreted
+     * values carry derived precision — one decode cannot match both
+     * SPELLINGS, so the wire carries the minimal canonical form and
+     * the CORPUS harness compares temporal goldens BY INSTANT
+     * (goldenEqualScalar — precision-blind by contract, mirroring the
+     * engine's own cross-lane leniency), while PCT written-precision
+     * functions ride the precision-faithful VARCHAR convention through
+     * {@link #parse}.
+     */
+    static PureDateLiteral fromLocalDateTime(java.time.LocalDateTime t) {
+        if (t.getNano() == 0) {
+            return new DateWithSecond(t.getYear(), t.getMonthValue(),
+                    t.getDayOfMonth(), t.getHour(), t.getMinute(),
+                    t.getSecond());
+        }
+        String frac = String.format("%09d", t.getNano())
+                .replaceFirst("0+$", "");
+        return new DateWithSubsecond(t.getYear(), t.getMonthValue(),
+                t.getDayOfMonth(), t.getHour(), t.getMinute(),
+                t.getSecond(), frac);
+    }
+
+    /**
+     * The EARLIEST instant this value names (its period's floor), as a
+     * naive-UTC {@code LocalDateTime} — the comparison layer's ordering
+     * key (pure sorts temporals by instant, P2-2). Subseconds order by
+     * the fractional string zero-padded to nanos.
+     */
+    default java.time.LocalDateTime toInstantFloor() {
+        return switch (this) {
+            case Year y -> java.time.LocalDateTime.of(y.year(), 1, 1, 0, 0);
+            case YearMonth ym ->
+                    java.time.LocalDateTime.of(ym.year(), ym.month(), 1, 0, 0);
+            case StrictDate d ->
+                    java.time.LocalDateTime.of(d.year(), d.month(), d.day(), 0, 0);
+            case DateWithHour d -> java.time.LocalDateTime.of(
+                    d.year(), d.month(), d.day(), d.hour(), 0);
+            case DateWithMinute d -> java.time.LocalDateTime.of(
+                    d.year(), d.month(), d.day(), d.hour(), d.minute());
+            case DateWithSecond d -> java.time.LocalDateTime.of(
+                    d.year(), d.month(), d.day(), d.hour(), d.minute(),
+                    d.second());
+            case DateWithSubsecond d -> java.time.LocalDateTime.of(
+                    d.year(), d.month(), d.day(), d.hour(), d.minute(),
+                    d.second(), Integer.parseInt(
+                            (d.subsecond() + "00000000").substring(0, 9)));
+        };
+    }
+
+    // ---------------------------------------------------------------
+    // Variants (each toString IS toEngineString — the wire value's text
+    // is its pure spelling, so no stringification site can ever print
+    // record syntax)
     // ---------------------------------------------------------------
 
     record Year(int year) implements PureDateLiteral {
         @Override public String toEngineString() { return Integer.toString(year); }
+
+        @Override public String toString() { return toEngineString(); }
     }
 
     record YearMonth(int year, int month) implements PureDateLiteral {
         @Override public String toEngineString() {
             return String.format("%d-%02d", year, month);
         }
+
+        @Override public String toString() { return toEngineString(); }
     }
 
     record StrictDate(int year, int month, int day) implements PureDateLiteral {
         @Override public String toEngineString() {
             return String.format("%d-%02d-%02d", year, month, day);
         }
+
+        @Override public String toString() { return toEngineString(); }
     }
 
     record DateWithHour(int year, int month, int day, int hour) implements PureDateLiteral {
         @Override public String toEngineString() {
             return String.format("%d-%02d-%02dT%02d", year, month, day, hour);
         }
+
+        /** Pure's print form: time-bearing values carry the
+         * GMT-normalized {@code +0000} suffix (H1 toString spec);
+         * {@link #toEngineString} stays the literal body. */
+        @Override public String toString() { return toEngineString() + "+0000"; }
     }
 
     record DateWithMinute(int year, int month, int day, int hour, int minute) implements PureDateLiteral {
         @Override public String toEngineString() {
             return String.format("%d-%02d-%02dT%02d:%02d", year, month, day, hour, minute);
         }
+
+        /** Pure's print form: time-bearing values carry the
+         * GMT-normalized {@code +0000} suffix (H1 toString spec);
+         * {@link #toEngineString} stays the literal body. */
+        @Override public String toString() { return toEngineString() + "+0000"; }
     }
 
     record DateWithSecond(int year, int month, int day, int hour, int minute, int second) implements PureDateLiteral {
@@ -226,6 +311,11 @@ public sealed interface PureDateLiteral
             return String.format("%d-%02d-%02dT%02d:%02d:%02d",
                     year, month, day, hour, minute, second);
         }
+
+        /** Pure's print form: time-bearing values carry the
+         * GMT-normalized {@code +0000} suffix (H1 toString spec);
+         * {@link #toEngineString} stays the literal body. */
+        @Override public String toString() { return toEngineString() + "+0000"; }
     }
 
     record DateWithSubsecond(int year, int month, int day,
@@ -235,6 +325,11 @@ public sealed interface PureDateLiteral
             return String.format("%d-%02d-%02dT%02d:%02d:%02d.%s",
                     year, month, day, hour, minute, second, subsecond);
         }
+
+        /** Pure's print form: time-bearing values carry the
+         * GMT-normalized {@code +0000} suffix (H1 toString spec);
+         * {@link #toEngineString} stays the literal body. */
+        @Override public String toString() { return toEngineString() + "+0000"; }
     }
 
     // ---------------------------------------------------------------

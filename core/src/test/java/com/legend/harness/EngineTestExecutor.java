@@ -56,6 +56,120 @@ import java.util.Map;
  */
 public final class EngineTestExecutor {
 
+    /**
+     * HARNESS comparison policy (D-arc 2026-08-21): the harness's
+     * EXPECTED side is decoded from engine golden TEXT, so a temporal
+     * expectation arrives as a STRING while the wire carries
+     * {@code PureDateLiteral} (THE temporal type — the production
+     * string-carrier bridge is DEAD). The decode obligation is the
+     * HARNESS's, at its own seam: a string beside a wire temporal
+     * parses to the pure date value first (space-separated grid
+     * spellings normalize), then the ONE production lattice judges.
+     * Non-parsing strings stay strings and fail like pure. These arms
+     * delete wholesale with the R2 render cutover.
+     */
+    private static boolean goldenEqualScalar(@com.legend.Nullable Object e,
+            @com.legend.Nullable Object a) {
+        Object de = goldenTemporalDecode(e, a);
+        Object da = goldenTemporalDecode(a, e);
+        // V10a (derived, replacing the instant-blind fit): temporal
+        // golden compares follow THE ENGINE'S OWN CONVENTION —
+        // DateFunctions.fromSQLTimestamp makes every DB-derived value a
+        // NINE-DIGIT DateWithSubsecond, so both sides normalize
+        // time-bearing precision to nine digits and compare by EXACT
+        // record equality (AbstractPureDate.equals: components + exact
+        // subsecond string). STRICTER than the old instant compare:
+        // a date-only value never equals a midnight datetime — exactly
+        // as the engine rules it.
+        if (de instanceof com.legend.values.PureDateLiteral pe
+                && da instanceof com.legend.values.PureDateLiteral pa) {
+            return engineNine(pe).equals(engineNine(pa));
+        }
+        // X-audit lane doctrine: the PRODUCTION lattice is engine-exact
+        // (no cross-kind numeric equality) — but THIS seam's expected
+        // side is DECODED FROM GOLDEN TEXT, which cannot carry kind or
+        // scale fidelity (a golden '22.3' decodes at the text's scale
+        // while the wire carries the column's declared scale). The
+        // golden seam therefore compares numerics BY VALUE — the one
+        // place the old grants legitimately belonged, quarantined here,
+        // mirroring the temporal engineNine normalization above.
+        // The arm is NARROW: only pairs touching a BigDecimal and free
+        // of integral values, because golden text DOES carry the
+        // integral-vs-fractional distinction ('30' vs '30.0' — pure
+        // kind semantics stay strict, numericKindIsStrict pins it);
+        // what text cannot carry is Decimal SCALE and the decode
+        // CARRIER (a golden '22.3' decodes at the text's scale/as a
+        // Double while the wire carries the column's declared scale).
+        if (de instanceof Number ne && da instanceof Number na
+                && !(de instanceof com.legend.values.PureDateLiteral)
+                && (ne instanceof java.math.BigDecimal
+                        || na instanceof java.math.BigDecimal)
+                && !integral(ne) && !integral(na)
+                && numericValue(ne) != null && numericValue(na) != null) {
+            java.math.BigDecimal ve = numericValue(ne);
+            java.math.BigDecimal va = numericValue(na);
+            if (ve != null && va != null && ve.compareTo(va) == 0) {
+                return true;
+            }
+            // value-differing pairs FALL THROUGH: the lattice keeps its
+            // engine-exact kind rules AND the declared 2-ULP dialect-
+            // arithmetic policy (OPEN_REGISTER §5 — cross-libm last-ULP
+            // drift on transcendentals; user-ratified 2026-08-22)
+        }
+        return com.legend.exec.PureAsserts.equalScalar(de, da);
+    }
+
+    private static boolean integral(Number n) {
+        return n instanceof Long || n instanceof Integer
+                || n instanceof Short || n instanceof Byte
+                || n instanceof java.math.BigInteger;
+    }
+
+    /** Finite numeric value, or null for non-finite floats (those keep
+     * the lattice's IEEE rules). */
+    private static java.math.@com.legend.Nullable BigDecimal numericValue(
+            Number n) {
+        if ((n instanceof Double d && !Double.isFinite(d))
+                || (n instanceof Float f && !Float.isFinite(f))) {
+            return null;
+        }
+        return n instanceof java.math.BigDecimal bd ? bd
+                : n instanceof java.math.BigInteger bi
+                        ? new java.math.BigDecimal(bi)
+                        : new java.math.BigDecimal(String.valueOf(n));
+    }
+
+    /** The engine wire convention ({@code fromSQLTimestamp %09d}):
+     * time-bearing values carry nine subsecond digits; date-only
+     * precisions are untouched (the engine's StrictDate stays
+     * StrictDate). */
+    private static com.legend.values.PureDateLiteral engineNine(
+            com.legend.values.PureDateLiteral d) {
+        if (!d.precision().atLeast(
+                com.legend.values.PureDateLiteral.Precision.HOUR)) {
+            return d;
+        }
+        java.time.LocalDateTime f = d.toInstantFloor();
+        return new com.legend.values.PureDateLiteral.DateWithSubsecond(
+                f.getYear(), f.getMonthValue(), f.getDayOfMonth(),
+                f.getHour(), f.getMinute(), f.getSecond(),
+                String.format("%09d", f.getNano()));
+    }
+
+    private static @com.legend.Nullable Object goldenTemporalDecode(
+            @com.legend.Nullable Object v, @com.legend.Nullable Object other) {
+        if (v instanceof String s
+                && other instanceof com.legend.values.PureDateLiteral) {
+            try {
+                return com.legend.values.PureDateLiteral.parse(
+                        s.trim().replace(' ', 'T').replaceFirst("Z$", "+0000"));
+            } catch (IllegalArgumentException notADate) {
+                return v;   // the typing-bug catch stays the parse
+            }
+        }
+        return v;
+    }
+
     /** F3.2e: ONE substitution engine — the compiler's (SourceSubst,
      * semantics pinned by SourceSubstTest + SubstitutionParityTest).
      * CORPUS_FOLD is the driver-injected PostFold carrying the harness's
@@ -1017,7 +1131,7 @@ public final class EngineTestExecutor {
             return UNSUPPORTED_MARKER;
         }
         for (Object x : col.values()) {
-            if (com.legend.exec.PureAsserts.equalScalar(x, val.values().get(0))) {
+            if (goldenEqualScalar(x, val.values().get(0))) {
                 return null;
             }
         }
@@ -1976,7 +2090,7 @@ public final class EngineTestExecutor {
                             execChains, ctx, imports, runtimeFqn, conn);
                     List<Object> missing = need.values().stream()
                             .filter(n2 -> have.values().stream()
-                                    .noneMatch(h -> com.legend.exec.PureAsserts.equalScalar(n2, h)))
+                                    .noneMatch(h -> goldenEqualScalar(n2, h)))
                             .toList();
                     boolean holds = missing.isEmpty();
                     boolean want = simpleName(af.function()).equals("assert");   // F6.9: FQN-spelled asserts keep polarity
@@ -2946,7 +3060,7 @@ public final class EngineTestExecutor {
         // exactly then; a sorted chain compares exactly ordered.
         if (ordered && actual.sortedChain()) {
             for (int i = 0; i < e.size(); i++) {
-                if (!com.legend.exec.PureAsserts.equalScalar(e.get(i), a.get(i))) {
+                if (!goldenEqualScalar(e.get(i), a.get(i))) {
                     return false;
                 }
             }
@@ -2956,7 +3070,7 @@ public final class EngineTestExecutor {
             // try ordered first — identical orders stay strongest evidence
             boolean ok = true;
             for (int i = 0; i < e.size() && ok; i++) {
-                ok = com.legend.exec.PureAsserts.equalScalar(e.get(i), a.get(i));
+                ok = goldenEqualScalar(e.get(i), a.get(i));
             }
             if (ok) {
                 return true;
@@ -3004,7 +3118,7 @@ public final class EngineTestExecutor {
         for (Object x : e) {
             int hit = -1;
             for (int i = 0; i < pool.size(); i++) {
-                if (com.legend.exec.PureAsserts.equalScalar(x, pool.get(i))) {
+                if (goldenEqualScalar(x, pool.get(i))) {
                     hit = i;
                     break;
                 }
@@ -3026,7 +3140,7 @@ public final class EngineTestExecutor {
         // pure-spec order-insensitivity — from genuine row leniency.
         com.legend.exec.GridCompare.ordLeniency("sameElements-values", () -> {
             for (int i = 0; i < e.size(); i++) {
-                if (!com.legend.exec.PureAsserts.equalScalar(e.get(i), a.get(i))) {
+                if (!goldenEqualScalar(e.get(i), a.get(i))) {
                     return false;
                 }
             }

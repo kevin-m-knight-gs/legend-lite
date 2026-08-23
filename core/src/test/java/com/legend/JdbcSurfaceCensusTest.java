@@ -95,13 +95,10 @@ class JdbcSurfaceCensusTest {
             // RETIRED: moved to compiler/spec/CatalogGrids — pure
             // SQL-text composition.)
             "core/src/main/java/com/legend/exec/GridProbe.java",
-            // Phase 2: the platform assert family — java.sql VALUE KINDS
-            // only (Timestamp/Date arms of the ONE equality owner);
-            // no connection ever reaches it
-            "core/src/main/java/com/legend/exec/PureAsserts.java",
-            // Phase 2b: grid/tolerance compare — java.sql VALUE KINDS
-            // only (temporal epoch arms); no connection ever reaches it
-            "core/src/main/java/com/legend/exec/GridCompare.java",
+            // (PureAsserts + GridCompare rows RETIRED 2026-08-21, the
+            // D-arc dividend: PureDateLiteral is THE wire temporal
+            // carrier, so the comparison layer's java.sql value arms
+            // are GONE — sql types never escape the fetch seam.)
             "core/src/main/java/com/legend/exec/Executor.java",
             "core/src/main/java/com/legend/exec/PctProbe.java",
             "core/src/main/java/com/legend/server/ConnectionResolver.java",
@@ -120,6 +117,17 @@ class JdbcSurfaceCensusTest {
             // Clause 2c: the verdict-arm spec tests — a DuckDB session
             // computes the argument sides; the verdict IS the test
             "core/src/test/java/com/legend/AssertVerdictsTest.java",
+            // F13: instance-identity spec pins — a DuckDB session
+            // computes both verdict sides; the site-minted __id rides
+            // the SQL and the verdict IS the test
+            "core/src/test/java/com/legend/exec/InstanceIdentityTest.java",
+            // F10 v1: literal-channel spec pins — a DuckDB session
+            // computes both sides; the byte verdict IS the test
+            "core/src/test/java/com/legend/exec/LiteralChannelTest.java",
+            // relation wall burn 2026-08-23: the aggregate-ORDER-BY
+            // null-placement pin — a DuckDB session renders the sorted
+            // toString; the produced text IS the assertion
+            "core/src/test/java/com/legend/lowering/AggOrderNullPlacementTest.java",
             // Phase 4: map wire-shape + rigid-lattice spec pins execute
             // through a DuckDB session (the wire IS the assertion)
             "core/src/test/java/com/legend/lowering/MapOptionalSourceTest.java",
@@ -140,6 +148,10 @@ class JdbcSurfaceCensusTest {
             // D4: variance pins run eval() e2e — the accepted direction
             // must EXECUTE, not merely type-check
             "core/src/test/java/com/legend/compiler/spec/VarianceD4Test.java",
+            // V10c: the dual-render conformance battery — the DATABASE
+            // computes the SQL canon text; agreement with the host
+            // reference render IS the assertion
+            "core/src/test/java/com/legend/lowering/SqlCanonConformanceTest.java",
             // D6b: the leniency pins run Compiler.execute e2e — the
             // valid-neighbor control must EXECUTE, and the bad-date pin
             // proves rejection moved from the DB to the parser

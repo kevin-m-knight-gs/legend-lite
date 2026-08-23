@@ -81,7 +81,19 @@ class ErrorShapeGuardrailTest {
             // the seedability trial-lowering probe — broad by design,
             // reviewed 2026-08-21 (see the catch-site comment)
             Map.entry("SeedableLets.java", 1),
-            Map.entry("StatementExecutor.java", 1),
+            // V2/V6 (OPEN_REGISTER, adjudicated 2026-08-22): the byte
+            // verdict's DECLINE TUNNELS — prepCanon (lowering refusal)
+            // and runCanon (render/execution refusal) each fall back to
+            // the host lattice with the decline COUNTED
+            // (CanonicalDivergence.sqlDeclined), so neither broad catch
+            // can become a silent rescue.
+            // 2 -> 3 (2026-08-23 F10 v1): the canon-exec tunnel's
+            // MIDDLE RUNG (drop the literal candidate, keep the bare
+            // byte channel) catches the same designed-sentinel class as
+            // its two siblings — a caught failure becomes a counted
+            // decline, never a rescue (witness testRepeatStringNoString:
+            // the BLOB wire under a STRING stamp).
+            Map.entry("StatementExecutor.java", 3),
             Map.entry("StaticFold.java", 1),
             Map.entry("EngineTestExecutor.java", 3),
             Map.entry("QuotedSpecParser.java", 1),
@@ -100,7 +112,14 @@ class ErrorShapeGuardrailTest {
     /** Designed catch-return sentinels at review time: harness
      * Unsupported buckets, UnfoldableRef isolation, overflow to
      * BigInteger, join-side search. Shrink-only. */
-    private static final int CATCH_RETURNS_VALUE = 13;   // re-pinned 2026-08-16 F1.2: harness left src/main (was 20)
+    // re-pinned 2026-08-16 F1.2: harness left src/main (was 20).
+    // 13→15 (2026-08-22 V11): the single-query canon's decline tunnel
+    // adds two catch-returns (wrapped→bare, bare→fold) — each IS the
+    // designed sentinel this guardrail asks for: caught failure →
+    // counted rider decline + derived fallback value, never a silent
+    // rescue. (prepCanon/runCanon's dead catches returned null and were
+    // never in this count.)
+    private static final int CATCH_RETURNS_VALUE = 15;
 
     /** {@code endsWith("::…")} identification sites — the suffix-match
      * idiom exact-FQN doctrine retires; may only shrink. */

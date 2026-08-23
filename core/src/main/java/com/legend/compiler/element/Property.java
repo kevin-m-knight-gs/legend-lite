@@ -36,12 +36,25 @@ public sealed interface Property permits Property.Stored, Property.Derived {
     /** Classified multiplicity. */
     Multiplicity multiplicity();
 
-    /** A regular stored property: {@code name: Type[multiplicity];}. */
-    record Stored(String name, Type type, Multiplicity multiplicity) implements Property {
+    /** A regular stored property: {@code name: Type[multiplicity];}.
+     *
+     * <p>{@code equalityKey} carries the {@code <<equality.Key>>}
+     * stereotype (X5): the engine's instance equality
+     * (EqualityUtilities.equal) compares keyed classes BY THEIR KEY
+     * PROPERTIES and refuses value equality for keyless ones — the
+     * flag is the model fact that rule reads. Association-injected
+     * navigation properties are never keys (they are not declared on
+     * the class body). */
+    record Stored(String name, Type type, Multiplicity multiplicity,
+                  boolean equalityKey) implements Property {
         public Stored {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(type, "type");
             Objects.requireNonNull(multiplicity, "multiplicity");
+        }
+
+        public Stored(String name, Type type, Multiplicity multiplicity) {
+            this(name, type, multiplicity, false);
         }
     }
 

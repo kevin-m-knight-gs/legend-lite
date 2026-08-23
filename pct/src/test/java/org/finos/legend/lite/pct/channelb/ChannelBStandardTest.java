@@ -85,5 +85,42 @@ class ChannelBStandardTest {
                 "standard WIRE-BUG census grew: " + c.wireBug());
         assertTrue(c.trueWireBug() == 0,
                 "standard TRUE wire-bug census grew: " + c.trueWireBug());
+        // V1 (OPEN_REGISTER): THE DUAL-VERDICT ALARM — the DB byte
+        // verdict of record and the host-lattice referee may never
+        // disagree silently; a disagreement fails the suite with the
+        // census line (CANONICAL_FORM_SPEC §0, ratified design).
+        assertTrue(com.legend.exec.CanonicalDivergence.sqlDisagreeCount() == 0,
+                "DUAL-VERDICT DISAGREEMENT: "
+                        + com.legend.exec.CanonicalDivergence.summary());
+
+        // V6b (OPEN_REGISTER): the decline CEILING — the surviving
+        // declines are DECLARED residue (class instances + wire-tree
+        // containers, out of the byte channel's claimed domain per
+        // CANONICAL_FORM_SPEC §4, + a handful of unrefinable Number
+        // stamps). Shrink-only: a NEW undeclared decline family fails
+        // here and must be claimed or declared.
+        // 100 -> 45 BANKED DOWN (2026-08-22 X5): keyed-instance byte
+        // verdicts (equality.Key canon — JSON framing, kind-tagged
+        // leaves, Pair struct + List array carriers) and the Nil/empty
+        // claim ('[]' canon unification) burned the class-instance and
+        // empty-side buckets; the remainder is the NAMED boundary
+        // (Map/mapEquals, Any wire trees, keyless classes,
+        // mixed-identity F10, NUL literal).
+        // BANKED DOWN 2026-08-22 F13: keyless classes CLAIMED
+        // (identity as data, site-minted __id) — cumulative
+        // PCT-lane declines 19 -> 13; residue = Any wire trees,
+        // Pair unclaimable leaves, one canon-exec array shape,
+        // mixed-kind, kind-gate.
+        // 15 -> 5 BANKED DOWN (2026-08-23 F10 v1, the literal channel):
+        // Any/mixed sides byte-compare in pure-literal spellings
+        // (json_type-dispatched); Pair-of-Pairs claimed by
+        // substitution-aware keys. Cumulative declines 13 -> 3 —
+        // ALL stamp-circularity wire lies, tunnel-counted (map
+        // struct-array, letFn raw-VARCHAR-as-JSON, mixedSort
+        // Number-stamp), named in OPEN_REGISTER F10.
+        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 5,
+                "byte-verdict declines grew past the declared residue: "
+                        + com.legend.exec.CanonicalDivergence.summary());
+
     }
 }

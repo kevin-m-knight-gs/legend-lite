@@ -105,25 +105,88 @@ final class AssertVerdicts {
                 if (args.size() < 2) {
                     return null;
                 }
-                List<Object> e = side(args.get(0), letPrefix, specs, env);
-                List<Object> a = side(args.get(1), letPrefix, specs, env);
+                SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
+                        env, false);
+                SideFetch af = sideCanon(args.get(1), letPrefix, specs,
+                        env, false);
+                // X5: a same-class KEYED pair restricts both sides to
+                // the key tree — the engine's own equality relation for
+                // keyed classes, applied before EITHER channel judges
+                var ik = instanceKeys(args.get(0), args.get(1), env);
+                List<Object> e = ik != null
+                        ? restrictToKeys(ef.values(), ik) : ef.values();
+                List<Object> a = ik != null
+                        ? restrictToKeys(af.values(), ik) : af.values();
                 boolean equal = PureAsserts.equal(e, a);
+                // R1a divergence instrument (CANONICAL_FORM_SPEC §0):
+                // host lattice vs host byte channel, measurement only
+                com.legend.exec.CanonicalDivergence.probeEqual(
+                        name, e, a, equal);
+                // R2a/V11 — THE BYTE VERDICT OF RECORD for scalar-kind
+                // sides: the canon rode the SIDE QUERY ITSELF (one
+                // execution, wrapWithCanon); Java compares two
+                // DB-computed byte strings. The host lattice above is
+                // the PERMANENT PARALLEL REFEREE (ratified dual-verdict
+                // design): disagreement is a pinned census row, never a
+                // rescue. A decline (unclaimed kind, non-SQL arm,
+                // non-scalar shape) is counted and the host judges.
+                SqlVerdict byteVerdict = sqlByteVerdict(args.get(0),
+                        args.get(1), ef, af, letPrefix, env);
+                if (byteVerdict != null) {
+                    com.legend.exec.CanonicalDivergence.probeSqlVerdict(
+                            name, equal, byteVerdict.held(),
+                            byteVerdict.detail());
+                }
+                boolean held = byteVerdict != null ? byteVerdict.held() : equal;
                 if (name.equals("assertNotEquals")) {
-                    return equal
+                    return held
                             ? fail("assertNotEquals: both sides are equal")
                             : ok();
                 }
+                if (held) {
+                    return ok();
+                }
                 String d = PureAsserts.assertEquals(e, a);
-                return d == null ? ok() : fail(d);
+                return fail(d != null ? d
+                        : "byte-verdict: canonical renders differ (host"
+                                + " lattice agreed — dual-verdict divergence,"
+                                + " see [canon] census)");
             }
             case "assertSameElements" -> {
                 if (args.size() < 2) {
                     return null;
                 }
-                String d = PureAsserts.assertSameElements(
-                        side(args.get(0), letPrefix, specs, env),
-                        side(args.get(1), letPrefix, specs, env));
-                return d == null ? ok() : fail(d);
+                SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
+                        env, true);
+                SideFetch af = sideCanon(args.get(1), letPrefix, specs,
+                        env, true);
+                var ik = instanceKeys(args.get(0), args.get(1), env);
+                List<Object> e = ik != null
+                        ? restrictToKeys(ef.values(), ik) : ef.values();
+                List<Object> a = ik != null
+                        ? restrictToKeys(af.values(), ik) : af.values();
+                String d = PureAsserts.assertSameElements(e, a);
+                com.legend.exec.CanonicalDivergence.probeSameElements(
+                        e, a, d == null);
+                // V4/V11 — the multiset BYTE VERDICT OF RECORD: rows
+                // arrive ORDER BY canon text (the wrap's sort key) in
+                // the SAME execution; the host multiset judgment above
+                // is the parallel referee.
+                SqlVerdict byteVerdict = sqlByteVerdict(args.get(0),
+                        args.get(1), ef, af, letPrefix, env);
+                if (byteVerdict != null) {
+                    com.legend.exec.CanonicalDivergence.probeSqlVerdict(
+                            "assertSameElements", d == null,
+                            byteVerdict.held(), byteVerdict.detail());
+                }
+                boolean held = byteVerdict != null ? byteVerdict.held() : d == null;
+                if (held) {
+                    return ok();
+                }
+                return fail(d != null ? d
+                        : "byte-verdict: canonical sorted renders differ"
+                                + " (host multiset agreed — dual-verdict"
+                                + " divergence, see [canon] census)");
             }
             case "assertSize" -> {
                 if (args.size() < 2) {
@@ -140,12 +203,35 @@ final class AssertVerdicts {
                 if (args.size() < 2) {
                     return null;
                 }
-                String d = PureAsserts.assertEq(
-                        one(side(args.get(0), letPrefix, specs, env),
-                                "assertEq expected"),
-                        one(side(args.get(1), letPrefix, specs, env),
-                                "assertEq actual"));
-                return d == null ? ok() : fail(d);
+                SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
+                        env, false);
+                SideFetch af = sideCanon(args.get(1), letPrefix, specs,
+                        env, false);
+                Object ee = one(ef.values(), "assertEq expected");
+                Object aa = one(af.values(), "assertEq actual");
+                // host judgment FIRST: eq's non-primitive identity rule
+                // throws LOUD here (P2-5) before any byte verdict
+                String d = PureAsserts.assertEq(ee, aa);
+                com.legend.exec.CanonicalDivergence.probeEqual("assertEq",
+                        java.util.Collections.singletonList(ee),
+                        java.util.Collections.singletonList(aa), d == null);
+                // V5/V11 — byte verdict of record (primitive eq
+                // coincides with equal; the identity rule walled above)
+                SqlVerdict byteVerdict = sqlByteVerdict(args.get(0),
+                        args.get(1), ef, af, letPrefix, env);
+                if (byteVerdict != null) {
+                    com.legend.exec.CanonicalDivergence.probeSqlVerdict(
+                            "assertEq", d == null, byteVerdict.held(),
+                            byteVerdict.detail());
+                }
+                boolean held = byteVerdict != null ? byteVerdict.held() : d == null;
+                if (held) {
+                    return ok();
+                }
+                return fail(d != null ? d
+                        : "byte-verdict: canonical renders differ (host"
+                                + " lattice agreed — dual-verdict divergence,"
+                                + " see [canon] census)");
             }
             case "assertEqWithinTolerance" -> {
                 if (args.size() < 3) {
@@ -164,8 +250,12 @@ final class AssertVerdicts {
                 if (args.isEmpty()) {
                     return null;
                 }
-                Object c = one(side(args.get(0), letPrefix, specs, env),
-                        name + " condition");
+                // F13c: the CONDITION rides the identity lane — eq/
+                // equal over instances compile the engine relation
+                // (identity/key canon); the egress is one boolean, so
+                // no other lane ever sees the identity field
+                Object c = one(identitySide(args.get(0), letPrefix,
+                        specs, env), name + " condition");
                 boolean held = Boolean.TRUE.equals(c) == name.equals("assert");
                 return held ? ok() : fail("Assert failed");
             }
@@ -379,7 +469,7 @@ final class AssertVerdicts {
         // below stays host-side (Clause 2c)
         TypedSpec predMap = com.legend.compiler.spec.VerdictQueries
                 .predicateVector(qm, lam, aargs.get(0));
-        List<Object> verdicts = side(predMap, letPrefix, specs, env);
+        List<Object> verdicts = identitySide(predMap, letPrefix, specs, env);
         boolean wantTrue = name.equals("assert");
         for (Object v : verdicts) {
             if (Boolean.TRUE.equals(v) != wantTrue) {
@@ -404,11 +494,523 @@ final class AssertVerdicts {
     /** One assert SIDE: the argument expression executed in the
      * database through the ordinary pipeline, flattened to wire values
      * (a null scalar is the EMPTY collection — pure [0..1] emptiness). */
+    /** R2a kind gate + DB renders: both sides must have the SAME
+     * statically-stamped kind class (cross-kind incl. empty-vs-empty
+     * stays the host lattice's — DECLINE, not a guess); the byte
+     * verdict is equality of the two DB-computed canonical texts
+     * (null text = EMPTY side; empty==empty holds, empty==value
+     * fails — pure's own rule). */
+    record SqlVerdict(boolean held, String detail) {
+    }
+
+    private static @com.legend.Nullable SqlVerdict sqlByteVerdict(
+            TypedSpec eSpec, TypedSpec aSpec, SideFetch ef, SideFetch af,
+            List<TypedSpec> letPrefix, StatementExecutor.ExecEnv env) {
+        List<Object> eVals = ef.values();
+        List<Object> aVals = af.values();
+        String ke = kindClassOf(eSpec.info().type());
+        String ka = kindClassOf(aSpec.info().type());
+        boolean eAny = isAnyStamped(eSpec);
+        boolean aAny = isAnyStamped(aSpec);
+        // MIXED-KIND numeric collections are unsound under SQL column
+        // promotion (pure refuses 1 == 1.0 element-wise; one DOUBLE
+        // column erases the distinction) — the HOST-fetched element
+        // kinds gate the route (a routing fact, not a verdict). An
+        // ANY side is EXEMPT (F10 v1): its JSON carrier never promotes
+        // — each cell keeps its own kind and the literal channel spells
+        // 1 and 1.0 apart.
+        // ... and a LITERAL-ONLY side (JSON-carried — Number-stamped
+        // mixed lists ride the variant wrap too) is equally exempt:
+        // its cells never promote.
+        if ((!eAny && !ef.rider().literalOnly() && mixedNumericKinds(eVals))
+                || (!aAny && !af.rider().literalOnly()
+                        && mixedNumericKinds(aVals))) {
+            com.legend.exec.CanonicalDivergence.sqlDeclined(
+                    "mixed-kind-collection");
+            return null;
+        }
+        // X5: a Nil-stamped side is the []-born EMPTY value — pure
+        // equality against ANY kind is decided by emptiness alone
+        // (equal([], x) is element-wise vacuous), so the kind classes
+        // need not match; both canons frame '[]' when empty and any
+        // non-empty side byte-differs from '[]' — the engine's answer.
+        boolean anyNil = com.legend.compiler.element.type.PlatformTypes
+                .isNil(eSpec.info().type())
+                || com.legend.compiler.element.type.PlatformTypes
+                        .isNil(aSpec.info().type());
+        // F10 v1: an ANY-stamped side has no static kind — the pair
+        // compares in the pure-LITERAL channel (six disjoint spellings
+        // carry kind in the bytes), so the static gate defers
+        boolean anyAny = eAny || aAny;
+        if (ke == null || ka == null
+                || (!anyNil && !anyAny && !ke.equals(ka))) {
+            com.legend.exec.CanonicalDivergence.sqlDeclined("kind-gate: "
+                    + typeName(eSpec) + " / " + typeName(aSpec));
+            return null;
+        }
+        // V11: the canon rode each side's OWN query (wrapWithCanon) —
+        // a decline recorded by the wrap (non-SQL arm, unclaimed kind,
+        // non-scalar shape) routes the pair to the host lattice.
+        if (ef.rider().declined() != null) {
+            com.legend.exec.CanonicalDivergence.sqlDeclined(
+                    "side-e: " + ef.rider().declined());
+            return null;
+        }
+        if (af.rider().declined() != null) {
+            com.legend.exec.CanonicalDivergence.sqlDeclined(
+                    "side-a: " + af.rider().declined());
+            return null;
+        }
+        // F13 — IDENTITY-pair guards (keyless class: the canon claimed
+        // via the synthetic __id identity field). Map carriers are NOT
+        // identity pairs — mapEquals (F12) is their own claimed rule.
+        if (!anyNil && !anyAny && ke.startsWith("instance:")
+                && !com.legend.compiler.element.type.PlatformTypes
+                        .isMapCarrier(eSpec.info().type())
+                && instanceKeys(eSpec, aSpec, env) == null) {
+            // v1 exclusion: a constructor under a LAMBDA evaluates per
+            // element but mints ONE site id (no row index reaches
+            // list_transform) — identity would conflate distinct
+            // instances; decline, counted (OPEN_REGISTER F13).
+            List<TypedSpec> scope = new ArrayList<>(letPrefix);
+            scope.add(eSpec);
+            scope.add(aSpec);
+            if (keylessCtorUnderLambda(scope, env)) {
+                com.legend.exec.CanonicalDivergence.sqlDeclined(
+                        "keyless-ctor-in-lambda: " + ke);
+                return null;
+            }
+            // an instance wire that carries NO id (a producer outside
+            // the minting sites) must never byte-judge — identity
+            // unknown is a decline, never a fabricated equality
+            for (Object v : concat(eVals, aVals)) {
+                if (v instanceof java.util.Map<?, ?> m
+                        && m.get(com.legend.compiler.element.ClassLayouts
+                                .SYNTHETIC_ID) == null) {
+                    com.legend.exec.CanonicalDivergence.sqlDeclined(
+                            "identityless-instance-wire: " + ke);
+                    return null;
+                }
+            }
+        }
+        // X4 (VERDICT_RULE_AUDIT): the engine has NO cross-primitive-
+        // kind equality — numeric pairs must be the SAME fine kind.
+        // Abstract Number stamps projected one candidate column per
+        // kind; the RUNTIME value kinds (pure's own Number dispatch)
+        // SELECT the column — selection, never evaluation. Cross-kind
+        // pairs decline to the host lattice's engine-FALSE.
+        int ei = 0;
+        int ai = 0;
+        if ((anyAny || ef.rider().literalOnly()
+                || af.rider().literalOnly()) && !anyNil) {
+            // both sides compare in the literal channel; a side without
+            // one (unrefined Number, non-literal kind) declines
+            ei = ef.rider().literalIndex();
+            ai = af.rider().literalIndex();
+            if (ei < 0 || ai < 0) {
+                com.legend.exec.CanonicalDivergence.sqlDeclined(
+                        "any-pair: no literal channel: " + typeName(eSpec)
+                                + " / " + typeName(aSpec));
+                return null;
+            }
+        } else if (!anyNil && ke.equals("numeric")) {
+            String fe = selectedFineKind(ef, eVals);
+            String fa = selectedFineKind(af, aVals);
+            if (fe == null || fa == null) {
+                com.legend.exec.CanonicalDivergence.sqlDeclined(
+                        "unrefined-number: " + typeName(eSpec) + " / "
+                                + typeName(aSpec));
+                return null;
+            }
+            if (!fe.equals(fa)) {
+                com.legend.exec.CanonicalDivergence.sqlDeclined(
+                        "cross-kind-numeric: " + fe + "/" + fa);
+                return null;
+            }
+            ei = candidateIndex(ef, fe);
+            ai = candidateIndex(af, fa);
+            if (ei < 0 || ai < 0) {
+                com.legend.exec.CanonicalDivergence.sqlDeclined(
+                        "unrefined-number: no candidate for " + fe);
+                return null;
+            }
+        }
+        Framed fe2 = frame(ef, ei);
+        Framed fa2 = frame(af, ai);
+        if (fe2.decline() != null || fa2.decline() != null) {
+            com.legend.exec.CanonicalDivergence.sqlDeclined(
+                    fe2.decline() != null ? "render-e: " + fe2.decline()
+                            : "render-a: " + fa2.decline());
+            return null;
+        }
+        if (containsTreeMarker(fe2.text())
+                || containsTreeMarker(fa2.text())) {
+            // an Any cell held a JSON tree — the literal channel cannot
+            // spell it (F10 proper's kind-tagged carrier will); decline,
+            // never compare markers (equal trees would fabricate)
+            com.legend.exec.CanonicalDivergence.sqlDeclined(
+                    "any-wire-tree: " + typeName(eSpec) + " / "
+                            + typeName(aSpec));
+            return null;
+        }
+        boolean byteEqual = java.util.Objects.equals(fe2.text(), fa2.text());
+        String detail = "kinds=" + ef.rider().kinds().get(ei) + "/"
+                + af.rider().kinds().get(ai)
+                + " e<" + fe2.text() + "> a<" + fa2.text() + ">";
+        // DECLARED 2-ULP dialect-arithmetic policy (OPEN_REGISTER §5,
+        // X6/R3 owns its retirement): cross-dialect libm computes
+        // transcendentals a last ULP apart (H2-derived corpus goldens
+        // vs DuckDB acos/log/tan). The policy rides ON TOP of the byte
+        // channel — byte-differing all-finite-Double pairs within
+        // 2 ULP hold BY POLICY, counted in their own census row (the
+        // host lattice carries the same policy, so this is never a
+        // disagreement rescue). Before runtime-kind refinement these
+        // pairs declined as unrefined NUMBER and the host policy
+        // decided; the refinement must not silently retire the policy.
+        if (!byteEqual && withinDeclaredUlp(eVals, aVals)) {
+            com.legend.exec.CanonicalDivergence.sqlUlpPolicy(detail);
+            return new SqlVerdict(true, "2ulp-policy " + detail);
+        }
+        return new SqlVerdict(byteEqual, detail);
+    }
+
+    private static boolean isAnyStamped(TypedSpec s) {
+        return s.info().type() instanceof
+                com.legend.compiler.element.type.Type.ClassType ct
+                && com.legend.compiler.element.type.PlatformTypes.isAny(ct);
+    }
+
+    private static boolean containsTreeMarker(
+            @com.legend.Nullable String text) {
+        return text != null && text.contains(
+                com.legend.lowering.CanonicalRenderSql.TREE_MARKER);
+    }
+
+    private static List<Object> concat(List<Object> a, List<Object> b) {
+        List<Object> out = new ArrayList<>(a.size() + b.size());
+        out.addAll(a);
+        out.addAll(b);
+        return out;
+    }
+
+    /** F13 v1 exclusion scan: any KEYLESS model-class constructor (or
+     * copy) under a lambda anywhere in the verdict's scope — the site
+     * id cannot distinguish per-element evaluations. A plain
+     * containment walk over {@code children()} (no shadow concerns —
+     * this detects presence, it never resolves variables). */
+    private static boolean keylessCtorUnderLambda(List<TypedSpec> roots,
+            StatementExecutor.ExecEnv env) {
+        for (TypedSpec r : roots) {
+            if (scanKeylessCtor(r, false, env)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean scanKeylessCtor(TypedSpec n, boolean inLambda,
+            StatementExecutor.ExecEnv env) {
+        if (inLambda) {
+            String fqn = n instanceof
+                    com.legend.compiler.spec.typed.TypedNewInstance ni
+                    ? ni.classFqn()
+                    : n instanceof
+                            com.legend.compiler.spec.typed.TypedCopyInstance cp
+                            ? cp.classFqn() : null;
+            if (fqn != null && env.ctx().findClass(fqn).isPresent()
+                    && com.legend.compiler.element.EqualityKeys
+                            .resolve(env.ctx(), fqn) == null) {
+                return true;
+            }
+        }
+        boolean in = inLambda
+                || n instanceof com.legend.compiler.spec.typed.TypedLambda;
+        for (TypedSpec k : n.children()) {
+            if (scanKeylessCtor(k, in, env)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The fine numeric kind whose candidate column judges this side:
+     * a refined stamp names it directly; an unrefined Number resolves
+     * from the RUNTIME value kinds; null = undeterminable (decline). */
+    private static @com.legend.Nullable String selectedFineKind(
+            SideFetch f, List<Object> vals) {
+        List<com.legend.compiler.element.type.Type> kinds = f.rider().kinds();
+        if (kinds.size() == 1) {
+            return fineNumericKind(kinds.get(0));
+        }
+        return runtimeNumericKind(vals);
+    }
+
+    /** Index of the fine kind's candidate column in the rider's
+     * projection order, or -1. */
+    private static int candidateIndex(SideFetch f, String fine) {
+        List<com.legend.compiler.element.type.Type> kinds = f.rider().kinds();
+        for (int i = 0; i < kinds.size(); i++) {
+            if (fine.equals(fineNumericKind(kinds.get(i)))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** A framed side canon: {@code text} null = EMPTY (two empties are
+     * byte-equal, as before); {@code decline} = an unframeable side. */
+    private record Framed(@com.legend.Nullable String text,
+            @com.legend.Nullable String decline) {
+    }
+
+    /** CanonicalForm.renderSide framing over the DB-computed element
+     * texts (V11): 0 elements → '[]', 1 → the bare text, N → '[a, b]'.
+     * The DATABASE computed every element's canonical text and (for
+     * assertSameElements) the canonical order; this join writes only
+     * the spec's separators — framing, never rendering. */
+    private static Framed frame(SideFetch f, int idx) {
+        List<String[]> rows = f.rider().rows();
+        if (!f.rider().many()) {
+            // EVERY empty form canons '[]' (X5 unification): pure has
+            // no null value — a [0..1] with no row and a NULL cell are
+            // both the EMPTY collection, and equal([],[]) holds across
+            // multiplicities, so scalar-empty must byte-match
+            // collection-empty ('[]' == '[]'), never null-vs-'[]'.
+            if (rows.isEmpty() || rows.get(0)[idx] == null) {
+                return new Framed("[]", null);
+            }
+            return new Framed(rows.get(0)[idx], null);
+        }
+        if (rows.isEmpty()) {
+            return new Framed("[]", null);
+        }
+        if (rows.size() == 1) {
+            String t = rows.get(0)[idx];
+            return t == null ? new Framed(null, "null-canon-cell")
+                    : new Framed(t, null);
+        }
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < rows.size(); i++) {
+            String t = rows.get(i)[idx];
+            if (t == null) {
+                return new Framed(null, "null-canon-cell");
+            }
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(t);
+        }
+        return new Framed(sb.append(']').toString(), null);
+    }
+
+    /** True iff both sides are same-length all-finite-Double vectors
+     * whose pairs each hold under the lattice's declared 2-ULP arm —
+     * PureAsserts OWNS the tolerance, this only vectorizes it. */
+    private static boolean withinDeclaredUlp(List<Object> eVals,
+            List<Object> aVals) {
+        if (eVals.isEmpty() || eVals.size() != aVals.size()) {
+            return false;
+        }
+        for (int i = 0; i < eVals.size(); i++) {
+            if (!(eVals.get(i) instanceof Double de
+                    && aVals.get(i) instanceof Double da
+                    && Double.isFinite(de) && Double.isFinite(da)
+                    && PureAsserts.equalScalar(de, da))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** The RUNTIME numeric kind of a side's fetched values (uniform, or
+     * null when empty/unknowable — the mixed case gated earlier). */
+    private static @com.legend.Nullable String runtimeNumericKind(
+            List<Object> vals) {
+        String kind = null;
+        for (Object v : vals) {
+            String k = v instanceof java.math.BigDecimal ? "decimal"
+                    : (v instanceof Double || v instanceof Float) ? "float"
+                    : (v instanceof Long || v instanceof Integer
+                            || v instanceof Short || v instanceof Byte
+                            || v instanceof java.math.BigInteger) ? "integer"
+                    : null;
+            if (k == null) {
+                return null;
+            }
+            kind = k;
+        }
+        return kind;
+    }
+
+    private static boolean mixedNumericKinds(List<Object> vals) {
+        boolean integral = false;
+        boolean floating = false;
+        for (Object v : vals) {
+            if (v instanceof Long || v instanceof Integer
+                    || v instanceof Short || v instanceof Byte
+                    || v instanceof java.math.BigInteger) {
+                integral = true;
+            } else if (v instanceof Double || v instanceof Float) {
+                floating = true;
+            }
+        }
+        return integral && floating;
+    }
+
+    private static @com.legend.Nullable String fineNumericKind(
+            com.legend.compiler.element.type.Type t) {
+        if (t == com.legend.compiler.element.type.Type.Primitive.INTEGER) {
+            return "integer";
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
+            return "float";
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                || t instanceof com.legend.compiler.element.type.Type.PrecisionDecimal) {
+            return "decimal";
+        }
+        return null;   // an unrefined Number — decline, never guess
+    }
+
+    private static String typeName(TypedSpec spec) {
+        var t = spec.info().type();
+        return t.getClass().getSimpleName() + ":" + t;
+    }
+
+    /** Pure's equality kind classes over STAMPS (spec §3: the numeric
+     * tower is ONE class; everything else compares within its kind). */
+    private static @com.legend.Nullable String kindClassOf(
+            com.legend.compiler.element.type.Type t) {
+        if (t == com.legend.compiler.element.type.Type.Primitive.INTEGER
+                || t == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                || t == com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                // NUMBER is the numeric tower's supertype — the concrete
+                // render refines from the PLAN's SQL type (V6 burn)
+                || t == com.legend.compiler.element.type.Type.Primitive.NUMBER
+                || t instanceof com.legend.compiler.element.type.Type.PrecisionDecimal) {
+            return "numeric";
+        }
+        if (t instanceof com.legend.compiler.element.type.Type.EnumType et) {
+            // per-ENUMERATION kind class: values of different enums are
+            // never equal in pure, and an enum never equals its name
+            // string — the fqn IS the kind
+            return "enum:" + et.fqn();
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive.STRING) {
+            return "string";
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive.BOOLEAN) {
+            return "boolean";
+        }
+        if (t == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE
+                || t == com.legend.compiler.element.type.Type.Primitive.DATE_TIME
+                || t == com.legend.compiler.element.type.Type.Primitive.DATE) {
+            return "temporal";
+        }
+        String fqn = com.legend.compiler.element.EqualityKeys.fqnOf(t);
+        if (fqn != null) {
+            // X5: instance equality is per-CLASS (EqualityUtilities —
+            // the classifiers must match exactly, so the fqn IS the
+            // kind; a parameterized GenericType names the same
+            // classifier); keyed-ness adjudicates at the wrap (a
+            // keyless class declines with its own reason).
+            return "instance:" + fqn;
+        }
+        return null;
+    }
+
+    /** X5 — the pair's shared key tree: non-null iff BOTH stamps are
+     * the SAME keyed class (the engine's classifier-match precondition
+     * plus resolvable {@code <<equality.Key>>} identity). */
+    private static com.legend.compiler.element.@com.legend.Nullable EqualityKeys
+            instanceKeys(TypedSpec eSpec, TypedSpec aSpec,
+                    StatementExecutor.ExecEnv env) {
+        String ef = com.legend.compiler.element.EqualityKeys.fqnOf(
+                eSpec.info().type());
+        String af = com.legend.compiler.element.EqualityKeys.fqnOf(
+                aSpec.info().type());
+        if (ef != null && ef.equals(af)) {
+            // substitution-aware: the E-side stamp's instantiation
+            // (key NAMES are instantiation-independent; nesting follows
+            // the arguments — Pair-of-Pairs)
+            return com.legend.compiler.element.EqualityKeys.resolve(
+                    env.ctx(), eSpec.info().type());
+        }
+        return null;
+    }
+
+    /** X5 — the HOST lattice's keyed-instance rule, applied as
+     * MODEL-DRIVEN evidence projection at the K-arm: EqualityUtilities
+     * compares a keyed class BY ITS KEY PROPERTIES ONLY, so both
+     * sides' wire maps restrict to the key tree before the ONE lattice
+     * judges (non-key fields are outside the equality relation — this
+     * is the engine's rule, not a leniency). Keyless classes are
+     * untouched (their sides never produce a non-null key tree). */
+    private static List<Object> restrictToKeys(List<Object> vals,
+            com.legend.compiler.element.EqualityKeys keys) {
+        List<Object> out = new ArrayList<>(vals.size());
+        for (Object v : vals) {
+            out.add(restrictOne(v, keys));
+        }
+        return out;
+    }
+
+    private static Object restrictOne(Object v,
+            com.legend.compiler.element.EqualityKeys keys) {
+        if (!(v instanceof java.util.Map<?, ?> m)) {
+            return v;
+        }
+        var out = new java.util.LinkedHashMap<String, Object>();
+        for (var k : keys.keys()) {
+            Object val = m.get(k.name());
+            if (k.nested() != null && val != null) {
+                val = val instanceof List<?> l
+                        ? l.stream().map(x -> restrictOne(x, k.nested()))
+                                .toList()
+                        : restrictOne(val, k.nested());
+            }
+            out.put(k.name(), val);
+        }
+        return out;
+    }
+
+    /** One assert side under V11: the values (host referee, gates,
+     * declared policies) and the canon rider (byte verdict texts) —
+     * both produced by the SAME single execution. */
+    private record SideFetch(List<Object> values,
+            com.legend.exec.CanonRider rider) {
+    }
+
+    private static SideFetch sideCanon(TypedSpec arg,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env, boolean canonicalOrder)
+            throws java.sql.SQLException {
+        var rider = new com.legend.exec.CanonRider(canonicalOrder);
+        List<Object> values = decodeSide(StatementExecutor.evalValue(
+                arg, letPrefix, specs, env, rider));
+        return new SideFetch(values, rider);
+    }
+
     private static List<Object> side(TypedSpec arg, List<TypedSpec> letPrefix,
             SpecCompiler specs, StatementExecutor.ExecEnv env)
             throws java.sql.SQLException {
-        ExecutionResult r = StatementExecutor.evalValue(arg, letPrefix,
-                specs, env);
+        return decodeSide(StatementExecutor.evalValue(arg, letPrefix,
+                specs, env));
+    }
+
+    /** F13c — a side on the IDENTITY LANE without a canon rider: the
+     * assert-condition/predicate evaluator (in-SQL eq/equal needs
+     * instance identity; the boolean egress keeps every other lane
+     * blind to the field). */
+    private static List<Object> identitySide(TypedSpec arg,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env) throws java.sql.SQLException {
+        return decodeSide(StatementExecutor.evalValue(arg, letPrefix,
+                specs, env, null, true));
+    }
+
+    private static List<Object> decodeSide(
+            @com.legend.Nullable ExecutionResult r) {
         return switch (r) {
             case null -> new ArrayList<>();
             case ExecutionResult.Scalar s -> {
@@ -418,17 +1020,19 @@ final class AssertVerdicts {
                     // the collection IS the side, flattened
                     try {
                         for (Object el : (Object[]) arr.getArray()) {
-                            // ONE-CARRIER normalization: raw JDBC array
-                            // elements arrive as driver temporals — the
-                            // java.time carrier is the platform's one
-                            // convention (the invisible-diff bug: a
-                            // Timestamp reprs identically to the
-                            // LocalDateTime it never equals)
-                            out.add(el instanceof java.sql.Timestamp ts
-                                    ? ts.toLocalDateTime()
-                                    : el instanceof java.sql.Date sd
-                                            ? sd.toLocalDate()
-                                            : el);
+                            // ONE-CARRIER normalization at this raw JDBC
+                            // read: the wire temporal is PureDateLiteral
+                            // (D-arc) — driver temporals convert in one
+                            // hop, same as the Executor seam
+                            out.add(switch (el) {
+                                case java.sql.Timestamp ts ->
+                                        com.legend.values.PureDateLiteral
+                                                .fromLocalDateTime(ts.toLocalDateTime());
+                                case java.sql.Date sd ->
+                                        com.legend.values.PureDateLiteral
+                                                .fromLocalDate(sd.toLocalDate());
+                                case null, default -> el;
+                            });
                         }
                     } catch (java.sql.SQLException ex) {
                         throw new IllegalStateException(

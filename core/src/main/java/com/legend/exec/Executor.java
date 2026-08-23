@@ -7,6 +7,7 @@ import com.legend.compiler.element.type.Type;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlQuery;
+import com.legend.values.PureDateLiteral;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -70,13 +71,29 @@ public final class Executor {
                                           ResultShape shape, Connection connection,
                                           com.legend.sql.dialect.SqlDialect dialect)
             throws SQLException {
+        return execute(sql, plan, rootType, shape, connection, dialect, null);
+    }
+
+    /** V11 rider entry: when {@code rider} is a wrapped canon carrier,
+     * the SCALAR/COLLECTION arms harvest the appended canon columns
+     * row-aligned with the value decode — one execution serves both
+     * the value fetch and the byte verdict. */
+    public static ExecutionResult execute(String sql, SqlQuery plan, ExprType rootType,
+                                          ResultShape shape, Connection connection,
+                                          com.legend.sql.dialect.SqlDialect dialect,
+                                          @com.legend.Nullable CanonRider rider)
+            throws SQLException {
+        // TYPED-IR Slice 1: the label-lie census — every executed plan's
+        // declared labels vs the bottom-up judgment (measurement only)
+        SqlTypeCensus.probe(plan);
         // TEMPORARY (2026-08-15 G4-vs-G5 wall accounting): whole
         // plan-execution boundary — prepare + executeQuery + result
         // materialization/shaping. Histogram by RESULT SHAPE (scalar
         // value-evals vs tabular/graph) + SQL duplication stats.
         long qt0 = System.nanoTime();
         try {
-            return execute0(sql, plan, rootType, shape, connection, dialect);
+            return execute0(sql, plan, rootType, shape, connection, dialect,
+                    rider);
         } finally {
             com.legend.exec.TimingLedger.add("query.exec",
                     System.nanoTime() - qt0);
@@ -136,7 +153,8 @@ public final class Executor {
 
     private static ExecutionResult execute0(String sql, SqlQuery plan, ExprType rootType,
                                           ResultShape shape, Connection connection,
-                                          com.legend.sql.dialect.SqlDialect dialect)
+                                          com.legend.sql.dialect.SqlDialect dialect,
+                                          @com.legend.Nullable CanonRider rider)
             throws SQLException {
         boolean anyRoot = PlatformTypes.isAny(rootType.type());
         boolean variantRoot = rootType.type()
@@ -149,7 +167,7 @@ public final class Executor {
         // errors were unreadable); prepare() surfaces the actual message
         try {
             return executePrepared(connection, sql, shape, plan, rootType,
-                    dialect, anyRoot, variantRoot);
+                    dialect, anyRoot, variantRoot, rider);
         } catch (SQLException e) {
             // error-path echo under the same diagnostic flag: a sweep's
             // failing statement is otherwise invisible (pre-exec dump
@@ -245,7 +263,8 @@ public final class Executor {
     private static ExecutionResult executePrepared(Connection connection,
             String sql, ResultShape shape, SqlQuery plan, ExprType rootType,
             com.legend.sql.dialect.SqlDialect dialect, boolean anyRoot,
-            boolean variantRoot) throws SQLException {
+            boolean variantRoot, @com.legend.Nullable CanonRider rider)
+            throws SQLException {
         try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
              ResultSet rs = st.executeQuery()) {
             return switch (shape) {
@@ -269,6 +288,9 @@ public final class Executor {
                             ? latticeKind(cell(rs, plan, dialect, anyRoot, variantRoot),
                                     rootType.type())
                             : null;
+                    if (hasRow) {
+                        harvestCanon(rs, rider);
+                    }
                     // a SECOND row under a scalar-shaped root is a resolver/
                     // lowering bug (e.g. a to-one stand-in leaking rows) —
                     // reading only the first would be a SILENT wrong value
@@ -287,6 +309,7 @@ public final class Executor {
                         anyRow = true;
                         Object v = latticeKind(cell(rs, plan, dialect, anyRoot, variantRoot),
                                 rootType.type());
+                        harvestCanon(rs, rider);
                         // THE LOWERER OWNS THE NULL-DROP (shortcut audit §5):
                         // pure's "a collection holds no empties" is compiled
                         // — the resolver filters optional-cell projections,
@@ -347,6 +370,22 @@ public final class Executor {
                         rootType.type());
             };
         }
+    }
+
+    /** V11: read the appended canon columns (2..1+k) of the current
+     * row into the rider, row-aligned with the value decode. A wrapped
+     * rider implies a non-variant scalar shape, so no value row is
+     * ever dropped out of alignment (the COLLECTION null wall). */
+    private static void harvestCanon(ResultSet rs,
+            @com.legend.Nullable CanonRider rider) throws SQLException {
+        if (rider == null || !rider.wrapped()) {
+            return;
+        }
+        String[] cs = new String[rider.kinds().size()];
+        for (int i = 0; i < cs.length; i++) {
+            cs[i] = rs.getString(2 + i);
+        }
+        rider.rows().add(cs);
     }
 
     private static @com.legend.Nullable Object cell(ResultSet rs, SqlQuery plan,
@@ -554,14 +593,49 @@ public final class Executor {
             return out;
         }
         // the ONE-CARRIER rule at every LEAF (documented-debts
-        // 2026-08-18): array elements and struct attributes arrive as
-        // raw driver objects that never pass fetch() — the timestamp
-        // box converts here so NO egress path can leak
-        // java.sql.Timestamp beside the java.time carrier
-        if (v instanceof java.sql.Timestamp ts) {
-            v = ts.toLocalDateTime();
+        // 2018-08-18, HARDENED 2026-08-21 user directive): the wire's
+        // temporal type is PureDateLiteral, FULL STOP — java.sql and
+        // java.time temporals never escape this seam. Driver objects
+        // convert in ONE hop here (java.time appears below only as the
+        // driver's extraction vehicle); a declared-temporal VARCHAR
+        // cell is the precision-faithful string convention and PARSES,
+        // so written precision finally survives onto the wire.
+        v = dialect.normalize(v, type);
+        // the DECLARED type drives the codec (the H2 DOUBLE-arm
+        // doctrine): an INTEGRAL-declared cell arriving as a scale-0
+        // BigDecimal (DuckDB types beyond-int64 literals DECIMAL)
+        // decodes to its EXACT integral carrier — the pure Integer kind
+        // never blurs into Decimal on the wire (X-audit decode guard)
+        if (v instanceof java.math.BigDecimal bd
+                && (type == com.legend.sql.SqlType.Scalar.BIGINT
+                        || type == com.legend.sql.SqlType.Scalar.INTEGER
+                        || type == com.legend.sql.SqlType.Scalar.HUGEINT)) {
+            java.math.BigInteger bi = bd.toBigIntegerExact();
+            return bi.bitLength() < 63 ? (Object) bi.longValue() : bi;
         }
-        return dialect.normalize(v, type);
+        return switch (v) {
+            case java.sql.Timestamp ts ->
+                    // struct/array leaves never pass fetch()'s BC-safe
+                    // re-fetch; Timestamp is faithful for AD years
+                    PureDateLiteral.fromLocalDateTime(ts.toLocalDateTime());
+            case java.sql.Date d ->
+                    PureDateLiteral.fromLocalDate(d.toLocalDate());
+            case java.time.LocalDate ld -> PureDateLiteral.fromLocalDate(ld);
+            case java.time.LocalDateTime ldt ->
+                    PureDateLiteral.fromLocalDateTime(ldt);
+            case java.time.OffsetDateTime odt ->
+                    PureDateLiteral.fromLocalDateTime(odt.withOffsetSameInstant(
+                            java.time.ZoneOffset.UTC).toLocalDateTime());
+            case String s when isTemporalType(type) ->
+                    PureDateLiteral.parse(s.trim().replace(' ', 'T'));
+            case null, default -> v;
+        };
+    }
+
+    private static boolean isTemporalType(com.legend.sql.@com.legend.Nullable SqlType type) {
+        return type == com.legend.sql.SqlType.Scalar.DATE
+                || type == com.legend.sql.SqlType.Scalar.TIMESTAMP
+                || type == com.legend.sql.SqlType.Scalar.TIMESTAMPTZ;
     }
 
     /**

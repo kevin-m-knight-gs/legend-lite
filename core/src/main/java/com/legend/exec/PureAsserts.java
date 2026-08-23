@@ -132,6 +132,19 @@ public final class PureAsserts {
             @com.legend.Nullable Object expected,
             @com.legend.Nullable Object actual) {
         if (isNonPrimitive(expected) || isNonPrimitive(actual)) {
+            // F13 — identity IS observable when both wires carry the
+            // synthetic __id (keyless-class instance maps, minted per
+            // construction site): eq() is exactly id equality — ids are
+            // unique per site, so cross-class values can never collide.
+            String ei = wireId(expected);
+            String ai = wireId(actual);
+            if (ei != null && ai != null) {
+                // repr() has no instance-map form (loud by design) —
+                // the failure names the identities themselves
+                return ei.equals(ai) ? null
+                        : "\nexpected and actual are distinct instances"
+                                + " (eq is identity)";
+            }
             throw new com.legend.error.NotImplementedException(
                     "assertEq over non-primitive values: eq is INSTANCE"
                     + " identity, which is not observable on a value wire"
@@ -147,6 +160,16 @@ public final class PureAsserts {
     private static boolean isNonPrimitive(@com.legend.Nullable Object v) {
         return v != null && !(v instanceof Number || v instanceof String
                 || v instanceof Boolean || isTemporal(v));
+    }
+
+    /** The synthetic site identity a keyless-instance wire map carries
+     * ({@code __id}, F13), or null when the value has no observable
+     * identity. */
+    private static @com.legend.Nullable String wireId(
+            @com.legend.Nullable Object v) {
+        return v instanceof java.util.Map<?, ?> m
+                && m.get(com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID)
+                        instanceof String id ? id : null;
     }
 
     /** {@code assertInstanceOf(instance, type)} (assertInstanceOf.pure:
@@ -187,8 +210,10 @@ public final class PureAsserts {
             case java.math.BigDecimal ignored -> "Decimal";
             case Boolean ignored -> "Boolean";
             case String ignored -> "String";
-            case java.time.LocalDate ignored -> "StrictDate";
-            case java.time.LocalDateTime ignored -> "DateTime";
+            case com.legend.values.PureDateLiteral.Year ignored -> "Date";
+            case com.legend.values.PureDateLiteral.YearMonth ignored -> "Date";
+            case com.legend.values.PureDateLiteral.StrictDate ignored -> "StrictDate";
+            case com.legend.values.PureDateLiteral d -> "DateTime";
             case java.time.OffsetDateTime ignored -> "DateTime";
             default -> v.getClass().getSimpleName();
         };
@@ -228,46 +253,52 @@ public final class PureAsserts {
         if (e == null || a == null) {
             return e == a;
         }
+        // X1-X4 (VERDICT_RULE_AUDIT, engine EqualityUtilities.eq):
+        // primitive equality requires the SAME primitive kind — there
+        // is NO cross-kind numeric equality in the engine (the old
+        // integral×Decimal grant MIS-CITED its witness; Float×Decimal
+        // and every other cross pair are FALSE). Same-kind rules:
         boolean eInt = isIntegral(e);
         boolean aInt = isIntegral(a);
         if (eInt || aInt) {
-            // SPEC: integral kinds compare by value. Integral vs DECIMAL
-            // is NUMERIC — the spec's own witness is PCT testIntToDecimal
-            // (assertEquals(8, 8->toDecimal()) passes interpreted);
-            // integral vs FLOAT stays FALSE (no witness grants it — the
-            // two-worlds fixture pins the divergence from SQL coercion).
-            if (eInt && a instanceof BigDecimal ad) {
-                return BigDecimal.valueOf(((Number) e).longValue())
-                        .compareTo(ad) == 0;
+            if (!(eInt && aInt)) {
+                return false;
             }
-            if (aInt && e instanceof BigDecimal ed) {
-                return ed.compareTo(BigDecimal.valueOf(
-                        ((Number) a).longValue())) == 0;
+            // HUGEINT range: longValue() OVERFLOWS BigInteger carriers —
+            // a genuine bug the deleted X1 cross-kind grant had been
+            // masking (testLargePlus exposed it the moment the grant
+            // died); integral equality widens to BigInteger when needed
+            if (e instanceof BigInteger || a instanceof BigInteger) {
+                return toBigInteger(e).equals(toBigInteger(a));
             }
-            return eInt && aInt
-                    && ((Number) e).longValue() == ((Number) a).longValue();
+            return ((Number) e).longValue() == ((Number) a).longValue();
         }
-        if (e instanceof BigDecimal be && a instanceof BigDecimal ba) {
-            // SPEC: pure Decimal equality is numeric (scale-blind)
-            return be.compareTo(ba) == 0;
+        if (e instanceof BigDecimal || a instanceof BigDecimal) {
+            // X2: engine Decimal equality is getValue().equals —
+            // SCALE-SENSITIVE (its tests spell the exact SQL-arithmetic
+            // scale and pass strict in both engine lanes); a break here
+            // is OUR scale drift, fixed at emission, never re-blurred
+            return e instanceof BigDecimal be && a instanceof BigDecimal ba
+                    && be.equals(ba);
         }
-        boolean eFp = e instanceof Double || e instanceof Float
-                || e instanceof BigDecimal;
-        boolean aFp = a instanceof Double || a instanceof Float
-                || a instanceof BigDecimal;
+        boolean eFp = e instanceof Double || e instanceof Float;
+        boolean aFp = a instanceof Double || a instanceof Float;
         if (eFp || aFp) {
             if (!(eFp && aFp)) {
                 return false;
             }
-            // NON-FINITE first (latent in the harness copy, exposed by
-            // the spec pins): NaN never equals anything (IEEE + pure);
-            // infinities compare by identity — BigDecimal can parse
-            // neither
+            // NON-FINITE first: NaN never equals anything (IEEE; the
+            // engine's BigDecimal-backed floats cannot even hold it);
+            // infinities compare by identity
             if (nonFinite(e) || nonFinite(a)) {
                 return e instanceof Double de2 && a instanceof Double da2
                         ? de2.doubleValue() == da2.doubleValue()
                         : e.equals(a);
             }
+            // engine Float equality = equals over CANONICALIZED
+            // BigDecimal (FloatCoreInstance.canonicalizeBigDecimal) —
+            // for finite doubles the shortest-repr string compare IS
+            // that canonical-form equality (and unifies zeros)
             if (new BigDecimal(String.valueOf(e))
                     .compareTo(new BigDecimal(String.valueOf(a))) == 0) {
                 return true;
@@ -287,20 +318,13 @@ public final class PureAsserts {
             }
             return false;
         }
-        // POLICY: the temporal string-carrier bridge, SYMMETRIC — the
-        // platform's DESIGNED carrier for partial-precision temporals is
-        // a STRING, so a string may legitimately sit on EITHER side of a
-        // temporal compare (2026-08-19 redesign: the K-arm's wire
-        // crossing witnessed actual-side carrier strings; the old
-        // one-direction rule predated the designed carrier). A
-        // non-parsing string still fails — the typing-bug catch is the
-        // parse, not the direction.
-        if (e instanceof String es && isTemporal(a)) {
-            return temporalEquals(es, a);
-        }
-        if (a instanceof String as2 && isTemporal(e)) {
-            return temporalEquals(as2, e);
-        }
+        // TEMPORALS: PureDateLiteral record equality IS the engine's
+        // precision-sensitive PureDate.equals (their variants compare
+        // every component INCLUDING precision) — the old string-carrier
+        // bridge died with the D-arc cutover: partial-precision values
+        // now ride the wire as PureDateLiteral (the fetch seam parses
+        // the precision-faithful VARCHAR convention), so a string
+        // beside a temporal is a TYPE mismatch, false like pure.
         // WIRE-VALUE TREES (struct cells decoded to maps at egress, and
         // any lists nested inside them): the ONE walker owns the
         // structure, THIS method stays the leaf rule (P2-4/P2-6,
@@ -319,6 +343,11 @@ public final class PureAsserts {
                 || (v instanceof Float f && !Float.isFinite(f));
     }
 
+    private static BigInteger toBigInteger(Object v) {
+        return v instanceof BigInteger bi ? bi
+                : BigInteger.valueOf(((Number) v).longValue());
+    }
+
     private static boolean isIntegral(Object v) {
         return v instanceof Long || v instanceof Integer
                 || v instanceof Short || v instanceof Byte
@@ -326,55 +355,13 @@ public final class PureAsserts {
     }
 
     private static boolean isTemporal(Object v) {
-        return v instanceof java.sql.Timestamp || v instanceof java.sql.Date
-                || v instanceof java.time.LocalDate
-                || v instanceof java.time.LocalDateTime
-                || v instanceof java.time.OffsetDateTime;
+        // THE wire temporal type ONLY (D-arc 2026-08-21): a java.sql or
+        // java.time temporal reaching a compare is a fetch-seam LEAK —
+        // it falls through to e.equals(a) (never true cross-kind) and
+        // the canonical-divergence census reports it as unmodeled-kind
+        return v instanceof com.legend.values.PureDateLiteral;
     }
 
-    private static boolean temporalEquals(String s, Object t) {
-        // Pure DateTime equality is INSTANT-based and a bare (naive)
-        // DateTime means UTC (parseDate.pure's own expectations:
-        // %...T10:01:35.231 == parse('...T10:01:35.231Z') and
-        // %...T10:01-0500 == %...T15:01+0000). Normalize BOTH sides to
-        // a UTC-local before comparing; wire temporals without offsets
-        // are already UTC-normalized.
-        String v = s.trim().replaceFirst("Z$", "+0000").replace(' ', 'T');
-        java.time.ZoneOffset zo = null;
-        java.util.regex.Matcher off = java.util.regex.Pattern
-                .compile("([+-])(\\d{2}):?(\\d{2})$").matcher(v);
-        if (off.find()) {
-            zo = java.time.ZoneOffset.of(
-                    off.group(1) + off.group(2) + ":" + off.group(3));
-            v = v.substring(0, off.start());
-        }
-        try {
-            if (t instanceof java.sql.Date d) {
-                return java.time.LocalDate.parse(v).equals(d.toLocalDate());
-            }
-            if (t instanceof java.time.LocalDate ld) {
-                return java.time.LocalDate.parse(v).equals(ld);
-            }
-            java.time.LocalDateTime other = t instanceof java.sql.Timestamp ts
-                    ? ts.toLocalDateTime()
-                    : t instanceof java.time.LocalDateTime ldt ? ldt
-                    : t instanceof java.time.OffsetDateTime odt
-                            ? odt.withOffsetSameInstant(
-                                    java.time.ZoneOffset.UTC).toLocalDateTime()
-                            : null;
-            if (other == null) {
-                return false;
-            }
-            String norm = v.contains("T") ? v : v + "T00:00";
-            java.time.LocalDateTime lit = java.time.LocalDateTime.parse(norm);
-            java.time.LocalDateTime litUtc = zo == null ? lit
-                    : lit.atOffset(zo).withOffsetSameInstant(
-                            java.time.ZoneOffset.UTC).toLocalDateTime();
-            return litUtc.equals(other);
-        } catch (java.time.format.DateTimeParseException ex) {
-            return false;
-        }
-    }
 
     // ================================================================
     // toRepresentation() — pure source spelling of a value (ONE owner;
@@ -394,16 +381,10 @@ public final class PureAsserts {
             case BigDecimal d -> d.toPlainString() + "D";
             case Number n -> n.toString();
             case Boolean b -> b.toString();
-            case java.sql.Date d -> "%" + d.toLocalDate();
-            case java.time.LocalDate d -> "%" + d;
-            case java.sql.Timestamp ts -> "%" + ts.toLocalDateTime();
-            case java.time.LocalDateTime ldt -> "%" + ldt;
-            // pure prints offset datetimes with the +HHMM form
-            // (%2014-02-27T10:01:35.231+0000 — parseDate.pure's own
-            // expectations)
-            case java.time.OffsetDateTime odt -> "%" + odt.toLocalDateTime()
-                    + odt.getOffset().getId().replace(":", "")
-                            .replace("Z", "+0000");
+            // THE wire temporal type (D-arc: sql/java.time never escape
+            // the fetch) — %-prefixed engine spelling, UTC-normalized
+            case com.legend.values.PureDateLiteral d ->
+                    "%" + d.toEngineString();
             default -> throw new com.legend.error.NotImplementedException(
                     "toRepresentation for " + v.getClass().getName()
                     + " is not modeled (spec: '<id instanceOf Type>' —"
@@ -450,10 +431,7 @@ public final class PureAsserts {
             case Number n -> 1;
             case String s -> 2;
             case Boolean b -> 3;
-            case java.sql.Date d -> 4;
-            case java.sql.Timestamp t -> 4;
-            case java.time.LocalDate d -> 4;
-            case java.time.LocalDateTime d -> 4;
+            case com.legend.values.PureDateLiteral d -> 4;
             case Map<?, ?> m -> 5;
             default -> throw new com.legend.error.NotImplementedException(
                     "assertSameElements sort over "
@@ -472,10 +450,7 @@ public final class PureAsserts {
             // section contract said instant, the code said text — a
             // date-only vs midnight-datetime mix text-sorted wrong;
             // the reference native compares temporals by components)
-            case java.sql.Date d -> d.toLocalDate().atStartOfDay();
-            case java.time.LocalDate d -> d.atStartOfDay();
-            case java.sql.Timestamp t -> t.toLocalDateTime();
-            case java.time.LocalDateTime t -> t;
+            case com.legend.values.PureDateLiteral d -> d.toInstantFloor();
             default -> String.valueOf(v);   // maps: stable text order
         };
     }

@@ -186,7 +186,81 @@ class JavaEvalLedgerTest {
             // let-bound instance provenance. Verdict adjudication of
             // compile-time facts, never value evaluation; every other
             // shape falls through to is()'s missing SQL rule and walls.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 398),
+            // 398→455 (2026-08-22 R2a, CANONICAL_FORM_SPEC §0): the BYTE
+            // VERDICT OF RECORD — sqlByteVerdict routes scalar-kind
+            // assertEquals verdicts to DB-COMPUTED canonical renders
+            // (CanonicalRenderSql; Java compares two byte strings) with
+            // the host lattice demoted to the permanent parallel
+            // referee. The growth is verdict ROUTING toward the
+            // database — the ledger's own direction — plus the counted
+            // decline/divergence census hooks; zero new value
+            // evaluation.
+            // 455→486 (2026-08-22 V4/V5): assertSameElements (canonical
+            // ORDER BY multiset byte verdict) and assertEq join the DB
+            // verdict of record — same routing shape, same census.
+            // 486→573 (2026-08-22 V6): the decline burn — PAIR RULES for
+            // pure's NON-TRANSITIVE numeric equality (stamp-certain
+            // int×float static FALSE; Decimal/refined pairs by VALUE
+            // spelling), the mixed-kind-collection gate (a ROUTING fact
+            // read from host-fetched kinds — SQL column promotion erases
+            // element kinds), decline REASONS + verdict detail into the
+            // census. Verdict routing + diagnosis text, zero value
+            // evaluation; declines fell 207→97.
+            // 573→612 (2026-08-22 V6 round 2, user-caught): the CIRCULAR
+            // plan-type refinement DELETED (OutputCol.type() is
+            // stamp-derived — it carried no information), replaced by
+            // RUNTIME-KIND refinement from the fetched values — pure's
+            // own Number-equality dispatch. Routing + kind classification
+            // over DB-produced values; zero evaluation.
+            // 612→628 (2026-08-22 X-slice close): the USER-RATIFIED
+            // 2-ULP dialect-arithmetic policy arm on the byte verdict —
+            // runtime-kind refinement widened the byte channel's claim
+            // into territory the unrefined-NUMBER decline used to route
+            // to the host policy; the policy must ride the claim
+            // EXPLICITLY (sqlUlpPolicy census) or it silently retires.
+            // PureAsserts owns the tolerance; this only vectorizes the
+            // pair check + counts. Zero value evaluation.
+            // 628→675 (2026-08-22 V11 single-query canon): candidate-
+            // column SELECTION (runtime kind picks which DB-computed
+            // render judges) + renderSide FRAMING (spec separators over
+            // DB-computed element texts) moved here when the canon
+            // collapsed into the side query. In exchange the WHOLE
+            // prepCanon/runCanon execution arm left StatementExecutor
+            // (−402): the verdict system's total surface SHRANK 355.
+            // The DB still computes every element text and the
+            // canonical order — framing writes '[', ', ', ']' only.
+            // 675→728 (2026-08-22 X5, equality.Key): the keyed-instance
+            // rules at the verdict layer — instanceKeys (the pair's
+            // shared key tree from the MODEL), restrictToKeys (the
+            // engine's keyed-equality relation applied as evidence
+            // projection before EITHER channel judges — EqualityUtilities
+            // compares key properties ONLY), the Nil/empty kind-gate
+            // bypass, and the '[]' empty-canon unification. Model-driven
+            // routing + projection; zero value evaluation — the DB still
+            // computes every render (instanceCanon, lowering-owned).
+            // 728→787 (2026-08-22 F13, synthetic instance identity):
+            // the IDENTITY-pair guards at the verdict seam — the v1
+            // lambda-exclusion scan (a keyless ctor under a lambda
+            // mints ONE site id for many evaluations — decline,
+            // counted) and the identityless-wire decline (an instance
+            // map with no __id must never byte-judge). Routing +
+            // decline classification; the DB still computes every
+            // identity compare (the {_type,_id} canon, lowering-owned).
+            // 787->790 same slice: Map-carrier exemption (mapEquals is
+            // F12's claimed rule, not an identity pair) + the shared
+            // SYNTHETIC_ID spelling constant.
+            // 790->796 (2026-08-23 F13c): the assert-CONDITION sides ride
+            // the identity lane (identitySide — an evalValue flag, zero
+            // evaluation; the in-SQL eq/equal arm needs instance identity
+            // and the boolean egress keeps other lanes blind).
+            // 796->829 (2026-08-23 F10 v1): the literal-channel SELECTION
+            // (Any-involving pairs pick the literal candidates; the
+            // mixed-numeric gate exempts JSON-carried sides — no
+            // promotion), the tree-marker decline, and the anyAny gate
+            // bypass. Routing + decline classification; the DATABASE
+            // computes every literal render (anyJsonCanon,
+            // lowering-owned).
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 829),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -202,7 +276,26 @@ class JavaEvalLedgerTest {
             // 2724→2728 (2026-08-20 Row-vs-Relation model B): table
             // tests spell Type.isRelation/relationSchema on the wrapped
             // form — multiline type-spelling only, zero new evaluation.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2728),
+            // 2728→2363 BANKED DOWN (2026-08-22 V11): prepCanon/runCanon
+            // and their records DELETED — the canon rides the side query
+            // itself (wrapWithCanon), one execution per side; the
+            // residual +37 over the first cut is the decline tunnel
+            // (wrapped→bare→fold, the designed sentinel chain).
+            // 2363→2368 (X5): the driver resolves the key tree from the
+            // model for the wrap (five lines of ctx plumbing).
+            // 2368→2385 (F13): identity threading — the ExecEnv carries
+            // the per-env site-id minter (one InstanceIds shared by both
+            // verdict sides), and lowerAndPrepare selects the identity-
+            // bearing layout on the rider lane only (golden-SQL text
+            // lanes stay unperturbed). Plumbing, zero evaluation.
+            // 2385->2402 (F13c): identity-flag threading (evalValue/
+            // executeTyped overloads) + the keys-resolver handle to the
+            // Lowerer — plumbing, zero evaluation.
+            // 2402->2423 (F10 v1): the canon-exec tunnel's middle rung
+            // (re-wrap without the literal candidate — bare byte
+            // verdicts survive a lying stamp). Orchestration, zero
+            // evaluation.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2423),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
@@ -342,7 +435,41 @@ class JavaEvalLedgerTest {
                     // compilation); only the probe stays in exec.
                     "GridProbe.java",
                     "ResultShape.java", "Row.java", "StoreNav.java",
-                    "TimingLedger.java", "package-info.java");
+                    "TimingLedger.java",
+                    // R1 (CANONICAL_FORM_SPEC §0): the byte-channel
+                    // REFERENCE render + its divergence census. Pure
+                    // MEASUREMENT beside the comparison layer — probes
+                    // consume two produced sides and count agreement;
+                    // neither class can produce a result or affect a
+                    // verdict (the probe returns void). R2 moves the
+                    // render of record into SQL; these stay as the
+                    // permanent parallel-referee half.
+                    "CanonicalForm.java", "CanonicalDivergence.java",
+                    // V11 (2026-08-22, user-ratified single-query
+                    // canon): the rider that carries DB-computed canon
+                    // texts OUT of the one side execution — pure
+                    // carriage state (candidate kinds + harvested
+                    // VARCHAR cells + decline reason); no JDBC, no
+                    // evaluation, no verdict logic. It EXISTS so the
+                    // second per-side execution (runCanon) could be
+                    // deleted — tenet #1's number went DOWN with it.
+                    "CanonRider.java",
+                    // F13 (2026-08-22, OPEN_REGISTER): the SITE-ID
+                    // minter for synthetic instance identity — an
+                    // IdentityHashMap from construction-site NODE to a
+                    // deterministic id, scoped to one ExecEnv. Pure
+                    // bookkeeping: no JDBC, no evaluation, no verdict —
+                    // the id EMITS into SQL as a struct literal (the
+                    // database still computes every compare over it).
+                    "InstanceIds.java",
+                    // TYPED-IR Slice 1 (2026-08-23, user-ratified deep
+                    // fix): the LABEL-LIE CENSUS — declared OutputCol
+                    // labels vs the bottom-up SqlTyping judgment, per
+                    // executed plan. Pure measurement beside
+                    // CanonicalDivergence (probes consume a finished
+                    // plan and count; nothing here produces a result).
+                    "SqlTypeCensus.java",
+                    "package-info.java");
 
     /** The other two funnel packages (documented-debts 2026-08-18,
      * audit item 9's remainder): server and testdatagen may touch JDBC
