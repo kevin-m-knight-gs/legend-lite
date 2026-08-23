@@ -574,6 +574,12 @@ public class RelationalCorpusRunner {
         }
         if (onlyFilters.isEmpty() && regressions.isEmpty()) {
             System.out.println("[rcorpus] scoreboard written to docs/RELATIONAL_CORPUS.md");
+            // TYPED-IR Slice 1: the label-lie census over the whole
+            // corpus sweep (instrument -> census -> flip)
+            System.out.println("[rcorpus] sqltypes: "
+                    + com.legend.exec.SqlTypeCensus.summary());
+            com.legend.exec.SqlTypeCensus.classes(20).forEach(c ->
+                    System.out.println("[rcorpus] sqltypes-class: " + c));
         }
         // MECHANICAL REGRESSION GATE (audit: this runner carried NO
         // asserts — BUILD SUCCESS regardless of outcome). Every family

@@ -83,6 +83,9 @@ public final class Executor {
                                           com.legend.sql.dialect.SqlDialect dialect,
                                           @com.legend.Nullable CanonRider rider)
             throws SQLException {
+        // TYPED-IR Slice 1: the label-lie census — every executed plan's
+        // declared labels vs the bottom-up judgment (measurement only)
+        SqlTypeCensus.probe(plan);
         // TEMPORARY (2026-08-15 G4-vs-G5 wall accounting): whole
         // plan-execution boundary — prepare + executeQuery + result
         // materialization/shaping. Histogram by RESULT SHAPE (scalar

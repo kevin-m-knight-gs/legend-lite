@@ -83,6 +83,12 @@ final class ChannelBDiff {
         com.legend.exec.CanonicalDivergence.samples().forEach(r ->
                 System.out.println("[" + tag + "] canon-sample: "
                         + r.family() + " " + r.detail()));
+        // TYPED-IR Slice 1: the label-lie census (instrument -> census
+        // -> flip) — printed per suite, cumulative per JVM
+        System.out.println("[" + tag + "] sqltypes: "
+                + com.legend.exec.SqlTypeCensus.summary());
+        com.legend.exec.SqlTypeCensus.classes(40).forEach(c ->
+                System.out.println("[" + tag + "] sqltypes-class: " + c));
         return new Counts(pass, agreePass, agreeFail, wireBug, bFixesA,
                 declined, frontier, trueWireBug);
     }

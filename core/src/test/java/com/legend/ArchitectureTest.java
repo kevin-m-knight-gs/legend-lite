@@ -831,6 +831,11 @@ final class ArchitectureTest {
                 // bounded witness sample for the harness-published
                 // table; measurement only, never verdict-affecting
                 "com.legend.exec.CanonicalDivergence.SAMPLES",
+                // TYPED-IR Slice 1: the label-lie census's classified
+                // counters (declared-vs-computed pair -> count);
+                // measurement only, never verdict-affecting — the
+                // CanonicalDivergence pattern
+                "com.legend.exec.SqlTypeCensus.CLASSES",
                 // serializer registry: written once at static init; the
                 // ConcurrentHashMap spelling is for safe publication
                 "com.legend.server.serial.SerializerRegistry.SERIALIZERS");

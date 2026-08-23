@@ -462,6 +462,13 @@ class JavaEvalLedgerTest {
                     // the id EMITS into SQL as a struct literal (the
                     // database still computes every compare over it).
                     "InstanceIds.java",
+                    // TYPED-IR Slice 1 (2026-08-23, user-ratified deep
+                    // fix): the LABEL-LIE CENSUS — declared OutputCol
+                    // labels vs the bottom-up SqlTyping judgment, per
+                    // executed plan. Pure measurement beside
+                    // CanonicalDivergence (probes consume a finished
+                    // plan and count; nothing here produces a result).
+                    "SqlTypeCensus.java",
                     "package-info.java");
 
     /** The other two funnel packages (documented-debts 2026-08-18,

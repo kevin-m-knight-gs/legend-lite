@@ -90,6 +90,11 @@ class HarnessDisciplineTest {
             // TimingLedger: TreeMap render of the diagnostic dump
             // (deterministic output, never comparison)
             Map.entry("TimingLedger.java", 1),
+            // TYPED-IR Slice 1: census-class DISPLAY ordering
+            // (largest-first report lines) — reporting, never a result
+            // reordering; two-sided by construction (both sides of no
+            // comparison flow through it)
+            Map.entry("SqlTypeCensus.java", 1),
             // CanonicalDivergence: the assertSameElements byte-channel
             // stand-in sorts RENDERED STRINGS on BOTH sides (two-sided
             // comparison policy — the census-side mirror of R2's

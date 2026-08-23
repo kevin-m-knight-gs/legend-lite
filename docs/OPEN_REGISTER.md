@@ -41,6 +41,15 @@ L (a program leg).
 | A9 | missing-[1] on ^new | deep-audit tier-2, AWAITS RATIFICATION | S |
 | A10 | nlq/server hardening (incl. uncached-connection closing). FLAKE WITNESS 2026-08-22: DiagramServiceTest.httpEndpointReturnsErrorForMissingCode 404-vs-400 once under the full G1 suite, 3/3 green standalone — port/leaked-server contention class | deep-audit tier-2, AWAITS RATIFICATION | M |
 
+## 2b. TYPED-IR PROGRAM (user-ratified 2026-08-23: the label-lie deep fix — instrument → census → flip)
+
+| # | Item | Size |
+|---|---|---|
+| T1 | Slice 1 LANDED: SqlTyping bottom-up judgment (PARTIAL — null = no rule, never a guess) + SqlTypeCensus at the Executor choke point (declared OutputCol vs computed, classified). FIRST CENSUS (PCT lane): 13,204 agree / 364 mismatch / 808 untyped; mismatch tail = the KNOWN carrier conventions (TIMESTAMP<>VARCHAR precision convention 231, DOUBLE<>VARCHAR print-form carrier 20, Decimal width-widening ~13) + a handful needing eyes (DOUBLE<>Decimal 2). Untyped top: NullLit 123 (admissible-by-design), UNNEST 89, Case 66, LIST_MIN/MAX 82, ADD_INTERVAL 37, correlated Columns 36, numeric promotion | done |
+| T2 | Grow judgment coverage (untyped burn: promotion rules per dialect, reducers, temporal arithmetic, correlated scopes) + corpus-lane census read (G4 prints) | M |
+| T3 | ADMISSIBILITY relation: adjudicate each mismatch class as admissible-carrier (temporal VARCHAR, print-form, width-widening) or LIE; conform-by-emission at the lying seams (the 3 decline survivors' fix rides here — letFn to_json boxing, map row-shape, byte-carrier label) | M |
+| T4 | FLIP label authority: OutputCol computed from the judgment, stamp-vs-computed divergence alarm pinned 0, census counters become the permanent verifier | L |
+
 ## 3. Recorded engineering follow-ups (each noted in code/doc at its site)
 
 | # | Item | Size |
@@ -64,7 +73,7 @@ L (a program leg).
 
 | # | Item | Size |
 |---|---|---|
-| P1 | Decoupled-PCT completion burn: walls (~50 files / 65 hidden tests, reflection + grammar families), instance-universe 13, date-error 5, big-number 4, A1's 3, prim-ext 2, misc; frontier-12 stays pinned | L |
+| P1 | Decoupled-PCT completion burn — RE-MEASURED 2026-08-23: the walls hide ZERO PCT tests (the '65 hidden' figure died with the relation wall burn, and the residual '3 essential hidden' was a grep counting COMMENT mentions in surveyor.pure — channel B discovers the on-disk truth in all five families, 1,118, MORE than channel A's configured 1,109: relation qualifier config filters ~7, grammar/unclassified ±1 enumeration edges unchased; B-only rows currently IMPUTE channel A's verdict in the diff — an A-ABSENT bucket would make the census exact). The burn's real payoff: (a) the m4-grammar differential (A5, 183 rows pinned ≤226 — six parse constructs: value-parameterized types, unit literals, @-multiplicity/@-relation-type annotations, raw ^instance graphs); (b) the plain <<test.Test>> universe those files carry (~62 unit tests in the six parse-walled files alone — the P2 test-corpus territory); (c) the reflection families (Multiplicity/ValueSpecification/PackageableElement model walls). Plus the still-live: instance-universe 13, date-error 5, big-number 4, A1's 3, prim-ext 2; frontier-12 stays pinned | L |
 | P2 | ###Data execution → test-corpus branch unlock (DEFERRED_TEST_EXECUTION.md; census first) | L |
 | P3 | Corpus burn-to-zero resume (2,347/2,575 — 228 left) | L |
 | P4 | Prepared statements (LAST — perturbs the golden-SQL text lane; absorbs A7) | L |
