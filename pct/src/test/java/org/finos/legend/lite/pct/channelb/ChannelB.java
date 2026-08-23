@@ -181,15 +181,24 @@ public final class ChannelB {
         String fqn = fd.qualifiedName();
         com.legend.lowering.StampCensus.CONTEXT.set(fqn);
         // dual-verdict attribution: name the test that grows the
-        // disagreement census (the alarm's diagnosis needs the WHO)
+        // disagreement census (the alarm's diagnosis needs the WHO) —
+        // and the DECLINE census likewise (the burn targets tests, not
+        // a bare histogram; the F10 census rides this)
         long disagreeBefore =
                 com.legend.exec.CanonicalDivergence.sqlDisagreeCount();
+        long declineBefore =
+                com.legend.exec.CanonicalDivergence.sqlDeclinedCount();
         try {
             return runOneInner(fd, module, ctx, fqn);
         } finally {
             if (com.legend.exec.CanonicalDivergence.sqlDisagreeCount()
                     > disagreeBefore) {
                 System.out.println("[chB] DUAL-VERDICT-DISAGREE in " + fqn);
+            }
+            long dd = com.legend.exec.CanonicalDivergence.sqlDeclinedCount()
+                    - declineBefore;
+            if (dd > 0) {
+                System.out.println("[chB] DECLINES+" + dd + " in " + fqn);
             }
         }
     }
