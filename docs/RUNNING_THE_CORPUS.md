@@ -229,6 +229,10 @@ Two things that a project brings and the corpus does not have, which cost a buil
   "Property of multiplicity [1] can not be null". The seed nulls every nullable column on
   purpose, so a generator building trees has to CHOOSE a null-free leaf rather than take the
   first one and reject the tree.
+- **a wrapped `Join` condition.** A two-column join written over two lines is valid grammar
+  and the reader now folds it on parenthesis balance. A comment in fee-core says a wrapped
+  condition "is not parsed" -- that was true of the READER, not of Legend, and core-account
+  wraps all four of its two-column joins.
 - **a decimal column.** Seed it with a FLOAT, not a quoted string. The emitter writes
   `repr()` and the oracle's exact-decimal path goes through `Decimal(str(v))`, so every digit
   survives either way -- but a string is COMPARED as a string, and
@@ -252,6 +256,23 @@ nothing on its own: `stacks.py` wants two distinct navigation targets and `graph
 to-one branches, and a wide flat master table has neither. Register it in
 `taxonomy.py`'s `TAXONOMIES` and `IDENT` instead — one entry per LEVEL, since each level is
 told apart by a different column — and one service per subtype falls out.
+
+## Known reader gaps
+
+The reader refuses what it cannot model, and records what it can see but not resolve in
+`c.unparsed` -- a generator then skips those properties, so a gap costs COVERAGE and never
+correctness. Two are open:
+
+- **a second sibling embedded block.** `core_account::Account` maps `ownership ( ... )` with
+  `taxResidence ( ... )` nested inside it, and both are read correctly, two levels deep. The
+  sibling block that follows, `correspondence ( ... )`, is not, and the outbound joins
+  declared after it (`institution`, `branch`, `identifiers`, ...) are not registered as ends
+  either -- so `Account` reads as having no navigation at all. Nested embedded works; a
+  sibling after a nested one does not.
+- **`core_account::Correspondence`** therefore has no columns, and nothing generates over it.
+
+Neither produces a wrong expectation. Both cost coverage on a project that was linked
+precisely for those constructs, so they are worth fixing before that project is called done.
 
 ## The rule the whole thing rests on
 

@@ -20311,6 +20311,137 @@ CU_UNIT_PRECISION = [
 ]
 
 
+# ---- the linked project: core-account (layer 0) ----
+#
+# Linked for two constructs and one verification.
+#
+# NESTED EMBEDDED mappings. `ownership ( ... taxResidence ( ... ) )` is two levels of
+# embedded on ONE row -- three classes read from CA_ACCOUNT with no join at all. The corpus
+# has nine embedded property mappings and not one of them nests.
+#
+# MULTI-COLUMN JOINS. An account is keyed by (institution, account no) and a branch code is
+# only unique within an institution, so every join here is two columns. The seed is built so
+# that a join which used only ONE of them would return a wrong row rather than no row:
+# ACCOUNT_NO "0001" exists under BOTH institutions, and BRANCH_CODE "MAIN" does too. A seed
+# with globally unique ids cannot tell a two-column join from a one-column one.
+#
+# And core-account is where F57's fix gets verified end to end: 11 of the 112 unroutable
+# property mappings were in this project, and nothing had ever executed one.
+CA_INSTITUTION = [
+    dict(INSTITUTION_ID="INST-GB", NAME="Northgate Bank plc", BIC="NRTHGB2LXXX",
+         COUNTRY_CODE="GB", REGULATOR="FCA", IS_ACTIVE=True),
+    dict(INSTITUTION_ID="INST-DE", NAME="Aventine Bank AG", BIC="AVNTDEFFXXX",
+         COUNTRY_CODE="DE", REGULATOR="BaFin", IS_ACTIVE=True),
+    # No accounts and no branches: the to-many ends land on nothing.
+    dict(INSTITUTION_ID="INST-SG", NAME="Meridian Asia Pte", BIC="MERDSGSGXXX",
+         COUNTRY_CODE="SG", REGULATOR="MAS", IS_ACTIVE=False),
+]
+
+# "MAIN" under both institutions. A one-column join on BRANCH_CODE matches two rows.
+CA_BRANCH = [
+    dict(INSTITUTION_ID="INST-GB", BRANCH_CODE="MAIN", NAME="London head office",
+         CITY="London", COUNTRY_CODE="GB", IS_ACTIVE=True),
+    dict(INSTITUTION_ID="INST-GB", BRANCH_CODE="EDIN", NAME="Edinburgh",
+         CITY="Edinburgh", COUNTRY_CODE="GB", IS_ACTIVE=True),
+    dict(INSTITUTION_ID="INST-DE", BRANCH_CODE="MAIN", NAME="Frankfurt Zentrale",
+         CITY="Frankfurt", COUNTRY_CODE="DE", IS_ACTIVE=True),
+]
+
+# "0001" under both institutions, for the same reason.
+CA_ACCOUNT = [
+    dict(INSTITUTION_ID="INST-GB", ACCOUNT_NO="0001", ACCOUNT_NAME="Northgate house account",
+         ACCOUNT_TYPE="HOUSE", CURRENCY_CODE="GBP", STATUS="OPEN",
+         OPENED_ON=_iso(2018, 4, 3), CLOSED_ON=None, IS_SEGREGATED=False,
+         BRANCH_CODE="MAIN", OWNER_NAME="Northgate Bank plc", OWNER_TYPE="INSTITUTION",
+         OWNER_LEI="2138001HJKL9MNOP0123", OWNER_SINCE=_iso(2018, 4, 3),
+         TAX_COUNTRY_CODE="GB", TAX_ID_NUMBER="GB1234567", TAX_TREATY_STATUS="RESIDENT",
+         TAX_FORM_EXPIRY=_iso(2027, 12, 31), CORR_LINE1="1 Bishopsgate",
+         CORR_LINE2=None, CORR_CITY="London", CORR_POSTCODE="EC2N 3AQ",
+         CORR_COUNTRY_CODE="GB", CORR_EMAIL="ops@northgate.example"),
+    # The nested embedded block is entirely NULL here: taxResidence exists as a shape and
+    # has nothing in it, which is a different thing from the account having no ownership.
+    dict(INSTITUTION_ID="INST-GB", ACCOUNT_NO="0002", ACCOUNT_NAME="Client segregated",
+         ACCOUNT_TYPE="CLIENT", CURRENCY_CODE="GBP", STATUS="OPEN",
+         OPENED_ON=_iso(2021, 9, 15), CLOSED_ON=None, IS_SEGREGATED=True,
+         BRANCH_CODE="EDIN", OWNER_NAME="Cairnwell Trust", OWNER_TYPE="TRUST",
+         OWNER_LEI=None, OWNER_SINCE=_iso(2021, 9, 15),
+         TAX_COUNTRY_CODE=None, TAX_ID_NUMBER=None, TAX_TREATY_STATUS=None,
+         TAX_FORM_EXPIRY=None, CORR_LINE1="14 Charlotte Square", CORR_LINE2="Floor 2",
+         CORR_CITY="Edinburgh", CORR_POSTCODE="EH2 4DF", CORR_COUNTRY_CODE="GB",
+         CORR_EMAIL=None),
+    dict(INSTITUTION_ID="INST-DE", ACCOUNT_NO="0001", ACCOUNT_NAME="Aventine Eigenhandel",
+         ACCOUNT_TYPE="HOUSE", CURRENCY_CODE="EUR", STATUS="OPEN",
+         OPENED_ON=_iso(2015, 1, 12), CLOSED_ON=None, IS_SEGREGATED=False,
+         BRANCH_CODE="MAIN", OWNER_NAME="Aventine Bank AG", OWNER_TYPE="INSTITUTION",
+         OWNER_LEI="5299003QRST7UVWX4567", OWNER_SINCE=_iso(2015, 1, 12),
+         TAX_COUNTRY_CODE="DE", TAX_ID_NUMBER="DE987654321", TAX_TREATY_STATUS="RESIDENT",
+         TAX_FORM_EXPIRY=_iso(2026, 6, 30), CORR_LINE1="Taunusanlage 8", CORR_LINE2=None,
+         CORR_CITY="Frankfurt", CORR_POSTCODE="60329", CORR_COUNTRY_CODE="DE",
+         CORR_EMAIL="betrieb@aventine.example"),
+    # Closed, and pointing at a branch code that exists under the OTHER institution only.
+    # The two-column join must find nothing; a one-column join would find Frankfurt.
+    dict(INSTITUTION_ID="INST-GB", ACCOUNT_NO="0003", ACCOUNT_NAME="Legacy nostro",
+         ACCOUNT_TYPE="NOSTRO", CURRENCY_CODE="USD", STATUS="CLOSED",
+         OPENED_ON=_iso(2009, 3, 2), CLOSED_ON=_iso(2023, 11, 30), IS_SEGREGATED=False,
+         BRANCH_CODE="ZZZZ", OWNER_NAME="Northgate Bank plc", OWNER_TYPE="INSTITUTION",
+         OWNER_LEI="2138001HJKL9MNOP0123", OWNER_SINCE=_iso(2009, 3, 2),
+         TAX_COUNTRY_CODE="GB", TAX_ID_NUMBER="GB1234567", TAX_TREATY_STATUS="RESIDENT",
+         TAX_FORM_EXPIRY=None, CORR_LINE1=None, CORR_LINE2=None, CORR_CITY=None,
+         CORR_POSTCODE=None, CORR_COUNTRY_CODE=None, CORR_EMAIL=None),
+]
+
+CA_ACCOUNT_IDENTIFIER = [
+    dict(INSTITUTION_ID="INST-GB", ACCOUNT_NO="0001", SCHEME="IBAN",
+         IDENTIFIER_VALUE="GB29NWBK60161331926819", IS_PRIMARY=True,
+         ASSIGNED_ON=_iso(2018, 4, 3)),
+    dict(INSTITUTION_ID="INST-GB", ACCOUNT_NO="0001", SCHEME="SORTCODE",
+         IDENTIFIER_VALUE="60-16-13", IS_PRIMARY=False, ASSIGNED_ON=_iso(2018, 4, 3)),
+    # Same SCHEME and same ACCOUNT_NO, different institution.
+    dict(INSTITUTION_ID="INST-DE", ACCOUNT_NO="0001", SCHEME="IBAN",
+         IDENTIFIER_VALUE="DE89370400440532013000", IS_PRIMARY=True,
+         ASSIGNED_ON=_iso(2015, 1, 12)),
+    dict(INSTITUTION_ID="INST-GB", ACCOUNT_NO="0002", SCHEME="IBAN",
+         IDENTIFIER_VALUE="GB94BARC10201530093459", IS_PRIMARY=True,
+         ASSIGNED_ON=_iso(2021, 9, 15)),
+]
+
+CA_ACCOUNT_STATUS_EVENT = [
+    dict(INSTITUTION_ID="INST-GB", ACCOUNT_NO="0001", EFFECTIVE_FROM=_iso(2018, 4, 3),
+         STATUS="OPEN", REASON_CODE="NEW", RECORDED_BY="onboarding"),
+    dict(INSTITUTION_ID="INST-GB", ACCOUNT_NO="0003", EFFECTIVE_FROM=_iso(2009, 3, 2),
+         STATUS="OPEN", REASON_CODE="NEW", RECORDED_BY="onboarding"),
+    dict(INSTITUTION_ID="INST-GB", ACCOUNT_NO="0003", EFFECTIVE_FROM=_iso(2023, 11, 30),
+         STATUS="CLOSED", REASON_CODE="WINDDOWN", RECORDED_BY="ops.batch"),
+    dict(INSTITUTION_ID="INST-DE", ACCOUNT_NO="0001", EFFECTIVE_FROM=_iso(2015, 1, 12),
+         STATUS="OPEN", REASON_CODE="NEW", RECORDED_BY="onboarding"),
+]
+
+CA_ACCOUNT_RESTRICTION = [
+    dict(INSTITUTION_ID="INST-GB", ACCOUNT_NO="0003", RESTRICTION_CODE="NO_DEBIT",
+         IMPOSED_ON=_iso(2023, 11, 30), LIFTED_ON=None, IMPOSED_BY="ops.batch",
+         IS_BLOCKING=True),
+    dict(INSTITUTION_ID="INST-GB", ACCOUNT_NO="0002", RESTRICTION_CODE="REVIEW",
+         IMPOSED_ON=_iso(2024, 2, 1), LIFTED_ON=_iso(2024, 5, 1), IMPOSED_BY="kyc.team",
+         IS_BLOCKING=False),
+]
+
+CA_ACCOUNT_MANDATE = [
+    dict(INSTITUTION_ID="INST-GB", ACCOUNT_NO="0001", MANDATE_SEQ=1, ROLE="SIGNATORY",
+         GRANTED_ON=_iso(2018, 4, 3), REVOKED_ON=None, APPROVAL_LIMIT=250000.0,
+         HOLDER_NAME="A. Fairbairn", HOLDER_ID_TYPE="PASSPORT",
+         HOLDER_ID_NUMBER="P1234567", HOLDER_COUNTRY_CODE="GB"),
+    dict(INSTITUTION_ID="INST-GB", ACCOUNT_NO="0001", MANDATE_SEQ=2, ROLE="VIEWER",
+         GRANTED_ON=_iso(2020, 6, 1), REVOKED_ON=_iso(2022, 6, 1), APPROVAL_LIMIT=0.0,
+         HOLDER_NAME="R. Okonkwo", HOLDER_ID_TYPE="NATIONAL_ID",
+         HOLDER_ID_NUMBER="N7654321", HOLDER_COUNTRY_CODE="GB"),
+    # The embedded holder block is empty: a mandate with no named holder.
+    dict(INSTITUTION_ID="INST-DE", ACCOUNT_NO="0001", MANDATE_SEQ=1, ROLE="SIGNATORY",
+         GRANTED_ON=_iso(2015, 1, 12), REVOKED_ON=None, APPROVAL_LIMIT=1000000.0,
+         HOLDER_NAME=None, HOLDER_ID_TYPE=None, HOLDER_ID_NUMBER=None,
+         HOLDER_COUNTRY_CODE=None),
+]
+
+
 # ---- the linked project: core-fx ----
 #
 # Real June 2024 levels for four majors. The corpus's own trades are all USD, so what the
@@ -20526,6 +20657,13 @@ TABLES: dict[str, list[dict]] = {
     "CU_UNIT": CU_UNIT,
     "CU_CONVERSION": CU_CONVERSION,
     "CU_UNIT_PRECISION": CU_UNIT_PRECISION,
+    "CA_INSTITUTION": CA_INSTITUTION,
+    "CA_BRANCH": CA_BRANCH,
+    "CA_ACCOUNT": CA_ACCOUNT,
+    "CA_ACCOUNT_IDENTIFIER": CA_ACCOUNT_IDENTIFIER,
+    "CA_ACCOUNT_STATUS_EVENT": CA_ACCOUNT_STATUS_EVENT,
+    "CA_ACCOUNT_RESTRICTION": CA_ACCOUNT_RESTRICTION,
+    "CA_ACCOUNT_MANDATE": CA_ACCOUNT_MANDATE,
     "EXPOSURE_LINE": EXPOSURE_LINE,
     "EXPOSURE_THRESHOLD": EXPOSURE_THRESHOLD,
     "EXEMPTION_RULE": EXEMPTION_RULE,

@@ -57,7 +57,8 @@ PROJECTS = Path(__file__).resolve().parents[2] / "projects"
 # parsed. core-types exports no store and no mapping at all -- it is enums and functions --
 # so it is here purely to satisfy fee-core, which is what a transitive dependency looks like.
 LINKED_PROJECTS = ["core-types", "core-tenor", "core-fx", "core-ratings",
-                   "core-instrument", "core-calendar", "core-units", "fee-core"]
+                   "core-instrument", "core-calendar", "core-units",
+                   "core-account", "fee-core"]
 
 
 # Section order within a project, not alphabetical. A .pure file with no `###` header
@@ -990,8 +991,42 @@ def _owning_database(text: str, at: int) -> str:
     return last
 
 
+def _fold_joins(text: str) -> str:
+    """Join a `Join` declaration whose condition is spread over several lines.
+
+    The corpus writes every join on one line, and a comment in fee-core records that a
+    wrapped condition "is not parsed" -- which was true of THIS READER rather than of the
+    grammar. core-account wraps all four of its two-column joins and compiles perfectly:
+
+        Join Ca_AccountBranch(CA_ACCOUNT.INSTITUTION_ID = CA_BRANCH.INSTITUTION_ID
+           and CA_ACCOUNT.BRANCH_CODE = CA_BRANCH.BRANCH_CODE)
+
+    Folded on PARENTHESIS BALANCE rather than on a line count, because a condition may
+    contain calls of its own. The third multi-line form a linked project has brought that
+    the corpus itself never writes -- after the governed class header and the wrapped
+    qualified property.
+    """
+    out, pending, depth = [], None, 0
+    for raw in text.splitlines():
+        if pending is None:
+            if re.match(r"^\s*Join\s+\w+\s*\(", raw) and (
+                    raw.count("(") != raw.count(")")):
+                pending, depth = raw, raw.count("(") - raw.count(")")
+                continue
+            out.append(raw)
+            continue
+        pending = pending.rstrip() + " " + raw.strip()
+        depth += raw.count("(") - raw.count(")")
+        if depth <= 0:
+            out.append(pending)
+            pending = None
+    if pending is not None:
+        out.append(pending)
+    return "\n".join(out)
+
+
 def _parse_store(text: str, c: Corpus) -> None:
-    text = "\n".join(_strip(l) for l in text.splitlines())
+    text = _fold_joins("\n".join(_strip(l) for l in text.splitlines()))
     m = re.search(r"^Database\s+([\w:]+)", text, re.M)
     if m:
         c.store_includes.setdefault(m.group(1), []).extend(

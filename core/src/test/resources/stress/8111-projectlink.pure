@@ -95,6 +95,7 @@ Mapping projectlink::ProjectLinkMapping
    include core_instrument::Mapping
    include core_calendar::Mapping
    include core_units::Mapping
+   include core_account::Mapping
 
    projectlink::CounterpartyRatings: Relational
    {

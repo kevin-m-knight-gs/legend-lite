@@ -30,6 +30,9 @@ Database store::DB
     // Every table of this one lives in the `uom` SCHEMA, so its columns are reached as
     // [db]uom.TABLE.COL -- including from the corpus store that includes it.
     include core_units::Store
+    // Every join in this one is TWO columns, because an account is keyed by institution
+    // and number and a branch code is unique only within an institution.
+    include core_account::Store
 
     // ---- taxonomy edges, added by scripts/corpus/add_taxonomy_edges.py ----
     // Every taxonomy table carries BOOK_ID and joined to nothing; these are
