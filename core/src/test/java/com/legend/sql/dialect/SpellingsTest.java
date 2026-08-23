@@ -23,6 +23,9 @@ class SpellingsTest {
             // interleaved joinStrings unit — function-form concat in the
             // base renderer, infix chain in DB2; never flatten-spliced
             SqlFn.CONCAT_JOIN,
+            // signed-64 conformance wrap (pure hashCode is Integer[1];
+            // DuckDB hash() is UBIGINT) — the hashSigned dialect arm
+            SqlFn.HASH,
             SqlFn.BOOL_TO_TEXT,
             SqlFn.ADD_INTERVAL,
             SqlFn.ADD_INTERVAL_TEMPORAL,

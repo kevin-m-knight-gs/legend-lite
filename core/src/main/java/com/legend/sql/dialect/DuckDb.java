@@ -247,6 +247,17 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
     @Override
+    protected String hashSigned(List<SqlExpr> a) {
+        // hash() is UBIGINT and CAST is range-checked, not
+        // bit-reinterpreting: flip the sign bit in unsigned space, then
+        // shift down by 2^63 in HUGEINT space — exact two's-complement
+        // reinterpretation, bijective, hash evaluated once
+        return "CAST(CAST(xor(" + fn("hash", a)
+                + ", CAST(9223372036854775808 AS UBIGINT)) AS HUGEINT)"
+                + " - 9223372036854775808 AS BIGINT)";
+    }
+
+    @Override
     protected String roundHalfEven(List<SqlExpr> a) {
         // round_even is a 2-arg macro — bare round(x) means precision 0.
         return a.size() == 1

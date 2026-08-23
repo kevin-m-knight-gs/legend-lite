@@ -1191,19 +1191,12 @@ public final class Lowerer {
             return uniqueValueOnlyAgg(extra, value);
         }
         // hashCode over a group: HASH(LIST(values)) — no single SQL
-        // reducer. DuckDB hash() is UBIGINT; result is pure Integer —
-        // shift into signed BIGINT range (only determinism and type are
-        // the contract; real pure hash values are platform-specific).
+        // reducer. Signed-64 conformance (pure hashCode is Integer[1])
+        // is owned by the DIALECT hashSigned arm — one owner, never a
+        // second shift here.
         if (fn == SqlAgg.Fn.HASH_LIST) {
-            // shift by 2^63 exactly (PLUS Long.MIN_VALUE)
-            return new SqlExpr.Cast(
-                    SqlExpr.Call.of(SqlFn.PLUS,
-                            new SqlExpr.Cast(
-                                    SqlExpr.Call.of(SqlFn.HASH,
-                                            new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(value), false, java.util.List.of())),
-                                    SqlType.Scalar.HUGEINT),
-                            new SqlExpr.IntLit(Long.MIN_VALUE)),
-                    SqlType.Scalar.BIGINT);
+            return SqlExpr.Call.of(SqlFn.HASH,
+                    new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(value), false, java.util.List.of()));
         }
         // 1-arg joinStrings joins with the EMPTY separator (string-
         // Extension.pure:253) — bare STRING_AGG defaults to COMMA.

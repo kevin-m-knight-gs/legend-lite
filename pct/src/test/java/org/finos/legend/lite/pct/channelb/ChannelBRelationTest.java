@@ -124,7 +124,10 @@ class ChannelBRelationTest {
         // percentile input-type, Number-erasure decimal delivery —
         // witnesses attached); ADOPT-PENDING = integer aggregates
         // whose CONTRACT widens at construction (testLargePlus rule).
-        assertTrue(com.legend.exec.SqlTypeCensus.wireDivergeCount() <= 80,
+        // 80 -> 75 (2026-08-23): hash UBIGINT family burned by the
+        // dialect hashSigned conform (single owner; Lowerer's private
+        // agg shift DELETED) — measured full-lane residue 74
+        assertTrue(com.legend.exec.SqlTypeCensus.wireDivergeCount() <= 75,
                 "wire divergence grew: "
                         + com.legend.exec.SqlTypeCensus.summary());
         assertTrue(com.legend.exec.SqlTypeCensus.wireAdoptPendingCount() <= 110,

@@ -72,7 +72,10 @@ public record Spellings(Map<SqlFn, String> fnNames) {
         m.put(SqlFn.FORMAT, "printf");
         m.put(SqlFn.FROM_EPOCH_SECONDS, "to_timestamp");
         m.put(SqlFn.GREATEST, "greatest");
-        m.put(SqlFn.HASH, "hash");
+        // HASH is NOT a spelling row: pure hashCode(...):Integer[1] is
+        // SIGNED 64-bit and DuckDB's hash() is UBIGINT — the conform
+        // cast is shape logic, so it lives in the hashSigned arm
+        // (H2 2.1.214 has no hash() at all; the old row was phantom)
         m.put(SqlFn.JARO_WINKLER, "jaro_winkler_similarity");
         m.put(SqlFn.JSON_TYPE, "json_type");
         m.put(SqlFn.LEAST, "least");

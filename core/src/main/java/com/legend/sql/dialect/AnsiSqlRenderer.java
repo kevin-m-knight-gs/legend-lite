@@ -543,6 +543,7 @@ public class AnsiSqlRenderer implements SqlDialect {
                 yield 3 < parentPrec ? "(" + inner + ")" : inner;
             }
             case NEGATE -> "-" + expr(a.get(0), 7);
+            case HASH -> hashSigned(a);
             case IS_NULL -> expr(a.get(0), 4) + " IS NULL";
             case IS_NOT_NULL -> expr(a.get(0), 4) + " IS NOT NULL";
             case IN -> expr(a.get(0), 4) + " IN (" + list(a.subList(1, a.size())) + ")";
@@ -663,6 +664,13 @@ public class AnsiSqlRenderer implements SqlDialect {
     }
 
     // ---- idiom extension points (base = capability statement, loud) ----
+
+    /** Pure hashCode is Integer[1] — SIGNED 64-bit. A dialect whose
+     * native hash is unsigned (DuckDB UBIGINT) conforms by
+     * reinterpreting cast; the value stays bijective. */
+    protected String hashSigned(List<SqlExpr> a) {
+        throw new DialectCapability("signed 64-bit hashCode reached a dialect without a spelling");
+    }
 
     /** Pure ROUND is HALF-EVEN (banker's) — every dialect must honor it. */
     protected String roundHalfEven(List<SqlExpr> a) {
