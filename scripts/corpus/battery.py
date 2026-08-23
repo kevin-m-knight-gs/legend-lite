@@ -2281,6 +2281,57 @@ def _project_link_specs():
     cycles.sort = ("cycleId", False)
     out.append(cycles)
 
+    # ---- core-account: nested embedded, and joins that need BOTH key columns ----
+    #
+    # `ownership.taxResidence.countryCode` is two levels of embedded on ONE row -- three
+    # classes read from CA_ACCOUNT with no join at all, which the corpus has nowhere else.
+    # `correspondence` is a SIBLING block after that nested one, which is the shape the
+    # reader used to lose entirely.
+    #
+    # The joins are the other half. ACCOUNT_NO "0001" exists under both institutions and
+    # BRANCH_CODE "MAIN" does too, so a join on one column of the two-column key returns a
+    # WRONG row rather than no row: INST-DE/0001 must read Frankfurt and not London.
+    # Account 0003 points at a branch code that exists only under the OTHER institution, so
+    # its branch must be null -- a one-column join would find one.
+    acct = Spec("stress::PL19_AccountEmbeddedAndKeys", "/stress/pl19",
+                "Two levels of EMBEDDED on one row, a sibling block after the nested one, "
+                "and two joins that each need BOTH columns of a composite key. The seed "
+                "reuses account numbers and branch codes across institutions, so a join "
+                "that dropped a column would return a plausible row from the wrong bank "
+                "rather than nothing.",
+                "core_account::Account")
+    acct.projections = [Proj("institutionId", ["institutionId"]),
+                        Proj("accountNo", ["accountNo"]),
+                        Proj("ownerName", ["ownership", "ownerName"]),
+                        # The nested block, two levels down, still on the same row.
+                        Proj("taxCountry", ["ownership", "taxResidence", "countryCode"]),
+                        # The sibling block that follows the nested one.
+                        Proj("corrCity", ["correspondence", "city"]),
+                        Proj("institutionName", ["institution", "name"]),
+                        Proj("branchName", ["branch", "name"]),
+                        Proj("branchCity", ["branch", "city"])]
+    acct.sort = [("institutionId", False), ("accountNo", False)]
+    out.append(acct)
+
+    # The same embedded construct on a different class, reached through a THREE-column key,
+    # plus a navigation back to the account the mandate hangs off.
+    mand = Spec("stress::PL20_MandateHolder", "/stress/pl20",
+                "An embedded holder block on a row keyed by THREE columns, and a navigation "
+                "back to the account it belongs to over a two-column join. One mandate has "
+                "no named holder at all, so the embedded block is present as a shape and "
+                "empty of values -- which is a different thing from the mandate having no "
+                "holder property.",
+                "core_account::AccountMandate")
+    mand.projections = [Proj("institutionId", ["institutionId"]),
+                        Proj("accountNo", ["accountNo"]),
+                        Proj("mandateSeq", ["mandateSeq"]),
+                        Proj("role", ["role"]),
+                        Proj("holderName", ["holder", "holderName"]),
+                        Proj("holderCountry", ["holder", "countryCode"]),
+                        Proj("accountName", ["account", "accountName"])]
+    mand.sort = [("institutionId", False), ("accountNo", False), ("mandateSeq", False)]
+    out.append(mand)
+
     # ---- core-units: two joins to the SAME table, and exact decimals in a schema ----
     #
     # CuConversion reaches CuUnit twice -- once as fromUnit, once as toUnit -- over two

@@ -1385,6 +1385,11 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
     cur_op = None
     op_buf = ""
     set_tables: dict[str, str] = {}   # set-implementation id -> its ~mainTable
+    # Initialised HERE as well as per class mapping: the generic closing-punctuation skip
+    # below now consults it, and that skip runs before the first class mapping is seen.
+    embedded: list[str] = []
+    pending_embed = None
+    scope_tbl = None
     in_assoc = False
     enum_map = None          # name of the EnumerationMapping currently being read
     for raw in text.splitlines():
@@ -1486,7 +1491,16 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
         if "AssociationMapping" in line:
             in_assoc = True
             continue
-        if line.strip() in ("}", ")", "    }"):
+        # NOT while an embedded block is open. A nested block closes with a bare `)` and its
+        # parent with `),`, and this generic skip swallowed the bare one -- so `ownership (
+        # ... taxResidence ( ... ) )` popped once instead of twice and stayed open. Every
+        # property declared after it was then attributed to Ownership, where it resolved
+        # against nothing: core_account::Account's second sibling block and all six of its
+        # outbound joins went to `unparsed`, and the class read as having no navigation.
+        #
+        # Only the comma made the difference, which is why one level of nesting worked and
+        # a sibling after it did not.
+        if line.strip() in ("}", ")", "    }") and not embedded:
             continue
         m = _CLS_FILTER.match(line)
         if m and cur:

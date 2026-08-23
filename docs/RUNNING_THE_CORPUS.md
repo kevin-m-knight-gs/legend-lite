@@ -257,22 +257,19 @@ to-one branches, and a wide flat master table has neither. Register it in
 `taxonomy.py`'s `TAXONOMIES` and `IDENT` instead — one entry per LEVEL, since each level is
 told apart by a different column — and one service per subtype falls out.
 
-## Known reader gaps
+## What the reader refuses, and what it records
 
-The reader refuses what it cannot model, and records what it can see but not resolve in
-`c.unparsed` -- a generator then skips those properties, so a gap costs COVERAGE and never
-correctness. Two are open:
+The reader RAISES on a form it cannot model, and records what it can see but not resolve in
+`c.unparsed`. Generators skip the latter, so a gap costs COVERAGE and never correctness -- a
+service using an unresolved property fails with a reason rather than returning a wrong answer.
 
-- **a second sibling embedded block.** `core_account::Account` maps `ownership ( ... )` with
-  `taxResidence ( ... )` nested inside it, and both are read correctly, two levels deep. The
-  sibling block that follows, `correspondence ( ... )`, is not, and the outbound joins
-  declared after it (`institution`, `branch`, `identifiers`, ...) are not registered as ends
-  either -- so `Account` reads as having no navigation at all. Nested embedded works; a
-  sibling after a nested one does not.
-- **`core_account::Correspondence`** therefore has no columns, and nothing generates over it.
-
-Neither produces a wrong expectation. Both cost coverage on a project that was linked
-precisely for those constructs, so they are worth fixing before that project is called done.
+Five entries remain, all in single-construct mapping fixtures. That number was eleven until a
+one-character asymmetry was found: a nested embedded block closes with a bare `)` and its
+parent with `),`, and the generic closing-punctuation skip swallowed the bare one. So
+`ownership ( ... taxResidence ( ... ) )` popped once instead of twice and stayed open, and
+every property declared AFTER it -- a sibling embedded block and six outbound joins -- was
+attributed to the inner class and resolved against nothing. One level of nesting worked; a
+sibling after it did not, and `core_account::Account` read as having no navigation at all.
 
 ## The rule the whole thing rests on
 

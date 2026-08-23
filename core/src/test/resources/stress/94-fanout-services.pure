@@ -6137,6 +6137,127 @@ Service stress::PL16_SettlementCycleChain
   ]
 }
 
+Service stress::PL19_AccountEmbeddedAndKeys
+{
+    pattern: '/stress/pl19';
+    documentation: 'Two levels of EMBEDDED on one row, a sibling block after the nested one, and two joins that each need BOTH columns of a composite key. The seed reuses account numbers and branch codes across institutions, so a join that dropped a column would return a plausible row from the wrong bank rather than nothing.';
+    execution: Single
+    {
+    query: |core_account::Account.all()
+        ->project(~[
+            institutionId:x|$x.institutionId,
+            accountNo:x|$x.accountNo,
+            ownerName:x|$x.ownership.ownerName,
+            taxCountry:x|$x.ownership.taxResidence.countryCode,
+            corrCity:x|$x.correspondence.city,
+            institutionName:x|$x.institution.name,
+            branchName:x|$x.branch.name,
+            branchCity:x|$x.branch.city
+        ])
+        ->sort([~institutionId->ascending(), ~accountNo->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    PL19_AccountEmbeddedAndKeys_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"institutionId":"INST-DE","accountNo":"0001","ownerName":"Aventine Bank AG","taxCountry":"DE","corrCity":"Frankfurt","institutionName":"Aventine Bank AG","branchName":"Frankfurt Zentrale","branchCity":"Frankfurt"},{"institutionId":"INST-GB","accountNo":"0001","ownerName":"Northgate Bank plc","taxCountry":"GB","corrCity":"London","institutionName":"Northgate Bank plc","branchName":"London head office","branchCity":"London"},{"institutionId":"INST-GB","accountNo":"0002","ownerName":"Cairnwell Trust","taxCountry":null,"corrCity":"Edinburgh","institutionName":"Northgate Bank plc","branchName":"Edinburgh","branchCity":"Edinburgh"},{"institutionId":"INST-GB","accountNo":"0003","ownerName":"Northgate Bank plc","taxCountry":"GB","corrCity":null,"institutionName":"Northgate Bank plc","branchName":null,"branchCity":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::PL20_MandateHolder
+{
+    pattern: '/stress/pl20';
+    documentation: 'An embedded holder block on a row keyed by THREE columns, and a navigation back to the account it belongs to over a two-column join. One mandate has no named holder at all, so the embedded block is present as a shape and empty of values -- which is a different thing from the mandate having no holder property.';
+    execution: Single
+    {
+    query: |core_account::AccountMandate.all()
+        ->project(~[
+            institutionId:x|$x.institutionId,
+            accountNo:x|$x.accountNo,
+            mandateSeq:x|$x.mandateSeq,
+            role:x|$x.role,
+            holderName:x|$x.holder.holderName,
+            holderCountry:x|$x.holder.countryCode,
+            accountName:x|$x.account.accountName
+        ])
+        ->sort([~institutionId->ascending(), ~accountNo->ascending(), ~mandateSeq->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    PL20_MandateHolder_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"institutionId":"INST-DE","accountNo":"0001","mandateSeq":1,"role":"SIGNATORY","holderName":null,"holderCountry":null,"accountName":"Aventine Eigenhandel"},{"institutionId":"INST-GB","accountNo":"0001","mandateSeq":1,"role":"SIGNATORY","holderName":"A. Fairbairn","holderCountry":"GB","accountName":"Northgate house account"},{"institutionId":"INST-GB","accountNo":"0001","mandateSeq":2,"role":"VIEWER","holderName":"R. Okonkwo","holderCountry":"GB","accountName":"Northgate house account"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::PL17_UnitConversionPair
 {
     pattern: '/stress/pl17';
@@ -11653,6 +11774,107 @@ Service stress::GG_MarginCallTree
                   #{
                     contentType: 'application/json';
                     data: '{"builder":{"_type":"json"},"values":[{"marginCallId":"MC-0001","agreedAmount":1487.5,"disputeReason":"none","disputedAmount":1487.5,"agreement":null,"counterparty":null},{"marginCallId":"MC-0002","agreedAmount":1525.0,"disputeReason":"late data","disputedAmount":1525.0,"agreement":null,"counterparty":null},{"marginCallId":"MC-0003","agreedAmount":1562.5,"disputeReason":null,"disputedAmount":1562.5,"agreement":{"agreementId":"CSA-0001","agreementType":"CSA","currency":"USD","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER"}},"counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER","creditRating":"AA-","country":{"countryCode":"US","capitalCity":"Washington"}}},{"marginCallId":"MC-0004","agreedAmount":null,"disputeReason":"none","disputedAmount":1600.0,"agreement":{"agreementId":"CSA-0002","agreementType":"CSA","currency":"GBP","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER"}},"counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER","creditRating":"A+","country":{"countryCode":"GB","capitalCity":"London"}}},{"marginCallId":"MC-0005","agreedAmount":1637.5,"disputeReason":"reconciled","disputedAmount":null,"agreement":{"agreementId":"CSA-0003","agreementType":"GMRA","currency":"EUR","counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND"}},"counterparty":{"counterpartyId":"CP-0003","counterpartyType":"HEDGE_FUND","creditRating":"BBB","country":{"countryCode":"DE","capitalCity":"Berlin"}}}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::GG_Core_accountAccountTree
+{
+    pattern: '/stress/gg_core_accountaccount';
+    documentation: 'Generated graph fetch on core_account::Account: 6 keys, 2 sub-object(s). Tree-shaped read of the same rows the projection corpus reads flat -- the two must agree with the oracle independently, because a sub-object that is wholly absent and one whose every field is null are the same row in a projection and different objects in a tree. Generated by scripts/corpus/graphs.py; the PROPERTIES it is instantiating are the hand-written G0-G3 in battery.py.';
+    execution: Single
+    {
+    query: |core_account::Account.all()
+        ->graphFetch(#{
+  core_account::Account
+  {
+    institutionId,
+    accountName,
+    accountNo,
+    accountType,
+    branch
+    {
+      institutionId,
+      branchCode,
+      city,
+      institution
+      {
+        institutionId,
+        bic
+      }
+    },
+    institution
+    {
+      institutionId,
+      bic,
+      countryCode
+    }
+  }
+}#)
+        ->serialize(#{
+  core_account::Account
+  {
+    institutionId,
+    accountName,
+    accountNo,
+    accountType,
+    branch
+    {
+      institutionId,
+      branchCode,
+      city,
+      institution
+      {
+        institutionId,
+        bic
+      }
+    },
+    institution
+    {
+      institutionId,
+      bic,
+      countryCode
+    }
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    GG_Core_accountAccountTree_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"institutionId":"INST-GB","accountName":"Northgate house account","accountNo":"0001","accountType":"HOUSE","branch":{"institutionId":"INST-GB","branchCode":"MAIN","city":"London","institution":{"institutionId":"INST-GB","bic":"NRTHGB2LXXX"}},"institution":{"institutionId":"INST-GB","bic":"NRTHGB2LXXX","countryCode":"GB"}},{"institutionId":"INST-GB","accountName":"Client segregated","accountNo":"0002","accountType":"CLIENT","branch":{"institutionId":"INST-GB","branchCode":"EDIN","city":"Edinburgh","institution":{"institutionId":"INST-GB","bic":"NRTHGB2LXXX"}},"institution":{"institutionId":"INST-GB","bic":"NRTHGB2LXXX","countryCode":"GB"}},{"institutionId":"INST-DE","accountName":"Aventine Eigenhandel","accountNo":"0001","accountType":"HOUSE","branch":{"institutionId":"INST-DE","branchCode":"MAIN","city":"Frankfurt","institution":{"institutionId":"INST-DE","bic":"AVNTDEFFXXX"}},"institution":{"institutionId":"INST-DE","bic":"AVNTDEFFXXX","countryCode":"DE"}},{"institutionId":"INST-GB","accountName":"Legacy nostro","accountNo":"0003","accountType":"NOSTRO","branch":null,"institution":{"institutionId":"INST-GB","bic":"NRTHGB2LXXX","countryCode":"GB"}}]}';
                   }#;
               }#
           ]
@@ -270572,6 +270794,243 @@ Service stress::DSLocal_FeeWaiver
   ]
 }
 
+Service stress::DSLocal_AccountIdentifier
+{
+    pattern: '/stress/dslocal_accountidentifier';
+    documentation: 'A filter, a computed column, a composite sort and a limit stacked on core_account::AccountIdentifier -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |core_account::AccountIdentifier.all()
+        ->filter({x|($x.identifierValue > ' ')})
+        ->project(~[
+            institutionId:x|$x.institutionId,
+            accountNo:x|$x.accountNo,
+            scheme:x|$x.scheme,
+            identifierValue:x|$x.identifierValue
+        ])
+        ->sort([~institutionId->ascending(), ~accountNo->ascending(), ~scheme->ascending()])
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSLocal_AccountIdentifier_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"institutionId":"INST-DE","accountNo":"0001","scheme":"IBAN","identifierValue":"DE89370400440532013000"},{"institutionId":"INST-GB","accountNo":"0001","scheme":"IBAN","identifierValue":"GB29NWBK60161331926819"},{"institutionId":"INST-GB","accountNo":"0001","scheme":"SORTCODE","identifierValue":"60-16-13"},{"institutionId":"INST-GB","accountNo":"0002","scheme":"IBAN","identifierValue":"GB94BARC10201530093459"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSLocal_AccountMandate
+{
+    pattern: '/stress/dslocal_accountmandate';
+    documentation: 'A filter, a computed column, a composite sort and a limit stacked on core_account::AccountMandate -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |core_account::AccountMandate.all()
+        ->filter({x|($x.role > ' ')})
+        ->project(~[
+            institutionId:x|$x.institutionId,
+            accountNo:x|$x.accountNo,
+            mandateSeq:x|$x.mandateSeq,
+            role:x|$x.role
+        ])
+        ->sort([~institutionId->ascending(), ~accountNo->ascending(), ~mandateSeq->ascending()])
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSLocal_AccountMandate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"institutionId":"INST-DE","accountNo":"0001","mandateSeq":1,"role":"SIGNATORY"},{"institutionId":"INST-GB","accountNo":"0001","mandateSeq":1,"role":"SIGNATORY"},{"institutionId":"INST-GB","accountNo":"0001","mandateSeq":2,"role":"VIEWER"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSLocal_AccountRestriction
+{
+    pattern: '/stress/dslocal_accountrestriction';
+    documentation: 'A filter, a computed column, a composite sort and a limit stacked on core_account::AccountRestriction -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |core_account::AccountRestriction.all()
+        ->filter({x|($x.imposedBy > ' ')})
+        ->project(~[
+            institutionId:x|$x.institutionId,
+            accountNo:x|$x.accountNo,
+            restrictionCode:x|$x.restrictionCode,
+            imposedBy:x|$x.imposedBy,
+            isActive:x|$x.isActive
+        ])
+        ->sort([~institutionId->ascending(), ~accountNo->ascending(), ~restrictionCode->ascending()])
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSLocal_AccountRestriction_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"institutionId":"INST-GB","accountNo":"0002","restrictionCode":"REVIEW","imposedBy":"kyc.team","isActive":false},{"institutionId":"INST-GB","accountNo":"0003","restrictionCode":"NO_DEBIT","imposedBy":"ops.batch","isActive":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSLocal_AccountStatusEvent
+{
+    pattern: '/stress/dslocal_accountstatusevent';
+    documentation: 'A filter, a computed column, a composite sort and a limit stacked on core_account::AccountStatusEvent -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |core_account::AccountStatusEvent.all()
+        ->filter({x|($x.status > ' ')})
+        ->project(~[
+            institutionId:x|$x.institutionId,
+            accountNo:x|$x.accountNo,
+            effectiveFrom:x|$x.effectiveFrom,
+            status:x|$x.status
+        ])
+        ->sort([~institutionId->ascending(), ~accountNo->ascending(), ~effectiveFrom->ascending()])
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSLocal_AccountStatusEvent_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"institutionId":"INST-DE","accountNo":"0001","effectiveFrom":"2015-01-12","status":"OPEN"},{"institutionId":"INST-GB","accountNo":"0001","effectiveFrom":"2018-04-03","status":"OPEN"},{"institutionId":"INST-GB","accountNo":"0003","effectiveFrom":"2009-03-02","status":"OPEN"},{"institutionId":"INST-GB","accountNo":"0003","effectiveFrom":"2023-11-30","status":"CLOSED"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::DSLocal_Department
 {
     pattern: '/stress/dslocal_department';
@@ -271908,6 +272367,65 @@ Service stress::DSAgg_SubledgerEntry
                   #{
                     contentType: 'application/json';
                     data: '[{"currency":"EUR","n":1,"total":213},{"currency":"JPY","n":1,"total":227},{"currency":"USD","n":2,"total":419}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSLocal_Core_accountAccount
+{
+    pattern: '/stress/dslocal_core_accountaccount';
+    documentation: 'A filter, a computed column, a composite sort and a limit stacked on core_account::Account -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |core_account::Account.all()
+        ->filter({x|($x.status > ' ')})
+        ->project(~[
+            institutionId:x|$x.institutionId,
+            accountNo:x|$x.accountNo,
+            status:x|$x.status,
+            accountKey:x|$x.accountKey
+        ])
+        ->sort([~institutionId->ascending(), ~accountNo->ascending()])
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSLocal_Core_accountAccount_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"institutionId":"INST-DE","accountNo":"0001","status":"OPEN","accountKey":"INST-DE/0001"},{"institutionId":"INST-GB","accountNo":"0001","status":"OPEN","accountKey":"INST-GB/0001"},{"institutionId":"INST-GB","accountNo":"0002","status":"OPEN","accountKey":"INST-GB/0002"},{"institutionId":"INST-GB","accountNo":"0003","status":"CLOSED","accountKey":"INST-GB/0003"}]';
                   }#;
               }#
           ]
@@ -274901,243 +275419,6 @@ Service stress::DSLocal_DefaultFund
                   #{
                     contentType: 'application/json';
                     data: '[{"fundId":"DF-0001","currency":"USD"},{"fundId":"DF-0003","currency":"EUR"},{"fundId":"DF-0004","currency":"USD"},{"fundId":"DF-0005","currency":"JPY"}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::DSLocal_AccountIdentifier
-{
-    pattern: '/stress/dslocal_accountidentifier';
-    documentation: 'A filter, a computed column, a composite sort and a limit stacked on core_account::AccountIdentifier -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
-    execution: Single
-    {
-    query: |core_account::AccountIdentifier.all()
-        ->filter({x|($x.identifierValue > ' ')})
-        ->project(~[
-            institutionId:x|$x.institutionId,
-            accountNo:x|$x.accountNo,
-            scheme:x|$x.scheme,
-            identifierValue:x|$x.identifierValue
-        ])
-        ->sort([~institutionId->ascending(), ~accountNo->ascending(), ~scheme->ascending()])
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    DSLocal_AccountIdentifier_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"institutionId":"INST-DE","accountNo":"0001","scheme":"IBAN","identifierValue":"DE89370400440532013000"},{"institutionId":"INST-GB","accountNo":"0001","scheme":"IBAN","identifierValue":"GB29NWBK60161331926819"},{"institutionId":"INST-GB","accountNo":"0001","scheme":"SORTCODE","identifierValue":"60-16-13"},{"institutionId":"INST-GB","accountNo":"0002","scheme":"IBAN","identifierValue":"GB94BARC10201530093459"}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::DSLocal_AccountMandate
-{
-    pattern: '/stress/dslocal_accountmandate';
-    documentation: 'A filter, a computed column, a composite sort and a limit stacked on core_account::AccountMandate -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
-    execution: Single
-    {
-    query: |core_account::AccountMandate.all()
-        ->filter({x|($x.role > ' ')})
-        ->project(~[
-            institutionId:x|$x.institutionId,
-            accountNo:x|$x.accountNo,
-            mandateSeq:x|$x.mandateSeq,
-            role:x|$x.role
-        ])
-        ->sort([~institutionId->ascending(), ~accountNo->ascending(), ~mandateSeq->ascending()])
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    DSLocal_AccountMandate_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"institutionId":"INST-DE","accountNo":"0001","mandateSeq":1,"role":"SIGNATORY"},{"institutionId":"INST-GB","accountNo":"0001","mandateSeq":1,"role":"SIGNATORY"},{"institutionId":"INST-GB","accountNo":"0001","mandateSeq":2,"role":"VIEWER"}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::DSLocal_AccountRestriction
-{
-    pattern: '/stress/dslocal_accountrestriction';
-    documentation: 'A filter, a computed column, a composite sort and a limit stacked on core_account::AccountRestriction -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
-    execution: Single
-    {
-    query: |core_account::AccountRestriction.all()
-        ->filter({x|($x.imposedBy > ' ')})
-        ->project(~[
-            institutionId:x|$x.institutionId,
-            accountNo:x|$x.accountNo,
-            restrictionCode:x|$x.restrictionCode,
-            imposedBy:x|$x.imposedBy,
-            isActive:x|$x.isActive
-        ])
-        ->sort([~institutionId->ascending(), ~accountNo->ascending(), ~restrictionCode->ascending()])
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    DSLocal_AccountRestriction_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"institutionId":"INST-GB","accountNo":"0002","restrictionCode":"REVIEW","imposedBy":"kyc.team","isActive":false},{"institutionId":"INST-GB","accountNo":"0003","restrictionCode":"NO_DEBIT","imposedBy":"ops.batch","isActive":true}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::DSLocal_AccountStatusEvent
-{
-    pattern: '/stress/dslocal_accountstatusevent';
-    documentation: 'A filter, a computed column, a composite sort and a limit stacked on core_account::AccountStatusEvent -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
-    execution: Single
-    {
-    query: |core_account::AccountStatusEvent.all()
-        ->filter({x|($x.status > ' ')})
-        ->project(~[
-            institutionId:x|$x.institutionId,
-            accountNo:x|$x.accountNo,
-            effectiveFrom:x|$x.effectiveFrom,
-            status:x|$x.status
-        ])
-        ->sort([~institutionId->ascending(), ~accountNo->ascending(), ~effectiveFrom->ascending()])
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    DSLocal_AccountStatusEvent_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"institutionId":"INST-DE","accountNo":"0001","effectiveFrom":"2015-01-12","status":"OPEN"},{"institutionId":"INST-GB","accountNo":"0001","effectiveFrom":"2018-04-03","status":"OPEN"},{"institutionId":"INST-GB","accountNo":"0003","effectiveFrom":"2009-03-02","status":"OPEN"},{"institutionId":"INST-GB","accountNo":"0003","effectiveFrom":"2023-11-30","status":"CLOSED"}]';
                   }#;
               }#
           ]
@@ -279402,65 +279683,6 @@ Service stress::DSLocal_CollateralHolding
                   #{
                     contentType: 'application/json';
                     data: '[{"holdingId":"COL-00001","currency":"USD","collateralValue":2487500.0},{"holdingId":"COL-00002","currency":"EUR","collateralValue":2715625.0},{"holdingId":"COL-00004","currency":"USD","collateralValue":3160625.0},{"holdingId":"COL-00005","currency":"EUR","collateralValue":3377500.0},{"holdingId":"COL-00007","currency":"USD","collateralValue":3800000.0},{"holdingId":"COL-00008","currency":"EUR","collateralValue":4005625.0},{"holdingId":"COL-00010","currency":"USD","collateralValue":4405625.0},{"holdingId":"COL-00011","currency":"EUR","collateralValue":4600000.0},{"holdingId":"COL-00013","currency":"USD","collateralValue":4977500.0},{"holdingId":"COL-00014","currency":"EUR","collateralValue":5160625.0},{"holdingId":"COL-00016","currency":"USD","collateralValue":5515625.0},{"holdingId":"COL-00017","currency":"EUR","collateralValue":5687500.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::DSLocal_Core_accountAccount
-{
-    pattern: '/stress/dslocal_core_accountaccount';
-    documentation: 'A filter, a computed column, a composite sort and a limit stacked on core_account::Account -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
-    execution: Single
-    {
-    query: |core_account::Account.all()
-        ->filter({x|($x.status > ' ')})
-        ->project(~[
-            institutionId:x|$x.institutionId,
-            accountNo:x|$x.accountNo,
-            status:x|$x.status,
-            accountKey:x|$x.accountKey
-        ])
-        ->sort([~institutionId->ascending(), ~accountNo->ascending()])
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    DSLocal_Core_accountAccount_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"institutionId":"INST-DE","accountNo":"0001","status":"OPEN","accountKey":"INST-DE/0001"},{"institutionId":"INST-GB","accountNo":"0001","status":"OPEN","accountKey":"INST-GB/0001"},{"institutionId":"INST-GB","accountNo":"0002","status":"OPEN","accountKey":"INST-GB/0002"},{"institutionId":"INST-GB","accountNo":"0003","status":"CLOSED","accountKey":"INST-GB/0003"}]';
                   }#;
               }#
           ]
