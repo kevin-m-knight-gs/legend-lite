@@ -78,7 +78,10 @@ class ChannelBGrammarTest {
         // __id compare / key-tree canon) on the identity lane; BOTH
         // land as B-FIXES-A (channel A excludes them — identity was
         // unobservable on its value wire; ours carries it as data).
-        assertTrue(c.pass() >= 132, "grammar PASS fell: " + c.pass());
+        // 133 (2026-08-23 F13b(a)): testMapRelationshipFromManyToMany
+        // ERROR -> PASS (B-FIXES-A) — to-many property nav over a
+        // collection now FLATTENS (pure collections never nest).
+        assertTrue(c.pass() >= 133, "grammar PASS fell: " + c.pass());
         assertTrue(c.wireBug() <= 1,
                 "grammar WIRE-BUG census grew: " + c.wireBug());
         assertTrue(c.trueWireBug() == 0,
@@ -117,10 +120,12 @@ class ChannelBGrammarTest {
         // (2026-08-23: letFn burned by the Any-root FIX-EMITTER —
         // scalarRoot boxes a judged-concrete non-JSON expr under an
         // Any/JSON label with TO_VARIANT; Bottom/Unknown never guess).
-        // Residue: map struct-array (F13b(a) array-identity canon),
-        // mixedSort Number-stamp (kind-tagged carrier) — named in
-        // OPEN_REGISTER F10/F13b.
-        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 3,
+        // 3 -> 2 (2026-08-23 F13b(a)): map burned — the decline was a
+        // SYMPTOM of a semantics bug (to-many property nav over a
+        // collection UNNESTed one level; now FLATTENS) and the test
+        // itself went ERROR -> PASS. Residue: mixedSort Number-stamp
+        // (kind-tagged carrier; engine-frontier) — OPEN_REGISTER F10.
+        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 2,
                 "byte-verdict declines grew past the declared residue: "
                         + com.legend.exec.CanonicalDivergence.summary());
         // CONTRACT PROGRAM wire ratchets (adjudicated 2026-08-23,

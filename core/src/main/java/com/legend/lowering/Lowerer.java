@@ -2462,11 +2462,24 @@ public final class Lowerer {
             case TypedPropertyAccess p when classLayout.apply(p.source().info().type()).isPresent()
                     && isMany(p.source()) -> {
                 String elem = "_pa" + aliasCounter++;
-                yield SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
+                SqlExpr mapped = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
                         scalar(p.source(), columns),
                         new SqlExpr.Lambda(List.of(elem),
                                 new SqlExpr.StructGet(
                                         new SqlExpr.Column(null, elem), p.property())));
+                // a TO-MANY property nests one list per source element,
+                // but pure collections never nest ([$p1,$p2].locations
+                // is the FLAT union): FLATTEN, whose NULL/empty-inner
+                // drop IS pure's empty-drop. The MODEL's declared
+                // property multiplicity decides.
+                boolean manyProp = classLayout
+                        .apply(p.source().info().type()).orElseThrow()
+                        .stream()
+                        .anyMatch(c -> c.name().equals(p.property())
+                                && c.multiplicity().isMany());
+                yield manyProp
+                        ? SqlExpr.Call.of(SqlFn.LIST_FLATTEN, mapped)
+                        : mapped;
             }
             case TypedPropertyAccess p when classLayout.apply(p.source().info().type()).isPresent()
                     -> new SqlExpr.StructGet(scalar(p.source(), columns), p.property());

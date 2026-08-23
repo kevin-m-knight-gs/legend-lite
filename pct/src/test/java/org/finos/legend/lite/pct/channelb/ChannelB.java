@@ -153,9 +153,18 @@ public final class ChannelB {
             }
             scopePrefixes.add(prefix);
         }
+        // SCOPED DEBUG RUNS (the rcorpus.only idiom): -Dchb.only=<substr>
+        // filters by test FQN. A scoped run trivially satisfies the
+        // cumulative pins (fewer declines than the ceiling) and never
+        // writes a scoreboard — the gate configuration is always the
+        // unscoped suite.
+        String only = System.getProperty("chb.only");
         List<Outcome> out = new ArrayList<>();
         for (var el : module.model().elements()) {
             if (!(el instanceof FunctionDefinition fd) || !isPctTest(fd)) {
+                continue;
+            }
+            if (only != null && !fd.qualifiedName().contains(only)) {
                 continue;
             }
             String src = module.model().elementSources()

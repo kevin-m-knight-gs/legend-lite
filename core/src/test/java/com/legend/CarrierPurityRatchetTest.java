@@ -115,7 +115,14 @@ class   CarrierPurityRatchetTest {
             // Verdict-lane only, same family and F3/F10 migration note
             // as the instanceCanon/mapCanon rows above; absorbed when
             // the canon family moves behind its semantic node.
-            "SqlFn\\.LIST_", 133,
+            // 133→134 (2026-08-23 F13b(a)): the property-nav FLATTEN —
+            // pure's auto-map over a collection FLATTENS a to-many
+            // property ([$p1,$p2].locations is the flat union; the
+            // model's declared multiplicity decides, never a shape
+            // guess). Sits in the SAME arm as the pre-existing
+            // property-nav LIST_TRANSFORM; both absorb together when
+            // property navigation moves behind its semantic node.
+            "SqlFn\\.LIST_", 134,
             "SqlFn\\.UNNEST", 12,
             // the collect-carrier reducer (R1 recognizes it for fusion;
             // burns with R3/R4 when sources/values migrate)
