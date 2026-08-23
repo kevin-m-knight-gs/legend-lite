@@ -815,6 +815,12 @@ def _exact_addsub(op, a, b):
     import flat
     if isinstance(a, flat.F32) or isinstance(b, flat.F32):
         return flat.F32(plain(float(a), float(b)))
+    # An 8-byte DOUBLE column computes in BINARY, not decimal. This is the extension the
+    # docstring above anticipated, arrived at the way it asked for: a subtraction disagreed.
+    # `1.0710 - 1.0708` over two DOUBLE columns is 0.00019999999999997797 from the engine
+    # and 0.0002 from exact decimal. DECIMAL columns are untouched and still exact.
+    if isinstance(a, flat.F64) or isinstance(b, flat.F64):
+        return flat.F64(plain(float(a), float(b)))
     if op == "*" and (isinstance(a, _Dbl) or isinstance(b, _Dbl)):
         return _Dbl(plain(a, b))
     if isinstance(a, bool) or isinstance(b, bool):

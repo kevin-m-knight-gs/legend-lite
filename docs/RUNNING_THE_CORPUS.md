@@ -57,12 +57,13 @@ mapping the runtime cannot resolve, a duplicate set id, a seeded value too wide 
 column, a service that sorts on an unprojected alias. It prints them all and writes nothing
 if any fires. A clean build ends with `wrote` or `no changes`.
 
-`run.py` takes about **35 minutes** and `build.py` about **6**, so a full cycle is roughly
-three quarters of an hour. It batches the services across several JVMs, because a single
+`run.py` takes about **an hour** at 4290 testables and `build.py` about **10 minutes**. Those
+follow from the measured costs below -- roughly 0.6s per service plus 9s per JVM -- rather
+than from a fresh stopwatch, so treat them as the right order rather than to the minute. It batches the services across several JVMs, because a single
 process stops working somewhere past ~170 testables. Its last line is the summary:
 
 ```
-2227 passed, 30 known-fail (quarantined), 1 not run (hangs), 0 unexpected, 2258 total
+4261 passed, 28 known-fail (quarantined), 1 not run (hangs), 0 unexpected, 4290 total
 ```
 
 **`0 unexpected` is the only acceptable result.** The other numbers are allowed to move.
@@ -74,9 +75,12 @@ Measured on an idle machine, two runs of each, at ~2,290 testables and `BATCH = 
 
 | | | share |
 | --- | --- | --- |
-| per-service execution — 2,294 x 0.61s | ~23 min | 56% |
-| per-JVM fixed — 58 x (5.9s parse + 2.8s compile + 3.2s warm-up + start) | ~12 min | 30% |
+| per-service execution — 0.61s each | ~23 min at 2294 | 56% |
+| per-JVM fixed — 5.9s parse + 2.8s compile + 3.2s warm-up + start | ~12 min at 58 JVMs | 30% |
 | `build.py`, pure Python, even when it writes nothing | 6.4 min | 15% |
+
+Measured at 2294 testables and `BATCH = 40`. Both terms are linear, so at 4290 testables and
+108 JVMs the run roughly doubles.
 
 Compile is the SMALLEST piece, at about 7% -- which is worth stating because it is the
 obvious guess and it is wrong. Parse is twice compile here, the reverse of the project graph
@@ -193,6 +197,16 @@ Two things that a project brings and the corpus does not have, which cost a buil
   and **a qualified property whose body wraps**. The reader is line-based and folds both, but
   only because it RAISED rather than skipping them — an unparsed class has no properties, no
   mapping and no service, and nothing would have said so.
+- **arithmetic follows the COLUMN type, not the property type.** A `DECIMAL` column adds and
+  subtracts exactly -- `108.7500 - 107.9000` is `0.85` in the database and
+  `0.8499999999999943` in binary -- while a `DOUBLE` column computes in binary and a 4-byte
+  `FLOAT` computes narrowed. The oracle carries a tag per width (`flat.F32`, `flat.F64`);
+  a value that loses its tag silently gets the wrong arithmetic.
+- **a graphFetch ENFORCES multiplicity where a projection does not.** A `[1]` property whose
+  column holds a NULL returns the null happily in a TDS projection and fails a tree with
+  "Property of multiplicity [1] can not be null". The seed nulls every nullable column on
+  purpose, so a generator building trees has to CHOOSE a null-free leaf rather than take the
+  first one and reject the tree.
 - **a decimal column.** Seed it with a FLOAT, not a quoted string. The emitter writes
   `repr()` and the oracle's exact-decimal path goes through `Decimal(str(v))`, so every digit
   survives either way -- but a string is COMPARED as a string, and

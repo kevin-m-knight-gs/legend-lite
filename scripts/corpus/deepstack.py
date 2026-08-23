@@ -92,7 +92,8 @@ def _enum_typed(c: model.Corpus, cls: str, prop: str) -> bool:
     return (cls, prop) in c.enum_props
 
 
-def _scalar_leaf(c: model.Corpus, cls: str, kind: str, skip: set[str] | None = None):
+def _scalar_leaf(c: model.Corpus, cls: str, kind: str, skip: set[str] | None = None,
+                 ok=None):
     """A locally-declared scalar property of `cls`, preferring a labelled one.
 
     Enum-typed properties are excluded whatever their column says: an enum over a CHAR(3)
@@ -124,6 +125,12 @@ def _scalar_leaf(c: model.Corpus, cls: str, kind: str, skip: set[str] | None = N
         # To-ONE only. A `[*]` scalar projects and filters as a LIST, and comparing a list
         # with ' ' is not a predicate.
         if pr.upper is None or pr.upper > 1:
+            continue
+        # `ok` lets a caller keep SEARCHING rather than take the first match and give up.
+        # The tree variant needs a leaf that is null-free, and rejecting the first candidate
+        # outright cost 367 of 400 trees; asking for the first candidate that qualifies
+        # costs none of them.
+        if ok is not None and not ok(prop):
             continue
         if prop.lower() in stacks._LABELLISH:
             return prop
@@ -180,6 +187,24 @@ def _arg_for(p) -> object:
     """A literal for a qualified property's parameter, by its declared type."""
     t = getattr(p, "type", None) or (p[1] if isinstance(p, (tuple, list)) else "String")
     return {"Float": 2.5, "Integer": 2, "Boolean": True}.get(t, "'X'")
+
+
+def _null_free(c: model.Corpus, cls: str, prop: str, tables) -> bool:
+    """Is `prop` safe to put in a graphFetch TREE?
+
+    A tree ENFORCES multiplicity -- "Property of multiplicity [1] can not be null" -- where
+    a TDS projection of the same column returns the null happily. The corpus seeds a NULL
+    into every nullable column on purpose, so a `[1]` property over one of those is a
+    disagreement between the model and the data, and a tree over it tests that disagreement
+    rather than graph fetch. graphs.py excludes them for the same reason; DSTree did not,
+    and 13 of its 400 services errored on exactly this.
+    """
+    d = c.classes[cls].props.get(prop) if cls in c.classes else None
+    col = c.columns.get(cls, {}).get(prop)
+    tbl = c.main_table.get(cls, "")
+    if d is None or d.lower < 1 or col is None or tables is None:
+        return True
+    return not any(r.get(col) is None for r in tables.get(tbl, []))
 
 
 def build(c: model.Corpus, seeded: set[str], tables=None) -> list[Spec]:
@@ -381,9 +406,13 @@ def build(c: model.Corpus, seeded: set[str], tables=None) -> list[Spec]:
                 break
             hop_cls = end.target
         if ok and len(path0) >= 2:
-            leafname = _scalar_leaf(c, tgt0, "string") or _scalar_leaf(c, tgt0, "int")
+            free = lambda pr: _null_free(c, tgt0, pr, tables)
+            leafname = (_scalar_leaf(c, tgt0, "string", ok=free)
+                        or _scalar_leaf(c, tgt0, "int", ok=free))
             leafid = stacks._identifier(c, tgt0)
-            if leafname:
+            if leafid and not _null_free(c, tgt0, leafid, tables):
+                leafid = None
+            if leafname and all(_null_free(c, root, a, tables) for a in idents):
                 tree, node = {ident: None}, None
                 cur = tree
                 for hop in path0:

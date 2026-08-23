@@ -132176,7 +132176,6 @@ Service stress::DSTree_SalesCredit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -132196,7 +132195,6 @@ Service stress::DSTree_SalesCredit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -134673,7 +134671,6 @@ Service stress::DSTree_DailyPnL
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -134693,7 +134690,6 @@ Service stress::DSTree_DailyPnL
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -136327,7 +136323,6 @@ Service stress::DSTree_Greeks
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -136347,7 +136342,6 @@ Service stress::DSTree_Greeks
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -136387,7 +136381,7 @@ Service stress::DSTree_Greeks
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"greeksId":"GRK-0001","position":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"greeksId":"GRK-0002","position":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"greeksId":"GRK-0003","position":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"greeksId":"GRK-0004","position":null}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"greeksId":"GRK-0001","position":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"greeksId":"GRK-0002","position":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"greeksId":"GRK-0003","position":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"greeksId":"GRK-0004","position":null}]}';
                   }#;
               }#
           ]
@@ -137243,7 +137237,6 @@ Service stress::DSTree_Position
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -137263,7 +137256,6 @@ Service stress::DSTree_Position
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -137572,7 +137564,6 @@ Service stress::DSTree_PnlAccrualEntry
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -137592,7 +137583,6 @@ Service stress::DSTree_PnlAccrualEntry
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -137632,7 +137622,7 @@ Service stress::DSTree_PnlAccrualEntry
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"accrualId":"AE-0001","dailyPnL":null},{"accrualId":"AE-0002","dailyPnL":null},{"accrualId":"AE-0003","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"accrualId":"AE-0004","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"accrualId":"AE-0005","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"accrualId":"AE-0001","dailyPnL":null},{"accrualId":"AE-0002","dailyPnL":null},{"accrualId":"AE-0003","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"accrualId":"AE-0004","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"accrualId":"AE-0005","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}}]}';
                   }#;
               }#
           ]
@@ -137837,7 +137827,6 @@ Service stress::DSTree_HypotheticalPnL
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -137857,7 +137846,6 @@ Service stress::DSTree_HypotheticalPnL
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -137897,7 +137885,7 @@ Service stress::DSTree_HypotheticalPnL
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"hypotheticalId":"HPL-0001","dailyPnL":null},{"hypotheticalId":"HPL-0002","dailyPnL":null},{"hypotheticalId":"HPL-0003","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"hypotheticalId":"HPL-0004","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"hypotheticalId":"HPL-0005","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"hypotheticalId":"HPL-0001","dailyPnL":null},{"hypotheticalId":"HPL-0002","dailyPnL":null},{"hypotheticalId":"HPL-0003","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"hypotheticalId":"HPL-0004","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"hypotheticalId":"HPL-0005","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}}]}';
                   }#;
               }#
           ]
@@ -138102,7 +138090,6 @@ Service stress::DSTree_PnLAdjustment
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -138122,7 +138109,6 @@ Service stress::DSTree_PnLAdjustment
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -138162,7 +138148,7 @@ Service stress::DSTree_PnLAdjustment
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"adjustmentId":"PL-0001","dailyPnL":null},{"adjustmentId":"PL-0002","dailyPnL":null},{"adjustmentId":"PL-0003","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"adjustmentId":"PL-0004","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"adjustmentId":"PL-0005","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"adjustmentId":"PL-0001","dailyPnL":null},{"adjustmentId":"PL-0002","dailyPnL":null},{"adjustmentId":"PL-0003","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"adjustmentId":"PL-0004","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"adjustmentId":"PL-0005","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}}]}';
                   }#;
               }#
           ]
@@ -138431,7 +138417,6 @@ Service stress::DSTree_PnLAttribution
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -138451,7 +138436,6 @@ Service stress::DSTree_PnLAttribution
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -138491,7 +138475,7 @@ Service stress::DSTree_PnLAttribution
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"attributionId":"PL-0001","dailyPnL":null},{"attributionId":"PL-0002","dailyPnL":null},{"attributionId":"PL-0003","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"attributionId":"PL-0004","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"attributionId":"PL-0005","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"attributionId":"PL-0001","dailyPnL":null},{"attributionId":"PL-0002","dailyPnL":null},{"attributionId":"PL-0003","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"attributionId":"PL-0004","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"attributionId":"PL-0005","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}}]}';
                   }#;
               }#
           ]
@@ -138696,7 +138680,6 @@ Service stress::DSTree_PnLExplain
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -138716,7 +138699,6 @@ Service stress::DSTree_PnLExplain
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -138756,7 +138738,7 @@ Service stress::DSTree_PnLExplain
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"explainId":"PL-0001","dailyPnL":null},{"explainId":"PL-0002","dailyPnL":null},{"explainId":"PL-0003","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"explainId":"PL-0004","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"explainId":"PL-0005","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"explainId":"PL-0001","dailyPnL":null},{"explainId":"PL-0002","dailyPnL":null},{"explainId":"PL-0003","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"explainId":"PL-0004","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"explainId":"PL-0005","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}}]}';
                   }#;
               }#
           ]
@@ -138961,7 +138943,6 @@ Service stress::DSTree_RevenueAllocation
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -138981,7 +138962,6 @@ Service stress::DSTree_RevenueAllocation
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -139021,7 +139001,7 @@ Service stress::DSTree_RevenueAllocation
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"allocationId":"RA-0001","dailyPnL":null},{"allocationId":"RA-0002","dailyPnL":null},{"allocationId":"RA-0003","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"allocationId":"RA-0004","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"allocationId":"RA-0005","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"allocationId":"RA-0001","dailyPnL":null},{"allocationId":"RA-0002","dailyPnL":null},{"allocationId":"RA-0003","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"allocationId":"RA-0004","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"allocationId":"RA-0005","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}}]}';
                   }#;
               }#
           ]
@@ -139226,7 +139206,6 @@ Service stress::DSTree_PnlValuationAdjustment
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -139246,7 +139225,6 @@ Service stress::DSTree_PnlValuationAdjustment
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -139286,7 +139264,7 @@ Service stress::DSTree_PnlValuationAdjustment
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"adjustmentId":"VA-0001","dailyPnL":null},{"adjustmentId":"VA-0002","dailyPnL":null},{"adjustmentId":"VA-0003","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"adjustmentId":"VA-0004","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"adjustmentId":"VA-0005","dailyPnL":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"adjustmentId":"VA-0001","dailyPnL":null},{"adjustmentId":"VA-0002","dailyPnL":null},{"adjustmentId":"VA-0003","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"adjustmentId":"VA-0004","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"adjustmentId":"VA-0005","dailyPnL":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}}]}';
                   }#;
               }#
           ]
@@ -139555,7 +139533,6 @@ Service stress::DSTree_LotPosition
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -139575,7 +139552,6 @@ Service stress::DSTree_LotPosition
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -139615,7 +139591,7 @@ Service stress::DSTree_LotPosition
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"lotId":"LP-0001","position":null},{"lotId":"LP-0002","position":null},{"lotId":"LP-0003","position":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"lotId":"LP-0004","position":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"lotId":"LP-0005","position":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"lotId":"LP-0001","position":null},{"lotId":"LP-0002","position":null},{"lotId":"LP-0003","position":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"lotId":"LP-0004","position":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"lotId":"LP-0005","position":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}}]}';
                   }#;
               }#
           ]
@@ -139884,7 +139860,6 @@ Service stress::DSTree_PositionBreak
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -139904,7 +139879,6 @@ Service stress::DSTree_PositionBreak
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -139944,7 +139918,7 @@ Service stress::DSTree_PositionBreak
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"breakId":"PB-0001","position":null},{"breakId":"PB-0002","position":null},{"breakId":"PB-0003","position":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"breakId":"PB-0004","position":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"breakId":"PB-0005","position":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"breakId":"PB-0001","position":null},{"breakId":"PB-0002","position":null},{"breakId":"PB-0003","position":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"breakId":"PB-0004","position":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"breakId":"PB-0005","position":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}}]}';
                   }#;
               }#
           ]
@@ -140213,7 +140187,6 @@ Service stress::DSTree_PositionSnapshot
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -140233,7 +140206,6 @@ Service stress::DSTree_PositionSnapshot
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -140273,7 +140245,7 @@ Service stress::DSTree_PositionSnapshot
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"snapshotId":"PS-0001","position":null},{"snapshotId":"PS-0002","position":null},{"snapshotId":"PS-0003","position":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"snapshotId":"PS-0004","position":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"snapshotId":"PS-0005","position":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"snapshotId":"PS-0001","position":null},{"snapshotId":"PS-0002","position":null},{"snapshotId":"PS-0003","position":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"snapshotId":"PS-0004","position":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"snapshotId":"PS-0005","position":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}}]}';
                   }#;
               }#
           ]
@@ -140478,7 +140450,6 @@ Service stress::DSTree_PositionsReconciliationItem
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -140498,7 +140469,6 @@ Service stress::DSTree_PositionsReconciliationItem
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -140538,7 +140508,7 @@ Service stress::DSTree_PositionsReconciliationItem
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"reconId":"RI-0001","position":null},{"reconId":"RI-0002","position":null},{"reconId":"RI-0003","position":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"reconId":"RI-0004","position":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"reconId":"RI-0005","position":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"reconId":"RI-0001","position":null},{"reconId":"RI-0002","position":null},{"reconId":"RI-0003","position":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"reconId":"RI-0004","position":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"reconId":"RI-0005","position":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}}]}';
                   }#;
               }#
           ]
@@ -140743,7 +140713,6 @@ Service stress::DSTree_TaxLot
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -140763,7 +140732,6 @@ Service stress::DSTree_TaxLot
         {
           businessUnit
           {
-            name,
             buId
           }
         }
@@ -140803,7 +140771,7 @@ Service stress::DSTree_TaxLot
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"lotId":"TL-0001","position":null},{"lotId":"TL-0002","position":null},{"lotId":"TL-0003","position":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"lotId":"TL-0004","position":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}},{"lotId":"TL-0005","position":{"book":{"desk":{"businessUnit":{"name":null,"buId":"BU-EQ"}}}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"lotId":"TL-0001","position":null},{"lotId":"TL-0002","position":null},{"lotId":"TL-0003","position":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"lotId":"TL-0004","position":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}},{"lotId":"TL-0005","position":{"book":{"desk":{"businessUnit":{"buId":"BU-EQ"}}}}}]}';
                   }#;
               }#
           ]
@@ -141008,7 +140976,7 @@ Service stress::DSTree_Trader
         {
           region
           {
-            name,
+            description,
             regionId
           }
         }
@@ -141028,7 +140996,7 @@ Service stress::DSTree_Trader
         {
           region
           {
-            name,
+            description,
             regionId
           }
         }
@@ -141600,7 +141568,7 @@ Service stress::DSTree_Book
         {
           region
           {
-            name,
+            description,
             regionId
           }
         }
@@ -141620,7 +141588,7 @@ Service stress::DSTree_Book
         {
           region
           {
-            name,
+            description,
             regionId
           }
         }
@@ -142137,7 +142105,6 @@ Service stress::DSTree_AgencyMortgageBackedEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -142157,7 +142124,6 @@ Service stress::DSTree_AgencyMortgageBackedEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -142404,7 +142370,6 @@ Service stress::DSTree_AssetClassCap
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -142424,7 +142389,6 @@ Service stress::DSTree_AssetClassCap
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -142671,7 +142635,6 @@ Service stress::DSTree_CashEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -142691,7 +142654,6 @@ Service stress::DSTree_CashEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -143054,7 +143016,6 @@ Service stress::DSTree_CollateralScheduleItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -143074,7 +143035,6 @@ Service stress::DSTree_CollateralScheduleItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -143262,7 +143222,6 @@ Service stress::DSTree_CorporateHighYieldEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -143282,7 +143241,6 @@ Service stress::DSTree_CorporateHighYieldEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -143529,7 +143487,6 @@ Service stress::DSTree_CorporateInvestmentGradeEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -143549,7 +143506,6 @@ Service stress::DSTree_CorporateInvestmentGradeEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -143796,7 +143752,6 @@ Service stress::DSTree_CurrencyMismatchHaircut
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -143816,7 +143771,6 @@ Service stress::DSTree_CurrencyMismatchHaircut
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -144063,7 +144017,6 @@ Service stress::DSTree_EtfEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -144083,7 +144036,6 @@ Service stress::DSTree_EtfEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -144330,7 +144282,6 @@ Service stress::DSTree_GoldEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -144350,7 +144301,6 @@ Service stress::DSTree_GoldEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -144597,7 +144547,6 @@ Service stress::DSTree_IssuerConcentrationCap
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -144617,7 +144566,6 @@ Service stress::DSTree_IssuerConcentrationCap
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -144864,7 +144812,6 @@ Service stress::DSTree_MainIndexEquityEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -144884,7 +144831,6 @@ Service stress::DSTree_MainIndexEquityEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -145131,7 +145077,6 @@ Service stress::DSTree_MoneyMarketFundEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -145151,7 +145096,6 @@ Service stress::DSTree_MoneyMarketFundEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -145398,7 +145342,6 @@ Service stress::DSTree_ScheduleAmendment
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -145418,7 +145361,6 @@ Service stress::DSTree_ScheduleAmendment
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -145665,7 +145607,6 @@ Service stress::DSTree_SovereignAaaEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -145685,7 +145626,6 @@ Service stress::DSTree_SovereignAaaEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -145932,7 +145872,6 @@ Service stress::DSTree_SovereignSubInvestmentGrade
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -145952,7 +145891,6 @@ Service stress::DSTree_SovereignSubInvestmentGrade
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -146199,7 +146137,6 @@ Service stress::DSTree_SupranationalEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -146219,7 +146156,6 @@ Service stress::DSTree_SupranationalEligible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -146466,7 +146402,6 @@ Service stress::DSTree_WrongWayCollateralExclusion
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -146486,7 +146421,6 @@ Service stress::DSTree_WrongWayCollateralExclusion
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -146733,7 +146667,6 @@ Service stress::DSTree_AdviserPortalChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -146753,7 +146686,6 @@ Service stress::DSTree_AdviserPortalChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -147000,7 +146932,6 @@ Service stress::DSTree_AggregatorFeedChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -147020,7 +146951,6 @@ Service stress::DSTree_AggregatorFeedChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -147267,7 +147197,6 @@ Service stress::DSTree_BinaryProtocolChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -147287,7 +147216,6 @@ Service stress::DSTree_BinaryProtocolChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -147534,7 +147462,6 @@ Service stress::DSTree_ChatNegotiationChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -147554,7 +147481,6 @@ Service stress::DSTree_ChatNegotiationChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -147801,7 +147727,6 @@ Service stress::DSTree_DeprecatedChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -147821,7 +147746,6 @@ Service stress::DSTree_DeprecatedChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -148184,7 +148108,6 @@ Service stress::DSTree_DistributionChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -148204,7 +148127,6 @@ Service stress::DSTree_DistributionChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -148392,7 +148314,6 @@ Service stress::DSTree_EmailIndicationChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -148412,7 +148333,6 @@ Service stress::DSTree_EmailIndicationChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -148659,7 +148579,6 @@ Service stress::DSTree_FileTransferChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -148679,7 +148598,6 @@ Service stress::DSTree_FileTransferChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -148926,7 +148844,6 @@ Service stress::DSTree_FixSessionChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -148946,7 +148863,6 @@ Service stress::DSTree_FixSessionChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -149193,7 +149109,6 @@ Service stress::DSTree_MobileAppChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -149213,7 +149128,6 @@ Service stress::DSTree_MobileAppChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -149460,7 +149374,6 @@ Service stress::DSTree_MultiDealerPlatform
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -149480,7 +149393,6 @@ Service stress::DSTree_MultiDealerPlatform
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -149727,7 +149639,6 @@ Service stress::DSTree_RestApiChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -149747,7 +149658,6 @@ Service stress::DSTree_RestApiChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -149994,7 +149904,6 @@ Service stress::DSTree_SandboxChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -150014,7 +149923,6 @@ Service stress::DSTree_SandboxChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -150261,7 +150169,6 @@ Service stress::DSTree_SingleDealerPlatform
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -150281,7 +150188,6 @@ Service stress::DSTree_SingleDealerPlatform
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -150528,7 +150434,6 @@ Service stress::DSTree_StreamingChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -150548,7 +150453,6 @@ Service stress::DSTree_StreamingChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -150795,7 +150699,6 @@ Service stress::DSTree_VoiceTradeChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -150815,7 +150718,6 @@ Service stress::DSTree_VoiceTradeChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -151062,7 +150964,6 @@ Service stress::DSTree_WhiteLabelChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -151082,7 +150983,6 @@ Service stress::DSTree_WhiteLabelChannel
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -151329,7 +151229,6 @@ Service stress::DSTree_AppetiteBreachEscalation
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -151349,7 +151248,6 @@ Service stress::DSTree_AppetiteBreachEscalation
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -151596,7 +151494,6 @@ Service stress::DSTree_CommonEquityRatioTarget
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -151616,7 +151513,6 @@ Service stress::DSTree_CommonEquityRatioTarget
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -151863,7 +151759,6 @@ Service stress::DSTree_ConductRiskTolerance
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -151883,7 +151778,6 @@ Service stress::DSTree_ConductRiskTolerance
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -152130,7 +152024,6 @@ Service stress::DSTree_CountryRiskLimit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -152150,7 +152043,6 @@ Service stress::DSTree_CountryRiskLimit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -152397,7 +152289,6 @@ Service stress::DSTree_EarlyWarningIndicator
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -152417,7 +152308,6 @@ Service stress::DSTree_EarlyWarningIndicator
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -152664,7 +152554,6 @@ Service stress::DSTree_EarningsVolatilityTolerance
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -152684,7 +152573,6 @@ Service stress::DSTree_EarningsVolatilityTolerance
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -152931,7 +152819,6 @@ Service stress::DSTree_ImpactToleranceThreshold
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -152951,7 +152838,6 @@ Service stress::DSTree_ImpactToleranceThreshold
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -153198,7 +153084,6 @@ Service stress::DSTree_LeverageRatioTarget
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -153218,7 +153103,6 @@ Service stress::DSTree_LeverageRatioTarget
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -153465,7 +153349,6 @@ Service stress::DSTree_LiquidityCoverageTarget
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -153485,7 +153368,6 @@ Service stress::DSTree_LiquidityCoverageTarget
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -153732,7 +153614,6 @@ Service stress::DSTree_OperationalLossTolerance
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -153752,7 +153633,6 @@ Service stress::DSTree_OperationalLossTolerance
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -154115,7 +153995,6 @@ Service stress::DSTree_RiskAppetiteMetric
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -154135,7 +154014,6 @@ Service stress::DSTree_RiskAppetiteMetric
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -154323,7 +154201,6 @@ Service stress::DSTree_SectorConcentrationLimit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -154343,7 +154220,6 @@ Service stress::DSTree_SectorConcentrationLimit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -154590,7 +154466,6 @@ Service stress::DSTree_SingleNameConcentrationLimit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -154610,7 +154485,6 @@ Service stress::DSTree_SingleNameConcentrationLimit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -154857,7 +154731,6 @@ Service stress::DSTree_StableFundingTarget
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -154877,7 +154750,6 @@ Service stress::DSTree_StableFundingTarget
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -155124,7 +154996,6 @@ Service stress::DSTree_StressLossLimit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -155144,7 +155015,6 @@ Service stress::DSTree_StressLossLimit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -155391,7 +155261,6 @@ Service stress::DSTree_TargetCreditRating
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -155411,7 +155280,6 @@ Service stress::DSTree_TargetCreditRating
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -155658,7 +155526,6 @@ Service stress::DSTree_ValueAtRiskLimit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -155678,7 +155545,6 @@ Service stress::DSTree_ValueAtRiskLimit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -156041,7 +155907,6 @@ Service stress::DSTree_AuditFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -156061,7 +155926,6 @@ Service stress::DSTree_AuditFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -156249,7 +156113,6 @@ Service stress::DSTree_ClosedUnverifiedFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -156269,7 +156132,6 @@ Service stress::DSTree_ClosedUnverifiedFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -156516,7 +156378,6 @@ Service stress::DSTree_ClosedVerifiedFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -156536,7 +156397,6 @@ Service stress::DSTree_ClosedVerifiedFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -156783,7 +156643,6 @@ Service stress::DSTree_ControlDesignDeficiency
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -156803,7 +156662,6 @@ Service stress::DSTree_ControlDesignDeficiency
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -157050,7 +156908,6 @@ Service stress::DSTree_ControlOperatingDeficiency
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -157070,7 +156927,6 @@ Service stress::DSTree_ControlOperatingDeficiency
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -157317,7 +157173,6 @@ Service stress::DSTree_CriticalFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -157337,7 +157192,6 @@ Service stress::DSTree_CriticalFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -157584,7 +157438,6 @@ Service stress::DSTree_DataQualityFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -157604,7 +157457,6 @@ Service stress::DSTree_DataQualityFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -157851,7 +157703,6 @@ Service stress::DSTree_ExtendedRemediationAction
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -157871,7 +157722,6 @@ Service stress::DSTree_ExtendedRemediationAction
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -158118,7 +157968,6 @@ Service stress::DSTree_HighRiskFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -158138,7 +157987,6 @@ Service stress::DSTree_HighRiskFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -158385,7 +158233,6 @@ Service stress::DSTree_LowRiskFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -158405,7 +158252,6 @@ Service stress::DSTree_LowRiskFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -158652,7 +158498,6 @@ Service stress::DSTree_MatterRequiringAttention
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -158672,7 +158517,6 @@ Service stress::DSTree_MatterRequiringAttention
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -158919,7 +158763,6 @@ Service stress::DSTree_MediumRiskFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -158939,7 +158782,6 @@ Service stress::DSTree_MediumRiskFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -159186,7 +159028,6 @@ Service stress::DSTree_OverdueRemediationAction
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -159206,7 +159047,6 @@ Service stress::DSTree_OverdueRemediationAction
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -159453,7 +159293,6 @@ Service stress::DSTree_RepeatFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -159473,7 +159312,6 @@ Service stress::DSTree_RepeatFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -159720,7 +159558,6 @@ Service stress::DSTree_RiskAcceptedFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -159740,7 +159577,6 @@ Service stress::DSTree_RiskAcceptedFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -159987,7 +159823,6 @@ Service stress::DSTree_SelfIdentifiedIssue
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -160007,7 +159842,6 @@ Service stress::DSTree_SelfIdentifiedIssue
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -160254,7 +160088,6 @@ Service stress::DSTree_ThematicReviewFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -160274,7 +160107,6 @@ Service stress::DSTree_ThematicReviewFinding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -160637,7 +160469,6 @@ Service stress::DSTree_BalanceSheetItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -160657,7 +160488,6 @@ Service stress::DSTree_BalanceSheetItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -160845,7 +160675,6 @@ Service stress::DSTree_CapitalisedSoftware
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -160865,7 +160694,6 @@ Service stress::DSTree_CapitalisedSoftware
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -161112,7 +160940,6 @@ Service stress::DSTree_CustomerDepositLiability
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -161132,7 +160959,6 @@ Service stress::DSTree_CustomerDepositLiability
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -161379,7 +161205,6 @@ Service stress::DSTree_DeferredTaxAsset
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -161399,7 +161224,6 @@ Service stress::DSTree_DeferredTaxAsset
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -161646,7 +161470,6 @@ Service stress::DSTree_DerivativeAsset
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -161666,7 +161489,6 @@ Service stress::DSTree_DerivativeAsset
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -161913,7 +161735,6 @@ Service stress::DSTree_DerivativeLiability
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -161933,7 +161754,6 @@ Service stress::DSTree_DerivativeLiability
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -162180,7 +162000,6 @@ Service stress::DSTree_GoodwillAsset
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -162200,7 +162019,6 @@ Service stress::DSTree_GoodwillAsset
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -162447,7 +162265,6 @@ Service stress::DSTree_HighQualityLiquidAssetLevel1
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -162467,7 +162284,6 @@ Service stress::DSTree_HighQualityLiquidAssetLevel1
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -162714,7 +162530,6 @@ Service stress::DSTree_HighQualityLiquidAssetLevel2a
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -162734,7 +162549,6 @@ Service stress::DSTree_HighQualityLiquidAssetLevel2a
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -162981,7 +162795,6 @@ Service stress::DSTree_LitigationProvision
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -163001,7 +162814,6 @@ Service stress::DSTree_LitigationProvision
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -163248,7 +163060,6 @@ Service stress::DSTree_LoansAtAmortisedCost
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -163268,7 +163079,6 @@ Service stress::DSTree_LoansAtAmortisedCost
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -163515,7 +163325,6 @@ Service stress::DSTree_LoansAtFvoci
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -163535,7 +163344,6 @@ Service stress::DSTree_LoansAtFvoci
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -163782,7 +163590,6 @@ Service stress::DSTree_NonControllingInterest
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -163802,7 +163609,6 @@ Service stress::DSTree_NonControllingInterest
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -164049,7 +163855,6 @@ Service stress::DSTree_PensionSchemeSurplus
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -164069,7 +163874,6 @@ Service stress::DSTree_PensionSchemeSurplus
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -164316,7 +164120,6 @@ Service stress::DSTree_ReverseRepoAsset
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -164336,7 +164139,6 @@ Service stress::DSTree_ReverseRepoAsset
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -164583,7 +164385,6 @@ Service stress::DSTree_RightOfUseAsset
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -164603,7 +164404,6 @@ Service stress::DSTree_RightOfUseAsset
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -164850,7 +164650,6 @@ Service stress::DSTree_TradingAssets
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -164870,7 +164669,6 @@ Service stress::DSTree_TradingAssets
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -165117,7 +164915,6 @@ Service stress::DSTree_AssetFinanceAgreement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -165137,7 +164934,6 @@ Service stress::DSTree_AssetFinanceAgreement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -165500,7 +165296,6 @@ Service stress::DSTree_BankingProduct
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -165520,7 +165315,6 @@ Service stress::DSTree_BankingProduct
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -165708,7 +165502,6 @@ Service stress::DSTree_BuyToLetMortgage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -165728,7 +165521,6 @@ Service stress::DSTree_BuyToLetMortgage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -165975,7 +165767,6 @@ Service stress::DSTree_CommercialMortgage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -165995,7 +165786,6 @@ Service stress::DSTree_CommercialMortgage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -166242,7 +166032,6 @@ Service stress::DSTree_CreditCardFacility
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -166262,7 +166051,6 @@ Service stress::DSTree_CreditCardFacility
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -166509,7 +166297,6 @@ Service stress::DSTree_CurrentAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -166529,7 +166316,6 @@ Service stress::DSTree_CurrentAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -166776,7 +166562,6 @@ Service stress::DSTree_FixedRateMortgage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -166796,7 +166581,6 @@ Service stress::DSTree_FixedRateMortgage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -167043,7 +166827,6 @@ Service stress::DSTree_FixedTermDeposit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -167063,7 +166846,6 @@ Service stress::DSTree_FixedTermDeposit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -167310,7 +167092,6 @@ Service stress::DSTree_InstantAccessSavings
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -167330,7 +167111,6 @@ Service stress::DSTree_InstantAccessSavings
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -167577,7 +167357,6 @@ Service stress::DSTree_InvoiceFinanceFacility
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -167597,7 +167376,6 @@ Service stress::DSTree_InvoiceFinanceFacility
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -167844,7 +167622,6 @@ Service stress::DSTree_NoticeSavingsAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -167864,7 +167641,6 @@ Service stress::DSTree_NoticeSavingsAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -168111,7 +167887,6 @@ Service stress::DSTree_OffsetMortgage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -168131,7 +167906,6 @@ Service stress::DSTree_OffsetMortgage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -168378,7 +168152,6 @@ Service stress::DSTree_OverdraftFacility
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -168398,7 +168171,6 @@ Service stress::DSTree_OverdraftFacility
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -168645,7 +168417,6 @@ Service stress::DSTree_PersonalLoan
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -168665,7 +168436,6 @@ Service stress::DSTree_PersonalLoan
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -168912,7 +168682,6 @@ Service stress::DSTree_RevolvingCreditFacility
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -168932,7 +168701,6 @@ Service stress::DSTree_RevolvingCreditFacility
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -169179,7 +168947,6 @@ Service stress::DSTree_SmeTermLoan
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -169199,7 +168966,6 @@ Service stress::DSTree_SmeTermLoan
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -169446,7 +169212,6 @@ Service stress::DSTree_TrackerMortgage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -169466,7 +169231,6 @@ Service stress::DSTree_TrackerMortgage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -169829,7 +169593,6 @@ Service stress::DSTree_BenchmarkTransitionItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -169849,7 +169612,6 @@ Service stress::DSTree_BenchmarkTransitionItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -170037,7 +169799,6 @@ Service stress::DSTree_CompoundedInArrears
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -170057,7 +169818,6 @@ Service stress::DSTree_CompoundedInArrears
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -170304,7 +170064,6 @@ Service stress::DSTree_BenchmarkreformConsentSolicitation
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -170324,7 +170083,6 @@ Service stress::DSTree_BenchmarkreformConsentSolicitation
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -170571,7 +170329,6 @@ Service stress::DSTree_CreditAdjustmentSpread
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -170591,7 +170348,6 @@ Service stress::DSTree_CreditAdjustmentSpread
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -170838,7 +170594,6 @@ Service stress::DSTree_EstrAdoption
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -170858,7 +170613,6 @@ Service stress::DSTree_EstrAdoption
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -171105,7 +170859,6 @@ Service stress::DSTree_FallbackTriggerEvent
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -171125,7 +170878,6 @@ Service stress::DSTree_FallbackTriggerEvent
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -171372,7 +171124,6 @@ Service stress::DSTree_IsdaFallbackProtocol
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -171392,7 +171143,6 @@ Service stress::DSTree_IsdaFallbackProtocol
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -171639,7 +171389,6 @@ Service stress::DSTree_LiborCessationEvent
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -171659,7 +171408,6 @@ Service stress::DSTree_LiborCessationEvent
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -171906,7 +171654,6 @@ Service stress::DSTree_LookbackConvention
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -171926,7 +171673,6 @@ Service stress::DSTree_LookbackConvention
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -172173,7 +171919,6 @@ Service stress::DSTree_ObservationShiftConvention
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -172193,7 +171938,6 @@ Service stress::DSTree_ObservationShiftConvention
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -172440,7 +172184,6 @@ Service stress::DSTree_SofrAdoption
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -172460,7 +172203,6 @@ Service stress::DSTree_SofrAdoption
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -172707,7 +172449,6 @@ Service stress::DSTree_SoniaAdoption
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -172727,7 +172468,6 @@ Service stress::DSTree_SoniaAdoption
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -172974,7 +172714,6 @@ Service stress::DSTree_SyntheticLiborSetting
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -172994,7 +172733,6 @@ Service stress::DSTree_SyntheticLiborSetting
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -173241,7 +172979,6 @@ Service stress::DSTree_TermRiskFreeRate
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -173261,7 +172998,6 @@ Service stress::DSTree_TermRiskFreeRate
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -173508,7 +173244,6 @@ Service stress::DSTree_TonaAdoption
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -173528,7 +173263,6 @@ Service stress::DSTree_TonaAdoption
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -173775,7 +173509,6 @@ Service stress::DSTree_ToughLegacyContract
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -173795,7 +173528,6 @@ Service stress::DSTree_ToughLegacyContract
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -174042,7 +173774,6 @@ Service stress::DSTree_TransitionBasisSwap
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -174062,7 +173793,6 @@ Service stress::DSTree_TransitionBasisSwap
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -174309,7 +174039,6 @@ Service stress::DSTree_AmendedTradePnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -174329,7 +174058,6 @@ Service stress::DSTree_AmendedTradePnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -174576,7 +174304,6 @@ Service stress::DSTree_CarryPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -174596,7 +174323,6 @@ Service stress::DSTree_CarryPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -174843,7 +174569,6 @@ Service stress::DSTree_CrossGammaPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -174863,7 +174588,6 @@ Service stress::DSTree_CrossGammaPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -175110,7 +174834,6 @@ Service stress::DSTree_DeltaPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -175130,7 +174853,6 @@ Service stress::DSTree_DeltaPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -175377,7 +175099,6 @@ Service stress::DSTree_FundingPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -175397,7 +175118,6 @@ Service stress::DSTree_FundingPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -175644,7 +175364,6 @@ Service stress::DSTree_FxTranslationPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -175664,7 +175383,6 @@ Service stress::DSTree_FxTranslationPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -175911,7 +175629,6 @@ Service stress::DSTree_GammaPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -175931,7 +175648,6 @@ Service stress::DSTree_GammaPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -176178,7 +175894,6 @@ Service stress::DSTree_HypotheticalPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -176198,7 +175913,6 @@ Service stress::DSTree_HypotheticalPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -176445,7 +176159,6 @@ Service stress::DSTree_ModelChangePnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -176465,7 +176178,6 @@ Service stress::DSTree_ModelChangePnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -176712,7 +176424,6 @@ Service stress::DSTree_NewTradePnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -176732,7 +176443,6 @@ Service stress::DSTree_NewTradePnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -177095,7 +176805,6 @@ Service stress::DSTree_PnlExplainItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -177115,7 +176824,6 @@ Service stress::DSTree_PnlExplainItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -177303,7 +177011,6 @@ Service stress::DSTree_ReserveMovementPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -177323,7 +177030,6 @@ Service stress::DSTree_ReserveMovementPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -177570,7 +177276,6 @@ Service stress::DSTree_RhoPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -177590,7 +177295,6 @@ Service stress::DSTree_RhoPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -177837,7 +177541,6 @@ Service stress::DSTree_RiskTheoreticalPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -177857,7 +177560,6 @@ Service stress::DSTree_RiskTheoreticalPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -178104,7 +177806,6 @@ Service stress::DSTree_ThetaPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -178124,7 +177825,6 @@ Service stress::DSTree_ThetaPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -178371,7 +178071,6 @@ Service stress::DSTree_UnexplainedPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -178391,7 +178090,6 @@ Service stress::DSTree_UnexplainedPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -178638,7 +178336,6 @@ Service stress::DSTree_VegaPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -178658,7 +178355,6 @@ Service stress::DSTree_VegaPnl
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -178905,7 +178601,6 @@ Service stress::DSTree_BackToBackBooking
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -178925,7 +178620,6 @@ Service stress::DSTree_BackToBackBooking
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -179288,7 +178982,6 @@ Service stress::DSTree_BookingLocation
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -179308,7 +179001,6 @@ Service stress::DSTree_BookingLocation
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -179496,7 +179188,6 @@ Service stress::DSTree_CaymanSpecialPurposeVehicle
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -179516,7 +179207,6 @@ Service stress::DSTree_CaymanSpecialPurposeVehicle
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -179763,7 +179453,6 @@ Service stress::DSTree_EuSubsidiary
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -179783,7 +179472,6 @@ Service stress::DSTree_EuSubsidiary
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -180030,7 +179718,6 @@ Service stress::DSTree_HongKongBranch
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -180050,7 +179737,6 @@ Service stress::DSTree_HongKongBranch
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -180297,7 +179983,6 @@ Service stress::DSTree_IrelandEntity
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -180317,7 +180002,6 @@ Service stress::DSTree_IrelandEntity
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -180564,7 +180248,6 @@ Service stress::DSTree_JapanBranch
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -180584,7 +180267,6 @@ Service stress::DSTree_JapanBranch
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -180831,7 +180513,6 @@ Service stress::DSTree_LuxembourgEntity
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -180851,7 +180532,6 @@ Service stress::DSTree_LuxembourgEntity
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -181098,7 +180778,6 @@ Service stress::DSTree_MirrorBooking
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -181118,7 +180797,6 @@ Service stress::DSTree_MirrorBooking
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -181365,7 +181043,6 @@ Service stress::DSTree_RemoteBookingArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -181385,7 +181062,6 @@ Service stress::DSTree_RemoteBookingArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -181632,7 +181308,6 @@ Service stress::DSTree_RunOffEntity
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -181652,7 +181327,6 @@ Service stress::DSTree_RunOffEntity
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -181899,7 +181573,6 @@ Service stress::DSTree_SingaporeBranch
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -181919,7 +181592,6 @@ Service stress::DSTree_SingaporeBranch
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -182166,7 +181838,6 @@ Service stress::DSTree_SwissEntity
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -182186,7 +181857,6 @@ Service stress::DSTree_SwissEntity
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -182433,7 +182103,6 @@ Service stress::DSTree_UkBranch
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -182453,7 +182122,6 @@ Service stress::DSTree_UkBranch
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -182700,7 +182368,6 @@ Service stress::DSTree_UkSubsidiary
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -182720,7 +182387,6 @@ Service stress::DSTree_UkSubsidiary
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -182967,7 +182633,6 @@ Service stress::DSTree_UsBranch
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -182987,7 +182652,6 @@ Service stress::DSTree_UsBranch
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -183234,7 +182898,6 @@ Service stress::DSTree_UsIntermediateHoldingCompany
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -183254,7 +182917,6 @@ Service stress::DSTree_UsIntermediateHoldingCompany
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -183501,7 +183163,6 @@ Service stress::DSTree_AdditionalTier1Perpetual
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -183521,7 +183182,6 @@ Service stress::DSTree_AdditionalTier1Perpetual
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -183768,7 +183428,6 @@ Service stress::DSTree_CapitalBufferRequirement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -183788,7 +183447,6 @@ Service stress::DSTree_CapitalBufferRequirement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -184151,7 +183809,6 @@ Service stress::DSTree_CapitalInstrument
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -184171,7 +183828,6 @@ Service stress::DSTree_CapitalInstrument
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -184359,7 +184015,6 @@ Service stress::DSTree_ContingentConvertible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -184379,7 +184034,6 @@ Service stress::DSTree_ContingentConvertible
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -184626,7 +184280,6 @@ Service stress::DSTree_DatedTier2
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -184646,7 +184299,6 @@ Service stress::DSTree_DatedTier2
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -184893,7 +184545,6 @@ Service stress::DSTree_DeferredTaxDeduction
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -184913,7 +184564,6 @@ Service stress::DSTree_DeferredTaxDeduction
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -185160,7 +184810,6 @@ Service stress::DSTree_GoodwillDeduction
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -185180,7 +184829,6 @@ Service stress::DSTree_GoodwillDeduction
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -185427,7 +185075,6 @@ Service stress::DSTree_GrandfatheredInstrument
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -185447,7 +185094,6 @@ Service stress::DSTree_GrandfatheredInstrument
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -185694,7 +185340,6 @@ Service stress::DSTree_HoldcoSenior
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -185714,7 +185359,6 @@ Service stress::DSTree_HoldcoSenior
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -185961,7 +185605,6 @@ Service stress::DSTree_MinorityInterestItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -185981,7 +185624,6 @@ Service stress::DSTree_MinorityInterestItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -186228,7 +185870,6 @@ Service stress::DSTree_OrdinaryShareCapital
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -186248,7 +185889,6 @@ Service stress::DSTree_OrdinaryShareCapital
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -186495,7 +186135,6 @@ Service stress::DSTree_PerpetualTier2
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -186515,7 +186154,6 @@ Service stress::DSTree_PerpetualTier2
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -186762,7 +186400,6 @@ Service stress::DSTree_PrudentialFilterItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -186782,7 +186419,6 @@ Service stress::DSTree_PrudentialFilterItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -187029,7 +186665,6 @@ Service stress::DSTree_RetainedEarningsItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -187049,7 +186684,6 @@ Service stress::DSTree_RetainedEarningsItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -187296,7 +186930,6 @@ Service stress::DSTree_SeniorNonPreferred
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -187316,7 +186949,6 @@ Service stress::DSTree_SeniorNonPreferred
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -187563,7 +187195,6 @@ Service stress::DSTree_TemporaryWriteDownAt1
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -187583,7 +187214,6 @@ Service stress::DSTree_TemporaryWriteDownAt1
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -187830,7 +187460,6 @@ Service stress::DSTree_TlacEligibleInstrument
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -187850,7 +187479,6 @@ Service stress::DSTree_TlacEligibleInstrument
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -188213,7 +187841,6 @@ Service stress::DSTree_CashManagementItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -188233,7 +187860,6 @@ Service stress::DSTree_CashManagementItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -188421,7 +188047,6 @@ Service stress::DSTree_CollectionsOnBehalfOf
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -188441,7 +188066,6 @@ Service stress::DSTree_CollectionsOnBehalfOf
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -188688,7 +188312,6 @@ Service stress::DSTree_CrossBorderSweep
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -188708,7 +188331,6 @@ Service stress::DSTree_CrossBorderSweep
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -188955,7 +188577,6 @@ Service stress::DSTree_InHouseBankAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -188975,7 +188596,6 @@ Service stress::DSTree_InHouseBankAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -189222,7 +188842,6 @@ Service stress::DSTree_IntercompanyLoanItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -189242,7 +188861,6 @@ Service stress::DSTree_IntercompanyLoanItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -189489,7 +189107,6 @@ Service stress::DSTree_InterestOptimisationItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -189509,7 +189126,6 @@ Service stress::DSTree_InterestOptimisationItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -189756,7 +189372,6 @@ Service stress::DSTree_LiquidityForecastItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -189776,7 +189391,6 @@ Service stress::DSTree_LiquidityForecastItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -190023,7 +189637,6 @@ Service stress::DSTree_LockboxService
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -190043,7 +189656,6 @@ Service stress::DSTree_LockboxService
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -190290,7 +189902,6 @@ Service stress::DSTree_MultiCurrencyPool
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -190310,7 +189921,6 @@ Service stress::DSTree_MultiCurrencyPool
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -190557,7 +190167,6 @@ Service stress::DSTree_NotionalCashPool
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -190577,7 +190186,6 @@ Service stress::DSTree_NotionalCashPool
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -190824,7 +190432,6 @@ Service stress::DSTree_OverlayPoolStructure
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -190844,7 +190451,6 @@ Service stress::DSTree_OverlayPoolStructure
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -191091,7 +190697,6 @@ Service stress::DSTree_PaymentFactory
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -191111,7 +190716,6 @@ Service stress::DSTree_PaymentFactory
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -191358,7 +190962,6 @@ Service stress::DSTree_PhysicalCashPool
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -191378,7 +190981,6 @@ Service stress::DSTree_PhysicalCashPool
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -191625,7 +191227,6 @@ Service stress::DSTree_TargetBalanceAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -191645,7 +191246,6 @@ Service stress::DSTree_TargetBalanceAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -191892,7 +191492,6 @@ Service stress::DSTree_VirtualAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -191912,7 +191511,6 @@ Service stress::DSTree_VirtualAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -192159,7 +191757,6 @@ Service stress::DSTree_WithholdingOnPoolInterest
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -192179,7 +191776,6 @@ Service stress::DSTree_WithholdingOnPoolInterest
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -192426,7 +192022,6 @@ Service stress::DSTree_ZeroBalanceAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -192446,7 +192041,6 @@ Service stress::DSTree_ZeroBalanceAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -192809,7 +192403,6 @@ Service stress::DSTree_CorrespondentRelationship
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -192829,7 +192422,6 @@ Service stress::DSTree_CorrespondentRelationship
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -193017,7 +192609,6 @@ Service stress::DSTree_CorrespondentTransactionMonitoring
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -193037,7 +192628,6 @@ Service stress::DSTree_CorrespondentTransactionMonitoring
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -193284,7 +192874,6 @@ Service stress::DSTree_DeRiskingExit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -193304,7 +192893,6 @@ Service stress::DSTree_DeRiskingExit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -193551,7 +193139,6 @@ Service stress::DSTree_DownstreamClearing
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -193571,7 +193158,6 @@ Service stress::DSTree_DownstreamClearing
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -193818,7 +193404,6 @@ Service stress::DSTree_EnhancedDueDiligenceItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -193838,7 +193423,6 @@ Service stress::DSTree_EnhancedDueDiligenceItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -194085,7 +193669,6 @@ Service stress::DSTree_IntradayCreditLine
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -194105,7 +193688,6 @@ Service stress::DSTree_IntradayCreditLine
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -194352,7 +193934,6 @@ Service stress::DSTree_LoroRelationship
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -194372,7 +193953,6 @@ Service stress::DSTree_LoroRelationship
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -194619,7 +194199,6 @@ Service stress::DSTree_NestedCorrespondent
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -194639,7 +194218,6 @@ Service stress::DSTree_NestedCorrespondent
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -194886,7 +194464,6 @@ Service stress::DSTree_NostroRelationship
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -194906,7 +194483,6 @@ Service stress::DSTree_NostroRelationship
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -195153,7 +194729,6 @@ Service stress::DSTree_PayableThroughAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -195173,7 +194748,6 @@ Service stress::DSTree_PayableThroughAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -195420,7 +194994,6 @@ Service stress::DSTree_PeriodicRelationshipReview
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -195440,7 +195013,6 @@ Service stress::DSTree_PeriodicRelationshipReview
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -195687,7 +195259,6 @@ Service stress::DSTree_RelationshipSanctionsScreening
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -195707,7 +195278,6 @@ Service stress::DSTree_RelationshipSanctionsScreening
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -195954,7 +195524,6 @@ Service stress::DSTree_RequestForInformation
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -195974,7 +195543,6 @@ Service stress::DSTree_RequestForInformation
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -196221,7 +195789,6 @@ Service stress::DSTree_SettlementLimitItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -196241,7 +195808,6 @@ Service stress::DSTree_SettlementLimitItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -196488,7 +196054,6 @@ Service stress::DSTree_ShellBankProhibition
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -196508,7 +196073,6 @@ Service stress::DSTree_ShellBankProhibition
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -196755,7 +196319,6 @@ Service stress::DSTree_VostroRelationship
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -196775,7 +196338,6 @@ Service stress::DSTree_VostroRelationship
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -197022,7 +196584,6 @@ Service stress::DSTree_WolfsbergQuestionnaire
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -197042,7 +196603,6 @@ Service stress::DSTree_WolfsbergQuestionnaire
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -197289,7 +196849,6 @@ Service stress::DSTree_AssessmentCall
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -197309,7 +196868,6 @@ Service stress::DSTree_AssessmentCall
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -197556,7 +197114,6 @@ Service stress::DSTree_CcpLiquidityAddOn
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -197576,7 +197133,6 @@ Service stress::DSTree_CcpLiquidityAddOn
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -197823,7 +197379,6 @@ Service stress::DSTree_CcpRecoveryTool
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -197843,7 +197398,6 @@ Service stress::DSTree_CcpRecoveryTool
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -198090,7 +197644,6 @@ Service stress::DSTree_CcpSkinInTheGame
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -198110,7 +197663,6 @@ Service stress::DSTree_CcpSkinInTheGame
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -198473,7 +198025,6 @@ Service stress::DSTree_ClearingArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -198493,7 +198044,6 @@ Service stress::DSTree_ClearingArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -198681,7 +198231,6 @@ Service stress::DSTree_ClientAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -198701,7 +198250,6 @@ Service stress::DSTree_ClientAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -198948,7 +198496,6 @@ Service stress::DSTree_ConcentrationAddOn
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -198968,7 +198515,6 @@ Service stress::DSTree_ConcentrationAddOn
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -199215,7 +198761,6 @@ Service stress::DSTree_CrossMarginBenefit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -199235,7 +198780,6 @@ Service stress::DSTree_CrossMarginBenefit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -199482,7 +199026,6 @@ Service stress::DSTree_DefaultAuctionParticipation
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -199502,7 +199045,6 @@ Service stress::DSTree_DefaultAuctionParticipation
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -199749,7 +199291,6 @@ Service stress::DSTree_ClearingmembersDefaultFundContribution
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -199769,7 +199310,6 @@ Service stress::DSTree_ClearingmembersDefaultFundContribution
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -200016,7 +199556,6 @@ Service stress::DSTree_ExcessCollateral
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -200036,7 +199575,6 @@ Service stress::DSTree_ExcessCollateral
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -200283,7 +199821,6 @@ Service stress::DSTree_HouseAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -200303,7 +199840,6 @@ Service stress::DSTree_HouseAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -200550,7 +200086,6 @@ Service stress::DSTree_InitialMarginPosting
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -200570,7 +200105,6 @@ Service stress::DSTree_InitialMarginPosting
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -200817,7 +200351,6 @@ Service stress::DSTree_JuniorisedContribution
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -200837,7 +200370,6 @@ Service stress::DSTree_JuniorisedContribution
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -201084,7 +200616,6 @@ Service stress::DSTree_PortedClientPosition
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -201104,7 +200635,6 @@ Service stress::DSTree_PortedClientPosition
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -201351,7 +200881,6 @@ Service stress::DSTree_SettlementBankLine
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -201371,7 +200900,6 @@ Service stress::DSTree_SettlementBankLine
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -201618,7 +201146,6 @@ Service stress::DSTree_VariationMarginPosting
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -201638,7 +201165,6 @@ Service stress::DSTree_VariationMarginPosting
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -201885,7 +201411,6 @@ Service stress::DSTree_AlgorithmicAccessArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -201905,7 +201430,6 @@ Service stress::DSTree_AlgorithmicAccessArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -202152,7 +201676,6 @@ Service stress::DSTree_CareOrderArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -202172,7 +201695,6 @@ Service stress::DSTree_CareOrderArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -202535,7 +202057,6 @@ Service stress::DSTree_ClientAccessArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -202555,7 +202076,6 @@ Service stress::DSTree_ClientAccessArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -202743,7 +202263,6 @@ Service stress::DSTree_CrossBorderAccessArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -202763,7 +202282,6 @@ Service stress::DSTree_CrossBorderAccessArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -203010,7 +202528,6 @@ Service stress::DSTree_DirectExchangeMembership
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -203030,7 +202547,6 @@ Service stress::DSTree_DirectExchangeMembership
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -203277,7 +202793,6 @@ Service stress::DSTree_DirectMarketAccess
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -203297,7 +202812,6 @@ Service stress::DSTree_DirectMarketAccess
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -203544,7 +203058,6 @@ Service stress::DSTree_GeneralClearingMemberService
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -203564,7 +203077,6 @@ Service stress::DSTree_GeneralClearingMemberService
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -203811,7 +203323,6 @@ Service stress::DSTree_GiveUpArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -203831,7 +203342,6 @@ Service stress::DSTree_GiveUpArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -204078,7 +203588,6 @@ Service stress::DSTree_IndirectClearingArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -204098,7 +203607,6 @@ Service stress::DSTree_IndirectClearingArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -204345,7 +203853,6 @@ Service stress::DSTree_IndividuallySegregatedAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -204365,7 +203872,6 @@ Service stress::DSTree_IndividuallySegregatedAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -204612,7 +204118,6 @@ Service stress::DSTree_NetOmnibusAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -204632,7 +204137,6 @@ Service stress::DSTree_NetOmnibusAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -204879,7 +204383,6 @@ Service stress::DSTree_OmnibusSegregatedAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -204899,7 +204402,6 @@ Service stress::DSTree_OmnibusSegregatedAccount
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -205146,7 +204648,6 @@ Service stress::DSTree_PortingArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -205166,7 +204667,6 @@ Service stress::DSTree_PortingArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -205413,7 +204913,6 @@ Service stress::DSTree_PrincipalFillArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -205433,7 +204932,6 @@ Service stress::DSTree_PrincipalFillArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -205680,7 +205178,6 @@ Service stress::DSTree_RiskFreePrincipalCross
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -205700,7 +205197,6 @@ Service stress::DSTree_RiskFreePrincipalCross
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -205947,7 +205443,6 @@ Service stress::DSTree_SponsoredAccess
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -205967,7 +205462,6 @@ Service stress::DSTree_SponsoredAccess
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -206214,7 +205708,6 @@ Service stress::DSTree_SuspendedAccessArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -206234,7 +205727,6 @@ Service stress::DSTree_SuspendedAccessArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -206481,7 +205973,6 @@ Service stress::DSTree_AccountOpeningStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -206501,7 +205992,6 @@ Service stress::DSTree_AccountOpeningStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -206748,7 +206238,6 @@ Service stress::DSTree_BeneficialOwnershipStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -206768,7 +206257,6 @@ Service stress::DSTree_BeneficialOwnershipStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -207131,7 +206619,6 @@ Service stress::DSTree_ClientLifecycleStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -207151,7 +206638,6 @@ Service stress::DSTree_ClientLifecycleStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -207339,7 +206825,6 @@ Service stress::DSTree_ClientRiskRatingStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -207359,7 +206844,6 @@ Service stress::DSTree_ClientRiskRatingStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -207606,7 +207090,6 @@ Service stress::DSTree_CreditApprovalStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -207626,7 +207109,6 @@ Service stress::DSTree_CreditApprovalStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -207873,7 +207355,6 @@ Service stress::DSTree_DocumentationNegotiationStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -207893,7 +207374,6 @@ Service stress::DSTree_DocumentationNegotiationStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -208140,7 +207620,6 @@ Service stress::DSTree_DormantClientStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -208160,7 +207639,6 @@ Service stress::DSTree_DormantClientStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -208407,7 +207885,6 @@ Service stress::DSTree_FirstTradeStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -208427,7 +207904,6 @@ Service stress::DSTree_FirstTradeStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -208674,7 +208150,6 @@ Service stress::DSTree_InitialScreeningStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -208694,7 +208169,6 @@ Service stress::DSTree_InitialScreeningStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -208941,7 +208415,6 @@ Service stress::DSTree_KycCollectionStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -208961,7 +208434,6 @@ Service stress::DSTree_KycCollectionStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -209208,7 +208680,6 @@ Service stress::DSTree_OffboardingNoticeStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -209228,7 +208699,6 @@ Service stress::DSTree_OffboardingNoticeStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -209475,7 +208945,6 @@ Service stress::DSTree_PeriodicReviewStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -209495,7 +208964,6 @@ Service stress::DSTree_PeriodicReviewStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -209742,7 +209210,6 @@ Service stress::DSTree_PositionUnwindStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -209762,7 +209229,6 @@ Service stress::DSTree_PositionUnwindStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -210009,7 +209475,6 @@ Service stress::DSTree_ProspectStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -210029,7 +209494,6 @@ Service stress::DSTree_ProspectStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -210276,7 +209740,6 @@ Service stress::DSTree_ReactivationStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -210296,7 +209759,6 @@ Service stress::DSTree_ReactivationStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -210543,7 +210005,6 @@ Service stress::DSTree_RecordRetentionStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -210563,7 +210024,6 @@ Service stress::DSTree_RecordRetentionStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -210810,7 +210270,6 @@ Service stress::DSTree_TriggerEventReviewStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -210830,7 +210289,6 @@ Service stress::DSTree_TriggerEventReviewStage
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -211077,7 +210535,6 @@ Service stress::DSTree_AnnualSuitabilityReport
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -211097,7 +210554,6 @@ Service stress::DSTree_AnnualSuitabilityReport
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -211344,7 +210800,6 @@ Service stress::DSTree_AttributionReport
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -211364,7 +210819,6 @@ Service stress::DSTree_AttributionReport
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -211611,7 +211065,6 @@ Service stress::DSTree_ClientreportingBestExecutionReport
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -211631,7 +211084,6 @@ Service stress::DSTree_ClientreportingBestExecutionReport
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -211878,7 +211330,6 @@ Service stress::DSTree_ClientCorporateActionNotice
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -211898,7 +211349,6 @@ Service stress::DSTree_ClientCorporateActionNotice
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -212261,7 +211711,6 @@ Service stress::DSTree_ClientReport
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -212281,7 +211730,6 @@ Service stress::DSTree_ClientReport
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -212469,7 +211917,6 @@ Service stress::DSTree_ClientRiskReport
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -212489,7 +211936,6 @@ Service stress::DSTree_ClientRiskReport
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -212736,7 +212182,6 @@ Service stress::DSTree_ContractNote
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -212756,7 +212201,6 @@ Service stress::DSTree_ContractNote
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -213003,7 +212447,6 @@ Service stress::DSTree_CostsAndChargesDisclosure
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -213023,7 +212466,6 @@ Service stress::DSTree_CostsAndChargesDisclosure
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -213270,7 +212712,6 @@ Service stress::DSTree_MarginStatement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -213290,7 +212731,6 @@ Service stress::DSTree_MarginStatement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -213537,7 +212977,6 @@ Service stress::DSTree_PerformanceReport
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -213557,7 +212996,6 @@ Service stress::DSTree_PerformanceReport
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -213804,7 +213242,6 @@ Service stress::DSTree_ProxyVotingRecord
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -213824,7 +213261,6 @@ Service stress::DSTree_ProxyVotingRecord
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -214071,7 +213507,6 @@ Service stress::DSTree_RegulatoryClientNotice
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -214091,7 +213526,6 @@ Service stress::DSTree_RegulatoryClientNotice
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -214338,7 +213772,6 @@ Service stress::DSTree_SustainabilityDisclosure
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -214358,7 +213791,6 @@ Service stress::DSTree_SustainabilityDisclosure
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -214605,7 +214037,6 @@ Service stress::DSTree_TaxReportingPack
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -214625,7 +214056,6 @@ Service stress::DSTree_TaxReportingPack
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -214872,7 +214302,6 @@ Service stress::DSTree_TenPercentDepreciationNotice
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -214892,7 +214321,6 @@ Service stress::DSTree_TenPercentDepreciationNotice
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -215139,7 +214567,6 @@ Service stress::DSTree_TransactionStatement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -215159,7 +214586,6 @@ Service stress::DSTree_TransactionStatement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -215406,7 +214832,6 @@ Service stress::DSTree_ValuationStatement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -215426,7 +214851,6 @@ Service stress::DSTree_ValuationStatement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -215673,7 +215097,6 @@ Service stress::DSTree_CcpEligibleCollateral
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -215693,7 +215116,6 @@ Service stress::DSTree_CcpEligibleCollateral
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -215940,7 +215362,6 @@ Service stress::DSTree_CollateraltransformCollateralDowngradeTrade
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -215960,7 +215381,6 @@ Service stress::DSTree_CollateraltransformCollateralDowngradeTrade
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -216323,7 +215743,6 @@ Service stress::DSTree_CollateralTransformation
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -216343,7 +215762,6 @@ Service stress::DSTree_CollateralTransformation
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -216531,7 +215949,6 @@ Service stress::DSTree_CollateraltransformCollateralUpgradeTrade
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -216551,7 +215968,6 @@ Service stress::DSTree_CollateraltransformCollateralUpgradeTrade
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -216798,7 +216214,6 @@ Service stress::DSTree_EvergreenCollateralUpgrade
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -216818,7 +216233,6 @@ Service stress::DSTree_EvergreenCollateralUpgrade
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -217065,7 +216479,6 @@ Service stress::DSTree_HaircutDifferential
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -217085,7 +216498,6 @@ Service stress::DSTree_HaircutDifferential
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -217332,7 +216744,6 @@ Service stress::DSTree_LiquidityCoverageImpact
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -217352,7 +216763,6 @@ Service stress::DSTree_LiquidityCoverageImpact
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -217599,7 +217009,6 @@ Service stress::DSTree_MaturityMismatchItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -217619,7 +217028,6 @@ Service stress::DSTree_MaturityMismatchItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -217866,7 +217274,6 @@ Service stress::DSTree_PledgeTransformation
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -217886,7 +217293,6 @@ Service stress::DSTree_PledgeTransformation
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -218133,7 +217539,6 @@ Service stress::DSTree_RehypothecationRight
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -218153,7 +217558,6 @@ Service stress::DSTree_RehypothecationRight
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -218400,7 +217804,6 @@ Service stress::DSTree_SegregatedTransformationOutput
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -218420,7 +217823,6 @@ Service stress::DSTree_SegregatedTransformationOutput
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -218667,7 +218069,6 @@ Service stress::DSTree_SubstitutionRight
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -218687,7 +218088,6 @@ Service stress::DSTree_SubstitutionRight
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -218934,7 +218334,6 @@ Service stress::DSTree_TermCollateralUpgrade
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -218954,7 +218353,6 @@ Service stress::DSTree_TermCollateralUpgrade
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -219201,7 +218599,6 @@ Service stress::DSTree_TransformationCliffRisk
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -219221,7 +218618,6 @@ Service stress::DSTree_TransformationCliffRisk
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -219468,7 +218864,6 @@ Service stress::DSTree_TransformationConcentrationLimit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -219488,7 +218883,6 @@ Service stress::DSTree_TransformationConcentrationLimit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -219735,7 +219129,6 @@ Service stress::DSTree_TransformationFeeAccrual
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -219755,7 +219148,6 @@ Service stress::DSTree_TransformationFeeAccrual
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -220002,7 +219394,6 @@ Service stress::DSTree_TransformationRecall
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -220022,7 +219413,6 @@ Service stress::DSTree_TransformationRecall
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -220269,7 +219659,6 @@ Service stress::DSTree_AgriculturalFuture
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -220289,7 +219678,6 @@ Service stress::DSTree_AgriculturalFuture
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -220536,7 +219924,6 @@ Service stress::DSTree_AllocatedGold
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -220556,7 +219943,6 @@ Service stress::DSTree_AllocatedGold
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -220803,7 +220189,6 @@ Service stress::DSTree_BaseloadPowerContract
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -220823,7 +220208,6 @@ Service stress::DSTree_BaseloadPowerContract
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -221070,7 +220454,6 @@ Service stress::DSTree_BrentCrudeFuture
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -221090,7 +220473,6 @@ Service stress::DSTree_BrentCrudeFuture
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -221453,7 +220835,6 @@ Service stress::DSTree_CommodityContract
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -221473,7 +220854,6 @@ Service stress::DSTree_CommodityContract
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -221661,7 +221041,6 @@ Service stress::DSTree_EmissionsAllowance
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -221681,7 +221060,6 @@ Service stress::DSTree_EmissionsAllowance
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -221928,7 +221306,6 @@ Service stress::DSTree_CommoditiesFreightForwardAgreement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -221948,7 +221325,6 @@ Service stress::DSTree_CommoditiesFreightForwardAgreement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -222195,7 +221571,6 @@ Service stress::DSTree_GoldLocoLondon
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -222215,7 +221590,6 @@ Service stress::DSTree_GoldLocoLondon
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -222462,7 +221836,6 @@ Service stress::DSTree_MetalWarrant
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -222482,7 +221855,6 @@ Service stress::DSTree_MetalWarrant
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -222729,7 +222101,6 @@ Service stress::DSTree_NaturalGasFuture
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -222749,7 +222120,6 @@ Service stress::DSTree_NaturalGasFuture
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -222996,7 +222366,6 @@ Service stress::DSTree_PeakPowerContract
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -223016,7 +222385,6 @@ Service stress::DSTree_PeakPowerContract
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -223263,7 +222631,6 @@ Service stress::DSTree_PhysicalDeliveryObligation
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -223283,7 +222650,6 @@ Service stress::DSTree_PhysicalDeliveryObligation
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -223530,7 +222896,6 @@ Service stress::DSTree_QualityAdjustmentItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -223550,7 +222915,6 @@ Service stress::DSTree_QualityAdjustmentItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -223797,7 +223161,6 @@ Service stress::DSTree_StorageContract
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -223817,7 +223180,6 @@ Service stress::DSTree_StorageContract
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -224064,7 +223426,6 @@ Service stress::DSTree_TransportCapacityContract
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -224084,7 +223445,6 @@ Service stress::DSTree_TransportCapacityContract
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -224331,7 +223691,6 @@ Service stress::DSTree_CommoditiesWeatherDerivative
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -224351,7 +223710,6 @@ Service stress::DSTree_CommoditiesWeatherDerivative
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -224598,7 +223956,6 @@ Service stress::DSTree_WtiCrudeFuture
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -224618,7 +223975,6 @@ Service stress::DSTree_WtiCrudeFuture
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -224865,7 +224221,6 @@ Service stress::DSTree_CorpactionsxBonusIssue
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -224885,7 +224240,6 @@ Service stress::DSTree_CorpactionsxBonusIssue
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -225132,7 +224486,6 @@ Service stress::DSTree_CallRedemption
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -225152,7 +224505,6 @@ Service stress::DSTree_CallRedemption
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -225399,7 +224751,6 @@ Service stress::DSTree_CorpactionsxCashDividend
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -225419,7 +224770,6 @@ Service stress::DSTree_CorpactionsxCashDividend
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -225666,7 +225016,6 @@ Service stress::DSTree_CashMerger
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -225686,7 +225035,6 @@ Service stress::DSTree_CashMerger
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -226049,7 +225397,6 @@ Service stress::DSTree_CorporateEventType
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -226069,7 +225416,6 @@ Service stress::DSTree_CorporateEventType
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -226257,7 +225603,6 @@ Service stress::DSTree_CorpactionsxDelisting
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -226277,7 +225622,6 @@ Service stress::DSTree_CorpactionsxDelisting
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -226524,7 +225868,6 @@ Service stress::DSTree_CorpactionsxNameChange
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -226544,7 +225887,6 @@ Service stress::DSTree_CorpactionsxNameChange
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -226791,7 +226133,6 @@ Service stress::DSTree_PartialCall
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -226811,7 +226152,6 @@ Service stress::DSTree_PartialCall
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -227058,7 +226398,6 @@ Service stress::DSTree_ReverseSplit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -227078,7 +226417,6 @@ Service stress::DSTree_ReverseSplit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -227325,7 +226663,6 @@ Service stress::DSTree_CorpactionsxRightsIssue
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -227345,7 +226682,6 @@ Service stress::DSTree_CorpactionsxRightsIssue
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -227592,7 +226928,6 @@ Service stress::DSTree_CorpactionsxSchemeOfArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -227612,7 +226947,6 @@ Service stress::DSTree_CorpactionsxSchemeOfArrangement
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -227859,7 +227193,6 @@ Service stress::DSTree_CorpactionsxSpecialDividend
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -227879,7 +227212,6 @@ Service stress::DSTree_CorpactionsxSpecialDividend
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -228126,7 +227458,6 @@ Service stress::DSTree_SpinOff
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -228146,7 +227477,6 @@ Service stress::DSTree_SpinOff
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -228393,7 +227723,6 @@ Service stress::DSTree_CorpactionsxStockDividend
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -228413,7 +227742,6 @@ Service stress::DSTree_CorpactionsxStockDividend
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -228660,7 +227988,6 @@ Service stress::DSTree_StockMerger
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -228680,7 +228007,6 @@ Service stress::DSTree_StockMerger
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -228927,7 +228253,6 @@ Service stress::DSTree_CorpactionsxStockSplit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -228947,7 +228272,6 @@ Service stress::DSTree_CorpactionsxStockSplit
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -229194,7 +228518,6 @@ Service stress::DSTree_CorpactionsxTenderOffer
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -229214,7 +228537,6 @@ Service stress::DSTree_CorpactionsxTenderOffer
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -229461,7 +228783,6 @@ Service stress::DSTree_AuctionSettlementItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -229481,7 +228802,6 @@ Service stress::DSTree_AuctionSettlementItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -229728,7 +229048,6 @@ Service stress::DSTree_BespokeTranche
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -229748,7 +229067,6 @@ Service stress::DSTree_BespokeTranche
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -229995,7 +229313,6 @@ Service stress::DSTree_CdsIndexTrade
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -230015,7 +229332,6 @@ Service stress::DSTree_CdsIndexTrade
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -230262,7 +229578,6 @@ Service stress::DSTree_CreditstructuresConstantMaturityCds
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -230282,7 +229597,6 @@ Service stress::DSTree_CreditstructuresConstantMaturityCds
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -230529,7 +229843,6 @@ Service stress::DSTree_CreditDefaultSwaption
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -230549,7 +229862,6 @@ Service stress::DSTree_CreditDefaultSwaption
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -230796,7 +230108,6 @@ Service stress::DSTree_CreditstructuresCreditLinkedNote
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -230816,7 +230127,6 @@ Service stress::DSTree_CreditstructuresCreditLinkedNote
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -231179,7 +230489,6 @@ Service stress::DSTree_CreditStructure
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -231199,7 +230508,6 @@ Service stress::DSTree_CreditStructure
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -231387,7 +230695,6 @@ Service stress::DSTree_CreditTotalReturnSwap
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -231407,7 +230714,6 @@ Service stress::DSTree_CreditTotalReturnSwap
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -231654,7 +230960,6 @@ Service stress::DSTree_CreditstructuresFirstToDefaultBasket
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -231674,7 +230979,6 @@ Service stress::DSTree_CreditstructuresFirstToDefaultBasket
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -231921,7 +231225,6 @@ Service stress::DSTree_IndexTranche
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -231941,7 +231244,6 @@ Service stress::DSTree_IndexTranche
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -232188,7 +231490,6 @@ Service stress::DSTree_CreditstructuresLoanCds
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -232208,7 +231509,6 @@ Service stress::DSTree_CreditstructuresLoanCds
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -232455,7 +231755,6 @@ Service stress::DSTree_CreditstructuresNthToDefaultBasket
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -232475,7 +231774,6 @@ Service stress::DSTree_CreditstructuresNthToDefaultBasket
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -232722,7 +232020,6 @@ Service stress::DSTree_QuantoCds
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -232742,7 +232039,6 @@ Service stress::DSTree_QuantoCds
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -232989,7 +232285,6 @@ Service stress::DSTree_RecoveryLock
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -233009,7 +232304,6 @@ Service stress::DSTree_RecoveryLock
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -233256,7 +232550,6 @@ Service stress::DSTree_CreditstructuresRecoverySwap
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -233276,7 +232569,6 @@ Service stress::DSTree_CreditstructuresRecoverySwap
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -233523,7 +232815,6 @@ Service stress::DSTree_CreditstructuresSovereignCds
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -233543,7 +232834,6 @@ Service stress::DSTree_CreditstructuresSovereignCds
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -233790,7 +233080,6 @@ Service stress::DSTree_SuccessionEventItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -233810,7 +233099,6 @@ Service stress::DSTree_SuccessionEventItem
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -234057,7 +233345,6 @@ Service stress::DSTree_CompletenessRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -234077,7 +233364,6 @@ Service stress::DSTree_CompletenessRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -234324,7 +233610,6 @@ Service stress::DSTree_CriticalDataElementRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -234344,7 +233629,6 @@ Service stress::DSTree_CriticalDataElementRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -234591,7 +233875,6 @@ Service stress::DSTree_CrossFieldConsistencyRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -234611,7 +233894,6 @@ Service stress::DSTree_CrossFieldConsistencyRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -234858,7 +234140,6 @@ Service stress::DSTree_CrossSystemConsistencyRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -234878,7 +234159,6 @@ Service stress::DSTree_CrossSystemConsistencyRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -235241,7 +234521,6 @@ Service stress::DSTree_DataQualityRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -235261,7 +234540,6 @@ Service stress::DSTree_DataQualityRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -235449,7 +234727,6 @@ Service stress::DSTree_DomainValidityRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -235469,7 +234746,6 @@ Service stress::DSTree_DomainValidityRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -235716,7 +234992,6 @@ Service stress::DSTree_FormatValidityRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -235736,7 +235011,6 @@ Service stress::DSTree_FormatValidityRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -235983,7 +235257,6 @@ Service stress::DSTree_LineageGapRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -236003,7 +235276,6 @@ Service stress::DSTree_LineageGapRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -236250,7 +235522,6 @@ Service stress::DSTree_PlausibilityRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -236270,7 +235541,6 @@ Service stress::DSTree_PlausibilityRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -236517,7 +235787,6 @@ Service stress::DSTree_ReconciliationRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -236537,7 +235806,6 @@ Service stress::DSTree_ReconciliationRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -236784,7 +236052,6 @@ Service stress::DSTree_ReferentialIntegrityRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -236804,7 +236071,6 @@ Service stress::DSTree_ReferentialIntegrityRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -237051,7 +236317,6 @@ Service stress::DSTree_StalenessRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -237071,7 +236336,6 @@ Service stress::DSTree_StalenessRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -237318,7 +236582,6 @@ Service stress::DSTree_StatisticalOutlierRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -237338,7 +236601,6 @@ Service stress::DSTree_StatisticalOutlierRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -237585,7 +236847,6 @@ Service stress::DSTree_SuppressedRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -237605,7 +236866,6 @@ Service stress::DSTree_SuppressedRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -237852,7 +237112,6 @@ Service stress::DSTree_TimelinessRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -237872,7 +237131,6 @@ Service stress::DSTree_TimelinessRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -238119,7 +237377,6 @@ Service stress::DSTree_ToleranceBreachRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -238139,7 +237396,6 @@ Service stress::DSTree_ToleranceBreachRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -238386,7 +237642,6 @@ Service stress::DSTree_UniquenessRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -238406,7 +237661,6 @@ Service stress::DSTree_UniquenessRule
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -238653,7 +237907,6 @@ Service stress::DSTree_AlgorithmicStablecoin
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -238673,7 +237926,6 @@ Service stress::DSTree_AlgorithmicStablecoin
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -238920,7 +238172,6 @@ Service stress::DSTree_CustodiedCryptoHolding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -238940,7 +238191,6 @@ Service stress::DSTree_CustodiedCryptoHolding
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -239303,7 +238553,6 @@ Service stress::DSTree_DigitalAssetPosition
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -239323,7 +238572,6 @@ Service stress::DSTree_DigitalAssetPosition
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -239511,7 +238759,6 @@ Service stress::DSTree_ExchangeBalance
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -239531,7 +238778,6 @@ Service stress::DSTree_ExchangeBalance
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -239778,7 +239024,6 @@ Service stress::DSTree_FiatBackedStablecoin
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -239798,7 +239043,6 @@ Service stress::DSTree_FiatBackedStablecoin
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -240045,7 +239289,6 @@ Service stress::DSTree_LiquidStakingToken
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -240065,7 +239308,6 @@ Service stress::DSTree_LiquidStakingToken
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -240312,7 +239554,6 @@ Service stress::DSTree_LiquidityProviderPosition
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -240332,7 +239573,6 @@ Service stress::DSTree_LiquidityProviderPosition
         {
           legalEntity
           {
-            jurisdiction,
             leId
           }
         }
@@ -256218,7 +255458,7 @@ Service stress::DSLocal_CfxRate
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"pairCode":"EURUSD","cobDate":"2024-06-28","rateType":"FIXING","sourceCode":"ECB","spread":0.0002},{"pairCode":"EURUSD","cobDate":"2024-06-28","rateType":"SPOT","sourceCode":"WMR16","spread":0.0002},{"pairCode":"GBPUSD","cobDate":"2024-06-28","rateType":"SPOT","sourceCode":"WMR16","spread":0.0002},{"pairCode":"USDCHF","cobDate":"2024-06-28","rateType":"FORWARD","sourceCode":"WMR16","spread":0.0004},{"pairCode":"USDJPY","cobDate":"2024-06-28","rateType":"SPOT","sourceCode":"WMR16","spread":0.04}]';
+                    data: '[{"pairCode":"EURUSD","cobDate":"2024-06-28","rateType":"FIXING","sourceCode":"ECB","spread":0.00019999999999997797},{"pairCode":"EURUSD","cobDate":"2024-06-28","rateType":"SPOT","sourceCode":"WMR16","spread":0.00019999999999997797},{"pairCode":"GBPUSD","cobDate":"2024-06-28","rateType":"SPOT","sourceCode":"WMR16","spread":0.00019999999999997797},{"pairCode":"USDCHF","cobDate":"2024-06-28","rateType":"FORWARD","sourceCode":"WMR16","spread":0.00040000000000006697},{"pairCode":"USDJPY","cobDate":"2024-06-28","rateType":"SPOT","sourceCode":"WMR16","spread":0.03999999999999204}]';
                   }#;
               }#
           ]

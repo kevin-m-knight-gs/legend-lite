@@ -198,6 +198,22 @@ def all_tables(c: model.Corpus) -> dict[str, list[dict]]:
     return tables
 
 
+class F64(float):
+    """A value in an 8-byte DOUBLE column: its arithmetic is BINARY, not decimal.
+
+    The oracle computes `+ - *` exactly, because that is what a DECIMAL column does --
+    108.7500 minus 107.9000 really is 0.85 in the database and 0.8499999999999943 in binary.
+    A DOUBLE column is the other case and had no tag at all, so it was being modelled as
+    decimal too. A bid of 1.0708 and an ask of 1.0710 in DOUBLE columns differ by
+    0.00019999999999997797, which is what the engine returns and what exact arithmetic
+    refuses to produce.
+
+    Only a TAG: the value and its repr are an ordinary float. What it changes is that
+    arithmetic touching it stays in binary and keeps the tag, exactly as F32 does for four
+    bytes.
+    """
+
+
 class F32(float):
     """A value in a 4-byte column: narrowed for arithmetic, shortest-repr for display.
 
@@ -244,23 +260,29 @@ def _narrow_single_precision(c: model.Corpus, tables: dict[str, list[dict]]) -> 
     Applied to the assembled tables rather than to the seed source, so the ###Data element
     still carries the number a person wrote and the database still does the narrowing.
     """
-    def narrow(v):
+    def tag(v, cls):
         if isinstance(v, bool) or not isinstance(v, (int, float)):
             return v
-        return F32(v)
+        return cls(v)
 
     for name, rows in tables.items():
         spec = c.tables.get(name)
         if spec is None:
             continue
-        cols = [n for n, col in spec.columns.items()
-                if str(col.type or "").upper().split("(")[0] in ("FLOAT", "REAL")]
-        if not cols:
+        by_kind = {}
+        for n, col in spec.columns.items():
+            base = str(col.type or "").upper().split("(")[0]
+            if base in ("FLOAT", "REAL"):
+                by_kind.setdefault(F32, []).append(n)
+            elif base == "DOUBLE":
+                by_kind.setdefault(F64, []).append(n)
+        if not by_kind:
             continue
         for r in rows:
-            for n in cols:
-                if r.get(n) is not None:
-                    r[n] = narrow(r[n])
+            for cls, cols in by_kind.items():
+                for n in cols:
+                    if r.get(n) is not None:
+                        r[n] = tag(r[n], cls)
 
 
 if __name__ == "__main__":
