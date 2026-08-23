@@ -180,11 +180,14 @@ class ChannelBEssentialTest {
         // 15 -> 5 BANKED DOWN (2026-08-23 F10 v1, the literal channel):
         // Any/mixed sides byte-compare in pure-literal spellings
         // (json_type-dispatched); Pair-of-Pairs claimed by
-        // substitution-aware keys. Cumulative declines 13 -> 3 —
-        // ALL stamp-circularity wire lies, tunnel-counted (map
-        // struct-array, letFn raw-VARCHAR-as-JSON, mixedSort
-        // Number-stamp), named in OPEN_REGISTER F10.
-        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 5,
+        // substitution-aware keys. Cumulative declines 13 -> 3 -> 2
+        // (2026-08-23: letFn burned by the Any-root FIX-EMITTER —
+        // scalarRoot boxes a judged-concrete non-JSON expr under an
+        // Any/JSON label with TO_VARIANT; Bottom/Unknown never guess).
+        // Residue: map struct-array (F13b(a) array-identity canon),
+        // mixedSort Number-stamp (kind-tagged carrier) — named in
+        // OPEN_REGISTER F10/F13b.
+        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 3,
                 "byte-verdict declines grew past the declared residue: "
                         + com.legend.exec.CanonicalDivergence.summary());
         // CONTRACT PROGRAM wire ratchets (adjudicated 2026-08-23,

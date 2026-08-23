@@ -320,6 +320,20 @@ public final class Lowerer {
                         + var + "." + name);
             });
         }
+        // FIX-EMITTER (contract program): an Any-stamped root travels
+        // as variant JSON — an inlined body can leave its RAW value
+        // here under the callee's declared Any (the letFn wire lie).
+        // When the built expr is judged CONCRETE non-JSON, the emitter
+        // RECORDS the representation by boxing; Bottom/Unknown never
+        // guess (censused, unboxed). Root scope is FROM-less — no
+        // column bindings.
+        if (sqlTypeOf(spec.info().type()) == SqlType.Scalar.JSON
+                && !isMany(spec)
+                && com.legend.sql.SqlTyping.judge(e, c -> null)
+                        instanceof com.legend.sql.SqlTyping.Verdict.Typed t
+                && t.type() != SqlType.Scalar.JSON) {
+            e = SqlExpr.Call.of(SqlFn.TO_VARIANT, e);
+        }
         // COLLECTION roots explode to N rows (the result-shape contract:
         // Executor reads a collection as N rows x 1 column); the carrier
         // COMPACTS first (audit §5 value lane — a pure collection holds

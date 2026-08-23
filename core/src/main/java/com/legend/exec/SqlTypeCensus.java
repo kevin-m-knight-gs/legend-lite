@@ -177,6 +177,8 @@ public final class SqlTypeCensus {
                     WIRE_ADOPT_PENDING.increment();
                     classify("wire-adopt-pending[" + dialect
                             + "] BIGINT <- HUGEINT");
+                    sample("wire-adopt-pending[" + dialect
+                            + "] BIGINT <- HUGEINT", outs.get(i).name());
                 } else if (meta.equals("INTEGER")
                         && !integerFamily(outs.get(i).type())) {
                     // AMBIGUOUS: DuckDB metadata spells an all-NULL

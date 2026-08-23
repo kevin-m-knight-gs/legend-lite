@@ -116,7 +116,10 @@ class ChannelBRelationTest {
         // empty-side buckets; the remainder is the NAMED boundary
         // (Map/mapEquals, Any wire trees, keyless classes,
         // mixed-identity F10, NUL literal).
-        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 5,
+        // 5 -> 3 (2026-08-23): letFn burned by the Any-root
+        // FIX-EMITTER (TO_VARIANT boxing at scalarRoot); residue = map
+        // struct-array + mixedSort Number-stamp.
+        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 3,
                 "byte-verdict declines grew past the declared residue: "
                         + com.legend.exec.CanonicalDivergence.summary());
         // CONTRACT PROGRAM wire ratchets (adjudicated 2026-08-23,
