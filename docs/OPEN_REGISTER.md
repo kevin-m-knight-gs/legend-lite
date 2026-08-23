@@ -93,6 +93,30 @@ L (a program leg).
 
 ## CLOSED
 
+- F13c CLOSED (2026-08-23, eq/equal identity IN CONDITIONS — user-driven:
+  "do we pass the eq tests?"): the in-SQL eq/equal/contains/in arm
+  family (InstanceEquality, identity lane only) compiles the ENGINE
+  equality relation from the verdict layer's OWN canon — ONE owner. eq
+  = __id compare (identity for keyed AND keyless; NO static classifier
+  fold — a supertype-stamped alias of the same instance stays TRUE);
+  equal/== = canonical-render compare (key tree / identity), static
+  cross-class folds FALSE; contains/in = canonical membership
+  (list_transform to canon texts — engine contains() is equal() per
+  element). Identity layouts now cover ALL model classes (eq needs
+  identity on keyed classes too; platform carriers excluded — their
+  ctors short-circuit the layout). Assert-CONDITION sides join the
+  identity lane (evalValue identity flag; boolean egress keeps every
+  other lane blind). ENGINE-VERIFIED shadow rule: EqualityKeys now
+  dedupes by ALL declared property names (_Class.collectEqualityKey-
+  Properties = simple properties filtered by stereotype) — an un-keyed
+  subclass redeclaration REMOVES the super's key (witness
+  OtherBottomClass). Lowerer split at the file guardrail:
+  InstanceEquality + InstanceProjection extracted (3684 -> 3378).
+  RESULT: testEq/testEqualNonPrimitive PASS as B-FIXES-A (channel A
+  EXCLUDES them — identity unobservable on its value wire; ours rides
+  as data), grammar 130 -> 132; contains/in NonPrimitive regressions
+  caught by the suites and claimed the same way. Declines 13 unchanged,
+  disagree 0.
 - F13 CLOSED (2026-08-22, synthetic instance identity): keyless-class
   equality is engine-true IDENTITY in BOTH channels, carried as DATA —
   the verdict lane's identity layout appends __id to keyless classes

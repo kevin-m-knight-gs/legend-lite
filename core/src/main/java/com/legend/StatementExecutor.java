@@ -2318,7 +2318,9 @@ final class StatementExecutor {
                         identity),
                 f -> ctx.findClass(f).isPresent()).withEngineExistsJoinForm();
         if (identity) {
-            lowerer = lowerer.withInstanceIds(env.instanceIds()::idOf);
+            lowerer = lowerer.withInstanceIds(env.instanceIds()::idOf,
+                    f -> com.legend.compiler.element.EqualityKeys
+                            .resolve(ctx, f));
         }
         com.legend.sql.SqlQuery plan =
                 lowerer.lower(com.legend.lowering.SeedableLets
@@ -2359,7 +2361,7 @@ final class StatementExecutor {
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env)
             throws java.sql.SQLException {
-        return evalValue(value, letPrefix, specs, env, null);
+        return evalValue(value, letPrefix, specs, env, null, false);
     }
 
     /** V11 rider entry: the canon rides the value query itself — one
@@ -2369,6 +2371,19 @@ final class StatementExecutor {
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
             com.legend.exec.@com.legend.Nullable CanonRider rider)
             throws java.sql.SQLException {
+        return evalValue(value, letPrefix, specs, env, rider, false);
+    }
+
+    /** F13c: {@code identity} asks for the identity lane WITHOUT a
+     * canon rider — assert-CONDITION sides (the value is a boolean; the
+     * in-SQL eq/equal arm needs instance identity to compile the
+     * engine's equality relation). A rider implies identity. */
+    static @com.legend.Nullable ExecutionResult evalValue(TypedSpec value,
+            java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
+            com.legend.exec.@com.legend.Nullable CanonRider rider,
+            boolean identity)
+            throws java.sql.SQLException {
         java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
         single.add(value);
         var inliner = new com.legend.compiler.spec.UserCallInliner(specs);
@@ -2377,22 +2392,32 @@ final class StatementExecutor {
         body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
                 .withLetBindings(env.queryLets())
                 .resolve(body, env.runtimeFqn());
-        return executeTyped(body, env, rider);
+        return executeTyped(body, env, rider, identity);
     }
 
     static ExecutionResult executeTyped(
             java.util.List<TypedSpec> body, ExecEnv env)
             throws java.sql.SQLException {
-        return executeTyped(body, env, null);
+        return executeTyped(body, env, null, false);
+    }
+
+    static ExecutionResult executeTyped(
+            java.util.List<TypedSpec> body, ExecEnv env,
+            com.legend.exec.@com.legend.Nullable CanonRider rider)
+            throws java.sql.SQLException {
+        return executeTyped(body, env, rider, false);
     }
 
     /** V11: {@code rider} non-null asks the SQL path to carry the
      * canonical renders as appended columns (wrapWithCanon); every
      * non-SQL arm leaves the rider's initial "non-sql-arm" decline in
-     * place — counted at the verdict seam, never silent. */
+     * place — counted at the verdict seam, never silent. F13c:
+     * {@code identityLane} joins the identity lane without a rider
+     * (assert-condition sides). */
     static ExecutionResult executeTyped(
             java.util.List<TypedSpec> body, ExecEnv env,
-            com.legend.exec.@com.legend.Nullable CanonRider rider)
+            com.legend.exec.@com.legend.Nullable CanonRider rider,
+            boolean identityLane)
             throws java.sql.SQLException {
         ModelContext ctx = env.ctx();
         String runtimeFqn = env.runtimeFqn();
@@ -2567,7 +2592,7 @@ final class StatementExecutor {
         }
         com.legend.sql.dialect.SqlDialect dialect = env.dialect();
         com.legend.sql.SqlQuery plan = lowerAndPrepare(body, env, ctx,
-                dialect, connection, rider != null);
+                dialect, connection, rider != null || identityLane);
         boolean collectionDeclared = declaredInfo != null
                 && declaredInfo.type()
                         instanceof com.legend.compiler.element.type.Type.Primitive

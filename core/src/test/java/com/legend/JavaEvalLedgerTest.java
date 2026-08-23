@@ -249,7 +249,11 @@ class JavaEvalLedgerTest {
             // 787->790 same slice: Map-carrier exemption (mapEquals is
             // F12's claimed rule, not an identity pair) + the shared
             // SYNTHETIC_ID spelling constant.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 790),
+            // 790->796 (2026-08-23 F13c): the assert-CONDITION sides ride
+            // the identity lane (identitySide — an evalValue flag, zero
+            // evaluation; the in-SQL eq/equal arm needs instance identity
+            // and the boolean egress keeps other lanes blind).
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 796),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -277,7 +281,10 @@ class JavaEvalLedgerTest {
             // verdict sides), and lowerAndPrepare selects the identity-
             // bearing layout on the rider lane only (golden-SQL text
             // lanes stay unperturbed). Plumbing, zero evaluation.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2385),
+            // 2385->2402 (F13c): identity-flag threading (evalValue/
+            // executeTyped overloads) + the keys-resolver handle to the
+            // Lowerer — plumbing, zero evaluation.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2402),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

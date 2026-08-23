@@ -140,27 +140,14 @@ public final class CanonicalRenderSql {
                 // canon. A side whose layout carries no __id (Any/
                 // variant wire trees, layoutless classes) stays a
                 // counted decline.
-                String idField = com.legend.compiler.element.ClassLayouts
-                        .SYNTHETIC_ID;
-                if (valueCol.type() instanceof SqlType.Struct ist
-                        && ist.fields().stream()
-                                .anyMatch(f -> idField.equals(f.name()))) {
-                    SqlExpr idc = new SqlExpr.Case(List.of(
-                            new SqlExpr.Case.When(
-                                    SqlExpr.Call.of(SqlFn.IS_NULL, valueRef),
-                                    new SqlExpr.NullLit())),
-                            new SqlExpr.JsonObject(List.of(
-                                    new SqlExpr.StringLit("_type"),
-                                    new SqlExpr.StringLit(instFqn),
-                                    new SqlExpr.StringLit("_id"),
-                                    new SqlExpr.StructGet(valueRef,
-                                            idField))));
-                    candidates = List.of(t);
-                    canons.add(new SqlExpr.Cast(idc, SqlType.Scalar.VARCHAR));
-                } else {
+                SqlExpr idc = identityCanon(valueRef, instFqn,
+                        valueCol.type());
+                if (idc == null) {
                     return CanonWrap.decline(plan,
                             "keyless-instance: " + instFqn);
                 }
+                candidates = List.of(t);
+                canons.add(new SqlExpr.Cast(idc, SqlType.Scalar.VARCHAR));
             } else {
                 SqlExpr c = instanceCanon(valueRef, instanceKeys,
                         valueCol.type());
@@ -213,6 +200,40 @@ public final class CanonicalRenderSql {
                 new com.legend.sql.SqlSource.Subselect(plan, "side", null),
                 null, List.of(), null, null, sort, null, null, outputs),
                 candidates, many, null);
+    }
+
+    /** F13 — the IDENTITY canon of an instance whose layout carries the
+     * synthetic {@code __id}: {@code {_type, _id}}, JSON-framed like the
+     * keyed canon. Null when the layout has no identity field (Any/
+     * variant wire trees, layoutless classes). */
+    static @com.legend.Nullable SqlExpr identityCanon(SqlExpr v,
+            String fqn, SqlType layout) {
+        String idField = com.legend.compiler.element.ClassLayouts
+                .SYNTHETIC_ID;
+        if (!(layout instanceof SqlType.Struct st) || st.fields().stream()
+                .noneMatch(f -> idField.equals(f.name()))) {
+            return null;
+        }
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.IS_NULL, v),
+                new SqlExpr.NullLit())),
+                new SqlExpr.JsonObject(List.of(
+                        new SqlExpr.StringLit("_type"),
+                        new SqlExpr.StringLit(fqn),
+                        new SqlExpr.StringLit("_id"),
+                        new SqlExpr.StructGet(v, idField))));
+    }
+
+    /** F13c — instance equality's ONE canon (the in-SQL eq/equal arm's
+     * entry): keyed classes render their key tree ({@code instanceCanon},
+     * the X5 relation), keyless classes their identity. Null =
+     * unclaimable shape (the caller keeps its legacy behavior). */
+    static @com.legend.Nullable SqlExpr instanceEqualityCanon(SqlExpr v,
+            com.legend.compiler.element.@com.legend.Nullable EqualityKeys
+                    keys,
+            String fqn, SqlType layout) {
+        return keys == null ? identityCanon(v, fqn, layout)
+                : instanceCanon(v, keys, layout);
     }
 
     /**

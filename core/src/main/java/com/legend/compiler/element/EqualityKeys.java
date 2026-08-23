@@ -72,8 +72,15 @@ public record EqualityKeys(String classFqn, List<Key> keys) {
     }
 
     /** Walks {@code fqn} then its supertypes (engine generalization
-     * order), appending keyed stored properties. False = poisoned
-     * (a class-typed key over a keyless class). */
+     * order), appending keyed stored properties. The engine's key set
+     * is the class's SIMPLE PROPERTIES filtered by the stereotype
+     * (_Class.collectEqualityKeyProperties), so a subclass
+     * REDECLARATION shadows the inherited property whether or not the
+     * redeclaration is keyed — an un-keyed redeclaration REMOVES the
+     * super's key (witness testEqualNonPrimitive's OtherBottomClass:
+     * {@code sides} redeclared bare, {@code otherBot11 == otherBot21}
+     * with differing sides holds). False = poisoned (a class-typed key
+     * over a keyless class). */
     private static boolean collect(ModelContext ctx, String fqn,
             Set<String> inProgress, List<Key> out, Set<String> seenNames,
             Set<String> seenClasses) {
@@ -85,8 +92,8 @@ public record EqualityKeys(String classFqn, List<Key> keys) {
             return true;   // unknown super — contributes nothing
         }
         for (Property p : tc.properties()) {
-            if (!(p instanceof Property.Stored st) || !st.equalityKey()
-                    || !seenNames.add(st.name())) {
+            if (!(p instanceof Property.Stored st)
+                    || !seenNames.add(st.name()) || !st.equalityKey()) {
                 continue;
             }
             EqualityKeys nested = null;

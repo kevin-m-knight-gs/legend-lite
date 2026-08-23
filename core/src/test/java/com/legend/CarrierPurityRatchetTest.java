@@ -109,7 +109,13 @@ class   CarrierPurityRatchetTest {
             // 129→127 (D1): checkedExtract's guard spelling moved INTO the
             // renderer behind the CheckedOne SEMANTIC NODE — the exact
             // re-absorption its justification promised.
-            "SqlFn\\.LIST_", 132,
+            // 132→133 (2026-08-23 F13c): InstanceEquality's canonical
+            // MEMBERSHIP (contains/in over instances = equal() per
+            // element — LIST_TRANSFORM to the verdict canon's texts).
+            // Verdict-lane only, same family and F3/F10 migration note
+            // as the instanceCanon/mapCanon rows above; absorbed when
+            // the canon family moves behind its semantic node.
+            "SqlFn\\.LIST_", 133,
             "SqlFn\\.UNNEST", 12,
             // the collect-carrier reducer (R1 recognizes it for fusion;
             // burns with R3/R4 when sources/values migrate)

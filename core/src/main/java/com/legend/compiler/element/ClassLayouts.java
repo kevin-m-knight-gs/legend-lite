@@ -39,17 +39,22 @@ public final class ClassLayouts {
     }
 
     /**
-     * F13 — {@code withIdentity} appends the synthetic {@code __id}
-     * identity field to a KEYLESS class's layout (no resolvable
-     * {@code <<equality.Key>>} tree: engine equality over such a class
-     * is INSTANCE IDENTITY, which the wire can only carry as data).
-     * Identity layouts ride ONLY the verdict-side evaluation path (the
-     * canon rider) — the golden-SQL text lanes and corpus value lanes
-     * keep the plain layout, so their pinned texts never see the field.
-     * Every producer of an identity layout's struct owns the field:
-     * constructor/copy sites MINT (each copy is a NEW instance);
+     * F13/F13c — {@code withIdentity} appends the synthetic {@code __id}
+     * identity field to a model class's layout: engine {@code eq()} is
+     * INSTANCE IDENTITY for every non-primitive (keyed classes
+     * included — keys govern {@code equal}, never {@code eq}), and a
+     * keyless class's {@code equal} is identity too; the wire can only
+     * carry identity as data. Identity layouts ride ONLY the verdict
+     * lanes (canon rider + assert-condition sides) — the golden-SQL
+     * text lanes and corpus value lanes keep the plain layout, so their
+     * pinned texts never see the field. Platform CARRIERS (Pair/List/
+     * Map) are excluded: their constructors short-circuit to fixed
+     * carrier shapes before the layout, and an appended field would rip
+     * the layout from the emitted value (the Executor's attr-count
+     * wall). Every producer of an identity layout's struct owns the
+     * field: constructor/copy sites MINT (each copy is a NEW instance);
      * store-mapped reads would project NULL (no such producer exists in
-     * the rider lane today — the Executor's attr-count wall guards it).
+     * the identity lanes today — the attr-count wall guards it).
      */
     public static Optional<List<Type.Column>> layoutOf(ModelContext ctx, Type t,
                                                       boolean withIdentity) {
@@ -58,8 +63,10 @@ public final class ClassLayouts {
             return base;
         }
         String fqn = EqualityKeys.fqnOf(t);
-        if (fqn == null || EqualityKeys.resolve(ctx, fqn) != null) {
-            return base;   // keyed classes compare by keys — no identity field
+        if (fqn == null || PlatformTypes.isPairCarrier(t)
+                || PlatformTypes.isListCarrier(t)
+                || PlatformTypes.isMapCarrier(t)) {
+            return base;   // platform carriers own their SQL shape
         }
         if (base.get().stream().anyMatch(c -> SYNTHETIC_ID.equals(c.name()))) {
             throw new IllegalStateException("class '" + fqn + "' declares a"

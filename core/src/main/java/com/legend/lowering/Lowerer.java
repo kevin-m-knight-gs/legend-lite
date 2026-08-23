@@ -191,8 +191,19 @@ public final class Lowerer {
      * evaluation. Null = a lane with no identity. */
     private @com.legend.Nullable Function<Object, String> instanceIdOf;
 
-    public Lowerer withInstanceIds(Function<Object, String> ids) {
+    /** F13c — the driver-supplied {@code <<equality.Key>>} resolver
+     * (EqualityKeys.resolve over the model): the in-SQL eq/equal arm
+     * compiles instance equality from the SAME canon the verdict layer
+     * uses. Null outside the identity lane. */
+    private @com.legend.Nullable Function<String,
+            com.legend.compiler.element.@com.legend.Nullable EqualityKeys>
+            instanceKeysOf;
+
+    public Lowerer withInstanceIds(Function<Object, String> ids,
+            Function<String, com.legend.compiler.element
+                    .@com.legend.Nullable EqualityKeys> keys) {
         this.instanceIdOf = ids;
+        this.instanceKeysOf = keys;
         return this;
     }
 
@@ -547,7 +558,8 @@ public final class Lowerer {
             // LATERAL UNNEST (cross-product across columns, real pure; LEFT so
             // an empty array NULLs its column instead of killing the row).
             case TypedProject p when isInstanceLiteral(p.source()) ->
-                    projectOverInstances(p);
+                    InstanceProjection.lower(p, outputsOf(p.info()),
+                            this::scalar, noScope(), this::nextAlias);
 
             case TypedProject p -> project(relation(p.source()), p.columns(), p.info());
 
@@ -2772,6 +2784,20 @@ public final class Lowerer {
                             .equals(tc.callee().qualifiedName()) ->
                 Render.lowerToString(tc, this::relation, nextAlias(),
                         deferredTds);
+            // F13c — eq/equal over INSTANCE operands (identity lane):
+            // ONE owner of the equality relation — the same canon the
+            // verdict layer byte-judges with. eq = identity (__id
+            // compare); equal = key-tree canon (keyed) or identity
+            // canon (keyless). An unclaimed shape falls to the generic
+            // rule (the candidate check is type-only, side-effect-free).
+            case TypedNativeCall n when instanceKeysOf != null
+                    && InstanceEquality.claims(n) -> {
+                SqlExpr ie = InstanceEquality.lower(n, instanceKeysOf,
+                        this::sqlTypeOf, s -> scalar(s, columns),
+                        () -> "_iq" + aliasCounter++);
+                yield ie != null ? ie : Scalars.lower(n,
+                        n.args().stream().map(a -> scalar(a, columns)).toList());
+            }
             case TypedNativeCall n -> Scalars.lower(n,
                     n.args().stream().map(a -> scalar(a, columns)).toList());
             // write(rel, accessor) returns the COUNT of rows written (the
@@ -2955,154 +2981,6 @@ public final class Lowerer {
                                 e instanceof TypedNewInstance));
     }
 
-    /**
-     * Lower {@code <instances>->project(~[alias: x|$x.path…])}: one SELECT per
-     * instance (UNION ALL for a collection). A colspec whose path crosses a
-     * TO-MANY property becomes a {@code LEFT JOIN LATERAL
-     * (SELECT unnest(<array literal>) AS elem)} off a one-row anchor — LEFT
-     * so an empty array yields NULL, lateral chaining so independent arrays
-     * CROSS-multiply (real pure's project semantics over instances).
-     */
-    private SqlSelect projectOverInstances(TypedProject p) {
-        List<TypedNewInstance> instances =
-                p.source() instanceof TypedCollection c
-                        ? c.elements().stream()
-                                .map(e -> (TypedNewInstance) e)
-                                .toList()
-                        : List.of((TypedNewInstance) p.source());
-        List<OutputCol> outputs = outputsOf(p.info());
-        List<SqlQuery> branches = new ArrayList<>(instances.size());
-        for (var inst : instances) {
-            branches.add(instanceSelect(inst, p.columns(), outputs));
-        }
-        if (branches.size() == 1) {
-            return (SqlSelect) branches.get(0);
-        }
-        return SqlSelect.starOf(new SqlSource.Subselect(
-                new SqlUnion(branches, true, outputs), nextAlias(), null));
-    }
-
-    private SqlSelect instanceSelect(TypedNewInstance inst,
-                                     List<TypedFuncCol> columns, List<OutputCol> outputs) {
-        SqlSource src = null;
-        // ONE unnest per to-many PATH PREFIX (the NavPath-registry rule):
-        // two colspecs over $x.addresses iterate the SAME collection — real
-        // pure yields (city, zip) pairs, never their cross product. Only
-        // INDEPENDENT collections cross-multiply.
-        Map<String, String> unnestByPrefix = new LinkedHashMap<>();
-        List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
-        for (TypedFuncCol col : columns) {
-            List<String> path = pathOf(col);
-            if (path == null) {
-                // COMPUTED column ($v.a + $v.b, coalesce($x.f, ...)): the row
-                // param's property accesses resolve to the instance's literal
-                // values; the body lowers as an ordinary scalar. A MANY-valued
-                // body has no relational cell shape (bare to-many paths
-                // explode via unnest; a computed one must be loud, never a
-                // silent list-in-a-cell).
-                TypedSpec bodyLast = last(col.fn());
-                if (bodyLast.info().multiplicity().isMany()) {
-                    throw new NotImplementedException(
-                            "instance-literal project: computed column '" + col.name()
-                                    + "' is collection-valued — only bare to-many"
-                                    + " property paths explode");
-                }
-                String param = col.fn().parameters().get(0);
-                SqlExpr computed = scalar(last(col.fn()), (v, name) -> {
-                    if (!param.equals(v)) {
-                        throw new IllegalStateException("instance-literal project:"
-                                + " unresolved variable $" + v);
-                    }
-                    TypedSpec pv = inst.properties().get(name);
-                    return pv == null ? new SqlExpr.NullLit() : scalar(pv, noScope());
-                });
-                ps.add(new SqlSelect.Projection(computed, col.name()));
-                continue;
-            }
-            // Walk the path over the literal: to-one instance hops recurse;
-            // the first TO-MANY value becomes the unnest source.
-            TypedSpec cur = inst;
-            SqlExpr value = null;
-            for (int i = 0; i < path.size(); i++) {
-                if (!(cur instanceof TypedNewInstance ni)) {
-                    throw new NotImplementedException(
-                            "instance-literal project: '" + col.name()
-                                    + "' navigates through a non-instance value");
-                }
-                TypedSpec v = ni.properties().get(path.get(i));
-                if (v == null) {
-                    value = new SqlExpr.NullLit();   // unset property: NULL column
-                    break;
-                }
-                if (v instanceof TypedCollection many) {
-                    // TO-MANY: explode via lateral unnest (shared per path
-                    // prefix); the residual path reads fields off the element.
-                    String prefix = String.join(".", path.subList(0, i + 1));
-                    String alias = unnestByPrefix.get(prefix);
-                    if (alias == null) {
-                        alias = nextAlias();
-                        unnestByPrefix.put(prefix, alias);
-                        SqlExpr array = many.elements().isEmpty()
-                                ? new SqlExpr.NullLit()
-                                : new SqlExpr.ArrayLit(many.elements().stream()
-                                        .map(e -> scalar(e, noScope())).toList());
-                        SqlSource right = Fold.lateralElem(array,
-                                SqlType.Scalar.VARCHAR, nextAlias(), alias);
-                        src = src == null
-                                ? anchorJoin(right)
-                                : new SqlSource.Join(src, right,
-                                        SqlSource.Join.Kind.LEFT_LATERAL,
-                                        new SqlExpr.BoolLit(true));
-                    }
-                    value = new SqlExpr.Column(alias, "elem");
-                    for (int r = i + 1; r < path.size(); r++) {
-                        value = new SqlExpr.StructGet(value, path.get(r));
-                    }
-                    break;
-                }
-                if (i == path.size() - 1) {
-                    value = scalar(v, noScope());
-                } else {
-                    cur = v;
-                }
-            }
-            ps.add(new SqlSelect.Projection(Objects.requireNonNull(value, "value"), col.name()));
-        }
-        return new SqlSelect(ps, false,
-                src == null ? new SqlSource.Dual() : src, null, List.of(),
-                null, null, List.of(), null, null, outputs);
-    }
-
-    /** The 1-row anchor a lateral chain hangs off (an empty array must NULL, not kill, the row). */
-    private SqlSource anchorJoin(SqlSource right) {
-        SqlSource anchor = new SqlSource.Values(
-                List.of(List.of(new SqlExpr.IntLit(1))), List.of("_anchor"), nextAlias(),
-                List.of(new OutputCol("_anchor", SqlType.Scalar.BIGINT, false)));
-        return new SqlSource.Join(anchor, right,
-                SqlSource.Join.Kind.LEFT_LATERAL, new SqlExpr.BoolLit(true));
-    }
-
-    /** A colspec body as a bare property path (null = computed). A
-     * path IS a chain of auto-maps: plain access OR single-hop map
-     * node (ValueCollections.autoMapHop). */
-    private static @com.legend.Nullable List<String> pathOf(TypedFuncCol col) {
-        String param = col.fn().parameters().get(0);
-        ArrayDeque<String> path = new ArrayDeque<>();
-        TypedSpec cur = col.fn().body().get(col.fn().body().size() - 1);
-        while (true) {
-            if (cur instanceof TypedPropertyAccess pa) {
-                path.addFirst(pa.property());
-                cur = pa.source();
-            } else if (ValueCollections.autoMapHop(cur) instanceof String hop) {
-                path.addFirst(hop);
-                cur = ((TypedMap) cur).source();
-            } else break;
-        }
-        if (!(cur instanceof TypedVariable v) || !v.name().equals(param) || path.isEmpty()) {
-            return null;   // COMPUTED body — the caller lowers it as a scalar
-        }
-        return List.copyOf(path);
-    }
 
     /**
      * The variant→class cast at the base of a property-access chain

@@ -73,7 +73,12 @@ class ChannelBGrammarTest {
         // 130 (host-logic audit slice): Decimal literal-list arithmetic
         // folds to exact BINARY DECIMAL chains at emission (DuckDB list
         // aggregates run DOUBLE — probed)
-        assertTrue(c.pass() >= 130, "grammar PASS fell: " + c.pass());
+        // 132 (2026-08-23 F13c): testEq/testEqualNonPrimitive — the
+        // in-SQL eq/equal arm compiles the engine relation (identity
+        // __id compare / key-tree canon) on the identity lane; BOTH
+        // land as B-FIXES-A (channel A excludes them — identity was
+        // unobservable on its value wire; ours carries it as data).
+        assertTrue(c.pass() >= 132, "grammar PASS fell: " + c.pass());
         assertTrue(c.wireBug() <= 1,
                 "grammar WIRE-BUG census grew: " + c.wireBug());
         assertTrue(c.trueWireBug() == 0,

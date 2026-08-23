@@ -41,6 +41,21 @@ class InstanceIdentityTest {
               <<equality.Key>> id: Integer[1];
               other: String[1];
             }
+            Class m::Side
+            {
+              <<equality.Key>> sid: String[1];
+            }
+            Class m::Top
+            {
+              <<equality.Key>> name: String[1];
+              <<equality.Key>> sides: m::Side[*];
+              nick: String[0..1];
+            }
+            Class m::Sub extends m::Top
+            {
+              sides: m::Side[*];
+              <<equality.Key>> n: Integer[1];
+            }
             function meta::pure::functions::asserts::assertEquals(expected:Any[*], actual:Any[*]):Boolean[1]
             {
                 assert(equal($expected, $actual), 'assert failed');
@@ -145,6 +160,82 @@ class InstanceIdentityTest {
         assertTrue(CanonicalDivergence.sqlDeclinedCount() > before,
                 "the lambda-minted ctor pair must DECLINE the byte"
                         + " verdict, never claim it");
+    }
+
+    @Test
+    @DisplayName("F13c: eq inside a CONDITION is identity — content-equal"
+            + " keyed instances are distinct objects")
+    void eqInCondition() throws Exception {
+        // mirrors PCT testEqNonPrimitive: side1/side2 content-identical
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+                "{|let a = ^m::K(id=1, other='x');"
+                        + " let b = ^m::K(id=1, other='x');"
+                        + " assert(eq($a, $a) && !eq($a, $b));}")).value());
+    }
+
+    @Test
+    @DisplayName("F13c: equal inside a CONDITION is the KEY relation —"
+            + " non-key content is outside it, cross-class is false")
+    void equalInCondition() throws Exception {
+        // mirrors PCT testEqualNonPrimitive: right11 == right12 differ
+        // ONLY in a non-key property
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+                "{|let a = ^m::K(id=1, other='x');"
+                        + " let b = ^m::K(id=1, other='y');"
+                        + " assert(equal($a, $b) && ($a == $b));}")).value());
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+                "{|let a = ^m::K(id=1, other='x');"
+                        + " let c = ^m::K(id=2, other='x');"
+                        + " assert(!equal($a, $c) && ($a != $c));}")).value());
+        // cross-class: never equal (engine classifier rule)
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+                "{|let a = ^m::K(id=1, other='x');"
+                        + " let p = ^m::P(name='x');"
+                        + " assert(!equal($a, $p));}")).value());
+    }
+
+    @Test
+    @DisplayName("F13c: keyless equal/eq in a CONDITION are both identity")
+    void keylessConditionIdentity() throws Exception {
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+                "{|let a = ^m::P(name='x'); let b = ^m::P(name='x');"
+                        + " assert(equal($a, $a) && !equal($a, $b)"
+                        + " && eq($a, $a) && !eq($a, $b));}")).value());
+    }
+
+    @Test
+    @DisplayName("F13c: nested to-many keys + the un-keyed redeclaration"
+            + " SHADOW (engine _Class: simple properties filtered by"
+            + " stereotype)")
+    void keyShadowAndNestedKeys() throws Exception {
+        // Top's keys = name + sides (class-typed to-many): key-equal
+        // sides through KEY-equal (not identical) elements
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+                "{|let s1 = ^m::Side(sid='a'); let s2 = ^m::Side(sid='a');"
+                        + " let t1 = ^m::Top(name='t', sides=[$s1]);"
+                        + " let t2 = ^m::Top(name='t', sides=[$s2]);"
+                        + " assert(equal($t1, $t2));}")).value());
+        // Sub REDECLARES sides WITHOUT the key stereotype: it stops
+        // being a key — Subs differing only in sides stay equal, and n
+        // (Sub's own key) still separates
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+                "{|let s1 = ^m::Side(sid='a'); let s3 = ^m::Side(sid='b');"
+                        + " let u1 = ^m::Sub(name='t', n=1, sides=[$s1]);"
+                        + " let u2 = ^m::Sub(name='t', n=1, sides=[$s3]);"
+                        + " let u3 = ^m::Sub(name='t', n=2, sides=[$s1]);"
+                        + " assert(equal($u1, $u2) && !equal($u1, $u3));}"))
+                .value());
+    }
+
+    @Test
+    @DisplayName("F13c: contains/in over keyed instances is equal() per"
+            + " element — a fresh key-matching instance IS contained")
+    void containsIsKeyedEquality() throws Exception {
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+                "{|let a = ^m::K(id=1, other='x'); let b = ^m::K(id=2, other='y');"
+                        + " assert([$a, $b]->contains(^m::K(id=1, other='z'))"
+                        + " && !([$a, $b]->contains(^m::K(id=3, other='x'))));}"))
+                .value());
     }
 
     @Test

@@ -250,8 +250,12 @@ final class AssertVerdicts {
                 if (args.isEmpty()) {
                     return null;
                 }
-                Object c = one(side(args.get(0), letPrefix, specs, env),
-                        name + " condition");
+                // F13c: the CONDITION rides the identity lane — eq/
+                // equal over instances compile the engine relation
+                // (identity/key canon); the egress is one boolean, so
+                // no other lane ever sees the identity field
+                Object c = one(identitySide(args.get(0), letPrefix,
+                        specs, env), name + " condition");
                 boolean held = Boolean.TRUE.equals(c) == name.equals("assert");
                 return held ? ok() : fail("Assert failed");
             }
@@ -465,7 +469,7 @@ final class AssertVerdicts {
         // below stays host-side (Clause 2c)
         TypedSpec predMap = com.legend.compiler.spec.VerdictQueries
                 .predicateVector(qm, lam, aargs.get(0));
-        List<Object> verdicts = side(predMap, letPrefix, specs, env);
+        List<Object> verdicts = identitySide(predMap, letPrefix, specs, env);
         boolean wantTrue = name.equals("assert");
         for (Object v : verdicts) {
             if (Boolean.TRUE.equals(v) != wantTrue) {
@@ -940,6 +944,17 @@ final class AssertVerdicts {
             throws java.sql.SQLException {
         return decodeSide(StatementExecutor.evalValue(arg, letPrefix,
                 specs, env));
+    }
+
+    /** F13c — a side on the IDENTITY LANE without a canon rider: the
+     * assert-condition/predicate evaluator (in-SQL eq/equal needs
+     * instance identity; the boolean egress keeps every other lane
+     * blind to the field). */
+    private static List<Object> identitySide(TypedSpec arg,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env) throws java.sql.SQLException {
+        return decodeSide(StatementExecutor.evalValue(arg, letPrefix,
+                specs, env, null, true));
     }
 
     private static List<Object> decodeSide(
