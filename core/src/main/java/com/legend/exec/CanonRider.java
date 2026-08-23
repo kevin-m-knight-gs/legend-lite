@@ -36,7 +36,7 @@ public final class CanonRider {
     /** The wrap outcome frame: candidate canon kinds in
      * projected-column order, and whether the side is a collection
      * (drives the renderSide list framing at the verdict layer). */
-    public record Wrap(List<Type> kinds, boolean many) {
+    public record Wrap(List<Type> kinds, boolean many, int literalIndex) {
     }
 
     private final boolean canonicalOrder;
@@ -79,9 +79,26 @@ public final class CanonRider {
     }
 
     /** The canon owner records a successful wrap. */
-    public void wrap(List<Type> candidateKinds, boolean isMany) {
-        this.wrap = new Wrap(List.copyOf(candidateKinds), isMany);
+    public void wrap(List<Type> candidateKinds, boolean isMany,
+            int literalIndex) {
+        this.wrap = new Wrap(List.copyOf(candidateKinds), isMany,
+                literalIndex);
         this.declined = null;
+    }
+
+    /** F10 v1 — the LITERAL-candidate column index (the pure-literal
+     * comparison channel an Any-involving pair selects), or -1 when
+     * the side projects none. */
+    public int literalIndex() {
+        return wrap == null ? -1 : wrap.literalIndex();
+    }
+
+    /** F10 v1 — TRUE when the side's ONLY channel is the literal one
+     * (an Any-stamped or JSON-carried side): by construction its
+     * literal candidate is column 0; typed sides project bare
+     * candidates first, so their literal index is always &ge; 1. */
+    public boolean literalOnly() {
+        return wrap != null && wrap.literalIndex() == 0;
     }
 
     /** The canon owner (or a non-SQL driver arm) records a decline. */

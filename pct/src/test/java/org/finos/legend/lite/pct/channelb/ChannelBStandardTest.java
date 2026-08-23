@@ -111,7 +111,14 @@ class ChannelBStandardTest {
         // PCT-lane declines 19 -> 13; residue = Any wire trees,
         // Pair unclaimable leaves, one canon-exec array shape,
         // mixed-kind, kind-gate.
-        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 15,
+        // 15 -> 5 BANKED DOWN (2026-08-23 F10 v1, the literal channel):
+        // Any/mixed sides byte-compare in pure-literal spellings
+        // (json_type-dispatched); Pair-of-Pairs claimed by
+        // substitution-aware keys. Cumulative declines 13 -> 3 —
+        // ALL stamp-circularity wire lies, tunnel-counted (map
+        // struct-array, letFn raw-VARCHAR-as-JSON, mixedSort
+        // Number-stamp), named in OPEN_REGISTER F10.
+        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 5,
                 "byte-verdict declines grew past the declared residue: "
                         + com.legend.exec.CanonicalDivergence.summary());
 

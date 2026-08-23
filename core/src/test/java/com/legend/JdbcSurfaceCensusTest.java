@@ -121,6 +121,9 @@ class JdbcSurfaceCensusTest {
             // computes both verdict sides; the site-minted __id rides
             // the SQL and the verdict IS the test
             "core/src/test/java/com/legend/exec/InstanceIdentityTest.java",
+            // F10 v1: literal-channel spec pins — a DuckDB session
+            // computes both sides; the byte verdict IS the test
+            "core/src/test/java/com/legend/exec/LiteralChannelTest.java",
             // relation wall burn 2026-08-23: the aggregate-ORDER-BY
             // null-placement pin — a DuckDB session renders the sorted
             // toString; the produced text IS the assertion

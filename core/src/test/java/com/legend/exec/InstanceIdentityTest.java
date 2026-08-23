@@ -239,6 +239,26 @@ class InstanceIdentityTest {
     }
 
     @Test
+    @DisplayName("Pair-of-Pairs: substitution-aware key trees — a nested"
+            + " Pair key leaf renders, never declines")
+    void pairOfPairsKeys() throws Exception {
+        long before = CanonicalDivergence.sqlDeclinedCount();
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+                "{|assert(equal(pair(pair(1, 'a'), 2),"
+                        + " pair(pair(1, 'a'), 2)));}")).value());
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+                "{|assert(!equal(pair(pair(1, 'a'), 2),"
+                        + " pair(pair(1, 'b'), 2)));}")).value());
+        // and through the VERDICT wrap (the zip family's shape):
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+                "{|assertEquals(pair(pair(1, 'a'), 2),"
+                        + " pair(pair(1, 'a'), 2))}")).value());
+        assertEquals(before, CanonicalDivergence.sqlDeclinedCount(),
+                "Pair-of-Pairs must CLAIM, not decline: "
+                        + CanonicalDivergence.summary());
+    }
+
+    @Test
     @DisplayName("plain (rider-less) value reads keep the PLAIN layout —"
             + " no __id leaks into ordinary wire maps")
     void plainLaneUnperturbed() throws Exception {

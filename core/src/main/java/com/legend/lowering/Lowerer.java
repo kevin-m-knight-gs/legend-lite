@@ -195,12 +195,12 @@ public final class Lowerer {
      * (EqualityKeys.resolve over the model): the in-SQL eq/equal arm
      * compiles instance equality from the SAME canon the verdict layer
      * uses. Null outside the identity lane. */
-    private @com.legend.Nullable Function<String,
+    private @com.legend.Nullable Function<Type,
             com.legend.compiler.element.@com.legend.Nullable EqualityKeys>
             instanceKeysOf;
 
     public Lowerer withInstanceIds(Function<Object, String> ids,
-            Function<String, com.legend.compiler.element
+            Function<Type, com.legend.compiler.element
                     .@com.legend.Nullable EqualityKeys> keys) {
         this.instanceIdOf = ids;
         this.instanceKeysOf = keys;

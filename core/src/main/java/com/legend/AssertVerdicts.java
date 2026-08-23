@@ -508,17 +508,27 @@ final class AssertVerdicts {
             List<TypedSpec> letPrefix, StatementExecutor.ExecEnv env) {
         List<Object> eVals = ef.values();
         List<Object> aVals = af.values();
+        String ke = kindClassOf(eSpec.info().type());
+        String ka = kindClassOf(aSpec.info().type());
+        boolean eAny = isAnyStamped(eSpec);
+        boolean aAny = isAnyStamped(aSpec);
         // MIXED-KIND numeric collections are unsound under SQL column
         // promotion (pure refuses 1 == 1.0 element-wise; one DOUBLE
         // column erases the distinction) — the HOST-fetched element
-        // kinds gate the route (a routing fact, not a verdict).
-        if (mixedNumericKinds(eVals) || mixedNumericKinds(aVals)) {
+        // kinds gate the route (a routing fact, not a verdict). An
+        // ANY side is EXEMPT (F10 v1): its JSON carrier never promotes
+        // — each cell keeps its own kind and the literal channel spells
+        // 1 and 1.0 apart.
+        // ... and a LITERAL-ONLY side (JSON-carried — Number-stamped
+        // mixed lists ride the variant wrap too) is equally exempt:
+        // its cells never promote.
+        if ((!eAny && !ef.rider().literalOnly() && mixedNumericKinds(eVals))
+                || (!aAny && !af.rider().literalOnly()
+                        && mixedNumericKinds(aVals))) {
             com.legend.exec.CanonicalDivergence.sqlDeclined(
                     "mixed-kind-collection");
             return null;
         }
-        String ke = kindClassOf(eSpec.info().type());
-        String ka = kindClassOf(aSpec.info().type());
         // X5: a Nil-stamped side is the []-born EMPTY value — pure
         // equality against ANY kind is decided by emptiness alone
         // (equal([], x) is element-wise vacuous), so the kind classes
@@ -528,7 +538,12 @@ final class AssertVerdicts {
                 .isNil(eSpec.info().type())
                 || com.legend.compiler.element.type.PlatformTypes
                         .isNil(aSpec.info().type());
-        if (ke == null || ka == null || (!anyNil && !ke.equals(ka))) {
+        // F10 v1: an ANY-stamped side has no static kind — the pair
+        // compares in the pure-LITERAL channel (six disjoint spellings
+        // carry kind in the bytes), so the static gate defers
+        boolean anyAny = eAny || aAny;
+        if (ke == null || ka == null
+                || (!anyNil && !anyAny && !ke.equals(ka))) {
             com.legend.exec.CanonicalDivergence.sqlDeclined("kind-gate: "
                     + typeName(eSpec) + " / " + typeName(aSpec));
             return null;
@@ -549,7 +564,7 @@ final class AssertVerdicts {
         // F13 — IDENTITY-pair guards (keyless class: the canon claimed
         // via the synthetic __id identity field). Map carriers are NOT
         // identity pairs — mapEquals (F12) is their own claimed rule.
-        if (!anyNil && ke.startsWith("instance:")
+        if (!anyNil && !anyAny && ke.startsWith("instance:")
                 && !com.legend.compiler.element.type.PlatformTypes
                         .isMapCarrier(eSpec.info().type())
                 && instanceKeys(eSpec, aSpec, env) == null) {
@@ -586,7 +601,19 @@ final class AssertVerdicts {
         // pairs decline to the host lattice's engine-FALSE.
         int ei = 0;
         int ai = 0;
-        if (!anyNil && ke.equals("numeric")) {
+        if ((anyAny || ef.rider().literalOnly()
+                || af.rider().literalOnly()) && !anyNil) {
+            // both sides compare in the literal channel; a side without
+            // one (unrefined Number, non-literal kind) declines
+            ei = ef.rider().literalIndex();
+            ai = af.rider().literalIndex();
+            if (ei < 0 || ai < 0) {
+                com.legend.exec.CanonicalDivergence.sqlDeclined(
+                        "any-pair: no literal channel: " + typeName(eSpec)
+                                + " / " + typeName(aSpec));
+                return null;
+            }
+        } else if (!anyNil && ke.equals("numeric")) {
             String fe = selectedFineKind(ef, eVals);
             String fa = selectedFineKind(af, aVals);
             if (fe == null || fa == null) {
@@ -616,6 +643,16 @@ final class AssertVerdicts {
                             : "render-a: " + fa2.decline());
             return null;
         }
+        if (containsTreeMarker(fe2.text())
+                || containsTreeMarker(fa2.text())) {
+            // an Any cell held a JSON tree — the literal channel cannot
+            // spell it (F10 proper's kind-tagged carrier will); decline,
+            // never compare markers (equal trees would fabricate)
+            com.legend.exec.CanonicalDivergence.sqlDeclined(
+                    "any-wire-tree: " + typeName(eSpec) + " / "
+                            + typeName(aSpec));
+            return null;
+        }
         boolean byteEqual = java.util.Objects.equals(fe2.text(), fa2.text());
         String detail = "kinds=" + ef.rider().kinds().get(ei) + "/"
                 + af.rider().kinds().get(ai)
@@ -635,6 +672,18 @@ final class AssertVerdicts {
             return new SqlVerdict(true, "2ulp-policy " + detail);
         }
         return new SqlVerdict(byteEqual, detail);
+    }
+
+    private static boolean isAnyStamped(TypedSpec s) {
+        return s.info().type() instanceof
+                com.legend.compiler.element.type.Type.ClassType ct
+                && com.legend.compiler.element.type.PlatformTypes.isAny(ct);
+    }
+
+    private static boolean containsTreeMarker(
+            @com.legend.Nullable String text) {
+        return text != null && text.contains(
+                com.legend.lowering.CanonicalRenderSql.TREE_MARKER);
     }
 
     private static List<Object> concat(List<Object> a, List<Object> b) {
@@ -881,8 +930,11 @@ final class AssertVerdicts {
         String af = com.legend.compiler.element.EqualityKeys.fqnOf(
                 aSpec.info().type());
         if (ef != null && ef.equals(af)) {
+            // substitution-aware: the E-side stamp's instantiation
+            // (key NAMES are instantiation-independent; nesting follows
+            // the arguments — Pair-of-Pairs)
             return com.legend.compiler.element.EqualityKeys.resolve(
-                    env.ctx(), ef);
+                    env.ctx(), eSpec.info().type());
         }
         return null;
     }

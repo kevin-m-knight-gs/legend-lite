@@ -9,6 +9,7 @@ import com.legend.sql.SqlFn;
 import com.legend.sql.SqlType;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * R2's SQL-side canonical scalar render (docs/CANONICAL_FORM_SPEC.md
@@ -80,12 +81,12 @@ public final class CanonicalRenderSql {
      * the exec layer (Invariant 6h) — the driver records this on its
      * rider. */
     public record CanonWrap(com.legend.sql.SqlQuery plan,
-            List<Type> kinds, boolean many,
+            List<Type> kinds, boolean many, int literalIndex,
             @com.legend.Nullable String declineReason) {
 
         static CanonWrap decline(com.legend.sql.SqlQuery plan,
                 String reason) {
-            return new CanonWrap(plan, List.of(), false, reason);
+            return new CanonWrap(plan, List.of(), false, -1, reason);
         }
     }
 
@@ -94,6 +95,23 @@ public final class CanonicalRenderSql {
             boolean canonicalOrder,
             com.legend.compiler.element.@com.legend.Nullable EqualityKeys
                     instanceKeys) {
+        return wrapWithCanon(plan, rootInfo, canonicalOrder, instanceKeys,
+                true);
+    }
+
+    /** {@code literalChannel} false = the canon-exec tunnel's MIDDLE
+     * rung: a typed side re-wraps WITHOUT its literal candidate (a
+     * stamp-derived column type can lie about the wire — witness the
+     * BLOB byte carrier under a STRING stamp — and the unbindable
+     * literal must not demote the whole side to the host; the bare
+     * candidates still byte-decide). Literal-ONLY sides (Any/JSON)
+     * have no bare channel and are unaffected by the flag. */
+    public static CanonWrap wrapWithCanon(com.legend.sql.SqlQuery plan,
+            com.legend.compiler.element.type.ExprType rootInfo,
+            boolean canonicalOrder,
+            com.legend.compiler.element.@com.legend.Nullable EqualityKeys
+                    instanceKeys,
+            boolean literalChannel) {
         if (plan.outputs().size() != 1) {
             return CanonWrap.decline(plan, "non-scalar plan shape: "
                     + plan.outputs().size() + " columns");
@@ -103,8 +121,40 @@ public final class CanonicalRenderSql {
         SqlExpr valueRef = new SqlExpr.Column(null, valueCol.name());
         List<Type> candidates;
         List<SqlExpr> canons = new java.util.ArrayList<>();
+        int literalIndex = -1;
         String instFqn = com.legend.compiler.element.EqualityKeys.fqnOf(t);
-        if (instFqn != null
+        boolean jsonCol = valueCol.type() == SqlType.Scalar.JSON;
+        if (jsonCol || (t instanceof Type.ClassType anyCt
+                && com.legend.compiler.element.type.PlatformTypes
+                        .isAny(anyCt))) {
+            // F10 v1 — an ANY-stamped side, or ANY side riding the JSON
+            // carrier (the carrier is the FACT — PureSql's own doctrine:
+            // the JSON decision follows the LOWERED shape, never the
+            // pure type alone; witness the Number-stamped mixed lists).
+            // A JSON cell dispatches the pure-literal canon on its
+            // RUNTIME type in the database (anyJsonCanon); an Any stamp
+            // over a PLAIN column (a let-bound scalar erased to Any —
+            // witness testLetWithParam's VARCHAR 'echo') renders the
+            // literal of the COLUMN's kind, a wire fact. The ONE
+            // candidate IS the literal channel. Trees mark and the
+            // verdict layer declines on sight.
+            SqlExpr lit;
+            if (jsonCol) {
+                lit = anyJsonCanon(valueRef);
+            } else {
+                Type colKind = kindOfSqlType(valueCol.type());
+                SqlExpr lc = colKind == null ? null
+                        : literalCanon(valueRef, colKind);
+                if (lc == null) {
+                    return CanonWrap.decline(plan,
+                            "any-carrier: " + valueCol.type());
+                }
+                lit = lc;
+            }
+            candidates = List.of(t);
+            canons.add(new SqlExpr.Cast(lit, SqlType.Scalar.VARCHAR));
+            literalIndex = 0;
+        } else if (instFqn != null
                 && com.legend.compiler.element.type.PlatformTypes
                         .isMapCarrier(t)) {
             // F12 — the engine's OWN map rule (EqualityUtilities.
@@ -161,21 +211,40 @@ public final class CanonicalRenderSql {
                 canons.add(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
             }
         } else {
-            candidates = t == Type.Primitive.NUMBER
+            List<Type> bare = t == Type.Primitive.NUMBER
                     ? List.of(Type.Primitive.INTEGER, Type.Primitive.FLOAT,
                             Type.Primitive.DECIMAL)
                     : List.of(t);
-            for (Type k : candidates) {
+            for (Type k : bare) {
                 SqlExpr c = scalarCanon(valueRef, k);
                 if (c == null) {
                     return CanonWrap.decline(plan, "unclaimed kind: " + k);
                 }
                 canons.add(c);
             }
-        }
-        if (canonicalOrder && canons.size() > 1) {
-            return CanonWrap.decline(plan,
-                    "canonical-order over an unrefined Number side");
+            if (canonicalOrder && canons.size() > 1) {
+                return CanonWrap.decline(plan,
+                        "canonical-order over an unrefined Number side");
+            }
+            // F10 v1 — the LITERAL candidate (pure-literal spelling,
+            // ALWAYS LAST): the channel an Any-involving pair compares
+            // in (the verdict layer selects it only then). Single-kind
+            // sides only — an unrefined Number's literal is ambiguous.
+            candidates = new java.util.ArrayList<>(bare);
+            // guarded by the COLUMN kind: a column outside the literal
+            // vocabulary (BLOB — the byte wire) must not poison the
+            // wrapped query with an unbindable candidate (witness
+            // testRepeatStringNoString: replace(BLOB,..) rode the
+            // canon-exec tunnel and DEMOTED a bare-decided pair)
+            if (literalChannel && bare.size() == 1
+                    && kindOfSqlType(valueCol.type()) != null) {
+                SqlExpr lit = literalCanon(valueRef, t);
+                if (lit != null) {
+                    canons.add(new SqlExpr.Cast(lit, SqlType.Scalar.VARCHAR));
+                    candidates.add(t);
+                    literalIndex = canons.size() - 1;
+                }
+            }
         }
         var mult = rootInfo.multiplicity().requireBounded("canon side");
         boolean many = mult.upper() == null || mult.upper() > 1;
@@ -199,7 +268,7 @@ public final class CanonicalRenderSql {
                 false,
                 new com.legend.sql.SqlSource.Subselect(plan, "side", null),
                 null, List.of(), null, null, sort, null, null, outputs),
-                candidates, many, null);
+                candidates, many, literalIndex, null);
     }
 
     /** F13 — the IDENTITY canon of an instance whose layout carries the
@@ -381,14 +450,7 @@ public final class CanonicalRenderSql {
 
     /** One key LEAF: a nested keyed instance recurses (JSON-typed,
      * nests structurally); a scalar renders as PURE'S OWN LITERAL
-     * SPELLING (user ruling 2026-08-22 — no invented tag micro-format:
-     * the engine's grammar already carries kind in text). Integer is
-     * bare ({@code 1}), Float always has its point ({@code 1.0}),
-     * Decimal keeps its D suffix ({@code 8.00D}), String is
-     * pure-quoted with pure escaping ({@code 'a, b'}, {@code 'it\\'s'}),
-     * Boolean is bare, temporals carry pure's {@code %} prefix — six
-     * disjoint spellings, the engine's same-primitive-kind rule
-     * carried by engine syntax. */
+     * SPELLING ({@link #literalCanon}). */
     private static @com.legend.Nullable SqlExpr taggedLeaf(SqlExpr field,
             SqlType ft,
             com.legend.compiler.element.@com.legend.Nullable EqualityKeys
@@ -400,7 +462,21 @@ public final class CanonicalRenderSql {
         if (kind == null) {
             return null;
         }
-        SqlExpr leaf = scalarCanon(field, kind);
+        return literalCanon(field, kind);
+    }
+
+    /** PURE'S OWN LITERAL SPELLING of a scalar (user ruling 2026-08-22
+     * — no invented tag micro-format: the engine's grammar already
+     * carries kind in text). Integer is bare ({@code 1}), Float always
+     * has its point ({@code 1.0}), Decimal keeps its D suffix
+     * ({@code 8.00D}), String is pure-quoted with pure escaping
+     * ({@code 'a, b'}, {@code 'it\\'s'}), Boolean is bare, temporals
+     * carry pure's {@code %} prefix — six disjoint spellings, the
+     * engine's same-primitive-kind rule carried by engine syntax.
+     * (X5's key-leaf rule, promoted to the shared literal channel —
+     * F10 v1 compares Any-involving pairs in it.) */
+    static @com.legend.Nullable SqlExpr literalCanon(SqlExpr v, Type kind) {
+        SqlExpr leaf = scalarCanon(v, kind);
         if (leaf == null) {
             return null;
         }
@@ -427,6 +503,47 @@ public final class CanonicalRenderSql {
                     new SqlExpr.StringLit("%"), leaf);
         }
         return leaf;   // Integer bare, Float with its point, Boolean bare
+    }
+
+    /** F10 v1 — the unclaimable-tree sentinel: an Any cell holding a
+     * JSON array/object canons to this marker, and the VERDICT layer
+     * DECLINES the pair on sight (a marker can never be compared — two
+     * equal trees byte-matching it would fabricate equality). No
+     * legitimate canon text contains U+0001. */
+    public static final String TREE_MARKER = "\u0001tree";
+
+    /** F10 v1 — the ANY-cell canon: pure-literal spelling dispatched
+     * on the JSON carrier's RUNTIME type IN THE DATABASE (the carrier
+     * keeps JSON-native kinds faithful: number-int/number-frac/string/
+     * boolean; erased kinds — temporals and Decimals travel as their
+     * JSON forms — canon as what the carrier holds, matching the host
+     * referee's decode of the same wire; the kind-tagged carrier that
+     * retires this blindness is F10 proper). Arrays/objects mark
+     * {@link #TREE_MARKER} — decline, never guess. */
+    static SqlExpr anyJsonCanon(SqlExpr v) {
+        SqlExpr jt = SqlExpr.Call.of(SqlFn.JSON_TYPE, v);
+        SqlExpr txt = new SqlExpr.Cast(
+                SqlExpr.Call.of(SqlFn.VARIANT_GET, v,
+                        new SqlExpr.StringLit("$")),
+                SqlType.Scalar.VARCHAR);
+        SqlExpr strLit = Objects.requireNonNull(
+                literalCanon(txt, Type.Primitive.STRING));
+        SqlExpr floatLit = Objects.requireNonNull(
+                literalCanon(txt, Type.Primitive.FLOAT));
+        return new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.IS_NULL, v),
+                        new SqlExpr.NullLit()),
+                new SqlExpr.Case.When(eqText(jt, "VARCHAR"), strLit),
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.OR,
+                        eqText(jt, "BIGINT"), eqText(jt, "UBIGINT")), txt),
+                new SqlExpr.Case.When(eqText(jt, "DOUBLE"), floatLit),
+                new SqlExpr.Case.When(eqText(jt, "BOOLEAN"), txt)),
+                new SqlExpr.StringLit(TREE_MARKER));
+    }
+
+    private static SqlExpr eqText(SqlExpr e, String s) {
+        return SqlExpr.Call.of(SqlFn.EQUAL, e, new SqlExpr.StringLit(s));
     }
 
     /** The pure canon kind a struct field's SQL type spells — the

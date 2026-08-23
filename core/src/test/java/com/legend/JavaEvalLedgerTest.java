@@ -253,7 +253,14 @@ class JavaEvalLedgerTest {
             // the identity lane (identitySide — an evalValue flag, zero
             // evaluation; the in-SQL eq/equal arm needs instance identity
             // and the boolean egress keeps other lanes blind).
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 796),
+            // 796->829 (2026-08-23 F10 v1): the literal-channel SELECTION
+            // (Any-involving pairs pick the literal candidates; the
+            // mixed-numeric gate exempts JSON-carried sides — no
+            // promotion), the tree-marker decline, and the anyAny gate
+            // bypass. Routing + decline classification; the DATABASE
+            // computes every literal render (anyJsonCanon,
+            // lowering-owned).
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 829),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -284,7 +291,11 @@ class JavaEvalLedgerTest {
             // 2385->2402 (F13c): identity-flag threading (evalValue/
             // executeTyped overloads) + the keys-resolver handle to the
             // Lowerer — plumbing, zero evaluation.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2402),
+            // 2402->2423 (F10 v1): the canon-exec tunnel's middle rung
+            // (re-wrap without the literal candidate — bare byte
+            // verdicts survive a lying stamp). Orchestration, zero
+            // evaluation.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2423),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

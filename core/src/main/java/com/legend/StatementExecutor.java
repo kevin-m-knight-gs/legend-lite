@@ -2319,8 +2319,8 @@ final class StatementExecutor {
                 f -> ctx.findClass(f).isPresent()).withEngineExistsJoinForm();
         if (identity) {
             lowerer = lowerer.withInstanceIds(env.instanceIds()::idOf,
-                    f -> com.legend.compiler.element.EqualityKeys
-                            .resolve(ctx, f));
+                    t2 -> com.legend.compiler.element.EqualityKeys
+                            .resolve(ctx, t2));
         }
         com.legend.sql.SqlQuery plan =
                 lowerer.lower(com.legend.lowering.SeedableLets
@@ -2692,17 +2692,16 @@ final class StatementExecutor {
                 declaredInfo != null ? declaredInfo : root.info();
         com.legend.sql.SqlQuery bare = plan;
         if (rider != null) {
-            String instFqn = com.legend.compiler.element.EqualityKeys
-                    .fqnOf(shapeInfo.type());
             var w = com.legend.lowering.CanonicalRenderSql.wrapWithCanon(
                     plan, shapeInfo, rider.canonicalOrder(),
-                    instFqn == null ? null
-                            : com.legend.compiler.element.EqualityKeys
-                                    .resolve(env.ctx(), instFqn));
+                    // substitution-aware (Pair-of-Pairs): the stamp's
+                    // instantiation decides key nesting
+                    com.legend.compiler.element.EqualityKeys
+                            .resolve(env.ctx(), shapeInfo.type()));
             if (w.declineReason() != null) {
                 rider.decline(w.declineReason());
             } else {
-                rider.wrap(w.kinds(), w.many());
+                rider.wrap(w.kinds(), w.many(), w.literalIndex());
                 plan = w.plan();
             }
         }
@@ -2729,10 +2728,40 @@ final class StatementExecutor {
             // BARE (pure SELECT — effectful statements never reach the
             // K-arm) and the canon declines.
             boolean wasWrapped = rider.wrapped();
+            boolean hadDroppableLiteral = rider.literalIndex() >= 1;
             rider.rows().clear();
             if (wasWrapped) {
                 rider.decline("canon-exec: "
                         + String.valueOf(e.getMessage()).split("\\n")[0]);
+            }
+            // MIDDLE RUNG (F10 v1): a TYPED side whose failure may be
+            // its literal candidate alone (stamp-derived column types
+            // lie about the wire — the BLOB byte carrier under a STRING
+            // stamp) re-wraps WITHOUT the literal channel: the bare
+            // candidates keep byte-deciding instead of demoting to the
+            // host. A second failure falls through to the bare rung.
+            if (wasWrapped && hadDroppableLiteral) {
+                try {
+                    var w2 = com.legend.lowering.CanonicalRenderSql
+                            .wrapWithCanon(bare, shapeInfo,
+                                    rider.canonicalOrder(),
+                                    com.legend.compiler.element.EqualityKeys
+                                            .resolve(env.ctx(),
+                                                    shapeInfo.type()),
+                                    false);
+                    if (w2.declineReason() == null) {
+                        rider.wrap(w2.kinds(), w2.many(), w2.literalIndex());
+                        return Executor.execute(
+                                dialect.render(w2.plan()), w2.plan(),
+                                shapeInfo, shape, env.connection(), dialect,
+                                rider);
+                    }
+                } catch (java.sql.SQLException | RuntimeException e15) {
+                    rider.rows().clear();
+                    rider.decline("canon-exec: "
+                            + String.valueOf(e15.getMessage())
+                                    .split("\\n")[0]);
+                }
             }
             try {
                 if (!wasWrapped) {

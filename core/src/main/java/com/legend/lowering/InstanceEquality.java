@@ -72,7 +72,7 @@ final class InstanceEquality {
 
     /** The claimed lowering, or null for an unclaimable shape. */
     static @com.legend.Nullable SqlExpr lower(TypedNativeCall n,
-            Function<String, com.legend.compiler.element
+            Function<Type, com.legend.compiler.element
                     .@com.legend.Nullable EqualityKeys> keysOf,
             Function<Type, SqlType> sqlTypeOf,
             Function<TypedSpec, SqlExpr> scalar,
@@ -92,7 +92,7 @@ final class InstanceEquality {
 
     private static @com.legend.Nullable SqlExpr equality(TypedNativeCall n,
             boolean isEq,
-            Function<String, com.legend.compiler.element
+            Function<Type, com.legend.compiler.element
                     .@com.legend.Nullable EqualityKeys> keysOf,
             Function<Type, SqlType> sqlTypeOf,
             Function<TypedSpec, SqlExpr> scalar) {
@@ -115,7 +115,7 @@ final class InstanceEquality {
         if (!lf.equals(rf)) {
             return new SqlExpr.BoolLit(false);
         }
-        EqualityKeys keys = keysOf.apply(lf);
+        EqualityKeys keys = keysOf.apply(l.info().type());
         SqlExpr ca = CanonicalRenderSql.instanceEqualityCanon(
                 scalar.apply(l), keys, lf, lt);
         SqlExpr cb = CanonicalRenderSql.instanceEqualityCanon(
@@ -130,7 +130,7 @@ final class InstanceEquality {
 
     private static @com.legend.Nullable SqlExpr contains(TypedNativeCall n,
             boolean isContains,
-            Function<String, com.legend.compiler.element
+            Function<Type, com.legend.compiler.element
                     .@com.legend.Nullable EqualityKeys> keysOf,
             Function<Type, SqlType> sqlTypeOf,
             Function<TypedSpec, SqlExpr> scalar,
@@ -149,7 +149,7 @@ final class InstanceEquality {
         if (!hasIdentityField(lt)) {
             return null;
         }
-        EqualityKeys keys = keysOf.apply(cf);
+        EqualityKeys keys = keysOf.apply(needle.info().type());
         String elemVar = freshVar.get();
         SqlExpr elemCanon = CanonicalRenderSql.instanceEqualityCanon(
                 new SqlExpr.Column(null, elemVar), keys, cf, lt);

@@ -87,7 +87,13 @@ class ErrorShapeGuardrailTest {
             // the host lattice with the decline COUNTED
             // (CanonicalDivergence.sqlDeclined), so neither broad catch
             // can become a silent rescue.
-            Map.entry("StatementExecutor.java", 2),
+            // 2 -> 3 (2026-08-23 F10 v1): the canon-exec tunnel's
+            // MIDDLE RUNG (drop the literal candidate, keep the bare
+            // byte channel) catches the same designed-sentinel class as
+            // its two siblings — a caught failure becomes a counted
+            // decline, never a rescue (witness testRepeatStringNoString:
+            // the BLOB wire under a STRING stamp).
+            Map.entry("StatementExecutor.java", 3),
             Map.entry("StaticFold.java", 1),
             Map.entry("EngineTestExecutor.java", 3),
             Map.entry("QuotedSpecParser.java", 1),
