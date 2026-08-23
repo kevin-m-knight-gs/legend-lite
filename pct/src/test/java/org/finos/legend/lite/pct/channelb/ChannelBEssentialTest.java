@@ -140,10 +140,14 @@ class ChannelBEssentialTest {
         // (source position is unobservable from database errors; channel
         // A cannot pass them either). Wire-bug census SHRINKS only;
         // agreement GROWS only.
-        // 288/11 -> 292/10 BANKED (2026-08-22 F13, synthetic instance
-        // identity): keyless-class equality became engine-true identity
-        // (site-minted __id in both channels) — four rows moved into
-        // agreement and one wire-bug row died with the eq() wall.
+        // 288/11 -> 292/10 BANKED (2026-08-22): the pins were STALE-
+        // conservative — the pre-F13 baseline run at 09f3fc01 already
+        // measured 292/21/10/4 (improvements landed by earlier slices,
+        // never ratcheted). F13 itself moved ZERO test outcomes (pre/
+        // post FAIL sets diffed byte-identical): it moved pair-level
+        // JUDGING — 6 keyless pairs from host-referee decline to DB
+        // byte verdict, on engine-true identity instead of content
+        // fabrication. Measured, not asserted (the census trap).
         assertTrue(agreePass >= 292, "AGREE-PASS fell: " + agreePass);
         assertTrue(wireBug <= 10, "WIRE-BUG census grew: " + wireBug);
         // V1 (OPEN_REGISTER): THE DUAL-VERDICT ALARM — the DB byte

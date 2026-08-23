@@ -112,8 +112,14 @@ L (a program leg).
   exclusion), identityless-instance-wire declines (a __id-less
   instance map never byte-judges; Map carriers exempt — mapEquals is
   F12's rule). PCT-lane declines 19 -> 13 (agree 1564 -> 1570,
-  disagree 0); Essential AGREE-PASS 288 -> 292, WIRE-BUG 11 -> 10;
-  ceilings BANKED (30/35/35/45 -> 15). Residue → F13b.
+  disagree 0). ATTRIBUTION CORRECTED same day (measure-before-claiming
+  trip): F13 moved ZERO test-level outcomes — pre/post Essential FAIL
+  sets are byte-identical at 292/21/10/4; the AGREE-PASS/WIRE-BUG pins
+  (288/11 -> 292/10) were banking a PRE-EXISTING measured state left
+  unratcheted by earlier slices, not an F13 effect. What F13 moved is
+  the JUDGING: 6 keyless pairs from host-referee decline to DB byte
+  verdict, engine-true. Ceilings BANKED (30/35/35/45 -> 15). Residue →
+  F13b.
 - F12 CLOSED (2026-08-22, the Map canon): mapEquals byte-decidable —
   entry texts [kLeaf, vLeaf] per key (map_extract pairs), SORTED (the
   engine's order-insensitive rule becomes byte comparison), JSON-framed
