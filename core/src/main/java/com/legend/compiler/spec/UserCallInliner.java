@@ -341,7 +341,9 @@ public final class UserCallInliner {
                 List<TypedSpec> args = list(ev.args(), env);
                 yield fn instanceof TypedLambda lam
                         ? reduceEval(ev, args, lam)
-                        : new TypedEval(fn, args, ev.info());
+                        : fn == ev.fn() && sameRefs(args, ev.args())
+                                ? ev
+                                : new TypedEval(fn, args, ev.info());
             }
 
             case TypedVariable v -> {
@@ -436,7 +438,9 @@ public final class UserCallInliner {
                     throw new IllegalStateException("resolver bug: a let name '"
                             + let.name() + "' collided with an inlining binding");
                 }
-                yield new TypedLet(let.name(), rewrite(let.value(), env), let.info());
+                TypedSpec lv = rewrite(let.value(), env);
+                yield lv == let.value() ? let
+                        : new TypedLet(let.name(), lv, let.info());
             }
 
             case TypedNativeCall c -> {
@@ -455,7 +459,8 @@ public final class UserCallInliner {
                         keepRt.add(i == 2 ? c.args().get(i)
                                 : rewrite(c.args().get(i), env));
                     }
-                    yield c.withChildren(keepRt);
+                    yield sameRefs(keepRt, c.args()) ? c
+                            : c.withChildren(keepRt);
                 }
                 List<TypedSpec> args = list(c.args(), env);
                 // HIGHER-ORDER map: substitution revealed a literal lambda
@@ -491,7 +496,10 @@ public final class UserCallInliner {
                     }
                     yield new TypedMap(args.get(0), lam, c.info());
                 }
-                yield c.withChildren(args);
+                // untouched subtrees keep identity (F13 leans on it: the
+                // instance-identity site key is the NODE — a gratuitous
+                // rebuild would re-mint a let-bound instance per side)
+                yield sameRefs(args, c.args()) ? c : c.withChildren(args);
             }
             // Resolver OUTPUT vocabulary — never present pre-H; fails loud
             // here on a pipeline reordering rather than silently rebuilding.
@@ -526,7 +534,8 @@ public final class UserCallInliner {
                 for (TypedSpec stmt : l.body()) {
                     body.add(rewrite(stmt, env));
                 }
-                return new TypedLambda(l.parameters(), body, l.info());
+                return sameRefs(body, l.body()) ? l
+                        : new TypedLambda(l.parameters(), body, l.info());
             } finally {
                 l.parameters().forEach(p -> bound.compute(p,
                         (k, c) -> c == null || c <= 1 ? null : c - 1));
@@ -580,6 +589,21 @@ public final class UserCallInliner {
         String renamed = "_i" + fresh++;
         scope.put(name, new TypedVariable(renamed, info));
         return renamed;
+    }
+
+    /** Element-wise REFERENCE equality — the identity-preservation
+     * check ("untouched subtrees keep identity", the walker contract
+     * F13's site-identity keys lean on). */
+    private static boolean sameRefs(List<TypedSpec> a, List<TypedSpec> b) {
+        if (a.size() != b.size()) {
+            return false;
+        }
+        for (int i = 0; i < a.size(); i++) {
+            if (a.get(i) != b.get(i)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private List<TypedSpec> list(List<TypedSpec> ns, Map<String, TypedSpec> env) {

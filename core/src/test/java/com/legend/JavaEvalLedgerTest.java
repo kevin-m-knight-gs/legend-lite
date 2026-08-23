@@ -238,7 +238,18 @@ class JavaEvalLedgerTest {
             // bypass, and the '[]' empty-canon unification. Model-driven
             // routing + projection; zero value evaluation — the DB still
             // computes every render (instanceCanon, lowering-owned).
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 728),
+            // 728→787 (2026-08-22 F13, synthetic instance identity):
+            // the IDENTITY-pair guards at the verdict seam — the v1
+            // lambda-exclusion scan (a keyless ctor under a lambda
+            // mints ONE site id for many evaluations — decline,
+            // counted) and the identityless-wire decline (an instance
+            // map with no __id must never byte-judge). Routing +
+            // decline classification; the DB still computes every
+            // identity compare (the {_type,_id} canon, lowering-owned).
+            // 787->790 same slice: Map-carrier exemption (mapEquals is
+            // F12's claimed rule, not an identity pair) + the shared
+            // SYNTHETIC_ID spelling constant.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 790),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -261,7 +272,12 @@ class JavaEvalLedgerTest {
             // (wrapped→bare→fold, the designed sentinel chain).
             // 2363→2368 (X5): the driver resolves the key tree from the
             // model for the wrap (five lines of ctx plumbing).
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2368),
+            // 2368→2385 (F13): identity threading — the ExecEnv carries
+            // the per-env site-id minter (one InstanceIds shared by both
+            // verdict sides), and lowerAndPrepare selects the identity-
+            // bearing layout on the rider lane only (golden-SQL text
+            // lanes stay unperturbed). Plumbing, zero evaluation.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2385),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
@@ -420,6 +436,14 @@ class JavaEvalLedgerTest {
                     // second per-side execution (runCanon) could be
                     // deleted — tenet #1's number went DOWN with it.
                     "CanonRider.java",
+                    // F13 (2026-08-22, OPEN_REGISTER): the SITE-ID
+                    // minter for synthetic instance identity — an
+                    // IdentityHashMap from construction-site NODE to a
+                    // deterministic id, scoped to one ExecEnv. Pure
+                    // bookkeeping: no JDBC, no evaluation, no verdict —
+                    // the id EMITS into SQL as a struct literal (the
+                    // database still computes every compare over it).
+                    "InstanceIds.java",
                     "package-info.java");
 
     /** The other two funnel packages (documented-debts 2026-08-18,

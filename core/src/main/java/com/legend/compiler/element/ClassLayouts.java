@@ -25,11 +25,54 @@ import java.util.Optional;
  */
 public final class ClassLayouts {
 
+    /** F13 — the ONE owner of the synthetic identity field's spelling:
+     * the {@code __id} column an identity layout appends to a keyless
+     * class (every producer and consumer compares against this). */
+    public static final String SYNTHETIC_ID = "__id";
+
     private ClassLayouts() {
     }
 
     /** The layout of a class-typed VALUE, or empty when {@code t} is not a layoutable class. */
     public static Optional<List<Type.Column>> layoutOf(ModelContext ctx, Type t) {
+        return layoutOf(ctx, t, false);
+    }
+
+    /**
+     * F13 — {@code withIdentity} appends the synthetic {@code __id}
+     * identity field to a KEYLESS class's layout (no resolvable
+     * {@code <<equality.Key>>} tree: engine equality over such a class
+     * is INSTANCE IDENTITY, which the wire can only carry as data).
+     * Identity layouts ride ONLY the verdict-side evaluation path (the
+     * canon rider) — the golden-SQL text lanes and corpus value lanes
+     * keep the plain layout, so their pinned texts never see the field.
+     * Every producer of an identity layout's struct owns the field:
+     * constructor/copy sites MINT (each copy is a NEW instance);
+     * store-mapped reads would project NULL (no such producer exists in
+     * the rider lane today — the Executor's attr-count wall guards it).
+     */
+    public static Optional<List<Type.Column>> layoutOf(ModelContext ctx, Type t,
+                                                      boolean withIdentity) {
+        Optional<List<Type.Column>> base = plainLayoutOf(ctx, t);
+        if (!withIdentity || base.isEmpty()) {
+            return base;
+        }
+        String fqn = EqualityKeys.fqnOf(t);
+        if (fqn == null || EqualityKeys.resolve(ctx, fqn) != null) {
+            return base;   // keyed classes compare by keys — no identity field
+        }
+        if (base.get().stream().anyMatch(c -> SYNTHETIC_ID.equals(c.name()))) {
+            throw new IllegalStateException("class '" + fqn + "' declares a"
+                    + " property named __id — colliding with the synthetic"
+                    + " identity field");
+        }
+        List<Type.Column> out = new ArrayList<>(base.get());
+        out.add(new Type.Column(SYNTHETIC_ID, Type.Primitive.STRING,
+                new com.legend.compiler.element.type.Multiplicity.Bounded(0, 1)));
+        return Optional.of(List.copyOf(out));
+    }
+
+    private static Optional<List<Type.Column>> plainLayoutOf(ModelContext ctx, Type t) {
         return switch (t) {
             case Type.ClassType ct when !PlatformTypes.isVariant(ct) ->
                     ctx.findClass(ct.fqn()).flatMap(c -> layout(ctx, c, Map.of()));

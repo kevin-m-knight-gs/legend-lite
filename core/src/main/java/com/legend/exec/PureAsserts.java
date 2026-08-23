@@ -132,6 +132,19 @@ public final class PureAsserts {
             @com.legend.Nullable Object expected,
             @com.legend.Nullable Object actual) {
         if (isNonPrimitive(expected) || isNonPrimitive(actual)) {
+            // F13 — identity IS observable when both wires carry the
+            // synthetic __id (keyless-class instance maps, minted per
+            // construction site): eq() is exactly id equality — ids are
+            // unique per site, so cross-class values can never collide.
+            String ei = wireId(expected);
+            String ai = wireId(actual);
+            if (ei != null && ai != null) {
+                // repr() has no instance-map form (loud by design) —
+                // the failure names the identities themselves
+                return ei.equals(ai) ? null
+                        : "\nexpected and actual are distinct instances"
+                                + " (eq is identity)";
+            }
             throw new com.legend.error.NotImplementedException(
                     "assertEq over non-primitive values: eq is INSTANCE"
                     + " identity, which is not observable on a value wire"
@@ -147,6 +160,16 @@ public final class PureAsserts {
     private static boolean isNonPrimitive(@com.legend.Nullable Object v) {
         return v != null && !(v instanceof Number || v instanceof String
                 || v instanceof Boolean || isTemporal(v));
+    }
+
+    /** The synthetic site identity a keyless-instance wire map carries
+     * ({@code __id}, F13), or null when the value has no observable
+     * identity. */
+    private static @com.legend.Nullable String wireId(
+            @com.legend.Nullable Object v) {
+        return v instanceof java.util.Map<?, ?> m
+                && m.get(com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID)
+                        instanceof String id ? id : null;
     }
 
     /** {@code assertInstanceOf(instance, type)} (assertInstanceOf.pure:

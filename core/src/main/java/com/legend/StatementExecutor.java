@@ -55,7 +55,20 @@ final class StatementExecutor {
             java.sql.Connection connection,
             boolean addDriverTablePk,
             java.util.Map<String, TypedSpec> queryLets,
-            java.util.Map<String, String> tableReplace) {
+            java.util.Map<String, String> tableReplace,
+            com.legend.exec.InstanceIds instanceIds) {
+        ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
+                com.legend.sql.dialect.SqlDialect dialect,
+                java.sql.Connection connection,
+                boolean addDriverTablePk,
+                java.util.Map<String, TypedSpec> queryLets,
+                java.util.Map<String, String> tableReplace) {
+            // F13: one site-id minter per env — both sides of every
+            // verdict share it, so identity ids agree across lowerings
+            this(ctx, runtimeFqn, dialect, connection, addDriverTablePk,
+                    queryLets, tableReplace, new com.legend.exec.InstanceIds());
+        }
+
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
@@ -403,7 +416,8 @@ final class StatementExecutor {
         return union == null ? env
                 : new ExecEnv(env.ctx(), env.runtimeFqn(), env.dialect(),
                         env.connection(),
-                        env.addDriverTablePk(), env.queryLets(), union);
+                        env.addDriverTablePk(), env.queryLets(), union,
+                        env.instanceIds());
     }
 
     /**
@@ -1877,7 +1891,8 @@ final class StatementExecutor {
             if (!tr.isEmpty()) {
                 env = new ExecEnv(env.ctx(), env.runtimeFqn(), env.dialect(),
                         env.connection(),
-                        env.addDriverTablePk(), env.queryLets(), tr);
+                        env.addDriverTablePk(), env.queryLets(), tr,
+                        env.instanceIds());
             }
         }
         var assembled = com.legend.compiler.spec.ExecuteChainAssembly
@@ -2292,10 +2307,19 @@ final class StatementExecutor {
     private static com.legend.sql.SqlQuery lowerAndPrepare(
             java.util.List<TypedSpec> body, ExecEnv env, ModelContext ctx,
             com.legend.sql.dialect.SqlDialect dialect,
-            java.sql.Connection connection) throws java.sql.SQLException {
+            java.sql.Connection connection, boolean identity)
+            throws java.sql.SQLException {
+        // F13: identity-bearing layouts (keyless classes gain the __id
+        // field, minted per construction site) ride ONLY the verdict-
+        // side lane (canon rider) — golden-SQL text lanes and corpus
+        // value lanes keep the plain layout, unperturbed.
         com.legend.lowering.Lowerer lowerer = new com.legend.lowering.Lowerer(
-                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
+                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t,
+                        identity),
                 f -> ctx.findClass(f).isPresent()).withEngineExistsJoinForm();
+        if (identity) {
+            lowerer = lowerer.withInstanceIds(env.instanceIds()::idOf);
+        }
         com.legend.sql.SqlQuery plan =
                 lowerer.lower(com.legend.lowering.SeedableLets
                         .withSeedableLetPrefix(body, env.queryLets(), ctx));
@@ -2543,7 +2567,7 @@ final class StatementExecutor {
         }
         com.legend.sql.dialect.SqlDialect dialect = env.dialect();
         com.legend.sql.SqlQuery plan = lowerAndPrepare(body, env, ctx,
-                dialect, connection);
+                dialect, connection, rider != null);
         boolean collectionDeclared = declaredInfo != null
                 && declaredInfo.type()
                         instanceof com.legend.compiler.element.type.Type.Primitive

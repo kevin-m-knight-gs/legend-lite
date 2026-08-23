@@ -54,7 +54,7 @@ L (a program leg).
 | F7 | Dup-FQN coverage: services/connections/mappings namespaces | S |
 | F8 | {target} + foreign-db join-ref validation (D6b skipped conservatively) | S |
 | F9 | Invariant-3 register burn-down: wrap 21 write-once tables immutable | M |
-| F13 | SYNTHETIC INSTANCE IDENTITY (user idea 2026-08-22; IMPLEMENTATION AUDIT DONE same day): identity as DATA — binding-site-deterministic __id, never per-evaluation uuid(). AUDIT FINDINGS: (1) serializers SAFE (graph emission is model-driven, no struct-splat — __id cannot leak); (2) __id must join the SHARED class layout (Executor WALLS on attr-count vs layout mismatch), so table-mapped reads must project NULL __id → touches relational read emission; (3) ->map-lambda ctors have no row index in list_transform — v1 EXCLUDES them (decline, counted); witnessed 7 tests are all top-level lets so the claim still lands; (4) BONUS: fixes the host lattice's content-fabrication for keyless pairs (engine identity semantics land in BOTH channels). Claims keyless declines + the eq() wall. Multi-session leg — layouts + ctor lowering + relational emission + decode + canon + referee | M/L |
+| F13b | Identity v2 residue: (a) the ARRAY-shaped keyless side (one witness — a [*] side whose plan projects an array-of-struct cell; the identity canon's struct_extract fails at bind and rides the canon-exec decline tunnel, counted); (b) lambda-minted ctors (site id cannot distinguish per-element evaluations — declined by the v1 exclusion scan, zero PCT witnesses today); (c) inlined-function-body ctors with SUBSTITUTED args rebuild per side (α-substitution) — a `let p = makeP('a')` shape would re-mint per side; zero witnesses (G9 TRUE-WIRE-BUG=0 pins it), fix = one inline pass per assert statement | S/M |
 | F11 | Effectful-assert byte coverage: the containsEffect gate routes effectful assert statements to body inlining (host verdicts only) — the gate stands on statement-orchestration grounds (V11 adjudication at the gate site), so claiming these needs the side path to learn sequential effect execution; V7-territory sizing | S/M |
 | F15 | Reference-adapter parser ingress: ExecuteLegendLiteQuery's SIX source-extraction regexes + reEscapeStringLiterals are a SHADOW PARSER (standing tenet violation, predates parser parity 6489/0) — parse PCT source with THE parser, splice from the AST, delete the patterns | S/M |
 | F16 | Adapter kind-consolidation: toCoreInstance re-decides kind narrowing the Executor codec now owns (X-audit) — adapter receives kind-faithful values and ONLY boxes; the declared-type consult arms decay as F10/stamp fidelity lands. remapErrorMessage dies with the error-composition leg | S (rides F10) |
@@ -93,6 +93,27 @@ L (a program leg).
 
 ## CLOSED
 
+- F13 CLOSED (2026-08-22, synthetic instance identity): keyless-class
+  equality is engine-true IDENTITY in BOTH channels, carried as DATA —
+  the verdict lane's identity layout appends __id to keyless classes
+  (ClassLayouts.layoutOf(.., withIdentity), RIDER LANE ONLY: golden-SQL
+  text lanes and corpus value lanes keep the plain layout, zero
+  perturbation), minted deterministically per construction-site NODE
+  (InstanceIds in the ExecEnv — both sides share the minter; a copy
+  site mints a NEW id). The byte canon renders {_type,_id}; the host
+  lattice compares wire maps that now CARRY the id (content
+  fabrication for keyless pairs is dead); eq()'s non-primitive wall
+  opens for id-bearing wires (eq = id equality — ids unique per site).
+  LOAD-BEARING FIX: UserCallInliner's TypedNativeCall/TypedEval/
+  TypedLet/TypedLambda arms rebuilt unchanged subtrees, breaking the
+  file's own "untouched subtrees keep identity" contract — sameRefs
+  identity-preservation restored it (side-e/side-a now reach the same
+  ctor NODE). Guards: keyless-ctor-under-lambda declines (counted, v1
+  exclusion), identityless-instance-wire declines (a __id-less
+  instance map never byte-judges; Map carriers exempt — mapEquals is
+  F12's rule). PCT-lane declines 19 -> 13 (agree 1564 -> 1570,
+  disagree 0); Essential AGREE-PASS 288 -> 292, WIRE-BUG 11 -> 10;
+  ceilings BANKED (30/35/35/45 -> 15). Residue → F13b.
 - F12 CLOSED (2026-08-22, the Map canon): mapEquals byte-decidable —
   entry texts [kLeaf, vLeaf] per key (map_extract pairs), SORTED (the
   engine's order-insensitive rule becomes byte comparison), JSON-framed

@@ -140,8 +140,12 @@ class ChannelBEssentialTest {
         // (source position is unobservable from database errors; channel
         // A cannot pass them either). Wire-bug census SHRINKS only;
         // agreement GROWS only.
-        assertTrue(agreePass >= 288, "AGREE-PASS fell: " + agreePass);
-        assertTrue(wireBug <= 11, "WIRE-BUG census grew: " + wireBug);
+        // 288/11 -> 292/10 BANKED (2026-08-22 F13, synthetic instance
+        // identity): keyless-class equality became engine-true identity
+        // (site-minted __id in both channels) — four rows moved into
+        // agreement and one wire-bug row died with the eq() wall.
+        assertTrue(agreePass >= 292, "AGREE-PASS fell: " + agreePass);
+        assertTrue(wireBug <= 10, "WIRE-BUG census grew: " + wireBug);
         // V1 (OPEN_REGISTER): THE DUAL-VERDICT ALARM — the DB byte
         // verdict of record and the host-lattice referee may never
         // disagree silently; a disagreement fails the suite with the
@@ -163,7 +167,13 @@ class ChannelBEssentialTest {
         // empty-side buckets; the remainder is the NAMED boundary
         // (Map/mapEquals, Any wire trees, keyless classes,
         // mixed-identity F10, NUL literal).
-        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 30,
+        // 30 -> 15 BANKED DOWN (2026-08-22 F13): the genuinely-keyless
+        // model classes are CLAIMED (identity as data — site-minted
+        // __id, {_type,_id} canon; PCT-lane declines 19 -> 13). The
+        // remainder is the NAMED boundary: Any wire trees (F10), the 3
+        // Pair unclaimable-leaf shapes, one array-shaped keyless side
+        // riding the canon-exec tunnel, mixed-kind, kind-gate.
+        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 15,
                 "byte-verdict declines grew past the declared residue: "
                         + com.legend.exec.CanonicalDivergence.summary());
 

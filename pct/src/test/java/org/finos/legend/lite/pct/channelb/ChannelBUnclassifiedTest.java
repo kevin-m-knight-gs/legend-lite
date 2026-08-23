@@ -89,7 +89,12 @@ class ChannelBUnclassifiedTest {
         // empty-side buckets; the remainder is the NAMED boundary
         // (Map/mapEquals, Any wire trees, keyless classes,
         // mixed-identity F10, NUL literal).
-        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 35,
+        // BANKED DOWN 2026-08-22 F13: keyless classes CLAIMED
+        // (identity as data, site-minted __id) — cumulative
+        // PCT-lane declines 19 -> 13; residue = Any wire trees,
+        // Pair unclaimable leaves, one canon-exec array shape,
+        // mixed-kind, kind-gate.
+        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 15,
                 "byte-verdict declines grew past the declared residue: "
                         + com.legend.exec.CanonicalDivergence.summary());
 

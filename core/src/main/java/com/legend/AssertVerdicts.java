@@ -131,7 +131,7 @@ final class AssertVerdicts {
                 // rescue. A decline (unclaimed kind, non-SQL arm,
                 // non-scalar shape) is counted and the host judges.
                 SqlVerdict byteVerdict = sqlByteVerdict(args.get(0),
-                        args.get(1), ef, af);
+                        args.get(1), ef, af, letPrefix, env);
                 if (byteVerdict != null) {
                     com.legend.exec.CanonicalDivergence.probeSqlVerdict(
                             name, equal, byteVerdict.held(),
@@ -173,7 +173,7 @@ final class AssertVerdicts {
                 // the SAME execution; the host multiset judgment above
                 // is the parallel referee.
                 SqlVerdict byteVerdict = sqlByteVerdict(args.get(0),
-                        args.get(1), ef, af);
+                        args.get(1), ef, af, letPrefix, env);
                 if (byteVerdict != null) {
                     com.legend.exec.CanonicalDivergence.probeSqlVerdict(
                             "assertSameElements", d == null,
@@ -218,7 +218,7 @@ final class AssertVerdicts {
                 // V5/V11 — byte verdict of record (primitive eq
                 // coincides with equal; the identity rule walled above)
                 SqlVerdict byteVerdict = sqlByteVerdict(args.get(0),
-                        args.get(1), ef, af);
+                        args.get(1), ef, af, letPrefix, env);
                 if (byteVerdict != null) {
                     com.legend.exec.CanonicalDivergence.probeSqlVerdict(
                             "assertEq", d == null, byteVerdict.held(),
@@ -500,7 +500,8 @@ final class AssertVerdicts {
     }
 
     private static @com.legend.Nullable SqlVerdict sqlByteVerdict(
-            TypedSpec eSpec, TypedSpec aSpec, SideFetch ef, SideFetch af) {
+            TypedSpec eSpec, TypedSpec aSpec, SideFetch ef, SideFetch af,
+            List<TypedSpec> letPrefix, StatementExecutor.ExecEnv env) {
         List<Object> eVals = ef.values();
         List<Object> aVals = af.values();
         // MIXED-KIND numeric collections are unsound under SQL column
@@ -540,6 +541,38 @@ final class AssertVerdicts {
             com.legend.exec.CanonicalDivergence.sqlDeclined(
                     "side-a: " + af.rider().declined());
             return null;
+        }
+        // F13 — IDENTITY-pair guards (keyless class: the canon claimed
+        // via the synthetic __id identity field). Map carriers are NOT
+        // identity pairs — mapEquals (F12) is their own claimed rule.
+        if (!anyNil && ke.startsWith("instance:")
+                && !com.legend.compiler.element.type.PlatformTypes
+                        .isMapCarrier(eSpec.info().type())
+                && instanceKeys(eSpec, aSpec, env) == null) {
+            // v1 exclusion: a constructor under a LAMBDA evaluates per
+            // element but mints ONE site id (no row index reaches
+            // list_transform) — identity would conflate distinct
+            // instances; decline, counted (OPEN_REGISTER F13).
+            List<TypedSpec> scope = new ArrayList<>(letPrefix);
+            scope.add(eSpec);
+            scope.add(aSpec);
+            if (keylessCtorUnderLambda(scope, env)) {
+                com.legend.exec.CanonicalDivergence.sqlDeclined(
+                        "keyless-ctor-in-lambda: " + ke);
+                return null;
+            }
+            // an instance wire that carries NO id (a producer outside
+            // the minting sites) must never byte-judge — identity
+            // unknown is a decline, never a fabricated equality
+            for (Object v : concat(eVals, aVals)) {
+                if (v instanceof java.util.Map<?, ?> m
+                        && m.get(com.legend.compiler.element.ClassLayouts
+                                .SYNTHETIC_ID) == null) {
+                    com.legend.exec.CanonicalDivergence.sqlDeclined(
+                            "identityless-instance-wire: " + ke);
+                    return null;
+                }
+            }
         }
         // X4 (VERDICT_RULE_AUDIT): the engine has NO cross-primitive-
         // kind equality — numeric pairs must be the SAME fine kind.
@@ -598,6 +631,53 @@ final class AssertVerdicts {
             return new SqlVerdict(true, "2ulp-policy " + detail);
         }
         return new SqlVerdict(byteEqual, detail);
+    }
+
+    private static List<Object> concat(List<Object> a, List<Object> b) {
+        List<Object> out = new ArrayList<>(a.size() + b.size());
+        out.addAll(a);
+        out.addAll(b);
+        return out;
+    }
+
+    /** F13 v1 exclusion scan: any KEYLESS model-class constructor (or
+     * copy) under a lambda anywhere in the verdict's scope — the site
+     * id cannot distinguish per-element evaluations. A plain
+     * containment walk over {@code children()} (no shadow concerns —
+     * this detects presence, it never resolves variables). */
+    private static boolean keylessCtorUnderLambda(List<TypedSpec> roots,
+            StatementExecutor.ExecEnv env) {
+        for (TypedSpec r : roots) {
+            if (scanKeylessCtor(r, false, env)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean scanKeylessCtor(TypedSpec n, boolean inLambda,
+            StatementExecutor.ExecEnv env) {
+        if (inLambda) {
+            String fqn = n instanceof
+                    com.legend.compiler.spec.typed.TypedNewInstance ni
+                    ? ni.classFqn()
+                    : n instanceof
+                            com.legend.compiler.spec.typed.TypedCopyInstance cp
+                            ? cp.classFqn() : null;
+            if (fqn != null && env.ctx().findClass(fqn).isPresent()
+                    && com.legend.compiler.element.EqualityKeys
+                            .resolve(env.ctx(), fqn) == null) {
+                return true;
+            }
+        }
+        boolean in = inLambda
+                || n instanceof com.legend.compiler.spec.typed.TypedLambda;
+        for (TypedSpec k : n.children()) {
+            if (scanKeylessCtor(k, in, env)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The fine numeric kind whose candidate column judges this side:

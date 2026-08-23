@@ -117,6 +117,10 @@ class JdbcSurfaceCensusTest {
             // Clause 2c: the verdict-arm spec tests — a DuckDB session
             // computes the argument sides; the verdict IS the test
             "core/src/test/java/com/legend/AssertVerdictsTest.java",
+            // F13: instance-identity spec pins — a DuckDB session
+            // computes both verdict sides; the site-minted __id rides
+            // the SQL and the verdict IS the test
+            "core/src/test/java/com/legend/exec/InstanceIdentityTest.java",
             // Phase 4: map wire-shape + rigid-lattice spec pins execute
             // through a DuckDB session (the wire IS the assertion)
             "core/src/test/java/com/legend/lowering/MapOptionalSourceTest.java",

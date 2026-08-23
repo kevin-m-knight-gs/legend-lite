@@ -132,19 +132,47 @@ public final class CanonicalRenderSql {
             // resolved the key tree — lowering stays model-free
             // (Invariant 6h, same inversion as CanonWrap itself).
             if (instanceKeys == null) {
-                return CanonWrap.decline(plan,
-                        "keyless-instance: " + instFqn);
+                // F13 — SYNTHETIC IDENTITY: a keyless class's engine
+                // equality is INSTANCE IDENTITY; the identity-bearing
+                // layout carries it as the __id field (minted per
+                // construction site), so the canon is the identity
+                // itself — '_type' + '_id', JSON-framed like the keyed
+                // canon. A side whose layout carries no __id (Any/
+                // variant wire trees, layoutless classes) stays a
+                // counted decline.
+                String idField = com.legend.compiler.element.ClassLayouts
+                        .SYNTHETIC_ID;
+                if (valueCol.type() instanceof SqlType.Struct ist
+                        && ist.fields().stream()
+                                .anyMatch(f -> idField.equals(f.name()))) {
+                    SqlExpr idc = new SqlExpr.Case(List.of(
+                            new SqlExpr.Case.When(
+                                    SqlExpr.Call.of(SqlFn.IS_NULL, valueRef),
+                                    new SqlExpr.NullLit())),
+                            new SqlExpr.JsonObject(List.of(
+                                    new SqlExpr.StringLit("_type"),
+                                    new SqlExpr.StringLit(instFqn),
+                                    new SqlExpr.StringLit("_id"),
+                                    new SqlExpr.StructGet(valueRef,
+                                            idField))));
+                    candidates = List.of(t);
+                    canons.add(new SqlExpr.Cast(idc, SqlType.Scalar.VARCHAR));
+                } else {
+                    return CanonWrap.decline(plan,
+                            "keyless-instance: " + instFqn);
+                }
+            } else {
+                SqlExpr c = instanceCanon(valueRef, instanceKeys,
+                        valueCol.type());
+                if (c == null) {
+                    return CanonWrap.decline(plan, "instance-key-shape: "
+                            + instFqn + " layout=" + valueCol.type());
+                }
+                candidates = List.of(t);
+                // the ROOT canon is byte text (nested levels stay
+                // JSON-typed so they embed structurally)
+                canons.add(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
             }
-            SqlExpr c = instanceCanon(valueRef, instanceKeys,
-                    valueCol.type());
-            if (c == null) {
-                return CanonWrap.decline(plan, "instance-key-shape: "
-                        + instFqn + " layout=" + valueCol.type());
-            }
-            candidates = List.of(t);
-            // the ROOT canon is byte text (nested levels stay
-            // JSON-typed so they embed structurally)
-            canons.add(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
         } else {
             candidates = t == Type.Primitive.NUMBER
                     ? List.of(Type.Primitive.INTEGER, Type.Primitive.FLOAT,

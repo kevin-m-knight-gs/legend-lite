@@ -1,6 +1,7 @@
 package com.legend.lowering;
 
 import com.legend.builtin.Pure;
+import com.legend.compiler.element.ClassLayouts;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.PlatformTypes;
@@ -182,6 +183,16 @@ public final class Lowerer {
 
     public Lowerer withStreamingGraphRoot() {
         this.streamingGraphRoot = true;
+        return this;
+    }
+
+    /** F13 site-id minter (driver opt-in, rides an identity layout):
+     * {@code __id} mints per construction-site NODE, never per
+     * evaluation. Null = a lane with no identity. */
+    private @com.legend.Nullable Function<Object, String> instanceIdOf;
+
+    public Lowerer withInstanceIds(Function<Object, String> ids) {
+        this.instanceIdOf = ids;
         return this;
     }
 
@@ -2469,6 +2480,12 @@ public final class Lowerer {
                                 + " has no canonical layout"));
                 SqlExpr src = scalar(cp.source(), columns);
                 yield new SqlExpr.StructLit(layout.stream().map(c -> {
+                    // F13: a copy is a NEW instance — mint at the COPY site
+                    if (ClassLayouts.SYNTHETIC_ID.equals(c.name())
+                            && instanceIdOf != null) {
+                        return new SqlExpr.StructLit.Field(c.name(),
+                                new SqlExpr.StringLit(instanceIdOf.apply(cp)));
+                    }
                     TypedSpec ov = cp.overrides().get(c.name());
                     SqlExpr v = ov != null ? scalar(ov, columns)
                             : new SqlExpr.StructGet(src, c.name());
@@ -2509,6 +2526,12 @@ public final class Lowerer {
                                 + "(…) has no canonical layout — the class declares no"
                                 + " stored properties (or no model rides this lowering)"));
                 yield new SqlExpr.StructLit(layout.stream().map(c -> {
+                    // F13: one deterministic id per construction SITE (node)
+                    if (ClassLayouts.SYNTHETIC_ID.equals(c.name())
+                            && instanceIdOf != null) {
+                        return new SqlExpr.StructLit.Field(c.name(),
+                                new SqlExpr.StringLit(instanceIdOf.apply(n)));
+                    }
                     TypedSpec value = n.properties().get(c.name());
                     SqlExpr v = value != null ? scalar(value, columns) : new SqlExpr.NullLit();
                     // A TO-MANY property is LIST-shaped in the canonical
