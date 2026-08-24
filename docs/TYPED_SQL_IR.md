@@ -99,7 +99,62 @@ M3: consumers flip to `.type()`; deletions land (acceptance §4);
 M4: the claim re-lands from the wip branch; slice 3 closes for real;
     full chain; push.
 
-## 6. Relation to standing programs
+## 6. THE HOMEWORK (2026-08-24, user-ordered: "stop guessing") —
+## every §2 claim re-graded with receipts
+
+**DISCOVERY: this program already existed.** SqlTyping's own header:
+"TYPED-IR Slice 1 ... instrument → census → flip. In Slice 1 it only
+measures — OutputCol labels stay stamp-derived and the census compares
+the two." The instrument (SqlTypeCensus, 529 lines, admissibility
+relation user-audited as T3 on 2026-08-23) SHIPPED and has run on
+every executed plan since. F10 then consumed the measuring instrument
+as a live authority — the flip never ran as a designed step. This doc
+IS the flip's charter, now with the instrument's data.
+
+**VERIFIED — the judge's rules move freely.** Full read of
+SqlTyping: `scope` is consulted ONLY for Column resolution and
+LIST_TRANSFORM param binding — every other rule is a function of
+children's types. The switch redistributes into nodes mechanically.
+
+**VERIFIED — the leaves are in-hand.** Per-site reading of the top 60
+Column constructions (Render 19: all read names off OutputCols that
+carry .type(); Fold 10: sources in-hand with schemas — one
+typedColumn(source,name) helper; Scalars 15 + Comparators 9: lambda
+param refs — typed via the Lambda node's declared params; Lowerer 7:
+RelationType.Column carries .type()). ZERO genuinely-unknown leaves
+found; the UNKNOWN ratchet starts near zero.
+
+**MEASURED — the label-lie census (full corpus, 24,508 plans):**
+
+    cols: agree=44417 admissible=4265 mismatch=250 untyped=3692
+          bottom-ok=91 bottom-mult-backlog=6472
+    wire: agree=24271 delivered=7100 adopt-pending=130 diverge=179
+
+- **92% of label-comparable columns already honest** (agree +
+  admissible). The flip is a correction, not an upheaval.
+- **The lie payload = 250 mismatches, enumerated with witnesses**
+  (97x declared VARCHAR vs computed BIGINT; 48x DOUBLE vs
+  Decimal(18,6); ...) — each adjudicates to a label fix or a new
+  admissibility row during M3.
+- **The untyped tail = 3,692, concentrated in FIVE rule families**:
+  Reducer 2,508 (aggregate numeric promotion — the header's own
+  deferred rule), ScalarSubquery 340, COALESCE 247, Case 185,
+  TIMES/MINUS/UNNEST tails (mostly cascades of the same). M1 writes
+  the reducer-promotion rules; the cascades collapse with them.
+- **bottom-mult-backlog 6,472 = the T4 nullability-lie program,
+  quantified** (5,707 BIGINT + 598 VARCHAR + 161 BOOLEAN
+  null-under-required-multiplicity) — T4 starts from this number.
+- wire adopt-pending 130 = the HUGEINT builder-leg register entry,
+  confirmed live.
+
+**DOCTRINE ADDENDUM (why F10 missed all this):** the numbers above
+were printed at the end of every fully-green corpus sweep and read by
+no one. An instrument without a consumer is a receipt without an
+audit. The census summary becomes part of gate output review, and any
+slice consuming a measured channel must cite the instrument's current
+numbers in its charter.
+
+## 7. Relation to standing programs
 
 Debt-to-zero: this IS the lowering-layer "sane story" entry (sibling
 of the JDBC story). G4 latency drill: run AFTER M1's differential
