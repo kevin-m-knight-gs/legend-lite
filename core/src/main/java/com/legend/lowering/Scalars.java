@@ -2678,13 +2678,19 @@ final class Scalars {
             // the JSON quoting ('b', not '"b"'); a variant-carried LIST
             // (a nested ^List under Any) prints pure's '[a, b]', its
             // ELEMENTS as root text — composed in SQL from the JSON array
-            // F10 slice 3b — the TOTAL two-carrier reader in SQL:
-            // spelling cells are first-char disjoint from JSON. A
-            // quoted spelling prints its unescaped body (replace \'
-            // then \\ — the exact inverse of the encoder's order); a
-            // %-temporal prints its body; D-decimals and bare
-            // numerics/bools print as-is (spelling == print). JSON
-            // cells keep the variant path.
+            // F10 slice-3 AUDIT (2026-08-24): the spelling-print path
+            // gates on the JUDGED LITERAL wire — first-char dispatch on
+            // arbitrary Any wires was SNIFFING (a raw VARCHAR cell
+            // whose text starts with ' or % would mis-print); the
+            // engine's rule is declared-type-decides. Non-LITERAL
+            // wires keep the pre-carrier variant path unchanged.
+            boolean literalWire = com.legend.sql.SqlTyping.judge(x,
+                    c2 -> null) instanceof
+                            com.legend.sql.SqlTyping.Verdict.Typed jt
+                    && (jt.type() == SqlType.Scalar.LITERAL
+                            || (jt.type() instanceof SqlType.Array ja
+                                    && ja.element()
+                                            == SqlType.Scalar.LITERAL));
             SqlExpr txt = new SqlExpr.Cast(x,
                     PureSql.type(Type.Primitive.STRING));
             SqlExpr body = SqlExpr.Call.of(SqlFn.SUBSTRING, txt,
@@ -2698,16 +2704,20 @@ final class Scalars {
                             new SqlExpr.StringLit("'")),
                     new SqlExpr.StringLit("\\\\"),
                     new SqlExpr.StringLit("\\"));
+            if (literalWire) {
+                return new SqlExpr.Case(List.of(
+                        new SqlExpr.Case.When(
+                                SqlExpr.Call.of(SqlFn.STARTS_WITH, txt,
+                                        new SqlExpr.StringLit("'")),
+                                unesc),
+                        new SqlExpr.Case.When(
+                                SqlExpr.Call.of(SqlFn.STARTS_WITH, txt,
+                                        new SqlExpr.StringLit("%")),
+                                SqlExpr.Call.of(SqlFn.SUBSTRING, txt,
+                                        new SqlExpr.IntLit(2)))),
+                        txt);
+            }
             return new SqlExpr.Case(List.of(
-                    new SqlExpr.Case.When(
-                            SqlExpr.Call.of(SqlFn.STARTS_WITH, txt,
-                                    new SqlExpr.StringLit("'")),
-                            unesc),
-                    new SqlExpr.Case.When(
-                            SqlExpr.Call.of(SqlFn.STARTS_WITH, txt,
-                                    new SqlExpr.StringLit("%")),
-                            SqlExpr.Call.of(SqlFn.SUBSTRING, txt,
-                                    new SqlExpr.IntLit(2))),
                     new SqlExpr.Case.When(
                     SqlExpr.Call.of(SqlFn.EQUAL,
                             SqlExpr.Call.of(SqlFn.JSON_TYPE, x),

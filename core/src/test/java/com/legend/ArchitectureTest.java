@@ -774,6 +774,28 @@ final class ArchitectureTest {
      * which is the disease the whole verdict program deletes. Tests
      * (the harness IS the referee) are exempt by scope.
      */
+    /** THE SNIFF-STOP PIN (F10 slice-3 audit, 2026-08-24): wire-value
+     * decoding is LABEL-DRIVEN, never shape-guessed — the engine's own
+     * rule (declared type decides; relationalMappingExecution's narrow
+     * conversion table). The two grammar readers are reachable ONLY
+     * from the label-dispatch funnel: LiteralText parses LITERAL-
+     * labeled cells (Executor.unwrap's arm); ad-hoc callers would be
+     * value sniffing — the '4'-as-Long class of bug. A new caller
+     * registers here consciously with its label-contract argument. */
+    @Test
+    void spellingDecodeIsLabelDriven() {
+        noClasses()
+            .that().doNotHaveFullyQualifiedName("com.legend.exec.Executor")
+            .and().doNotHaveFullyQualifiedName("com.legend.values.LiteralText")
+            .should().dependOnClassesThat().haveFullyQualifiedName(
+                "com.legend.values.LiteralText")
+            .as("SNIFF-STOP: LiteralText.parse is reachable only from the"
+                    + " Executor's label-dispatch funnel (unwrap's LITERAL"
+                    + " arm) — decode by declared label, never by value"
+                    + " shape")
+            .check(CORE_PROD_CLASSES);
+    }
+
     @Test
     void hostVerdictIsReachableOnlyFromTheVerdictSeam() {
         noClasses()

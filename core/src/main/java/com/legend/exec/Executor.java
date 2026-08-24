@@ -455,17 +455,13 @@ public final class Executor {
             return v;
         }
         String t = s.trim();
-        // F10 slice 3b — the TOTAL two-carrier reader: spelling cells
-        // are first-char disjoint from JSON ('quoted, %temporal,
-        // D-decimal vs "quoted, [, {); bare numerics/bools coincide and
-        // decode identically below. One reader serves both carriers
-        // through the migration.
-        if (!t.isEmpty() && (t.charAt(0) == '\'' || t.charAt(0) == '%'
-                || ((t.endsWith("D") || t.endsWith("d")) && t.length() > 1
-                        && (Character.isDigit(t.charAt(0))
-                                || t.charAt(0) == '-')))) {
-            return com.legend.values.LiteralText.parse(t);
-        }
+        // F10 slice-3 AUDIT (2026-08-24): the spelling arms that lived
+        // here were WIRE SNIFFING — the engine's rule is DECLARED TYPE
+        // DECIDES (relationalMappingExecution's narrow conversion
+        // table; the '4'-as-Long witness showed sniffing mis-types raw
+        // text). Spelling decode is LABEL-DRIVEN ONLY: the LITERAL arm
+        // in unwrap. This reader keeps its ORIGINAL contract — the
+        // variant-JSON carrier at Any roots.
         if (t.length() >= 2 && t.startsWith("\"") && t.endsWith("\"")) {
             return jsonUnescape(t.substring(1, t.length() - 1));
         }
