@@ -154,7 +154,39 @@ audit. The census summary becomes part of gate output review, and any
 slice consuming a measured channel must cite the instrument's current
 numbers in its charter.
 
-## 7. Relation to standing programs
+## 7. SCOPE HONESTY (user question 2026-08-24: "does this fix our
+## problems?") — the two layers, and the census caveat
+
+**Where Any lives in this vocabulary:** pure's Any never appears by
+name — Any IS the pure type that maps to a CARRIER choice, and it
+shows up as JSON (variant) and LITERAL (spelling) rows. The 3,584
+admissible VARCHAR<-JSON rows are largely Any-lane traffic.
+
+**CENSUS CAVEAT:** §6's numbers were measured on MAIN, where the
+claim is reverted — the LITERAL carrier barely runs, so the
+Any-carrier surface (this week's actual disease site) is
+UNDERREPRESENTED in them. The Any-lane's own census becomes
+measurable only when the claim is live on a green sweep — it is
+therefore part of M4's ACCEPTANCE: the re-landed claim's first green
+sweep must show the LITERAL census rows, reviewed, with every new
+mismatch class adjudicated.
+
+**The two layers this arc's bugs decompose into:**
+- TRANSPORT (labels dying at boundaries — double-decode, judge blind
+  spots): fixed STRUCTURALLY by this arc.
+- CARRIER POLICY (which representation an Any position rides; how two
+  sides of an equality agree; json's kind limits): decided by the
+  carrier rule + conform-by-emission doctrine, IMPLEMENTED by the
+  parked claim; this arc makes the policies reliable, it does not
+  produce them.
+
+**Explicitly NOT fixed by this arc** (bounded completion — the
+overclaim F10 made is not repeated here): T4 nullability lies (6,472,
+quantified in §6), cross-kind sort order (bucket item), G4 corpus
+latency, corpus host-side->SQL-verdict migration, HUGEINT
+adopt-pending (130). All queued elsewhere in PROGRAM_MAP.
+
+## 8. Relation to standing programs
 
 Debt-to-zero: this IS the lowering-layer "sane story" entry (sibling
 of the JDBC story). G4 latency drill: run AFTER M1's differential
