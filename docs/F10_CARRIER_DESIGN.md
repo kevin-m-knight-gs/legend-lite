@@ -133,6 +133,16 @@ carrier-marked in/contains/dedup consumer arms (dormant until the
 claim returns), CarrierStrategies marker transparency, element-
 preserving label flow (unconditional root judgment).
 
+LESSON 2 (same day, second witness set): even VALUE-LANE gated, the
+claim broke the corpus GRID-ASSERT equality lane — a spelled expected
+literal meets `$result.values.rows.values` through a conformance
+cast-to-Any (CastPolicy Array(JSON)) and cross-carrier `==`. The claim
+is DESIGN-BLOCKED on the cross-carrier EQUALITY harmonization, which
+CONVERGES with the audit's in-SQL equal() third-lane finding (A2):
+3b-proper = {the claim + eq-lane harmonization + A2's three-lane
+pinning} as ONE piece. Everything else (readers, lane flag, consumer
+arms) is landed and ready.
+
 ### Slice 3 exit (unchanged)
 Census TO_VARIANT construction sites first. Any-position ELEMENT
 encoding switches from raw JSON scalars to spellings; decodeAny gains

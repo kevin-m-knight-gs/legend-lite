@@ -55,6 +55,11 @@ class CodeShapeGuardrailTest {
      * memo cache. Everything else must be final or become part of an
      * explicit frame object. */
     private static final Set<String> MUTABLE_FIELD_ALLOWLIST = Set.of(
+            // F10 3b LANE FLAG: relation-op nesting depth, incremented/
+            // decremented in try/finally around relation() — same
+            // lifecycle as the renderer nesting cursors; the value-lane
+            // carrier claim reads ==0
+            "Lowerer.relationDepth",
             // renderer nesting cursor: NAMED-frame (view) subselect depth —
             // same lifecycle as a parser cursor, scoped to one render()
             "EngineStyleH2.frameDepth",

@@ -159,6 +159,14 @@ public final class Lowerer {
      * lowered INSIDE a lambda (a correlated subquery), the outer lambda's
      * resolver is pushed here so the inner predicate can reference outer rows.
      */
+    /** F10 3b — THE LANE FLAG: >0 while lowering INSIDE relation ops
+     * (TDS cells, filters, projections), 0 on the pure value lane.
+     * The kind-faithful carrier claims Any positions ONLY at depth 0 —
+     * relation-lane Any cells stay on the JSON carrier until that
+     * lane's own migration (4 corpus regressions witnessed the leak:
+     * F10_CARRIER_DESIGN.md 3b lesson). */
+    private int relationDepth;
+
     private final ArrayDeque<ColumnResolver>
             enclosing = new ArrayDeque<>();
 
@@ -437,6 +445,15 @@ public final class Lowerer {
     // ==================================================================
 
     SqlSelect relation(TypedSpec spec) {
+        relationDepth++;
+        try {
+            return relation0(spec);
+        } finally {
+            relationDepth--;
+        }
+    }
+
+    private SqlSelect relation0(TypedSpec spec) {
         // POSITIONAL reads over a relation: at(n) IS slice(n, n+1);
         // first()/head() IS limit 1 — row selection, not value extraction
         if (spec instanceof TypedNativeCall pc
@@ -2331,17 +2348,17 @@ public final class Lowerer {
                     && !PlatformTypes.isVariant(ct)
                     && !PlatformTypes.isNil(ct)
                     && classLayout.apply(ct).isEmpty() -> {
-                // F10 slice 3b GROUNDWORK ONLY — the ALL-SPELLABLE
-                // hetero-literal claim was BUILT and REVERTED same day:
-                // this arm serves BOTH lanes, and the relation lane's
-                // Any TDS cells must stay JSON until the lane flag
-                // exists (4 corpus regressions witnessed the leak:
-                // testUsingSameAggFunctionTwice x2 spelled strings into
-                // a JSON-cast consumer; testInWithDynaFunction /
-                // testCompositionInExtend decoded relation cells
-                // through the wrong carrier). The total two-carrier
-                // readers and elementLiteral stay — the claim returns
-                // with the lane distinction.
+                // F10 3b: the hetero-literal LITERAL claim is
+                // DESIGN-BLOCKED on the cross-carrier EQUALITY
+                // harmonization (charter: 3b lesson 2 — a value-lane
+                // spelled literal compared against a computed Any list
+                // or a corpus grid extraction needs the eq-lane design,
+                // which converges with the audit's in-SQL equal()
+                // third-lane finding). The LANE FLAG (relationDepth)
+                // and every consumer built for the claim stay ready;
+                // the claim lands WITH the equality design, never
+                // before it (two rounds of witnesses: 4 relation-lane
+                // + the corpus grid-assert eq casts).
                 // C1 collapse (ValueCollections.c1Singleton — witness
                 // in::H2Test); the VARIANT carrier stays, the box goes.
                 if (ValueCollections.c1Singleton(c)) {
