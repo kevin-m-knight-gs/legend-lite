@@ -58,65 +58,11 @@ public final class SqlTypeCensus {
     private static final LongAdder NODE_PENDING_LEAF = new LongAdder();
     private static final LongAdder NODE_DIVERGE = new LongAdder();
 
-    /** THE ADMISSIBILITY RELATION (T3, user-audited 2026-08-23): the
-     * registered (declared, computed) carrier pairs — each a
-     * DELIBERATE representation choice with its justification.
-     * Everything NOT here that differs is a MISMATCH — the bug list.
-     *
-     * <p>HONESTY NOTE (recorded from the audit): these are TYPE-PAIR
-     * rules, and three of them are COARSER than their justifying
-     * conventions — the temporal-text pair's true scope is
-     * PARTIAL-PRECISION carriage (full-precision values should ride
-     * native temporals); the TIMESTAMP&larr;DATE pair is SUBSUMPTION
-     * (a StrictDate value in an ABSTRACT-Date slot — a DateTime-
-     * stamped slot receiving DATE would be a real kind bug the pair
-     * cannot distinguish); the DOUBLE&larr;VARCHAR pair is the
-     * NUMBER-slot identity carrier (pure literal spellings for ALL
-     * fine kinds — the DOUBLE label is where the abstract-Number
-     * stamp erases to), not a Float convention. Enforcement (T4)
-     * conditions these on the pure STAMP or retires them by emission;
-     * the census keeps every admitted class counted AND witnessed.
-     * The reverse temporal direction (DATE label &larr; TIMESTAMP
-     * wire: a datetime in a strict-date slot) is DELIBERATELY absent
-     * — that is a bug, never a carrier. A previously-registered
-     * INTEGER&larr;BIGINT rule was REMOVED same day: label-narrowing
-     * is only value-safe, which a type rule cannot see. */
+    /** The admissibility relation MOVED to {@link SqlTyping#admissible}
+     * (the label flip encodes it at SqlSelect construction; the census
+     * reads the SAME relation — one owner). */
     private static boolean admissible(SqlType declared, SqlType computed) {
-        // partial-precision temporal carriage (D-arc): SQL temporals
-        // cannot hold pure's partial precisions, so temporal slots may
-        // carry the precision-faithful VARCHAR wire
-        if ((declared == SqlType.Scalar.TIMESTAMP
-                || declared == SqlType.Scalar.DATE)
-                && computed == SqlType.Scalar.VARCHAR) {
-            return true;
-        }
-        // SUBSUMPTION at the abstract-Date slot (F5.4): the TIMESTAMP
-        // label is where abstract Date erases; a StrictDate value's
-        // DATE wire is a subtype in a supertype slot
-        if (declared == SqlType.Scalar.TIMESTAMP
-                && computed == SqlType.Scalar.DATE) {
-            return true;
-        }
-        // the NUMBER-slot identity carrier: pure literal spellings
-        // (1 / 7.345 / 2D) keep every fine kind's identity in text;
-        // DOUBLE is where the abstract-Number stamp erases
-        if (declared == SqlType.Scalar.DOUBLE
-                && computed == SqlType.Scalar.VARCHAR) {
-            return true;
-        }
-        // serialize-as-text (the m2m/graphFetch egress): DuckDB serves
-        // JSON as its text; the conform-by-emission cast is a later,
-        // golden-text-gated slice
-        if (declared == SqlType.Scalar.VARCHAR
-                && computed == SqlType.Scalar.JSON) {
-            return true;
-        }
-        // Decimal WIDENING is lossless: a narrower computed decimal
-        // fits any wider label at the same scale
-        return declared instanceof SqlType.Decimal d
-                && computed instanceof SqlType.Decimal c2
-                && d.scale() == c2.scale()
-                && d.precision() >= c2.precision();
+        return SqlTyping.admissible(declared, computed);
     }
     /** declared-&gt;computed pair (mismatch) / expr shape (untyped)
      * &rarr; occurrence count. */

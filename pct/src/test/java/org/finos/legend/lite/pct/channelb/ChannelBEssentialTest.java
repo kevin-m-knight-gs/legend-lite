@@ -208,7 +208,7 @@ class ChannelBEssentialTest {
         assertTrue(com.legend.exec.SqlTypeCensus.wireDivergeCount() <= 75,
                 "wire divergence grew: "
                         + com.legend.exec.SqlTypeCensus.summary());
-        assertTrue(com.legend.exec.SqlTypeCensus.wireAdoptPendingCount() <= 110,
+        assertTrue(com.legend.exec.SqlTypeCensus.wireAdoptPendingCount() <= 103,
                 "wire adopt-pending grew: "
                         + com.legend.exec.SqlTypeCensus.summary());
         // TYPED-IR equality pins on THIS lane too (TYPED_SQL_IR.md M2 —
@@ -222,6 +222,10 @@ class ChannelBEssentialTest {
         org.junit.jupiter.api.Assertions.assertEquals(0,
                 com.legend.exec.SqlTypeCensus.nodePendingLeafCount(),
                 "node channel lost leaf knowledge: "
+                        + com.legend.exec.SqlTypeCensus.summary());
+        org.junit.jupiter.api.Assertions.assertEquals(0,
+                com.legend.exec.SqlTypeCensus.mismatchCount(),
+                "a label lie escaped reconciliation (the flip): "
                         + com.legend.exec.SqlTypeCensus.summary());
 
 

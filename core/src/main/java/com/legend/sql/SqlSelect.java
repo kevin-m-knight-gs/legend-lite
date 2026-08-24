@@ -22,6 +22,13 @@ public record SqlSelect(List<Projection> projections, boolean distinct,
     public SqlSelect {
         java.util.Objects.requireNonNull(from,
                 "a FROM-less select spells SqlSource.Dual, never null");
+        // THE LABEL FLIP (TYPED_SQL_IR.md, 2026-08-24): output labels
+        // reconcile with the projections' STORED types at construction
+        // — the contract keeps only where equal or REGISTERED
+        // admissible; a label lie adopts the wire. Same compact-ctor
+        // idiom as the expression nodes: the labels are a property of
+        // the select, computed once, structurally unable to drift.
+        outputs = SqlTyping.reconcileLabels(projections, outputs);
     }
 
     /** {@code SELECT * FROM source} with every other clause empty. */

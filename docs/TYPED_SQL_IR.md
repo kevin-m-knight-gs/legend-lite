@@ -399,6 +399,45 @@ Endgame beyond the charter: once labels flip to type()-derived (+
 admissibility) at M3, OutputCol stops being an independent copy and
 tension 1's duplication collapses with it.
 
+## THE LABEL FLIP — EXECUTED (2026-08-24; mismatch = 0, pinned)
+
+**Mechanism:** the admissibility relation MOVED from the census into
+SqlTyping (one owner; the census reads the same relation), and
+`SqlSelect`'s canonical constructor RECONCILES labels against the
+projections' stored types — the compact-ctor idiom again: a label is
+a property of the select, computed once; equal or registered keeps
+the pure-contract erasure, anything else was a lie and adopts the
+wire. No fixer pass exists.
+
+**The 517, adjudicated (witness table above §6):** 264 ADOPTED
+(BIGINT/DOUBLE labels under integer-sum wires widen to HUGEINT — the
+adopt-pending register entry executed: corpus wire adopt-pending
+130→13); ~249 REGISTERED with justifications in the relation (the
+Float/Number-erasure numeric carriage, the String-slot coercion, the
+pure-Decimal erasure slot incl. its float coercion, the collection
+carrier under the element label); 2 FIXED at the emitter
+(mixedNumericArray now returns the construction-site Array(LITERAL)
+mark — the sort arm's idiom; the tree carries what the label knew).
+
+**Receipts:** corpus mismatch 517→0 and chB all-lanes mismatch→0,
+BOTH pinned as equalities (the label-lie program instrument→census→
+flip COMPLETE); scoreboard + h2-exec byte-identical; corpus wire
+diverge 179→114 and adopt-pending 130→13 (ceilings RATCHETED to
+measured; chB adopt-pending 110→103). chB-std wire diverge 73→74,
+fully accounted: −4 healed (percentile Float-carriage delivered;
+letFn's JSON label adopted its VARCHAR wire and now AGREES) / +5
+reclassified honest (testLargePlus/Times literals carry true
+Decimal(p,0) labels vs HUGEINT arithmetic wires — closes when the
+PLUS/TIMES promotion rules land, never via a false delivery row:
+HUGEINT is not a value-subset of Decimal(19,0)).
+
+**Judge status after the flip:** its last callers are the census
+differential's scope channel and SqlTypingTest. The judge-free
+permanent tripwires now stand: mismatch==0 (labels cannot lie),
+node-diverge/pending-leaf==0 (the tree knows its leaves), and the
+WIRE census (ground truth per execution). Next slice: delete
+judge/rebind + the census's judge side, then the Verdict rename.
+
 ## G4 LATENCY DRILL — VERDICT (2026-08-24, post-M1, measured first)
 
 **The 389s does not reproduce.** Six caffeinated G4 runs same day,

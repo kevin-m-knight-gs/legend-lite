@@ -680,20 +680,32 @@ public class RelationalCorpusRunner {
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             softRescued <= 614, "text-rescued passes grew: "
                                     + softRescued + " > 614"),
-                    // contract-program wire ratchets (2026-08-23):
-                    // corpus residue 181 (store cross-kind reads lead),
-                    // adopt-pending 130 (integer aggregates — contract
-                    // widens at construction)
+                    // contract-program wire ratchets (RE-PINNED at the
+                    // 2026-08-24 label flip: 181->114 and 130->13 — the
+                    // adopted HUGEINT labels and the registered
+                    // carriages moved the residue; deterministic counts,
+                    // ratcheted to measured)
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .wireDivergeCount() <= 181,
+                                    .wireDivergeCount() <= 114,
                             "corpus wire divergence grew: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .wireAdoptPendingCount() <= 130,
+                                    .wireAdoptPendingCount() <= 13,
                             "corpus wire adopt-pending grew: "
+                                    + com.legend.exec.SqlTypeCensus
+                                            .summary()),
+                    // THE LABEL FLIP (TYPED_SQL_IR.md, 2026-08-24):
+                    // reconciliation makes a label lie structurally
+                    // impossible — the census's mismatch bucket is
+                    // EMPTY by construction, pinned as the completed
+                    // label-lie program (instrument -> census -> flip).
+                    () -> org.junit.jupiter.api.Assertions.assertEquals(
+                            0, com.legend.exec.SqlTypeCensus
+                                    .mismatchCount(),
+                            "a label lie escaped reconciliation: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
                     // TYPED-IR M1/M2 (TYPED_SQL_IR.md): the judge-vs-node

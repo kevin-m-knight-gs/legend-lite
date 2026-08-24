@@ -146,6 +146,139 @@ public final class SqlTyping {
     }
 
     // ------------------------------------------------------------------
+    // THE LABEL FLIP (TYPED_SQL_IR.md §3/§6, executed 2026-08-24): an
+    // OutputCol label is the PURE-CONTRACT erasure; the projection's
+    // stored type is the WIRE. SqlSelect's canonical constructor
+    // reconciles the two: equal or REGISTERED-admissible keeps the
+    // contract; anything else was a label lie and the label adopts the
+    // wire. The admissibility relation MOVED here from the census (the
+    // flip encodes it; the census reads the same relation).
+    // ------------------------------------------------------------------
+
+    /** Label reconciliation — called by {@link SqlSelect}'s canonical
+     * constructor (the compact-constructor idiom: the select's labels
+     * are a property of the select, computed once). Star frames
+     * (projection/output arity mismatch) carry no per-column claim. */
+    static @com.legend.Nullable List<OutputCol> reconcileLabels(
+            List<SqlSelect.Projection> projections,
+            @com.legend.Nullable List<OutputCol> outputs) {
+        if (outputs == null || projections.size() != outputs.size()) {
+            return outputs;   // no per-column claim to reconcile
+        }
+        List<OutputCol> out = null;
+        for (int i = 0; i < outputs.size(); i++) {
+            if (!(projections.get(i).expr().type()
+                    instanceof Verdict.Typed t)) {
+                continue;   // unknown/bottom wires keep the contract
+            }
+            OutputCol oc = outputs.get(i);
+            SqlType computed = t.type();
+            if (computed.equals(oc.type())
+                    || admissible(oc.type(), computed)) {
+                continue;
+            }
+            if (out == null) {
+                out = new java.util.ArrayList<>(outputs);
+            }
+            out.set(i, new OutputCol(oc.name(), computed, oc.nullable()));
+        }
+        return out == null ? outputs : List.copyOf(out);
+    }
+
+    /** THE ADMISSIBILITY RELATION (T3 user-audited 2026-08-23; MOVED
+     * from the census and EXTENDED by the 2026-08-24 flip adjudication
+     * — witnesses per row in TYPED_SQL_IR.md): the registered
+     * (declared, computed) carrier pairs — each a DELIBERATE
+     * representation choice. Everything not here that differs is a
+     * label lie, and the reconciliation adopts the wire.
+     *
+     * <p>HONESTY NOTE (from the T3 audit): these are TYPE-PAIR rules,
+     * some COARSER than their justifying conventions; T4 conditions
+     * them on the pure STAMP or retires them by emission. The reverse
+     * temporal direction (DATE label &larr; TIMESTAMP wire) stays
+     * DELIBERATELY absent — a bug, never a carrier. An
+     * INTEGER&larr;BIGINT narrowing row was REMOVED 2026-08-23:
+     * label-narrowing is only value-safe, which a type rule cannot
+     * see. */
+    public static boolean admissible(SqlType declared, SqlType computed) {
+        // partial-precision temporal carriage (D-arc): SQL temporals
+        // cannot hold pure's partial precisions, so temporal slots may
+        // carry the precision-faithful VARCHAR wire
+        if ((declared == SqlType.Scalar.TIMESTAMP
+                || declared == SqlType.Scalar.DATE)
+                && computed == SqlType.Scalar.VARCHAR) {
+            return true;
+        }
+        // SUBSUMPTION at the abstract-Date slot (F5.4): the TIMESTAMP
+        // label is where abstract Date erases; a StrictDate value's
+        // DATE wire is a subtype in a supertype slot
+        if (declared == SqlType.Scalar.TIMESTAMP
+                && computed == SqlType.Scalar.DATE) {
+            return true;
+        }
+        // the NUMBER-slot identity carrier: pure literal spellings
+        // (1 / 7.345 / 2D) keep every fine kind's identity in text;
+        // DOUBLE is where the abstract-Number stamp erases
+        if (declared == SqlType.Scalar.DOUBLE
+                && computed == SqlType.Scalar.VARCHAR) {
+            return true;
+        }
+        // FLIP ADJUDICATION: the Float/Number-erasure slot rides any
+        // NUMERIC wire — decode-by-label IS pure Float semantics (the
+        // engine's own rule: an integer aggregate or a mapped
+        // decimal/int column under a Float property decodes to Float;
+        // precision loss above 2^53 is pure-Float-mandated, not a
+        // narrowing lie). Witnesses: dataType decimalAsFloat/
+        // numericAsFloat, aggregationAware Total Price Max/first.
+        if (declared == SqlType.Scalar.DOUBLE
+                && (computed == SqlType.Scalar.BIGINT
+                        || computed == SqlType.Scalar.INTEGER
+                        || computed instanceof SqlType.Decimal)) {
+            return true;
+        }
+        // FLIP ADJUDICATION: the String-slot coercion — a mapping may
+        // put an integer column under a String property; the engine's
+        // decode stringifies by the declared type (witness: filter/in
+        // id := t0.ID). Registered for the WITNESSED integer wire only.
+        if (declared == SqlType.Scalar.VARCHAR
+                && computed == SqlType.Scalar.BIGINT) {
+            return true;
+        }
+        // serialize-as-text (the m2m/graphFetch egress): DuckDB serves
+        // JSON as its text; the conform-by-emission cast is a later,
+        // golden-text-gated slice
+        if (declared == SqlType.Scalar.VARCHAR
+                && computed == SqlType.Scalar.JSON) {
+            return true;
+        }
+        // FLIP ADJUDICATION: the COLLECTION CARRIER under the element
+        // label — a collection value rides as one array cell and the
+        // row-explosion boundary reads the label per element
+        // (witnesses: value := ArrayLit under VARCHAR/JSON labels).
+        if (computed instanceof SqlType.Array a
+                && a.element().equals(declared)) {
+            return true;
+        }
+        // FLIP ADJUDICATION: the pure-Decimal ERASURE slot (38,18 is
+        // sqlTypeOf's canonical Decimal stamp) carries any exact
+        // decimal wire — BigDecimal decode preserves the wire's own
+        // scale — and the mapping-declared float coercion (witness:
+        // floatAsDecimal := t0.f).
+        if (declared instanceof SqlType.Decimal d38
+                && d38.precision() == 38 && d38.scale() == 18
+                && (computed instanceof SqlType.Decimal
+                        || computed == SqlType.Scalar.DOUBLE)) {
+            return true;
+        }
+        // Decimal WIDENING is lossless: a narrower computed decimal
+        // fits any wider label at the same scale
+        return declared instanceof SqlType.Decimal d
+                && computed instanceof SqlType.Decimal c2
+                && d.scale() == c2.scale()
+                && d.precision() >= c2.precision();
+    }
+
+    // ------------------------------------------------------------------
     // THE RULE TABLE — called by the node constructors (SqlExpr/SqlAgg).
     // Each rule is a function of the children's STORED verdicts; no rule
     // walks a finished tree.

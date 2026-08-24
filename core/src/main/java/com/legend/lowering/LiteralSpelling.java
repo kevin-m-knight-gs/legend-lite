@@ -312,7 +312,17 @@ public final class LiteralSpelling {
             }
             spelled.add(lit);
         }
-        return kinds.size() < 2 ? null : new SqlExpr.ArrayLit(spelled);
+        if (kinds.size() < 2) {
+            return null;
+        }
+        // the construction-site MARK (the sort arm's idiom): the tree
+        // CARRIES the spelling contract — Array(LITERAL), physically
+        // VARCHAR[], an identity cast; list-less backends strip it at
+        // render. Without it the label knew what the tree did not (the
+        // 2x LITERAL<>VARCHAR census rows — flip adjudication).
+        return new SqlExpr.Cast(new SqlExpr.ArrayLit(spelled),
+                new com.legend.sql.SqlType.Array(
+                        com.legend.sql.SqlType.Scalar.LITERAL));
     }
 
     // unspell + unspellMarked (the STRUCTURAL INVERSE pair) DELETED
