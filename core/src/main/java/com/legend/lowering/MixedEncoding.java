@@ -30,8 +30,7 @@ final class MixedEncoding {
     }
 
     /** Null when not per-element encodable or not mixed. */
-    record MixedElems(List<SqlExpr> ids, List<SqlExpr> vals,
-            boolean numericOnly) {
+    record MixedElems(List<SqlExpr> ids, List<SqlExpr> vals) {
 
         SqlExpr idList() {
             return new SqlExpr.ArrayLit(ids);
@@ -57,12 +56,11 @@ final class MixedEncoding {
 
         /** The construction-site LITERAL label for any composition
          * that returns ONE identity text (select, mode's last-run
-         * pick): numeric mixes only until slice 3 lands the temporal
-         * grammar arm on both halves. */
+         * pick). Slice 3: EVERY element arm now spells the pure
+         * literal (temporals joined via the %-forms), so the mark is
+         * unconditional — the 2b numericOnly gate dissolved. */
         SqlExpr markLiteral(SqlExpr sel) {
-            return numericOnly
-                    ? new SqlExpr.Cast(sel, SqlType.Scalar.LITERAL)
-                    : sel;
+            return new SqlExpr.Cast(sel, SqlType.Scalar.LITERAL);
         }
     }
 
@@ -100,18 +98,12 @@ final class MixedEncoding {
             List<SqlExpr> lowered) {
         List<SqlExpr> ids = new ArrayList<>();
         List<SqlExpr> vals = new ArrayList<>();
-        boolean numericOnly = true;
         for (int i = 0; i < elems.size(); i++) {
             if (!encodeMixed(elems.get(i), lowered.get(i), ids, vals)) {
                 return null;
             }
-            Type t = elems.get(i).info().type();
-            numericOnly &= t == Type.Primitive.INTEGER
-                    || t == Type.Primitive.FLOAT
-                    || t == Type.Primitive.DECIMAL
-                    || t instanceof Type.PrecisionDecimal;
         }
-        return new MixedElems(ids, vals, numericOnly);
+        return new MixedElems(ids, vals);
     }
 
     /**
@@ -149,12 +141,15 @@ final class MixedEncoding {
             return true;
         }
         if (t == Type.Primitive.STRICT_DATE) {
-            ids.add(LiteralSpelling.datePrint(x));
+            // F10 slice 3: temporal ids are LITERAL spellings (%-form)
+            // — the decoder's PureDateLiteral arm parses them; typed
+            // host values replace the old date-string convention
+            ids.add(LiteralSpelling.strictDateLiteral(x));
             vals.add(new SqlExpr.Cast(x, SqlType.Scalar.TIMESTAMP));
             return true;
         }
         if (t == Type.Primitive.DATE_TIME) {
-            ids.add(LiteralSpelling.dateTimePrint(x,
+            ids.add(LiteralSpelling.dateTimeLiteral(x,
                     new SqlExpr.FormatLit(dateTimeFormatOf(e))));
             vals.add(x);
             return true;
@@ -168,7 +163,7 @@ final class MixedEncoding {
             if (cmp == null) {
                 return false;
             }
-            ids.add(x);
+            ids.add(LiteralSpelling.partialDateLiteral(x));
             vals.add(cmp);
             return true;
         }

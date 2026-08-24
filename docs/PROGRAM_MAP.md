@@ -21,7 +21,7 @@ no exclusions — only named ledgers.
 Charter: [F10_CARRIER_DESIGN.md](F10_CARRIER_DESIGN.md). Spelling-as-tag:
 pure's literal grammar IS the kind tag; the LITERAL wire label splits
 the carrier from genuine Variant's raw-JSON contract; one grammar owner
-(`lowering/LiteralSpelling` SQL-side, `sql/LiteralText` host-side).
+(`lowering/LiteralSpelling` SQL-side, `values/LiteralText` host-side).
 
 | Slice | State | Content |
 |---|---|---|

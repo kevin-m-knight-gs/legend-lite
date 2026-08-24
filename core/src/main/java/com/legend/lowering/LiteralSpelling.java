@@ -181,19 +181,25 @@ public final class LiteralSpelling {
     static SqlExpr temporalCanon(SqlExpr v) {
         // an ALREADY-SUFFIXED wire text (the variant-identity channel
         // prints pure's +0000 form) normalizes before the pipeline —
-        // the suffix re-appends canonically at the end
+        // the suffix re-appends canonically at the end.
+        // SUBSECOND PRECISION IS PRESERVED AS WRITTEN (A1, spec §3:
+        // .000 != .0 != none are DISTINCT pure values — AbstractPureDate
+        // compares the exact subsecond STRING). The old trailing-zero
+        // strip was a NO-OP on TIMESTAMP casts (DuckDB already prints
+        // minimal subseconds — probed 2026-08-23) and WRONG on the
+        // precision-faithful VARCHAR convention, where the text is
+        // authoritative.
         SqlExpr bare = SqlExpr.Call.of(SqlFn.REGEXP_REPLACE,
                 new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR),
                 new SqlExpr.StringLit("(\\+0000|Z)$"),
                 new SqlExpr.StringLit(""));
         SqlExpr t = SqlExpr.Call.of(SqlFn.REPLACE, bare,
                 new SqlExpr.StringLit(" "), new SqlExpr.StringLit("T"));
-        SqlExpr stripped = stripDot(stripTrailingZeros(t), "");
-        SqlExpr timeBearing = has(stripped, "T");
+        SqlExpr timeBearing = has(t, "T");
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(timeBearing,
-                SqlExpr.Call.of(SqlFn.CONCAT, stripped,
+                SqlExpr.Call.of(SqlFn.CONCAT, t,
                         new SqlExpr.StringLit("+0000")))),
-                stripped);
+                t);
     }
 
     /**
@@ -272,22 +278,6 @@ public final class LiteralSpelling {
                 SqlExpr.Call.of(SqlFn.STRPOS, text,
                         new SqlExpr.StringLit(needle)),
                 new SqlExpr.IntLit(0));
-    }
-
-    /** {@code (\.\d*?)0+$} — trailing zeros after a dot strip; a
-     * dotless text is untouched. */
-    private static SqlExpr stripTrailingZeros(SqlExpr text) {
-        return SqlExpr.Call.of(SqlFn.REGEXP_REPLACE, text,
-                new SqlExpr.StringLit("(\\.\\d*?)0+$"),
-                new SqlExpr.StringLit("\\1"));
-    }
-
-    /** A TERMINAL dot rewrites to {@code replacement} ('' = integral
-     * bare for Decimal; '.0' keeps one decimal for Float). */
-    private static SqlExpr stripDot(SqlExpr text, String replacement) {
-        return SqlExpr.Call.of(SqlFn.REGEXP_REPLACE, text,
-                new SqlExpr.StringLit("\\.$"),
-                new SqlExpr.StringLit(replacement));
     }
 
     /** F10 slice 2 — the MIXED-NUMERIC carrier encoder: a literal
@@ -384,6 +374,28 @@ public final class LiteralSpelling {
         return SqlExpr.Call.of(SqlFn.CONCAT,
                 new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR),
                 new SqlExpr.StringLit("D"));
+    }
+
+    /** StrictDate LITERAL from a typed DATE value: % + ISO date. */
+    public static SqlExpr strictDateLiteral(SqlExpr x) {
+        return SqlExpr.Call.of(SqlFn.CONCAT,
+                new SqlExpr.StringLit("%"), datePrint(x));
+    }
+
+    /** DateTime LITERAL at the element's STATIC subsecond precision
+     * (the caller resolves the format): % + T-separated print + +0000.
+     * Precision-faithful by construction — pairs with the A1 fix
+     * (temporalCanon no longer strips written subseconds). */
+    public static SqlExpr dateTimeLiteral(SqlExpr x, SqlExpr.FormatLit fmt) {
+        return SqlExpr.Call.of(SqlFn.CONCAT,
+                new SqlExpr.StringLit("%"), dateTimePrint(x, fmt));
+    }
+
+    /** PARTIAL-date LITERAL: the string cell IS the body (master's
+     * pinned partial-date carrier); % prefixes it. */
+    public static SqlExpr partialDateLiteral(SqlExpr text) {
+        return SqlExpr.Call.of(SqlFn.CONCAT,
+                new SqlExpr.StringLit("%"), text);
     }
 
     /** StrictDate PRINT form: bare ISO date (no % — print, not literal). */

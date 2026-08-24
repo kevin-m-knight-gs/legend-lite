@@ -415,7 +415,7 @@ public final class Executor {
     // latticeKind (the print-form kind sniffer for NUMBER-rooted mixed
     // identities) DELETED BY CENSUS (F10 slice 2b): mixed selections and
     // collections now carry the LITERAL label and parse in unwrap
-    // (sql/LiteralText); the instrumented firing count read ZERO across
+    // (values/LiteralText); the instrumented firing count read ZERO across
     // the full PCT lane and the full corpus before deletion.
 
 
@@ -531,11 +531,11 @@ public final class Executor {
         }
         // the KIND-FAITHFUL CARRIER (F10 proper): a LITERAL-declared
         // cell holds a pure-literal spelling — the label IS the decode
-        // instruction, the text carries its own kind (sql/LiteralText,
+        // instruction, the text carries its own kind (values/LiteralText,
         // the host half of lowering/LiteralSpelling's grammar)
         if (type == com.legend.sql.SqlType.Scalar.LITERAL
                 && v instanceof String ls) {
-            return com.legend.sql.LiteralText.parse(ls);
+            return com.legend.values.LiteralText.parse(ls);
         }
         if (type instanceof com.legend.sql.SqlType.Struct st && v instanceof java.sql.Struct s) {
             Object[] attrs = s.getAttributes();

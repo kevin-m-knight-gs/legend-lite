@@ -19,7 +19,7 @@ public sealed interface SqlType {
          * is VARCHAR on every backend; the LABEL records the contract
          * (the spelling grammar), which plain VARCHAR cannot promise.
          * Encoder: {@code lowering/LiteralSpelling}. Decoder:
-         * {@code sql/LiteralText}. Canon: the cell IS canonical. */
+         * {@code values/LiteralText}. Canon: the cell IS canonical. */
         LITERAL
     }
 
