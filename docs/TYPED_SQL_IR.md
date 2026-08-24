@@ -376,6 +376,16 @@ WindowCall singles. The 517 mismatches remain M3's adjudication table.
    the two sites → judgeSite probe deletes → label flip with
    adjudication → judge/rebind delete WITH the differential's judge
    side (census collapses to node-vs-declared).
+
+   **THE FLIP EXECUTED (2026-08-24, same day):** both production
+   consumers read `e.type()` / `x.type()` — the tree is the label
+   authority at those sites. The site probe (judgeSite, counters,
+   witnesses, ChannelB site pins, census summary segment,
+   ArchitectureTest registration) DELETED in the same slice — no
+   adapter hedge, the measurement's verdict lives here and in the
+   slice-0 receipts. The judge's remaining callers: the census
+   differential (its scope channel) and SqlTypingTest — both die at
+   the label flip.
 3. **Promotion rules commit the IR to reference-backend (DuckDB)
    semantics** pre-dialect. Fine while H2 is advisory (wire census
    absorbs it); if H2 ever graduates to a verdict backend, type()

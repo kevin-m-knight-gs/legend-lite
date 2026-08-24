@@ -125,11 +125,10 @@ class ChannelBUnclassifiedTest {
         assertTrue(com.legend.exec.SqlTypeCensus.wireAdoptPendingCount() <= 110,
                 "wire adopt-pending grew: "
                         + com.legend.exec.SqlTypeCensus.summary());
-        // TYPED-IR equality pins on THIS lane too (TYPED_SQL_IR.md M2 +
-        // M3 slice 0 — the corpus-runner pins do not cover this JVM):
-        // the node channel knows everything the judge knows, and the
-        // two production judge sites agree with the tree (the flip
-        // precondition; measured zero 2026-08-24, held at zero).
+        // TYPED-IR equality pins on THIS lane too (TYPED_SQL_IR.md M2 —
+        // the corpus-runner pins do not cover this JVM): the node
+        // channel knows everything the judge knows. The slice-0 site
+        // pin deleted WITH the flip (the sites now read the tree).
         org.junit.jupiter.api.Assertions.assertEquals(0,
                 com.legend.exec.SqlTypeCensus.nodeDivergeCount(),
                 "node-vs-judge divergence: "
@@ -137,10 +136,6 @@ class ChannelBUnclassifiedTest {
         org.junit.jupiter.api.Assertions.assertEquals(0,
                 com.legend.exec.SqlTypeCensus.nodePendingLeafCount(),
                 "node channel lost leaf knowledge: "
-                        + com.legend.exec.SqlTypeCensus.summary());
-        org.junit.jupiter.api.Assertions.assertEquals(0,
-                com.legend.sql.SqlTyping.SITE_DIVERGE.sum(),
-                "judge-site divergence (flip precondition): "
                         + com.legend.exec.SqlTypeCensus.summary());
 
 

@@ -2668,12 +2668,13 @@ final class Scalars {
             // (a nested ^List under Any) prints pure's '[a, b]', its
             // ELEMENTS as root text — composed in SQL from the JSON array
             // F10 slice-3 AUDIT (2026-08-24): the spelling-print path
-            // gates on the JUDGED LITERAL wire — first-char dispatch on
-            // arbitrary Any wires was SNIFFING (a raw VARCHAR cell
-            // whose text starts with ' or % would mis-print); the
-            // engine's rule is declared-type-decides. Non-LITERAL
-            // wires keep the pre-carrier variant path unchanged.
-            boolean literalWire = com.legend.sql.SqlTyping.judgeSite(x)
+            // gates on the LITERAL wire the TREE carries (M3 flip:
+            // .type() read) — first-char dispatch on arbitrary Any
+            // wires was SNIFFING (a raw VARCHAR cell whose text starts
+            // with ' or % would mis-print); the engine's rule is
+            // declared-type-decides. Non-LITERAL wires keep the
+            // pre-carrier variant path unchanged.
+            boolean literalWire = x.type()
                     instanceof
                             com.legend.sql.SqlTyping.Verdict.Typed jt
                     && (jt.type() == SqlType.Scalar.LITERAL

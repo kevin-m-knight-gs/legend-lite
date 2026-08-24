@@ -336,12 +336,12 @@ public final class Lowerer {
         // guess (censused, unboxed). Root scope is FROM-less — no
         // column bindings.
         boolean anyStamp = sqlTypeOf(spec.info().type()) == SqlType.Scalar.JSON;
-        // judged unconditionally: a LITERAL-carried product under ANY
+        // read unconditionally: a LITERAL-carried product under ANY
         // stamp (generic/TypeVar dedup results included) must label
-        // truthfully — the judgment flows the carrier through
-        // element-preserving ops (F10 3b)
-        com.legend.sql.SqlTyping.Verdict rootJudge =
-                com.legend.sql.SqlTyping.judgeSite(e);
+        // truthfully — the TREE carries the carrier through
+        // element-preserving ops (F10 3b; M3 flip: the stored type IS
+        // the authority, the judge is gone from this site)
+        com.legend.sql.SqlTyping.Verdict rootJudge = e.type();
         if (anyStamp && !isMany(spec)
                 && rootJudge instanceof com.legend.sql.SqlTyping.Verdict.Typed t
                 && t.type() != SqlType.Scalar.JSON
