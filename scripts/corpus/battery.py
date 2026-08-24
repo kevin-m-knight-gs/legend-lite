@@ -2332,6 +2332,55 @@ def _project_link_specs():
     mand.sort = [("institutionId", False), ("accountNo", False), ("mandateSeq", False)]
     out.append(mand)
 
+    # ---- core-geo: the first linked project whose edges are ASSOCIATIONS ----
+    #
+    # Nine linked projects model every edge as a class-typed property over a join. This one
+    # declares ten Associations with mapped ends -- Legend's other edge style -- and until
+    # now the corpus had never executed one that belonged to a dependency. F49 and F57 are
+    # both defects in association ends, which is the reason this was worth linking.
+    #
+    # Three hops of it in one chain, and a ONE-TO-ONE at the end of another. Reykjavik has
+    # no time zone and New Zealand has no profile row, so both to-ones land on nothing in a
+    # projection that otherwise resolves.
+    geo = Spec("stress::PL21_CityRegionChain", "/stress/pl21",
+               "Three hops through ASSOCIATIONS declared inside a dependency -- city to "
+               "country to sub-region to macro-region -- alongside a one-to-one to the "
+               "country profile. Every edge here is an Association with a mapped end, "
+               "which nine previously linked projects between them do not have one of. "
+               "One city has no time zone and one country has no profile, so both to-ones "
+               "land on nothing without the chain itself breaking.",
+               "core_geo::CgCity")
+    geo.projections = [Proj("cityId", ["cityId"]),
+                       Proj("cityName", ["name"]),
+                       Proj("timeZone", ["timeZone", "ianaName"]),
+                       Proj("country", ["country", "name"]),
+                       Proj("subRegion", ["country", "subRegion", "name"]),
+                       Proj("macroRegion", ["country", "subRegion", "macroRegion", "name"]),
+                       Proj("incomeGroup", ["country", "profile", "incomeGroup"])]
+    geo.sort = ("cityId", False)
+    out.append(geo)
+
+    # A MANY-TO-MANY through a link table: two associations end to end, in opposite
+    # directions, from the row that joins them. The UK's EU membership carries an exit date
+    # and a WITHDRAWN status, so a reader that ignored the link row's own columns would
+    # report the UK as an EU member.
+    blocs = Spec("stress::PL22_BlocMembership", "/stress/pl22",
+                 "A many-to-many resolved through its LINK TABLE: two associations end to "
+                 "end from the membership row, one to the country and one to the bloc. The "
+                 "link row carries its own state -- one membership has an exit date and a "
+                 "WITHDRAWN status -- which is the whole reason the relationship is a table "
+                 "rather than a join.",
+                 "core_geo::CgBlocMembership")
+    blocs.projections = [Proj("membershipId", ["membershipId"]),
+                         Proj("status", ["status"]),
+                         Proj("exitDate", ["exitDate"]),
+                         Proj("country", ["country", "name"]),
+                         Proj("countryRegion", ["country", "subRegion", "name"]),
+                         Proj("bloc", ["bloc", "name"]),
+                         Proj("blocType", ["bloc", "blocType"])]
+    blocs.sort = ("membershipId", False)
+    out.append(blocs)
+
     # ---- core-units: two joins to the SAME table, and exact decimals in a schema ----
     #
     # CuConversion reaches CuUnit twice -- once as fromUnit, once as toUnit -- over two

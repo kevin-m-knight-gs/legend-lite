@@ -58,7 +58,7 @@ PROJECTS = Path(__file__).resolve().parents[2] / "projects"
 # so it is here purely to satisfy fee-core, which is what a transitive dependency looks like.
 LINKED_PROJECTS = ["core-types", "core-tenor", "core-fx", "core-ratings",
                    "core-instrument", "core-calendar", "core-units",
-                   "core-account", "fee-core"]
+                   "core-account", "core-geo", "fee-core"]
 
 
 # Section order within a project, not alphabetical. A .pure file with no `###` header

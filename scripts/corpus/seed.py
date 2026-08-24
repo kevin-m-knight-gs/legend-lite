@@ -20442,6 +20442,151 @@ CA_ACCOUNT_MANDATE = [
 ]
 
 
+# ---- the linked project: core-geo (layer 0) ----
+#
+# The first linked project that declares ASSOCIATIONS. All nine before it model every edge as
+# a class-typed property over a join, so an `Association` with a mapped AssociationMapping --
+# the other of Legend's two edge styles -- had never been executed across the boundary at
+# all. F49 and F57 are both defects in association ends, which is why this was worth doing.
+#
+# Ten of them, and they form a genuine four-hop chain: a city sits in a country, a country in
+# a sub-region, a sub-region in a macro-region. Plus shapes the corpus has little of:
+#
+#   * a MANY-TO-MANY through a link table -- country -> blocMemberships -> bloc -- which is
+#     two associations end to end rather than one.
+#   * a true ONE-TO-ONE, `CgCountryProfileLink`, [0..1] on both ends.
+#
+# Discrimination is seeded deliberately rather than left to luck:
+#   NZ has no cities, no subdivisions and no bloc membership -- every to-many lands empty.
+#   NZ also has NO profile row, so the one-to-one lands on nothing.
+#   GB's EU membership has an EXIT_DATE, so a filter on status has something to exclude.
+#   Reykjavik has no time zone id, so the to-one from a city lands on nothing.
+CG_MACRO_REGION = [
+    dict(MACRO_REGION_ID="MR-EMEA", CODE="EMEA", NAME="Europe, Middle East and Africa",
+         DESCRIPTION="The EMEA trading region", HEADQUARTERS_CITY="London", IS_ACTIVE=True),
+    dict(MACRO_REGION_ID="MR-APAC", CODE="APAC", NAME="Asia Pacific",
+         DESCRIPTION="The APAC trading region", HEADQUARTERS_CITY="Singapore",
+         IS_ACTIVE=True),
+    # No sub-regions at all: the to-many from a macro region lands empty.
+    dict(MACRO_REGION_ID="MR-LATAM", CODE="LATAM", NAME="Latin America",
+         DESCRIPTION="Not yet in use", HEADQUARTERS_CITY="Sao Paulo", IS_ACTIVE=False),
+]
+
+CG_SUB_REGION = [
+    dict(SUB_REGION_ID="SR-NEUR", M49_CODE="154", NAME="Northern Europe",
+         CONTINENT="Europe", IS_ACTIVE=True, MACRO_REGION_ID="MR-EMEA"),
+    dict(SUB_REGION_ID="SR-WEUR", M49_CODE="155", NAME="Western Europe",
+         CONTINENT="Europe", IS_ACTIVE=True, MACRO_REGION_ID="MR-EMEA"),
+    dict(SUB_REGION_ID="SR-AUNZ", M49_CODE="053", NAME="Australia and New Zealand",
+         CONTINENT="Oceania", IS_ACTIVE=True, MACRO_REGION_ID="MR-APAC"),
+]
+
+CG_COUNTRY = [
+    dict(COUNTRY_CODE="GB", ALPHA3_CODE="GBR", NUMERIC_CODE="826", NAME="United Kingdom",
+         OFFICIAL_NAME="United Kingdom of Great Britain and Northern Ireland",
+         IS_SOVEREIGN=True, CURRENCY_CODE="GBP", CALLING_CODE="+44",
+         TOP_LEVEL_DOMAIN=".uk", SUB_REGION_ID="SR-NEUR"),
+    dict(COUNTRY_CODE="DE", ALPHA3_CODE="DEU", NUMERIC_CODE="276", NAME="Germany",
+         OFFICIAL_NAME="Federal Republic of Germany", IS_SOVEREIGN=True,
+         CURRENCY_CODE="EUR", CALLING_CODE="+49", TOP_LEVEL_DOMAIN=".de",
+         SUB_REGION_ID="SR-WEUR"),
+    dict(COUNTRY_CODE="IS", ALPHA3_CODE="ISL", NUMERIC_CODE="352", NAME="Iceland",
+         OFFICIAL_NAME="Republic of Iceland", IS_SOVEREIGN=True, CURRENCY_CODE="ISK",
+         CALLING_CODE="+354", TOP_LEVEL_DOMAIN=".is", SUB_REGION_ID="SR-NEUR"),
+    # Every to-many from this one is empty, and it has no profile row either.
+    dict(COUNTRY_CODE="NZ", ALPHA3_CODE="NZL", NUMERIC_CODE="554", NAME="New Zealand",
+         OFFICIAL_NAME="New Zealand", IS_SOVEREIGN=True, CURRENCY_CODE="NZD",
+         CALLING_CODE="+64", TOP_LEVEL_DOMAIN=".nz", SUB_REGION_ID="SR-AUNZ"),
+]
+
+CG_TIME_ZONE = [
+    dict(TIME_ZONE_ID="TZ-LON", IANA_NAME="Europe/London", UTC_OFFSET_MINUTES=0,
+         OBSERVES_DAYLIGHT_SAVING=True, ABBREVIATION="GMT"),
+    dict(TIME_ZONE_ID="TZ-BER", IANA_NAME="Europe/Berlin", UTC_OFFSET_MINUTES=60,
+         OBSERVES_DAYLIGHT_SAVING=True, ABBREVIATION="CET"),
+]
+
+CG_CITY = [
+    dict(CITY_ID="CT-LON", NAME="London", IS_CAPITAL=True, IS_FINANCIAL_CENTRE=True,
+         POPULATION=8982000, LATITUDE=51.5072, LONGITUDE=-0.1276, COUNTRY_CODE="GB",
+         TIME_ZONE_ID="TZ-LON"),
+    dict(CITY_ID="CT-EDI", NAME="Edinburgh", IS_CAPITAL=False, IS_FINANCIAL_CENTRE=True,
+         POPULATION=506520, LATITUDE=55.9533, LONGITUDE=-3.1883, COUNTRY_CODE="GB",
+         TIME_ZONE_ID="TZ-LON"),
+    dict(CITY_ID="CT-FRA", NAME="Frankfurt", IS_CAPITAL=False, IS_FINANCIAL_CENTRE=True,
+         POPULATION=764104, LATITUDE=50.1109, LONGITUDE=8.6821, COUNTRY_CODE="DE",
+         TIME_ZONE_ID="TZ-BER"),
+    # No time zone: the to-one from a city lands on nothing.
+    dict(CITY_ID="CT-REY", NAME="Reykjavik", IS_CAPITAL=True, IS_FINANCIAL_CENTRE=False,
+         POPULATION=139875, LATITUDE=64.1466, LONGITUDE=-21.9426, COUNTRY_CODE="IS",
+         TIME_ZONE_ID=None),
+]
+
+CG_SUBDIVISION = [
+    dict(SUBDIVISION_CODE="GB-SCT", NAME="Scotland", CATEGORY="COUNTRY", LOCAL_CODE="SCT",
+         IS_ACTIVE=True, COUNTRY_CODE="GB"),
+    dict(SUBDIVISION_CODE="GB-ENG", NAME="England", CATEGORY="COUNTRY", LOCAL_CODE="ENG",
+         IS_ACTIVE=True, COUNTRY_CODE="GB"),
+    dict(SUBDIVISION_CODE="DE-HE", NAME="Hessen", CATEGORY="LAND", LOCAL_CODE="HE",
+         IS_ACTIVE=True, COUNTRY_CODE="DE"),
+]
+
+CG_BLOC = [
+    dict(BLOC_ID="BL-EU", CODE="EU", NAME="European Union", BLOC_TYPE="POLITICAL_UNION",
+         FOUNDED_YEAR=1993, SEAT_CITY="Brussels", MEMBER_COUNT=27,
+         HAS_COMMON_CURRENCY=True),
+    dict(BLOC_ID="BL-EEA", CODE="EEA", NAME="European Economic Area",
+         BLOC_TYPE="SINGLE_MARKET", FOUNDED_YEAR=1994, SEAT_CITY="Brussels",
+         MEMBER_COUNT=30, HAS_COMMON_CURRENCY=False),
+]
+
+# The link table of a many-to-many. GB's EU row has an EXIT_DATE and a WITHDRAWN status.
+CG_BLOC_MEMBERSHIP = [
+    dict(MEMBERSHIP_ID="MB-DE-EU", ACCESSION_DATE=_iso(1993, 11, 1), EXIT_DATE=None,
+         STATUS="ACTIVE", IS_FULL_MEMBER=True, HAS_OPT_OUT=False,
+         NOTES="Founding member", COUNTRY_CODE="DE", BLOC_ID="BL-EU"),
+    dict(MEMBERSHIP_ID="MB-GB-EU", ACCESSION_DATE=_iso(1993, 11, 1),
+         EXIT_DATE=_iso(2020, 1, 31), STATUS="WITHDRAWN", IS_FULL_MEMBER=False,
+         HAS_OPT_OUT=True, NOTES="Withdrew under Article 50", COUNTRY_CODE="GB",
+         BLOC_ID="BL-EU"),
+    dict(MEMBERSHIP_ID="MB-IS-EEA", ACCESSION_DATE=_iso(1994, 1, 1), EXIT_DATE=None,
+         STATUS="ACTIVE", IS_FULL_MEMBER=True, HAS_OPT_OUT=False,
+         NOTES=None, COUNTRY_CODE="IS", BLOC_ID="BL-EEA"),
+]
+
+CG_TRADE_AGREEMENT = [
+    dict(AGREEMENT_ID="TA-EU-CETA", NAME="Comprehensive Economic and Trade Agreement",
+         SHORT_NAME="CETA", SIGNED_DATE=_iso(2016, 10, 30),
+         IN_FORCE_DATE=_iso(2017, 9, 21), AGREEMENT_TYPE="FTA", IS_IN_FORCE=True,
+         BLOC_ID="BL-EU"),
+    dict(AGREEMENT_ID="TA-EU-MERC", NAME="EU-Mercosur Association Agreement",
+         SHORT_NAME="MERCOSUR", SIGNED_DATE=_iso(2019, 6, 28), IN_FORCE_DATE=None,
+         AGREEMENT_TYPE="FTA", IS_IN_FORCE=False, BLOC_ID="BL-EU"),
+]
+
+# NZ has no row here, so the ONE-TO-ONE association lands on nothing from that side.
+CG_COUNTRY_PROFILE = [
+    dict(COUNTRY_CODE="GB", POPULATION=67026292, AREA_SQ_KM=242495.0, GDP_USD=3.34e12,
+         GDP_PER_CAPITA_USD=49464.0, INCOME_GROUP="HIGH", IS_OECD_MEMBER=True,
+         REFERENCE_YEAR=2023),
+    dict(COUNTRY_CODE="DE", POPULATION=83445000, AREA_SQ_KM=357588.0, GDP_USD=4.46e12,
+         GDP_PER_CAPITA_USD=53445.0, INCOME_GROUP="HIGH", IS_OECD_MEMBER=True,
+         REFERENCE_YEAR=2023),
+    dict(COUNTRY_CODE="IS", POPULATION=376248, AREA_SQ_KM=103000.0, GDP_USD=3.13e10,
+         GDP_PER_CAPITA_USD=83214.0, INCOME_GROUP="HIGH", IS_OECD_MEMBER=True,
+         REFERENCE_YEAR=2023),
+]
+
+CG_OFFICIAL_LANGUAGE = [
+    dict(LANGUAGE_ID="LG-GB-EN", ISO639_CODE="en", NAME="English", IS_PRIMARY=True,
+         COUNTRY_CODE="GB"),
+    dict(LANGUAGE_ID="LG-DE-DE", ISO639_CODE="de", NAME="German", IS_PRIMARY=True,
+         COUNTRY_CODE="DE"),
+    dict(LANGUAGE_ID="LG-IS-IS", ISO639_CODE="is", NAME="Icelandic", IS_PRIMARY=True,
+         COUNTRY_CODE="IS"),
+]
+
+
 # ---- the linked project: core-fx ----
 #
 # Real June 2024 levels for four majors. The corpus's own trades are all USD, so what the
@@ -20664,6 +20809,17 @@ TABLES: dict[str, list[dict]] = {
     "CA_ACCOUNT_STATUS_EVENT": CA_ACCOUNT_STATUS_EVENT,
     "CA_ACCOUNT_RESTRICTION": CA_ACCOUNT_RESTRICTION,
     "CA_ACCOUNT_MANDATE": CA_ACCOUNT_MANDATE,
+    "CG_MACRO_REGION": CG_MACRO_REGION,
+    "CG_SUB_REGION": CG_SUB_REGION,
+    "CG_COUNTRY": CG_COUNTRY,
+    "CG_SUBDIVISION": CG_SUBDIVISION,
+    "CG_CITY": CG_CITY,
+    "CG_TIME_ZONE": CG_TIME_ZONE,
+    "CG_BLOC": CG_BLOC,
+    "CG_BLOC_MEMBERSHIP": CG_BLOC_MEMBERSHIP,
+    "CG_TRADE_AGREEMENT": CG_TRADE_AGREEMENT,
+    "CG_COUNTRY_PROFILE": CG_COUNTRY_PROFILE,
+    "CG_OFFICIAL_LANGUAGE": CG_OFFICIAL_LANGUAGE,
     "EXPOSURE_LINE": EXPOSURE_LINE,
     "EXPOSURE_THRESHOLD": EXPOSURE_THRESHOLD,
     "EXEMPTION_RULE": EXEMPTION_RULE,

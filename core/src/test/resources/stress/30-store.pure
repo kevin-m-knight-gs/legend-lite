@@ -33,6 +33,9 @@ Database store::DB
     // Every join in this one is TWO columns, because an account is keyed by institution
     // and number and a branch code is unique only within an institution.
     include core_account::Store
+    // The first linked project whose edges are ASSOCIATIONS rather than properties over
+    // a join -- ten of them, including a many-to-many through a link table.
+    include core_geo::Store
 
     // ---- taxonomy edges, added by scripts/corpus/add_taxonomy_edges.py ----
     // Every taxonomy table carries BOOK_ID and joined to nothing; these are
