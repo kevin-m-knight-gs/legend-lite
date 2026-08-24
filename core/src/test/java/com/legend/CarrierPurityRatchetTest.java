@@ -80,7 +80,12 @@ class   CarrierPurityRatchetTest {
             // (reproducing the exact pre-carrier conformance shape) —
             // both CONSUMPTION-side inversions, not new carrier
             // emissions; absorbed with the collection semantic node.
-            "new SqlExpr\\.ArrayLit\\(", 42,
+            // 42→39 (2026-08-24 spell-debt burn-down): all three
+            // inversion rebuilds DELETED with the unspell family —
+            // no live flow delivered a spelled value to a
+            // mid-expression consumer (probe + full chain); future
+            // consumers conform BY EMISSION, never by inverting.
+            "new SqlExpr\\.ArrayLit\\(", 39,
             "new SqlExpr\\.OrderedListAgg\\(", 1,
             // 136→137 (2026-08-19): ListEncodings.map's LIST_GET — the
             // map SEMANTIC NODE's wire-shape rule (a to-one result

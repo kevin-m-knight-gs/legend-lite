@@ -134,17 +134,13 @@ final class Scalars {
                                     args.get(0), n.args().get(1)),
                             CastPolicy.comparisonWireOperand(n.args().get(1),
                                     args.get(1), n.args().get(0)));
-                    // F10 3b HARMONIZATION: a LITERAL-marked side meeting
-                    // an unmarked side UNSPELLS (structural inverse —
-                    // comparison behaves exactly as pre-carrier); two
-                    // marked sides byte-compare in the grammar as-is.
-                    SqlExpr u0 = LiteralSpelling.unspellMarked(cargs.get(0));
-                    SqlExpr u1 = LiteralSpelling.unspellMarked(cargs.get(1));
-                    if (u0 != null && u1 == null) {
-                        cargs = List.of(u0, cargs.get(1));
-                    } else if (u1 != null && u0 == null) {
-                        cargs = List.of(cargs.get(0), u1);
-                    }
+                    // (The F10 3b unspell-one-side harmonization arm was
+                    // DELETED here — spell-debt burn-down: the probe run
+                    // and the full chain showed no live flow routes a
+                    // LITERAL-marked operand into mid-expression equality;
+                    // when the parked hetero claim lands, equality
+                    // conforms BY EMISSION — spell the static side, byte-
+                    // compare in the grammar — never by unspelling.)
                     SqlExpr inv = EnumSourceValues.decodeInvert(
                             n.args().get(0), n.args().get(1),
                             cargs.get(0), cargs.get(1));
@@ -2165,29 +2161,13 @@ final class Scalars {
                 List<TypedSpec> typedElems =
                         n.args().get(1) instanceof TypedCollection tc
                                 ? tc.elements() : List.of(n.args().get(1));
-                // F10 slice 3b: a spelled argument list (the LITERAL
-                // carrier) decomposes through the structural inverse —
-                // printf wants the raw values, and the one grammar owner
-                // built both directions
+                // (The F10 3b spelled-argument DECOMPOSITION was DELETED
+                // here — spell-debt burn-down: no live flow delivers a
+                // LITERAL-carried argument list to format; the print of a
+                // spelled value, when the parked claim lands, is the
+                // spelling→print TRANSFORM in SQL — unquote strings,
+                // strip %, keep D — never unspell-to-raw.)
                 SqlExpr argColl = args.get(1);
-                if (argColl instanceof SqlExpr.Cast mc
-                        && mc.target() instanceof SqlType.Array ma2
-                        && ma2.element() == SqlType.Scalar.LITERAL
-                        && mc.value() instanceof SqlExpr.ArrayLit sla) {
-                    List<SqlExpr> raw = new ArrayList<>(sla.elements().size());
-                    boolean ok = true;
-                    for (SqlExpr el : sla.elements()) {
-                        SqlExpr u = LiteralSpelling.unspell(el);
-                        if (u == null) {
-                            ok = false;
-                            break;
-                        }
-                        raw.add(u);
-                    }
-                    if (ok) {
-                        argColl = new SqlExpr.ArrayLit(raw);
-                    }
-                }
                 if (argColl instanceof SqlExpr.ArrayLit arr) {
                     // A MIXED argument list arrives variant-wrapped (its LUB
                     // is Any) — printf wants the raw values back, each

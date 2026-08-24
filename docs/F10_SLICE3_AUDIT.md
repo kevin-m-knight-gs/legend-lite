@@ -138,17 +138,32 @@ try/finally + the mutable-field allowlist row DELETED — the re-audit
 found the counter WRITE-ONLY (no reader ever landed; the lane-flag
 justification gated a claim that stayed parked).
 
-LEDGER STATUS CORRECTION — the remaining DELETE rows below are NOT
-executed and are GATED ON the spell-at-egress redesign (§ above),
-which the relation-cells leg did NOT build (it resolved by reversal
-instead): unspell + unspellMarked (live: LiteralSpelling.unspell,
-Scalars equality arm + format decomposition, CastPolicy conformance
-re-wrap) and the dormant needle spelling arms. Their consumers NEED
-unspell precisely because values still spell mid-expression; deleting
-them without the egress redesign breaks the consumers. DECISION
-PENDING (user): build spell-at-egress as its own leg (the deletes fall
-out), or re-park explicitly in PROGRAM_MAP. Until ruled, the rows
-below read as CHARTERED, not done.
+LEDGER EXECUTED — SPELL-DEBT BURN-DOWN (user-ordered, same day): the
+census found the compensation arms' presumed feeder (the mixed-identity
+selection channel's LITERAL-marked outputs reaching mid-expression
+consumers) has NO live flow — probed by deletion: all five ChannelB
+suites clean (Relation 355/355, Essential census intact — mixedSort
+included), full chain green. DELETED: unspell + unspellMarked (the
+structural-inverse pair), the equality unspell-one-side arm, format's
+decomposition, CastPolicy's Any-conformance re-wrap; ArrayLit ratchet
+tightened 42→39 (the three inversion rebuilds). DOCTRINE recorded at
+each site: when the parked hetero claim lands, consumers conform BY
+EMISSION (spell the static side / spelling→print transform / label
+rides through casts) — never by inverting.
+
+ADJUDICATION CORRECTION — the needle-arm ledger rows were WRONG: the
+contains/in needle arms are not compensation, they are conform-by-
+emission already (the needle SPELLS to match the collection's grammar,
+byte-comparable — the tenet's own pattern). They KEEP, dormant until a
+LITERAL-carried collection reaches membership.
+
+STILL KEPT (correct by design): the selection/sort identity-channel
+spellings (runtime-decided kinds — json cannot carry Decimal-vs-Float
+or temporal kinds, the pure grammar can; the CARRIER RULE applied:
+the spelling is the one carrier with the required property), their
+LITERAL marks (the label conduit to egress), Dedup's mark preservation
+(a label conduit, not compensation), and the root mixedNumericArray
+(already AT the egress boundary).
 
 ## THE UNWIND LEDGER (user review 2026-08-24 — executed by the
 ## relation-cells leg, checked off in its commits)
