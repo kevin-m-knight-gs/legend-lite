@@ -136,11 +136,11 @@ public final class Render {
             throw new IllegalStateException("toCSV over a zero-column relation");
         }
         // the per-row line: cells joined ','
-        SqlExpr line = cell(new SqlExpr.Column(rowAlias, cols.get(0).name()),
+        SqlExpr line = cell(SqlExpr.Column.of(rowAlias, cols.get(0)),
                 relCols.get(0), cols.get(0).type(), renderTdsNull);
         for (int i = 1; i < cols.size(); i++) {
             line = cat(line, new SqlExpr.StringLit(","),
-                    cell(new SqlExpr.Column(rowAlias, cols.get(i).name()),
+                    cell(SqlExpr.Column.of(rowAlias, cols.get(i)),
                             relCols.get(i), cols.get(i).type(),
                             renderTdsNull));
         }
@@ -162,7 +162,7 @@ public final class Render {
         // engine's empty joinStrings is prefix+suffix)
         SqlExpr rowsJoined = SqlExpr.Call.of(SqlFn.COALESCE,
                 new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                        List.of(new SqlExpr.Column(aggAlias, "_csv_line"), nl),
+                        List.of(SqlExpr.Column.of(aggAlias, "_csv_line", SqlType.Scalar.VARCHAR), nl),
                         false, aggOrder),
                 new SqlExpr.StringLit(""));
         SqlExpr text = cat(header, nl, rowsJoined, nl);
@@ -194,11 +194,11 @@ public final class Render {
                     "csv wire over a zero-column relation");
         }
         String aggAlias = rowAlias + "_a";
-        SqlExpr line = cell(new SqlExpr.Column(rowAlias, cols.get(0).name()),
+        SqlExpr line = cell(SqlExpr.Column.of(rowAlias, cols.get(0)),
                 relCols.get(0), cols.get(0).type(), false);
         for (int i = 1; i < cols.size(); i++) {
             line = cat(line, new SqlExpr.StringLit(","),
-                    cell(new SqlExpr.Column(rowAlias, cols.get(i).name()),
+                    cell(SqlExpr.Column.of(rowAlias, cols.get(i)),
                             relCols.get(i), cols.get(i).type(), false));
         }
         List<SqlSelect.Projection> rowProjs = new ArrayList<>();
@@ -214,7 +214,7 @@ public final class Render {
         }
         SqlExpr crlf = new SqlExpr.StringLit("\r\n");
         SqlExpr agg = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                List.of(new SqlExpr.Column(aggAlias, "_csv_line"), crlf),
+                List.of(SqlExpr.Column.of(aggAlias, "_csv_line", SqlType.Scalar.VARCHAR), crlf),
                 false, aggOrder);
         // an explicit IS NULL dispatch — concat() SKIPS null args, so a
         // coalesce over the concatenation could never see the null
@@ -242,7 +242,7 @@ public final class Render {
         List<SqlExpr> kv = new ArrayList<>(cols.size() * 2);
         for (OutputCol oc : cols) {
             kv.add(new SqlExpr.StringLit(oc.name()));
-            kv.add(new SqlExpr.Column(rowAlias, oc.name()));
+            kv.add(SqlExpr.Column.of(rowAlias, oc));
         }
         SqlExpr obj = new SqlExpr.Cast(new SqlExpr.JsonObject(kv),
                 SqlType.Scalar.VARCHAR);
@@ -250,14 +250,16 @@ public final class Render {
         for (SqlSelect.SortKey k : inner.orderBy()) {
             String out = k.outputName() != null ? k.outputName()
                     : k.expr() instanceof SqlExpr.Column c ? c.name() : null;
-            if (out == null || cols.stream().noneMatch(
-                    oc -> oc.name().equals(out))) {
+            OutputCol outCol = out == null ? null : cols.stream()
+                    .filter(oc -> oc.name().equals(out)).findFirst()
+                    .orElse(null);
+            if (outCol == null) {
                 throw new com.legend.error.NotImplementedException(
                         "json wire over an ordered relation whose sort key"
                         + " is not an output column");
             }
             lifted.add(new SqlSelect.SortKey(
-                    new SqlExpr.Column(rowAlias, out), k.ascending(),
+                    SqlExpr.Column.of(rowAlias, outCol), k.ascending(),
                     k.nullOrder(), null));
         }
         return SqlSelect.starOf(new SqlSource.Subselect(inner, rowAlias, null))
@@ -278,7 +280,7 @@ public final class Render {
         List<SqlExpr> kv = new ArrayList<>(cols.size() * 2);
         for (OutputCol oc : cols) {
             kv.add(new SqlExpr.StringLit(oc.name()));
-            kv.add(new SqlExpr.Column(rowAlias, oc.name()));
+            kv.add(SqlExpr.Column.of(rowAlias, oc));
         }
         SqlExpr obj = new SqlExpr.Cast(new SqlExpr.JsonObject(kv),
                 SqlType.Scalar.VARCHAR);
@@ -289,7 +291,7 @@ public final class Render {
         List<SqlSelect.SortKey> aggOrder = hoistOrder(inner, cols,
                 rowAlias, aggAlias, new Object[] {rowProjs, rowOuts});
         SqlExpr agg = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                List.of(new SqlExpr.Column(aggAlias, "_wire_row"),
+                List.of(SqlExpr.Column.of(aggAlias, "_wire_row", SqlType.Scalar.VARCHAR),
                         new SqlExpr.StringLit(",")),
                 false, aggOrder);
         SqlExpr text = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
@@ -435,7 +437,7 @@ public final class Render {
             // reads the bare SQL column, labeled with the presented name)
             String presented = Type.RelationType.presentPivotName(oc.name());
             projs.add(new SqlSelect.Projection(
-                    new SqlExpr.Column(wrapAlias, oc.name()), presented));
+                    SqlExpr.Column.of(wrapAlias, oc), presented));
             Type t = colType.apply(presented);
             relCols.add(new Type.Column(presented, t,
                     com.legend.compiler.element.type.Multiplicity
@@ -456,8 +458,14 @@ public final class Render {
                         : k.expr() instanceof SqlExpr.Column c
                                 ? c.name() : null;
                 if (out != null) {
+                    // stamp when the key names a probed output; an
+                    // unmatched name keeps the exact prior shape
+                    OutputCol src = probed.stream()
+                            .filter(oc -> oc.name().equals(out))
+                            .findFirst().orElse(null);
                     keys.add(new SqlSelect.SortKey(
-                            new SqlExpr.Column(wrapAlias, out),
+                            src != null ? SqlExpr.Column.of(wrapAlias, src)
+                                    : new SqlExpr.Column(wrapAlias, out),
                             k.ascending(), k.nullOrder(), out));
                 }
             }
@@ -496,7 +504,7 @@ public final class Render {
         SqlExpr line = new SqlExpr.StringLit("   ");
         for (int i = 0; i < cols.size(); i++) {
             SqlExpr c = tdsCell(
-                    new SqlExpr.Column(rowAlias, cols.get(i).name()),
+                    SqlExpr.Column.of(rowAlias, cols.get(i)),
                     relCols.get(i).type(), cols.get(i).type());
             line = i == 0 ? cat(line, c)
                     : cat(line, new SqlExpr.StringLit(","), c);
@@ -508,7 +516,7 @@ public final class Render {
         SqlExpr nl = new SqlExpr.StringLit("\n");
         SqlExpr rowsJoined = SqlExpr.Call.of(SqlFn.COALESCE,
                 new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                        List.of(new SqlExpr.Column(aggAlias, "_tds_line"), nl),
+                        List.of(SqlExpr.Column.of(aggAlias, "_tds_line", SqlType.Scalar.VARCHAR), nl),
                         false, hoistOrder(inner, cols, rowAlias, aggAlias,
                                 new Object[] {rowProjs, rowOuts})),
                 new SqlExpr.StringLit(""));
@@ -659,13 +667,14 @@ public final class Render {
             if (carry != null) {
                 ((List<SqlSelect.Projection>) carry[0]).add(
                         new SqlSelect.Projection(
-                                new SqlExpr.Column(rowAlias, src.name()),
+                                SqlExpr.Column.of(rowAlias, src),
                                 oname));
                 ((List<OutputCol>) carry[1]).add(
                         new OutputCol(oname, src.type(), src.nullable()));
             }
             aggOrder.add(new SqlSelect.SortKey(
-                    new SqlExpr.Column(aggAlias, oname), k.ascending(),
+                    SqlExpr.Column.of(aggAlias, oname, src.type()),
+                    k.ascending(),
                     k.nullOrder(), null));
         }
         return aggOrder;
@@ -762,11 +771,11 @@ public final class Render {
             throw new IllegalStateException("pctTds over a zero-column relation");
         }
         String aggAlias = rowAlias + "_a";
-        SqlExpr line = pctCell(new SqlExpr.Column(rowAlias, cols.get(0).name()),
+        SqlExpr line = pctCell(SqlExpr.Column.of(rowAlias, cols.get(0)),
                 relCols.get(0), cols.get(0).type());
         for (int i = 1; i < cols.size(); i++) {
             line = cat(line, new SqlExpr.StringLit(","),
-                    pctCell(new SqlExpr.Column(rowAlias, cols.get(i).name()),
+                    pctCell(SqlExpr.Column.of(rowAlias, cols.get(i)),
                             relCols.get(i), cols.get(i).type()));
         }
         List<SqlSelect.Projection> rowProjs = new ArrayList<>();
@@ -778,7 +787,7 @@ public final class Render {
         SqlExpr nl = new SqlExpr.StringLit("\n");
         SqlExpr rowsJoined = SqlExpr.Call.of(SqlFn.COALESCE,
                 cat(nl, new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                        List.of(new SqlExpr.Column(aggAlias, "_pct_line"), nl),
+                        List.of(SqlExpr.Column.of(aggAlias, "_pct_line", SqlType.Scalar.VARCHAR), nl),
                         false, aggOrder)),
                 new SqlExpr.StringLit(""));
         SqlExpr text = cat(new SqlExpr.StringLit(pctHeader(relCols)),

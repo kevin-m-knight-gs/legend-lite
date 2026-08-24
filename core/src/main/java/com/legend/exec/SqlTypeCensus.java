@@ -541,6 +541,14 @@ public final class SqlTypeCensus {
         return NODE_DIVERGE.sum();
     }
 
+    /** M2 ratchet: projection roots the node channel cannot type but
+     * the judge can — leaf-stamping debt. Burned 28,307 -> 0 on
+     * 2026-08-24; pinned at zero (the charter's pin-to-invariant
+     * lifecycle). */
+    public static long nodePendingLeafCount() {
+        return NODE_PENDING_LEAF.sum();
+    }
+
     public static long wireDivergeCount() {
         return WIRE_DIVERGE.sum();
     }

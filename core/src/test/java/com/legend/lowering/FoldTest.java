@@ -32,7 +32,10 @@ class FoldTest {
                     new com.legend.sql.OutputCol("C", com.legend.sql.SqlType.Scalar.BIGINT, false))));
 
     private static SqlExpr col(String n) {
-        return new SqlExpr.Column("t0", n);
+        // stamped from the fixture's own declared outputs (M2: a
+        // resolved reference carries the source's declared type)
+        return SqlExpr.Column.of("t0",
+                ((SqlSource.Table) BARE.from()).outputs(), n);
     }
 
     @Test

@@ -266,6 +266,39 @@ of the JDBC story). G4 latency drill: run AFTER M1's differential
 probe exists (it measures judge cost directly). The corpus SQL-verdict
 migration and all bucket work queue behind M4.
 
+## M2 RECEIPTS (2026-08-24, executed same day — the backlog had ONE
+## hot door)
+
+**pending-leaf 28,307 → 0 in one slice; diverge stays 0; both PINNED
+(equality, not ceilings) in the corpus runner.** The census-visible
+backlog was not spread across the 105 Column sites — it flowed through
+`Fold.sourceColumn` (the ONE by-name resolver, which always held the
+claiming source's OutputCol) plus a handful of schema-loop sites
+(Render's OutputCol reads, Lowerer's union/join projection loops, the
+lateral-elem projection, ValueCollections, CanonicalRenderSql's
+valueCol). Stamping doors added on the node: `Column.of(table,
+OutputCol)`, `Column.of(table, name, SqlType)`, and the lookup form
+`Column.of(table, List<OutputCol>, name)` (stamps when claimed, plain
+otherwise). Derived references TRANSPORT (CarrierStrategies.remapAlias
+and UnqualifyPivotArgs carry `c.type()` — a rebuilt reference never
+drops leaf knowledge).
+
+**Deliberately NOT stamped** (each with a reason, none silent):
+late-bound arms (raw grids, pivots — schema genuinely absent at
+construction, the charter's mortal-UNKNOWN case); lambda-parameter
+placeholders in Scalars/Comparators/Dedup and the row-scope
+lambdaResolver (no mechanical schema in hand; zero census-visible
+effect — the differential proves the label channel never reads them
+today; their mechanism is decided at M3 with LambdaWire's deletion).
+FoldTest's `col()` helper now builds stamped expectations from the
+fixture's own declared outputs — the two "failures" during the slice
+were the stamp ARRIVING, pinned as the new truth.
+
+**Remaining M3 pre-work visible from here:** the untyped tail (1,151)
+is now rule coverage, not leaf debt — ScalarSubquery 340, COALESCE
+188, Case 175, TIMES 91, UNNEST 87, Reducer 71, ABS/INT_DIVIDE/ROUND/
+WindowCall singles. The 517 mismatches remain M3's adjudication table.
+
 ## G4 LATENCY DRILL — VERDICT (2026-08-24, post-M1, measured first)
 
 **The 389s does not reproduce.** Six caffeinated G4 runs same day,
@@ -275,9 +308,12 @@ neemsandv checkouts): baseline main 136.1s; M1 135.5 / 135.5 / 137.8 /
 The 389s trigger figure matches the two failure modes GATES.md already
 documents (slept/preempted run — the 722s→34s precedent — or the
 stale-root tell, "~320s instead of ~90s"); treat it as a measurement
-artifact, not a regression. Same-day corollary: the chain's G8 read
-250s against its ~63s pin once — same suspect class (another user's
-agents share this box); re-measure isolated before treating as data.
+artifact, not a regression. Same-day corollary: G8 read ~250s against
+its ~63s GATES.md pin in BOTH full chains (246s and 250s — consistent,
+so NOT a slept-run artifact; the gate likely genuinely grew under
+commits since the 2026-08-15 re-pin). Needs its own isolated
+decomposition per the GATES.md budget rule — recorded, not absorbed;
+not caused by this arc (same reading on the M1-only chain).
 
 **Judge/differential cost ≈ 0.** The M1 differential probe (judge over
 every executed plan, now via rebind) plus eager node typing costs

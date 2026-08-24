@@ -135,7 +135,7 @@ public final class CarrierStrategies extends SqlRewriter {
         List<SqlExpr> group = new ArrayList<>();
         for (com.legend.sql.OutputCol oc : p.outputs()) {
             if (!oc.name().contains("__|__")) {
-                SqlExpr g = new SqlExpr.Column(p.source().alias(), oc.name());
+                SqlExpr g = SqlExpr.Column.of(p.source().alias(), oc);
                 group.add(g);
                 ps.add(new SqlSelect.Projection(g, oc.name()));
             }
@@ -278,7 +278,9 @@ public final class CarrierStrategies extends SqlRewriter {
 
     private static SqlExpr remapAlias(SqlExpr e, String from, String to) {
         if (e instanceof SqlExpr.Column c && from.equals(c.table())) {
-            return new SqlExpr.Column(to, c.name());
+            // alias remap transports the stamped type (M2: a derived
+            // reference never drops leaf knowledge)
+            return new SqlExpr.Column(to, c.name(), c.type());
         }
         List<SqlExpr> kids = e.children();
         if (kids.isEmpty()) {

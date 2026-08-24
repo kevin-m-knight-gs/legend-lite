@@ -1381,7 +1381,8 @@ public final class Lowerer {
                                 SqlSource.Join.Kind.LEFT_LATERAL,
                                 new SqlExpr.BoolLit(true)));
                         ps.add(new SqlSelect.Projection(
-                                new SqlExpr.Column(lat, "elem"), c.name()));
+                                SqlExpr.Column.of(lat, "elem",
+                                        PureSql.type(elemT)), c.name()));
                         continue;
                     }
                     ps.add(new SqlSelect.Projection(r.expr(), c.name()));
@@ -1687,7 +1688,8 @@ public final class Lowerer {
             for (Type.Column c : (Type.requireRelationSchema(d.info().type()))
                     .columns()) {
                 projs.add(new SqlSelect.Projection(
-                        new SqlExpr.Column(sub.alias(), c.name()), c.name()));
+                        SqlExpr.Column.of(sub.alias(), u.outputs(),
+                                c.name()), c.name()));
             }
             return new SqlSelect(projs, false, sub, null, List.of(), null,
                     null, List.of(), null, null, u.outputs());
@@ -1962,7 +1964,8 @@ public final class Lowerer {
         }
         for (Type.Column c : schemaOf(rightNode).columns()) {
             ps.add(new SqlSelect.Projection(
-                    new SqlExpr.Column(source.right().alias(), c.name()),
+                    SqlExpr.Column.of(source.right().alias(),
+                            source.right().outputs(), c.name()),
                     renameWhen.test(c.name()) ? prefix.get() + c.name() : null));
         }
         return out.withProjections(ps, outputsOf(info));
@@ -2059,7 +2062,7 @@ public final class Lowerer {
             SqlSource side = isLeft ? left : right;
             SqlExpr.Column c = side instanceof SqlSource.Join
                     ? Fold.sourceColumn(side, prop)
-                    : new SqlExpr.Column(side.alias(), prop);
+                    : SqlExpr.Column.of(side.alias(), side.outputs(), prop);
             if (c == null) {
                 throw new IllegalStateException("join condition references unknown column '"
                         + prop + "' on its " + (isLeft ? "left" : "right")

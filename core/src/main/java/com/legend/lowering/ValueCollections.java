@@ -58,7 +58,7 @@ final class ValueCollections {
      * contract holds (C1). */
     static SqlExpr collectAsList(SqlSelect proj, boolean collMapper,
             boolean scalarCells, String sub) {
-        SqlExpr cellRead = new SqlExpr.Column(sub, "value");
+        SqlExpr cellRead = SqlExpr.Column.of(sub, proj.outputs(), "value");
         SqlExpr collected = scalarCells
                 ? new SqlExpr.ArrayLit(List.of(cellRead)) : cellRead;
         SqlSelect agg = SqlSelect.starOf(new SqlSource.Subselect(proj, sub, null))
@@ -80,7 +80,9 @@ final class ValueCollections {
         return SqlSelect.starOf(new SqlSource.Subselect(rel, sub, null))
                 .withProjections(List.of(new SqlSelect.Projection(
                                 new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
-                                        new SqlExpr.Column(sub, col)), false, java.util.List.of()),
+                                        SqlExpr.Column.of(sub, rel.outputs(),
+                                                col)),
+                                        false, java.util.List.of()),
                                 null)),
                         List.of(new OutputCol(col, SqlType.Scalar.VARCHAR,
                                 true)));
@@ -96,7 +98,7 @@ final class ValueCollections {
         List<SqlExpr> cells = new ArrayList<>();
         for (Type.Column c : rt.columns()) {
             cells.add(SqlExpr.Call.of(SqlFn.TO_VARIANT,
-                    new SqlExpr.Column(sub, c.name())));
+                    SqlExpr.Column.of(sub, rel.outputs(), c.name())));
         }
         return SqlSelect.starOf(new SqlSource.Subselect(rel, sub, null))
                 .withProjections(List.of(new SqlSelect.Projection(

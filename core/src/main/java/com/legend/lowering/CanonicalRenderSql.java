@@ -94,7 +94,7 @@ public final class CanonicalRenderSql {
         }
         Type t = rootInfo.type();
         com.legend.sql.OutputCol valueCol = plan.outputs().get(0);
-        SqlExpr valueRef = new SqlExpr.Column(null, valueCol.name());
+        SqlExpr valueRef = SqlExpr.Column.of(null, valueCol);
         List<Type> candidates;
         List<SqlExpr> canons = new java.util.ArrayList<>();
         int literalIndex = -1;

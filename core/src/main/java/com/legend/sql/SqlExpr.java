@@ -313,6 +313,32 @@ public sealed interface SqlExpr
         public Column(@com.legend.Nullable String table, String name) {
             this(table, name, SqlTyping.UNKNOWN);
         }
+
+        /** The STAMPED reference to a source's declared output — the M2
+         * leaf-supply door (TYPED_SQL_IR.md §2): the builder always has
+         * the {@link OutputCol} in hand, and the reference carries its
+         * declared type. */
+        public static Column of(@com.legend.Nullable String table,
+                OutputCol col) {
+            return new Column(table, col.name(), SqlTyping.typed(col.type()));
+        }
+
+        /** Stamped reference by bare name — for the builder's OWN
+         * synthetic columns, whose type it just declared. */
+        public static Column of(@com.legend.Nullable String table,
+                String name, SqlType t) {
+            return new Column(table, name, SqlTyping.typed(t));
+        }
+
+        /** Stamped when {@code outs} claims the name, plain (UNKNOWN)
+         * otherwise — the lookup door for callers holding a source's
+         * declared output list. */
+        public static Column of(@com.legend.Nullable String table,
+                List<OutputCol> outs, String name) {
+            return outs.stream().filter(c -> c.name().equals(name))
+                    .findFirst().map(oc -> of(table, oc))
+                    .orElseGet(() -> new Column(table, name));
+        }
     }
 
     /** {@code *} or {@code alias.*}. */

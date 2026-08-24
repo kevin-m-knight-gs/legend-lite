@@ -627,7 +627,12 @@ final class Fold {
         }
         return SqlSelect.starOf(new SqlSource.Subselect(proj, sub, null))
                 .withWhere(SqlExpr.Call.of(SqlFn.IS_NOT_NULL,
-                        new SqlExpr.Column(sub, col)));
+                        proj.outputs().stream()
+                                .filter(oc -> oc.name().equals(col))
+                                .findFirst()
+                                .map(oc -> SqlExpr.Column.of(sub, oc))
+                                .orElseGet(() ->
+                                        new SqlExpr.Column(sub, col))));
     }
 
     /** A projection expression that may be repeated in WHERE: no window
@@ -682,10 +687,13 @@ final class Fold {
      * under select-list UNNEST). */
     static SqlSelect unnestColumn(SqlSource src, String srcAlias,
             String col, String out, com.legend.sql.SqlType elemType) {
+        SqlExpr listRef = src.outputs().stream()
+                .filter(oc -> oc.name().equals(col)).findFirst()
+                .map(oc -> (SqlExpr) SqlExpr.Column.of(srcAlias, oc))
+                .orElseGet(() -> new SqlExpr.Column(srcAlias, col));
         return SqlSelect.starOf(src)
                 .withProjections(List.of(new SqlSelect.Projection(
-                                SqlExpr.Call.of(SqlFn.UNNEST,
-                                        new SqlExpr.Column(srcAlias, col)),
+                                SqlExpr.Call.of(SqlFn.UNNEST, listRef),
                                 out)),
                         List.of(new OutputCol(out, elemType, true)));
     }
@@ -784,10 +792,13 @@ final class Fold {
         if (src.outputs().isEmpty() || !claims(src.outputs(), column)) {
             column = pivotIdentity(column);
         }
+        // M2 leaf stamping (TYPED_SQL_IR.md §2): a claiming source has
+        // the OutputCol in hand — the reference carries its declared
+        // type. The LATE-BOUND arms (raw grids, pivots) stay UNKNOWN by
+        // design: their schema genuinely does not exist at construction.
         return switch (src) {
             case SqlSource.Dual d -> null;
-            case SqlSource.Table t -> claims(t.outputs(), column)
-                    ? new SqlExpr.Column(t.alias(), column) : null;
+            case SqlSource.Table t -> stamped(t.alias(), t.outputs(), column);
             case SqlSource.VarSetPlaceholder vp -> null;
             // LATE-BOUND grid (P3-2 single-query): an undemanded raw
             // grid skipped the schema probe, so its outputs are empty
@@ -799,12 +810,10 @@ final class Fold {
                     ? new SqlExpr.Column(raw.alias(), column) : null;
             case SqlSource.Subselect sub -> lateBoundGrid(sub)
                     ? new SqlExpr.Column(sub.alias(), column)
-                    : claims(sub.outputs(), column)
-                            ? new SqlExpr.Column(sub.alias(), column) : null;
-            case SqlSource.Values v -> claims(v.outputs(), column)
-                    ? new SqlExpr.Column(v.alias(), column) : null;
-            case SqlSource.SourceUrl u -> claims(u.outputs(), column)
-                    ? new SqlExpr.Column(u.alias(), column) : null;
+                    : stamped(sub.alias(), sub.outputs(), column);
+            case SqlSource.Values v -> stamped(v.alias(), v.outputs(), column);
+            case SqlSource.SourceUrl u ->
+                    stamped(u.alias(), u.outputs(), column);
             // Pivot outputs are DYNAMIC (one column per pivoted value) — the
             // static schema cannot enumerate them, so a pivot claims any name.
             case SqlSource.Pivot p -> new SqlExpr.Column(p.alias(), column);
@@ -847,6 +856,21 @@ final class Fold {
                             + column + "' (stamp outputs at construction)");
         }
         return outputs.stream().anyMatch(c -> c.name().equals(column));
+    }
+
+    /** The claimed column as a STAMPED reference, or null (name not
+     * claimed). Same empty-outputs wall as {@link #claims}. */
+    private static SqlExpr.@com.legend.Nullable Column stamped(String alias,
+            List<OutputCol> outputs, String column) {
+        if (outputs.isEmpty()) {
+            throw new IllegalStateException(
+                    "source has no stamped output schema — cannot resolve column '"
+                            + column + "' (stamp outputs at construction)");
+        }
+        String want = column;
+        return outputs.stream().filter(c -> c.name().equals(want))
+                .findFirst().map(oc -> SqlExpr.Column.of(alias, oc))
+                .orElse(null);
     }
 
     /** One-line structural sketch of a join side for the unknown-column
