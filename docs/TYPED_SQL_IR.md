@@ -265,3 +265,30 @@ Debt-to-zero: this IS the lowering-layer "sane story" entry (sibling
 of the JDBC story). G4 latency drill: run AFTER M1's differential
 probe exists (it measures judge cost directly). The corpus SQL-verdict
 migration and all bucket work queue behind M4.
+
+## G4 LATENCY DRILL — VERDICT (2026-08-24, post-M1, measured first)
+
+**The 389s does not reproduce.** Six caffeinated G4 runs same day,
+correct roots (`-Dlegend.engine.root`/`-Dlegend.pure.root` at the
+neemsandv checkouts): baseline main 136.1s; M1 135.5 / 135.5 / 137.8 /
+139 (in-chain) / 141.7s — stable ±5%, all UNDER the ~185s reference.
+The 389s trigger figure matches the two failure modes GATES.md already
+documents (slept/preempted run — the 722s→34s precedent — or the
+stale-root tell, "~320s instead of ~90s"); treat it as a measurement
+artifact, not a regression. Same-day corollary: the chain's G8 read
+250s against its ~63s pin once — same suspect class (another user's
+agents share this box); re-measure isolated before treating as data.
+
+**Judge/differential cost ≈ 0.** The M1 differential probe (judge over
+every executed plan, now via rebind) plus eager node typing costs
+nothing visible: baseline-vs-M1 wall delta is inside the machine's
+wobble. Bounded above by ~3s on a 136s run.
+
+**Where the wall actually is** (timing-ledger.txt, M1 run, jvm.wall
+139.2s / test.wall 138.97s over 2,575 tests): query.exec 6.84s
+(24,508 stmts; GRAPH 2.06 + TABULAR 2.59 + SCALAR 1.41 + COLLECTION
+0.79), ctx.overlay 1.37s, session.open 1.34s — ~129s is UNBUCKETED
+middle-end (parse/compile/lower/harness/verdict). Any future speed leg
+starts by bucketing that, not by touching the SQL layer. Ledger trap
+recorded: gate 8's `-am clean` wipes core/target — read the ledger
+straight after G4, or re-run G4 standalone.
