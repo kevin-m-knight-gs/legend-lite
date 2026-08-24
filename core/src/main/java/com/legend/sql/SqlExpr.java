@@ -339,6 +339,20 @@ public sealed interface SqlExpr
                     .findFirst().map(oc -> of(table, oc))
                     .orElseGet(() -> new Column(table, name));
         }
+
+        /** A LAMBDA-PARAMETER reference, stamped MECHANICALLY as the
+         * element of the collection the lambda ranges over (M3 slice 0
+         * — the LIST_TRANSFORM/FILTER param-binding knowledge, supplied
+         * by the builder that holds the collection). UNKNOWN unless the
+         * collection's stored type is a definite array — never a
+         * hand-reasoned guess. NOT for fold accumulators (their type is
+         * not the element's). */
+        public static Column param(String name, SqlExpr collection) {
+            return collection.type() instanceof SqlTyping.Verdict.Typed t
+                    && t.type() instanceof SqlType.Array at
+                    ? new Column(null, name, SqlTyping.typed(at.element()))
+                    : new Column(null, name);
+        }
     }
 
     /** {@code *} or {@code alias.*}. */
@@ -819,6 +833,40 @@ public sealed interface SqlExpr
          * rules). */
         public Lambda(List<String> params, SqlExpr body) {
             this(params, body, SqlTyping.UNKNOWN);
+        }
+
+        /** ATTACHMENT-SITE param binding (M3 slice 0): rebuild a
+         * single-param lambda's parameter references STAMPED as the
+         * collection's element — the builder that joins a lambda to
+         * its collection is the one holder of this knowledge (the
+         * judge's rebind did this at consumption; this does it once,
+         * at construction). Identity when the collection's element is
+         * unknown, or the lambda has other than one parameter. */
+        public static SqlExpr bind(SqlExpr lam, SqlExpr collection) {
+            if (!(lam instanceof Lambda l) || l.params().size() != 1
+                    || !(collection.type() instanceof SqlTyping.Verdict.Typed t
+                            && t.type() instanceof SqlType.Array)) {
+                return lam;
+            }
+            String p = l.params().get(0);
+            SqlExpr body = rebindParam(l.body(), p,
+                    Column.param(p, collection));
+            return body == l.body() ? l
+                    : new Lambda(l.params(), body, l.type());
+        }
+
+        /** By-name substitution of unqualified param reads, shadow-
+         * stopped at inner lambdas re-binding the same name; walkers
+         * enter through bodies (mapChildren), never subqueries. */
+        private static SqlExpr rebindParam(SqlExpr e, String p, Column ref) {
+            if (e instanceof Column c && c.table() == null
+                    && p.equals(c.name())) {
+                return ref;
+            }
+            if (e instanceof Lambda inner && inner.params().contains(p)) {
+                return e;
+            }
+            return e.mapChildren(ch -> rebindParam(ch, p, ref));
         }
     }
 

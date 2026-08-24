@@ -861,6 +861,11 @@ final class ArchitectureTest {
                 // T3: bounded per-class WITNESSES (3 max each) — the
                 // emission-seam locator; measurement only
                 "com.legend.exec.SqlTypeCensus.SAMPLES",
+                // M3 slice-0 site differential (TYPED_SQL_IR.md):
+                // bounded (10) divergence witnesses at the two
+                // production judge sites; transitional, deleted with
+                // the judge
+                "com.legend.sql.SqlTyping.SITE_SAMPLES",
                 // serializer registry: written once at static init; the
                 // ConcurrentHashMap spelling is for safe publication
                 "com.legend.server.serial.SerializerRegistry.SERIALIZERS");

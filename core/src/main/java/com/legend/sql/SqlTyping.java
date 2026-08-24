@@ -87,6 +87,60 @@ public final class SqlTyping {
         return rebind(e, scope).type();
     }
 
+    // ------------------------------------------------------------------
+    // M3 SLICE-0 SITE DIFFERENTIAL (transitional — deleted with the
+    // judge): the root-level census certifies projection ROOTS only,
+    // but the two production judge consumers (Scalars literalWire,
+    // Lowerer's Any-root boxing arm) judge SUBEXPRESSIONS, where the
+    // judge's one residual edge over the tree is LIST_TRANSFORM's
+    // param binding (TYPED_SQL_IR.md architecture review, item 2).
+    // This measures judge-vs-node AT those exact call sites; the flip
+    // to .type() is admissible only at zero divergence.
+    // ------------------------------------------------------------------
+    public static final java.util.concurrent.atomic.LongAdder SITE_AGREE =
+            new java.util.concurrent.atomic.LongAdder();
+    public static final java.util.concurrent.atomic.LongAdder SITE_DIVERGE =
+            new java.util.concurrent.atomic.LongAdder();
+
+    /** Bounded divergence witnesses (kind + both verdicts) — the
+     * emission-seam locator for the site differential. Registered
+     * mutable static (ArchitectureTest), deleted with the judge. */
+    static final java.util.List<String> SITE_SAMPLES =
+            java.util.Collections.synchronizedList(
+                    new java.util.ArrayList<>());
+
+    public static java.util.List<String> siteSamples() {
+        return java.util.List.copyOf(SITE_SAMPLES);
+    }
+
+    /** The production consumers' judge door: judges with NO scope (both
+     * sites sit at FROM-less/root positions) and counts agreement with
+     * the node channel. Returns the JUDGE verdict — call-site behavior
+     * is unchanged while the differential accumulates. */
+    public static Verdict judgeSite(SqlExpr e) {
+        Verdict j = judge(e, c -> null);
+        if (j.equals(e.type())) {
+            SITE_AGREE.increment();
+        } else {
+            SITE_DIVERGE.increment();
+            if (SITE_SAMPLES.size() < 10) {
+                String shape = e instanceof SqlExpr.Call c
+                        ? "Call:" + c.fn() + "("
+                                + c.args().stream().map(a ->
+                                        a instanceof SqlExpr.Call ac
+                                                ? "Call:" + ac.fn()
+                                                : a.getClass().getSimpleName())
+                                        .collect(java.util.stream.Collectors
+                                                .joining(","))
+                                + ")"
+                        : e.getClass().getSimpleName();
+                SITE_SAMPLES.add(shape
+                        + " node=" + e.type() + " judge=" + j);
+            }
+        }
+        return j;
+    }
+
     /** The computed type of {@code e}, or null (no rule / unresolvable
      * reference / the NULL value) — the Typed-or-nothing projection of
      * {@link #judge} kept for consumers that only act on a concrete

@@ -92,6 +92,9 @@ final class ChannelBDiff {
         com.legend.exec.SqlTypeCensus.allSamples().forEach((cls, ws) ->
                 ws.forEach(w -> System.out.println("[" + tag
                         + "] sqltypes-witness: " + cls + " :: " + w)));
+        // M3 slice-0 site differential witnesses (flip precondition)
+        com.legend.sql.SqlTyping.siteSamples().forEach(w ->
+                System.out.println("[" + tag + "] site-witness: " + w));
         return new Counts(pass, agreePass, agreeFail, wireBug, bFixesA,
                 declined, frontier, trueWireBug);
     }

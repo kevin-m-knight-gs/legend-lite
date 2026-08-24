@@ -418,7 +418,9 @@ public final class SqlTypeCensus {
         }
         if (node instanceof SqlTyping.Verdict.Unknown) {
             NODE_PENDING_LEAF.increment();
-            classify("node-pending-leaf: " + shapeOf(e));
+            String cls = "node-pending-leaf: " + shapeOf(e);
+            classify(cls);
+            sample(cls, declared.name() + " := " + sketch(e));
             return;
         }
         String cls = "node-vs-judge: node=" + spell(node) + " judge="
@@ -566,6 +568,8 @@ public final class SqlTypeCensus {
                 + " | node: agree=" + NODE_AGREE.sum()
                 + " pending-leaf=" + NODE_PENDING_LEAF.sum()
                 + " diverge=" + NODE_DIVERGE.sum()
+                + " | site: agree=" + com.legend.sql.SqlTyping.SITE_AGREE.sum()
+                + " diverge=" + com.legend.sql.SqlTyping.SITE_DIVERGE.sum()
                 + " | wire: agree=" + WIRE_AGREE.sum()
                 + " delivered=" + WIRE_DELIVERED.sum()
                 + " adopt-pending=" + WIRE_ADOPT_PENDING.sum()

@@ -299,6 +299,96 @@ is now rule coverage, not leaf debt — ScalarSubquery 340, COALESCE
 188, Case 175, TIMES 91, UNNEST 87, Reducer 71, ABS/INT_DIVIDE/ROUND/
 WindowCall singles. The 517 mismatches remain M3's adjudication table.
 
+## ARCHITECTURE REVIEW (2026-08-24, user question "is the
+## architecture right" — four standing tensions, recorded not absorbed)
+
+1. **Reference stamps duplicate source knowledge.** A stamped Column
+   carries a copy of what its source's OutputCol declares — the
+   chartered types-on-nodes choice over a typing-environment. Failure
+   mode: a rewrite re-points a reference across sources without
+   restamping (stale stamp). Mitigations: rewriters TRANSPORT
+   (remapAlias/unqualify), the two equality pins, and M3's deletion of
+   the competing channel. Structural prevention is impossible at the
+   Column (it does not know its source) — the pin carries invariant
+   duty here, permanently.
+2. **THE M3 FLIP PRECONDITION (slice 0): LIST_TRANSFORM param
+   binding** is the ONE knowledge the judge still has that the tree
+   does not (rebind binds params; node-channel lambda bodies are
+   unstamped). The two production judge sites (Scalars literalWire,
+   Lowerer boxing arm) judge SUBEXPRESSIONS — the root-level
+   differential does NOT certify them. Before flipping either site:
+   a site-local differential (judge-vs-node at those exact call
+   sites, corpus + PCT) proving zero divergence, OR stamp the
+   param references in the LIST_TRANSFORM builders.
+
+   **EXECUTED same day — and it FIRED.** The site differential
+   (SqlTyping.judgeSite, transitional) measured corpus 27,559/0 but
+   ChannelB-standard 1,580 agree / **3 diverge** (StructGet
+   node=UNKNOWN judge=BIGINT x2, Call node=UNKNOWN
+   judge=Array(BIGINT)) — the sort/topBy pipelines' param reads, on
+   exactly the Any/LITERAL lane §7's census caveat called
+   underrepresented. A blind flip would NOT have been neutral (the
+   boxing arm would have stopped boxing those roots). Fix: the
+   MECHANICAL param door `Column.param(name, collection)` — element
+   of the collection's STORED type, UNKNOWN otherwise, never
+   hand-reasoned — applied to makeStrings/x, sort/_st_i+_st_e,
+   topBy/_by_i+_by_e, contains/_nv, variant-conform/_cv,
+   toString/_ts (range params ride the same rule: RANGE_FN types
+   Array(BIGINT)). Deliberately NOT param-stamped: fold accumulators
+   (acc type is not the element's), zipper-subselect column refs.
+   Re-measured: chB-std site 1,583/0, pending-leaf 0. The judgeSite
+   probe stays until the flip lands, then deletes with the judge.
+
+   **Round 2 (same day): the full five-suite ChannelB sequence found 4
+   MORE** (`LIST_TRANSFORM(LIST_FILTER, λ)` judged Array(VARCHAR) —
+   the shape only composes in the shared-JVM full run; standalone
+   suites were clean — measure the lane WHOLE, not per-suite). Their
+   builder is the general map lane: the user lambda lowers with
+   unstamped param refs BEFORE the rule attaches it to a collection.
+   Fix: `Lambda.bind(lam, collection)` — the ATTACHMENT-SITE door
+   (rebuild-substitute single-param refs stamped as the collection's
+   element; shadow-stopped, subquery-bounded — the judge's rebind
+   moved to construction) — applied at ListEncodings.map,
+   removeDuplicatesBy's key transform, and the class-property map
+   lane. ALSO closed: 9 pending-leaf pivot GROUP-column roots
+   (sourceColumn's Pivot arm claimed every name late-bound; the
+   group columns its outputs DO declare now stamp via the lookup
+   door — dynamic pivot columns stay mortal-UNKNOWN). End state:
+   all five ChannelB lanes at node pending-leaf=0 diverge=0, site
+   diverge=0 — and all THREE pinned as equalities in the five
+   ChannelB suites (the corpus-runner pins do not cover those JVMs;
+   the site pin freezes the flip precondition until the flip lands).
+
+   **Recorded coverage gap (slice-0 audit):** G6/G7's PCT JVMs
+   MEASURE the invariants (the census probes every executed plan)
+   but ASSERT nothing — the generated PCT classes carry no census
+   pins; divergence there stays silent until the shape recurs on a
+   pinned lane. Closing it needs an assert-hook in the PCT harness —
+   its own small change, queued, not smuggled into a slice. Also
+   recorded: `rebindParam` substitutes by NAME (unqualified + param
+   name) — safe today because only lambdaResolver mints unqualified
+   Columns pre-dialect (substituteRef's long-standing convention),
+   but it is a convention, not a structural guarantee.
+
+   **Deletion-order correction (slice-0 audit):** the judge cannot
+   fully delete at the site flip — the census differential is its
+   LAST consumer (it exists to compare the channels). Order: flip
+   the two sites → judgeSite probe deletes → label flip with
+   adjudication → judge/rebind delete WITH the differential's judge
+   side (census collapses to node-vs-declared).
+3. **Promotion rules commit the IR to reference-backend (DuckDB)
+   semantics** pre-dialect. Fine while H2 is advisory (wire census
+   absorbs it); if H2 ever graduates to a verdict backend, type()
+   needs a dialect story. Single-compiler tenet holds today.
+4. **`Verdict` is judge vocabulary in the permanent tree.** After the
+   M3 deletions there is no judge — rename the stored fact (and
+   consider folding Bottom/Unknown into the type lattice) in the
+   deletion slice, per the standalone-SQL-library vision.
+
+Endgame beyond the charter: once labels flip to type()-derived (+
+admissibility) at M3, OutputCol stops being an independent copy and
+tension 1's duplication collapses with it.
+
 ## G4 LATENCY DRILL — VERDICT (2026-08-24, post-M1, measured first)
 
 **The 389s does not reproduce.** Six caffeinated G4 runs same day,

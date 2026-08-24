@@ -48,7 +48,7 @@ final class ListEncodings {
                     : singleton;
         }
         SqlExpr transformed = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
-                listSrc, lam);
+                listSrc, SqlExpr.Lambda.bind(lam, listSrc));
         if (srcOne && resultOne) {
             SqlExpr applied = SqlExpr.Call.of(SqlFn.LIST_GET, transformed,
                     new SqlExpr.IntLit(1));

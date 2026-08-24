@@ -966,7 +966,8 @@ final class Scalars {
                         new SqlExpr.Lambda(List.of("x"),
                                 SqlExpr.Call.of(SqlFn.COALESCE,
                                         PureSql.elementText(n.args().get(0),
-                                                coll, new SqlExpr.Column(null, "x")),
+                                                coll, SqlExpr.Column.param(
+                                                        "x", coll)),
                                         new SqlExpr.StringLit(optionalScalar
                                                 ? ""
                                                 : PlatformTypes.TDS_NULL_CELL))));
@@ -1117,14 +1118,16 @@ final class Scalars {
                     throw new IllegalStateException(
                             "sort expects (values, key-function, comparator)");
                 }
-                SqlExpr i = new SqlExpr.Column(null, "_st_i");
+                SqlExpr range = SqlExpr.Call.of(SqlFn.RANGE_FN,
+                        new SqlExpr.IntLit(1),
+                        plusOne(SqlExpr.Call.of(SqlFn.LIST_LENGTH,
+                                args.get(0))));
+                SqlExpr i = SqlExpr.Column.param("_st_i", range);
                 SqlExpr valAt = SqlExpr.Call.of(SqlFn.LIST_GET, args.get(0), i);
                 SqlExpr keyExpr = substituteRef(key.body(), key.params().get(0), valAt);
                 SqlExpr idxField = asc ? i
                         : SqlExpr.Call.of(SqlFn.MINUS, new SqlExpr.IntLit(0), i);
-                SqlExpr pairs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
-                        SqlExpr.Call.of(SqlFn.RANGE_FN, new SqlExpr.IntLit(1),
-                                plusOne(SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)))),
+                SqlExpr pairs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, range,
                         new SqlExpr.Lambda(List.of("_st_i"),
                                 new SqlExpr.StructLit(List.of(
                                         new SqlExpr.StructLit.Field("k", keyExpr),
@@ -1135,7 +1138,8 @@ final class Scalars {
                 return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, sorted,
                         new SqlExpr.Lambda(List.of("_st_e"),
                                 new SqlExpr.StructGet(
-                                        new SqlExpr.Column(null, "_st_e"), "v")));
+                                        SqlExpr.Column.param("_st_e", sorted),
+                                        "v")));
             });
         }
         for (String f : Pure.nativeKeysAt("isBeforeDay")) {
@@ -1851,7 +1855,8 @@ final class Scalars {
                         wrapped.add(SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, args.get(i),
                                 new SqlExpr.Lambda(List.of("_cv"),
                                         SqlExpr.Call.of(SqlFn.TO_VARIANT,
-                                                new SqlExpr.Column(null, "_cv")))));
+                                                SqlExpr.Column.param("_cv",
+                                                        args.get(i))))));
                     }
                 }
                 return new SqlExpr.Call(SqlFn.LIST_CONCAT, wrapped);
@@ -1914,7 +1919,11 @@ final class Scalars {
                     // FIRST occurrence (real pure): the middle sort field is
                     // the original position — negated under the descending
                     // sort so ties still come out first-occurrence.
-                    SqlExpr i = new SqlExpr.Column(null, "_by_i");
+                    SqlExpr range = SqlExpr.Call.of(SqlFn.RANGE_FN,
+                            new SqlExpr.IntLit(1),
+                            plusOne(SqlExpr.Call.of(SqlFn.LIST_LENGTH,
+                                    args.get(0))));
+                    SqlExpr i = SqlExpr.Column.param("_by_i", range);
                     SqlExpr valAt = SqlExpr.Call.of(SqlFn.LIST_GET, args.get(0), i);
                     SqlExpr keyExpr = args.get(1) instanceof SqlExpr.Lambda key
                             && key.params().size() == 1
@@ -1922,9 +1931,7 @@ final class Scalars {
                             : SqlExpr.Call.of(SqlFn.LIST_GET, args.get(1), i);
                     SqlExpr idxField = asc ? i
                             : SqlExpr.Call.of(SqlFn.MINUS, new SqlExpr.IntLit(0), i);
-                    SqlExpr pairs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
-                            SqlExpr.Call.of(SqlFn.RANGE_FN, new SqlExpr.IntLit(1),
-                                    plusOne(SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)))),
+                    SqlExpr pairs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, range,
                             new SqlExpr.Lambda(List.of("_by_i"),
                                     new SqlExpr.StructLit(List.of(
                                             new SqlExpr.StructLit.Field("k", keyExpr),
@@ -1934,11 +1941,13 @@ final class Scalars {
                             asc ? SqlFn.LIST_SORT : SqlFn.LIST_SORT_DESC, List.of(pairs));
                     if (args.size() == 3) {
                         String e = "_by_e";
-                        return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
-                                SqlExpr.Call.of(SqlFn.LIST_SLICE, sorted,
-                                        new SqlExpr.IntLit(1), args.get(2)),
+                        SqlExpr sliced = SqlExpr.Call.of(SqlFn.LIST_SLICE,
+                                sorted, new SqlExpr.IntLit(1), args.get(2));
+                        return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, sliced,
                                 new SqlExpr.Lambda(List.of(e),
-                                        new SqlExpr.StructGet(new SqlExpr.Column(null, e), "v")));
+                                        new SqlExpr.StructGet(
+                                                SqlExpr.Column.param(e, sliced),
+                                                "v")));
                     }
                     return new SqlExpr.StructGet(
                             SqlExpr.Call.of(SqlFn.LIST_GET, sorted, new SqlExpr.IntLit(1)), "v");
@@ -1954,7 +1963,8 @@ final class Scalars {
                             "removeDuplicatesBy expects (values, key-function)");
                 }
                 String x = key.params().get(0);
-                SqlExpr keys = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, args.get(0), key);
+                SqlExpr keys = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
+                        args.get(0), SqlExpr.Lambda.bind(key, args.get(0)));
                 return SqlExpr.Call.of(SqlFn.LIST_FILTER, args.get(0),
                         new SqlExpr.Lambda(List.of(x, "_rd_i"),
                                 SqlExpr.Call.of(SqlFn.EQUAL,
@@ -2097,7 +2107,8 @@ final class Scalars {
                                     SqlExpr.Call.of(SqlFn.LIST_FILTER, args.get(0),
                                             new SqlExpr.Lambda(List.of("_nv"),
                                                     SqlExpr.Call.of(SqlFn.IS_NULL,
-                                                            new SqlExpr.Column(null, "_nv"))))),
+                                                            SqlExpr.Column.param(
+                                                                    "_nv", args.get(0)))))),
                             new SqlExpr.IntLit(0)));
                 }
                 if (elem == Type.Primitive.STRING && isToOne(n.args().get(0))) {
@@ -2662,8 +2673,8 @@ final class Scalars {
             // whose text starts with ' or % would mis-print); the
             // engine's rule is declared-type-decides. Non-LITERAL
             // wires keep the pre-carrier variant path unchanged.
-            boolean literalWire = com.legend.sql.SqlTyping.judge(x,
-                    c2 -> null) instanceof
+            boolean literalWire = com.legend.sql.SqlTyping.judgeSite(x)
+                    instanceof
                             com.legend.sql.SqlTyping.Verdict.Typed jt
                     && (jt.type() == SqlType.Scalar.LITERAL
                             || (jt.type() instanceof SqlType.Array ja
@@ -2713,7 +2724,7 @@ final class Scalars {
             Type et = t instanceof Type.GenericType g && !g.arguments().isEmpty()
                     ? g.arguments().get(0)
                     : new Type.ClassType(PlatformTypes.ANY);
-            SqlExpr elem = new SqlExpr.Column(null, "_ts");
+            SqlExpr elem = SqlExpr.Column.param("_ts", x);
             return cat(new SqlExpr.StringLit("["),
                     joinList(SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, x,
                             new SqlExpr.Lambda(List.of("_ts"), pureToString(et, elem)))),

@@ -341,7 +341,7 @@ public final class Lowerer {
         // truthfully — the judgment flows the carrier through
         // element-preserving ops (F10 3b)
         com.legend.sql.SqlTyping.Verdict rootJudge =
-                com.legend.sql.SqlTyping.judge(e, c -> null);
+                com.legend.sql.SqlTyping.judgeSite(e);
         if (anyStamp && !isMany(spec)
                 && rootJudge instanceof com.legend.sql.SqlTyping.Verdict.Typed t
                 && t.type() != SqlType.Scalar.JSON
@@ -2519,27 +2519,8 @@ public final class Lowerer {
                             .isListCarrier(p.source().info().type()) ->
                     scalar(p.source(), columns);
             case TypedPropertyAccess p when classLayout.apply(p.source().info().type()).isPresent()
-                    && isMany(p.source()) -> {
-                String elem = "_pa" + aliasCounter++;
-                SqlExpr mapped = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
-                        scalar(p.source(), columns),
-                        new SqlExpr.Lambda(List.of(elem),
-                                new SqlExpr.StructGet(
-                                        new SqlExpr.Column(null, elem), p.property())));
-                // a TO-MANY property nests one list per source element,
-                // but pure collections never nest ([$p1,$p2].locations
-                // is the FLAT union): FLATTEN, whose NULL/empty-inner
-                // drop IS pure's empty-drop. The MODEL's declared
-                // property multiplicity decides.
-                boolean manyProp = classLayout
-                        .apply(p.source().info().type()).orElseThrow()
-                        .stream()
-                        .anyMatch(c -> c.name().equals(p.property())
-                                && c.multiplicity().isMany());
-                yield manyProp
-                        ? SqlExpr.Call.of(SqlFn.LIST_FLATTEN, mapped)
-                        : mapped;
-            }
+                    && isMany(p.source()) ->
+                    manyPropertyMap(p, columns);
             case TypedPropertyAccess p when classLayout.apply(p.source().info().type()).isPresent()
                     -> new SqlExpr.StructGet(scalar(p.source(), columns), p.property());
             // ^Class(prop=value, …) as a VALUE: a struct with the MODEL's
@@ -3268,6 +3249,32 @@ public final class Lowerer {
             }
         }
         return base.withProjections(ps, outputsOf(c.info()));
+    }
+
+    /** Field access over a TO-MANY class value: MAP the extraction
+     * (bound param — the attachment-site door), and FLATTEN when the
+     * property itself is to-many — pure collections never nest
+     * ([$p1,$p2].locations is the FLAT union); the FLATTEN's
+     * NULL/empty-inner drop IS pure's empty-drop. The MODEL's declared
+     * property multiplicity decides. */
+    private SqlExpr manyPropertyMap(TypedPropertyAccess p,
+            ColumnResolver columns) {
+        String elem = "_pa" + aliasCounter++;
+        SqlExpr paColl = scalar(p.source(), columns);
+        SqlExpr mapped = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
+                paColl,
+                SqlExpr.Lambda.bind(new SqlExpr.Lambda(List.of(elem),
+                        new SqlExpr.StructGet(
+                                new SqlExpr.Column(null, elem),
+                                p.property())), paColl));
+        boolean manyProp = classLayout
+                .apply(p.source().info().type()).orElseThrow()
+                .stream()
+                .anyMatch(c -> c.name().equals(p.property())
+                        && c.multiplicity().isMany());
+        return manyProp
+                ? SqlExpr.Call.of(SqlFn.LIST_FLATTEN, mapped)
+                : mapped;
     }
 
     private static ColumnResolver lambdaResolver(

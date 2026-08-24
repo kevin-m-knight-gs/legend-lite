@@ -815,8 +815,12 @@ final class Fold {
             case SqlSource.SourceUrl u ->
                     stamped(u.alias(), u.outputs(), column);
             // Pivot outputs are DYNAMIC (one column per pivoted value) — the
-            // static schema cannot enumerate them, so a pivot claims any name.
-            case SqlSource.Pivot p -> new SqlExpr.Column(p.alias(), column);
+            // static schema cannot enumerate them, so a pivot claims any
+            // name. The GROUP columns it DOES declare stamp like any
+            // source (the lookup door: stamped when claimed, plain
+            // otherwise — the ChannelB pivot pending-leaf 9).
+            case SqlSource.Pivot p ->
+                    SqlExpr.Column.of(p.alias(), p.outputs(), column);
             case SqlSource.Join j -> {
                 SqlExpr.Column left = sourceColumn(j.left(), column);
                 yield left != null ? left : sourceColumn(j.right(), column);
@@ -859,13 +863,12 @@ final class Fold {
     }
 
     /** The claimed column as a STAMPED reference, or null (name not
-     * claimed). Same empty-outputs wall as {@link #claims}. */
+     * claimed). Routes through {@link #claims} — ONE owner of the
+     * empty-outputs wall. */
     private static SqlExpr.@com.legend.Nullable Column stamped(String alias,
             List<OutputCol> outputs, String column) {
-        if (outputs.isEmpty()) {
-            throw new IllegalStateException(
-                    "source has no stamped output schema — cannot resolve column '"
-                            + column + "' (stamp outputs at construction)");
+        if (!claims(outputs, column)) {
+            return null;
         }
         String want = column;
         return outputs.stream().filter(c -> c.name().equals(want))
