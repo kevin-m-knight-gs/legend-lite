@@ -109,6 +109,47 @@ label is now a compile-gate, not a review hope. The decodeAny
 label-keying (call it only where label==JSON) rides the relation-cells
 leg when labels there become honest.
 
+## RE-AUDIT 2026-08-24 (slices 1-3, post carrier-rule reversal)
+
+Graded re-check of everything above, after the relation-cells leg
+resolved by REVERSAL (F10_CARRIER_DESIGN.md "RESOLVED by the CARRIER
+RULE").
+
+HELD UP (receipts re-verified): slice-1 one-owner grammar + sniff-stop
+ArchUnit pin (ArchitectureTest.spellingDecodeIsLabelDriven); slice-3a
+temporal grammar; floatCanon ASSUMED item CLOSED
+(SqlCanonConformanceTest.floatCanonAgreesWithHostAcrossMagnitudes);
+contains/in citation CLOSED (contains.pure cited at the arm); carrier
+ratchet pins exact (no slack — an earlier line-count grep under-counted
+vs the test's occurrence semantics).
+
+FOUND WITNESS-LESS, NOW PINNED (the corpus fold hides ^TDSNull() from
+the compiler, so nothing exercised these): TdsNullTypingPinTest
+(ctor = instance [1] via NewChecker; bare ref = sqlNull funnel);
+VariantElementLawTest (the value law's five arms + the one-inverse
+symmetry). STILL OPEN: a product-surface pin for the wire-presence
+egress keep (present-wire json-null slot in an Any collection) —
+deferred because no verified product construction reaches it
+post-reversal; needs homework on variant toMany null semantics first,
+never a fabricated pin.
+
+EXECUTED FROM THE LEDGER (this commit): Lowerer.relationDepth + its
+try/finally + the mutable-field allowlist row DELETED — the re-audit
+found the counter WRITE-ONLY (no reader ever landed; the lane-flag
+justification gated a claim that stayed parked).
+
+LEDGER STATUS CORRECTION — the remaining DELETE rows below are NOT
+executed and are GATED ON the spell-at-egress redesign (§ above),
+which the relation-cells leg did NOT build (it resolved by reversal
+instead): unspell + unspellMarked (live: LiteralSpelling.unspell,
+Scalars equality arm + format decomposition, CastPolicy conformance
+re-wrap) and the dormant needle spelling arms. Their consumers NEED
+unspell precisely because values still spell mid-expression; deleting
+them without the egress redesign breaks the consumers. DECISION
+PENDING (user): build spell-at-egress as its own leg (the deletes fall
+out), or re-park explicitly in PROGRAM_MAP. Until ruled, the rows
+below read as CHARTERED, not done.
+
 ## THE UNWIND LEDGER (user review 2026-08-24 — executed by the
 ## relation-cells leg, checked off in its commits)
 

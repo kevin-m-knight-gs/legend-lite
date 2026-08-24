@@ -159,13 +159,13 @@ public final class Lowerer {
      * lowered INSIDE a lambda (a correlated subquery), the outer lambda's
      * resolver is pushed here so the inner predicate can reference outer rows.
      */
-    /** F10 3b — THE LANE FLAG: >0 while lowering INSIDE relation ops
-     * (TDS cells, filters, projections), 0 on the pure value lane.
-     * The kind-faithful carrier claims Any positions ONLY at depth 0 —
-     * relation-lane Any cells stay on the JSON carrier until that
-     * lane's own migration (4 corpus regressions witnessed the leak:
-     * F10_CARRIER_DESIGN.md 3b lesson). */
-    private int relationDepth;
+    // relationDepth (the F10 3b "lane flag") DELETED 2026-08-24: the
+    // slice-1-3 audit found it WRITE-ONLY — no reader ever landed (the
+    // hetero-literal claim it was to gate stayed parked), so the
+    // counter, its try/finally, and its mutable-field allowlist row
+    // were dead state carried by a stale justification (the unwind
+    // ledger row the 2026-08-24 review ordered; the boundary IS the
+    // lane when the claim returns).
 
     private final ArrayDeque<ColumnResolver>
             enclosing = new ArrayDeque<>();
@@ -445,15 +445,6 @@ public final class Lowerer {
     // ==================================================================
 
     SqlSelect relation(TypedSpec spec) {
-        relationDepth++;
-        try {
-            return relation0(spec);
-        } finally {
-            relationDepth--;
-        }
-    }
-
-    private SqlSelect relation0(TypedSpec spec) {
         // POSITIONAL reads over a relation: at(n) IS slice(n, n+1);
         // first()/head() IS limit 1 — row selection, not value extraction
         if (spec instanceof TypedNativeCall pc
