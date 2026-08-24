@@ -47,6 +47,17 @@ public final class SqlTypeCensus {
     private static final LongAdder MISMATCH = new LongAdder();
     private static final LongAdder UNTYPED = new LongAdder();
 
+    // M1 JUDGE-VS-NODE DIFFERENTIAL (TYPED_SQL_IR.md §5): the node
+    // channel's STORED verdict vs the judge's scope-informed one. The
+    // judge shares the node rules (rebind) and adds ONLY leaf
+    // knowledge, so: equal -> agree; node UNKNOWN where the judge knows
+    // -> the M2 leaf-stamping backlog (pre-logged, classified by
+    // shape); anything else -> a blind spot, classified + witnessed,
+    // examined never waved through.
+    private static final LongAdder NODE_AGREE = new LongAdder();
+    private static final LongAdder NODE_PENDING_LEAF = new LongAdder();
+    private static final LongAdder NODE_DIVERGE = new LongAdder();
+
     /** THE ADMISSIBILITY RELATION (T3, user-audited 2026-08-23): the
      * registered (declared, computed) carrier pairs — each a
      * DELIBERATE representation choice with its justification.
@@ -345,6 +356,7 @@ public final class SqlTypeCensus {
             OutputCol declared = s.outputs().get(i);
             SqlTyping.Verdict v = SqlTyping.judge(e,
                     col -> resolve(col, leaves));
+            differential(e, v, declared);
             switch (v) {
                 case SqlTyping.Verdict.Bottom b -> {
                     // ADJUDICATED (user challenge 2026-08-23): today the
@@ -394,6 +406,34 @@ public final class SqlTypeCensus {
                 }
             }
         }
+    }
+
+    /** The M1 judge-vs-node comparison for one projection root. */
+    private static void differential(SqlExpr e, SqlTyping.Verdict judge,
+            OutputCol declared) {
+        SqlTyping.Verdict node = e.type();
+        if (node.equals(judge)) {
+            NODE_AGREE.increment();
+            return;
+        }
+        if (node instanceof SqlTyping.Verdict.Unknown) {
+            NODE_PENDING_LEAF.increment();
+            classify("node-pending-leaf: " + shapeOf(e));
+            return;
+        }
+        String cls = "node-vs-judge: node=" + spell(node) + " judge="
+                + spell(judge) + " " + shapeOf(e);
+        NODE_DIVERGE.increment();
+        classify(cls);
+        sample(cls, declared.name() + " := " + sketch(e));
+    }
+
+    private static String spell(SqlTyping.Verdict v) {
+        return switch (v) {
+            case SqlTyping.Verdict.Typed t -> t.type().toString();
+            case SqlTyping.Verdict.Bottom b -> "bottom";
+            case SqlTyping.Verdict.Unknown u -> "unknown";
+        };
     }
 
     private static void collect(SqlSource src, List<SqlSource> out) {
@@ -495,6 +535,12 @@ public final class SqlTypeCensus {
         return MISMATCH.sum();
     }
 
+    /** M1 differential: node Typed/Bottom disagreeing with the judge —
+     * each class a blind spot to examine, none waved through. */
+    public static long nodeDivergeCount() {
+        return NODE_DIVERGE.sum();
+    }
+
     public static long wireDivergeCount() {
         return WIRE_DIVERGE.sum();
     }
@@ -509,6 +555,9 @@ public final class SqlTypeCensus {
                 + " bottom-ok=" + BOTTOM_OK.sum()
                 + " bottom-mult-backlog=" + BOTTOM_MULT.sum()
                 + " mismatch=" + MISMATCH.sum() + " untyped=" + UNTYPED.sum()
+                + " | node: agree=" + NODE_AGREE.sum()
+                + " pending-leaf=" + NODE_PENDING_LEAF.sum()
+                + " diverge=" + NODE_DIVERGE.sum()
                 + " | wire: agree=" + WIRE_AGREE.sum()
                 + " delivered=" + WIRE_DELIVERED.sum()
                 + " adopt-pending=" + WIRE_ADOPT_PENDING.sum()

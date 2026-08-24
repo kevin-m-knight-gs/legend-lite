@@ -7,20 +7,29 @@ import java.util.List;
 import java.util.function.Function;
 
 /**
- * TYPED-IR Slice 1 — the bottom-up TYPING JUDGMENT over the SQL IR:
- * what type does this expression ACTUALLY produce, computed from the
- * expression itself (leaves up), never echoed from a pure-type stamp.
- * The judgment is deliberately PARTIAL: {@code null} means "no rule
- * yet" — coverage grows rule by rule, and an untypeable expression is
- * COUNTED (the census), never guessed. A rule is added only when the
- * backend's behavior is certain; numeric-promotion results (PLUS over
- * mixed widths, aggregate reducers) stay null until their per-dialect
- * rules are written.
+ * TYPED-IR M1 (docs/TYPED_SQL_IR.md) — the ONE owner of per-node typing
+ * rules. The Slice-1 bottom-up judgment's switch MOVED here as the rule
+ * table the node constructors call: every {@link SqlExpr} stores its
+ * {@link Verdict} at construction (computed from its children's stored
+ * verdicts — the type is a property OF the tree), and this class owns
+ * the per-function/per-shape rules those constructors invoke.
  *
- * <p>This file is the future label authority (the label-lie program:
- * instrument &rarr; census &rarr; flip). In Slice 1 it only measures —
- * {@code OutputCol} labels stay stamp-derived and the census compares
- * the two.
+ * <p>The judgment stays deliberately PARTIAL: {@code UNKNOWN} means "no
+ * rule yet" — coverage grows rule by rule, and an untypeable expression
+ * is COUNTED (the census), never guessed. A rule is added only when the
+ * backend's behavior is certain; the aggregate numeric-promotion rules
+ * ({@link #reducerType}) are written from an empirical probe of the
+ * reference backend (DuckDB 1.5.0, 2026-08-24 — matrix recorded in
+ * TYPED_SQL_IR.md M1 receipts); anything unprobed stays UNKNOWN.
+ *
+ * <p>{@link #judge} survives through M1/M2 as the SCOPE channel: it
+ * re-binds the leaves the node channel does not know yet (Column types
+ * from the caller's scope, LIST_TRANSFORM's lambda-parameter binding)
+ * by REBUILDING the expression with typed leaves and reading the
+ * rebuilt root's stored verdict — the rules run once, in the node
+ * constructors, for both channels. The census compares the two
+ * (judge-vs-node differential); M3 deletes the judge and flips its
+ * consumers to {@code .type()} reads.
  */
 public final class SqlTyping {
 
@@ -47,216 +56,403 @@ public final class SqlTyping {
         }
     }
 
-    private static final Verdict BOTTOM = new Verdict.Bottom();
-    private static final Verdict UNKNOWN = new Verdict.Unknown();
+    public static final Verdict BOTTOM = new Verdict.Bottom();
+    public static final Verdict UNKNOWN = new Verdict.Unknown();
 
-    /** The three-valued judgment: {@code Typed(t)} — the expression
-     * produces exactly {@code t}; {@code Bottom} — the NULL value,
-     * admissible in any nullable slot; {@code Unknown} — no rule yet
-     * (the coverage census). */
-    public static Verdict judge(SqlExpr e,
-            Function<SqlExpr.Column, @com.legend.Nullable SqlType> scope) {
-        if (e instanceof SqlExpr.NullLit) {
-            return BOTTOM;
-        }
-        if (allNullCase(e)) {
-            return BOTTOM;
-        }
-        SqlType t = of(e, scope);
-        return t == null ? UNKNOWN : new Verdict.Typed(t);
+    public static Verdict typed(SqlType t) {
+        return new Verdict.Typed(t);
     }
 
-    /** A CASE whose every branch is the NULL literal is itself the
-     * NULL value (the composition rule bottom already obeys inside
-     * {@code uniform}, surfaced at the verdict level). */
-    private static boolean allNullCase(SqlExpr e) {
-        if (!(e instanceof SqlExpr.Case cs)) {
-            return false;
-        }
-        for (SqlExpr.Case.When w : cs.whens()) {
-            if (!(w.then() instanceof SqlExpr.NullLit)) {
-                return false;
-            }
-        }
-        return cs.otherwise() == null
-                || cs.otherwise() instanceof SqlExpr.NullLit;
+    // shared scalar verdicts — constructed once, stored on every node of
+    // the kind (constants, not a cache: there is no lifecycle)
+    static final Verdict T_BOOLEAN = typed(SqlType.Scalar.BOOLEAN);
+    static final Verdict T_BIGINT = typed(SqlType.Scalar.BIGINT);
+    static final Verdict T_HUGEINT = typed(SqlType.Scalar.HUGEINT);
+    static final Verdict T_DOUBLE = typed(SqlType.Scalar.DOUBLE);
+    static final Verdict T_VARCHAR = typed(SqlType.Scalar.VARCHAR);
+    static final Verdict T_DATE = typed(SqlType.Scalar.DATE);
+    static final Verdict T_TIMESTAMP = typed(SqlType.Scalar.TIMESTAMP);
+    static final Verdict T_JSON = typed(SqlType.Scalar.JSON);
+
+    /** The three-valued judgment through the caller's LEAF scope:
+     * {@code Typed(t)} — the expression produces exactly {@code t};
+     * {@code Bottom} — the NULL value, admissible in any nullable slot;
+     * {@code Unknown} — no rule / unresolvable reference. {@code scope}
+     * resolves column references to their source's declared output type
+     * — the LEAF AXIOMS (store DDL, TDS literals, subselect outputs);
+     * an unresolvable column (correlated outer reference, ambiguity)
+     * returns null there. */
+    public static Verdict judge(SqlExpr e,
+            Function<SqlExpr.Column, @com.legend.Nullable SqlType> scope) {
+        return rebind(e, scope).type();
     }
 
     /** The computed type of {@code e}, or null (no rule / unresolvable
-     * reference). {@code scope} resolves column references to their
-     * source's declared output type — the LEAF AXIOMS (store DDL, TDS
-     * literals, subselect outputs); an unresolvable column (correlated
-     * outer reference, ambiguity) returns null there. */
+     * reference / the NULL value) — the Typed-or-nothing projection of
+     * {@link #judge} kept for consumers that only act on a concrete
+     * type. */
     public static @com.legend.Nullable SqlType of(SqlExpr e,
             Function<SqlExpr.Column, @com.legend.Nullable SqlType> scope) {
-        return switch (e) {
-            case SqlExpr.StringLit s -> SqlType.Scalar.VARCHAR;
-            case SqlExpr.IntLit i -> SqlType.Scalar.BIGINT;
-            case SqlExpr.FloatLit f -> SqlType.Scalar.DOUBLE;
-            case SqlExpr.DecimalLit d -> new SqlType.Decimal(
-                    Math.max(d.value().precision(), 1),
-                    Math.max(d.value().scale(), 0));
-            case SqlExpr.BoolLit b -> SqlType.Scalar.BOOLEAN;
-            case SqlExpr.DateLit d -> SqlType.Scalar.DATE;
-            case SqlExpr.TimestampLit t -> SqlType.Scalar.TIMESTAMP;
-            case SqlExpr.NullLit n -> null;   // typeless — admissible anywhere
-            case SqlExpr.Cast c -> c.target();
-            case SqlExpr.Group g -> of(g.inner(), scope);
-            case SqlExpr.Column c -> scope.apply(c);
-            case SqlExpr.StructLit sl -> {
-                java.util.List<SqlType.Struct.Field> fs =
-                        new java.util.ArrayList<>(sl.fields().size());
-                for (SqlExpr.StructLit.Field f : sl.fields()) {
-                    SqlType ft = of(f.value(), scope);
-                    if (ft == null) {
-                        yield null;
-                    }
-                    fs.add(new SqlType.Struct.Field(f.name(), ft));
-                }
-                yield new SqlType.Struct(fs);
-            }
-            case SqlExpr.ArrayLit al -> {
-                if (al.elements().isEmpty()) {
-                    yield null;
-                }
-                SqlType et = uniform(al.elements(), scope);
-                yield et == null ? null : new SqlType.Array(et);
-            }
-            case SqlExpr.StructGet sg -> {
-                SqlType st = of(sg.source(), scope);
-                yield st instanceof SqlType.Struct s
-                        ? s.fields().stream()
-                                .filter(f -> f.name().equals(sg.field()))
-                                .map(SqlType.Struct.Field::type)
-                                .findFirst().orElse(null)
-                        : null;
-            }
-            case SqlExpr.Case cs -> {
-                java.util.List<SqlExpr> branches = new java.util.ArrayList<>();
-                for (SqlExpr.Case.When w : cs.whens()) {
-                    branches.add(w.then());
-                }
-                if (cs.otherwise() != null) {
-                    branches.add(cs.otherwise());
-                }
-                yield uniform(branches, scope);
-            }
-            case SqlExpr.Membership m -> SqlType.Scalar.BOOLEAN;
-            case SqlExpr.Exists ex -> SqlType.Scalar.BOOLEAN;
-            case SqlExpr.ScalarSubquery sq ->
-                    sq.subquery().outputs().size() == 1
-                            ? sq.subquery().outputs().get(0).type()
-                            : null;
-            case SqlExpr.CheckedOne co -> {
-                SqlType lt = of(co.list(), scope);
-                yield lt instanceof SqlType.Array at ? at.element() : null;
-            }
-            case SqlExpr.CompactList cl -> of(cl.list(), scope);
-            case SqlExpr.OrderedListAgg ola -> SqlType.Scalar.VARCHAR;
-            case SqlExpr.JsonObject jo -> SqlType.Scalar.JSON;
-            case SqlExpr.JsonArrayAgg ja -> SqlType.Scalar.JSON;
-            case SqlExpr.RowOrder ro -> SqlType.Scalar.BIGINT;
-            case SqlExpr.DeferredTdsString dts -> SqlType.Scalar.VARCHAR;
-            case SqlExpr.Call c -> call(c, scope);
-            // no rule yet: window calls, reducers (numeric promotion),
-            // fold, plan params, splices, stars, format literals,
-            // lambdas (not value-positioned)
-            default -> null;
-        };
+        return judge(e, scope) instanceof Verdict.Typed t ? t.type() : null;
     }
 
-    private static @com.legend.Nullable SqlType call(SqlExpr.Call c,
+    /** The judge's transitional mechanics (M1): rebuild the expression
+     * with the ONLY knowledge the node channel lacks — scope-typed
+     * {@code Column} leaves and LIST_TRANSFORM's parameter binding —
+     * and let the node constructors recompute every composite verdict
+     * bottom-up. One rule owner for both channels by construction;
+     * an expression that binds nothing returns IDENTICALLY (mapChildren
+     * is identity-preserving), so the judge adds exactly its leaf
+     * knowledge and nothing else. Deleted at M3. */
+    private static SqlExpr rebind(SqlExpr e,
             Function<SqlExpr.Column, @com.legend.Nullable SqlType> scope) {
-        List<SqlExpr> a = c.args();
-        return switch (c.fn()) {
+        switch (e) {
+            case SqlExpr.Column c -> {
+                SqlType t = scope.apply(c);
+                return t == null ? c
+                        : new SqlExpr.Column(c.table(), c.name(), typed(t));
+            }
+            case SqlExpr.Call c when c.fn() == SqlFn.LIST_TRANSFORM
+                    && c.args().size() == 2
+                    && c.args().get(1) instanceof SqlExpr.Lambda lam
+                    && lam.params().size() == 1 -> {
+                SqlExpr src = rebind(c.args().get(0), scope);
+                if (src.type() instanceof Verdict.Typed st
+                        && st.type() instanceof SqlType.Array at) {
+                    // the lambda parameter is bound to the ELEMENT type
+                    String p = lam.params().get(0);
+                    SqlExpr body = rebind(lam.body(), col ->
+                            col.table() == null && p.equals(col.name())
+                                    ? at.element() : scope.apply(col));
+                    return new SqlExpr.Call(c.fn(), List.of(src,
+                            new SqlExpr.Lambda(lam.params(), body)));
+                }
+                return src == c.args().get(0) ? c
+                        : new SqlExpr.Call(c.fn(),
+                                List.of(src, c.args().get(1)));
+            }
+            default -> {
+                return e.mapChildren(ch -> rebind(ch, scope));
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // THE RULE TABLE — called by the node constructors (SqlExpr/SqlAgg).
+    // Each rule is a function of the children's STORED verdicts; no rule
+    // walks a finished tree.
+    // ------------------------------------------------------------------
+
+    /** {@link SqlExpr.Call} — the per-function rules (the Slice-1
+     * switch, verbatim, lifted to verdicts). */
+    static Verdict callType(SqlFn fn, List<SqlExpr> a) {
+        return switch (fn) {
             case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER,
                     GREATER_EQUAL, IS_NULL, IS_NOT_NULL, IN, STARTS_WITH,
                     ENDS_WITH, MATCHES, REGEXP_FULL_MATCH, LIST_EXISTS,
                     LIST_FOR_ALL, IS_DISTINCT, ALL_DISTINCT, NULL_SAFE_EQUAL,
                     NULL_SAFE_NOT_EQUAL, LIST_BOOL_AND, LIST_BOOL_OR ->
-                    SqlType.Scalar.BOOLEAN;
+                    T_BOOLEAN;
             case CONCAT, CONCAT_JOIN, UPPER, LOWER, TRIM, LTRIM, RTRIM,
                     REPLACE, SUBSTRING, LEFT, RIGHT, LPAD, RPAD,
                     REVERSE_STRING, UC_FIRST, LC_FIRST, SPLIT_PART,
                     REGEXP_EXTRACT, REGEXP_REPLACE, CHR, ENCODE_BASE64,
                     DECODE_BASE64, MD5, SHA1, SHA256, GUID, DAYNAME,
                     MONTHNAME, STRFTIME, TYPEOF, BOOL_TO_TEXT, FORMAT,
-                    JSON_TYPE, CURRENT_USER_FN -> SqlType.Scalar.VARCHAR;
+                    JSON_TYPE, CURRENT_USER_FN -> T_VARCHAR;
             case LENGTH, STRPOS, ASCII_CODE, LEVENSHTEIN, LIST_LENGTH,
                     LIST_POSITION, EXTRACT, DATE_DIFF, EPOCH_SECONDS,
-                    EPOCH_MS, PARSE_INT -> SqlType.Scalar.BIGINT;
+                    EPOCH_MS, PARSE_INT -> T_BIGINT;
             case SQRT, CBRT, EXP, LN, LOG10, POW, PI, SIN, COS, TAN, ASIN,
                     ACOS, ATAN, ATAN2, SINH, COSH, TANH, COT, RADIANS,
-                    DEGREES, DIVIDE, JARO_WINKLER -> SqlType.Scalar.DOUBLE;
-            case TODAY, MAKE_DATE -> SqlType.Scalar.DATE;
+                    DEGREES, DIVIDE, JARO_WINKLER -> T_DOUBLE;
+            case TODAY, MAKE_DATE -> T_DATE;
             case NOW, MAKE_TIMESTAMP, STRPTIME, FROM_EPOCH_SECONDS,
-                    FROM_EPOCH_MS -> SqlType.Scalar.TIMESTAMP;
-            case TO_VARIANT, JSON_MERGE_PATCH, VARIANT_GET ->
-                    SqlType.Scalar.JSON;
-            case VARIANT_ELEMENTS -> new SqlType.Array(SqlType.Scalar.JSON);
-            case RANGE_FN -> new SqlType.Array(SqlType.Scalar.BIGINT);
-            case COALESCE -> uniform(a, scope);
+                    FROM_EPOCH_MS -> T_TIMESTAMP;
+            case TO_VARIANT, JSON_MERGE_PATCH, VARIANT_GET -> T_JSON;
+            case VARIANT_ELEMENTS ->
+                    typed(new SqlType.Array(SqlType.Scalar.JSON));
+            case RANGE_FN -> typed(new SqlType.Array(SqlType.Scalar.BIGINT));
+            case COALESCE -> uniform(a, BOTTOM);
             case LIST_FILTER, LIST_SORT, LIST_SORT_DESC, LIST_TAIL,
                     LIST_INIT, LIST_SLICE, LIST_DISTINCT, LIST_REVERSE ->
-                    a.isEmpty() ? null : arrayOf(of(a.get(0), scope));
-            case LIST_CONCAT -> uniform(a, scope);
-            case LIST_GET, UNNEST -> {
-                SqlType lt = a.isEmpty() ? null : of(a.get(0), scope);
-                yield lt instanceof SqlType.Array at ? at.element() : null;
-            }
+                    a.isEmpty() ? UNKNOWN : arrayPass(a.get(0).type());
+            case LIST_CONCAT -> uniform(a, BOTTOM);
+            case LIST_GET, UNNEST ->
+                    a.isEmpty() ? UNKNOWN : element(a.get(0).type());
             case LIST_FLATTEN -> {
-                SqlType lt = a.isEmpty() ? null : of(a.get(0), scope);
-                yield lt instanceof SqlType.Array outer
+                if (a.isEmpty()) {
+                    yield UNKNOWN;
+                }
+                yield a.get(0).type() instanceof Verdict.Typed t
+                        && t.type() instanceof SqlType.Array outer
                         && outer.element() instanceof SqlType.Array inner
-                        ? inner : null;
+                        ? typed(inner) : UNKNOWN;
             }
             case LIST_TRANSFORM -> {
                 if (a.size() != 2 || !(a.get(1) instanceof SqlExpr.Lambda lam)
                         || lam.params().size() != 1) {
-                    yield null;
+                    yield UNKNOWN;
                 }
-                SqlType lt = of(a.get(0), scope);
-                if (!(lt instanceof SqlType.Array at)) {
-                    yield null;
+                if (!(a.get(0).type() instanceof Verdict.Typed lt)
+                        || !(lt.type() instanceof SqlType.Array)) {
+                    yield UNKNOWN;
                 }
-                // the lambda parameter is bound to the ELEMENT type
-                String p = lam.params().get(0);
-                SqlType bt = of(lam.body(), col ->
-                        col.table() == null && p.equals(col.name())
-                                ? at.element() : scope.apply(col));
-                yield bt == null ? null : new SqlType.Array(bt);
+                // the lambda parameter is bound to the ELEMENT type by
+                // the knowledge OWNER — the judge's rebind (M1) or the
+                // typed Lambda node (M2); this rule only reads the body
+                yield lam.body().type() instanceof Verdict.Typed bt
+                        ? typed(new SqlType.Array(bt.type())) : UNKNOWN;
             }
-            // numeric promotion (PLUS/MINUS/TIMES/aggregate reducers/…)
-            // and everything else: no rule yet — counted, never guessed
-            default -> null;
+            // numeric promotion (PLUS/MINUS/TIMES/…) and everything
+            // else: no rule yet — counted, never guessed
+            default -> UNKNOWN;
         };
     }
 
-    private static @com.legend.Nullable SqlType arrayOf(
-            @com.legend.Nullable SqlType t) {
-        return t instanceof SqlType.Array ? t : null;
+    /** {@link SqlExpr.Case} — the branch family's shared type; a CASE
+     * whose every branch is the NULL value is itself the NULL value. */
+    static Verdict caseType(List<SqlExpr.Case.When> whens,
+            @com.legend.Nullable SqlExpr otherwise) {
+        java.util.List<SqlExpr> branches =
+                new java.util.ArrayList<>(whens.size() + 1);
+        for (SqlExpr.Case.When w : whens) {
+            branches.add(w.then());
+        }
+        if (otherwise != null) {
+            branches.add(otherwise);
+        }
+        return uniform(branches, BOTTOM);
     }
 
-    /** The single shared type of a branch/argument family: NullLit
-     * members are ADMISSIBLE anywhere and skipped; all typeable members
-     * must agree exactly; an untypeable member poisons to null. */
-    private static @com.legend.Nullable SqlType uniform(List<SqlExpr> es,
-            Function<SqlExpr.Column, @com.legend.Nullable SqlType> scope) {
-        SqlType common = null;
-        for (SqlExpr e : es) {
-            if (e instanceof SqlExpr.NullLit) {
-                continue;
+    /** {@link SqlExpr.ArrayLit} — the uniform element type, wrapped.
+     * An all-NULL literal array is a definite ARRAY value with an
+     * unknowable element type — UNKNOWN, not bottom. */
+    static Verdict arrayLitType(List<SqlExpr> elements) {
+        if (elements.isEmpty()) {
+            return UNKNOWN;
+        }
+        return uniform(elements, UNKNOWN) instanceof Verdict.Typed t
+                ? typed(new SqlType.Array(t.type())) : UNKNOWN;
+    }
+
+    /** {@link SqlExpr.StructLit} — every field's type, in declared
+     * order; any untypeable or NULL field leaves the layout partial. */
+    static Verdict structLitType(List<SqlExpr.StructLit.Field> fields) {
+        java.util.List<SqlType.Struct.Field> fs =
+                new java.util.ArrayList<>(fields.size());
+        for (SqlExpr.StructLit.Field f : fields) {
+            if (!(f.value().type() instanceof Verdict.Typed t)) {
+                return UNKNOWN;
             }
-            SqlType t = of(e, scope);
-            if (t == null) {
-                return null;
-            }
-            if (common == null) {
-                common = t;
-            } else if (!common.equals(t)) {
-                return null;
+            fs.add(new SqlType.Struct.Field(f.name(), t.type()));
+        }
+        return typed(new SqlType.Struct(fs));
+    }
+
+    /** {@link SqlExpr.StructGet} — the named field of a typed struct;
+     * extraction from the NULL value is the NULL value. */
+    static Verdict structGetType(SqlExpr source, String field) {
+        Verdict sv = source.type();
+        if (sv instanceof Verdict.Bottom) {
+            return BOTTOM;
+        }
+        if (sv instanceof Verdict.Typed t
+                && t.type() instanceof SqlType.Struct s) {
+            for (SqlType.Struct.Field f : s.fields()) {
+                if (f.name().equals(field)) {
+                    return typed(f.type());
+                }
             }
         }
-        return common;
+        return UNKNOWN;
+    }
+
+    /** {@link SqlExpr.ScalarSubquery} — the single output's DECLARED
+     * label (builder knowledge carried on the subquery, read here). */
+    static Verdict scalarSubqueryType(SqlQuery sub) {
+        return sub.outputs().size() == 1
+                ? typed(sub.outputs().get(0).type()) : UNKNOWN;
+    }
+
+    /** {@link SqlExpr.CheckedOne} — the element of a definite list;
+     * narrowing the NULL value flows the NULL value. */
+    static Verdict checkedOneType(SqlExpr list) {
+        Verdict lv = list.type();
+        if (lv instanceof Verdict.Bottom) {
+            return BOTTOM;
+        }
+        return lv instanceof Verdict.Typed t
+                && t.type() instanceof SqlType.Array at
+                ? typed(at.element()) : UNKNOWN;
+    }
+
+    /** {@link SqlExpr.WindowCall} — a windowed {@link SqlAgg.Reducer}
+     * keeps its own promotion (probed: sum/avg/count/min OVER () match
+     * the grouped results); ranking/value kinds have no rule yet. */
+    static Verdict windowType(SqlAgg fn) {
+        return fn instanceof SqlAgg.Reducer r ? r.type() : UNKNOWN;
+    }
+
+    /**
+     * {@link SqlAgg.Reducer} — THE AGGREGATE PROMOTION RULES (the
+     * Slice-1 header's deferred rule, M1 task 2). Written from an
+     * empirical probe of the reference backend (DuckDB 1.5.0,
+     * 2026-08-24; every arm below is a probed fact, matrix in
+     * TYPED_SQL_IR.md M1 receipts):
+     * <ul>
+     * <li>COUNT counts rows — BIGINT, argument type irrelevant;</li>
+     * <li>STRING_AGG concatenates — VARCHAR for every input;</li>
+     * <li>BOOL_AND/BOOL_OR — BOOLEAN;</li>
+     * <li>the moment family (STDDEV/VAR samp+pop, VARIANCE, CORR,
+     *     COVAR) — DOUBLE for every numeric input;</li>
+     * <li>SUM widens: integer family (and BOOLEAN) &rarr; HUGEINT
+     *     (the wire census's adopt-pending fact, now typed at the
+     *     source), DOUBLE &rarr; DOUBLE, Decimal(p,s) &rarr;
+     *     Decimal(38,s);</li>
+     * <li>AVG &rarr; DOUBLE over numerics (Decimal included);
+     *     temporals average to TIMESTAMP;</li>
+     * <li>MIN/MAX/ANY_VALUE/MODE/QUANTILE_DISC/ARG_MAX/ARG_MIN are
+     *     element-preserving — identity (LITERAL carriers flow, the
+     *     F10 3b rule);</li>
+     * <li>MEDIAN/QUANTILE_CONT interpolate: integers &rarr; DOUBLE,
+     *     Decimal stays, temporals &rarr; TIMESTAMP, and MEDIAN alone
+     *     is identity on VARCHAR/BOOLEAN; interpolation over a LITERAL
+     *     carrier would break the spelling contract — UNKNOWN;</li>
+     * <li>LIST collects — Array(input).</li>
+     * </ul>
+     * Everything else (the Lowerer-internal markers, unprobed inputs)
+     * stays UNKNOWN — certainty only, never a guess.
+     */
+    static Verdict reducerType(SqlAgg.Fn fn, Verdict arg0) {
+        switch (fn) {
+            case COUNT -> {
+                return T_BIGINT;
+            }
+            case STRING_AGG -> {
+                return T_VARCHAR;
+            }
+            case BOOL_AND, BOOL_OR -> {
+                return T_BOOLEAN;
+            }
+            case STDDEV_SAMP, STDDEV_POP, VAR_SAMP, VAR_POP, STDDEV,
+                    VARIANCE, CORR, COVAR_SAMP, COVAR_POP -> {
+                return T_DOUBLE;
+            }
+            default -> {
+            }
+        }
+        if (!(arg0 instanceof Verdict.Typed t0)) {
+            return UNKNOWN;
+        }
+        SqlType t = t0.type();
+        return switch (fn) {
+            case SUM -> {
+                if (integerFamily(t) || t == SqlType.Scalar.BOOLEAN) {
+                    yield T_HUGEINT;
+                }
+                if (t == SqlType.Scalar.DOUBLE) {
+                    yield T_DOUBLE;
+                }
+                yield t instanceof SqlType.Decimal d
+                        ? typed(new SqlType.Decimal(38, d.scale())) : UNKNOWN;
+            }
+            case AVG -> {
+                if (integerFamily(t) || t == SqlType.Scalar.DOUBLE
+                        || t instanceof SqlType.Decimal) {
+                    yield T_DOUBLE;
+                }
+                yield t == SqlType.Scalar.DATE
+                        || t == SqlType.Scalar.TIMESTAMP
+                        ? T_TIMESTAMP : UNKNOWN;
+            }
+            case MIN, MAX, ANY_VALUE, MODE, QUANTILE_DISC, ARG_MAX,
+                    ARG_MIN -> typed(t);
+            case MEDIAN, QUANTILE_CONT -> {
+                if (integerFamily(t) || t == SqlType.Scalar.DOUBLE) {
+                    yield T_DOUBLE;
+                }
+                if (t instanceof SqlType.Decimal) {
+                    yield typed(t);
+                }
+                if (t == SqlType.Scalar.DATE
+                        || t == SqlType.Scalar.TIMESTAMP) {
+                    yield T_TIMESTAMP;
+                }
+                yield fn == SqlAgg.Fn.MEDIAN
+                        && (t == SqlType.Scalar.VARCHAR
+                                || t == SqlType.Scalar.BOOLEAN)
+                        ? typed(t) : UNKNOWN;
+            }
+            case LIST -> typed(new SqlType.Array(t));
+            default -> UNKNOWN;
+        };
+    }
+
+    /** {@link SqlExpr.ReduceCollection} — the SAME aggregate promotion,
+     * read through the collection carrier (probed: DuckDB's
+     * {@code list_aggregate} matches the grouped aggregate's result
+     * types element-wise). */
+    static Verdict reduceCollectionType(SqlAgg.Fn fn, SqlExpr collection) {
+        return collection.type() instanceof Verdict.Typed t
+                && t.type() instanceof SqlType.Array at
+                ? reducerType(fn, typed(at.element())) : UNKNOWN;
+    }
+
+    private static boolean integerFamily(SqlType t) {
+        return t == SqlType.Scalar.BIGINT || t == SqlType.Scalar.INTEGER
+                || t == SqlType.Scalar.HUGEINT;
+    }
+
+    /** An array-in/array-out passthrough (sort/filter/slice family);
+     * transporting the NULL value flows the NULL value. */
+    private static Verdict arrayPass(Verdict v) {
+        if (v instanceof Verdict.Bottom) {
+            return BOTTOM;
+        }
+        return v instanceof Verdict.Typed t
+                && t.type() instanceof SqlType.Array ? v : UNKNOWN;
+    }
+
+    /** Element extraction (LIST_GET/UNNEST); extraction from the NULL
+     * value is the NULL value. */
+    private static Verdict element(Verdict v) {
+        if (v instanceof Verdict.Bottom) {
+            return BOTTOM;
+        }
+        return v instanceof Verdict.Typed t
+                && t.type() instanceof SqlType.Array at
+                ? typed(at.element()) : UNKNOWN;
+    }
+
+    /** The single shared type of a branch/argument family: BOTTOM
+     * members are ADMISSIBLE anywhere and skipped; all typeable members
+     * must agree exactly; an UNKNOWN member poisons. A family that is
+     * entirely the NULL value resolves to {@code allBottom} — the
+     * caller names what that means for its shape (the NULL value for
+     * CASE/COALESCE, UNKNOWN for a literal array's element type). */
+    private static Verdict uniform(List<SqlExpr> es, Verdict allBottom) {
+        SqlType common = null;
+        boolean saw = false;
+        for (SqlExpr e : es) {
+            Verdict v = e.type();
+            if (v instanceof Verdict.Bottom) {
+                saw = true;
+                continue;
+            }
+            if (!(v instanceof Verdict.Typed t)) {
+                return UNKNOWN;
+            }
+            saw = true;
+            if (common == null) {
+                common = t.type();
+            } else if (!common.equals(t.type())) {
+                return UNKNOWN;
+            }
+        }
+        if (common != null) {
+            return typed(common);
+        }
+        return saw ? allBottom : UNKNOWN;
     }
 }

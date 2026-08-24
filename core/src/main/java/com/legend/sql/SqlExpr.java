@@ -181,7 +181,9 @@ public sealed interface SqlExpr
                 yield new WindowCall(fn, cs.subList(base, base + np), ks,
                         w.frame());
             }
-            case Lambda l -> new Lambda(l.params(), cs.get(0));
+            // supplied-leaf knowledge (the builder's, like Column's
+            // type): a body swap keeps it — recomputable by no rule
+            case Lambda l -> new Lambda(l.params(), cs.get(0), l.type());
             case Cast c -> new Cast(cs.get(0), c.target());
             case FoldCall f -> new FoldCall(cs.get(0), (Lambda) cs.get(1),
                     cs.get(2), f.accIsList(), f.homogeneous());
@@ -230,6 +232,22 @@ public sealed interface SqlExpr
         return same ? this : withChildren(rw);
     }
 
+    /**
+     * The expression's TYPE FACT (TYPED_SQL_IR.md §2) — {@code Typed},
+     * {@code Bottom} (the NULL value) or {@code Unknown} — STORED as a
+     * record component on every node, immutable with the tree.
+     * Compositions compute it ONCE in the canonical constructor from
+     * their children's stored verdicts via the {@link SqlTyping} rule
+     * table (the compact constructor recomputes, so the component
+     * cannot lie); leaves are SUPPLIED by the builder (M1: Column and
+     * Lambda default UNKNOWN — their stamping is M2, and the UNKNOWN
+     * count ratchets down). The prior constructor arities remain as
+     * compute-and-delegate doors, so construction sites change zero
+     * times; their placeholder argument is overwritten by the compact
+     * constructor wherever the type is derivable.
+     */
+    SqlTyping.Verdict type();
+
     /** A column reference, optionally qualified by a source alias. */
     /** {@code table} null = unqualified reference (lambda params,
      * pivot args, post-unqualify rewrites). */
@@ -237,7 +255,15 @@ public sealed interface SqlExpr
      * key for insertion-ordered aggregation (joinStrings parity). Spelled
      * per dialect (DuckDB {@code rowid}, H2 {@code _ROWID_}); a plain
      * Column would bake one backend's spelling into the IR. */
-    record RowOrder(@com.legend.Nullable String table) implements SqlExpr {
+    record RowOrder(@com.legend.Nullable String table,
+            SqlTyping.Verdict type) implements SqlExpr {
+        public RowOrder {
+            type = SqlTyping.T_BIGINT;
+        }
+
+        public RowOrder(@com.legend.Nullable String table) {
+            this(table, SqlTyping.UNKNOWN);
+        }
     }
 
     /** SEMANTIC collection reduction (CARRIER_REDESIGN.md R1): reduce a
@@ -248,9 +274,16 @@ public sealed interface SqlExpr
      * {@code list_aggregate}, or the portable FUSION into the collecting
      * subselect (the engine's shape). No backend spelling lives here. */
     record ReduceCollection(SqlAgg.Fn reducer, SqlExpr collection,
-            java.util.List<SqlExpr> extras) implements SqlExpr {
+            java.util.List<SqlExpr> extras,
+            SqlTyping.Verdict type) implements SqlExpr {
         public ReduceCollection {
             extras = java.util.List.copyOf(extras);
+            type = SqlTyping.reduceCollectionType(reducer, collection);
+        }
+
+        public ReduceCollection(SqlAgg.Fn reducer, SqlExpr collection,
+                java.util.List<SqlExpr> extras) {
+            this(reducer, collection, extras, SqlTyping.UNKNOWN);
         }
     }
 
@@ -263,45 +296,127 @@ public sealed interface SqlExpr
      * (NULL, not FALSE) — indistinguishable in filter position; the
      * portable rule CASE-wraps in the NULL-element-literal case. The
      * collection may be a PlanParam at bind time (§2). */
-    record Membership(SqlExpr needle, SqlExpr collection)
-            implements SqlExpr {
+    record Membership(SqlExpr needle, SqlExpr collection,
+            SqlTyping.Verdict type) implements SqlExpr {
+        public Membership {
+            type = SqlTyping.T_BOOLEAN;
+        }
+
+        public Membership(SqlExpr needle, SqlExpr collection) {
+            this(needle, collection, SqlTyping.UNKNOWN);
+        }
     }
 
-    record Column(@com.legend.Nullable String table, String name) implements SqlExpr {
+    record Column(@com.legend.Nullable String table, String name,
+            SqlTyping.Verdict type) implements SqlExpr {
+        /** M1 leaf default — the builder supplies the type in M2. */
+        public Column(@com.legend.Nullable String table, String name) {
+            this(table, name, SqlTyping.UNKNOWN);
+        }
     }
 
     /** {@code *} or {@code alias.*}. */
     /** {@code alias.* EXCLUDE (a, b)} — the star minus named columns (pivot key synthesis). */
-    record StarExcept(@com.legend.Nullable String table, List<String> except) implements SqlExpr {
+    record StarExcept(@com.legend.Nullable String table, List<String> except,
+            SqlTyping.Verdict type) implements SqlExpr {
         public StarExcept {
             except = List.copyOf(except);
+            type = SqlTyping.UNKNOWN;   // not a scalar value
+        }
+
+        public StarExcept(@com.legend.Nullable String table,
+                List<String> except) {
+            this(table, except, SqlTyping.UNKNOWN);
         }
     }
 
     /** {@code table} null = unqualified {@code *}. */
-    record Star(@com.legend.Nullable String table) implements SqlExpr {
+    record Star(@com.legend.Nullable String table,
+            SqlTyping.Verdict type) implements SqlExpr {
+        public Star {
+            type = SqlTyping.UNKNOWN;   // not a scalar value
+        }
+
+        public Star(@com.legend.Nullable String table) {
+            this(table, SqlTyping.UNKNOWN);
+        }
     }
 
-    record StringLit(String value) implements SqlExpr {
+    record StringLit(String value, SqlTyping.Verdict type)
+            implements SqlExpr {
+        public StringLit {
+            type = SqlTyping.T_VARCHAR;
+        }
+
+        public StringLit(String value) {
+            this(value, SqlTyping.UNKNOWN);
+        }
     }
 
-    record IntLit(long value) implements SqlExpr {
+    record IntLit(long value, SqlTyping.Verdict type) implements SqlExpr {
+        public IntLit {
+            type = SqlTyping.T_BIGINT;
+        }
+
+        public IntLit(long value) {
+            this(value, SqlTyping.UNKNOWN);
+        }
     }
 
-    record FloatLit(double value) implements SqlExpr {
+    record FloatLit(double value, SqlTyping.Verdict type)
+            implements SqlExpr {
+        public FloatLit {
+            type = SqlTyping.T_DOUBLE;
+        }
+
+        public FloatLit(double value) {
+            this(value, SqlTyping.UNKNOWN);
+        }
     }
 
-    record DecimalLit(BigDecimal value) implements SqlExpr {
+    record DecimalLit(BigDecimal value, SqlTyping.Verdict type)
+            implements SqlExpr {
+        public DecimalLit {
+            type = SqlTyping.typed(new SqlType.Decimal(
+                    Math.max(value.precision(), 1),
+                    Math.max(value.scale(), 0)));
+        }
+
+        public DecimalLit(BigDecimal value) {
+            this(value, SqlTyping.UNKNOWN);
+        }
     }
 
-    record BoolLit(boolean value) implements SqlExpr {
+    record BoolLit(boolean value, SqlTyping.Verdict type)
+            implements SqlExpr {
+        public BoolLit {
+            type = SqlTyping.T_BOOLEAN;
+        }
+
+        public BoolLit(boolean value) {
+            this(value, SqlTyping.UNKNOWN);
+        }
     }
 
-    record NullLit() implements SqlExpr {
+    record NullLit(SqlTyping.Verdict type) implements SqlExpr {
+        public NullLit {
+            type = SqlTyping.BOTTOM;   // the NULL value — bottom
+        }
+
+        public NullLit() {
+            this(SqlTyping.UNKNOWN);
+        }
     }
 
     /** ISO {@code yyyy-MM-dd}; renders as a typed DATE literal. */
-    record DateLit(String iso) implements SqlExpr {
+    record DateLit(String iso, SqlTyping.Verdict type) implements SqlExpr {
+        public DateLit {
+            type = SqlTyping.T_DATE;
+        }
+
+        public DateLit(String iso) {
+            this(iso, SqlTyping.UNKNOWN);
+        }
     }
 
     /** ISO timestamp; renders as a typed TIMESTAMP literal. */
@@ -312,7 +427,14 @@ public sealed interface SqlExpr
      * when a predicate merges with its null-guards under or/not
      * (pureToSQLQuery newAndOrDynaFunctionRelaxedBrackets:5376,
      * moveExtraFilterToFilter:4610). */
-    record Group(SqlExpr inner) implements SqlExpr {
+    record Group(SqlExpr inner, SqlTyping.Verdict type) implements SqlExpr {
+        public Group {
+            type = inner.type();   // parens are structural — transport
+        }
+
+        public Group(SqlExpr inner) {
+            this(inner, SqlTyping.UNKNOWN);
+        }
     }
 
     /** An execution-plan TEMPLATE parameter ({@code ${name}} — the
@@ -321,12 +443,22 @@ public sealed interface SqlExpr
      * through the engine-style dialect and is a loud error in any
      * executable dialect. */
     record PlanParam(String name, Kind kind, boolean optional,
-            @com.legend.Nullable String enumMapFn) implements SqlExpr {
+            @com.legend.Nullable String enumMapFn,
+            SqlTyping.Verdict type) implements SqlExpr {
         /** {@code RAW} splices {@code ${name}} bare — the temp-table IN
          * protocol's {@code inFilterClause_X} wrapper variable
          * (processInOperation.pure); plan-text vocabulary only. */
         public enum Kind { STRING, DATE, DATETIME, FLOAT, BOOLEAN, ENUM,
             OTHER, RAW }
+
+        public PlanParam {
+            type = SqlTyping.UNKNOWN;   // plan-text vocabulary — no rule
+        }
+
+        public PlanParam(String name, Kind kind, boolean optional,
+                @com.legend.Nullable String enumMapFn) {
+            this(name, kind, optional, enumMapFn, SqlTyping.UNKNOWN);
+        }
 
         public PlanParam(String name, Kind kind, boolean optional) {
             this(name, kind, optional, null);
@@ -344,21 +476,51 @@ public sealed interface SqlExpr
     /** A TYPED date format — a list of {@link DateFmt} parts, never a
      * C-format string a renderer must re-parse (remediation T3.2). Rides
      * as the format argument of STRFTIME/STRPTIME. */
-    record FormatLit(List<DateFmt> parts) implements SqlExpr {
+    record FormatLit(List<DateFmt> parts, SqlTyping.Verdict type)
+            implements SqlExpr {
         public FormatLit {
             parts = List.copyOf(parts);
+            type = SqlTyping.UNKNOWN;   // a format ride-along, not a value
+        }
+
+        public FormatLit(List<DateFmt> parts) {
+            this(parts, SqlTyping.UNKNOWN);
         }
     }
 
-    record TimestampLit(String iso) implements SqlExpr {
+    record TimestampLit(String iso, SqlTyping.Verdict type)
+            implements SqlExpr {
+        public TimestampLit {
+            type = SqlTyping.T_TIMESTAMP;
+        }
+
+        public TimestampLit(String iso) {
+            this(iso, SqlTyping.UNKNOWN);
+        }
     }
 
     /** A list literal, {@code [a, b, c]} in DuckDB. */
     /** {@code list(value ORDER BY key)} — identity-preserving ordered aggregation. */
-    record OrderedListAgg(SqlExpr value, SqlExpr orderBy) implements SqlExpr {
+    record OrderedListAgg(SqlExpr value, SqlExpr orderBy,
+            SqlTyping.Verdict type) implements SqlExpr {
+        public OrderedListAgg {
+            type = SqlTyping.T_VARCHAR;
+        }
+
+        public OrderedListAgg(SqlExpr value, SqlExpr orderBy) {
+            this(value, orderBy, SqlTyping.UNKNOWN);
+        }
     }
 
-    record ArrayLit(List<SqlExpr> elements) implements SqlExpr {
+    record ArrayLit(List<SqlExpr> elements, SqlTyping.Verdict type)
+            implements SqlExpr {
+        public ArrayLit {
+            type = SqlTyping.arrayLitType(elements);
+        }
+
+        public ArrayLit(List<SqlExpr> elements) {
+            this(elements, SqlTyping.UNKNOWN);
+        }
     }
 
     /**
@@ -366,9 +528,15 @@ public sealed interface SqlExpr
      * ORDER is the emitting frontend's declared layout — load-bearing, never
      * inferred from the value set.
      */
-    record StructLit(List<Field> fields) implements SqlExpr {
+    record StructLit(List<Field> fields, SqlTyping.Verdict type)
+            implements SqlExpr {
         public StructLit {
             fields = List.copyOf(fields);
+            type = SqlTyping.structLitType(fields);
+        }
+
+        public StructLit(List<Field> fields) {
+            this(fields, SqlTyping.UNKNOWN);
         }
 
         public record Field(String name, SqlExpr value) {
@@ -376,11 +544,28 @@ public sealed interface SqlExpr
     }
 
     /** Field extraction from a composite value ({@code struct_extract(x, 'f')} in DuckDB). */
-    record StructGet(SqlExpr source, String field) implements SqlExpr {
+    record StructGet(SqlExpr source, String field,
+            SqlTyping.Verdict type) implements SqlExpr {
+        public StructGet {
+            type = SqlTyping.structGetType(source, field);
+        }
+
+        public StructGet(SqlExpr source, String field) {
+            this(source, field, SqlTyping.UNKNOWN);
+        }
     }
 
     /** A function application by SEMANTIC vocabulary entry (see {@link SqlFn}). */
-    record Call(SqlFn fn, List<SqlExpr> args) implements SqlExpr {
+    record Call(SqlFn fn, List<SqlExpr> args, SqlTyping.Verdict type)
+            implements SqlExpr {
+        public Call {
+            type = SqlTyping.callType(fn, args);
+        }
+
+        public Call(SqlFn fn, List<SqlExpr> args) {
+            this(fn, args, SqlTyping.UNKNOWN);
+        }
+
         public static Call of(SqlFn fn, SqlExpr... args) {
             return new Call(fn, List.of(args));
         }
@@ -388,17 +573,43 @@ public sealed interface SqlExpr
 
     /** {@code CASE WHEN ... THEN ... [WHEN ...] ELSE ... END}. */
     /** {@code otherwise} null = no ELSE branch (SQL semantics: NULL). */
-    record Case(List<When> whens, @com.legend.Nullable SqlExpr otherwise) implements SqlExpr {
+    record Case(List<When> whens, @com.legend.Nullable SqlExpr otherwise,
+            SqlTyping.Verdict type) implements SqlExpr {
+        public Case {
+            type = SqlTyping.caseType(whens, otherwise);
+        }
+
+        public Case(List<When> whens,
+                @com.legend.Nullable SqlExpr otherwise) {
+            this(whens, otherwise, SqlTyping.UNKNOWN);
+        }
+
         public record When(SqlExpr condition, SqlExpr then) {
         }
     }
 
     /** {@code EXISTS (subquery)} &mdash; Boolean-composable association predicate. */
-    record Exists(SqlQuery subquery) implements SqlExpr {
+    record Exists(SqlQuery subquery, SqlTyping.Verdict type)
+            implements SqlExpr {
+        public Exists {
+            type = SqlTyping.T_BOOLEAN;
+        }
+
+        public Exists(SqlQuery subquery) {
+            this(subquery, SqlTyping.UNKNOWN);
+        }
     }
 
     /** A single-value subquery in scalar position. */
-    record ScalarSubquery(SqlQuery subquery) implements SqlExpr {
+    record ScalarSubquery(SqlQuery subquery, SqlTyping.Verdict type)
+            implements SqlExpr {
+        public ScalarSubquery {
+            type = SqlTyping.scalarSubqueryType(subquery);
+        }
+
+        public ScalarSubquery(SqlQuery subquery) {
+            this(subquery, SqlTyping.UNKNOWN);
+        }
     }
 
     /** CHECKED NARROWING over a definite list value — pure's toOne as
@@ -410,7 +621,16 @@ public sealed interface SqlExpr
      * INNER value verbatim (the engine's processNoOp view — the
      * NULLS-suppression precedent). */
     record CheckedOne(SqlExpr list, boolean scalarCarrier,
-            boolean atLeastOnly) implements SqlExpr {
+            boolean atLeastOnly, SqlTyping.Verdict type) implements SqlExpr {
+        public CheckedOne {
+            type = SqlTyping.checkedOneType(list);
+        }
+
+        public CheckedOne(SqlExpr list, boolean scalarCarrier,
+                boolean atLeastOnly) {
+            this(list, scalarCarrier, atLeastOnly, SqlTyping.UNKNOWN);
+        }
+
         /** The original exactly-one LIST form. */
         public CheckedOne(SqlExpr list) {
             this(list, false, false);
@@ -424,7 +644,15 @@ public sealed interface SqlExpr
      * carried null; a variant/Any JSON null decays to empty). SEMANTIC
      * node: the dialect renderer owns the list-function spelling
      * (carrier purity ratchet — the CheckedOne/D1 precedent). */
-    record CompactList(SqlExpr list) implements SqlExpr {
+    record CompactList(SqlExpr list, SqlTyping.Verdict type)
+            implements SqlExpr {
+        public CompactList {
+            type = list.type();   // compaction is carrier-preserving
+        }
+
+        public CompactList(SqlExpr list) {
+            this(list, SqlTyping.UNKNOWN);
+        }
     }
 
     /** A relation-toString whose COLUMN LIST is dynamic (a pivot with
@@ -434,8 +662,15 @@ public sealed interface SqlExpr
      * schema by {@code id}). Types-free by design — the sql package
      * never carries compiler types. A node reaching a renderer is a
      * routing bug and walls loudly there. */
-    record DeferredTdsString(SqlSelect inner, String alias, int id)
-            implements SqlExpr {
+    record DeferredTdsString(SqlSelect inner, String alias, int id,
+            SqlTyping.Verdict type) implements SqlExpr {
+        public DeferredTdsString {
+            type = SqlTyping.T_VARCHAR;   // a relation-toString cell
+        }
+
+        public DeferredTdsString(SqlSelect inner, String alias, int id) {
+            this(inner, alias, id, SqlTyping.UNKNOWN);
+        }
     }
 
     /**
@@ -447,7 +682,15 @@ public sealed interface SqlExpr
      * {@code in (...)}. Plan-text vocabulary only — a loud error in any
      * executable dialect.
      */
-    record TempTableInSplice(String tempTableName) implements SqlExpr {
+    record TempTableInSplice(String tempTableName,
+            SqlTyping.Verdict type) implements SqlExpr {
+        public TempTableInSplice {
+            type = SqlTyping.UNKNOWN;   // plan-text vocabulary — no rule
+        }
+
+        public TempTableInSplice(String tempTableName) {
+            this(tempTableName, SqlTyping.UNKNOWN);
+        }
     }
 
     /**
@@ -455,7 +698,15 @@ public sealed interface SqlExpr
      * envelope's per-row object. {@code kv} alternates string-literal keys
      * with value expressions.
      */
-    record JsonObject(List<SqlExpr> kv) implements SqlExpr {
+    record JsonObject(List<SqlExpr> kv, SqlTyping.Verdict type)
+            implements SqlExpr {
+        public JsonObject {
+            type = SqlTyping.T_JSON;
+        }
+
+        public JsonObject(List<SqlExpr> kv) {
+            this(kv, SqlTyping.UNKNOWN);
+        }
     }
 
     /**
@@ -463,9 +714,15 @@ public sealed interface SqlExpr
      * aggregation of an envelope: all rows into one JSON-array value; an
      * empty rowset is the EMPTY ARRAY, never SQL NULL.
      */
-    record JsonArrayAgg(SqlExpr value, List<Key> orderKeys) implements SqlExpr {
+    record JsonArrayAgg(SqlExpr value, List<Key> orderKeys,
+            SqlTyping.Verdict type) implements SqlExpr {
         public JsonArrayAgg {
             orderKeys = orderKeys == null ? List.of() : List.copyOf(orderKeys);
+            type = SqlTyping.T_JSON;
+        }
+
+        public JsonArrayAgg(SqlExpr value, List<Key> orderKeys) {
+            this(value, orderKeys, SqlTyping.UNKNOWN);
         }
 
         /** Unordered aggregation (scan order — the pre-determinism shape). */
@@ -486,7 +743,17 @@ public sealed interface SqlExpr
      */
     /** {@code frame} null = no explicit frame clause (dialect default). */
     record WindowCall(SqlAgg fn, List<SqlExpr> partitionBy, List<SqlSelect.SortKey> orderBy,
-                      @com.legend.Nullable Frame frame) implements SqlExpr {
+                      @com.legend.Nullable Frame frame,
+                      SqlTyping.Verdict type) implements SqlExpr {
+        public WindowCall {
+            type = SqlTyping.windowType(fn);
+        }
+
+        public WindowCall(SqlAgg fn, List<SqlExpr> partitionBy,
+                List<SqlSelect.SortKey> orderBy,
+                @com.legend.Nullable Frame frame) {
+            this(fn, partitionBy, orderBy, frame, SqlTyping.UNKNOWN);
+        }
 
         /** {@code ROWS|RANGE BETWEEN <from> AND <to>}. */
         public record Frame(Kind kind, Bound from, Bound to) {
@@ -519,7 +786,14 @@ public sealed interface SqlExpr
     }
 
     /** A lambda for DuckDB list functions: {@code x -> body} / {@code (a, x) -> body}. */
-    record Lambda(List<String> params, SqlExpr body) implements SqlExpr {
+    record Lambda(List<String> params, SqlExpr body,
+            SqlTyping.Verdict type) implements SqlExpr {
+        /** M1 leaf default — parameter typing is M2 (a lambda is not a
+         * value; consumers read its BODY through the per-function
+         * rules). */
+        public Lambda(List<String> params, SqlExpr body) {
+            this(params, body, SqlTyping.UNKNOWN);
+        }
     }
 
     /**
@@ -529,7 +803,15 @@ public sealed interface SqlExpr
      * value through its text-extraction idiom (DuckDB {@code ->>}) — that
      * swap is RENDERING knowledge, not IR content.
      */
-    record Cast(SqlExpr value, SqlType target) implements SqlExpr {
+    record Cast(SqlExpr value, SqlType target, SqlTyping.Verdict type)
+            implements SqlExpr {
+        public Cast {
+            type = SqlTyping.typed(target);
+        }
+
+        public Cast(SqlExpr value, SqlType target) {
+            this(value, target, SqlTyping.UNKNOWN);
+        }
     }
 
     /**
@@ -540,6 +822,15 @@ public sealed interface SqlExpr
      * lambda-less backend: recursive CTE or a loud error).
      */
     record FoldCall(SqlExpr source, Lambda lambda, SqlExpr init, boolean accIsList,
-                    boolean homogeneous) implements SqlExpr {
+                    boolean homogeneous, SqlTyping.Verdict type) implements SqlExpr {
+        public FoldCall {
+            type = SqlTyping.UNKNOWN;   // no rule yet — counted
+        }
+
+        public FoldCall(SqlExpr source, Lambda lambda, SqlExpr init,
+                boolean accIsList, boolean homogeneous) {
+            this(source, lambda, init, accIsList, homogeneous,
+                    SqlTyping.UNKNOWN);
+        }
     }
 }

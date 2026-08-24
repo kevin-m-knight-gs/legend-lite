@@ -584,7 +584,12 @@ public class RelationalCorpusRunner {
             // corpus sweep (instrument -> census -> flip)
             System.out.println("[rcorpus] sqltypes: "
                     + com.legend.exec.SqlTypeCensus.summary());
-            com.legend.exec.SqlTypeCensus.classes(20).forEach(c ->
+            // 20 -> 60 (TYPED-IR M1): the top-20 cut hid the mismatch
+            // TAIL exactly when the flip needs every class adjudicable
+            // (doctrine addendum: an instrument without a consumer is a
+            // receipt without an audit — no silent caps on the review
+            // surface)
+            com.legend.exec.SqlTypeCensus.classes(60).forEach(c ->
                     System.out.println("[rcorpus] sqltypes-class: " + c));
             com.legend.exec.SqlTypeCensus.allSamples().forEach((cls, ws) ->
                     ws.forEach(w -> System.out.println(

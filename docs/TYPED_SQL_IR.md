@@ -195,6 +195,70 @@ quantified in §6), cross-kind sort order (bucket item), G4 corpus
 latency, corpus host-side->SQL-verdict migration, HUGEINT
 adopt-pending (130). All queued elsewhere in PROGRAM_MAP.
 
+## M1 RECEIPTS (2026-08-24, executed)
+
+**Shape as landed.** The stored fact is the three-valued
+`SqlTyping.Verdict` (Typed/Bottom/Unknown — §2's "SqlType or UNKNOWN",
+with NullLit/all-null compositions as bottom), a trailing record
+component on all 36 SqlExpr kinds. Compositions compute it in the
+COMPACT canonical constructor (the component structurally cannot lie —
+a caller-passed verdict is overwritten by the rule); prior arities are
+compute-and-delegate; construction sites changed ZERO times. Column and
+Lambda are supplied-leaf doors (M1 default UNKNOWN; Lambda's
+`withChildren` PRESERVES the supplied verdict like Column's identity
+arm — no rule can recompute builder knowledge).
+
+**The judge is now a leaf-binding REBUILDER** (`SqlTyping.rebind`):
+it re-types Column leaves from scope (+ LIST_TRANSFORM's parameter
+binding) by rebuilding, and reads the rebuilt root's stored verdict —
+so the rules run ONCE, in the node constructors, for both channels;
+the Slice-1 switch is DELETED, not copied. Verdict-level corners
+extend deliberately: bottom transports through element-preserving ops
+(LIST_GET/StructGet/CheckedOne of the NULL value = the NULL value),
+all-bottom COALESCE/Case = bottom. Zero census movement resulted
+(bottom buckets byte-identical to baseline).
+
+**Reducer promotion rules — empirical, DuckDB 1.5.0** (probe
+2026-08-24, fresh statements per query, ResultSetMetaData ground
+truth): SUM int-family/BOOLEAN→HUGEINT, DOUBLE→DOUBLE,
+Decimal(p,s)→Decimal(38,s); COUNT→BIGINT (arg-free); AVG
+numerics→DOUBLE, temporals→TIMESTAMP; moment family
+(STDDEV/VAR/CORR/COVAR)→DOUBLE; MIN/MAX/ANY_VALUE/MODE/QUANTILE_DISC/
+ARG_MAX/ARG_MIN identity; MEDIAN/QUANTILE_CONT ints→DOUBLE, Decimal
+stays, temporals→TIMESTAMP, MEDIAN alone identity on VARCHAR/BOOLEAN
+(LITERAL deliberately UNKNOWN — interpolation breaks the spelling
+grammar); STRING_AGG→VARCHAR; LIST→Array(t); BOOL_AND/OR→BOOLEAN.
+Window-wrapped Reducers keep their promotion (probed);
+ReduceCollection reads the SAME rule through the collection's element
+(probed: list_aggregate matches). Markers and unprobed inputs stay
+UNKNOWN.
+
+**Census A/B (full corpus, 24,508 plans, scoreboard byte-identical,
+wire row identical — stash-bisected same-day):**
+
+    main     : agree=44417 admissible=4265 mismatch=250 untyped=3692
+    M1       : agree=46684 admissible=4272 mismatch=517 untyped=1151
+    node diff: agree=30880 pending-leaf=28307 diverge=0
+
+- untyped −2541: the Reducer hole 2508→71; COALESCE 247→188, Case
+  185→175 (cascade collapse); the residual tail is ScalarSubquery 340,
+  COALESCE 188, Case 175, TIMES 91, UNNEST 87, Reducer 71, ABS/
+  INT_DIVIDE/ROUND/WindowCall singles.
+- mismatch +267, FULLY ACCOUNTED: 231x NEW `BIGINT <> HUGEINT` (SUM
+  widening — the wire adopt-pending register entry surfacing at the
+  column layer) + 33x NEW `DOUBLE <> HUGEINT` (integer sums under
+  Number-erasure labels — same fact) + 3x growth of the PRE-EXISTING
+  `Decimal(38,18) <> DOUBLE` 19→22 (avg(Decimal)→DOUBLE, previously
+  untyped). All three adjudicate with the HUGEINT builder-leg /
+  label-fix table at M3. The 2x `LITERAL <> VARCHAR` rows are
+  PRE-EXISTING (the conformance-cast typed-seam pair, registered).
+- **diverge=0**: the node channel and the judge NEVER disagree where
+  both know — every gap is the enumerated M2 leaf backlog
+  (pending-leaf 28,307 = Column 26,790 + Reducer-over-columns 1,300 +
+  Case 153 + tail), pre-logged by shape.
+- Gate-output census display deepened 20→60 classes (the top-20 cut
+  hid the mismatch tail — the doctrine addendum applied to itself).
+
 ## 8. Relation to standing programs
 
 Debt-to-zero: this IS the lowering-layer "sane story" entry (sibling

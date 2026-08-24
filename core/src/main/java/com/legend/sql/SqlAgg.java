@@ -42,11 +42,23 @@ public sealed interface SqlAgg {
 
     /** GROUP-BY-valid aggregate (also usable inside a window): SUM, COUNT, MIN, ... */
     record Reducer(Fn fn, List<SqlExpr> args, boolean distinct,
-            List<SqlSelect.SortKey> orderBy) implements SqlAgg, SqlExpr {
+            List<SqlSelect.SortKey> orderBy,
+            SqlTyping.Verdict type) implements SqlAgg, SqlExpr {
 
-        // NO short overload: a defaulted orderBy silently dropped an ordered
-        // aggregate's ORDER BY at rebuild sites (remediation T2.2); every
-        // construction names every field.
+        // NO short overload of the SEMANTIC fields: a defaulted orderBy
+        // silently dropped an ordered aggregate's ORDER BY at rebuild
+        // sites (remediation T2.2); every construction names every field.
+        // (The type component is canonical-computed, never a caller's.)
+
+        public Reducer {
+            type = SqlTyping.reducerType(fn, args.isEmpty()
+                    ? SqlTyping.UNKNOWN : args.get(0).type());
+        }
+
+        public Reducer(Fn fn, List<SqlExpr> args, boolean distinct,
+                List<SqlSelect.SortKey> orderBy) {
+            this(fn, args, distinct, orderBy, SqlTyping.UNKNOWN);
+        }
 
         public static Reducer of(Fn fn, SqlExpr... args) {
             return new Reducer(fn, List.of(args), false, List.of());
