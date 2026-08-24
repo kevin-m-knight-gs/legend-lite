@@ -143,6 +143,22 @@ CONVERGES with the audit's in-SQL equal() third-lane finding (A2):
 pinning} as ONE piece. Everything else (readers, lane flag, consumer
 arms) is landed and ready.
 
+RESOLUTION MAP (2026-08-24, third parking — now COMPLETE): the
+harmonization arms LANDED and are correct (equality unspell-one-side;
+conformance cast-to-Any unspell + per-element TO_VARIANT re-wrap —
+reproduces the exact pre-carrier shape). Under the claim, PCT is CLEAN.
+The ONE remaining blocker is an ADJUDICATION, not a design gap: corpus
+GRID-EXTRACTION asserts (rows.values == [literal]) follow the ENGINE'S
+TEXT-COMPARE convention — they only ever passed because both sides
+erased to text; the typed-faithful carrier honestly exposes '4' != 4
+(witness testInWithDynaFunction: engine expects [false, '4'] to equal
+[Long 4, 'false'] — true only textually). PROPOSED RULING for user
+review: the corpus referee's grid-extraction family compares in the
+RENDER channel (the engine's own convention, already computed — the
+referee prints "renders equal, comparison differs"); typed compare
+stays everywhere else. On ratification the claim un-parks and slice 3
+completes.
+
 ### Slice 3 exit (unchanged)
 Census TO_VARIANT construction sites first. Any-position ELEMENT
 encoding switches from raw JSON scalars to spellings; decodeAny gains

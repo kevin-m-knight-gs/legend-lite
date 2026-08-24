@@ -134,6 +134,17 @@ final class Scalars {
                                     args.get(0), n.args().get(1)),
                             CastPolicy.comparisonWireOperand(n.args().get(1),
                                     args.get(1), n.args().get(0)));
+                    // F10 3b HARMONIZATION: a LITERAL-marked side meeting
+                    // an unmarked side UNSPELLS (structural inverse —
+                    // comparison behaves exactly as pre-carrier); two
+                    // marked sides byte-compare in the grammar as-is.
+                    SqlExpr u0 = LiteralSpelling.unspellMarked(cargs.get(0));
+                    SqlExpr u1 = LiteralSpelling.unspellMarked(cargs.get(1));
+                    if (u0 != null && u1 == null) {
+                        cargs = List.of(u0, cargs.get(1));
+                    } else if (u1 != null && u0 == null) {
+                        cargs = List.of(cargs.get(0), u1);
+                    }
                     SqlExpr inv = EnumSourceValues.decodeInvert(
                             n.args().get(0), n.args().get(1),
                             cargs.get(0), cargs.get(1));

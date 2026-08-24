@@ -381,7 +381,39 @@ public final class LiteralSpelling {
         return null;
     }
 
-        // ==================================================================
+        /** F10 3b — UNSPELL a LITERAL-marked value wholesale: the marker
+     * cast strips and every element inverts through {@link #unspell}.
+     * Null = not our marked shape or an element didn't invert (caller
+     * keeps its lane). The HARMONIZATION rule rides on this: a spelled
+     * literal meeting a computed/JSON consumer converts BACK to raw —
+     * comparisons and conformance casts behave exactly as before the
+     * carrier, while literal-vs-literal pairs byte-compare in the
+     * grammar. */
+    static @com.legend.Nullable SqlExpr unspellMarked(SqlExpr e) {
+        if (!(e instanceof SqlExpr.Cast mk)) {
+            return null;
+        }
+        if (mk.target() == SqlType.Scalar.LITERAL) {
+            return unspell(mk.value());
+        }
+        if (mk.target() instanceof SqlType.Array a
+                && a.element() == SqlType.Scalar.LITERAL
+                && mk.value() instanceof SqlExpr.ArrayLit la) {
+            java.util.List<SqlExpr> raw =
+                    new java.util.ArrayList<>(la.elements().size());
+            for (SqlExpr el : la.elements()) {
+                SqlExpr u = unspell(el);
+                if (u == null) {
+                    return null;
+                }
+                raw.add(u);
+            }
+            return new SqlExpr.ArrayLit(raw);
+        }
+        return null;
+    }
+
+    // ==================================================================
     // PRINT forms (execution wire; pure toString spellings)
     // ==================================================================
 

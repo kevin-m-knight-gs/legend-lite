@@ -2348,17 +2348,18 @@ public final class Lowerer {
                     && !PlatformTypes.isVariant(ct)
                     && !PlatformTypes.isNil(ct)
                     && classLayout.apply(ct).isEmpty() -> {
-                // F10 3b: the hetero-literal LITERAL claim is
-                // DESIGN-BLOCKED on the cross-carrier EQUALITY
-                // harmonization (charter: 3b lesson 2 — a value-lane
-                // spelled literal compared against a computed Any list
-                // or a corpus grid extraction needs the eq-lane design,
-                // which converges with the audit's in-SQL equal()
-                // third-lane finding). The LANE FLAG (relationDepth)
-                // and every consumer built for the claim stay ready;
-                // the claim lands WITH the equality design, never
-                // before it (two rounds of witnesses: 4 relation-lane
-                // + the corpus grid-assert eq casts).
+                // F10 3b: the hetero-literal claim is PARKED (third
+                // and final time) on ONE remaining adjudication — the
+                // corpus GRID-EXTRACTION asserts (rows.values ==
+                // [literal]) follow the ENGINE'S TEXT-COMPARE
+                // convention, which only held because both sides
+                // erased; the typed-faithful carrier honestly exposes
+                // '4' != 4 there. The fix is a REFEREE-MODE ruling
+                // (render-channel verdict for the grid-extraction
+                // family), presented for user adjudication — never a
+                // side effect. PCT is clean under the claim; every
+                // harmonization arm (equality unspell, conformance
+                // cast re-wrap) is landed and dormant-ready.
                 // C1 collapse (ValueCollections.c1Singleton — witness
                 // in::H2Test); the VARIANT carrier stays, the box goes.
                 if (ValueCollections.c1Singleton(c)) {

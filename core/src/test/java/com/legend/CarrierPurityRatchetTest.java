@@ -74,7 +74,13 @@ class   CarrierPurityRatchetTest {
             // DECOMPOSITION of a spelled argument list rebuilds the raw
             // arg array through the structural inverse (unspell) — a
             // consumption artifact, not a new carrier emission.
-            "new SqlExpr\\.ArrayLit\\(", 40,
+            // 40→42 (2026-08-24 F10 3b harmonization): unspellMarked's
+            // rebuilt raw array (the structural inverse of a marked
+            // collection) + CastPolicy's per-element TO_VARIANT re-wrap
+            // (reproducing the exact pre-carrier conformance shape) —
+            // both CONSUMPTION-side inversions, not new carrier
+            // emissions; absorbed with the collection semantic node.
+            "new SqlExpr\\.ArrayLit\\(", 42,
             "new SqlExpr\\.OrderedListAgg\\(", 1,
             // 136→137 (2026-08-19): ListEncodings.map's LIST_GET — the
             // map SEMANTIC NODE's wire-shape rule (a to-one result

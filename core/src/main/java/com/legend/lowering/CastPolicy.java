@@ -80,6 +80,24 @@ final class CastPolicy {
             return value;
         }
         boolean many = isMany;
+        // F10 3b HARMONIZATION: a conformance cast to Any over a
+        // LITERAL-marked value unspells (structural inverse, total on
+        // our own product) and REPRODUCES the exact pre-carrier shape —
+        // per-element TO_VARIANT (a raw mixed array cannot even type;
+        // the corpus grid-assert witnesses die here).
+        if (c.target() instanceof Type.ClassType anyT
+                && PlatformTypes.isAny(anyT)) {
+            SqlExpr raw = LiteralSpelling.unspellMarked(value);
+            if (raw instanceof SqlExpr.ArrayLit ral) {
+                return new SqlExpr.ArrayLit(ral.elements().stream()
+                        .map(e2 -> (SqlExpr) SqlExpr.Call.of(
+                                SqlFn.TO_VARIANT, e2))
+                        .toList());
+            }
+            if (raw != null) {
+                return SqlExpr.Call.of(SqlFn.TO_VARIANT, raw);
+            }
+        }
         if (many) {
             boolean variantTarget = c.target() instanceof Type.ClassType t
                     && PlatformTypes.isVariant(t);
