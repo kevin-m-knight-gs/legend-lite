@@ -27,11 +27,20 @@ was discarded and the reconstruction had a hole).
 
 Every `SqlExpr` answers `type()` — its `SqlType` or `UNKNOWN`.
 
-- **Compositions COMPUTE, memoized**: `Cast` → its target; `Call` →
-  the function's typing rule over children's `type()` (the judge's
-  switch MOVES here — redistributed, not rewritten); `Case` → the
-  branch family's shared type, `NullLit`/`error()` branches admissible
-  (bottom); `Group`/`CompactList` → inner. Computed once per node.
+- **Compositions STORE their type as a record component, computed
+  ONCE at construction** — inside the canonical constructor or the
+  existing factory (`Call.of` etc.), so composition construction
+  sites change ZERO times; prior constructor arities remain as thin
+  delegates that compute-and-delegate. `Cast` → its target; `Call` →
+  the function's typing rule over children's stored types (the
+  judge's switch MOVES into the rule table the factories call);
+  `Case` → the branch family's shared type, `NullLit`/`error()`
+  branches admissible (bottom); `Group`/`CompactList` → inner.
+  NO lazy memoization and NO side-cache — a memo map is knowledge
+  carried BESIDE the tree (mutable global state, lifecycle, an
+  allowlist row): the type is a property OF the tree, stored on the
+  node, immutable with it. (User catch 2026-08-24 — the lazy variant
+  was touch-aversion violating the design's own defining sentence.)
 - **Leaves are SUPPLIED at construction**: `Column` and `Lambda`
   parameters take their `SqlType` from the builder — which always has
   it in hand (the projection it just built, the DDL, the source list's
