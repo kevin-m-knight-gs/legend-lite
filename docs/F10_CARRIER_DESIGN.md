@@ -159,6 +159,56 @@ referee prints "renders equal, comparison differs"); typed compare
 stays everywhere else. On ratification the claim un-parks and slice 3
 completes.
 
+### Relation-cells leg — RESOLVED by the CARRIER RULE (2026-08-24)
+
+Final state after a same-day build-measure-REVERSE cycle (user ruling):
+
+**THE CARRIER RULE (ratified):** pick a pure collection's SQL carrier by
+the CONTRACT'S REQUIRED PROPERTIES, never by which consumer complained.
+rows.values is semantically an ORDERED LIST (tds.pure:79 values:Any[*],
+row-major, TDSNull slots); the carrier with those properties is the
+QUERY (rows = order, column types = kinds, NULL cells = slots) — the
+grid it already had. The array-value carrier is for scalar-position
+literal collections only.
+
+What was built and REVERTED same day (gate-caught, correct-oracle run):
+the Typer TypedMap flatten re-carried the read as a SQL LIST value —
+no order guarantee (LIST() aggregate), no kinds (variant re-wrap), no
+slot convention — and EVERY consumer needed carrier compensation
+(equality, membership, print, instanceOf(TDSNull), ordering,
+temporals): an N×M coupling treadmill. Reverted to identity; consumers
+map onto the grid (at(k)/size() row-major arithmetic — cluster 33;
+grid-vs-list asserts — the harness eval's row-major cell walk).
+
+What SHIPPED and stays (each independently right, all gated):
+- `^TDSNull()` types as a real INSTANCE [1] via NewChecker; the BARE
+  reference keeps the sqlNull() Nil[0] funnel (presence test); the
+  instance lowers to the SQL NULL literal — comparisons unchanged.
+- TypedCollection.rowCells — the row-cells fact is CONSTRUCTION-
+  DECLARED by the Typer's synthesis; the isRowCells shape-matcher is
+  DELETED (label at construction, never sniff at consumption).
+- MixedEncoding.variantElement + unwrapVariant — ONE owner for the
+  variant wrap and its inverse; the six scattered TO_VARIANT shape-
+  peelers now ask the owner.
+- Executor wire-presence egress (Cell record, one fetch): on the
+  variant lane a wire NULL decays (empty), a present cell decoding to
+  null is a kept host-null slot; PureAsserts' direction-aware sentinel
+  equivalence adjudicates.
+- accessProperty split (tdsValuesRead) — G1 seam.
+
+MEASURED OUTCOME on the reverted tree: BOTH original witnesses
+(testInWithDynaFunction, testCompositionInExtend) PASS — the kept work
+plus the eval's existing row-major walk close them; the value-
+collection flatten was never necessary for its own witnesses. All
+regressed families back at baseline (projection 146/155, inner-join
+31/32, tds/tests 253/266).
+
+DEFERRED (PROGRAM_MAP): corpus asserts are HOST-SIDE (harness eval
+compare) vs PCT's SQL-side verdicts — the corpus→SQL-verdict migration
+is an explicit corpus-burndown-phase leg, AFTER PCT reaches 100%; no
+incremental drift before then (a half-migrated referee is a fourth
+implementation).
+
 ### Slice 3 exit (unchanged)
 Census TO_VARIANT construction sites first. Any-position ELEMENT
 encoding switches from raw JSON scalars to spellings; decodeAny gains

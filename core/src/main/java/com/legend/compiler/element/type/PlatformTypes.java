@@ -38,6 +38,10 @@ public final class PlatformTypes {
      */
     public static final String TDS_NULL_CELL = "TDSNull";
 
+    /** The TDS null-cell CLASS (engine tds.pure:127) — {@code ^TDSNull()}
+     * types as an instance of it, stamped [1] (a VALUE, never an empty). */
+    public static final String TDS_NULL_FQN = "meta::pure::tds::TDSNull";
+
     private PlatformTypes() {
     }
 

@@ -116,9 +116,7 @@ final class MixedEncoding {
                                        List<SqlExpr> vals) {
         // a carrier-wrapped element unwraps: identity/comparable both
         // build from the RAW value (floatRepr over json cannot type)
-        if (x instanceof SqlExpr.Call cw && cw.fn() == SqlFn.TO_VARIANT) {
-            x = cw.args().get(0);
-        }
+        x = unwrapVariant(x);
         Type t = e.info().type();
         if (t == Type.Primitive.INTEGER) {
             ids.add(new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR));
@@ -177,9 +175,7 @@ final class MixedEncoding {
      * collection. A previously-boxed element unwraps first. */
     static @com.legend.Nullable SqlExpr elementLiteral(TypedSpec e,
             SqlExpr x) {
-        if (x instanceof SqlExpr.Call cw && cw.fn() == SqlFn.TO_VARIANT) {
-            x = cw.args().get(0);
-        }
+        x = unwrapVariant(x);
         Type t = e.info().type();
         if (t == Type.Primitive.INTEGER || t == Type.Primitive.FLOAT
                 || t == Type.Primitive.BOOLEAN
@@ -287,5 +283,91 @@ final class MixedEncoding {
         boolean nc = Scalars.isClassish(needle) && !PlatformTypes.isAny(needle);
         boolean ec = Scalars.isClassish(elems) && !PlatformTypes.isAny(elems);
         return (np && ec) || (nc && ep);
+    }
+
+    /** The VALUE LAW of the variant lane: a [1]-STAMPED element is a
+     * VALUE and never vanishes — TDSNull is DATA on the grid convention
+     * (engine tds.pure: {@code TDSRow.values : Any[*]} holds a
+     * ^TDSNull() instance per null cell, built at the row read,
+     * relationalMappingExecution buildExecutionResultInTDS). Its
+     * surviving representation is the JSON null VALUE: statically for
+     * the TDSNull literal (its scalar form IS the SQL NULL literal),
+     * via COALESCE for a runtime [1] cell whose wire may still carry
+     * NULL (declared-required columns under left joins — the
+     * nullability lie). A ZERO-lower-bound element keeps the bare wrap:
+     * an EMPTY decays by variant-decay semantics (pure collections hold
+     * no empties). Static non-null literals keep the bare wrap so their
+     * SQL stays byte-identical (COALESCE is a no-op on them). The
+     * spelling {@code CAST('null' AS JSON)} is the dialect-probed
+     * text-to-JSON idiom both backends navigate. {@code lowered} is the
+     * element's already-lowered scalar form (the Lowerer owns scalar()).
+     *
+     * <p>SCOPE ({@code cellSlots}): the runtime COALESCE applies ONLY to
+     * ROW-CELLS collections (TypedCollection.rowCells() — the
+     * construction-declared fact off the Typer's rowCells() synthesis),
+     * where a declared-[1] cell's WIRE can still carry NULL
+     * (left joins under the nullability lie) and the slot is grid DATA. A
+     * plain value collection's [1] element is stamp-guaranteed non-null,
+     * and the bare TO_VARIANT shape is load-bearing downstream (consumers
+     * structurally peel it — struct extraction, variant-column detection;
+     * the blanket wrap broke both, gate-caught 2026-08-24). */
+    static SqlExpr variantElement(
+            com.legend.compiler.spec.typed.TypedSpec e, SqlExpr lowered,
+            boolean cellSlots) {
+        boolean oneStamped = e.info().multiplicity()
+                instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                && b.lower() >= 1 && Integer.valueOf(1).equals(b.upper());
+        SqlExpr jsonNull = new SqlExpr.Cast(new SqlExpr.StringLit("null"),
+                com.legend.sql.SqlType.Scalar.JSON);
+        if (oneStamped && lowered instanceof SqlExpr.NullLit) {
+            return jsonNull;
+        }
+        SqlExpr wrapped = SqlExpr.Call.of(SqlFn.TO_VARIANT, lowered);
+        if (cellSlots && oneStamped && !staticallyNonNull(lowered)) {
+            return new SqlExpr.Call(SqlFn.COALESCE,
+                    java.util.List.of(wrapped, jsonNull));
+        }
+        return wrapped;
+    }
+
+    private static boolean staticallyNonNull(SqlExpr e) {
+        return e instanceof SqlExpr.StringLit || e instanceof SqlExpr.IntLit
+                || e instanceof SqlExpr.FloatLit
+                || e instanceof SqlExpr.DecimalLit
+                || e instanceof SqlExpr.BoolLit || e instanceof SqlExpr.DateLit
+                || e instanceof SqlExpr.TimestampLit;
+    }
+
+    /** The ONE inverse of the variant wrap — understands every shape
+     * {@link #variantElement} can emit: {@code TO_VARIANT(v)} and the
+     * cell-slot law's {@code COALESCE(TO_VARIANT(v), CAST('null' AS
+     * JSON))}. Consumers that need the raw value back (format arg
+     * decomposition, mixed-identity encode, literal spelling, numeric
+     * aggregates, membership carrier decisions) ask HERE; each matching
+     * the wrap shape locally went stale the first time the wrap changed
+     * (gate-caught 2026-08-24 — struct extraction and variant-column
+     * detection missed the COALESCE form). Returns {@code x} unchanged
+     * when not wrapped. */
+    static SqlExpr unwrapVariant(SqlExpr x) {
+        if (x instanceof SqlExpr.Call c && c.fn() == SqlFn.COALESCE
+                && c.args().size() == 2
+                && c.args().get(0) instanceof SqlExpr.Call inner
+                && inner.fn() == SqlFn.TO_VARIANT
+                && c.args().get(1) instanceof SqlExpr.Cast cast
+                && cast.target() == com.legend.sql.SqlType.Scalar.JSON
+                && cast.value() instanceof SqlExpr.StringLit s
+                && s.value().equals("null")) {
+            return inner.args().get(0);
+        }
+        if (x instanceof SqlExpr.Call c && c.fn() == SqlFn.TO_VARIANT) {
+            return c.args().get(0);
+        }
+        return x;
+    }
+
+    /** True iff {@link #unwrapVariant} would peel — the carrier-presence
+     * question the membership/aggregate arms ask. */
+    static boolean variantWrapped(SqlExpr x) {
+        return unwrapVariant(x) != x;
     }
 }

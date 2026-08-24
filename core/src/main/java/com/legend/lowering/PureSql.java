@@ -32,9 +32,8 @@ final class PureSql {
             com.legend.sql.SqlExpr elem) {
         boolean json = (loweredList instanceof com.legend.sql.SqlExpr.ArrayLit al
                         && !al.elements().isEmpty()
-                        && al.elements().stream().allMatch(e ->
-                                e instanceof com.legend.sql.SqlExpr.Call c
-                                && c.fn() == com.legend.sql.SqlFn.TO_VARIANT))
+                        && al.elements().stream().allMatch(
+                                MixedEncoding::variantWrapped))
                 || (listArg.info().type() instanceof Type.ClassType ct
                         && PlatformTypes.isVariant(ct));
         return json

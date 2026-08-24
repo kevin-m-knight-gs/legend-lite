@@ -193,12 +193,17 @@ final class Typer {
                     synth(new AppliedFunction("sqlNull", List.of()), env);
             case PackageableElementPtr ref -> classReference(ref);
             case NewInstance ni -> {
-                // ^TDSNull() — the TDS null-cell literal (engine
-                // meta::pure::tds::TDSNull): IS the SQL NULL. Exact names.
-                if (ni.className().equals("TDSNull")
-                        || ni.className().equals("meta::pure::tds::TDSNull")) {
-                    yield synth(new AppliedFunction("sqlNull", List.of()), env);
-                }
+                // ^TDSNull() — the TDS null-cell INSTANCE (engine
+                // tds.pure:127): a VALUE stamped [1], never an empty —
+                // NewChecker types it like any construction (the class is
+                // registered, Pure.TDS_NULL). Only the BARE reference
+                // ($v != TDSNull) stays the sqlNull() funnel above: THAT
+                // position is the presence test (NullSemantics null-literal
+                // arms), and its Nil[0] is the registered signature.
+                // Representation is unchanged either way — the instance
+                // lowers to the SQL NULL literal in scalar position and to
+                // the dialect's JSON null on the variant lane (a value
+                // survives the lane; tds grid convention, Lowerer).
                 yield NewChecker.check(this, ni, env);
             }
             case ColSpec cs -> typedColSpec(cs);
@@ -1085,6 +1090,37 @@ final class Typer {
         return synth(new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(
                 new AppliedProperty(vp.receiver(),
                         prt.columns().get(k).name()))), env);
+    }
+
+    /** ONE row's cells as TYPED per-column reads, in column order —
+     * shared by the row-var {@code $r.values} synthesis and the
+     * relation-cells flatten ({@code rows.values} = map over these). */
+    private static com.legend.compiler.spec.typed.TypedCollection rowCells(
+            TypedSpec rowSource, Type.RelationType rt) {
+        List<TypedSpec> cells = new java.util.ArrayList<>(rt.columns().size());
+        Type elem = null;
+        boolean mixed = false;
+        for (Type.RelationType.Column c : rt.columns()) {
+            cells.add(new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                    rowSource, c.name(),
+                    new ExprType(c.type(), c.multiplicity())));
+            if (elem == null) {
+                elem = c.type();
+            } else if (!elem.equals(c.type())) {
+                mixed = true;
+            }
+        }
+        Type collElem = mixed || elem == null
+                ? new Type.ClassType(
+                        com.legend.compiler.element.type.PlatformTypes.ANY)
+                : elem;
+        // rowCells=true: the construction-declared TDS row-cells fact —
+        // consumers (makeString sentinel, variant cell-slot law) read the
+        // declaration, never the shape
+        return new com.legend.compiler.spec.typed.TypedCollection(cells,
+                new ExprType(collElem,
+                        new com.legend.compiler.element.type.Multiplicity.Bounded(
+                                cells.size(), cells.size())), true);
     }
 
     /** Segment-aware legacy tds.pure vocabulary match: the BARE simple
@@ -2609,6 +2645,56 @@ final class Typer {
         return null;
     }
 
+    /** The {@code .values} read over a schema-viewed source — split
+     * from accessProperty (G1 method-length seam): the row-var CELLS
+     * read, the RELATION-CELLS flatten (TypedMap synthesis), and the
+     * identity arms for picks/class shapes. */
+    private TypedSpec tdsValuesRead(TypedSpec source, Type.RelationType rt2) {
+            // On a ROW VARIABLE (bare struct, at-most-one stamp — a
+            // lambda's in-scope row): TDSRow.values = the row's
+            // CELLS in column order, statically enumerable per-cell
+            // reads. On everything else — a wrapped table, the
+            // .rows collection, or a PICK-rooted row
+            // ($tds.rows->at(0).values): IDENTITY — the wire
+            // flatten IS row-major cell order and keeps NULL cells
+            // as TDSNull (the cells-collection channel would drop
+            // them; the lower-bound honesty guard caught exactly
+            // that). The variable test is a LEXICAL binding fact,
+            // not type inference. (The Result-ENVELOPE .values
+            // never reaches the Typer: the test driver peels it at
+            // substitution.)
+            if (source.info().type() instanceof Type.RelationType
+                    && !Type.relationValued(source.info())
+                    && source instanceof
+                            com.legend.compiler.spec.typed.TypedVariable) {
+                // Row-var cells are TYPED per-column reads (at(N) and
+                // typed compares keep their kinds); print consumers
+                // (makeString/joinStrings) stringify at LOWERING, which
+                // also bypasses the Any-JSON carrier's quoting.
+                return rowCells(source, rt2);
+            }
+            // RELATION-SOURCED rows.values: IDENTITY — the grid IS the
+            // carrier (REVERSAL 2026-08-24, charter record in
+            // F10_CARRIER_DESIGN.md). Semantically the read is an ordered
+            // list (tds.pure:79 values:Any[*], row-major, TDSNull slots);
+            // its SQL carrier stays the QUERY, whose rows natively hold
+            // the list's contract — order (row order), per-element kinds
+            // (column types), null slots (NULL cells, grid convention).
+            // The 2026-08-24 TypedMap flatten re-carried the read as a
+            // SQL LIST VALUE, which holds NONE of those properties, and
+            // every consumer (order, print, instanceOf(TDSNull),
+            // temporals) needed carrier compensation — gate-caught and
+            // REVERTED same day. Consumers map onto the grid instead:
+            // at(k)/size() by row-major arithmetic (tdsRowCellIndexRead,
+            // ledger cluster 33), grid-vs-list asserts by the referee's
+            // row-major cell walk (the engine's own text-compare
+            // convention for this family). CARRIER RULE (the lesson):
+            // pick the carrier by the contract's required properties —
+            // order/kinds/null-slots demand the query carrier; the array
+            // carrier is for scalar-position literal collections only.
+            return source;
+    }
+
     private TypedSpec accessProperty(AppliedProperty ap, Env env) {
         TypedSpec colsMeta = tdsColumnsMetaRead(ap, env);
         if (colsMeta != null) {
@@ -2640,50 +2726,7 @@ final class Typer {
                 return lateBound;
             }
             if (ap.property().equals("values")) {
-                // On a ROW VARIABLE (bare struct, at-most-one stamp — a
-                // lambda's in-scope row): TDSRow.values = the row's
-                // CELLS in column order, statically enumerable per-cell
-                // reads. On everything else — a wrapped table, the
-                // .rows collection, or a PICK-rooted row
-                // ($tds.rows->at(0).values): IDENTITY — the wire
-                // flatten IS row-major cell order and keeps NULL cells
-                // as TDSNull (the cells-collection channel would drop
-                // them; the lower-bound honesty guard caught exactly
-                // that). The variable test is a LEXICAL binding fact,
-                // not type inference. (The Result-ENVELOPE .values
-                // never reaches the Typer: the test driver peels it at
-                // substitution.)
-                if (source.info().type() instanceof Type.RelationType
-                        && !Type.relationValued(source.info())
-                        && source instanceof
-                                com.legend.compiler.spec.typed.TypedVariable) {
-                    // Row-var cells are TYPED per-column reads (at(N) and
-                    // typed compares keep their kinds); print consumers
-                    // (makeString/joinStrings) stringify at LOWERING, which
-                    // also bypasses the Any-JSON carrier's quoting.
-                    List<TypedSpec> cells = new java.util.ArrayList<>(rt2.columns().size());
-                    Type elem = null;
-                    boolean mixed = false;
-                    for (Type.RelationType.Column c : rt2.columns()) {
-                        cells.add(new com.legend.compiler.spec.typed.TypedPropertyAccess(
-                                source, c.name(),
-                                new ExprType(c.type(), c.multiplicity())));
-                        if (elem == null) {
-                            elem = c.type();
-                        } else if (!elem.equals(c.type())) {
-                            mixed = true;
-                        }
-                    }
-                    Type collElem = mixed || elem == null
-                            ? new Type.ClassType(
-                                    com.legend.compiler.element.type.PlatformTypes.ANY)
-                            : elem;
-                    return new com.legend.compiler.spec.typed.TypedCollection(cells,
-                            new ExprType(collElem,
-                                    new com.legend.compiler.element.type.Multiplicity.Bounded(
-                                            cells.size(), cells.size())));
-                }
-                return source;
+                return tdsValuesRead(source, rt2);
             }
             if (ap.property().equals("columns")) {
                 return columnsMeta(rt2, false);

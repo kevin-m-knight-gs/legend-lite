@@ -152,7 +152,17 @@ match, indexOf +1, and the residual list).
    execution, whose charter already exists
    ([DEFERRED_TEST_EXECUTION.md](DEFERRED_TEST_EXECUTION.md)). Bonus
    differential: compile-order bugs.
-3. **core_relational burndown** to near zero.
+3. **core_relational burndown** to near zero. FIRST SLICE of this leg
+   (user ruling 2026-08-24): **corpus asserts migrate host-side →
+   SQL-verdict lane.** The rcorpus harness adjudicates asserts
+   HOST-SIDE (EngineTestExecutor eval + compare — the third-impl
+   problem) while PCT's Channel B verdicts run in the database (K-arm,
+   asserts-are-verdicts-ALWAYS). Ruling: NO incremental drift before
+   this slice — a half-migrated referee is a fourth implementation;
+   corpus stays host-side until PCT is 100%, then this migration runs
+   as one leg with its own acceptance (the grid-extraction render
+   convention — TDSNull sentinel, engine text-compare — moves into the
+   verdict queries with an explicit row_number order key).
 4. **All test.Test functions** (the plain-test universe the parser wall
    burn opened).
 5. **Byte-identical PlanGen drop-in** — flagged honestly: a

@@ -413,6 +413,12 @@ public class RelationalCorpusRunner {
             // a stash carried one. Test-scoped runs NEVER write.
             System.out.println("[rcorpus] TEST-SCOPED run (rcorpus.test) —"
                     + " scoreboard NOT written");
+            // scoped iteration needs the verdict detail on stdout (the
+            // full-run path prints it via the regression gate)
+            byFamily.forEach((f, outs) -> outs.stream()
+                    .filter(o -> o.status() != Runner.Status.PASS)
+                    .forEach(o -> System.out.println("[rcorpus]   " + o.status()
+                            + " " + o.test() + ": " + o.detail())));
         } else if (onlyFilters.isEmpty() && regressions.isEmpty()) {
             Runner.writeScoreboard(Path.of("../docs/RELATIONAL_CORPUS.md"), byFamily,
                     runner.walls(), header);

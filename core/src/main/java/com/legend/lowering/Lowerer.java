@@ -2362,13 +2362,15 @@ public final class Lowerer {
                 // cast re-wrap) is landed and dormant-ready.
                 // C1 collapse (ValueCollections.c1Singleton — witness
                 // in::H2Test); the VARIANT carrier stays, the box goes.
+                boolean cellSlots = c.rowCells();
                 if (ValueCollections.c1Singleton(c)) {
-                    yield SqlExpr.Call.of(SqlFn.TO_VARIANT,
-                            scalar(c.elements().get(0), columns));
+                    var e0 = c.elements().get(0);
+                    yield MixedEncoding.variantElement(e0,
+                            scalar(e0, columns), cellSlots);
                 }
                 yield new SqlExpr.ArrayLit(c.elements().stream()
-                        .map(e -> (SqlExpr) SqlExpr.Call.of(
-                                SqlFn.TO_VARIANT, scalar(e, columns)))
+                        .map(e -> MixedEncoding.variantElement(
+                                e, scalar(e, columns), cellSlots))
                         .toList());
             }
             // A NUMBER-LUB LITERAL mix ([25.0, 1]): a raw SQL array would
@@ -2593,6 +2595,16 @@ public final class Lowerer {
                 }).toList());
             }
             case TypedNewInstance n -> {
+                // ^TDSNull() — the TDS null-cell VALUE (typed [1], never an
+                // empty): its scalar REPRESENTATION is the SQL NULL literal,
+                // exactly what the old sqlNull() funnel produced — every
+                // comparison keeps its NullSemantics null-literal arm. The
+                // VALUE-ness lives in the stamp: variant-lane collections
+                // give a [1]-stamped element the json-null spelling so the
+                // slot survives (grid convention — TDSNull is DATA).
+                if (n.classFqn().equals(PlatformTypes.TDS_NULL_FQN)) {
+                    yield new SqlExpr.NullLit();
+                }
                 // ^List(values=[...]): the List CARRIER is the bare SQL list
                 // (the same carrier list() produces — one carrier per type).
                 if (n.classFqn().equals(
@@ -2820,7 +2832,7 @@ public final class Lowerer {
     private SqlExpr scalarValueTailArms(TypedSpec spec, ColumnResolver columns) {
         return switch (spec) {
             // makeString/joinStrings over the $r.values TDSRow-cells
-            // synthesis (full-roster reads — isRowCells): stringify each
+            // synthesis (construction-declared — tc.rowCells()): stringify each
             // cell (TDSNull print convention, audit 9); hand-written
             // cell lists never match the roster test.
             case TypedNativeCall n
@@ -2828,7 +2840,7 @@ public final class Lowerer {
                     && !n.args().isEmpty()
                     && n.args().get(0)
                             instanceof TypedCollection tc
-                    && ValueCollections.isRowCells(tc) -> {
+                    && tc.rowCells() -> {
                 // Statically-enumerated cells: a static CONCAT interleave
                 // (ValueCollections.rowCellsJoin) — no list machinery
                 // (burn-to-zero: the old ArrayLit-and-delegate form had

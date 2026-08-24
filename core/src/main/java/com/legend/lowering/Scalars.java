@@ -2193,9 +2193,8 @@ final class Scalars {
                     // is Any) — printf wants the raw values back, each
                     // substitution slot carries its own kind already.
                     for (int i = 0; i < arr.elements().size(); i++) {
-                        SqlExpr e = arr.elements().get(i);
-                        e = e instanceof SqlExpr.Call c && c.fn() == SqlFn.TO_VARIANT
-                                ? c.args().get(0) : e;
+                        SqlExpr e = MixedEncoding.unwrapVariant(
+                                arr.elements().get(i));
                         Type et = i < typedElems.size()
                                 ? typedElems.get(i).info().type() : null;
                         // class-typed slots pre-print via the pure toString
@@ -2451,9 +2450,8 @@ final class Scalars {
             boolean collVariant = PlatformTypes.isAny(
                     n.args().get(1).info().type())
                     && !(args.get(1) instanceof SqlExpr.ArrayLit al
-                            && al.elements().stream().noneMatch(e ->
-                                    e instanceof SqlExpr.Call c2
-                                            && c2.fn() == SqlFn.TO_VARIANT))
+                            && al.elements().stream().noneMatch(
+                                    MixedEncoding::variantWrapped))
                     // a SCALAR-STAMPED RHS compares PLAIN — one element,
                     // no variant harmonization (to_json(needle) IN
                     // ('John') did not bind). Stamp-read (burn-to-zero;

@@ -310,7 +310,8 @@ public final class Executor {
                     boolean anyRow = false;
                     while (rs.next()) {
                         anyRow = true;
-                        Object v = cell(rs, plan, dialect, anyRoot, variantRoot);
+                        Cell c = cellRead(rs, plan, dialect, anyRoot, variantRoot);
+                        Object v = c.value();
                         harvestCanon(rs, rider);
                         // THE LOWERER OWNS THE NULL-DROP (shortcut audit §5):
                         // pure's "a collection holds no empties" is compiled
@@ -322,9 +323,16 @@ public final class Executor {
                         // reaching a non-variant COLLECTION egress is a
                         // lowering defect and WALLS; the silent one-line drop
                         // that used to sit here masked exactly that defect
-                        // class. The variant/Any lane keeps the drop: a JSON
-                        // null decays to empty by variant-decay SEMANTICS —
-                        // that is a rule of the lane, not a mask.
+                        // class. On the variant/Any lane the WIRE decides
+                        // (TDSNull-is-a-value slice): a wire NULL is an
+                        // EMPTY and decays by variant-decay semantics — a
+                        // rule of the lane, not a mask; a PRESENT wire cell
+                        // that decodes to null is the JSON null VALUE — the
+                        // TDSNull slot the lowerer's variant value law
+                        // emitted for a [1]-stamped cell (grid convention:
+                        // TDSNull is DATA) — and stays in the collection as
+                        // the host null slot (PureAsserts' direction-aware
+                        // sentinel equivalence adjudicates it).
                         if (v == null) {
                             if (!anyRoot && !variantRoot) {
                                 throw new IllegalStateException("NULL cell"
@@ -333,6 +341,9 @@ public final class Executor {
                                         + " (COMPILER_SHORTCUT_AUDIT §5); a"
                                         + " NULL here is a lowering defect,"
                                         + " never an empty");
+                            }
+                            if (c.wirePresent()) {
+                                values.add(null);
                             }
                         } else {
                             values.add(v);
@@ -390,13 +401,33 @@ public final class Executor {
         rider.rows().add(cs);
     }
 
+    /** A decoded cell PLUS the wire-presence fact: {@code wirePresent}
+     * is whether the SQL cell itself held a value BEFORE decoding — a
+     * JSON null is a PRESENT wire cell that decodes to host null (the
+     * TDSNull slot), while an absent wire cell is an EMPTY. One fetch;
+     * the distinction is read off the already-fetched value, never a
+     * second accessor (tenet C1.2 ratchet). */
+    record Cell(@com.legend.Nullable Object value, boolean wirePresent) {
+    }
+
     private static @com.legend.Nullable Object cell(ResultSet rs, SqlQuery plan,
                                com.legend.sql.dialect.SqlDialect dialect, boolean anyRoot,
                                boolean variantRoot)
             throws SQLException {
-        Object v = unwrap(fetch(rs, 1, sqlTypeOf(plan, 0)), sqlTypeOf(plan, 0), dialect);
+        return cellRead(rs, plan, dialect, anyRoot, variantRoot).value();
+    }
+
+    private static Cell cellRead(ResultSet rs, SqlQuery plan,
+                               com.legend.sql.dialect.SqlDialect dialect, boolean anyRoot,
+                               boolean variantRoot)
+            throws SQLException {
+        Object fetched = fetch(rs, 1, sqlTypeOf(plan, 0));
+        // presence is the RAW wire fact — read before unwrap (a JSON
+        // null node is a present cell; unwrap/decode may host-null it)
+        boolean present = fetched != null;
+        Object v = unwrap(fetched, sqlTypeOf(plan, 0), dialect);
         if (anyRoot) {
-            return decodeAny(v);
+            return new Cell(decodeAny(v), present);
         }
         // A JSON-carrier CELL under a non-Any VALUE root (a variant-list
         // read narrowed by cast(@Float): $row.values->at(1)->cast(@Float) —
@@ -407,9 +438,9 @@ public final class Executor {
         // IS the JSON text — decoding it would change the wire.
         if (!variantRoot && v != null
                 && v.getClass().getName().equals("org.duckdb.JsonNode")) {
-            return decodeAny(v);
+            return new Cell(decodeAny(v), present);
         }
-        return v;
+        return new Cell(v, present);
     }
 
     // latticeKind (the print-form kind sniffer for NUMBER-rooted mixed

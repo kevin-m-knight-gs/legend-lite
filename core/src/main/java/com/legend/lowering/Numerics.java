@@ -68,11 +68,10 @@ final class Numerics {
      * numerics for aggregates/reductions (sum(JSON) does not bind). */
     static SqlExpr numList(SqlExpr e) {
         if (e instanceof SqlExpr.ArrayLit la && !la.elements().isEmpty()
-                && la.elements().stream().allMatch(x ->
-                        x instanceof SqlExpr.Call c
-                        && c.fn() == SqlFn.TO_VARIANT)) {
+                && la.elements().stream().allMatch(
+                        MixedEncoding::variantWrapped)) {
             return new SqlExpr.ArrayLit(la.elements().stream()
-                    .map(x -> (SqlExpr) ((SqlExpr.Call) x).args().get(0))
+                    .map(MixedEncoding::unwrapVariant)
                     .toList());
         }
         return e;
