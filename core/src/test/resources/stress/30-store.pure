@@ -36,6 +36,9 @@ Database store::DB
     // The first linked project whose edges are ASSOCIATIONS rather than properties over
     // a join -- ten of them, including a many-to-many through a link table.
     include core_geo::Store
+    // TWO already-executable parents: it joins into core-instrument and core-geo from the
+    // same class, and one of its ~groupBy views groups on the key into core-geo.
+    include index_core::Store
 
     // ---- taxonomy edges, added by scripts/corpus/add_taxonomy_edges.py ----
     // Every taxonomy table carries BOOK_ID and joined to nothing; these are

@@ -20587,6 +20587,175 @@ CG_OFFICIAL_LANGUAGE = [
 ]
 
 
+# ---- the linked project: index-core (layer 1) ----
+#
+# The first linked project with TWO already-executable parents. fee-core has one dependency
+# and forms a diamond with it; this one joins into core-instrument AND core-geo from the same
+# class, so a single row reaches two different projects by two different keys.
+#
+# It also brings two more `~groupBy` VIEWS, and the second of them is the interesting one:
+# IDX_COUNTRY_WEIGHT groups constituents by the FK into core-geo, so an AGGREGATION is joined
+# ACROSS a project boundary and can be walked up core-geo's own chain afterwards. Nothing
+# seeds a view -- the engine folds the GROUP BY into the SQL and the oracle aggregates the
+# constituent rows independently.
+#
+# The constituents are built so both cross-project joins have a case that LANDS and a case
+# that does not:
+#
+#   IDX-C-004 names an instrument that does not exist in CI_INSTRUMENT.
+#   IDX-C-006 names country "FR", which core-geo does not carry.
+#
+# and so the two views group differently from each other on the same rows: by the vendor's
+# REGION_CODE, EUR holds three of rebalance one's four constituents; by ISSUER_COUNTRY_CODE
+# those same three split GB/GB/DE.
+IDX_PROVIDER = [
+    dict(PROVIDER_ID="PRV-NRT", NAME="Northgate Index Services", SHORT_NAME="NIS",
+         HOME_COUNTRY_CODE="GB", IS_AUTHORISED_ADMINISTRATOR=True,
+         METHODOLOGY_URL="https://example.invalid/nis/method"),
+    dict(PROVIDER_ID="PRV-AVN", NAME="Aventine Benchmarks GmbH", SHORT_NAME="AVB",
+         HOME_COUNTRY_CODE="DE", IS_AUTHORISED_ADMINISTRATOR=False,
+         METHODOLOGY_URL=None),
+]
+
+IDX_INDEX_FAMILY = [
+    dict(FAMILY_ID="FAM-EUEQ", NAME="Europe equity", ASSET_CLASS_SCOPE="EQUITY",
+         WEIGHTING_PHILOSOPHY="Free-float market capitalisation", LAUNCH_YEAR=1998,
+         IS_FLAGSHIP=True, PROVIDER_ID="PRV-NRT"),
+    dict(FAMILY_ID="FAM-GLBD", NAME="Global aggregate bond", ASSET_CLASS_SCOPE="FIXED_INCOME",
+         WEIGHTING_PHILOSOPHY="Market value", LAUNCH_YEAR=2004, IS_FLAGSHIP=False,
+         PROVIDER_ID="PRV-AVN"),
+]
+
+IDX_INDEX = [
+    dict(INDEX_ID="IDX-EU50", CODE="NIS-EU50", NAME="Northgate Europe 50", CURRENCY="EUR",
+         BASE_DATE=_iso(1998, 12, 31), BASE_LEVEL=1000.0,
+         WEIGHTING_SCHEME="FREE_FLOAT_MCAP", REBALANCE_FREQUENCY="QUARTERLY",
+         TARGET_CONSTITUENT_COUNT=50, IS_ACTIVE=True, FAMILY_ID="FAM-EUEQ"),
+    dict(INDEX_ID="IDX-GBAG", CODE="AVB-GBAG", NAME="Aventine Global Aggregate",
+         CURRENCY="USD", BASE_DATE=_iso(2004, 6, 30), BASE_LEVEL=100.0,
+         WEIGHTING_SCHEME="MARKET_VALUE", REBALANCE_FREQUENCY="MONTHLY",
+         TARGET_CONSTITUENT_COUNT=2000, IS_ACTIVE=True, FAMILY_ID="FAM-GLBD"),
+    # No rebalances, no rules, no caps, no funds: every to-many from it lands empty.
+    dict(INDEX_ID="IDX-RETIRED", CODE="NIS-OLD", NAME="Northgate legacy composite",
+         CURRENCY="GBP", BASE_DATE=_iso(1995, 1, 3), BASE_LEVEL=100.0,
+         WEIGHTING_SCHEME="PRICE", REBALANCE_FREQUENCY="ANNUAL",
+         TARGET_CONSTITUENT_COUNT=30, IS_ACTIVE=False, FAMILY_ID="FAM-EUEQ"),
+]
+
+IDX_ELIGIBILITY_RULE = [
+    dict(RULE_ID="RUL-EU50-MCAP", RULE_CODE="MIN_FREE_FLOAT_MCAP",
+         DESCRIPTION="Minimum free-float market capitalisation", THRESHOLD_VALUE=1.0e9,
+         THRESHOLD_UNIT="EUR", APPLIES_FROM=_iso(2019, 1, 1), IS_HARD_SCREEN=True,
+         INDEX_ID="IDX-EU50"),
+    dict(RULE_ID="RUL-EU50-LIQ", RULE_CODE="MIN_DAILY_TURNOVER",
+         DESCRIPTION="Minimum average daily traded value", THRESHOLD_VALUE=5.0e6,
+         THRESHOLD_UNIT="EUR", APPLIES_FROM=_iso(2019, 1, 1), IS_HARD_SCREEN=True,
+         INDEX_ID="IDX-EU50"),
+    dict(RULE_ID="RUL-GBAG-RTG", RULE_CODE="MIN_CREDIT_RATING",
+         DESCRIPTION="Investment grade at two agencies", THRESHOLD_VALUE=None,
+         THRESHOLD_UNIT=None, APPLIES_FROM=_iso(2020, 4, 1), IS_HARD_SCREEN=False,
+         INDEX_ID="IDX-GBAG"),
+]
+
+IDX_WEIGHT_CAP = [
+    dict(CAP_ID="CAP-EU50-UCITS", CAP_TYPE="UCITS_5_10_40", SINGLE_NAME_CAP_PCT=10.0,
+         GROUP_CAP_PCT=40.0, EFFECTIVE_FROM=_iso(2019, 1, 1), REGULATION="UCITS",
+         INDEX_ID="IDX-EU50"),
+    dict(CAP_ID="CAP-GBAG-ISS", CAP_TYPE="ISSUER", SINGLE_NAME_CAP_PCT=3.0,
+         GROUP_CAP_PCT=None, EFFECTIVE_FROM=_iso(2021, 1, 1), REGULATION=None,
+         INDEX_ID="IDX-GBAG"),
+]
+
+IDX_REBALANCE = [
+    dict(REBALANCE_ID="RB-EU50-2024Q2", ANNOUNCEMENT_DATE=_iso(2024, 5, 20),
+         EFFECTIVE_DATE=_iso(2024, 6, 21), REVIEW_TYPE="QUARTERLY", STATUS="EFFECTIVE",
+         CONSTITUENT_COUNT=4, ADDITION_COUNT=1, DELETION_COUNT=1, TURNOVER_PCT=3.4,
+         INDEX_ID="IDX-EU50"),
+    dict(REBALANCE_ID="RB-GBAG-202406", ANNOUNCEMENT_DATE=_iso(2024, 5, 31),
+         EFFECTIVE_DATE=_iso(2024, 6, 3), REVIEW_TYPE="MONTHLY", STATUS="EFFECTIVE",
+         CONSTITUENT_COUNT=2, ADDITION_COUNT=0, DELETION_COUNT=0, TURNOVER_PCT=0.8,
+         INDEX_ID="IDX-GBAG"),
+    # Announced but not yet effective, and it has no constituents -- so both views form no
+    # group for it at all rather than a group of zero.
+    dict(REBALANCE_ID="RB-EU50-2024Q3", ANNOUNCEMENT_DATE=_iso(2024, 8, 19),
+         EFFECTIVE_DATE=_iso(2024, 9, 20), REVIEW_TYPE="QUARTERLY", STATUS="ANNOUNCED",
+         CONSTITUENT_COUNT=0, ADDITION_COUNT=0, DELETION_COUNT=0, TURNOVER_PCT=None,
+         INDEX_ID="IDX-EU50"),
+]
+
+IDX_CONSTITUENT = [
+    dict(CONSTITUENT_ID="IDX-C-001", WEIGHT_PCT=40.0, UNCAPPED_WEIGHT_PCT=44.5,
+         SHARES_IN_INDEX=482000000.0, FREE_FLOAT_FACTOR=0.78, CAPPING_FACTOR=0.899,
+         IS_ADDITION=False, IS_DELETION=False, RANK_BY_WEIGHT=1, REGION_CODE="EUR",
+         REBALANCE_ID="RB-EU50-2024Q2", INSTRUMENT_ID="CI-EQ-001",
+         ISSUER_COUNTRY_CODE="GB"),
+    dict(CONSTITUENT_ID="IDX-C-002", WEIGHT_PCT=25.0, UNCAPPED_WEIGHT_PCT=25.0,
+         SHARES_IN_INDEX=12000000.0, FREE_FLOAT_FACTOR=1.0, CAPPING_FACTOR=1.0,
+         IS_ADDITION=False, IS_DELETION=False, RANK_BY_WEIGHT=2, REGION_CODE="EUR",
+         REBALANCE_ID="RB-EU50-2024Q2", INSTRUMENT_ID="CI-EQ-002",
+         ISSUER_COUNTRY_CODE="GB"),
+    dict(CONSTITUENT_ID="IDX-C-003", WEIGHT_PCT=20.0, UNCAPPED_WEIGHT_PCT=20.0,
+         SHARES_IN_INDEX=1000000.0, FREE_FLOAT_FACTOR=1.0, CAPPING_FACTOR=1.0,
+         IS_ADDITION=True, IS_DELETION=False, RANK_BY_WEIGHT=3, REGION_CODE="EUR",
+         REBALANCE_ID="RB-EU50-2024Q2", INSTRUMENT_ID="CI-BD-001",
+         ISSUER_COUNTRY_CODE="DE"),
+    # The instrument does NOT exist in core-instrument: the cross-project join lands on
+    # nothing while the country join beside it lands.
+    dict(CONSTITUENT_ID="IDX-C-004", WEIGHT_PCT=15.0, UNCAPPED_WEIGHT_PCT=15.0,
+         SHARES_IN_INDEX=5000000.0, FREE_FLOAT_FACTOR=0.9, CAPPING_FACTOR=1.0,
+         IS_ADDITION=False, IS_DELETION=True, RANK_BY_WEIGHT=4, REGION_CODE="APAC",
+         REBALANCE_ID="RB-EU50-2024Q2", INSTRUMENT_ID="CI-DELISTED-999",
+         ISSUER_COUNTRY_CODE="NZ"),
+    dict(CONSTITUENT_ID="IDX-C-005", WEIGHT_PCT=60.0, UNCAPPED_WEIGHT_PCT=60.0,
+         SHARES_IN_INDEX=800000.0, FREE_FLOAT_FACTOR=1.0, CAPPING_FACTOR=1.0,
+         IS_ADDITION=False, IS_DELETION=False, RANK_BY_WEIGHT=1, REGION_CODE="EUR",
+         REBALANCE_ID="RB-GBAG-202406", INSTRUMENT_ID="CI-ET-001",
+         ISSUER_COUNTRY_CODE="GB"),
+    # The COUNTRY does not exist in core-geo, while the instrument does -- the mirror image
+    # of IDX-C-004, so neither cross-project join can be right by accident.
+    dict(CONSTITUENT_ID="IDX-C-006", WEIGHT_PCT=40.0, UNCAPPED_WEIGHT_PCT=40.0,
+         SHARES_IN_INDEX=300000.0, FREE_FLOAT_FACTOR=1.0, CAPPING_FACTOR=1.0,
+         IS_ADDITION=False, IS_DELETION=False, RANK_BY_WEIGHT=2, REGION_CODE="EUR",
+         REBALANCE_ID="RB-GBAG-202406", INSTRUMENT_ID="CI-EQ-003",
+         ISSUER_COUNTRY_CODE="FR"),
+]
+
+IDX_INDEX_LEVEL = [
+    dict(INDEX_ID="IDX-EU50", LEVEL_DATE=_iso(2024, 6, 28), PRICE_LEVEL=4218.77,
+         GROSS_RETURN_LEVEL=8901.42, NET_RETURN_LEVEL=8402.15, DIVISOR=1284.55,
+         MARKET_CAP_USD=5.42e12),
+    dict(INDEX_ID="IDX-EU50", LEVEL_DATE=_iso(2024, 6, 27), PRICE_LEVEL=4201.03,
+         GROSS_RETURN_LEVEL=8863.98, NET_RETURN_LEVEL=8366.82, DIVISOR=1284.55,
+         MARKET_CAP_USD=5.40e12),
+    dict(INDEX_ID="IDX-GBAG", LEVEL_DATE=_iso(2024, 6, 28), PRICE_LEVEL=112.44,
+         GROSS_RETURN_LEVEL=241.09, NET_RETURN_LEVEL=241.09, DIVISOR=1.0,
+         MARKET_CAP_USD=2.81e13),
+]
+
+IDX_TRACKING_FUND = [
+    dict(FUND_ID="FND-EU50-ETF", NAME="Northgate Europe 50 UCITS ETF",
+         LEGAL_STRUCTURE="UCITS_ICAV", DOMICILE_COUNTRY_CODE="IS", AUM_USD=4.8e9,
+         TOTAL_EXPENSE_RATIO_BPS=7.0, REPLICATION_METHOD="PHYSICAL",
+         TRACKING_ERROR_BPS=4.2, INCEPTION_DATE=_iso(2012, 3, 14), INDEX_ID="IDX-EU50"),
+    dict(FUND_ID="FND-GBAG-SWAP", NAME="Aventine Global Aggregate Swap Fund",
+         LEGAL_STRUCTURE="SICAV", DOMICILE_COUNTRY_CODE="DE", AUM_USD=1.2e9,
+         TOTAL_EXPENSE_RATIO_BPS=15.0, REPLICATION_METHOD="SYNTHETIC",
+         TRACKING_ERROR_BPS=11.9, INCEPTION_DATE=_iso(2018, 10, 1), INDEX_ID="IDX-GBAG"),
+]
+
+IDX_FUND_HOLDING = [
+    dict(HOLDING_ID="FH-001", HOLDING_DATE=_iso(2024, 6, 28), WEIGHT_PCT=41.2,
+         SHARES=1980000.0, MARKET_VALUE_USD=1.98e9, ACTIVE_WEIGHT_BPS=120.0,
+         FUND_ID="FND-EU50-ETF", INSTRUMENT_ID="CI-EQ-001"),
+    dict(HOLDING_ID="FH-002", HOLDING_DATE=_iso(2024, 6, 28), WEIGHT_PCT=24.1,
+         SHARES=440000.0, MARKET_VALUE_USD=1.16e9, ACTIVE_WEIGHT_BPS=-90.0,
+         FUND_ID="FND-EU50-ETF", INSTRUMENT_ID="CI-EQ-002"),
+    dict(HOLDING_ID="FH-003", HOLDING_DATE=_iso(2024, 6, 28), WEIGHT_PCT=58.7,
+         SHARES=120000.0, MARKET_VALUE_USD=7.04e8, ACTIVE_WEIGHT_BPS=-130.0,
+         FUND_ID="FND-GBAG-SWAP", INSTRUMENT_ID="CI-ET-001"),
+]
+
+
 # ---- the linked project: core-fx ----
 #
 # Real June 2024 levels for four majors. The corpus's own trades are all USD, so what the
@@ -20820,6 +20989,16 @@ TABLES: dict[str, list[dict]] = {
     "CG_TRADE_AGREEMENT": CG_TRADE_AGREEMENT,
     "CG_COUNTRY_PROFILE": CG_COUNTRY_PROFILE,
     "CG_OFFICIAL_LANGUAGE": CG_OFFICIAL_LANGUAGE,
+    "IDX_PROVIDER": IDX_PROVIDER,
+    "IDX_INDEX_FAMILY": IDX_INDEX_FAMILY,
+    "IDX_INDEX": IDX_INDEX,
+    "IDX_ELIGIBILITY_RULE": IDX_ELIGIBILITY_RULE,
+    "IDX_WEIGHT_CAP": IDX_WEIGHT_CAP,
+    "IDX_REBALANCE": IDX_REBALANCE,
+    "IDX_CONSTITUENT": IDX_CONSTITUENT,
+    "IDX_INDEX_LEVEL": IDX_INDEX_LEVEL,
+    "IDX_TRACKING_FUND": IDX_TRACKING_FUND,
+    "IDX_FUND_HOLDING": IDX_FUND_HOLDING,
     "EXPOSURE_LINE": EXPOSURE_LINE,
     "EXPOSURE_THRESHOLD": EXPOSURE_THRESHOLD,
     "EXEMPTION_RULE": EXEMPTION_RULE,

@@ -2092,8 +2092,19 @@ class _Eval:
             raise Unsupported(f"unexpected token {tok!r} in derived expression")
         while True:
             nxt = self.peek()
-            if nxt in ("->isEmpty()", "->isNotEmpty()"):
-                v = (v is None) if self.take() == "->isEmpty()" else (v is not None)
+            if nxt in ("->sum()", "->count()"):
+                # Over a COLLECTION, which is what a to-many path yields. sum of an empty
+                # collection is NULL and not 0, the same rule ->groupBy follows and the one
+                # F6 turns on; count of one is 0.
+                fn2 = self.take()
+                xs = v if isinstance(v, list) else ([] if v is None else [v])
+                present = [x for x in xs if x is not None]
+                v = len(xs) if fn2 == "->count()" else (
+                    _exact_sum(present) if present else None)
+            elif nxt in ("->isEmpty()", "->isNotEmpty()"):
+                cur = self.take()
+                empty = (v is None) if not isinstance(v, list) else not v
+                v = empty if cur == "->isEmpty()" else not empty
             elif nxt is not None and nxt.startswith("->orElse("):
                 default = self.take()[len("->orElse("):-1].strip()
                 if v is None:
@@ -2156,6 +2167,26 @@ def _derived(c: Corpus, data, row, root: str, path: list[str], hit, args=()):
         return None
 
     def lookup(prop: str):
+        # A path that crosses a TO-MANY inside a derived property body:
+        # `totalWeightPct() { $this.constituents.weightPct->sum() }`. Every aggregate in
+        # this corpus until now was at QUERY level -- `->count()` in a projection -- so a
+        # derived property that aggregated its own children had nowhere to be evaluated and
+        # the reader refused it, correctly, rather than guessing.
+        #
+        # Returns the LIST. The `->sum()` that follows is handled by the expression
+        # evaluator, on the same footing as `->isEmpty()`.
+        if "." in prop:
+            head, _, leaf = prop.partition(".")
+            end = c.ends.get((cls, head))
+            if end is not None and end.to_many:
+                hops, target = c.resolve_assoc(cls, [head])
+                rows = walk_many(c, data, landed, hops, _reverse_hops(c, cls, [head]))
+                lcol = c.columns.get(target, {}).get(leaf)
+                if lcol is None:
+                    raise Unsupported(
+                        f"{target}.{leaf} reached through the to-many {cls}.{head} is not "
+                        f"a mapped column, so {d.name!r} cannot be evaluated")
+                return [r.get(lcol) for r in rows]
         col = c.columns.get(cls, {}).get(prop)
         if col is None:
             # A property mapped through a JOIN CHAIN rather than as a column of the main

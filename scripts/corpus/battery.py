@@ -2381,6 +2381,54 @@ def _project_link_specs():
     blocs.sort = ("membershipId", False)
     out.append(blocs)
 
+    # ---- index-core: TWO already-executable parents from one row ----
+    #
+    # fee-core has one dependency and forms a diamond with it. This class joins into
+    # core-instrument AND core-geo by two different keys, so a single constituent row
+    # reaches two separate projects -- and one of each pair is seeded to LAND while the
+    # other is seeded to miss, so neither can be right by accident: IDX-C-004 names an
+    # instrument core-instrument does not have, IDX-C-006 names a country core-geo does not.
+    cons = Spec("stress::PL23_ConstituentTwoParents", "/stress/pl23",
+                "One row reaching TWO different dependencies by two different keys, plus a "
+                "hop up its own project to the index. One constituent names an instrument "
+                "that does not exist and another names a country that does not, so each "
+                "cross-project join has a case that lands and a case that does not -- and "
+                "the two cases are on different rows, so a join wired to the wrong project "
+                "cannot pass by coincidence.",
+                "index_core::IdxConstituent")
+    cons.projections = [Proj("constituentId", ["constituentId"]),
+                        Proj("weightPct", ["weightPct"]),
+                        # into core-instrument
+                        Proj("instrumentName", ["instrument", "name"]),
+                        Proj("assetClass", ["instrument", "assetClass"]),
+                        # into core-geo, and one hop further up ITS chain
+                        Proj("issuerCountry", ["issuerCountry", "name"]),
+                        Proj("issuerSubRegion", ["issuerCountry", "subRegion", "name"]),
+                        # and back up index-core's own chain
+                        Proj("indexName", ["rebalance", "index", "name"])]
+    cons.sort = ("constituentId", False)
+    out.append(cons)
+
+    # A ~groupBy VIEW joined ACROSS a project boundary. Nothing seeds it: the engine folds
+    # the GROUP BY into the SQL and the oracle aggregates the constituent rows itself. The
+    # rebalance with no constituents forms NO group rather than a group of zero, and the
+    # group keyed on "FR" reaches core-geo and lands on nothing.
+    cw = Spec("stress::PL24_CountryWeightView", "/stress/pl24",
+              "An aggregating VIEW whose grouping key is the foreign key into ANOTHER "
+              "project, so the rollup is joined across the boundary and can then be walked "
+              "up that project's own chain. Nothing seeds a view. One group's key is a "
+              "country core-geo does not carry, so the join out of the aggregate lands on "
+              "nothing; a rebalance with no constituents forms no group at all.",
+              "index_core::IdxCountryWeight")
+    cw.projections = [Proj("rebalanceId", ["rebalanceId"]),
+                      Proj("issuerCountryCode", ["issuerCountryCode"]),
+                      Proj("totalWeightPct", ["totalWeightPct"]),
+                      Proj("constituentCount", ["constituentCount"]),
+                      Proj("countryName", ["country", "name"]),
+                      Proj("indexCode", ["rebalance", "index", "code"])]
+    cw.sort = [("rebalanceId", False), ("issuerCountryCode", False)]
+    out.append(cw)
+
     # ---- core-units: two joins to the SAME table, and exact decimals in a schema ----
     #
     # CuConversion reaches CuUnit twice -- once as fromUnit, once as toUnit -- over two

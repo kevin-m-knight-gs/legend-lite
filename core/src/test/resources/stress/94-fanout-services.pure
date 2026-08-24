@@ -6378,6 +6378,125 @@ Service stress::PL22_BlocMembership
   ]
 }
 
+Service stress::PL23_ConstituentTwoParents
+{
+    pattern: '/stress/pl23';
+    documentation: 'One row reaching TWO different dependencies by two different keys, plus a hop up its own project to the index. One constituent names an instrument that does not exist and another names a country that does not, so each cross-project join has a case that lands and a case that does not -- and the two cases are on different rows, so a join wired to the wrong project cannot pass by coincidence.';
+    execution: Single
+    {
+    query: |index_core::IdxConstituent.all()
+        ->project(~[
+            constituentId:x|$x.constituentId,
+            weightPct:x|$x.weightPct,
+            instrumentName:x|$x.instrument.name,
+            assetClass:x|$x.instrument.assetClass,
+            issuerCountry:x|$x.issuerCountry.name,
+            issuerSubRegion:x|$x.issuerCountry.subRegion.name,
+            indexName:x|$x.rebalance.index.name
+        ])
+        ->sort(~constituentId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    PL23_ConstituentTwoParents_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 6 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"constituentId":"IDX-C-001","weightPct":40.0,"instrumentName":"Aventine Industries ordinary","assetClass":"EQUITY","issuerCountry":"United Kingdom","issuerSubRegion":"Northern Europe","indexName":"Northgate Europe 50"},{"constituentId":"IDX-C-002","weightPct":25.0,"instrumentName":"Aventine Industries preferred B","assetClass":"EQUITY","issuerCountry":"United Kingdom","issuerSubRegion":"Northern Europe","indexName":"Northgate Europe 50"},{"constituentId":"IDX-C-003","weightPct":20.0,"instrumentName":"Republic of Testland 2.5% 2031","assetClass":"FIXED_INCOME","issuerCountry":"Germany","issuerSubRegion":"Western Europe","indexName":"Northgate Europe 50"},{"constituentId":"IDX-C-004","weightPct":15.0,"instrumentName":null,"assetClass":null,"issuerCountry":"New Zealand","issuerSubRegion":"Australia and New Zealand","indexName":"Northgate Europe 50"},{"constituentId":"IDX-C-005","weightPct":60.0,"instrumentName":"Testland broad market ETF","assetClass":"FUND","issuerCountry":"United Kingdom","issuerSubRegion":"Northern Europe","indexName":"Aventine Global Aggregate"},{"constituentId":"IDX-C-006","weightPct":40.0,"instrumentName":"Northgate Holdings unclassified line","assetClass":"EQUITY","issuerCountry":null,"issuerSubRegion":null,"indexName":"Aventine Global Aggregate"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::PL24_CountryWeightView
+{
+    pattern: '/stress/pl24';
+    documentation: 'An aggregating VIEW whose grouping key is the foreign key into ANOTHER project, so the rollup is joined across the boundary and can then be walked up that project\'s own chain. Nothing seeds a view. One group\'s key is a country core-geo does not carry, so the join out of the aggregate lands on nothing; a rebalance with no constituents forms no group at all.';
+    execution: Single
+    {
+    query: |index_core::IdxCountryWeight.all()
+        ->project(~[
+            rebalanceId:x|$x.rebalanceId,
+            issuerCountryCode:x|$x.issuerCountryCode,
+            totalWeightPct:x|$x.totalWeightPct,
+            constituentCount:x|$x.constituentCount,
+            countryName:x|$x.country.name,
+            indexCode:x|$x.rebalance.index.code
+        ])
+        ->sort([~rebalanceId->ascending(), ~issuerCountryCode->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    PL24_CountryWeightView_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"rebalanceId":"RB-EU50-2024Q2","issuerCountryCode":"DE","totalWeightPct":20.0,"constituentCount":1,"countryName":"Germany","indexCode":"NIS-EU50"},{"rebalanceId":"RB-EU50-2024Q2","issuerCountryCode":"GB","totalWeightPct":65.0,"constituentCount":2,"countryName":"United Kingdom","indexCode":"NIS-EU50"},{"rebalanceId":"RB-EU50-2024Q2","issuerCountryCode":"NZ","totalWeightPct":15.0,"constituentCount":1,"countryName":"New Zealand","indexCode":"NIS-EU50"},{"rebalanceId":"RB-GBAG-202406","issuerCountryCode":"FR","totalWeightPct":40.0,"constituentCount":1,"countryName":null,"indexCode":"AVB-GBAG"},{"rebalanceId":"RB-GBAG-202406","issuerCountryCode":"GB","totalWeightPct":60.0,"constituentCount":1,"countryName":"United Kingdom","indexCode":"AVB-GBAG"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::PL17_UnitConversionPair
 {
     pattern: '/stress/pl17';
@@ -9474,6 +9593,67 @@ Service stress::D_PnLAttributionDense
   ]
 }
 
+Service stress::D_IdxConstituentDense
+{
+    pattern: '/stress/d_idxconstituent';
+    documentation: 'Dense stack on index_core::IdxConstituent: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |index_core::IdxConstituent.all()
+        ->filter({x|($x.constituentId > ' ')})
+        ->project(~[
+            constituentId:x|$x.constituentId,
+            rebalanceIndexFamilyName:x|$x.rebalance.index.family.name,
+            issuerCountrySubRegionMacroRegionName:x|$x.issuerCountry.subRegion.macroRegion.name,
+            issuerCountryProfileCountryName:x|$x.issuerCountry.profile.country.name,
+            instrumentAssetClass:x|$x.instrument.assetClass,
+            weightFraction:x|$x.weightFraction
+        ])
+        ->sort(~constituentId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D_IdxConstituentDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 6 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"constituentId":"IDX-C-001","rebalanceIndexFamilyName":"Europe equity","issuerCountrySubRegionMacroRegionName":"Europe, Middle East and Africa","issuerCountryProfileCountryName":"United Kingdom","instrumentAssetClass":"EQUITY","weightFraction":0.4},{"constituentId":"IDX-C-002","rebalanceIndexFamilyName":"Europe equity","issuerCountrySubRegionMacroRegionName":"Europe, Middle East and Africa","issuerCountryProfileCountryName":"United Kingdom","instrumentAssetClass":"EQUITY","weightFraction":0.25},{"constituentId":"IDX-C-003","rebalanceIndexFamilyName":"Europe equity","issuerCountrySubRegionMacroRegionName":"Europe, Middle East and Africa","issuerCountryProfileCountryName":"Germany","instrumentAssetClass":"FIXED_INCOME","weightFraction":0.2},{"constituentId":"IDX-C-004","rebalanceIndexFamilyName":"Europe equity","issuerCountrySubRegionMacroRegionName":"Asia Pacific","issuerCountryProfileCountryName":null,"instrumentAssetClass":null,"weightFraction":0.15},{"constituentId":"IDX-C-005","rebalanceIndexFamilyName":"Global aggregate bond","issuerCountrySubRegionMacroRegionName":"Europe, Middle East and Africa","issuerCountryProfileCountryName":"United Kingdom","instrumentAssetClass":"FUND","weightFraction":0.6},{"constituentId":"IDX-C-006","rebalanceIndexFamilyName":"Global aggregate bond","issuerCountrySubRegionMacroRegionName":null,"issuerCountryProfileCountryName":null,"instrumentAssetClass":"EQUITY","weightFraction":0.4}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::D_SwapFinancingDense
 {
     pattern: '/stress/d_swapfinancing';
@@ -9583,6 +9763,66 @@ Service stress::D_ClientActivityDense
                   #{
                     contentType: 'application/json';
                     data: '[{"activityId":"CA-0002","coverageSalesPersonTerritoryName":null,"coverageSalesPersonCommissionStructureCurrency":null,"coverageSalesPersonDeskName":null},{"activityId":"CA-0003","coverageSalesPersonTerritoryName":null,"coverageSalesPersonCommissionStructureCurrency":null,"coverageSalesPersonDeskName":null},{"activityId":"CA-0004","coverageSalesPersonTerritoryName":null,"coverageSalesPersonCommissionStructureCurrency":null,"coverageSalesPersonDeskName":null},{"activityId":"CA-0005","coverageSalesPersonTerritoryName":null,"coverageSalesPersonCommissionStructureCurrency":null,"coverageSalesPersonDeskName":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::D_IdxCountryWeightDense
+{
+    pattern: '/stress/d_idxcountryweight';
+    documentation: 'Dense stack on index_core::IdxCountryWeight: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    execution: Single
+    {
+    query: |index_core::IdxCountryWeight.all()
+        ->filter({x|($x.issuerCountryCode > ' ')})
+        ->project(~[
+            rebalanceId:x|$x.rebalanceId,
+            issuerCountryCode:x|$x.issuerCountryCode,
+            countrySubRegionMacroRegionName:x|$x.country.subRegion.macroRegion.name,
+            countryProfileCountryName:x|$x.country.profile.country.name,
+            rebalanceTotalWeightPct:x|$x.rebalance.totalWeightPct
+        ])
+        ->sort([~rebalanceId->ascending(), ~issuerCountryCode->ascending()])
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    D_IdxCountryWeightDense_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"rebalanceId":"RB-EU50-2024Q2","issuerCountryCode":"DE","countrySubRegionMacroRegionName":"Europe, Middle East and Africa","countryProfileCountryName":"Germany","rebalanceTotalWeightPct":100.0},{"rebalanceId":"RB-EU50-2024Q2","issuerCountryCode":"GB","countrySubRegionMacroRegionName":"Europe, Middle East and Africa","countryProfileCountryName":"United Kingdom","rebalanceTotalWeightPct":100.0},{"rebalanceId":"RB-EU50-2024Q2","issuerCountryCode":"NZ","countrySubRegionMacroRegionName":"Asia Pacific","countryProfileCountryName":null,"rebalanceTotalWeightPct":100.0},{"rebalanceId":"RB-GBAG-202406","issuerCountryCode":"FR","countrySubRegionMacroRegionName":null,"countryProfileCountryName":null,"rebalanceTotalWeightPct":100.0},{"rebalanceId":"RB-GBAG-202406","issuerCountryCode":"GB","countrySubRegionMacroRegionName":"Europe, Middle East and Africa","countryProfileCountryName":"United Kingdom","rebalanceTotalWeightPct":100.0}]';
                   }#;
               }#
           ]
@@ -10127,28 +10367,28 @@ Service stress::D_PaymentDense
   ]
 }
 
-Service stress::D_CgBlocMembershipDense
+Service stress::D_CgCityDense
 {
-    pattern: '/stress/d_cgblocmembership';
-    documentation: 'Dense stack on core_geo::CgBlocMembership: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
+    pattern: '/stress/d_cgcity';
+    documentation: 'Dense stack on core_geo::CgCity: several distinct navigation chains plus whatever the model offers along them, with a filter, a sort and a limit. Generated from the model by scripts/corpus/stacks.py, so it deepens as the model does rather than needing a new hand-written service per domain.';
     execution: Single
     {
-    query: |core_geo::CgBlocMembership.all()
-        ->filter({x|($x.status > ' ')})
+    query: |core_geo::CgCity.all()
+        ->filter({x|($x.name > ' ')})
         ->project(~[
-            membershipId:x|$x.membershipId,
+            cityId:x|$x.cityId,
+            timeZoneAbbreviation:x|$x.timeZone.abbreviation,
             countrySubRegionMacroRegionName:x|$x.country.subRegion.macroRegion.name,
-            countryProfileCountryName:x|$x.country.profile.country.name,
-            countrySubRegionName:x|$x.country.subRegion.name
+            countryProfileCountryName:x|$x.country.profile.country.name
         ])
-        ->sort(~membershipId->ascending())
+        ->sort(~cityId->ascending())
         ->limit(25);
         mapping: stress::AllMapping;
         runtime: stress::RT;
     }
   testSuites:
   [
-    D_CgBlocMembershipDense_suite:
+    D_CgCityDense_suite:
     {
       data:
       [
@@ -10163,7 +10403,7 @@ Service stress::D_CgBlocMembershipDense
       ]
       tests:
       [
-        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        // 4 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -10176,7 +10416,7 @@ Service stress::D_CgBlocMembershipDense
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"membershipId":"MB-DE-EU","countrySubRegionMacroRegionName":"Europe, Middle East and Africa","countryProfileCountryName":"Germany","countrySubRegionName":"Western Europe"},{"membershipId":"MB-GB-EU","countrySubRegionMacroRegionName":"Europe, Middle East and Africa","countryProfileCountryName":"United Kingdom","countrySubRegionName":"Northern Europe"},{"membershipId":"MB-IS-EEA","countrySubRegionMacroRegionName":"Europe, Middle East and Africa","countryProfileCountryName":"Iceland","countrySubRegionName":"Northern Europe"}]';
+                    data: '[{"cityId":"CT-EDI","timeZoneAbbreviation":"GMT","countrySubRegionMacroRegionName":"Europe, Middle East and Africa","countryProfileCountryName":"United Kingdom"},{"cityId":"CT-FRA","timeZoneAbbreviation":"CET","countrySubRegionMacroRegionName":"Europe, Middle East and Africa","countryProfileCountryName":"Germany"},{"cityId":"CT-LON","timeZoneAbbreviation":"GMT","countrySubRegionMacroRegionName":"Europe, Middle East and Africa","countryProfileCountryName":"United Kingdom"},{"cityId":"CT-REY","timeZoneAbbreviation":null,"countrySubRegionMacroRegionName":"Europe, Middle East and Africa","countryProfileCountryName":"Iceland"}]';
                   }#;
               }#
           ]
@@ -15201,6 +15441,171 @@ Service stress::AA_DebtSecurityCounts
   ]
 }
 
+Service stress::AA_IdxIndexFamilyCounts
+{
+    pattern: '/stress/aa_idxindexfamily';
+    documentation: 'Generated aggregate on index_core::IdxIndexFamily: 1 count(s) over to-many associations, every parent of which HAS children. This is the non-empty half of the property the F-series pins on the empty half -- F6 makes count() over an empty to-many return 1, so an end with any childless parent is excluded here rather than quarantined. Several counts on one root so the outer joins interact; a single-aggregate probe cannot show that. Generated by scripts/corpus/aggregates.py.';
+    execution: Single
+    {
+    query: |index_core::IdxIndexFamily.all()
+        ->project(~[
+            familyId:x|$x.familyId,
+            indicesCount:x|$x.indices->count()
+        ])
+        ->sort(~familyId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    AA_IdxIndexFamilyCounts_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"familyId":"FAM-EUEQ","indicesCount":2},{"familyId":"FAM-GLBD","indicesCount":1}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::AA_IdxProviderCounts
+{
+    pattern: '/stress/aa_idxprovider';
+    documentation: 'Generated aggregate on index_core::IdxProvider: 1 count(s) over to-many associations, every parent of which HAS children. This is the non-empty half of the property the F-series pins on the empty half -- F6 makes count() over an empty to-many return 1, so an end with any childless parent is excluded here rather than quarantined. Several counts on one root so the outer joins interact; a single-aggregate probe cannot show that. Generated by scripts/corpus/aggregates.py.';
+    execution: Single
+    {
+    query: |index_core::IdxProvider.all()
+        ->project(~[
+            providerId:x|$x.providerId,
+            familiesCount:x|$x.families->count()
+        ])
+        ->sort(~providerId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    AA_IdxProviderCounts_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"providerId":"PRV-AVN","familiesCount":1},{"providerId":"PRV-NRT","familiesCount":1}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::AA_IdxTrackingFundCounts
+{
+    pattern: '/stress/aa_idxtrackingfund';
+    documentation: 'Generated aggregate on index_core::IdxTrackingFund: 1 count(s) over to-many associations, every parent of which HAS children. This is the non-empty half of the property the F-series pins on the empty half -- F6 makes count() over an empty to-many return 1, so an end with any childless parent is excluded here rather than quarantined. Several counts on one root so the outer joins interact; a single-aggregate probe cannot show that. Generated by scripts/corpus/aggregates.py.';
+    execution: Single
+    {
+    query: |index_core::IdxTrackingFund.all()
+        ->project(~[
+            fundId:x|$x.fundId,
+            holdingsCount:x|$x.holdings->count()
+        ])
+        ->sort(~fundId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    AA_IdxTrackingFundCounts_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"fundId":"FND-EU50-ETF","holdingsCount":2},{"fundId":"FND-GBAG-SWAP","holdingsCount":1}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::AA_ExemptionRuleCounts
 {
     pattern: '/stress/aa_exemptionrule';
@@ -16231,6 +16636,68 @@ Service stress::TM_CollateralAgreementEmpty
                   #{
                     contentType: 'application/json';
                     data: '[{"agreementId":"CSA-0001","balancesEmpty":false,"balancesAny":true,"eligibilityRulesEmpty":false,"eligibilityRulesAny":true,"haircutSchedulesEmpty":false,"haircutSchedulesAny":true,"initialMarginsEmpty":false,"initialMarginsAny":true},{"agreementId":"CSA-0002","balancesEmpty":false,"balancesAny":true,"eligibilityRulesEmpty":false,"eligibilityRulesAny":true,"haircutSchedulesEmpty":false,"haircutSchedulesAny":true,"initialMarginsEmpty":false,"initialMarginsAny":true},{"agreementId":"CSA-0003","balancesEmpty":false,"balancesAny":true,"eligibilityRulesEmpty":false,"eligibilityRulesAny":true,"haircutSchedulesEmpty":false,"haircutSchedulesAny":true,"initialMarginsEmpty":false,"initialMarginsAny":true},{"agreementId":"CSA-0004","balancesEmpty":true,"balancesAny":false,"eligibilityRulesEmpty":true,"eligibilityRulesAny":false,"haircutSchedulesEmpty":true,"haircutSchedulesAny":false,"initialMarginsEmpty":true,"initialMarginsAny":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::TM_CgCountryEmpty
+{
+    pattern: '/stress/tm_cgcountry';
+    documentation: 'Emptiness of 4 to-many association(s) on core_geo::CgCountry. Both `isEmpty` and `isNotEmpty` are projected for each end: asserting one alone would let a constant answer pass, and asserting both means the service is green only where the two disagree row by row. The corpus declares 177 to-many ends and traversed twelve; `count()` cannot carry the volume because F6 makes it return 1 over an empty set, and these predicates are correct there. Generated by scripts/corpus/tomany.py.';
+    execution: Single
+    {
+    query: |core_geo::CgCountry.all()
+        ->project(~[
+            countryCode:x|$x.countryCode,
+            blocMembershipsEmpty:x|$x.blocMemberships->isEmpty(),
+            blocMembershipsAny:x|$x.blocMemberships->isNotEmpty(),
+            citiesEmpty:x|$x.cities->isEmpty(),
+            citiesAny:x|$x.cities->isNotEmpty(),
+            indexCountryWeightsEmpty:x|$x.indexCountryWeights->isEmpty(),
+            indexCountryWeightsAny:x|$x.indexCountryWeights->isNotEmpty(),
+            issuedConstituentsEmpty:x|$x.issuedConstituents->isEmpty(),
+            issuedConstituentsAny:x|$x.issuedConstituents->isNotEmpty()
+        ])
+        ->sort(~countryCode->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    TM_CgCountryEmpty_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 16 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"countryCode":"DE","blocMembershipsEmpty":false,"blocMembershipsAny":true,"citiesEmpty":false,"citiesAny":true,"indexCountryWeightsEmpty":false,"indexCountryWeightsAny":true,"issuedConstituentsEmpty":false,"issuedConstituentsAny":true},{"countryCode":"GB","blocMembershipsEmpty":false,"blocMembershipsAny":true,"citiesEmpty":false,"citiesAny":true,"indexCountryWeightsEmpty":false,"indexCountryWeightsAny":true,"issuedConstituentsEmpty":false,"issuedConstituentsAny":true},{"countryCode":"IS","blocMembershipsEmpty":false,"blocMembershipsAny":true,"citiesEmpty":false,"citiesAny":true,"indexCountryWeightsEmpty":true,"indexCountryWeightsAny":false,"issuedConstituentsEmpty":true,"issuedConstituentsAny":false},{"countryCode":"NZ","blocMembershipsEmpty":true,"blocMembershipsAny":false,"citiesEmpty":true,"citiesAny":false,"indexCountryWeightsEmpty":false,"indexCountryWeightsAny":true,"issuedConstituentsEmpty":false,"issuedConstituentsAny":true}]';
                   }#;
               }#
           ]
@@ -143905,6 +144372,725 @@ Service stress::DSTree_Trader
   ]
 }
 
+Service stress::DSLocal_IdxConstituent
+{
+    pattern: '/stress/dslocal_idxconstituent';
+    documentation: 'A filter, a computed column, a composite sort and a limit stacked on index_core::IdxConstituent -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxConstituent.all()
+        ->filter({x|($x.regionCode > ' ')})
+        ->project(~[
+            constituentId:x|$x.constituentId,
+            regionCode:x|$x.regionCode,
+            rankByWeight:x|$x.rankByWeight,
+            isCapped:x|$x.isCapped
+        ])
+        ->sort(~constituentId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSLocal_IdxConstituent_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 6 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"constituentId":"IDX-C-001","regionCode":"EUR","rankByWeight":1,"isCapped":true},{"constituentId":"IDX-C-002","regionCode":"EUR","rankByWeight":2,"isCapped":true},{"constituentId":"IDX-C-003","regionCode":"EUR","rankByWeight":3,"isCapped":true},{"constituentId":"IDX-C-004","regionCode":"APAC","rankByWeight":4,"isCapped":true},{"constituentId":"IDX-C-005","regionCode":"EUR","rankByWeight":1,"isCapped":true},{"constituentId":"IDX-C-006","regionCode":"EUR","rankByWeight":2,"isCapped":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSAgg_IdxConstituent
+{
+    pattern: '/stress/dsagg_idxconstituent';
+    documentation: 'groupBy on a local key of index_core::IdxConstituent with two aggregates over it. The rows being grouped are the ones its ~filter selected, so a filter that selected the whole table shows up here as the wrong COUNT rather than as extra rows. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxConstituent.all()
+        ->filter({x|($x.regionCode > ' ')})
+        ->project(~[
+            regionCode:x|$x.regionCode,
+            constituentId:x|$x.constituentId,
+            rankByWeight:x|$x.rankByWeight
+        ])
+        ->groupBy(~[regionCode], ~[
+            n: x|$x.constituentId : agg|$agg->count(),
+            total: x|$x.rankByWeight : agg|$agg->sum()
+        ])
+        ->sort(~regionCode->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSAgg_IdxConstituent_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"regionCode":"APAC","n":1,"total":4},{"regionCode":"EUR","n":5,"total":9}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSDeep_IdxConstituent
+{
+    pattern: '/stress/dsdeep_idxconstituent';
+    documentation: 'The deepest to-one reach index_core::IdxConstituent offers, filtered on a NAVIGATED column rather than a local one, composite-sorted and limited. A predicate over a joined column has to be placed relative to the join, which a filter on the root never tests. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxConstituent.all()
+        ->filter({x|($x.rebalance.index.family.provider.name > ' ') && ($x.regionCode > ' ')})
+        ->project(~[
+            constituentId:x|$x.constituentId,
+            rebalanceIndexFamilyProviderName:x|$x.rebalance.index.family.provider.name,
+            rebalanceIndexFamilyName:x|$x.rebalance.index.family.name,
+            issuerCountrySubRegionMacroRegionName:x|$x.issuerCountry.subRegion.macroRegion.name,
+            rebalanceIndexCurrency:x|$x.rebalance.index.currency
+        ])
+        ->sort(~constituentId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSDeep_IdxConstituent_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 6 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"constituentId":"IDX-C-001","rebalanceIndexFamilyProviderName":"Northgate Index Services","rebalanceIndexFamilyName":"Europe equity","issuerCountrySubRegionMacroRegionName":"Europe, Middle East and Africa","rebalanceIndexCurrency":"EUR"},{"constituentId":"IDX-C-002","rebalanceIndexFamilyProviderName":"Northgate Index Services","rebalanceIndexFamilyName":"Europe equity","issuerCountrySubRegionMacroRegionName":"Europe, Middle East and Africa","rebalanceIndexCurrency":"EUR"},{"constituentId":"IDX-C-003","rebalanceIndexFamilyProviderName":"Northgate Index Services","rebalanceIndexFamilyName":"Europe equity","issuerCountrySubRegionMacroRegionName":"Europe, Middle East and Africa","rebalanceIndexCurrency":"EUR"},{"constituentId":"IDX-C-004","rebalanceIndexFamilyProviderName":"Northgate Index Services","rebalanceIndexFamilyName":"Europe equity","issuerCountrySubRegionMacroRegionName":"Asia Pacific","rebalanceIndexCurrency":"EUR"},{"constituentId":"IDX-C-005","rebalanceIndexFamilyProviderName":"Aventine Benchmarks GmbH","rebalanceIndexFamilyName":"Global aggregate bond","issuerCountrySubRegionMacroRegionName":"Europe, Middle East and Africa","rebalanceIndexCurrency":"USD"},{"constituentId":"IDX-C-006","rebalanceIndexFamilyProviderName":"Aventine Benchmarks GmbH","rebalanceIndexFamilyName":"Global aggregate bond","issuerCountrySubRegionMacroRegionName":null,"rebalanceIndexCurrency":"USD"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSPost_IdxConstituent
+{
+    pattern: '/stress/dspost_idxconstituent';
+    documentation: 'The same rows as DSDeepIdxConstituent, filtered AFTER project on the projected alias rather than before it on the model path. The join has already happened by then, so the engine has to decide whether the predicate can be pushed back down; the two services must agree. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxConstituent.all()
+        ->project(~[
+            constituentId:x|$x.constituentId,
+            rebalanceIndexFamilyProviderName:x|$x.rebalance.index.family.provider.name,
+            rebalanceIndexFamilyName:x|$x.rebalance.index.family.name,
+            issuerCountrySubRegionMacroRegionName:x|$x.issuerCountry.subRegion.macroRegion.name,
+            rebalanceIndexCurrency:x|$x.rebalance.index.currency
+        ])
+        ->filter({x|($x.rebalanceIndexFamilyProviderName > ' ')})
+        ->sort(~constituentId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSPost_IdxConstituent_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 6 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"constituentId":"IDX-C-001","rebalanceIndexFamilyProviderName":"Northgate Index Services","rebalanceIndexFamilyName":"Europe equity","issuerCountrySubRegionMacroRegionName":"Europe, Middle East and Africa","rebalanceIndexCurrency":"EUR"},{"constituentId":"IDX-C-002","rebalanceIndexFamilyProviderName":"Northgate Index Services","rebalanceIndexFamilyName":"Europe equity","issuerCountrySubRegionMacroRegionName":"Europe, Middle East and Africa","rebalanceIndexCurrency":"EUR"},{"constituentId":"IDX-C-003","rebalanceIndexFamilyProviderName":"Northgate Index Services","rebalanceIndexFamilyName":"Europe equity","issuerCountrySubRegionMacroRegionName":"Europe, Middle East and Africa","rebalanceIndexCurrency":"EUR"},{"constituentId":"IDX-C-004","rebalanceIndexFamilyProviderName":"Northgate Index Services","rebalanceIndexFamilyName":"Europe equity","issuerCountrySubRegionMacroRegionName":"Asia Pacific","rebalanceIndexCurrency":"EUR"},{"constituentId":"IDX-C-005","rebalanceIndexFamilyProviderName":"Aventine Benchmarks GmbH","rebalanceIndexFamilyName":"Global aggregate bond","issuerCountrySubRegionMacroRegionName":"Europe, Middle East and Africa","rebalanceIndexCurrency":"USD"},{"constituentId":"IDX-C-006","rebalanceIndexFamilyProviderName":"Aventine Benchmarks GmbH","rebalanceIndexFamilyName":"Global aggregate bond","issuerCountrySubRegionMacroRegionName":null,"rebalanceIndexCurrency":"USD"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSGroup_IdxConstituent
+{
+    pattern: '/stress/dsgroup_idxconstituent';
+    documentation: 'The same reach as DSDeepIdxConstituent, then grouped on a NAVIGATED key with aggregates over it. The key came through a join, so a groupBy that grouped before the join would return the same columns and different numbers. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxConstituent.all()
+        ->filter({x|($x.rebalance.index.family.provider.name > ' ')})
+        ->project(~[
+            rebalanceIndexFamilyProviderName:x|$x.rebalance.index.family.provider.name,
+            constituentId:x|$x.constituentId,
+            rankByWeight:x|$x.rankByWeight
+        ])
+        ->groupBy(~[rebalanceIndexFamilyProviderName], ~[
+            n: x|$x.constituentId : agg|$agg->count(),
+            total: x|$x.rankByWeight : agg|$agg->sum()
+        ])
+        ->sort(~rebalanceIndexFamilyProviderName->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSGroup_IdxConstituent_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"rebalanceIndexFamilyProviderName":"Aventine Benchmarks GmbH","n":2,"total":3},{"rebalanceIndexFamilyProviderName":"Northgate Index Services","n":4,"total":10}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSQual_IdxConstituent
+{
+    pattern: '/stress/dsqual_idxconstituent';
+    documentation: 'Derived and qualified properties on index_core::IdxConstituent, alongside the deepest chain the model offers -- a computed value and a joined one in the same projection, so a defect in either is visible against the other. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxConstituent.all()
+        ->project(~[
+            constituentId:x|$x.constituentId,
+            rebalanceIndexFamilyProviderName:x|$x.rebalance.index.family.provider.name,
+            isCapped:x|$x.isCapped
+        ])
+        ->sort(~constituentId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSQual_IdxConstituent_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 6 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"constituentId":"IDX-C-001","rebalanceIndexFamilyProviderName":"Northgate Index Services","isCapped":true},{"constituentId":"IDX-C-002","rebalanceIndexFamilyProviderName":"Northgate Index Services","isCapped":true},{"constituentId":"IDX-C-003","rebalanceIndexFamilyProviderName":"Northgate Index Services","isCapped":true},{"constituentId":"IDX-C-004","rebalanceIndexFamilyProviderName":"Northgate Index Services","isCapped":true},{"constituentId":"IDX-C-005","rebalanceIndexFamilyProviderName":"Aventine Benchmarks GmbH","isCapped":true},{"constituentId":"IDX-C-006","rebalanceIndexFamilyProviderName":"Aventine Benchmarks GmbH","isCapped":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSTree_IdxConstituent
+{
+    pattern: '/stress/dstree_idxconstituent';
+    documentation: 'A graphFetch 4 levels deep from index_core::IdxConstituent. A sub-object that is wholly ABSENT and one whose every field is null are the same row in a projection and different objects in a tree, so this asserts something the DSDeep service over the same reach cannot. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxConstituent.all()
+        ->graphFetch(#{
+  index_core::IdxConstituent
+  {
+    constituentId,
+    rebalance
+    {
+      index
+      {
+        family
+        {
+          provider
+          {
+            name,
+            providerId
+          }
+        }
+      }
+    }
+  }
+}#)
+        ->serialize(#{
+  index_core::IdxConstituent
+  {
+    constituentId,
+    rebalance
+    {
+      index
+      {
+        family
+        {
+          provider
+          {
+            name,
+            providerId
+          }
+        }
+      }
+    }
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSTree_IdxConstituent_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 6 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"constituentId":"IDX-C-001","rebalance":{"index":{"family":{"provider":{"name":"Northgate Index Services","providerId":"PRV-NRT"}}}}},{"constituentId":"IDX-C-002","rebalance":{"index":{"family":{"provider":{"name":"Northgate Index Services","providerId":"PRV-NRT"}}}}},{"constituentId":"IDX-C-003","rebalance":{"index":{"family":{"provider":{"name":"Northgate Index Services","providerId":"PRV-NRT"}}}}},{"constituentId":"IDX-C-004","rebalance":{"index":{"family":{"provider":{"name":"Northgate Index Services","providerId":"PRV-NRT"}}}}},{"constituentId":"IDX-C-005","rebalance":{"index":{"family":{"provider":{"name":"Aventine Benchmarks GmbH","providerId":"PRV-AVN"}}}}},{"constituentId":"IDX-C-006","rebalance":{"index":{"family":{"provider":{"name":"Aventine Benchmarks GmbH","providerId":"PRV-AVN"}}}}}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSDeep_IdxCountryWeight
+{
+    pattern: '/stress/dsdeep_idxcountryweight';
+    documentation: 'The deepest to-one reach index_core::IdxCountryWeight offers, filtered on a NAVIGATED column rather than a local one, composite-sorted and limited. A predicate over a joined column has to be placed relative to the join, which a filter on the root never tests. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxCountryWeight.all()
+        ->filter({x|($x.rebalance.index.family.provider.name > ' ')})
+        ->project(~[
+            rebalanceId:x|$x.rebalanceId,
+            issuerCountryCode:x|$x.issuerCountryCode,
+            rebalanceIndexFamilyProviderName:x|$x.rebalance.index.family.provider.name,
+            rebalanceIndexFamilyName:x|$x.rebalance.index.family.name,
+            countrySubRegionMacroRegionName:x|$x.country.subRegion.macroRegion.name,
+            rebalanceIndexCurrency:x|$x.rebalance.index.currency
+        ])
+        ->sort([~rebalanceId->ascending(), ~issuerCountryCode->ascending()])
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSDeep_IdxCountryWeight_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"rebalanceId":"RB-EU50-2024Q2","issuerCountryCode":"DE","rebalanceIndexFamilyProviderName":"Northgate Index Services","rebalanceIndexFamilyName":"Europe equity","countrySubRegionMacroRegionName":"Europe, Middle East and Africa","rebalanceIndexCurrency":"EUR"},{"rebalanceId":"RB-EU50-2024Q2","issuerCountryCode":"GB","rebalanceIndexFamilyProviderName":"Northgate Index Services","rebalanceIndexFamilyName":"Europe equity","countrySubRegionMacroRegionName":"Europe, Middle East and Africa","rebalanceIndexCurrency":"EUR"},{"rebalanceId":"RB-EU50-2024Q2","issuerCountryCode":"NZ","rebalanceIndexFamilyProviderName":"Northgate Index Services","rebalanceIndexFamilyName":"Europe equity","countrySubRegionMacroRegionName":"Asia Pacific","rebalanceIndexCurrency":"EUR"},{"rebalanceId":"RB-GBAG-202406","issuerCountryCode":"FR","rebalanceIndexFamilyProviderName":"Aventine Benchmarks GmbH","rebalanceIndexFamilyName":"Global aggregate bond","countrySubRegionMacroRegionName":null,"rebalanceIndexCurrency":"USD"},{"rebalanceId":"RB-GBAG-202406","issuerCountryCode":"GB","rebalanceIndexFamilyProviderName":"Aventine Benchmarks GmbH","rebalanceIndexFamilyName":"Global aggregate bond","countrySubRegionMacroRegionName":"Europe, Middle East and Africa","rebalanceIndexCurrency":"USD"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSPost_IdxCountryWeight
+{
+    pattern: '/stress/dspost_idxcountryweight';
+    documentation: 'The same rows as DSDeepIdxCountryWeight, filtered AFTER project on the projected alias rather than before it on the model path. The join has already happened by then, so the engine has to decide whether the predicate can be pushed back down; the two services must agree. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxCountryWeight.all()
+        ->project(~[
+            rebalanceId:x|$x.rebalanceId,
+            issuerCountryCode:x|$x.issuerCountryCode,
+            rebalanceIndexFamilyProviderName:x|$x.rebalance.index.family.provider.name,
+            rebalanceIndexFamilyName:x|$x.rebalance.index.family.name,
+            countrySubRegionMacroRegionName:x|$x.country.subRegion.macroRegion.name,
+            rebalanceIndexCurrency:x|$x.rebalance.index.currency
+        ])
+        ->filter({x|($x.rebalanceIndexFamilyProviderName > ' ')})
+        ->sort([~rebalanceId->ascending(), ~issuerCountryCode->ascending()])
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSPost_IdxCountryWeight_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"rebalanceId":"RB-EU50-2024Q2","issuerCountryCode":"DE","rebalanceIndexFamilyProviderName":"Northgate Index Services","rebalanceIndexFamilyName":"Europe equity","countrySubRegionMacroRegionName":"Europe, Middle East and Africa","rebalanceIndexCurrency":"EUR"},{"rebalanceId":"RB-EU50-2024Q2","issuerCountryCode":"GB","rebalanceIndexFamilyProviderName":"Northgate Index Services","rebalanceIndexFamilyName":"Europe equity","countrySubRegionMacroRegionName":"Europe, Middle East and Africa","rebalanceIndexCurrency":"EUR"},{"rebalanceId":"RB-EU50-2024Q2","issuerCountryCode":"NZ","rebalanceIndexFamilyProviderName":"Northgate Index Services","rebalanceIndexFamilyName":"Europe equity","countrySubRegionMacroRegionName":"Asia Pacific","rebalanceIndexCurrency":"EUR"},{"rebalanceId":"RB-GBAG-202406","issuerCountryCode":"FR","rebalanceIndexFamilyProviderName":"Aventine Benchmarks GmbH","rebalanceIndexFamilyName":"Global aggregate bond","countrySubRegionMacroRegionName":null,"rebalanceIndexCurrency":"USD"},{"rebalanceId":"RB-GBAG-202406","issuerCountryCode":"GB","rebalanceIndexFamilyProviderName":"Aventine Benchmarks GmbH","rebalanceIndexFamilyName":"Global aggregate bond","countrySubRegionMacroRegionName":"Europe, Middle East and Africa","rebalanceIndexCurrency":"USD"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSGroup_IdxCountryWeight
+{
+    pattern: '/stress/dsgroup_idxcountryweight';
+    documentation: 'The same reach as DSDeepIdxCountryWeight, then grouped on a NAVIGATED key with aggregates over it. The key came through a join, so a groupBy that grouped before the join would return the same columns and different numbers. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxCountryWeight.all()
+        ->filter({x|($x.rebalance.index.family.provider.name > ' ')})
+        ->project(~[
+            rebalanceIndexFamilyProviderName:x|$x.rebalance.index.family.provider.name,
+            rebalanceId:x|$x.rebalanceId,
+            constituentCount:x|$x.constituentCount
+        ])
+        ->groupBy(~[rebalanceIndexFamilyProviderName], ~[
+            n: x|$x.rebalanceId : agg|$agg->count(),
+            total: x|$x.constituentCount : agg|$agg->sum()
+        ])
+        ->sort(~rebalanceIndexFamilyProviderName->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSGroup_IdxCountryWeight_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"rebalanceIndexFamilyProviderName":"Aventine Benchmarks GmbH","n":2,"total":2},{"rebalanceIndexFamilyProviderName":"Northgate Index Services","n":3,"total":4}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSTree_IdxCountryWeight
+{
+    pattern: '/stress/dstree_idxcountryweight';
+    documentation: 'A graphFetch 4 levels deep from index_core::IdxCountryWeight. A sub-object that is wholly ABSENT and one whose every field is null are the same row in a projection and different objects in a tree, so this asserts something the DSDeep service over the same reach cannot. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxCountryWeight.all()
+        ->graphFetch(#{
+  index_core::IdxCountryWeight
+  {
+    rebalanceId,
+    rebalance
+    {
+      index
+      {
+        family
+        {
+          provider
+          {
+            name,
+            providerId
+          }
+        }
+      }
+    }
+  }
+}#)
+        ->serialize(#{
+  index_core::IdxCountryWeight
+  {
+    rebalanceId,
+    rebalance
+    {
+      index
+      {
+        family
+        {
+          provider
+          {
+            name,
+            providerId
+          }
+        }
+      }
+    }
+  }
+}#);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSTree_IdxCountryWeight_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '{"builder":{"_type":"json"},"values":[{"rebalanceId":"RB-EU50-2024Q2","rebalance":{"index":{"family":{"provider":{"name":"Northgate Index Services","providerId":"PRV-NRT"}}}}},{"rebalanceId":"RB-EU50-2024Q2","rebalance":{"index":{"family":{"provider":{"name":"Northgate Index Services","providerId":"PRV-NRT"}}}}},{"rebalanceId":"RB-EU50-2024Q2","rebalance":{"index":{"family":{"provider":{"name":"Northgate Index Services","providerId":"PRV-NRT"}}}}},{"rebalanceId":"RB-GBAG-202406","rebalance":{"index":{"family":{"provider":{"name":"Aventine Benchmarks GmbH","providerId":"PRV-AVN"}}}}},{"rebalanceId":"RB-GBAG-202406","rebalance":{"index":{"family":{"provider":{"name":"Aventine Benchmarks GmbH","providerId":"PRV-AVN"}}}}}]}';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::DSLocal_CapitalGain
 {
     pattern: '/stress/dslocal_capitalgain';
@@ -263949,655 +265135,6 @@ Service stress::DSLocal_DigitalAssetPosition
   ]
 }
 
-Service stress::DSDeep_DigitalAssetPosition
-{
-    pattern: '/stress/dsdeep_digitalassetposition';
-    documentation: 'The deepest to-one reach digitalassets::DigitalAssetPosition offers, filtered on a NAVIGATED column rather than a local one, composite-sorted and limited. A predicate over a joined column has to be placed relative to the join, which a filter on the root never tests. Generated by scripts/corpus/deepstack.py.';
-    execution: Single
-    {
-    query: |digitalassets::DigitalAssetPosition.all()
-        ->filter({x|($x.book.desk.businessUnit.legalEntity.jurisdiction > ' ') && ($x.currency > ' ')})
-        ->project(~[
-            recordId:x|$x.recordId,
-            bookDeskBusinessUnitLegalEntityJurisdiction:x|$x.book.desk.businessUnit.legalEntity.jurisdiction,
-            bookDeskBusinessUnitName:x|$x.book.desk.businessUnit.name,
-            bookRollupBookId:x|$x.book.rollup.bookId,
-            bookDeskName:x|$x.book.desk.name
-        ])
-        ->sort(~recordId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    DSDeep_DigitalAssetPosition_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 0 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::DSPost_DigitalAssetPosition
-{
-    pattern: '/stress/dspost_digitalassetposition';
-    documentation: 'The same rows as DSDeepDigitalAssetPosition, filtered AFTER project on the projected alias rather than before it on the model path. The join has already happened by then, so the engine has to decide whether the predicate can be pushed back down; the two services must agree. Generated by scripts/corpus/deepstack.py.';
-    execution: Single
-    {
-    query: |digitalassets::DigitalAssetPosition.all()
-        ->project(~[
-            recordId:x|$x.recordId,
-            bookDeskBusinessUnitLegalEntityJurisdiction:x|$x.book.desk.businessUnit.legalEntity.jurisdiction,
-            bookDeskBusinessUnitName:x|$x.book.desk.businessUnit.name,
-            bookRollupBookId:x|$x.book.rollup.bookId,
-            bookDeskName:x|$x.book.desk.name
-        ])
-        ->filter({x|($x.bookDeskBusinessUnitLegalEntityJurisdiction > ' ')})
-        ->sort(~recordId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    DSPost_DigitalAssetPosition_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 0 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::DSGroup_DigitalAssetPosition
-{
-    pattern: '/stress/dsgroup_digitalassetposition';
-    documentation: 'The same reach as DSDeepDigitalAssetPosition, then grouped on a NAVIGATED key with aggregates over it. The key came through a join, so a groupBy that grouped before the join would return the same columns and different numbers. Generated by scripts/corpus/deepstack.py.';
-    execution: Single
-    {
-    query: |digitalassets::DigitalAssetPosition.all()
-        ->filter({x|($x.book.desk.businessUnit.legalEntity.jurisdiction > ' ')})
-        ->project(~[
-            bookDeskBusinessUnitLegalEntityJurisdiction:x|$x.book.desk.businessUnit.legalEntity.jurisdiction,
-            recordId:x|$x.recordId
-        ])
-        ->groupBy(~[bookDeskBusinessUnitLegalEntityJurisdiction], ~[
-            n: x|$x.recordId : agg|$agg->count()
-        ])
-        ->sort(~bookDeskBusinessUnitLegalEntityJurisdiction->ascending());
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    DSGroup_DigitalAssetPosition_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 0 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::DSQual_DigitalAssetPosition
-{
-    pattern: '/stress/dsqual_digitalassetposition';
-    documentation: 'Derived and qualified properties on digitalassets::DigitalAssetPosition, alongside the deepest chain the model offers -- a computed value and a joined one in the same projection, so a defect in either is visible against the other. Generated by scripts/corpus/deepstack.py.';
-    execution: Single
-    {
-    query: |digitalassets::DigitalAssetPosition.all()
-        ->project(~[
-            recordId:x|$x.recordId,
-            bookDeskBusinessUnitLegalEntityJurisdiction:x|$x.book.desk.businessUnit.legalEntity.jurisdiction,
-            notionalPerRiskPoint:x|$x.notionalPerRiskPoint,
-            notionalInQ:x|$x.notionalIn(2.5)
-        ])
-        ->sort(~recordId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    DSQual_DigitalAssetPosition_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 25 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"recordId":"DIG-00001","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":1000000.0,"notionalInQ":3125000.0},{"recordId":"DIG-00002","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":1666666.6666666667,"notionalInQ":6250000.0},{"recordId":"DIG-00003","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":2142857.1428571427,"notionalInQ":9375000.0},{"recordId":"DIG-00004","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":2500000.0,"notionalInQ":12500000.0},{"recordId":"DIG-00005","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":2777777.777777778,"notionalInQ":15625000.0},{"recordId":"DIG-00006","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":3000000.0,"notionalInQ":18750000.0},{"recordId":"DIG-00010","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":3571428.5714285714,"notionalInQ":31250000.0},{"recordId":"DIG-00011","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":3666666.6666666665,"notionalInQ":34375000.0},{"recordId":"DIG-00012","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":3750000.0,"notionalInQ":37500000.0},{"recordId":"DIG-00013","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":3823529.411764706,"notionalInQ":40625000.0},{"recordId":"DIG-00014","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":3888888.888888889,"notionalInQ":43750000.0},{"recordId":"DIG-00015","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":3947368.4210526315,"notionalInQ":46875000.0},{"recordId":"DIG-00019","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":4130434.782608696,"notionalInQ":59375000.0},{"recordId":"DIG-00020","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":4166666.6666666665,"notionalInQ":62500000.0},{"recordId":"DIG-00021","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":4200000.0,"notionalInQ":65625000.0},{"recordId":"DIG-00022","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":4230769.230769231,"notionalInQ":68750000.0},{"recordId":"DIG-00023","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":4259259.259259259,"notionalInQ":71875000.0},{"recordId":"DIG-00024","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":4285714.285714285,"notionalInQ":75000000.0},{"recordId":"DIG-00028","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":4375000.0,"notionalInQ":87500000.0},{"recordId":"DIG-00029","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":4393939.393939394,"notionalInQ":90625000.0},{"recordId":"DIG-00030","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":4411764.705882353,"notionalInQ":93750000.0},{"recordId":"DIG-00031","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":4428571.428571428,"notionalInQ":96875000.0},{"recordId":"DIG-00032","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":4444444.444444444,"notionalInQ":100000000.0},{"recordId":"DIG-00033","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":4459459.459459459,"notionalInQ":103125000.0},{"recordId":"DIG-00037","bookDeskBusinessUnitLegalEntityJurisdiction":null,"notionalPerRiskPoint":4512195.12195122,"notionalInQ":115625000.0}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::DSTree_DigitalAssetPosition
-{
-    pattern: '/stress/dstree_digitalassetposition';
-    documentation: 'A graphFetch 4 levels deep from digitalassets::DigitalAssetPosition. A sub-object that is wholly ABSENT and one whose every field is null are the same row in a projection and different objects in a tree, so this asserts something the DSDeep service over the same reach cannot. Generated by scripts/corpus/deepstack.py.';
-    execution: Single
-    {
-    query: |digitalassets::DigitalAssetPosition.all()
-        ->graphFetch(#{
-  digitalassets::DigitalAssetPosition
-  {
-    recordId,
-    book
-    {
-      desk
-      {
-        businessUnit
-        {
-          legalEntity
-          {
-            leId
-          }
-        }
-      }
-    }
-  }
-}#)
-        ->serialize(#{
-  digitalassets::DigitalAssetPosition
-  {
-    recordId,
-    book
-    {
-      desk
-      {
-        businessUnit
-        {
-          legalEntity
-          {
-            leId
-          }
-        }
-      }
-    }
-  }
-}#);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    DSTree_DigitalAssetPosition_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 33 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"recordId":"DIG-00001","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00002","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00003","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00004","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00005","book":null},{"recordId":"DIG-00006","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00010","book":null},{"recordId":"DIG-00011","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00012","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00013","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00014","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00015","book":null},{"recordId":"DIG-00019","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00020","book":null},{"recordId":"DIG-00021","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00022","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00023","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00024","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00028","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00029","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00030","book":null},{"recordId":"DIG-00031","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00032","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00033","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00037","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00038","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00039","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00040","book":null},{"recordId":"DIG-00041","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00042","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00046","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00047","book":{"desk":{"businessUnit":{"legalEntity":null}}}},{"recordId":"DIG-00048","book":{"desk":{"businessUnit":{"legalEntity":null}}}}]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::DSDeep_ExchangeBalance
-{
-    pattern: '/stress/dsdeep_exchangebalance';
-    documentation: 'The deepest to-one reach digitalassets::ExchangeBalance offers, filtered on a NAVIGATED column rather than a local one, composite-sorted and limited. A predicate over a joined column has to be placed relative to the join, which a filter on the root never tests. Generated by scripts/corpus/deepstack.py.';
-    execution: Single
-    {
-    query: |digitalassets::ExchangeBalance.all()
-        ->filter({x|($x.book.desk.businessUnit.legalEntity.jurisdiction > ' ')})
-        ->project(~[
-            recordId:x|$x.recordId,
-            bookDeskBusinessUnitLegalEntityJurisdiction:x|$x.book.desk.businessUnit.legalEntity.jurisdiction,
-            bookDeskBusinessUnitName:x|$x.book.desk.businessUnit.name,
-            bookRollupBookId:x|$x.book.rollup.bookId,
-            bookDeskName:x|$x.book.desk.name
-        ])
-        ->sort(~recordId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    DSDeep_ExchangeBalance_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 0 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::DSPost_ExchangeBalance
-{
-    pattern: '/stress/dspost_exchangebalance';
-    documentation: 'The same rows as DSDeepExchangeBalance, filtered AFTER project on the projected alias rather than before it on the model path. The join has already happened by then, so the engine has to decide whether the predicate can be pushed back down; the two services must agree. Generated by scripts/corpus/deepstack.py.';
-    execution: Single
-    {
-    query: |digitalassets::ExchangeBalance.all()
-        ->project(~[
-            recordId:x|$x.recordId,
-            bookDeskBusinessUnitLegalEntityJurisdiction:x|$x.book.desk.businessUnit.legalEntity.jurisdiction,
-            bookDeskBusinessUnitName:x|$x.book.desk.businessUnit.name,
-            bookRollupBookId:x|$x.book.rollup.bookId,
-            bookDeskName:x|$x.book.desk.name
-        ])
-        ->filter({x|($x.bookDeskBusinessUnitLegalEntityJurisdiction > ' ')})
-        ->sort(~recordId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    DSPost_ExchangeBalance_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 0 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::DSGroup_ExchangeBalance
-{
-    pattern: '/stress/dsgroup_exchangebalance';
-    documentation: 'The same reach as DSDeepExchangeBalance, then grouped on a NAVIGATED key with aggregates over it. The key came through a join, so a groupBy that grouped before the join would return the same columns and different numbers. Generated by scripts/corpus/deepstack.py.';
-    execution: Single
-    {
-    query: |digitalassets::ExchangeBalance.all()
-        ->filter({x|($x.book.desk.businessUnit.legalEntity.jurisdiction > ' ')})
-        ->project(~[
-            bookDeskBusinessUnitLegalEntityJurisdiction:x|$x.book.desk.businessUnit.legalEntity.jurisdiction,
-            recordId:x|$x.recordId
-        ])
-        ->groupBy(~[bookDeskBusinessUnitLegalEntityJurisdiction], ~[
-            n: x|$x.recordId : agg|$agg->count()
-        ])
-        ->sort(~bookDeskBusinessUnitLegalEntityJurisdiction->ascending());
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    DSGroup_ExchangeBalance_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 0 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::DSTree_ExchangeBalance
-{
-    pattern: '/stress/dstree_exchangebalance';
-    documentation: 'A graphFetch 4 levels deep from digitalassets::ExchangeBalance. A sub-object that is wholly ABSENT and one whose every field is null are the same row in a projection and different objects in a tree, so this asserts something the DSDeep service over the same reach cannot. Generated by scripts/corpus/deepstack.py.';
-    execution: Single
-    {
-    query: |digitalassets::ExchangeBalance.all()
-        ->graphFetch(#{
-  digitalassets::ExchangeBalance
-  {
-    recordId,
-    book
-    {
-      desk
-      {
-        businessUnit
-        {
-          legalEntity
-          {
-            leId
-          }
-        }
-      }
-    }
-  }
-}#)
-        ->serialize(#{
-  digitalassets::ExchangeBalance
-  {
-    recordId,
-    book
-    {
-      desk
-      {
-        businessUnit
-        {
-          legalEntity
-          {
-            leId
-          }
-        }
-      }
-    }
-  }
-}#);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    DSTree_ExchangeBalance_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 0 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[]}';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::DSSub_ExchangeBalance
-{
-    pattern: '/stress/dssub_exchangebalance';
-    documentation: 'Rooted at the SUBTYPE digitalassets::ExchangeBalance and navigating its OWN ends. 1828 class mappings in this corpus extend another set, and almost nothing has ever navigated out of one -- the services over them project local columns and stop. Generated by scripts/corpus/deepstack.py.';
-    execution: Single
-    {
-    query: |digitalassets::ExchangeBalance.all()
-        ->filter({x|($x.book.desk.businessUnit.legalEntity.jurisdiction > ' ')})
-        ->project(~[
-            recordId:x|$x.recordId,
-            bookDeskBusinessUnitLegalEntityJurisdiction:x|$x.book.desk.businessUnit.legalEntity.jurisdiction,
-            bookDeskBusinessUnitName:x|$x.book.desk.businessUnit.name,
-            bookRollupBookId:x|$x.book.rollup.bookId
-        ])
-        ->sort(~recordId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    DSSub_ExchangeBalance_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 0 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
 Service stress::DSLocal_EmployeeRole
 {
     pattern: '/stress/dslocal_employeerole';
@@ -272487,6 +273024,297 @@ Service stress::DSLocal_VariationMargin
   ]
 }
 
+Service stress::DSLocal_IdxEligibilityRule
+{
+    pattern: '/stress/dslocal_idxeligibilityrule';
+    documentation: 'A filter, a computed column, a composite sort and a limit stacked on index_core::IdxEligibilityRule -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxEligibilityRule.all()
+        ->filter({x|($x.description > ' ')})
+        ->project(~[
+            ruleId:x|$x.ruleId,
+            description:x|$x.description
+        ])
+        ->sort(~ruleId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSLocal_IdxEligibilityRule_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"ruleId":"RUL-EU50-LIQ","description":"Minimum average daily traded value"},{"ruleId":"RUL-EU50-MCAP","description":"Minimum free-float market capitalisation"},{"ruleId":"RUL-GBAG-RTG","description":"Investment grade at two agencies"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSLocal_IdxRebalance
+{
+    pattern: '/stress/dslocal_idxrebalance';
+    documentation: 'A filter, a computed column, a composite sort and a limit stacked on index_core::IdxRebalance -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxRebalance.all()
+        ->filter({x|($x.status > ' ')})
+        ->project(~[
+            rebalanceId:x|$x.rebalanceId,
+            status:x|$x.status,
+            additionCount:x|$x.additionCount,
+            totalWeightPct:x|$x.totalWeightPct
+        ])
+        ->sort(~rebalanceId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSLocal_IdxRebalance_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"rebalanceId":"RB-EU50-2024Q2","status":"EFFECTIVE","additionCount":1,"totalWeightPct":100.0},{"rebalanceId":"RB-EU50-2024Q3","status":"ANNOUNCED","additionCount":0,"totalWeightPct":null},{"rebalanceId":"RB-GBAG-202406","status":"EFFECTIVE","additionCount":0,"totalWeightPct":100.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSAgg_IdxRebalance
+{
+    pattern: '/stress/dsagg_idxrebalance';
+    documentation: 'groupBy on a local key of index_core::IdxRebalance with two aggregates over it. The rows being grouped are the ones its ~filter selected, so a filter that selected the whole table shows up here as the wrong COUNT rather than as extra rows. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxRebalance.all()
+        ->filter({x|($x.status > ' ')})
+        ->project(~[
+            status:x|$x.status,
+            rebalanceId:x|$x.rebalanceId,
+            additionCount:x|$x.additionCount
+        ])
+        ->groupBy(~[status], ~[
+            n: x|$x.rebalanceId : agg|$agg->count(),
+            total: x|$x.additionCount : agg|$agg->sum()
+        ])
+        ->sort(~status->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSAgg_IdxRebalance_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"status":"ANNOUNCED","n":1,"total":0},{"status":"EFFECTIVE","n":2,"total":1}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSLocal_IdxTrackingFund
+{
+    pattern: '/stress/dslocal_idxtrackingfund';
+    documentation: 'A filter, a computed column, a composite sort and a limit stacked on index_core::IdxTrackingFund -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxTrackingFund.all()
+        ->filter({x|($x.name > ' ')})
+        ->project(~[
+            fundId:x|$x.fundId,
+            name:x|$x.name
+        ])
+        ->sort(~fundId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSLocal_IdxTrackingFund_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"fundId":"FND-EU50-ETF","name":"Northgate Europe 50 UCITS ETF"},{"fundId":"FND-GBAG-SWAP","name":"Aventine Global Aggregate Swap Fund"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSLocal_IdxWeightCap
+{
+    pattern: '/stress/dslocal_idxweightcap';
+    documentation: 'A filter, a computed column, a composite sort and a limit stacked on index_core::IdxWeightCap -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxWeightCap.all()
+        ->filter({x|($x.capType > ' ')})
+        ->project(~[
+            capId:x|$x.capId,
+            capType:x|$x.capType
+        ])
+        ->sort(~capId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSLocal_IdxWeightCap_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"capId":"CAP-EU50-UCITS","capType":"UCITS_5_10_40"},{"capId":"CAP-GBAG-ISS","capType":"ISSUER"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::DSLocal_Desk
 {
     pattern: '/stress/dslocal_desk';
@@ -274820,6 +275648,125 @@ Service stress::DSAgg_SanctionsCheck
                   #{
                     contentType: 'application/json';
                     data: '[{"status":"ACTIVE","n":2,"total":790},{"status":"CLOSED","n":1,"total":395},{"status":"PENDING","n":1,"total":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSLocal_IdxIndex
+{
+    pattern: '/stress/dslocal_idxindex';
+    documentation: 'A filter, a computed column, a composite sort and a limit stacked on index_core::IdxIndex -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxIndex.all()
+        ->filter({x|($x.currency > ' ')})
+        ->project(~[
+            indexId:x|$x.indexId,
+            currency:x|$x.currency,
+            targetConstituentCount:x|$x.targetConstituentCount
+        ])
+        ->sort(~indexId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSLocal_IdxIndex_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"indexId":"IDX-EU50","currency":"EUR","targetConstituentCount":50},{"indexId":"IDX-GBAG","currency":"USD","targetConstituentCount":2000},{"indexId":"IDX-RETIRED","currency":"GBP","targetConstituentCount":30}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSAgg_IdxIndex
+{
+    pattern: '/stress/dsagg_idxindex';
+    documentation: 'groupBy on a local key of index_core::IdxIndex with two aggregates over it. The rows being grouped are the ones its ~filter selected, so a filter that selected the whole table shows up here as the wrong COUNT rather than as extra rows. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxIndex.all()
+        ->filter({x|($x.currency > ' ')})
+        ->project(~[
+            currency:x|$x.currency,
+            indexId:x|$x.indexId,
+            targetConstituentCount:x|$x.targetConstituentCount
+        ])
+        ->groupBy(~[currency], ~[
+            n: x|$x.indexId : agg|$agg->count(),
+            total: x|$x.targetConstituentCount : agg|$agg->sum()
+        ])
+        ->sort(~currency->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSAgg_IdxIndex_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"currency":"EUR","n":1,"total":50},{"currency":"GBP","n":1,"total":30},{"currency":"USD","n":1,"total":2000}]';
                   }#;
               }#
           ]
@@ -277334,6 +278281,125 @@ Service stress::DSLocal_FundingSecuritiesLoan
                   #{
                     contentType: 'application/json';
                     data: '[{"loanId":"SL-0001","currency":"USD"},{"loanId":"SL-0003","currency":"EUR"},{"loanId":"SL-0004","currency":"USD"},{"loanId":"SL-0005","currency":"JPY"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSLocal_IdxIndexFamily
+{
+    pattern: '/stress/dslocal_idxindexfamily';
+    documentation: 'A filter, a computed column, a composite sort and a limit stacked on index_core::IdxIndexFamily -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxIndexFamily.all()
+        ->filter({x|($x.name > ' ')})
+        ->project(~[
+            familyId:x|$x.familyId,
+            name:x|$x.name,
+            launchYear:x|$x.launchYear
+        ])
+        ->sort(~familyId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSLocal_IdxIndexFamily_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"familyId":"FAM-EUEQ","name":"Europe equity","launchYear":1998},{"familyId":"FAM-GLBD","name":"Global aggregate bond","launchYear":2004}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::DSAgg_IdxIndexFamily
+{
+    pattern: '/stress/dsagg_idxindexfamily';
+    documentation: 'groupBy on a local key of index_core::IdxIndexFamily with two aggregates over it. The rows being grouped are the ones its ~filter selected, so a filter that selected the whole table shows up here as the wrong COUNT rather than as extra rows. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxIndexFamily.all()
+        ->filter({x|($x.name > ' ')})
+        ->project(~[
+            name:x|$x.name,
+            familyId:x|$x.familyId,
+            launchYear:x|$x.launchYear
+        ])
+        ->groupBy(~[name], ~[
+            n: x|$x.familyId : agg|$agg->count(),
+            total: x|$x.launchYear : agg|$agg->sum()
+        ])
+        ->sort(~name->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSAgg_IdxIndexFamily_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"name":"Europe equity","n":1,"total":1998},{"name":"Global aggregate bond","n":1,"total":2004}]';
                   }#;
               }#
           ]
@@ -283995,6 +285061,63 @@ Service stress::DSLocal_TreasuryTransaction
   ]
 }
 
+Service stress::DSLocal_IdxProvider
+{
+    pattern: '/stress/dslocal_idxprovider';
+    documentation: 'A filter, a computed column, a composite sort and a limit stacked on index_core::IdxProvider -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
+    execution: Single
+    {
+    query: |index_core::IdxProvider.all()
+        ->filter({x|($x.name > ' ')})
+        ->project(~[
+            providerId:x|$x.providerId,
+            name:x|$x.name
+        ])
+        ->sort(~providerId->ascending())
+        ->limit(25);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    DSLocal_IdxProvider_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"providerId":"PRV-AVN","name":"Aventine Benchmarks GmbH"},{"providerId":"PRV-NRT","name":"Northgate Index Services"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::DSLocal_ComplianceCheck
 {
     pattern: '/stress/dslocal_compliancecheck';
@@ -288707,126 +289830,6 @@ Service stress::DSAgg_SalesTerritory
   ]
 }
 
-Service stress::DSLocal_SeclendingSecuritiesLoan
-{
-    pattern: '/stress/dslocal_seclendingsecuritiesloan';
-    documentation: 'A filter, a computed column, a composite sort and a limit stacked on seclending::SecuritiesLoan -- which cannot navigate anywhere, because its ends are inherited and F49 makes those unnavigable from a subtype\'s set. Depth being unavailable is not a reason to leave the query bare. Generated by scripts/corpus/deepstack.py.';
-    execution: Single
-    {
-    query: |seclending::SecuritiesLoan.all()
-        ->filter({x|($x.counterpartyId > ' ')})
-        ->project(~[
-            loanId:x|$x.loanId,
-            counterpartyId:x|$x.counterpartyId,
-            quantity:x|$x.quantity,
-            dailyFee:x|$x.dailyFee
-        ])
-        ->sort(~loanId->ascending())
-        ->limit(25);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    DSLocal_SeclendingSecuritiesLoan_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 14 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"loanId":"SL-00001","counterpartyId":"CP-0001","quantity":2500,"dailyFee":1.4322916666666667},{"loanId":"SL-00002","counterpartyId":"CP-0002","quantity":5000,"dailyFee":3.609375},{"loanId":"SL-00004","counterpartyId":"CP-0004","quantity":10000,"dailyFee":10.197916666666666},{"loanId":"SL-00005","counterpartyId":"CP-0005","quantity":12500,"dailyFee":14.609375},{"loanId":"SL-00007","counterpartyId":"CP-0002","quantity":17500,"dailyFee":25.666666666666668},{"loanId":"SL-00008","counterpartyId":"CP-0003","quantity":20000,"dailyFee":32.3125},{"loanId":"SL-00010","counterpartyId":"CP-0005","quantity":25000,"dailyFee":47.838541666666664},{"loanId":"SL-00011","counterpartyId":"CP-0001","quantity":27500,"dailyFee":56.71875},{"loanId":"SL-00013","counterpartyId":"CP-0003","quantity":32500,"dailyFee":76.71354166666667},{"loanId":"SL-00014","counterpartyId":"CP-0004","quantity":35000,"dailyFee":87.828125},{"loanId":"SL-00016","counterpartyId":"CP-0001","quantity":40000,"dailyFee":112.29166666666667},{"loanId":"SL-00017","counterpartyId":"CP-0002","quantity":42500,"dailyFee":125.640625},{"loanId":"SL-00019","counterpartyId":"CP-0004","quantity":47500,"dailyFee":154.57291666666666},{"loanId":"SL-00020","counterpartyId":"CP-0005","quantity":50000,"dailyFee":170.15625}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
-Service stress::DSAgg_SeclendingSecuritiesLoan
-{
-    pattern: '/stress/dsagg_seclendingsecuritiesloan';
-    documentation: 'groupBy on a local key of seclending::SecuritiesLoan with two aggregates over it. The rows being grouped are the ones its ~filter selected, so a filter that selected the whole table shows up here as the wrong COUNT rather than as extra rows. Generated by scripts/corpus/deepstack.py.';
-    execution: Single
-    {
-    query: |seclending::SecuritiesLoan.all()
-        ->filter({x|($x.counterpartyId > ' ')})
-        ->project(~[
-            counterpartyId:x|$x.counterpartyId,
-            loanId:x|$x.loanId,
-            quantity:x|$x.quantity
-        ])
-        ->groupBy(~[counterpartyId], ~[
-            n: x|$x.loanId : agg|$agg->count(),
-            total: x|$x.quantity : agg|$agg->sum()
-        ])
-        ->sort(~counterpartyId->ascending());
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    DSAgg_SeclendingSecuritiesLoan_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 5 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"counterpartyId":"CP-0001","n":3,"total":70000},{"counterpartyId":"CP-0002","n":3,"total":65000},{"counterpartyId":"CP-0003","n":2,"total":52500},{"counterpartyId":"CP-0004","n":3,"total":92500},{"counterpartyId":"CP-0005","n":3,"total":87500}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
 Service stress::SP_ComboC9Group
 {
     pattern: '/stress/sp_comboc9group';
@@ -289338,71 +290341,6 @@ Service stress::SP_InlineFlatTradeGroup
   ]
 }
 
-Service stress::SP_defCurveSummaryGroup
-{
-    pattern: '/stress/sp_defcurvesummarygroup';
-    documentation: 'Coverage-directed stack on curves::CurveSummary (Group), reusing the reach of CV9_CurveSummaries and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
-    execution: Single
-    {
-    query: |curves::CurveSummary.all()
-        ->filter({x|($x.curveId > ' ')})
-        ->project(~[
-            curveId:x|$x.curveId,
-            cobDate:x|$x.cobDate,
-            pillarCount:x|$x.pillarCount,
-            highestRate:x|$x.highestRate,
-            lowestRate:x|$x.lowestRate,
-            curveName:x|$x.summarised.curveName,
-            interpolation:x|$x.summarised.interpolation,
-            summarisedBenchmarkSeriesIsDaily:x|$x.summarised.benchmarkSeries.isDaily
-        ])
-        ->groupBy(~[curveId], ~[
-            n: x|$x.pillarCount : agg|$agg->count(),
-            tot: x|$x.pillarCount : agg|$agg->sum()
-        ]);
-        mapping: stress::AllMapping;
-        runtime: stress::RT;
-    }
-  testSuites:
-  [
-    SP_defCurveSummaryGroup_suite:
-    {
-      data:
-      [
-        connections:
-        [
-          environment:
-            Reference
-            #{
-              stress::TestData
-            }#
-        ]
-      ]
-      tests:
-      [
-        // 8 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
-        expected_rows:
-        {
-          serializationFormat: PURE_TDSOBJECT;
-          asserts:
-          [
-            matchesOracle:
-              EqualToJson
-              #{
-                expected:
-                  ExternalFormat
-                  #{
-                    contentType: 'application/json';
-                    data: '[{"curveId":"USD.SOFR.OIS","n":2,"tot":24},{"curveId":"USD.LIBOR.3M","n":2,"tot":24},{"curveId":"EUR.ESTR.OIS","n":2,"tot":24},{"curveId":"EUR.EURIBOR.6M","n":2,"tot":24},{"curveId":"GBP.SONIA.OIS","n":2,"tot":24},{"curveId":"JPY.TONA.OIS","n":2,"tot":24},{"curveId":"USD.UST.GOVT","n":2,"tot":24},{"curveId":"EUR.DBR.GOVT","n":2,"tot":24}]';
-                  }#;
-              }#
-          ]
-        }
-      ]
-    }
-  ]
-}
-
 Service stress::SP_defCuConversionGroup
 {
     pattern: '/stress/sp_defcuconversiongroup';
@@ -289523,6 +290461,71 @@ Service stress::SP_defPricedTradeGroup
                   #{
                     contentType: 'application/json';
                     data: '[{"tradeId":"TRD-0001","n":1,"tot":190500.0},{"tradeId":"TRD-0002","n":1,"tot":477500.0},{"tradeId":"TRD-0003","n":1,"tot":250000.0},{"tradeId":"TRD-0004","n":1,"tot":250000.0},{"tradeId":"TRD-0005","n":1,"tot":250000.0},{"tradeId":"TRD-0006","n":1,"tot":250000.0},{"tradeId":"TRD-0007","n":1,"tot":282000.0},{"tradeId":"TRD-0008","n":1,"tot":18975.0},{"tradeId":"TRD-0009","n":1,"tot":576750.0},{"tradeId":"TRD-0010","n":1,"tot":498000.0},{"tradeId":"TRD-0011","n":1,"tot":167300.0},{"tradeId":"TRD-0012","n":1,"tot":369000.0},{"tradeId":"TRD-0013","n":1,"tot":171250.0},{"tradeId":"TRD-0014","n":1,"tot":69000.0},{"tradeId":"TRD-0015","n":1,"tot":35000.0},{"tradeId":"TRD-0016","n":1,"tot":264600.0},{"tradeId":"TRD-0017","n":1,"tot":385000.0},{"tradeId":"TRD-0018","n":1,"tot":4912500.0},{"tradeId":"TRD-0019","n":1,"tot":1960000.0},{"tradeId":"TRD-0020","n":1,"tot":975000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::SP_defCurveSummaryGroup
+{
+    pattern: '/stress/sp_defcurvesummarygroup';
+    documentation: 'Coverage-directed stack on curves::CurveSummary (Group), reusing the reach of CV9_CurveSummaries and changing the query SHAPE. Generated by scripts/corpus/spread.py, which picks services by the feature combinations they close rather than by walking the model.';
+    execution: Single
+    {
+    query: |curves::CurveSummary.all()
+        ->filter({x|($x.curveId > ' ')})
+        ->project(~[
+            curveId:x|$x.curveId,
+            cobDate:x|$x.cobDate,
+            pillarCount:x|$x.pillarCount,
+            highestRate:x|$x.highestRate,
+            lowestRate:x|$x.lowestRate,
+            curveName:x|$x.summarised.curveName,
+            interpolation:x|$x.summarised.interpolation,
+            summarisedBenchmarkSeriesIsDaily:x|$x.summarised.benchmarkSeries.isDaily
+        ])
+        ->groupBy(~[curveId], ~[
+            n: x|$x.pillarCount : agg|$agg->count(),
+            tot: x|$x.pillarCount : agg|$agg->sum()
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    SP_defCurveSummaryGroup_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 8 rows; 0 of the aggregate cells are ZERO -- an entity with no children. COUNT(*) over the outer join would return 1.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"curveId":"USD.SOFR.OIS","n":2,"tot":24},{"curveId":"USD.LIBOR.3M","n":2,"tot":24},{"curveId":"EUR.ESTR.OIS","n":2,"tot":24},{"curveId":"EUR.EURIBOR.6M","n":2,"tot":24},{"curveId":"GBP.SONIA.OIS","n":2,"tot":24},{"curveId":"JPY.TONA.OIS","n":2,"tot":24},{"curveId":"USD.UST.GOVT","n":2,"tot":24},{"curveId":"EUR.DBR.GOVT","n":2,"tot":24}]';
                   }#;
               }#
           ]
