@@ -1,6 +1,6 @@
 # THE OPEN REGISTER
 
-ONE list of every open item, with its source and size. Maintenance
+ONE list of every open item, with its source and size. The PROGRAM-LEVEL map (buckets, arc, audit intake) is docs/PROGRAM_MAP.md — this file holds per-item state. Maintenance
 rule (part of every slice's definition of done): a row moves to the
 CLOSED section IN THE SAME COMMIT that closes it; new deferrals add a
 row in the same commit that defers them. "What's unfinished?" must
