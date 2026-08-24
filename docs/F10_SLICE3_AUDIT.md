@@ -108,3 +108,24 @@ ONLY from the Executor's label-dispatch funnel — decode by declared
 label is now a compile-gate, not a review hope. The decodeAny
 label-keying (call it only where label==JSON) rides the relation-cells
 leg when labels there become honest.
+
+## THE UNWIND LEDGER (user review 2026-08-24 — executed by the
+## relation-cells leg, checked off in its commits)
+
+The test for each artifact: WAS THE RAW VALUE STILL AVAILABLE when we
+spelled it? Yes → eager-spelling hack, UNWINDS. No (runtime-decided
+kind) → the kind-faithful carrier, the DESIGN, stays.
+
+| Artifact | Verdict |
+|---|---|
+| unspell + unspellMarked (structural inverse) | DELETE |
+| equality harmonization arm (unspell-one-side) | DELETE |
+| CastPolicy conformance-cast unspell + TO_VARIANT re-wrap | DELETE |
+| format's decomposition unspell | DELETE |
+| dormant contains/in needle spelling arms | DELETE |
+| eager hetero-literal spelling (the claim mechanics) | REPLACED by egress-side spelling from typed info |
+| Lowerer.relationDepth + try/finally + MUTABLE_FIELD_ALLOWLIST row | DELETE — the boundary IS the lane; nobody needs a position counter (the mutable-state guardrail flagged this correctly and the allowlist justification was a rationalization) |
+| LITERAL label + LiteralSpelling/LiteralText + label-driven decode + sniff-stop pin | KEEP — the design |
+| selection/sort identity-channel spellings (runtime-decided kinds) | KEEP — the genuine carrier; made mixedSort pass |
+| selection markers (Cast LITERAL on select/sort results) | KEEP minimal — the label conduit to egress |
+| engine-text marker transparency | KEEP (golden-pinned) |
