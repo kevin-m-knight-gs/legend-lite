@@ -467,6 +467,19 @@ public final class CarrierStrategies extends SqlRewriter {
         if (caps.nativeLists()) {
             return e;
         }
+        // F10 3b: the LITERAL carrier's marker cast is a LABEL device
+        // (scalarRoot reads it) — on a list-less backend it must not
+        // reach the renderer as a cast over an array; strip it here so
+        // the EXISTING array strategies see the shapes they own (the
+        // cells are self-describing text either way — the total-reader
+        // property).
+        if (e instanceof SqlExpr.Cast mk
+                && (mk.target() == com.legend.sql.SqlType.Scalar.LITERAL
+                        || (mk.target() instanceof com.legend.sql.SqlType.Array ma
+                                && ma.element()
+                                        == com.legend.sql.SqlType.Scalar.LITERAL))) {
+            return expr(mk.value());
+        }
         // LIST_CONCAT over compile-time collections FOLDS (R5b,
         // witnessed: month-name lists concatenated before explode).
         // Bottom-up walk: nested concats fold inside-out.

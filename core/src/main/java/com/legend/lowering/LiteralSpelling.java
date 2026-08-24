@@ -315,7 +315,73 @@ public final class LiteralSpelling {
         return kinds.size() < 2 ? null : new SqlExpr.ArrayLit(spelled);
     }
 
-    // ==================================================================
+    /** F10 slice 3b — the STRUCTURAL INVERSE of the element spellings,
+     * for consumers that DECOMPOSE a spelled collection statically
+     * (format's printf args want the raw values back). Pattern-matches
+     * exactly the trees this file emits — one owner, both directions,
+     * so the shapes cannot drift apart. Null = not a recognized
+     * spelling tree (caller must not guess). */
+    static @com.legend.Nullable SqlExpr unspell(SqlExpr spelled) {
+        // integer / boolean / strict-date leaf: CAST(x AS VARCHAR)
+        if (spelled instanceof SqlExpr.Cast c
+                && c.target() == SqlType.Scalar.VARCHAR) {
+            return c.value();
+        }
+        // float: the canon CASE whose zeros-unify WHEN regex-matches
+        // CAST(x AS VARCHAR) — recover x from the first WHEN's probe
+        if (spelled instanceof SqlExpr.Case cs
+                && !cs.whens().isEmpty()
+                && cs.whens().get(0).condition() instanceof SqlExpr.Call fm
+                && fm.fn() == SqlFn.REGEXP_FULL_MATCH
+                && fm.args().get(0) instanceof SqlExpr.Cast fc
+                && fc.target() == SqlType.Scalar.VARCHAR) {
+            return fc.value();
+        }
+        if (spelled instanceof SqlExpr.Call cc && cc.fn() == SqlFn.CONCAT) {
+            List<SqlExpr> a = cc.args();
+            // decimal: CONCAT(strip-D(CAST(x AS VARCHAR)), 'D')
+            if (a.size() == 2 && a.get(1) instanceof SqlExpr.StringLit d
+                    && d.value().equals("D")
+                    && a.get(0) instanceof SqlExpr.Call rr
+                    && rr.fn() == SqlFn.REGEXP_REPLACE
+                    && rr.args().get(0) instanceof SqlExpr.Cast dc) {
+                return dc.value();
+            }
+            // temporals: CONCAT('%', print) — print = strftime(x, fmt)
+            // (dates / datetimes; datetime print is CONCAT(strftime,
+            // '+0000')) or the partial-date string x itself
+            if (a.size() == 2 && a.get(0) instanceof SqlExpr.StringLit pc
+                    && pc.value().equals("%")) {
+                SqlExpr body = a.get(1);
+                if (body instanceof SqlExpr.Call bp
+                        && bp.fn() == SqlFn.CONCAT
+                        && bp.args().get(0) instanceof SqlExpr.Call st
+                        && st.fn() == SqlFn.STRFTIME) {
+                    return st.args().get(0);
+                }
+                if (body instanceof SqlExpr.Call st2
+                        && st2.fn() == SqlFn.STRFTIME) {
+                    return st2.args().get(0);
+                }
+                return body;   // partial-date string carrier
+            }
+            // string: CONCAT(CONCAT('\'', escaped), '\'') — escaped =
+            // REPLACE(REPLACE(x, ...), ...)
+            if (a.size() == 2 && a.get(0) instanceof SqlExpr.Call oc
+                    && oc.fn() == SqlFn.CONCAT
+                    && oc.args().get(0) instanceof SqlExpr.StringLit q
+                    && q.value().equals("'")
+                    && oc.args().get(1) instanceof SqlExpr.Call r1
+                    && r1.fn() == SqlFn.REPLACE
+                    && r1.args().get(0) instanceof SqlExpr.Call r2
+                    && r2.fn() == SqlFn.REPLACE) {
+                return r2.args().get(0);
+            }
+        }
+        return null;
+    }
+
+        // ==================================================================
     // PRINT forms (execution wire; pure toString spellings)
     // ==================================================================
 

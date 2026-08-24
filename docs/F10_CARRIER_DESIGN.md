@@ -95,7 +95,45 @@ slices, never silently merged in this one. Gates prove nothing moved.
   declines 1 → 0; mixed rows of the Number-erasure wire family
   re-bucket.
 
-### Slice 3 — Any positions migrate (the engine-true win)
+### Slice 3a — the temporal grammar (SHIPPED b1cfdd97)
+Both halves precision-faithful (%-spellings + PureDateLiteral arm +
+exact pure-unescape); AUDIT A1 fixed (subsecond strip deleted — probed
+no-op on TIMESTAMP, wrong on text); numericOnly gate dissolved;
+LiteralText relocated to values (Invariant 6a).
+
+### Slice 3b — Any positions migrate (the engine-true win)
+
+CENSUS (2026-08-23, 24 sites). PRODUCERS to migrate — each spells by
+its STATICALLY-KNOWN kind: hetero literal collections (Lowerer ~2313,
+all-spellable elements → literal ArrayLit + Array(LITERAL) marker;
+enum/instance elements keep JSON — enums have NO disjoint spelling),
+concatenate's harmonization (Scalars ~1836: LIST_TRANSFORM per-arg
+elemKind — this gives COMPUTED mixed collections the carrier claim,
+closing the verdict gate's computed-mixed residue), lubCase branches,
+Any-root boxing (spell by judged wire kind), contains/in needle wraps
+(Scalars ~2112/2404 — spell the needle iff the collection is
+LITERAL-carried), Pair Any-slots (Lowerer ~3053 — DEFERRED: feeds the
+keyed-canon field layout, own mini-slice). CONSUMERS to update:
+pureToString's Any arm (spelling → print form IN SQL: unquote strings,
+strip %, keep D; the JSON-array print composition follows the cell
+kind), CastPolicy.comparisonWireOperand, cast(@T)-over-Any (spelling
+casts directly: CAST('1.0' AS DOUBLE) binds; temporals via the %-strip
++ temporal cast), decode (label-driven, already total), canon (LITERAL
+branch already short-circuits). Relation-lane Any TDS cells (Lowerer
+~2441 VARIANT_GET navigation) stay JSON — separately chartered.
+
+LESSON (2026-08-23, built-and-reverted same day): the hetero-literal
+claim LEAKED INTO THE RELATION LANE through the shared scalar() arm —
+4 corpus regressions (spelled strings into JSON-cast consumers;
+relation cells decoded through the wrong carrier). The claim needs an
+explicit LANE FLAG (value lane vs relation lane) before it returns.
+What SHIPPED as 3b groundwork: the TOTAL two-carrier readers
+(first-char disjoint — decodeAny + pureToString), elementLiteral, the
+carrier-marked in/contains/dedup consumer arms (dormant until the
+claim returns), CarrierStrategies marker transparency, element-
+preserving label flow (unconditional root judgment).
+
+### Slice 3 exit (unchanged)
 Census TO_VARIANT construction sites first. Any-position ELEMENT
 encoding switches from raw JSON scalars to spellings; decodeAny gains
 the carrier arm; canon strips (+0000, D-suffix) DELETE. After this,

@@ -327,11 +327,17 @@ public final class Lowerer {
         // RECORDS the representation by boxing; Bottom/Unknown never
         // guess (censused, unboxed). Root scope is FROM-less — no
         // column bindings.
-        if (sqlTypeOf(spec.info().type()) == SqlType.Scalar.JSON
-                && !isMany(spec)
-                && com.legend.sql.SqlTyping.judge(e, c -> null)
-                        instanceof com.legend.sql.SqlTyping.Verdict.Typed t
-                && t.type() != SqlType.Scalar.JSON) {
+        boolean anyStamp = sqlTypeOf(spec.info().type()) == SqlType.Scalar.JSON;
+        // judged unconditionally: a LITERAL-carried product under ANY
+        // stamp (generic/TypeVar dedup results included) must label
+        // truthfully — the judgment flows the carrier through
+        // element-preserving ops (F10 3b)
+        com.legend.sql.SqlTyping.Verdict rootJudge =
+                com.legend.sql.SqlTyping.judge(e, c -> null);
+        if (anyStamp && !isMany(spec)
+                && rootJudge instanceof com.legend.sql.SqlTyping.Verdict.Typed t
+                && t.type() != SqlType.Scalar.JSON
+                && t.type() != SqlType.Scalar.LITERAL) {
             e = SqlExpr.Call.of(SqlFn.TO_VARIANT, e);
         }
         // F10 slice 2 — the KIND-FAITHFUL CARRIER at a mixed root: a
@@ -342,6 +348,16 @@ public final class Lowerer {
         // Array(LITERAL) cast (the sort arm) and the label reads it —
         // both are construction-site facts, never sniffing.
         com.legend.sql.SqlType label = sqlTypeOf(spec.info().type());
+        // slice 3b: an Any-stamped root whose built expr is JUDGED to
+        // carry spellings (the hetero-literal carrier, or an element
+        // extracted from it — LIST_GET/UNNEST flow the type) labels
+        // LITERAL — the stamp erased, the emitter's product knows
+        if (rootJudge instanceof com.legend.sql.SqlTyping.Verdict.Typed jt
+                && (jt.type() == SqlType.Scalar.LITERAL
+                        || (jt.type() instanceof com.legend.sql.SqlType.Array ja
+                                && ja.element() == SqlType.Scalar.LITERAL))) {
+            label = SqlType.Scalar.LITERAL;
+        }
         SqlExpr mixedLits = LiteralSpelling.mixedNumericArray(spec, e);
         if (mixedLits != null) {
             e = mixedLits;
@@ -2315,6 +2331,17 @@ public final class Lowerer {
                     && !PlatformTypes.isVariant(ct)
                     && !PlatformTypes.isNil(ct)
                     && classLayout.apply(ct).isEmpty() -> {
+                // F10 slice 3b GROUNDWORK ONLY — the ALL-SPELLABLE
+                // hetero-literal claim was BUILT and REVERTED same day:
+                // this arm serves BOTH lanes, and the relation lane's
+                // Any TDS cells must stay JSON until the lane flag
+                // exists (4 corpus regressions witnessed the leak:
+                // testUsingSameAggFunctionTwice x2 spelled strings into
+                // a JSON-cast consumer; testInWithDynaFunction /
+                // testCompositionInExtend decoded relation cells
+                // through the wrong carrier). The total two-carrier
+                // readers and elementLiteral stay — the claim returns
+                // with the lane distinction.
                 // C1 collapse (ValueCollections.c1Singleton — witness
                 // in::H2Test); the VARIANT carrier stays, the box goes.
                 if (ValueCollections.c1Singleton(c)) {

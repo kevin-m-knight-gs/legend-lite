@@ -455,6 +455,17 @@ public final class Executor {
             return v;
         }
         String t = s.trim();
+        // F10 slice 3b — the TOTAL two-carrier reader: spelling cells
+        // are first-char disjoint from JSON ('quoted, %temporal,
+        // D-decimal vs "quoted, [, {); bare numerics/bools coincide and
+        // decode identically below. One reader serves both carriers
+        // through the migration.
+        if (!t.isEmpty() && (t.charAt(0) == '\'' || t.charAt(0) == '%'
+                || ((t.endsWith("D") || t.endsWith("d")) && t.length() > 1
+                        && (Character.isDigit(t.charAt(0))
+                                || t.charAt(0) == '-')))) {
+            return com.legend.values.LiteralText.parse(t);
+        }
         if (t.length() >= 2 && t.startsWith("\"") && t.endsWith("\"")) {
             return jsonUnescape(t.substring(1, t.length() - 1));
         }

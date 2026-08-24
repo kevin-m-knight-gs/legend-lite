@@ -170,6 +170,39 @@ final class MixedEncoding {
         return false;
     }
 
+    /** F10 slice 3b — ONE element's pure-literal spelling for the
+     * Any-position carrier, by its STATIC kind. Null = unspellable
+     * (enums — bare names collide with strings; instances; variants;
+     * carriers) — the caller keeps the JSON lane for the whole
+     * collection. A previously-boxed element unwraps first. */
+    static @com.legend.Nullable SqlExpr elementLiteral(TypedSpec e,
+            SqlExpr x) {
+        if (x instanceof SqlExpr.Call cw && cw.fn() == SqlFn.TO_VARIANT) {
+            x = cw.args().get(0);
+        }
+        Type t = e.info().type();
+        if (t == Type.Primitive.INTEGER || t == Type.Primitive.FLOAT
+                || t == Type.Primitive.BOOLEAN
+                || t == Type.Primitive.STRING) {
+            return LiteralSpelling.literal(x, t);
+        }
+        if (t == Type.Primitive.DECIMAL
+                || t instanceof Type.PrecisionDecimal) {
+            return LiteralSpelling.literal(x, Type.Primitive.DECIMAL);
+        }
+        if (t == Type.Primitive.STRICT_DATE) {
+            return LiteralSpelling.strictDateLiteral(x);
+        }
+        if (t == Type.Primitive.DATE_TIME) {
+            return LiteralSpelling.dateTimeLiteral(x,
+                    new SqlExpr.FormatLit(dateTimeFormatOf(e)));
+        }
+        if (t == Type.Primitive.DATE) {
+            return LiteralSpelling.partialDateLiteral(x);
+        }
+        return null;
+    }
+
     /** A date operand's chronological comparable (strptime-padded partials); non-dates pass through. */
     static SqlExpr dateComparableOrSelf(TypedSpec e,
                                         SqlExpr x) {

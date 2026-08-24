@@ -70,7 +70,11 @@ class   CarrierPurityRatchetTest {
             // DOUBLE-promoted array erased Integer identity); a
             // designed carrier at the label seam, absorbed when
             // collections move behind their semantic node.
-            "new SqlExpr\\.ArrayLit\\(", 39,
+            // 39→40 (2026-08-23 F10 3b groundwork): format's
+            // DECOMPOSITION of a spelled argument list rebuilds the raw
+            // arg array through the structural inverse (unspell) — a
+            // consumption artifact, not a new carrier emission.
+            "new SqlExpr\\.ArrayLit\\(", 40,
             "new SqlExpr\\.OrderedListAgg\\(", 1,
             // 136→137 (2026-08-19): ListEncodings.map's LIST_GET — the
             // map SEMANTIC NODE's wire-shape rule (a to-one result

@@ -1545,8 +1545,8 @@ final class Scalars {
                 // (audit). The suffix is the count of dedup calls inside
                 // this one's own subtree: deterministic, and strictly
                 // larger for the outer of any nested pair.
-                int depth = countDedups(n.args().get(n.args().size() - 1));
-                return keptDedup(args.get(0), depth, (prior, cand) -> substituteRef(
+                int depth = Dedup.countDedups(n.args().get(n.args().size() - 1));
+                return Dedup.keptDedup(args.get(0), depth, (prior, cand) -> substituteRef(
                         substituteRef(eq.body(), eq.params().get(0), key.apply(prior)),
                         eq.params().get(1), key.apply(cand)));
             });
@@ -2110,6 +2110,19 @@ final class Scalars {
                 // legitimately contain an instance (audit: class-in-mixed-list
                 // containment was constant FALSE).
                 if (PlatformTypes.isAny(elem)) {
+                    // F10 slice 3b: against a LITERAL-carried collection
+                    // the needle SPELLS (same grammar, byte-comparable);
+                    // an unspellable needle (instance) is statically
+                    // outside the six scalar kinds — pure equality
+                    // instance-vs-primitive is FALSE
+                    if (args.get(0) instanceof SqlExpr.Cast lm
+                            && lm.target() instanceof SqlType.Array lma
+                            && lma.element() == SqlType.Scalar.LITERAL) {
+                        SqlExpr sn = MixedEncoding.elementLiteral(
+                                n.args().get(1), args.get(1));
+                        return sn == null ? new SqlExpr.BoolLit(false)
+                                : new SqlExpr.Membership(sn, args.get(0));
+                    }
                     return new SqlExpr.Membership(
                             SqlExpr.Call.of(SqlFn.TO_VARIANT, args.get(1)),
                             args.get(0));
@@ -2141,7 +2154,30 @@ final class Scalars {
                 List<TypedSpec> typedElems =
                         n.args().get(1) instanceof TypedCollection tc
                                 ? tc.elements() : List.of(n.args().get(1));
-                if (args.get(1) instanceof SqlExpr.ArrayLit arr) {
+                // F10 slice 3b: a spelled argument list (the LITERAL
+                // carrier) decomposes through the structural inverse —
+                // printf wants the raw values, and the one grammar owner
+                // built both directions
+                SqlExpr argColl = args.get(1);
+                if (argColl instanceof SqlExpr.Cast mc
+                        && mc.target() instanceof SqlType.Array ma2
+                        && ma2.element() == SqlType.Scalar.LITERAL
+                        && mc.value() instanceof SqlExpr.ArrayLit sla) {
+                    List<SqlExpr> raw = new ArrayList<>(sla.elements().size());
+                    boolean ok = true;
+                    for (SqlExpr el : sla.elements()) {
+                        SqlExpr u = LiteralSpelling.unspell(el);
+                        if (u == null) {
+                            ok = false;
+                            break;
+                        }
+                        raw.add(u);
+                    }
+                    if (ok) {
+                        argColl = new SqlExpr.ArrayLit(raw);
+                    }
+                }
+                if (argColl instanceof SqlExpr.ArrayLit arr) {
                     // A MIXED argument list arrives variant-wrapped (its LUB
                     // is Any) — printf wants the raw values back, each
                     // substitution slot carries its own kind already.
@@ -2162,7 +2198,7 @@ final class Scalars {
                         spread.add(e);
                     }
                 } else {
-                    spread.add(args.get(1));
+                    spread.add(argColl);
                 }
                 if (spread.get(0) instanceof SqlExpr.StringLit fmt) {
                     rewriteFormatDirectives(fmt.value(), spread, typedElems);
@@ -2414,6 +2450,21 @@ final class Scalars {
                     && !isToOne(n.args().get(1));
             SqlExpr raw = CastPolicy.comparisonWireOperand(n.args().get(0), args.get(0),
                     n.args().get(1));
+            // F10 slice 3b: a LITERAL-carried collection compares in
+            // the spelling grammar — the needle spells by its static
+            // kind (an unspellable needle is statically not a member)
+            if (args.get(1) instanceof SqlExpr.Cast inLm
+                    && inLm.target() instanceof SqlType.Array inLa
+                    && inLa.element() == SqlType.Scalar.LITERAL) {
+                SqlExpr sn = MixedEncoding.elementLiteral(
+                        n.args().get(0), raw);
+                if (sn == null) {
+                    return new SqlExpr.BoolLit(false);
+                }
+                return SqlExpr.Call.of(SqlFn.COALESCE,
+                        new SqlExpr.Membership(sn, args.get(1)),
+                        new SqlExpr.BoolLit(false));
+            }
             SqlExpr needle = collVariant
                     ? SqlExpr.Call.of(SqlFn.TO_VARIANT, raw) : raw;
             // A RELATION-shaped collection = LIST-aggregated subquery;
@@ -2590,51 +2641,6 @@ final class Scalars {
 
 
 
-    /**
-     * Real removeDuplicates-with-comparator: walk the list accumulating the
-     * KEPT prefix; a candidate joins iff no kept element satisfies
-     * eq(kept, candidate). Elements wrap into singleton lists so the reduce
-     * accumulator can BE the kept list (the seed is [first], trivially kept).
-     */
-    /** Dedup-call count inside a typed subtree — the capture-free name suffix. */
-    private static int countDedups(TypedSpec spec) {
-        int n = spec instanceof TypedNativeCall c
-                && c.callee().qualifiedName()
-                        .equals("meta::pure::functions::collection::removeDuplicates") ? 1 : 0;
-        for (var child : spec.children()) {
-            n += countDedups(child);
-        }
-        return n;
-    }
-
-    private static SqlExpr keptDedup(SqlExpr list, int depth,
-            BinaryOperator<SqlExpr> eq) {
-        String ra = "_ra" + depth, rx = "_rx" + depth, rp = "_rp" + depth, rw = "_rw" + depth;
-        SqlExpr wrapped = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, list,
-                new SqlExpr.Lambda(List.of(rw),
-                        new SqlExpr.ArrayLit(List.of(new SqlExpr.Column(null, rw)))));
-        SqlExpr kept = new SqlExpr.Column(null, ra);
-        SqlExpr cand = SqlExpr.Call.of(SqlFn.LIST_GET,
-                new SqlExpr.Column(null, rx), new SqlExpr.IntLit(1));
-        SqlExpr dup = SqlExpr.Call.of(SqlFn.GREATER,
-                SqlExpr.Call.of(SqlFn.LIST_LENGTH,
-                        SqlExpr.Call.of(SqlFn.LIST_FILTER, kept,
-                                new SqlExpr.Lambda(List.of(rp),
-                                        eq.apply(new SqlExpr.Column(null, rp), cand)))),
-                new SqlExpr.IntLit(0));
-        SqlExpr step = new SqlExpr.Case(List.of(new SqlExpr.Case.When(dup, kept)),
-                SqlExpr.Call.of(SqlFn.LIST_APPEND, kept, cand));
-        SqlExpr reduced = SqlExpr.Call.of(SqlFn.LIST_REDUCE, wrapped,
-                new SqlExpr.Lambda(List.of(ra, rx), step));
-        // list_reduce rejects the empty list — the empty dedup is itself
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.EQUAL,
-                        SqlExpr.Call.of(SqlFn.COALESCE,
-                                SqlExpr.Call.of(SqlFn.LIST_LENGTH, list),
-                                new SqlExpr.IntLit(0)),
-                        new SqlExpr.IntLit(0)),
-                list)), reduced);
-    }
 
     /** {@code ', '}-joined string list ('' for empty) — composed in SQL. */
     private static SqlExpr joinList(SqlExpr strings) {
@@ -2661,7 +2667,37 @@ final class Scalars {
             // the JSON quoting ('b', not '"b"'); a variant-carried LIST
             // (a nested ^List under Any) prints pure's '[a, b]', its
             // ELEMENTS as root text — composed in SQL from the JSON array
-            return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+            // F10 slice 3b — the TOTAL two-carrier reader in SQL:
+            // spelling cells are first-char disjoint from JSON. A
+            // quoted spelling prints its unescaped body (replace \'
+            // then \\ — the exact inverse of the encoder's order); a
+            // %-temporal prints its body; D-decimals and bare
+            // numerics/bools print as-is (spelling == print). JSON
+            // cells keep the variant path.
+            SqlExpr txt = new SqlExpr.Cast(x,
+                    PureSql.type(Type.Primitive.STRING));
+            SqlExpr body = SqlExpr.Call.of(SqlFn.SUBSTRING, txt,
+                    new SqlExpr.IntLit(2),
+                    SqlExpr.Call.of(SqlFn.MINUS,
+                            SqlExpr.Call.of(SqlFn.LENGTH, txt),
+                            new SqlExpr.IntLit(2)));
+            SqlExpr unesc = SqlExpr.Call.of(SqlFn.REPLACE,
+                    SqlExpr.Call.of(SqlFn.REPLACE, body,
+                            new SqlExpr.StringLit("\\'"),
+                            new SqlExpr.StringLit("'")),
+                    new SqlExpr.StringLit("\\\\"),
+                    new SqlExpr.StringLit("\\"));
+            return new SqlExpr.Case(List.of(
+                    new SqlExpr.Case.When(
+                            SqlExpr.Call.of(SqlFn.STARTS_WITH, txt,
+                                    new SqlExpr.StringLit("'")),
+                            unesc),
+                    new SqlExpr.Case.When(
+                            SqlExpr.Call.of(SqlFn.STARTS_WITH, txt,
+                                    new SqlExpr.StringLit("%")),
+                            SqlExpr.Call.of(SqlFn.SUBSTRING, txt,
+                                    new SqlExpr.IntLit(2))),
+                    new SqlExpr.Case.When(
                     SqlExpr.Call.of(SqlFn.EQUAL,
                             SqlExpr.Call.of(SqlFn.JSON_TYPE, x),
                             new SqlExpr.StringLit("ARRAY")),
