@@ -109,28 +109,23 @@ final class MixedEncoding {
             return true;
         }
         if (t == Type.Primitive.FLOAT) {
-            ids.add(Scalars.floatRepr(x));   // pure float print, in SQL
+            ids.add(LiteralSpelling.floatPrint(x));   // pure float print, in SQL
             vals.add(x);
             return true;
         }
         if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
-            ids.add(SqlExpr.Call.of(SqlFn.CONCAT,
-                    new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR),
-                    new SqlExpr.StringLit("D")));
+            ids.add(LiteralSpelling.decimalPrintD(x));
             vals.add(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE));
             return true;
         }
         if (t == Type.Primitive.STRICT_DATE) {
-            ids.add(SqlExpr.Call.of(SqlFn.STRFTIME, x,
-                    new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE)));
+            ids.add(LiteralSpelling.datePrint(x));
             vals.add(new SqlExpr.Cast(x, SqlType.Scalar.TIMESTAMP));
             return true;
         }
         if (t == Type.Primitive.DATE_TIME) {
-            ids.add(SqlExpr.Call.of(SqlFn.CONCAT,
-                    SqlExpr.Call.of(SqlFn.STRFTIME, x,
-                            new SqlExpr.FormatLit(dateTimeFormatOf(e))),
-                    new SqlExpr.StringLit("+0000")));
+            ids.add(LiteralSpelling.dateTimePrint(x,
+                    new SqlExpr.FormatLit(dateTimeFormatOf(e))));
             vals.add(x);
             return true;
         }

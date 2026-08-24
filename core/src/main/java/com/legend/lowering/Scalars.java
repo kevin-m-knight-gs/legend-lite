@@ -3109,53 +3109,10 @@ final class Scalars {
     }
 
     /** Whether a type is an instance kind (a user class or parameterized class), not a primitive. */
-    /**
-     * Pure prints a Float via its MINIMAL decimal repr: DuckDB's shortest
-     * round-trip VARCHAR cast already matches ('1.5', '2.0') EXCEPT where it
-     * chooses exponent notation — those re-render plain through a
-     * DECIMAL(38,18) cast with trailing zeros trimmed (and a bare trailing
-     * dot restored to '.0'). Magnitudes outside DECIMAL(38,18) keep the
-     * exponent form.
-     */
+    /** Pure Float minimal-decimal PRINT form — owned by
+     * {@link LiteralSpelling#floatPrint} (F10 proper slice 1). */
     static SqlExpr floatRepr(SqlExpr x) {
-        SqlExpr s = new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR);
-        // FRACTION-FREE values render through HUGEINT — exact plain digits
-        // for the whole [1e16, 1e38) band where the DECIMAL(38,18) cast
-        // fabricates garbage (audit: 1e18 printed ...042.42...); every
-        // double >= 2^53 is fraction-free, so all large magnitudes take
-        // this branch.
-        SqlExpr intPlain = SqlExpr.Call.of(SqlFn.CONCAT,
-                new SqlExpr.Cast(new SqlExpr.Cast(x, SqlType.Scalar.HUGEINT),
-                        SqlType.Scalar.VARCHAR),
-                new SqlExpr.StringLit(".0"));
-        SqlExpr plain = SqlExpr.Call.of(SqlFn.RTRIM,
-                new SqlExpr.Cast(new SqlExpr.Cast(x, new SqlType.Decimal(38, 18)),
-                        SqlType.Scalar.VARCHAR),
-                new SqlExpr.StringLit("0"));
-        SqlExpr fixed = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.ENDS_WITH, plain, new SqlExpr.StringLit(".")),
-                SqlExpr.Call.of(SqlFn.CONCAT, plain, new SqlExpr.StringLit("0")))),
-                plain);
-        SqlExpr hasExp = SqlExpr.Call.of(SqlFn.GREATER,
-                SqlExpr.Call.of(SqlFn.STRPOS, s, new SqlExpr.StringLit("e")),
-                new SqlExpr.IntLit(0));
-        SqlExpr fractionFree = SqlExpr.Call.of(SqlFn.AND,
-                SqlExpr.Call.of(SqlFn.EQUAL, x, SqlExpr.Call.of(SqlFn.FLOOR_RAW, x)),
-                SqlExpr.Call.of(SqlFn.LESS,
-                        SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(1e38)));
-        // The DECIMAL path stays only where the scale-18 cast is exact for
-        // short-decimal values: fractional magnitudes in [1e-17, 2^53)
-        // (below 1e-17 the scale rounds — 1.5e-18 gained a digit; audit).
-        SqlExpr inRange = SqlExpr.Call.of(SqlFn.AND,
-                SqlExpr.Call.of(SqlFn.GREATER_EQUAL,
-                        SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(1e-17)),
-                SqlExpr.Call.of(SqlFn.LESS,
-                        SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.FloatLit(9.007199254740992e15)));
-        return new SqlExpr.Case(List.of(
-                new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.AND, hasExp, fractionFree), intPlain),
-                new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.AND, hasExp, inRange), fixed)), s);
+        return LiteralSpelling.floatPrint(x);
     }
 
     /**
