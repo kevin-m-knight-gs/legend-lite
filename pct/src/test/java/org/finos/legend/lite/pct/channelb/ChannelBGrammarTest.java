@@ -120,12 +120,14 @@ class ChannelBGrammarTest {
         // (2026-08-23: letFn burned by the Any-root FIX-EMITTER —
         // scalarRoot boxes a judged-concrete non-JSON expr under an
         // Any/JSON label with TO_VARIANT; Bottom/Unknown never guess).
-        // 3 -> 2 (2026-08-23 F13b(a)): map burned — the decline was a
-        // SYMPTOM of a semantics bug (to-many property nav over a
-        // collection UNNESTed one level; now FLATTENS) and the test
-        // itself went ERROR -> PASS. Residue: mixedSort Number-stamp
-        // (kind-tagged carrier; engine-frontier) — OPEN_REGISTER F10.
-        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 2,
+        // 3 -> 2 (2026-08-23 F13b(a)): map burned by the flatten fix.
+        // 2 -> 0 (2026-08-23 F10 slice 2): mixedSort burned — mixed
+        // collections ride the kind-faithful LITERAL carrier (byte
+        // canon = the cell itself). ZERO declared residue: any new
+        // decline (e.g. a COMPUTED mixed collection, which the
+        // mixed-kind gate still guards) fails here and becomes a named
+        // work item, never a silent count.
+        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 0,
                 "byte-verdict declines grew past the declared residue: "
                         + com.legend.exec.CanonicalDivergence.summary());
         // CONTRACT PROGRAM wire ratchets (adjudicated 2026-08-23,

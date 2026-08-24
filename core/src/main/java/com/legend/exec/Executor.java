@@ -562,6 +562,14 @@ public final class Executor {
         if (v == null) {
             return null;
         }
+        // the KIND-FAITHFUL CARRIER (F10 proper): a LITERAL-declared
+        // cell holds a pure-literal spelling — the label IS the decode
+        // instruction, the text carries its own kind (sql/LiteralText,
+        // the host half of lowering/LiteralSpelling's grammar)
+        if (type == com.legend.sql.SqlType.Scalar.LITERAL
+                && v instanceof String ls) {
+            return com.legend.sql.LiteralText.parse(ls);
+        }
         if (type instanceof com.legend.sql.SqlType.Struct st && v instanceof java.sql.Struct s) {
             Object[] attrs = s.getAttributes();
             if (attrs.length != st.fields().size()) {

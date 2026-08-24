@@ -285,6 +285,41 @@ public final class LiteralSpelling {
                 new SqlExpr.StringLit(replacement));
     }
 
+    /** F10 slice 2 — the MIXED-NUMERIC carrier encoder: a literal
+     * collection whose elements are ≥2 DISTINCT numeric kinds rebuilds
+     * as an array of pure-literal spellings (each element carries its
+     * own kind; the DOUBLE promotion that erased Integer 1 into 1.0
+     * dies here). Null = not this shape (homogeneous, non-numeric,
+     * non-literal) — the caller keeps its lane. */
+    static @com.legend.Nullable SqlExpr mixedNumericArray(
+            com.legend.compiler.spec.typed.TypedSpec spec, SqlExpr lowered) {
+        if (!(spec instanceof com.legend.compiler.spec.typed.TypedCollection c)
+                || !(lowered instanceof SqlExpr.ArrayLit la)
+                || c.elements().size() < 2
+                || la.elements().size() != c.elements().size()) {
+            return null;
+        }
+        java.util.List<SqlExpr> spelled =
+                new java.util.ArrayList<>(la.elements().size());
+        java.util.Set<Type> kinds = new java.util.HashSet<>();
+        for (int i = 0; i < c.elements().size(); i++) {
+            Type t = c.elements().get(i).info().type();
+            Type kind = t instanceof Type.PrecisionDecimal
+                    ? Type.Primitive.DECIMAL : t;
+            if (kind != Type.Primitive.INTEGER && kind != Type.Primitive.FLOAT
+                    && kind != Type.Primitive.DECIMAL) {
+                return null;
+            }
+            kinds.add(kind);
+            SqlExpr lit = literal(la.elements().get(i), kind);
+            if (lit == null) {
+                return null;
+            }
+            spelled.add(lit);
+        }
+        return kinds.size() < 2 ? null : new SqlExpr.ArrayLit(spelled);
+    }
+
     // ==================================================================
     // PRINT forms (execution wire; pure toString spellings)
     // ==================================================================

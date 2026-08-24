@@ -1078,7 +1078,13 @@ final class Scalars {
                                                 new SqlExpr.Column("_mx", "v")), "s")),
                                 false, src, null, List.of(), null, null, List.of(),
                                 null, null, List.of());
-                        return new SqlExpr.ScalarSubquery(outer);
+                        // F10 slice 2: the sorted ids ARE pure-literal
+                        // spellings — the Array(LITERAL) cast is the
+                        // construction-site label (scalarRoot reads it;
+                        // VARCHAR[] physically, an identity cast)
+                        return new SqlExpr.Cast(
+                                new SqlExpr.ScalarSubquery(outer),
+                                new SqlType.Array(SqlType.Scalar.LITERAL));
                     }
                     // STAMP-read (pair-#4 eliminated): only many-
                     // stamped operands reach here, and a many-stamped

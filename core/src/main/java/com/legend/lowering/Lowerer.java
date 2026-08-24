@@ -334,6 +334,23 @@ public final class Lowerer {
                 && t.type() != SqlType.Scalar.JSON) {
             e = SqlExpr.Call.of(SqlFn.TO_VARIANT, e);
         }
+        // F10 slice 2 — the KIND-FAITHFUL CARRIER at a mixed root: a
+        // literal collection of >=2 distinct numeric kinds rebuilds as
+        // pure-literal spellings under the honest LITERAL label (the
+        // DOUBLE-promoted array erased Integer 1 into 1.0 here); a
+        // producer that already carries spellings marks itself with the
+        // Array(LITERAL) cast (the sort arm) and the label reads it —
+        // both are construction-site facts, never sniffing.
+        com.legend.sql.SqlType label = sqlTypeOf(spec.info().type());
+        SqlExpr mixedLits = LiteralSpelling.mixedNumericArray(spec, e);
+        if (mixedLits != null) {
+            e = mixedLits;
+            label = SqlType.Scalar.LITERAL;
+        } else if (e instanceof SqlExpr.Cast lc
+                && lc.target() instanceof com.legend.sql.SqlType.Array la
+                && la.element() == SqlType.Scalar.LITERAL) {
+            label = SqlType.Scalar.LITERAL;
+        }
         // COLLECTION roots explode to N rows (the result-shape contract:
         // Executor reads a collection as N rows x 1 column); the carrier
         // COMPACTS first (audit §5 value lane — a pure collection holds
@@ -345,7 +362,7 @@ public final class Lowerer {
                 List.of(new SqlSelect.Projection(e, "value")), false,
                 new SqlSource.Dual(),
                 null, List.of(), null, null, List.of(), null, null,
-                List.of(new OutputCol("value", sqlTypeOf(spec.info().type()),
+                List.of(new OutputCol("value", label,
                         PureSql.nullable(spec.info().multiplicity()))));
     }
 

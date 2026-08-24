@@ -209,6 +209,11 @@ public final class SqlTypeCensus {
      * value-subset narrowing and the registered carrier conventions
      * (metaToType + admissible — ONE relation, read from both sides). */
     private static boolean delivers(SqlType label, String meta) {
+        // the kind-faithful carrier: spelling TEXT is its physical form
+        // on every backend (F10 proper — the registered pair)
+        if (label == SqlType.Scalar.LITERAL && meta.equals("VARCHAR")) {
+            return true;
+        }
         // integer-width chain: every narrower integer fits
         if (label == SqlType.Scalar.BIGINT
                 && (meta.equals("INTEGER") || meta.equals("SMALLINT")

@@ -117,10 +117,10 @@ class ChannelBRelationTest {
         // (Map/mapEquals, Any wire trees, keyless classes,
         // mixed-identity F10, NUL literal).
         // 5 -> 3 (2026-08-23): letFn burned by the Any-root
-        // FIX-EMITTER (TO_VARIANT boxing at scalarRoot); 3 -> 2: map
-        // burned by the F13b(a) flatten fix (test ERROR -> PASS);
-        // residue = mixedSort Number-stamp only.
-        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 2,
+        // FIX-EMITTER; 3 -> 2: map burned by the F13b(a) flatten fix;
+        // 2 -> 0 (F10 slice 2): mixedSort burned by the LITERAL
+        // carrier. ZERO declared residue — new declines are new work.
+        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount() <= 0,
                 "byte-verdict declines grew past the declared residue: "
                         + com.legend.exec.CanonicalDivergence.summary());
         // CONTRACT PROGRAM wire ratchets (adjudicated 2026-08-23,

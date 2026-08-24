@@ -519,9 +519,14 @@ final class AssertVerdicts {
         // ANY side is EXEMPT (F10 v1): its JSON carrier never promotes
         // — each cell keeps its own kind and the literal channel spells
         // 1 and 1.0 apart.
-        // ... and a LITERAL-ONLY side (JSON-carried — Number-stamped
-        // mixed lists ride the variant wrap too) is equally exempt:
-        // its cells never promote.
+        // ... and a LITERAL-ONLY side (the F10 kind-faithful carrier —
+        // Number-stamped mixed LITERAL collections and mixed-sort
+        // results ride it, label LITERAL) is equally exempt: its cells
+        // never promote. RESIDUAL GUARD (F10 slice 2): only a COMPUTED
+        // mixed collection (concatenated/derived, not a literal — no
+        // carrier claim yet) can reach this decline; zero witnesses
+        // today and the ceiling is pinned 0, so a firing is a NAMED
+        // work item, never a silent count.
         if ((!eAny && !ef.rider().literalOnly() && mixedNumericKinds(eVals))
                 || (!aAny && !af.rider().literalOnly()
                         && mixedNumericKinds(aVals))) {

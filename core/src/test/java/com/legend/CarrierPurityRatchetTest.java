@@ -64,7 +64,13 @@ class   CarrierPurityRatchetTest {
             // NULL and empty are both the EMPTY key collection, engine
             // equal([],[]) TRUE). Verdict-lane only, same F3/F10
             // migration note as the LIST_ row above.
-            "new SqlExpr\\.ArrayLit\\(", 38,
+            // 38→39 (2026-08-23 F10 slice 2): LiteralSpelling.
+            // mixedNumericArray — the kind-faithful carrier REBUILDS a
+            // mixed-numeric literal collection as spelling texts (the
+            // DOUBLE-promoted array erased Integer identity); a
+            // designed carrier at the label seam, absorbed when
+            // collections move behind their semantic node.
+            "new SqlExpr\\.ArrayLit\\(", 39,
             "new SqlExpr\\.OrderedListAgg\\(", 1,
             // 136→137 (2026-08-19): ListEncodings.map's LIST_GET — the
             // map SEMANTIC NODE's wire-shape rule (a to-one result

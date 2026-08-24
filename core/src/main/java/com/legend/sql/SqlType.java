@@ -10,7 +10,17 @@ public sealed interface SqlType {
 
     enum Scalar implements SqlType {
         BOOLEAN, INTEGER, BIGINT, HUGEINT, DOUBLE, VARCHAR, DATE, TIMESTAMP,
-        TIMESTAMPTZ, JSON
+        TIMESTAMPTZ, JSON,
+        /** The KIND-FAITHFUL CARRIER (F10 proper, docs/F10_CARRIER_
+         * DESIGN.md): the cell holds a value's PURE-LITERAL SPELLING as
+         * text — the six mutually disjoint source forms (bare int,
+         * pointed float, D-suffix decimal, quoted string, bare bool,
+         * %-temporal), so the value carries its own kind. Physical form
+         * is VARCHAR on every backend; the LABEL records the contract
+         * (the spelling grammar), which plain VARCHAR cannot promise.
+         * Encoder: {@code lowering/LiteralSpelling}. Decoder:
+         * {@code sql/LiteralText}. Canon: the cell IS canonical. */
+        LITERAL
     }
 
     record Decimal(int precision, int scale) implements SqlType {

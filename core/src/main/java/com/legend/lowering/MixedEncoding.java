@@ -109,12 +109,17 @@ final class MixedEncoding {
             return true;
         }
         if (t == Type.Primitive.FLOAT) {
-            ids.add(LiteralSpelling.floatPrint(x));   // pure float print, in SQL
+            // F10 slice 2: the LITERAL table (floatCanon — total
+            // fixed-point, pure never prints exponents), so selection
+            // ids byte-match the carrier's spellings on both sides
+            ids.add(LiteralSpelling.literal(x, Type.Primitive.FLOAT));
             vals.add(x);
             return true;
         }
         if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
-            ids.add(LiteralSpelling.decimalPrintD(x));
+            // literal D-form == the old print D-form byte-for-byte (a
+            // DECIMAL cast text has no D to strip)
+            ids.add(LiteralSpelling.literal(x, Type.Primitive.DECIMAL));
             vals.add(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE));
             return true;
         }
