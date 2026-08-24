@@ -107,7 +107,12 @@ public final class LiteralSpelling {
                             new SqlExpr.StringLit("'"), escaped),
                     new SqlExpr.StringLit("'"));
         }
-        if (kind == Type.Primitive.DECIMAL) {
+        if (kind == Type.Primitive.DECIMAL
+                || kind instanceof Type.PrecisionDecimal) {
+            // a PrecisionDecimal IS a Decimal with declared shape — its
+            // pure literal is D-suffixed the same (grammar hole found
+            // by the 2b select carrier: the typed side's candidate
+            // spelled '1.0' against the carrier's '1.0D')
             return SqlExpr.Call.of(SqlFn.CONCAT, leaf,
                     new SqlExpr.StringLit("D"));
         }

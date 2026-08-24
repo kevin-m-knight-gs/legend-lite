@@ -347,8 +347,9 @@ public final class Lowerer {
             e = mixedLits;
             label = SqlType.Scalar.LITERAL;
         } else if (e instanceof SqlExpr.Cast lc
-                && lc.target() instanceof com.legend.sql.SqlType.Array la
-                && la.element() == SqlType.Scalar.LITERAL) {
+                && (lc.target() == SqlType.Scalar.LITERAL
+                        || (lc.target() instanceof com.legend.sql.SqlType.Array la
+                                && la.element() == SqlType.Scalar.LITERAL))) {
             label = SqlType.Scalar.LITERAL;
         }
         // COLLECTION roots explode to N rows (the result-shape contract:

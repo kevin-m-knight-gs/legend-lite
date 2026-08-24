@@ -433,6 +433,12 @@ public final class SqlTypeCensus {
                 : e.getClass().getSimpleName();
     }
 
+    /** Same-package instruments (Executor's carrier-migration census)
+     * count through the one classifier — a named class per probe. */
+    static void classifyExternal(String cls) {
+        classify(cls);
+    }
+
     private static void classify(String cls) {
         CLASSES.computeIfAbsent(cls, k -> new LongAdder()).increment();
     }

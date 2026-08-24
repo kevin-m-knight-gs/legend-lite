@@ -289,8 +289,7 @@ public final class Executor {
                                 + rootType.multiplicity().text());
                     }
                     Object v = hasRow
-                            ? latticeKind(cell(rs, plan, dialect, anyRoot, variantRoot),
-                                    rootType.type())
+                            ? cell(rs, plan, dialect, anyRoot, variantRoot)
                             : null;
                     if (hasRow) {
                         harvestCanon(rs, rider);
@@ -311,8 +310,7 @@ public final class Executor {
                     boolean anyRow = false;
                     while (rs.next()) {
                         anyRow = true;
-                        Object v = latticeKind(cell(rs, plan, dialect, anyRoot, variantRoot),
-                                rootType.type());
+                        Object v = cell(rs, plan, dialect, anyRoot, variantRoot);
                         harvestCanon(rs, rider);
                         // THE LOWERER OWNS THE NULL-DROP (shortcut audit §5):
                         // pure's "a collection holds no empties" is compiled
@@ -414,43 +412,12 @@ public final class Executor {
         return v;
     }
 
-    /**
-     * LATTICE-typed roots recover their values' own kinds from the
-     * identity channel's print forms (computed by the database). The
-     * TIMESTAMP-midnight StrictDate heuristic that used to live here
-     * (audit A10: it read the cell's MAGNITUDE, and a genuine DateTime
-     * at exactly midnight was misread) is DELETED BY PROOF (F5.4): an
-     * instrumented probe fired ZERO times across all three referees —
-     * the full DuckDB corpus, the full H2 corpus, and the 1,109-test
-     * PCT suite. Mapped DATE columns arrive as {@code java.sql.Date}
-     * (the COLUMN's SQL kind carries the fact); a TIMESTAMP under an
-     * abstract Date root keeps its time and decodes as a DateTime —
-     * the A10-correct semantics. The other value-consulting heuristics
-     * (integral-double narrowing, scale-0 decimal narrowing) WERE
-     * audited out earlier.
-     */
-    private static @com.legend.Nullable Object latticeKind(@com.legend.Nullable Object v,
-            Type rootType) {
-        // The MIXED-ELEMENT IDENTITY channel: selections over mixed-kind
-        // Number collections return each element's pure PRINT FORM as text
-        // ('2', '2.0', '7.345D') — parsed back to its own kind here. (DATE
-        // identities stay strings — the wire's date convention.)
-        // V1.7 adjudication (Phase 8): the audit read this as re-parsing
-        // the DB's print form; it is the DELIBERATE carrier decode of the
-        // mixed-identity design (PCT burn-down: print-form carrier beat
-        // the typed-sibling-column alternative) — the print form IS the
-        // wire contract for NUMBER-rooted mixed collections.
-        if (rootType == Type.Primitive.NUMBER && v instanceof String s) {
-            if (s.endsWith("D")) {
-                return new java.math.BigDecimal(s.substring(0, s.length() - 1));
-            }
-            if (s.contains(".") || s.contains("e") || s.contains("E")) {
-                return Double.valueOf(s);
-            }
-            return Long.valueOf(s);
-        }
-        return v;
-    }
+    // latticeKind (the print-form kind sniffer for NUMBER-rooted mixed
+    // identities) DELETED BY CENSUS (F10 slice 2b): mixed selections and
+    // collections now carry the LITERAL label and parse in unwrap
+    // (sql/LiteralText); the instrumented firing count read ZERO across
+    // the full PCT lane and the full corpus before deletion.
+
 
     /**
      * An ANY-typed value travels as variant JSON (the heterogeneous-list

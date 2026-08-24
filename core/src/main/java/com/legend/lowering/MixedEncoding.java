@@ -30,7 +30,8 @@ final class MixedEncoding {
     }
 
     /** Null when not per-element encodable or not mixed. */
-    record MixedElems(List<SqlExpr> ids, List<SqlExpr> vals) {
+    record MixedElems(List<SqlExpr> ids, List<SqlExpr> vals,
+            boolean numericOnly) {
 
         SqlExpr idList() {
             return new SqlExpr.ArrayLit(ids);
@@ -42,8 +43,26 @@ final class MixedEncoding {
 
         /** {@code ids[list_position(vals, <winner>)]} — the selection recipe. */
         SqlExpr select(SqlExpr winner) {
-            return SqlExpr.Call.of(SqlFn.LIST_GET, idList(),
-                    SqlExpr.Call.of(SqlFn.LIST_POSITION, valList(), winner));
+            SqlExpr sel = SqlExpr.Call.of(SqlFn.LIST_GET, idList(),
+                    SqlExpr.Call.of(SqlFn.LIST_POSITION,
+                            valList(), winner));
+            // F10 slice 2b: a NUMERIC mix's selected identity IS a
+            // pure-literal spelling — the Cast is the construction-site
+            // LITERAL label (scalarRoot reads it; physically CAST AS
+            // VARCHAR over text, an identity). Date/string mixes keep
+            // the unmarked print carrier until slice 3 lands the
+            // temporal arm on both grammar halves.
+            return markLiteral(sel);
+        }
+
+        /** The construction-site LITERAL label for any composition
+         * that returns ONE identity text (select, mode's last-run
+         * pick): numeric mixes only until slice 3 lands the temporal
+         * grammar arm on both halves. */
+        SqlExpr markLiteral(SqlExpr sel) {
+            return numericOnly
+                    ? new SqlExpr.Cast(sel, SqlType.Scalar.LITERAL)
+                    : sel;
         }
     }
 
@@ -81,12 +100,18 @@ final class MixedEncoding {
             List<SqlExpr> lowered) {
         List<SqlExpr> ids = new ArrayList<>();
         List<SqlExpr> vals = new ArrayList<>();
+        boolean numericOnly = true;
         for (int i = 0; i < elems.size(); i++) {
             if (!encodeMixed(elems.get(i), lowered.get(i), ids, vals)) {
                 return null;
             }
+            Type t = elems.get(i).info().type();
+            numericOnly &= t == Type.Primitive.INTEGER
+                    || t == Type.Primitive.FLOAT
+                    || t == Type.Primitive.DECIMAL
+                    || t instanceof Type.PrecisionDecimal;
         }
-        return new MixedElems(ids, vals);
+        return new MixedElems(ids, vals, numericOnly);
     }
 
     /**

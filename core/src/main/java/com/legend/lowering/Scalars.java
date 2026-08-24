@@ -1081,10 +1081,15 @@ final class Scalars {
                         // F10 slice 2: the sorted ids ARE pure-literal
                         // spellings — the Array(LITERAL) cast is the
                         // construction-site label (scalarRoot reads it;
-                        // VARCHAR[] physically, an identity cast)
-                        return new SqlExpr.Cast(
-                                new SqlExpr.ScalarSubquery(outer),
-                                new SqlType.Array(SqlType.Scalar.LITERAL));
+                        // VARCHAR[] physically, an identity cast).
+                        // NUMERIC mixes only (2b): date/string ids stay
+                        // print-carried until slice 3's temporal arm.
+                        SqlExpr sorted = new SqlExpr.ScalarSubquery(outer);
+                        return mx.numericOnly()
+                                ? new SqlExpr.Cast(sorted,
+                                        new SqlType.Array(
+                                                SqlType.Scalar.LITERAL))
+                                : sorted;
                     }
                     // STAMP-read (pair-#4 eliminated): only many-
                     // stamped operands reach here, and a many-stamped
@@ -1315,7 +1320,8 @@ final class Scalars {
                             SqlExpr.Call.of(SqlFn.LIST_POSITION,
                                     SqlExpr.Call.of(SqlFn.LIST_REVERSE, mx.valList()),
                                     winner));
-                    return SqlExpr.Call.of(SqlFn.LIST_GET, mx.idList(), lastPos);
+                    return mx.markLiteral(SqlExpr.Call.of(
+                            SqlFn.LIST_GET, mx.idList(), lastPos));
                 }
                 return isToOne(n.args().get(0))
                         ? args.get(0)

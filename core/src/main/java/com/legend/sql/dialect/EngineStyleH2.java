@@ -1617,6 +1617,16 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
     @Override
     protected String variantAwareCast(SqlExpr.Cast c) {
+        // The F10 LITERAL marker cast is a LABEL device (the
+        // construction-site carrier declaration scalarRoot reads) —
+        // never engine text: goldens pin the engine's own spelling
+        // (testGreatestLeast caught cast(greatest(...) as varchar)).
+        if (c.target() == com.legend.sql.SqlType.Scalar.LITERAL
+                || (c.target() instanceof com.legend.sql.SqlType.Array la
+                        && la.element()
+                                == com.legend.sql.SqlType.Scalar.LITERAL)) {
+            return expr(c.value(), 0);
+        }
         String t = castTypeName(c.target()).toLowerCase(Locale.ROOT);
         // The engine spells casts PER DYNAFUNCTION (audit 19 F3), so only
         // respells that cannot collide survive here:
