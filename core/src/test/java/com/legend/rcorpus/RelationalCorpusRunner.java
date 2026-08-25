@@ -706,13 +706,25 @@ public class RelationalCorpusRunner {
                     // concrete-Float-over-DECIMAL conform cast at the
                     // MappingNormalizer pairing seam — the 48 DOUBLE<>
                     // DECIMAL(18,6) rows (mapping::dataType family) now
-                    // speak DOUBLE on the wire. The 7 = 3 HUGEINT<>DOUBLE
-                    // (testReprocessGroupByAlias) + 2 JSON<>VARCHAR
-                    // (fetchDbMetaData) + 2 JSON<>BIGINT
-                    // (dropAndCreateTable), all named for the wire review.
+                    // speak DOUBLE on the wire.
+                    // 7 -> 4 (the wire-7 review, 2026-08-25): the 3
+                    // HUGEINT<>DOUBLE rows healed (SUM tolerance
+                    // transport). THE 4 = the NAMED REGISTERED RESIDUE:
+                    // Any-typed CELL reads from LATE-BOUND frames — 2x
+                    // JSON<>VARCHAR (fetchDbMetaData SQL_TYPE_NAME
+                    // cells) + 2x JSON<>BIGINT (dropAndCreateTable) —
+                    // the label is the variant-carrier erasure of Any,
+                    // the wire is the raw cell; unknowable at compile
+                    // time BY DESIGN (same mortality class as the
+                    // untyped-Column census rows from the same tests;
+                    // the engine itself carries NO type here — its
+                    // PathInformation is empty and its transform is
+                    // identity). Not an excuse arm: counted residue,
+                    // burns only if late-bound frames ever learn
+                    // runtime schemas.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .wireDivergeCount() <= 7,
+                                    .wireDivergeCount() <= 4,
                             "corpus wire divergence grew: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
@@ -738,9 +750,19 @@ public class RelationalCorpusRunner {
                     // rule-vs-emission lie, fixed same sweep). Ceiling:
                     // growth = a new mismatched mapping or an accident
                     // — justify in the commit either way.
+                    // 111 -> 153 (wire-7 review, JUSTIFIED move): SUM
+                    // transports the tolerance, so sum-over-a-tagged-
+                    // read keeps the PURE contract label (Float ->
+                    // DOUBLE) instead of adopting the stamp promotion
+                    // (HUGEINT) — the 3 testReprocessGroupByAlias wire
+                    // rows healed (fixture-skew FLOAT wires genuinely
+                    // sum to DOUBLE), +33 DOUBLE<-HUGEINT + 9 equal-
+                    // pair propagation slots joined the registered
+                    // guest list; row verdicts and scoreboard
+                    // byte-stable.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .toleratedCount() <= 111,
+                                    .toleratedCount() <= 153,
                             "engine-compat tolerated slots grew: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),

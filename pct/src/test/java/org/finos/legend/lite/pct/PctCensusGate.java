@@ -50,7 +50,11 @@ public final class PctCensusGate {
     // this pin only ever moves on the unfiltered gate command's
     // numbers (the G6 chain trip that caught it: Standard's teardown
     // alone reads 611).
-    private static final long MAX_UNTYPED = H2 ? 17 : 728;
+    // 728 -> 273 (2026-08-25 pct-tail burn: probed list_max/list_min
+    // element identity, ADD_INTERVAL -> TIMESTAMP, bit-op widest-int,
+    // greatest/least branch promotion). Measured on the unfiltered
+    // gate composition; max teardown = the final (Grammar) 273.
+    private static final long MAX_UNTYPED = H2 ? 17 : 273;
     private static final long MAX_WIRE_DIVERGE = H2 ? 0 : 78;
     private static final long MAX_ADOPT_PENDING = H2 ? 0 : 101;
 
@@ -60,6 +64,16 @@ public final class PctCensusGate {
             protected void tearDown() {
                 System.out.println("[pct-census] after " + suite + ": "
                         + SqlTypeCensus.summary());
+                // the untyped DECOMPOSITION (the corpus lane's census
+                // display, brought to the pct lane 2026-08-25 — no
+                // silent caps: the ceiling is only adjudicable when
+                // every class is visible with witnesses)
+                SqlTypeCensus.classes(40).forEach(c -> System.out
+                        .println("[pct-census] class: " + c));
+                SqlTypeCensus.allSamples().forEach((cls, ws) ->
+                        ws.forEach(w -> System.out.println(
+                                "[pct-census] witness: " + cls + " :: "
+                                        + w)));
                 check(suite, "label lie escaped reconciliation (mismatch)",
                         SqlTypeCensus.mismatchCount(), 0);
                 check(suite, "wire adopt-pending grew",

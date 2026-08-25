@@ -271,6 +271,57 @@ public final class SqlTyping {
             case LIST_CONCAT -> uniform(a, BOTTOM);
             case LIST_GET, UNNEST ->
                     a.isEmpty() ? UNKNOWN : element(a.get(0).type());
+            // PROBED DuckDB 1.5.0 (2026-08-25, pct-tail burn):
+            // list_max/list_min are ELEMENT-PRESERVING (int->int,
+            // varchar->varchar, date->date — the identity family)
+            case LIST_MAX, LIST_MIN ->
+                    a.isEmpty() ? UNKNOWN : element(a.get(0).type());
+            // date/timestamp + INTERVAL -> TIMESTAMP at EVERY unit,
+            // DATE input included (probed; the NULL value propagates)
+            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> {
+                if (a.isEmpty()) {
+                    yield UNKNOWN;
+                }
+                yield a.stream().anyMatch(
+                        x -> x.type() instanceof TypeFact.Bottom)
+                        ? BOTTOM : T_TIMESTAMP;
+            }
+            // bit ops are WIDTH-PRESERVING on the integer family
+            // (probed: INT&INT->INT, BIGINT|INT->BIGINT — the widest
+            // member; non-integer operands have no bit story)
+            case BIT_AND, BIT_OR, BIT_XOR, BIT_NOT, BIT_SHIFT_LEFT,
+                    BIT_SHIFT_RIGHT -> {
+                boolean bottom = false;
+                int width = 0;
+                for (SqlExpr e : a) {
+                    TypeFact f = e.type();
+                    if (f instanceof TypeFact.Bottom) {
+                        bottom = true;
+                    } else if (f instanceof TypeFact.Typed t
+                            && integerKind(t.type())) {
+                        width = Math.max(width, intWidth(t.type()));
+                    } else {
+                        width = -1;
+                        break;
+                    }
+                }
+                if (width < 0 || a.isEmpty()) {
+                    yield UNKNOWN;
+                }
+                if (bottom) {
+                    yield BOTTOM;
+                }
+                yield switch (width) {
+                    case 1 -> T_INTEGER;
+                    case 2 -> T_BIGINT;
+                    case 3 -> T_HUGEINT;
+                    default -> UNKNOWN;
+                };
+            }
+            // greatest/least follow the BRANCH-FAMILY promotion
+            // (probed: equal kinds identity, BIGINT/INT -> BIGINT;
+            // decimal mixes follow version formulas — stay UNKNOWN)
+            case GREATEST, LEAST -> uniform(a, BOTTOM);
             case LIST_FLATTEN -> {
                 if (a.isEmpty()) {
                     yield UNKNOWN;
@@ -562,7 +613,18 @@ public final class SqlTyping {
         return switch (fn) {
             case SUM -> {
                 if (integerFamily(t) || t == SqlType.Scalar.BOOLEAN) {
-                    yield T_HUGEINT;
+                    // a SUM over an engine-compat TOLERATED read stays
+                    // tolerated (§4bZ): the promotion computed from the
+                    // STAMP kind may not match the wire's own promotion
+                    // (Order.quantity Float[1] over orderTable INT,
+                    // fixture FLOAT — sum wires DOUBLE while the stamp
+                    // says HUGEINT; the tag lets the declared DOUBLE
+                    // label stand, which matches the actual wire —
+                    // testReprocessGroupByAlias, the wire-7 review)
+                    yield t0.tolerated()
+                            ? new TypeFact.Typed(SqlType.Scalar.HUGEINT,
+                                    true)
+                            : T_HUGEINT;
                 }
                 if (t == SqlType.Scalar.DOUBLE) {
                     yield T_DOUBLE;
