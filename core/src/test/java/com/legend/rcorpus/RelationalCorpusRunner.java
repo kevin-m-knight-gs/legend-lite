@@ -717,11 +717,12 @@ public class RelationalCorpusRunner {
                     // deleted 2026-08-24): untyped projection roots =
                     // rule-coverage debt AND the leaf-regression
                     // signal (a new unstamped construction site GROWS
-                    // this). 1,116 -> 737 same day (the arithmetic
-                    // promotion rules); ratchets DOWN as rules land.
+                    // this). 1,116 -> 737 -> 717 same day (arithmetic
+                    // then branch promotion); ratchets DOWN as rules
+                    // land.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .untypedCount() <= 737,
+                                    .untypedCount() <= 717,
                             "untyped projection roots grew — a missing"
                                     + " rule or an unstamped leaf: "
                                     + com.legend.exec.SqlTypeCensus

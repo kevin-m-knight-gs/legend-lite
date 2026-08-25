@@ -323,7 +323,9 @@ public final class SqlTypeCensus {
                 }
                 case TypeFact.Unknown u -> {
                     UNTYPED.increment();
-                    classify("untyped: " + shapeOf(e));
+                    String cls = "untyped: " + shapeOf(e);
+                    classify(cls);
+                    sample(cls, declared.name() + " := " + sketch(e));
                 }
                 case TypeFact.Typed t -> {
                     if (t.type().equals(declared.type())) {

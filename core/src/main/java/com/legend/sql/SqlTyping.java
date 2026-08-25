@@ -632,12 +632,44 @@ public final class SqlTyping {
             if (common == null) {
                 common = t.type();
             } else if (!common.equals(t.type())) {
-                return UNKNOWN;
+                common = branchPromote(common, t.type());
+                if (common == null) {
+                    return UNKNOWN;
+                }
             }
         }
         if (common != null) {
             return typed(common);
         }
         return saw ? allBottom : UNKNOWN;
+    }
+
+    /** BRANCH-FAMILY promotion (DuckDB 1.5.0 probed, 2026-08-24 —
+     * CASE/COALESCE mixed members; the same lattice benefits ArrayLit
+     * and LIST_CONCAT through this shared rule): widest integer wins;
+     * any DOUBLE wins over the integer family; DATE+TIMESTAMP promote
+     * to TIMESTAMP. DECIMAL pairs follow version-specific precision
+     * formulas and cross-kind pairs ERROR at execution — both null
+     * here (UNKNOWN), never guessed. */
+    private static @com.legend.Nullable SqlType branchPromote(
+            SqlType a, SqlType b) {
+        if (integerKind(a) && integerKind(b)) {
+            return intWidth(a) >= intWidth(b) ? a : b;
+        }
+        if (a == SqlType.Scalar.DOUBLE && integerKind(b)
+                || b == SqlType.Scalar.DOUBLE && integerKind(a)) {
+            return SqlType.Scalar.DOUBLE;
+        }
+        if (a == SqlType.Scalar.DATE && b == SqlType.Scalar.TIMESTAMP
+                || a == SqlType.Scalar.TIMESTAMP
+                        && b == SqlType.Scalar.DATE) {
+            return SqlType.Scalar.TIMESTAMP;
+        }
+        return null;
+    }
+
+    private static int intWidth(SqlType t) {
+        return t == SqlType.Scalar.INTEGER ? 1
+                : t == SqlType.Scalar.BIGINT ? 2 : 3;
     }
 }
