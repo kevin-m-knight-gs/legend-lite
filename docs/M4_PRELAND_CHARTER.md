@@ -432,6 +432,156 @@ these outright).
    agree and DELETE; the 48x wire DOUBLE<>DECIMAL rows drain; pins
    move only downward or with written justification.
 
+## 4bR. T4 ATTEMPT 2 HOMEWORK RESULTS (2026-08-25 — items 2-4 DONE,
+## read-only; receipts = full G4 sweep on clean main 37fd2e3f, census
+## dump with witnesses; every family has a named site BEFORE any code)
+
+**G4 baseline receipts (this sweep, 136s, all green):** rulebook 159
+CONFIRMED live (97 VARCHAR<-BIGINT + 48 DOUBLE<-Decimal(18,6) + 14
+DOUBLE<-BIGINT); wire diverge 55 fully decomposed (48 DOUBLE<>
+DECIMAL(18,6) + 3 HUGEINT<>DOUBLE + 2 JSON<>VARCHAR + 2 JSON<>BIGINT);
+EVERY execution-text pin at EXACT ceiling — h2-exec text-matched 320
+(floor 320), advisory 309/309, sqldiff-pass 257/257, adv-pass 303/303,
+rescued 614/614, 0-asserts 27/27 — zero headroom, every move must be
+predicted and justified.
+
+### Item 2 — perturbable consumers, each checked against a cast at the read
+
+New casts appear ONLY at concrete-numeric-declared properties over
+kind-mismatched numeric columns (the Slice-A arm). Per consumer:
+
+1. **UnionSynthesis mirrors (:974/:1011/:1178/:1479 — verdict-3's
+   danger zone): safe BY CONSTRUCTION for the mirrors' own coercions**
+   — coerceToDeclaredNumeric decides on (declared prop, owner) ONLY,
+   physical-blind, applied to EVERY thread uniformly; branch TYPE is
+   normalized even where branch TEXT differs (each thread's
+   castAsDeclared converts to the declared kind at CastPolicy).
+   Member-side asymmetry (cast in member A's ctor field, bare read in
+   B's) enters via pp.fields() <- translatePmToField (:2220 -> :2563)
+   and is then re-normalized by the mirrors' uniform outer coercion —
+   the exact opposite of attempt 1's one-branch cast. Residual check
+   at build: union families whose members disagree on column kind
+   (the mirrors' own comment names the case) witness in the first
+   sweep.
+2. **groupBy keys**: key and projection are the SAME SqlExpr
+   (buildGroupBy) — a cast rides both or neither; no pairing split.
+3. **join conditions**: mapping-join conds lower in the CORRELATION
+   channel (TypedFilter stamp, verbatim equality) — reads carry casts
+   symmetrically. comparisonWireOperand (CastPolicy:239) is the
+   EXISTING referee-pinned unwrap (wire cast unwraps toward a literal
+   speaking the SOURCE type — testInWithDynaFunction golden, bare
+   ID = 4); it keys on tc.wire(), not the target kind, so Slice-A
+   casts inherit the convention automatically.
+4. **DISTINCT/dedup**: lowers over one projection source; a cast
+   changes the expr uniformly — no cross-site identity to break.
+5. **sort keys**: Sorts:36 via Fold.resolveInto; a Cast is
+   scalarInlineable and substitutes as ONE expr (the same object —
+   no transport seam). Comparators.direction reads the TYPED tree
+   (§4A: immune).
+6. **resolveInto substitution** (Fold:451): same as 5 — whole-expr
+   substitution, transport-free.
+7. **Comparators.select (min/max recognizer — §4A queued debt)**:
+   equals() on the LOWERED tree, cast-sensitive (the G9 trip's
+   mechanism). A conform cast inside a min/max comparator body
+   (Float-declared property over DECIMAL) can perturb recognition —
+   named build-time check (G9 chB-std testMax/testMin); the queued
+   typed-level migration is the cure if tripped, never a stamp strip.
+8. **cellRootUnwrapWire (Lowerer:1369 <- CastPolicy:269)** — the
+   existing REVERSE consumer: STRING-target-only, referee-calibrated
+   (4a60b246: tree.pure pins the RAW Long under String[1] over an INT
+   column; boolean.pure pins Boolean conversion). Slice-A numeric
+   casts do NOT match its String guard and SURVIVE at cell roots —
+   intended (item 4's getFloat receipt) — which is exactly why the
+   48-family's exec text moves (item 3).
+9. **Class-plan lane**: TypedProject.wireForm is TRANSPORTED BUT
+   UNCONSUMED today (attempt 1's conformProjections consumer deleted
+   with the revert — verified by grep). The 12 plan tests are
+   protected by EngineTextBoundary elision (StatementExecutor:527 is
+   the ONE enter() site; CastPolicy.lower:50 returns the bare value
+   for wire casts). Verify in the first chain; if a plan test ever
+   sees a cast, the wireForm READ gets built then, as a named
+   capability.
+
+### Item 3 — the text-channel map (written BEFORE code)
+
+- **Golden-TEXT (casts ELIDE, byte-parity)**: every funnel behind
+  EngineTextBoundary.enter — StatementExecutor:527
+  (toSQLString/planToString/EngineStyle renderers, class-plan lane
+  included). castAsDeclared already elides there. Predicted moves:
+  NONE. Any golden-text diff at the sweep = a bug in the slice, not
+  an adjudication.
+- **EXECUTION-text (casts genuinely appear)**: all pins at exact
+  ceiling (receipts above). Predicted moves at Slice A: the
+  48-family (mapping::dataType::testSimpleTypeMapping/…Nulls/
+  …Project) and the 14-family (aggregationAware objectGroupBy)
+  gain CAST(… AS DOUBLE) in exec text; any of them currently in
+  the 320 text-matched set demotes to rescued — h2-exec floor may
+  move DOWN and rescued/sqldiff/advisory ceilings UP by exactly
+  those tests, measured per test, written justification in the
+  ratchet commit. No other family may move.
+- **Census pins**: mismatch==0 HOLDS (reconciliation adopts by
+  construction); wire-diverge 55 -> 7 predicted (ceiling 56 ratchets
+  to 7); adopt-pending==0 holds; untyped 424 unaffected; canonical
+  <=27 expected to hold (casts are value-identical; the 21
+  float-arithmetic rows re-measure).
+- **PCT lane**: ChannelB counters are CUMULATIVE PER JVM — measure
+  lanes WHOLE; pct untyped ceiling 808 banked.
+
+### Item 4 — the 159 rows + the 4 unexplained wire rows, traced
+
+- **48x DOUBLE<-Decimal(18,6) == the 48 wire DOUBLE<>DECIMAL rows —
+  the SAME columns** (witnesses u_map__decimalAsFloat := t0.dec,
+  u_map__numericAsFloat := t0.n; family mapping::dataType::
+  testSimpleTypeMapping/…Nulls/…Project, scalar-map u_map path).
+  NAMED SITE: MappingNormalizer.coerceColumnToDeclared's
+  numeric-over-numeric arm (:2430, typeAsDeclared today) via
+  translatePmToField's Column arm (:2563). ORACLE RECEIPT that
+  conversion is the engine's own semantics for CONCRETE Float: the
+  engine test reads getFloat('decimalAsFloat') and asserts the FLOAT
+  1.234 equal to the cell — pure's Decimal==Float is hardcoded FALSE
+  (§0.4), so the value must be a double by assert time; our
+  decode-by-label conversion is the host-side arm T4 lowers to SQL.
+- **14x DOUBLE<-BIGINT** (witness Total Price Max := Reducer; family
+  aggregationAware::testRewrite::objectGroupBy): Float-declared
+  property over an INTEGER column read RAW under MAX (identity-
+  preserving reducer) -> BIGINT wire under the DOUBLE label. SAME
+  read-site as the 48; the conform cast types the reducer input
+  DOUBLE and the probed promotion follows.
+- **97x VARCHAR<-BIGINT** (witness id := t0.ID,
+  projection::filter::in::testInWithDynaFunction): String-declared
+  over INTEGER. The cast IS already emitted at the seam (:2416) and
+  REMOVED at the two referee-pinned consumers — cellRootUnwrapWire
+  (raw cell, tree.pure) and comparisonWireOperand (bare predicate,
+  the testInWithDynaFunction golden). These rows are NOT
+  cure-by-emission: the referee DEMANDS the raw wire. Drain = LABEL
+  ADOPTS WIRE (delete the arm; reconciliation adopts BIGINT — the
+  engine's own plan metadata pins resultColumns=INT, adoption IS the
+  engine contract), accepted only behind the named witness battery
+  (tree 11-cell, boolean.pure, testInWithDynaFunction) in a full
+  sweep.
+- **The 4 unexplained wire rows (§4Z #2), now NAMED**: 2x
+  JSON<>VARCHAR = functions::fetchDbMetaData::
+  testFetchDbColumnsMetaData; 2x JSON<>BIGINT =
+  ddl::dropAndCreateTable. Variant-lane JSON labels over scalar
+  wires — NOT coercion-arm traffic, they do not die at T4;
+  adjudicate at the T4 sweep's wire review (fix the label at
+  construction or register the carriage). The 3 "need witnesses"
+  rows = 3x HUGEINT<>DOUBLE, groupBy::testReprocessGroupByAlias
+  (sum-promotion label over a DOUBLE wire) — same review.
+
+### Slice order (from the tracing)
+
+A. Concrete-numeric conform at the ONE arm (coerceColumnToDeclared
+   :2430): declared in {Float, Integer, Decimal} (CONCRETE only —
+   Number keeps typeAsDeclared, the castErasure referee) emits
+   castAsDeclared. Measure: admissible 48+14 -> 0, wire 55 -> 7,
+   exec-text moves exactly the two named families. Then the DOUBLE
+   coercion arm in SqlTyping.admissible DELETES (traffic zero).
+B. VARCHAR<-BIGINT arm DELETES behind the witness battery (labels
+   adopt the wire at the unwrapped sites; mismatch==0 by
+   construction). The kept consumed-position String casts already
+   agree (they compute VARCHAR).
+
 ## 5. SESSION TRAPS ROSTER (2026-08-24/25 learnings — read first)
 
 - Corpus/ChannelB roots are -D SYSTEM PROPERTIES; use
