@@ -112,11 +112,20 @@ class SqlTypingTest {
 
     @Test
     void noRuleMeansUnknownNeverAGuess() {
-        // DECIMAL arithmetic follows version-specific precision
-        // formulas — deliberately UNKNOWN, counted by the census
-        assertEquals(SqlTyping.UNKNOWN, t(SqlExpr.Call.of(SqlFn.PLUS,
-                new SqlExpr.IntLit(1),
-                new SqlExpr.DecimalLit(new java.math.BigDecimal("1.50")))));
+        // DECIMAL arithmetic: probed on the reference jar 2026-08-25
+        // (was "deliberately UNKNOWN" until the version-specific
+        // formula was pinned by probe) — BIGINT (19,0) + literal
+        // (3,2): s=2, w=max(19,1)+2+1=22. RECEIPT: DuckDB 1.5.0
+        // typeof(1::BIGINT + 1.50::DECIMAL(3,2)) = DECIMAL(22,2).
+        assertEquals(SqlTyping.typed(new SqlType.Decimal(22, 2)),
+                t(SqlExpr.Call.of(SqlFn.PLUS,
+                        new SqlExpr.IntLit(1),
+                        new SqlExpr.DecimalLit(
+                                new java.math.BigDecimal("1.50")))));
+        // MOD over decimals stays an unprobed corner — no rule, UNKNOWN
+        assertEquals(SqlTyping.UNKNOWN, t(SqlExpr.Call.of(SqlFn.MOD,
+                new SqlExpr.DecimalLit(new java.math.BigDecimal("1.5")),
+                new SqlExpr.DecimalLit(new java.math.BigDecimal("1.0")))));
         // an unstamped column is UNKNOWN until its builder supplies it
         assertEquals(SqlTyping.UNKNOWN, t(new SqlExpr.Column("t", "c")));
     }

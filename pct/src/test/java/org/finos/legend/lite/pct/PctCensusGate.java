@@ -40,11 +40,17 @@ public final class PctCensusGate {
     // untyped 813 -> 808 banked at the M4 re-land (typed claim roots);
     // the lane's one NEW class is wire-delivered LITERAL <- VARCHAR —
     // the registered carrier pair, adjudicated by design (F10).
-    // 808 -> 336 (2026-08-25 rules burn, measured whole-lane: the
-    // label-less ScalarSubquery projection read + probed date_trunc/
-    // decimal-arithmetic/window rules + the empty-ArrayLit-is-Nil
-    // branch-family rule drain the pct lane too)
-    private static final long MAX_UNTYPED = H2 ? 17 : 336;
+    // 808 -> 728 (2026-08-25 rules burn: label-less ScalarSubquery
+    // projection read + probed date_trunc/decimal-arithmetic/window
+    // rules + empty-ArrayLit-is-Nil). MEASURED on the gate's OWN
+    // composition (unfiltered `mvn clean test`, ONE cumulative JVM,
+    // final teardown after Grammar = 728). A first ratchet to 336 was
+    // a WRONG-DENOMINATOR measurement — a -Dtest-filtered run has a
+    // different JVM composition; counters are cumulative per JVM, so
+    // this pin only ever moves on the unfiltered gate command's
+    // numbers (the G6 chain trip that caught it: Standard's teardown
+    // alone reads 611).
+    private static final long MAX_UNTYPED = H2 ? 17 : 728;
     private static final long MAX_WIRE_DIVERGE = H2 ? 0 : 78;
     private static final long MAX_ADOPT_PENDING = H2 ? 0 : 101;
 
