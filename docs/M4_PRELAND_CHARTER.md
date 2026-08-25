@@ -306,7 +306,8 @@ a named future temporal-identity leg, not a patch; ranked by
 tests-per-design when it comes up.
 
 ## 4Z. THE TRUE-ZERO LEDGERS (user-ratified 2026-08-25 — "explained
-## zero" is not zero; all three burn to REAL zero)
+## zero" is not zero; ALL FOUR burn to REAL zero = "make the type
+## system bulletproof"; each may run as its own program)
 
 1. **Rulebook residue: 159** (of the 517 label lies, the rows the two
    admissible coercion arms FORGIVE — excused lies, each a potential
@@ -325,12 +326,20 @@ tests-per-design when it comes up.
    18, DATE_TRUNC_DAY 14, PLUS 12, UNNEST 11, WindowCall 7, Column 2.
    Both lanes count; ceilings ratchet down per slice.
 
+4. **Nullability backlog: 6,472** (bottom-mult-backlog —
+   "null-under-required-multiplicity": a computed value IS or CAN BE
+   the NULL value while the declared column promises always-present.
+   The whether-absent dimension; kinds ledgers #1-#3 cannot see it).
+   ADOPTED to the burn (user ruling 2026-08-25): its own program,
+   method to be chartered census-first like this one — classify the
+   6,472 by cause (honest [0..1] sources under [1] labels vs
+   label-side nullability never computed vs genuine emitter gaps),
+   then per-class: fix the label, fix the emission, or register the
+   carriage. The census already samples witnesses per class.
+
 Sequencing: T4 attempt 2 FIRST (kills #1 whole + 48 of #2 at one
-seam), then the ScalarSubquery family, then tails. NAMED AND EXCLUDED
-from these ledgers (its own future program): the NULLABILITY backlog
-— bottom-mult-backlog 6,472 measured, the whether-absent dimension;
-bulletproof = kinds AND null-ness, and this charter's ledgers cover
-kinds only.
+seam), then the ScalarSubquery family (#3's big bite), then #3
+tails, then the #4 nullability program (own charter, census-first).
 
 QUEUED SMALL DEBT (audit follow-on, witnessed by the G9 min/max
 trip): Comparators.select recognizes comparator shapes on the
