@@ -867,3 +867,47 @@ point — acceptable current state, revisit at the dialect-levels leg).
   run (the conform6 lesson).
 - Doc-only pushes: verify `git diff --stat` is docs-only; code
   pushes always behind the full chain.
+
+## 4bZ-U. THE UNTYPED FLOOR, RE-ADJUDICATED (2026-08-25, user
+## challenge — "we always know the TYPE of pivot columns, just not
+## the names"; every mortality claim re-examined, most overturned)
+
+State after the full burn + corrections: **corpus 4 / pct 108**, both
+pinned. The user's challenge overturned most of the "mortal by
+design" claims — the honest decomposition is DESIGN LEGS, not
+mortality:
+
+1. **Dynamic-pivot columns (36, the biggest chunk): NOT mortal.**
+   Only the NAMES are runtime-discovered (data values become column
+   names); each value column's TYPE is its aggregate's, knowable at
+   compile time. Burns at the queued demand-driven-stamp leg (the
+   phase-1c follow-up: the reader asks the pivot builder for the
+   type, never the name).
+2. **HASH (12): was never mortal — FIXED same day (6d4a49b9).** Our
+   own renderer reinterprets to signed BIGINT (DuckDb.hashSigned);
+   the "UBIGINT outside vocabulary" claim was the CEILING
+   rule-vs-emission mistake REPEATED (bare-builtin probe instead of
+   our emission). Second offense of the lesson class — probe THE
+   EMISSION.
+3. **error() (9): modelable — a RAISES/NEVER fact.** A raising
+   expression yields no value and conforms to every slot; today it's
+   a structural special-case in uniform() and UNKNOWN at roots. The
+   leg: a fourth TypeFact variant (touches every exhaustive switch —
+   half-day, queued).
+4. **The ~63 member-driven remnants: SPLIT PENDING.** Two piles
+   mixed: (a) missing lambda-binding doors — construction sites that
+   hold the element type but never call the attachment door —
+   mechanically burnable; (b) variant PAYLOAD shapes (what's inside
+   a JSON value) — the only genuinely data-dependent unknowns in the
+   whole system. The decomposition pass is the remaining work.
+5. **Corpus 4**: 2 metadata-grid columns — DOWNGRADED from mortal to
+   modelable (the JDBC spec FIXES the metadata result schema; a
+   fixed-schema table-function model types them); 1 JSON-under-
+   VARCHAR carrier chain (burns at the carrier-types leg); 1
+   unstamped subagg lateral (pile (a) — mechanical).
+
+**Corrected end-state claim:** the only truly unknowable types in
+the system are variant payload shapes. Everything else is a named
+leg: demand-driven pivot stamps (36) > lambda-binding sweep (part of
+63+1) > Raises fact (9) > fixed-schema metadata model (2) > carrier
+leg (1). True zero = those legs + per-row variant-payload receipts.
