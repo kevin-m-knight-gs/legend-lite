@@ -143,8 +143,9 @@ public final class SqlTyping {
         // consistent with the engine's identity mechanism, §4bY).
         // These rows carry the same two-population split as the
         // VARCHAR arm below (the deletion experiment left 20x
-        // DOUBLE<>BIGINT wire reds) and retire with the same
-        // declaration-vs-fixture skew census, not by blanket adoption.
+        // DOUBLE<>BIGINT wire reds) and RE-HOME with it per the §4bZ
+        // ruling: a provenance-gated carry-through tolerance at the
+        // LEGEND compat level, never a core type-pair excuse.
         if (declared == SqlType.Scalar.DOUBLE
                 && (computed == SqlType.Scalar.BIGINT
                         || computed == SqlType.Scalar.INTEGER)) {
@@ -168,11 +169,16 @@ public final class SqlTyping {
         // rows — the label lies and adoption is correct (tree.pure
         // asserts raw; the deletion experiment CURED these,
         // int-or-null 83->53, while breaking (a): 42x BIGINT<>VARCHAR
-        // wire reds). Retirement = the declaration-vs-fixture skew
-        // census (the setup DDL runs through our own platform — the
-        // split is statically knowable), then per-population: skew
-        // rows to a named registry, genuine rows adopt and this arm
-        // deletes.
+        // wire reds). RETIREMENT (§4bZ ruling, engine homework done):
+        // the tolerance is engine INERTIA, not design (no validation
+        // exists on either side, no purpose-built test, all of it
+        // bulk-migrated from pre-open-source pure) — so it RE-HOMES
+        // to the LEGEND compat level as a NAMED carry-through
+        // tolerance, gated by PROVENANCE at the mapping seam (only
+        // reads that crossed a declared kind-mismatched property/
+        // column pairing tolerate; accidents elsewhere go loud),
+        // receipted per-row by the fixture-skew census (469
+        // witnesses, Runner.FIXTURE_SKEW). This arm then leaves CORE.
         if (declared == SqlType.Scalar.VARCHAR
                 && computed == SqlType.Scalar.BIGINT) {
             return true;

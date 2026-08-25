@@ -685,6 +685,92 @@ JSON<>BIGINT dropAndCreateTable — all named, wire-review items);
 #5 excuse arms: Decimal limb dead; remaining arms carry per-row
 referee receipts. Next per §4Z sequencing: ScalarSubquery 340.
 
+## 4bZ. THE FULL ENGINE HOMEWORK (2026-08-25, user-ordered — "they
+## must have pinned this for a reason"; every claim receipted from
+## engine/pure source + git archaeology + the new fixture-skew census)
+
+**THE FIXTURE-SKEW CENSUS (new instrument, landed with this section):**
+the Runner already tracks every executed CREATE TABLE
+(familyLiveShapes); the census compares each one against the
+###Relational declaration's column kinds (RelationalKinds.pureKindOf
+vs the setup DDL's type tokens) at the noteExecutedDdl seam. Full
+sweep: **469 family-column skew witnesses** — 287x StrictDate<-
+DateTime, 105x Integer<-String, 56x Integer<-Float, 12x
+Integer<-DateTime (bicycles in_z/out_z!), 6x String<-Integer, 3x
+Float<-Integer. Sweep green, every existing pin unchanged (the
+census is pure measurement).
+
+**VERDICT ON "feature or sloppiness" — it SPLITS, and the engine's
+repo distinguishes the two:**
+
+1. **The numeric conversions are a DELIBERATE, TESTED FEATURE.**
+   testDataTypeMapping's property names spell the intent
+   (decimalAsFloat, numericAsFloat, floatAsDecimal). Mechanism,
+   consistent across BOTH runtimes: DECIMAL/NUMERIC wires flatten to
+   Float AT THE FETCH (interpreted ExecuteInDb.java:81 maps
+   Types.DECIMAL->M3Paths.Float; compiled ResultSetValueHandlers'
+   DECIMAL handler is getBigDecimal(i).doubleValue()), with the
+   result boundary re-inflating Decimal-DECLARED slots via toDecimal
+   (buildExecutionResultInTDS) — the flatten+re-inflate pairing is
+   design, almost certainly dating from when Float was pure's only
+   floating kind and Decimal was added later. OUR HOME: core, as
+   SQL emission (Slice A) — correct and kept.
+2. **The carry-through tolerance is PINNED BY INERTIA, not design.**
+   Zero validation exists anywhere (engine RelationalValidator checks
+   structure only — joins/subtypes; legend-pure has none; NO
+   kind-compatibility matrix on either side); zero purpose-built
+   tests (the mismatches ride incidentally inside tests about other
+   features); ALL of it — fixtures, fetch rules, boundary arms —
+   bottoms out in bulk migrations (engine #662 "Receive modules from
+   legend-pure", pure #135 "Externalize Relational Platform Modules")
+   predating open source; relationalSetUp.pure alone hand-writes 29
+   executeInDb CREATE TABLEs never checked against the declarations.
+   The asserts calcified around whatever the wire produced.
+3. **The temporal skew (287) is the DECLARATIONS' fault, by the
+   engine's own rules.** 88 of 90 distinct skewed temporal columns
+   are milestoning _z columns: stores hand-declare from_z/thru_z
+   DATE (relationalSetUp.pure:113-114) while fixtures create
+   TIMESTAMP — and the engine's own pure->relational type map sends
+   abstract Date -> Timestamp (pureToRelational.pure:53; StrictDate
+   -> Date). Pure's date model confirms the user's hypothesis: the
+   CORE runtime abstraction is the PureDate PRECISION LADDER
+   (hasMonth/hasDay/hasHour...; concrete Year, YearMonth,
+   StrictDate=day, DateWithHour..Subsecond, LatestDate — a
+   milestoning sentinel INSIDE the type family); StrictDate/DateTime
+   are carved-out precision views. TIMESTAMP is where the general
+   Date concept lives — our F5.4 subsumption arm already models
+   exactly this. Processing milestoning compares now() (DateTime);
+   business milestoning's infinity sentinel is a StrictDate
+   (%9999-12-31, milestoning.pure:573). This class joins the
+   EXISTING temporal-identity leg, NOT the carry-through story.
+
+**THE PLAN (user-aligned, brainstormed 2026-08-25):**
+- Conversions stay CORE (emission — done).
+- Carry-through re-homes to the LEGEND COMPAT LEVEL (three-dialect-
+  levels architecture) as a NAMED tolerance relation, gated by
+  PROVENANCE at the mapping seam (only reads that crossed a declared
+  kind-mismatched property/column pairing are tolerated — kills the
+  weak-guard problem of type-pair arms), with the skew census as
+  per-row receipts. Core admissible() keeps draining toward
+  widenings-or-empty (§4Z unchanged in spirit; the two arms retire
+  from CORE by moving to the named compat surface, not by deletion
+  tricks).
+- LEGEND_LITE (product surface): kind-mismatched mappings become a
+  DIAGNOSTIC, strict flip LAST (parser-program pattern) — upstream
+  never designed the tolerance, so strictness on our surface
+  contradicts nothing.
+- The non-temporal fixture skew files UPSTREAM as test-data drift
+  (it demonstrably protects no feature); the temporal class is
+  excluded from the filing (it back-implies the declarations should
+  be TIMESTAMP — engine's own map says so).
+- Wire values need NO chasing: we execute the same fixtures, so our
+  wires match the engine's automatically; the referee pins BOTH
+  channels (cell values follow the WIRE — in.pure '4', tree.pure 11,
+  showcase raw print; TDS schema follows the MODEL —
+  testSimpleTypeMappingProject toJSON "type":"Integer"), so any
+  design forcing one channel to impersonate the other fails real
+  tests — measured twice this arc.
+
 ## 5. SESSION TRAPS ROSTER (2026-08-24/25 learnings — read first)
 
 - Corpus/ChannelB roots are -D SYSTEM PROPERTIES; use

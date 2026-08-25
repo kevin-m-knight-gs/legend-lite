@@ -1417,6 +1417,9 @@ public final class Runner {
                 } else {
                     conn.close();
                 }
+                // declaration-vs-fixture skew census (§4bZ) — both
+                // session kinds; dedupe inside
+                noteFixtureSkew(ctx, recording);
             }
         } catch (Exception e) {
             if (System.getenv("LEGEND_LITE_STACKS") != null) {
@@ -1802,6 +1805,176 @@ public final class Runner {
                 familyLiveShapes.remove(name);
             }
         }
+    }
+
+    /** FIXTURE-SKEW CENSUS (charter §4bZ): the engine's own setup
+     * streams create tables whose column KINDS contradict the
+     * ###Relational declaration (InteractionTable.id VARCHAR(200)
+     * created vs ID INT declared — relationalSetUp.pure:1397). Our
+     * column stamps derive from the DECLARATION, so every skewed
+     * column is a place the typed tree is honestly wrong about the
+     * actual database — the named explanation for label-vs-wire
+     * divergences the deleted coercion arms used to hide, and engine
+     * test-data debt (docs/UPSTREAM_DEFECTS.md). Class key =
+     * declared-vs-created kind pair; witnesses = table.column
+     * [family]; the count pins in the corpus runner. */
+    public static final java.util.Map<String, java.util.Set<String>>
+            FIXTURE_SKEW = java.util.Collections.synchronizedMap(
+                    new java.util.TreeMap<>());
+    private final java.util.Set<String> skewChecked =
+            new java.util.HashSet<>();
+
+    private void noteFixtureSkew(
+            com.legend.compiler.element.ModelContext ctx,
+            java.util.List<String> stmts) {
+        java.util.Map<String, java.util.Map<String, String>> module = null;
+        for (String raw : stmts) {
+            String sql = raw.strip();
+            if (!sql.toLowerCase(java.util.Locale.ROOT)
+                    .startsWith("create table")) {
+                continue;
+            }
+            int open = sql.indexOf('(');
+            if (open <= 12) {
+                continue;
+            }
+            String tname = sql.substring(12, open).strip()
+                    .toLowerCase(java.util.Locale.ROOT);
+            // dedupe by the exact STATEMENT, not the table: a family
+            // stream carries both the module-generated CREATE (declared
+            // shape — never skewed) and the setup-fn's raw CREATE (the
+            // fixture truth, last-write-wins in the live database) —
+            // every distinct create text must be examined
+            if (!skewChecked.add(currentFamilyKey + "|" + sql)) {
+                continue;
+            }
+            if (module == null) {
+                module = moduleColumnKinds(ctx);
+            }
+            java.util.Map<String, String> declared = module.get(tname);
+            if (declared == null) {
+                continue;
+            }
+            parseCreateColumns(sql, (col, typeTok) -> {
+                String dk = declared.get(col);
+                String fk = fixtureKind(typeTok);
+                if (dk != null && fk != null && !dk.equals(fk)) {
+                    FIXTURE_SKEW.computeIfAbsent(
+                            "declared " + dk + ", created " + fk,
+                            k -> java.util.Collections.synchronizedSet(
+                                    new java.util.TreeSet<>()))
+                            .add(tname + "." + col
+                                    + " [" + currentFamilyKey + "]");
+                }
+            });
+        }
+    }
+
+    /** Lowercase table name -> (lowercase column -> declared pure kind)
+     * for the current DDL scope's databases — the module side of the
+     * skew comparison (mirrors {@link #moduleDdl}'s iteration). */
+    private java.util.Map<String, java.util.Map<String, String>>
+            moduleColumnKinds(com.legend.compiler.element.ModelContext ctx) {
+        java.util.Map<String, java.util.Map<String, String>> out =
+                new java.util.HashMap<>();
+        for (String fqn : ctx.elementFqns()) {
+            if (!currentDdlDbs.contains(fqn)) {
+                continue;
+            }
+            var dbOpt = ctx.findDatabase(fqn);
+            if (dbOpt.isEmpty()) {
+                continue;
+            }
+            var db = dbOpt.get();
+            java.util.List<com.legend.model.DatabaseDefinition
+                    .TableDefinition> tds = new ArrayList<>(db.tables());
+            db.schemas().forEach(s -> tds.addAll(s.tables()));
+            for (var td : tds) {
+                java.util.Map<String, String> cols =
+                        out.computeIfAbsent(td.name().toLowerCase(
+                                java.util.Locale.ROOT),
+                                k -> new java.util.HashMap<>());
+                for (var cd : td.columns()) {
+                    cols.putIfAbsent(cd.name().toLowerCase(
+                            java.util.Locale.ROOT),
+                            com.legend.normalizer.RelationalKinds
+                                    .pureKindOf(cd.dataType()));
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Column entries of an executed CREATE TABLE: (lowercase name,
+     * UPPERCASE bare type token) — the same crude statement sniffing
+     * {@link #noteExecutedDdl} established for live shapes; constraint
+     * clauses skip. */
+    private static void parseCreateColumns(String createSql,
+            java.util.function.BiConsumer<String, String> sink) {
+        int open = createSql.indexOf('(');
+        int close = createSql.lastIndexOf(')');
+        if (open < 0 || close <= open) {
+            return;
+        }
+        String list = createSql.substring(open + 1, close);
+        int depth = 0;
+        int start = 0;
+        java.util.List<String> entries = new ArrayList<>();
+        for (int i = 0; i < list.length(); i++) {
+            char c = list.charAt(i);
+            if (c == '(') {
+                depth++;
+            } else if (c == ')') {
+                depth--;
+            } else if (c == ',' && depth == 0) {
+                entries.add(list.substring(start, i));
+                start = i + 1;
+            }
+        }
+        entries.add(list.substring(start));
+        for (String e : entries) {
+            String s = e.strip();
+            if (s.isEmpty()) {
+                continue;
+            }
+            String[] tok = s.split("\\s+");
+            if (tok.length < 2) {
+                continue;
+            }
+            String name = tok[0].replace("\"", "").replace("`", "");
+            String head = name.toUpperCase(java.util.Locale.ROOT);
+            if (head.equals("PRIMARY") || head.equals("CONSTRAINT")
+                    || head.equals("FOREIGN") || head.equals("UNIQUE")
+                    || head.equals("KEY") || head.equals("CHECK")) {
+                continue;
+            }
+            String type = tok[1];
+            int p = type.indexOf('(');
+            if (p > 0) {
+                type = type.substring(0, p);
+            }
+            sink.accept(name.toLowerCase(java.util.Locale.ROOT),
+                    type.toUpperCase(java.util.Locale.ROOT));
+        }
+    }
+
+    /** The executed-DDL type token's pure kind — the fixture side of
+     * the skew comparison (mirrors RelationalKinds.pureKindOf for the
+     * token spellings the corpus setup streams actually use); null =
+     * unmodeled token, skipped (never guessed). */
+    private static @com.legend.Nullable String fixtureKind(String token) {
+        return switch (token) {
+            case "INT", "INTEGER", "BIGINT", "SMALLINT", "TINYINT"
+                    -> "Integer";
+            case "VARCHAR", "CHAR", "CHARACTER", "NVARCHAR", "CLOB",
+                    "TEXT", "STRING" -> "String";
+            case "FLOAT", "DOUBLE", "REAL" -> "Float";
+            case "DECIMAL", "NUMERIC" -> "Decimal";
+            case "BIT", "BOOLEAN" -> "Boolean";
+            case "TIMESTAMP", "DATETIME", "SMALLDATETIME" -> "DateTime";
+            case "DATE" -> "StrictDate";
+            default -> null;
+        };
     }
 
     private final java.util.Map<String, String> familyDdlShapes =

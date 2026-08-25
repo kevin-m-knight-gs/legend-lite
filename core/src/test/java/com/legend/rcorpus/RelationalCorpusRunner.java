@@ -529,6 +529,22 @@ public class RelationalCorpusRunner {
                 }
             });
         }
+        // declaration-vs-fixture skew census (charter §4bZ): every
+        // column the setup stream created with a kind contradicting the
+        // ###Relational declaration — engine test-data debt, the named
+        // explanation for the wire-diverge rows the deleted coercion
+        // arms used to hide. Printed on every run BEFORE the gate
+        // asserts (scoped iteration needs it); the count pins in the
+        // full-run assert block below.
+        long skewCols = Runner.FIXTURE_SKEW.values().stream()
+                .mapToLong(java.util.Set::size).sum();
+        System.out.println("[rcorpus] fixture-skew columns: " + skewCols);
+        Runner.FIXTURE_SKEW.forEach((cls, ws) -> {
+            System.out.println("[rcorpus] fixture-skew-class: "
+                    + ws.size() + "x " + cls);
+            ws.forEach(w -> System.out.println(
+                    "[rcorpus] fixture-skew-witness: " + cls + " :: " + w));
+        });
         // M1 GATE PINNING (H2_BACKEND.md §12 step 13): on a FULL sweep,
         // any divergence fails the build (they already FAIL per-test —
         // this pins the aggregate against silent scoring drift), and the
