@@ -2429,6 +2429,26 @@ public final class MappingNormalizer {
         }
         Set<String> numeric = Set.of("Float", "Decimal", "Integer", "Number");
         if (numeric.contains(declared) && numeric.contains(colKind)) {
+            // T4 attempt 2 (charter §4bR): a CONCRETE Float contract over a
+            // DECIMAL/NUMERIC column CONVERTS — and the conversion lowers
+            // to SQL (tenet #1), never decode-by-label. Engine receipt: its
+            // own dataType test reads getFloat('decimalAsFloat') and asserts
+            // the FLOAT 1.234 equal to the cell, and pure's Decimal==Float
+            // is hardcoded false — the value must be a double at the read.
+            // Float over an INTEGER-family column stays IDENTITY — referee
+            // receipt (this slice's own first sweep): the validation
+            // showcase golden prints the raw 'Quantity not in range:
+            // 1000000' (Float-declared quantity over an INT column,
+            // toString computed IN SQL) — the F7 raw-keeping holds for
+            // integer sources; those labels drain by ADOPTION, not
+            // emission. Abstract Number (identity carrier — castErasure
+            // referee) and Integer-declared likewise stay type-only
+            // assertions.
+            if ("Float".equals(declared) && "Decimal".equals(colKind)) {
+                return new AppliedFunction(Pure.Lite.CAST_AS_DECLARED,
+                        List.of(read, new TypeAnnotation.Named(
+                                new TypeExpression.NameRef(declared))));
+            }
             return new AppliedFunction(Pure.Lite.TYPE_AS_DECLARED, List.of(read,
                     new TypeAnnotation.Named(
                             new TypeExpression.NameRef(declared))));

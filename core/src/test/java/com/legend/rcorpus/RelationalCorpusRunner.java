@@ -685,10 +685,18 @@ public class RelationalCorpusRunner {
                     // adopted HUGEINT labels, registered carriages, then
                     // the pure-Decimal erasure ADOPTION (labels take the
                     // wire's own precision: 58 more exact wire matches);
-                    // deterministic counts, ratcheted to measured)
+                    // deterministic counts, ratcheted to measured).
+                    // 56 -> 7 (T4 attempt 2, charter §4bR Slice A): the
+                    // concrete-Float-over-DECIMAL conform cast at the
+                    // MappingNormalizer pairing seam — the 48 DOUBLE<>
+                    // DECIMAL(18,6) rows (mapping::dataType family) now
+                    // speak DOUBLE on the wire. The 7 = 3 HUGEINT<>DOUBLE
+                    // (testReprocessGroupByAlias) + 2 JSON<>VARCHAR
+                    // (fetchDbMetaData) + 2 JSON<>BIGINT
+                    // (dropAndCreateTable), all named for the wire review.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .wireDivergeCount() <= 56,
+                                    .wireDivergeCount() <= 7,
                             "corpus wire divergence grew: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
