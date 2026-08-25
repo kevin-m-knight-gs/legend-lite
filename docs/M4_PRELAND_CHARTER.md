@@ -26,19 +26,38 @@ GUESSED / PUNTED (the census closes these):
    as not-fixed; pure's ordering across kinds never verified.
 3. **The 3 residual rows** from the branch's final chain
    (postprocessor −1, tests/query −2) — named, never diagnosed.
-4. **`eq(1, 1.0)`** — the byte-equality design ASSUMES cross-kind
-   numeric inequality. FIRST CENSUS RECEIPT (2026-08-25): pure's own
-   PCT eq tests NEVER test the cross-kind case
-   (legend-pure .../boolean/equality/eq.pure — testEqInteger and
-   testEqFloat are same-kind only), and eq's doc says "numeric
-   equality" (hinting TRUE is possible). Pure has THREE flavors
-   (eq / equal / ==) that may answer differently. UNRESOLVED —
-   verify against the real oracle (the eq/equal NATIVE
-   implementations in legend-pure Java, or run the interpreter)
-   before trusting byte-equality anywhere.
-   Verified in passing: cross-PRECISION dates are unequal
-   (assertFalse(eq(%2014, %2014-01-01)) — eq.pure:54) ✓ supports
-   spelling disjointness for dates.
+4. **`eq(1, 1.0)` — RESOLVED AT THE SOURCE (2026-08-25), with
+   receipts:**
+   - INTERPRETED runtime (EqualityUtilities.eq:67-80): primitives are
+     equal iff the primitive TYPE NAMES match AND the values match —
+     cross-kind is FALSE before values are examined; same-kind
+     compares by {@code getName()} — the value's CANONICAL STRING.
+   - COMPILED runtime (CompiledSupport.eq:969-1011): class mismatch →
+     false (Long vs Double → false); BigDecimal-vs-Double is
+     HARDCODED false (matches the branch's Decimal==Float fix); the
+     same-Number fallback is literally
+     {@code left.toString().equals(right.toString())}.
+   - {@code equal} (what {@code ==} uses) DELEGATES its primitive
+     case to eq (EqualityUtilities.equal:102-105) — all flavors
+     agree.
+   VERDICT: byte-equality-of-canonical-spellings IS pure's own
+   primitive-equality mechanism, not an approximation of it.
+   Verified in passing: cross-PRECISION dates unequal
+   (assertFalse(eq(%2014, %2014-01-01)) — eq.pure:54).
+
+   **NEW EDGES the source read surfaced (census items, receipts
+   attached):**
+   a. **-0.0**: CompiledSupport.eq NORMALIZES -0.0 to 0.0 before
+      comparing (lines 1008-1009) — pure says -0.0 == 0.0 is TRUE,
+      but the spellings byte-differ. Fix shape: LiteralSpelling
+      canonicalizes -0.0 → 0.0 at emission (one owner). MUST land
+      with the claim or byte-equality gives a wrong answer here.
+   b. **Canonical-form parity**: byte-equality holds only if OUR
+      spellings match pure's canonical name forms at every
+      magnitude — verify LiteralSpelling against pure's Float/
+      Decimal name forms for exponent-range values (Java
+      Double.toString gives "1.5E10" — does pure's name and do WE
+      agree?), trailing zeros, and Decimal scale spelling.
 
 ## 1. THE DEMAND CENSUS (half-day, read-only, no code)
 
