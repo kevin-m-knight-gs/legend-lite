@@ -90,15 +90,31 @@ final class ValueCollections {
 
     /** {@code SELECT flatten(LIST([cells...]))} over {@code rel} — a
      * MULTI-column relation as a ROW-MAJOR value collection. Cells ride
-     * the VARIANT carrier (to_json — the mixed-list discipline: exact
-     * type preservation, same spelling the Any-LUB collection literal
-     * uses), never a text CAST. */
+     * the LITERAL carrier when every column kind SPELLS (conform BY
+     * EMISSION — the same grammar owner the claimed Any-LUB expected
+     * side uses, so grid asserts byte-compare; the OutputCol carries
+     * the label and egress decodes typed). An unspellable column kind
+     * (enum) keeps the whole list on the VARIANT carrier. */
     static SqlSelect rowMajorCellList(SqlSelect rel, Type.RelationType rt,
             String sub) {
         List<SqlExpr> cells = new ArrayList<>();
+        boolean allSpell = true;
         for (Type.Column c : rt.columns()) {
-            cells.add(SqlExpr.Call.of(SqlFn.TO_VARIANT,
-                    SqlExpr.Column.of(sub, rel.outputs(), c.name())));
+            SqlExpr s = MixedEncoding.spellByKind(c.type(),
+                    SqlExpr.Column.of(sub, rel.outputs(), c.name()),
+                    com.legend.sql.DateFmt.ISO_LOCAL);
+            if (s == null) {
+                allSpell = false;
+                break;
+            }
+            cells.add(s);
+        }
+        if (!allSpell) {
+            cells.clear();
+            for (Type.Column c : rt.columns()) {
+                cells.add(SqlExpr.Call.of(SqlFn.TO_VARIANT,
+                        SqlExpr.Column.of(sub, rel.outputs(), c.name())));
+            }
         }
         return SqlSelect.starOf(new SqlSource.Subselect(rel, sub, null))
                 .withProjections(List.of(new SqlSelect.Projection(
@@ -107,7 +123,9 @@ final class ValueCollections {
                                                 new SqlExpr.ArrayLit(cells)),
                                                 false, java.util.List.of())),
                                 null)),
-                        List.of(new OutputCol("value", SqlType.Scalar.VARCHAR,
+                        List.of(new OutputCol("value",
+                                allSpell ? SqlType.Scalar.LITERAL
+                                        : SqlType.Scalar.VARCHAR,
                                 true)));
     }
 

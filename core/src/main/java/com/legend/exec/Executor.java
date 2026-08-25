@@ -426,7 +426,13 @@ public final class Executor {
         // null node is a present cell; unwrap/decode may host-null it)
         boolean present = fetched != null;
         Object v = unwrap(fetched, sqlTypeOf(plan, 0), dialect);
-        if (anyRoot) {
+        // a LITERAL-labeled cell is FULLY decoded by unwrap (the label
+        // IS the decode instruction — LiteralText); feeding the typed
+        // result through decodeAny would RE-TYPE it by the json grammar
+        // (the '3'->Long double-decode, gate-caught in the reference
+        // channel). Only the JSON carrier decodes as variant.
+        if (anyRoot
+                && sqlTypeOf(plan, 0) != com.legend.sql.SqlType.Scalar.LITERAL) {
             return new Cell(decodeAny(v), present);
         }
         // A JSON-carrier CELL under a non-Any VALUE root (a variant-list

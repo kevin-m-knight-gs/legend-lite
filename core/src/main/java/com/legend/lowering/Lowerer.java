@@ -2346,21 +2346,48 @@ public final class Lowerer {
                     && !PlatformTypes.isVariant(ct)
                     && !PlatformTypes.isNil(ct)
                     && classLayout.apply(ct).isEmpty() -> {
-                // F10 3b: the hetero-literal claim is PARKED (third
-                // and final time) on ONE remaining adjudication — the
-                // corpus GRID-EXTRACTION asserts (rows.values ==
-                // [literal]) follow the ENGINE'S TEXT-COMPARE
-                // convention, which only held because both sides
-                // erased; the typed-faithful carrier honestly exposes
-                // '4' != 4 there. The fix is a REFEREE-MODE ruling
-                // (render-channel verdict for the grid-extraction
-                // family), presented for user adjudication — never a
-                // side effect. PCT is clean under the claim; every
-                // harmonization arm (equality unspell, conformance
-                // cast re-wrap) is landed and dormant-ready.
+                // THE HETERO-LITERAL CLAIM (F10 3b, M4 RE-LAND on the
+                // typed IR — zero compensations): a VALUE-LANE Any-LUB
+                // literal collection whose every element SPELLS rides
+                // the LITERAL carrier — six kinds disjoint BY GRAMMAR,
+                // so temporal/Decimal equality inside Any is byte-
+                // decidable (json erased exactly those kinds: to_json
+                // of a date and of its string print are the SAME bytes
+                // — witness AnyLiteralByteDecidabilityTest). The
+                // original parking blocker DISSOLVED with the carrier-
+                // rule reversal: rows.values rides the grid again, so
+                // grid-extraction asserts never meet this carrier (the
+                // lane gates: value-lane only, never a rowCells body).
+                // Enum/instance/computed elements decline per-element
+                // and the collection keeps the variant lane; Number-LUB
+                // mixes keep variant BY CONTRACT (arithmetic must type;
+                // the next arm — the §1R census receipt).
+                boolean cellSlots = c.rowCells();
+                if (!cellSlots && CollectionLanes.valueLane(c)
+                        && !c.elements().isEmpty()) {
+                    java.util.List<SqlExpr> spelled =
+                            new java.util.ArrayList<>(c.elements().size());
+                    for (TypedSpec el : c.elements()) {
+                        SqlExpr s = MixedEncoding.elementLiteral(
+                                el, scalar(el, columns));
+                        if (s == null) {
+                            spelled = null;
+                            break;
+                        }
+                        spelled.add(s);
+                    }
+                    if (spelled != null) {
+                        yield ValueCollections.c1Singleton(c)
+                                ? new SqlExpr.Cast(spelled.get(0),
+                                        SqlType.Scalar.LITERAL)
+                                : new SqlExpr.Cast(
+                                        new SqlExpr.ArrayLit(spelled),
+                                        new SqlType.Array(
+                                                SqlType.Scalar.LITERAL));
+                    }
+                }
                 // C1 collapse (ValueCollections.c1Singleton — witness
                 // in::H2Test); the VARIANT carrier stays, the box goes.
-                boolean cellSlots = c.rowCells();
                 if (ValueCollections.c1Singleton(c)) {
                     var e0 = c.elements().get(0);
                     yield MixedEncoding.variantElement(e0,
@@ -2646,7 +2673,7 @@ public final class Lowerer {
             // An inner lambda: ALL its parameters shadow; everything else
             // resolves outward through the enclosing resolver.
             case TypedLambda l -> new SqlExpr.Lambda(l.parameters(),
-                    scalar(last(l), lambdaResolver(l.parameters(), columns)));
+                    scalar(last(l), LambdaBinding.lambdaResolver(l.parameters(), columns)));
             // RELATION-level predicates — the true-SQL-EXISTS family
             // (collection natives over a Relation arg, correlated via the
             // enclosing scope stack): exists -> EXISTS(SELECT * WHERE p);
@@ -2872,8 +2899,13 @@ public final class Lowerer {
                 yield ie != null ? ie : Scalars.lower(n,
                         n.args().stream().map(a -> scalar(a, columns)).toList());
             }
+            // arg lowering rides the unary-lambda binding convention
+            // (LambdaBinding — M4's replacement for the parked branch's
+            // LambdaWire ThreadLocal): a unary lambda param carries the
+            // preceding list's element wire, so dispatch inside bodies
+            // sees the carrier at construction
             case TypedNativeCall n -> Scalars.lower(n,
-                    n.args().stream().map(a -> scalar(a, columns)).toList());
+                    LambdaBinding.lowerNativeArgs(n, columns, this::scalar));
             // write(rel, accessor) returns the COUNT of rows written (the
             // PCT contract) — Render.writeCount; a REAL store destination
             // stays loud until the insert path exists.
@@ -3281,17 +3313,6 @@ public final class Lowerer {
                 : mapped;
     }
 
-    private static ColumnResolver lambdaResolver(
-            List<String> params, ColumnResolver outer) {
-        return (var, prop) -> {
-            if (var == null || !params.contains(var)) {
-                return outer.resolve(var, prop);
-            }
-            return prop == null ? new SqlExpr.Column(null, var)
-                    : new SqlExpr.Column(var, prop);
-        };
-    }
-
     private static boolean isMany(TypedSpec spec) {
         return spec.info().multiplicity().requireBounded("lowering").isMany();
     }
@@ -3322,25 +3343,25 @@ public final class Lowerer {
             case FoldStrategy.SameType st ->
                     new SqlExpr.FoldCall(source,
                             new SqlExpr.Lambda(ps,
-                                    scalar(last(f.reducer()), lambdaResolver(ps, columns))),
+                                    scalar(last(f.reducer()), LambdaBinding.lambdaResolver(ps, columns))),
                             init, isMany(f.init()), true);
             case FoldStrategy.MapReduce mr -> {
                 String elem = ps.get(0);
                 SqlExpr.Lambda transform = new SqlExpr.Lambda(List.of(elem),
-                        scalar(mr.transform(), lambdaResolver(List.of(elem), columns)));
+                        scalar(mr.transform(), LambdaBinding.lambdaResolver(List.of(elem), columns)));
                 SqlExpr transformed = new SqlExpr.Call(
                         SqlFn.LIST_TRANSFORM, List.of(source, transform));
                 // The transform makes source elements accumulator-typed.
                 yield new SqlExpr.FoldCall(transformed,
                         new SqlExpr.Lambda(List.of(mr.freshParam(), mr.accParam()),
-                                scalar(mr.reducer(), lambdaResolver(
+                                scalar(mr.reducer(), LambdaBinding.lambdaResolver(
                                         List.of(mr.accParam(), mr.freshParam()), columns))),
                         init, isMany(f.init()), true);
             }
             case FoldStrategy.CollectionBuild cb ->
                     new SqlExpr.FoldCall(source,
                             new SqlExpr.Lambda(ps,
-                                    scalar(last(f.reducer()), lambdaResolver(ps, columns))),
+                                    scalar(last(f.reducer()), LambdaBinding.lambdaResolver(ps, columns))),
                             init, isMany(f.init()), false);
         };
     }

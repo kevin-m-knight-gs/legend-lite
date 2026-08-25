@@ -277,14 +277,16 @@ site, then delete the Java drop).
 
 ## 6. Semantics computed in Java
 
-- **`decodeAny` silently downgrades Decimal to Double.**
-  `1234567890123456789012345.5d` round-trips exactly as a scalar, but the
-  same value through the mixed-`Any` carrier returns `1.2345678901234568E24`
-  — 8 significant digits lost, because `Executor.java:443-452` sniffs the
-  string with `Long.valueOf` then `Double.valueOf`. Registered as
-  `PERMANENT-ALLOWED` in `HOST_LOGIC_AUDIT_2026_08_20.md:106-112`; the
-  precision loss is not mentioned. Adjudicated-as-fine is worse than
-  untracked.
+- **`decodeAny` silently downgrades Decimal to Double.** — **HEALED
+  (M4 re-land, 2026-08-25)**: the LITERAL carrier preserves Decimal
+  through mixed-`Any` BY GRAMMAR (the D-suffix spelling — exactly the
+  kind json erased); LITERAL-labeled cells never reach `decodeAny`
+  (the label IS the decode instruction). The
+  `VerdictWorld2ConsistencyTest.decodeAnyPrecision` probe — built to
+  detect this healing — flipped to assert exact BigDecimal equality
+  in the landing commit; the `PERMANENT-ALLOWED` shelter no longer
+  covers a live loss (genuine Variant values keep raw JSON by
+  contract).
 - **`size()` answers differently inside a user function.**
   `NormalizeFolds.java:66-78` folds `size(x)` to the stamp's lower bound;
   `Scalars.java:911-914` lowers it to `CASE WHEN IS_NULL(x) THEN 0 ELSE 1`.

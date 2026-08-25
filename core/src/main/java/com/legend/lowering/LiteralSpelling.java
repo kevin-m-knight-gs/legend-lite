@@ -325,6 +325,44 @@ public final class LiteralSpelling {
                         com.legend.sql.SqlType.Scalar.LITERAL));
     }
 
+    /** The spelling->PRINT projection of a LITERAL-labeled text, in SQL
+     * (the burn-down doctrine — a TRANSFORM, never an inversion to
+     * raw): quoted strings unescape and unquote, %-temporals strip the
+     * mark, every other kind's print IS its spelling (bare ints,
+     * pointed floats, D-decimals, bools). First-byte dispatch is
+     * grammar-driven on a LABELED wire — the six spellings are
+     * first-byte disjoint BY DESIGN (the banned version ran on
+     * unlabeled text). ONE recipe for every print consumer:
+     * pureToString's Any arm, format's spelled-argument slots, and the
+     * makeString join family (M4 §2R — the three residual-row
+     * witnesses). */
+    static SqlExpr printForm(SqlExpr x) {
+        SqlExpr txt = new SqlExpr.Cast(x,
+                PureSql.type(Type.Primitive.STRING));
+        SqlExpr body = SqlExpr.Call.of(SqlFn.SUBSTRING, txt,
+                new SqlExpr.IntLit(2),
+                SqlExpr.Call.of(SqlFn.MINUS,
+                        SqlExpr.Call.of(SqlFn.LENGTH, txt),
+                        new SqlExpr.IntLit(2)));
+        SqlExpr unesc = SqlExpr.Call.of(SqlFn.REPLACE,
+                SqlExpr.Call.of(SqlFn.REPLACE, body,
+                        new SqlExpr.StringLit("\\'"),
+                        new SqlExpr.StringLit("'")),
+                new SqlExpr.StringLit("\\\\"),
+                new SqlExpr.StringLit("\\"));
+        return new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.STARTS_WITH, txt,
+                                new SqlExpr.StringLit("'")),
+                        unesc),
+                new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.STARTS_WITH, txt,
+                                new SqlExpr.StringLit("%")),
+                        SqlExpr.Call.of(SqlFn.SUBSTRING, txt,
+                                new SqlExpr.IntLit(2)))),
+                txt);
+    }
+
     // unspell + unspellMarked (the STRUCTURAL INVERSE pair) DELETED
     // (spell-debt burn-down 2026-08-24): their three consumers (the
     // equality unspell-one-side arm, format's decomposition, the

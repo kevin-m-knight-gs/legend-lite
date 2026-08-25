@@ -56,6 +56,23 @@ final class Scalars {
 
     private static final Map<String, Rule> RULES = new HashMap<>();
 
+    /** The COMPARATOR-CONVENTION natives (M4 §3.2: "(T,T)->Boolean
+     * over ONE list: sort, removeDuplicates" — both params of a
+     * two-parameter lambda arg are that list's elements), consulted by
+     * {@link LambdaBinding#lowerNativeArgs} so comparator BODIES lower
+     * element-stamped (a body's dispatch is frozen at construction —
+     * witness the NonStandardFunction toString comparators). Keys are
+     * signature keys, the rule table's own dispatch identity. Fold is
+     * NOT here: its second param is the ACCUMULATOR. */
+    private static final java.util.Set<String> COMPARATOR_NATIVES =
+            java.util.stream.Stream.of("removeDuplicates", "sort")
+                    .flatMap(nm -> Pure.nativeKeysAt(nm).stream())
+                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
+
+    static boolean comparatorNative(String signatureKey) {
+        return COMPARATOR_NATIVES.contains(signatureKey);
+    }
+
     private Scalars() {
     }
 
@@ -134,13 +151,16 @@ final class Scalars {
                                     args.get(0), n.args().get(1)),
                             CastPolicy.comparisonWireOperand(n.args().get(1),
                                     args.get(1), n.args().get(0)));
-                    // (The F10 3b unspell-one-side harmonization arm was
-                    // DELETED here — spell-debt burn-down: the probe run
-                    // and the full chain showed no live flow routes a
-                    // LITERAL-marked operand into mid-expression equality;
-                    // when the parked hetero claim lands, equality
-                    // conforms BY EMISSION — spell the static side, byte-
-                    // compare in the grammar — never by unspelling.)
+                    // EQUALITY BY EMISSION (M4 re-land — the claim's eq
+                    // lane, the burn-down doctrine): a LITERAL-marked
+                    // side meeting a side of known SPELLABLE static kind
+                    // SPELLS that side — both then byte-compare in the
+                    // grammar, which IS pure equality (six kinds
+                    // disjoint by spelling; §0.4 receipts). Never
+                    // unspell the literal side; dynamic/unspellable
+                    // other sides fall through to the existing lanes.
+                    cargs = MixedEncoding.equalityEmission(
+                            n.args().get(0), n.args().get(1), cargs);
                     SqlExpr inv = EnumSourceValues.decodeInvert(
                             n.args().get(0), n.args().get(1),
                             cargs.get(0), cargs.get(1));
@@ -2172,13 +2192,11 @@ final class Scalars {
                 List<TypedSpec> typedElems =
                         n.args().get(1) instanceof TypedCollection tc
                                 ? tc.elements() : List.of(n.args().get(1));
-                // (The F10 3b spelled-argument DECOMPOSITION was DELETED
-                // here — spell-debt burn-down: no live flow delivers a
-                // LITERAL-carried argument list to format; the print of a
-                // spelled value, when the parked claim lands, is the
-                // spelling→print TRANSFORM in SQL — unquote strings,
-                // strip %, keep D — never unspell-to-raw.)
-                SqlExpr argColl = args.get(1);
+                // A LITERAL-carried argument list (M4 re-land): each
+                // slot re-emits as its spelling->PRINT projection by
+                // its STATIC kind (MixedEncoding.printedFormatSlots)
+                SqlExpr argColl = MixedEncoding.printedFormatSlots(
+                        args.get(1), typedElems);
                 if (argColl instanceof SqlExpr.ArrayLit arr) {
                     // A MIXED argument list arrives variant-wrapped (its LUB
                     // is Any) — printf wants the raw values back, each
@@ -2681,31 +2699,11 @@ final class Scalars {
                             || (jt.type() instanceof SqlType.Array ja
                                     && ja.element()
                                             == SqlType.Scalar.LITERAL));
-            SqlExpr txt = new SqlExpr.Cast(x,
-                    PureSql.type(Type.Primitive.STRING));
-            SqlExpr body = SqlExpr.Call.of(SqlFn.SUBSTRING, txt,
-                    new SqlExpr.IntLit(2),
-                    SqlExpr.Call.of(SqlFn.MINUS,
-                            SqlExpr.Call.of(SqlFn.LENGTH, txt),
-                            new SqlExpr.IntLit(2)));
-            SqlExpr unesc = SqlExpr.Call.of(SqlFn.REPLACE,
-                    SqlExpr.Call.of(SqlFn.REPLACE, body,
-                            new SqlExpr.StringLit("\\'"),
-                            new SqlExpr.StringLit("'")),
-                    new SqlExpr.StringLit("\\\\"),
-                    new SqlExpr.StringLit("\\"));
             if (literalWire) {
-                return new SqlExpr.Case(List.of(
-                        new SqlExpr.Case.When(
-                                SqlExpr.Call.of(SqlFn.STARTS_WITH, txt,
-                                        new SqlExpr.StringLit("'")),
-                                unesc),
-                        new SqlExpr.Case.When(
-                                SqlExpr.Call.of(SqlFn.STARTS_WITH, txt,
-                                        new SqlExpr.StringLit("%")),
-                                SqlExpr.Call.of(SqlFn.SUBSTRING, txt,
-                                        new SqlExpr.IntLit(2)))),
-                        txt);
+                // ONE recipe, one owner (M4 re-land): the spelling->
+                // PRINT projection moved to LiteralSpelling.printForm,
+                // byte-identical to the inline block it replaces
+                return literalPrint(x);
             }
             return new SqlExpr.Case(List.of(
                     new SqlExpr.Case.When(
@@ -3169,6 +3167,13 @@ final class Scalars {
      * {@link LiteralSpelling#floatPrint} (F10 proper slice 1). */
     static SqlExpr floatRepr(SqlExpr x) {
         return LiteralSpelling.floatPrint(x);
+    }
+
+    /** The spelling->PRINT projection — owned by
+     * {@link LiteralSpelling#printForm} (one grammar owner, both
+     * directions of the label seam). */
+    static SqlExpr literalPrint(SqlExpr x) {
+        return LiteralSpelling.printForm(x);
     }
 
     /**

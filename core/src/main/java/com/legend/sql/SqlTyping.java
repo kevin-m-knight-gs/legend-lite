@@ -164,14 +164,10 @@ public final class SqlTyping {
                 && computed == SqlType.Scalar.JSON) {
             return true;
         }
-        // FLIP ADJUDICATION: the COLLECTION CARRIER under the element
-        // label — a collection value rides as one array cell and the
-        // row-explosion boundary reads the label per element
-        // (witnesses: value := ArrayLit under VARCHAR/JSON labels).
-        if (computed instanceof SqlType.Array a
-                && a.element().equals(declared)) {
-            return true;
-        }
+        // (M4 retirement attempt: the FLIP-ADJUDICATION collection-
+        // carrier row — computed Array(a) admissible under element
+        // label a — DELETED to measure; the charter lists it as
+        // retiring with the landing.)
         // (The pure-Decimal erasure rows now ADOPT the wire's own
         // precision — strictly more truthful, decode-identical.)
         // Decimal WIDENING is lossless: a narrower computed decimal

@@ -37,7 +37,10 @@ public final class PctCensusGate {
     // G6 full pct JVM on DuckDB (after Grammar, incl. ChannelB traffic)
     //   mismatch=0 untyped=813 adopt-pending=101 diverge=78
     // G7 h2 Relation JVM: mismatch=0 untyped=17 adopt-pending=0 diverge=0
-    private static final long MAX_UNTYPED = H2 ? 17 : 813;
+    // untyped 813 -> 808 banked at the M4 re-land (typed claim roots);
+    // the lane's one NEW class is wire-delivered LITERAL <- VARCHAR —
+    // the registered carrier pair, adjudicated by design (F10).
+    private static final long MAX_UNTYPED = H2 ? 17 : 808;
     private static final long MAX_WIRE_DIVERGE = H2 ? 0 : 78;
     private static final long MAX_ADOPT_PENDING = H2 ? 0 : 101;
 

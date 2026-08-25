@@ -30,6 +30,16 @@ final class PureSql {
             com.legend.compiler.spec.typed.TypedSpec listArg,
             com.legend.sql.SqlExpr loweredList,
             com.legend.sql.SqlExpr elem) {
+        // a LITERAL-carried list (M4 re-land, the §2R residual-row cure:
+        // testSqlRealiasViews/testViewAll/testViewSimpleFilter): each
+        // element's text is the spelling->PRINT projection — quotes
+        // unwrap, % strips — via the ONE grammar owner; the stored type
+        // fact is the decision
+        if (loweredList.type() instanceof com.legend.sql.TypeFact.Typed lt
+                && lt.type() instanceof com.legend.sql.SqlType.Array la
+                && la.element() == SqlType.Scalar.LITERAL) {
+            return LiteralSpelling.printForm(elem);
+        }
         boolean json = (loweredList instanceof com.legend.sql.SqlExpr.ArrayLit al
                         && !al.elements().isEmpty()
                         && al.elements().stream().allMatch(

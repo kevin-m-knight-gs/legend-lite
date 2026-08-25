@@ -226,6 +226,36 @@ the first green sweep must show all three back to PASS.
   TYPED_SQL_IR.md) follows the landing, informed by its carrier rule.
 - Every pin holds; new ratchet moves only with written justification.
 
+## 4R. LANDING RECORD (2026-08-25 — M4 EXECUTED)
+
+Every acceptance item met:
+- **ZERO of the four compensations survive.** LambdaWire → the
+  LambdaBinding unary+comparator binding conventions at the ONE
+  arg-lowering site (a NEW typed-IR capability, built when the first
+  green-sweep review surfaced the frozen-dispatch class: lambda bodies
+  lower BEFORE consumer sites bind, so the param wire must be in scope
+  AT body lowering — witnesses testPctRemoveDuplicatesBy,
+  testRemoveDuplicatesPrimitiveNonStandardFunction/…Explicit, all
+  cured, none waved through). Per-arg judge loop → stored type facts.
+  Comparator FQN registry → COMPARATOR_NATIVES beside the rule table
+  (signature keys, the table's own dispatch identity) + Dedup's §3.2
+  stamps. Judge patches → §3.1's uniform() ERROR skip.
+- **The three §2R rows PASS** (elementText's printForm lane); both
+  families back at their baselines; corpus scoreboard byte-identical.
+- **Census review**: corpus lane mismatch 0, adopt-pending 0,
+  diverge 55<=56, untyped 717→424; pct lane untyped 813→808 (banked),
+  one new class = wire-delivered LITERAL <- VARCHAR (the registered
+  carrier pair, by design). decodeAnyPrecision probe flipped to exact
+  equality (Decimal healed through Any); shortcut-audit row updated.
+- **Retirements**: admissible L <- Array(L) row DELETED (measured:
+  mismatch stayed 0 without it). The scalarRoot LITERAL-label arm
+  STAYS with a measurement: it is the claim's label seam reading the
+  STORED fact (not a re-derivation); full retirement belongs to the
+  T4 label-at-construction program.
+- Ratchet moves, each with written justification: ArrayLit 39→41
+  (the claim's designed emission + format's print array); pct-lane
+  untyped ceiling 813→808 (banked down).
+
 ## 4b. T4 ATTEMPT 2 HOMEWORK (do AFTER M4 lands, BEFORE any code —
 ## attempt 1 failed on exactly the surfaces this list enumerates)
 

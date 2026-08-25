@@ -175,8 +175,17 @@ final class MixedEncoding {
      * collection. A previously-boxed element unwraps first. */
     static @com.legend.Nullable SqlExpr elementLiteral(TypedSpec e,
             SqlExpr x) {
-        x = unwrapVariant(x);
-        Type t = e.info().type();
+        return spellByKind(e.info().type(), unwrapVariant(x),
+                dateTimeFormatOf(e));
+    }
+
+    /** The per-KIND spelling core — shared by the element encoder above
+     * (typed elements) and the relation values-flatten (STATIC column
+     * kinds; conform-by-emission: the actual side spells with the SAME
+     * grammar owner the claimed expected side used, so grid asserts
+     * byte-compare). */
+    static @com.legend.Nullable SqlExpr spellByKind(Type t, SqlExpr x,
+            List<com.legend.sql.DateFmt> dateTimeFmt) {
         if (t == Type.Primitive.INTEGER || t == Type.Primitive.FLOAT
                 || t == Type.Primitive.BOOLEAN
                 || t == Type.Primitive.STRING) {
@@ -191,7 +200,7 @@ final class MixedEncoding {
         }
         if (t == Type.Primitive.DATE_TIME) {
             return LiteralSpelling.dateTimeLiteral(x,
-                    new SqlExpr.FormatLit(dateTimeFormatOf(e)));
+                    new SqlExpr.FormatLit(dateTimeFmt));
         }
         if (t == Type.Primitive.DATE) {
             return LiteralSpelling.partialDateLiteral(x);
@@ -369,5 +378,76 @@ final class MixedEncoding {
      * question the membership/aggregate arms ask. */
     static boolean variantWrapped(SqlExpr x) {
         return unwrapVariant(x) != x;
+    }
+
+    /** EQUALITY BY EMISSION (the claim's eq lane, M4 re-land): when
+     * exactly one lowered operand is LITERAL-marked, the OTHER side —
+     * if its static kind spells — is re-emitted as its spelling, so
+     * both sides byte-compare in the grammar (which IS pure equality:
+     * six kinds, disjoint spellings; §0.4 receipts — canonical-string
+     * compare is pure's own mechanism). The literal side is never
+     * unspelled (the burn-down doctrine). Returns the operands
+     * unchanged when neither or both are literal-marked, or the other
+     * side cannot spell (dynamic kinds keep their existing lanes).
+     * The mark is the STORED type fact — the typed IR's read (the
+     * parked branch needed its judge + LambdaWire scope here). */
+    static java.util.List<SqlExpr> equalityEmission(TypedSpec a0,
+            TypedSpec a1, java.util.List<SqlExpr> cargs) {
+        boolean l0 = literalMarked(cargs.get(0));
+        boolean l1 = literalMarked(cargs.get(1));
+        if (l0 == l1) {
+            return cargs;
+        }
+        int plain = l0 ? 1 : 0;
+        SqlExpr spelled = elementLiteral(plain == 0 ? a0 : a1,
+                cargs.get(plain));
+        if (spelled == null) {
+            return cargs;
+        }
+        return plain == 0 ? java.util.List.of(spelled, cargs.get(1))
+                : java.util.List.of(cargs.get(0), spelled);
+    }
+
+    /** FORMAT's LITERAL-carried argument list (M4 re-land): each slot's
+     * value is the spelling->PRINT projection ({@link
+     * LiteralSpelling#printForm} — the burn-down doctrine's transform,
+     * never an inversion). Numeric/bool directives want the VALUE kind
+     * back — the print re-types by the slot's STATIC type (emission by
+     * kind; text kinds stay text). A non-carried list returns
+     * unchanged. */
+    static SqlExpr printedFormatSlots(SqlExpr argColl,
+            List<TypedSpec> typedElems) {
+        if (!(argColl instanceof SqlExpr.Cast mc
+                && mc.target() instanceof SqlType.Array ma2
+                && ma2.element() == com.legend.sql.SqlType.Scalar.LITERAL
+                && mc.value() instanceof SqlExpr.ArrayLit sla)) {
+            return argColl;
+        }
+        List<SqlExpr> printed =
+                new java.util.ArrayList<>(sla.elements().size());
+        for (int i = 0; i < sla.elements().size(); i++) {
+            SqlExpr p = LiteralSpelling.printForm(sla.elements().get(i));
+            Type st = i < typedElems.size()
+                    ? typedElems.get(i).info().type() : null;
+            if (st == Type.Primitive.INTEGER
+                    || st == Type.Primitive.FLOAT
+                    || st == Type.Primitive.BOOLEAN
+                    || st == Type.Primitive.DECIMAL
+                    || st instanceof Type.PrecisionDecimal) {
+                p = new SqlExpr.Cast(p, PureSql.type(
+                        st instanceof Type.PrecisionDecimal
+                                ? Type.Primitive.DECIMAL : st));
+            }
+            printed.add(p);
+        }
+        return new SqlExpr.ArrayLit(printed);
+    }
+
+    private static boolean literalMarked(SqlExpr e) {
+        return e.type() instanceof com.legend.sql.TypeFact.Typed t
+                && (t.type() == com.legend.sql.SqlType.Scalar.LITERAL
+                        || (t.type() instanceof SqlType.Array a
+                                && a.element()
+                                        == com.legend.sql.SqlType.Scalar.LITERAL));
     }
 }

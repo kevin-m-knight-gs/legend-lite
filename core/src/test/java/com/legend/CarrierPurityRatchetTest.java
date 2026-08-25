@@ -85,7 +85,14 @@ class   CarrierPurityRatchetTest {
             // no live flow delivered a spelled value to a
             // mid-expression consumer (probe + full chain); future
             // consumers conform BY EMISSION, never by inverting.
-            "new SqlExpr\\.ArrayLit\\(", 39,
+            // 39→41 (M4 re-land 2026-08-25, the hetero-LITERAL claim):
+            // the claim's ONE designed emission at the label seam (the
+            // Lowerer's Array(LITERAL) construction — same family as
+            // the mixedNumericArray row) + format's spelled-slot PRINT
+            // projection array (emission by static kind, the doctrine's
+            // transform — not an inversion rebuild). Both absorb with
+            // the collection semantic node.
+            "new SqlExpr\\.ArrayLit\\(", 41,
             "new SqlExpr\\.OrderedListAgg\\(", 1,
             // 136→137 (2026-08-19): ListEncodings.map's LIST_GET — the
             // map SEMANTIC NODE's wire-shape rule (a to-one result

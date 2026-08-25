@@ -140,6 +140,10 @@ class JdbcSurfaceCensusTest {
             // e2e over a DuckDB session (size/at/toOne must agree ON THE
             // DATABASE — the bug was SQL-vs-egress disagreement)
             "core/src/test/java/com/legend/lowering/OptionalCollectionNullDropTest.java",
+            // slice-3 exit criterion: byte-decidable Any equality pins
+            // execute ON THE DATABASE (dedup verdicts computed in SQL —
+            // the carrier's disjoint spellings are the assertion)
+            "core/src/test/java/com/legend/lowering/AnyLiteralByteDecidabilityTest.java",
             // shortcut audit §1a: the typed-lane toOne pins raise pure's
             // size errors IN THE DATABASE — the assertion is the DB's
             // own error message, so the session is the test subject

@@ -13,6 +13,8 @@ import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -77,20 +79,18 @@ class VerdictWorld2ConsistencyTest {
     @DisplayName("egress: mixed-Any carrier round-trip vs scalar round-trip (audit §6 decodeAny)")
     void decodeAnyPrecision() throws Exception {
         // audit §6: Executor.decodeAny sniffs Long-then-Double, so a
-        // Decimal through the mixed-Any carrier loses precision while
-        // the scalar channel round-trips exactly. Registered
-        // PERMANENT-ALLOWED in HOST_LOGIC_AUDIT :106-112 — this probe
-        // makes the loss VISIBLE (the audit's complaint was that the
-        // adjudication never mentioned it). If the carrier learns
-        // Decimal, this flips to equality — tighten then.
+        // HEALED (slice-3 claim, 2026-08-24): the LITERAL carrier
+        // preserves Decimal through mixed-Any BY GRAMMAR (the D-suffix
+        // spelling — exactly the kind json erased). This probe was
+        // built to detect the healing; flipped per its own
+        // instruction, and the HOST_LOGIC_AUDIT PERMANENT-ALLOWED row
+        // is retired in the same commit.
         Object scalar = world1("1234567890123456789012345.5D");
         Object viaAny = world1("['x', 1234567890123456789012345.5D]->at(1)");
-        boolean lossy = !(viaAny instanceof BigDecimal);
-        assertTrue(lossy,
-                "decodeAny now preserves Decimal through the Any carrier"
-                        + " — HEALED: retire the PERMANENT-ALLOWED row"
-                        + " (HOST_LOGIC_AUDIT :106) and flip this probe"
-                        + " to assert exact equality with " + scalar);
+        assertInstanceOf(BigDecimal.class, viaAny,
+                "the Any carrier preserves the Decimal KIND");
+        assertEquals(scalar, viaAny,
+                "the Any carrier preserves Decimal PRECISION exactly");
     }
 
     @Test

@@ -101,7 +101,33 @@ exact pure-unescape); AUDIT A1 fixed (subsecond strip deleted — probed
 no-op on TIMESTAMP, wrong on text); numericOnly gate dissolved;
 LiteralText relocated to values (Invariant 6a).
 
-### Slice 3b — Any positions migrate (the engine-true win)
+### Slice 3b — LANDED (M4 re-land 2026-08-25, on the typed IR, ZERO
+### compensations)
+
+The hetero-LITERAL claim is LIVE on main: value-lane Any-LUB
+all-spellable collections ride Array(LITERAL) (Lowerer claim arm);
+rowMajorCellList spells by static column kind; equality conforms by
+emission (MixedEncoding.equalityEmission, stored-fact gated);
+print consumers ride ONE recipe (LiteralSpelling.printForm — the
+pureToString Any arm, format's slots via
+MixedEncoding.printedFormatSlots, and PureSql.elementText's makeString
+lane, which CURED the three residual rows: testSqlRealiasViews,
+testViewAll, testViewSimpleFilter). The four compensations were
+replaced structurally: LambdaWire -> LambdaBinding's unary+comparator
+binding conventions at the ONE arg-lowering site (signature-keyed by
+the rule table's own dispatch identity); per-arg judge loop -> stored
+type facts; comparator FQN registry -> Scalars.COMPARATOR_NATIVES
+beside the rules + Dedup's construction-site stamps; judge patches ->
+SqlTyping's uniform() ERROR skip. decodeAnyPrecision HEALED (Decimal
+exact through Any — probe flipped); the SqlTyping.admissible
+collection-carrier row (L <- Array(L)) retired by measurement
+(mismatch stayed 0 without it); the scalarRoot LITERAL-label arm
+STAYS — it is the claim's label seam reading the stored fact (full
+retirement = the T4 label-at-construction program). Corpus
+scoreboard byte-identical; PCT 1115/0; untyped 717 -> 424 (corpus
+lane) and 813 -> 808 (pct lane).
+
+### Slice 3b — original census (the engine-true win)
 
 CENSUS (2026-08-23, 24 sites). PRODUCERS to migrate — each spells by
 its STATICALLY-KNOWN kind: hetero literal collections (Lowerer ~2313,
