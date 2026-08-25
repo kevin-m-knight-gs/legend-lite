@@ -184,7 +184,7 @@ public sealed interface SqlExpr
             // supplied-leaf knowledge (the builder's, like Column's
             // type): a body swap keeps it — recomputable by no rule
             case Lambda l -> new Lambda(l.params(), cs.get(0), l.type());
-            case Cast c -> new Cast(cs.get(0), c.target());
+            case Cast c -> new Cast(cs.get(0), c.target(), c.conform());
             case FoldCall f -> new FoldCall(cs.get(0), (Lambda) cs.get(1),
                     cs.get(2), f.accIsList(), f.homogeneous());
             case JsonObject ignored -> new JsonObject(cs);
@@ -877,14 +877,25 @@ public sealed interface SqlExpr
      * value through its text-extraction idiom (DuckDB {@code ->>}) — that
      * swap is RENDERING knowledge, not IR content.
      */
-    record Cast(SqlExpr value, SqlType target, TypeFact type)
-            implements SqlExpr {
+    /** {@code conform} — SYNTH-CONFORMANCE PROVENANCE (T4 leg 1, the
+     * typed-level seam the cast-provenance register called for): a
+     * cast EMITTED by the mapping-read conformance, semantically the
+     * engine's decode-side coercion. Execution dialects render it;
+     * the engine-TEXT channel elides it (the goldens pin the engine's
+     * own no-cast spelling — the wire-coercion precedent). User casts
+     * are never conform. */
+    record Cast(SqlExpr value, SqlType target, boolean conform,
+            TypeFact type) implements SqlExpr {
         public Cast {
             type = SqlTyping.typed(target);
         }
 
+        public Cast(SqlExpr value, SqlType target, boolean conform) {
+            this(value, target, conform, SqlTyping.UNKNOWN);
+        }
+
         public Cast(SqlExpr value, SqlType target) {
-            this(value, target, SqlTyping.UNKNOWN);
+            this(value, target, false);
         }
     }
 

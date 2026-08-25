@@ -39,7 +39,8 @@ final class UnqualifyPivotArgs extends SqlRewriter {
             case SqlExpr.Membership m2 -> m2;
             case SqlExpr.Call c -> new SqlExpr.Call(c.fn(),
                     c.args().stream().map(UnqualifyPivotArgs::unqualify).toList());
-            case SqlExpr.Cast c -> new SqlExpr.Cast(unqualify(c.value()), c.target());
+            case SqlExpr.Cast c -> new SqlExpr.Cast(unqualify(c.value()),
+                    c.target(), c.conform());
             case SqlExpr.Case c -> new SqlExpr.Case(
                     c.whens().stream().map(w -> new SqlExpr.Case.When(
                             unqualify(w.condition()), unqualify(w.then()))).toList(),

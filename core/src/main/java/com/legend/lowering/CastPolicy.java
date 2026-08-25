@@ -13,6 +13,7 @@ import com.legend.error.ModelException;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
+import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlType;
 
 import java.util.ArrayList;
@@ -28,6 +29,21 @@ final class CastPolicy {
 
     private CastPolicy() {
     }
+
+    // T4 LEG 1 — THREE REFEREE VERDICTS (2026-08-24, recorded in
+    // TYPED_SQL_IR.md): the mapping-read conformance (concrete
+    // Float/String contracts convert IN SQL — the user ruling stands)
+    // was applied at the PROJECTION boundary by OUTPUT-NAME lookup and
+    // rejected three ways: (1) the flat class form pins the engine's
+    // WIRE-typed plan metadata (TypedProject.wireForm now carries that
+    // lane fact); (2) deep-join schemas collide output names — an
+    // Integer column conformed to String off a same-named column;
+    // (3) a conform cast on ONE union branch breaks branch-projection
+    // identity and reorders the merge. The SOUND seam is the
+    // PROPERTY-READ PAIRING (property meets its mapped column uniquely,
+    // no name lookup) — the next attempt builds THERE. The Cast.conform
+    // provenance + engine-text elision + rebuild transports stay: they
+    // are the correct plumbing for that seam.
 
     /** The cast policy over an ALREADY-LOWERED source (scalar or window channel). */
     static SqlExpr lower(TypedCast c, SqlExpr value, boolean isMany) {

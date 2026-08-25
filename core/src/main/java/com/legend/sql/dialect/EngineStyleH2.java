@@ -1617,6 +1617,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
     @Override
     protected String variantAwareCast(SqlExpr.Cast c) {
+        // T4 leg 1: a SYNTH-CONFORMANCE cast is the engine's
+        // decode-side coercion made explicit for EXECUTION — the
+        // engine's own SQL never spells it, so engine TEXT elides it
+        // (the wire-coercion suppression precedent).
+        if (c.conform()) {
+            return expr(c.value(), 0);
+        }
         // The F10 LITERAL marker cast is a LABEL device (the
         // construction-site carrier declaration scalarRoot reads) —
         // never engine text: goldens pin the engine's own spelling

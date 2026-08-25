@@ -247,7 +247,8 @@ public abstract class SqlRewriter {
             }
             case SqlExpr.Cast c -> {
                 SqlExpr v = rewriteExpr(c.value());
-                yield v == c.value() ? c : new SqlExpr.Cast(v, c.target());
+                yield v == c.value() ? c
+                        : new SqlExpr.Cast(v, c.target(), c.conform());
             }
             case SqlExpr.FoldCall f -> {
                 SqlExpr src = rewriteExpr(f.source());

@@ -281,6 +281,12 @@ public class EngineStyleDB2 extends EngineStyleH2 {
 
     @Override
     protected String variantAwareCast(SqlExpr.Cast c) {
+        // T4 leg 1: synth-conformance casts are engine-TEXT-elided
+        // (the wire-coercion precedent — the engine's SQL never
+        // spells its decode-side coercion)
+        if (c.conform()) {
+            return expr(c.value(), 0);
+        }
         // DB2 string casts carry the engine's explicit width
         if (c.target() instanceof SqlType.Scalar s
                 && s == SqlType.Scalar.VARCHAR) {

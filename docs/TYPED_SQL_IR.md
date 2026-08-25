@@ -528,6 +528,40 @@ LIST_CONCAT 18, DATE_TRUNC_DAY 14, PLUS-with-decimal 12, WindowCall
 7 — next rules slices (COALESCE/Case need branch-family promotion:
 probe CASE/COALESCE mixed-member results first).
 
+## T4 LEG 1, ATTEMPT 1 — THREE REFEREE VERDICTS, APPLICATION PARKED
+## (2026-08-24; the ruling stands, the seam was wrong)
+
+The mapping-read conformance was applied at the PROJECTION boundary
+by OUTPUT-NAME schema lookup and the corpus rejected it three ways:
+1. **The flat class form pins the engine's WIRE-typed plan metadata**
+   (resultColumns=INT + castless SQL, hard-asserted by 12 plan tests).
+   FIX KEPT: `TypedProject.wireForm` — RelationalRootForm carries the
+   lane fact; the class lane's contract is the engine's decode-side
+   coercion, by observable plan pins.
+2. **Deep-join schemas collide output names** — the by-name lookup
+   conformed an Integer column to String off a same-named column
+   (testJoinIsolationDeeper). Name lookup across schemas is the exact
+   re-derivation smell this program exists to kill.
+3. **A conform cast on ONE union branch breaks branch-projection
+   identity** and reorders the merged rows (union propertyLevel
+   test6, sqlQueryMerging). Emission at a shared boundary perturbs
+   structural identities downstream consumers key on.
+
+**KEPT (sound, behavior-neutral):** `Cast.conform` provenance (the
+typed-level seam the cast-provenance register demanded) + rebuild
+transports (Scalars/SqlRewriter/UnqualifyPivotArgs/DecodeShapes) +
+engine-TEXT elision (EngineStyleH2/DB2 — the wire-coercion
+precedent) + `TypedProject.wireForm`. **REMOVED:** conformRead/
+conformProjections and their call sites; all four execution-text
+ratchet bumps reverted (state byte-identical to the arithmetic
+slice).
+
+**THE SOUND SEAM (attempt 2, queued):** the PROPERTY-READ PAIRING —
+where a mapped property meets its physical column uniquely, no name
+lookup, before any shared boundary — emitting `Cast(..., conform)`
+per read. The kept plumbing is that attempt's infrastructure. The
+159 rulebook rows + 48 wire rows it will drain remain counted.
+
 ## G4 LATENCY DRILL — VERDICT (2026-08-24, post-M1, measured first)
 
 **The 389s does not reproduce.** Six caffeinated G4 runs same day,

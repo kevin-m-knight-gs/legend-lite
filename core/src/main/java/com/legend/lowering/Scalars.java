@@ -3139,7 +3139,8 @@ final class Scalars {
             case SqlExpr.Call c -> new SqlExpr.Call(c.fn(),
                     c.args().stream().map(a -> substituteRef(a, name, replacement)).toList());
             case SqlExpr.Cast c ->
-                    new SqlExpr.Cast(substituteRef(c.value(), name, replacement), c.target());
+                    new SqlExpr.Cast(substituteRef(c.value(), name,
+                            replacement), c.target(), c.conform());
             case SqlExpr.ArrayLit a -> new SqlExpr.ArrayLit(a.elements().stream()
                     .map(x -> substituteRef(x, name, replacement)).toList());
             case SqlExpr.StructLit s -> new SqlExpr.StructLit(s.fields().stream()
