@@ -771,6 +771,33 @@ repo distinguishes the two:**
   design forcing one channel to impersonate the other fails real
   tests — measured twice this arc.
 
+**§4bZ POST-LANDING AUDIT (2026-08-25, read-only probe battery run
+while the landing chain executed; all green, pushed e63acade):**
+- **No false positives from our own DDL**: Ddl's DuckDB
+  physicalizations are kind-faithful (Float->DOUBLE, Bit->BOOLEAN
+  stay in-kind; SemiStructured->JSON maps to null in fixtureKind and
+  skips) — module-generated CREATEs cannot register as skew.
+- **Census rows source-verified**: ordertable.quantity declared INT
+  (relationalSetUp:112) / created FLOAT (:1469). The 12x
+  Integer<-DateTime class is REAL and is the homework's hardest
+  receipt yet: the engine's own ###Relational declares the Bicycles
+  MILESTONING business-date columns `in_z INTEGER, out_z INTEGER`
+  (businessDateMilestoningSetUp.pure:2374) while the fixture creates
+  TIMESTAMP (:387) and the milestoning block compares them to a
+  timestamp INFINITY_DATE — temporal milestoning compiles and runs
+  over INTEGER-declared columns, zero validation, proven from a
+  second independent angle.
+- **Ledger arithmetic re-verified**: rulebook 111 = 97 VARCHAR<-
+  BIGINT + 14 DOUBLE<-BIGINT (census classes); wire diverge 7;
+  witness total 469.
+- **KNOWN UNDERCOUNTS (recorded, never silent — both miss-only,
+  neither can produce a wrong row):** (1) schema-qualified fixture
+  CREATEs (~12 distinct in the engine tree, e.g.
+  productSchema.productTable) are invisible — moduleColumnKinds keys
+  bare table names; (2) columns literally named key/check/constraint
+  etc. are skipped by parseCreateColumns' constraint-word filter.
+  Close both if the census graduates from instrument to pin.
+
 ## 5. SESSION TRAPS ROSTER (2026-08-24/25 learnings — read first)
 
 - Corpus/ChannelB roots are -D SYSTEM PROPERTIES; use
