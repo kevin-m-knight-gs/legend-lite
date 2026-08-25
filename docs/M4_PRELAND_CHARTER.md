@@ -140,6 +140,33 @@ becomes either a pre-land slice or a recorded M4 acceptance item.
   TYPED_SQL_IR.md) follows the landing, informed by its carrier rule.
 - Every pin holds; new ratchet moves only with written justification.
 
+## 4b. T4 ATTEMPT 2 HOMEWORK (do AFTER M4 lands, BEFORE any code —
+## attempt 1 failed on exactly the surfaces this list enumerates)
+
+1. **Locate the seam**: find every code site where a mapped property
+   is paired with its physical column (the resolver/mapping
+   machinery); confirm the pairing is UNIQUE there (no name lookup);
+   count the sites. The conform cast (Cast.conform — plumbing already
+   banked) emits at those sites only, gated on the CONCRETE stamp
+   (Float/String; abstract Number/Any never — castErasure referee).
+2. **Enumerate the perturbable consumers** and check EACH against a
+   cast appearing at the read: union branch-projection identity (the
+   merge reorder), groupBy keys, join conditions, DISTINCT, sort
+   keys, resolveInto substitution.
+3. **Write the text-channel map FIRST** (learned the hard way):
+   golden-TEXT channels (EngineStyle renderers — conform casts ELIDE
+   there) vs EXECUTION-text channels (h2-exec floor 320, advisory 309,
+   sqldiff 257, adv-pass 303 — conform casts genuinely appear; each
+   move needs written justification) vs the class-plan lane
+   (wireForm — casts must NOT emit at all).
+4. **Trace the 159 target rows** (admissible VARCHAR<-BIGINT 97 +
+   DOUBLE<-Decimal 48 + DOUBLE<-BIGINT 14) to their seam: which
+   read-site does each witnessed test family flow through? No code
+   until every family has a named site.
+5. Acceptance: the two coercion arms in SqlTyping.admissible DRAIN to
+   agree and DELETE; the 48x wire DOUBLE<>DECIMAL rows drain; pins
+   move only downward or with written justification.
+
 ## 5. SESSION TRAPS ROSTER (2026-08-24/25 learnings — read first)
 
 - Corpus/ChannelB roots are -D SYSTEM PROPERTIES; use
