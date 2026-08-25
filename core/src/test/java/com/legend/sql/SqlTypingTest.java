@@ -88,6 +88,29 @@ class SqlTypingTest {
     }
 
     @Test
+    void errorBranchesAreBottomLikeInBranchFamilies() {
+        // the checked-extract shape: an error() guard branch plus a
+        // LIST_GET over Array(LITERAL) — error() raises, it never
+        // yields a value, so the family types from the value branch
+        SqlExpr carried = new SqlExpr.Cast(
+                new SqlExpr.ArrayLit(List.of(new SqlExpr.StringLit("1"))),
+                new SqlType.Array(SqlType.Scalar.LITERAL));
+        SqlExpr checked = new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(new SqlExpr.BoolLit(true),
+                        SqlExpr.Call.of(SqlFn.ERROR,
+                                new SqlExpr.StringLit("index out of bounds")))),
+                SqlExpr.Call.of(SqlFn.LIST_GET, carried,
+                        new SqlExpr.IntLit(1)));
+        assertEquals(SqlTyping.typed(SqlType.Scalar.LITERAL), t(checked));
+        // an ALL-error family is bottom-like as a whole (raise dominates)
+        assertEquals(SqlTyping.BOTTOM, t(new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(new SqlExpr.BoolLit(false),
+                        SqlExpr.Call.of(SqlFn.ERROR,
+                                new SqlExpr.StringLit("boom")))),
+                new SqlExpr.NullLit())));
+    }
+
+    @Test
     void noRuleMeansUnknownNeverAGuess() {
         // DECIMAL arithmetic follows version-specific precision
         // formulas — deliberately UNKNOWN, counted by the census

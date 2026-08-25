@@ -625,6 +625,14 @@ public final class SqlTyping {
                 saw = true;
                 continue;
             }
+            // an error() member RAISES — it never yields a value — so in
+            // a branch family it is bottom-like: admissible anywhere,
+            // never the family's type (witness: the checked-extract CASE,
+            // error-guard + LIST_GET over Array(LITERAL), types LITERAL)
+            if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.ERROR) {
+                saw = true;
+                continue;
+            }
             if (!(v instanceof TypeFact.Typed t)) {
                 return UNKNOWN;
             }
