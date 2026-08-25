@@ -911,3 +911,66 @@ the system are variant payload shapes. Everything else is a named
 leg: demand-driven pivot stamps (36) > lambda-binding sweep (part of
 63+1) > Raises fact (9) > fixed-schema metadata model (2) > carrier
 leg (1). True zero = those legs + per-row variant-payload receipts.
+
+## 4bZ-V. THE FULL-BURN INDEX (2026-08-25, user-ordered completeness
+## audit — "don't miss/defer things"; THE one authoritative list of
+## everything remaining on the burn to zero. An item leaves this list
+## only by landing with receipts or by a user ruling. The audit that
+## produced it found FOUR items living in census printouts with no
+## charter owner — now owned below.)
+
+**A. The untyped finish (next session; §4bZ-U holds the legs):**
+A1 demand-driven pivot stamps (36 pct) · A2 lambda-binding sweep
+(pile-a of the ~63 + corpus subagg lateral) · A3 the RAISES TypeFact
+(9) · A4 fixed-schema metadata model (corpus 2 untyped AND — the
+cross-reference the audit added — the corpus WIRE-diverge 4, same
+tests, same cure; the wire ceiling burns 4 -> 0 with this leg) ·
+A5 variant-payload receipts (pile-b — the only true unknowns).
+
+**B. The carrier-types leg (§4Z #5, own charter-first session):**
+three excuse arms become modeled logical carriers (partial-temporal
+text, Number-identity text, JSON-as-text) + the widens re-home (2
+subsumption arms with lossless round-trip witnesses) → admissible()
+EMPTY. Carries the corpus concatenate-testAll untyped row. End state:
+two named proven relations, nothing forgiven.
+
+**C. PCT-LANE WIRE LEDGERS — NEWLY OWNED (the audit's main find):
+never adjudicated.** Measured 2026-08-25: adopt-pending 94 (ceiling
+101), diverge 54 (ceiling 78) — the corpus twins were burned to
+EQUALITY-0 and 4-named; the pct twins got ceilings and silence.
+Work: the same adjudication the corpus got (adopt/register/fix per
+class, witness dump via the PctCensusGate decomposition), ceilings
+to equality/named. Also G7's h2 lane (untyped 17, diverge 0) —
+decompose the 17 once, name or burn.
+
+**D. KINDS-CENSUS RESIDUE — NEWLY OWNED:** D1 int-or-null (corpus
+53 / pct 222): DuckDB spells all-NULL columns INTEGER — needs VALUE
+evidence (the decode-tripwire design) to split real-integer wires
+from empty columns; unresolvable by type rules, needs its own small
+leg. D2 wire unknown (corpus 13 / pct 8): metadata-unreadable or
+shape-mismatched probes — never once examined; one witness dump
+decides fix/register each.
+
+**E. The nullability program (§4Z #4):** 6,472 — census-first
+charter, after A (its census already samples witnesses per class).
+
+**F. Guest-list completion (§4bZ-R):** LEGEND_LITE strict diagnostic
+(mismatched mapping = warning, strict flip LAST) + dialect-level
+scoping of carryThrough (the compat level as an enforcement point,
+at the dialect-levels leg).
+
+**G. Standing named debts (older, still real):** G1 temporal-identity
+leg (mixed-precision dedup + the 287-row temporal skew class — §4A/
+§4bZ) · G2 upstream fixture-skew filing (non-temporal classes; the
+469-witness census is the evidence file) · G3 skew-census promotion
+to a pinned ceiling + its two recorded undercounts (schema-qualified
+creates, constraint-word columns) · G4 Comparators.select min/max
+recognition to the typed level (the G9 stamp trip) · G5 gate-8
+runtime decomposition (250s vs 63s pin) · G6 h2-exec standing lanes
+(632 text-divergent-rescued, 145 unverifiable — the R2 canonical
+program's fuel) + canonical pin 27 leniencies · G7 corpus burn-down
+RESUME decision (paused 2333/2575 by user directive; resume queue in
+memory).
+
+Sequencing (recommended): A → C (mechanical adjudication) → B → D →
+E; F/G slot opportunistically or by ruling.
