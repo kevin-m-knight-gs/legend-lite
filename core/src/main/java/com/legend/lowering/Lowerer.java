@@ -350,30 +350,27 @@ public final class Lowerer {
         }
         // F10 slice 2 — the KIND-FAITHFUL CARRIER at a mixed root: a
         // literal collection of >=2 distinct numeric kinds rebuilds as
-        // pure-literal spellings under the honest LITERAL label (the
-        // DOUBLE-promoted array erased Integer 1 into 1.0 here); a
-        // producer that already carries spellings marks itself with the
-        // Array(LITERAL) cast (the sort arm) and the label reads it —
-        // both are construction-site facts, never sniffing.
-        com.legend.sql.SqlType label = sqlTypeOf(spec.info().type());
-        // slice 3b: an Any-stamped root whose built expr is JUDGED to
-        // carry spellings (the hetero-literal carrier, or an element
-        // extracted from it — LIST_GET/UNNEST flow the type) labels
-        // LITERAL — the stamp erased, the emitter's product knows
-        if (rootJudge instanceof com.legend.sql.TypeFact.Typed jt
-                && (jt.type() == SqlType.Scalar.LITERAL
-                        || (jt.type() instanceof com.legend.sql.SqlType.Array ja
-                                && ja.element() == SqlType.Scalar.LITERAL))) {
-            label = SqlType.Scalar.LITERAL;
-        }
+        // pure-literal spellings (the DOUBLE-promoted array erased
+        // Integer 1 into 1.0 here), returning its own Array(LITERAL)
+        // construction-site mark.
         SqlExpr mixedLits = LiteralSpelling.mixedNumericArray(spec, e);
         if (mixedLits != null) {
             e = mixedLits;
-            label = SqlType.Scalar.LITERAL;
-        } else if (e instanceof SqlExpr.Cast lc
-                && (lc.target() == SqlType.Scalar.LITERAL
-                        || (lc.target() instanceof com.legend.sql.SqlType.Array la
-                                && la.element() == SqlType.Scalar.LITERAL))) {
+        }
+        // THE ONE LITERAL-LABEL ARM (§4.3, redundant half deleted
+        // 2026-08-24): the TREE says whether the finished root carries
+        // spellings — every producer marks at construction (the sort
+        // arm's cast, mixedNumericArray's mark, LIST_GET/UNNEST
+        // flowing the element) and a cast TYPES as its target, so the
+        // former cast-mark and mixed-array label arms re-derived what
+        // e.type() states. This arm's residual content is the label
+        // SPELLING (scalar LITERAL for the element contract) — it
+        // retires at M4 with the carrier rule.
+        com.legend.sql.SqlType label = sqlTypeOf(spec.info().type());
+        if (e.type() instanceof com.legend.sql.TypeFact.Typed jt
+                && (jt.type() == SqlType.Scalar.LITERAL
+                        || (jt.type() instanceof com.legend.sql.SqlType.Array ja
+                                && ja.element() == SqlType.Scalar.LITERAL))) {
             label = SqlType.Scalar.LITERAL;
         }
         // COLLECTION roots explode to N rows (the result-shape contract:
