@@ -726,6 +726,24 @@ public class RelationalCorpusRunner {
                             "wire adopt-pending reappeared: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
+                    // THE GUEST LIST (charter §4bZ, 2026-08-25): the
+                    // two blanket coercion arms are DELETED; a label/
+                    // wire mismatch is tolerated ONLY for reads tagged
+                    // at the mapping seam (a declared property/column
+                    // kind mismatch — engine carry-through compat).
+                    // First audit sweep: ALL 111 arrived tagged (97
+                    // VARCHAR + 14 DOUBLE — the sampled attribution is
+                    // now machine-proven row-by-row), and the pardon's
+                    // deletion EXPOSED 20 hidden rows (the CEILING
+                    // rule-vs-emission lie, fixed same sweep). Ceiling:
+                    // growth = a new mismatched mapping or an accident
+                    // — justify in the commit either way.
+                    () -> org.junit.jupiter.api.Assertions.assertTrue(
+                            com.legend.exec.SqlTypeCensus
+                                    .toleratedCount() <= 111,
+                            "engine-compat tolerated slots grew: "
+                                    + com.legend.exec.SqlTypeCensus
+                                            .summary()),
                     // THE LABEL FLIP (TYPED_SQL_IR.md, 2026-08-24):
                     // reconciliation makes a label lie structurally
                     // impossible — the census's mismatch bucket is

@@ -43,6 +43,10 @@ public final class SqlTypeCensus {
     private static final LongAdder PLANS = new LongAdder();
     private static final LongAdder AGREE = new LongAdder();
     private static final LongAdder ADMISSIBLE = new LongAdder();
+    /** Engine-compat carry-through slots (§4bZ): declared label kept
+     * over a mismatched wire because the read carried the mapping
+     * seam's provenance tag — the guest list, counted per slot. */
+    private static final LongAdder TOLERATED = new LongAdder();
     private static final LongAdder BOTTOM_OK = new LongAdder();
     private static final LongAdder BOTTOM_MULT = new LongAdder();
     private static final LongAdder MISMATCH = new LongAdder();
@@ -72,6 +76,7 @@ public final class SqlTypeCensus {
     public static final ThreadLocal<String> CONTEXT = new ThreadLocal<>();
 
     private static final LongAdder WIRE_AGREE = new LongAdder();
+    private static final LongAdder WIRE_TOLERATED = new LongAdder();
     private static final LongAdder WIRE_DELIVERED = new LongAdder();
     private static final LongAdder WIRE_ADOPT_PENDING = new LongAdder();
     private static final LongAdder WIRE_NULL_AMBIG = new LongAdder();
@@ -105,6 +110,13 @@ public final class SqlTypeCensus {
                 }
                 if (label.equals(meta)) {
                     WIRE_AGREE.increment();
+                } else if (outs.get(i).tolerated()) {
+                    // engine-compat carry-through slot (§4bZ): the
+                    // label/wire disagreement is REGISTERED provenance
+                    // (the mapping seam's tag), never a divergence
+                    WIRE_TOLERATED.increment();
+                    classify("wire-tolerated[" + dialect + "] " + label
+                            + " <- " + meta);
                 } else if (delivers(outs.get(i).type(), meta)) {
                     // THE DELIVERY RELATION (adjudicated 2026-08-23):
                     // value-subset narrowing (every INTEGER fits the
@@ -328,7 +340,17 @@ public final class SqlTypeCensus {
                     sample(cls, declared.name() + " := " + sketch(e));
                 }
                 case TypeFact.Typed t -> {
-                    if (t.type().equals(declared.type())) {
+                    if (declared.tolerated()) {
+                        // the reconciliation-stamped guest list (§4bZ):
+                        // label deliberately differs from the wire —
+                        // classified so the tagged-vs-total arithmetic
+                        // is in every sweep's log
+                        String cls = "tolerated " + declared.type()
+                                + " <- " + t.type();
+                        TOLERATED.increment();
+                        classify(cls);
+                        sample(cls, declared.name() + " := " + sketch(e));
+                    } else if (t.type().equals(declared.type())) {
                         AGREE.increment();
                     } else if (admissible(declared.type(), t.type())) {
                         String cls = "admissible " + declared.type()
@@ -487,13 +509,19 @@ public final class SqlTypeCensus {
         return WIRE_ADOPT_PENDING.sum();
     }
 
+    public static long toleratedCount() {
+        return TOLERATED.sum();
+    }
+
     public static String summary() {
         return "plans=" + PLANS.sum() + " cols: agree=" + AGREE.sum()
                 + " admissible=" + ADMISSIBLE.sum()
+                + " tolerated=" + TOLERATED.sum()
                 + " bottom-ok=" + BOTTOM_OK.sum()
                 + " bottom-mult-backlog=" + BOTTOM_MULT.sum()
                 + " mismatch=" + MISMATCH.sum() + " untyped=" + UNTYPED.sum()
                 + " | wire: agree=" + WIRE_AGREE.sum()
+                + " tolerated=" + WIRE_TOLERATED.sum()
                 + " delivered=" + WIRE_DELIVERED.sum()
                 + " adopt-pending=" + WIRE_ADOPT_PENDING.sum()
                 + " int-or-null=" + WIRE_NULL_AMBIG.sum()

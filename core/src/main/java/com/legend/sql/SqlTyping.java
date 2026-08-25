@@ -81,8 +81,29 @@ public final class SqlTyping {
             }
             OutputCol oc = outputs.get(i);
             SqlType computed = t.type();
+            // ENGINE-COMPAT carry-through (charter §4bZ, replaces the
+            // two blanket coercion arms): a TAGGED read keeps its
+            // declared label across the registered kind pairs, and the
+            // slot records the tolerance (the wire census reads it; an
+            // UNTAGGED mismatch falls through to adoption — loud).
+            // The tag also PROPAGATES through stamped re-reads (an
+            // upper select's column claims the lower's label — equal
+            // types, tolerated fact): the slot stays marked at every
+            // level, so the FINAL plan's outputs carry the tolerance
+            // the wire census needs.
+            boolean tol = t.tolerated()
+                    && (computed.equals(oc.type())
+                            || carryThrough(oc.type(), computed));
+            if (tol && !oc.tolerated()) {
+                if (os == null) {
+                    os = new java.util.ArrayList<>(outputs);
+                }
+                os.set(i, new OutputCol(oc.name(), oc.type(),
+                        oc.nullable(), true));
+                continue;
+            }
             if (computed.equals(oc.type())
-                    || admissible(oc.type(), computed)) {
+                    || admissible(oc.type(), computed) || tol) {
                 continue;
             }
             if (os == null) {
@@ -91,6 +112,38 @@ public final class SqlTyping {
             os.set(i, new OutputCol(oc.name(), computed, oc.nullable()));
         }
         return os == null ? outputs : List.copyOf(os);
+    }
+
+    /** THE ENGINE-COMPAT CARRY-THROUGH RELATION (charter §4bZ — the
+     * named, tag-gated home of the two DELETED blanket coercion arms):
+     * the kind pairs the engine's raw carry-through produces at a
+     * DECLARED property/column mismatch. Engine receipts: transform()
+     * is identity unless enum (legend-pure functions.pure:218), the
+     * fetch is ResultSet-metadata-keyed (ResultSetValueHandlers), no
+     * validation exists on either side — the mismatches are model
+     * facts the engine tolerates, receipted row-by-row by the
+     * fixture-skew census (Runner.FIXTURE_SKEW). Consulted ONLY for
+     * reads tagged at the mapping seam. */
+    public static boolean carryThrough(SqlType declared, SqlType computed) {
+        return (declared == SqlType.Scalar.VARCHAR
+                        || declared == SqlType.Scalar.DOUBLE)
+                && (computed == SqlType.Scalar.BIGINT
+                        || computed == SqlType.Scalar.INTEGER
+                        || computed == SqlType.Scalar.HUGEINT);
+    }
+
+    /** The mapping seam's TAG DOOR: rebuild a supplied-leaf column
+     * read with the engine-compat tolerance on its fact (charter
+     * §4bZ). Column is the one supplied-leaf node (its ctor keeps the
+     * passed fact); computed-node facts are constructor-owned and
+     * never overridden — a non-column read passes through untagged
+     * and a downstream mismatch stays loud (counted, never hidden). */
+    public static SqlExpr tolerateRead(SqlExpr e) {
+        return e instanceof SqlExpr.Column c
+                && c.type() instanceof TypeFact.Typed t && !t.tolerated()
+                ? new SqlExpr.Column(c.table(), c.name(),
+                        new TypeFact.Typed(t.type(), true))
+                : e;
     }
 
     /** THE ADMISSIBILITY RELATION (T3 user-audited 2026-08-23; MOVED
@@ -131,58 +184,14 @@ public final class SqlTyping {
                 && computed == SqlType.Scalar.VARCHAR) {
             return true;
         }
-        // Float-erasure numeric carriage, NARROWED at T4 attempt 2
-        // (charter §4bR Slice A): the Decimal limb is DELETED — those
-        // 48 rows now conform BY EMISSION at the MappingNormalizer
-        // pairing seam (concrete Float over a DECIMAL column casts in
-        // SQL; measured zero traffic before the delete). The
-        // INTEGER-family limb STAYS with a NEW referee receipt (this
-        // slice's first sweep): Float-declared over an INT column is
-        // IDENTITY — the validation-showcase golden prints the raw
-        // 'Quantity not in range: 1000000' (toString computed IN SQL;
-        // consistent with the engine's identity mechanism, §4bY).
-        // These rows carry the same two-population split as the
-        // VARCHAR arm below (the deletion experiment left 20x
-        // DOUBLE<>BIGINT wire reds) and RE-HOME with it per the §4bZ
-        // ruling: a provenance-gated carry-through tolerance at the
-        // LEGEND compat level, never a core type-pair excuse.
-        if (declared == SqlType.Scalar.DOUBLE
-                && (computed == SqlType.Scalar.BIGINT
-                        || computed == SqlType.Scalar.INTEGER)) {
-            return true;
-        }
-        // String-slot rows — KEPT, mechanism CORRECTED same day
-        // (charter §4bY, engine-code receipts): the engine NEVER
-        // converts here — its TDS transform is identity unless an enum
-        // transformer exists (legend-pure functions.pure:218) and its
-        // fetch is ResultSet-metadata-keyed (ResultSetValueHandlers:
-        // INTEGER->LONG, VARCHAR->STRING). Both goldens are RAW-WIRE
-        // prints; the apparent contradiction was FIXTURE SKEW: the
-        // in.pure setup executes Create Table InteractionTable(id
-        // VARCHAR(200)...) while the ###Relational store declares
-        // ID INT (relationalSetUp.pure:1397) — '4' is the identity
-        // read of a VARCHAR wire, and tree.pure's raw 11 is the
-        // identity read of a genuine INT wire. This arm therefore
-        // excuses TWO populations a type-pair cannot split: (a) skew
-        // rows — the computed stamp (store-declaration-derived) lies
-        // about the actual fixture; label truthful; (b) genuine-INT
-        // rows — the label lies and adoption is correct (tree.pure
-        // asserts raw; the deletion experiment CURED these,
-        // int-or-null 83->53, while breaking (a): 42x BIGINT<>VARCHAR
-        // wire reds). RETIREMENT (§4bZ ruling, engine homework done):
-        // the tolerance is engine INERTIA, not design (no validation
-        // exists on either side, no purpose-built test, all of it
-        // bulk-migrated from pre-open-source pure) — so it RE-HOMES
-        // to the LEGEND compat level as a NAMED carry-through
-        // tolerance, gated by PROVENANCE at the mapping seam (only
-        // reads that crossed a declared kind-mismatched property/
-        // column pairing tolerate; accidents elsewhere go loud),
-        // receipted per-row by the fixture-skew census (469
-        // witnesses, Runner.FIXTURE_SKEW). This arm then leaves CORE.
-        if (declared == SqlType.Scalar.VARCHAR
-                && computed == SqlType.Scalar.BIGINT) {
-            return true;
-        }
+        // (The two BLANKET COERCION ARMS — DOUBLE <- BIGINT/INTEGER
+        // and VARCHAR <- BIGINT — are DELETED, re-homed 2026-08-25 to
+        // {@link #carryThrough}: the same kind pairs, now gated on the
+        // mapping seam's PROVENANCE TAG (TypeFact.Typed.tolerated) so
+        // only reads that genuinely crossed a declared property/column
+        // mismatch tolerate; an untagged mismatch adopts the wire and
+        // goes loud in the wire census. History + engine receipts on
+        // carryThrough and in charter §4bY/§4bZ.)
         // serialize-as-text (the m2m/graphFetch egress): DuckDB serves
         // JSON as its text; the conform-by-emission cast is a later,
         // golden-text-gated slice
@@ -359,7 +368,15 @@ public final class SqlTyping {
                                         ? T_DOUBLE : UNKNOWN
                         : UNKNOWN;
             }
-            case CEILING, FLOOR -> {
+            // CEILING/FLOOR/SIGN type as OUR OWN EMISSION, not the bare
+            // backend function: the renderer spells them CAST(... AS
+            // BIGINT) for every input (AnsiSqlRenderer — pure's
+            // ceiling/floor/sign : Integer contract), so the delivered
+            // wire is BIGINT always. (The old DOUBLE/Decimal arms
+            // described bare ceil() — a rule-vs-emission lie the §4bZ
+            // guest-list audit exposed: 20 wire rows the deleted
+            // blanket arm had been hiding.)
+            case CEILING, FLOOR, SIGN -> {
                 if (a.isEmpty()) {
                     yield UNKNOWN;
                 }
@@ -367,16 +384,11 @@ public final class SqlTyping {
                 if (f instanceof TypeFact.Bottom) {
                     yield BOTTOM;
                 }
-                if (f instanceof TypeFact.Typed t) {
-                    if (integerKind(t.type())
-                            || t.type() == SqlType.Scalar.DOUBLE) {
-                        yield T_DOUBLE;
-                    }
-                    if (t.type() instanceof SqlType.Decimal d) {
-                        yield typed(new SqlType.Decimal(d.precision(), 0));
-                    }
-                }
-                yield UNKNOWN;
+                yield f instanceof TypeFact.Typed t
+                        && (integerKind(t.type())
+                                || t.type() == SqlType.Scalar.DOUBLE
+                                || t.type() instanceof SqlType.Decimal)
+                        ? T_BIGINT : UNKNOWN;
             }
             // everything else: no rule yet — counted, never guessed
             default -> UNKNOWN;
@@ -567,8 +579,11 @@ public final class SqlTyping {
                         || t == SqlType.Scalar.TIMESTAMP
                         ? T_TIMESTAMP : UNKNOWN;
             }
+            // element-preserving: the ARG'S OWN FACT transports — the
+            // engine-compat tolerance rides identity reducers (max of
+            // raw carried values is a raw carried value, §4bZ)
             case MIN, MAX, ANY_VALUE, MODE, QUANTILE_DISC, ARG_MAX,
-                    ARG_MIN -> typed(t);
+                    ARG_MIN -> t0;
             case MEDIAN, QUANTILE_CONT -> {
                 if (integerFamily(t) || t == SqlType.Scalar.DOUBLE) {
                     yield T_DOUBLE;

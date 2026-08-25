@@ -317,10 +317,14 @@ public sealed interface SqlExpr
         /** The STAMPED reference to a source's declared output — the M2
          * leaf-supply door (TYPED_SQL_IR.md §2): the builder always has
          * the {@link OutputCol} in hand, and the reference carries its
-         * declared type. */
+         * declared type. A TOLERATED slot's re-read keeps the tag
+         * (§4bZ — the engine-compat provenance rides stamped reads up
+         * through select layers, so the FINAL plan's outputs still
+         * carry it for the wire census). */
         public static Column of(@com.legend.Nullable String table,
                 OutputCol col) {
-            return new Column(table, col.name(), SqlTyping.typed(col.type()));
+            return new Column(table, col.name(),
+                    new TypeFact.Typed(col.type(), col.tolerated()));
         }
 
         /** Stamped reference by bare name — for the builder's OWN

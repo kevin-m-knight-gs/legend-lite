@@ -18,7 +18,20 @@ package com.legend.sql;
  * the tree.)
  */
 public sealed interface TypeFact {
-    record Typed(SqlType type) implements TypeFact {
+    /** {@code tolerated} — the ENGINE-COMPAT carry-through provenance
+     * (charter §4bZ): this value was read across a DECLARED
+     * property/column kind mismatch at the mapping seam (the one site
+     * that knows the pairing), where the engine's contract is raw
+     * carry-through (no conversion, no check — engine source
+     * receipts). Set ONLY by the mapping seam's doors; transported by
+     * identity-preserving rules; consumed by label reconciliation —
+     * a label/wire mismatch is tolerated ONLY when the value carries
+     * this tag, so an untagged mismatch (a compiler accident) goes
+     * loud instead of being blanket-forgiven. */
+    record Typed(SqlType type, boolean tolerated) implements TypeFact {
+        public Typed(SqlType type) {
+            this(type, false);
+        }
     }
 
     record Bottom() implements TypeFact {

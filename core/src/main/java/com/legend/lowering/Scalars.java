@@ -661,9 +661,15 @@ final class Scalars {
         // adjust(d, n, unit) / timeBucket(d, n, unit): the DurationUnit enum
         // literal selects DuckDB's interval-constructor function.
         // typeAsDeclared: type-only assertion — the VALUE passes through
-        // (the mapping's declared-type coercion emits no SQL, engine parity)
+        // (the mapping's declared-type coercion emits no SQL, engine
+        // parity) AND the read takes the ENGINE-COMPAT provenance tag
+        // (charter §4bZ): typeAsDeclared is emitted ONLY at a declared
+        // property/column kind mismatch, so this rule IS the mapping
+        // seam's tag door — reconciliation tolerates the label/wire
+        // disagreement for tagged reads only.
         for (String f : Pure.nativeKeysAt("meta::legend::lite::typeAsDeclared")) {
-            RULES.put(f, (n, args) -> args.get(0));
+            RULES.put(f, (n, args) ->
+                    com.legend.sql.SqlTyping.tolerateRead(args.get(0)));
         }
         // castAsDeclared never reaches here — the Typer types it as a
         // WIRE-flagged TypedCast (the Lowerer's cast() reads the flag)

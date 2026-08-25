@@ -1365,9 +1365,21 @@ public final class Lowerer {
             ps.addAll(starProjections(base));
         }
         for (TypedFuncCol c : columns) {
-            TypedSpec body = CastPolicy.cellRootUnwrapWire(last(c.fn()));
+            TypedSpec cellRoot = last(c.fn());
+            TypedSpec body = CastPolicy.cellRootUnwrapWire(cellRoot);
+            // a STRIPPED wire cast leaves the bare mismatched read —
+            // it takes the same engine-compat tag the typeAsDeclared
+            // door applies (§4bZ): the unwrap site is the other place
+            // that KNOWS the read crossed a declared mismatch
+            boolean unwrapped = body != cellRoot;
             SqlSelect resolveBase = base;
-            switch (attempt(() -> scalar(body, (v, name) -> resolveOrThrow(resolveBase, name)))) {
+            switch (attempt(() -> {
+                SqlExpr lowered = scalar(body,
+                        (v, name) -> resolveOrThrow(resolveBase, name));
+                return unwrapped
+                        ? com.legend.sql.SqlTyping.tolerateRead(lowered)
+                        : lowered;
+            })) {
                 case Resolution.Resolved r -> {
                     if (manyCols.contains(c)) {
                         Type elemT = Type.schemaView(info.type()) instanceof Type.RelationType rt
