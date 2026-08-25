@@ -438,14 +438,17 @@ public final class SqlTypeCensus {
             case SqlExpr.ArrayLit al ->
                     "ArrayLit(" + memberAnatomy(al.elements()) + ")";
             case SqlExpr.CompactList cl ->
-                    "CompactList(" + sketchLeaf(cl.list()) + ")";
+                    "CompactList(" + sketch(cl.list()) + ")";
+            case com.legend.sql.SqlAgg.Reducer r ->
+                    r.fn() + "[" + (r.args().isEmpty() ? ""
+                            : sketchLeaf(r.args().get(0))) + "]";
             // the untyped-ScalarSubquery family locator: WHY the rule
             // declined (outputs count + first label + inner root shape)
             case SqlExpr.ScalarSubquery s -> {
                 List<OutputCol> os = s.subquery().outputs();
                 String inner = s.subquery() instanceof SqlSelect is
                         && !is.projections().isEmpty()
-                        ? shapeOf(is.projections().get(0).expr()) : "?";
+                        ? sketchLeaf(is.projections().get(0).expr()) : "?";
                 yield "ScalarSubquery(outs="
                         + (os == null ? "null" : os.size())
                         + (os == null || os.isEmpty() ? ""
@@ -464,7 +467,7 @@ public final class SqlTypeCensus {
             if (m.type() instanceof TypeFact.Unknown
                     && !(m instanceof SqlExpr.Call c
                             && c.fn() == com.legend.sql.SqlFn.ERROR)) {
-                return "blind=" + shapeOf(m);
+                return "blind=" + sketch(m);
             }
         }
         java.util.Set<String> kinds = new java.util.LinkedHashSet<>();

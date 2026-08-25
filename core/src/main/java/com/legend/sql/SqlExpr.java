@@ -913,7 +913,7 @@ public sealed interface SqlExpr
     record FoldCall(SqlExpr source, Lambda lambda, SqlExpr init, boolean accIsList,
                     boolean homogeneous, TypeFact type) implements SqlExpr {
         public FoldCall {
-            type = SqlTyping.UNKNOWN;   // no rule yet — counted
+            type = SqlTyping.foldType(lambda, init, accIsList);
         }
 
         public FoldCall(SqlExpr source, Lambda lambda, SqlExpr init,

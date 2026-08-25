@@ -227,15 +227,15 @@ public final class SqlTyping {
                     GREATER_EQUAL, IS_NULL, IS_NOT_NULL, IN, STARTS_WITH,
                     ENDS_WITH, MATCHES, REGEXP_FULL_MATCH, LIST_EXISTS,
                     LIST_FOR_ALL, IS_DISTINCT, ALL_DISTINCT, NULL_SAFE_EQUAL,
-                    NULL_SAFE_NOT_EQUAL, LIST_BOOL_AND, LIST_BOOL_OR ->
-                    T_BOOLEAN;
+                    NULL_SAFE_NOT_EQUAL, LIST_BOOL_AND, LIST_BOOL_OR,
+                    XOR -> T_BOOLEAN;
             case CONCAT, CONCAT_JOIN, UPPER, LOWER, TRIM, LTRIM, RTRIM,
                     REPLACE, SUBSTRING, LEFT, RIGHT, LPAD, RPAD,
                     REVERSE_STRING, UC_FIRST, LC_FIRST, SPLIT_PART,
                     REGEXP_EXTRACT, REGEXP_REPLACE, CHR, ENCODE_BASE64,
                     DECODE_BASE64, MD5, SHA1, SHA256, GUID, DAYNAME,
                     MONTHNAME, STRFTIME, TYPEOF, BOOL_TO_TEXT, FORMAT,
-                    JSON_TYPE, CURRENT_USER_FN -> T_VARCHAR;
+                    JSON_TYPE, CURRENT_USER_FN, REPEAT_STR -> T_VARCHAR;
             case LENGTH, STRPOS, ASCII_CODE, LEVENSHTEIN, LIST_LENGTH,
                     LIST_POSITION, EXTRACT, DATE_DIFF, EPOCH_SECONDS,
                     EPOCH_MS, PARSE_INT -> T_BIGINT;
@@ -244,7 +244,45 @@ public final class SqlTyping {
                     DEGREES, DIVIDE, JARO_WINKLER -> T_DOUBLE;
             case TODAY, MAKE_DATE -> T_DATE;
             case NOW, MAKE_TIMESTAMP, STRPTIME, FROM_EPOCH_SECONDS,
-                    FROM_EPOCH_MS -> T_TIMESTAMP;
+                    FROM_EPOCH_MS, TIMEZONE -> T_TIMESTAMP;
+            // PROBED 1.5.0 (2026-08-25 full-burn): the list aggregates
+            // follow the SAME reducer promotions as their grouped
+            // twins, read through the element (list_sum int->HUGEINT,
+            // list_avg/median->DOUBLE, list_mode identity)
+            case LIST_SUM -> a.isEmpty() ? UNKNOWN
+                    : reduceCollectionType(SqlAgg.Fn.SUM, a.get(0));
+            case LIST_AVG -> a.isEmpty() ? UNKNOWN
+                    : reduceCollectionType(SqlAgg.Fn.AVG, a.get(0));
+            case LIST_MEDIAN -> a.isEmpty() ? UNKNOWN
+                    : reduceCollectionType(SqlAgg.Fn.MEDIAN, a.get(0));
+            case LIST_MODE -> a.isEmpty() ? UNKNOWN
+                    : reduceCollectionType(SqlAgg.Fn.MODE, a.get(0));
+            // list_product -> DOUBLE for every numeric list (probed)
+            case LIST_PRODUCT -> listProductType(a);
+            // list_append keeps the list's type when the appended
+            // element speaks it (probed; a promoting append is a
+            // different type — UNKNOWN, never guessed)
+            case LIST_APPEND -> listAppendType(a);
+            // list_reduce yields the lambda BODY's value (the running
+            // accumulator — params bound by the attachment door;
+            // probed: list_reduce([ints], +) -> INTEGER)
+            case LIST_REDUCE -> a.size() == 2
+                    && a.get(1) instanceof SqlExpr.Lambda lam
+                    && lam.body().type() instanceof TypeFact.Typed bt
+                    ? typed(bt.type()) : UNKNOWN;
+            // map family (probed): concat keeps the uniform Map type;
+            // entries [{first K, second V}] build MAP(K, V); extract/
+            // values yield the VALUE list, keys the KEY list
+            case MAP_CONCAT -> uniform(a, BOTTOM);
+            case MAP_FROM_ENTRIES -> mapFromEntriesType(a);
+            case MAP_EXTRACT, MAP_VALUES -> a.isEmpty() ? UNKNOWN
+                    : a.get(0).type() instanceof TypeFact.Typed t
+                            && t.type() instanceof SqlType.Map m
+                    ? typed(new SqlType.Array(m.value())) : UNKNOWN;
+            case MAP_KEYS -> a.isEmpty() ? UNKNOWN
+                    : a.get(0).type() instanceof TypeFact.Typed t
+                            && t.type() instanceof SqlType.Map m
+                    ? typed(new SqlType.Array(m.key())) : UNKNOWN;
             // PROBED on the reference jar (DuckDB 1.5.0, 2026-08-25):
             // date_trunc returns TIMESTAMP at EVERY granularity —
             // day/month/year included. (The 1.4.4 CLI returns DATE for
@@ -263,6 +301,10 @@ public final class SqlTyping {
             case TO_VARIANT, JSON_MERGE_PATCH, VARIANT_GET -> T_JSON;
             case VARIANT_ELEMENTS ->
                     typed(new SqlType.Array(SqlType.Scalar.JSON));
+            // string splitters yield VARCHAR[] by definition (probed
+            // 1.5.0 — the XStore traderKerb CASE chain's blind leaf)
+            case SPLIT, REGEXP_EXTRACT_ALL ->
+                    typed(new SqlType.Array(SqlType.Scalar.VARCHAR));
             case RANGE_FN -> typed(new SqlType.Array(SqlType.Scalar.BIGINT));
             case COALESCE -> uniform(a, BOTTOM);
             case LIST_FILTER, LIST_SORT, LIST_SORT_DESC, LIST_TAIL,
@@ -290,34 +332,7 @@ public final class SqlTyping {
             // (probed: INT&INT->INT, BIGINT|INT->BIGINT — the widest
             // member; non-integer operands have no bit story)
             case BIT_AND, BIT_OR, BIT_XOR, BIT_NOT, BIT_SHIFT_LEFT,
-                    BIT_SHIFT_RIGHT -> {
-                boolean bottom = false;
-                int width = 0;
-                for (SqlExpr e : a) {
-                    TypeFact f = e.type();
-                    if (f instanceof TypeFact.Bottom) {
-                        bottom = true;
-                    } else if (f instanceof TypeFact.Typed t
-                            && integerKind(t.type())) {
-                        width = Math.max(width, intWidth(t.type()));
-                    } else {
-                        width = -1;
-                        break;
-                    }
-                }
-                if (width < 0 || a.isEmpty()) {
-                    yield UNKNOWN;
-                }
-                if (bottom) {
-                    yield BOTTOM;
-                }
-                yield switch (width) {
-                    case 1 -> T_INTEGER;
-                    case 2 -> T_BIGINT;
-                    case 3 -> T_HUGEINT;
-                    default -> UNKNOWN;
-                };
-            }
+                    BIT_SHIFT_RIGHT -> bitOpType(a);
             // greatest/least follow the BRANCH-FAMILY promotion
             // (probed: equal kinds identity, BIGINT/INT -> BIGINT;
             // decimal mixes follow version formulas — stay UNKNOWN)
@@ -446,6 +461,77 @@ public final class SqlTyping {
         };
     }
 
+    /** Bit ops (probed): width-preserving on the integer family. */
+    private static TypeFact bitOpType(List<SqlExpr> a) {
+        boolean bottom = false;
+        int width = 0;
+        for (SqlExpr e : a) {
+            TypeFact f = e.type();
+            if (f instanceof TypeFact.Bottom) {
+                bottom = true;
+            } else if (f instanceof TypeFact.Typed t
+                    && integerKind(t.type())) {
+                width = Math.max(width, intWidth(t.type()));
+            } else {
+                width = -1;
+                break;
+            }
+        }
+        if (width < 0 || a.isEmpty()) {
+            return UNKNOWN;
+        }
+        if (bottom) {
+            return BOTTOM;
+        }
+        return switch (width) {
+            case 1 -> T_INTEGER;
+            case 2 -> T_BIGINT;
+            case 3 -> T_HUGEINT;
+            default -> UNKNOWN;
+        };
+    }
+
+    /** list_product -> DOUBLE for every numeric list (probed). */
+    private static TypeFact listProductType(List<SqlExpr> a) {
+        if (a.isEmpty()) {
+            return UNKNOWN;
+        }
+        TypeFact f = a.get(0).type();
+        if (f instanceof TypeFact.Bottom) {
+            return BOTTOM;
+        }
+        return f instanceof TypeFact.Typed t
+                && t.type() instanceof SqlType.Array ? T_DOUBLE : UNKNOWN;
+    }
+
+    /** list_append keeps the list's type when the appended element
+     * speaks it (probed); a promoting append stays UNKNOWN. */
+    private static TypeFact listAppendType(List<SqlExpr> a) {
+        if (a.size() != 2 || !(a.get(0).type()
+                instanceof TypeFact.Typed t
+                && t.type() instanceof SqlType.Array at)) {
+            return UNKNOWN;
+        }
+        TypeFact e2 = a.get(1).type();
+        return e2 instanceof TypeFact.Bottom
+                || (e2 instanceof TypeFact.Typed et
+                        && et.type().equals(at.element()))
+                ? typed(at) : UNKNOWN;
+    }
+
+    /** map_from_entries: [{first K, second V}] -> MAP(K, V) (probed). */
+    private static TypeFact mapFromEntriesType(List<SqlExpr> a) {
+        if (a.size() != 1 || !(a.get(0).type()
+                instanceof TypeFact.Typed t
+                && t.type() instanceof SqlType.Array at
+                && at.element() instanceof SqlType.Struct st
+                && st.fields().size() == 2)) {
+            return UNKNOWN;
+        }
+        return typed(new SqlType.Map(st.fields().get(0).type(),
+                st.fields().get(1).type()));
+    }
+
     /** {@link SqlExpr.Case} — the branch family's shared type; a CASE
      * whose every branch is the NULL value is itself the NULL value. */
     static TypeFact caseType(List<SqlExpr.Case.When> whens,
@@ -535,6 +621,23 @@ public final class SqlTyping {
         return lv instanceof TypeFact.Typed t
                 && t.type() instanceof SqlType.Array at
                 ? typed(at.element()) : UNKNOWN;
+    }
+
+    /** {@link SqlExpr.FoldCall} — the fold's value is the ACCUMULATOR's:
+     * typed only when the lambda BODY (the per-step accumulator) and
+     * the INIT agree — a type-changing fold (int seed, string result
+     * mid-flight) or an unknown body stays UNKNOWN, never guessed.
+     * The list-boxed accumulator carrier ({@code accIsList}) has a
+     * different wire shape — no rule. */
+    static TypeFact foldType(SqlExpr.Lambda lambda, SqlExpr init,
+            boolean accIsList) {
+        if (accIsList) {
+            return UNKNOWN;
+        }
+        return lambda.body().type() instanceof TypeFact.Typed bt
+                && init.type() instanceof TypeFact.Typed it
+                && bt.type().equals(it.type())
+                ? typed(bt.type()) : UNKNOWN;
     }
 
     /** {@link SqlExpr.WindowCall} — a windowed {@link SqlAgg.Reducer}
@@ -901,18 +1004,33 @@ public final class SqlTyping {
     /** BRANCH-FAMILY promotion (DuckDB 1.5.0 probed, 2026-08-24 —
      * CASE/COALESCE mixed members; the same lattice benefits ArrayLit
      * and LIST_CONCAT through this shared rule): widest integer wins;
-     * any DOUBLE wins over the integer family; DATE+TIMESTAMP promote
-     * to TIMESTAMP. DECIMAL pairs follow version-specific precision
-     * formulas and cross-kind pairs ERROR at execution — both null
-     * here (UNKNOWN), never guessed. */
+     * any DOUBLE wins over the integer family AND over decimals;
+     * DATE+TIMESTAMP promote to TIMESTAMP. DECIMAL union promotion
+     * PROBED 2026-08-25 (mixed literal lists): s=max(s1,s2),
+     * w=maxIntDigits+s — NO carry digit (union holds either value,
+     * it never adds them: [Dec(2,1), BIGINT] -> Dec(20,1)) — capped
+     * 38; ints enter as (10,0)/(19,0)/(38,0). Remaining cross-kind
+     * pairs ERROR at execution — null (UNKNOWN), never guessed. */
     private static @com.legend.Nullable SqlType branchPromote(
             SqlType a, SqlType b) {
         if (integerKind(a) && integerKind(b)) {
             return intWidth(a) >= intWidth(b) ? a : b;
         }
-        if (a == SqlType.Scalar.DOUBLE && integerKind(b)
-                || b == SqlType.Scalar.DOUBLE && integerKind(a)) {
+        boolean aNum = integerKind(a) || a instanceof SqlType.Decimal;
+        boolean bNum = integerKind(b) || b instanceof SqlType.Decimal;
+        if (a == SqlType.Scalar.DOUBLE && bNum
+                || b == SqlType.Scalar.DOUBLE && aNum) {
             return SqlType.Scalar.DOUBLE;
+        }
+        if (aNum && bNum
+                && (a instanceof SqlType.Decimal
+                        || b instanceof SqlType.Decimal)) {
+            int[] da = unionDec(a);
+            int[] db = unionDec(b);
+            int s = Math.max(da[1], db[1]);
+            int w = Math.min(
+                    Math.max(da[0] - da[1], db[0] - db[1]) + s, 38);
+            return new SqlType.Decimal(w, s);
         }
         if (a == SqlType.Scalar.DATE && b == SqlType.Scalar.TIMESTAMP
                 || a == SqlType.Scalar.TIMESTAMP
@@ -920,6 +1038,14 @@ public final class SqlTyping {
             return SqlType.Scalar.TIMESTAMP;
         }
         return null;
+    }
+
+    private static int[] unionDec(SqlType t) {
+        if (t instanceof SqlType.Decimal d) {
+            return new int[] {d.precision(), d.scale()};
+        }
+        return new int[] {t == SqlType.Scalar.INTEGER ? 10
+                : t == SqlType.Scalar.BIGINT ? 19 : 38, 0};
     }
 
     private static int intWidth(SqlType t) {

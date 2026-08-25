@@ -781,20 +781,21 @@ public class RelationalCorpusRunner {
                     // deleted 2026-08-24): untyped projection roots =
                     // rule-coverage debt AND the leaf-regression
                     // signal (a new unstamped construction site GROWS
-                    // this). 1,116 -> 737 -> 717 (arithmetic, branch
-                    // promotion) -> 424 (M4) -> 24 (2026-08-25 rules
-                    // burn: label-less ScalarSubquery reads its
-                    // projection's stored type 340, probed DuckDB-1.5.0
-                    // date_trunc 14 + decimal arithmetic 12 + ranking/
-                    // value windows 7, empty-ArrayLit-is-Nil in
-                    // uniform() 27). The 24 = six NAMED families: 20
-                    // XStore cross-store Case(LIST_GET), 2 late-bound
-                    // fetchDbMetaData columns (mortal by design), 2
-                    // UNNEST chains (concatenate testAll,
-                    // testSubAggregationMultiLevel).
+                    // this). 1,116 -> 737 -> 717 -> 424 (M4) -> 24
+                    // (rules burn) -> 4 (2026-08-25 FULL burn: the
+                    // SPLIT->VARCHAR[] rule closed the 20-row XStore
+                    // family). THE 4 = the complete per-row mortality
+                    // ledger: 2x fetchDbMetaData raw-grid columns
+                    // (late-bound by design — the schema exists only
+                    // at runtime); 1x concatenate testAll (JSON-under-
+                    // VARCHAR text-carrier chain — burns with the
+                    // carrier-types leg, SS4Z #5); 1x
+                    // testSubAggregationMultiLevel (AVG over an
+                    // unstamped sub-aggregation lateral column — M2's
+                    // recorded late-bound arm).
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .untypedCount() <= 24,
+                                    .untypedCount() <= 4,
                             "untyped projection roots grew — a missing"
                                     + " rule or an unstamped leaf: "
                                     + com.legend.exec.SqlTypeCensus

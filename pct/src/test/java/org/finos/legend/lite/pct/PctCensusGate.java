@@ -50,11 +50,22 @@ public final class PctCensusGate {
     // this pin only ever moves on the unfiltered gate command's
     // numbers (the G6 chain trip that caught it: Standard's teardown
     // alone reads 611).
-    // 728 -> 273 (2026-08-25 pct-tail burn: probed list_max/list_min
-    // element identity, ADD_INTERVAL -> TIMESTAMP, bit-op widest-int,
-    // greatest/least branch promotion). Measured on the unfiltered
-    // gate composition; max teardown = the final (Grammar) 273.
-    private static final long MAX_UNTYPED = H2 ? 17 : 273;
+    // 728 -> 273 (pct-tail burn: list_max/min element identity,
+    // ADD_INTERVAL -> TIMESTAMP, bit-op widest-int, greatest/least
+    // branch promotion) -> 120 (2026-08-25 FULL burn: XOR/REPEAT_STR/
+    // TIMEZONE groups, list_sum/avg/median/mode via the reducer
+    // promotions, list_product/append/reduce, the map family
+    // (concat/from_entries/extract/keys/values), SPLIT/
+    // REGEXP_EXTRACT_ALL -> VARCHAR[], FoldCall body-and-init rule,
+    // decimal-mix union promotion in branchPromote — every rule
+    // probed on the 1.5.0 reference jar). The 120 = the mortality
+    // ledger (36 dynamic-pivot columns — runtime-discovered keys;
+    // 12 HASH — UBIGINT is outside our scalar vocabulary, a rule
+    // would lie about the wire; 9 error() — raises, never yields a
+    // value) + ~63 member-driven remnants in fold/zip/variant
+    // lambda chains (each heals as its members type). Measured on
+    // the unfiltered gate composition, max teardown (Grammar).
+    private static final long MAX_UNTYPED = H2 ? 17 : 120;
     private static final long MAX_WIRE_DIVERGE = H2 ? 0 : 78;
     private static final long MAX_ADOPT_PENDING = H2 ? 0 : 101;
 
