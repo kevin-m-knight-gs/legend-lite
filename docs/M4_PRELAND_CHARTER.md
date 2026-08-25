@@ -153,6 +153,35 @@ on a THROWAWAY worktree of the branch, name the three tests and their
 failure modes. They are the branch's known unfinished edges — each
 becomes either a pre-land slice or a recorded M4 acceptance item.
 
+## 2R. RESIDUAL-ROW DIAGNOSIS (2026-08-25 — DONE; throwaway worktree
+## of c06743fc, scoped G4 `-Drcorpus.only=postprocessor,tests/query`,
+## reproduced the park note EXACTLY: postprocessor/tests 22<23,
+## tests/query 77<79; every other family failure cross-checked
+## pre-existing in main's ledger)
+
+THE THREE ROWS, one shared failure mode:
+1. `meta::relational::tests::postProcessor::testSqlRealiasViews`
+2. `meta::relational::tests::query::view::testViewAll`
+3. `meta::relational::tests::query::view::testViewSimpleFilter`
+
+All three assert `$result.values->map(p|[$p.<string-prop>,
+$p.<float-prop>]->makeString(','))` — got `'Account 1',100.0` where
+`Account 1,100.0` was expected. MECHANISM: the per-row collection
+`[$p.name, $p.pnl]` (String+Float property reads) is Any-LUB with
+every element spellable → the claim carries it as Array(LITERAL);
+`makeString` is a PRINT consumer the branch's printForm recipe never
+covered (it wired pureToString's Any arm + format slots only), so the
+string cell keeps its quotes in the joined text.
+
+DISPOSITION: M4 ACCEPTANCE ITEM, not a pre-land slice — the cure is a
+typed-IR capability read at the consumer (makeString's lowering site
+sees element type LITERAL → applies LiteralSpelling.printForm, the
+exact "one recipe" the doc promises), which only exists once the claim
+is live. At the re-land: enumerate ALL join-text print consumers
+(makeString/joinStrings family), route each through printForm on
+LITERAL elements, and these three rows are the named witnesses —
+the first green sweep must show all three back to PASS.
+
 ## 3. PRE-FLIGHT GAP SLICES (found by the 2026-08-25 branch-vs-today
 ## mapping — each its own gated slice, BEFORE the re-land)
 
