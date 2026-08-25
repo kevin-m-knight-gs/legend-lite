@@ -87,6 +87,63 @@ d. **Oracle semantic receipts** (verify, never assume):
    - if arithmetic over mixed Number[*] is demanded: pure's
      promotion semantics for it.
 
+## 1R. CENSUS RESULTS (2026-08-25 — receipts; method: §1a-d executed
+## over PURE-PCT platform tree + engine PCT dirs + relational corpus,
+## patterns iterated int/float, num/string, temporal-in-collection,
+## decimal-in-collection, Any[, cast(@Any); every named site checked
+## for its <<PCT.test>> stereotype and against the CURRENT exclusion
+## lists)
+
+**Headline: every demanded operation is enumerable, and MAIN ALREADY
+PASSES ALL OF IT** — none of the mixed-kind tests below appears in any
+expectedFailures list (Standard's list is EMPTY; Essential/Grammar
+lists hold only instance-identity/0-based/reflection families). The
+re-land's obligation is PRESERVATION, plus the two named gap slices.
+
+| operation | demanding tests (adapter lane) | covered by branch design? | gap |
+|---|---|---|---|
+| arithmetic over mixed `Number[*]` (fold plus/minus/times; sum, average, median, mode, corr, covar, stdDev) | grammar testPlusNumber `[15,13,2.0,1,1.0]->plus()==32.0`, testDecimalPlus `[1.0d,2.0,3]->plus()==6.0d`, testDecimalMinus, testDecimalTimes `[19.905d,17774]`; standard aggregators (sum:34, average:52 `[5d,1.0,2,8,3]==3.8`, median:58, mode:71, corr:40, covar) | YES — structurally avoided: the claim's own gate reads "Number-LUB mixes keep variant BY CONTRACT (arithmetic must type)"; these ride the existing numeric lanes (Scalars promotion + Decimal fold, witnesses in Scalars.java:249/277/306) | none; re-land MUST carry the Number-LUB gate onto the typed IR (Typer type makes it a clean read) |
+| cross-kind sort | testMixedSortNoComparator `[342,5.0,-2.0,171,1]->sort()` — the ONLY adapter-lane cross-kind sort, and it is Number-only. The hetero num/string orderings (`removeDuplicates` tests' `[1,2,3,'1','3']`) apply `->sort()` OUTSIDE `$f->eval` — platform-side, never through the adapter | YES (comparable channel orders, identity channel keeps kinds) | none. ORACLE RECEIPT (both runtimes agree): interpreted Compare.java:84-155 and compiled CompiledSupport.compareInt:550 + PRIMITIVE_CLASS_COMPARISON_ORDER:140 — kind-CLASS ladder Number < Date < Boolean < String < non-primitive(by type path); numbers compare BY EXACT VALUE across kinds (BigDecimal; NaN/Inf via double), dates via PureDate.compareTo, cross-kind equal values (3 vs 3.0) tie → stability decides. TYPED_SQL_IR §7's "cross-kind sort not-fixed" bucket has NO adapter-lane demand beyond the numeric mix |
+| dedup over hetero (default + eq/equal fn-refs) | testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes, ...Explicit (`[1,2,'1','3',1,3,'3',2]`) | YES — carrier + dedup consumer arms (landed dormant on main) | verify live at re-land sweep |
+| dedup with TWO-PARAM lambda comparator | testRemoveDuplicatesPrimitiveNonStandardFunction `{x,y\|$x->toString()==$y->toString()}` | branch used the comparator FQN registry = compensation #3 | **§3.2 slice** (construction-site binding) |
+| membership over hetero incl Bool+temporal | testContainsPrimitive (col=`[1,2,5,2,'a',true,%2014-02-01,'c']`, positive AND negative probes), standard in.pure:30 same col, in.pure:71 `1d->in([1d,2d])` | YES — needle-wrap consumer arms landed | none |
+| collection equality w/ mixed sides | testConcatenateMixedType `[1,2,3,'a','b']` | YES — equalityEmission arm (MixedEncoding) | none |
+| print / format over Any args | format.pure %s/%d/%f/%t/%r tests (`['fox',3]`...), toString | YES — branch printForm (spelling→PRINT projection, one recipe) | none |
+| least/greatest/max/min mixed numerics, WINNER KEEPS ITS KIND | standard least:78-80 (`least([4.23,7.345,1.0d,3,4])==1.0d`), greatest:77 (`greatest([1.23,2])==2`), max:100, min:100 | YES on main (kind-preserving lanes; DuckDBIntegrationTest:6351-6497 witnesses) | none |
+| Any-cast collection feeding in() | corpus testIn.pure:55/65/89/102 `['John']->cast(@Any)` | conformance-cast lane | **§3.3 slice** decides no-re-wrap |
+| grid-extraction asserts (rows.values vs mixed literal lists) | corpus tds/functions families (bulk of 1,100 corpus hits) | YES — carrier rule (grid keeps rows) + rowMajorCellList conform-by-emission | none (adjudicated 2026-08-24) |
+| serialization | variant PCT toVariant/fromJson float lists | Variant lane untouched by the claim | none |
+
+**§0.4 edge receipts (both CLOSED as census items):**
+- **(a) -0.0**: ALREADY LANDED at the one owner — floatCanon's
+  zeros-unify (LiteralSpelling.java:149, regex `-?0+(\.0+)?` → '0.0')
+  and the carrier routes through it (MixedEncoding.elementLiteral →
+  LiteralSpelling.literal for FLOAT). Compiled pure's print ALSO
+  normalizes (-0.0 hits the `value == 0.0d` guard →
+  "0.0", CompiledSupport.primitiveToString(double):1273). No fix
+  needed; the claim inherits it.
+- **(b) canonical-form parity**: pure's Float name form is
+  DecimalFormat("0.0"), ENGLISH, maxFrac 340 (CompiledSupport:130-137)
+  = PLAIN decimal, ≥1 fraction digit, never exponent — exactly what
+  floatCanon produces (exponentUnfold is total; the `huge` arm appends
+  ".0"). PROBED 2026-08-25 (java DecimalFormat vs duckdb CAST AS
+  VARCHAR → unfold): byte-match at 1e20, 1.5e10, 1e-5, 1.5e-10,
+  123.456, -0.0, 1e15, 1e16, MAX_DOUBLE, -2.5e-7, 2^53+1. ONE
+  divergence class: SUBNORMALS (4.9e-324: DuckDB shortest-repr "5e-324"
+  vs Java "4.9e-324" — different shortest-repr tie-break). No referee
+  traffic reaches subnormals; recorded as counted residue, NOT a slice.
+  Decimal: ours strips D and rides the wire scale; pure toPlainString
+  preserves BigDecimal scale — parity holds where wire scale = pure
+  scale (DECIMAL-under-DOUBLE store reads stay the T4 non-goal).
+
+**Census verdict on §0's GUESSED list:** (1) mixed-list arithmetic IS
+demanded but never meets the carrier (Number-LUB gate) — not a claim
+capability; (2) cross-kind sort demand is numeric-only in the adapter
+lane — the §7 bucket stays unbuilt with a recorded oracle ladder;
+(3) the three residual rows remain §2's job; (4) eq resolved (§0.4).
+No NEW pre-land slice emerged: the gap column names only §3.2 and
+§3.3, already chartered.
+
 ## 2. THE THREE RESIDUAL ROWS (diagnose before landing)
 
 The branch's final chain was green EXCEPT: postprocessor −1,
