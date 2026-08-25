@@ -96,12 +96,22 @@ final class CastPolicy {
             return value;
         }
         boolean many = isMany;
-        // (The F10 3b Any-conformance unspell + TO_VARIANT re-wrap was
-        // DELETED here — spell-debt burn-down: no live flow routes a
-        // LITERAL-marked value through a conformance cast to Any; when
-        // the parked claim lands, the LITERAL label is itself a
-        // legitimate self-describing Any carrier and the cast keeps the
-        // mark — labels distinguish carriers, casts never re-carrier.)
+        // THE NO-RE-WRAP DECISION (M4 §3.3): a LITERAL-marked value is
+        // a self-describing Any carrier — an Any-conformance keeps the
+        // mark unchanged. The carrier casts below would re-carrier
+        // spelled texts as JSON (bare numbers silently re-kind, quoted
+        // strings malform — the parked branch's gate-caught witness,
+        // testUsingSameAggFunctionTwice). Labels distinguish carriers;
+        // casts never re-carrier. Decided on the STORED fact — the
+        // typed IR's clean read; the branch needed a node-shape sniff
+        // (its judge) for the same decision. Dormant until the claim
+        // lands: no live flow routes a LITERAL-marked value here today.
+        if (value.type() instanceof com.legend.sql.TypeFact.Typed vt
+                && (vt.type() == SqlType.Scalar.LITERAL
+                        || (vt.type() instanceof SqlType.Array va
+                                && va.element() == SqlType.Scalar.LITERAL))) {
+            return value;
+        }
         if (many) {
             boolean variantTarget = c.target() instanceof Type.ClassType t
                     && PlatformTypes.isVariant(t);
