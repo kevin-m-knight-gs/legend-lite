@@ -27,11 +27,13 @@ public class Test_LegendLite_UnclassifiedFunctions_PCT extends PCTReportConfigur
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.empty();
 
     public static Test suite() {
-        return wrapSuite(
+        // M4 §3.4: the census gate pins this JVM's SqlTypeCensus
+        // invariants at suite teardown (PctCensusGate)
+        return PctCensusGate.wrap("Unclassified", wrapSuite(
                 () -> true,
                 () -> PureTestBuilderInterpreted.buildPCTTestSuite(reportScope, expectedFailures, adapter),
                 () -> false,
-                Lists.mutable.empty());
+                Lists.mutable.empty()));
     }
 
     @Override

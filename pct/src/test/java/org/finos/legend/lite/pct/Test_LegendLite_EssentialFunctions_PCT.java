@@ -114,11 +114,13 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "\"unknown function 'meta::pure::functions::meta::deactivate' — no function of this name in the native or user catalog (unported platform function, or a misspelling)\""));
 
     public static Test suite() {
-        return wrapSuite(
+        // M4 §3.4: the census gate pins this JVM's SqlTypeCensus
+        // invariants at suite teardown (PctCensusGate)
+        return PctCensusGate.wrap("Essential", wrapSuite(
                 () -> true,
                 () -> PureTestBuilderInterpreted.buildPCTTestSuite(reportScope, expectedFailures, adapter),
                 () -> false,
-                Lists.mutable.empty());
+                Lists.mutable.empty()));
     }
 
     @Override

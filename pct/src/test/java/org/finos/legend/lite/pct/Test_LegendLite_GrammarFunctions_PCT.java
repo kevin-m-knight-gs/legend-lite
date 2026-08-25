@@ -63,11 +63,13 @@ public class Test_LegendLite_GrammarFunctions_PCT extends PCTReportConfiguration
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "\"unbound variable '$address'\""));
 
     public static Test suite() {
-        return wrapSuite(
+        // M4 §3.4: the census gate pins this JVM's SqlTypeCensus
+        // invariants at suite teardown (PctCensusGate)
+        return PctCensusGate.wrap("Grammar", wrapSuite(
                 () -> true,
                 () -> PureTestBuilderInterpreted.buildPCTTestSuite(reportScope, expectedFailures, adapter),
                 () -> false,
-                Lists.mutable.empty());
+                Lists.mutable.empty()));
     }
 
     @Override
