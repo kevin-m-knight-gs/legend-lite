@@ -582,6 +582,58 @@ B. VARCHAR<-BIGINT arm DELETES behind the witness battery (labels
    construction). The kept consumed-position String casts already
    agree (they compute VARCHAR).
 
+## 4bX. T4 ATTEMPT 2 — EXECUTED, WITH TWO REFEREE CORRECTIONS
+## (2026-08-25; commits 1428c6eb + f70ffb34; every move measured)
+
+**LANDED — the §4b item-5 acceptance, adjudicated against what the
+referee actually said:**
+- **The 48 DOUBLE<>DECIMAL wire rows DRAIN ✓** (wire diverge 55 -> 7,
+  ceiling 56 -> 7): concrete-Float-over-DECIMAL conforms BY EMISSION
+  at coerceColumnToDeclared (the ONE pairing arm). Zero exec-text
+  moves (the u_map family's exec text was already divergent-rescued)
+  — the §4bR channel-map prediction 'floor may move' turned out
+  unnecessary; every pin held exactly.
+- **The DOUBLE arm's Decimal limb DELETES ✓** (measured zero traffic
+  first). admissible DOUBLE<-Decimal 48 -> 0; census agree +48.
+- **Corrections the sweeps forced (both recorded on the arms):**
+  1. Float-over-INTEGER is IDENTITY, not conversion — the
+     validation-showcase golden prints the raw 'Quantity not in
+     range: 1000000' (Float quantity over INT column, toString IN
+     SQL). The first Slice-A build cast it and regressed
+     validation/showcase 8 -> 6; narrowed to colKind==Decimal, green.
+     The 14 DOUBLE<-BIGINT rows are NOT emission targets.
+  2. The VARCHAR<-BIGINT arm CANNOT delete by adoption — pure ITSELF
+     asserts the STRINGIFIED TDS cell (in.pure
+     testInWithDynaFunction:202, [false, '4'] with id: String[1]
+     over ID INT): the LABEL is the true contract; today's bridge is
+     host-side decode-by-label (the compensation T4 exists to kill).
+     Full-arm deletion was TRIED: rows stayed green but the wire
+     census went red 7 -> 69 (42x label BIGINT <> meta VARCHAR, 20x
+     DOUBLE <> BIGINT) — the census caught adoption re-labeling live
+     stringified traffic. REVERTED same day; §4bR's 'drain by
+     adoption' call for the 97 was WRONG — tree.pure (raw cells) and
+     in.pure ('4' cells) sit in DIFFERENT DECODE LANES (GRAPH ctor
+     vs TDS label), not one raw contract.
+
+**QUEUED LEG (named, the arms' true retirement): TDS-lane
+stringification BY EMISSION** — String-declared-over-numeric TDS
+project cells stringify IN SQL (the wire speaks the VARCHAR
+contract); the GRAPH lane keeps raw (tree.pure pins it);
+cellRootUnwrapWire re-scopes from 'all cell roots' to the graph
+lane; host decode-by-label stringification retires with it. Kills
+the VARCHAR<-BIGINT arm (97), the DOUBLE integer limbs (14 — same
+lane question for Float labels), and the 42-row decode-by-label
+census class the deletion experiment exposed. Rank by
+tests-per-design alongside the carrier-types leg (§4Z #5's 3 arms).
+
+**§4Z ledger state after this arc:** #1 rulebook 159 -> 111 (97+14,
+both receipted contract-vs-wire questions for the queued leg, no
+longer unexamined excuses); #2 wire 55 -> 7 (3x HUGEINT<>DOUBLE
+testReprocessGroupByAlias + 2x JSON<>VARCHAR fetchDbMetaData + 2x
+JSON<>BIGINT dropAndCreateTable — all named, wire-review items);
+#5 excuse arms: Decimal limb dead; remaining arms carry per-row
+referee receipts. Next per §4Z sequencing: ScalarSubquery 340.
+
 ## 5. SESSION TRAPS ROSTER (2026-08-24/25 learnings — read first)
 
 - Corpus/ChannelB roots are -D SYSTEM PROPERTIES; use
