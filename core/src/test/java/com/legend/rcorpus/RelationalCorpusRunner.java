@@ -681,13 +681,14 @@ public class RelationalCorpusRunner {
                             softRescued <= 614, "text-rescued passes grew: "
                                     + softRescued + " > 614"),
                     // contract-program wire ratchets (RE-PINNED at the
-                    // 2026-08-24 label flip: 181->114 and 130->13 — the
-                    // adopted HUGEINT labels and the registered
-                    // carriages moved the residue; deterministic counts,
-                    // ratcheted to measured)
+                    // 2026-08-24 label flip: 181->114->56 and 130->13 —
+                    // adopted HUGEINT labels, registered carriages, then
+                    // the pure-Decimal erasure ADOPTION (labels take the
+                    // wire's own precision: 58 more exact wire matches);
+                    // deterministic counts, ratcheted to measured)
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .wireDivergeCount() <= 114,
+                                    .wireDivergeCount() <= 56,
                             "corpus wire divergence grew: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),

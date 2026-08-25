@@ -24,10 +24,11 @@ public record SqlSelect(List<Projection> projections, boolean distinct,
                 "a FROM-less select spells SqlSource.Dual, never null");
         // THE LABEL FLIP (TYPED_SQL_IR.md, 2026-08-24): output labels
         // reconcile with the projections' STORED types at construction
-        // — the contract keeps only where equal or REGISTERED
-        // admissible; a label lie adopts the wire. Same compact-ctor
-        // idiom as the expression nodes: the labels are a property of
-        // the select, computed once, structurally unable to drift.
+        // — equal or ADMITTED keeps the pure-contract erasure; a label
+        // lie ADOPTS the wire. Compact-ctor idiom: computed once,
+        // idempotent, structurally unable to drift. (Conform-by-
+        // emission lives at the stamp-guarded lowering seam, not here
+        // — the referee's castErasure verdict, charter T4 leg 1.)
         outputs = SqlTyping.reconcileLabels(projections, outputs);
     }
 

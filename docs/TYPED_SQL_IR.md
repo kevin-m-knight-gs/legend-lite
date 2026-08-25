@@ -438,6 +438,46 @@ node-diverge/pending-leaf==0 (the tree knows its leaves), and the
 WIRE census (ground truth per execution). Next slice: delete
 judge/rebind + the census's judge side, then the Verdict rename.
 
+## CONFORM-BY-EMISSION — USER RULING, REFEREE VERDICT, AND T4 LEG 1
+## (2026-08-24, after the label flip)
+
+**User ruling:** decode-by-label coercion (an int column under a
+String property stringified by the JDBC driver) is HOST-SIDE VALUE
+EVALUATION — tenet-#1 territory. The conversion lowers to SQL. The
+"engine doesn't cast" defense was the named anti-pattern (engine =
+semantic spec, never architectural spec), and text divergence is the
+established rescue lane (632 of 952 h2-verified tests already
+diverge, row-verified).
+
+**Experiment and referee verdict (same day):** a type-pair CONFORM
+verdict at the SqlSelect seam (CAST(expr AS declared) for the
+String-slot and Float-erasure pairs) went RED on exactly the case
+the T3 honesty note predicted: castErasure 42 -> 42.0 — the DOUBLE
+label is ALSO the abstract-Number IDENTITY carrier, and a type-pair
+cannot distinguish it from concrete Float (VARCHAR likewise:
+quarter-extraction broke). CastPolicy already spells the doctrine:
+"a WIDENING cast is a type ASSERTION — converting corrupts."
+REVERTED at that seam; the two pairs stay ADMITTED with the verdict
+recorded on the rows.
+
+**What survived the referee — pure-Decimal erasure ADOPTION:** the
+Decimal(38,18) erasure rows now ADOPT the wire's own precision
+(strictly more truthful, decode-identical). Corpus: admissible
+4,523->4,443, wire agree +82, wire diverge 114->56 (RATCHETED),
+mismatch stays 0, scoreboard byte-identical.
+
+**T4 LEG 1 (the ruling's faithful home, next):** STAMP-GUARDED
+conformance at the mapping-read seam in the LOWERING — where the
+pure stamp distinguishes concrete Float/String (conversion correct:
+emit the cast) from abstract Number/identity (assertion: no cast).
+CastPolicy is the owner; the witnessed families are the scalar-map
+u_map path, the plain project path, and the groupBy aggregate
+projections. As concrete-stamp sites conform by emission, the two
+ADMITTED coercion arms drain to agree and delete. Expected fallout:
+text-matched -> rescued reclassifications with rescue-ratchet moves,
+each recorded. VARCHAR<-JSON's emission stays behind its own
+golden-text gate.
+
 ## G4 LATENCY DRILL — VERDICT (2026-08-24, post-M1, measured first)
 
 **The 389s does not reproduce.** Six caffeinated G4 runs same day,

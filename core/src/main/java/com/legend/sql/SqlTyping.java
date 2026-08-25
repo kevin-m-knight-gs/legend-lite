@@ -157,15 +157,21 @@ public final class SqlTyping {
 
     /** Label reconciliation — called by {@link SqlSelect}'s canonical
      * constructor (the compact-constructor idiom: the select's labels
-     * are a property of the select, computed once). Star frames
-     * (projection/output arity mismatch) carry no per-column claim. */
+     * are a property of the select, computed once). Equal or ADMITTED
+     * keeps the pure-contract erasure; a label lie ADOPTS the wire.
+     * (A third CONFORM-by-emitted-cast verdict was tried at this seam
+     * and REVERTED by the referee — a type-pair cannot distinguish
+     * the concrete-Float conversion from the abstract-Number identity
+     * carrier; conformance by emission lives at the STAMP-GUARDED
+     * mapping-read seam in the lowering — T4 leg 1.) Star frames
+     * carry no per-column claim. */
     static @com.legend.Nullable List<OutputCol> reconcileLabels(
             List<SqlSelect.Projection> projections,
             @com.legend.Nullable List<OutputCol> outputs) {
         if (outputs == null || projections.size() != outputs.size()) {
-            return outputs;   // no per-column claim to reconcile
+            return outputs;
         }
-        List<OutputCol> out = null;
+        List<OutputCol> os = null;
         for (int i = 0; i < outputs.size(); i++) {
             if (!(projections.get(i).expr().type()
                     instanceof Verdict.Typed t)) {
@@ -177,12 +183,12 @@ public final class SqlTyping {
                     || admissible(oc.type(), computed)) {
                 continue;
             }
-            if (out == null) {
-                out = new java.util.ArrayList<>(outputs);
+            if (os == null) {
+                os = new java.util.ArrayList<>(outputs);
             }
-            out.set(i, new OutputCol(oc.name(), computed, oc.nullable()));
+            os.set(i, new OutputCol(oc.name(), computed, oc.nullable()));
         }
-        return out == null ? outputs : List.copyOf(out);
+        return os == null ? outputs : List.copyOf(os);
     }
 
     /** THE ADMISSIBILITY RELATION (T3 user-audited 2026-08-23; MOVED
@@ -223,23 +229,28 @@ public final class SqlTyping {
                 && computed == SqlType.Scalar.VARCHAR) {
             return true;
         }
-        // FLIP ADJUDICATION: the Float/Number-erasure slot rides any
-        // NUMERIC wire — decode-by-label IS pure Float semantics (the
-        // engine's own rule: an integer aggregate or a mapped
-        // decimal/int column under a Float property decodes to Float;
-        // precision loss above 2^53 is pure-Float-mandated, not a
-        // narrowing lie). Witnesses: dataType decimalAsFloat/
-        // numericAsFloat, aggregationAware Total Price Max/first.
+        // Float/Number-erasure numeric carriage — ADMITTED, with the
+        // REFEREE'S verdict recorded (conform experiment 2026-08-24):
+        // a blanket CAST AS DOUBLE corrupted the abstract-Number
+        // identity carrier (castErasure: 42 -> 42.0) — the DOUBLE
+        // label means EITHER concrete Float (conversion correct) OR
+        // abstract Number (identity — conversion corrupts), and a
+        // TYPE-PAIR cannot see which. The user ruling stands (value
+        // conversion lowers to SQL, never decode-by-label) and its
+        // home is the STAMP-GUARDED mapping-read seam in the lowering
+        // (CastPolicy's own widening-is-assertion doctrine; T4 leg 1)
+        // — as concrete-stamp sites conform by emission there, these
+        // rows drain to agree and this arm narrows toward deletion.
         if (declared == SqlType.Scalar.DOUBLE
                 && (computed == SqlType.Scalar.BIGINT
                         || computed == SqlType.Scalar.INTEGER
                         || computed instanceof SqlType.Decimal)) {
             return true;
         }
-        // FLIP ADJUDICATION: the String-slot coercion — a mapping may
-        // put an integer column under a String property; the engine's
-        // decode stringifies by the declared type (witness: filter/in
-        // id := t0.ID). Registered for the WITNESSED integer wire only.
+        // String-slot coercion — ADMITTED with the same verdict (the
+        // blanket VARCHAR conform broke quarter extraction: a String
+        // wire where the harness lattice expected Number — the VARCHAR
+        // label's meaning also needs the stamp). Same T4 drain path.
         if (declared == SqlType.Scalar.VARCHAR
                 && computed == SqlType.Scalar.BIGINT) {
             return true;
@@ -259,17 +270,8 @@ public final class SqlTyping {
                 && a.element().equals(declared)) {
             return true;
         }
-        // FLIP ADJUDICATION: the pure-Decimal ERASURE slot (38,18 is
-        // sqlTypeOf's canonical Decimal stamp) carries any exact
-        // decimal wire — BigDecimal decode preserves the wire's own
-        // scale — and the mapping-declared float coercion (witness:
-        // floatAsDecimal := t0.f).
-        if (declared instanceof SqlType.Decimal d38
-                && d38.precision() == 38 && d38.scale() == 18
-                && (computed instanceof SqlType.Decimal
-                        || computed == SqlType.Scalar.DOUBLE)) {
-            return true;
-        }
+        // (The pure-Decimal erasure rows now ADOPT the wire's own
+        // precision — strictly more truthful, decode-identical.)
         // Decimal WIDENING is lossless: a narrower computed decimal
         // fits any wider label at the same scale
         return declared instanceof SqlType.Decimal d
