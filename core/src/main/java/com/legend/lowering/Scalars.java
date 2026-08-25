@@ -2676,7 +2676,7 @@ final class Scalars {
             // pre-carrier variant path unchanged.
             boolean literalWire = x.type()
                     instanceof
-                            com.legend.sql.SqlTyping.Verdict.Typed jt
+                            com.legend.sql.TypeFact.Typed jt
                     && (jt.type() == SqlType.Scalar.LITERAL
                             || (jt.type() instanceof SqlType.Array ja
                                     && ja.element()

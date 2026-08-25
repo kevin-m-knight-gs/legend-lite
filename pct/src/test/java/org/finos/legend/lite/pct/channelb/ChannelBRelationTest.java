@@ -137,18 +137,9 @@ class ChannelBRelationTest {
         assertTrue(com.legend.exec.SqlTypeCensus.wireAdoptPendingCount() <= 103,
                 "wire adopt-pending grew: "
                         + com.legend.exec.SqlTypeCensus.summary());
-        // TYPED-IR equality pins on THIS lane too (TYPED_SQL_IR.md M2 —
-        // the corpus-runner pins do not cover this JVM): the node
-        // channel knows everything the judge knows. The slice-0 site
-        // pin deleted WITH the flip (the sites now read the tree).
-        org.junit.jupiter.api.Assertions.assertEquals(0,
-                com.legend.exec.SqlTypeCensus.nodeDivergeCount(),
-                "node-vs-judge divergence: "
-                        + com.legend.exec.SqlTypeCensus.summary());
-        org.junit.jupiter.api.Assertions.assertEquals(0,
-                com.legend.exec.SqlTypeCensus.nodePendingLeafCount(),
-                "node channel lost leaf knowledge: "
-                        + com.legend.exec.SqlTypeCensus.summary());
+        // TYPED-IR pin on THIS lane too (the corpus-runner pins do
+        // not cover this JVM); the judge-vs-node pins retired WITH the
+        // judge (parity pinned zero on every lane first).
         org.junit.jupiter.api.Assertions.assertEquals(0,
                 com.legend.exec.SqlTypeCensus.mismatchCount(),
                 "a label lie escaped reconciliation (the flip): "

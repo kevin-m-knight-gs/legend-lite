@@ -341,9 +341,9 @@ public final class Lowerer {
         // truthfully — the TREE carries the carrier through
         // element-preserving ops (F10 3b; M3 flip: the stored type IS
         // the authority, the judge is gone from this site)
-        com.legend.sql.SqlTyping.Verdict rootJudge = e.type();
+        com.legend.sql.TypeFact rootJudge = e.type();
         if (anyStamp && !isMany(spec)
-                && rootJudge instanceof com.legend.sql.SqlTyping.Verdict.Typed t
+                && rootJudge instanceof com.legend.sql.TypeFact.Typed t
                 && t.type() != SqlType.Scalar.JSON
                 && t.type() != SqlType.Scalar.LITERAL) {
             e = SqlExpr.Call.of(SqlFn.TO_VARIANT, e);
@@ -360,7 +360,7 @@ public final class Lowerer {
         // carry spellings (the hetero-literal carrier, or an element
         // extracted from it — LIST_GET/UNNEST flow the type) labels
         // LITERAL — the stamp erased, the emitter's product knows
-        if (rootJudge instanceof com.legend.sql.SqlTyping.Verdict.Typed jt
+        if (rootJudge instanceof com.legend.sql.TypeFact.Typed jt
                 && (jt.type() == SqlType.Scalar.LITERAL
                         || (jt.type() instanceof com.legend.sql.SqlType.Array ja
                                 && ja.element() == SqlType.Scalar.LITERAL))) {

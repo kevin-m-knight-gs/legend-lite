@@ -43,7 +43,7 @@ public sealed interface SqlAgg {
     /** GROUP-BY-valid aggregate (also usable inside a window): SUM, COUNT, MIN, ... */
     record Reducer(Fn fn, List<SqlExpr> args, boolean distinct,
             List<SqlSelect.SortKey> orderBy,
-            SqlTyping.Verdict type) implements SqlAgg, SqlExpr {
+            TypeFact type) implements SqlAgg, SqlExpr {
 
         // NO short overload of the SEMANTIC fields: a defaulted orderBy
         // silently dropped an ordered aggregate's ORDER BY at rebuild

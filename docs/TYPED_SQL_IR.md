@@ -478,6 +478,34 @@ text-matched -> rescued reclassifications with rescue-ratchet moves,
 each recorded. VARCHAR<-JSON's emission stays behind its own
 golden-text gate.
 
+## THE JUDGE IS DEAD (2026-08-24) — §4 acceptance status
+
+**Deleted:** `SqlTyping.judge`/`of`/`rebind` (the consumption-side
+judging and its transitional leaf-binding rebuilder), the census's
+judge-vs-node differential and scope resolver, and the node
+pending/diverge pins (retired WITH what they guarded — parity was
+pinned zero on every lane first, and the census read the TREE's own
+types thereafter: numbers byte-identical). The tripwire handover:
+mismatch==0 (labels cannot lie, every lane), the WIRE census (ground
+truth per execution, ceilings ratcheted), and a NEW untyped ceiling
+(1,116, corpus) — untyped is now both rule-coverage debt AND the
+leaf-regression signal, ratcheting down as rules land.
+
+**Renamed:** `SqlTyping.Verdict` &rarr; top-level
+`com.legend.sql.TypeFact` (Typed/Bottom/Unknown) — the fact was never
+a judgment; judge vocabulary is out of the permanent tree. SqlTyping
+survives as exactly what §4.1 licensed: the rule table (+ the
+admissibility relation and label reconciliation the flip added).
+
+**§4 acceptance:** (1) consumption-side judging deleted ✓ (rule
+table survives, zero call sites walk a finished tree); (2) LambdaWire
+— exists only on the parked branch; its deletion IS M4's re-land;
+(3) scalarRoot label re-derivation — NOT yet deleted: its LITERAL
+arms still choose the LABEL SPELLING (scalar LITERAL vs the tree's
+Array(LITERAL)) and a blind delete would change decode dispatch; it
+retires as its own examined slice with the carrier work; (4) claim
+re-land = M4; (5) every pin held through every slice ✓.
+
 ## G4 LATENCY DRILL — VERDICT (2026-08-24, post-M1, measured first)
 
 **The 389s does not reproduce.** Six caffeinated G4 runs same day,

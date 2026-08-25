@@ -11,6 +11,7 @@ import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
 import com.legend.sql.SqlTyping;
 import com.legend.sql.SqlUnion;
+import com.legend.sql.TypeFact;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,16 +48,6 @@ public final class SqlTypeCensus {
     private static final LongAdder MISMATCH = new LongAdder();
     private static final LongAdder UNTYPED = new LongAdder();
 
-    // M1 JUDGE-VS-NODE DIFFERENTIAL (TYPED_SQL_IR.md §5): the node
-    // channel's STORED verdict vs the judge's scope-informed one. The
-    // judge shares the node rules (rebind) and adds ONLY leaf
-    // knowledge, so: equal -> agree; node UNKNOWN where the judge knows
-    // -> the M2 leaf-stamping backlog (pre-logged, classified by
-    // shape); anything else -> a blind spot, classified + witnessed,
-    // examined never waved through.
-    private static final LongAdder NODE_AGREE = new LongAdder();
-    private static final LongAdder NODE_PENDING_LEAF = new LongAdder();
-    private static final LongAdder NODE_DIVERGE = new LongAdder();
 
     /** The admissibility relation MOVED to {@link SqlTyping#admissible}
      * (the label flip encodes it at SqlSelect construction; the census
@@ -282,10 +273,10 @@ public final class SqlTypeCensus {
             return;
         }
         SqlSelect s = (SqlSelect) q;
-        List<SqlSource> leaves = new ArrayList<>();
-        collect(s.from(), leaves);
-        for (SqlSource leaf : leaves) {
-            if (leaf instanceof SqlSource.Subselect sub) {
+        List<SqlSource> sources = new ArrayList<>();
+        collect(s.from(), sources);
+        for (SqlSource src : sources) {
+            if (src instanceof SqlSource.Subselect sub) {
                 walk(sub.inner());
             }
         }
@@ -300,11 +291,12 @@ public final class SqlTypeCensus {
                 continue;
             }
             OutputCol declared = s.outputs().get(i);
-            SqlTyping.Verdict v = SqlTyping.judge(e,
-                    col -> resolve(col, leaves));
-            differential(e, v, declared);
+            // the TREE is the one type channel (the judge deleted
+            // 2026-08-24 — its parity with the stored types was pinned
+            // at zero divergence on every lane before deletion)
+            TypeFact v = e.type();
             switch (v) {
-                case SqlTyping.Verdict.Bottom b -> {
+                case TypeFact.Bottom b -> {
                     // ADJUDICATED (user challenge 2026-08-23): today the
                     // nullable flag MEANS "the pure multiplicity is
                     // required" (PureSql.nullable is its only writer) —
@@ -329,11 +321,11 @@ public final class SqlTypeCensus {
                         sample(cls, declared.name() + " := " + sketch(e));
                     }
                 }
-                case SqlTyping.Verdict.Unknown u -> {
+                case TypeFact.Unknown u -> {
                     UNTYPED.increment();
                     classify("untyped: " + shapeOf(e));
                 }
-                case SqlTyping.Verdict.Typed t -> {
+                case TypeFact.Typed t -> {
                     if (t.type().equals(declared.type())) {
                         AGREE.increment();
                     } else if (admissible(declared.type(), t.type())) {
@@ -354,36 +346,6 @@ public final class SqlTypeCensus {
         }
     }
 
-    /** The M1 judge-vs-node comparison for one projection root. */
-    private static void differential(SqlExpr e, SqlTyping.Verdict judge,
-            OutputCol declared) {
-        SqlTyping.Verdict node = e.type();
-        if (node.equals(judge)) {
-            NODE_AGREE.increment();
-            return;
-        }
-        if (node instanceof SqlTyping.Verdict.Unknown) {
-            NODE_PENDING_LEAF.increment();
-            String cls = "node-pending-leaf: " + shapeOf(e);
-            classify(cls);
-            sample(cls, declared.name() + " := " + sketch(e));
-            return;
-        }
-        String cls = "node-vs-judge: node=" + spell(node) + " judge="
-                + spell(judge) + " " + shapeOf(e);
-        NODE_DIVERGE.increment();
-        classify(cls);
-        sample(cls, declared.name() + " := " + sketch(e));
-    }
-
-    private static String spell(SqlTyping.Verdict v) {
-        return switch (v) {
-            case SqlTyping.Verdict.Typed t -> t.type().toString();
-            case SqlTyping.Verdict.Bottom b -> "bottom";
-            case SqlTyping.Verdict.Unknown u -> "unknown";
-        };
-    }
-
     private static void collect(SqlSource src, List<SqlSource> out) {
         if (src instanceof SqlSource.Join j) {
             collect(j.left(), out);
@@ -391,29 +353,6 @@ public final class SqlTypeCensus {
         } else {
             out.add(src);
         }
-    }
-
-    private static @com.legend.Nullable SqlType resolve(SqlExpr.Column c,
-            List<SqlSource> leaves) {
-        SqlType found = null;
-        for (SqlSource leaf : leaves) {
-            if (leaf instanceof SqlSource.Dual) {
-                continue;   // FROM-less: no alias, no columns (alias()
-                            // throws by contract — caller-bug guard)
-            }
-            if (c.table() != null && !c.table().equals(leaf.alias())) {
-                continue;
-            }
-            for (OutputCol o : leaf.outputs()) {
-                if (o.name().equals(c.name())) {
-                    if (found != null && !found.equals(o.type())) {
-                        return null;   // ambiguous across sources
-                    }
-                    found = o.type();
-                }
-            }
-        }
-        return found;   // null = unresolvable (correlated outer ref …)
     }
 
     private static String shapeOf(SqlExpr e) {
@@ -483,18 +422,12 @@ public final class SqlTypeCensus {
         return MISMATCH.sum();
     }
 
-    /** M1 differential: node Typed/Bottom disagreeing with the judge —
-     * each class a blind spot to examine, none waved through. */
-    public static long nodeDivergeCount() {
-        return NODE_DIVERGE.sum();
-    }
-
-    /** M2 ratchet: projection roots the node channel cannot type but
-     * the judge can — leaf-stamping debt. Burned 28,307 -> 0 on
-     * 2026-08-24; pinned at zero (the charter's pin-to-invariant
-     * lifecycle). */
-    public static long nodePendingLeafCount() {
-        return NODE_PENDING_LEAF.sum();
+    /** Projection roots the tree cannot type — RULE coverage debt
+     * (and, post-judge, the leaf-regression tripwire: a new unstamped
+     * construction site GROWS this). Ceiling-pinned in the corpus
+     * runner; ratchets down as rules land. */
+    public static long untypedCount() {
+        return UNTYPED.sum();
     }
 
     public static long wireDivergeCount() {
@@ -511,9 +444,6 @@ public final class SqlTypeCensus {
                 + " bottom-ok=" + BOTTOM_OK.sum()
                 + " bottom-mult-backlog=" + BOTTOM_MULT.sum()
                 + " mismatch=" + MISMATCH.sum() + " untyped=" + UNTYPED.sum()
-                + " | node: agree=" + NODE_AGREE.sum()
-                + " pending-leaf=" + NODE_PENDING_LEAF.sum()
-                + " diverge=" + NODE_DIVERGE.sum()
                 + " | wire: agree=" + WIRE_AGREE.sum()
                 + " delivered=" + WIRE_DELIVERED.sum()
                 + " adopt-pending=" + WIRE_ADOPT_PENDING.sum()

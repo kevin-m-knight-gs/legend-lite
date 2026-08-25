@@ -709,32 +709,17 @@ public class RelationalCorpusRunner {
                             "a label lie escaped reconciliation: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
-                    // TYPED-IR M1/M2 (TYPED_SQL_IR.md): the judge-vs-node
-                    // differential is an INVARIANT, not a trend — the two
-                    // channels share one rule table and differ only in
-                    // leaf knowledge, so any divergence is a WRONG LEAF
-                    // STAMP or a rule bug (measured 0 at M1; every M2
-                    // stamping slice must keep it 0)
-                    () -> org.junit.jupiter.api.Assertions.assertEquals(
-                            0, com.legend.exec.SqlTypeCensus
-                                    .nodeDivergeCount(),
-                            "node-vs-judge divergence — a wrong leaf stamp"
-                                    + " or rule bug: "
-                                    + com.legend.exec.SqlTypeCensus
-                                            .summary()),
-                    // M2 COMPLETE on the census surface (2026-08-24):
-                    // pending-leaf burned 28,307 -> 0 (sourceColumn +
-                    // the schema-loop sites stamp every resolved
-                    // reference). Pinned AT ZERO — a regression here
-                    // means a new construction site dropped leaf
-                    // knowledge the judge still has (pin-to-invariant
-                    // lifecycle; the constructor-invariant conversion
-                    // lands with M3's judge deletion).
-                    () -> org.junit.jupiter.api.Assertions.assertEquals(
-                            0, com.legend.exec.SqlTypeCensus
-                                    .nodePendingLeafCount(),
-                            "node channel lost leaf knowledge the judge"
-                                    + " has — a new unstamped site: "
+                    // POST-JUDGE TRIPWIRE (TYPED_SQL_IR.md, judge
+                    // deleted 2026-08-24): untyped projection roots =
+                    // rule-coverage debt AND the leaf-regression
+                    // signal (a new unstamped construction site GROWS
+                    // this). Ceiling at measured 1,116; ratchets DOWN
+                    // as the promotion rules land.
+                    () -> org.junit.jupiter.api.Assertions.assertTrue(
+                            com.legend.exec.SqlTypeCensus
+                                    .untypedCount() <= 1116,
+                            "untyped projection roots grew — a missing"
+                                    + " rule or an unstamped leaf: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
                     // R1b census pin (CANONICAL_FORM_SPEC §0, measured
