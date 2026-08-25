@@ -399,6 +399,21 @@ these outright).
    count the sites. The conform cast (Cast.conform — plumbing already
    banked) emits at those sites only, gated on the CONCRETE stamp
    (Float/String; abstract Number/Any never — castErasure referee).
+   **ITEM 1 DONE (2026-08-25, read-only receipts):** THE SEAM =
+   MappingNormalizer's property-mapping switch (~:2555 — each
+   PropertyMapping.Column/Expression/EnumeratedColumn row IS the
+   unique property↔column pair, the mapping model itself, no name
+   lookup; the existing wire-coercion wrappers coerceColumnToDeclared
+   + coerceToDeclaredNumeric ALREADY live at exactly this spot) +
+   FOUR mirror call sites in UnionSynthesis (:974/:1011/:1178/:1479 —
+   per-union-branch re-emission, verdict-3's danger zone, item 2's
+   first check) → ONE Typer funnel (castAsDeclared →
+   TypedCast(wire=true), Typer ~:1265) → ONE consumer
+   (CastPolicy.lower reads the flag). Attempt 2 builds where the
+   wire-coercion machinery already stands; the pairing is unique BY
+   CONSTRUCTION — failure mode #2 (name collisions) structurally
+   cannot recur here. ALSO ADDED to item 4's tracing: the 4 wire
+   rows whose predicted M4 death did not materialize (§4Z #2).
 2. **Enumerate the perturbable consumers** and check EACH against a
    cast appearing at the read: union branch-projection identity (the
    merge reorder), groupBy keys, join conditions, DISTINCT, sort
