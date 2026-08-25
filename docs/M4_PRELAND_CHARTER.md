@@ -798,6 +798,50 @@ while the landing chain executed; all green, pushed e63acade):**
   etc. are skipped by parseCreateColumns' constraint-word filter.
   Close both if the census graduates from instrument to pin.
 
+## 4bZ-R. THE GUEST LIST — EXECUTED (2026-08-25, pushed 8e25242a;
+## chain green; user directive "let's do it")
+
+Mechanism as landed: TypeFact.Typed.tolerated set at the TWO sites
+that know a read crossed a declared property/column mismatch
+(Scalars' typeAsDeclared rule + the Lowerer's cellRootUnwrapWire
+strip site, via SqlTyping.tolerateRead — Column-door only, supplied-
+leaf semantics); identity reducers transport the arg's fact; stamped
+re-reads propagate (Column.of carries OutputCol.tolerated);
+reconciliation keeps declared labels ONLY for tagged reads over the
+named carryThrough pairs and stamps the slot; the wire census reads
+the slot. The two blanket arms are GONE from admissible().
+
+**AUDIT VERDICT (the sweep the design exists for):**
+- ALL 111 arrived tagged — tolerated=111 (97 VARCHAR + 14 DOUBLE),
+  equality-visible in every sweep summary, pinned <=111. The §4bZ
+  "sampled, not proven" caveat is CLOSED: every row machine-proven a
+  mapping quirk, per sweep, forever.
+- The pardon's deletion EXPOSED 20 hidden rows: the CEILING/FLOOR/
+  SIGN type rule described bare ceil() (probed DOUBLE) while OUR OWN
+  renderer casts to BIGINT for every input (AnsiSqlRenderer, pure's
+  Integer contract) — a rule-vs-emission lie the blanket arm had
+  absorbed. Rule now types THE EMISSION (BIGINT); the 20 healed to
+  wire-agree.
+- Bonus attribution: int-or-null 83 -> 53 — 30 ambiguous wire rows
+  resolved into wire-tolerated VARCHAR <- INTEGER (the fixture-skew
+  wires). Wire diverge = 7 (the named residue), mismatch 0, untyped
+  24, all soft ceilings/scoreboard byte-stable.
+
+**Recorded loosenesses (audit, miss-only):** the wire-side tolerance
+check is TAG-only (does not re-verify the kind pair — visible in the
+class string, cannot hide a label lie); an all-NULL tolerated column
+is indistinguishable from a skew wire (inherited int-or-null
+ambiguity). Guardrail fallout: Lowerer hit 3511/3500 — variant-shape
+trio split to VariantShapes (seam split, Comparators precedent).
+
+**REMAINING for the full §4bZ plan:** the LEGEND_LITE strict
+diagnostic (kind-mismatched mapping = warning on our product
+surface, strict flip LAST) and the upstream test-data filing — both
+still open; carryThrough itself now lives in SqlTyping beside
+admissible() with the compat receipts (the "compat level" is the
+NAMED RELATION + tag, not yet a separate dialect-level enforcement
+point — acceptable current state, revisit at the dialect-levels leg).
+
 ## 5. SESSION TRAPS ROSTER (2026-08-24/25 learnings — read first)
 
 - Corpus/ChannelB roots are -D SYSTEM PROPERTIES; use
