@@ -238,7 +238,14 @@ public final class SqlTyping {
                     JSON_TYPE, CURRENT_USER_FN, REPEAT_STR -> T_VARCHAR;
             case LENGTH, STRPOS, ASCII_CODE, LEVENSHTEIN, LIST_LENGTH,
                     LIST_POSITION, EXTRACT, DATE_DIFF, EPOCH_SECONDS,
-                    EPOCH_MS, PARSE_INT -> T_BIGINT;
+                    EPOCH_MS, PARSE_INT,
+                    // HASH types as OUR EMISSION: the DuckDB renderer
+                    // reinterprets hash()'s UBIGINT into signed BIGINT
+                    // (DuckDb.hashSigned — exact two's-complement, the
+                    // pure hashCode contract). A bare-function probe
+                    // says UBIGINT — the CEILING lesson again: rules
+                    // describe what WE deliver, not the raw builtin.
+                    HASH -> T_BIGINT;
             case SQRT, CBRT, EXP, LN, LOG10, POW, PI, SIN, COS, TAN, ASIN,
                     ACOS, ATAN, ATAN2, SINH, COSH, TANH, COT, RADIANS,
                     DEGREES, DIVIDE, JARO_WINKLER -> T_DOUBLE;

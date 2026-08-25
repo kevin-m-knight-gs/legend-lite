@@ -59,13 +59,19 @@ public final class PctCensusGate {
     // REGEXP_EXTRACT_ALL -> VARCHAR[], FoldCall body-and-init rule,
     // decimal-mix union promotion in branchPromote — every rule
     // probed on the 1.5.0 reference jar). The 120 = the mortality
-    // ledger (36 dynamic-pivot columns — runtime-discovered keys;
-    // 12 HASH — UBIGINT is outside our scalar vocabulary, a rule
-    // would lie about the wire; 9 error() — raises, never yields a
-    // value) + ~63 member-driven remnants in fold/zip/variant
-    // lambda chains (each heals as its members type). Measured on
-    // the unfiltered gate composition, max teardown (Grammar).
-    private static final long MAX_UNTYPED = H2 ? 17 : 120;
+    // ledger + design legs, per row: 36 dynamic-pivot columns (only
+    // the NAMES are runtime-discovered — each value column's TYPE is
+    // its aggregate's, the queued demand-driven-stamp leg burns
+    // them); 9 error() (raises — needs a Raises/Never fact, queued);
+    // ~63 member-driven remnants in fold/zip/variant lambda chains
+    // (missing binding doors burn mechanically; variant PAYLOAD
+    // shapes are the only true data-dependent unknowns). 120 -> 108:
+    // HASH -> BIGINT (our OWN renderer reinterprets to signed BIGINT
+    // — the first '12 HASH are mortal, UBIGINT' claim was the
+    // CEILING rule-vs-emission mistake repeated; probe the emission,
+    // not the bare builtin). Measured on the unfiltered gate
+    // composition, max teardown (Grammar).
+    private static final long MAX_UNTYPED = H2 ? 17 : 108;
     private static final long MAX_WIRE_DIVERGE = H2 ? 0 : 78;
     private static final long MAX_ADOPT_PENDING = H2 ? 0 : 101;
 
