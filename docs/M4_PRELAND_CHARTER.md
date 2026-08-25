@@ -337,9 +337,30 @@ tests-per-design when it comes up.
    then per-class: fix the label, fix the emission, or register the
    carriage. The census already samples witnesses per class.
 
+5. **Excuse arms: 7 → 0** (user-ratified 2026-08-25 — the FORGIVENESS
+   RULES themselves, counted in SqlTyping.admissible): 2 die at T4
+   attempt 2 (the #1 ledger's own arms — DOUBLE<-BIGINT/INT/Decimal,
+   VARCHAR<-BIGINT); 3 die at the carrier-types leg
+   (TIMESTAMP/DATE<-VARCHAR partial-temporal, DOUBLE<-VARCHAR
+   Number-identity, VARCHAR<-JSON serialize-as-text — each becomes a
+   modeled logical carrier type + dialect physical pair, LITERAL
+   pattern); the remaining 2 (TIMESTAMP<-DATE, Decimal widening) are
+   SUBSUMPTION THEOREMS, not excuses — they RE-HOME (same ruling)
+   into an explicitly named subtyping relation ("widens"), each edge
+   pinned by a boundary-value LOSSLESS round-trip witness (the
+   removed INTEGER<-BIGINT narrowing row is the negative precedent:
+   narrowing is a hope, never a theorem). Wire-side integer/decimal
+   chains in delivers() re-frame the same way — lattice + dialect
+   delivery model, zero excuses. END STATE: admissible() is EMPTY;
+   what stands is two NAMED, per-edge-proven relations (subtyping
+   lattice, dialect delivery) — nothing forgiven, everything proven
+   or modeled.
+
 Sequencing: T4 attempt 2 FIRST (kills #1 whole + 48 of #2 at one
-seam), then the ScalarSubquery family (#3's big bite), then #3
-tails, then the #4 nullability program (own charter, census-first).
+seam + 2 of #5's arms), then the ScalarSubquery family (#3's big
+bite), then #3 tails, the carrier-types leg (#5's next 3 arms + the
+widens re-home), then the #4 nullability program (own charter,
+census-first).
 
 **CARRIER TYPES, NOT CARRIER EXCUSES (user-raised + ratified
 2026-08-25; queued design leg):** a backend's different IMPLEMENTATION
