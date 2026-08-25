@@ -56,23 +56,6 @@ final class Scalars {
 
     private static final Map<String, Rule> RULES = new HashMap<>();
 
-    /** The COMPARATOR-CONVENTION natives (M4 §3.2: "(T,T)->Boolean
-     * over ONE list: sort, removeDuplicates" — both params of a
-     * two-parameter lambda arg are that list's elements), consulted by
-     * {@link LambdaBinding#lowerNativeArgs} so comparator BODIES lower
-     * element-stamped (a body's dispatch is frozen at construction —
-     * witness the NonStandardFunction toString comparators). Keys are
-     * signature keys, the rule table's own dispatch identity. Fold is
-     * NOT here: its second param is the ACCUMULATOR. */
-    private static final java.util.Set<String> COMPARATOR_NATIVES =
-            java.util.stream.Stream.of("removeDuplicates", "sort")
-                    .flatMap(nm -> Pure.nativeKeysAt(nm).stream())
-                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
-
-    static boolean comparatorNative(String signatureKey) {
-        return COMPARATOR_NATIVES.contains(signatureKey);
-    }
-
     private Scalars() {
     }
 
@@ -2099,7 +2082,13 @@ final class Scalars {
                     // — the FIRST comparator param binds the NEEDLE, the
                     // second each element (C1.5b; the reversed binding sent
                     // [1,2,3]->contains(5, {v,e|$v>$e}) the wrong way)
-                    SqlExpr body = substituteRef(comp.body(), comp.params().get(0), args.get(1));
+                    // carried collection: the needle enters SPELLED
+                    // AND MARKED (MixedEncoding.markedNeedle — the
+                    // comparator-form needle wrap; makes the param-0
+                    // element stamp honest and the compare kind-true)
+                    SqlExpr needle = MixedEncoding.markedNeedle(
+                            n.args().get(1), args.get(1), args.get(0));
+                    SqlExpr body = substituteRef(comp.body(), comp.params().get(0), needle);
                     return new SqlExpr.Call(SqlFn.GREATER, List.of(
                             SqlExpr.Call.of(SqlFn.LIST_LENGTH,
                                     SqlExpr.Call.of(SqlFn.LIST_FILTER, args.get(0),

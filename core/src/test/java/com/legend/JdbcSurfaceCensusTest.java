@@ -144,6 +144,12 @@ class JdbcSurfaceCensusTest {
             // execute ON THE DATABASE (dedup verdicts computed in SQL —
             // the carrier's disjoint spellings are the assertion)
             "core/src/test/java/com/legend/lowering/AnyLiteralByteDecidabilityTest.java",
+            // M4 post-landing audit: contains-with-comparator over a
+            // carried list computes its verdict IN SQL (the comparator
+            // body executes in the database; the needle wrap's byte
+            // outcome is the assertion) — the referee-silent corner
+            // pinned e2e
+            "core/src/test/java/com/legend/lowering/ComparatorConventionTest.java",
             // shortcut audit §1a: the typed-lane toOne pins raise pure's
             // size errors IN THE DATABASE — the assertion is the DB's
             // own error message, so the session is the test subject

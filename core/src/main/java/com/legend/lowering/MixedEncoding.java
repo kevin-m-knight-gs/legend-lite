@@ -443,6 +443,28 @@ final class MixedEncoding {
         return new SqlExpr.ArrayLit(printed);
     }
 
+    /** The COMPARATOR-FORM needle wrap (M4 post-landing audit): when
+     * the collection is LITERAL-carried, the needle substituted into a
+     * contains-comparator body must be SPELLED by its static kind AND
+     * MARKED (the raw needle's TEXT collided with spellings —
+     * eq('1', 1) answered true; and the comparator's both-element
+     * param stamps are honest only because this mark makes the needle
+     * a carrier value too). Unspellable needles return unchanged —
+     * they can never byte-equal a spelling. */
+    static SqlExpr markedNeedle(TypedSpec needleSpec, SqlExpr needle,
+            SqlExpr coll) {
+        if (coll.type() instanceof com.legend.sql.TypeFact.Typed ct
+                && ct.type() instanceof SqlType.Array ca
+                && ca.element() == com.legend.sql.SqlType.Scalar.LITERAL) {
+            SqlExpr spelled = elementLiteral(needleSpec, needle);
+            if (spelled != null) {
+                return new SqlExpr.Cast(spelled,
+                        com.legend.sql.SqlType.Scalar.LITERAL);
+            }
+        }
+        return needle;
+    }
+
     private static boolean literalMarked(SqlExpr e) {
         return e.type() instanceof com.legend.sql.TypeFact.Typed t
                 && (t.type() == com.legend.sql.SqlType.Scalar.LITERAL

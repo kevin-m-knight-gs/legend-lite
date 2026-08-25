@@ -39,6 +39,35 @@ final class LambdaBinding {
     private LambdaBinding() {
     }
 
+    /** The COMPARATOR-CONVENTION natives (M4 §3.2 + post-landing
+     * audit): a two-parameter lambda whose params BOTH stamp as the
+     * function's ONE list's element, so comparator BODIES lower
+     * element-stamped (dispatch is frozen at construction — witness
+     * the NonStandardFunction toString comparators). ROSTER = the
+     * exhaustive same-element (T,T)->_ signature sweep of both oracle
+     * trees (2026-08-25): removeDuplicates, sort, and contains — the
+     * audit's found regression. contains' convention is
+     * eval($value, $x) — needle FIRST — and its param-0 element
+     * stamp is honest ONLY because the rule substitutes a SPELLED,
+     * LITERAL-marked needle there (MixedEncoding.markedNeedle;
+     * witness ComparatorConventionTest incl. the kind-honest eq pin
+     * that caught the raw-needle text collision). Keys are signature
+     * keys, the rule table's own dispatch identity. NOT here: fold
+     * (second param = ACCUMULATOR); relation join/asOfJoin (their
+     * lambdas span TWO relations); removeAll (engine-core pure
+     * composition, never lowered); and min/max — their comparator is
+     * STRUCTURALLY RECOGNIZED at the rule (Comparators pattern-match,
+     * the body never lowers as a body), and stamping its params broke
+     * the recognizer's structural equality (gate-caught: G9
+     * chB-std testMax/testMin, 'must apply the SAME key'). */
+    private static final java.util.Set<String> COMPARATOR_NATIVES =
+            java.util.stream.Stream.of("removeDuplicates", "sort",
+                            "contains")
+                    .flatMap(nm -> com.legend.builtin.Pure
+                            .nativeKeysAt(nm).stream())
+                    .collect(java.util.stream.Collectors
+                            .toUnmodifiableSet());
+
     /** Inner-lambda scope: ALL its parameters shadow; everything else
      * resolves outward through the enclosing resolver. */
     static ColumnResolver lambdaResolver(
@@ -60,7 +89,7 @@ final class LambdaBinding {
             BiFunction<TypedSpec, ColumnResolver, SqlExpr> scalarFn) {
         // dispatch identity is the SIGNATURE KEY (the same key the
         // Scalars rule table uses — audit 22a: never the bare FQN)
-        boolean comparator = Scalars.comparatorNative(
+        boolean comparator = COMPARATOR_NATIVES.contains(
                 n.callee().signatureKey());
         List<SqlExpr> out = new ArrayList<>(n.args().size());
         for (TypedSpec a : n.args()) {

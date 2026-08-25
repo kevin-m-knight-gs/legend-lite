@@ -256,6 +256,55 @@ Every acceptance item met:
   (the claim's designed emission + format's print array); pct-lane
   untyped ceiling 813→808 (banked down).
 
+## 4A. POST-LANDING ADVERSARIAL AUDIT (2026-08-25 — probe battery +
+## pre-M4 worktree attribution runs; user-ordered)
+
+CLEAN under probing: mixed-Number arithmetic exact (plus 32.0, minus
+-4.0D, times 353791.470D, average 3.8), mixed-Number sort order +
+kind preservation (min keeps Decimal, max keeps Float), mixed
+Date/DateTime sort in true time order with precisions kept, hetero
+temporal identity byte-exact incl. subseconds (.123 vs .124
+discriminate), the equalityEmission adversarial shapes (hetero vs
+homogeneous list = false, no crash; at(0)==literal lanes correct).
+
+**FINDING (M4 regression, REFEREE-SILENT, fixed same day):**
+`contains(col, value, comparator)` over a hetero LITERAL-carried list
+crashed (Malformed JSON on a spelling) — pre-M4 worktree run returned
+the correct answer, so attribution is certain. Root cause was TWO
+mistakes: contains was missing from COMPARATOR_NATIVES, and the naive
+membership fix was WRONG anyway — contains' convention is
+eval($value, $x), needle FIRST, so a both-element stamp is a lie for
+param 0; the kind-honest pin (eq('1', 1) inside the comparator) caught
+the raw needle's TEXT colliding with a spelling (answered true, pure
+says false). CURE = membership + the rule's comparator-form needle
+wrap (spell AND mark the needle by its static kind when the
+collection is carried — the marked needle makes the param-0 stamp
+honest and byte-comparison kind-faithful). Roster now = the
+exhaustive (T,T)->_ same-element sweep of both oracle trees:
+removeDuplicates, sort, contains. Excluded WITH reasons: fold
+(accumulator), relation join/asOfJoin (two relations), removeAll
+(never lowered), and min/max — their comparator is STRUCTURALLY
+RECOGNIZED at the rule (Comparators pattern-match; the body never
+lowers as a body), and a precautionary stamp broke the recognizer's
+structural equality — gate-caught same day (G9 chB-std
+testMax/testMin), removed with this written reason. Lesson: stamps
+belong ONLY where bodies lower as bodies. Witness: ComparatorConventionTest (3 pins,
+red = 2 crashes + 1 wrong answer without the fix).
+
+**ATTRIBUTED PRE-EXISTING, deferred BY DECISION (2026-08-25):**
+all-temporal mixed-PRECISION identity — `[%D-Feb10T00:00,
+%D-Feb10]->removeDuplicates()` answers 1 where pure says 2 (StrictDate
+vs DateTime-midnight collapse through TIMESTAMP promotion). Identical
+result on the pre-M4 worktree; the LUB is Date (primitive), so the
+Any-carrier never fires. This is the reference DuckDB adapter's own
+LEDGERED family ("mixed-Date element identity through SQL type
+promotion" — the Essential exclusions charter), no referee test
+demands it, and a fix is a TWO-CHANNEL design leg (identity vs the
+ordering/aggregation channel the temporal lane must keep — the exact
+Number-LUB trade), touching the milestoning families. DISPOSITION:
+a named future temporal-identity leg, not a patch; ranked by
+tests-per-design when it comes up.
+
 ## 4b. T4 ATTEMPT 2 HOMEWORK (do AFTER M4 lands, BEFORE any code —
 ## attempt 1 failed on exactly the surfaces this list enumerates)
 
