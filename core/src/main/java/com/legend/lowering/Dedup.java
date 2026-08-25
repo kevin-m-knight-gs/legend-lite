@@ -40,15 +40,30 @@ final class Dedup {
         String ra = "_ra" + depth, rx = "_rx" + depth, rp = "_rp" + depth, rw = "_rw" + depth;
         SqlExpr wrapped = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, list,
                 new SqlExpr.Lambda(List.of(rw),
-                        new SqlExpr.ArrayLit(List.of(new SqlExpr.Column(null, rw)))));
-        SqlExpr kept = new SqlExpr.Column(null, ra);
+                        new SqlExpr.ArrayLit(List.of(
+                                SqlExpr.Column.param(rw, list)))));
+        // COMPARATOR-SITE binding (M4 §3.2 — this site's own convention
+        // replaces the parked branch's comparator FQN registry): the
+        // comparator ranges over ONE list, so BOTH its operands are that
+        // list's element; the kept accumulator is a LIST of elements
+        // (site knowledge — the generic param door rightly refuses
+        // accumulators), rx ranges over wrapped's element singletons.
+        // The comparator body then rebuilds over element-stamped
+        // operands and its stored types compute (equality/print
+        // dispatch inside bodies sees the carrier).
+        SqlExpr kept = list.type() instanceof
+                com.legend.sql.TypeFact.Typed t
+                && t.type() instanceof SqlType.Array
+                ? new SqlExpr.Column(null, ra, list.type())
+                : new SqlExpr.Column(null, ra);
         SqlExpr cand = SqlExpr.Call.of(SqlFn.LIST_GET,
-                new SqlExpr.Column(null, rx), new SqlExpr.IntLit(1));
+                SqlExpr.Column.param(rx, wrapped), new SqlExpr.IntLit(1));
         SqlExpr dup = SqlExpr.Call.of(SqlFn.GREATER,
                 SqlExpr.Call.of(SqlFn.LIST_LENGTH,
                         SqlExpr.Call.of(SqlFn.LIST_FILTER, kept,
                                 new SqlExpr.Lambda(List.of(rp),
-                                        eq.apply(new SqlExpr.Column(null, rp), cand)))),
+                                        eq.apply(SqlExpr.Column.param(rp, kept),
+                                                cand)))),
                 new SqlExpr.IntLit(0));
         SqlExpr step = new SqlExpr.Case(List.of(new SqlExpr.Case.When(dup, kept)),
                 SqlExpr.Call.of(SqlFn.LIST_APPEND, kept, cand));
