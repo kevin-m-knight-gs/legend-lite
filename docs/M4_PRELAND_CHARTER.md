@@ -615,16 +615,67 @@ referee actually said:**
      in.pure ('4' cells) sit in DIFFERENT DECODE LANES (GRAPH ctor
      vs TDS label), not one raw contract.
 
-**QUEUED LEG (named, the arms' true retirement): TDS-lane
-stringification BY EMISSION** — String-declared-over-numeric TDS
-project cells stringify IN SQL (the wire speaks the VARCHAR
-contract); the GRAPH lane keeps raw (tree.pure pins it);
-cellRootUnwrapWire re-scopes from 'all cell roots' to the graph
-lane; host decode-by-label stringification retires with it. Kills
-the VARCHAR<-BIGINT arm (97), the DOUBLE integer limbs (14 — same
-lane question for Float labels), and the 42-row decode-by-label
-census class the deletion experiment exposed. Rank by
-tests-per-design alongside the carrier-types leg (§4Z #5's 3 arms).
+**QUEUED LEG — superseded same day by §4bY's engine-code census:
+the 'TDS-lane stringification' reading below was WRONG.** (Kept for
+the record; §4bY holds the corrected mechanism and the real leg.)
+~~TDS-lane stringification BY EMISSION — String-declared-over-numeric
+TDS project cells stringify IN SQL; the GRAPH lane keeps raw;
+cellRootUnwrapWire re-scopes; host decode-by-label retires.~~
+
+## 4bY. VAR/INT — THE TRUE MECHANISM (2026-08-25, user-ordered
+## "read the code"; every claim below is an engine-code receipt)
+
+The §4bX "GRAPH vs TDS decode lane" hypothesis is DEAD — both
+witnesses are plain TDS projects of String[1]-over-INT-declared
+columns, identical mappings (plain Column PMs). The engine's actual
+mechanism, read from its source:
+
+1. **The engine NEVER converts TDS cells by declared type.**
+   meta::relational::mapping::transform (legend-pure
+   platform_store_relational/functions.pure:218) is IDENTITY unless
+   the PM carries an enum transformer. buildExecutionResultInTDS
+   (relationalMappingExecution.pure:507-517) special-cases ONLY
+   Boolean-typed paths ($a == 'true' || $a == true) and Decimal
+   (toDecimal); everything else passes the raw wire value.
+2. **The fetch is ResultSet-METADATA-keyed** (ResultSetValueHandlers:
+   Types.INTEGER->LONG, Types.VARCHAR->STRING) — the physical wire
+   decides the cell kind; PathInformation types play no part in the
+   fetch.
+3. **in.pure's '4' is FIXTURE SKEW, not conversion**: the setup
+   executes `Create Table InteractionTable(id VARCHAR(200), ...)`
+   (relationalSetUp.pure:1397) while the ###Relational store
+   declares `ID INT`. The engine's wire genuinely IS VARCHAR — '4'
+   is an identity read. tree.pure's accountTable is genuinely INT —
+   raw 11 is the same identity. THE TWO GOLDENS NEVER CONTRADICTED.
+
+**Consequence — the 97 VARCHAR<-BIGINT rows split into two
+populations the type-pair arm cannot see:**
+- **(a) Skew rows** (in.pure family): store declaration INT, actual
+  fixture VARCHAR. The COMPUTED stamp (derived from the store
+  declaration via findPhysicalColumn) lies about the real database;
+  the VARCHAR label is truthful. Deleting the arm re-labeled these
+  to BIGINT and the wire census went red (42x label BIGINT <> meta
+  VARCHAR) — the census correctly caught the stamp's lie surfacing.
+- **(b) Genuine-INT rows** (tree.pure family): declaration and
+  fixture agree (INT). The engine asserts the RAW Long (tree.pure
+  [11, ...]) — the VARCHAR label is the liar and label-adopts-wire
+  is CORRECT. The deletion experiment CURED these (int-or-null
+  83 -> 53 moved into agreement).
+The 20x DOUBLE<>BIGINT reds from the same experiment are the same
+structure under Float labels (the 14-row limb + relatives).
+
+**THE REAL LEG — declaration-vs-fixture skew census, then split:**
+the harness executes every setup CREATE TABLE through OUR OWN
+platform, so the skew is STATICALLY knowable: census each
+###Relational column kind against the setup-DDL column kind
+(normalizer/harness-level instrument, fetchDb-adjacent). Then:
+population (a) rows move to a NAMED fixture-skew registry (counted,
+witnessed — engine test-data debt, not a coercion excuse);
+population (b) rows adopt the wire at construction and BOTH arm
+limbs DELETE. Host decode behavior needs no change — measured: both
+populations' cells already follow the wire end-to-end (in.pure '4'
+and tree.pure 11 both pass today WITHOUT conversion anywhere).
+Ranked with the carrier-types leg per tests-per-design.
 
 **§4Z ledger state after this arc:** #1 rulebook 159 -> 111 (97+14,
 both receipted contract-vs-wire questions for the queued leg, no

@@ -139,30 +139,40 @@ public final class SqlTyping {
         // INTEGER-family limb STAYS with a NEW referee receipt (this
         // slice's first sweep): Float-declared over an INT column is
         // IDENTITY — the validation-showcase golden prints the raw
-        // 'Quantity not in range: 1000000' (toString computed IN SQL).
-        // A full-arm delete was TRIED and REVERTED same day: adopting
-        // the BIGINT wire into these labels turned the wire census red
-        // (label BIGINT <> meta VARCHAR x42 — decode-by-label
-        // stringification is live traffic under these labels). The arm
-        // retires with the TDS-lane emission leg, not by adoption.
+        // 'Quantity not in range: 1000000' (toString computed IN SQL;
+        // consistent with the engine's identity mechanism, §4bY).
+        // These rows carry the same two-population split as the
+        // VARCHAR arm below (the deletion experiment left 20x
+        // DOUBLE<>BIGINT wire reds) and retire with the same
+        // declaration-vs-fixture skew census, not by blanket adoption.
         if (declared == SqlType.Scalar.DOUBLE
                 && (computed == SqlType.Scalar.BIGINT
                         || computed == SqlType.Scalar.INTEGER)) {
             return true;
         }
-        // String-slot coercion — KEPT with the T4-attempt-2 receipt
-        // (charter §4bR Slice B verdict): pure ITSELF asserts the
-        // STRINGIFIED TDS cell — in.pure testInWithDynaFunction:202
-        // assertSameElements([false, '4'], rows.values) with
-        // id: String[1] over interactionTable.ID INT — so the VARCHAR
-        // label IS the true contract and the raw BIGINT wire is the
-        // divergence. Today it is bridged by host-side decode-by-label
-        // (the exact compensation T4 exists to kill); the cure is the
-        // LANE-AWARE emission leg (TDS-project cells stringify IN SQL,
-        // the GRAPH lane keeps raw — tree.pure pins raw cells), which
-        // must re-scope cellRootUnwrapWire. Deleting this arm before
-        // that leg lands re-labels live stringified traffic (measured:
-        // wire census 7 -> 69 red).
+        // String-slot rows — KEPT, mechanism CORRECTED same day
+        // (charter §4bY, engine-code receipts): the engine NEVER
+        // converts here — its TDS transform is identity unless an enum
+        // transformer exists (legend-pure functions.pure:218) and its
+        // fetch is ResultSet-metadata-keyed (ResultSetValueHandlers:
+        // INTEGER->LONG, VARCHAR->STRING). Both goldens are RAW-WIRE
+        // prints; the apparent contradiction was FIXTURE SKEW: the
+        // in.pure setup executes Create Table InteractionTable(id
+        // VARCHAR(200)...) while the ###Relational store declares
+        // ID INT (relationalSetUp.pure:1397) — '4' is the identity
+        // read of a VARCHAR wire, and tree.pure's raw 11 is the
+        // identity read of a genuine INT wire. This arm therefore
+        // excuses TWO populations a type-pair cannot split: (a) skew
+        // rows — the computed stamp (store-declaration-derived) lies
+        // about the actual fixture; label truthful; (b) genuine-INT
+        // rows — the label lies and adoption is correct (tree.pure
+        // asserts raw; the deletion experiment CURED these,
+        // int-or-null 83->53, while breaking (a): 42x BIGINT<>VARCHAR
+        // wire reds). Retirement = the declaration-vs-fixture skew
+        // census (the setup DDL runs through our own platform — the
+        // split is statically knowable), then per-population: skew
+        // rows to a named registry, genuine rows adopt and this arm
+        // deletes.
         if (declared == SqlType.Scalar.VARCHAR
                 && computed == SqlType.Scalar.BIGINT) {
             return true;
