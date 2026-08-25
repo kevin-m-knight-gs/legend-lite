@@ -506,6 +506,28 @@ Array(LITERAL)) and a blind delete would change decode dispatch; it
 retires as its own examined slice with the carrier work; (4) claim
 re-land = M4; (5) every pin held through every slice ✓.
 
+## ARITHMETIC PROMOTION RULES (2026-08-24, probed then written)
+
+DuckDB 1.5.0 matrix probed (full receipts in the session ledger; the
+probe script pattern is the reducer probe's): any DOUBLE operand
+wins; all-integer promotes to the widest member (INTEGER/BIGINT/
+HUGEINT); DIVIDE was already DOUBLE-total; DECIMAL arithmetic follows
+version-specific precision formulas — deliberately UNKNOWN, counted.
+Rules written: PLUS/MINUS (incl. the probed date arms: DATE ± int →
+DATE, DATE−DATE → BIGINT), TIMES/MOD/REM, NEGATE/ABS (domain
+identity), INT_DIVIDE (width-keeping), ROUND (int identity /
+DOUBLE), CEILING/FLOOR (→ DOUBLE; Decimal(p,s) → Decimal(p,0)); the
+NULL value propagates (arithmetic is strict).
+
+Corpus: untyped 1,116 → 737 (ceiling RATCHETED); **wire adopt-pending
+13 → 0, HARDENED to an equality pin** — every integer-aggregate and
+arithmetic label now speaks its wire (the testLargePlus family
+closed: the promoted types adopt at reconciliation). Remaining
+untyped tail: ScalarSubquery 340, COALESCE 174, Case 101, UNNEST 68,
+LIST_CONCAT 18, DATE_TRUNC_DAY 14, PLUS-with-decimal 12, WindowCall
+7 — next rules slices (COALESCE/Case need branch-family promotion:
+probe CASE/COALESCE mixed-member results first).
+
 ## G4 LATENCY DRILL — VERDICT (2026-08-24, post-M1, measured first)
 
 **The 389s does not reproduce.** Six caffeinated G4 runs same day,

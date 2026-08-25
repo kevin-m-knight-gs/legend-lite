@@ -38,6 +38,7 @@ public final class SqlTyping {
     // shared scalar verdicts — constructed once, stored on every node of
     // the kind (constants, not a cache: there is no lifecycle)
     static final TypeFact T_BOOLEAN = typed(SqlType.Scalar.BOOLEAN);
+    static final TypeFact T_INTEGER = typed(SqlType.Scalar.INTEGER);
     static final TypeFact T_BIGINT = typed(SqlType.Scalar.BIGINT);
     static final TypeFact T_HUGEINT = typed(SqlType.Scalar.HUGEINT);
     static final TypeFact T_DOUBLE = typed(SqlType.Scalar.DOUBLE);
@@ -248,8 +249,94 @@ public final class SqlTyping {
                 yield lam.body().type() instanceof TypeFact.Typed bt
                         ? typed(new SqlType.Array(bt.type())) : UNKNOWN;
             }
-            // numeric promotion (PLUS/MINUS/TIMES/…) and everything
-            // else: no rule yet — counted, never guessed
+            // ARITHMETIC PROMOTION (DuckDB 1.5.0 probed matrix,
+            // 2026-08-24 — receipts in TYPED_SQL_IR.md): any DOUBLE
+            // operand wins; an all-integer family promotes to its
+            // widest member; DECIMAL operands follow version-specific
+            // precision formulas and stay deliberately UNKNOWN; the
+            // NULL value propagates (arithmetic is strict). PLUS/MINUS
+            // also carry the probed date arms (DATE ± int -> DATE,
+            // DATE - DATE -> BIGINT).
+            case PLUS, MINUS -> {
+                if (a.size() == 2) {
+                    TypeFact l = a.get(0).type();
+                    TypeFact r = a.get(1).type();
+                    if (l instanceof TypeFact.Typed lt
+                            && r instanceof TypeFact.Typed rt) {
+                        boolean lDate = lt.type() == SqlType.Scalar.DATE;
+                        boolean rDate = rt.type() == SqlType.Scalar.DATE;
+                        if (lDate && rDate) {
+                            yield fn == SqlFn.MINUS ? T_BIGINT : UNKNOWN;
+                        }
+                        if (lDate && integerKind(rt.type())
+                                || rDate && fn == SqlFn.PLUS
+                                        && integerKind(lt.type())) {
+                            yield T_DATE;
+                        }
+                    }
+                }
+                yield numericPromotion(a);
+            }
+            case TIMES, MOD, REM -> numericPromotion(a);
+            case NEGATE, ABS -> {
+                if (a.isEmpty()) {
+                    yield UNKNOWN;
+                }
+                TypeFact f = a.get(0).type();
+                if (f instanceof TypeFact.Bottom) {
+                    yield BOTTOM;
+                }
+                yield f instanceof TypeFact.Typed t
+                        && (integerKind(t.type())
+                                || t.type() == SqlType.Scalar.DOUBLE
+                                || t.type() instanceof SqlType.Decimal)
+                        ? f : UNKNOWN;   // sign flip keeps the domain
+            }
+            case INT_DIVIDE -> {
+                TypeFact p2 = numericPromotion(a);
+                if (p2 instanceof TypeFact.Typed t
+                        || p2 instanceof TypeFact.Bottom) {
+                    yield p2;   // int//int keeps width (probed)
+                }
+                // any DOUBLE/DECIMAL operand: probed DOUBLE — but that
+                // falls out of numericPromotion for DOUBLE; a decimal
+                // operand stays UNKNOWN (unprobed corners)
+                yield UNKNOWN;
+            }
+            case ROUND -> {
+                if (a.isEmpty()) {
+                    yield UNKNOWN;
+                }
+                TypeFact f = a.get(0).type();
+                if (f instanceof TypeFact.Bottom) {
+                    yield BOTTOM;
+                }
+                yield f instanceof TypeFact.Typed t
+                        ? integerKind(t.type()) ? f
+                                : t.type() == SqlType.Scalar.DOUBLE
+                                        ? T_DOUBLE : UNKNOWN
+                        : UNKNOWN;
+            }
+            case CEILING, FLOOR -> {
+                if (a.isEmpty()) {
+                    yield UNKNOWN;
+                }
+                TypeFact f = a.get(0).type();
+                if (f instanceof TypeFact.Bottom) {
+                    yield BOTTOM;
+                }
+                if (f instanceof TypeFact.Typed t) {
+                    if (integerKind(t.type())
+                            || t.type() == SqlType.Scalar.DOUBLE) {
+                        yield T_DOUBLE;
+                    }
+                    if (t.type() instanceof SqlType.Decimal d) {
+                        yield typed(new SqlType.Decimal(d.precision(), 0));
+                    }
+                }
+                yield UNKNOWN;
+            }
+            // everything else: no rule yet — counted, never guessed
             default -> UNKNOWN;
         };
     }
@@ -467,6 +554,60 @@ public final class SqlTyping {
         return v instanceof TypeFact.Typed t
                 && t.type() instanceof SqlType.Array at
                 ? typed(at.element()) : UNKNOWN;
+    }
+
+    private static boolean integerKind(SqlType t) {
+        return t == SqlType.Scalar.INTEGER || t == SqlType.Scalar.BIGINT
+                || t == SqlType.Scalar.HUGEINT;
+    }
+
+    /** Binary/n-ary arithmetic promotion (the probed matrix): any
+     * DOUBLE operand &rarr; DOUBLE; all-integer &rarr; the widest
+     * member; a DECIMAL/temporal/unknown operand &rarr; UNKNOWN
+     * (DuckDB's decimal precision arithmetic is version-specific —
+     * never guessed); any NULL-value operand &rarr; the NULL value
+     * (arithmetic is strict). */
+    private static TypeFact numericPromotion(List<SqlExpr> a) {
+        if (a.isEmpty()) {
+            return UNKNOWN;
+        }
+        boolean bottom = false;
+        boolean dbl = false;
+        int width = 0;
+        for (SqlExpr e : a) {
+            TypeFact f = e.type();
+            if (f instanceof TypeFact.Bottom) {
+                bottom = true;
+                continue;
+            }
+            if (!(f instanceof TypeFact.Typed t)) {
+                return UNKNOWN;
+            }
+            SqlType ty = t.type();
+            if (ty == SqlType.Scalar.DOUBLE) {
+                dbl = true;
+            } else if (ty == SqlType.Scalar.INTEGER) {
+                width = Math.max(width, 1);
+            } else if (ty == SqlType.Scalar.BIGINT) {
+                width = Math.max(width, 2);
+            } else if (ty == SqlType.Scalar.HUGEINT) {
+                width = Math.max(width, 3);
+            } else {
+                return UNKNOWN;
+            }
+        }
+        if (bottom) {
+            return BOTTOM;   // NULL propagates through arithmetic
+        }
+        if (dbl) {
+            return T_DOUBLE;
+        }
+        return switch (width) {
+            case 1 -> T_INTEGER;
+            case 2 -> T_BIGINT;
+            case 3 -> T_HUGEINT;
+            default -> UNKNOWN;
+        };
     }
 
     /** The single shared type of a branch/argument family: BOTTOM

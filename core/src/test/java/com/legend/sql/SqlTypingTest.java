@@ -74,10 +74,26 @@ class SqlTypingTest {
     }
 
     @Test
+    void arithmeticPromotesPerTheProbedMatrix() {
+        // any DOUBLE operand wins; all-integer keeps the widest width
+        assertEquals(SqlTyping.typed(SqlType.Scalar.DOUBLE),
+                t(SqlExpr.Call.of(SqlFn.PLUS,
+                        new SqlExpr.IntLit(1), new SqlExpr.FloatLit(2.0))));
+        assertEquals(SqlTyping.typed(SqlType.Scalar.BIGINT),
+                t(SqlExpr.Call.of(SqlFn.TIMES,
+                        new SqlExpr.IntLit(2), new SqlExpr.IntLit(3))));
+        // the NULL value propagates — arithmetic is strict
+        assertEquals(SqlTyping.BOTTOM, t(SqlExpr.Call.of(SqlFn.PLUS,
+                new SqlExpr.IntLit(1), new SqlExpr.NullLit())));
+    }
+
+    @Test
     void noRuleMeansUnknownNeverAGuess() {
-        // numeric promotion for PLUS is not written yet — counted
+        // DECIMAL arithmetic follows version-specific precision
+        // formulas — deliberately UNKNOWN, counted by the census
         assertEquals(SqlTyping.UNKNOWN, t(SqlExpr.Call.of(SqlFn.PLUS,
-                new SqlExpr.IntLit(1), new SqlExpr.FloatLit(2.0))));
+                new SqlExpr.IntLit(1),
+                new SqlExpr.DecimalLit(new java.math.BigDecimal("1.50")))));
         // an unstamped column is UNKNOWN until its builder supplies it
         assertEquals(SqlTyping.UNKNOWN, t(new SqlExpr.Column("t", "c")));
     }

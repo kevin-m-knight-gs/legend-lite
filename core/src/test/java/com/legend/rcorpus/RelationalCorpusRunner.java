@@ -692,10 +692,14 @@ public class RelationalCorpusRunner {
                             "corpus wire divergence grew: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
-                    () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            com.legend.exec.SqlTypeCensus
-                                    .wireAdoptPendingCount() <= 13,
-                            "corpus wire adopt-pending grew: "
+                    // adopt-pending burned 130 -> 13 -> 0 (the label
+                    // flip + the arithmetic promotion rules): every
+                    // integer-aggregate/arith label now speaks its
+                    // wire. Hardened to EQUALITY at zero.
+                    () -> org.junit.jupiter.api.Assertions.assertEquals(
+                            0, com.legend.exec.SqlTypeCensus
+                                    .wireAdoptPendingCount(),
+                            "wire adopt-pending reappeared: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
                     // THE LABEL FLIP (TYPED_SQL_IR.md, 2026-08-24):
@@ -713,11 +717,11 @@ public class RelationalCorpusRunner {
                     // deleted 2026-08-24): untyped projection roots =
                     // rule-coverage debt AND the leaf-regression
                     // signal (a new unstamped construction site GROWS
-                    // this). Ceiling at measured 1,116; ratchets DOWN
-                    // as the promotion rules land.
+                    // this). 1,116 -> 737 same day (the arithmetic
+                    // promotion rules); ratchets DOWN as rules land.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .untypedCount() <= 1116,
+                                    .untypedCount() <= 737,
                             "untyped projection roots grew — a missing"
                                     + " rule or an unstamped leaf: "
                                     + com.legend.exec.SqlTypeCensus
