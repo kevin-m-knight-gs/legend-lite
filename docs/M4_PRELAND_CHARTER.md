@@ -305,6 +305,42 @@ Number-LUB trade), touching the milestoning families. DISPOSITION:
 a named future temporal-identity leg, not a patch; ranked by
 tests-per-design when it comes up.
 
+## 4Z. THE TRUE-ZERO LEDGERS (user-ratified 2026-08-25 — "explained
+## zero" is not zero; all three burn to REAL zero)
+
+1. **Rulebook residue: 159** (of the 517 label lies, the rows the two
+   admissible coercion arms FORGIVE — excused lies, each a potential
+   silent wrong answer). Zero = the arms DELETE (T4 attempt 2's
+   acceptance, unchanged).
+2. **Wire divergence: 55** (label vs the database's own metadata —
+   each row is a bug or an unregistered carriage). 48 die with T4
+   attempt 2; 3 need witnesses; 4 are the unexplained residue of the
+   "5 die at JSON/M4" prediction (only 1 died) — they join §4b item
+   4's tracing.
+3. **Untyped roots: 424 corpus / 808 pct lane** (honest UNKNOWNs —
+   not lies but BLIND SPOTS: type-driven capabilities silently don't
+   apply there). ADOPTED to the burn (this ruling): zero = no blind
+   spots. Decomposition: ScalarSubquery 340 = ONE family (the groupBy
+   wrap's declared outputs — first slice), then Case 20, LIST_CONCAT
+   18, DATE_TRUNC_DAY 14, PLUS 12, UNNEST 11, WindowCall 7, Column 2.
+   Both lanes count; ceilings ratchet down per slice.
+
+Sequencing: T4 attempt 2 FIRST (kills #1 whole + 48 of #2 at one
+seam), then the ScalarSubquery family, then tails. NAMED AND EXCLUDED
+from these ledgers (its own future program): the NULLABILITY backlog
+— bottom-mult-backlog 6,472 measured, the whether-absent dimension;
+bulletproof = kinds AND null-ness, and this charter's ledgers cover
+kinds only.
+
+QUEUED SMALL DEBT (audit follow-on, witnessed by the G9 min/max
+trip): Comparators.select recognizes comparator shapes on the
+LOWERED SQL tree via equals() — stamp-sensitive by construction;
+its sibling (Comparators.direction, sort) reads the TYPED tree and
+was immune. Migrate min/max recognition to the typed level; the
+recognizer itself is correct architecture (capability-boundary
+classification of arbitrary user code; the reference adapter refuses
+these outright).
+
 ## 4b. T4 ATTEMPT 2 HOMEWORK (do AFTER M4 lands, BEFORE any code —
 ## attempt 1 failed on exactly the surfaces this list enumerates)
 
