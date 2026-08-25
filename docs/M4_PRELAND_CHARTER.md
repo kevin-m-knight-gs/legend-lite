@@ -341,6 +341,25 @@ Sequencing: T4 attempt 2 FIRST (kills #1 whole + 48 of #2 at one
 seam), then the ScalarSubquery family (#3's big bite), then #3
 tails, then the #4 nullability program (own charter, census-first).
 
+**CARRIER TYPES, NOT CARRIER EXCUSES (user-raised + ratified
+2026-08-25; queued design leg):** a backend's different IMPLEMENTATION
+of the same logical value is DIALECT knowledge to model, never an
+admissibility excuse. The LITERAL carrier already does this right
+(logical SqlType + CarrierStrategies physicalization per backend);
+the two LEGACY carriers predate it and got blanket rows instead —
+partial-precision temporal text (TIMESTAMP/DATE <- VARCHAR) and
+Number-identity spelling text (DOUBLE <- VARCHAR). Those rows are
+WEAK GUARDS: any accidental string under a temporal/number label is
+excused today, deliberate or not. The leg: give each a logical wire
+type + dialect physical pair (the LITERAL pattern), DELETE its
+admissibility row — accidents become caught mismatches again.
+Segregation ruling with it: the wire census's delivery relation
+(logical -> physical per dialect) is the DIALECT MODEL, correct and
+permanent (the DB only speaks physical); `admissible` itself drains
+toward provable widenings ONLY — the end-state excuse list is
+widenings or empty. Aligns with the single-compiler/dialect-
+strategies tenet and the standalone-SQL-library vision.
+
 QUEUED SMALL DEBT (audit follow-on, witnessed by the G9 min/max
 trip): Comparators.select recognizes comparator shapes on the
 LOWERED SQL tree via equals() — stamp-sensitive by construction;
