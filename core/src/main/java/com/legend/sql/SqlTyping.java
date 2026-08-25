@@ -131,28 +131,38 @@ public final class SqlTyping {
                 && computed == SqlType.Scalar.VARCHAR) {
             return true;
         }
-        // Float/Number-erasure numeric carriage — ADMITTED, with the
-        // REFEREE'S verdict recorded (conform experiment 2026-08-24):
-        // a blanket CAST AS DOUBLE corrupted the abstract-Number
-        // identity carrier (castErasure: 42 -> 42.0) — the DOUBLE
-        // label means EITHER concrete Float (conversion correct) OR
-        // abstract Number (identity — conversion corrupts), and a
-        // TYPE-PAIR cannot see which. The user ruling stands (value
-        // conversion lowers to SQL, never decode-by-label) and its
-        // home is the STAMP-GUARDED mapping-read seam in the lowering
-        // (CastPolicy's own widening-is-assertion doctrine; T4 leg 1)
-        // — as concrete-stamp sites conform by emission there, these
-        // rows drain to agree and this arm narrows toward deletion.
+        // Float-erasure numeric carriage, NARROWED at T4 attempt 2
+        // (charter §4bR Slice A): the Decimal limb is DELETED — those
+        // 48 rows now conform BY EMISSION at the MappingNormalizer
+        // pairing seam (concrete Float over a DECIMAL column casts in
+        // SQL; measured zero traffic before the delete). The
+        // INTEGER-family limb STAYS with a NEW referee receipt (this
+        // slice's first sweep): Float-declared over an INT column is
+        // IDENTITY — the validation-showcase golden prints the raw
+        // 'Quantity not in range: 1000000' (toString computed IN SQL).
+        // A full-arm delete was TRIED and REVERTED same day: adopting
+        // the BIGINT wire into these labels turned the wire census red
+        // (label BIGINT <> meta VARCHAR x42 — decode-by-label
+        // stringification is live traffic under these labels). The arm
+        // retires with the TDS-lane emission leg, not by adoption.
         if (declared == SqlType.Scalar.DOUBLE
                 && (computed == SqlType.Scalar.BIGINT
-                        || computed == SqlType.Scalar.INTEGER
-                        || computed instanceof SqlType.Decimal)) {
+                        || computed == SqlType.Scalar.INTEGER)) {
             return true;
         }
-        // String-slot coercion — ADMITTED with the same verdict (the
-        // blanket VARCHAR conform broke quarter extraction: a String
-        // wire where the harness lattice expected Number — the VARCHAR
-        // label's meaning also needs the stamp). Same T4 drain path.
+        // String-slot coercion — KEPT with the T4-attempt-2 receipt
+        // (charter §4bR Slice B verdict): pure ITSELF asserts the
+        // STRINGIFIED TDS cell — in.pure testInWithDynaFunction:202
+        // assertSameElements([false, '4'], rows.values) with
+        // id: String[1] over interactionTable.ID INT — so the VARCHAR
+        // label IS the true contract and the raw BIGINT wire is the
+        // divergence. Today it is bridged by host-side decode-by-label
+        // (the exact compensation T4 exists to kill); the cure is the
+        // LANE-AWARE emission leg (TDS-project cells stringify IN SQL,
+        // the GRAPH lane keeps raw — tree.pure pins raw cells), which
+        // must re-scope cellRootUnwrapWire. Deleting this arm before
+        // that leg lands re-labels live stringified traffic (measured:
+        // wire census 7 -> 69 red).
         if (declared == SqlType.Scalar.VARCHAR
                 && computed == SqlType.Scalar.BIGINT) {
             return true;
