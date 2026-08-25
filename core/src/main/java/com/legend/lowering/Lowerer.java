@@ -610,7 +610,7 @@ public final class Lowerer {
             // anchor, its to-many property paths exploding via LEFT JOIN
             // LATERAL UNNEST (cross-product across columns, real pure; LEFT so
             // an empty array NULLs its column instead of killing the row).
-            case TypedProject p when isInstanceLiteral(p.source()) ->
+            case TypedProject p when VariantShapes.isInstanceLiteral(p.source()) ->
                     InstanceProjection.lower(p, outputsOf(p.info()),
                             this::scalar, noScope(), this::nextAlias);
 
@@ -2441,7 +2441,7 @@ public final class Lowerer {
                         // LUB: Any-typed slots take the variant carrier
                         // (to_json), never a text CAST
                         yield new SqlExpr.ArrayLit(c.elements().stream()
-                                .map(e -> (SqlExpr) pairToLub(scalar(e, columns),
+                                .map(e -> (SqlExpr) VariantShapes.pairToLub(scalar(e, columns),
                                         e.info().type(), lubG))
                                 .toList());
                     }
@@ -2506,7 +2506,7 @@ public final class Lowerer {
             // A property CHAIN over to(@Class) on a VARIANT (to(@Firm).boss.name):
             // every hop is a JSON field extraction; only the LEAF materializes
             // (real PCT testToClassAndAccessNestedProperty pins multi-hop).
-            case TypedPropertyAccess p when variantCastBase(p) != null -> {
+            case TypedPropertyAccess p when VariantShapes.variantCastBase(p) != null -> {
                 ArrayDeque<String> path = new ArrayDeque<>();
                 TypedSpec cur = p;
                 while (cur instanceof TypedPropertyAccess pa) {
@@ -3089,56 +3089,6 @@ public final class Lowerer {
         };
     }
 
-
-    /** An instance literal in relation position: {@code ^X(…)} or a collection of them. */
-    private static boolean isInstanceLiteral(TypedSpec source) {
-        return source instanceof TypedNewInstance
-                || (source instanceof TypedCollection c
-                        && !c.elements().isEmpty()
-                        && c.elements().stream().allMatch(e ->
-                                e instanceof TypedNewInstance));
-    }
-
-
-    /**
-     * The variant→class cast at the base of a property-access chain
-     * ({@code to(@C).a.b} — every {@code source()} hop a property access),
-     * or null when the chain roots elsewhere.
-     */
-    private static @com.legend.Nullable TypedCast variantCastBase(TypedSpec spec) {
-        TypedSpec cur = spec;
-        while (cur instanceof TypedPropertyAccess pa) {
-            cur = pa.source();
-        }
-        if (cur instanceof TypedCast vc
-                && vc.source().info().type() instanceof Type.ClassType vsrc
-                && PlatformTypes.isVariant(vsrc)
-                && vc.target() instanceof Type.ClassType vtgt
-                && !PlatformTypes.isVariant(vtgt)) {
-            return vc;
-        }
-        return null;
-    }
-
-    /** Rebuild a pair struct with fields COERCED to the LUB's slots (Any -> variant). */
-    private static SqlExpr pairToLub(SqlExpr pair, Type own, Type.GenericType lub) {
-        String[] names = {"first", "second"};
-        List<SqlExpr.StructLit.Field> fields = new ArrayList<>(2);
-        for (int i = 0; i < 2; i++) {
-            SqlExpr f = new SqlExpr.StructGet(pair, names[i]);
-            Type lubArg = lub.arguments().get(i);
-            Type ownArg = own instanceof Type.GenericType og && og.arguments().size() == 2
-                    ? og.arguments().get(i) : null;
-            if (lubArg instanceof Type.ClassType lc
-                    && PlatformTypes.isAny(lc)
-                    && (ownArg == null || !(ownArg instanceof Type.ClassType oc
-                            && PlatformTypes.isAny(oc)))) {
-                f = SqlExpr.Call.of(SqlFn.TO_VARIANT, f);
-            }
-            fields.add(new SqlExpr.StructLit.Field(names[i], f));
-        }
-        return new SqlExpr.StructLit(fields);
-    }
 
     /** A resolver for positions where no row scope exists (literal evaluation). */
     private ColumnResolver noScope() {

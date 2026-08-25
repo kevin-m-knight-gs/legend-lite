@@ -1,0 +1,78 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.lowering;
+
+import com.legend.compiler.element.type.PlatformTypes;
+import com.legend.compiler.element.type.Type;
+import com.legend.compiler.spec.typed.TypedCast;
+import com.legend.compiler.spec.typed.TypedCollection;
+import com.legend.compiler.spec.typed.TypedNewInstance;
+import com.legend.compiler.spec.typed.TypedPropertyAccess;
+import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlFn;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Variant/instance-literal SHAPE recognition for the {@link Lowerer} —
+ * split from it purely by size (the file guardrail; the
+ * Comparators/manyPropertyMap precedent). Pure static predicates and
+ * rebuilds over the typed tree; no lowering state.
+ */
+final class VariantShapes {
+
+    private VariantShapes() {
+    }
+
+    /** An instance literal in relation position: {@code ^X(…)} or a collection of them. */
+    static boolean isInstanceLiteral(TypedSpec source) {
+        return source instanceof TypedNewInstance
+                || (source instanceof TypedCollection c
+                        && !c.elements().isEmpty()
+                        && c.elements().stream().allMatch(e ->
+                                e instanceof TypedNewInstance));
+    }
+
+    /**
+     * The variant→class cast at the base of a property-access chain
+     * ({@code to(@C).a.b} — every {@code source()} hop a property access),
+     * or null when the chain roots elsewhere.
+     */
+    static @com.legend.Nullable TypedCast variantCastBase(TypedSpec spec) {
+        TypedSpec cur = spec;
+        while (cur instanceof TypedPropertyAccess pa) {
+            cur = pa.source();
+        }
+        if (cur instanceof TypedCast vc
+                && vc.source().info().type() instanceof Type.ClassType vsrc
+                && PlatformTypes.isVariant(vsrc)
+                && vc.target() instanceof Type.ClassType vtgt
+                && !PlatformTypes.isVariant(vtgt)) {
+            return vc;
+        }
+        return null;
+    }
+
+    /** Rebuild a pair struct with fields COERCED to the LUB's slots (Any -> variant). */
+    static SqlExpr pairToLub(SqlExpr pair, Type own, Type.GenericType lub) {
+        String[] names = {"first", "second"};
+        List<SqlExpr.StructLit.Field> fields = new ArrayList<>(2);
+        for (int i = 0; i < 2; i++) {
+            SqlExpr f = new SqlExpr.StructGet(pair, names[i]);
+            Type lubArg = lub.arguments().get(i);
+            Type ownArg = own instanceof Type.GenericType og && og.arguments().size() == 2
+                    ? og.arguments().get(i) : null;
+            if (lubArg instanceof Type.ClassType lc
+                    && PlatformTypes.isAny(lc)
+                    && (ownArg == null || !(ownArg instanceof Type.ClassType oc
+                            && PlatformTypes.isAny(oc)))) {
+                f = SqlExpr.Call.of(SqlFn.TO_VARIANT, f);
+            }
+            fields.add(new SqlExpr.StructLit.Field(names[i], f));
+        }
+        return new SqlExpr.StructLit(fields);
+    }
+}
