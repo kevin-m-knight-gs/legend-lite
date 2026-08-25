@@ -236,6 +236,21 @@ public final class SqlTyping {
             case TODAY, MAKE_DATE -> T_DATE;
             case NOW, MAKE_TIMESTAMP, STRPTIME, FROM_EPOCH_SECONDS,
                     FROM_EPOCH_MS -> T_TIMESTAMP;
+            // PROBED on the reference jar (DuckDB 1.5.0, 2026-08-25):
+            // date_trunc returns TIMESTAMP at EVERY granularity —
+            // day/month/year included. (The 1.4.4 CLI returns DATE for
+            // day-and-coarser: a live version-skew trap; the rule is
+            // written from the 1.5.0 JDBC probe, the executing backend.)
+            // The NULL value propagates; H2's DATE delivery rides the
+            // TIMESTAMP<-DATE subsumption arm at the wire.
+            case DATE_TRUNC_DAY, DATE_TRUNC -> {
+                if (a.isEmpty()) {
+                    yield UNKNOWN;
+                }
+                yield a.stream().anyMatch(
+                        x -> x.type() instanceof TypeFact.Bottom)
+                        ? BOTTOM : T_TIMESTAMP;
+            }
             case TO_VARIANT, JSON_MERGE_PATCH, VARIANT_GET -> T_JSON;
             case VARIANT_ELEMENTS ->
                     typed(new SqlType.Array(SqlType.Scalar.JSON));
@@ -297,9 +312,14 @@ public final class SqlTyping {
                         }
                     }
                 }
-                yield numericPromotion(a);
+                TypeFact dec = decimalArith(false, a);
+                yield dec != null ? dec : numericPromotion(a);
             }
-            case TIMES, MOD, REM -> numericPromotion(a);
+            case TIMES -> {
+                TypeFact dec = decimalArith(true, a);
+                yield dec != null ? dec : numericPromotion(a);
+            }
+            case MOD, REM -> numericPromotion(a);
             case NEGATE, ABS -> {
                 if (a.isEmpty()) {
                     yield UNKNOWN;
@@ -422,10 +442,24 @@ public final class SqlTyping {
     }
 
     /** {@link SqlExpr.ScalarSubquery} — the single output's DECLARED
-     * label (builder knowledge carried on the subquery, read here). */
+     * label (builder knowledge carried on the subquery, read here).
+     * A LABEL-LESS single-projection wrap (the scalar-position value
+     * envelopes: outs=0, one Reducer/expr projection — 340 census
+     * rows, 2026-08-25) reads the projection's own STORED type — the
+     * tree's construction-time knowledge through the select, never a
+     * re-derivation. */
     static TypeFact scalarSubqueryType(SqlQuery sub) {
-        return sub.outputs().size() == 1
-                ? typed(sub.outputs().get(0).type()) : UNKNOWN;
+        if (sub.outputs().size() == 1) {
+            return typed(sub.outputs().get(0).type());
+        }
+        if (sub instanceof SqlSelect s && s.outputs().isEmpty()
+                && s.projections().size() == 1
+                && !(s.projections().get(0).expr() instanceof SqlExpr.Star)
+                && !(s.projections().get(0).expr()
+                        instanceof SqlExpr.StarExcept)) {
+            return s.projections().get(0).expr().type();
+        }
+        return UNKNOWN;
     }
 
     /** {@link SqlExpr.CheckedOne} — the element of a definite list;
@@ -442,9 +476,23 @@ public final class SqlTyping {
 
     /** {@link SqlExpr.WindowCall} — a windowed {@link SqlAgg.Reducer}
      * keeps its own promotion (probed: sum/avg/count/min OVER () match
-     * the grouped results); ranking/value kinds have no rule yet. */
+     * the grouped results). Ranking kinds PROBED on the reference jar
+     * (DuckDB 1.5.0, 2026-08-25): row_number/rank/dense_rank/ntile
+     * &rarr; BIGINT; percent_rank/cume_dist &rarr; DOUBLE. Value kinds
+     * (LAG/LEAD/FIRST/LAST/NTH) are element-preserving — the first
+     * argument's stored type (a LAG default arg widens only within the
+     * family; an unknown arg stays unknown, never guessed). */
     static TypeFact windowType(SqlAgg fn) {
-        return fn instanceof SqlAgg.Reducer r ? r.type() : UNKNOWN;
+        return switch (fn) {
+            case SqlAgg.Reducer r -> r.type();
+            case SqlAgg.RankingFn rf -> switch (rf.fn()) {
+                case ROW_NUMBER, RANK, DENSE_RANK, NTILE -> T_BIGINT;
+                case PERCENT_RANK, CUME_DIST -> T_DOUBLE;
+                default -> UNKNOWN;
+            };
+            case SqlAgg.ValueFn vf -> vf.args().isEmpty()
+                    ? UNKNOWN : vf.args().get(0).type();
+        };
     }
 
     /**
@@ -583,11 +631,90 @@ public final class SqlTyping {
                 || t == SqlType.Scalar.HUGEINT;
     }
 
+    /** DECIMAL arithmetic promotion — PROBED on the reference jar
+     * (DuckDB 1.5.0 JDBC, 2026-08-25; 17 probe points, every one
+     * reproduced by this rule; the 1.4.4 CLI differs — version skew is
+     * live, always probe the executing jar). Applies only when a
+     * DECIMAL operand is present (null = not applicable, the caller
+     * falls to {@link #numericPromotion}): any DOUBLE operand wins;
+     * the NULL value propagates (strict); integers enter the fold as
+     * DECIMAL(10,0)/BIGINT (19,0)/HUGEINT (38,0). Pairwise LEFT fold:
+     * PLUS/MINUS s=max(s1,s2), w=max(p1-s1,p2-s2)+s+1; TIMES s=s1+s2,
+     * w=p1+p2 — each step capped at the operands' storage-class
+     * boundary: 18 when BOTH operand widths &le;18 (the int64 class —
+     * the carry digit never promotes across it: probed
+     * (18,0)+(18,0)&rarr;(18,0)), else 38. */
+    private static @com.legend.Nullable TypeFact decimalArith(
+            boolean multiply, List<SqlExpr> a) {
+        if (a.isEmpty()) {
+            return null;
+        }
+        boolean sawDecimal = false;
+        boolean bottom = false;
+        boolean dbl = false;
+        java.util.List<int[]> ds = new java.util.ArrayList<>(a.size());
+        for (SqlExpr e : a) {
+            TypeFact f = e.type();
+            if (f instanceof TypeFact.Bottom) {
+                bottom = true;
+                continue;
+            }
+            if (!(f instanceof TypeFact.Typed t)) {
+                return null;
+            }
+            SqlType ty = t.type();
+            if (ty == SqlType.Scalar.DOUBLE) {
+                dbl = true;
+            } else if (ty instanceof SqlType.Decimal d) {
+                sawDecimal = true;
+                ds.add(new int[] {d.precision(), d.scale()});
+            } else if (ty == SqlType.Scalar.INTEGER) {
+                ds.add(new int[] {10, 0});
+            } else if (ty == SqlType.Scalar.BIGINT) {
+                ds.add(new int[] {19, 0});
+            } else if (ty == SqlType.Scalar.HUGEINT) {
+                ds.add(new int[] {38, 0});
+            } else {
+                return null;
+            }
+        }
+        if (!sawDecimal) {
+            return null;   // the int/double lattice owns it
+        }
+        if (bottom) {
+            return BOTTOM;
+        }
+        if (dbl) {
+            return T_DOUBLE;
+        }
+        int p = ds.get(0)[0];
+        int s = ds.get(0)[1];
+        for (int i = 1; i < ds.size(); i++) {
+            int p2 = ds.get(i)[0];
+            int s2 = ds.get(i)[1];
+            int cap = p <= 18 && p2 <= 18 ? 18 : 38;
+            int ns;
+            int nw;
+            if (multiply) {
+                ns = s + s2;
+                nw = p + p2;
+            } else {
+                ns = Math.max(s, s2);
+                nw = Math.max(p - s, p2 - s2) + ns + 1;
+            }
+            p = Math.min(nw, cap);
+            s = ns;
+        }
+        return typed(new SqlType.Decimal(p, s));
+    }
+
     /** Binary/n-ary arithmetic promotion (the probed matrix): any
      * DOUBLE operand &rarr; DOUBLE; all-integer &rarr; the widest
      * member; a DECIMAL/temporal/unknown operand &rarr; UNKNOWN
      * (DuckDB's decimal precision arithmetic is version-specific —
-     * never guessed); any NULL-value operand &rarr; the NULL value
+     * decimal operands take the PROBED {@link #decimalArith} rule at
+     * the PLUS/MINUS/TIMES call sites; MOD/REM decimals stay unprobed
+     * corners); any NULL-value operand &rarr; the NULL value
      * (arithmetic is strict). */
     private static TypeFact numericPromotion(List<SqlExpr> a) {
         if (a.isEmpty()) {
@@ -641,6 +768,7 @@ public final class SqlTyping {
     private static TypeFact uniform(List<SqlExpr> es, TypeFact allBottom) {
         SqlType common = null;
         boolean saw = false;
+        boolean emptyArray = false;
         for (SqlExpr e : es) {
             TypeFact v = e.type();
             if (v instanceof TypeFact.Bottom) {
@@ -653,6 +781,17 @@ public final class SqlTyping {
             // error-guard + LIST_GET over Array(LITERAL), types LITERAL)
             if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.ERROR) {
                 saw = true;
+                continue;
+            }
+            // the EMPTY array literal is pure's Nil — it conforms to
+            // EVERY array type and constrains nothing in a branch
+            // family (witness: concatenate's optional-prop lowering,
+            // CASE WHEN … THEN [] ELSE [x] — 2026-08-25, the blind
+            // leaf under the LIST_CONCAT/UNNEST untyped chains)
+            if (e instanceof SqlExpr.ArrayLit al
+                    && al.elements().isEmpty()) {
+                saw = true;
+                emptyArray = true;
                 continue;
             }
             if (!(v instanceof TypeFact.Typed t)) {
@@ -669,7 +808,15 @@ public final class SqlTyping {
             }
         }
         if (common != null) {
-            return typed(common);
+            // a skipped [] only conforms to an ARRAY family — an empty
+            // array beside scalar members is a shape clash, never typed
+            return !emptyArray || common instanceof SqlType.Array
+                    ? typed(common) : UNKNOWN;
+        }
+        if (emptyArray) {
+            // an all-[]/NULL family is an empty-ARRAY value with an
+            // unknowable element — never the NULL value
+            return UNKNOWN;
         }
         return saw ? allBottom : UNKNOWN;
     }

@@ -403,8 +403,55 @@ public final class SqlTypeCensus {
             case SqlExpr.StringLit sl -> "'…'";
             case SqlExpr.IntLit il -> String.valueOf(il.value());
             case SqlExpr.Call c -> c.fn() + "(…)";
+            // family locators: WHY the rule declined — the first
+            // UNTYPED member's shape, so witnesses name the blind leaf
+            case SqlExpr.Case c -> {
+                List<SqlExpr> ms = new ArrayList<>();
+                c.whens().forEach(w -> ms.add(w.then()));
+                if (c.otherwise() != null) {
+                    ms.add(c.otherwise());
+                }
+                yield "Case(" + memberAnatomy(ms) + ")";
+            }
+            case SqlExpr.ArrayLit al ->
+                    "ArrayLit(" + memberAnatomy(al.elements()) + ")";
+            case SqlExpr.CompactList cl ->
+                    "CompactList(" + sketchLeaf(cl.list()) + ")";
+            // the untyped-ScalarSubquery family locator: WHY the rule
+            // declined (outputs count + first label + inner root shape)
+            case SqlExpr.ScalarSubquery s -> {
+                List<OutputCol> os = s.subquery().outputs();
+                String inner = s.subquery() instanceof SqlSelect is
+                        && !is.projections().isEmpty()
+                        ? shapeOf(is.projections().get(0).expr()) : "?";
+                yield "ScalarSubquery(outs="
+                        + (os == null ? "null" : os.size())
+                        + (os == null || os.isEmpty() ? ""
+                                : " " + os.get(0).type())
+                        + " inner=" + inner + ")";
+            }
             default -> e.getClass().getSimpleName();
         };
+    }
+
+    /** Member anatomy for branch/element families: the first
+     * NON-ERROR untyped member's shape (the blind leaf), or — every
+     * member typed — the distinct member types (a promote failure). */
+    private static String memberAnatomy(List<SqlExpr> ms) {
+        for (SqlExpr m : ms) {
+            if (m.type() instanceof TypeFact.Unknown
+                    && !(m instanceof SqlExpr.Call c
+                            && c.fn() == com.legend.sql.SqlFn.ERROR)) {
+                return "blind=" + shapeOf(m);
+            }
+        }
+        java.util.Set<String> kinds = new java.util.LinkedHashSet<>();
+        for (SqlExpr m : ms) {
+            kinds.add(m.type() instanceof TypeFact.Typed t
+                    ? String.valueOf(t.type())
+                    : m.type().getClass().getSimpleName());
+        }
+        return "types=" + kinds;
     }
 
     /** Bounded witnesses for a class (attribution — the emission-seam

@@ -741,12 +741,20 @@ public class RelationalCorpusRunner {
                     // deleted 2026-08-24): untyped projection roots =
                     // rule-coverage debt AND the leaf-regression
                     // signal (a new unstamped construction site GROWS
-                    // this). 1,116 -> 737 -> 717 same day (arithmetic
-                    // then branch promotion); ratchets DOWN as rules
-                    // land.
+                    // this). 1,116 -> 737 -> 717 (arithmetic, branch
+                    // promotion) -> 424 (M4) -> 24 (2026-08-25 rules
+                    // burn: label-less ScalarSubquery reads its
+                    // projection's stored type 340, probed DuckDB-1.5.0
+                    // date_trunc 14 + decimal arithmetic 12 + ranking/
+                    // value windows 7, empty-ArrayLit-is-Nil in
+                    // uniform() 27). The 24 = six NAMED families: 20
+                    // XStore cross-store Case(LIST_GET), 2 late-bound
+                    // fetchDbMetaData columns (mortal by design), 2
+                    // UNNEST chains (concatenate testAll,
+                    // testSubAggregationMultiLevel).
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .untypedCount() <= 717,
+                                    .untypedCount() <= 24,
                             "untyped projection roots grew — a missing"
                                     + " rule or an unstamped leaf: "
                                     + com.legend.exec.SqlTypeCensus

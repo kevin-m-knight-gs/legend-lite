@@ -40,7 +40,11 @@ public final class PctCensusGate {
     // untyped 813 -> 808 banked at the M4 re-land (typed claim roots);
     // the lane's one NEW class is wire-delivered LITERAL <- VARCHAR —
     // the registered carrier pair, adjudicated by design (F10).
-    private static final long MAX_UNTYPED = H2 ? 17 : 808;
+    // 808 -> 336 (2026-08-25 rules burn, measured whole-lane: the
+    // label-less ScalarSubquery projection read + probed date_trunc/
+    // decimal-arithmetic/window rules + the empty-ArrayLit-is-Nil
+    // branch-family rule drain the pct lane too)
+    private static final long MAX_UNTYPED = H2 ? 17 : 336;
     private static final long MAX_WIRE_DIVERGE = H2 ? 0 : 78;
     private static final long MAX_ADOPT_PENDING = H2 ? 0 : 101;
 
