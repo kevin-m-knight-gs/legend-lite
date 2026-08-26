@@ -1048,6 +1048,22 @@ subsumption arms with lossless round-trip witnesses) → admissible()
 EMPTY. Carries the corpus concatenate-testAll untyped row. End state:
 two named proven relations, nothing forgiven.
 
+**B CHARTER-FIRST CENSUS (2026-08-26, measured from the C-witness
+G4/G6 logs; the per-arm traffic that sizes the slices):** pct 434 =
+TIMESTAMP←VARCHAR 309 + TIMESTAMP←DATE 61 + DATE←VARCHAR 8 +
+Decimal-widening ~56; corpus 4272 = VARCHAR←JSON 3584 +
+TIMESTAMP←DATE 673 + TIMESTAMP←VARCHAR 2 + Decimal-widening ~13.
+The NUMBER-IDENTITY arm (DOUBLE←VARCHAR) carries ZERO traffic on
+both lanes, label-side and wire-side — a dead arm. Slice order:
+**B1** delete DOUBLE←VARCHAR to measure (free if the chain agrees) ·
+**B2** the subsumption re-home (TIMESTAMP←DATE + Decimal widening —
+lossless, need round-trip witnesses, not excuses) · **B3** the
+partial-temporal text carrier (309+8+2 — a MODELED logical carrier;
+upstream homework: engine partial-precision serialization) · **B4**
+JSON-as-text (3584, corpus-dominant — the conform-by-emission cast,
+golden-text-gated per the arm's own note). End state unchanged:
+admissible() EMPTY, two named proven relations.
+
 **C. PCT-LANE WIRE LEDGERS — NEWLY OWNED (the audit's main find):
 never adjudicated.** Measured 2026-08-25: adopt-pending 94 (ceiling
 101), diverge 54 (ceiling 78) — the corpus twins were burned to

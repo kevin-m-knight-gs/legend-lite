@@ -205,13 +205,11 @@ public final class SqlTyping {
                 && computed == SqlType.Scalar.DATE) {
             return true;
         }
-        // the NUMBER-slot identity carrier: pure literal spellings
-        // (1 / 7.345 / 2D) keep every fine kind's identity in text;
-        // DOUBLE is where the abstract-Number stamp erases
-        if (declared == SqlType.Scalar.DOUBLE
-                && computed == SqlType.Scalar.VARCHAR) {
-            return true;
-        }
+        // (The NUMBER-slot identity-text arm — DOUBLE <- VARCHAR —
+        // was DELETED 2026-08-26: the B1 census measured ZERO traffic
+        // on both lanes, label-side and wire-side; the mixed-identity
+        // carrier work that once justified it now types its own
+        // emissions. History in charter §4bZ-V B.)
         // (The two BLANKET COERCION ARMS — DOUBLE <- BIGINT/INTEGER
         // and VARCHAR <- BIGINT — are DELETED, re-homed 2026-08-25 to
         // {@link #carryThrough}: the same kind pairs, now gated on the
