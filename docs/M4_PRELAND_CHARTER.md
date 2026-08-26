@@ -1106,6 +1106,31 @@ TIMESTAMP/DATE←VARCHAR arms then DELETE on both sides — a stray
 VARCHAR in a temporal slot goes loud. End state: admissible() holds
 ONLY VARCHAR←JSON (B4's arm), then empties with B4.
 
+**B3 EXECUTED (2026-08-26).** The design SIMPLIFIED in the doing:
+no provenance-slot generalization needed — the LITERAL doctrine
+carries whole. TEMPORAL_TEXT is a first-class SqlType.Scalar (the
+precision-faithful temporal-text carrier, physical VARCHAR,
+TypeNames VARCHAR); the stamp is a marker Cast to it that NEVER
+renders on any dialect (transparent arm in variantAwareCast +
+EngineStyleH2's label-device elision — zero SQL-text perturbation,
+zero golden risk); reconciliation needs NO new arm — the label
+ADOPTS the carrier fact through the normal adoption path, so the
+top-level output honestly says temporal-in-text; the wire reads the
+registered delivers(TEMPORAL_TEXT ← VARCHAR) pair beside LITERAL's.
+Emitters stamped (the census located every one): MatchFold.dateLit
+Year/YearMonth, RootLiterals.swap fragile temporals, DateShifts
+adjust (partial re-print + long-subsecond concat), Scalars
+timeBucket subsecond concat, DateCtorRule date() (partial
+constructor + float-seconds ISO trim). Executor.isTemporalType
+gains TEMPORAL_TEXT — the label IS the decode instruction; missing
+it made the ChannelB sql-verdict lane read stamped cells as raw
+strings (33 disagreements, caught by G6, fixed at the one seam).
+Result: pct admissible 317 → 0 (EQUALITY pin, MAX_ADMISSIBLE;
+DuckDB lane), corpus admissible 3584 = the JSON arm alone; the
+blanket temporal←VARCHAR arms DELETED (both lanes measured 0
+first); G1 fully green with zero rule fallout; h2-lane admissible
+pin lands at its first post-B3 chain measure.
+
 **C. PCT-LANE WIRE LEDGERS — NEWLY OWNED (the audit's main find):
 never adjudicated.** Measured 2026-08-25: adopt-pending 94 (ceiling
 101), diverge 54 (ceiling 78) — the corpus twins were burned to

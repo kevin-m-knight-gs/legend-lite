@@ -132,8 +132,10 @@ static String intervalFn(String unitName) {
                         default -> null;
                     };
                     return fmt == null ? added
-                            : SqlExpr.Call.of(SqlFn.STRFTIME, added,
-                                    new SqlExpr.FormatLit(fmt));
+                            : new SqlExpr.Cast(
+                                    SqlExpr.Call.of(SqlFn.STRFTIME, added,
+                                            new SqlExpr.FormatLit(fmt)),
+                                    SqlType.Scalar.TEMPORAL_TEXT);
                 }
                 // A source written with MORE subsecond digits than the
                 // TIMESTAMP carrier holds (6): the result keeps the WRITTEN
@@ -146,10 +148,11 @@ static String intervalFn(String unitName) {
                         && cd.value() instanceof
                                 PureDateLiteral.DateWithSubsecond sub
                         && sub.subsecond().length() > 6) {
-                    return SqlExpr.Call.of(SqlFn.CONCAT,
+                    return new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.CONCAT,
                             SqlExpr.Call.of(SqlFn.STRFTIME, added,
                                     new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_MICRO)),
-                            new SqlExpr.StringLit(sub.subsecond().substring(6)));
+                            new SqlExpr.StringLit(sub.subsecond().substring(6))),
+                            SqlType.Scalar.TEMPORAL_TEXT);
                 }
                 // SQL date+interval widens to TIMESTAMP; a StrictDate input
                 // adjusted by a DAY-or-coarser unit stays a StrictDate.

@@ -20,7 +20,18 @@ public sealed interface SqlType {
          * (the spelling grammar), which plain VARCHAR cannot promise.
          * Encoder: {@code lowering/LiteralSpelling}. Decoder:
          * {@code values/LiteralText}. Canon: the cell IS canonical. */
-        LITERAL
+        LITERAL,
+        /** The PRECISION-FAITHFUL TEMPORAL-TEXT CARRIER (§4bZ-V B3,
+         * the LITERAL pattern): a temporal value whose pure precision
+         * a SQL temporal cannot hold — partials (%2015, %2015-04),
+         * padded HOUR/MINUTE forms, written subsecond digit counts —
+         * carried as its engine print-form text. Physical form is
+         * VARCHAR on every backend; the LABEL records the contract (a
+         * temporal value in text carriage), which plain VARCHAR cannot
+         * promise. Constructed ONLY by the temporal emitters (a
+         * marker {@code Cast} that never renders — a label device);
+         * decode is pure-type-driven date parsing, unchanged. */
+        TEMPORAL_TEXT
     }
 
     record Decimal(int precision, int scale) implements SqlType {

@@ -748,11 +748,12 @@ final class Scalars {
                 if (n.args().get(0) instanceof TypedCDate cd
                         && cd.value() instanceof
                                 PureDateLiteral.DateWithSubsecond sub) {
-                    return SqlExpr.Call.of(SqlFn.CONCAT,
+                    return new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.CONCAT,
                             SqlExpr.Call.of(SqlFn.STRFTIME, bucketed,
                                     new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_LOCAL)),
                             new SqlExpr.StringLit(
-                                    "." + "0".repeat(sub.subsecond().length())));
+                                    "." + "0".repeat(sub.subsecond().length()))),
+                            SqlType.Scalar.TEMPORAL_TEXT);
                 }
                 return bucketed;
             });

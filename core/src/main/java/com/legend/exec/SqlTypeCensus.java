@@ -178,9 +178,12 @@ public final class SqlTypeCensus {
      * value-subset narrowing and the registered carrier conventions
      * (metaToType + admissible — ONE relation, read from both sides). */
     private static boolean delivers(SqlType label, String meta) {
-        // the kind-faithful carrier: spelling TEXT is its physical form
-        // on every backend (F10 proper — the registered pair)
-        if (label == SqlType.Scalar.LITERAL && meta.equals("VARCHAR")) {
+        // the kind-faithful carriers: spelling TEXT is their physical
+        // form on every backend (F10 proper + §4bZ-V B3 — the
+        // registered pairs)
+        if ((label == SqlType.Scalar.LITERAL
+                || label == SqlType.Scalar.TEMPORAL_TEXT)
+                && meta.equals("VARCHAR")) {
             return true;
         }
         // integer-width chain: every narrower integer fits
@@ -510,6 +513,13 @@ public final class SqlTypeCensus {
 
     public static long mismatchCount() {
         return MISMATCH.sum();
+    }
+
+    /** The representation carriers still awaiting their modeled legs
+     * (§4bZ-V: only VARCHAR&larr;JSON remains, B4). Pinned EQUALITY-0
+     * on the pct DuckDB lane since B3. */
+    public static long admissibleCount() {
+        return ADMISSIBLE.sum();
     }
 
     /** Projection roots the tree cannot type — RULE coverage debt

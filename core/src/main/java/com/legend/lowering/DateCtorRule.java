@@ -106,12 +106,15 @@ final class DateCtorRule {
                         new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_MICRO));
                 SqlExpr trimmed = SqlExpr.Call.of(SqlFn.RTRIM, iso,
                         new SqlExpr.StringLit("0"));
-                return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.ENDS_WITH, trimmed,
-                                new SqlExpr.StringLit(".")),
-                        SqlExpr.Call.of(SqlFn.CONCAT, trimmed,
-                                new SqlExpr.StringLit("0")))),
-                        trimmed);
+                // TEMPORAL_TEXT-stamped (§4bZ-V B3): the marker cast
+                // never renders; the slot says temporal-in-text
+                return new SqlExpr.Cast(new SqlExpr.Case(
+                        List.of(new SqlExpr.Case.When(
+                                SqlExpr.Call.of(SqlFn.ENDS_WITH, trimmed,
+                                        new SqlExpr.StringLit(".")),
+                                SqlExpr.Call.of(SqlFn.CONCAT, trimmed,
+                                        new SqlExpr.StringLit("0")))),
+                        trimmed), SqlType.Scalar.TEMPORAL_TEXT);
             }
             return new SqlExpr.Call(SqlFn.MAKE_TIMESTAMP, args);
         }
@@ -127,8 +130,11 @@ final class DateCtorRule {
                     : SqlExpr.Call.of(SqlFn.CONCAT, SqlExpr.Call.of(SqlFn.CONCAT,
                             out, new SqlExpr.StringLit(seps[i])), part);
         }
-        // the signature requires at least the year component
-        return java.util.Objects.requireNonNull(out, "date() with no components");
+        // the signature requires at least the year component; the
+        // partial print is TEMPORAL_TEXT-stamped (§4bZ-V B3 — the
+        // marker cast never renders)
+        return new SqlExpr.Cast(java.util.Objects.requireNonNull(out,
+                "date() with no components"), SqlType.Scalar.TEMPORAL_TEXT);
     }
 
     /** Real pure's month length (DateFunctions.getDaysInMonth — proleptic

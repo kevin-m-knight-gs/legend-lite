@@ -53,8 +53,9 @@ public record TypeNames(Map<SqlType.Scalar, String> scalarNames,
         m.put(SqlType.Scalar.TIMESTAMPTZ, "TIMESTAMPTZ");
         m.put(SqlType.Scalar.DOUBLE, "DOUBLE PRECISION");
         m.put(SqlType.Scalar.VARCHAR, "VARCHAR");
-        // the kind-faithful carrier is spelling TEXT on every backend
+        // the kind-faithful carriers are spelling TEXT on every backend
         m.put(SqlType.Scalar.LITERAL, "VARCHAR");
+        m.put(SqlType.Scalar.TEMPORAL_TEXT, "VARCHAR");
         m.put(SqlType.Scalar.DATE, "DATE");
         m.put(SqlType.Scalar.TIMESTAMP, "TIMESTAMP");
         return m;

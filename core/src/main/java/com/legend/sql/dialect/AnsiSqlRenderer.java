@@ -759,6 +759,12 @@ public class AnsiSqlRenderer implements SqlDialect {
      * text-extraction idiom first (DuckDB {@code ->>}). Base: plain CAST.
      */
     protected String variantAwareCast(SqlExpr.Cast c) {
+        // The temporal-text marker cast is a LABEL device (§4bZ-V B3):
+        // the value is already the precision-faithful text — the cast
+        // exists to carry the fact and NEVER renders, on any dialect
+        if (c.target() == com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT) {
+            return expr(c.value(), 0);
+        }
         return "CAST(" + expr(c.value(), 0) + " AS "
                 + castTypeName(c.target()) + ")";
     }

@@ -191,14 +191,13 @@ public final class SqlTyping {
      * label-narrowing is only value-safe, which a type rule cannot
      * see. */
     public static boolean admissible(SqlType declared, SqlType computed) {
-        // partial-precision temporal carriage (D-arc): SQL temporals
-        // cannot hold pure's partial precisions, so temporal slots may
-        // carry the precision-faithful VARCHAR wire
-        if ((declared == SqlType.Scalar.TIMESTAMP
-                || declared == SqlType.Scalar.DATE)
-                && computed == SqlType.Scalar.VARCHAR) {
-            return true;
-        }
+        // (The blanket partial-precision temporal arms —
+        // TIMESTAMP/DATE <- VARCHAR — are DELETED 2026-08-26 (§4bZ-V
+        // B3): the precision-faithful text convention is now the
+        // TEMPORAL_TEXT carrier, stamped at construction by the
+        // temporal emitters ONLY — a stray VARCHAR in a temporal slot
+        // adopts the wire and goes loud instead of being forgiven by
+        // kind-pair. Both lanes measured 0 before the delete.)
         // (The SUBSUMPTION arms — TIMESTAMP <- DATE and same-scale
         // Decimal widening — RE-HOMED 2026-08-26 to {@link #subsumes}:
         // lossless subtype-in-supertype-slot relations with round-trip

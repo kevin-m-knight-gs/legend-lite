@@ -658,7 +658,10 @@ public final class Executor {
     private static boolean isTemporalType(com.legend.sql.@com.legend.Nullable SqlType type) {
         return type == com.legend.sql.SqlType.Scalar.DATE
                 || type == com.legend.sql.SqlType.Scalar.TIMESTAMP
-                || type == com.legend.sql.SqlType.Scalar.TIMESTAMPTZ;
+                || type == com.legend.sql.SqlType.Scalar.TIMESTAMPTZ
+                // the B3 carrier: temporal-in-text-carriage — the label
+                // IS the decode instruction (the LITERAL doctrine)
+                || type == com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT;
     }
 
     /**

@@ -37,7 +37,11 @@ final class RootLiterals {
     static @com.legend.Nullable SqlExpr swap(TypedSpec spec) {
         if (spec instanceof TypedCDate cd
                 && fragileTemporalPrecision(cd.value())) {
-            return new SqlExpr.StringLit(cd.value().toEngineString());
+            // TEMPORAL_TEXT-stamped (§4bZ-V B3): the marker cast never
+            // renders; the slot's contract says temporal-in-text
+            return new SqlExpr.Cast(
+                    new SqlExpr.StringLit(cd.value().toEngineString()),
+                    SqlType.Scalar.TEMPORAL_TEXT);
         }
         if (spec instanceof TypedCDecimal cdec
                 && cdec.value().scale() <= 0) {

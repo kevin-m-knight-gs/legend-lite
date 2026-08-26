@@ -77,10 +77,15 @@ final class MatchFold {
         return switch (d) {
             case PureDateLiteral.StrictDate sd ->
                     new SqlExpr.DateLit(sd.toEngineString());
-            case PureDateLiteral.Year y ->
-                    new SqlExpr.StringLit(y.toEngineString());
-            case PureDateLiteral.YearMonth ym ->
-                    new SqlExpr.StringLit(ym.toEngineString());
+            // Partials carry as the TEMPORAL_TEXT-stamped print form
+            // (§4bZ-V B3): the marker cast never renders — same SQL,
+            // and the slot's contract says temporal-in-text-carriage
+            case PureDateLiteral.Year y -> new SqlExpr.Cast(
+                    new SqlExpr.StringLit(y.toEngineString()),
+                    com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT);
+            case PureDateLiteral.YearMonth ym -> new SqlExpr.Cast(
+                    new SqlExpr.StringLit(ym.toEngineString()),
+                    com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT);
                 // Every time-bearing precision is a TIMESTAMP — exhaustive,
                 // so a new precision variant demands a decision here.
                 // HOUR/MINUTE-precision literals PAD to the full timestamp

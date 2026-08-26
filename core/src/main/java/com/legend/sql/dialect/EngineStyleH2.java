@@ -1629,6 +1629,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         // never engine text: goldens pin the engine's own spelling
         // (testGreatestLeast caught cast(greatest(...) as varchar)).
         if (c.target() == com.legend.sql.SqlType.Scalar.LITERAL
+                || c.target() == com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT
                 || (c.target() instanceof com.legend.sql.SqlType.Array la
                         && la.element()
                                 == com.legend.sql.SqlType.Scalar.LITERAL)) {

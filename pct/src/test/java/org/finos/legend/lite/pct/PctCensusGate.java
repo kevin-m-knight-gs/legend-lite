@@ -118,6 +118,12 @@ public final class PctCensusGate {
     // byte-compare refereed).
     private static final long MAX_WIRE_DIVERGE = 0;
     private static final long MAX_ADOPT_PENDING = 0;
+    // §4bZ-V B3 (2026-08-26): the pct admissible bucket is EMPTY — the
+    // temporal-text traffic (317) is the TEMPORAL_TEXT carrier now
+    // (stamped at construction, wire-delivered by the registered
+    // pair), and the blanket temporal<-VARCHAR arms are DELETED. BOTH
+    // lanes measured 0 (h2: the first post-B3 chain) — EQUALITY.
+    private static final long MAX_ADMISSIBLE = 0;
 
     public static Test wrap(String suite, Test t) {
         return new TestSetup(t) {
@@ -137,6 +143,9 @@ public final class PctCensusGate {
                                         + w)));
                 check(suite, "label lie escaped reconciliation (mismatch)",
                         SqlTypeCensus.mismatchCount(), 0);
+                check(suite, "admissible carriers grew — an excuse arm"
+                                + " came back or a stamp went missing",
+                        SqlTypeCensus.admissibleCount(), MAX_ADMISSIBLE);
                 check(suite, "wire adopt-pending grew",
                         SqlTypeCensus.wireAdoptPendingCount(),
                         MAX_ADOPT_PENDING);
