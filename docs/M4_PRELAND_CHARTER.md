@@ -979,6 +979,45 @@ slice per move; every ceiling move measured):**
   sweeps (the subagg test ERRORS scoped but passes full; Essential
   alone shows 3 untyped vs 20) — diagnose scoped, adjudicate full.
 
+**SECOND WAVE (same day — user ruling "burn 2 and 3 to zero"; the
+tree-receipt method: every remaining row's construction tree captured
+before any fix):**
+- **Corpus wire diverge 2 -> 0, HARDENED TO EQUALITY.** Ruling
+  executed: a by-name FIELD read over a late-bound executeInDb frame
+  DEMANDS the LIMIT-0 probe (RawGridSchema's widened gate), and the
+  probe now carries the database's own column types
+  (GridProbe.probeTypedColumns; unmapped SQL types fall back to the
+  trusted-Any column). The bare .rows egress keeps P3-2's
+  single-query path; ExecuteInDbProbeCountTest pins BOTH sides (the
+  named-read pin flipped 0 -> 1 probe with the ruling recorded).
+  JavaEvalLedger 48 -> 52 justified (schema plumbing beside the
+  probe).
+- **pct untyped 20 -> 1** (pinned; diverge 46 -> 45 rode along).
+  All 20 trees captured; mechanisms, each probed or receipt-driven:
+  property reads over stamped params (the foldResolver/
+  mapElemResolver struct-field arms — $p1.lastName was a plain
+  qualified column); the accIsList fold rule (probed: the list-boxed
+  lane delivers the accumulator's own array); mixed-CLASS concatenate
+  conforms to the VARIANT carrier (probed: raw struct concat
+  FIELD-UNIONS {name}++{place} into one smeared struct — pure keeps
+  per-element kinds, testConcatenateTypeInference types the LUB
+  superclass; one value one carrier, the hetero-literal doctrine);
+  the dedup typedList door (empty removeDuplicates chains); the
+  InstanceProjection elem stamp (a hardcoded-VARCHAR lateral). THE 1
+  = StructGet('val') over an elem stamped by the many-column
+  lateral's schema STRING FALLBACK (Lowerer manyCols arm,
+  .orElse(STRING)) — a recorded guess, the next lead.
+- **CENSUS-INTEGRITY FINDING:** channel-A pct suites NEVER set
+  SqlTypeCensus.CONTEXT — every witness [test] tag on the pct lane is
+  a ChannelB leftover on the shared thread (between_String tagged
+  rows that test cannot build). Trees, not tags, for attribution;
+  wiring channel-A contexts is a small open instrument fix.
+- **§4bZ-V C homework banked:** DIVIDE probes ALL-DOUBLE on 1.5.0
+  (the (1.0 * x)/y spelling — the rule is correct; the DOUBLE<>
+  DECIMAL diverge family is NOT division), adopt-64 witnesses are
+  windowed SUMs (star-frame reconciliation skip is the leading
+  theory), method = class-keyed tree capture at the wire census.
+
 ## 4bZ-V. THE FULL-BURN INDEX (2026-08-25, user-ordered completeness
 ## audit — "don't miss/defer things"; THE one authoritative list of
 ## everything remaining on the burn to zero. An item leaves this list

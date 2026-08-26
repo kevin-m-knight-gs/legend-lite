@@ -122,7 +122,13 @@ class JavaEvalLedgerTest {
             // moved to resolver/ under Invariant 7's structural guard —
             // staged compilation; only the LIMIT-0 probe stays exec-side,
             // pinned below as GridProbe.)
-            Map.entry("core/src/main/java/com/legend/exec/GridProbe.java", 48),
+            // 48 -> 52 (§4bZ-U follow-on, JUSTIFIED): probeTypedColumns
+            // maps the LIMIT-0 metadata's SQL type names to Pure columns
+            // for the boundary resolver's oracle — SCHEMA plumbing (the
+            // probe's own metadata, one lookup per column), zero value
+            // evaluation; it EXISTS to delete the Any-wildcard stamp so
+            // late-bound cells type and the wire ledger burns.
+            Map.entry("core/src/main/java/com/legend/exec/GridProbe.java", 52),
             // Phase 2: the comparison layer, size-pinned at its landing
             // 212 -> 221: assertEqWithinTolerance MIGRATED IN from the
             // harness arm (net move, not new evaluation)

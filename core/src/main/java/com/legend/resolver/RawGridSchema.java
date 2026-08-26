@@ -67,10 +67,14 @@ public final class RawGridSchema {
     }
 
     /** The executor-supplied schema authority: the grid's projection
-     * column names for the authored SQL (one LIMIT-0 metadata read —
-     * schema, never values). */
+     * columns for the authored SQL (one LIMIT-0 metadata read —
+     * schema, never values). TYPED since §4bZ-U's follow-on: the probe
+     * carries the database's own column types, so a stamped grid's
+     * cells read typed instead of Any (an unmapped SQL type falls back
+     * to the trusted-Any column at the oracle — an upgrade, never a
+     * new wall). */
     public interface SchemaOracle {
-        List<String> columnsOf(String sql);
+        List<Type.Column> columnsOf(String sql);
     }
 
     /** The tree with every late-bound raw grid stamped and its
@@ -122,6 +126,20 @@ public final class RawGridSchema {
                         || pa.property().equals("values"))) {
             return true;
         }
+        // a BY-NAME FIELD read over a LATE-BOUND source is a static
+        // schema demand too (§4bZ-U ruling: burn the wire ledger — the
+        // trust-name rule typed such cells Any/JSON, the probe's typed
+        // columns replace that with the database's own type). The bare
+        // {@code .rows} egress stays probe-free — no field is named,
+        // the executed query's own headers are the authority (P3-2's
+        // surviving case, still pinned by ExecuteInDbProbeCountTest).
+        if (n instanceof TypedPropertyAccess pa2
+                && !pa2.property().equals(PlatformTypes.ROWS_MARKER)
+                && Type.schemaView(pa2.source().info().type())
+                        instanceof Type.RelationType rt2
+                && rt2.isLateBound()) {
+            return true;
+        }
         for (TypedSpec c : n.children()) {
             if (demands(c)) {
                 return true;
@@ -137,12 +155,9 @@ public final class RawGridSchema {
                 && Type.relationSchema(raw.info().type())
                         instanceof Type.RelationType rt
                 && rt.isLateBound()) {
-            List<Type.Column> cols = new ArrayList<>();
-            for (String nm : oracle.columnsOf(raw.sql())) {
-                cols.add(Type.RelationType.trustedColumn(nm));
-            }
             return new TypedRawSqlRelation(raw.sql(),
-                    new ExprType(Type.relation(new Type.RelationType(cols, List.of())),
+                    new ExprType(Type.relation(new Type.RelationType(
+                                    oracle.columnsOf(raw.sql()), List.of())),
                             raw.info().multiplicity()));
         }
         // BINDER SCOPE: a lambda over a (recursively stamped) grid binds

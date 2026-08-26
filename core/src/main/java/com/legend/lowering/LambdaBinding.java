@@ -102,8 +102,51 @@ final class LambdaBinding {
                     return new SqlExpr.Column(null, var, it);
                 }
             }
+            // a PROPERTY read over a stamped struct param ($p.lastName
+            // — the same qualified-column emission, now with the fact:
+            // §4bZ-U, the fold-tree receipts' blind leaf)
+            if (var != null && prop != null) {
+                if (var.equals(elemParam)) {
+                    SqlExpr.Column c = structFieldRead(var, prop,
+                            elementOf(collection.type()));
+                    if (c != null) {
+                        return c;
+                    }
+                }
+                if (var.equals(accParam)) {
+                    SqlExpr.Column c = structFieldRead(var, prop,
+                            init.type());
+                    if (c != null) {
+                        return c;
+                    }
+                }
+            }
             return inner.resolve(var, prop);
         };
+    }
+
+    /** The struct-field read door: {@code var.prop} stamped as the
+     * field's declared type when the param's fact is a Struct claiming
+     * the field — identical emission (qualified column), supplied
+     * fact. Null = no claim (the caller's plain resolution stands). */
+    private static SqlExpr.@com.legend.Nullable Column structFieldRead(
+            String var, String prop, TypeFact paramFact) {
+        if (paramFact instanceof TypeFact.Typed t
+                && t.type() instanceof SqlType.Struct st) {
+            for (SqlType.Struct.Field f : st.fields()) {
+                if (f.name().equals(prop)) {
+                    return SqlExpr.Column.of(var, prop, f.type());
+                }
+            }
+        }
+        return null;
+    }
+
+    /** The collection fact's element fact (Array(T) -> Typed(T)). */
+    private static TypeFact elementOf(TypeFact collectionFact) {
+        return collectionFact instanceof TypeFact.Typed t
+                && t.type() instanceof SqlType.Array at
+                ? new TypeFact.Typed(at.element()) : collectionFact;
     }
 
     /** fold in PURE conventions ({@code (element, accumulator)}
@@ -227,10 +270,21 @@ final class LambdaBinding {
                         ? at.element()
                         : srcToOne ? t.type() : null
                 : null;
-        return (var, prop) -> param.equals(var) && prop == null
-                && elem != null
-                ? SqlExpr.Column.of(null, param, elem)
-                : inner.resolve(var, prop);
+        return (var, prop) -> {
+            if (param.equals(var) && elem != null) {
+                if (prop == null) {
+                    return SqlExpr.Column.of(null, param, elem);
+                }
+                // property read over the stamped element (same door as
+                // foldResolver's — §4bZ-U fold-tree receipts)
+                SqlExpr.Column c = structFieldRead(param, prop,
+                        new TypeFact.Typed(elem));
+                if (c != null) {
+                    return c;
+                }
+            }
+            return inner.resolve(var, prop);
+        };
     }
 
     /** Native-call argument lowering under the unary-lambda binding

@@ -31,17 +31,52 @@ public final class GridProbe {
     /** The grid's projection NAMES for the authored SQL. */
     public static List<String> probeNames(String sql, Connection conn,
             com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
+        List<String> names = new ArrayList<>();
+        for (String[] c : probeColumns(sql, conn, dialect)) {
+            names.add(c[0]);
+        }
+        return names;
+    }
+
+    /** The grid's TYPED columns for the boundary resolver's oracle
+     * (§4bZ-U follow-on): the database's own column type when the SQL
+     * type maps to a Pure primitive; the trusted-Any wildcard column
+     * otherwise — an upgrade over the old names-only stamp, never a
+     * new wall. */
+    public static List<com.legend.compiler.element.type.Type.Column>
+            probeTypedColumns(String sql, Connection conn,
+            com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
+        List<com.legend.compiler.element.type.Type.Column> cols =
+                new ArrayList<>();
+        for (String[] c : probeColumns(sql, conn, dialect)) {
+            com.legend.compiler.element.type.Type t =
+                    Executor.pureOfSqlTypeOrNull(c[1]);
+            cols.add(t == null
+                    ? com.legend.compiler.element.type.Type.RelationType
+                            .trustedColumn(c[0])
+                    : new com.legend.compiler.element.type.Type.Column(
+                            c[0], t, com.legend.compiler.element.type
+                                    .Multiplicity.Bounded.ZERO_ONE));
+        }
+        return cols;
+    }
+
+    /** The grid's projection (name, SQL type name) pairs — the SAME
+     * LIMIT-0 metadata read, types included. */
+    public static List<String[]> probeColumns(String sql, Connection conn,
+            com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
         SqlSelect probe = SqlSelect.starOf(
                 new SqlSource.RawSql(sql, "_p", List.of()))
                 .withLimit(0L);
         try (var st = conn.createStatement();
                 var rs = st.executeQuery(dialect.render(probe))) {
             var md = rs.getMetaData();
-            List<String> names = new ArrayList<>(md.getColumnCount());
+            List<String[]> cols = new ArrayList<>(md.getColumnCount());
             for (int i = 1; i <= md.getColumnCount(); i++) {
-                names.add(md.getColumnLabel(i));
+                cols.add(new String[] {md.getColumnLabel(i),
+                        md.getColumnTypeName(i)});
             }
-            return names;
+            return cols;
         }
     }
 }

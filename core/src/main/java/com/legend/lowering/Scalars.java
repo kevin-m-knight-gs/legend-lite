@@ -1569,7 +1569,13 @@ final class Scalars {
                 // this one's own subtree: deterministic, and strictly
                 // larger for the outer of any nested pair.
                 int depth = Dedup.countDedups(n.args().get(n.args().size() - 1));
-                return Dedup.keptDedup(args.get(0), depth, (prior, cand) -> substituteRef(
+                // empty/NULL lists conform to the pure element's array
+                // (§4bZ-U — the typedList door: the dedup encoding's own
+                // param doors then stamp everything downstream)
+                return Dedup.keptDedup(
+                        PureSql.typedList(args.get(0),
+                                n.args().get(0).info().type()),
+                        depth, (prior, cand) -> substituteRef(
                         substituteRef(eq.body(), eq.params().get(0), key.apply(prior)),
                         eq.params().get(1), key.apply(cand)));
             });
@@ -1842,38 +1848,7 @@ final class Scalars {
             RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0),
                     SqlType.Scalar.JSON));
         }
-        // Collection concatenate only — the relation overload is the
-        // TypedConcatenate set-op and never reaches scalar lowering. A
-        // MIXED concatenation (T solved to Any) travels as the variant
-        // carrier: each non-Any side's elements wrap TO_VARIANT so DuckDB
-        // concatenates JSON[] to JSON[].
-        for (String f : Pure.nativeKeysAt("concatenate")) {
-            RULES.put(f, (n, args) -> {
-                // scalar-encoded sides wrap null-guarded (concatSide)
-                List<SqlExpr> args2 = new ArrayList<>(args.size());
-                for (int i = 0; i < args.size(); i++) {
-                    args2.add(ListEncodings.concatSide(
-                            isToOne(n.args().get(i)), args.get(i)));
-                }
-                args = args2;
-                if (!PlatformTypes.isAny(n.info().type())) {
-                    return new SqlExpr.Call(SqlFn.LIST_CONCAT, args);
-                }
-                List<SqlExpr> wrapped = new ArrayList<>(args.size());
-                for (int i = 0; i < args.size(); i++) {
-                    if (PlatformTypes.isAny(n.args().get(i).info().type())) {
-                        wrapped.add(args.get(i));
-                    } else {
-                        wrapped.add(SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, args.get(i),
-                                new SqlExpr.Lambda(List.of("_cv"),
-                                        SqlExpr.Call.of(SqlFn.TO_VARIANT,
-                                                SqlExpr.Column.param("_cv",
-                                                        args.get(i))))));
-                    }
-                }
-                return new SqlExpr.Call(SqlFn.LIST_CONCAT, wrapped);
-            });
-        }
+        ListEncodings.registerConcatenate(RULES);   // the encoding's owner
         // tail/init of a TO-ONE value = EMPTY (all-but-first/-last of 1).
         for (String f : Pure.nativeKeysAt("tail")) {
             RULES.put(f, (n, args) -> args.get(0) instanceof SqlExpr.NullLit
@@ -3405,7 +3380,7 @@ final class Scalars {
     /** The reduction rules' identity-arm guard — Stamps.toOne, the
      * historical upper==1 reading preserved verbatim (see Stamps for
      * the empty-identity fork this deliberately does NOT change). */
-    private static boolean isToOne(TypedSpec arg) {
+    static boolean isToOne(TypedSpec arg) {
         return Stamps.toOne(arg);
     }
 

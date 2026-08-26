@@ -727,20 +727,21 @@ public class RelationalCorpusRunner {
                     // the fetchDb catalog grids got their DECLARED
                     // JDBC-spec schemas (CatalogGrids.gridSchema) — the
                     // 2x JSON<>VARCHAR SQL_TYPE_NAME rows healed to
-                    // typed VARCHAR labels. THE 2 = 2x JSON<>BIGINT
-                    // (dropAndCreateTable): Any-typed CELL reads from a
-                    // genuinely LATE-BOUND executeInDb frame — the
-                    // label is the variant-carrier erasure of Any, the
-                    // wire is the raw cell; unknowable at compile time
-                    // BY DESIGN (the engine itself carries NO type
-                    // here — its PathInformation is empty and its
-                    // transform is identity). Counted residue, burns
-                    // only if late-bound frames ever learn runtime
-                    // schemas.
-                    () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            com.legend.exec.SqlTypeCensus
-                                    .wireDivergeCount() <= 2,
-                            "corpus wire divergence grew: "
+                    // typed VARCHAR labels. 2 -> 0 (§4bZ-U ruling,
+                    // 2026-08-25 — "burn 2 and 3 to zero"): late-bound
+                    // frames DID learn runtime schemas — a by-name
+                    // FIELD read now DEMANDS the LIMIT-0 probe
+                    // (RawGridSchema's widened gate) and the probe
+                    // carries the database's own column types
+                    // (GridProbe.probeTypedColumns), so the
+                    // dropAndCreateTable cells label BIGINT and the
+                    // wire agrees. The bare .rows egress stays
+                    // single-query (ExecuteInDbProbeCountTest pins
+                    // both sides). HARDENED TO EQUALITY at zero.
+                    () -> org.junit.jupiter.api.Assertions.assertEquals(
+                            0, com.legend.exec.SqlTypeCensus
+                                    .wireDivergeCount(),
+                            "corpus wire divergence reappeared: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
                     // adopt-pending burned 130 -> 13 -> 0 (the label

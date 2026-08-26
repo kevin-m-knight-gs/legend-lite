@@ -74,22 +74,27 @@ public final class PctCensusGate {
     // cast to their pure element's array: zip/joinStrings/fold init)
     // + declared struct-field slots (an absent optional property's
     // NULL contributes its layout type) + the REM decimal rule
-    // (probed union shape). THE 20 = the receipted remainder
-    // (witnesses per sweep, full composition only — a scoped
-    // Essential run shows 3): 14x StructGet + 6x UNNEST across the
-    // fold/instance-payload chains — mixed-struct LIST_CONCAT (a
-    // heterogeneous class LUB, a TRUE payload shape), the FoldCall
-    // collection-accumulator (the accIsList carrier's declared
-    // no-rule), chained LIST_REDUCE(LIST_TRANSFORM) reductions, and
-    // composition-dependent fold-channel struct chains. Each is a
-    // named receipt, not a silent cap; rules for them must type THE
-    // EMISSION or stay honest.
-    private static final long MAX_UNTYPED = H2 ? 17 : 20;
-    // diverge 78 -> 46, adopt-pending 101 -> 64 (measured with the
-    // §4bZ-U legs: emission-true pivot stamps + REM labels heal wire
-    // agreement; the pct-lane wire ledgers' adjudication itself is
-    // still the §4bZ-V C charter item).
-    private static final long MAX_WIRE_DIVERGE = H2 ? 0 : 46;
+    // (probed union shape). 20 -> 1 (§4bZ-U tree-receipt burn,
+    // 2026-08-25 — every one of the 20 construction trees captured
+    // and mechanism-fixed): property reads over stamped params
+    // (foldResolver/mapElemResolver struct-field arms), the accIsList
+    // fold rule (probed: the list-boxed lane delivers the acc's own
+    // array), mixed-class concatenate to the VARIANT carrier (probed:
+    // raw struct concat FIELD-UNIONS and smears class identity — one
+    // value one carrier, the hetero-literal doctrine), the dedup
+    // typedList door (empty removeDuplicates), and the
+    // InstanceProjection elem stamp (the hardcoded-VARCHAR lateral).
+    // THE 1 = StructGet('val') over an elem the many-column lateral
+    // stamped via the schema STRING FALLBACK
+    // (Lowerer's manyCols arm, .orElse(STRING)) — the fallback is a
+    // recorded guess and the next lead; ChannelB-context tags on pct
+    // witnesses are unreliable (channel A never sets CONTEXT).
+    private static final long MAX_UNTYPED = H2 ? 17 : 1;
+    // diverge 78 -> 46 -> 45 (measured with the §4bZ-U legs:
+    // emission-true pivot stamps + REM labels + the variant-carrier
+    // concat heal wire agreement; the pct-lane wire ledgers'
+    // adjudication itself is still the §4bZ-V C charter item).
+    private static final long MAX_WIRE_DIVERGE = H2 ? 0 : 45;
     private static final long MAX_ADOPT_PENDING = H2 ? 0 : 64;
 
     public static Test wrap(String suite, Test t) {

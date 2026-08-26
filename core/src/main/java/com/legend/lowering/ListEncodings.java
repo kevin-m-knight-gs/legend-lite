@@ -3,6 +3,7 @@
 
 package com.legend.lowering;
 
+import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 import com.legend.sql.SqlType;
@@ -63,11 +64,57 @@ final class ListEncodings {
                 : transformed;
     }
 
-    /** {@code zip(a, b)}: pairwise {first, second} structs up to the
-     * SHORTER side. An EMPTY side is SQL NULL and len(NULL) is NULL —
-     * which LEAST would IGNORE (it skips nulls), silently zipping
-     * against the non-empty side — so the count zeroes explicitly, and
-     * a NULL whole-zip coalesces to pure's EMPTY list. */
+    /** The concatenate RULE registration (seam split from
+     * {@link Scalars} — the encoding's owner; the relation overload is
+     * the TypedConcatenate set-op and never reaches scalar lowering).
+     * A MIXED concatenation rides the VARIANT carrier — T solved to
+     * Any, and ALSO mixed CLASS kinds under an ancestor LUB (§4bZ-U,
+     * probed 1.5.0: DuckDB FIELD-UNIONS unequal struct arrays —
+     * {name:'x'} ++ {place:'y'} delivers STRUCT(name, place) rows with
+     * NULL-fill, SMEARING class identity; pure keeps per-element kinds
+     * — testConcatenateTypeInference types the result as the common
+     * superclass). One value, one carrier, whichever spelling built it
+     * — the hetero-literal arm's doctrine. */
+    static void registerConcatenate(java.util.Map<String, Scalars.Rule> rules) {
+        for (String f : com.legend.builtin.Pure.nativeKeysAt("concatenate")) {
+            rules.put(f, (n, args) -> {
+                // scalar-encoded sides wrap null-guarded (concatSide)
+                List<SqlExpr> args2 = new java.util.ArrayList<>(args.size());
+                for (int i = 0; i < args.size(); i++) {
+                    args2.add(concatSide(
+                            Scalars.isToOne(n.args().get(i)), args.get(i)));
+                }
+                args = args2;
+                boolean mixedStructs = args.size() == 2
+                        && args.get(0).type()
+                                instanceof com.legend.sql.TypeFact.Typed t0
+                        && t0.type() instanceof SqlType.Array a0
+                        && a0.element() instanceof SqlType.Struct s0
+                        && args.get(1).type()
+                                instanceof com.legend.sql.TypeFact.Typed t1
+                        && t1.type() instanceof SqlType.Array a1
+                        && a1.element() instanceof SqlType.Struct s1
+                        && !s0.equals(s1);
+                if (!PlatformTypes.isAny(n.info().type()) && !mixedStructs) {
+                    return new SqlExpr.Call(SqlFn.LIST_CONCAT, args);
+                }
+                List<SqlExpr> wrapped = new java.util.ArrayList<>(args.size());
+                for (int i = 0; i < args.size(); i++) {
+                    if (PlatformTypes.isAny(n.args().get(i).info().type())) {
+                        wrapped.add(args.get(i));
+                    } else {
+                        wrapped.add(SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, args.get(i),
+                                new SqlExpr.Lambda(List.of("_cv"),
+                                        SqlExpr.Call.of(SqlFn.TO_VARIANT,
+                                                SqlExpr.Column.param("_cv",
+                                                        args.get(i))))));
+                    }
+                }
+                return new SqlExpr.Call(SqlFn.LIST_CONCAT, wrapped);
+            });
+        }
+    }
+
     /** The zip RULE registration (seam split from {@link Scalars} at
      * the 3,500-line shape guard — the encoding's owner registers its
      * own rule, the ScalarStats.register idiom). Empty/NULL sides
@@ -87,6 +134,11 @@ final class ListEncodings {
         }
     }
 
+    /** {@code zip(a, b)}: pairwise {first, second} structs up to the
+     * SHORTER side. An EMPTY side is SQL NULL and len(NULL) is NULL —
+     * which LEAST would IGNORE (it skips nulls), silently zipping
+     * against the non-empty side — so the count zeroes explicitly, and
+     * a NULL whole-zip coalesces to pure's EMPTY list. */
     static SqlExpr zip(SqlExpr a, SqlExpr b) {
         SqlExpr count = SqlExpr.Call.of(SqlFn.LEAST,
                 SqlExpr.Call.of(SqlFn.COALESCE,

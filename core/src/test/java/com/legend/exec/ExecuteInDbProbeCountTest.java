@@ -106,13 +106,20 @@ class ExecuteInDbProbeCountTest {
     }
 
     @Test
-    @DisplayName("named cell read (no schema demand): ZERO probes, value decodes by wire kind")
-    void namedReadSingleQuery() throws Exception {
+    @DisplayName("named cell read DEMANDS the schema: exactly ONE probe, typed cells")
+    void namedReadProbesOnce() throws Exception {
+        // §4bZ-U RULING (2026-08-25, wire-ledger burn): a by-name FIELD
+        // read over a late-bound grid IS a static schema demand — the
+        // old trust-name path typed such cells Any (JSON labels, the
+        // last 2 corpus wire-diverge rows); the probe's typed columns
+        // give the cell the database's own type. Cost: one LIMIT-0
+        // metadata read per demanded grid. The bare .rows egress stays
+        // probe-free (the test above pins that surviving P3-2 case).
         ExecutionResult r = run(
                 "meta::relational::metamodel::execute::executeInDb("
                 + "'select 3 as V', $c, 0, 1000).rows->map(x|$x.V);}");
-        assertEquals(0, probes(), "a by-name read needs no probe (the"
-                + " trust-name rule); probe traffic: " + executed);
+        assertEquals(1, probes(), "a by-name field read demands the"
+                + " typed schema (one LIMIT-0); probe traffic: " + executed);
         Object v = r instanceof ExecutionResult.Scalar s ? s.value()
                 : ((ExecutionResult.Collection) r).values().get(0);
         assertEquals(3L, ((Number) v).longValue());

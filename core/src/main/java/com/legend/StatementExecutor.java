@@ -1849,8 +1849,8 @@ final class StatementExecutor {
             java.sql.Connection connection, ExecEnv env) {
         return sql -> {
             try {
-                return com.legend.exec.GridProbe.probeNames(sql, connection,
-                        env.dialect());
+                return com.legend.exec.GridProbe.probeTypedColumns(
+                        sql, connection, env.dialect());
             } catch (java.sql.SQLException e) {
                 throw new IllegalStateException(e);
             }

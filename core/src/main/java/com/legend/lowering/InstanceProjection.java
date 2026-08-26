@@ -76,6 +76,8 @@ final class InstanceProjection {
         // pure yields (city, zip) pairs, never their cross product. Only
         // INDEPENDENT collections cross-multiply.
         Map<String, String> unnestByPrefix = new LinkedHashMap<>();
+        // alias -> the unnested element's SQL type (the elem-read stamp)
+        Map<String, SqlType> unnestElemType = new LinkedHashMap<>();
         List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
         for (TypedFuncCol col : columns) {
             List<String> path = pathOf(col);
@@ -133,15 +135,26 @@ final class InstanceProjection {
                                 ? new SqlExpr.NullLit()
                                 : new SqlExpr.ArrayLit(many.elements().stream()
                                         .map(e -> scalar.apply(e, noScope)).toList());
+                        // the element type is the ARRAY's own (§4bZ-U:
+                        // instance elements are structs — the old
+                        // hardcoded VARCHAR left every elem read blind);
+                        // VARCHAR stays the untyped-array legacy default
+                        SqlType elemT = array.type()
+                                instanceof com.legend.sql.TypeFact.Typed t
+                                && t.type() instanceof SqlType.Array at
+                                ? at.element() : SqlType.Scalar.VARCHAR;
                         SqlSource right = Fold.lateralElem(array,
-                                SqlType.Scalar.VARCHAR, fresh.get(), alias);
+                                elemT, fresh.get(), alias);
                         src = src == null
                                 ? anchorJoin(right, fresh)
                                 : new SqlSource.Join(src, right,
                                         SqlSource.Join.Kind.LEFT_LATERAL,
                                         new SqlExpr.BoolLit(true));
+                        unnestElemType.put(alias, elemT);
                     }
-                    value = new SqlExpr.Column(alias, "elem");
+                    value = SqlExpr.Column.of(alias, "elem",
+                            unnestElemType.getOrDefault(alias,
+                                    SqlType.Scalar.VARCHAR));
                     for (int r = i + 1; r < path.size(); r++) {
                         value = new SqlExpr.StructGet(value, path.get(r));
                     }

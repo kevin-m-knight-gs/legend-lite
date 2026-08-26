@@ -837,10 +837,25 @@ public final class Executor {
      * this table, not a String (audit 15: the silent String default
      * corrupted result typing invisibly). */
     public static Type pureOfSqlType(String sqlType) {
+        Type t = pureOfSqlTypeOrNull(sqlType);
+        if (t == null) {
+            throw new IllegalStateException(
+                    "no Pure primitive mapped for SQL type '" + sqlType
+                    + "' (pivot-generated column) — add it to"
+                    + " Executor.pureOfSqlType");
+        }
+        return t;
+    }
+
+    /** The LOOKUP variant — null for an unmapped SQL type (the
+     * late-bound grid stamp's fallback-to-Any door; the pivot path
+     * keeps the loud variant above). */
+    public static @com.legend.Nullable Type pureOfSqlTypeOrNull(
+            String sqlType) {
         // V1.9 (Phase 8): the parameter suffix strips ONCE
         // ('DECIMAL(38,9)' -> 'DECIMAL'), then the table is EXACT-match
-        // with a loud default — no prefix matching (the audited
-        // startsWith arms could never say what they excluded).
+        // — no prefix matching (the audited startsWith arms could never
+        // say what they excluded).
         String t = sqlType.toUpperCase();
         int paren = t.indexOf('(');
         if (paren > 0) {
@@ -856,10 +871,7 @@ public final class Executor {
             case "DECIMAL", "NUMERIC" -> Type.Primitive.DECIMAL;
             case "VARCHAR", "CHAR", "TEXT", "STRING", "BPCHAR" ->
                     Type.Primitive.STRING;
-            default -> throw new IllegalStateException(
-                    "no Pure primitive mapped for SQL type '" + sqlType
-                    + "' (pivot-generated column) — add it to"
-                    + " Executor.pureOfSqlType");
+            default -> null;
         };
     }
 
