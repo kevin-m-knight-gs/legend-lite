@@ -1838,8 +1838,15 @@ public final class Runner {
             if (open <= 12) {
                 continue;
             }
-            String tname = sql.substring(12, open).strip()
-                    .toLowerCase(java.util.Locale.ROOT);
+            // G3 undercount 1 (recorded 2026-08): a SCHEMA-QUALIFIED
+            // create ("schema.table (...)") never matched the module
+            // map's bare table keys, silently exempting whole tables
+            // from the census
+            String qualified = sql.substring(12, open).strip()
+                    .toLowerCase(java.util.Locale.ROOT).replace("\"", "");
+            int dot = qualified.lastIndexOf('.');
+            String tname = dot >= 0
+                    ? qualified.substring(dot + 1).strip() : qualified;
             // dedupe by the exact STATEMENT, not the table: a family
             // stream carries both the module-generated CREATE (declared
             // shape — never skewed) and the setup-fn's raw CREATE (the
@@ -1943,15 +1950,23 @@ public final class Runner {
             }
             String name = tok[0].replace("\"", "").replace("`", "");
             String head = name.toUpperCase(java.util.Locale.ROOT);
-            if (head.equals("PRIMARY") || head.equals("CONSTRAINT")
-                    || head.equals("FOREIGN") || head.equals("UNIQUE")
-                    || head.equals("KEY") || head.equals("CHECK")) {
-                continue;
-            }
             String type = tok[1];
             int p = type.indexOf('(');
             if (p > 0) {
                 type = type.substring(0, p);
+            }
+            // G3 undercount 2 (recorded 2026-08): a COLUMN NAMED with a
+            // constraint word ("key INT") was skipped as a clause. The
+            // disambiguator is the second token: a real constraint
+            // clause never follows its keyword with a bare type token
+            // ("PRIMARY KEY (id)" / "CONSTRAINT fk ..."), a column
+            // always does.
+            if ((head.equals("PRIMARY") || head.equals("CONSTRAINT")
+                    || head.equals("FOREIGN") || head.equals("UNIQUE")
+                    || head.equals("KEY") || head.equals("CHECK"))
+                    && fixtureKind(type.toUpperCase(
+                            java.util.Locale.ROOT)) == null) {
+                continue;
             }
             sink.accept(name.toLowerCase(java.util.Locale.ROOT),
                     type.toUpperCase(java.util.Locale.ROOT));

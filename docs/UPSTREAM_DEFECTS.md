@@ -44,6 +44,12 @@ add the issue link; when fixed upstream, the oracle-bump procedure
 | U15 | Deephaven grammar's `appMultiplicity` wants `DOT DOT` but CoreLexer emits one `DOT_DOT` token — `[n..m]` is unreachable in the Deephaven grammar only | sibling negative + grammar cross-read |
 | U16 | Deephaven connection `serverUrlDefinition` is the only field rule WITHOUT a trailing `SEMI_COLON` — `serverUrl: '...';` refuses | .g4 cross-read + fixture |
 
+## Test-data debt (engine relational fixtures)
+
+| # | defect | evidence |
+|---|---|---|
+| U19 | Relational test fixtures: setup-fn `CREATE TABLE` column kinds contradict the `###Relational` declarations of the same tables (canonical case: `InteractionTable.id` declared `INT`, created `VARCHAR(200)` — relationalSetUp.pure:1397). The engine never notices because its fetch is ResultSet-metadata-keyed and `transform()` is identity unless enum (functions.pure:218) — declared types are silently ignored on the wire, so goldens pin the *fixture's* kinds, not the declaration's. Any consumer that trusts the declarations (as a typed compiler must) inherits phantom type divergences | fixture-skew census: **473 column witnesses** across declared-vs-created kind classes, machine-counted per sweep and ceiling-pinned in the corpus runner (`[rcorpus] fixture-skew-class/-witness` rows; legend-lite `Runner.FIXTURE_SKEW`, ceiling 473 at 2026-08-26 after the schema-qualified-create and constraint-word-column undercount fixes) |
+
 ## Non-legend upstreams
 
 | # | defect | evidence |
