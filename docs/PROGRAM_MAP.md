@@ -93,7 +93,7 @@ Notes NOT lost — register §1:
 
 | Program | Where | Note |
 |---|---|---|
-| **T4 nullability** | register 2b | ~6.5k multiplicity-echo rows re-label WHOLESALE + the VALUE-level decode tripwire (metadata is blind — DuckDB spells all-NULL columns INTEGER) |
+| **T4 nullability** | register 2b | **CLOSED 2026-08-26** (charter §4bZ-V E + D): the 6,472 pad rows machine-counted 100% literal NullLit (N0), slot truth declared at construction (N1: a projected literal NULL is nullable — reconcileLabels, one owner; the wholesale-flip framing retired), EQUALITY-0 pinned on all four lanes (N2). The VALUE-level decode tripwire landed (D1) and CAUGHT a real bug on sweep one: SqlUnion's ctor dropped the mapping-seam tag — cured by union-label reconciliation; int-or-null settled to proven-empty (56/219 ceiling-pinned), wire-unknown EQUALITY-0 |
 | **The builder leg** (label-at-construction) | register T3/T4 | HUGEINT adopt-pending 108/130 (contract widens per testLargePlus; labels derive from the RELATION SCHEMA, needs builders not expr-sniffing) + Number-erasure wire residue (~73 PCT / ~179 corpus) |
 | **In-SQL equal() third lane** | audit #A2 | the X1–X4 treatment or three-lane pinning (see audit intake) |
 | **V8/X6 2-ULP retirement** | register | `ulp-policy=0` across the whole corpus = the evidence it waited for; same-arithmetic H2 referee design briefed |

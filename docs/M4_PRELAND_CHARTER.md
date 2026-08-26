@@ -1279,10 +1279,35 @@ without `mvn -pl core install` first measures the OLD census code —
 the class-key format in the log is the tell. §4Z ledger #4 = CLOSED;
 the burn-down ledger list is EMPTY.
 
+**D EXECUTED (2026-08-26 — the D1 tripwire's FIRST CATCH was a real
+bug):** D2 first: every unknown path classed + witnessed; the corpus
+2 were zero-output frames and the pct 8 were dynamic-pivot frames —
+both NO-CLAIM by the walk's own doctrine (skipped, not forgiven);
+unknown = EQUALITY-0 on every lane. D1: int-or-null columns are
+WATCHED, not counted — probeWire registers candidates, the Executor's
+fetch funnel marks non-null driver objects, settleWire() adjudicates
+at statement end (valued = REAL diverge, rides the EQUALITY-0 pins;
+all-NULL = proven-empty, named + ceiling-pinned 56 corpus / 219 pct).
+The catch: 6 valued INTEGER wires under VARCHAR labels
+(testSQLQueryMergingForInnerJoins2, String-declared p3 over
+dTable.pk) — the member frames carried the mapping-seam tag all
+along, but SqlUnion's ctor rebuilt outputs from the pure contract
+and DROPPED it. Cure: union-label reconciliation in SqlUnion's
+compact ctor (the SqlSelect idiom on the other query node — uniform
+branch types adopt, tolerance and nullability transport); the 6 rows
+moved diverge → tolerated (wire 74→80, carried pin 9→15 justified),
+diverge EQUALITY-0 restored. Witness upgrade: settle witnesses carry
+the projection sketch + stored fact (the mechanism locator).
+
 **F. Guest-list completion (§4bZ-R):** LEGEND_LITE strict diagnostic
 (mismatched mapping = warning, strict flip LAST) + dialect-level
 scoping of carryThrough (the compat level as an enforcement point,
-at the dialect-levels leg).
+at the dialect-levels leg). **ADJUDICATED 2026-08-26: BOTH halves
+are sequenced behind the dialect-levels Compiler user/internal split
+(DIALECT_LEVELS.md's remaining candidate) — a warning today would
+fire on LEGEND-level engine fixtures (wrong audience; the corpus IS
+the mismatch traffic). The tolerated-ORIGIN census (108, per-pair
+classes) is the future warning's exact firing list.**
 
 **G. Standing named debts (older, still real):** G1 temporal-identity
 leg (mixed-precision dedup + the 287-row temporal skew class — §4A/
@@ -1296,6 +1321,27 @@ runtime decomposition (250s vs 63s pin) · G6 h2-exec standing lanes
 program's fuel) + canonical pin 27 leniencies · G7 corpus burn-down
 RESUME decision (paused 2333/2575 by user directive; resume queue in
 memory).
+
+**G PARTIAL EXECUTION (2026-08-26):** G2 DONE — the fixture-skew
+filing drafted as UPSTREAM_DEFECTS.md U19 (473 witnesses, the engine
+mechanism receipts inline). G3 DONE — both recorded undercounts
+fixed (schema-qualified creates strip to the bare table key;
+constraint-word column names disambiguate by the second token being
+a type) and the census PROMOTED to a pinned ceiling 473 (was 469
+pre-fix) in the corpus runner. G5 DONE (decomposition, the
+deliverable): gate-8's 254s = ParseSpeedBenchmarkTest 60s (a
+benchmark inside the gate) + CorpusSweepTest 44s (the actual parity
+sweep) + FIVE census classes ~124s (Pmcd 28 + GrammarCoverage 25 +
+GrammarKeyword 25 + ProtocolRoster 23 + CorpusCensus 23 — each
+independently re-parses the corpus) + ~15s build; the levers are a
+shared parsed-corpus fixture across censuses and/or moving the
+benchmark out of the standing chain — a ruling, not a sneak. G1
+(temporal identity) and G4 (Comparators.select typed-level
+recognition — today it pattern-matches LOWERED SqlExprs where stamps
+perturb shape equality; the cure is TypedLambda-level recognition)
+remain: each is a real design slice with its own referee; do not
+sandwich. G6/G7 are programs (R2 canonical / corpus resume), owned
+by the PROGRAM_MAP.
 
 Sequencing (recommended): A → C (mechanical adjudication) → B → D →
 E; F/G slot opportunistically or by ruling.
