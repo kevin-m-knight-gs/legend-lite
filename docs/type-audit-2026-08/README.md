@@ -12,8 +12,8 @@ real upstream repositories, two independent falsifiers, and a synthesis pass. Ev
 `CONFIRMED.md` was additionally re-derived and re-run by the orchestrator from an independent
 fixture, with output pasted.
 
-**Published report:** the narrative version of this audit is an Artifact; this directory is the
-evidence base.
+**Entry point:** [`../TYPE_SYSTEM_AUDIT_2026_08.md`](../TYPE_SYSTEM_AUDIT_2026_08.md) is the
+summary registered in `AUDITS.md`. This directory is the evidence base behind it.
 
 ## Files
 
@@ -22,6 +22,9 @@ evidence base.
 | `CONFIRMED.md` | 39 findings personally reproduced by the orchestrator, with pasted output, plus a CORRECTIONS section recording every claim withdrawn or amended — including the orchestrator's own. |
 | `MASTER.md` | The synthesized defect table: 105 distinct defects (S1 41, S2 27, S3 19, S4 12+1 META, S5 5), deduplicated ~5.9× from ~620 raw findings across 35 auditor reports plus both falsifiers, with 14 root causes and a per-stage map. |
 | `V1-falsifier.md`, `V2-falsifier.md` | Independent adjudication. 202 rulings between them: 185 CONFIRMED, 7 OVERSTATED, 2 NOT-REPRODUCED, 1 MISATTRIBUTED, 0 BY-DESIGN. |
+| `findings/` | The 35 per-area auditor reports, unedited — the deepest layer. One file per audited surface (Type algebra, multiplicity, subtyping, the inference kernel, the Typer, each checker family, the native registry, the typed HIR, phase-H resolution, the normalizer, lowering, scalar functions, the MIR, dialects, DDL/test-data, decode, graph/wire, protocol, lineage/plan, the statement executor, the public API), plus the fuzzer, the fallback census and the signature oracle. Their claims are superseded by `MASTER.md` where the two differ and by the falsifiers where they ruled. |
+| `data/` | Raw evidence: the 874-cell mapping matrix, the 1,549-cell scalar matrix, the 4,252-row fallback census, the full 721-signature registry dump, and the 8,305-line fuzz log. |
+| `harness/` | The probe used throughout, so any finding can be re-run. `HOWTO.md` explains it. |
 | `REMEDIATION.md` | 16 fix specs with the current lines quoted, blast radius grepped and a regression test written for each; the structural recommendation; the guard tests to extend rather than add; and an explicit don't-fix list. |
 
 ## Headline
