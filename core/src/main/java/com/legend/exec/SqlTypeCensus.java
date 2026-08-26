@@ -335,8 +335,8 @@ public final class SqlTypeCensus {
                     if (declared.nullable()) {
                         BOTTOM_OK.increment();
                     } else {
-                        String cls = "null-under-required-multiplicity: "
-                                + declared.type();
+                        String cls = "null-under-required-multiplicity["
+                                + bottomShape(e) + "]: " + declared.type();
                         BOTTOM_MULT.increment();
                         classify(cls);
                         sample(cls, declared.name() + " := " + sketch(e));
@@ -402,6 +402,18 @@ public final class SqlTypeCensus {
     private static String shapeOf(SqlExpr e) {
         return e instanceof SqlExpr.Call c ? "Call:" + c.fn()
                 : e.getClass().getSimpleName();
+    }
+
+    /** N0 (§4bZ-V E): the bottom-mult class key carries the expression
+     * SHAPE so the backlog decomposes BY CAUSE machine-counted —
+     * literal NullLit pads apart from NULL-propagating computations
+     * (the pad conclusion rested on 12 sampled witnesses before this
+     * key). Cast is transparent: a pad cast to its declared kind is
+     * still a pad. */
+    private static String bottomShape(SqlExpr e) {
+        return e instanceof SqlExpr.Cast c
+                ? "Cast(" + bottomShape(c.value()) + ")"
+                : shapeOf(e);
     }
 
     /** Same-package instruments (Executor's carrier-migration census)
@@ -513,6 +525,13 @@ public final class SqlTypeCensus {
 
     public static long mismatchCount() {
         return MISMATCH.sum();
+    }
+
+    /** Computed-NULL values under a required-multiplicity label — the
+     * nullability program's ledger (§4bZ-V E). Pinned per lane once
+     * the pad slots declare slot truth (N1/N2). */
+    public static long bottomMultCount() {
+        return BOTTOM_MULT.sum();
     }
 
     /** Projection roots the tree cannot type — RULE coverage debt

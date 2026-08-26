@@ -136,8 +136,9 @@ public final class PctCensusGate {
                 // the untyped DECOMPOSITION (the corpus lane's census
                 // display, brought to the pct lane 2026-08-25 — no
                 // silent caps: the ceiling is only adjudicable when
-                // every class is visible with witnesses)
-                SqlTypeCensus.classes(40).forEach(c -> System.out
+                // every class is visible with witnesses; 40 -> 100 at
+                // N0's bottom-mult SHAPE split, §4bZ-V E)
+                SqlTypeCensus.classes(100).forEach(c -> System.out
                         .println("[pct-census] class: " + c));
                 SqlTypeCensus.allSamples().forEach((cls, ws) ->
                         ws.forEach(w -> System.out.println(

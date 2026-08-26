@@ -604,8 +604,10 @@ public class RelationalCorpusRunner {
             // TAIL exactly when the flip needs every class adjudicable
             // (doctrine addendum: an instrument without a consumer is a
             // receipt without an audit — no silent caps on the review
-            // surface)
-            com.legend.exec.SqlTypeCensus.classes(60).forEach(c ->
+            // surface). 60 -> 120 (N0, §4bZ-V E): the bottom-mult key
+            // split by SHAPE — the smallest classes (6x DATE pads) must
+            // stay visible for the machine count.
+            com.legend.exec.SqlTypeCensus.classes(120).forEach(c ->
                     System.out.println("[rcorpus] sqltypes-class: " + c));
             com.legend.exec.SqlTypeCensus.allSamples().forEach((cls, ws) ->
                     ws.forEach(w -> System.out.println(
