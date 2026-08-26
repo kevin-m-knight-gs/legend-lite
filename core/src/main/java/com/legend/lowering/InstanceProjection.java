@@ -47,7 +47,9 @@ final class InstanceProjection {
 
     static SqlSelect lower(TypedProject p, List<OutputCol> outputs,
             BiFunction<TypedSpec, ColumnResolver, SqlExpr> scalar,
-            ColumnResolver noScope, Supplier<String> fresh) {
+            ColumnResolver noScope, Supplier<String> fresh,
+            java.util.function.Function<com.legend.compiler.element.type.Type,
+                    SqlType> sqlTypeOf) {
         List<TypedNewInstance> instances =
                 p.source() instanceof TypedCollection c
                         ? c.elements().stream()
@@ -57,7 +59,7 @@ final class InstanceProjection {
         List<SqlQuery> branches = new ArrayList<>(instances.size());
         for (var inst : instances) {
             branches.add(instanceSelect(inst, p.columns(), outputs,
-                    scalar, noScope, fresh));
+                    scalar, noScope, fresh, sqlTypeOf));
         }
         if (branches.size() == 1) {
             return (SqlSelect) branches.get(0);
@@ -69,7 +71,9 @@ final class InstanceProjection {
     private static SqlSelect instanceSelect(TypedNewInstance inst,
             List<TypedFuncCol> columns, List<OutputCol> outputs,
             BiFunction<TypedSpec, ColumnResolver, SqlExpr> scalar,
-            ColumnResolver noScope, Supplier<String> fresh) {
+            ColumnResolver noScope, Supplier<String> fresh,
+            java.util.function.Function<com.legend.compiler.element.type.Type,
+                    SqlType> sqlTypeOf) {
         SqlSource src = null;
         // ONE unnest per to-many PATH PREFIX (the NavPath-registry rule):
         // two colspecs over $x.addresses iterate the SAME collection — real
@@ -81,6 +85,8 @@ final class InstanceProjection {
         List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
         for (TypedFuncCol col : columns) {
             List<String> path = pathOf(col);
+            List<com.legend.compiler.element.type.Type> pathTypes =
+                    pathTypesOf(col);
             if (path == null) {
                 // COMPUTED column ($v.a + $v.b, coalesce($x.f, ...)): the row
                 // param's property accesses resolve to the instance's literal
@@ -138,11 +144,19 @@ final class InstanceProjection {
                         // the element type is the ARRAY's own (§4bZ-U:
                         // instance elements are structs — the old
                         // hardcoded VARCHAR left every elem read blind);
-                        // VARCHAR stays the untyped-array legacy default
+                        // an EMPTY collection takes the segment's
+                        // DECLARED element type from the colspec BODY
+                        // (pathTypesOf — the empty literal itself types
+                        // Nil, which re-guessed VARCHAR:
+                        // testSimpleProject's empty `values` side, the
+                        // last §4bZ-U pct row)
                         SqlType elemT = array.type()
                                 instanceof com.legend.sql.TypeFact.Typed t
                                 && t.type() instanceof SqlType.Array at
-                                ? at.element() : SqlType.Scalar.VARCHAR;
+                                ? at.element()
+                                : sqlTypeOf.apply(pathTypes != null
+                                        ? pathTypes.get(i)
+                                        : many.info().type());
                         SqlSource right = Fold.lateralElem(array,
                                 elemT, fresh.get(), alias);
                         src = src == null
@@ -185,6 +199,34 @@ final class InstanceProjection {
     /** A colspec body as a bare property path (null = computed). A
      * path IS a chain of auto-maps: plain access OR single-hop map
      * node (ValueCollections.autoMapHop). */
+    /** The DECLARED pure type per path segment, parallel to
+     * {@link #pathOf} — read off the colspec BODY's own node infos
+     * ({@code $x.values} types as the property's element class). The
+     * instance walk cannot supply these: an EMPTY collection literal
+     * types Nil, which VARCHAR-guessed the lateral element (the last
+     * §4bZ-U pct row, testSimpleProject's empty side). */
+    private static @com.legend.Nullable List<com.legend.compiler.element
+            .type.Type> pathTypesOf(TypedFuncCol col) {
+        String param = col.fn().parameters().get(0);
+        ArrayDeque<com.legend.compiler.element.type.Type> types =
+                new ArrayDeque<>();
+        TypedSpec cur = col.fn().body().get(col.fn().body().size() - 1);
+        while (true) {
+            if (cur instanceof TypedPropertyAccess pa) {
+                types.addFirst(pa.info().type());
+                cur = pa.source();
+            } else if (ValueCollections.autoMapHop(cur) instanceof String h) {
+                types.addFirst(cur.info().type());
+                cur = ((TypedMap) cur).source();
+            } else break;
+        }
+        if (!(cur instanceof TypedVariable v) || !v.name().equals(param)
+                || types.isEmpty()) {
+            return null;
+        }
+        return List.copyOf(types);
+    }
+
     private static @com.legend.Nullable List<String> pathOf(TypedFuncCol col) {
         String param = col.fn().parameters().get(0);
         ArrayDeque<String> path = new ArrayDeque<>();

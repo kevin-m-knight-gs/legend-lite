@@ -624,7 +624,8 @@ public final class Lowerer {
             // an empty array NULLs its column instead of killing the row).
             case TypedProject p when VariantShapes.isInstanceLiteral(p.source()) ->
                     InstanceProjection.lower(p, outputsOf(p.info()),
-                            this::scalar, noScope(), this::nextAlias);
+                            this::scalar, noScope(), this::nextAlias,
+                            this::sqlTypeOf);
 
             case TypedProject p -> project(relation(p.source()),
                     p.columns(), p.info(), p.wireForm());

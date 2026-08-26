@@ -84,12 +84,16 @@ public final class PctCensusGate {
     // value one carrier, the hetero-literal doctrine), the dedup
     // typedList door (empty removeDuplicates), and the
     // InstanceProjection elem stamp (the hardcoded-VARCHAR lateral).
-    // THE 1 = StructGet('val') over an elem the many-column lateral
-    // stamped via the schema STRING FALLBACK
-    // (Lowerer's manyCols arm, .orElse(STRING)) — the fallback is a
-    // recorded guess and the next lead; ChannelB-context tags on pct
-    // witnesses are unreliable (channel A never sets CONTEXT).
-    private static final long MAX_UNTYPED = H2 ? 17 : 1;
+    // 1 -> 0 (2026-08-26): the last row was testSimpleProject's EMPTY
+    // `values` collection — an empty literal types Nil, so the
+    // instance-projection lateral VARCHAR-guessed its element under a
+    // StructGet('val'); the element type now comes from the colspec
+    // BODY's own declared segment types
+    // (InstanceProjection.pathTypesOf). ZERO on both lanes — HARDENED
+    // TO EQUALITY: a new untyped root is a regression, witness in the
+    // failure message. (ChannelB-context tags on pct witnesses are
+    // unreliable — channel A never sets CONTEXT; capture TREES.)
+    private static final long MAX_UNTYPED = H2 ? 17 : 0;
     // diverge 78 -> 46 -> 45 (measured with the §4bZ-U legs:
     // emission-true pivot stamps + REM labels + the variant-carrier
     // concat heal wire agreement; the pct-lane wire ledgers'

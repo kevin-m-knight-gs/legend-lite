@@ -992,7 +992,15 @@ before any fix):**
   named-read pin flipped 0 -> 1 probe with the ruling recorded).
   JavaEvalLedger 48 -> 52 justified (schema plumbing beside the
   probe).
-- **pct untyped 20 -> 1** (pinned; diverge 46 -> 45 rode along).
+- **pct untyped 20 -> 1 -> 0, HARDENED TO EQUALITY** (2026-08-26;
+  diverge 46 -> 45 rode along). The last row was testSimpleProject's
+  EMPTY `values` collection: an empty literal types Nil, so the
+  instance-projection lateral VARCHAR-guessed its element under a
+  StructGet('val') — the element type now comes from the colspec
+  BODY's own declared segment types (InstanceProjection.pathTypesOf;
+  first cut read the empty literal's own info and re-guessed via
+  Nil->VARCHAR — the LITERAL's type is never the DECLARED type).
+  **LEDGER #3 IS AT TRUE ZERO ON BOTH LANES.**
   All 20 trees captured; mechanisms, each probed or receipt-driven:
   property reads over stamped params (the foldResolver/
   mapElemResolver struct-field arms — $p1.lastName was a plain
