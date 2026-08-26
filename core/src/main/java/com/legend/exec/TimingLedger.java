@@ -44,6 +44,14 @@ public final class TimingLedger {
                     e.getValue().get() / 1e9,
                     n == null ? 0 : n.get()));
         }
+        // ALSO print (the census idiom): the file write below resolved
+        // against the fork's working dir and failed SILENTLY on the
+        // corpus lane for weeks (root has no target/) — the G4 phase
+        // breakdown was vanishing exactly when timing questions came
+        // up. The log line survives any working dir.
+        for (String line : sb.toString().split("\n")) {
+            System.out.println("[timing] " + line);
+        }
         try {
             java.nio.file.Files.writeString(
                     java.nio.file.Path.of("target", "timing-ledger.txt"),
