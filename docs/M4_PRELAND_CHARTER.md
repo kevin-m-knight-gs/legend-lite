@@ -1064,6 +1064,22 @@ JSON-as-text (3584, corpus-dominant — the conform-by-emission cast,
 golden-text-gated per the arm's own note). End state unchanged:
 admissible() EMPTY, two named proven relations.
 
+**B1+B2 EXECUTED (2026-08-26):** B1 landed 07805eae (dead arm
+deleted, chain-proven free). B2: the two subsumption arms re-homed
+to the NAMED relation SqlTyping.subsumes (lossless
+subtype-in-supertype slot — TIMESTAMP←DATE at the abstract-Date
+erasure, same-scale Decimal widening), consulted by reconcileLabels
+AND admissibleWire (the wire side had to follow or the 673+61
+delivered rows would flip to diverge). Round-trip receipts in
+SubsumptionWitnessTest, each reproducing the census's dominant
+traffic shape: adjust() on a StrictDate decodes DAY-precision under
+the TIMESTAMP label (never a midnight timestamp), abs(-1.5D)
+decodes the exact (2,1) BigDecimal under the (38,1) label — the
+Executor fetch switch is driver-object-kind-keyed, so labels never
+coerce values. Census now counts subsumed= apart from admissible=,
+so the admissible bucket holds ONLY the two representation carriers
+awaiting B3/B4.
+
 **C. PCT-LANE WIRE LEDGERS — NEWLY OWNED (the audit's main find):
 never adjudicated.** Measured 2026-08-25: adopt-pending 94 (ceiling
 101), diverge 54 (ceiling 78) — the corpus twins were burned to

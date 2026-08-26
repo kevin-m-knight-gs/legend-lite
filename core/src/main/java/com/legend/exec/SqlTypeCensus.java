@@ -42,6 +42,11 @@ public final class SqlTypeCensus {
 
     private static final LongAdder PLANS = new LongAdder();
     private static final LongAdder AGREE = new LongAdder();
+    /** Lossless subtype-in-supertype slots ({@link SqlTyping#subsumes}
+     * — §4bZ-V B2): counted apart from {@link #ADMISSIBLE} so the
+     * admissible bucket holds ONLY the representation carriers still
+     * awaiting their modeled-carrier legs (B3/B4). */
+    private static final LongAdder SUBSUMED = new LongAdder();
     private static final LongAdder ADMISSIBLE = new LongAdder();
     /** Engine-compat carry-through slots (§4bZ): declared label kept
      * over a mismatched wire because the read carried the mapping
@@ -212,7 +217,8 @@ public final class SqlTypeCensus {
      * pairs as {@link #admissible} (label may be delivered by its
      * convention carrier). */
     private static boolean admissibleWire(SqlType label, SqlType meta) {
-        return admissible(label, meta);
+        return admissible(label, meta)
+                || SqlTyping.subsumes(label, meta);
     }
 
     private static @com.legend.Nullable SqlType metaToType(String meta) {
@@ -357,6 +363,12 @@ public final class SqlTypeCensus {
                         sample(cls, declared.name() + " := " + sketch(e));
                     } else if (t.type().equals(declared.type())) {
                         AGREE.increment();
+                    } else if (SqlTyping.subsumes(declared.type(),
+                            t.type())) {
+                        String cls = "subsumed " + declared.type()
+                                + " <- " + t.type();
+                        SUBSUMED.increment();
+                        classify(cls);
                     } else if (admissible(declared.type(), t.type())) {
                         String cls = "admissible " + declared.type()
                                 + " <- " + t.type();
@@ -522,6 +534,7 @@ public final class SqlTypeCensus {
 
     public static String summary() {
         return "plans=" + PLANS.sum() + " cols: agree=" + AGREE.sum()
+                + " subsumed=" + SUBSUMED.sum()
                 + " admissible=" + ADMISSIBLE.sum()
                 + " tolerated=" + TOLERATED.sum()
                 + " bottom-ok=" + BOTTOM_OK.sum()

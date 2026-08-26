@@ -131,6 +131,7 @@ public final class SqlTyping {
                 continue;
             }
             if (computed.equals(oc.type())
+                    || subsumes(oc.type(), computed)
                     || admissible(oc.type(), computed) || tol) {
                 continue;
             }
@@ -198,13 +199,11 @@ public final class SqlTyping {
                 && computed == SqlType.Scalar.VARCHAR) {
             return true;
         }
-        // SUBSUMPTION at the abstract-Date slot (F5.4): the TIMESTAMP
-        // label is where abstract Date erases; a StrictDate value's
-        // DATE wire is a subtype in a supertype slot
-        if (declared == SqlType.Scalar.TIMESTAMP
-                && computed == SqlType.Scalar.DATE) {
-            return true;
-        }
+        // (The SUBSUMPTION arms — TIMESTAMP <- DATE and same-scale
+        // Decimal widening — RE-HOMED 2026-08-26 to {@link #subsumes}:
+        // lossless subtype-in-supertype-slot relations with round-trip
+        // decode witnesses, not representation excuses. Charter
+        // §4bZ-V B2.)
         // (The NUMBER-slot identity-text arm — DOUBLE <- VARCHAR —
         // was DELETED 2026-08-26: the B1 census measured ZERO traffic
         // on both lanes, label-side and wire-side; the mixed-identity
@@ -231,8 +230,29 @@ public final class SqlTyping {
         // retiring with the landing.)
         // (The pure-Decimal erasure rows now ADOPT the wire's own
         // precision — strictly more truthful, decode-identical.)
-        // Decimal WIDENING is lossless: a narrower computed decimal
-        // fits any wider label at the same scale
+        return false;
+    }
+
+    /** THE SUBSUMPTION RELATION (§4bZ-V B2, re-homed from
+     * {@link #admissible} 2026-08-26): a value of the computed kind in
+     * a slot of the declared kind LOSES NOTHING — subtype wire in
+     * supertype slot, proven by round-trip decode witnesses
+     * (SubsumptionWitnessTest: the decode under the supertype label is
+     * IDENTICAL to the subtype's own decode — the Executor fetch
+     * switch is driver-object-kind-keyed, so the label never coerces
+     * the value). Distinct from {@link #admissible} (deliberate
+     * REPRESENTATION carriers) and {@link #carryThrough} (tag-gated
+     * engine compat): nothing here is forgiven, the relation is the
+     * type system's own subtyping made visible. */
+    public static boolean subsumes(SqlType declared, SqlType computed) {
+        // the abstract-Date slot (F5.4): TIMESTAMP is where abstract
+        // Date erases; a StrictDate value's DATE wire is the subtype
+        if (declared == SqlType.Scalar.TIMESTAMP
+                && computed == SqlType.Scalar.DATE) {
+            return true;
+        }
+        // same-scale Decimal widening: a narrower computed decimal
+        // fits any wider label at the same scale — value-identical
         return declared instanceof SqlType.Decimal d
                 && computed instanceof SqlType.Decimal c2
                 && d.scale() == c2.scale()

@@ -264,6 +264,11 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/integration/StressTestComplexQueries.java",
             "core/src/test/java/com/legend/integration/StressTestDense.java",
             "core/src/test/java/com/legend/integration/StructFilterIntegrationTest.java",
+            // §4bZ-V B2 subsumption receipts: the round-trip decode
+            // witnesses MUST execute on the real backend (tenet #1 —
+            // the database executes; a Java-side re-derivation would
+            // prove nothing about the wire)
+            "core/src/test/java/com/legend/integration/SubsumptionWitnessTest.java",
             "core/src/test/java/com/legend/integration/TypeConversionCheckerTest.java",
             "core/src/test/java/com/legend/integration/TypeInferenceIntegrationTest.java",
             "core/src/test/java/com/legend/integration/UserFunctionIntegrationTest.java",
