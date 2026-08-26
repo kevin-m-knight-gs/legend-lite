@@ -330,3 +330,35 @@ not exist. Revisit after A and B land.
 6. Correctness gate = scoreboard counts unchanged vs a baseline from the **same engine revision**,
    plus core / engine / pct suites at their known baselines (engine's 20 failures + 3 errors are
    **pre-existing** — they reproduce at `85ff6c8a`).
+
+---
+
+## 2026-08-26 ADDENDUM — the G4-grows-while-G5-stays-flat question, answered `[measured]`
+
+TimingLedger's G4 dump had been writing to a working-dir-relative path
+and failing SILENTLY (fixed 3ef2eb4a — it now prints into the log);
+three new sections (ctx.module / seed.replay / engine.exec) complete
+the wall attribution. One G4 + one G5 run, same tree, same roots:
+
+| section | G4 DuckDB (135s wall) | G5 H2 (34s wall) |
+|---|---:|---:|
+| seed.replay | **88.2s** — 2,434 calls, **979,672 raw stmts** (67.7s raw + 10.4s DDL) | 6.9s — 2,434 calls, 336,197 stmts (1.4s raw) |
+| engine.exec (executor body) | 39.1s (n=2,355) | — (within 34s wall) |
+| ├ query.exec (all DB queries) | 6.9s (n=24,529) | — |
+| ├ h2-mirror + golden + xlate | ~9.0s | n/a |
+| └ remainder (compile/lower/assert) | ~26s | — |
+| ctx.module + overlay + session | ~3.7s | — |
+
+**Verdict:** DuckDB query execution is NOT the cost (0.28ms/query).
+The wall is 65% SEED REPLAY — ~1M raw statements at DuckDB's
+per-statement parse+plan+JNI price (~0.07ms/stmt vs H2's ~0.004);
+G4's raw-statement volume also runs ~3× G5's (the DuckDB lane's
+session/mirror composition replays more). Growth mechanism: statement
+count scales with passing tests and session resets, so every corpus
+gain buys wall time at DuckDB prices while the H2 lane's 17× cheaper
+statements keep G5 visually flat. This RECONCILES with §6.1's
+unimplemented "re-keying saves ~88s" `[derived]` — today's measured
+seed.replay is 88.2s. **The lever is #112 per-family seeding** (seed
+once per family session, not per test) — sized by BOTH investigations
+at ~85% of the seed bucket; secondary lever: the executor-body ~26s
+compile/lower/assert remainder (split further only if attacked).

@@ -1357,8 +1357,16 @@ public final class Runner {
             }
         }
         try {
+            // G4-vs-G5 wall attribution (user-ordered timing program):
+            // the ledger's four sections + query.exec decompose
+            // test.wall into module assembly / seeding / executor body
+            // / DB execution / mirror — the unattributed remainder is
+            // compile+lower+assert.
+            long tCtx0 = System.nanoTime();
             com.legend.compiler.element.ModelContext ctx =
                     moduleContextFor(moduleRefs, fileOnlyRefs);
+            com.legend.exec.TimingLedger.add("ctx.module",
+                    System.nanoTime() - tCtx0);
             // the FAMILY session when one is open AND this test's DDL
             // scope agrees with the session's established shapes; a
             // conflicting test gets a PRIVATE session (old per-test
@@ -1389,8 +1397,11 @@ public final class Runner {
                 recording.addAll(0, familySeedLedger);
             }
             try {
+                long tSeed0 = System.nanoTime();
                 List<String> failedSeeds = replaySeeds(t.fqn(), moduleRefs,
                         ctx, conn, shared);
+                com.legend.exec.TimingLedger.add("seed.replay",
+                        System.nanoTime() - tSeed0);
                 seedFailures.addAll(failedSeeds);
                 if (System.getenv("LL_TMP_DEBUG") != null
                         || System.getenv("LL_ORD_COUNT") != null) {
@@ -1399,9 +1410,12 @@ public final class Runner {
                     System.err.println("[run] " + t.fqn());
                 }
                 long rescued0 = com.legend.harness.H2Verify.M1_RESCUED.sum();
+                long tExec0 = System.nanoTime();
                 com.legend.harness.EngineTestExecutor.Outcome o = com.legend.harness.EngineTestExecutor.run(
                         ctx, body, importScopeOf(t), "rcorpus::Rt",
                         conn, !failedSeeds.isEmpty(), failedSeeds);
+                com.legend.exec.TimingLedger.add("engine.exec",
+                        System.nanoTime() - tExec0);
                 // body-time setup failures (added via the sink DURING the
                 // run) join the run-wide report too (audit 17)
                 seedFailures.addAll(failedSeeds);
