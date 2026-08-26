@@ -18,6 +18,20 @@ two executed.
 | [`TEXT_SURGERY_AUDIT_2026_08.md`](TEXT_SURGERY_AUDIT_2026_08.md) | Every regex and string-manipulation site, censused exhaustively. |
 | [`ARCHITECTURE_AUDIT_2026_08.md`](ARCHITECTURE_AUDIT_2026_08.md) | 12 feature areas: did we build the right design, or fix point tests with point solutions? |
 
+### The 2026-08 type-system round
+
+| Doc | Covers |
+|---|---|
+| [`TYPE_SYSTEM_AUDIT_2026_08.md`](TYPE_SYSTEM_AUDIT_2026_08.md) | The type system end to end — source text through every pipeline stage to decoded results. 105 defects, 14 root causes. Finding: the type system computes types rigorously and then does not enforce them. A `[1]` multiplicity is violated in 117 of 117 executable cells of an exhaustive mapping matrix, **including the matched diagonal**. Evidence base in [`type-audit-2026-08/`](type-audit-2026-08/); fixes in its `REMEDIATION.md`. |
+
+Two results in that round bear on documents elsewhere in this index. First, the native catalog
+diverges from real FINOS Legend in **183 of 721 signatures (25.4%)**, measured against 24,172
+declarations from cloned upstream repositories — so `Pure.java`'s "VERBATIM … NO divergence
+categories remain" header is false, and `NativeFunctionTest.catalogMatchesTheGoldenFile` cannot
+detect it because it compares `Pure.all()` to a file generated from `Pure.all()`. Second, the suite
+is green (4,278 tests) and structurally blind to the defects: of 1,671 end-to-end test methods,
+exactly one relates a declared column type to the delivered Java carrier.
+
 Also present and not previously indexed: [`PERFORMANCE_AUDIT.md`](PERFORMANCE_AUDIT.md),
 [`PCT_AUDIT.md`](PCT_AUDIT.md), [`NAME_RESOLUTION_BUG.md`](NAME_RESOLUTION_BUG.md),
 [`SIMPLE_NAME_AUDIT.md`](SIMPLE_NAME_AUDIT.md) (superseded), and the dated
