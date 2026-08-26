@@ -103,9 +103,32 @@ public final class SqlTyping {
         List<OutputCol> os = null;
         for (int p = shift == 0 ? 0 : 1; p < projections.size(); p++) {
             int i = shift == 0 ? p : shift + (p - 1);
-            if (!(projections.get(p).expr().type()
-                    instanceof TypeFact.Typed t)) {
-                continue;   // unknown/bottom wires keep the contract
+            SqlExpr pe = projections.get(p).expr();
+            // N1 (§4bZ-V E, the nullability program): a projected
+            // LITERAL NULL declares its slot nullable — the slot truth,
+            // known at construction. Union member threads pad the other
+            // members' columns with literal NULL under the ORIGINAL
+            // column's required multiplicity (the NULL is correct, the
+            // label lied; N0 machine-counted the whole 6,472-row corpus
+            // backlog as exactly this shape). The pure-level [1]
+            // contract is untouched — member merging restores presence
+            // above the pads. Computed bottoms (NULL-propagating
+            // expressions) keep the contract and stay counted in the
+            // census ledger.
+            if (pe instanceof SqlExpr.NullLit) {
+                OutputCol nc = outputs.get(i);
+                if (!nc.nullable()) {
+                    if (os == null) {
+                        os = new java.util.ArrayList<>(outputs);
+                    }
+                    os.set(i, new OutputCol(nc.name(), nc.type(), true,
+                            nc.tolerated()));
+                }
+                continue;
+            }
+            if (!(pe.type() instanceof TypeFact.Typed t)) {
+                continue;   // unknown/computed-bottom wires keep the
+                            // contract
             }
             OutputCol oc = outputs.get(i);
             SqlType computed = t.type();

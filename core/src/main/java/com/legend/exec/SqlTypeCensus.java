@@ -318,20 +318,16 @@ public final class SqlTypeCensus {
             TypeFact v = e.type();
             switch (v) {
                 case TypeFact.Bottom b -> {
-                    // ADJUDICATED (user challenge 2026-08-23): today the
-                    // nullable flag MEANS "the pure multiplicity is
-                    // required" (PureSql.nullable is its only writer) —
-                    // it is NOT a wire-nullability contract, so a
-                    // padding NULL under it is not a lie; it is the
-                    // measured DIVERGENCE between multiplicity-derived
-                    // labels and wire NULLs (union set-pk pads, subtype
-                    // markers — engine-side these are unlabeled
-                    // plumbing). The T4 flip re-labels WHOLESALE to
-                    // wire meaning — one meaning change, one owner;
-                    // this bucket is that flip's measured backlog,
-                    // never a per-site fixer's hunting ground (the
-                    // rejected NullPadLabels pass: builder+fixer split,
-                    // mixed-meaning flags).
+                    // §4bZ-V E (supersedes the 2026-08-23 T4-flip
+                    // framing): a projected LITERAL NULL declares its
+                    // slot nullable at construction (the
+                    // reconcileLabels arm — the frame's own ctor, one
+                    // owner, never the rejected builder+fixer split),
+                    // so a NullLit lands in bottom-ok by construction.
+                    // Every row COUNTED here is a COMPUTED bottom (a
+                    // NULL-propagating expression) under a required
+                    // label — the live tripwire, pinned per lane at
+                    // the adjudicated residue (EQUALITY 0 at N2).
                     if (declared.nullable()) {
                         BOTTOM_OK.increment();
                     } else {
