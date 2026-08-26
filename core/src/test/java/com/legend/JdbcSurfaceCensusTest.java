@@ -140,6 +140,11 @@ class JdbcSurfaceCensusTest {
             // e2e over a DuckDB session (size/at/toOne must agree ON THE
             // DATABASE — the bug was SQL-vs-egress disagreement)
             "core/src/test/java/com/legend/lowering/OptionalCollectionNullDropTest.java",
+            // Part-1 silent-value witnesses (2026-08-26): the divide-by-
+            // zero raise, times() integer kind, []->map empty, and the
+            // missing-required rejection pin e2e VALUE semantics — the
+            // executed result IS the assertion (the BurnLaneTest form)
+            "core/src/test/java/com/legend/lowering/Part1SemanticsTest.java",
             // slice-3 exit criterion: byte-decidable Any equality pins
             // execute ON THE DATABASE (dedup verdicts computed in SQL —
             // the carrier's disjoint spellings are the assertion)

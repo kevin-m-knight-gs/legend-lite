@@ -2747,27 +2747,11 @@ public final class Lowerer {
             // not 3 nested lists) — same TypedCollection-body policy as the
             // relation->map value-collection arm below.
             case TypedMap m
-                    when !Type.relationValued(m.source().info()) -> {
-                // ListEncodings.map owns the wire-shape policy (types
-                // drive construction: scalar sources wrap, scalar results
-                // unwrap, [0..1] null-guards). The mapper's param stamps
-                // as the source's element (§4bZ-U leg 2 — the map
-                // element door, LambdaBinding.mapMapper).
-                SqlExpr mSrc = scalar(m.source(), columns);
-                boolean mToOne = !isMany(m.source());
-                yield ListEncodings.map(
-                        mSrc,
-                        LambdaBinding.mapMapper(this, m, mSrc, mToOne,
-                                columns),
-                        mToOne,
-                        m.source().info().multiplicity()
-                                        instanceof Multiplicity.Bounded sb
-                                && sb.lower() == 0,
-                        m.info().multiplicity()
-                                        instanceof Multiplicity.Bounded rb
-                                && rb.upper() != null && rb.upper() == 1,
-                        ValueCollections.isCollectionMapper(m.mapper()));
-            }
+                    when !Type.relationValued(m.source().info()) ->
+                    // the wire-shape policy AND the [0..0]-empty arm live
+                    // with their owner (ListEncodings.lowerMap — the
+                    // shape-limit seam split)
+                    ListEncodings.lowerMap(this, m, columns);
 
             // Variant navigation: get(v, key) -> JSON access. The MAP
             // overload of the same bare name lowers through its own rule.

@@ -34,6 +34,37 @@ final class ListEncodings {
      * null-guards both ways: map over EMPTY is EMPTY, never
      * {@code f(NULL)}.
      */
+    /** The scalar-channel {@code TypedMap} lowering — moved from the
+     * Lowerer at the shape limit (the numbered-seam split): the
+     * wire-shape policy's own front door. {@code []->map(f) == []}
+     * (Part-1 fix, 2026-08-26): a [0..0] source is the EMPTY value —
+     * NullLit, the TypedCollection-empty convention (mapping over it
+     * tripped the ONE-STAMP/LIST-SHAPE invariant). The mapper's param
+     * stamps as the source's element (§4bZ-U leg 2,
+     * LambdaBinding.mapMapper). */
+    static SqlExpr lowerMap(Lowerer lw,
+            com.legend.compiler.spec.typed.TypedMap m,
+            com.legend.lowering.Resolvers.ColumnResolver columns) {
+        var mult = m.source().info().multiplicity();
+        if (mult instanceof com.legend.compiler.element.type.Multiplicity
+                .Bounded z && z.upper() != null && z.upper() == 0) {
+            return new SqlExpr.NullLit();
+        }
+        SqlExpr mSrc = lw.scalar(m.source(), columns);
+        // requireBounded: a VAR stamp surviving to lowering stays LOUD
+        // (the Lowerer.isMany contract this call replaced)
+        boolean mToOne = !mult.requireBounded("lowering").isMany();
+        return map(mSrc,
+                LambdaBinding.mapMapper(lw, m, mSrc, mToOne, columns),
+                mToOne,
+                mult instanceof com.legend.compiler.element.type
+                        .Multiplicity.Bounded sb && sb.lower() == 0,
+                m.info().multiplicity() instanceof com.legend.compiler
+                        .element.type.Multiplicity.Bounded rb
+                        && rb.upper() != null && rb.upper() == 1,
+                ValueCollections.isCollectionMapper(m.mapper()));
+    }
+
     static SqlExpr map(SqlExpr src, SqlExpr lam, boolean srcOne,
             boolean srcNullable, boolean resultOne, boolean collectionMapper) {
         boolean alreadyList = src instanceof SqlExpr.ArrayLit

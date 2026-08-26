@@ -93,13 +93,25 @@ public record ClassDefinition(
             TypeExpression type,
             Multiplicity multiplicity,
             List<StereotypeApplication> stereotypes,
-            List<TaggedValue> taggedValues) {
+            List<TaggedValue> taggedValues,
+            boolean hasDefault) {
         public PropertyDefinition {
             Objects.requireNonNull(name, "Property name cannot be null");
             Objects.requireNonNull(type, "Property type cannot be null");
             Objects.requireNonNull(multiplicity, "Property multiplicity cannot be null");
             stereotypes = stereotypes == null ? List.of() : List.copyOf(stereotypes);
             taggedValues = taggedValues == null ? List.of() : List.copyOf(taggedValues);
+        }
+
+        /** Pre-default-flag arity (a defaulted declaration like the
+         * engine's {@code distinct: Boolean[1] = false} exempts the
+         * property from ^new's missing-required validation — pure
+         * NewValidator parity). */
+        public PropertyDefinition(String name, TypeExpression type,
+                Multiplicity multiplicity,
+                List<StereotypeApplication> stereotypes,
+                List<TaggedValue> taggedValues) {
+            this(name, type, multiplicity, stereotypes, taggedValues, false);
         }
     }
 

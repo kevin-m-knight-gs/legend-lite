@@ -64,6 +64,50 @@ final class NewChecker {
                 new ExprType(st, Multiplicity.Bounded.ONE));
     }
 
+    /** Every STORED required property of the class hierarchy must be
+     * supplied — real pure's NewValidator:132 compile rejection.
+     * Association-injected properties are structurally absent from
+     * {@code properties()} (resolved from the association index —
+     * pure's own Association skip); a multiplicity admitting 0 is
+     * optional; the AllVersions ctor key supplies its base; the
+     * generated-source escape ({@link Env#lenientNew}) exempts
+     * mapping-synth ctors exactly as pure exempts generated sources. */
+    private static void requireAllRequired(Typer t, NewInstance ni) {
+        java.util.Set<String> supplied = new java.util.HashSet<>();
+        ni.properties().forEach(kb -> {
+            String k = kb.key();
+            supplied.add(k.endsWith("AllVersions")
+                    ? k.substring(0, k.length() - "AllVersions".length())
+                    : k);
+        });
+        java.util.ArrayDeque<String> walk = new java.util.ArrayDeque<>();
+        java.util.Set<String> seenClasses = new java.util.HashSet<>();
+        walk.add(ni.className());
+        while (!walk.isEmpty()) {
+            String cf = walk.poll();
+            if (!seenClasses.add(cf)) {
+                continue;
+            }
+            var tc = t.model().findClass(cf);
+            if (tc.isEmpty()) {
+                continue;
+            }
+            for (Property p : tc.get().properties()) {
+                if (p instanceof Property.Stored s
+                        && !supplied.contains(s.name())
+                        && !s.hasDefault()
+                        && s.multiplicity() instanceof Multiplicity.Bounded b
+                        && b.lower() >= 1) {
+                    throw new TypeInferenceException(
+                            "Missing value(s) for required property '"
+                            + s.name() + "' which has a multiplicity of "
+                            + b.text() + " for type " + ni.className());
+                }
+            }
+            walk.addAll(tc.get().superClassFqns());
+        }
+    }
+
     static TypedSpec check(Typer t, NewInstance ni, Env env) {
         if (t.model().findClass(ni.className()).isEmpty()) {
             throw new TypeInferenceException("unknown class '" + ni.className() + "' in ^" + ni.className() + "(…)");
@@ -126,6 +170,17 @@ final class NewChecker {
             }
             properties.put(name, value);
         });
+        // MISSING-REQUIRED validation (Part-1 fix, 2026-08-26 — real
+        // pure's NewValidator:132 rejects at COMPILE time; our lowering
+        // was emitting a NULL slot that flowed to a silent null value
+        // at access). STORED properties only, hierarchy-walked;
+        // association-injected properties are structurally absent from
+        // properties() (resolved from the association index at lookup
+        // — pure's own Association skip); a multiplicity admitting 0
+        // is optional. The AllVersions ctor key supplies its base.
+        if (!env.lenientNew()) {
+            requireAllRequired(t, ni);
+        }
         // PARAMETERIZED platform classes: ^Pair(first=..., second=...) types
         // as Pair<t(first), t(second)> — its generic params ARE its property
         // types; a raw ClassType broke zip-over-pair-literals at the

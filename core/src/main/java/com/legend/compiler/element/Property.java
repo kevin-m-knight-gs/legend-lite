@@ -46,15 +46,23 @@ public sealed interface Property permits Property.Stored, Property.Derived {
      * navigation properties are never keys (they are not declared on
      * the class body). */
     record Stored(String name, Type type, Multiplicity multiplicity,
-                  boolean equalityKey) implements Property {
+                  boolean equalityKey, boolean hasDefault) implements Property {
         public Stored {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(type, "type");
             Objects.requireNonNull(multiplicity, "multiplicity");
         }
 
+        /** A defaulted declaration ({@code distinct: Boolean[1] =
+         * false}) exempts the property from ^new's missing-required
+         * validation — pure NewValidator parity. */
+        public Stored(String name, Type type, Multiplicity multiplicity,
+                      boolean equalityKey) {
+            this(name, type, multiplicity, equalityKey, false);
+        }
+
         public Stored(String name, Type type, Multiplicity multiplicity) {
-            this(name, type, multiplicity, false);
+            this(name, type, multiplicity, false, false);
         }
     }
 

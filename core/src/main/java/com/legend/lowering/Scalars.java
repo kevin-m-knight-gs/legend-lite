@@ -379,7 +379,9 @@ final class Scalars {
         // Integer arithmetic near the INT64 edge computes in HUGEINT
         // (2 * maxLong is a real PCT value).
         for (String f : Pure.nativeKeysAt("divide")) {
-            // Decimal kind preservation lives in DecimalKindRules (X-audit)
+            // Decimal kind preservation lives in DecimalKindRules
+            // (X-audit); the integer÷integer zero guard lives there too
+            // (Part-1 fix — pure's BigDecimal lane raises)
             RULES.put(f, DecimalKindRules::divide);
         }
         family(SqlFn.MOD, "mod");

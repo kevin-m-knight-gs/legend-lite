@@ -1315,7 +1315,7 @@ class TypeCheckerTest {
         assertEquals("test::Firm", ((Type.ClassType) n.info().type()).fqn());
 
         TypedSpec mapped = typeQuery("test::Person.all()->map(p | ^test::Person("
-                + "name = $p.name,"
+                + "name = $p.name, age = $p.age,"
                 + " firm = navigate(test::Firm.all(), {f | $f.legalName == $p.name})))");
         assertEquals("test::Person", ((Type.ClassType) mapped.info().type()).fqn());
     }
@@ -1378,12 +1378,16 @@ class TypeCheckerTest {
         assertThrows(TypeInferenceException.class,
                 () -> typeQuery("^test::Person(name = 'a'->first())"));
         // ...and the explicit coercion conforms.
-        TypedSpec t = typeQuery("^test::Person(name = 'a'->first()->toOne())");
+        TypedSpec t = typeQuery("^test::Person(name = 'a'->first()->toOne(),"
+                + " age = 1, firm = navigate(test::Firm.all(),"
+                + " {f | $f.legalName == 'ACME'}))");
         assertEquals("test::Person", ((Type.ClassType) t.info().type()).fqn());
         // ...and a value that is ALREADY [1] needs no coercion — the [0..1]
         // above comes from first()'s signature (T[*] -> T[0..1]), not from
         // the literal.
-        TypedSpec lit = typeQuery("^test::Person(name = 'a')");
+        TypedSpec lit = typeQuery("^test::Person(name = 'a', age = 1,"
+                + " firm = navigate(test::Firm.all(),"
+                + " {f | $f.legalName == 'ACME'}))");
         assertEquals("test::Person", ((Type.ClassType) lit.info().type()).fqn());
     }
 }

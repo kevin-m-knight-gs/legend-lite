@@ -134,6 +134,13 @@ public final class SpecCompiler {
         }
 
         Env scope = Env.empty();
+        // generated-source escape (pure NewValidator parity): a
+        // mapping-synth ctor body ($class$ marker — the engine's own
+        // generated-FQN convention; '$' cannot appear in user pure
+        // identifiers) constructs partial instances by design
+        if (fn.qualifiedName().contains("$class$")) {
+            scope = scope.withLenientNew();
+        }
         for (TypedParameter p : fn.parameters()) {
             scope = scope.with(p.name(), new ExprType(p.type(), p.multiplicity()));
         }

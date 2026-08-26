@@ -39,6 +39,23 @@ final class DecimalKindRules {
 
     static SqlExpr divide(TypedNativeCall n, List<SqlExpr> args) {
         if (args.size() != 3) {
+            // Part-1 fix (2026-08-26): INTEGER / INTEGER by zero RAISES
+            // in real pure — the interpreted accumulator divides
+            // integers through BigDecimal (ArithmeticException;
+            // NumericAccumulator receipts); only the DOUBLE lane yields
+            // Infinity. The rem idiom guards the integer pair;
+            // Float/Decimal lanes keep their lane semantics.
+            if (args.size() == 2
+                    && n.args().get(0).info().type()
+                            == Type.Primitive.INTEGER
+                    && n.args().get(1).info().type()
+                            == Type.Primitive.INTEGER) {
+                return Scalars.guarded(
+                        SqlExpr.Call.of(SqlFn.EQUAL, args.get(1),
+                                new SqlExpr.IntLit(0)),
+                        new SqlExpr.StringLit("Division by zero"),
+                        new SqlExpr.Call(SqlFn.DIVIDE, args));
+            }
             return new SqlExpr.Call(SqlFn.DIVIDE, args);
         }
         return decimalScaleCast(n, 2,

@@ -627,7 +627,7 @@ public final class NameResolver {
             return p;
         }
         return new PropertyDefinition(p.name(), nn(type),
-                p.multiplicity(), stereotypes, taggedValues);
+                p.multiplicity(), stereotypes, taggedValues, p.hasDefault());
     }
 
     private static DerivedPropertyDefinition resolveDerivedProperty(

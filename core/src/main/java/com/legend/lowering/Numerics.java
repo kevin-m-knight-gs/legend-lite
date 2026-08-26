@@ -22,10 +22,19 @@ final class Numerics {
      * null = not that shape (the aggregate path continues). */
     static @com.legend.Nullable SqlExpr decimalChain(SqlExpr list,
             SqlFn op) {
+        // fires for DECIMAL-bearing literal lists (exact binary decimal
+        // arithmetic vs LIST_PRODUCT's DOUBLE degradation) AND — Part-1
+        // fix 2026-08-26 — for ALL-INTEGER literal lists (LIST_PRODUCT
+        // re-kinded [2,3]->times() to DOUBLE 6.0; a TIMES chain keeps
+        // the integer kind with zero new carrier sites). Non-literal
+        // integer collections keep LIST_PRODUCT (no demanded traffic;
+        // the wire census flags any kind drift it produces).
         if (list instanceof SqlExpr.ArrayLit la
                 && la.elements().size() >= 2
-                && la.elements().stream()
+                && (la.elements().stream()
                         .anyMatch(e -> e instanceof SqlExpr.DecimalLit)
+                        || la.elements().stream().allMatch(e ->
+                                e instanceof SqlExpr.IntLit))
                 && la.elements().stream().allMatch(e ->
                         e instanceof SqlExpr.DecimalLit
                         || e instanceof SqlExpr.IntLit
