@@ -777,20 +777,34 @@ public class RelationalCorpusRunner {
                     // guest list; row verdicts and scoreboard
                     // byte-stable.
                     // 153 SPLIT BY PROVENANCE (§4Z ledger #1 repin,
-                    // 2026-08-26; the blended ceiling hid which kind
-                    // grew): ORIGIN 144 = the differing pairs, one per
-                    // mapping-seam kind mismatch (97 VARCHAR<-BIGINT +
-                    // 14 DOUBLE<-BIGINT + 33 DOUBLE<-HUGEINT) — growth
-                    // here is a NEW mismatched mapping, a model fact
-                    // that must be justified in the commit;
-                    // TRANSPORTED 9 = the equal-pair propagation slots
-                    // (DOUBLE<-DOUBLE) — plumbing that grows only with
-                    // query shape, never with the model.
+                    // 2026-08-26; refined same day to a SHAPE split —
+                    // the pair alone cannot tell a seam read from an
+                    // aggregate over one, and the machine count showed
+                    // even the audited "111" hid 3 aggregate rows):
+                    // ORIGIN 108 = bare COLUMN READS with a differing
+                    // pair — one row per real mapping-seam kind
+                    // mismatch (97 VARCHAR<-BIGINT + 11
+                    // DOUBLE<-BIGINT); growth here is a NEW mismatched
+                    // mapping, a model fact that must be justified in
+                    // the commit. DERIVED 36 = operations over tagged
+                    // reads keeping the pure contract label (33 SUM
+                    // DOUBLE<-HUGEINT — the wire-7 transport family —
+                    // + 3 MAX-style DOUBLE<-BIGINT); moves with
+                    // aggregate shapes. TRANSPORTED 9 = equal-pair
+                    // propagation slots (DOUBLE<-DOUBLE) — plumbing
+                    // that grows with query shape only.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .toleratedOriginCount() <= 144,
+                                    .toleratedOriginCount() <= 108,
                             "mapping-seam ORIGIN tolerated slots grew"
                                     + " (a new mismatched mapping?): "
+                                    + com.legend.exec.SqlTypeCensus
+                                            .summary()),
+                    () -> org.junit.jupiter.api.Assertions.assertTrue(
+                            com.legend.exec.SqlTypeCensus
+                                    .toleratedDerivedCount() <= 36,
+                            "tolerance-derived slots grew (an op over"
+                                    + " a tagged read): "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
                     () -> org.junit.jupiter.api.Assertions.assertTrue(

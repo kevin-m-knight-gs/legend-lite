@@ -1157,17 +1157,26 @@ proven relations (subsumes, carryThrough), two modeled carriers
 (LITERAL, TEMPORAL_TEXT), one emission conform, one dead-arm
 delete.
 
-**LEDGER #1 SPLIT-REPIN EXECUTED (2026-08-26):** the blended
-tolerated ceiling (153) SPLIT by provenance — ORIGIN 144 (differing
-pairs, one per mapping-seam kind mismatch: 97 VARCHAR←BIGINT + 14
-DOUBLE←BIGINT + 33 DOUBLE←HUGEINT; growth = a NEW mismatched
-mapping, a model fact to justify in the commit) vs TRANSPORTED 9
-(equal-pair DOUBLE←DOUBLE propagation slots; plumbing, grows with
-query shape only, never with the model). Census counts
-tolerated-origin=/tolerated-carried= separately with per-pair
-classes; the corpus runner pins each. The wire lane's 74 needs no
-split — equal pairs are structurally impossible there (agree is
-checked before the tolerated arm).
+**LEDGER #1 SPLIT-REPIN EXECUTED (2026-08-26; refined same day —
+user challenge "why 144, we confirmed 111?"):** the blended
+tolerated ceiling (153) is SPLIT BY SHAPE, because the pair alone
+cannot tell a seam read from an aggregate over one — and the
+machine count proved even the audited "111" hid 3 aggregate rows.
+Final pins: ORIGIN 108 = bare COLUMN READS with a differing pair —
+one row per real mapping-seam kind mismatch (97 VARCHAR←BIGINT +
+11 DOUBLE←BIGINT; growth = a NEW mismatched mapping, justify in
+the commit) · DERIVED 36 = operations over tagged reads keeping
+the pure contract label (33 SUM DOUBLE←HUGEINT, the wire-7
+transport family, + 3 MAX-style DOUBLE←BIGINT that had hidden
+inside the old "111"; moves with aggregate shapes, never the
+model) · TRANSPORTED 9 = equal-pair DOUBLE←DOUBLE propagation
+slots (plumbing, query shape only). Census prints all three with
+per-pair classes; the corpus runner pins each. The wire lane's 74
+needs no split — equal pairs are structurally impossible there
+(agree is checked before the tolerated arm). History fully
+reconciled: 111 (audit) = 108 reads + 3 hidden aggregates; +33 +9
+joined at the justified wire-7 SUM-transport move; 153 = 108 + 36
++ 9.
 
 **C. PCT-LANE WIRE LEDGERS — NEWLY OWNED (the audit's main find):
 never adjudicated.** Measured 2026-08-25: adopt-pending 94 (ceiling

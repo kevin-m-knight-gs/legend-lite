@@ -49,14 +49,18 @@ public final class SqlTypeCensus {
      * {@link #MISMATCH}, which every lane pins at zero.) */
     private static final LongAdder SUBSUMED = new LongAdder();
     /** Engine-compat carry-through slots (§4bZ), SPLIT by provenance
-     * (§4Z ledger #1 repin, 2026-08-26): ORIGIN = the pair genuinely
-     * differs — a declared property/column kind mismatch crossing the
-     * mapping seam (a NEW one is a model fact to justify);
-     * TRANSPORTED = the pair is EQUAL — an upper read merely carrying
-     * the tag through a propagation slot (plumbing, grows with query
-     * shape, never with the model). One blended ceiling hid which
-     * kind grew. */
+     * (§4Z ledger #1 repin, 2026-08-26; refined same day — the pair
+     * alone cannot tell a seam read from an aggregate over one):
+     * ORIGIN = a bare COLUMN READ with a differing pair — the mapping
+     * seam's own mismatch, one row per declared property/column kind
+     * crossing (a NEW one is a model fact to justify); DERIVED = a
+     * non-column expression with a differing pair — an operation
+     * (SUM/MAX...) over a tagged read whose result keeps the pure
+     * contract label (the wire-7 SUM-transport family, 111 -> 153's
+     * +33); TRANSPORTED = the pair is EQUAL — an upper read merely
+     * carrying the tag (plumbing, grows with query shape only). */
     private static final LongAdder TOLERATED_ORIGIN = new LongAdder();
+    private static final LongAdder TOLERATED_DERIVED = new LongAdder();
     private static final LongAdder TOLERATED_TRANSPORTED = new LongAdder();
     private static final LongAdder BOTTOM_OK = new LongAdder();
     /** RAISING roots (§4bZ-U leg 3): a projection whose expression
@@ -348,15 +352,22 @@ public final class SqlTypeCensus {
                 case TypeFact.Typed t -> {
                     if (declared.tolerated()) {
                         // the reconciliation-stamped guest list (§4bZ),
-                        // split by provenance: an EQUAL pair is a
-                        // propagation slot carrying the tag; a
-                        // DIFFERING pair is the mismatch's origin
+                        // split by provenance: EQUAL pair = a
+                        // propagation slot carrying the tag; differing
+                        // pair on a bare COLUMN READ = the seam's own
+                        // mismatch (origin); differing pair on any
+                        // other shape = an operation over a tagged
+                        // read (derived — the SUM-transport family)
                         boolean carried = t.type().equals(declared.type());
-                        String cls = (carried ? "tolerated-carried "
-                                : "tolerated ") + declared.type()
+                        boolean read = e instanceof SqlExpr.Column;
+                        String kind = carried ? "tolerated-carried "
+                                : read ? "tolerated "
+                                        : "tolerated-derived ";
+                        String cls = kind + declared.type()
                                 + " <- " + t.type();
                         (carried ? TOLERATED_TRANSPORTED
-                                : TOLERATED_ORIGIN).increment();
+                                : read ? TOLERATED_ORIGIN
+                                        : TOLERATED_DERIVED).increment();
                         classify(cls);
                         sample(cls, declared.name() + " := " + sketch(e));
                     } else if (t.type().equals(declared.type())) {
@@ -527,6 +538,13 @@ public final class SqlTypeCensus {
         return TOLERATED_ORIGIN.sum();
     }
 
+    /** DERIVED rows: operations (SUM/MAX...) over tagged reads whose
+     * result keeps the pure contract label — the wire-7 SUM-transport
+     * family. Moves with aggregate shapes, never with the model. */
+    public static long toleratedDerivedCount() {
+        return TOLERATED_DERIVED.sum();
+    }
+
     /** TRANSPORTED rows: equal-pair propagation slots carrying the
      * tag. Grows with query shape only. */
     public static long toleratedTransportedCount() {
@@ -537,6 +555,7 @@ public final class SqlTypeCensus {
         return "plans=" + PLANS.sum() + " cols: agree=" + AGREE.sum()
                 + " subsumed=" + SUBSUMED.sum()
                 + " tolerated-origin=" + TOLERATED_ORIGIN.sum()
+                + " tolerated-derived=" + TOLERATED_DERIVED.sum()
                 + " tolerated-carried=" + TOLERATED_TRANSPORTED.sum()
                 + " bottom-ok=" + BOTTOM_OK.sum()
                 + " raises=" + RAISES_OK.sum()
