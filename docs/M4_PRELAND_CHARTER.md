@@ -1254,6 +1254,31 @@ residue per class (fix label / fix emission / register). End state:
 bottom-mult-backlog EQUALITY-pinned at the adjudicated residue,
 witnesses named.
 
+**E EXECUTED + THE LEDGER CLOSED (2026-08-26, 45f07874 + b89bcb34 +
+6d589544 — §4Z ledger #4, the LAST open burn-down ledger; full 8-gate
+chain green ~10.1 min):** N0 first, verdict before mechanism — the
+shape-keyed census (Cast-transparent bottomShape) machine-counted the
+6,472 as **100% literal NullLit** (5707 BIGINT + 598 VARCHAR + 161
+BOOLEAN + 6 DATE; zero Cast wraps, zero computed-Bottom shapes;
+witnesses exactly the charter's union machinery), and exposed the pct
+lane's own 6 (literal-NullLit DOUBLE value-frames, the corr/covar
+family — NOT union pads, same mechanism). N1 SIMPLIFIED in the doing
+(the B3 pattern): no union-site marking needed — a projected LITERAL
+NULL declares its slot nullable at reconcileLabels, the frame's own
+compact ctor (construction declares what construction knows; the
+pure-level [1] contract untouched). Corpus burned 6,472 -> 0 with
+every other census bucket BYTE-IDENTICAL (the flagged perturbation
+risk measured empty: wire buckets, tolerated splits, advisory 312,
+soft ceilings all unchanged); the pct 6 burned with it. N2 residue
+adjudicated EMPTY — bottom-mult-backlog EQUALITY-pinned at ZERO on
+all four lanes (runner assertEquals for G4/G5, PctCensusGate
+MAX_BOTTOM_MULT for G6/G7). The bucket survives as the live tripwire
+for COMPUTED bottoms (NULL-propagating expressions) under required
+labels. Trap (4th sighting of the stale-install kind): a hand-run G6
+without `mvn -pl core install` first measures the OLD census code —
+the class-key format in the log is the tell. §4Z ledger #4 = CLOSED;
+the burn-down ledger list is EMPTY.
+
 **F. Guest-list completion (§4bZ-R):** LEGEND_LITE strict diagnostic
 (mismatched mapping = warning, strict flip LAST) + dialect-level
 scoping of carryThrough (the compat level as an enforcement point,
