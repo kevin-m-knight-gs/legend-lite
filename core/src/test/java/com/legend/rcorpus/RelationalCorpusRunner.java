@@ -849,6 +849,27 @@ public class RelationalCorpusRunner {
                                     + " missing rule or an unstamped leaf: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
+                    // THE NULLABILITY LEDGER (§4bZ-V E, 2026-08-26 —
+                    // §4Z ledger #4, the last open burn-down ledger):
+                    // N0 machine-counted the 6,472-row backlog as 100%
+                    // literal NullLit union-member pads (5707 BIGINT +
+                    // 598 VARCHAR + 161 BOOLEAN + 6 DATE — member key
+                    // pads, stc_* subtype columns, bitemporal member
+                    // columns); N1 made a projected literal NULL
+                    // declare its slot nullable at construction
+                    // (reconcileLabels), burning 6,472 -> 0 with every
+                    // other census bucket byte-identical. Residue
+                    // adjudicated EMPTY — EQUALITY at zero on both
+                    // corpus lanes: a row here is a COMPUTED bottom (a
+                    // NULL-propagating expression) under a required
+                    // label, witness in the failure message.
+                    () -> org.junit.jupiter.api.Assertions.assertEquals(
+                            0, com.legend.exec.SqlTypeCensus
+                                    .bottomMultCount(),
+                            "computed NULL under a required-multiplicity"
+                                    + " label: "
+                                    + com.legend.exec.SqlTypeCensus
+                                            .summary()),
                     // R1b census pin (CANONICAL_FORM_SPEC §0, measured
                     // 2026-08-22): 27 grid-text verdicts pass only via
                     // the kept leniencies — 6 row-order-only (R2's

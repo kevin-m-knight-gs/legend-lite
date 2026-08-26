@@ -121,6 +121,15 @@ public final class PctCensusGate {
     // byte-compare refereed).
     private static final long MAX_WIRE_DIVERGE = 0;
     private static final long MAX_ADOPT_PENDING = 0;
+    // THE NULLABILITY LEDGER (§4bZ-V E, 2026-08-26 — §4Z ledger #4):
+    // this lane carried 6 literal-NullLit DOUBLE value-frames (the
+    // corr/covarPopulation/covarSample PCT family); N1 made a
+    // projected literal NULL declare its slot nullable at construction
+    // (reconcileLabels), burning them with the corpus lane's 6,472
+    // union pads. Residue adjudicated EMPTY — EQUALITY at zero on
+    // both pct lanes: a row here is a COMPUTED bottom (a
+    // NULL-propagating expression) under a required label.
+    private static final long MAX_BOTTOM_MULT = 0;
     // §4bZ-V B3+B4 (2026-08-26): the admissible bucket is DELETED with
     // the relation itself — the temporal-text traffic is the
     // TEMPORAL_TEXT carrier, the JSON egress conforms by emission, and
@@ -154,6 +163,9 @@ public final class PctCensusGate {
                 check(suite, "untyped projection roots grew — a missing"
                                 + " rule or an unstamped leaf",
                         SqlTypeCensus.untypedCount(), MAX_UNTYPED);
+                check(suite, "computed NULL under a required-multiplicity"
+                                + " label (bottom-mult)",
+                        SqlTypeCensus.bottomMultCount(), MAX_BOTTOM_MULT);
             }
         };
     }
