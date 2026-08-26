@@ -268,10 +268,28 @@ public final class Executor {
         try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
              ResultSet rs = st.executeQuery()) {
             // CONTRACT PROGRAM: the wire census — label vs the result's
-            // own metadata (rides with the data; no extra round trip)
+            // own metadata (rides with the data; no extra round trip).
+            // Int-or-null columns are WATCHED, not counted: the row
+            // reads below supply the value evidence and the finally
+            // settles them (D1 — metadata alone cannot split a real
+            // integer wire from an all-NULL column).
             SqlTypeCensus.probeWire(plan, rs,
                     dialect.getClass().getSimpleName());
-            return switch (shape) {
+            try {
+                return runShape(shape, rs, plan, rootType, dialect,
+                        anyRoot, variantRoot, rider);
+            } finally {
+                SqlTypeCensus.settleWire();
+            }
+        }
+    }
+
+    private static ExecutionResult runShape(ResultShape shape, ResultSet rs,
+            SqlQuery plan, ExprType rootType,
+            com.legend.sql.dialect.SqlDialect dialect, boolean anyRoot,
+            boolean variantRoot, @com.legend.Nullable CanonRider rider)
+            throws SQLException {
+        return switch (shape) {
                 case TABULAR -> tabular(rs, plan, rootType, dialect);
                 case SCALAR -> {
                     boolean hasRow = rs.next();
@@ -382,7 +400,6 @@ public final class Executor {
                                 com.legend.sql.SqlType.Scalar.JSON)) : "[]",
                         rootType.type());
             };
-        }
     }
 
     /** V11: read the appended canon columns (2..1+k) of the current
@@ -550,6 +567,12 @@ public final class Executor {
             com.legend.sql.@com.legend.Nullable SqlType type)
             throws SQLException {
         Object o = rs.getObject(i);
+        if (o != null) {
+            // D1 value evidence: a non-null driver object settles a
+            // watched int-or-null column (no-op when nothing is
+            // watched — the common statement)
+            SqlTypeCensus.wireValueSeen(i);
+        }
         if (o instanceof java.sql.Timestamp) {
             // (a TIMESTAMP-typed output may still surface a VARCHAR cell —
             // the precision-faithful string convention — so gate on the
@@ -807,7 +830,10 @@ public final class Executor {
     }
 
     /** Whether the plan's source tree contains a (dynamic-columned) PIVOT. */
-    private static boolean hasPivot(SqlQuery plan) {
+    /** Package-visible for the wire census (D2): a pivot-bearing plan's
+     * result columns are data-dependent, so a probe shape mismatch
+     * there is the pivot's contract, not an unknown. */
+    static boolean hasPivot(SqlQuery plan) {
         return plan instanceof com.legend.sql.SqlSelect s && hasPivot(s.from());
     }
 

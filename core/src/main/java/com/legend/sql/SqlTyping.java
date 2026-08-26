@@ -165,6 +165,66 @@ public final class SqlTyping {
         return os == null ? outputs : List.copyOf(os);
     }
 
+    /** Union-label reconciliation — called by {@link SqlUnion}'s
+     * canonical constructor (the SqlSelect compact-ctor idiom brought
+     * to the OTHER query node; the D1 tripwire's first catch found the
+     * gap: a union's outputs asserted the pure-contract erasure over
+     * branches whose own labels had already adopted their wire, so the
+     * frame above re-read the stale contract —
+     * testSQLQueryMergingForInnerJoins2's String-declared property
+     * over dTable.pk INTEGER). Column i adopts the branches' UNIFORM
+     * computed type when it differs unsubsumed from the label;
+     * branch tolerance and nullability propagate (a union cell is
+     * nullable when any branch's is). Mixed branch types keep the
+     * contract — loud at the wire, never guessed. */
+    static @com.legend.Nullable List<OutputCol> reconcileUnionLabels(
+            List<? extends SqlQuery> branches,
+            @com.legend.Nullable List<OutputCol> outputs) {
+        if (outputs == null || branches.isEmpty()) {
+            return outputs;
+        }
+        List<OutputCol> os = null;
+        for (int i = 0; i < outputs.size(); i++) {
+            OutputCol oc = outputs.get(i);
+            SqlType t = null;
+            boolean tol = false;
+            boolean nul = false;
+            boolean uniform = true;
+            for (SqlQuery b : branches) {
+                List<OutputCol> bo = b.outputs();
+                if (bo == null || bo.size() != outputs.size()) {
+                    uniform = false;
+                    break;
+                }
+                OutputCol bc = bo.get(i);
+                tol |= bc.tolerated();
+                nul |= bc.nullable();
+                if (t == null) {
+                    t = bc.type();
+                } else if (!t.equals(bc.type())) {
+                    uniform = false;
+                    break;
+                }
+            }
+            if (!uniform || t == null) {
+                continue;
+            }
+            SqlType type = !t.equals(oc.type()) && !subsumes(oc.type(), t)
+                    && !tol ? t : oc.type();
+            boolean nullable = oc.nullable() || nul;
+            boolean tolerated = oc.tolerated() || tol;
+            if (type.equals(oc.type()) && nullable == oc.nullable()
+                    && tolerated == oc.tolerated()) {
+                continue;
+            }
+            if (os == null) {
+                os = new java.util.ArrayList<>(outputs);
+            }
+            os.set(i, new OutputCol(oc.name(), type, nullable, tolerated));
+        }
+        return os == null ? outputs : List.copyOf(os);
+    }
+
     /** THE ENGINE-COMPAT CARRY-THROUGH RELATION (charter §4bZ — the
      * named, tag-gated home of the two DELETED blanket coercion arms):
      * the kind pairs the engine's raw carry-through produces at a

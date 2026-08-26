@@ -130,6 +130,15 @@ public final class PctCensusGate {
     // both pct lanes: a row here is a COMPUTED bottom (a
     // NULL-propagating expression) under a required label.
     private static final long MAX_BOTTOM_MULT = 0;
+    // §4bZ-V D (2026-08-26): the wire probe now ADJUDICATES every
+    // column. Unknown = a probe that could not judge (zero-output and
+    // pivot frames are no-claim by doctrine; the old 8 were all pivot
+    // tests) — EQUALITY at zero. Int-or-null settles on VALUE
+    // evidence: all 219 lane rows PROVED all-NULL (empty-result PCT
+    // fixtures — greatest/least_Empty et al.); a valued column lands
+    // in diverge (EQUALITY-0) instead. Ceiling, shape-driven.
+    private static final long MAX_WIRE_UNKNOWN = 0;
+    private static final long MAX_INT_NULL_EMPTY = 219;
     // §4bZ-V B3+B4 (2026-08-26): the admissible bucket is DELETED with
     // the relation itself — the temporal-text traffic is the
     // TEMPORAL_TEXT carrier, the JSON egress conforms by emission, and
@@ -166,6 +175,11 @@ public final class PctCensusGate {
                 check(suite, "computed NULL under a required-multiplicity"
                                 + " label (bottom-mult)",
                         SqlTypeCensus.bottomMultCount(), MAX_BOTTOM_MULT);
+                check(suite, "unadjudicated wire probes appeared",
+                        SqlTypeCensus.wireUnknownCount(), MAX_WIRE_UNKNOWN);
+                check(suite, "proven-empty int-or-null columns grew",
+                        SqlTypeCensus.wireIntOrNullEmptyCount(),
+                        MAX_INT_NULL_EMPTY);
             }
         };
     }

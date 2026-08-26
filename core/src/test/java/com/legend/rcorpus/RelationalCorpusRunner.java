@@ -809,10 +809,47 @@ public class RelationalCorpusRunner {
                                     + " a tagged read): "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
+                    // 9 -> 15 (§4bZ-V D1, 2026-08-26, JUSTIFIED): the
+                    // D1 value-evidence tripwire exposed 6 valued
+                    // INTEGER wires under VARCHAR labels
+                    // (testSQLQueryMergingForInnerJoins2's
+                    // String-declared p3 over dTable.pk) — the member
+                    // frames carried the mapping-seam tag all along,
+                    // but SqlUnion's ctor rebuilt outputs from the
+                    // pure contract and DROPPED it; union-label
+                    // reconciliation now transports tag/type/
+                    // nullability across the union node, so the six
+                    // slots land here (equal-pair plumbing) and their
+                    // wire rows move diverge -> tolerated.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .toleratedTransportedCount() <= 9,
+                                    .toleratedTransportedCount() <= 15,
                             "tolerance-transport slots grew: "
+                                    + com.legend.exec.SqlTypeCensus
+                                            .summary()),
+                    // D2 (§4bZ-V, 2026-08-26): every wire probe must
+                    // adjudicate — the two old unknowns were
+                    // zero-output no-claim frames (now skipped by
+                    // doctrine); a NEW unknown is an unreadable or
+                    // shape-broken probe, classed + witnessed in the
+                    // failure. EQUALITY at zero.
+                    () -> org.junit.jupiter.api.Assertions.assertEquals(
+                            0, com.legend.exec.SqlTypeCensus
+                                    .wireUnknownCount(),
+                            "unadjudicated wire probes appeared: "
+                                    + com.legend.exec.SqlTypeCensus
+                                            .summary()),
+                    // D1 (§4bZ-V, 2026-08-26): int-or-null settled by
+                    // VALUE evidence — every row here is a PROVEN
+                    // all-NULL column (no factual wire type exists;
+                    // DuckDB spells it INTEGER); a valued column lands
+                    // in diverge (EQUALITY-0 above) instead. Ceiling —
+                    // grows only with all-NULL result columns (query
+                    // shape), ratchet down as shapes burn.
+                    () -> org.junit.jupiter.api.Assertions.assertTrue(
+                            com.legend.exec.SqlTypeCensus
+                                    .wireIntOrNullEmptyCount() <= 56,
+                            "proven-empty int-or-null columns grew: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
                     // THE LABEL FLIP (TYPED_SQL_IR.md, 2026-08-24):
@@ -870,6 +907,22 @@ public class RelationalCorpusRunner {
                                     + " label: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
+                    // G3 (§4bZ-V G3, 2026-08-26): the fixture-skew
+                    // census PROMOTED to a pinned ceiling — 469
+                    // measured, +4 from the two recorded undercount
+                    // fixes (schema-qualified creates, constraint-word
+                    // columns) = 473. Engine test-data debt
+                    // (docs/UPSTREAM_DEFECTS.md U19); growth = a new
+                    // contradicting fixture, shrink = upstream fixes —
+                    // ratchet down.
+                    () -> org.junit.jupiter.api.Assertions.assertTrue(
+                            Runner.FIXTURE_SKEW.values().stream()
+                                    .mapToLong(java.util.Set::size)
+                                    .sum() <= 473,
+                            "fixture-skew columns grew past the pinned"
+                                    + " ceiling 473 — a new declaration-"
+                                    + "contradicting CREATE in the setup"
+                                    + " streams"),
                     // R1b census pin (CANONICAL_FORM_SPEC §0, measured
                     // 2026-08-22): 27 grid-text verdicts pass only via
                     // the kept leniencies — 6 row-order-only (R2's

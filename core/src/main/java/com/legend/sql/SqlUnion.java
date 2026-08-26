@@ -17,5 +17,10 @@ public record SqlUnion(List<SqlQuery> branches, boolean all, List<OutputCol> out
         if (branches.size() < 2) {
             throw new IllegalArgumentException("a union needs at least two branches");
         }
+        // label reconciliation at construction (the SqlSelect
+        // compact-ctor idiom): the union's contract-derived outputs
+        // adopt the branches' uniform computed labels, tolerance and
+        // nullability — see SqlTyping.reconcileUnionLabels
+        outputs = SqlTyping.reconcileUnionLabels(branches, outputs);
     }
 }

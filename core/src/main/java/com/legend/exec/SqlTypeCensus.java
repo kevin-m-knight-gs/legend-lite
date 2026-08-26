@@ -107,11 +107,38 @@ public final class SqlTypeCensus {
      * throws into execution. */
     public static void probeWire(SqlQuery plan, java.sql.ResultSet rs,
             String dialect) {
+        WIRE_WATCH.remove();   // defensive: a statement that errored
+                               // before settling must not leak watches
         try {
             java.sql.ResultSetMetaData md = rs.getMetaData();
             List<OutputCol> outs = plan.outputs();
+            if (outs.isEmpty()) {
+                // D2 ADJUDICATED (2026-08-26): a ZERO-OUTPUT plan (a
+                // late-bound raw grid / star root — the wire kind is
+                // the schema authority there) carries no per-column
+                // claim to check — the walk's own star-frame doctrine,
+                // not an unknown. Both corpus rows were this shape
+                // (filter::in::H2Test, ddl::dropAndCreateTable).
+                return;
+            }
             if (md.getColumnCount() != outs.size()) {
+                if (Executor.hasPivot(plan)) {
+                    // D2 ADJUDICATED (2026-08-26): a dynamic pivot's
+                    // result columns are data-dependent (one per
+                    // pivoted VALUE — resolveColumns' own doctrine),
+                    // so the static outputs cannot enumerate them —
+                    // no per-column claim, not an unknown. All 8 pct
+                    // rows were pivot tests.
+                    return;
+                }
+                // D2 (§4bZ-V D2): every unknown carries a CLASS and a
+                // witness — "never once examined" ends here
                 WIRE_UNKNOWN.increment();
+                String cls = "wire-unknown[" + dialect
+                        + "] shape-mismatch outs=" + outs.size()
+                        + " meta=" + md.getColumnCount();
+                classify(cls);
+                sample(cls, plan.getClass().getSimpleName());
                 return;
             }
             for (int i = 0; i < outs.size(); i++) {
@@ -119,6 +146,13 @@ public final class SqlTypeCensus {
                 String meta = normalizeMeta(md.getColumnTypeName(i + 1));
                 if (label == null || meta.isEmpty()) {
                     WIRE_UNKNOWN.increment();
+                    String cls = "wire-unknown[" + dialect + "] "
+                            + (label == null
+                                    ? "no-spelling label-type="
+                                            + outs.get(i).type()
+                                    : "empty-meta label=" + label);
+                    classify(cls);
+                    sample(cls, outs.get(i).name());
                     continue;
                 }
                 if (label.equals(meta)) {
@@ -154,14 +188,17 @@ public final class SqlTypeCensus {
                             + "] BIGINT <- HUGEINT", outs.get(i).name());
                 } else if (meta.equals("INTEGER")
                         && !integerFamily(outs.get(i).type())) {
-                    // AMBIGUOUS: DuckDB metadata spells an all-NULL
-                    // column INTEGER — indistinguishable from a real
-                    // integer wire without VALUE evidence (the decode
-                    // tripwire's territory, with the nullability
-                    // re-label). Own bucket, neither agree nor diverge.
-                    WIRE_NULL_AMBIG.increment();
-                    classify("wire-int-or-null[" + dialect + "] label="
-                            + label);
+                    // AMBIGUOUS metadata (D1, §4bZ-V): DuckDB spells an
+                    // all-NULL column INTEGER — indistinguishable from
+                    // a real integer wire without VALUE evidence. Not
+                    // counted here: the column is WATCHED, the
+                    // Executor's fetch funnel marks any non-null driver
+                    // object, and settleWire() adjudicates at statement
+                    // end — valued = a REAL divergence (rides the
+                    // EQUALITY-0 diverge pins, loud), all-NULL = no
+                    // factual wire type exists (named, benign).
+                    watch(dialect).add(new WatchCol(i + 1, label,
+                            watchWitness(plan, i)));
                 } else {
                     String cls = "wire[" + dialect + "] label=" + label
                             + " <> meta=" + meta;
@@ -173,7 +210,104 @@ public final class SqlTypeCensus {
         } catch (java.sql.SQLException | RuntimeException e) {
             // instrument isolation: measurement must never throw into
             // execution — an unreadable metadata is a counted unknown
+            // (classed + witnessed since D2: the probe error's own
+            // shape is the adjudication evidence)
             WIRE_UNKNOWN.increment();
+            String cls = "wire-unknown[" + dialect + "] probe-error="
+                    + e.getClass().getSimpleName();
+            classify(cls);
+            String msg = String.valueOf(e.getMessage());
+            sample(cls, msg.length() > 120 ? msg.substring(0, 120) : msg);
+        }
+    }
+
+    /** One D1-watched result column: 1-based JDBC index, our label's
+     * wire spelling, and the witness text (output name + the
+     * projection's expression sketch and stored fact — the mechanism
+     * locator a bare column name cannot give). */
+    private record WatchCol(int column, String label, String witness) {
+    }
+
+    /** The witness text for a watched column: output name plus, when
+     * the plan is a shape-aligned select, the projection's sketch and
+     * stored fact. */
+    private static String watchWitness(SqlQuery plan, int i) {
+        String name = plan.outputs().get(i).name();
+        if (plan instanceof SqlSelect s
+                && s.projections().size() == s.outputs().size()) {
+            SqlExpr e = s.projections().get(i).expr();
+            return name + " := " + sketch(e) + " fact=" + e.type();
+        }
+        return name;
+    }
+
+    /** Per-statement D1 watch state — set by {@link #probeWire},
+     * marked by the Executor's fetch funnel, settled at statement end.
+     * Thread-confined like {@link #CONTEXT}. */
+    private static final ThreadLocal<WireWatch> WIRE_WATCH =
+            new ThreadLocal<>();
+
+    private static final class WireWatch {
+        private final String dialect;
+        private final List<WatchCol> candidates = new ArrayList<>();
+        private final java.util.Set<Integer> valued =
+                new java.util.HashSet<>();
+
+        private WireWatch(String dialect) {
+            this.dialect = dialect;
+        }
+
+        private void add(WatchCol c) {
+            candidates.add(c);
+        }
+    }
+
+    private static WireWatch watch(String dialect) {
+        WireWatch w = WIRE_WATCH.get();
+        if (w == null) {
+            w = new WireWatch(dialect);
+            WIRE_WATCH.set(w);
+        }
+        return w;
+    }
+
+    /** The Executor's fetch funnel reports a NON-NULL driver object
+     * for column {@code column} (1-based) — the value evidence D1
+     * needs. No-op unless the statement carries watched columns. */
+    public static void wireValueSeen(int column) {
+        WireWatch w = WIRE_WATCH.get();
+        if (w != null) {
+            w.valued.add(column);
+        }
+    }
+
+    /** Statement end (the Executor's finally): adjudicate every
+     * watched int-or-null column on its value evidence. A VALUED
+     * column under a non-integer label is a real divergence — counted
+     * in the diverge bucket every lane pins at EQUALITY-0, so it goes
+     * loud. An all-NULL column has NO factual wire type (DuckDB's
+     * INTEGER spelling is a driver placeholder) — counted and named,
+     * benign. */
+    public static void settleWire() {
+        WireWatch w = WIRE_WATCH.get();
+        if (w == null) {
+            return;
+        }
+        WIRE_WATCH.remove();
+        for (WatchCol c : w.candidates) {
+            if (w.valued.contains(c.column())) {
+                String cls = "wire[" + w.dialect + "] label=" + c.label()
+                        + " <> meta=INTEGER(valued)";
+                WIRE_DIVERGE.increment();
+                classify(cls);
+                sample(cls, c.witness());
+            } else {
+                String cls = "wire-int-or-null-empty[" + w.dialect
+                        + "] label=" + c.label();
+                WIRE_NULL_AMBIG.increment();
+                classify(cls);
+                sample(cls, c.witness());
+            }
         }
     }
 
@@ -542,6 +676,22 @@ public final class SqlTypeCensus {
         return WIRE_DIVERGE.sum();
     }
 
+    /** Probes that could not adjudicate (shape mismatch on a
+     * non-empty-outputs plan, unreadable metadata, probe error) —
+     * classed and witnessed since D2; zero-output plans are a no-claim
+     * skip, not an unknown. */
+    public static long wireUnknownCount() {
+        return WIRE_UNKNOWN.sum();
+    }
+
+    /** D1-settled all-NULL columns: metadata said INTEGER, value
+     * evidence said NO VALUES EXIST — no factual wire type to compare.
+     * Grows with all-NULL result columns (query shape), never with
+     * label bugs (those land in diverge, pinned EQUALITY-0). */
+    public static long wireIntOrNullEmptyCount() {
+        return WIRE_NULL_AMBIG.sum();
+    }
+
     public static long wireAdoptPendingCount() {
         return WIRE_ADOPT_PENDING.sum();
     }
@@ -580,7 +730,7 @@ public final class SqlTypeCensus {
                 + " tolerated=" + WIRE_TOLERATED.sum()
                 + " delivered=" + WIRE_DELIVERED.sum()
                 + " adopt-pending=" + WIRE_ADOPT_PENDING.sum()
-                + " int-or-null=" + WIRE_NULL_AMBIG.sum()
+                + " int-null-empty=" + WIRE_NULL_AMBIG.sum()
                 + " diverge=" + WIRE_DIVERGE.sum()
                 + " unknown=" + WIRE_UNKNOWN.sum();
     }
