@@ -3116,7 +3116,8 @@ final class Scalars {
                     .map(x -> substituteRef(x, name, replacement)).toList());
             case SqlExpr.StructLit s -> new SqlExpr.StructLit(s.fields().stream()
                     .map(fl -> new SqlExpr.StructLit.Field(fl.name(),
-                            substituteRef(fl.value(), name, replacement))).toList());
+                            substituteRef(fl.value(), name, replacement),
+                            fl.declared())).toList());
             case SqlExpr.StructGet g ->
                     new SqlExpr.StructGet(substituteRef(g.source(), name, replacement), g.field());
             case SqlExpr.Case cs -> new SqlExpr.Case(

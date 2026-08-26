@@ -675,22 +675,16 @@ public final class SqlTyping {
      * ARRAY (probed — see the arm). */
     static TypeFact foldType(SqlExpr.Lambda lambda, SqlExpr init,
             boolean accIsList) {
-        if (accIsList) {
-            // the LIST-boxed encoding delivers the ACCUMULATOR's own
-            // array (PROBED 1.5.0, §4bZ-U: list_reduce over
-            // [e]-wrapped elements with a list acc -> INTEGER[] — the
-            // fold-collection-accumulator receipt); typed when body
-            // and init agree on that array, UNKNOWN otherwise — a
-            // type-changing fold stays honest
-            return lambda.body().type() instanceof TypeFact.Typed bt
-                    && bt.type() instanceof SqlType.Array
-                    && init.type() instanceof TypeFact.Typed it
-                    && bt.type().equals(it.type())
-                    ? typed(bt.type()) : UNKNOWN;
-        }
+        // ONE agree-check for both lanes; the LIST-boxed lane
+        // additionally requires the agreed type to BE an array — it
+        // delivers the accumulator's own array (PROBED 1.5.0, §4bZ-U:
+        // list_reduce over [e]-wrapped elements with a list acc ->
+        // INTEGER[], the fold-collection-accumulator receipt). A
+        // type-changing fold stays honestly UNKNOWN either way.
         return lambda.body().type() instanceof TypeFact.Typed bt
                 && init.type() instanceof TypeFact.Typed it
                 && bt.type().equals(it.type())
+                && (!accIsList || bt.type() instanceof SqlType.Array)
                 ? typed(bt.type()) : UNKNOWN;
     }
 

@@ -79,14 +79,10 @@ final class InstanceProjection {
         // two colspecs over $x.addresses iterate the SAME collection — real
         // pure yields (city, zip) pairs, never their cross product. Only
         // INDEPENDENT collections cross-multiply.
-        Map<String, String> unnestByPrefix = new LinkedHashMap<>();
-        // alias -> the unnested element's SQL type (the elem-read stamp)
-        Map<String, SqlType> unnestElemType = new LinkedHashMap<>();
+        Map<String, Unnest> unnestByPrefix = new LinkedHashMap<>();
         List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
         for (TypedFuncCol col : columns) {
-            List<String> path = pathOf(col);
-            List<com.legend.compiler.element.type.Type> pathTypes =
-                    pathTypesOf(col);
+            List<Seg> path = pathOf(col);
             if (path == null) {
                 // COMPUTED column ($v.a + $v.b, coalesce($x.f, ...)): the row
                 // param's property accesses resolve to the instance's literal
@@ -124,7 +120,7 @@ final class InstanceProjection {
                             "instance-literal project: '" + col.name()
                                     + "' navigates through a non-instance value");
                 }
-                TypedSpec v = ni.properties().get(path.get(i));
+                TypedSpec v = ni.properties().get(path.get(i).name());
                 if (v == null) {
                     value = new SqlExpr.NullLit();   // unset property: NULL column
                     break;
@@ -132,11 +128,11 @@ final class InstanceProjection {
                 if (v instanceof TypedCollection many) {
                     // TO-MANY: explode via lateral unnest (shared per path
                     // prefix); the residual path reads fields off the element.
-                    String prefix = String.join(".", path.subList(0, i + 1));
-                    String alias = unnestByPrefix.get(prefix);
-                    if (alias == null) {
-                        alias = fresh.get();
-                        unnestByPrefix.put(prefix, alias);
+                    String prefix = path.subList(0, i + 1).stream()
+                            .map(Seg::name)
+                            .collect(java.util.stream.Collectors.joining("."));
+                    Unnest un = unnestByPrefix.get(prefix);
+                    if (un == null) {
                         SqlExpr array = many.elements().isEmpty()
                                 ? new SqlExpr.NullLit()
                                 : new SqlExpr.ArrayLit(many.elements().stream()
@@ -145,8 +141,8 @@ final class InstanceProjection {
                         // instance elements are structs — the old
                         // hardcoded VARCHAR left every elem read blind);
                         // an EMPTY collection takes the segment's
-                        // DECLARED element type from the colspec BODY
-                        // (pathTypesOf — the empty literal itself types
+                        // DECLARED type from the colspec BODY (the
+                        // walked Seg — an empty literal itself types
                         // Nil, which re-guessed VARCHAR:
                         // testSimpleProject's empty `values` side, the
                         // last §4bZ-U pct row)
@@ -154,23 +150,20 @@ final class InstanceProjection {
                                 instanceof com.legend.sql.TypeFact.Typed t
                                 && t.type() instanceof SqlType.Array at
                                 ? at.element()
-                                : sqlTypeOf.apply(pathTypes != null
-                                        ? pathTypes.get(i)
-                                        : many.info().type());
+                                : sqlTypeOf.apply(path.get(i).type());
+                        un = new Unnest(fresh.get(), elemT);
+                        unnestByPrefix.put(prefix, un);
                         SqlSource right = Fold.lateralElem(array,
-                                elemT, fresh.get(), alias);
+                                elemT, fresh.get(), un.alias());
                         src = src == null
                                 ? anchorJoin(right, fresh)
                                 : new SqlSource.Join(src, right,
                                         SqlSource.Join.Kind.LEFT_LATERAL,
                                         new SqlExpr.BoolLit(true));
-                        unnestElemType.put(alias, elemT);
                     }
-                    value = SqlExpr.Column.of(alias, "elem",
-                            unnestElemType.getOrDefault(alias,
-                                    SqlType.Scalar.VARCHAR));
+                    value = SqlExpr.Column.of(un.alias(), "elem", un.elemT());
                     for (int r = i + 1; r < path.size(); r++) {
-                        value = new SqlExpr.StructGet(value, path.get(r));
+                        value = new SqlExpr.StructGet(value, path.get(r).name());
                     }
                     break;
                 }
@@ -199,44 +192,34 @@ final class InstanceProjection {
     /** A colspec body as a bare property path (null = computed). A
      * path IS a chain of auto-maps: plain access OR single-hop map
      * node (ValueCollections.autoMapHop). */
-    /** The DECLARED pure type per path segment, parallel to
-     * {@link #pathOf} — read off the colspec BODY's own node infos
-     * ({@code $x.values} types as the property's element class). The
-     * instance walk cannot supply these: an EMPTY collection literal
-     * types Nil, which VARCHAR-guessed the lateral element (the last
-     * §4bZ-U pct row, testSimpleProject's empty side). */
-    private static @com.legend.Nullable List<com.legend.compiler.element
-            .type.Type> pathTypesOf(TypedFuncCol col) {
-        String param = col.fn().parameters().get(0);
-        ArrayDeque<com.legend.compiler.element.type.Type> types =
-                new ArrayDeque<>();
-        TypedSpec cur = col.fn().body().get(col.fn().body().size() - 1);
-        while (true) {
-            if (cur instanceof TypedPropertyAccess pa) {
-                types.addFirst(pa.info().type());
-                cur = pa.source();
-            } else if (ValueCollections.autoMapHop(cur) instanceof String h) {
-                types.addFirst(cur.info().type());
-                cur = ((TypedMap) cur).source();
-            } else break;
-        }
-        if (!(cur instanceof TypedVariable v) || !v.name().equals(param)
-                || types.isEmpty()) {
-            return null;
-        }
-        return List.copyOf(types);
+    /** One path segment: the property name AND its DECLARED pure type,
+     * read off the colspec BODY's own node info ({@code $x.values}
+     * types as the property's element class). ONE walk carries both —
+     * the instance-value walk cannot supply the type: an EMPTY
+     * collection literal types Nil, which VARCHAR-guessed the lateral
+     * element (the last §4bZ-U pct row, testSimpleProject's empty
+     * side; a first cut as a SECOND parallel walk was the audit's
+     * two-owners smell). */
+    private record Seg(String name,
+            com.legend.compiler.element.type.Type type) {
     }
 
-    private static @com.legend.Nullable List<String> pathOf(TypedFuncCol col) {
+    /** A shared per-prefix lateral unnest: its alias and the unnested
+     * element's SQL type (the elem-read stamp) — one registry entry,
+     * minted once. */
+    private record Unnest(String alias, SqlType elemT) {
+    }
+
+    private static @com.legend.Nullable List<Seg> pathOf(TypedFuncCol col) {
         String param = col.fn().parameters().get(0);
-        ArrayDeque<String> path = new ArrayDeque<>();
+        ArrayDeque<Seg> path = new ArrayDeque<>();
         TypedSpec cur = col.fn().body().get(col.fn().body().size() - 1);
         while (true) {
             if (cur instanceof TypedPropertyAccess pa) {
-                path.addFirst(pa.property());
+                path.addFirst(new Seg(pa.property(), pa.info().type()));
                 cur = pa.source();
             } else if (ValueCollections.autoMapHop(cur) instanceof String hop) {
-                path.addFirst(hop);
+                path.addFirst(new Seg(hop, cur.info().type()));
                 cur = ((TypedMap) cur).source();
             } else break;
         }

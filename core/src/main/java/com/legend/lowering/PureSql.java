@@ -61,32 +61,48 @@ final class PureSql {
      * explicit decision here, at compile time. Unsupported kinds throw with
      * their own arm so the message names the exact kind.
      */
+    /** THE primitive-carrier table — the ONE owner of "which Pure
+     * primitives have an SQL carrier, and which" ({@code type()}
+     * throws where this is null; {@code carrierOrNull} passes the
+     * null through — the audit's two-owners fix). */
+    private static @com.legend.Nullable SqlType primitiveCarrier(
+            Type.Primitive p) {
+        return switch (p) {
+            case STRING -> SqlType.Scalar.VARCHAR;
+            case INTEGER -> SqlType.Scalar.BIGINT;
+            case FLOAT, NUMBER -> SqlType.Scalar.DOUBLE;
+            case BOOLEAN -> SqlType.Scalar.BOOLEAN;
+            case DECIMAL -> new SqlType.Decimal(38, 18);
+            case STRICT_DATE -> SqlType.Scalar.DATE;
+            // %latest IS the fixed engine sentinel timestamp
+            // ('9999-12-31 00:00:00.0000', Lowerer's value fold) —
+            // its SQL kind is TIMESTAMP wherever a type is demanded
+            // (the toSQLString re-render path types projections
+            // BEFORE values fold; milestoning PREDICATES never get
+            // here — TemporalFrame owns them).
+            // F5.4: STRICT_DATE carries its kind as SQL DATE (the
+            // driver returns java.sql.Date — the fact rides the
+            // COLUMN type); an ABSTRACT Date slot rides TIMESTAMP
+            // and decodes as a DateTime, faithfully — the Executor's
+            // midnight-narrowing compensation is DELETED BY PROOF
+            // (zero firings across the DuckDB corpus, the H2 corpus,
+            // and the full PCT suite).
+            case DATE_TIME, DATE, LATEST_DATE -> SqlType.Scalar.TIMESTAMP;
+            case BYTE, STRICT_TIME -> null;
+        };
+    }
+
     static SqlType type(Type t) {
         return switch (t) {
-            case Type.Primitive p -> switch (p) {
-                case STRING -> SqlType.Scalar.VARCHAR;
-                case INTEGER -> SqlType.Scalar.BIGINT;
-                case FLOAT, NUMBER -> SqlType.Scalar.DOUBLE;
-                case BOOLEAN -> SqlType.Scalar.BOOLEAN;
-                case DECIMAL -> new SqlType.Decimal(38, 18);
-                case STRICT_DATE -> SqlType.Scalar.DATE;
-                // %latest IS the fixed engine sentinel timestamp
-                // ('9999-12-31 00:00:00.0000', Lowerer's value fold) —
-                // its SQL kind is TIMESTAMP wherever a type is demanded
-                // (the toSQLString re-render path types projections
-                // BEFORE values fold; milestoning PREDICATES never get
-                // here — TemporalFrame owns them).
-                // F5.4: STRICT_DATE carries its kind as SQL DATE (the
-                // driver returns java.sql.Date — the fact rides the
-                // COLUMN type); an ABSTRACT Date slot rides TIMESTAMP
-                // and decodes as a DateTime, faithfully — the Executor's
-                // midnight-narrowing compensation is DELETED BY PROOF
-                // (zero firings across the DuckDB corpus, the H2 corpus,
-                // and the full PCT suite).
-                case DATE_TIME, DATE, LATEST_DATE -> SqlType.Scalar.TIMESTAMP;
-                case BYTE, STRICT_TIME -> throw new IllegalStateException(
-                        "no SQL type for Pure primitive " + p + " at the lowering boundary");
-            };
+            case Type.Primitive p -> {
+                SqlType c = primitiveCarrier(p);
+                if (c == null) {
+                    throw new IllegalStateException(
+                            "no SQL type for Pure primitive " + p
+                            + " at the lowering boundary");
+                }
+                yield c;
+            }
             case Type.PrecisionDecimal d -> new SqlType.Decimal(d.precision(), d.scale());
             case Type.ClassType ct -> {
                 if (PlatformTypes.isVariant(ct)) {
@@ -188,12 +204,13 @@ final class PureSql {
 
     /** The element's SQL carrier when one certainly exists — an
      * eligibility CHECK, never a caught wall: carrier-bearing
-     * primitives, precision decimals, and the designed class carriers
-     * (variant/Any/Nil). Everything else null — the door stays shut. */
+     * primitives ({@link #primitiveCarrier}, the ONE owner {@code
+     * type()} also reads), precision decimals, and the designed class
+     * carriers (variant/Any/Nil). Everything else null — the door
+     * stays shut. */
     private static @com.legend.Nullable SqlType carrierOrNull(Type t) {
         if (t instanceof Type.Primitive p) {
-            return p == Type.Primitive.BYTE
-                    || p == Type.Primitive.STRICT_TIME ? null : type(t);
+            return primitiveCarrier(p);
         }
         if (t instanceof Type.PrecisionDecimal) {
             return type(t);

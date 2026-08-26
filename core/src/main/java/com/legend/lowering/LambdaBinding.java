@@ -198,7 +198,7 @@ final class LambdaBinding {
                 String elem = ps.get(0);
                 SqlExpr.Lambda transform = new SqlExpr.Lambda(List.of(elem),
                         lw.scalar(mr.transform(),
-                                elemResolver(elem, source,
+                                mapElemResolver(elem, source, false,
                                         lambdaResolver(List.of(elem), columns))));
                 SqlExpr transformed = new SqlExpr.Call(
                         com.legend.sql.SqlFn.LIST_TRANSFORM,
@@ -226,16 +226,6 @@ final class LambdaBinding {
 
     private static boolean many(TypedSpec spec) {
         return spec.info().multiplicity().requireBounded("lowering").isMany();
-    }
-
-    /** The one-parameter element door (fold's MapReduce transform):
-     * the param stamps as the collection's element, everything else
-     * resolves through {@code inner}. */
-    static ColumnResolver elemResolver(String param, SqlExpr collection,
-            ColumnResolver inner) {
-        return (var, prop) -> param.equals(var) && prop == null
-                ? SqlExpr.Column.param(param, collection)
-                : inner.resolve(var, prop);
     }
 
     /** The collection-map MAPPER lowering (the Lowerer's TypedMap
