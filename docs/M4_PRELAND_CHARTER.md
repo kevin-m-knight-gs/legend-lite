@@ -1078,7 +1078,33 @@ decodes the exact (2,1) BigDecimal under the (38,1) label — the
 Executor fetch switch is driver-object-kind-keyed, so labels never
 coerce values. Census now counts subsumed= apart from admissible=,
 so the admissible bucket holds ONLY the two representation carriers
-awaiting B3/B4.
+awaiting B3/B4. Landed 94382439 (chain green; trap: new
+JDBC-touching test files must register in JdbcSurfaceCensusTest
+with a tenet argument — the guard caught the witness file on its
+first chain).
+
+**B3 DESIGN (charter-first, homework 2026-08-26 — ready to
+execute):** the temporal-text traffic is precision-faithful
+temporal STRINGS in temporal slots — StringLit partial-date cells
+and STRFTIME re-prints (witnesses: testAdjustByYears,
+testDatePartYearOnly). The DECODE side already models the
+convention (Executor.fetch is driver-object-kind-keyed and its
+comment names the precision-faithful string convention); B3 makes
+the TYPE side match, LITERAL-style. Constraints discovered: (1)
+computed-node facts are constructor-owned — STRFTIME/CONCAT are
+general-purpose, so the rule table must NOT type them temporal; the
+stamp needs a SUPPLIED-FACT DOOR at the emitter (LiteralSpelling's
+datePrint/dateTimePrint/partial-cell sites) — a carrier node in the
+CompactList precedent, fact TEMPORAL_TEXT, render-transparent. (2)
+The wire census sees only OutputCol, so the carrier must ride SLOT
+provenance like the tolerated flag — generalize the boolean into
+one provenance slot (NONE/TOLERATED/TEMPORAL_TEXT) so every
+existing transport site carries it unchanged. (3) reconcileLabels
+keeps the declared temporal label over computed TEMPORAL_TEXT and
+marks the slot; delivers() reads the slot mark; the blanket
+TIMESTAMP/DATE←VARCHAR arms then DELETE on both sides — a stray
+VARCHAR in a temporal slot goes loud. End state: admissible() holds
+ONLY VARCHAR←JSON (B4's arm), then empties with B4.
 
 **C. PCT-LANE WIRE LEDGERS — NEWLY OWNED (the audit's main find):
 never adjudicated.** Measured 2026-08-25: adopt-pending 94 (ceiling
