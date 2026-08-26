@@ -1057,6 +1057,36 @@ class, witness dump via the PctCensusGate decomposition), ceilings
 to equality/named. Also G7's h2 lane (untyped 17, diverge 0) —
 decompose the 17 once, name or burn.
 
+**C EXECUTED (2026-08-26, 83f64f0b — diverge 45→0 and adopt-pending
+64→0, BOTH EQUALITY pins; full 8-gate chain green ~10.1 min).** The
+wire-tree capture method (witness CONTEXT tags are unreliable —
+channel A never sets them; capture construction trees). The kills,
+each probed on the 1.5.0 jar: star-tail label reconciliation (EVERY
+remaining row lived in a star-bearing frame the old size gate
+skipped wholesale; verified the tail-alignment invariant at all
+builders — join-prefix frames tail-align with already-stamped
+equal-type reads); Float/NUMBER TDS cells seed FloatLit not
+DecimalLit (the DOUBLE<>DECIMAL head-column family — literal seeds
+type whole VALUES columns); the DecimalLit fact/emission split
+(scale-0 within long = d-suffixed pure DECIMAL → fact Decimal(p,0)
++ renderer CAST; beyond long = big pure INTEGER → HUGEINT; ≥128-bit
+and >38-digit fractional → DOUBLE, probed; negative-scale normalize
+— 1E+3 renders "1000" so precision counts RENDERED digits); GUID →
+CAST(uuid() AS VARCHAR); repeatString VARCHAR-casts an untyped arg
+(BLOB overload); descending continuous percentile = the NEGATION
+identity -(qc(-v,p)) — the (1-p) transform diverged in float ULPs
+(aggFlavor seam; the bivariate arm throws loudly if it would drop
+the negation). Ascending-continuous pins repinned 2.1→2.2 etc.: the
+old goldens froze the quantile_cont-over-DECIMAL truncation
+artifact (probed both carriers). TRAP (3rd sighting, now a rule):
+typing the DecimalLit FACT by magnitude alone flipped percentile's
+mixed-kind carrier dispatch — facts follow the CONTRACT, emissions
+follow the fact. TRAP (chain hygiene): hand-run G4/G6 MUST copy
+allgates' spellings — `-pl core` + `-Dlegend.engine.root/
+-Dlegend.pure.root` (a first witness run used `-pl engine` (deleted
+module) + env-only roots and was killed). Remaining in C: the G7 h2
+17-untyped decomposition (untouched).
+
 **D. KINDS-CENSUS RESIDUE — NEWLY OWNED:** D1 int-or-null (corpus
 53 / pct 222): DuckDB spells all-NULL columns INTEGER — needs VALUE
 evidence (the decode-tripwire design) to split real-integer wires
