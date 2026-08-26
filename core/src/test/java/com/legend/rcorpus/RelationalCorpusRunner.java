@@ -776,10 +776,27 @@ public class RelationalCorpusRunner {
                     // pair propagation slots joined the registered
                     // guest list; row verdicts and scoreboard
                     // byte-stable.
+                    // 153 SPLIT BY PROVENANCE (§4Z ledger #1 repin,
+                    // 2026-08-26; the blended ceiling hid which kind
+                    // grew): ORIGIN 144 = the differing pairs, one per
+                    // mapping-seam kind mismatch (97 VARCHAR<-BIGINT +
+                    // 14 DOUBLE<-BIGINT + 33 DOUBLE<-HUGEINT) — growth
+                    // here is a NEW mismatched mapping, a model fact
+                    // that must be justified in the commit;
+                    // TRANSPORTED 9 = the equal-pair propagation slots
+                    // (DOUBLE<-DOUBLE) — plumbing that grows only with
+                    // query shape, never with the model.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .toleratedCount() <= 153,
-                            "engine-compat tolerated slots grew: "
+                                    .toleratedOriginCount() <= 144,
+                            "mapping-seam ORIGIN tolerated slots grew"
+                                    + " (a new mismatched mapping?): "
+                                    + com.legend.exec.SqlTypeCensus
+                                            .summary()),
+                    () -> org.junit.jupiter.api.Assertions.assertTrue(
+                            com.legend.exec.SqlTypeCensus
+                                    .toleratedTransportedCount() <= 9,
+                            "tolerance-transport slots grew: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
                     // THE LABEL FLIP (TYPED_SQL_IR.md, 2026-08-24):

@@ -48,10 +48,16 @@ public final class SqlTypeCensus {
      * relation, §4bZ-V B4: a pair matching no named relation lands in
      * {@link #MISMATCH}, which every lane pins at zero.) */
     private static final LongAdder SUBSUMED = new LongAdder();
-    /** Engine-compat carry-through slots (§4bZ): declared label kept
-     * over a mismatched wire because the read carried the mapping
-     * seam's provenance tag — the guest list, counted per slot. */
-    private static final LongAdder TOLERATED = new LongAdder();
+    /** Engine-compat carry-through slots (§4bZ), SPLIT by provenance
+     * (§4Z ledger #1 repin, 2026-08-26): ORIGIN = the pair genuinely
+     * differs — a declared property/column kind mismatch crossing the
+     * mapping seam (a NEW one is a model fact to justify);
+     * TRANSPORTED = the pair is EQUAL — an upper read merely carrying
+     * the tag through a propagation slot (plumbing, grows with query
+     * shape, never with the model). One blended ceiling hid which
+     * kind grew. */
+    private static final LongAdder TOLERATED_ORIGIN = new LongAdder();
+    private static final LongAdder TOLERATED_TRANSPORTED = new LongAdder();
     private static final LongAdder BOTTOM_OK = new LongAdder();
     /** RAISING roots (§4bZ-U leg 3): a projection whose expression
      * {@code error()}s yields no value and conforms to its declared
@@ -341,13 +347,16 @@ public final class SqlTypeCensus {
                 }
                 case TypeFact.Typed t -> {
                     if (declared.tolerated()) {
-                        // the reconciliation-stamped guest list (§4bZ):
-                        // label deliberately differs from the wire —
-                        // classified so the tagged-vs-total arithmetic
-                        // is in every sweep's log
-                        String cls = "tolerated " + declared.type()
+                        // the reconciliation-stamped guest list (§4bZ),
+                        // split by provenance: an EQUAL pair is a
+                        // propagation slot carrying the tag; a
+                        // DIFFERING pair is the mismatch's origin
+                        boolean carried = t.type().equals(declared.type());
+                        String cls = (carried ? "tolerated-carried "
+                                : "tolerated ") + declared.type()
                                 + " <- " + t.type();
-                        TOLERATED.increment();
+                        (carried ? TOLERATED_TRANSPORTED
+                                : TOLERATED_ORIGIN).increment();
                         classify(cls);
                         sample(cls, declared.name() + " := " + sketch(e));
                     } else if (t.type().equals(declared.type())) {
@@ -511,14 +520,24 @@ public final class SqlTypeCensus {
         return WIRE_ADOPT_PENDING.sum();
     }
 
-    public static long toleratedCount() {
-        return TOLERATED.sum();
+    /** ORIGIN rows: the pair genuinely differs — one per mapping-seam
+     * kind mismatch. Growth = a NEW mismatched mapping (a model fact
+     * to justify), never plumbing. */
+    public static long toleratedOriginCount() {
+        return TOLERATED_ORIGIN.sum();
+    }
+
+    /** TRANSPORTED rows: equal-pair propagation slots carrying the
+     * tag. Grows with query shape only. */
+    public static long toleratedTransportedCount() {
+        return TOLERATED_TRANSPORTED.sum();
     }
 
     public static String summary() {
         return "plans=" + PLANS.sum() + " cols: agree=" + AGREE.sum()
                 + " subsumed=" + SUBSUMED.sum()
-                + " tolerated=" + TOLERATED.sum()
+                + " tolerated-origin=" + TOLERATED_ORIGIN.sum()
+                + " tolerated-carried=" + TOLERATED_TRANSPORTED.sum()
                 + " bottom-ok=" + BOTTOM_OK.sum()
                 + " raises=" + RAISES_OK.sum()
                 + " bottom-mult-backlog=" + BOTTOM_MULT.sum()

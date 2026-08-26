@@ -1157,6 +1157,18 @@ proven relations (subsumes, carryThrough), two modeled carriers
 (LITERAL, TEMPORAL_TEXT), one emission conform, one dead-arm
 delete.
 
+**LEDGER #1 SPLIT-REPIN EXECUTED (2026-08-26):** the blended
+tolerated ceiling (153) SPLIT by provenance — ORIGIN 144 (differing
+pairs, one per mapping-seam kind mismatch: 97 VARCHAR←BIGINT + 14
+DOUBLE←BIGINT + 33 DOUBLE←HUGEINT; growth = a NEW mismatched
+mapping, a model fact to justify in the commit) vs TRANSPORTED 9
+(equal-pair DOUBLE←DOUBLE propagation slots; plumbing, grows with
+query shape only, never with the model). Census counts
+tolerated-origin=/tolerated-carried= separately with per-pair
+classes; the corpus runner pins each. The wire lane's 74 needs no
+split — equal pairs are structurally impossible there (agree is
+checked before the tolerated arm).
+
 **C. PCT-LANE WIRE LEDGERS — NEWLY OWNED (the audit's main find):
 never adjudicated.** Measured 2026-08-25: adopt-pending 94 (ceiling
 101), diverge 54 (ceiling 78) — the corpus twins were burned to
@@ -1204,8 +1216,34 @@ leg. D2 wire unknown (corpus 13 / pct 8): metadata-unreadable or
 shape-mismatched probes — never once examined; one witness dump
 decides fix/register each.
 
-**E. The nullability program (§4Z #4):** 6,472 — census-first
-charter, after A (its census already samples witnesses per class).
+**E. THE NULLABILITY PROGRAM — CHARTER (homework 2026-08-26, tests +
+engine code examined; ready to execute):** the 6,472 are
+bottom-mult-backlog rows: a projection whose computed value IS the
+NULL value sitting in a slot whose declaration promises
+always-present. Composition (corpus lane): BIGINT 5,707 + VARCHAR
+598 + BOOLEAN 161 + DATE 6. EVERY sampled witness is a literal
+NullLit, and every witness name is union-member machinery
+(ORDER_ID_0/_1 member key pads, stc_*$member subtype-membership
+columns, lake_thru_0/1 bitemporal member columns): when UNION ALL
+merges members with different columns, each member SELECT pads the
+other member's columns with literal NULL — deliberately null — but
+the pad slot inherits the ORIGINAL column's [1] declaration instead
+of the slot truth (nullable: this member always pads it). The
+engine's own goldens write the same pads (`null as "pk_0_1"`) and
+its result columns carry NO nullability dimension at all — our
+census is the first instrument to see this. Our nullable flag is
+transported and protocol-emitted but nothing executes on it yet: a
+label-honesty debt, not a live bug. Slices: **N0 (instrument)** add
+the expression SHAPE to the class key so the 6,472 decompose by
+cause machine-counted, not 12-sample-suggested (NullLit-pad vs
+honest [0..1]-under-[1] vs emitter gaps). **N1 (the pad leg)**
+union pad slots declare nullable=true at construction — the slot
+truth; the pure-level [1] contract is untouched (member-dispatch
+merging restores presence above the pads). Expected to burn the
+overwhelming bulk; measured, not assumed. **N2** adjudicate the
+residue per class (fix label / fix emission / register). End state:
+bottom-mult-backlog EQUALITY-pinned at the adjudicated residue,
+witnesses named.
 
 **F. Guest-list completion (§4bZ-R):** LEGEND_LITE strict diagnostic
 (mismatched mapping = warning, strict flip LAST) + dialect-level
