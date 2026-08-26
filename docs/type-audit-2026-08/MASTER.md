@@ -1,18 +1,24 @@
 # MASTER — consolidated adversarial type-system audit of legend-lite
 
-Synthesis slug `S1-synthesis`. Inputs: **32 auditor reports** in `/home/user/audit/findings/`
-(A01–A30, A32, A36, A37, plus `V2-falsifier.md` and the bulk artefacts
-`A07-pure-registry.dump.tsv`, `A20-fuzz-log.txt`, `A21-fallback-census.csv` and A30's three
-appendices), and `/home/user/audit/CONFIRMED.md` (**V1–V39**, reproduced personally by the
-orchestrator).
+Synthesis slug `S1-synthesis`. Inputs: **37 files** in `/home/user/audit/findings/` — 35 auditor
+reports (`A01`–`A33`, `A36`, `A37`; `A34` and `A35` never landed) and **both falsifiers**
+(`V1-falsifier.md`, `V2-falsifier.md`) — plus the bulk artefacts `A07-pure-registry.dump.tsv`,
+`A20-fuzz-log.txt`, `A21-fallback-census.csv` and A30's three appendices, and
+`/home/user/audit/CONFIRMED.md` (**V1–V39**, reproduced personally by the orchestrator).
 
-**Status of the fleet.** `V2-falsifier.md` landed and adjudicated **111 rulings** across
-A06, A09, A12, A15, A16, A18, A20, A22, A23, A24, A27, A28, A29, A30, A32 and `CONFIRMED.md`,
-re-deriving every repro from scratch with its own fixtures on DuckDB 1.5.0, SQLite 3.47.1 and
-H2 2.1.214. Its verdict counts: **CONFIRMED 103 · CONFIRMED-BUT-OVERSTATED 2 · DUPLICATE 6 ·
-NOT-REPRODUCED 0 · MISATTRIBUTED 0 · BY-DESIGN 0.** `V1-falsifier.md` never existed. §6 applies
-every verdict; the two overstatements are corrected in place in §1 and detailed in §6a.
-A31 and A33–A35 remain unassigned and are declared in §5c.
+**Status of the fleet.** **Both falsifiers landed** and between them adjudicated **202 rulings**,
+each re-deriving every repro from scratch with its own fixtures.
+`V1-falsifier` took `CONFIRMED.md` V1–V25 and A01–A05, A07, A08, A10, A13, A14, A17 — **91 rulings:
+CONFIRMED 82 (24 duplicate-tagged) · CONFIRMED-BUT-OVERSTATED 5 · NOT-REPRODUCED 1 ·
+NOT-REPRODUCED+MISATTRIBUTED 1 · FALSE-"VERIFIED-SOUND" 1 · BY-DESIGN 0.**
+`V2-falsifier` took A06, A09, A12, A15, A16, A18, A20, A22–A24, A27–A30, A32 and five
+`CONFIRMED.md` items, on DuckDB 1.5.0, SQLite 3.47.1 **and** H2 2.1.214 — **111 rulings:
+CONFIRMED 103 · CONFIRMED-BUT-OVERSTATED 2 · DUPLICATE 6 · NOT-REPRODUCED 0 · MISATTRIBUTED 0 ·
+BY-DESIGN 0.**
+**Zero findings were ruled BY-DESIGN. Two were ruled NOT-REPRODUCED — and one of those two is a
+`CONFIRMED.md` *correction* that retracts a claim no auditor ever filed.** §6 applies every verdict;
+the seven overstatements and the false VERIFIED-SOUND entry are corrected in place in §1.
+A34 and A35 remain unassigned and are declared in §5c.
 
 **The three things that changed most since the first draft.**
 1. **A30 built the independent signature oracle V8 said did not exist**, by cloning
@@ -36,15 +42,16 @@ from a sample unless the row says so.
 
 ## 1. MASTER DEFECT TABLE (deduplicated)
 
-**99 distinct defects** — S1 38, S2 26, S3 18, S4 11 (+1 META), S5 5.
+**105 distinct defects** — S1 41, S2 27, S3 19, S4 12 (+1 META), S5 5.
 
 Where several auditors found the same defect from different angles, the row is merged and the angles
 are listed in *Manifestations*; a single row carries between 1 and 13 separate auditor findings
-(D31 alone merges fifteen mechanisms found by nine auditors). The raw finding count across the 32
-reports is ~530, so the table is a ~5.4x deduplication. It sits above the brief's 40–70 target
-because eleven further auditors (A21, A23–A30, A32, A36, A37) and eleven further orchestrator repros
-(V29–V39) landed after that target was set; merging further would have meant putting distinct root
-sites with distinct fixes on one line. Severity scale is defined in §2.
+(D31 alone merges fifteen mechanisms found by nine auditors). The raw finding count across the 35
+auditor reports is ~620, so the table is a ~5.9x deduplication, and `V1-falsifier` independently estimated
+that its own 91 adjudicated claims cover "roughly 58 distinct defects" — the same ratio. The table
+sits above the brief's 40–70 target because fourteen further auditors and both falsifiers landed
+after that target was set; merging further would have meant putting distinct root sites with
+distinct fixes on one line. Severity scale is defined in §2.
 
 Legend for *Manifestations*: `A0n` = that auditor's report file; `Vn` = orchestrator repro.
 
@@ -93,6 +100,10 @@ Legend for *Manifestations*: `A0n` = that auditor's report file; `Vn` = orchestr
 | D92 | S1 | **No scalar function null-checks its input**: 135 declared-`[1]` results return NULL, `hasDay`/`hasHour`/… on a *column* emit an INTEGER under `Boolean[1]`, `times([Integer])` returns a `Double` under `Integer[1]`, `plus([true,false])` returns a `BigInteger` under `Boolean[1]`, `lite::hash(String[1]):String[1]` returns a `Long`, `date::quarter():Quarter[1]` returns a number rather than the enum, and `asin`/`acos` fabricate `NaN` from NULL. | The scalar rule table (`lowering/Scalars.java`) emits the bare call for every one of these; `Executor.unwrap` has no arm asserting the decoded class against the declared type | A24 (full scalar matrix, declared vs actual); **V2-falsifier: CONFIRMED** on the sampled set — `$p.d->hasDay()` → `SELECT 1 AS x` → `java.lang.Integer(1)` under `Boolean[1]` while the literal path gives `SELECT TRUE` → `Boolean(true)`; `\|times([2,3,4])` → `Double(24.0)` under `Integer[1]`; `\|lite::hash('abc')` → `Long(...)` under `String[1]` | N |
 | D93 | S1 | Temporal (milestoning) rows are silently mis-selected: a temporal class over a table with **no** milestoning block is silently unfiltered, open-ended (`thru IS NULL`) version rows are invisible at **every** date including `%latest`, and the snapshot-column type defaults to "is a date" when the column is absent from the row. | `resolver/TemporalFrame` / `resolver/Substitution` — the frame is skipped rather than walled when the block is missing | A32 (findings 11, 12, 13). Silently returns a **different row set**, which is the worst shape a temporal defect can take | N |
 
+| D100 | S1 | `cache/HandleStore`'s key does not determine its value: two unrelated models that share one connection definition get **each other's tables**, and the compiler's static type is violated by the rows returned. | `cache/HandleStore` (keyed on connection text, not on the model/store identity); the store never evicts | A31-F1 (the public API surface). This is the only defect in the audit where one *caller's* data reaches another caller | N |
+| D101 | S1 | Relation `sort` claims Pure's "null is largest" ordering and emits **no** ASC null clause, relying on the backend default — and **two of the three backends invert it**; the window `ORDER BY` in the *same statement* does emit `NULLS LAST`, so one rendered query can order two ways. | `lowering/Fold.java:377-385` (`sortNulls` returns `null` for ascending) vs `lowering/Lowerer.java:2177-2178` (window emits `NULLS_LAST` explicitly) | A13 (DuckDB nulls last, SQLite nulls first, in one statement); **V1-falsifier CORRECTED A13's H2 row — H2 also orders nulls FIRST**, so the documented contract holds only on DuckDB, by luck of that backend's default. The finding is *understated* in A13, not overstated | N |
+| D102 | S1 | `graphFetchChecked` reports **zero defects** for an object that violates every constraint, because a SQL NULL is not `false`; and `Base.all()` under an `inheritance` Operation silently ignores the declared member sets and drops the base class's own extent. | `resolver/GraphEmission` (the checked-envelope defect predicate); the inheritance-Operation route in `normalizer/UnionSynthesis` | A33 (both run end to end). Two independent silent-wrong-answer routes on the graph lane | N |
+
 ### S2 — HIGH: a declared type/multiplicity the runtime violates, or an unchecked boundary that licenses it
 
 | ID | Sev | One-line claim | Root site (file:line) | Manifestations (auditors / repros) | Orch-verified |
@@ -126,15 +137,17 @@ Legend for *Manifestations*: `A0n` = that auditor's report file; `Vn` = orchestr
 | D94 | S2 | `SqlType.Struct.Field` carries neither nullability nor a bound, so a `[1]` class property is representationally identical to `[0..1]` and `[2..5]`/`[1..*]` to `[*]`; two supertypes declaring the same property at different multiplicities give `findProperty` = `[1]` and the layout `[*]`, and the runtime value is a **list** under an `Integer[1]` stamp. | `sql/SqlType.java` (`Struct.Field` has no nullable/bound component); `compiler/element/ClassLayouts.java` vs `PureModelContext.findProperty:186-208` | A28 (`^mi::Req()` — a class with a `[1]` and a `[0..1]` property — is representationally one struct; `^model::DiamondMult(w=1)->map(d\|$d.w)` returns a list under `Integer[1]`) | N |
 | D95 | S2 | The lineage and validation surfaces re-derive structure without the typed HIR and get it wrong: `ScanColumns` reports **no** lineage at all for a pivot, lineage is a flat set of physical columns with no per-output edges and no types, `PkInference` dispatches on a function's **simple name** so a user function named `sort`/`filter`/`select` is silently treated as the built-in, and `ValidateDesugar` duplicates a diamond-inherited constraint, never checks the `~message` column's type, silently mis-binds its runtime argument and defaults a missing enforcement level to the literal `"Error"`. | `lineage/ScanColumns.java`, `lineage/ScanRelations.java` (`rootImpl` picks the FIRST class mapping for a multi-set class; `rootFor` swallows every `RuntimeException`), `lineage/PkInference.java`, `validation/ValidateDesugar.java`; `plan/InProtocol.java` hardcodes `VARCHAR(1024)` and `type = String` for **every** temp-table collection | A29 (each item run; the `MESSAGE:String` contract column comes back `Integer`; `validate(...)` with no `.all()` root is a raw `IllegalStateException`) | N |
 
+| D103 | S2 | `spi/ElementSink.accept` validates nothing, so a third-party grammar can inject duplicate, malformed and **null** FQNs and `compileModel` dies with a raw NPE; and the SPI registry and the lexer desync, so an overlay can shadow a lexable built-in and the parser silently ignores it. | `spi/ElementSink.java` (no validation on accept); the SPI registry vs `lexer/Lexer` keyword set | A31-F17, A31-F18. The extension seam has no type or name contract at all | N |
+
 ### S3 — MEDIUM: an internal exception escaping on plausible input, or a construct that type-checks and cannot execute
 
 | ID | Sev | One-line claim | Root site (file:line) | Manifestations | Orch-verified |
 |---|---|---|---|---|---|
-| D50 | S3 | Raw JDK exceptions escape as ICEs from record compact constructors, literal validation and index reads, on ordinary model or query text. | `Type.java:160-167` (`DECIMAL(2,5)`), `:520-534` (duplicate relation columns), `Multiplicity.java:145-155` (`[5..2]`) reached from `StoreCompiler.java:192`, `TypeClassifier.java:111-122`, `Typer.relationShapeType:3103-3106`, `ModelIntegrity.checkFunction:167`; `Typer.java:1084-1089` (`at(99)`); `protocol/spec/CTime.java:35-41` (`%25:00:00`); `parser/SpecParser.java:825-836` (`1e309`); `TokenStreamCursor.java:794-797` (type-variable value overflow) | A01, A08, A13, A17-F9/F11/F12, A22, A05-8. The **same rule** on the colspec path is a clean `SchemaInvariantException`, and the parallel date path is a clean `ParseException` — two implementations, one clean, one an ICE | N |
+| D50 | S3 | Raw JDK exceptions escape as ICEs from record compact constructors, literal validation and index reads, on ordinary model or query text. | `Type.java:160-167` (`DECIMAL(2,5)` — **V1-falsifier corrected the phase**: `compileModel` *succeeds*, the IAE fires lazily at **Phase G** from a table *reference* via `StoreCompiler.columnType:192` ← `PureModelContext.resolveTableWithIncludes:436` ← `TableReferenceChecker.check:73`, so a model with a bad DECIMAL passes validation and explodes only when someone queries that table), `:520-534` (duplicate relation columns), `Multiplicity.java:145-155` (`[5..2]`) reached from `StoreCompiler.java:192`, `TypeClassifier.java:111-122`, `Typer.relationShapeType:3103-3106`, `ModelIntegrity.checkFunction:167`; `Typer.java:1084-1089` (`at(99)`); `protocol/spec/CTime.java:35-41` (`%25:00:00`); `parser/SpecParser.java:825-836` (`1e309`); `TokenStreamCursor.java:794-797` (type-variable value overflow) | A01, A08, A13, A17-F9/F11/F12, A22, A05-8. The **same rule** on the colspec path is a clean `SchemaInvariantException`, and the parallel date path is a clean `ParseException` — two implementations, one clean, one an ICE | N |
 | D51 | S3 | `StrictTime` and `Byte` are first-class Pure primitives with **no SQL carrier**: any query touching one — or merely a `VARBINARY` column *declared* in a Database and never referenced — dies with a raw `IllegalStateException`/`NotImplementedException` after Phase G accepted it. | `lowering/PureSql.java:91-104` (`case BYTE, STRICT_TIME -> null` then throw); the scalar default arm for `TypedCTime` | V6; A08; A16 (`cast(@StrictTime)`); A19 (an unmapped `BLOBBY VARBINARY(10)` kills every plan over the table); A10; A22; A14 (no relational column can carry `StrictTime` at all) | **Y — V6** |
 | D52 | S3 | A zero-column relation type is accepted, lowers to `SELECT *`, and ICEs at the egress with a plan/schema mismatch — leaking unmapped physical columns on the way. | `ProjectChecker` has no `~[]` guard (`SelectChecker.java:23-25` and `DistinctChecker.java:42-44` both *do*); `Lowerer.relationCast:3208-3255` (`allKnown` is vacuously true for an empty target) | V15; A13 (3 shapes); A09-F11 (identical on all three backends); A17-F7 (`cast(@Relation<()>)`) | **Y — V15** |
 | D53 | S3 | The advertised surface is much larger than the lowerable surface: 87 natives type-check and then raise `IllegalStateException: no scalar lowering registered`, 8 `TypedSpec` variants reachable from plain queries have no lowering arm, and the reduce position accepts natives with no aggregate lowering. | `lowering/Scalars.RULES` coverage vs `builtin/Pure.all()`; `lowering/Aggregates.reducerFor:139-146`; `Lowerer` dispatch vs the 70 permitted `TypedSpec` variants | A06 (exhaustive: **all 721** overloads typed at G — 523 OK, 198 clean errors, **0 internal**; of the 523 planned, **112 raise internal exceptions**: 87 "no scalar lowering", 19 `NotImplementedException`, 6 other); A22 (`TypedCTime`, collection `TypedSortBy`, class `TypedCast`, `TypedColSpec(Array)`, `TypedSortInfo`, `TypedOver`, `TypedTypeRef`); A14 (`last`, `toOne`, `makeString`, `at`, `fold` in reduce position) | N |
-| D54 | S3 | `StackOverflowError` escapes from six distinct frames — parser, name resolver, typer, store resolver, lowering — on deeply nested but legal input, and being an `Error` it bypasses every `catch (Exception)`. | No depth budget anywhere: `TokenStreamCursor.parseType:725/759`, `SpecParser.parseUnaryAndPrimary:587`, `NameResolver.resolveVs:1481`, `Typer.synth:126`, `SyntheticHeads.liftFilteredHeads:298`, `Lowerer.scalarInner:2350` | A17-F13 (thresholds ~981 generics / ~919 relation types / ~727 parens); A20 (320 `+` terms, 200 nested parens, 400 nested `if`, 500 nested concat). The repo's own NLQ module generates queries | N |
+| D54 | S3 | `StackOverflowError` escapes from six distinct frames — parser, name resolver, typer, store resolver, lowering — on deeply nested but legal input, and being an `Error` it bypasses every `catch (Exception)`. | No depth budget anywhere: `TokenStreamCursor.parseType:725/759`, `SpecParser.parseUnaryAndPrimary:587`, `NameResolver.resolveVs:1481`, `Typer.synth:126`, `SyntheticHeads.liftFilteredHeads:298`, `Lowerer.scalarInner:2350` | A17-F13 (**thresholds withdrawn** — V1-falsifier got OK at generic depth 1200 and paren depth 800 where A17 reported SOE at ~981/~727; the numbers are properties of the auditor's JVM stack, not of the parser. The SOE itself reproduces at depth 5000, at `TokenStreamCursor.parseQualifiedName:535`); A20 (320 `+` terms, 200 nested parens, 400 nested `if`, 500 nested concat). The repo's own NLQ module generates queries | N |
 | D55 | S3 | Bad SQL from a fully type-checked plan — seven distinct shapes, one of which kills the database session. | `sql/dialect/AnsiSqlRenderer.java:115-121` (set branches written inline, never parenthesised); `Lowerer` groupBy+size fusion; constant `extend` folded into `GROUP BY`; `Lowerer.java:606-611` (negative LIMIT); `drop(0)` → `OFFSET 0`; empty column name → zero-length identifier; unguarded `round()`/`bitShiftLeft`/INT32 arithmetic | A20 (**431 of 12 800** generated queries; `UNION` after `sort`/`limit`/`drop` alone is **234**; `drop(0)` triggers a DuckDB assertion that invalidates the connection for 587 subsequent queries); A13 (`slice(2,0)` → `LIMIT -2`; `AS ""`); A06-10; `GROUP BY <literal>` is a **silent wrong-answer** hazard when the constant is a valid ordinal | N |
 | D56 | S3 | `IllegalStateException: a scalar query has no row scope` — count rows, filter the count, ask how many are left. | `lowering/Lowerer.java:326-329` | A20 (seed 5200047, shrunk by hand to `groupBy(~[], ~[c8:…count()])->filter(v11\|$v11.c8 < 1)->size()`). This is the repo's own "genuine internal invariant violation" bucket escaping to the user | N |
 | D57 | S3 | `instanceOf` ignores the subtype relation entirely and raises `NotImplementedException` on **every** non-identical pair, including statically decidable ones; the function can only ever return literal `true`. | `lowering/Scalars.java:2563-2585` (`ctx.isSubtype` is never consulted) | A03 (3 repros incl. `instanceOf(1, Integer)`; the `@Type` spelling is separately rejected at G for every type) | N |
@@ -150,6 +163,8 @@ Legend for *Manifestations*: `A0n` = that auditor's report file; `Vn` = orchestr
 | D96 | S3 | Error discipline **degrades monotonically** down the pipeline: 850 of 1 168 `throw new` sites are internal (72 %), rising from 25 % in the parser to **100 %** in `sql/`, `sql/dialect/`, `exec/`, `plan/`, `values/` and `protocol/`; and `NotImplementedException` — the most-thrown type, 293 sites — extends `RuntimeException`, not `LegendCompileException`. | Orchestrator census over `core/src/main/java`; `error/NotImplementedException.java:8` | V37 (per-package table). A fleet sweep of 247 queries over the whole native surface produced **85 internal exceptions vs 5 user-facing errors**, every one of which had passed phase G. This is the mechanism behind D53: type-checks-then-cannot-execute is the *default* failure mode of the back half, not an edge case | **Y — V37** |
 | D97 | S3 | `planToString` / plan-text has four reachable holes that are internal errors on a plain query: `PlanText.pureName:567` has no `PrecisionDecimal`, `LatestDate` or `StrictTime` arm, a computed TDS column over two source columns is an internal error, and an in-protocol constant of any non-String/non-Integer collection type walls. | `plan/PlanText.java:567`; `plan/InProtocol.java` | A29 (`planToString(executionPlan({\|let p = 1.5d; …}))` → `NotImplementedException: plan: pure type name for PrecisionDecimal[38,1]`; the same query with `1.5` renders fine; `%latest` and `%12:30:00` likewise). **A29 REFUTED the forwarded stronger claim** that `:557` throws for any DECIMAL *store column* — see §6a | N |
 | D98 | S3 | Synthesized names collide with user names with no reservation or check: a user property named `pk_0` collides with the synthesized primary-key column, and `DriverPkAppend` collides with a user projection column named like the driver PK. | `resolver/Substitution.java`, `resolver/DriverPkAppend` (no namespace reservation for synthesized column names) | A32 (findings 8, 9) — the same class of defect as D19 (`$` synth FQNs) and D26 (`u_map__` prefix), i.e. **three** synthesized namespaces in the compiler are user-writable | N |
+
+| D105 | S3 | The public HTTP/API boundary turns every failure into an untyped, phase-less leak: **127 of 863** probes across the public API escape as raw internal exceptions, the error envelope drops `Phase` entirely and returns **HTTP 200 for every failure**, it leaks internal record dumps, internal FQNs, rendered SQL and DB catalog internals, and a `StackOverflowError` on `/engine/execute` closes the connection with **zero bytes** while the same input on `/engine/diagram` returns `{"error":""}`. | `server/LegendHttpServer` (the error envelope), `error/LegendCompileException.Phase` (RENDER/EXECUTE unused) | A31-F2/F4/F9. The information-leak half is the one item in this audit with a security flavour and should be triaged separately | N |
 
 ### S4 — LOW: inconsistency, dead code, information loss with no observed wrong value
 
@@ -170,12 +185,14 @@ Legend for *Manifestations*: `A0n` = that auditor's report file; `Vn` = orchestr
 
 | D99 | S4 (META) | **The 4 278-test suite is green and structurally cannot see any of this.** Of 1 671 test methods that execute a query end to end, 888 (53.1 %) assert row values, **4 (0.24 %)** assert a result column's `pureType()`/`multiplicity()`, and **exactly 1 (0.06 %)** relates a declared column type to the *delivered Java carrier*. Compile-time typing is densely and adversarially tested; row values are densely tested; the seam between them is unguarded — and that is exactly where the audit's findings sit. | `core/src/test` (7 `Column.pureType()` assertion lines vs 1 943 `.rows()` sites vs 87 `"SELECT` literals) | V36 + A37: full run = **484 test classes, 4 278 tests, 0 failures, 0 errors, 16 skipped**. Of 19 findings put to a coverage check: **0 COVERED · 3 PINNED · 15 UNCOVERED**. Three are *pinned*, i.e. an existing test asserts the current wrong behaviour and fixing the bug turns the suite red: V3 (`cast` converts — pinned hard), V11 (`EqualityWorldsConformanceTest.declaredDivergences:90` pins `1 == 1.0 → true` and `8 == 8D → true` as accepted), V13 (`PrecisionDecimalArithmeticTest` has 9 tests incl. a 20×20×20×20 sweep on code whose only caller is that test file — deleting the dead code turns 9 tests red) | **Y — V36** |
 
+| D104 | S4 | The public API exposes **no usable type information**: a GRAPH result (a bare `Class.all()` — the commonest query shape) carries no per-field type on any surface and `executeWire` reports `columns = []`; the CSV wire collapses NULL≡empty-string, Integer≡String-of-digits, Boolean≡String and temporal≡String; the JSON wire makes `Decimal` and `Float` byte-identical; the IDE/LSP surface has no hover types and no completions and reports diagnostics only for `PARSE`; `QueryService.executeSql` runs the SQL and **discards the ResultSet**, returning a zero-column relation type; and `DiagramService` invents an inheritance edge the compiler does not have and collapses distinct types to simple names. | `server/QueryService`, `server/LegendHttpServer`, `ide/*`, `server/DiagramService`; `Phase.RENDER` and `Phase.EXECUTE` have **zero** throw sites, so no execution failure can ever carry a phase | A31-F3/F5/F6/F7/F10/F11/F12/F13/F14/F15/F19/F20. Scored S4 because no wrong *value* is produced — but this is the surface a real consumer actually meets, so the practical impact is higher than the score | N |
+
 ### S5 — DOC: a prose claim contradicted by the code
 
 | ID | Sev | One-line claim | Root site (file:line) | Manifestations | Orch-verified |
 |---|---|---|---|---|---|
 | D71 | S5 | `native-catalog.txt` is a **SELF-golden**: `NativeFunctionTest.catalogMatchesTheGoldenFile` renders `Pure.all()` and compares it to a file generated from `Pure.all()` — and its renderer additionally erases the two forms that matter, so **flipping a relation column from `[1]` to `[0..1]` inside any signature produces a zero-line diff in the only catalog-wide guard**. | `builtin/Pure.java:14-19` (the "VERBATIM … NO divergence categories remain" header); `NativeFunctionTest.java:52-66` and `renderType:90-107`; `Corpus.java:48-51, 68` (the one upstream-touching mechanism is opt-in and absent on this machine) | V8; A30 (golden-vs-code diff = **0 lines** for all 721; three signature pairs differing only in `Result<X|1>` vs `Result<X|*>` or a relation column's multiplicity render **identically**; the other 30 tests in the file restate the same data or check internal closure). **Now measured rather than suspected — see D81.** | **Y — V8** |
-| D72 | S5 | `Type.java`'s three headline claims are false: "callers never normalize `PrecisionDecimal → DECIMAL`" (14+ sites hand-roll it, **4 forget it**), "THE PIVOT-COLUMN MATCHING RULE (one owner)" (three disagreeing implementations), and "`MAX_PRECISION` — widest compatible precision" (the constructor accepts `DECIMAL(2000000000,0)`). | `Type.java:150-156`, `:455-463`, `:177-178` | V14 (with the observable consequence: `format('%r', 1.25D)` and `format('%r', 1.25)` are indistinguishable because `lowering/Repr.java:51` lacks the arm); A01; A03. The four missing arms: `Repr.java:51`, `DateCtorRule.java:100`, `Scalars.java:3467`, `CastPolicy.java:144` | **Y — V14** |
+| D72 | S5 | `Type.java`'s three headline claims are false: "callers never normalize `PrecisionDecimal → DECIMAL`" (**7 sites forget it, not 4** — V1-falsifier read all 28 `Primitive.DECIMAL` references: no arm at `PlanText:557`, `Repr:51`, `DateCtorRule:100`, `Scalars:3467`, `CastPolicy:144`, **`CanonicalRenderSql:224`**, **`Typer:1815`**; 14 carry it. A01's census is the accurate one; **V14's list of four is incomplete**), "THE PIVOT-COLUMN MATCHING RULE (one owner)" (three disagreeing implementations), and "`MAX_PRECISION` — widest compatible precision" (the constructor accepts `DECIMAL(2000000000,0)`). | `Type.java:150-156`, `:455-463`, `:177-178` | V14 (with the observable consequence: `format('%r', 1.25D)` and `format('%r', 1.25)` are indistinguishable because `lowering/Repr.java:51` lacks the arm); A01; A03. The seven missing arms: `PlanText.java:557`, `Repr.java:51`, `DateCtorRule.java:100`, `Scalars.java:3467`, `CastPolicy.java:144`, `CanonicalRenderSql.java:224`, `Typer.java:1815` | **Y — V14** |
 | D73 | S5 | `AGENTS.md` §3a "The MIR is closed and pure data" is wrong on four counts (`SqlExpr` is 36 variants not 32; `SqlAgg.Fn` is 41 not ~35; `SqlType.Struct` is omitted; `SqlExpr.Cast` carries a `SqlType`, not a Pure type name), and the "no MIR record has a String field encoding a SQL operation" invariant is violated at 6 sites — while the Lowerer itself holds DuckDB function names. | `AGENTS.md:205-232`; `SqlSource.java:148-172`, `SqlExpr` interval units, `PlanParam.enumMapFn`, `SqlSource.RawSql.sql`, the `ADD_INTERVAL`/`TIME_BUCKET`/`EXTRACT` positional convention; `lowering/DateShifts.java:63-75`, `CalendarAgg.java:197`, `Scalars.java:657-663, 3065` | A08 (reflective variant enumeration + the renderer sites that splice each string); A10 (`CanonicalRenderSql.java:519-522` compares DuckDB `json_type()` output strings) | N |
 | D74 | S5 | The repo-wide rule "**NO FALLBACKS. NO DEFAULTING.**" is falsified at scale. | Census over `core/src/main/java` | A21 (4 237 rows): 572 `null_ternary`, 442 `default ->`, 409 `Type.Primitive.*` stand-ins, 259 `notnull_ternary`, 210 `instanceof_else_default`, 186 `orElse`, 151 `isEmpty_ternary`, 52 `getOrDefault`, **25 swallowed catches**, 14 swallowed-empty, 36 fallback-returns; plus 383 `NotImplementedException` and 283 `IllegalStateException` throw sites. A18's own package census (10 catches: 5 silent; 41 `orElse(null)`) ranks the worst offenders: `RelOpTranslator:110` > `MappingNormalizer:2400/2380/2476` > `:326` > `:1673` > `:3035` | N |
 | D75 | S5 | Roughly twenty further javadoc/comment claims are contradicted by their own code. Ranked below every real defect; each is the *documentation* half of a defect already listed above. | Non-exhaustive: `UserCallInliner.java:45-48, 103-104` (α-hygiene "unconditional", "callee bodies are closed") → D05; `TypedMatchRuntime.java:20-21` ("SQL lowering walls LOUDLY") → D09; `StoreResolver.java:1073-1077` ("fails loud — never silent") → D31f; `MappingNormalizer.java:3333-3336` ("the residual null-check is toOne's runtime semantics") → D31a; `AnsiSqlRenderer.java:479-483` ("`to_json` yields the same array value") → D14; `GraphEmission.java:3163-3166` ("every OTHER flag walls loudly") → D70; `TypeNames.java:12-18` ("absence is LOUD") → D15/D47; `ModelIntegrity.java:18-25` + `PureModelContext.java:71-74` ("**every** reference … is checked") → D38; `SynthFqn.java:17-19` ("`$` is non-user-writable") → D19; `NormalizeFolds.java:17-18` ("applied at TYPING") → D06; `AsOfJoinChecker.java:19-26` + `TypedAsOfJoin.java:20-22` + `Checkers.java:44-46` ("prefixes EVERY right column") → measured: only the colliding ones; `PlatformTypes.java:9-13` (drift test "pins its constants") → 6 of ~45 pinned; `JoinChecker.java:45-47` ("a bare 'join' must never reach it") → D58; `Typer.java:70-82` ("owns exactly two things"); `ValueSpecification.java:16-30` ("3 variants") → 24; `PureDateLiteral.java:19-23, 57-62` (grammar + "byte-exact round-trip") → D69; `Lexicon.java:32-41` + `CarrierStrategies.java:31-42` (SQLite gaps understated; no `Caps.SQLITE` exists) → D15; `TypedFilter/Limit/Drop/Slice` ("info() is the source type unchanged") → 8 violations in 112 queries; `Multiplicity.java:22-33` + `Stamps.java:9-18` ("THE single implementation", "one principle, one reader") → D65; `MappingNormalizer.java:2285-2291` (Boolean coercion "ERRORS … loud beats silently-different") → it does not error and returns the **opposite** of the engine value it cites; `Type.PrecisionDecimal` javadoc ("normalized in the one subtype routine `ModelContext.isSubtype`") → that method can never see a `PrecisionDecimal` | partial (V8, V14) |
@@ -191,10 +208,10 @@ the exact rule used for the borderline calls:
 
 | Sev | Definition | Count | Borderline rule actually applied |
 |---|---|---:|---|
-| **S1 CRITICAL** | silently wrong VALUES or TYPES delivered to a caller from ordinary, plausible source | 38 | A row is S1 if a **value or a Java carrier** that the caller receives is wrong — including "the right value under a type that cannot hold it" (D01, D03, D21) and "a row set that should not exist" (D23, D29-part, D79). A *missing* value under a `[1]` claim is S2, not S1 — unless Pure defines a non-null identity for that operation, in which case the delivered NULL is a wrong value (D27) or the convention is explicit in the same projection (D28). |
-| **S2 HIGH** | a declared type/multiplicity the runtime violates, or an unchecked boundary that licenses it | 26 | Nullability and cardinality violations (D31, D32, D33, D37, D40, D47), type claims a value cannot satisfy (D34, D35, D42, D44), and the boundaries that *permit* an S1 elsewhere without themselves producing a value (D36, D38, D50, D81, D83, D85). |
-| **S3 MEDIUM** | an internal exception (ICE) escaping on plausible user input, or a construct that type-checks and then cannot execute | 18 | The test is the *exception class*, not the phase: `LegendCompileException` subtypes and `NotImplementedException` are clean walls (the repo's own contract, `error/LegendCompileException.java:14-19`); a raw `IllegalStateException`/`IllegalArgumentException`/`NumberFormatException`/`IndexOutOfBoundsException`/`ClassCastException`/`ArithmeticException`/`StackOverflowError`/`SQLException` reaching the caller is S3. Bad SQL from a type-checked plan is S3 by the "cannot execute" arm. |
-| **S4 LOW** | inconsistency, dead code, information loss with no observed wrong value | 11 + 1 META (D99) | Everything where an auditor explicitly could not produce a wrong value, plus every self-declared-latent item. Where a row bundles a latent item with a live one, the row takes the live severity and the latency is stated in the manifestation cell. |
+| **S1 CRITICAL** | silently wrong VALUES or TYPES delivered to a caller from ordinary, plausible source | 41 | A row is S1 if a **value or a Java carrier** that the caller receives is wrong — including "the right value under a type that cannot hold it" (D01, D03, D21) and "a row set that should not exist" (D23, D29-part, D79). A *missing* value under a `[1]` claim is S2, not S1 — unless Pure defines a non-null identity for that operation, in which case the delivered NULL is a wrong value (D27) or the convention is explicit in the same projection (D28). |
+| **S2 HIGH** | a declared type/multiplicity the runtime violates, or an unchecked boundary that licenses it | 27 | Nullability and cardinality violations (D31, D32, D33, D37, D40, D47), type claims a value cannot satisfy (D34, D35, D42, D44), and the boundaries that *permit* an S1 elsewhere without themselves producing a value (D36, D38, D50, D81, D83, D85). |
+| **S3 MEDIUM** | an internal exception (ICE) escaping on plausible user input, or a construct that type-checks and then cannot execute | 19 | The test is the *exception class*, not the phase: `LegendCompileException` subtypes and `NotImplementedException` are clean walls (the repo's own contract, `error/LegendCompileException.java:14-19`); a raw `IllegalStateException`/`IllegalArgumentException`/`NumberFormatException`/`IndexOutOfBoundsException`/`ClassCastException`/`ArithmeticException`/`StackOverflowError`/`SQLException` reaching the caller is S3. Bad SQL from a type-checked plan is S3 by the "cannot execute" arm. |
+| **S4 LOW** | inconsistency, dead code, information loss with no observed wrong value | 12 + 1 META (D99) | Everything where an auditor explicitly could not produce a wrong value, plus every self-declared-latent item. Where a row bundles a latent item with a live one, the row takes the live severity and the latency is stated in the manifestation cell. |
 | **S5 DOC** | a prose claim contradicted by the code | 5 | Ranked below every real defect, per the brief. Each S5 row points at the defect it is the documentation half of; where a doc lie has an independent observable consequence (D72's `format('%r')`) that consequence is named in the row. |
 
 Three deliberate severity decisions worth flagging to the reader, because a different auditor could
@@ -223,7 +240,7 @@ reasonably disagree:
 
 ## 3. ROOT CAUSES
 
-Fourteen design gaps generate the 99 defects. Each is stated as one sentence, with the defects it
+Fourteen design gaps generate the 105 defects. Each is stated as one sentence, with the defects it
 explains. A defect can appear under more than one root cause; the **bold** ID is its primary home.
 
 **RC-1 — There is no runtime enforcement of any declared multiplicity, and the compiler
@@ -425,7 +442,9 @@ This section is what makes the audit auditable. Numbers are the auditors' own, a
 | `###Relational` accepted column datatype set, read from the parser then compiled | 21 accepted / **64** common SQL spellings rejected | no `TIME` spelling exists, so `StrictTime` and `LatestDate` cannot be mapped to any column; `BOOLEAN` is rejected | A36, V22 |
 | **The JUnit suite, actually run** (in a separate copy of the repo, so the brief's `mvn` ban was not violated for other auditors) | **484 classes, 4 278 tests** | **0 failures, 0 errors, 16 skipped**; per-finding coverage over 19 findings: **0 COVERED · 3 PINNED · 15 UNCOVERED** | A37, V36 |
 | Test-assertion census over every test method that executes a query end to end | **1 671** methods | 888 assert row values; **4** assert a column's `pureType()`/`multiplicity()`; **1** relates a declared type to a delivered carrier | A37, V36 |
-| Falsifier re-adjudication — every UNSOUND/CRASH item of A06/A09/A12/A15/A16/A18 plus samples of A20/A22/A23/A24/A27/A28/A29/A30/A32 and 5 `CONFIRMED.md` items, all re-derived with the falsifier's own fixtures on 3 live drivers | **111** rulings | CONFIRMED **103** · CONFIRMED-BUT-OVERSTATED **2** · DUPLICATE **6** · **NOT-REPRODUCED 0 · MISATTRIBUTED 0 · BY-DESIGN 0** | V2-falsifier |
+| **Falsifier re-adjudication, two independent passes**, every repro re-derived from scratch with the falsifier's own fixtures (V2 additionally on 3 live drivers) | **202** rulings | V1: CONFIRMED **82** · OVERSTATED **5** · NOT-REPRODUCED **1** · NOT-REPRODUCED+MISATTRIBUTED **1** · FALSE-VERIFIED-SOUND **1** · **BY-DESIGN 0**. V2: CONFIRMED **103** · OVERSTATED **2** · DUPLICATE **6** · **NOT-REPRODUCED 0 · MISATTRIBUTED 0 · BY-DESIGN 0** | V1-falsifier, V2-falsifier |
+| Public-API probe sweep (`server/QueryService`, HTTP endpoints, `ide/`, `cache/`, `spi/`) | **863** probes | **127 escape as raw internal exceptions** with no `Phase`; `Phase.RENDER` and `Phase.EXECUTE` have **zero** throw sites anywhere | A31 |
+| `Primitive.DECIMAL` comparison-site census, every reference read with surrounding lines | **28** references | 14 carry the `PrecisionDecimal` arm, **7 do not**, 7 are non-comparison uses | V1-falsifier (supersedes V14's list of 4) |
 | Throw-site discipline census over `core/src/main/java` | **1 168** `throw new` sites | 318 user-facing / **850 internal (72 %)**; 100 % internal in `sql/`, `sql/dialect/`, `exec/`, `plan/`, `values/`, `protocol/` | V37 |
 | Native-surface execution sweep (whole `builtin/Pure` surface, post-G) | 247 queries | **85 internal exceptions vs 5 user-facing errors** | V37 |
 | Type-decision-site census (the "NO FALLBACKS" invariant, measured rather than asserted) | **1 560** sites | 34 (2.2 %) can silently produce a type not derived from the model — 10 VIOLATION, 24 SUSPICIOUS; 24 proven reachable, 5 proven unsound. `default ->` 442, `default:` **0**; `FIXME`/`XXX` **0**; **none of the 140 catch blocks substitutes a `Type`** | A21, V37 |
@@ -446,6 +465,11 @@ This section is what makes the audit auditable. Numbers are the auditors' own, a
 * **`EngineStyleH2` (1 664 lines)**, **`Substitution` (3 167)**, **`GraphEmission` (3 429)**,
   **`AssociationJoins` (2 086, ~1 700 lines unread)**, **`CorrelatedSubselects` (2 390)**: read
   selectively at the sites that construct `ExprType`s or walls (A11, A12).
+* **VERIFIED SOUND sections are auditor claims, not measurements, and one is provably false.**
+  V1-falsifier ruled A10's "filtered-empty `->sum()` = NULL (`[0..1]`)" FALSE — it is `[1]`, i.e. the
+  V19 defect recorded as sound. Wherever §5a cites a "0 violations" result it cites the probe that
+  produced it; wherever this report leans on a prose "verified sound" claim it should be read as
+  one auditor's assertion, at that auditor's confidence.
 * **A20's run1 campaign (5 200 queries)** is excluded from the headline numbers: one DuckDB internal
   error invalidated the connection and the remaining 587 queries in that shard all failed with
   `database has been invalidated`. Those 587 are a harness artefact, not 587 defects; the auditor
@@ -498,29 +522,33 @@ defects); A33 (`GraphEmission`, 3 429 lines); A34 (`Scalars`, 3 495 lines); A35 
 
 ## 6. CONTRADICTIONS, AND WHAT THE EVIDENCE FAVOURS
 
-`V2-falsifier.md` adjudicated **111 rulings**, re-deriving every repro from scratch with its own
-fixtures (`m1..m6.pure`, `TM.java`, `BT.java`, `EN.java`, `UC.java`, `XB.java`, `PS.java`, …) and
-re-running every cross-backend claim on DuckDB 1.5.0, SQLite 3.47.1 **and** H2 2.1.214. It reused no
-auditor fixture file. `V1-falsifier.md` never existed.
+Two falsifiers adjudicated **202 rulings** between them, each re-deriving every repro from scratch
+with its own fixtures and reusing no auditor fixture file.
 
-**Verdict counts: CONFIRMED 103 · CONFIRMED-BUT-OVERSTATED 2 · DUPLICATE 6 · NOT-REPRODUCED 0 ·
-MISATTRIBUTED 0 · BY-DESIGN 0.** Per source file: A06 19 · A09 16 · A16 15 · A20 10 · A15 8 ·
-A24 8 · A12 6 · A18 6 · `CONFIRMED.md` 5 · A22 5 · A27 4 · A23 2 · A28 2 · A30 2 · A32 2 · A29 1.
+| | scope | rulings | CONFIRMED | OVERSTATED | NOT-REPRODUCED | MISATTRIBUTED | BY-DESIGN | other |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| **V1-falsifier** | `CONFIRMED.md` V1–V25 + CORRECTIONS; A01–A05, A07, A08, A10, A13, A14, A17 | 91 | 82 (24 dup-tagged) | 5 | 1 | 1 (with NOT-REPRODUCED) | **0** | 1 FALSE "VERIFIED SOUND" entry; 1 not adjudicated |
+| **V2-falsifier** | A06, A09, A12, A15, A16, A18 in full; A20, A22–A24, A27–A30, A32 sampled; `CONFIRMED.md` V18/V20/V23/V24/V25. Re-run on DuckDB 1.5.0, SQLite 3.47.1 **and** H2 2.1.214 | 111 | 103 (6 dup-tagged) | 2 | **0** | **0** | **0** | 6 DUPLICATE |
 
-Two things follow. First: **nothing in §1 has been ruled NOT-REPRODUCED, MISATTRIBUTED or
-BY-DESIGN by a falsifier**, so §6a below is a downgrade-and-correction list, not a rejection list —
-with two exceptions that came from the orchestrator's and A29's own re-checking. Second: the
-falsifier explicitly did *not* adjudicate A19, A21, A25, A26, A36, A37, the oracle-dependent bulk of
-A30, or the non-sampled tails of A23/A24/A27/A28/A29/A32. Rows resting only on those are marked in
-§6c.
+**Zero findings were ruled BY-DESIGN by either falsifier.** Two were ruled NOT-REPRODUCED, and one
+of those is a `CONFIRMED.md` *correction* that retracts a claim no auditor filed. Seven findings were
+ruled CONFIRMED-BUT-OVERSTATED and are corrected in place in §1. One auditor's **VERIFIED SOUND**
+entry was ruled false — which matters beyond that one row, because §5's coverage ledger is built
+partly from VERIFIED SOUND sections.
+
+Neither falsifier adjudicated A19, A21, A25, A26, A31, A33, A36, A37, the oracle-dependent bulk of
+A30, or the non-sampled tails of A23/A24/A27–A29/A32. Rows resting only on those are listed in §6c.
 
 ### 6a. REJECTED / DOWNGRADED / CORRECTED
+
+The three rows a reviewer should read first are the two **NOT-REPRODUCED** rulings and the one
+**FALSE VERIFIED-SOUND** ruling; the rest are downgrades and precision corrections.
 
 | Claim | Verdict | Reason, and what §1 now says |
 |---|---|---|
 | **`CONFIRMED.md` V24's repro and mechanism** — `\|[10]->map({x\| let y=$x; [7]->map(y\|$y)->toOne();})` ⇒ 7 shows let-inlining capture | **CONFIRMED-BUT-OVERSTATED — repro REJECTED, defect KEPT** | The falsifier showed three things: (a) the two programs are **not** α-equivalent — renaming the binder `z`→`y` puts a free occurrence of the let variable under a binder of the same name, which is exactly what α-conversion excludes; (b) under this compiler's own consistent lexical shadowing `7` is the **right** answer — `\|[10]->map({y\| [7]->map(y\|$y)->toOne();})` with no `let` at all also gives 7; (c) the mechanism sentence is **backwards** — the buggy SQL reads `y -> y`, so the substitution *did not fire*; had it fired and been captured it would read `y -> x`. **The underlying defect is real** (A06 #1 states it correctly). D05 now carries the falsifier's own isolating repro: `\|[10]->map({x\| let y=$x; [7]->map(x\|$y)->toOne();})` ⇒ 7 (correct 10), control binder `w` ⇒ 10. **V24 as published would be refuted by anyone who checked it and must not ship in this form.** |
 | **`A09` F5's H2 half** — "`Float` → `BigDecimal` on H2" and the consequent "the same pivot compares unequal between backends" | **CONFIRMED-BUT-OVERSTATED — H2 half REJECTED** | Re-run on all three drivers with the falsifier's own fixture: H2 returned `java.lang.Double(1.5)`, identical to DuckDB. The **mechanism and the DuckDB half stand** (`Integer`-declared pivot column carries `BigInteger`; every pivot column's `multiplicity()` is `null`), and SQLite walls before the pivot (`DialectCapability: pivot reached a dialect without a PIVOT strategy`). D13 carries the DuckDB half only; the `PureAsserts.equalScalar` cross-backend-inequality consequence is dropped. |
-| **"`InferenceKernel.java:576-580` has no `PrecisionDecimal` arm"** (filed by A01/A03) | **REJECTED — MISATTRIBUTED** | The orchestrator read the method: `isNumeric` at `:575-580` opens with `t instanceof Type.PrecisionDecimal \|\|`. The grep hit landed *inside* a correct method. A01 independently lists `:577-580` among the sites that **do** carry the arm. Excluded from D72's list of four missing sites. |
+| **`CONFIRMED.md` V14's parenthetical and CORRECTIONS §1** — "`InferenceKernel.java:576-580` DOES handle it — an earlier auditor's claim there is WRONG … filed by A01/A03" | **NOT-REPRODUCED — the correction corrects a claim nobody filed** | V1-falsifier grepped both files exhaustively for every `InferenceKernel` reference in the 550–600 range. The only hits are `A01:579` — which is inside the list headed *"Sites that **do** carry the extra `instanceof Type.PrecisionDecimal` arm"*, i.e. **A01 states the opposite of the claim it is accused of** — and A03's `conformsUpValueLattice:565`/`valueLub:554`, which are `LatestDate` and LUB claims, not `PrecisionDecimal` claims. The **code** fact is correct and V1 re-confirmed it by reading `isNumeric` at `:576-581` in full. **The retraction should be deleted from `CONFIRMED.md`: it defames a finding that is correct.** §1 carries the code fact only, with no attribution. |
 | **"`PlanText.java:557` throws for any `DECIMAL` store column"** (filed by A01, forwarded to A29) | **REJECTED — MISATTRIBUTED** | A29 called it directly: `:557` **is** the `Primitive.DECIMAL` arm and returns `"Decimal"`; a real render of a `DECIMAL(10,2)` column gives `TDS[(price, Decimal, DECIMAL(10,2), "")]`. The real hole is `:567`, which has no `PrecisionDecimal`, `LatestDate` or `StrictTime` arm and is reached by a plan **let** (`let p = 1.5d`). D97 states the corrected form; A01's version is not carried. |
 | **"`CDecimal`/`CFloat` are double-backed"** (hypothesis put to A26) | **REJECTED** | `CDecimal` is backed by `BigDecimal` and `CFloat`'s `double` correctly matches Pure `Float`. **No precision is lost at parse** — the loss in D21 is entirely at TYPE and at EXECUTE. Stated positively in §4's parse verdict. |
 | **"the three compile seams disagree"** | **SPLIT, not refuted** | They agree on root TYPE (V9, and 0 divergences in 18 000 fuzz queries) and disagree on DIALECT SELECTION (V28) and on the **G-vs-post-H** type (D45). Reported as three separate facts; see §6b.1. |
@@ -542,6 +570,10 @@ A30, or the non-sampled tails of A23/A24/A27/A28/A29/A32. Rows resting only on t
 | `A23` — the `ADD_INTERVAL` StringLit channel is an injection vector | **DOWNGRADED — NOT an injection vector** | `DateShifts.intervalFn` throws on an unknown `DurationUnit`, so no user-controlled text reaches argument 0. D86 is scored as a structural hole plus 7 `ClassCastException` sites. |
 | `A18` — `compileModel` defers mapping errors as "poisons" | **KEPT, flagged BY-DESIGN-BUT-STILL-A-DEFECT** | Documented as a deliberate adjudicated trade (`MappingNormalizer.java:326-338`). Kept in D70 because the *strict* entry point is the one that swallows and the error is re-reported later as a different failure — but the reader should know it is intentional. |
 | `A22` — `TypedGraphTree.args` are deliberately not `children()` | **KEPT as DOCUMENTED DIVERGENCE** | A compensating path exists (`UserCallInliner.queryLets()`); it could not be exercised (no milestoned association in the fixture). In D67's manifestations, not scored on its own. |
+| **`A10`'s VERIFIED SOUND entry** — "filtered-empty `->sum()` = NULL (`[0..1]`)" | **FALSE — a non-finding that launders a real defect** | It is `[1]`, not `[0..1]`: `fal::Item.all()->filter(p\|$p.qty > 200)->map(p\|$p.qty)->sum()` → `[G] Integer mult=[1]` → `[ROW] null`. This is exactly the V19/A02/A07/A14 defect (D31d), recorded by A10 as *sound*. **A "verified sound" claim that is false is worse than a missed finding**, and it is the one place where §5's coverage ledger inherited a wrong claim — corrected there. |
+| **`A08`'s `rem()` over decimals — "[UNSOUND]"** | **DOWNGRADED — severity overstated** | The **Pure** declared type of the result column is `Number[1]` and a `java.lang.Double` *is* a `Number`, so nothing at the Pure type surface is violated. The real defect is narrower and internal: the SQL-MIR `TypeFact` says `DECIMAL(38,6)` where the wire is `DOUBLE`. Carried in D87 (MIR fact ≠ wire), **not** as a top-prize unsoundness. |
+| **`A08`'s "`PrecisionDecimal(p>38)` produces SQL the backend rejects"** | **HALF DOWNGRADED — the reachable half only** | Half A confirmed: a `DECIMAL(50,10)` store declaration is trusted verbatim (`[G] Relation<(W:Decimal(50,10)[1])>`) and `AnsiSqlRenderer:924` renders it with no clamp. Half B was shown only by a **direct renderer call**; four Pure spellings that should force a cast on that column (`plus()`, `if()`, `toString()`, list literal) emitted none. Backend rejection *from user Pure text* is not established. |
+| **`A14`'s repro fixture `T (GRP INTEGER, B BOOLEAN, …)`** | **CORRECTED — the fixture cannot have produced the pasted output** | The `###Relational` DSL has no `BOOLEAN` (`ParseException: unsupported column datatype: BOOLEAN`, `DatabaseProtocolParser.java:391`; the accepted spelling is `BIT`) — which is V22. V1-falsifier reproduced A14's finding with `BIT`, so the finding survives; the pasted fixture text does not. |
 | **The "NO FALLBACKS. NO DEFAULTING." headline** | **MODERATED — see the fairness note** | Measured rather than asserted: of **1 560** type-decision sites, **34 (2.2 %)** can silently produce a type not derived from the model. `default ->` appears 442 times but `default:` **0**; `orElseThrow` 153 vs `orElseGet` 17; `FIXME`/`XXX` **0**; and **none of the 140 catch blocks substitutes a `Type`**. The invariant is ~97.8 % held at the site level. D74 must be read with that number attached: **the problem this audit found is not a codebase riddled with fallbacks — it is the absence of any check that a produced VALUE conforms to its declared type.** |
 
 ### 6b. Apparent contradictions between auditors — resolved
@@ -599,22 +631,39 @@ A30, or the non-sampled tails of A23/A24/A27/A28/A29/A32. Rows resting only on t
    a load-bearing claim rests on a single auditor's checkout; the fix is cheap (re-run the extractor)
    and is the first thing a reviewer should redo.
 
-7. **"`exec.Column.multiplicity` has zero readers"** — A02, A09-F17, A25 and the falsifier all
+7. **A02 "an association end `[2..1]` throws a raw `IllegalArgumentException`" vs A17-F12 "it is
+   silently ACCEPTED".**
+   *Resolved — complementary, at different phases.* V1-falsifier ran both: `compileModel` accepts it
+   (`F12 assoc end [5..2] -> OK`), and the IAE fires only when a query navigates the end
+   (`fal::P.all()->project(~[a:p\|$p.q.b])` → `IllegalArgumentException: upper (1) must be >= lower (2)`).
+   Both auditors are right; D46 states both halves. This is the same phase-lateness pattern as the
+   `DECIMAL(2,5)` correction above, and the two should be fixed together.
+
+8. **"`exec.Column.multiplicity` has zero readers"** — A02, A09-F17, A25 and the falsifier all
    grepped independently (the falsifier over `core/src/main`, `core/src/test`, `pct/`, `nlq/`,
    `tools/`, `experiments/`). Four agreeing greps; no contradiction. Noted because it is the kind of
    absence claim worth quadruple-checking, and it was.
 
 ### 6c. UNRESOLVED
 
-* **Rows resting only on un-adjudicated reports.** The falsifier did not touch A19, A21, A25, A26,
-  A36 or A37, nor the oracle-dependent bulk of A30. That means **D14, D35, D54, D62, D69, D71(part),
-  D76, D77, D80, D81(the upstream half), D83, D84, D85, D89, D99** have not been through a
-  from-scratch second pass. Of those, D81 and D99 are the two most consequential rows in the report,
-  and both are single-sourced.
+* **Rows resting only on un-adjudicated reports.** Neither falsifier touched A19, A21, A25, A26,
+  A31, A33, A36 or A37, nor the oracle-dependent bulk of A30. That means **D14, D35, D54, D62, D69,
+  D71(part), D76, D77, D80, D81(the upstream half), D83, D84, D85, D89, D99, D100, D102, D103,
+  D104, D105** have not been through a from-scratch second pass. Of those, **D81 (25.4 % catalog
+  divergence), D99 (the suite is blind) and D100 (one caller's data reaches another)** are the three
+  most consequential single-sourced rows in the report, and are what a third falsifier should take
+  first.
+* **The two `A36`/`A37` headline numbers are single-sourced.** The 874-cell matrix and the
+  4 278-test run are the two largest measurements in §5a and neither was re-derived. Both are cheap
+  to re-run.
 * **Is D31b (LEFT-join `[1]`) one defect or four?** A15 and A12 locate it at four construction sites
   that each copy `c.multiplicity()` verbatim; A20 treats it as one rule. Merged as one defect with
   four root sites because the fix is the same line at each. A reviewer wanting per-site tracking
   should split it.
+* **The phase-lateness pattern.** V1-falsifier corrected two findings the same way — `DECIMAL(2,5)`
+  and association-end `[5..2]` both pass `compileModel` and explode at Phase G on a *query*. How many
+  other "Phase F rejects this" claims in §1 are really "Phase G rejects this when someone queries it"
+  was not systematically checked, and it changes who sees the error and when.
 * **Whether the `Nil`-extends and bad-`extends` holes (D37, D38) survive into H/I/J/K.** A03 proved
   Phase-G acceptance and stopped, because adding a store mapping for the exploit class would have
   changed what the repro demonstrates. Nobody ran it end to end.

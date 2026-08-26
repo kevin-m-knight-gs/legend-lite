@@ -20,7 +20,7 @@ evidence base.
 | File | What it is |
 |---|---|
 | `CONFIRMED.md` | 39 findings personally reproduced by the orchestrator, with pasted output, plus a CORRECTIONS section recording every claim withdrawn or amended — including the orchestrator's own. |
-| `MASTER.md` | The synthesized defect table: 90 distinct defects (S1 35, S2 24, S3 15, S4 11, S5 5), deduplicated ~4.8× from ~430 raw findings across 27 reports, with root causes and a per-stage map. Written before the falsifiers and the last two matrices landed; its §6 says so. |
+| `MASTER.md` | The synthesized defect table: 105 distinct defects (S1 41, S2 27, S3 19, S4 12+1 META, S5 5), deduplicated ~5.9× from ~620 raw findings across 35 auditor reports plus both falsifiers, with 14 root causes and a per-stage map. |
 | `V1-falsifier.md`, `V2-falsifier.md` | Independent adjudication. 202 rulings between them: 185 CONFIRMED, 7 OVERSTATED, 2 NOT-REPRODUCED, 1 MISATTRIBUTED, 0 BY-DESIGN. |
 
 ## Headline
