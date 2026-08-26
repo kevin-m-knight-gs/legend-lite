@@ -572,6 +572,10 @@ public final class Executor {
             // watched int-or-null column (no-op when nothing is
             // watched — the common statement)
             SqlTypeCensus.wireValueSeen(i);
+        } else {
+            // converse tripwire (E2E audit): a wire NULL under a
+            // required-label column is a breach sighting
+            SqlTypeCensus.wireNullSeen(i);
         }
         if (o instanceof java.sql.Timestamp) {
             // (a TIMESTAMP-typed output may still surface a VARCHAR cell —

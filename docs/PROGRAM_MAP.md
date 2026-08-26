@@ -101,6 +101,7 @@ Notes NOT lost — register §1:
 | **Parser strict flip** | A2/A3, DEEP_AUDIT_HANDOFF | invention census (53 skew + 42 crash) then flip |
 | **Foundations Phase 3 dedup** | A4, FOUNDATIONS_PLAN §4 | |
 | **Prepared statements** | A7 merge | deliberately LAST (text-lane perturbation) |
+| **Nullability-inference leg** | [TYPE_E2E_AUDIT_2026_08.md](TYPE_E2E_AUDIT_2026_08.md) findings 2–3 | TypeFact carries no nullability, so expression re-reads under-declare — converse census measured 925 corpus / 49 pct breaches (engine-correct VALUES, under-declared labels; ceiling-pinned both lanes). Design with the flag's first real consumer: TypeFact dimension vs from-tree reconcile vs per-SqlFn NULL-propagation rules |
 | **Corpus burn resume** | burn-to-zero memory | paused at 2,347/2,575; largely superseded by the longer arc below |
 
 ---

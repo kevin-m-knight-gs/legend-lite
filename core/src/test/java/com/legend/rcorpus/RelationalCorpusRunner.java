@@ -923,6 +923,23 @@ public class RelationalCorpusRunner {
                                     + " ceiling 473 — a new declaration-"
                                     + "contradicting CREATE in the setup"
                                     + " streams"),
+                    // E2E-AUDIT CONVERSE CENSUS (TYPE_E2E_AUDIT §3,
+                    // 2026-08-26): wire NULL under an always-present
+                    // label — 925 measured (638 VARCHAR + 124 BIGINT +
+                    // 122 DOUBLE + 34 BOOLEAN + 7 HUGEINT; outer-join
+                    // slots, empty-group aggregates, subtype-pad-fed
+                    // sums, exprs over nullable reads). Values are
+                    // engine-correct; the label under-declares —
+                    // TypeFact carries no nullability, so expression
+                    // re-reads cannot transport it. Ceiling, down-only;
+                    // the burn is the chartered nullability-inference
+                    // leg.
+                    () -> org.junit.jupiter.api.Assertions.assertTrue(
+                            com.legend.exec.SqlTypeCensus
+                                    .nullBreachCount() <= 925,
+                            "null-under-required-label breaches grew: "
+                                    + com.legend.exec.SqlTypeCensus
+                                            .summary()),
                     // R1b census pin (CANONICAL_FORM_SPEC §0, measured
                     // 2026-08-22): 27 grid-text verdicts pass only via
                     // the kept leniencies — 6 row-order-only (R2's

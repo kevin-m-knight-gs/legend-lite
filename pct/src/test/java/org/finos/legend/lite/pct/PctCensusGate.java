@@ -139,6 +139,11 @@ public final class PctCensusGate {
     // in diverge (EQUALITY-0) instead. Ceiling, shape-driven.
     private static final long MAX_WIRE_UNKNOWN = 0;
     private static final long MAX_INT_NULL_EMPTY = 219;
+    // E2E-audit converse census (TYPE_E2E_AUDIT §3): wire NULL under
+    // an always-present label — 49 on this lane (46 HUGEINT
+    // empty-group sums + 3 DOUBLE float aggregates). Ceiling;
+    // burns at the nullability-inference leg.
+    private static final long MAX_NULL_BREACH = 49;
     // §4bZ-V B3+B4 (2026-08-26): the admissible bucket is DELETED with
     // the relation itself — the temporal-text traffic is the
     // TEMPORAL_TEXT carrier, the JSON egress conforms by emission, and
@@ -180,6 +185,8 @@ public final class PctCensusGate {
                 check(suite, "proven-empty int-or-null columns grew",
                         SqlTypeCensus.wireIntOrNullEmptyCount(),
                         MAX_INT_NULL_EMPTY);
+                check(suite, "null-under-required-label breaches grew",
+                        SqlTypeCensus.nullBreachCount(), MAX_NULL_BREACH);
             }
         };
     }

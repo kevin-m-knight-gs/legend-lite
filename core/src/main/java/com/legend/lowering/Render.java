@@ -443,7 +443,7 @@ public final class Render {
                     com.legend.compiler.element.type.Multiplicity
                             .Bounded.ZERO_ONE));
             presentedOuts.add(new OutputCol(presented, oc.type(),
-                    oc.nullable()));
+                    oc.nullable(), oc.tolerated()));
         }
         SqlSelect concrete = SqlSelect.starOf(
                         new SqlSource.Subselect(d.inner(), wrapAlias, null))
@@ -669,8 +669,10 @@ public final class Render {
                         new SqlSelect.Projection(
                                 SqlExpr.Column.of(rowAlias, src),
                                 oname));
+                // E2E audit: hoist carry transports all four dimensions
                 ((List<OutputCol>) carry[1]).add(
-                        new OutputCol(oname, src.type(), src.nullable()));
+                        new OutputCol(oname, src.type(), src.nullable(),
+                                src.tolerated()));
             }
             aggOrder.add(new SqlSelect.SortKey(
                     SqlExpr.Column.of(aggAlias, oname, src.type()),

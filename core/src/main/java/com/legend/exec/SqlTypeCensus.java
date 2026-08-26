@@ -88,6 +88,11 @@ public final class SqlTypeCensus {
      * (Invariant 6d). */
     public static final ThreadLocal<String> CONTEXT = new ThreadLocal<>();
 
+    /** Converse-tripwire breaches: a wire NULL arrived under a label
+     * promising always-present (per settled statement-column, not per
+     * cell). Measure-first (E2E audit) — adjudicated before pinning. */
+    private static final LongAdder NULL_BREACH = new LongAdder();
+
     private static final LongAdder WIRE_AGREE = new LongAdder();
     private static final LongAdder WIRE_TOLERATED = new LongAdder();
     private static final LongAdder WIRE_DELIVERED = new LongAdder();
@@ -144,6 +149,20 @@ public final class SqlTypeCensus {
             for (int i = 0; i < outs.size(); i++) {
                 String label = wireSpelling(outs.get(i).type());
                 String meta = normalizeMeta(md.getColumnTypeName(i + 1));
+                // E2E-audit CONVERSE tripwire (measure-first): a label
+                // promising always-present is a claim the wire can
+                // refute — watch every nullable=false column for NULL
+                // sightings; settle names the breaches. (The N1 arm
+                // made literal pads declare slot truth; this measures
+                // whether frames ABOVE them re-derive the pure [1]
+                // and under-declare — TypeFact carries no nullability,
+                // so expression re-reads cannot transport it.)
+                if (!outs.get(i).nullable()) {
+                    watch(dialect).required.put(i + 1,
+                            new WatchCol(i + 1,
+                                    String.valueOf(outs.get(i).type()),
+                                    watchWitness(plan, i)));
+                }
                 if (label == null || meta.isEmpty()) {
                     WIRE_UNKNOWN.increment();
                     String cls = "wire-unknown[" + dialect + "] "
@@ -252,6 +271,13 @@ public final class SqlTypeCensus {
         private final List<WatchCol> candidates = new ArrayList<>();
         private final java.util.Set<Integer> valued =
                 new java.util.HashSet<>();
+        /** E2E-audit converse tripwire: columns whose label PROMISES
+         * always-present ({@code nullable=false}), watched for wire
+         * NULL sightings. */
+        private final Map<Integer, WatchCol> required =
+                new java.util.HashMap<>();
+        private final java.util.Set<Integer> nulled =
+                new java.util.HashSet<>();
 
         private WireWatch(String dialect) {
             this.dialect = dialect;
@@ -281,6 +307,16 @@ public final class SqlTypeCensus {
         }
     }
 
+    /** The Executor's fetch funnel reports a NULL driver object —
+     * the converse tripwire's evidence: a wire NULL under a label
+     * that promised always-present. No-op without a watch. */
+    public static void wireNullSeen(int column) {
+        WireWatch w = WIRE_WATCH.get();
+        if (w != null && w.required.containsKey(column)) {
+            w.nulled.add(column);
+        }
+    }
+
     /** Statement end (the Executor's finally): adjudicate every
      * watched int-or-null column on its value evidence. A VALUED
      * column under a non-integer label is a real divergence — counted
@@ -294,6 +330,18 @@ public final class SqlTypeCensus {
             return;
         }
         WIRE_WATCH.remove();
+        for (Integer col : w.nulled) {
+            WatchCol c = w.required.get(col);
+            if (c == null) {
+                continue;   // nulled only ever holds required keys;
+                            // guard for the checker
+            }
+            String cls = "wire-null-under-required-label[" + w.dialect
+                    + "] " + c.label();
+            NULL_BREACH.increment();
+            classify(cls);
+            sample(cls, c.witness());
+        }
         for (WatchCol c : w.candidates) {
             if (w.valued.contains(c.column())) {
                 String cls = "wire[" + w.dialect + "] label=" + c.label()
@@ -676,6 +724,15 @@ public final class SqlTypeCensus {
         return WIRE_DIVERGE.sum();
     }
 
+    /** Converse-tripwire breaches (E2E audit): wire NULL under an
+     * always-present label — the nullability the expression channel
+     * cannot transport (TypeFact carries no nullable dimension).
+     * Values are engine-correct; the label under-declares. Burns at
+     * the chartered nullability-inference leg. */
+    public static long nullBreachCount() {
+        return NULL_BREACH.sum();
+    }
+
     /** Probes that could not adjudicate (shape mismatch on a
      * non-empty-outputs plan, unreadable metadata, probe error) —
      * classed and witnessed since D2; zero-output plans are a no-claim
@@ -731,6 +788,7 @@ public final class SqlTypeCensus {
                 + " delivered=" + WIRE_DELIVERED.sum()
                 + " adopt-pending=" + WIRE_ADOPT_PENDING.sum()
                 + " int-null-empty=" + WIRE_NULL_AMBIG.sum()
+                + " null-breach=" + NULL_BREACH.sum()
                 + " diverge=" + WIRE_DIVERGE.sum()
                 + " unknown=" + WIRE_UNKNOWN.sum();
     }
