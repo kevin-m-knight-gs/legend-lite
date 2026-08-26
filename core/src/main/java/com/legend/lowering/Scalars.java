@@ -423,102 +423,10 @@ final class Scalars {
         family(SqlFn.UPPER, "toUpper");
         family(SqlFn.LOWER, "toLower");
 
-        // toOne erases in SQL (MUST-honor: multiplicity narrowing is a
-        // no-op value-wise). C2 (STAMP_DISCIPLINE_PROGRAM) MEASURED the
-        // blanket unwrap alternative and it REGRESSED milestoning −16 /
-        // union −23: the list-shaped operands here are mostly resolver-
-        // SYNTHESIZED conformance toOnes over values-reader subqueries
-        // whose LIST downstream genuinely consumes — the [1] stamp is
-        // the lie, not the shape. The C2 fix is provenance-split
-        // (user toOne = unwrap; synthesized conformance = ride-through
-        // by design; values-reader stamps fixed at their producer),
-        // recorded in the program doc — not a blanket emission.
-        // USER toOne is CHECKED on BOTH bounds (multiplicity audit
-        // slice 3): pure raises 'Cannot cast a collection of size N to
-        // multiplicity [1]' for N != 1 — the old default arm DELETED
-        // the call (navigation/column/variable operands were never
-        // guarded; two rows flowed silently). The carrier follows the
-        // operand's STAMP: many = list-checked, [0..1] = null-checked
-        // scalar, [1..1] = already exactly one (identity). The
-        // SYNTHESIZED conformance population spells trustOne (below)
-        // and stays unguarded BY NAME — the C2 provenance split.
-        for (String f : Pure.nativeKeysAt("toOne")) {
-            RULES.put(f, (n, args) -> {
-                // AGG-STRIP (stamp C2): a LIST-collecting subquery
-                // operand becomes the NATIVE scalar subquery — SQL's
-                // own checked toOne (row-lane flow convention,
-                // ADJUDICATED: NULL cell == empty; compacted carriers
-                // strip through their wrapper).
-                SqlExpr stripped = aggStrip(
-                        args.get(0) instanceof SqlExpr.CompactList cpl
-                                ? cpl.list() : args.get(0));
-                if (stripped != null) {
-                    return stripped;
-                }
-                Multiplicity.Bounded m = n.args().get(0).info()
-                        .multiplicity().requireBounded("toOne operand");
-                // STATICALLY empty ([] literal): pure raises — size 0
-                if (m.upper() != null && m.upper() == 0) {
-                    return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(
-                            "Cannot cast a collection of size 0 to"
-                            + " multiplicity [1]"));
-                }
-                // VALUE-LANE collections raise pure's size error in the
-                // database. Lane from the TYPED OPERAND (CollectionLanes
-                // — audit §1a); the guard counts the COMPACTED carrier;
-                // scalar-carried ifs FLOW (no list to count).
-                if (m.isMany() && CollectionLanes.valueLane(n.args().get(0))
-                        && !CollectionLanes.scalarCarriedIf(
-                                n.args().get(0))) {
-                    return new SqlExpr.CheckedOne(
-                            new SqlExpr.CompactList(args.get(0)));
-                }
-                // Everything else — [0..1] scalar reads AND many-stamped
-                // ROW-LANE collections (correlated navigations, window
-                // reads) — is the engine's relational lane: its own
-                // compilation of toOne is processNoOp, and SQL cannot
-                // tell a NULL cell from an empty. Flow (ADJUDICATED vs
-                // audit §3, with the engine as the reference; the
-                // milestoned-qualifier corpus row is the witness).
-                return args.get(0);
-            });
-        }
-        // trustOne — the SQL-lane conformance wrap (Lite.TRUST_ONE):
-        // IDENTITY, no guard; SQL null-propagates (the engine's
-        // processNoOp / no-guard qualifier behavior). This is the
-        // synthesized population the C2 provenance split names.
-        for (String f : Pure.nativeKeysAt(Pure.Lite.TRUST_ONE)) {
-            RULES.put(f, (n, args) -> args.get(0));
-        }
-        // toOneMany narrows [*] to [1..*]: at-least-one is CHECKED
-        // (audit slice 3 — it was an unconditional no-op). A to-one
-        // operand additionally re-carriers to the LIST the [1..*]
-        // stamp promises downstream.
-        for (String f : Pure.nativeKeysAt("toOneMany")) {
-            RULES.put(f, (n, args) -> {
-                Multiplicity.Bounded m = n.args().get(0).info()
-                        .multiplicity().requireBounded("toOneMany operand");
-                if (m.upper() != null && m.upper() == 0) {
-                    return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(
-                            "Cannot cast a collection of size 0 to"
-                            + " multiplicity [1..*]"));
-                }
-                // TYPED-operand lane — exactly as toOne above
-                if (m.isMany() && CollectionLanes.valueLane(n.args().get(0))
-                        && !CollectionLanes.scalarCarriedIf(
-                                n.args().get(0))) {
-                    return new SqlExpr.CheckedOne(
-                            new SqlExpr.CompactList(args.get(0)), false,
-                            true /* at least one */);
-                }
-                if (m.isMany()) {
-                    return args.get(0);   // row-lane collection: flow
-                }
-                // to-one operands re-carrier to the LIST the [1..*]
-                // stamp promises; the row-lane [0..1] flows (see toOne)
-                return new SqlExpr.ArrayLit(List.of(args.get(0)));
-            });
-        }
+        // toOne/trustOne/toOneMany — the multiplicity-coercion family
+        // (moved to Coercions at the shape limit; the seam split)
+        Coercions.register(RULES);
+
         // evaluateAndDeactivate erases too (real pure: reflection-level
         // deactivation of expression wrappers — values here are already
         // values, so identity; evaluateAndDeactivate.pure:17).

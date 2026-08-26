@@ -60,6 +60,19 @@ class Part1SemanticsTest {
             // []->map(f) is the EMPTY value, not a stamp-invariant crash
             assertEquals("null",
                     String.valueOf(scalar("{|[]->map(v|$v)}", conn)));
+            // VALUE-LANE toOne over an empty RAISES (user ruling
+            // 2026-08-26: "if not relational, follow the type system
+            // literally" — the interpreted lane is the oracle for
+            // store-free expressions; row-lane reads keep the
+            // adjudicated relational flow)
+            Exception to = assertThrows(Exception.class,
+                    () -> scalar("{|[]->first()->toOne()}", conn));
+            assertTrue(String.valueOf(to.getMessage()).contains(
+                            "Cannot cast a collection of size 0"),
+                    "value-lane toOne over empty must raise: "
+                            + to.getMessage());
+            assertEquals("1",
+                    String.valueOf(scalar("{|[1,2]->first()->toOne()}", conn)));
             // ^new omitting a required [1] is a COMPILE error with
             // pure's own message (NewValidator format)
             Exception miss = assertThrows(Exception.class,
