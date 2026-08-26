@@ -68,6 +68,25 @@ final class ListEncodings {
      * which LEAST would IGNORE (it skips nulls), silently zipping
      * against the non-empty side — so the count zeroes explicitly, and
      * a NULL whole-zip coalesces to pure's EMPTY list. */
+    /** The zip RULE registration (seam split from {@link Scalars} at
+     * the 3,500-line shape guard — the encoding's owner registers its
+     * own rule, the ScalarStats.register idiom). Empty/NULL sides
+     * conform to their pure element's array (§4bZ-U leg 2 — the
+     * typedList door: the pair-struct chain then types through
+     * LIST_GET/StructLit/LIST_TRANSFORM). zip's c1-literal sides box
+     * (DEEP_AUDIT §3). */
+    static void registerZip(java.util.Map<String, Scalars.Rule> rules) {
+        for (String f : com.legend.builtin.Pure.nativeKeysAt("zip")) {
+            rules.put(f, (n, args) -> zip(
+                    PureSql.typedList(PureSql.asList(args.get(0),
+                            !CollectionLanes.c1Literal(n.args().get(0))),
+                            n.args().get(0).info().type()),
+                    PureSql.typedList(PureSql.asList(args.get(1),
+                            !CollectionLanes.c1Literal(n.args().get(1))),
+                            n.args().get(1).info().type())));
+        }
+    }
+
     static SqlExpr zip(SqlExpr a, SqlExpr b) {
         SqlExpr count = SqlExpr.Call.of(SqlFn.LEAST,
                 SqlExpr.Call.of(SqlFn.COALESCE,

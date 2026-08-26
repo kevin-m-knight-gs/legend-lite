@@ -329,10 +329,14 @@ final class Scalars {
                                             SqlExpr.Call.of(SqlFn.LIST_GET, list,
                                                     new SqlExpr.IntLit(1))))),
                             SqlExpr.Call.of(SqlFn.LIST_REDUCE, list,
+                                    // params stamp as the list's element
+                                    // (§4bZ-U leg 2 — the binding door;
+                                    // the running difference stays in the
+                                    // element's promoted domain)
                                     new SqlExpr.Lambda(List.of("_ma", "_mb"),
                                             SqlExpr.Call.of(SqlFn.MINUS,
-                                                    new SqlExpr.Column(null, "_ma"),
-                                                    new SqlExpr.Column(null, "_mb")))));
+                                                    SqlExpr.Column.param("_ma", list),
+                                                    SqlExpr.Column.param("_mb", list)))));
                 }
                 return switch (args.get(0)) {
                     case SqlExpr.IntLit i -> new SqlExpr.IntLit(-i.value());
@@ -1031,7 +1035,12 @@ final class Scalars {
                             : args.size() == 4 ? args.get(2) : new SqlExpr.StringLit("");
                     joined = SqlExpr.Call.of(SqlFn.COALESCE,
                             new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG,
-                                    args.get(0), List.of(sep)),
+                                    // empty/NULL lists conform to the
+                                    // pure element's array (§4bZ-U leg 2
+                                    // — the typedList door)
+                                    PureSql.typedList(args.get(0),
+                                            n.args().get(0).info().type()),
+                                    List.of(sep)),
                             new SqlExpr.StringLit(""));
                 }
                 if (args.size() == 4) {
@@ -1348,13 +1357,7 @@ final class Scalars {
         // truncates; DuckDB's native list_zip PADS with NULL — wrong
         // semantics), each element a struct with Pair's first/second layout.
         // zip: c1-literal sides box (DEEP_AUDIT §3); ListEncodings.zip
-        for (String f : Pure.nativeKeysAt("zip")) {
-            RULES.put(f, (n, args) -> ListEncodings.zip(
-                    PureSql.asList(args.get(0),
-                            !CollectionLanes.c1Literal(n.args().get(0))),
-                    PureSql.asList(args.get(1),
-                            !CollectionLanes.c1Literal(n.args().get(1)))));
-        }
+        ListEncodings.registerZip(RULES);   // zip: the encoding's owner
         for (String name : List.of("mean", "average")) {
             for (String f : Pure.nativeKeysAt(name)) {
                 // a to-one value is its own mean but the KIND is Float

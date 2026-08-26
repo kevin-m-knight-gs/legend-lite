@@ -29,6 +29,7 @@ public final class SqlTyping {
     }
 
     public static final TypeFact BOTTOM = new TypeFact.Bottom();
+    public static final TypeFact RAISES = new TypeFact.Raises();
     public static final TypeFact UNKNOWN = new TypeFact.Unknown();
 
     public static TypeFact typed(SqlType t) {
@@ -368,6 +369,24 @@ public final class SqlTyping {
                 yield lam.body().type() instanceof TypeFact.Typed bt
                         ? typed(new SqlType.Array(bt.type())) : UNKNOWN;
             }
+            // ARITHMETIC family — probed rules split to arithType
+            // (method-size guard; receipts on each arm there)
+            case PLUS, MINUS, TIMES, REM, MOD, NEGATE, ABS,
+                    INT_DIVIDE, ROUND, CEILING, FLOOR, SIGN ->
+                    arithType(fn, a);
+            // error() RAISES — it yields no value and conforms to every
+            // slot (§4bZ-U leg 3: the fourth TypeFact variant, replacing
+            // uniform()'s structural ERROR skip)
+            case ERROR -> RAISES;
+            // everything else: no rule yet — counted, never guessed
+            default -> UNKNOWN;
+        };
+    }
+
+    /** The ARITHMETIC rule family (split from callType at the
+     * 250-line method guard — same probed receipts, one seam). */
+    private static TypeFact arithType(SqlFn fn, List<SqlExpr> a) {
+        return switch (fn) {
             // ARITHMETIC PROMOTION (DuckDB 1.5.0 probed matrix,
             // 2026-08-24 — receipts in TYPED_SQL_IR.md): any DOUBLE
             // operand wins; an all-integer family promotes to its
@@ -401,7 +420,18 @@ public final class SqlTyping {
                 TypeFact dec = decimalArith(true, a);
                 yield dec != null ? dec : numericPromotion(a);
             }
-            case MOD, REM -> numericPromotion(a);
+            // REM renders the bare MOD(a, b) — PROBED 1.5.0 (2026-08-25):
+            // decimal-bearing pairs return the no-carry UNION shape
+            // (DEC(3,1)%DEC(3,1)->DEC(3,1); DEC(18,6)%DEC(4,2)->DEC(18,6);
+            // DEC(3,1)%INT->DEC(11,1); INT%DEC(4,2)->DEC(12,2)):
+            // s=max(s1,s2), p=max(i1,i2)+s, cap 38. Pure MOD's emission
+            // is the positive-mod COMPOSITE (MOD(MOD+b, b)) — its
+            // decimal shape is unprobed and stays UNKNOWN.
+            case REM -> {
+                TypeFact dec = remDecimalType(a);
+                yield dec != null ? dec : numericPromotion(a);
+            }
+            case MOD -> numericPromotion(a);
             case NEGATE, ABS -> {
                 if (a.isEmpty()) {
                     yield UNKNOWN;
@@ -463,8 +493,8 @@ public final class SqlTyping {
                                 || t.type() instanceof SqlType.Decimal)
                         ? T_BIGINT : UNKNOWN;
             }
-            // everything else: no rule yet — counted, never guessed
-            default -> UNKNOWN;
+            default -> throw new IllegalStateException(
+                    "non-arithmetic fn routed to arithType: " + fn);
         };
     }
 
@@ -566,15 +596,22 @@ public final class SqlTyping {
     }
 
     /** {@link SqlExpr.StructLit} — every field's type, in declared
-     * order; any untypeable or NULL field leaves the layout partial. */
+     * order. A NULL-valued field (an absent optional property) takes
+     * its builder-DECLARED slot type when supplied (§4bZ-U leg 2 —
+     * the layout builder holds the class layout); an untypeable field
+     * with no declaration leaves the layout partial. */
     static TypeFact structLitType(List<SqlExpr.StructLit.Field> fields) {
         java.util.List<SqlType.Struct.Field> fs =
                 new java.util.ArrayList<>(fields.size());
         for (SqlExpr.StructLit.Field f : fields) {
-            if (!(f.value().type() instanceof TypeFact.Typed t)) {
+            if (f.value().type() instanceof TypeFact.Typed t) {
+                fs.add(new SqlType.Struct.Field(f.name(), t.type()));
+            } else if (f.value().type() instanceof TypeFact.Bottom
+                    && f.declared() != null) {
+                fs.add(new SqlType.Struct.Field(f.name(), f.declared()));
+            } else {
                 return UNKNOWN;
             }
-            fs.add(new SqlType.Struct.Field(f.name(), t.type()));
         }
         return typed(new SqlType.Struct(fs));
     }
@@ -962,11 +999,12 @@ public final class SqlTyping {
                 saw = true;
                 continue;
             }
-            // an error() member RAISES — it never yields a value — so in
-            // a branch family it is bottom-like: admissible anywhere,
-            // never the family's type (witness: the checked-extract CASE,
-            // error-guard + LIST_GET over Array(LITERAL), types LITERAL)
-            if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.ERROR) {
+            // a RAISING member never yields a value — bottom-like in a
+            // branch family: admissible anywhere, never the family's
+            // type (witness: the checked-extract CASE, error-guard +
+            // LIST_GET over Array(LITERAL), types LITERAL). The fact
+            // rides the tree (TypeFact.Raises), not a structural match.
+            if (v instanceof TypeFact.Raises) {
                 saw = true;
                 continue;
             }
@@ -1045,6 +1083,30 @@ public final class SqlTyping {
             return SqlType.Scalar.TIMESTAMP;
         }
         return null;
+    }
+
+    /** REM over a decimal-bearing numeric pair — the probed no-carry
+     * union shape (see the {@code case REM} receipt). Null = not a
+     * typed decimal-bearing numeric pair. */
+    private static @com.legend.Nullable TypeFact remDecimalType(
+            List<SqlExpr> a) {
+        if (a.size() != 2
+                || !(a.get(0).type() instanceof TypeFact.Typed l)
+                || !(a.get(1).type() instanceof TypeFact.Typed r)) {
+            return null;
+        }
+        boolean lDec = l.type() instanceof SqlType.Decimal;
+        boolean rDec = r.type() instanceof SqlType.Decimal;
+        if (!lDec && !rDec
+                || !(lDec || integerKind(l.type()))
+                || !(rDec || integerKind(r.type()))) {
+            return null;
+        }
+        int[] da = unionDec(l.type());
+        int[] db = unionDec(r.type());
+        int s = Math.max(da[1], db[1]);
+        int w = Math.min(Math.max(da[0] - da[1], db[0] - db[1]) + s, 38);
+        return typed(new SqlType.Decimal(w, s));
     }
 
     private static int[] unionDec(SqlType t) {

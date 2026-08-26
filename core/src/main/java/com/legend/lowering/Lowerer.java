@@ -378,6 +378,18 @@ public final class Lowerer {
         // COMPACTS first (audit §5 value lane — a pure collection holds
         // no empties), so egress holds a WALL, not a mask.
         if (isMany(spec)) {
+            // a SCALAR-typed value boxes as its one element first
+            // (§4bZ-U leg 2, the subagg lateral): list_filter over a
+            // bare scalar cannot BIND (DuckDB binder receipt —
+            // 'Invalid LIST argument during lambda function binding');
+            // [e] is the bindable, null-dropping form and types
+            // through (Array(T) -> T at the UNNEST read). JSON stays
+            // unboxed — the variant carrier may hold a list itself.
+            if (e.type() instanceof com.legend.sql.TypeFact.Typed bt
+                    && !(bt.type() instanceof com.legend.sql.SqlType.Array)
+                    && bt.type() != SqlType.Scalar.JSON) {
+                e = PureSql.asList(e, false);
+            }
             e = SqlExpr.Call.of(SqlFn.UNNEST, new SqlExpr.CompactList(e));
         }
         return new SqlSelect(
@@ -2604,12 +2616,16 @@ public final class Lowerer {
                     TypedSpec ov = cp.overrides().get(c.name());
                     SqlExpr v = ov != null ? scalar(ov, columns)
                             : new SqlExpr.StructGet(src, c.name());
-                    if (ov != null && c.multiplicity() instanceof
-                            Multiplicity.Bounded b
-                            && b.isMany()) {
+                    boolean manySlot = c.multiplicity() instanceof
+                            Multiplicity.Bounded b && b.isMany();
+                    if (ov != null && manySlot) {
                         v = PureSql.asList(v, isMany(ov));
                     }
-                    return new SqlExpr.StructLit.Field(c.name(), v);
+                    // the DECLARED slot type rides the field (§4bZ-U
+                    // leg 2 — same door as the ^new builder)
+                    SqlType slot = sqlTypeOf(c.type());
+                    return new SqlExpr.StructLit.Field(c.name(), v,
+                            manySlot ? new SqlType.Array(slot) : slot);
                 }).toList());
             }
             case TypedNewInstance n -> {
@@ -2666,12 +2682,17 @@ public final class Lowerer {
                     // already-many expression ($p.nicknames) is a list even
                     // when it doesn't lower to a literal array (audit:
                     // structural-only check double-wrapped it).
-                    if (c.multiplicity() instanceof
-                            Multiplicity.Bounded b
-                            && b.isMany()) {
+                    boolean manySlot = c.multiplicity() instanceof
+                            Multiplicity.Bounded b && b.isMany();
+                    if (manySlot) {
                         v = PureSql.asList(v, value != null && isMany(value));
                     }
-                    return new SqlExpr.StructLit.Field(c.name(), v);
+                    // the DECLARED slot type rides the field (§4bZ-U
+                    // leg 2): an absent optional property's NULL still
+                    // contributes its slot to the struct layout
+                    SqlType slot = sqlTypeOf(c.type());
+                    return new SqlExpr.StructLit.Field(c.name(), v,
+                            manySlot ? new SqlType.Array(slot) : slot);
                 }).toList());
             }
             // A bare variable: a query-level let binding substitutes; else a
@@ -2706,7 +2727,7 @@ public final class Lowerer {
                     enclosing.pop();
                 }
             }
-            case TypedFold f -> fold(f, columns);
+            case TypedFold f -> LambdaBinding.lowerFold(this, f, columns);
 
             // map over a COLLECTION value -> listTransform (relation map is H).
             // pure map FLATTENS collection-valued mappers (audit 22a H3:
@@ -2717,11 +2738,16 @@ public final class Lowerer {
                     when !Type.relationValued(m.source().info()) -> {
                 // ListEncodings.map owns the wire-shape policy (types
                 // drive construction: scalar sources wrap, scalar results
-                // unwrap, [0..1] null-guards)
+                // unwrap, [0..1] null-guards). The mapper's param stamps
+                // as the source's element (§4bZ-U leg 2 — the map
+                // element door, LambdaBinding.mapMapper).
+                SqlExpr mSrc = scalar(m.source(), columns);
+                boolean mToOne = !isMany(m.source());
                 yield ListEncodings.map(
-                        scalar(m.source(), columns),
-                        scalar(m.mapper(), columns),
-                        !isMany(m.source()),
+                        mSrc,
+                        LambdaBinding.mapMapper(this, m, mSrc, mToOne,
+                                columns),
+                        mToOne,
                         m.source().info().multiplicity()
                                         instanceof Multiplicity.Bounded sb
                                 && sb.lower() == 0,
@@ -3279,54 +3305,8 @@ public final class Lowerer {
         return spec.info().multiplicity().requireBounded("lowering").isMany();
     }
 
-    /** fold in PURE conventions ({@code (element, accumulator)} lambda);
-     * the Phase-G strategy collapses to logical facts (Concatenation =
-     * list concat; MapReduce pre-transforms; {@code accIsList} rides for
-     * the dialect). NOTHING here knows how any backend folds. */
-    private SqlExpr fold(TypedFold f,
-                         ColumnResolver columns) {
-        // Phase 1c: a column-collect fold lowers as its per-row MAP
-        TypedSpec collect = Fold.columnCollectAsMap(f);
-        if (collect != null) {
-            return scalar(collect, columns);
-        }
-        // C1: the source conforms by EMISSION (asList, stamp-read).
-        SqlExpr source = PureSql.asList(scalar(f.source(), columns),
-                isMany(f.source()));
-        SqlExpr init = scalar(f.init(), columns);
-        List<String> ps = f.reducer().parameters();
-        return switch (f.strategy()) {
-            // TO-ONE init concatenates as a singleton list; list-shaped
-            // values and NULL (=[] to DuckDB list_concat) pass through.
-            case FoldStrategy.Concatenation c ->
-                    new SqlExpr.Call(SqlFn.LIST_CONCAT,
-                            List.of(PureSql.asList(init, isMany(f.init())),
-                                    source));
-            case FoldStrategy.SameType st ->
-                    new SqlExpr.FoldCall(source,
-                            new SqlExpr.Lambda(ps,
-                                    scalar(last(f.reducer()), LambdaBinding.lambdaResolver(ps, columns))),
-                            init, isMany(f.init()), true);
-            case FoldStrategy.MapReduce mr -> {
-                String elem = ps.get(0);
-                SqlExpr.Lambda transform = new SqlExpr.Lambda(List.of(elem),
-                        scalar(mr.transform(), LambdaBinding.lambdaResolver(List.of(elem), columns)));
-                SqlExpr transformed = new SqlExpr.Call(
-                        SqlFn.LIST_TRANSFORM, List.of(source, transform));
-                // The transform makes source elements accumulator-typed.
-                yield new SqlExpr.FoldCall(transformed,
-                        new SqlExpr.Lambda(List.of(mr.freshParam(), mr.accParam()),
-                                scalar(mr.reducer(), LambdaBinding.lambdaResolver(
-                                        List.of(mr.accParam(), mr.freshParam()), columns))),
-                        init, isMany(f.init()), true);
-            }
-            case FoldStrategy.CollectionBuild cb ->
-                    new SqlExpr.FoldCall(source,
-                            new SqlExpr.Lambda(ps,
-                                    scalar(last(f.reducer()), LambdaBinding.lambdaResolver(ps, columns))),
-                            init, isMany(f.init()), false);
-        };
-    }
+    // fold lowering moved to LambdaBinding.lowerFold (the binding-door
+    // owner) at the 3,500-line shape guard.
 
     // ==================================================================
     // Relation-level predicate family (EXISTS forms)

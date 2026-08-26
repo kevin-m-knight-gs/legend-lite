@@ -3,6 +3,7 @@
 
 package com.legend.lowering;
 
+import com.legend.compiler.spec.typed.FoldStrategy;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -79,6 +80,157 @@ final class LambdaBinding {
             return prop == null ? new SqlExpr.Column(null, var)
                     : new SqlExpr.Column(var, prop);
         };
+    }
+
+    /** THE FOLD BINDING DOOR (§4bZ-U leg 2): a fold lambda's params
+     * are {@code (element, accumulator)} — the element stamps as the
+     * source collection's element (the {@link SqlExpr.Column#param}
+     * door), the accumulator as the INIT's stored fact (the per-step
+     * accumulator of an agreeing fold; a type-CHANGING fold's body
+     * then types differently from init and {@code foldType} stays
+     * honestly UNKNOWN). Bare refs only — property reads resolve
+     * outward through {@code inner}. */
+    static ColumnResolver foldResolver(String elemParam, SqlExpr collection,
+            String accParam, SqlExpr init, ColumnResolver inner) {
+        return (var, prop) -> {
+            if (var != null && prop == null) {
+                if (var.equals(elemParam)) {
+                    return SqlExpr.Column.param(var, collection);
+                }
+                if (var.equals(accParam)
+                        && init.type() instanceof TypeFact.Typed it) {
+                    return new SqlExpr.Column(null, var, it);
+                }
+            }
+            return inner.resolve(var, prop);
+        };
+    }
+
+    /** fold in PURE conventions ({@code (element, accumulator)}
+     * lambda); the Phase-G strategy collapses to logical facts
+     * (Concatenation = list concat; MapReduce pre-transforms;
+     * {@code accIsList} rides for the dialect). NOTHING here knows how
+     * any backend folds. (Moved from {@link Lowerer} at the 3,500-line
+     * shape guard — the binding-door owner hosts the fold lowering.) */
+    static SqlExpr lowerFold(Lowerer lw,
+            com.legend.compiler.spec.typed.TypedFold f,
+            ColumnResolver columns) {
+        // Phase 1c: a column-collect fold lowers as its per-row MAP
+        TypedSpec collect = Fold.columnCollectAsMap(f);
+        if (collect != null) {
+            return lw.scalar(collect, columns);
+        }
+        // C1: the source conforms by EMISSION (asList, stamp-read); an
+        // empty/NULL source additionally casts to its PURE element's
+        // array (§4bZ-U leg 2 — the typedList door: empty-list folds
+        // then bind and type through)
+        SqlExpr source = PureSql.typedList(
+                PureSql.asList(lw.scalar(f.source(), columns),
+                        many(f.source())),
+                f.source().info().type());
+        SqlExpr rawInit = lw.scalar(f.init(), columns);
+        // the acc-binding strategies ride the same door on the INIT: an
+        // empty/NULL initial collection casts to its pure element's
+        // array, so the accumulator param can stamp and the body types.
+        // Concatenation keeps the RAW init — its own asList wrap owns
+        // the shape (the door there double-wrapped: T[][] vs T[]).
+        SqlExpr init = PureSql.typedList(rawInit, f.init().info().type());
+        List<String> ps = f.reducer().parameters();
+        return switch (f.strategy()) {
+            // TO-ONE init concatenates as a singleton list; list-shaped
+            // values and NULL (=[] to DuckDB list_concat) pass through.
+            case FoldStrategy.Concatenation c ->
+                    new SqlExpr.Call(com.legend.sql.SqlFn.LIST_CONCAT,
+                            List.of(PureSql.asList(rawInit, many(f.init())),
+                                    source));
+            case FoldStrategy.SameType st ->
+                    new SqlExpr.FoldCall(source,
+                            new SqlExpr.Lambda(ps,
+                                    lw.scalar(Lowerer.last(f.reducer()),
+                                            foldResolver(ps.get(0), source,
+                                                    ps.get(1), init,
+                                                    lambdaResolver(ps, columns)))),
+                            init, many(f.init()), true);
+            case FoldStrategy.MapReduce mr -> {
+                String elem = ps.get(0);
+                SqlExpr.Lambda transform = new SqlExpr.Lambda(List.of(elem),
+                        lw.scalar(mr.transform(),
+                                elemResolver(elem, source,
+                                        lambdaResolver(List.of(elem), columns))));
+                SqlExpr transformed = new SqlExpr.Call(
+                        com.legend.sql.SqlFn.LIST_TRANSFORM,
+                        List.of(source, transform));
+                // The transform makes source elements accumulator-typed.
+                yield new SqlExpr.FoldCall(transformed,
+                        new SqlExpr.Lambda(List.of(mr.freshParam(), mr.accParam()),
+                                lw.scalar(mr.reducer(),
+                                        foldResolver(mr.freshParam(), transformed,
+                                                mr.accParam(), init,
+                                                lambdaResolver(
+                                                        List.of(mr.accParam(), mr.freshParam()), columns)))),
+                        init, many(f.init()), true);
+            }
+            case FoldStrategy.CollectionBuild cb ->
+                    new SqlExpr.FoldCall(source,
+                            new SqlExpr.Lambda(ps,
+                                    lw.scalar(Lowerer.last(f.reducer()),
+                                            foldResolver(ps.get(0), source,
+                                                    ps.get(1), init,
+                                                    lambdaResolver(ps, columns)))),
+                            init, many(f.init()), false);
+        };
+    }
+
+    private static boolean many(TypedSpec spec) {
+        return spec.info().multiplicity().requireBounded("lowering").isMany();
+    }
+
+    /** The one-parameter element door (fold's MapReduce transform):
+     * the param stamps as the collection's element, everything else
+     * resolves through {@code inner}. */
+    static ColumnResolver elemResolver(String param, SqlExpr collection,
+            ColumnResolver inner) {
+        return (var, prop) -> param.equals(var) && prop == null
+                ? SqlExpr.Column.param(param, collection)
+                : inner.resolve(var, prop);
+    }
+
+    /** The collection-map MAPPER lowering (the Lowerer's TypedMap
+     * collection arm delegates here — method-size guard): a
+     * one-parameter lambda mapper lowers under the element door;
+     * anything else lowers plain. */
+    static SqlExpr mapMapper(Lowerer lw,
+            com.legend.compiler.spec.typed.TypedMap m, SqlExpr mSrc,
+            boolean mToOne, ColumnResolver columns) {
+        if (m.mapper() instanceof TypedLambda mml
+                && mml.parameters().size() == 1) {
+            return new SqlExpr.Lambda(mml.parameters(),
+                    lw.scalar(Lowerer.last(mml),
+                            mapElemResolver(mml.parameters().get(0),
+                                    mSrc, mToOne,
+                                    lambdaResolver(mml.parameters(),
+                                            columns))));
+        }
+        return lw.scalar(m.mapper(), columns);
+    }
+
+    /** The collection-map element door (§4bZ-U leg 2): the map
+     * lambda's one param stamps as the SOURCE's element — the array's
+     * element for a many source, the value's own type for a to-one
+     * source (ListEncodings.map wraps it as one element). A many
+     * source typed as a non-array carrier (variant JSON) stays
+     * unstamped — its element is the carrier's own business. */
+    static ColumnResolver mapElemResolver(String param, SqlExpr source,
+            boolean srcToOne, ColumnResolver inner) {
+        SqlType elem = source.type() instanceof TypeFact.Typed t
+                ? t.type() instanceof com.legend.sql.SqlType.Array at
+                        ? at.element()
+                        : srcToOne ? t.type() : null
+                : null;
+        return (var, prop) -> param.equals(var) && prop == null
+                && elem != null
+                ? SqlExpr.Column.of(null, param, elem)
+                : inner.resolve(var, prop);
     }
 
     /** Native-call argument lowering under the unary-lambda binding

@@ -37,6 +37,15 @@ public sealed interface TypeFact {
     record Bottom() implements TypeFact {
     }
 
+    /** A RAISING expression ({@code error()}) — it never yields a
+     * value, so it conforms to EVERY slot (type theory's divergence;
+     * §4bZ-U leg 3): admissible in any branch family without
+     * constraining it, never a projection root's type debt. Replaces
+     * {@code uniform()}'s structural ERROR special-case with a fact
+     * the tree carries. */
+    record Raises() implements TypeFact {
+    }
+
     record Unknown() implements TypeFact {
     }
 }

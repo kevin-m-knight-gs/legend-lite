@@ -58,22 +58,39 @@ public final class PctCensusGate {
     // (concat/from_entries/extract/keys/values), SPLIT/
     // REGEXP_EXTRACT_ALL -> VARCHAR[], FoldCall body-and-init rule,
     // decimal-mix union promotion in branchPromote — every rule
-    // probed on the 1.5.0 reference jar). The 120 = the mortality
-    // ledger + design legs, per row: 36 dynamic-pivot columns (only
-    // the NAMES are runtime-discovered — each value column's TYPE is
-    // its aggregate's, the queued demand-driven-stamp leg burns
-    // them); 9 error() (raises — needs a Raises/Never fact, queued);
-    // ~63 member-driven remnants in fold/zip/variant lambda chains
-    // (missing binding doors burn mechanically; variant PAYLOAD
-    // shapes are the only true data-dependent unknowns). 120 -> 108:
-    // HASH -> BIGINT (our OWN renderer reinterprets to signed BIGINT
-    // — the first '12 HASH are mortal, UBIGINT' claim was the
-    // CEILING rule-vs-emission mistake repeated; probe the emission,
-    // not the bare builtin). Measured on the unfiltered gate
-    // composition, max teardown (Grammar).
-    private static final long MAX_UNTYPED = H2 ? 17 : 108;
-    private static final long MAX_WIRE_DIVERGE = H2 ? 0 : 78;
-    private static final long MAX_ADOPT_PENDING = H2 ? 0 : 101;
+    // probed on the 1.5.0 reference jar). 120 -> 108: HASH -> BIGINT
+    // (our OWN renderer reinterprets to signed BIGINT — the CEILING
+    // rule-vs-emission mistake repeated; probe the emission, not the
+    // bare builtin). 108 -> 20 (§4bZ-U EXECUTION, 2026-08-25 — the
+    // five legs, each G4-witnessed): demand-driven pivot stamps (36
+    // Column + 2 Reducer; the stamp speaks the Reducer's EMISSION
+    // fact, not the pure contract — the first cut re-ran the CEILING
+    // mistake and the wire census caught it); the RAISES fact (9
+    // error() rows now counted raises=, never type debt); fetchDb
+    // DECLARED JDBC-spec schemas; the binding-door sweep (fold
+    // element+accumulator, Comparators element, minus-fold
+    // LIST_REDUCE params, collection-map element door) + the
+    // typedList conform-by-emission door (empty/NULL list positions
+    // cast to their pure element's array: zip/joinStrings/fold init)
+    // + declared struct-field slots (an absent optional property's
+    // NULL contributes its layout type) + the REM decimal rule
+    // (probed union shape). THE 20 = the receipted remainder
+    // (witnesses per sweep, full composition only — a scoped
+    // Essential run shows 3): 14x StructGet + 6x UNNEST across the
+    // fold/instance-payload chains — mixed-struct LIST_CONCAT (a
+    // heterogeneous class LUB, a TRUE payload shape), the FoldCall
+    // collection-accumulator (the accIsList carrier's declared
+    // no-rule), chained LIST_REDUCE(LIST_TRANSFORM) reductions, and
+    // composition-dependent fold-channel struct chains. Each is a
+    // named receipt, not a silent cap; rules for them must type THE
+    // EMISSION or stay honest.
+    private static final long MAX_UNTYPED = H2 ? 17 : 20;
+    // diverge 78 -> 46, adopt-pending 101 -> 64 (measured with the
+    // §4bZ-U legs: emission-true pivot stamps + REM labels heal wire
+    // agreement; the pct-lane wire ledgers' adjudication itself is
+    // still the §4bZ-V C charter item).
+    private static final long MAX_WIRE_DIVERGE = H2 ? 0 : 46;
+    private static final long MAX_ADOPT_PENDING = H2 ? 0 : 64;
 
     public static Test wrap(String suite, Test t) {
         return new TestSetup(t) {

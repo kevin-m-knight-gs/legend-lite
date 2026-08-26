@@ -460,10 +460,12 @@ final class Fold {
         SqlExpr r = resolveIntoExact(s, column);
         if (r == null && s.projections().isEmpty() && s.from()
                 instanceof com.legend.sql.SqlSource.RawSql raw) {
-            // Phase 1c: an authored-SQL grid's columns are LATE-BOUND —
-            // a by-name read trusts the written name (the database
-            // adjudicates unknown names at execution, as in any SQL)
-            return new SqlExpr.Column(raw.alias(), column);
+            // Phase 1c: an authored-SQL grid's by-name read. A DECLARED
+            // schema (the fetchDb catalog grids — §4bZ-U leg 4) stamps
+            // the read through the lookup door; a late-bound grid keeps
+            // the trust-name behavior (empty outputs -> plain: the
+            // database adjudicates unknown names at execution).
+            return SqlExpr.Column.of(raw.alias(), raw.outputs(), column);
         }
         if (r == null) {
             // A pivot dynamic column's PURE identity carries quotes
@@ -815,12 +817,11 @@ final class Fold {
             case SqlSource.SourceUrl u ->
                     stamped(u.alias(), u.outputs(), column);
             // Pivot outputs are DYNAMIC (one column per pivoted value) — the
-            // static schema cannot enumerate them, so a pivot claims any
-            // name. The GROUP columns it DOES declare stamp like any
-            // source (the lookup door: stamped when claimed, plain
-            // otherwise — the ChannelB pivot pending-leaf 9).
-            case SqlSource.Pivot p ->
-                    SqlExpr.Column.of(p.alias(), p.outputs(), column);
+            // static schema cannot enumerate their NAMES, so a pivot claims
+            // any name. But every value column's TYPE is compile-time
+            // knowable: it is its aggregate TEMPLATE's (§4bZ-U leg 1, the
+            // demand-driven stamp — only the name is runtime).
+            case SqlSource.Pivot p -> pivotColumn(p, column);
             case SqlSource.Join j -> {
                 SqlExpr.Column left = sourceColumn(j.left(), column);
                 yield left != null ? left : sourceColumn(j.right(), column);
@@ -851,6 +852,53 @@ final class Fold {
                             && lateBoundGrid(ss.from());
             default -> false;
         };
+    }
+
+    /** THE DEMAND-DRIVEN PIVOT STAMP (§4bZ-U leg 1): a value column's
+     * name is data-derived ({@code <value>__|__<template>}) but its
+     * TYPE is its aggregate template's — the lowering-typed slot
+     * {@code Pivots.lower} put on the {@link SqlSource.Pivot.Using} —
+     * so the read stamps that type and only the NAME stays runtime.
+     * Statically declared columns (group keys) stamp from outputs as
+     * before; a separator-free miss stays plain (UNKNOWN); a suffix
+     * matching no template stays plain too — the census keeps counting
+     * it, never a guess. */
+    private static SqlExpr.Column pivotColumn(SqlSource.Pivot p,
+            String column) {
+        for (OutputCol oc : p.outputs()) {
+            if (oc.name().equals(column)) {
+                return SqlExpr.Column.of(p.alias(), oc);
+            }
+        }
+        int sep = column.lastIndexOf(Type.RelationType.PIVOT_SEPARATOR);
+        if (sep >= 0) {
+            String template = column.substring(
+                    sep + Type.RelationType.PIVOT_SEPARATOR.length());
+            for (SqlSource.Pivot.Using u : p.usings()) {
+                if (!u.alias().equals(template)) {
+                    continue;
+                }
+                // the stamp speaks THE EMISSION — the Reducer's own
+                // stored promotion fact (SUM widens to HUGEINT,
+                // decimal SUM to Decimal(38,s) — exactly what grouped
+                // aggregates deliver, lane-green on both backends).
+                // Using.type stays the MODEL channel (PctTdsWrap's TDS
+                // headers); stamping it here instead re-ran the
+                // CEILING rule-vs-emission mistake: 3 wire rows
+                // diverged DOUBLE <> DECIMAL(38,2) on first measure.
+                if (u.agg().type() instanceof
+                        com.legend.sql.TypeFact.Typed t) {
+                    // the fact transports WHOLE — the engine-compat
+                    // tolerance included (§5 traps: provenance flags
+                    // ride every rebuild site)
+                    return new SqlExpr.Column(p.alias(), column, t);
+                }
+                if (u.type() != null) {
+                    return SqlExpr.Column.of(p.alias(), column, u.type());
+                }
+            }
+        }
+        return new SqlExpr.Column(p.alias(), column);
     }
 
     private static boolean claims(List<OutputCol> outputs, String column) {

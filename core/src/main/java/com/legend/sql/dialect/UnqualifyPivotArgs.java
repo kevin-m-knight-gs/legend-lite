@@ -51,7 +51,8 @@ final class UnqualifyPivotArgs extends SqlRewriter {
                     new SqlExpr.StructGet(unqualify(g.source()), g.field());
             case SqlExpr.StructLit sl -> new SqlExpr.StructLit(
                     sl.fields().stream().map(f -> new SqlExpr.StructLit.Field(
-                            f.name(), unqualify(f.value()))).toList());
+                            f.name(), unqualify(f.value()),
+                            f.declared())).toList());
             case SqlExpr.OrderedListAgg o -> new SqlExpr.OrderedListAgg(
                     unqualify(o.value()), unqualify(o.orderBy()));
             case SqlExpr.JsonObject j -> new SqlExpr.JsonObject(

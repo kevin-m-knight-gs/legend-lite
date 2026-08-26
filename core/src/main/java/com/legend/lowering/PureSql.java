@@ -166,6 +166,46 @@ final class PureSql {
                         java.util.List.of(e));
     }
 
+    /** THE CONFORM-BY-EMISSION LIST DOOR (§4bZ-U leg 2): a
+     * list-position value whose stored fact is UNKNOWN or the NULL
+     * value CASTS to the array of its PURE element type — the rule
+     * site holds the type, the emission conforms, and the empty/NULL
+     * carriers then bind and type through every list op. Typed values
+     * (variant JSON, LITERAL carriers included) pass untouched — their
+     * list-ness is the carrier's own contract; an element kind with no
+     * SQL carrier stays honestly unwrapped. */
+    static com.legend.sql.SqlExpr typedList(com.legend.sql.SqlExpr list,
+            Type elemPure) {
+        if (!(list.type() instanceof com.legend.sql.TypeFact.Unknown)
+                && !(list.type() instanceof com.legend.sql.TypeFact.Bottom)) {
+            return list;
+        }
+        SqlType t = carrierOrNull(elemPure);
+        return t == null ? list
+                : new com.legend.sql.SqlExpr.Cast(list,
+                        new com.legend.sql.SqlType.Array(t));
+    }
+
+    /** The element's SQL carrier when one certainly exists — an
+     * eligibility CHECK, never a caught wall: carrier-bearing
+     * primitives, precision decimals, and the designed class carriers
+     * (variant/Any/Nil). Everything else null — the door stays shut. */
+    private static @com.legend.Nullable SqlType carrierOrNull(Type t) {
+        if (t instanceof Type.Primitive p) {
+            return p == Type.Primitive.BYTE
+                    || p == Type.Primitive.STRICT_TIME ? null : type(t);
+        }
+        if (t instanceof Type.PrecisionDecimal) {
+            return type(t);
+        }
+        if (t instanceof Type.ClassType ct
+                && (PlatformTypes.isVariant(ct) || PlatformTypes.isAny(ct)
+                        || PlatformTypes.isNil(ct))) {
+            return type(t);
+        }
+        return null;
+    }
+
     /** An if-branch is a 0-param SINGLE-expression thunk; its body is
      * the value. Moved from the dissolved ListShapes. */
     static com.legend.compiler.spec.typed.TypedSpec thunkBody(

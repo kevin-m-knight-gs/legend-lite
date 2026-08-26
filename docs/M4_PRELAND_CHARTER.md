@@ -912,6 +912,73 @@ leg: demand-driven pivot stamps (36) > lambda-binding sweep (part of
 63+1) > Raises fact (9) > fixed-schema metadata model (2) > carrier
 leg (1). True zero = those legs + per-row variant-payload receipts.
 
+**§4bZ-U EXECUTION RECORD (2026-08-25 — the burn, one G1+G4-witnessed
+slice per move; every ceiling move measured):**
+- **Corpus untyped 4 -> 0, HARDENED TO EQUALITY** (RelationalCorpusRunner);
+  wire diverge 4 -> 2 (the dropAndCreateTable late-bound residue),
+  wire unknown 13 -> 2, mismatch 0 throughout.
+- **pct untyped 108 -> 20** (PctCensusGate, unfiltered Grammar
+  teardown); raises=9; adopt-pending 101 -> 64; diverge 78 -> 46.
+- **Leg 1 (pivot stamps):** Fold.pivotColumn — a `<value>__|__<t>`
+  read stamps its aggregate TEMPLATE's type; the stamp speaks the
+  Reducer's EMISSION fact (SUM->HUGEINT, decimal SUM->DEC(38,s)),
+  NOT Using.type (the MODEL channel PctTdsWrap decodes TDS headers
+  from). The first cut stamped the pure contract and the wire census
+  exposed 3 new DOUBLE<>DECIMAL diverges + 6 adopt-pendings — the
+  CEILING rule-vs-emission mistake, THIRD sighting; amended same
+  session. Burned 36 Column + 2 Reducer pct rows.
+- **Leg 3 (RAISES):** TypeFact.Raises (yields no value, conforms to
+  every slot); callType ERROR -> RAISES; uniform() reads the fact
+  (structural skip deleted); census counts raises= visibly. Only ONE
+  exhaustive TypeFact switch existed (the census) — the half-day
+  budget was 30 minutes.
+- **Leg 4 (fetchDb):** CatalogGrids.gridSchema — the catalog grids
+  carry DECLARED JDBC-spec schemas (String/Integer[0..1] per the
+  DatabaseMetaData contract); no late-bound wildcard, no LIMIT-0
+  probe; .columnNames answers statically (Typer's declared-relation
+  arm); resolveInto's raw-grid fallback stamps through the lookup
+  door. Trap hit: the late-bound marker path had been the ONLY
+  .columnNames server — a scoped corpus run caught the wall.
+- **Leg 2 (binding-door sweep):** LambdaBinding.foldResolver
+  (element via Column.param, accumulator via the INIT's fact — a
+  type-changing fold stays honestly UNKNOWN), lowerFold moved to
+  LambdaBinding (3,500-line guard); Comparators' _cx.x element
+  stamp; minus-fold LIST_REDUCE param stamps; the collection-map
+  element door (mapMapper/mapElemResolver); PureSql.typedList — the
+  CONFORM-BY-EMISSION list door (UNKNOWN/Bottom list positions cast
+  to Array(pure element); eligibility-checked, no broad catch) at
+  zip/joinStrings/fold-source/fold-init (Concatenation keeps RAW
+  init — the door there double-wrapped T[][], gate-caught);
+  StructLit.Field.declared — the layout builders supply each field's
+  slot type so an absent optional property's NULL still contributes
+  (transported at every rebuild site incl. withChildren); the REM
+  decimal rule (probed no-carry union shape: s=max, p=maxInt+s).
+- **Two REAL BUGS the census smoked out (fixed):** (1) the
+  scalar-typed collection egress emitted UNNEST(list_filter(scalar))
+  — CANNOT BIND on DuckDB (binder receipt); now boxes [e] first
+  (PureSql.asList; +3 advisory diffs, JUSTIFIED — rows verified).
+  (2) CheckedOne/toOneMany carried the ELEMENT type over a
+  list-shaped wire; atLeastOnly now transports the list's own fact
+  (the boxing exposed it: DuckDBArray-vs-Number in
+  AuditTier1PipelineTest).
+- **THE 20 (receipts, full composition only — scoped Essential shows
+  3):** 14x StructGet + 6x UNNEST in fold/instance chains:
+  mixed-struct LIST_CONCAT (heterogeneous class LUB — a TRUE payload
+  shape), FoldCall collection-accumulator (accIsList carrier's
+  declared no-rule), chained LIST_REDUCE(LIST_TRANSFORM), and
+  composition-dependent fold-channel struct chains. Named per-row in
+  every sweep's witness dump; next session may burn the mechanical
+  half via the fold-native lane.
+- **Justified ceiling moves (same-commit justifications in the
+  runner):** advisory SQL 309->312, sqldiff-pass 257->258, adv-pass
+  303->304 (the [e] boxing's spelling on row-verified tests).
+- **Traps for the roster:** probe with a FRESH connection per query
+  (a failed DuckDB statement poisons the connection — every later
+  probe reports 'unsuccessful or closed pending query result');
+  scoped corpus/pct runs have DIFFERENT compositions than the full
+  sweeps (the subagg test ERRORS scoped but passes full; Essential
+  alone shows 3 untyped vs 20) — diagnose scoped, adjudicate full.
+
 ## 4bZ-V. THE FULL-BURN INDEX (2026-08-25, user-ordered completeness
 ## audit — "don't miss/defer things"; THE one authoritative list of
 ## everything remaining on the burn to zero. An item leaves this list

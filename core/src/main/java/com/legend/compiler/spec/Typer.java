@@ -1373,6 +1373,18 @@ final class Typer {
         } else if (com.legend.compiler.element.type.PlatformTypes
                 .isFetchDbFn(fqn)) {
             sql = CatalogGrids.sql(nc, ctx);
+            if (sql != null) {
+                // §4bZ-U leg 4: the JDBC spec fixes the metadata result
+                // shape and the catalog projections are OURS — a
+                // DECLARED table-function schema, never late-bound (no
+                // LIMIT-0 probe, reads stamp statically)
+                return new com.legend.compiler.spec.typed
+                        .TypedRawSqlRelation(sql, ExprType.one(
+                                Type.relation(CatalogGrids.gridSchema(
+                                        com.legend.compiler.element.type
+                                                .PlatformTypes
+                                                .fetchDbKind(fqn)))));
+            }
         }
         if (sql == null) {
             return call;
@@ -2729,6 +2741,14 @@ final class Typer {
                 return tdsValuesRead(source, rt2);
             }
             if (ap.property().equals("columns")) {
+                return columnsMeta(rt2, false);
+            }
+            // the ResultSet surface's name collection over a DECLARED
+            // schema (§4bZ-U leg 4): a fetchDb/executeInDb grid with
+            // compile-time columns answers .columnNames statically —
+            // the same literal collection the late-bound marker path
+            // resolves at the boundary for probe-stamped grids
+            if (ap.property().equals("columnNames")) {
                 return columnsMeta(rt2, false);
             }
         }

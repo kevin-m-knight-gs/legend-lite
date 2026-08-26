@@ -118,7 +118,8 @@ final class Windows {
                     .map(x -> windowize(x, partitionBy, orderBy, frame)).toList());
             case SqlExpr.StructLit s -> new SqlExpr.StructLit(s.fields().stream()
                     .map(f -> new SqlExpr.StructLit.Field(f.name(),
-                            windowize(f.value(), partitionBy, orderBy, frame)))
+                            windowize(f.value(), partitionBy, orderBy, frame),
+                            f.declared()))
                     .toList());
             case SqlExpr.StructGet g -> new SqlExpr.StructGet(
                     windowize(g.source(), partitionBy, orderBy, frame), g.field());

@@ -646,7 +646,14 @@ public class RelationalCorpusRunner {
             // mapping/join 1, aggregationAware/NOP 1 — witness:
             // testAssociationToManyAutoMap). Rows identical everywhere;
             // pass baseline unchanged at 2332.
-            int maxAdvisorySqlDiffs = 309;
+            // +3 2026-08-25 (§4bZ-U leg 2, JUSTIFIED): scalar-typed
+            // collection egress boxes as [e] before the compact+UNNEST
+            // (the bare-scalar list_filter cannot BIND — DuckDB binder
+            // receipt on testSubAggregationMultiLevel's lateral) — the
+            // boxed spelling diverges from engine golden text on 3
+            // row-verified tests; rows are the contract, all pass
+            // counts unchanged, corpus untyped hit 0 with this slice.
+            int maxAdvisorySqlDiffs = 312;
             org.junit.jupiter.api.Assertions.assertTrue(
                     advisorySqlDiffs <= maxAdvisorySqlDiffs,
                     "advisory golden-SQL diffs grew: " + advisorySqlDiffs
@@ -673,15 +680,22 @@ public class RelationalCorpusRunner {
                     .filter(o -> o.detail().startsWith("0 asserts")).count();
             final long softRescued = passes.stream()
                     .filter(o -> o.rescued() > 0).count();
+            // 257/303 -> 258/304 (§4bZ-U leg 2, 2026-08-25, JUSTIFIED
+            // with the advisory-ceiling move in the same commit): the
+            // scalar-typed collection egress boxes as [e] (the bare
+            // scalar could not BIND under list_filter), so previously
+            // byte-exact/advisory-clean passes now differ from engine
+            // golden text by exactly that wrap; rows verified, corpus
+            // untyped 0.
             org.junit.jupiter.api.Assertions.assertAll(
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            softDiff <= 257, "sqldiff-pass grew: " + softDiff
-                                    + " > 257 — exact passes may have been"
+                            softDiff <= 258, "sqldiff-pass grew: " + softDiff
+                                    + " > 258 — exact passes may have been"
                                     + " demoted; bump only with written"
                                     + " justification"),
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            softAdv <= 303, "adv-pass grew: " + softAdv
-                                    + " > 303"),
+                            softAdv <= 304, "adv-pass grew: " + softAdv
+                                    + " > 304"),
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             softZero <= 27, "0-assert passes grew: "
                                     + softZero + " > 27"),
@@ -709,22 +723,23 @@ public class RelationalCorpusRunner {
                     // speak DOUBLE on the wire.
                     // 7 -> 4 (the wire-7 review, 2026-08-25): the 3
                     // HUGEINT<>DOUBLE rows healed (SUM tolerance
-                    // transport). THE 4 = the NAMED REGISTERED RESIDUE:
-                    // Any-typed CELL reads from LATE-BOUND frames — 2x
-                    // JSON<>VARCHAR (fetchDbMetaData SQL_TYPE_NAME
-                    // cells) + 2x JSON<>BIGINT (dropAndCreateTable) —
-                    // the label is the variant-carrier erasure of Any,
-                    // the wire is the raw cell; unknowable at compile
-                    // time BY DESIGN (same mortality class as the
-                    // untyped-Column census rows from the same tests;
-                    // the engine itself carries NO type here — its
-                    // PathInformation is empty and its transform is
-                    // identity). Not an excuse arm: counted residue,
-                    // burns only if late-bound frames ever learn
-                    // runtime schemas.
+                    // transport). 4 -> 2 (§4bZ-U leg 4, 2026-08-25):
+                    // the fetchDb catalog grids got their DECLARED
+                    // JDBC-spec schemas (CatalogGrids.gridSchema) — the
+                    // 2x JSON<>VARCHAR SQL_TYPE_NAME rows healed to
+                    // typed VARCHAR labels. THE 2 = 2x JSON<>BIGINT
+                    // (dropAndCreateTable): Any-typed CELL reads from a
+                    // genuinely LATE-BOUND executeInDb frame — the
+                    // label is the variant-carrier erasure of Any, the
+                    // wire is the raw cell; unknowable at compile time
+                    // BY DESIGN (the engine itself carries NO type
+                    // here — its PathInformation is empty and its
+                    // transform is identity). Counted residue, burns
+                    // only if late-bound frames ever learn runtime
+                    // schemas.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .wireDivergeCount() <= 4,
+                                    .wireDivergeCount() <= 2,
                             "corpus wire divergence grew: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
@@ -784,20 +799,20 @@ public class RelationalCorpusRunner {
                     // this). 1,116 -> 737 -> 717 -> 424 (M4) -> 24
                     // (rules burn) -> 4 (2026-08-25 FULL burn: the
                     // SPLIT->VARCHAR[] rule closed the 20-row XStore
-                    // family). THE 4 = the complete per-row mortality
-                    // ledger: 2x fetchDbMetaData raw-grid columns
-                    // (late-bound by design — the schema exists only
-                    // at runtime); 1x concatenate testAll (JSON-under-
-                    // VARCHAR text-carrier chain — burns with the
-                    // carrier-types leg, SS4Z #5); 1x
-                    // testSubAggregationMultiLevel (AVG over an
-                    // unstamped sub-aggregation lateral column — M2's
-                    // recorded late-bound arm).
-                    () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            com.legend.exec.SqlTypeCensus
-                                    .untypedCount() <= 4,
-                            "untyped projection roots grew — a missing"
-                                    + " rule or an unstamped leaf: "
+                    // family) -> 0 (§4bZ-U legs, 2026-08-25: fetchDb
+                    // grids got DECLARED JDBC-spec schemas; the
+                    // scalar-typed collection egress boxes as [e] —
+                    // the bare-scalar list_filter could not even BIND,
+                    // so the subagg-lateral and concatenate roots were
+                    // unbindable emissions the census had been
+                    // flagging as type debt). Hardened to EQUALITY at
+                    // zero — a new untyped root is a regression, with
+                    // its witness in the failure message.
+                    () -> org.junit.jupiter.api.Assertions.assertEquals(
+                            0, com.legend.exec.SqlTypeCensus
+                                    .untypedCount(),
+                            "untyped projection roots reappeared — a"
+                                    + " missing rule or an unstamped leaf: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
                     // R1b census pin (CANONICAL_FORM_SPEC §0, measured
@@ -825,7 +840,7 @@ public class RelationalCorpusRunner {
                                     + com.legend.exec.CanonicalDivergence
                                             .summary()));
             System.out.println("[rcorpus] soft ceilings: sqldiff " + softDiff
-                    + "/257, adv " + softAdv + "/303, 0-asserts " + softZero
+                    + "/258, adv " + softAdv + "/304, 0-asserts " + softZero
                     + "/27, rescued " + softRescued + "/614");
         }
         org.junit.jupiter.api.Assertions.assertTrue(regressions.isEmpty(),

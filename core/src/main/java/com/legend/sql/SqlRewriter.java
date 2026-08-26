@@ -161,7 +161,8 @@ public abstract class SqlRewriter {
                 List<SqlExpr.StructLit.Field> fs = mapList(sl.fields(), fl -> {
                     SqlExpr v = rewriteExpr(fl.value());
                     return v == fl.value() ? fl
-                            : new SqlExpr.StructLit.Field(fl.name(), v);
+                            : new SqlExpr.StructLit.Field(fl.name(), v,
+                                    fl.declared());
                 });
                 yield fs == sl.fields() ? sl : new SqlExpr.StructLit(fs);
             }

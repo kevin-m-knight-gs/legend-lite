@@ -63,7 +63,14 @@ final class Comparators {
                         + " sides must apply the SAME key to each parameter");
             }
         }
-        SqlExpr keyOverElem = Scalars.substituteRef(keyOfX, px, new SqlExpr.Column("_cx", "x"));
+        // the element reference stamps as the list's element (§4bZ-U
+        // leg 2 — the binding-door sweep: this site holds the list)
+        SqlExpr.Column cx = list.type()
+                instanceof com.legend.sql.TypeFact.Typed lt
+                && lt.type() instanceof com.legend.sql.SqlType.Array at
+                ? SqlExpr.Column.of("_cx", "x", at.element())
+                : new SqlExpr.Column("_cx", "x");
+        SqlExpr keyOverElem = Scalars.substituteRef(keyOfX, px, cx);
         var inner = new SqlSelect(List.of(
                 new SqlSelect.Projection(
                         SqlExpr.Call.of(SqlFn.UNNEST, list), "x"),
@@ -77,7 +84,7 @@ final class Comparators {
                             List.of(), null, null, List.of(), null, null, List.of());
         var src = new SqlSource.Subselect(inner, "_cx", null);
         var outer = new SqlSelect(List.of(
-                new SqlSelect.Projection(new SqlExpr.Column("_cx", "x"), "w")),
+                new SqlSelect.Projection(cx, "w")),
                 false, src, null, List.of(), null, null,
                 List.of(new SqlSelect.SortKey(keyOverElem, !max,
                                 SqlSelect.SortKey.NullOrder.NULLS_LAST, null),

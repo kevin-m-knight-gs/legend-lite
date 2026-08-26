@@ -168,6 +168,32 @@ public final class CatalogGrids {
         return s.replace("'", "''");
     }
 
+    /** THE DECLARED METADATA SCHEMA (§4bZ-U leg 4): the JDBC
+     * {@code DatabaseMetaData} spec FIXES each catalog grid's result
+     * shape, and the catalog projections above are OURS — so the
+     * columns are typed compilation facts (a declared table-function
+     * schema), never late-bound. Text columns are {@code String[0..1]};
+     * {@code DATA_TYPE} ({@code java.sql.Types} int) and
+     * {@code KEY_SEQ} (short) are {@code Integer[0..1]}. */
+    public static com.legend.compiler.element.type.Type.RelationType
+            gridSchema(
+            com.legend.compiler.element.type.PlatformTypes.FetchDbKind k) {
+        List<com.legend.compiler.element.type.Type.Column> cols =
+                new ArrayList<>();
+        for (String name : gridColumns(k)) {
+            com.legend.compiler.element.type.Type t =
+                    name.equals("DATA_TYPE") || name.equals("KEY_SEQ")
+                            ? com.legend.compiler.element.type.Type
+                                    .Primitive.INTEGER
+                            : com.legend.compiler.element.type.Type
+                                    .Primitive.STRING;
+            cols.add(new com.legend.compiler.element.type.Type.Column(
+                    name, t, com.legend.compiler.element.type.Multiplicity
+                            .Bounded.ZERO_ONE));
+        }
+        return new com.legend.compiler.element.type.Type.RelationType(cols);
+    }
+
     /** The grid's projection names per kind — WE authored the catalog
      * projections above, so the names are compilation facts (the E4.e
      * chain compiler's columnNames / positional-index arithmetic). */

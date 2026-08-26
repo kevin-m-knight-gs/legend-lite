@@ -48,6 +48,10 @@ public final class SqlTypeCensus {
      * seam's provenance tag — the guest list, counted per slot. */
     private static final LongAdder TOLERATED = new LongAdder();
     private static final LongAdder BOTTOM_OK = new LongAdder();
+    /** RAISING roots (§4bZ-U leg 3): a projection whose expression
+     * {@code error()}s yields no value and conforms to its declared
+     * slot — counted visibly, never type debt. */
+    private static final LongAdder RAISES_OK = new LongAdder();
     private static final LongAdder BOTTOM_MULT = new LongAdder();
     private static final LongAdder MISMATCH = new LongAdder();
     private static final LongAdder UNTYPED = new LongAdder();
@@ -333,6 +337,7 @@ public final class SqlTypeCensus {
                         sample(cls, declared.name() + " := " + sketch(e));
                     }
                 }
+                case TypeFact.Raises r -> RAISES_OK.increment();
                 case TypeFact.Unknown u -> {
                     UNTYPED.increment();
                     String cls = "untyped: " + shapeOf(e);
@@ -459,14 +464,13 @@ public final class SqlTypeCensus {
         };
     }
 
-    /** Member anatomy for branch/element families: the first
-     * NON-ERROR untyped member's shape (the blind leaf), or — every
-     * member typed — the distinct member types (a promote failure). */
+    /** Member anatomy for branch/element families: the first untyped
+     * member's shape (the blind leaf; RAISING members carry their own
+     * fact and are never blind), or — every member typed — the
+     * distinct member types (a promote failure). */
     private static String memberAnatomy(List<SqlExpr> ms) {
         for (SqlExpr m : ms) {
-            if (m.type() instanceof TypeFact.Unknown
-                    && !(m instanceof SqlExpr.Call c
-                            && c.fn() == com.legend.sql.SqlFn.ERROR)) {
+            if (m.type() instanceof TypeFact.Unknown) {
                 return "blind=" + sketch(m);
             }
         }
@@ -521,6 +525,7 @@ public final class SqlTypeCensus {
                 + " admissible=" + ADMISSIBLE.sum()
                 + " tolerated=" + TOLERATED.sum()
                 + " bottom-ok=" + BOTTOM_OK.sum()
+                + " raises=" + RAISES_OK.sum()
                 + " bottom-mult-backlog=" + BOTTOM_MULT.sum()
                 + " mismatch=" + MISMATCH.sum() + " untyped=" + UNTYPED.sum()
                 + " | wire: agree=" + WIRE_AGREE.sum()

@@ -153,7 +153,7 @@ public sealed interface SqlExpr
                 java.util.List<StructLit.Field> fs = new java.util.ArrayList<>();
                 for (int i = 0; i < s.fields().size(); i++) {
                     fs.add(new StructLit.Field(s.fields().get(i).name(),
-                            cs.get(i)));
+                            cs.get(i), s.fields().get(i).declared()));
                 }
                 yield new StructLit(fs);
             }
@@ -583,7 +583,17 @@ public sealed interface SqlExpr
             this(fields, SqlTyping.UNKNOWN);
         }
 
-        public record Field(String name, SqlExpr value) {
+        /** {@code declared}: the field's DECLARED SQL type, supplied by
+         * a builder that holds the class layout (§4bZ-U leg 2 — the M2
+         * leaf-supply pattern applied to struct fields): a NULL-valued
+         * field (an absent optional property) then still contributes
+         * its slot type to {@link SqlTyping#structLitType}. Null when
+         * the builder has no layout in hand (zip's pair synthesis). */
+        public record Field(String name, SqlExpr value,
+                @com.legend.Nullable SqlType declared) {
+            public Field(String name, SqlExpr value) {
+                this(name, value, null);
+            }
         }
     }
 
@@ -667,7 +677,13 @@ public sealed interface SqlExpr
     record CheckedOne(SqlExpr list, boolean scalarCarrier,
             boolean atLeastOnly, TypeFact type) implements SqlExpr {
         public CheckedOne {
-            type = SqlTyping.checkedOneType(list);
+            // toOneMany (atLeastOnly) KEEPS the collection — the value
+            // is the guarded list itself, so its fact transports; only
+            // the exactly-one narrowing yields the ELEMENT (§4bZ-U
+            // leg 2: the egress boxing exposed the element-typed fact
+            // over a list-shaped wire as a label lie)
+            type = atLeastOnly ? list.type()
+                    : SqlTyping.checkedOneType(list);
         }
 
         public CheckedOne(SqlExpr list, boolean scalarCarrier,
