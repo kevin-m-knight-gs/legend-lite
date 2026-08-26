@@ -421,9 +421,7 @@ public sealed interface SqlExpr
     record DecimalLit(BigDecimal value, TypeFact type)
             implements SqlExpr {
         public DecimalLit {
-            type = SqlTyping.typed(new SqlType.Decimal(
-                    Math.max(value.precision(), 1),
-                    Math.max(value.scale(), 0)));
+            type = SqlTyping.decimalLitType(value);
         }
 
         public DecimalLit(BigDecimal value) {

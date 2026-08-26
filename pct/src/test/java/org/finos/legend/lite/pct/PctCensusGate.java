@@ -94,12 +94,30 @@ public final class PctCensusGate {
     // failure message. (ChannelB-context tags on pct witnesses are
     // unreliable — channel A never sets CONTEXT; capture TREES.)
     private static final long MAX_UNTYPED = H2 ? 17 : 0;
-    // diverge 78 -> 46 -> 45 (measured with the §4bZ-U legs:
-    // emission-true pivot stamps + REM labels + the variant-carrier
-    // concat heal wire agreement; the pct-lane wire ledgers'
-    // adjudication itself is still the §4bZ-V C charter item).
-    private static final long MAX_WIRE_DIVERGE = H2 ? 0 : 45;
-    private static final long MAX_ADOPT_PENDING = H2 ? 0 : 64;
+    // §4bZ-V C ADJUDICATED (2026-08-26, the wire-tree capture method):
+    // diverge 78 -> 45 -> 0 and adopt-pending 101 -> 64 -> 0, BOTH
+    // HARDENED TO EQUALITY. The kills, each probed on 1.5.0:
+    // star-tail label reconciliation (EVERY remaining row lived in a
+    // star-bearing frame the old size gate skipped wholesale — labels
+    // now adopt computed types through one leading star + k computed
+    // tail); Float-declared TDS cells seed DOUBLE literals (the
+    // DOUBLE<>DECIMAL(p,s) head-column family — DecimalLit seeds made
+    // DuckDB type whole Values columns DECIMAL); scale-0 DecimalLits
+    // beyond long are big pure INTEGERS and type HUGEINT, within long
+    // they are d-suffixed pure DECIMALS and the renderer CASTS so the
+    // wire reads DECIMAL (bare digits read INTEGER; typing the FACT by
+    // magnitude instead flipped percentile's carrier dispatch — facts
+    // follow the contract, emissions follow the fact); >38-digit
+    // fractional literals read DOUBLE (DECIMAL's precision cap);
+    // GUID() casts to VARCHAR (pure String contract; bare uuid() wires
+    // UUID); repeatString VARCHAR-casts an untyped arg (DuckDB's
+    // binder picked the BLOB overload for bare NULL); descending
+    // continuous percentile is the NEGATION identity -(qc(-v, p)) —
+    // the (1-p) transform diverged in float ULPs from the engine's
+    // WITHIN GROUP DESC path (testPercentile_Relation_Window's
+    // byte-compare refereed).
+    private static final long MAX_WIRE_DIVERGE = 0;
+    private static final long MAX_ADOPT_PENDING = 0;
 
     public static Test wrap(String suite, Test t) {
         return new TestSetup(t) {

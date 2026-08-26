@@ -898,7 +898,19 @@ final class Scalars {
         familyIfPresent(SqlFn.COT, "cot");
         familyIfPresent(SqlFn.RADIANS, "toRadians");
         familyIfPresent(SqlFn.DEGREES, "toDegrees");
-        familyIfPresent(SqlFn.REPEAT_STR, "repeatString");
+        // repeatString(s, n): an EMPTY/untyped first arg VARCHAR-casts —
+        // DuckDB's binder otherwise picks the BLOB overload for a bare
+        // NULL (wire BLOB under the String contract; §4bZ-V C
+        // adjudication: fix-emitter, value identical)
+        for (String f : Pure.nativeKeysAt("repeatString")) {
+            RULES.put(f, (n, args) -> {
+                SqlExpr s0 = args.get(0);
+                if (!(s0.type() instanceof com.legend.sql.TypeFact.Typed)) {
+                    s0 = new SqlExpr.Cast(s0, SqlType.Scalar.VARCHAR);
+                }
+                return SqlExpr.Call.of(SqlFn.REPEAT_STR, s0, args.get(1));
+            });
+        }
         familyIfPresent(SqlFn.JARO_WINKLER, "jaroWinklerSimilarity");
         // decodeBase64 accepts UNPADDED input (real pure; SQL from_base64
         // demands padding) — restore the '=' tail: literal-folded, or
@@ -2880,6 +2892,12 @@ final class Scalars {
 
 
     /** Literal cell of a TDS row → typed SQL literal, by the column's Pure type. */
+    /** pure DECIMAL-suffix cells (21d) carry the marker in the TEXT. */
+    private static String stripDecimalSuffix(String cell) {
+        return cell.matches("[+-]?\\d+(\\.\\d+)?[dD]")
+                ? cell.substring(0, cell.length() - 1) : cell;
+    }
+
     static SqlExpr tdsCell(String cell, Type type) {
         if (cell == null || cell.isEmpty()
                 || cell.equals(PlatformTypes.TDS_NULL_CELL)
@@ -2895,12 +2913,18 @@ final class Scalars {
         if (type == Type.Primitive.INTEGER) {
             return new SqlExpr.IntLit(Long.parseLong(cell));
         }
-        if (type == Type.Primitive.FLOAT || type == Type.Primitive.NUMBER
-                || type == Type.Primitive.DECIMAL || type instanceof Type.PrecisionDecimal) {
-            // pure DECIMAL-suffix cells (21d) carry the marker in the TEXT
-            String digits = cell.matches("[+-]?\\d+(\\.\\d+)?[dD]")
-                    ? cell.substring(0, cell.length() - 1) : cell;
-            return new SqlExpr.DecimalLit(new java.math.BigDecimal(digits));
+        if (type == Type.Primitive.FLOAT || type == Type.Primitive.NUMBER) {
+            // a FLOAT-declared cell seeds a DOUBLE literal (§4bZ-V C
+            // adjudication: DecimalLit here made DuckDB type the whole
+            // Values column DECIMAL(p,s) under the DOUBLE label — the
+            // star-covered head-column diverge family; the declared
+            // contract owns the seed)
+            return new SqlExpr.FloatLit(
+                    Double.parseDouble(stripDecimalSuffix(cell)));
+        }
+        if (type == Type.Primitive.DECIMAL || type instanceof Type.PrecisionDecimal) {
+            return new SqlExpr.DecimalLit(
+                    new java.math.BigDecimal(stripDecimalSuffix(cell)));
         }
         if (type == Type.Primitive.BOOLEAN) {
             return new SqlExpr.BoolLit(Boolean.parseBoolean(cell));

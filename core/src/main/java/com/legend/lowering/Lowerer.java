@@ -1114,6 +1114,7 @@ public final class Lowerer {
         List<Boolean> flags = new ArrayList<>();
         TypedCast valueCast = null;
         boolean distinctValues = false;
+        boolean negateForDescCont = false;
         for (TypedSpec argSpec : call.args()) {
             if (argSpec instanceof TypedNativeCall dn
                     && dn.callee().qualifiedName().equals(
@@ -1150,35 +1151,9 @@ public final class Lowerer {
                         + " is not supported (literals only)");
             }
         }
-        // percentile(p, ascending, continuous): continuous selects the
-        // QUANTILE flavor; descending order is the 1-p quantile.
-        // variance(isBiasCorrected): false selects the POPULATION variance.
-        if (!flags.isEmpty()) {
-            if (fn == SqlAgg.Fn.VAR_SAMP && flags.size() == 1 && extra.isEmpty()) {
-                fn = flags.get(0) ? SqlAgg.Fn.VAR_SAMP : SqlAgg.Fn.VAR_POP;
-            } else if (fn == SqlAgg.Fn.QUANTILE_CONT && flags.size() == 2
-                    && extra.size() == 1) {
-                fn = flags.get(1) ? SqlAgg.Fn.QUANTILE_CONT : SqlAgg.Fn.QUANTILE_DISC;
-                if (!flags.get(0)) {
-                    if (flags.get(1)) {
-                        // CONTINUOUS interpolation is symmetric: the
-                        // descending p-quantile IS the ascending (1-p).
-                        extra.set(0, SqlExpr.Call.of(SqlFn.MINUS,
-                                new SqlExpr.IntLit(1), extra.get(0)));
-                    } else {
-                        // DISCRETE is NOT symmetric (SQL-standard
-                        // PERCENTILE_DISC picks the first value whose
-                        // cume_dist >= p in DESC order — the ceil(p*N)-th
-                        // largest); index the sorted list exactly.
-                        fn = SqlAgg.Fn.QDISC_DESC;
-                    }
-                }
-            } else {
-                throw new IllegalStateException("boolean reducer arguments are"
-                        + " only understood on percentile(p, ascending,"
-                        + " continuous) and variance(isBiasCorrected)");
-            }
-        }
+        AggFlavor flavor = aggFlavor(fn, flags, extra.size());
+        fn = flavor.fn();
+        negateForDescCont = flavor.negateForDescCont();
         // BI-VARIATE map: rowMapper(value, key) decomposes into the SQL
         // aggregate's two arguments — CORR(a, b), ARG_MAX(v, k), ...
         if (mapBody instanceof TypedNativeCall rm
@@ -1186,6 +1161,13 @@ public final class Lowerer {
                         || rm.callee().qualifiedName().equals(
                                 "meta::pure::functions::math::wavgUtility::wavgRowMapper"))
                 && rm.args().size() == 2) {
+            if (negateForDescCont) {
+                // this arm returns without the negation wrap — reaching
+                // it with the flag set would silently drop DESC
+                throw new IllegalStateException(
+                        "descending continuous percentile over a"
+                        + " rowMapper body has no lowering");
+            }
             SqlExpr first = scalar(rm.args().get(0), (v, name) -> resolveOrThrow(base, name));
             SqlExpr second = scalar(rm.args().get(1), (v, name) -> resolveOrThrow(base, name));
             if (fn == SqlAgg.Fn.WAVG) {
@@ -1294,9 +1276,13 @@ public final class Lowerer {
             return Aggregates.qdiscDesc(value, extra.get(0));
         }
         List<SqlExpr> args = new ArrayList<>();
-        args.add(value);
+        args.add(negateForDescCont
+                ? SqlExpr.Call.of(SqlFn.NEGATE, value) : value);
         args.addAll(extra);
         SqlExpr red = new SqlAgg.Reducer(fn, args, distinctValues, aggOrder);
+        if (negateForDescCont) {
+            return SqlExpr.Call.of(SqlFn.NEGATE, red);
+        }
         // pure percentile RENDERS AS FLOAT (engine golden 12.0, not 12) —
         // the discrete quantile keeps the input's integer type, so cast
         return fn == SqlAgg.Fn.QUANTILE_DISC
@@ -3304,6 +3290,49 @@ public final class Lowerer {
 
     private static boolean isMany(TypedSpec spec) {
         return spec.info().multiplicity().requireBounded("lowering").isMany();
+    }
+
+    /** percentile/variance FLAG decode (seam split from aggValue at the
+     * 250-line method guard): picks the reducer flavor —
+     * percentile(p, ascending, continuous) selects the QUANTILE flavor;
+     * variance(isBiasCorrected) false selects POPULATION variance.
+     * CONTINUOUS descending takes the NEGATION identity
+     * {@code -(quantile_cont(-v, p))}, NOT the (1-p) transform:
+     * symmetric in exact math but NOT in float ULPs (probed 1.5.0: 1-p
+     * over [1,1.5,2] gives 1.4000000000000001 where the engine's own
+     * WITHIN GROUP ... DESC path gives 1.4 — negation follows the SAME
+     * interpolation direction and lands the engine's exact double;
+     * testPercentile_Relation_Window's ChannelB byte-compare is the
+     * referee). DISCRETE descending is NOT symmetric (SQL-standard
+     * PERCENTILE_DISC picks the first value whose cume_dist >= p in
+     * DESC order — the ceil(p*N)-th largest) and indexes the sorted
+     * list exactly (QDISC_DESC). */
+    private record AggFlavor(SqlAgg.Fn fn, boolean negateForDescCont) {
+    }
+
+    private static AggFlavor aggFlavor(SqlAgg.Fn fn,
+            List<Boolean> flags, int extras) {
+        if (flags.isEmpty()) {
+            return new AggFlavor(fn, false);
+        }
+        if (fn == SqlAgg.Fn.VAR_SAMP && flags.size() == 1 && extras == 0) {
+            return new AggFlavor(flags.get(0)
+                    ? SqlAgg.Fn.VAR_SAMP : SqlAgg.Fn.VAR_POP, false);
+        }
+        if (fn == SqlAgg.Fn.QUANTILE_CONT && flags.size() == 2
+                && extras == 1) {
+            if (flags.get(0)) {
+                return new AggFlavor(flags.get(1)
+                        ? SqlAgg.Fn.QUANTILE_CONT
+                        : SqlAgg.Fn.QUANTILE_DISC, false);
+            }
+            return flags.get(1)
+                    ? new AggFlavor(SqlAgg.Fn.QUANTILE_CONT, true)
+                    : new AggFlavor(SqlAgg.Fn.QDISC_DESC, false);
+        }
+        throw new IllegalStateException("boolean reducer arguments are"
+                + " only understood on percentile(p, ascending,"
+                + " continuous) and variance(isBiasCorrected)");
     }
 
     // fold lowering moved to LambdaBinding.lowerFold (the binding-door

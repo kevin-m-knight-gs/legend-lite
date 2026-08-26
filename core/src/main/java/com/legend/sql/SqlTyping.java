@@ -71,12 +71,39 @@ public final class SqlTyping {
     static @com.legend.Nullable List<OutputCol> reconcileLabels(
             List<SqlSelect.Projection> projections,
             @com.legend.Nullable List<OutputCol> outputs) {
-        if (outputs == null || projections.size() != outputs.size()) {
-            return outputs;
+        if (outputs == null) {
+            return null;
+        }
+        // STAR-TAIL frames (§4bZ-V C, 2026-08-26 — the wire-ledger
+        // capture's finding: EVERY remaining diverge/adopt row lived in
+        // a star-bearing select, where the old size gate skipped
+        // reconciliation wholesale and computed types never reached the
+        // labels): one leading star + k computed projections pair with
+        // the LAST k outputs (extend/window append columns — the star
+        // covers the head, whose labels the INNER select already
+        // reconciled). Anything shapelier keeps the no-claim skip.
+        int shift = 0;
+        if (projections.size() != outputs.size()) {
+            boolean starTail = projections.size() >= 2
+                    && projections.size() - 1 <= outputs.size()
+                    && (projections.get(0).expr() instanceof SqlExpr.Star
+                            || projections.get(0).expr()
+                                    instanceof SqlExpr.StarExcept);
+            for (int j = 1; starTail && j < projections.size(); j++) {
+                starTail = !(projections.get(j).expr()
+                                instanceof SqlExpr.Star)
+                        && !(projections.get(j).expr()
+                                instanceof SqlExpr.StarExcept);
+            }
+            if (!starTail) {
+                return outputs;
+            }
+            shift = outputs.size() - (projections.size() - 1);
         }
         List<OutputCol> os = null;
-        for (int i = 0; i < outputs.size(); i++) {
-            if (!(projections.get(i).expr().type()
+        for (int p = shift == 0 ? 0 : 1; p < projections.size(); p++) {
+            int i = shift == 0 ? p : shift + (p - 1);
+            if (!(projections.get(p).expr().type()
                     instanceof TypeFact.Typed t)) {
                 continue;   // unknown/bottom wires keep the contract
             }
@@ -1087,6 +1114,58 @@ public final class SqlTyping {
             return SqlType.Scalar.TIMESTAMP;
         }
         return null;
+    }
+
+    /** {@link SqlExpr.DecimalLit} — typed as THE EMISSION (the literal
+     * renders {@code toPlainString()}): a scale-0 plain-digit literal
+     * is read by the backend as its MAGNITUDE integer kind (probed
+     * 1.5.0: {@code 17774} -> INTEGER, {@code 9999999999999999999} ->
+     * HUGEINT; the old always-Decimal(p,0) fact was the wire ledger's
+     * (10,3)<>(15,3) times family and the (19/20,0)<>HUGEINT
+     * large-arithmetic family). Fractional literals keep their exact
+     * {@code Decimal(p,s)}. */
+    static TypeFact decimalLitType(java.math.BigDecimal v) {
+        if (v.scale() < 0) {
+            // 1E+3 has precision 1 but renders "1000" — normalize so
+            // precision counts the RENDERED digits (the fact's
+            // Decimal(1,0) would cast-overflow at execution)
+            v = v.setScale(0);
+        }
+        if (v.scale() > 0) {
+            // beyond DECIMAL's max precision the backend reads the
+            // literal DOUBLE (probed 1.5.0: 39+ digits -> DOUBLE, 38
+            // -> DECIMAL(38,s) — testComplexPow's 41-digit expected
+            // literal was the wire ledger's last row)
+            if (v.precision() > 38) {
+                return T_DOUBLE;
+            }
+            return typed(new SqlType.Decimal(
+                    Math.max(v.precision(), 1), v.scale()));
+        }
+        // scale-0 SPLITS by provenance, decidable by MAGNITUDE alone:
+        // a value beyond long can only be a big PURE INTEGER (integer
+        // literals fitting long lower as IntLit, never here) — the
+        // backend reads its bare digits HUGEINT (probed 1.5.0), so the
+        // fact says so. Within long it is a d-suffixed pure DECIMAL
+        // (17774d) — the contract is Decimal(p,0) and the EXECUTION
+        // renderer conforms the emission with a decimal cast (bare
+        // digits would read INTEGER — the (10,3)<>(15,3) times family;
+        // a first cut typed the FACT by magnitude instead and flipped
+        // percentile's mixed-kind carrier dispatch: facts drive
+        // dispatch, so the fact must follow the CONTRACT and the
+        // emission must follow the fact).
+        int bits = v.toBigIntegerExact().bitLength();
+        if (bits >= 128) {
+            // beyond HUGEINT the backend reads the bare digits DOUBLE
+            // (probed 1.5.0: 39- and 45-digit integer literals ->
+            // DOUBLE), and a Decimal(p,0) fact would emit a cast past
+            // DECIMAL's 38-precision cap
+            return T_DOUBLE;
+        }
+        if (bits >= 64) {
+            return T_HUGEINT;
+        }
+        return typed(new SqlType.Decimal(Math.max(v.precision(), 1), 0));
     }
 
     /** REM over a decimal-bearing numeric pair — the probed no-carry

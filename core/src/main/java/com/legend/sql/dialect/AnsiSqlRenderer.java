@@ -390,7 +390,19 @@ public class AnsiSqlRenderer implements SqlDialect {
             // pure Float IS float8 — a BARE decimal literal types as
             // DECIMAL(p,s) in DuckDB and infects every aggregate over it
             case SqlExpr.FloatLit f -> "CAST(" + f.value() + " AS DOUBLE)";
-            case SqlExpr.DecimalLit d -> d.value().toPlainString();
+            // a scale-0 DECIMAL-fact literal (a pure d-suffixed integer:
+            // 17774d) CASTS so the wire reads DECIMAL — bare digits read
+            // INTEGER by magnitude (probed 1.5.0; the (10,3)<>(15,3)
+            // times family). HUGEINT-fact big integers and fractional
+            // decimals render bare; engine-TEXT renderers intercept
+            // upstream with the goldens' own spelling.
+            case SqlExpr.DecimalLit d ->
+                    d.type() instanceof com.legend.sql.TypeFact.Typed t
+                            && t.type() instanceof com.legend.sql.SqlType
+                                    .Decimal dd && dd.scale() == 0
+                    ? "CAST(" + d.value().toPlainString() + " AS DECIMAL("
+                            + dd.precision() + ",0))"
+                    : d.value().toPlainString();
             case SqlExpr.BoolLit b -> boolLit(b.value());
             case SqlExpr.NullLit n -> "NULL";
             case SqlExpr.DateLit d -> dateLit(d.iso());
@@ -602,7 +614,10 @@ public class AnsiSqlRenderer implements SqlDialect {
             case LC_FIRST -> opSpelling("lower(substr(" + expr(a.get(0), 0)
                     + ", 1, 1)) || substr(" + expr(a.get(0), 0) + ", 2)", parentPrec);
             case ENCODE_BASE64 -> "to_base64(CAST(" + expr(a.get(0), 0) + " AS BLOB))";
-            case GUID -> "uuid()";
+            // pure generateGuid : String[1] — the CONTRACT is text, so
+            // the emission conforms (bare uuid() wires UUID; §4bZ-V C
+            // adjudication: fix-emitter, the CEILING pattern)
+            case GUID -> "CAST(uuid() AS VARCHAR)";
             // Temporal
             case TODAY -> "current_date";
             case NOW -> "now()";

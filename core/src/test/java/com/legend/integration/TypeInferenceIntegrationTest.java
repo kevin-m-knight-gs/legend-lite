@@ -3293,11 +3293,17 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testPercentile_GroupBy_Continuous_Ascending() throws SQLException {
-                // percentile(0.6) == percentile(0.6, true, true) -> quantile_cont(0.6)
+                // percentile(0.6) == percentile(0.6, true, true) -> quantile_cont(0.6).
+                // TRUE float interpolation (Float-declared TDS cells seed
+                // DOUBLE since the §4bZ-V C seed fix): pos = 0.6*(3-1) = 1.2
+                // -> [1,2,3] = 2.2, [1.5,2.5,3.5] = 2.7, [1,1.5,2] = 1.6.
+                // (The old 2.1/2.6/1.5 pins froze the DECIMAL-seeded
+                // fixed-point artifact — probed: quantile_cont over
+                // DECIMAL(2,1) truncates to 2.1.)
                 var map = executePercentileGroupBy("0.6");
-                assertEquals(2.1, map.get(1), 0.001);
-                assertEquals(2.6, map.get(2), 0.001);
-                assertEquals(1.5, map.get(3), 0.001);
+                assertEquals(2.2, map.get(1), 0.001);
+                assertEquals(2.7, map.get(2), 0.001);
+                assertEquals(1.6, map.get(3), 0.001);
         }
 
         @Test
@@ -3359,11 +3365,13 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
         @Test
         void testPercentile_Window_Continuous_Ascending() throws SQLException {
-                // percentile(0.6, true, true) -> quantile_cont(0.6) OVER (PARTITION BY id)
+                // percentile(0.6, true, true) -> quantile_cont(0.6) OVER
+                // (PARTITION BY id) — same true-float values as the
+                // groupBy twin (see its derivation note)
                 var map = executePercentileWindow("0.6, true, true");
-                assertEquals(2.1, map.get("1"), 0.001);
-                assertEquals(2.6, map.get("2"), 0.001);
-                assertEquals(1.5, map.get("3"), 0.001);
+                assertEquals(2.2, map.get("1"), 0.001);
+                assertEquals(2.7, map.get("2"), 0.001);
+                assertEquals(1.6, map.get("3"), 0.001);
         }
 
         @Test
