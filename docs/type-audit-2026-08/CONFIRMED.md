@@ -212,21 +212,29 @@ User source silently wins over the platform native, taking the TYPE with it. (No
 `Integer[0..1]` is correct — the platform signature itself is right.)
 
 ## V24 — the let-inliner is CAPTURE-UNSAFE  [WRONG RESULTS]
-*(Corrected after falsification — my first repro was invalid; see the CORRECTIONS section.)*
+*(Repro strengthened twice under falsification — see CORRECTIONS. This is the final, decisive form.)*
 
-Two programs differing ONLY in the inner lambda's binder name, with `$y` free in both bodies —
-genuinely alpha-equivalent — give different answers:
+Vary ONLY the OUTER lambda's binder name. Everything else is byte-identical:
 ```
-|[10]->map({x| let y = $x; [7]->map(x|$y)->toOne();})   -> Integer(7)    WRONG (correct is 10)
-     SQL: list_transform([10], x -> list_transform([7], x -> x))
-                                                    ^^^^^^^^^^ the substituted $x is captured
+|[10]->map({x| let y = $x; [7]->map(x|$y)->toOne();})   -> Integer(7)    WRONG
+|[10]->map({v| let y = $v; [7]->map(x|$y)->toOne();})   -> Integer(10)   correct
+```
+`$y` is free in both bodies and `y` is neither `x` nor `v`, so renaming the outer parameter is
+capture-free: the two programs are unambiguously alpha-equivalent, and they produce different
+answers. Renaming a bound variable changes the result of the program.
 
-|[10]->map({x| let y = $x; [7]->map(w|$y)->toOne();})   -> Integer(10)   correct
-     SQL: list_transform([10], x -> list_transform([7], w -> x))
+Mechanism, visible in the SQL: `let y = $x` makes the inliner substitute `$y := $x`. When that
+substituted `$x` lands in a scope where the INNER lambda has re-bound `x`, it is captured:
 ```
-Mechanism: `let y = $x` makes the inliner substitute `$y := $x`. When that `$x` lands in a scope
-where `x` has been re-bound by the inner lambda, it is captured. No alpha-renaming is performed.
-Both forms type as `Integer[1]` — the TYPE is fine, the VALUE is silently wrong.
+list_transform([10], x -> list_transform([7], x -> x))     <- captured
+list_transform([10], x -> list_transform([7], w -> x))     <- the w-variant, correct
+```
+No alpha-renaming is performed on this path. Both forms type as `Integer[1]` — the TYPE is fine,
+the VALUE is silently wrong.
+
+NOT this, which is correct and already handled: `|let y = 3; [7]->map(y|$y)->toOne();` gives 7
+because the inner binder genuinely IS `y`, so lexical shadowing applies; the inliner renames it to
+`_i0` there. That case is sound and is not what V24 claims.
 
 ## V25 — `first(set, count)` silently drops its count argument  [WRONG RESULTS]
 ```

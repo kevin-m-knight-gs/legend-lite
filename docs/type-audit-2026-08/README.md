@@ -22,6 +22,7 @@ evidence base.
 | `CONFIRMED.md` | 39 findings personally reproduced by the orchestrator, with pasted output, plus a CORRECTIONS section recording every claim withdrawn or amended — including the orchestrator's own. |
 | `MASTER.md` | The synthesized defect table: 105 distinct defects (S1 41, S2 27, S3 19, S4 12+1 META, S5 5), deduplicated ~5.9× from ~620 raw findings across 35 auditor reports plus both falsifiers, with 14 root causes and a per-stage map. |
 | `V1-falsifier.md`, `V2-falsifier.md` | Independent adjudication. 202 rulings between them: 185 CONFIRMED, 7 OVERSTATED, 2 NOT-REPRODUCED, 1 MISATTRIBUTED, 0 BY-DESIGN. |
+| `REMEDIATION.md` | 16 fix specs with the current lines quoted, blast radius grepped and a regression test written for each; the structural recommendation; the guard tests to extend rather than add; and an explicit don't-fix list. |
 
 ## Headline
 
@@ -59,6 +60,17 @@ generated from `Pure.all()`. It verifies nothing about real Legend. Diffing all 
 against 24,172 declarations extracted from `finos/legend-pure` @18cd1bb and `finos/legend-engine`:
 **538 exact, 131 argument differences, 16 return-type/multiplicity differences, 36 functions that
 do not exist upstream — 183/721 (25.4%) divergent.**
+
+## Cheapest high-value fixes
+
+Four are extra-small by the remediation pass's own estimate — read the specs before trusting them:
+`Multiplicity.product` multiplying in `long` (4 lines, one caller); `==` calling the
+`optionalOperandGuards` that `>` already calls (1 line); parenthesising set-op branches that carry
+`ORDER BY`/`LIMIT` (5 lines, and 234 of the fuzzer's 431 bad-SQL results); and gating the
+*ungated* wire-cast strip at `Lowerer:1393`. That last one matters more than its size: the mapping's
+wire coercion IS computed, and `CastPolicy.lower:50` correctly elides it only under
+`EngineTextBoundary.active()` — but `CastPolicy.cellRootUnwrapWire` at `Lowerer:1393` strips it
+unconditionally, which is why execution delivers the bare mismatched read.
 
 ## Recommended first change
 
