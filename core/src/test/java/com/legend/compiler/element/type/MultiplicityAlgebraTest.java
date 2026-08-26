@@ -86,6 +86,30 @@ class MultiplicityAlgebraTest {
     }
 
     @Test
+    void productUsesExactArithmetic() {
+        // audit D32 (A02 repros): raw int products WRAPPED —
+        // [0..65536].[0..65536] stamped [0..0] (a fabricated to-one
+        // that routed real rows to SCALAR), [0..MAX].[0..MAX] stamped
+        // [0..1], [50000].[50000] went negative and ICEd. A bound past
+        // int range can only weaken representably: an overflowing
+        // upper becomes unbounded, an overflowing lower saturates.
+        assertEquals(b(0, null),
+                Multiplicity.product(b(0, 65536), b(0, 65536)));
+        assertEquals(b(0, null), Multiplicity.product(
+                b(0, Integer.MAX_VALUE), b(0, Integer.MAX_VALUE)));
+        assertEquals(b(Integer.MAX_VALUE, null),
+                Multiplicity.product(b(50000, 50000), b(50000, 50000)));
+        assertEquals(b(Integer.MAX_VALUE, null), Multiplicity.product(
+                b(2, 2), b(2000000000, 2000000000)));
+        // in-range products stay exact
+        assertEquals(b(1000000, 1000000), Multiplicity.product(
+                b(1000, 1000), b(1000, 1000)));
+        // the [0..0] annihilator still beats unbounded absorption
+        assertEquals(b(0, 0), Multiplicity.product(
+                b(0, 0), b(2000000000, null)));
+    }
+
+    @Test
     void productOfAVariableAndANonIdentityBoundIsLoud() {
         assertThrows(IllegalStateException.class, () ->
                 Multiplicity.product(new Multiplicity.Var("n"), b(0, 1)));

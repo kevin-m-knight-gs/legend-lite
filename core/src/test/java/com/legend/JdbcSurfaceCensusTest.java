@@ -145,6 +145,11 @@ class JdbcSurfaceCensusTest {
             // missing-required rejection pin e2e VALUE semantics — the
             // executed result IS the assertion (the BurnLaneTest form)
             "core/src/test/java/com/legend/lowering/Part1SemanticsTest.java",
+            // D102 witnesses (2026-08-26): the checked-envelope defect
+            // CASE executes IN the database — the produced defects
+            // JSON is the assertion (NULL-predicate unable-to-evaluate
+            // arm vs violation arm vs null-safe equality)
+            "core/src/test/java/com/legend/integration/GraphFetchCheckedIntegrationTest.java",
             // slice-3 exit criterion: byte-decidable Any equality pins
             // execute ON THE DATABASE (dedup verdicts computed in SQL —
             // the carrier's disjoint spellings are the assertion)

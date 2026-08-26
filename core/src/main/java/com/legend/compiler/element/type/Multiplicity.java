@@ -113,10 +113,22 @@ public sealed interface Multiplicity permits Multiplicity.Bounded, Multiplicity.
             // — and beats the unbounded absorption: [0..0].[*] is [0..0]
             boolean zero = (a.upper() != null && a.upper() == 0)
                     || (b.upper() != null && b.upper() == 0);
-            Integer upper = zero ? Integer.valueOf(0)
+            // exact arithmetic (audit D32): a raw int product wraps —
+            // [65536].[65536] stamped [0..0], [0..MAX].[0..MAX] stamped
+            // [0..1] — a fabricated cardinality, not a widening. A bound
+            // past int range can only WEAKEN representably: an
+            // overflowing upper ("at most N") becomes unbounded, an
+            // overflowing lower ("at least N") saturates at MAX_VALUE.
+            long lowerExact = (long) a.lower() * b.lower();
+            Long upperExact = zero ? Long.valueOf(0)
                     : a.upper() == null || b.upper() == null
-                            ? null : a.upper() * b.upper();
-            return new Bounded(a.lower() * b.lower(), upper);
+                            ? null : Long.valueOf(
+                                    (long) a.upper() * b.upper());
+            Integer upper = upperExact == null
+                    || upperExact > Integer.MAX_VALUE
+                            ? null : Integer.valueOf(upperExact.intValue());
+            return new Bounded((int) Math.min(lowerExact,
+                    Integer.MAX_VALUE), upper);
         }
         if (Bounded.ONE.equals(inner)) {
             return outer;
