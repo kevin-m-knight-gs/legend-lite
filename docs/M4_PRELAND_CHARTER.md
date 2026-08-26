@@ -1131,6 +1131,32 @@ blanket temporal←VARCHAR arms DELETED (both lanes measured 0
 first); G1 fully green with zero rule fallout; h2-lane admissible
 pin lands at its first post-B3 chain measure.
 
+**B4 EXECUTED + THE LEG CLOSED (2026-08-26): admissible() is
+DELETED. Nothing forgiven.** The JSON egress conforms BY EMISSION:
+serialized-graph values are BUILT as database JSON (composition
+requires the real type — nested aggregates feed parent json_object
+slots; text there would double-encode) and become TEXT exactly once
+at the STATEMENT egress (Lowerer.conformJsonEgress at the two
+roots: lower()'s graph arm and the scalar-position snapshot after
+SnapshotEnvelope.fold — inner serializeGraph results deliberately
+stay JSON). The cast IS DuckDB's own JSON→text serialization
+(probed byte-identical on 1.5.0, empty case included), spelled
+synth-conformance so engine TEXT elides it — the G4 advisory
+golden-diff count was EXACTLY unchanged (312/312). Contract
+receipt: every engine serialize() overload returns String[1]
+(graphFetch.pure:69/75/176/183) — the String contract is the
+ENGINE's, verified not assumed. Then the cutover: admissible()
+deleted from SqlTyping (reconcileLabels consults equal/subsumes/
+tolerated only), the census admissible bucket/counter/gate-check
+deleted (a pair matching no named relation lands in MISMATCH,
+pinned 0 on every lane — strictly louder), delivers() falls through
+to subsumes. Rider: the pct gate's per-lane H2 split RETIRED — all
+pins EQUALITY-0 on both lanes (untyped's h2 17 burned with the B3
+stamps). §4Z ledger #5 = CLOSED: five excuse arms → two named
+proven relations (subsumes, carryThrough), two modeled carriers
+(LITERAL, TEMPORAL_TEXT), one emission conform, one dead-arm
+delete.
+
 **C. PCT-LANE WIRE LEDGERS — NEWLY OWNED (the audit's main find):
 never adjudicated.** Measured 2026-08-25: adopt-pending 94 (ceiling
 101), diverge 54 (ceiling 78) — the corpus twins were burned to

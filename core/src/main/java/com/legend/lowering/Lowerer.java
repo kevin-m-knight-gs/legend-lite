@@ -258,7 +258,7 @@ public final class Lowerer {
         // The resolved GRAPH envelope keeps its CLASS-typed info (the
         // result-shape contract) but lowers as a relation.
         if (spec instanceof TypedSerializeGraph g) {
-            return serializeGraph(g, streamingGraphRoot);
+            return conformJsonEgress(serializeGraph(g, streamingGraphRoot));
         }
         // A terminal concatenate is a BARE set operation — no wrapping SELECT *.
         if (spec instanceof TypedConcatenate c) {
@@ -781,6 +781,31 @@ public final class Lowerer {
                     what + " '" + cc.name() + "' references column '"
                     + u.column() + "', unresolvable in the envelope source");
         }
+    }
+
+    /** THE JSON EGRESS CONFORM (§4bZ-V B4): serialized-graph values
+     * are BUILT as database JSON — composition needs the real type
+     * (nested aggregates feed parent json_object slots, so the value
+     * must stay JSON while composing) — and become TEXT exactly once,
+     * at the STATEMENT egress where the contract says String. A
+     * synth-conformance cast: execution SQL spells the database's own
+     * JSON&rarr;text serialization (probed byte-identical on 1.5.0,
+     * empty case included), engine TEXT elides it (the conform()
+     * suppression). Identity on non-JSON results. */
+    private static SqlSelect conformJsonEgress(SqlSelect s) {
+        if (s.projections().size() != 1) {
+            return s;
+        }
+        SqlSelect.Projection p = s.projections().get(0);
+        if (!(p.expr().type() instanceof com.legend.sql.TypeFact.Typed t)
+                || t.type() != SqlType.Scalar.JSON) {
+            return s;
+        }
+        return s.withProjections(
+                List.of(new SqlSelect.Projection(new SqlExpr.Cast(
+                        p.expr(), SqlType.Scalar.VARCHAR, true),
+                        p.outputName())),
+                s.outputs());
     }
 
     private SqlSelect serializeGraph(TypedSerializeGraph g,
@@ -3092,7 +3117,8 @@ public final class Lowerer {
             }
             // scalar-position graph value (H4 snapshot; SnapshotEnvelope)
             case TypedSerializeGraph g -> new SqlExpr.ScalarSubquery(
-                    SnapshotEnvelope.fold(serializeGraph(g.asArrayWrapped(), false)));
+                    conformJsonEgress(SnapshotEnvelope.fold(
+                            serializeGraph(g.asArrayWrapped(), false))));
             // static-dispatch match fold (MatchFold doc)
             case com.legend.compiler.spec.typed.TypedMatchRuntime mr ->
                     scalar(MatchFold.fold(mr), columns);

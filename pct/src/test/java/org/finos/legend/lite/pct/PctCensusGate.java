@@ -30,8 +30,9 @@ public final class PctCensusGate {
     private PctCensusGate() {
     }
 
-    private static final boolean H2 =
-            "h2".equals(System.getenv("LEGENDLITE_PCT_BACKEND"));
+    // (The per-lane H2 split retired 2026-08-26: every pin below is
+    // EQUALITY-0 on BOTH lanes — the lanes converged as the carriers
+    // and stamps landed.)
 
     // MEASURED 2026-08-25 at the last teardown of each lane's JVM:
     // G6 full pct JVM on DuckDB (after Grammar, incl. ChannelB traffic)
@@ -93,7 +94,9 @@ public final class PctCensusGate {
     // TO EQUALITY: a new untyped root is a regression, witness in the
     // failure message. (ChannelB-context tags on pct witnesses are
     // unreliable — channel A never sets CONTEXT; capture TREES.)
-    private static final long MAX_UNTYPED = H2 ? 17 : 0;
+    // (h2's 17 burned with the B3 temporal-text stamps — measured 0 on
+    // the post-B3 G7; EQUALITY both lanes.)
+    private static final long MAX_UNTYPED = 0;
     // §4bZ-V C ADJUDICATED (2026-08-26, the wire-tree capture method):
     // diverge 78 -> 45 -> 0 and adopt-pending 101 -> 64 -> 0, BOTH
     // HARDENED TO EQUALITY. The kills, each probed on 1.5.0:
@@ -118,12 +121,11 @@ public final class PctCensusGate {
     // byte-compare refereed).
     private static final long MAX_WIRE_DIVERGE = 0;
     private static final long MAX_ADOPT_PENDING = 0;
-    // §4bZ-V B3 (2026-08-26): the pct admissible bucket is EMPTY — the
-    // temporal-text traffic (317) is the TEMPORAL_TEXT carrier now
-    // (stamped at construction, wire-delivered by the registered
-    // pair), and the blanket temporal<-VARCHAR arms are DELETED. BOTH
-    // lanes measured 0 (h2: the first post-B3 chain) — EQUALITY.
-    private static final long MAX_ADMISSIBLE = 0;
+    // §4bZ-V B3+B4 (2026-08-26): the admissible bucket is DELETED with
+    // the relation itself — the temporal-text traffic is the
+    // TEMPORAL_TEXT carrier, the JSON egress conforms by emission, and
+    // a pair matching no named relation now lands in MISMATCH (pinned
+    // 0 below) — strictly louder than any ceiling here could be.
 
     public static Test wrap(String suite, Test t) {
         return new TestSetup(t) {
@@ -143,9 +145,6 @@ public final class PctCensusGate {
                                         + w)));
                 check(suite, "label lie escaped reconciliation (mismatch)",
                         SqlTypeCensus.mismatchCount(), 0);
-                check(suite, "admissible carriers grew — an excuse arm"
-                                + " came back or a stamp went missing",
-                        SqlTypeCensus.admissibleCount(), MAX_ADMISSIBLE);
                 check(suite, "wire adopt-pending grew",
                         SqlTypeCensus.wireAdoptPendingCount(),
                         MAX_ADOPT_PENDING);

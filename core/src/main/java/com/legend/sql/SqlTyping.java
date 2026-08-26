@@ -52,7 +52,7 @@ public final class SqlTyping {
     // THE LABEL FLIP (TYPED_SQL_IR.md §3/§6, executed 2026-08-24): an
     // OutputCol label is the PURE-CONTRACT erasure; the projection's
     // stored type is the WIRE. SqlSelect's canonical constructor
-    // reconciles the two: equal or REGISTERED-admissible keeps the
+    // reconciles the two: equal or REGISTERED (subsumed/tolerated) keeps the
     // contract; anything else was a label lie and the label adopts the
     // wire. The admissibility relation MOVED here from the census (the
     // flip encodes it; the census reads the same relation).
@@ -131,8 +131,7 @@ public final class SqlTyping {
                 continue;
             }
             if (computed.equals(oc.type())
-                    || subsumes(oc.type(), computed)
-                    || admissible(oc.type(), computed) || tol) {
+                    || subsumes(oc.type(), computed) || tol) {
                 continue;
             }
             if (os == null) {
@@ -175,74 +174,36 @@ public final class SqlTyping {
                 : e;
     }
 
-    /** THE ADMISSIBILITY RELATION (T3 user-audited 2026-08-23; MOVED
-     * from the census and EXTENDED by the 2026-08-24 flip adjudication
-     * — witnesses per row in TYPED_SQL_IR.md): the registered
-     * (declared, computed) carrier pairs — each a DELIBERATE
-     * representation choice. Everything not here that differs is a
-     * label lie, and the reconciliation adopts the wire.
-     *
-     * <p>HONESTY NOTE (from the T3 audit): these are TYPE-PAIR rules,
-     * some COARSER than their justifying conventions; T4 conditions
-     * them on the pure STAMP or retires them by emission. The reverse
-     * temporal direction (DATE label &larr; TIMESTAMP wire) stays
-     * DELIBERATELY absent — a bug, never a carrier. An
-     * INTEGER&larr;BIGINT narrowing row was REMOVED 2026-08-23:
-     * label-narrowing is only value-safe, which a type rule cannot
-     * see. */
-    public static boolean admissible(SqlType declared, SqlType computed) {
-        // (The blanket partial-precision temporal arms —
-        // TIMESTAMP/DATE <- VARCHAR — are DELETED 2026-08-26 (§4bZ-V
-        // B3): the precision-faithful text convention is now the
-        // TEMPORAL_TEXT carrier, stamped at construction by the
-        // temporal emitters ONLY — a stray VARCHAR in a temporal slot
-        // adopts the wire and goes loud instead of being forgiven by
-        // kind-pair. Both lanes measured 0 before the delete.)
-        // (The SUBSUMPTION arms — TIMESTAMP <- DATE and same-scale
-        // Decimal widening — RE-HOMED 2026-08-26 to {@link #subsumes}:
-        // lossless subtype-in-supertype-slot relations with round-trip
-        // decode witnesses, not representation excuses. Charter
-        // §4bZ-V B2.)
-        // (The NUMBER-slot identity-text arm — DOUBLE <- VARCHAR —
-        // was DELETED 2026-08-26: the B1 census measured ZERO traffic
-        // on both lanes, label-side and wire-side; the mixed-identity
-        // carrier work that once justified it now types its own
-        // emissions. History in charter §4bZ-V B.)
-        // (The two BLANKET COERCION ARMS — DOUBLE <- BIGINT/INTEGER
-        // and VARCHAR <- BIGINT — are DELETED, re-homed 2026-08-25 to
-        // {@link #carryThrough}: the same kind pairs, now gated on the
-        // mapping seam's PROVENANCE TAG (TypeFact.Typed.tolerated) so
-        // only reads that genuinely crossed a declared property/column
-        // mismatch tolerate; an untagged mismatch adopts the wire and
-        // goes loud in the wire census. History + engine receipts on
-        // carryThrough and in charter §4bY/§4bZ.)
-        // serialize-as-text (the m2m/graphFetch egress): DuckDB serves
-        // JSON as its text; the conform-by-emission cast is a later,
-        // golden-text-gated slice
-        if (declared == SqlType.Scalar.VARCHAR
-                && computed == SqlType.Scalar.JSON) {
-            return true;
-        }
-        // (M4 retirement attempt: the FLIP-ADJUDICATION collection-
-        // carrier row — computed Array(a) admissible under element
-        // label a — DELETED to measure; the charter lists it as
-        // retiring with the landing.)
-        // (The pure-Decimal erasure rows now ADOPT the wire's own
-        // precision — strictly more truthful, decode-identical.)
-        return false;
-    }
+    // THE ADMISSIBILITY RELATION IS DELETED (§4bZ-V B4, 2026-08-26 —
+    // "admissible() EMPTY, nothing forgiven"). Every arm it ever held
+    // ended as one of three honest fates, each measured to zero before
+    // its delete (full history in charter §4bZ-V B and TYPED_SQL_IR.md):
+    //  - RE-HOMED as a named proven relation: subsumption
+    //    ({@code subsumes} — TIMESTAMP<-DATE, same-scale Decimal
+    //    widening, round-trip witnesses) and tag-gated engine compat
+    //    ({@code carryThrough} — mapping-seam provenance only);
+    //  - MODELED as a first-class carrier: LITERAL and TEMPORAL_TEXT
+    //    (construction-stamped, registered wire pairs in the census's
+    //    delivers());
+    //  - CONFORMED BY EMISSION: the JSON egress serializes to VARCHAR
+    //    at the statement root (Lowerer.conformJsonEgress); GUID and
+    //    the decimal spellings cast at their emitters.
+    // A (declared, computed) pair that differs and matches none of the
+    // named relations ADOPTS the wire and goes loud — there is no
+    // forgiveness-by-kind-pair left in the type system.
 
     /** THE SUBSUMPTION RELATION (§4bZ-V B2, re-homed from
-     * {@link #admissible} 2026-08-26): a value of the computed kind in
+     * the deleted admissibility relation 2026-08-26): a value of the computed kind in
      * a slot of the declared kind LOSES NOTHING — subtype wire in
      * supertype slot, proven by round-trip decode witnesses
      * (SubsumptionWitnessTest: the decode under the supertype label is
      * IDENTICAL to the subtype's own decode — the Executor fetch
      * switch is driver-object-kind-keyed, so the label never coerces
-     * the value). Distinct from {@link #admissible} (deliberate
-     * REPRESENTATION carriers) and {@link #carryThrough} (tag-gated
-     * engine compat): nothing here is forgiven, the relation is the
-     * type system's own subtyping made visible. */
+     * the value). Distinct from the carrier types (LITERAL /
+     * TEMPORAL_TEXT — deliberate representations) and
+     * {@link #carryThrough} (tag-gated engine compat): nothing here is
+     * forgiven, the relation is the type system's own subtyping made
+     * visible. */
     public static boolean subsumes(SqlType declared, SqlType computed) {
         // the abstract-Date slot (F5.4): TIMESTAMP is where abstract
         // Date erases; a StrictDate value's DATE wire is the subtype

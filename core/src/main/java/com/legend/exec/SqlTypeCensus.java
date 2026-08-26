@@ -28,12 +28,13 @@ import java.util.concurrent.atomic.LongAdder;
  * CanonicalDivergence pattern): probes consume a finished plan and
  * count; nothing here can produce a result or affect execution.
  *
- * <p>Three buckets per column: AGREE (label == computed), MISMATCH
- * (both known, different — the lie census, classified by the
- * declared/computed pair; some pairs will adjudicate as ADMISSIBLE
- * CARRIERS — the temporal VARCHAR convention — and the flip encodes
- * that admissibility relation), UNTYPED (the judgment has no rule yet
- * — the coverage census, classified by expression shape).
+ * <p>Buckets per column: AGREE (label == computed), SUBSUMED (the
+ * named lossless subtyping relation), MISMATCH (both known,
+ * different, matching NO named relation — the lie census, classified
+ * by the declared/computed pair; §4bZ-V B4 deleted the old
+ * admissible-carrier forgiveness, so this bucket is the only place a
+ * differing pair can land), UNTYPED (the judgment has no rule yet —
+ * the coverage census, classified by expression shape).
  */
 public final class SqlTypeCensus {
 
@@ -43,11 +44,10 @@ public final class SqlTypeCensus {
     private static final LongAdder PLANS = new LongAdder();
     private static final LongAdder AGREE = new LongAdder();
     /** Lossless subtype-in-supertype slots ({@link SqlTyping#subsumes}
-     * — §4bZ-V B2): counted apart from {@link #ADMISSIBLE} so the
-     * admissible bucket holds ONLY the representation carriers still
-     * awaiting their modeled-carrier legs (B3/B4). */
+     * — §4bZ-V B2). (The admissible bucket is DELETED with the
+     * relation, §4bZ-V B4: a pair matching no named relation lands in
+     * {@link #MISMATCH}, which every lane pins at zero.) */
     private static final LongAdder SUBSUMED = new LongAdder();
-    private static final LongAdder ADMISSIBLE = new LongAdder();
     /** Engine-compat carry-through slots (§4bZ): declared label kept
      * over a mismatched wire because the read carried the mapping
      * seam's provenance tag — the guest list, counted per slot. */
@@ -62,12 +62,6 @@ public final class SqlTypeCensus {
     private static final LongAdder UNTYPED = new LongAdder();
 
 
-    /** The admissibility relation MOVED to {@link SqlTyping#admissible}
-     * (the label flip encodes it at SqlSelect construction; the census
-     * reads the SAME relation — one owner). */
-    private static boolean admissible(SqlType declared, SqlType computed) {
-        return SqlTyping.admissible(declared, computed);
-    }
     /** declared-&gt;computed pair (mismatch) / expr shape (untyped)
      * &rarr; occurrence count. */
     private static final Map<String, LongAdder> CLASSES =
@@ -208,20 +202,12 @@ public final class SqlTypeCensus {
             }
         }
         SqlType mt = metaToType(meta);
-        return mt != null && admissibleWire(label, mt);
+        return mt != null && SqlTyping.subsumes(label, mt);
     }
 
     private static boolean integerFamily(SqlType t) {
         return t == SqlType.Scalar.BIGINT || t == SqlType.Scalar.INTEGER
                 || t == SqlType.Scalar.HUGEINT;
-    }
-
-    /** The carrier conventions read at the wire: the SAME registered
-     * pairs as {@link #admissible} (label may be delivered by its
-     * convention carrier). */
-    private static boolean admissibleWire(SqlType label, SqlType meta) {
-        return admissible(label, meta)
-                || SqlTyping.subsumes(label, meta);
     }
 
     private static @com.legend.Nullable SqlType metaToType(String meta) {
@@ -372,12 +358,6 @@ public final class SqlTypeCensus {
                                 + " <- " + t.type();
                         SUBSUMED.increment();
                         classify(cls);
-                    } else if (admissible(declared.type(), t.type())) {
-                        String cls = "admissible " + declared.type()
-                                + " <- " + t.type();
-                        ADMISSIBLE.increment();
-                        classify(cls);
-                        sample(cls, declared.name() + " := " + sketch(e));
                     } else {
                         String cls = "declared " + declared.type()
                                 + " <> computed " + t.type();
@@ -515,13 +495,6 @@ public final class SqlTypeCensus {
         return MISMATCH.sum();
     }
 
-    /** The representation carriers still awaiting their modeled legs
-     * (§4bZ-V: only VARCHAR&larr;JSON remains, B4). Pinned EQUALITY-0
-     * on the pct DuckDB lane since B3. */
-    public static long admissibleCount() {
-        return ADMISSIBLE.sum();
-    }
-
     /** Projection roots the tree cannot type — RULE coverage debt
      * (and, post-judge, the leaf-regression tripwire: a new unstamped
      * construction site GROWS this). Ceiling-pinned in the corpus
@@ -545,7 +518,6 @@ public final class SqlTypeCensus {
     public static String summary() {
         return "plans=" + PLANS.sum() + " cols: agree=" + AGREE.sum()
                 + " subsumed=" + SUBSUMED.sum()
-                + " admissible=" + ADMISSIBLE.sum()
                 + " tolerated=" + TOLERATED.sum()
                 + " bottom-ok=" + BOTTOM_OK.sum()
                 + " raises=" + RAISES_OK.sum()
