@@ -59,6 +59,7 @@ final class ValueBridge {
         return ValueSpecificationBootstrap.newStringLiteral(
                 modelRepository, json, ps);
     }
+
     CoreInstance handleScalar(Scalar result, ProcessorSupport ps) {
         Object value = result.value();
         if (value == null) {
@@ -109,11 +110,6 @@ final class ValueBridge {
 
     // ===== toCoreInstance: single Java → CoreInstance conversion =====
 
-    /**
-     * Converts a Java value to a raw Pure CoreInstance.
-     * Dispatches on Java type; uses Type for BigDecimal disambiguation
-     * and class instance creation.
-     */
     /**
      * A JDBC STRUCT (java.util.Map) whose DECLARED type is a CLASS builds a
      * REAL pure instance (the DynamicNew construction pattern) — Pair has

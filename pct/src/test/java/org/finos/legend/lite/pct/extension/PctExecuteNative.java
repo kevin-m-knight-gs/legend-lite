@@ -44,28 +44,17 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.Stack;
 
-/**
- * Native function that bridges PCT tests to Legend-Lite's QueryService.
- *
- * Pure expressions are executed via QueryService (compile → SQL → DuckDB),
- * and the typed ExecutionResult is converted back to Pure CoreInstances.
- *
- * Type information flows from Type on ExecutionResult: column names,
- * pure types, and multiplicities are the PLATFORM's typed facts (F5.1
- * replaced the sqlType-name sniff; F5.3 Stage B deleted the
- * declared-header overlay and the null-scan — PCT sees the wire).
- */
 /**
  * THE THIN ENTRY (the derived minimum's orchestration piece, census
  * §5b): read the expression + semantic roots, open the session, hand
  * the packed model to QueryService, route the typed result through
  * the {@link ValueBridge}, re-address errors to the test's own call
  * site. Every decision lives in the platform or in the two named
- * pieces — this file only sequences them.
+ * pieces — this file only sequences them. Type information flows from
+ * the PLATFORM's typed facts on ExecutionResult; the wire is never
+ * sniffed.
  */
 public class PctExecuteNative extends NativeFunction {
 
@@ -112,8 +101,7 @@ public class PctExecuteNative extends NativeFunction {
                 Instance.getValueForMetaPropertyToOneResolved(params.get(0), M3Properties.values, processorSupport));
 
         // R1 (census §5b): the SEMANTIC dependency roots — element paths
-        // the pure-side collectRoots walk read off the M3 tree. The
-        // differential below judges the regex discovery against them.
+        // the pure-side collectRoots walk read off the M3 tree.
         java.util.List<String> semanticRoots = new ArrayList<>();
         for (CoreInstance v : Instance.getValueForMetaPropertyToManyResolved(
                 params.get(1), M3Properties.values, processorSupport)) {
@@ -132,7 +120,7 @@ public class PctExecuteNative extends NativeFunction {
                 : "jdbc:duckdb:", h2 ? "sa" : null, h2 ? "" : null)) {
             // B6: session settings are DIALECT-OWNED — the platform
             // applies them at its connection-dialect seam
-            // (SqlDialect.initSession via Compiler.dialectOf); the
+            // (SqlDialect.sessionSetup, executed at Compiler.dialectOf's seam); the
             // adapter opens the connection and decides nothing.
 
             // R1 (census §5b + §6): the model injection builds from the
