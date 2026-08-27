@@ -15,6 +15,10 @@ fixture, with output pasted.
 **Entry point:** [`../TYPE_SYSTEM_AUDIT_2026_08.md`](../TYPE_SYSTEM_AUDIT_2026_08.md) is the
 summary registered in `AUDITS.md`. This directory is the evidence base behind it.
 
+**Dispositions:** [`TRIAGE.md`](TRIAGE.md) (2026-08-26) assigns every one of the 105
+defects a disposition — fixed / adjudicated / chartered-to-a-leg / real-fix-ranked /
+needs-probe / needs-ruling — and the proposed execution order.
+
 ## Files
 
 | File | What it is |
