@@ -163,6 +163,23 @@ public sealed interface SqlSource {
             Kind(String sql) {
                 this.sql = sql;
             }
+
+            /** §E3 M-N2 — PAD PROVENANCE, the kind's own semantics:
+             * does this join NULL-pad its LEFT side's columns on
+             * unmatched rows? (RIGHT and FULL outer joins do.) A read
+             * resolved from a padded side may be NULL regardless of
+             * DDL — the join, not the column, is the authority. */
+            public boolean padsLeft() {
+                return this == RIGHT || this == FULL;
+            }
+
+            /** Does this join NULL-pad its RIGHT side's columns?
+             * (LEFT/FULL outer, ASOF LEFT, and LEFT LATERAL — the
+             * ON-TRUE row-preserving explosion pads on empty.) */
+            public boolean padsRight() {
+                return this == LEFT || this == FULL || this == ASOF_LEFT
+                        || this == LEFT_LATERAL;
+            }
         }
 
         @Override

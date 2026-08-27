@@ -164,4 +164,79 @@ class FoldTest {
         assertNull(Fold.resolveInto(projected, "DROPPED"),
                 "a column not in the projection is gone");
     }
+
+    // ------------------------------------------------------------------
+    // §E3 M-N2 — JOIN-PAD PROVENANCE at the read door and the frame.
+    // ------------------------------------------------------------------
+
+    private static SqlSource.Table table(String name, String alias,
+            String... cols) {
+        List<com.legend.sql.OutputCol> outs = new java.util.ArrayList<>();
+        for (String c : cols) {
+            outs.add(new com.legend.sql.OutputCol(c,
+                    com.legend.sql.SqlType.Scalar.BIGINT, false));
+        }
+        return new SqlSource.Table(name, alias, outs);
+    }
+
+    private static boolean nul(SqlExpr.Column c) {
+        return ((com.legend.sql.TypeFact.Typed) c.type()).nullable();
+    }
+
+    @Test
+    @DisplayName("a read resolved from a padded join side is may-be-null;"
+            + " the driving side keeps its DDL claim")
+    void joinPadFlipsResolvedReads() {
+        SqlSource.Join left = new SqlSource.Join(
+                table("A", "a0", "ID"), table("B", "b0", "BID"),
+                SqlSource.Join.Kind.LEFT, new SqlExpr.BoolLit(true));
+        // LEFT pads the right side only
+        assertFalse(nul(Fold.sourceColumn(left, "ID")));
+        assertTrue(nul(Fold.sourceColumn(left, "BID")));
+        // FULL pads both
+        SqlSource.Join full = new SqlSource.Join(
+                table("A", "a1", "ID"), table("B", "b1", "BID"),
+                SqlSource.Join.Kind.FULL, new SqlExpr.BoolLit(true));
+        assertTrue(nul(Fold.sourceColumn(full, "ID")));
+        assertTrue(nul(Fold.sourceColumn(full, "BID")));
+        // INNER pads neither
+        SqlSource.Join inner = new SqlSource.Join(
+                table("A", "a2", "ID"), table("B", "b2", "BID"),
+                SqlSource.Join.Kind.INNER, new SqlExpr.BoolLit(true));
+        assertFalse(nul(Fold.sourceColumn(inner, "ID")));
+        assertFalse(nul(Fold.sourceColumn(inner, "BID")));
+        // a RIGHT join pads even the DRIVING (left-spine) side
+        SqlSource.Join right = new SqlSource.Join(
+                table("A", "a3", "ID"), table("B", "b3", "BID"),
+                SqlSource.Join.Kind.RIGHT, new SqlExpr.BoolLit(true));
+        assertTrue(nul(Fold.sourceColumnDriving(right, "ID")));
+    }
+
+    @Test
+    @DisplayName("a joined frame's born outputs weaken the pad side")
+    void joinPadWeakensFrameOutputs() {
+        SqlSource.Join left = new SqlSource.Join(
+                table("A", "a0", "ID"), table("B", "b0", "BID"),
+                SqlSource.Join.Kind.LEFT, new SqlExpr.BoolLit(true));
+        List<com.legend.sql.OutputCol> outs = List.of(
+                new com.legend.sql.OutputCol("ID",
+                        com.legend.sql.SqlType.Scalar.BIGINT, false),
+                new com.legend.sql.OutputCol("BID",
+                        com.legend.sql.SqlType.Scalar.BIGINT, false));
+        List<com.legend.sql.OutputCol> padded = Fold.padJoinOutputs(outs,
+                left, java.util.Optional.empty(), name -> true);
+        assertFalse(padded.get(0).nullable(), "left side keeps DDL truth");
+        assertTrue(padded.get(1).nullable(), "right side is pad-weakened");
+        // prefix renames follow the outer spelling
+        List<com.legend.sql.OutputCol> renamed = List.of(
+                new com.legend.sql.OutputCol("ID",
+                        com.legend.sql.SqlType.Scalar.BIGINT, false),
+                new com.legend.sql.OutputCol("p_BID",
+                        com.legend.sql.SqlType.Scalar.BIGINT, false));
+        List<com.legend.sql.OutputCol> padded2 = Fold.padJoinOutputs(
+                renamed, left, java.util.Optional.of("p_"), name -> true);
+        assertFalse(padded2.get(0).nullable());
+        assertTrue(padded2.get(1).nullable(),
+                "renamed right column weakens under its outer name");
+    }
 }

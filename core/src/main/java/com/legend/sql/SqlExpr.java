@@ -351,6 +351,17 @@ public sealed interface SqlExpr
                     .orElseGet(() -> new Column(table, name));
         }
 
+        /** §E3 M-N2 — the JOIN-PAD door: this reference with its fact
+         * marked may-be-null (a read resolved from a NULL-padded join
+         * side may be NULL regardless of the column's DDL). Identity
+         * when the fact already says so or makes no claim. */
+        public Column asNullable() {
+            return type instanceof TypeFact.Typed t && !t.nullable()
+                    ? new Column(table, name, new TypeFact.Typed(
+                            t.type(), true, t.tolerated()))
+                    : this;
+        }
+
         /** A LAMBDA-PARAMETER reference, stamped MECHANICALLY as the
          * element of the collection the lambda ranges over (M3 slice 0
          * — the LIST_TRANSFORM/FILTER param-binding knowledge, supplied

@@ -809,3 +809,78 @@ element-stamp expectations (DedupBindingTest, SqlTypingTest
 checked-extract) now honestly may-null; three new §E3 test blocks pin
 the composition default, every probed exception, and reducer node
 nullability.
+
+### M-N2 LANDING RECORD (2026-08-27)
+
+**Landed: frame authority — join-pad provenance + the GROUP-BY
+refinement. Full chain green first try (6.8m).**
+
+**The base-frame finding (survey, receipted):** the DDL rule was
+ALREADY the base-table authority — StoreCompiler derives Type.Column
+multiplicity from `notNull || primaryKey` (viewSchema :108,
+tableSchema :170), `Lowerer.outputsOf` echoes it into base-frame
+OutputCols, and the class-mapped lane's slot joins ride the SAME
+TypedJoin path over those tables. The M-N1 differential's
+over-declared Column rows (key columns under nullable labels) were
+the empirical proof. No base-frame change was needed — the echo
+problem lives at PROJECTION frames (property mults), which is M-N3's
+flip.
+
+**JOIN-PAD PROVENANCE (the genuine gap — a NOT NULL column read
+through an outer join could still be NULL-padded while its fact said
+never-null):** the checker CANNOT weaken (`join<T,Z>`'s result type
+is kind-blind — type parameters never see the JoinKind value), so
+pad truth enters at the SQL layer, three seams, one semantics owner:
+
+1. `SqlSource.Join.Kind.padsLeft()/padsRight()` — the kind's own
+   pad semantics (RIGHT/FULL pad left; LEFT/FULL/ASOF_LEFT/
+   LEFT_LATERAL pad right).
+2. THE READ DOOR — `Fold.sourceColumn`'s Join arm and
+   `sourceColumnDriving` wrap a pad-side resolution with
+   `Column.asNullable()` (the new §E3 door). ON-clause reads never
+   pass through (the join-condition channel resolves per side before
+   the pad exists) — milestoning's temporal channel untouched.
+3. THE FRAME — `Fold.padJoinOutputs` weakens the pad side's columns
+   in the joined frame's BORN outputs (both `joined()` branches;
+   prefix renames matched by outer spelling; a name miss
+   under-weakens, never lies). The union-frame wrapper after
+   `join()` now INHERITS `out.outputs()` instead of re-asserting
+   `outputsOf(info)` — the SqlUnion stale-contract lesson found
+   live a third time.
+
+CalendarAgg and ExistsJoinForm audit: both read their pad sides
+through UNSTAMPED columns (calendar `date` reads, exists-key
+IS-NULL probes) — no false claims, no change.
+
+**THE GROUP-BY REFINEMENT — `SqlTyping.slotNullable(pe, grouped)`
+(public, the ONE owner; consumed by the differential now, by label
+adoption at M-N3):** a top-level Reducer under GROUP BY sits over
+non-empty groups by construction — the node's empty-group NULL
+drops; the operand-derived part survives (an all-NULL operand group
+still reduces to NULL — probed). Probed refinement roster
+(2026-08-27 battery): the POP moment family refines
+(stddev_pop/var_pop/covar_pop on one row -> 0.0), CORR refines (NaN
+not NULL on degenerate groups), LIST refines to NON-NULL outright
+(collects NULLs — probed `[null]`), quantile_disc refines; the SAMP
+family (n>=2 — NULL on a one-row group, probed) does NOT; arg_max
+with an all-NULL key -> NULL (covered by the operand arm). ALSO
+closes triage D27's aggregate-lane identity gap at M-N3 adoption.
+
+**SECOND SWEEP NUMBERS (G4, all pins green):**
+`agree-required=28,621 agree-nullable=7,964 under-declared=15,469
+over-declared=605`; **null-breach 925 -> 841** (84 wire breaches
+healed — pad-weakened final-frame labels now honestly nullable);
+over-declared 1,177 -> 605 (the refinement's false
+reducer-nullability dropped); under-declared +1,049 (pad-truth facts
+under still-echo labels — the honest growth, adopts at M-N3). The
+sqltypes type-channel line byte-identical to the standing pins.
+
+**Witnesses:** FoldTest §E3 block (pad flip at the read door per
+kind, driving-side RIGHT pad, frame weakening incl. prefix renames);
+SqlTypingTest `groupByRefinesReducerSlots` (all probed roster arms).
+
+**M-N3 PREREQS RECORDED:** breach ceilings ratchet 925 -> 841
+(corpus); the remaining over-declared 605 and under-declared 15,469
+are the flip's adjudication sets; `slotNullable` is the adoption
+function; the property-echo authority deletes at the flip slice
+(no adapter hedge).

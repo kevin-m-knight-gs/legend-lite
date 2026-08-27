@@ -574,6 +574,48 @@ public final class SqlTyping {
         };
     }
 
+    /** §E3 M-N2 — THE SLOT-TRUTH REFINEMENT: a projection's delivered
+     * nullability at ITS SELECT. A top-level {@link SqlAgg.Reducer}
+     * under GROUP BY sits over non-empty groups by construction, so
+     * the node's empty-group nullability drops and the slot keeps only
+     * the operand-derived part (an all-NULL operand group still
+     * reduces to NULL — probed 1.5.0). {@code LIST} refines to
+     * NON-NULL outright (it collects NULLs into the array — probed
+     * {@code [null]}). The SAMP moment family (stddev_samp/var_samp/
+     * covar_samp and their aliases) does NOT refine — n&ge;2 required,
+     * NULL on a one-row group (probed); the POP family yields 0.0 on
+     * any non-empty group and refines. Consumers: the differential
+     * census now (measurement), label adoption at M-N3 (one owner —
+     * this function). */
+    public static boolean slotNullable(SqlExpr pe, boolean grouped) {
+        if (grouped && pe instanceof SqlAgg.Reducer r
+                && r.type() instanceof TypeFact.Typed t && t.nullable()
+                && groupRefines(r.fn())) {
+            return r.fn() != SqlAgg.Fn.LIST && anyNullable(r.args());
+        }
+        return switch (pe.type()) {
+            case TypeFact.Typed t -> t.nullable();
+            case TypeFact.Raises r -> false;
+            default -> true;
+        };
+    }
+
+    /** Reducers whose empty-group NULL is their ONLY node-level null
+     * source — under a non-empty-group proof they deliver a value
+     * whenever their operands do (probed 1.5.0, M-N2 battery:
+     * stddev_pop/var_pop/covar_pop on one row -> 0.0, corr -> NaN not
+     * NULL, quantile_disc -> value; arg_max with an all-NULL key ->
+     * NULL, covered by the operand arm). */
+    private static boolean groupRefines(SqlAgg.Fn fn) {
+        return switch (fn) {
+            case SUM, AVG, MIN, MAX, ANY_VALUE, MODE, QUANTILE_DISC,
+                    QUANTILE_CONT, MEDIAN, ARG_MAX, ARG_MIN, STRING_AGG,
+                    BOOL_AND, BOOL_OR, LIST, STDDEV_POP, VAR_POP,
+                    COVAR_POP, CORR -> true;
+            default -> false;
+        };
+    }
+
     /** {@link SqlExpr.Membership} — BOOLEAN, nullable when the needle
      * or the collection may be NULL (the node's own probed truth
      * table: NULL needle &rarr; NULL, NULL collection &rarr; NULL;

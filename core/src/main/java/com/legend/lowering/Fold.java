@@ -584,9 +584,54 @@ final class Fold {
         };
     }
 
+    /** §E3 M-N2 — JOIN-PAD FRAME AUTHORITY: a joined frame's born
+     * outputs weaken the pad side's columns to nullable. The CHECKER
+     * cannot do this — {@code join<T,Z>}'s result type is kind-blind
+     * (the type parameters never see the JoinKind value), so the
+     * upstream column multiplicities carry no pad truth; the SQL
+     * frame's constructor is the one owner that holds both the kind
+     * and the sides. Names match by the frame's OUTER spelling
+     * (prefix renames applied to the padded right side); a name miss
+     * merely keeps today's claim (under-weakening, never a lie). */
+    static List<OutputCol> padJoinOutputs(List<OutputCol> outs,
+            SqlSource.Join source, java.util.Optional<String> prefix,
+            java.util.function.Predicate<String> renameWhen) {
+        boolean pl = source.kind().padsLeft();
+        boolean pr = source.kind().padsRight();
+        if (!pl && !pr || outs.isEmpty()) {
+            return outs;
+        }
+        java.util.Set<String> pad = new java.util.HashSet<>();
+        if (pr) {
+            for (OutputCol c : source.right().outputs()) {
+                pad.add(prefix.isPresent() && renameWhen.test(c.name())
+                        ? prefix.get() + c.name() : c.name());
+            }
+        }
+        if (pl) {
+            for (OutputCol c : source.left().outputs()) {
+                pad.add(c.name());
+            }
+        }
+        List<OutputCol> os = null;
+        for (int i = 0; i < outs.size(); i++) {
+            OutputCol c = outs.get(i);
+            if (!c.nullable() && pad.contains(c.name())) {
+                if (os == null) {
+                    os = new ArrayList<>(outs);
+                }
+                os.set(i, new OutputCol(c.name(), c.type(), true,
+                        c.tolerated()));
+            }
+        }
+        return os == null ? outs : List.copyOf(os);
+    }
+
     static SqlExpr.@com.legend.Nullable Column sourceColumnDriving(SqlSource src, String column) {
         if (src instanceof SqlSource.Join j) {
-            return sourceColumnDriving(j.left(), column);
+            SqlExpr.Column c = sourceColumnDriving(j.left(), column);
+            // §E3 M-N2: a RIGHT/FULL join pads even the driving side
+            return c != null && j.kind().padsLeft() ? c.asNullable() : c;
         }
         // a VALUES source renders exactly its column list — outputs can be
         // stamped wider (the pruned-demand seed shape); trust the physical
@@ -823,8 +868,21 @@ final class Fold {
             // demand-driven stamp — only the name is runtime).
             case SqlSource.Pivot p -> pivotColumn(p, column);
             case SqlSource.Join j -> {
+                // §E3 M-N2 — JOIN-PAD PROVENANCE at the read door: a
+                // column resolved from a NULL-padded side may be NULL
+                // regardless of its DDL (the breach census's
+                // outer-join-slot family). ON-clause reads never come
+                // through here (the join-condition channel resolves
+                // per side BEFORE the pad exists) — milestoning's
+                // temporal conditions stay untouched.
                 SqlExpr.Column left = sourceColumn(j.left(), column);
-                yield left != null ? left : sourceColumn(j.right(), column);
+                SqlExpr.Column c = left != null ? left
+                        : sourceColumn(j.right(), column);
+                if (c == null) {
+                    yield null;
+                }
+                yield (left != null ? j.kind().padsLeft()
+                        : j.kind().padsRight()) ? c.asNullable() : c;
             }
         };
     }

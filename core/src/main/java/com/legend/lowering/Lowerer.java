@@ -1932,9 +1932,12 @@ public final class Lowerer {
         // frame: select * from (lhs join rhs on ...) as "unionalias_N"
         // — downstream ops read the wrapper's outputs (engine model)
         if (unionSide(left) || unionSide(right)) {
+            // §E3 M-N2: the wrapper INHERITS the joined frame's outputs
+            // (pad-weakened) — re-asserting outputsOf(info) here would
+            // re-echo the kind-blind contract (the SqlUnion ctor lesson)
             return SqlSelect.starOf(new SqlSource.Subselect(out, nextAlias(),
                     "unionAlias")).withProjections(List.of(),
-                            outputsOf(j.info()));
+                            out.outputs());
         }
         return out;
     }
@@ -1985,7 +1988,8 @@ public final class Lowerer {
                              Predicate<String> renameWhen) {
         SqlSelect out = SqlSelect.starOf(source);
         if (prefix.isEmpty()) {
-            return out.withProjections(List.of(), outputsOf(info));
+            return out.withProjections(List.of(), Fold.padJoinOutputs(
+                    outputsOf(info), source, prefix, renameWhen));
         }
         List<SqlSelect.Projection> ps = new ArrayList<>();
         if (leftCarry != null) {
@@ -2006,12 +2010,14 @@ public final class Lowerer {
             ps.add(new SqlSelect.Projection(new SqlExpr.Star(source.left().alias()), null));
         }
         for (Type.Column c : schemaOf(rightNode).columns()) {
+            SqlExpr.Column rc = SqlExpr.Column.of(source.right().alias(),
+                    source.right().outputs(), c.name());
             ps.add(new SqlSelect.Projection(
-                    SqlExpr.Column.of(source.right().alias(),
-                            source.right().outputs(), c.name()),
+                    source.kind().padsRight() ? rc.asNullable() : rc,
                     renameWhen.test(c.name()) ? prefix.get() + c.name() : null));
         }
-        return out.withProjections(ps, outputsOf(info));
+        return out.withProjections(ps, Fold.padJoinOutputs(
+                outputsOf(info), source, prefix, renameWhen));
     }
 
     /**

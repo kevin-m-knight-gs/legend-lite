@@ -116,8 +116,11 @@ public final class SqlTypeCensus {
             new ConcurrentHashMap<>();
 
     private static void nulDifferential(OutputCol declared, SqlExpr e,
-            TypeFact.Typed t) {
-        boolean fact = t.nullable();
+            boolean grouped) {
+        // §E3 M-N2: the compared side is the SLOT truth — the node
+        // fact refined by the select's non-empty-group proof
+        // (SqlTyping.slotNullable, the M-N3 adoption's one owner)
+        boolean fact = SqlTyping.slotNullable(e, grouped);
         boolean label = declared.nullable();
         if (fact == label) {
             (fact ? NUL_AGREE_NULLABLE : NUL_AGREE_REQUIRED).increment();
@@ -607,7 +610,7 @@ public final class SqlTypeCensus {
                     sample(cls, declared.name() + " := " + sketch(e));
                 }
                 case TypeFact.Typed t -> {
-                    nulDifferential(declared, e, t);
+                    nulDifferential(declared, e, !s.groupBy().isEmpty());
                     if (declared.tolerated()) {
                         // the reconciliation-stamped guest list (§4bZ),
                         // split by provenance: EQUAL pair = a

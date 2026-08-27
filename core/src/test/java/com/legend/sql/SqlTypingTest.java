@@ -234,4 +234,39 @@ class SqlTypingTest {
         // receipts in the rule table; the differential census is the
         // corpus-wide witness roster)
     }
+
+    @Test
+    void groupByRefinesReducerSlots() {
+        // §E3 M-N2 (probed 1.5.0 battery, 2026-08-27): under GROUP BY
+        // the groups are non-empty by construction, so the empty-group
+        // NULL drops and only the operand-derived part survives
+        SqlExpr n = nullableCol("n", SqlType.Scalar.BIGINT);
+        SqlExpr r = requiredCol("r", SqlType.Scalar.BIGINT);
+        SqlExpr sumR = SqlAgg.Reducer.of(SqlAgg.Fn.SUM, r);
+        SqlExpr sumN = SqlAgg.Reducer.of(SqlAgg.Fn.SUM, n);
+        // ungrouped: nullable at the node (zero rows -> NULL)
+        assertEquals(true, SqlTyping.slotNullable(sumR, false));
+        // grouped over a required operand: a value on every group
+        assertEquals(false, SqlTyping.slotNullable(sumR, true));
+        // grouped over a NULLABLE operand: an all-NULL group still
+        // sums to NULL (probed)
+        assertEquals(true, SqlTyping.slotNullable(sumN, true));
+        // LIST collects NULLs — non-null on any non-empty group
+        // (probed [null])
+        assertEquals(false, SqlTyping.slotNullable(
+                SqlAgg.Reducer.of(SqlAgg.Fn.LIST, n), true));
+        // the SAMP moment family needs n>=2 — NULL on a one-row group
+        // (probed); it never refines
+        assertEquals(true, SqlTyping.slotNullable(
+                SqlAgg.Reducer.of(SqlAgg.Fn.STDDEV_SAMP, r), true));
+        // the POP family yields 0.0 on any non-empty group (probed)
+        assertEquals(false, SqlTyping.slotNullable(
+                SqlAgg.Reducer.of(SqlAgg.Fn.VAR_POP, r), true));
+        // COUNT is non-null in either mode
+        assertEquals(false, SqlTyping.slotNullable(
+                SqlAgg.Reducer.of(SqlAgg.Fn.COUNT, r), false));
+        // non-reducer slots pass their node fact through
+        assertEquals(true, SqlTyping.slotNullable(n, true));
+        assertEquals(false, SqlTyping.slotNullable(r, true));
+    }
 }
