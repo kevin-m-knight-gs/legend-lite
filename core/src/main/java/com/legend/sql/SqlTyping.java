@@ -65,6 +65,29 @@ public final class SqlTyping {
         };
     }
 
+    /** §E3 slack fix 2 — can this collection's ELEMENTS be SQL NULL?
+     * Provably pure operands (the slack census's 1,308-row UNNEST
+     * family): {@link SqlExpr.CompactList} — stripping SQL NULL
+     * elements IS its contract; an ArrayLit whose every element is
+     * non-null; the splitter/range families (probed 1.5.0:
+     * string_split over 'a,,b' yields empty strings, never NULL).
+     * Cast/Group transport the value — elements unchanged (an
+     * element-kind cast RAISES on failure, never NULLs — not
+     * TRY_CAST). Everything else stays may-null: SqlType carries no
+     * element-nullability dimension. */
+    private static boolean elementsMayBeNull(SqlExpr coll) {
+        return switch (coll) {
+            case SqlExpr.CompactList cl -> false;
+            case SqlExpr.ArrayLit al -> anyNullable(al.elements());
+            case SqlExpr.Cast c -> elementsMayBeNull(c.value());
+            case SqlExpr.Group g -> elementsMayBeNull(g.inner());
+            case SqlExpr.Call c -> c.fn() != SqlFn.SPLIT
+                    && c.fn() != SqlFn.REGEXP_EXTRACT_ALL
+                    && c.fn() != SqlFn.RANGE_FN;
+            default -> true;
+        };
+    }
+
     private static boolean anyNullable(List<SqlExpr> a) {
         for (SqlExpr e : a) {
             if (mayBeNull(e)) {
@@ -381,9 +404,12 @@ public final class SqlTyping {
             // IGNORE NULL members — the COALESCE composition)
             case COALESCE, GREATEST, LEAST -> allNullable(a);
             // probed: out-of-range list_extract and missing
-            // list_position -> NULL; an element's own presence is not
-            // provable from Array(T) (no element-nullability dimension)
-            case LIST_GET, LIST_POSITION, UNNEST -> true;
+            // list_position -> NULL
+            case LIST_GET, LIST_POSITION -> true;
+            // §E3 slack fix 2 — ELEMENT PURITY (probed 1.5.0:
+            // unnest(NULL) and unnest([]) yield ZERO rows, so UNNEST's
+            // value nullability is exactly its ELEMENTS')
+            case UNNEST -> a.isEmpty() || elementsMayBeNull(a.get(0));
             // probed: x // 0 and mod(x, 0) -> NULL (not an error)
             case INT_DIVIDE, REM, MOD -> true;
             // probed: every list reduction over the EMPTY list -> NULL

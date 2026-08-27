@@ -303,4 +303,30 @@ class SqlTypingTest {
                 List.of(), null, null, List.of());
         assertEquals(true, nul(new SqlExpr.ScalarSubquery(grouped)));
     }
+
+    @Test
+    void unnestElementPurity() {
+        // §E3 slack fix 2 (probed 1.5.0: unnest(NULL)/unnest([]) yield
+        // ZERO rows — UNNEST's nullability is its ELEMENTS'):
+        // CompactList strips NULL elements by contract; a pure
+        // ArrayLit proves its elements; splitters never yield NULL
+        // elements; a raw array read stays may-null
+        SqlExpr pure = new SqlExpr.ArrayLit(List.of(
+                new SqlExpr.StringLit("a"), new SqlExpr.StringLit("b")));
+        assertEquals(false, nul(SqlExpr.Call.of(SqlFn.UNNEST,
+                new SqlExpr.CompactList(pure))));
+        assertEquals(false, nul(SqlExpr.Call.of(SqlFn.UNNEST, pure)));
+        assertEquals(true, nul(SqlExpr.Call.of(SqlFn.UNNEST,
+                new SqlExpr.ArrayLit(List.of(new SqlExpr.StringLit("a"),
+                        new SqlExpr.NullLit())))));
+        assertEquals(false, nul(SqlExpr.Call.of(SqlFn.UNNEST,
+                SqlExpr.Call.of(SqlFn.SPLIT, new SqlExpr.StringLit("a,b"),
+                        new SqlExpr.StringLit(",")))));
+        SqlExpr arrCol = SqlExpr.Column.of("t", new OutputCol("xs",
+                new SqlType.Array(SqlType.Scalar.BIGINT), false));
+        assertEquals(true, nul(SqlExpr.Call.of(SqlFn.UNNEST, arrCol)));
+        // LIST_GET keeps its out-of-range NULL even over pure lists
+        assertEquals(true, nul(SqlExpr.Call.of(SqlFn.LIST_GET,
+                new SqlExpr.CompactList(pure), new SqlExpr.IntLit(5))));
+    }
 }

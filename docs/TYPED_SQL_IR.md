@@ -955,3 +955,45 @@ construction-computed, frame authorities are DDL + join-pad, labels
 are slot truth, and both lanes hold wire-NULL-under-required at
 EQUALITY-0 with the differential as a construction invariant. Next
 per the ratified queue: F10 slice 4 (D91 + D94's layout row folded).
+
+### §E3-S — THE SLACK PROGRAM (2026-08-27, user-driven: "did we
+### over-correct to get to zero?")
+
+The breach pin is ONE-SIDED — it falsifies never-null claims only;
+nothing bounded over-loosening. **THE SLACK CENSUS** (ef1abe85, the
+breach converse on the same wire-watch machinery): every
+nullable-labeled final column watched; per settled statement,
+valued-and-never-NULL = a slack candidate (classified, witnessed);
+NULL seen = confirmed-nullable; zero rows = no-evidence. Deliberately
+UNPINNED — test-data absence is evidence, not proof; the census RANKS
+refinements, it never adjudicates them.
+
+**First sweep: slack 10,809 / confirmed 2,164 / no-evidence 325.**
+Adjudication by class: (1) 6,268 bare-Column rows = TRUE DDL-nullable
+columns over fully-populated fixtures — the label is RIGHT, no fix
+(the census cannot distinguish honest DDL-nullable from rule
+looseness; the witnesses' DDL is the tiebreaker); (2) 1,308 UNNEST
+rows = PROVABLE over-loosening, fixed (below); (3) Reducer/
+ScalarSubquery/Case/star-frame tails = honest empty-group, zero-row
+and missing-else semantics.
+
+**Fix 1 — the ONE-ROW PROOF (landed with the census):** an ungrouped
+single-Reducer select yields exactly one row over ANY input (probed;
+no HAVING/QUALIFY/OFFSET/LIMIT-0), so a ScalarSubquery adds no
+nullability beyond the inner slot's own — COUNT-rooted subqueries
+provably non-null. +348 slots tightened, breach EQUALITY-0 held.
+
+**Fix 2 — UNNEST ELEMENT PURITY:** probed 1.5.0: unnest(NULL) and
+unnest([]) yield ZERO ROWS — UNNEST's value nullability is exactly
+its ELEMENTS'. Provably pure operands: CompactList (stripping SQL
+NULL elements IS its contract), all-non-null ArrayLit, the
+splitter/range families (probed: 'a,,b' splits to empty strings,
+never NULL); Cast/Group transport. LIST_GET keeps its out-of-range
+NULL even over pure lists. Everything else stays may-null (SqlType
+still carries no element-nullability dimension — the full dimension
+remains the queued refinement, now with a measured price tag).
+
+**Remaining slack is ADJUDICATED HONEST** — burn-down of the tails
+(per-field struct presence, the LEFT-join+null-rejecting-WHERE ≡
+INNER shape) waits until a consumer of precision exists; the census
+is the standing worklist.
