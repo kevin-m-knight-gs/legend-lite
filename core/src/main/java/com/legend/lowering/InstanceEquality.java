@@ -225,4 +225,71 @@ final class InstanceEquality {
         }
         return EqualityKeys.fqnOf(t);
     }
+
+    /**
+     * Equality that is STATICALLY disjoint — real pure's type-aware
+     * equality folds FALSE at compile time. Moved from {@code Lowerer}
+     * (AT its 3500-line cap) into the equality owner; the
+     * class-vs-primitive arm joined when leg 7b R0 let the
+     * primitive-extension rows reach it (witness eq.pure:
+     * {@code assertFalse(eq(^SideClass(...), 1->cast(@ExtendedInteger)))}).
+     * ENUM rules: two DIFFERENT enums, or enum vs a non-string kind —
+     * enum values lower as name strings (plangen parity), so
+     * enum-vs-STRING equality IS the corpus's deliberate name-comparison
+     * convention and stays allowed. CLASS rule: a USER class instance
+     * against a primitive is disjoint by kind; platform carriers
+     * (List/Pair/Map/TDSNull/Variant) and Any/Nil keep their own
+     * comparison lanes (TDSNull rides NullSemantics; an Any operand may
+     * hold anything at run time — UNDECIDED, never static FALSE).
+     */
+    static boolean staticallyDisjoint(List<TypedSpec> args) {
+        if (args.size() != 2) {
+            return false;
+        }
+        Type a = args.get(0).info().type();
+        Type b = args.get(1).info().type();
+        boolean ae = a instanceof Type.EnumType;
+        boolean be = b instanceof Type.EnumType;
+        if (ae && be) {
+            return !((Type.EnumType) a).fqn().equals(((Type.EnumType) b).fqn());
+        }
+        if (ae != be) {
+            Type other = ae ? b : a;
+            if (PlatformTypes.isAny(other)
+                    || PlatformTypes.isNil(other)
+                    || PlatformTypes.isVariant(other)) {
+                return false;
+            }
+            return !(other instanceof Type.Primitive prim
+                    && prim == Type.Primitive.STRING);
+        }
+        boolean ac = instanceLiteral(args.get(0));
+        boolean bc = instanceLiteral(args.get(1));
+        return ac != bc && (ac ? b : a) instanceof Type.Primitive;
+    }
+
+    /** The CLASS side must be an instance-construction LITERAL (the
+     * witnessed eq.pure shape), never a class-TYPED expression: the
+     * resolver SYNTHESIZES eq nodes as cross-store join conditions
+     * whose operands are class-typed navigation placeholders, and a
+     * type-based fold silently emptied every XStore qualifier join
+     * (the G4 corpus regression, 2026-08-27 — 11 graphFetch rows). */
+    private static boolean instanceLiteral(TypedSpec s) {
+        return (s instanceof com.legend.compiler.spec.typed.TypedNewInstance
+                || s instanceof com.legend.compiler.spec.typed.TypedCopyInstance)
+                && userClass(s.info().type());
+    }
+
+    /** A user-model class value (the struct lane) — every platform
+     * carrier and the undecided tops are excluded above/here. */
+    private static boolean userClass(Type t) {
+        return (t instanceof Type.ClassType || t instanceof Type.GenericType)
+                && !PlatformTypes.isAny(t) && !PlatformTypes.isNil(t)
+                && !PlatformTypes.isVariant(t)
+                && !PlatformTypes.isListCarrier(t)
+                && !PlatformTypes.isPairCarrier(t)
+                && !PlatformTypes.isMapCarrier(t)
+                && !(t instanceof Type.ClassType c
+                        && c.fqn().equals(PlatformTypes.TDS_NULL_FQN));
+    }
 }

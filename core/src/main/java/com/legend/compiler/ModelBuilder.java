@@ -409,6 +409,15 @@ public final class ModelBuilder {
      * pattern (two same-simple-named extensions, or an extension whose FQN
      * suffix collides with a class, would silently mis-resolve).
      */
+    /** The declared primitive-extension FQNs — {@code elementFqns()}
+     * publishes them so NameResolver's {@code knownFqns} sees them and
+     * the EXACT-FQN precondition above actually holds (leg 7b R0: a
+     * simple {@code @ExtendedInteger} under a wildcard import never
+     * qualified, so findPrimitiveExtension never matched). */
+    public java.util.Set<String> primitiveExtensionFqns() {
+        return primitiveExtensions.keySet();
+    }
+
     public java.util.Optional<com.legend.compiler.element.type.Type.Primitive> findPrimitiveExtension(String name) {
         String cur = name;
         for (int hops = 0; hops < 16; hops++) {

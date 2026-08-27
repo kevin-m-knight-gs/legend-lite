@@ -85,9 +85,12 @@ class ChannelBEssentialTest {
         // bottom-value rule breaks Nil-argument overload ties; Any-LUB
         // mixed sort orders by the engine's compare groups (rank-struct
         // comparable over the literal carrier, dedup seen through)
-        assertTrue(pass >= 312,
+        // 313 (2026-08-27 leg 7 D2): has* answers Boolean
+        // UNCONDITIONALLY (the A24/D92 boolean-carrier fork deleted) —
+        // testParseDateTypes joins
+        assertTrue(pass >= 313,
                 "channel-B essential PASS fell below the pinned floor: "
-                        + pass + " < 312");
+                        + pass + " < 313");
 
         // THE THREE-BUCKET DIFF (plan addendum #6): channel A's outcome
         // per test is its suite ledger — the expectedFailures list IS

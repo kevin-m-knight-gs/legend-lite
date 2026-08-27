@@ -2019,12 +2019,14 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
                             1, %2024-06-15T10:30:45
                             #->extend(~[hasM: x | $x.dt->meta::pure::functions::date::hasMonth(), hasD: x | $x.dt->meta::pure::functions::date::hasDay(), hasH: x | $x.dt->meta::pure::functions::date::hasHour(), hasMi: x | $x.dt->meta::pure::functions::date::hasMinute(), hasS: x | $x.dt->meta::pure::functions::date::hasSecond()])""");
             assertEquals(1, r.rowCount());
-            // DuckDB returns integers for has* functions (1 = true, 0 = false)
-            assertTrue(((Number) r.rows().get(0).get(colIdx(r, "hasM"))).intValue() != 0);
-            assertTrue(((Number) r.rows().get(0).get(colIdx(r, "hasD"))).intValue() != 0);
-            assertTrue(((Number) r.rows().get(0).get(colIdx(r, "hasH"))).intValue() != 0);
-            assertTrue(((Number) r.rows().get(0).get(colIdx(r, "hasMi"))).intValue() != 0);
-            assertTrue(((Number) r.rows().get(0).get(colIdx(r, "hasS"))).intValue() != 0);
+            // 2026-08-27 leg 7 D2: has* answers Boolean (the declared
+            // type) — the old comment blamed DuckDB for what was OUR
+            // lowering's integer fork, now deleted
+            assertEquals(Boolean.TRUE, r.rows().get(0).get(colIdx(r, "hasM")));
+            assertEquals(Boolean.TRUE, r.rows().get(0).get(colIdx(r, "hasD")));
+            assertEquals(Boolean.TRUE, r.rows().get(0).get(colIdx(r, "hasH")));
+            assertEquals(Boolean.TRUE, r.rows().get(0).get(colIdx(r, "hasMi")));
+            assertEquals(Boolean.TRUE, r.rows().get(0).get(colIdx(r, "hasS")));
         }
 
         @Test

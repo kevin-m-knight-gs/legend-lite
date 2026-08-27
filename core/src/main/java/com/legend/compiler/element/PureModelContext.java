@@ -152,6 +152,12 @@ public final class PureModelContext implements ModelContext {
         model.databases().forEach(e -> out.add(e.qualifiedName()));
         model.runtimes().forEach(e -> out.add(e.qualifiedName()));
         model.functions().forEach(e -> out.add(e.qualifiedName()));
+        // primitive extensions (Primitive X extends Integer) — without
+        // this a simple @ExtendedInteger under a wildcard import never
+        // qualifies, and findPrimitiveExtension's EXACT-FQN lookup
+        // (its documented precondition: "extensions are in knownFqns")
+        // never matches (leg 7b R0)
+        out.addAll(model.primitiveExtensionFqns());
         // platform-native enums resolve like parsed ones — an unqualified
         // DatabaseType.H2 under `import meta::relational::runtime::*`
         // must qualify (findEnum already falls back to the native

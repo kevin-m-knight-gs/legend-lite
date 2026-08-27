@@ -193,8 +193,11 @@ class AuditRound3Test {
     @Test
     @DisplayName("audit: has* precision of a date() constructor answers from its ARITY")
     void hasPrecisionOfDateConstructor() throws Exception {
-        assertEquals(0L, ((Number) scalar("|date(2015,4,16,14)->hasMinute()")).longValue());
-        assertEquals(1L, ((Number) scalar("|date(2015,4,16,14)->hasHour()")).longValue());
+        // 2026-08-27 leg 7 D2 (A24/D92 retired): has* carries Boolean
+        // UNCONDITIONALLY — the old integer expectation pinned the
+        // non-literal fork's silent kind default at the wire
+        assertEquals(Boolean.FALSE, scalar("|date(2015,4,16,14)->hasMinute()"));
+        assertEquals(Boolean.TRUE, scalar("|date(2015,4,16,14)->hasHour()"));
     }
 
     @Test

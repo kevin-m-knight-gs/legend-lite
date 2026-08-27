@@ -727,13 +727,18 @@ final class Scalars {
                 "hasSubsecond", PureDateLiteral.Precision.SUBSECOND).entrySet()) {
             for (String f : Pure.nativeKeysAt(e.getKey())) {
                 RULES.put(f, (n, args) -> {
+                    // leg 7 D2 (A24/D92 retired): the answer is computed
+                    // from the STAMP (datePrecision — ask the plan, never
+                    // the cell) and the declared type is Boolean[1] — the
+                    // carrier is Boolean UNCONDITIONALLY. The old
+                    // TypedCDate fork emitted IntLit(1) for non-literal
+                    // receivers under the Boolean stamp (HIR type dispatch
+                    // + a silent kind default at the wire); its "engine's
+                    // integer surface" justification was ungrounded — the
+                    // reference has NO SQL surface for has* at all (six
+                    // "No SQL translation exists" manifest rows).
                     boolean has = datePrecision(n.args().get(0)).atLeast(e.getValue());
-                    // A LITERAL answers boolean (the PCT spelling); a COLUMN
-                    // answers 1/0 — the engine's integer surface for date
-                    // precision checks over stored values.
-                    return n.args().get(0) instanceof TypedCDate
-                            ? new SqlExpr.BoolLit(has)
-                            : new SqlExpr.IntLit(has ? 1 : 0);
+                    return new SqlExpr.BoolLit(has);
                 });
             }
         }

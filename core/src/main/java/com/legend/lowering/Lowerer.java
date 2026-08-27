@@ -2838,7 +2838,7 @@ public final class Lowerer {
             // PCT inlines captured instances by value): instances keep
             // struct comparison, identity tests ledgered.
             case TypedNativeCall n when (isFamily(n, "equal") || isFamily(n, "eq"))
-                    && enumTypeMismatch(n.args()) -> new SqlExpr.BoolLit(false);
+                    && InstanceEquality.staticallyDisjoint(n.args()) -> new SqlExpr.BoolLit(false);
 
             // COLLECTION-VALUED relation nodes in scalar position (the
             // list encodings; relation-typed sources take relation()).
@@ -3373,42 +3373,6 @@ public final class Lowerer {
 
     interface RelationPredicate {
         SqlExpr lower(Lowerer lowerer, TypedNativeCall call);
-    }
-
-    /**
-     * Enum equality that cannot mean NAME comparison: two DIFFERENT enums,
-     * or an enum against a non-string type. Enum values lower as name
-     * strings (plangen parity), so enum-vs-STRING equality IS the corpus's
-     * deliberate name-comparison convention and stays allowed; the blocked
-     * shapes would be silently wrong ('X' == OtherEnum.X) or DB type
-     * errors (enum vs Integer).
-     */
-    private static boolean enumTypeMismatch(List<TypedSpec> args) {
-        if (args.size() != 2) {
-            return false;
-        }
-        var a = args.get(0).info().type();
-        var b = args.get(1).info().type();
-        boolean ae = a instanceof Type.EnumType;
-        boolean be = b instanceof Type.EnumType;
-        if (ae && be) {
-            return !((Type.EnumType) a).fqn().equals(((Type.EnumType) b).fqn());
-        }
-        if (ae != be) {
-            var other = ae ? b : a;
-            // Any/Nil/Variant are UNDECIDED, not disjoint — an Any-typed
-            // operand may hold this very enum at run time ([E.X, 1]->first()
-            // == E.X is true in real pure); a static FALSE would be silently
-            // wrong. Those fall through to the SQL name comparison.
-            if (PlatformTypes.isAny(other)
-                    || PlatformTypes.isNil(other)
-                    || PlatformTypes.isVariant(other)) {
-                return false;
-            }
-            return !(other instanceof Type.Primitive prim
-                    && prim == Type.Primitive.STRING);
-        }
-        return false;
     }
 
     static boolean isFamily(TypedNativeCall n, String pureName) {

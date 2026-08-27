@@ -170,9 +170,15 @@ a candidate for future re-grounding, none is a bug:
    conversion where pure's cast raises on lossy narrowing.
 3. **type() falls back to DuckDB typeof** (Scalars) for non-static types:
    returns SQL type names ('BIGINT') where pure returns 'Integer'.
-4. **hasDay/hasMonth… column form returns IntLit 1/0** (Scalars) — the
-   engine's integer surface for column arguments; literal arguments return
-   proper booleans.
+4. **RETIRED 2026-08-27 (Channel B leg 7 D2).** ~~hasDay/hasMonth… column
+   form returns IntLit 1/0 (Scalars) — the engine's integer surface for
+   column arguments; literal arguments return proper booleans.~~ The
+   justification was ungrounded: the reference has NO SQL surface for
+   has* at all (six "No SQL translation exists" rows in the DuckDB
+   manifest) — nothing was being conformed to. The fork was the A24/D92
+   boolean-carrier defect (IntLit under a Boolean[1] stamp,
+   reconcileLabels silently adopting BIGINT); has* now emits BoolLit
+   unconditionally, the answer still computed from the STAMP.
 5. **hashCode values are platform-local** (Lowerer __HASH_LIST__): only
    determinism and type are contractual, not the values.
 6. **TDS null-cell sentinel** (PlatformTypes.TDS_NULL_CELL): pure DROPS

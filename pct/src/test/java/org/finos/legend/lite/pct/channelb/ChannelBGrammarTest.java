@@ -81,7 +81,12 @@ class ChannelBGrammarTest {
         // 133 (2026-08-23 F13b(a)): testMapRelationshipFromManyToMany
         // ERROR -> PASS (B-FIXES-A) — to-many property nav over a
         // collection now FLATTENS (pure collections never nest).
-        assertTrue(c.pass() >= 133, "grammar PASS fell: " + c.pass());
+        // 135 (2026-08-27 leg 7b R0 + the disjoint-equality fold):
+        // primitive-extension FQNs published to the resolver
+        // (elementFqns), and instance-vs-primitive eq folds static
+        // FALSE (InstanceEquality.staticallyDisjoint) — both
+        // ExtendedInteger rows join
+        assertTrue(c.pass() >= 135, "grammar PASS fell: " + c.pass());
         assertTrue(c.wireBug() <= 1,
                 "grammar WIRE-BUG census grew: " + c.wireBug());
         assertTrue(c.trueWireBug() == 0,
