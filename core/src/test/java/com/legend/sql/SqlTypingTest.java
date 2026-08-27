@@ -350,4 +350,60 @@ class SqlTypingTest {
         assertEquals(true, nul(SqlExpr.Call.of(SqlFn.LIST_GET,
                 new SqlExpr.CompactList(pure), new SqlExpr.IntLit(5))));
     }
+
+    // ------------------------------------------------------------------
+    // §E3-S WHERE≡INNER: a null-rejecting WHERE neutralizes the pad.
+    // ------------------------------------------------------------------
+
+    private static SqlSelect starJoin(@com.legend.Nullable SqlExpr where) {
+        SqlSource.Table a = new SqlSource.Table("A", "a0", List.of(
+                new OutputCol("ID", SqlType.Scalar.BIGINT, false)));
+        SqlSource.Table b = new SqlSource.Table("B", "b0", List.of(
+                new OutputCol("BID", SqlType.Scalar.BIGINT, false)));
+        SqlSource.Join j = new SqlSource.Join(a, b,
+                SqlSource.Join.Kind.LEFT, new SqlExpr.BoolLit(true));
+        // born outputs: pad-weakened (the joined() shape)
+        List<OutputCol> born = List.of(
+                new OutputCol("ID", SqlType.Scalar.BIGINT, false),
+                new OutputCol("BID", SqlType.Scalar.BIGINT, true));
+        return new SqlSelect(List.of(), false, j, where, List.of(),
+                null, null, List.of(), null, null, born);
+    }
+
+    private static boolean outNullable(SqlSelect s, String name) {
+        return s.outputs().stream().filter(c -> c.name().equals(name))
+                .findFirst().orElseThrow().nullable();
+    }
+
+    @Test
+    void nullRejectingWhereNeutralizesThePad() {
+        SqlExpr.Column bid = SqlExpr.Column.of("b0",
+                new OutputCol("BID", SqlType.Scalar.BIGINT, false));
+        // a strict comparison on the pad side: no padded row survives
+        // — DDL truth restored
+        SqlSelect eq = starJoin(SqlExpr.Call.of(SqlFn.EQUAL, bid,
+                new SqlExpr.IntLit(5)));
+        assertEquals(false, outNullable(eq, "BID"));
+        assertEquals(false, outNullable(eq, "ID"));
+        // IS NULL is null-TOLERANT — the pad stands
+        assertEquals(true, outNullable(starJoin(
+                SqlExpr.Call.of(SqlFn.IS_NULL, bid)), "BID"));
+        // an OR arm can pass NULL rows — the pad stands
+        assertEquals(true, outNullable(starJoin(
+                SqlExpr.Call.of(SqlFn.OR,
+                        SqlExpr.Call.of(SqlFn.EQUAL, bid,
+                                new SqlExpr.IntLit(5)),
+                        new SqlExpr.BoolLit(true))), "BID"));
+        // rejecting only the DRIVING side leaves the pad in place
+        SqlExpr.Column id = SqlExpr.Column.of("a0",
+                new OutputCol("ID", SqlType.Scalar.BIGINT, false));
+        assertEquals(true, outNullable(starJoin(
+                SqlExpr.Call.of(SqlFn.EQUAL, id,
+                        new SqlExpr.IntLit(1))), "BID"));
+        // IS NOT NULL is strict-rejecting — neutralizes
+        assertEquals(false, outNullable(starJoin(
+                SqlExpr.Call.of(SqlFn.IS_NOT_NULL, bid)), "BID"));
+        // no WHERE: the pad stands
+        assertEquals(true, outNullable(starJoin(null), "BID"));
+    }
 }

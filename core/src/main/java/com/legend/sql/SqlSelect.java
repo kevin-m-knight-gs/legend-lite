@@ -32,6 +32,14 @@ public record SqlSelect(List<Projection> projections, boolean distinct,
         // §E3 M-N3: nullability adopts the slot truth (reconcile reads
         // the GROUP BY for the non-empty-group reducer refinement)
         outputs = SqlTyping.reconcileLabels(projections, groupBy, outputs);
+        // §E3-S WHERE≡INNER: a star-framed join whose WHERE
+        // null-rejects a pad side restores that side's DDL truth (no
+        // padded row survives the filter). Star frames only —
+        // projection frames adopt from facts above.
+        if (projections.isEmpty() && from instanceof SqlSource.Join j
+                && where != null && outputs != null && !outputs.isEmpty()) {
+            outputs = SqlTyping.wherePadNeutralized(j, where, outputs);
+        }
     }
 
     /** {@code SELECT * FROM source} with every other clause empty. */

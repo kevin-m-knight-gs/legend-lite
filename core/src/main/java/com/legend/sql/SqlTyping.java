@@ -644,6 +644,163 @@ public final class SqlTyping {
         };
     }
 
+    // ------------------------------------------------------------------
+    // §E3-S — WHERE≡INNER PAD NEUTRALIZATION (the outer-to-inner join
+    // simplification, label-level): a WHERE that NULL-REJECTS any
+    // column of a join's padded side drops every padded row, so that
+    // side's columns recover their DDL nullability. Applied by
+    // SqlSelect's ctor to STAR-FRAMED joins only (no projections —
+    // the frame's outputs are recomputable from the tree; projection
+    // frames would fight fact adoption). The classifier is
+    // CONSERVATIVE: only AND-decomposed conjuncts whose subtree
+    // contains NO null-tolerant node count (a false proof would be a
+    // breach — the EQUALITY-0 pin adjudicates every tightening).
+    // ------------------------------------------------------------------
+
+    /** The star-framed join's outputs with WHERE-neutralized pads:
+     * recomputes per-column nullability from the JOIN TREE (each pad
+     * edge applies unless the WHERE null-rejects that side), then
+     * adopts it by name. Names are 1:1 for star frames (no prefix
+     * renames); an unmatched name keeps its current claim. */
+    static List<OutputCol> wherePadNeutralized(SqlSource.Join from,
+            SqlExpr where, List<OutputCol> outputs) {
+        java.util.Set<String> rejected = new java.util.HashSet<>();
+        strictRejections(where, rejected);
+        if (rejected.isEmpty()) {
+            return outputs;
+        }
+        java.util.Map<String, Boolean> tree =
+                new java.util.HashMap<>();
+        treeNullability(from, rejected, tree);
+        List<OutputCol> os = null;
+        for (int i = 0; i < outputs.size(); i++) {
+            OutputCol oc = outputs.get(i);
+            Boolean nul = tree.get(oc.name());
+            if (nul == null || nul == oc.nullable()) {
+                continue;
+            }
+            if (os == null) {
+                os = new java.util.ArrayList<>(outputs);
+            }
+            os.set(i, new OutputCol(oc.name(), oc.type(), nul,
+                    oc.tolerated()));
+        }
+        return os == null ? outputs : List.copyOf(os);
+    }
+
+    /** Per-name nullability of a join tree: leaves speak their own
+     * outputs; each Join applies its pad to a side UNLESS the WHERE
+     * null-rejects a column OF that side (no padded row survives the
+     * filter, so the pad is vacuous — and inner pads neutralize the
+     * same way, the WHERE spans the whole tree). */
+    private static void treeNullability(SqlSource src,
+            java.util.Set<String> rejected,
+            java.util.Map<String, Boolean> out) {
+        if (src instanceof SqlSource.Join j) {
+            java.util.Map<String, Boolean> left = new java.util.HashMap<>();
+            java.util.Map<String, Boolean> right = new java.util.HashMap<>();
+            treeNullability(j.left(), rejected, left);
+            treeNullability(j.right(), rejected, right);
+            if (j.kind().padsLeft() && !intersects(rejected, left)) {
+                left.replaceAll((k, v) -> true);
+            }
+            if (j.kind().padsRight() && !intersects(rejected, right)) {
+                right.replaceAll((k, v) -> true);
+            }
+            out.putAll(left);
+            out.putAll(right);
+            return;
+        }
+        for (OutputCol c : src.outputs()) {
+            out.put(c.name(), c.nullable());
+        }
+    }
+
+    private static boolean intersects(java.util.Set<String> names,
+            java.util.Map<String, Boolean> side) {
+        for (String n : names) {
+            if (side.containsKey(n)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The read-door surface of the classifier (the lowering's
+     * resolution doors thread this into {@code Fold.sourceColumn} so
+     * pad flips and frame outputs agree): the column names this WHERE
+     * null-rejects; empty when there is no WHERE or no strict
+     * conjunct. */
+    public static java.util.Set<String> whereNullRejections(
+            @com.legend.Nullable SqlExpr where) {
+        if (where == null) {
+            return java.util.Set.of();
+        }
+        java.util.Set<String> out = new java.util.HashSet<>();
+        strictRejections(where, out);
+        return out;
+    }
+
+    /** Collect the column NAMES null-rejected by this predicate:
+     * AND/parenthesis decompose; a conjunct counts only when its whole
+     * subtree is NULL-STRICT (a NULL input can never make it TRUE) —
+     * any null-tolerant node (IS NULL, COALESCE, OR, CASE, the
+     * null-safe comparison family) disqualifies the conjunct. */
+    private static void strictRejections(SqlExpr where,
+            java.util.Set<String> out) {
+        if (where instanceof SqlExpr.Group g) {
+            strictRejections(g.inner(), out);
+            return;
+        }
+        if (where instanceof SqlExpr.Call c && c.fn() == SqlFn.AND) {
+            for (SqlExpr a : c.args()) {
+                strictRejections(a, out);
+            }
+            return;
+        }
+        if (nullStrict(where)) {
+            columnNames(where, out);
+        }
+    }
+
+    /** No node in this subtree can turn a NULL operand into TRUE.
+     * Blacklist, conservative: the null tests, COALESCE, OR, CASE,
+     * the null-safe/distinct comparison family, and boolean list
+     * reductions (their empty/NULL edges are their own). Subqueries
+     * contribute no outer columns (children() never descends), so
+     * their presence is harmless. */
+    private static boolean nullStrict(SqlExpr e) {
+        if (e instanceof SqlExpr.Case) {
+            return false;
+        }
+        if (e instanceof SqlExpr.Call c) {
+            switch (c.fn()) {
+                case IS_NULL, COALESCE, OR, NULL_SAFE_EQUAL,
+                        NULL_SAFE_NOT_EQUAL, IS_DISTINCT, ALL_DISTINCT,
+                        LIST_BOOL_AND, LIST_BOOL_OR -> {
+                    return false;
+                }
+                default -> {
+                }
+            }
+        }
+        for (SqlExpr ch : e.children()) {
+            if (!nullStrict(ch)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static void columnNames(SqlExpr e, java.util.Set<String> out) {
+        if (e instanceof SqlExpr.Column c) {
+            out.add(c.name());
+        }
+        for (SqlExpr ch : e.children()) {
+            columnNames(ch, out);
+        }
+    }
+
     /** {@link SqlExpr.Membership} — BOOLEAN, nullable when the needle
      * or the collection may be NULL (the node's own probed truth
      * table: NULL needle &rarr; NULL, NULL collection &rarr; NULL;

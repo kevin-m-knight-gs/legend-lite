@@ -1010,10 +1010,31 @@ EQUALITY-0 held, slack 9,395 -> 8,973.
 doors (`SqlTyping.PAD_FRAME_WEAKENED` / `PAD_READ_FLIPPED`, printed
 as `[rcorpus] pad-weaken:`) — first sweep 24,505 frame weakenings /
 16,970 read flips. These are construction EVENTS (rebuilds re-enter
-the doors), an upper BRACKET, not final slots: the WHERE≡INNER
-refinement is clearly worth a slice when a precision consumer
-appears, and its first step is per-slot pad provenance (the finer
-costing this bracket cannot give). Slack end-state:
-8,973 = DDL-nullable-over-populated-fixtures Columns + honest
-empty-group/zero-row/missing-else tails + the pad-origin share the
-bracket bounds.
+the doors), an upper BRACKET, not final slots.
+
+**Fix 4 — WHERE≡INNER PAD NEUTRALIZATION (built, sound, and its
+corpus yield MEASURED ZERO — the measurement is the deliverable):**
+the outer-to-inner simplification, two agreeing seams:
+`SqlTyping.wherePadNeutralized` at the SqlSelect ctor (star-framed
+joins — tree-recursive: each pad edge is vacuous when the WHERE
+null-rejects a column of that side) and the WHERE-aware
+`Fold.sourceColumn(src, column, rejected)` read door (threaded from
+`resolveIntoExact` via `whereNullRejections`; ON-channel and pivot
+callers keep the unconditional flip). The classifier is
+CONSERVATIVE: AND-decomposed conjuncts with no null-tolerant node
+(IS_NULL/COALESCE/OR/CASE/null-safe-distinct family blacklisted);
+unit-pinned six ways. TWO GREEN CHAINS; slack and both pad counters
+BYTE-UNCHANGED — the suppression never fired, and the read of that
+zero: the class-mapped lane's only LEFT+null-rejecting-WHERE family
+is the (INNER)-typed mapping-filter arm (JoinChainEmission emits it
+deliberately; audit 19c), while general navigation LEFTs preserve
+unmatched parents BY SEMANTICS — no rejecting WHERE exists to
+neutralize them. CONSEQUENCE: the pad-origin share of the remaining
+slack is ~0 on this corpus; the arm stands as capability (user
+models, future shapes) with its semantics pinned.
+
+**SLACK END-STATE (fully adjudicated): 8,973 =
+DDL-nullable-over-populated-fixtures Columns + honest empty-group/
+zero-row/missing-else tails.** No known recoverable slack remains at
+current knowledge; the parked per-field/per-element dimensions keep
+their measured price tags on the census.

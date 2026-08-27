@@ -531,7 +531,10 @@ final class Fold {
 
     private static @com.legend.Nullable SqlExpr resolveIntoExact(SqlSelect s, String column) {
         if (s.projections().isEmpty()) {
-            return sourceColumn(s.from(), column);
+            // §E3-S: the select's WHERE rides into the read door so
+            // pad flips agree with the frame's WHERE≡INNER outputs
+            return sourceColumn(s.from(), column,
+                    com.legend.sql.SqlTyping.whereNullRejections(s.where()));
         }
         boolean star = false;
         for (SqlSelect.Projection p : s.projections()) {
@@ -548,7 +551,9 @@ final class Fold {
         // A star projection (extend's `t0.*, expr AS x`) keeps every source
         // column visible; names not claimed by an explicit projection resolve
         // straight to the source.
-        return star ? sourceColumn(s.from(), column) : null;
+        return star ? sourceColumn(s.from(), column,
+                com.legend.sql.SqlTyping.whereNullRejections(s.where()))
+                : null;
     }
 
     /**
@@ -834,6 +839,18 @@ final class Fold {
     }
 
     static SqlExpr.@com.legend.Nullable Column sourceColumn(SqlSource src, String column) {
+        return sourceColumn(src, column, java.util.Set.of());
+    }
+
+    /** §E3-S WHERE≡INNER at the READ DOOR: {@code rejected} = the
+     * enclosing select's null-rejected column names
+     * ({@link com.legend.sql.SqlTyping#whereNullRejections}) — a pad
+     * flip is suppressed when the WHERE rejects a column of the padded
+     * side (no padded row survives), so read facts and the ctor's
+     * frame-output arm agree. Callers without a WHERE in hand pass the
+     * empty set and keep the unconditional flip (the safe side). */
+    static SqlExpr.@com.legend.Nullable Column sourceColumn(SqlSource src,
+            String column, java.util.Set<String> rejected) {
         // A quote-bearing pivot IDENTITY ('2011__|__newCol') strips to its
         // bare SQL name ONLY when the source does not claim the exact name —
         // a genuine column carrying that spelling (its own extend) wins.
@@ -875,17 +892,39 @@ final class Fold {
                 // outer-join-slot family). ON-clause reads never come
                 // through here (the join-condition channel resolves
                 // per side BEFORE the pad exists) — milestoning's
-                // temporal conditions stay untouched.
-                SqlExpr.Column left = sourceColumn(j.left(), column);
+                // temporal conditions stay untouched. §E3-S: the flip
+                // is suppressed when the enclosing WHERE null-rejects
+                // the padded side (WHERE≡INNER — no padded row
+                // survives the filter).
+                SqlExpr.Column left = sourceColumn(j.left(), column,
+                        rejected);
                 SqlExpr.Column c = left != null ? left
-                        : sourceColumn(j.right(), column);
+                        : sourceColumn(j.right(), column, rejected);
                 if (c == null) {
                     yield null;
                 }
-                yield (left != null ? j.kind().padsLeft()
-                        : j.kind().padsRight()) ? c.asNullable() : c;
+                SqlSource winner = left != null ? j.left() : j.right();
+                boolean pad = left != null ? j.kind().padsLeft()
+                        : j.kind().padsRight();
+                yield pad && !sideRejected(winner, rejected)
+                        ? c.asNullable() : c;
             }
         };
+    }
+
+    /** Does the WHERE null-reject any column of this side's subtree
+     * (its outputs' names — the pad is then vacuous)? */
+    private static boolean sideRejected(SqlSource side,
+            java.util.Set<String> rejected) {
+        if (rejected.isEmpty()) {
+            return false;
+        }
+        for (OutputCol c : side.outputs()) {
+            if (rejected.contains(c.name())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
