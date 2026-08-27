@@ -115,6 +115,26 @@ public final class SqlTypeCensus {
     private static final Map<String, List<String>> NUL_SAMPLES =
             new ConcurrentHashMap<>();
 
+    // ------------------------------------------------------------------
+    // §E3 SLACK CENSUS (post-flip precision instrument — the breach
+    // tripwire's CONVERSE): the breach pin can only falsify a
+    // never-null claim; nothing bounds over-loosening. Watch every
+    // nullable=TRUE final column; per settled statement, a column that
+    // DELIVERED VALUES and never a NULL is a SLACK ROW — a spot where
+    // the label may be looser than the data. Deliberately NOT
+    // pinnable: absence of NULLs in test data is evidence, never
+    // proof — this census RANKS the precision refinements (one-row
+    // subquery proofs, per-field struct presence, the
+    // INNER-equivalent join shape), it does not adjudicate them.
+    // ------------------------------------------------------------------
+    private static final LongAdder SLACK_ROWS = new LongAdder();
+    private static final LongAdder SLACK_CONFIRMED = new LongAdder();
+    private static final LongAdder SLACK_NO_EVIDENCE = new LongAdder();
+    private static final Map<String, LongAdder> SLACK_CLASSES =
+            new ConcurrentHashMap<>();
+    private static final Map<String, List<String>> SLACK_SAMPLES =
+            new ConcurrentHashMap<>();
+
     private static void nulDifferential(OutputCol declared, SqlExpr e,
             boolean grouped) {
         // §E3 M-N2: the compared side is the SLOT truth — the node
@@ -242,6 +262,14 @@ public final class SqlTypeCensus {
                             new WatchCol(i + 1,
                                     String.valueOf(outs.get(i).type()),
                                     watchWitness(plan, i)));
+                } else {
+                    // §E3 slack census: the converse watch — a
+                    // nullable label that only ever delivers values
+                    // is a slack candidate (see the census banner)
+                    watch(dialect).loose.put(i + 1, new LooseCol(i + 1,
+                            "nul-slack[" + looseShape(plan, i) + "] "
+                                    + outs.get(i).type(),
+                            watchWitness(plan, i)));
                 }
                 if (label == null || meta.isEmpty()) {
                     WIRE_UNKNOWN.increment();
@@ -327,6 +355,22 @@ public final class SqlTypeCensus {
     private record WatchCol(int column, String label, String witness) {
     }
 
+    /** One slack-watched nullable column: its census class (projection
+     * shape + label type, built at probe time — the plan is gone by
+     * settle) and its witness. */
+    private record LooseCol(int column, String cls, String witness) {
+    }
+
+    /** The slack class's shape key: the projection's expression shape
+     * when the plan is a shape-aligned select, else the plan kind. */
+    private static String looseShape(SqlQuery plan, int i) {
+        if (plan instanceof SqlSelect s
+                && s.projections().size() == s.outputs().size()) {
+            return shapeOf(s.projections().get(i).expr());
+        }
+        return plan.getClass().getSimpleName();
+    }
+
     /** The witness text for a watched column: output name plus, when
      * the plan is a shape-aligned select, the projection's sketch and
      * stored fact. */
@@ -360,6 +404,12 @@ public final class SqlTypeCensus {
         private final Map<Integer, WatchCol> required =
                 new java.util.HashMap<>();
         private final java.util.Set<Integer> nulled =
+                new java.util.HashSet<>();
+        /** §E3 slack census: nullable-labeled columns watched for the
+         * CONVERSE — values but never a NULL. */
+        private final Map<Integer, LooseCol> loose =
+                new java.util.HashMap<>();
+        private final java.util.Set<Integer> looseNulled =
                 new java.util.HashSet<>();
 
         private WireWatch(String dialect) {
@@ -395,8 +445,14 @@ public final class SqlTypeCensus {
      * that promised always-present. No-op without a watch. */
     public static void wireNullSeen(int column) {
         WireWatch w = WIRE_WATCH.get();
-        if (w != null && w.required.containsKey(column)) {
+        if (w == null) {
+            return;
+        }
+        if (w.required.containsKey(column)) {
             w.nulled.add(column);
+        }
+        if (w.loose.containsKey(column)) {
+            w.looseNulled.add(column);
         }
     }
 
@@ -440,6 +496,48 @@ public final class SqlTypeCensus {
                 sample(cls, c.witness());
             }
         }
+        for (LooseCol c : w.loose.values()) {
+            if (w.looseNulled.contains(c.column())) {
+                SLACK_CONFIRMED.increment();   // the label earned its keep
+            } else if (w.valued.contains(c.column())) {
+                // values delivered, never a NULL — a slack candidate
+                SLACK_ROWS.increment();
+                SLACK_CLASSES.computeIfAbsent(c.cls(),
+                        k -> new LongAdder()).increment();
+                List<String> ws = SLACK_SAMPLES.computeIfAbsent(c.cls(),
+                        k -> java.util.Collections.synchronizedList(
+                                new ArrayList<>()));
+                if (ws.size() < SAMPLES_PER_CLASS) {
+                    ws.add(c.witness());
+                }
+            } else {
+                SLACK_NO_EVIDENCE.increment();   // zero rows — no verdict
+            }
+        }
+    }
+
+    /** §E3 slack census read surface (non-pinnable — evidence, not
+     * proof; the runner prints and dumps). */
+    public static String slackSummary() {
+        return "slack=" + SLACK_ROWS.sum()
+                + " confirmed-nullable=" + SLACK_CONFIRMED.sum()
+                + " no-evidence=" + SLACK_NO_EVIDENCE.sum();
+    }
+
+    /** The slack decomposition (summary + classes + witnesses),
+     * largest classes first. */
+    public static List<String> slackReport() {
+        List<String> out = new ArrayList<>();
+        out.add(slackSummary());
+        SLACK_CLASSES.entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue().sum(),
+                        a.getValue().sum()))
+                .forEach(en -> {
+                    out.add(en.getValue().sum() + "x " + en.getKey());
+                    SLACK_SAMPLES.getOrDefault(en.getKey(), List.of())
+                            .forEach(wt -> out.add("  " + wt));
+                });
+        return out;
     }
 
     /** Does the wire's factual type SATISFY the label's contract

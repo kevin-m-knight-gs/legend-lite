@@ -269,4 +269,38 @@ class SqlTypingTest {
         assertEquals(true, SqlTyping.slotNullable(n, true));
         assertEquals(false, SqlTyping.slotNullable(r, true));
     }
+
+    @Test
+    void scalarSubqueryOneRowProof() {
+        // §E3 slack fix 1 (probed: an ungrouped aggregate yields its
+        // one row over ANY input — sum() over zero rows -> one NULL
+        // row): a COUNT-rooted subquery is provably non-null; a
+        // SUM-rooted one keeps the aggregate's own nullability; a
+        // plain projection keeps zero-rows-is-NULL
+        SqlExpr r = requiredCol("r", SqlType.Scalar.BIGINT);
+        SqlSelect count = new SqlSelect(
+                List.of(new SqlSelect.Projection(
+                        SqlAgg.Reducer.of(SqlAgg.Fn.COUNT, r), null)),
+                false, new SqlSource.Dual(), null, List.of(), null, null,
+                List.of(), null, null, List.of());
+        assertEquals(false, nul(new SqlExpr.ScalarSubquery(count)));
+        SqlSelect sum = new SqlSelect(
+                List.of(new SqlSelect.Projection(
+                        SqlAgg.Reducer.of(SqlAgg.Fn.SUM, r), null)),
+                false, new SqlSource.Dual(), null, List.of(), null, null,
+                List.of(), null, null, List.of());
+        assertEquals(true, nul(new SqlExpr.ScalarSubquery(sum)));
+        SqlSelect plain = new SqlSelect(
+                List.of(new SqlSelect.Projection(r, null)),
+                false, new SqlSource.Dual(), null, List.of(), null, null,
+                List.of(), null, null, List.of());
+        assertEquals(true, nul(new SqlExpr.ScalarSubquery(plain)));
+        // a GROUP BY voids the proof (groups can number zero)
+        SqlSelect grouped = new SqlSelect(
+                List.of(new SqlSelect.Projection(
+                        SqlAgg.Reducer.of(SqlAgg.Fn.COUNT, r), null)),
+                false, new SqlSource.Dual(), null, List.of(r), null, null,
+                List.of(), null, null, List.of());
+        assertEquals(true, nul(new SqlExpr.ScalarSubquery(grouped)));
+    }
 }

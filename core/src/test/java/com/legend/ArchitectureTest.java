@@ -868,6 +868,11 @@ final class ArchitectureTest {
                 // legitimate static-census shape)
                 "com.legend.exec.SqlTypeCensus.NUL_CLASSES",
                 "com.legend.exec.SqlTypeCensus.NUL_SAMPLES",
+                // §E3 slack census (the breach converse — precision
+                // instrument): classified counters + bounded
+                // witnesses; measurement only, deliberately unpinned
+                "com.legend.exec.SqlTypeCensus.SLACK_CLASSES",
+                "com.legend.exec.SqlTypeCensus.SLACK_SAMPLES",
                 // serializer registry: written once at static init; the
                 // ConcurrentHashMap spelling is for safe publication
                 "com.legend.server.serial.SerializerRegistry.SERIALIZERS");

@@ -899,19 +899,41 @@ public final class SqlTyping {
     static TypeFact scalarSubqueryType(SqlQuery sub) {
         // §E3: a scalar subquery over ZERO rows is NULL (probed
         // 1.5.0: (select 1 where false) -> NULL) — nullable at the
-        // node; a one-row proof (aggregate root, LIMIT 1 EXISTS
-        // shapes) is a queued refinement, the safe side stands
+        // node UNLESS the inner select PROVES exactly one row
+        // (slack-census fix 1): an ungrouped single-aggregate select
+        // yields its one row over ANY input, empty included (probed:
+        // sum() over zero rows -> one NULL row), so the subquery adds
+        // no nullability beyond the inner slot's own.
+        boolean oneRow = oneRowAggregate(sub);
         if (sub.outputs().size() == 1) {
-            return nullable(typed(sub.outputs().get(0).type()));
+            TypeFact t = typed(sub.outputs().get(0).type());
+            return oneRow && !sub.outputs().get(0).nullable()
+                    ? t : nullable(t);
         }
         if (sub instanceof SqlSelect s && s.outputs().isEmpty()
                 && s.projections().size() == 1
                 && !(s.projections().get(0).expr() instanceof SqlExpr.Star)
                 && !(s.projections().get(0).expr()
                         instanceof SqlExpr.StarExcept)) {
-            return nullable(s.projections().get(0).expr().type());
+            TypeFact inner = s.projections().get(0).expr().type();
+            return oneRow ? inner : nullable(inner);
         }
         return UNKNOWN;
+    }
+
+    /** The ONE-ROW PROOF: an ungrouped select whose single projection
+     * is an aggregate returns exactly one row regardless of input —
+     * provided nothing can drop or skip that row (no HAVING, no
+     * QUALIFY, no OFFSET, no LIMIT 0). Everything else stays at the
+     * safe zero-rows-is-NULL default. */
+    private static boolean oneRowAggregate(SqlQuery sub) {
+        return sub instanceof SqlSelect s
+                && s.groupBy().isEmpty()
+                && s.having() == null && s.qualify() == null
+                && s.offset() == null
+                && (s.limit() == null || s.limit() >= 1)
+                && s.projections().size() == 1
+                && s.projections().get(0).expr() instanceof SqlAgg.Reducer;
     }
 
     /** {@link SqlExpr.CheckedOne} — the element of a definite list;

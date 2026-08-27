@@ -659,6 +659,26 @@ public class RelationalCorpusRunner {
             } catch (java.io.IOException ignore) {
                 // best-effort diagnostic (histogram precedent)
             }
+            // §E3 SLACK CENSUS (the breach tripwire's converse,
+            // post-flip precision instrument): nullable-labeled
+            // columns that delivered values and never a NULL —
+            // evidence, not proof (test-data dependent, deliberately
+            // unpinned); ranks the precision refinements. Console
+            // classes survive the chain (dump dies at gate 8's clean).
+            System.out.println("[rcorpus] nullable-slack: "
+                    + com.legend.exec.SqlTypeCensus.slackSummary());
+            com.legend.exec.SqlTypeCensus.slackReport().stream().skip(1)
+                    .limit(160).forEach(c -> System.out.println(
+                            "[rcorpus] nullable-slack-class: " + c));
+            try {
+                java.nio.file.Files.writeString(
+                        java.nio.file.Path.of("target",
+                                "nullable-slack.txt"),
+                        String.join("\n", com.legend.exec.SqlTypeCensus
+                                .slackReport()) + "\n");
+            } catch (java.io.IOException ignore) {
+                // best-effort diagnostic (histogram precedent)
+            }
         }
         // MECHANICAL REGRESSION GATE (audit: this runner carried NO
         // asserts — BUILD SUCCESS regardless of outcome). Every family
