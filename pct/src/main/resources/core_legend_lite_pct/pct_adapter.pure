@@ -201,15 +201,19 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
     //   - Multi-value collection (for CollectionResult)
     let result = executeLegendLiteQuery($pureText);
     
-    // Handle result based on size and type
+    // Handle result based on size and type. R2 (the derived minimum,
+    // ADAPTER_NECESSITY_CENSUS §5b, measured on the full lane): the
+    // empty-Map consult, the scalar-List wrap, the String->parseDate
+    // arm (temporals cross as real Date values via PureDateLiteral)
+    // and the scalar enum arm (Java's declared-EnumType resolution
+    // owns it) all measured ZERO and are DELETED. What remains reads
+    // the declared type at exactly three places: the Map/List
+    // COLLECTION rebuild (the interpreter's own constructors are the
+    // sanctioned crossing) and the ONE-witness Decimal relabel.
     if($result->isEmpty(),
-        | if($f->functionReturnType().rawType->isEmpty() ||
-             $f->functionReturnType().rawType->toOne() != Map,
-            | []->cast(@X)->toMultiplicity(@[o]),
-            | []->cast(@Pair<Any,Any>)->newMap()->cast(@X)->toMultiplicity(@[o])),
+        | []->cast(@X)->toMultiplicity(@[o]),
         | if($result->size() > 1,
             | // Multi-value result (collection from Java's CollectionResult dispatch)
-              // If expected type is List<T>, wrap in List; otherwise return directly
               let retType = $f->functionReturnType().rawType->toOne();
               if($retType == Map,
                 | wrapPctMap($f->functionReturnType(), $result)->cast(@X)->toMultiplicity(@[o]);,
@@ -231,37 +235,15 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
                   // classes; the producers were fixed, never the overlay.
                   let tdsString = $single->cast(@TDSResult).tdsString;
                   $tdsString->stringToTDS()->cast(@X)->toMultiplicity(@[o]);,
-                | // Scalar: dates travel as PRINT-FORM STRINGS from the wire
-                  // (parseDate restores their PARTIAL precision: '2015-03');
-                  // a List<T>-typed result wraps into a List instance.
+                | // audit 2026-08-18 finding G, adjudicated; ONE witness
+                  // (testBigFloatAbs): the platform keeps Float literals
+                  // decimal-exact by contract, so only the TYPE LABEL
+                  // moves to the declared Float — no value is produced
+                  // or changed here. Burns at the T4 builder leg.
                   let rawT = $f->functionReturnType().rawType;
-                  if(!$rawT->isEmpty() && $rawT->toOne() == List,
-                    | wrapPctList($f->functionReturnType(), $single)->cast(@X)->toMultiplicity(@[o]);,
-                    | if(!$rawT->isEmpty() && $rawT->toOne()->subTypeOf(Date) && $single->instanceOf(String),
-                        | $single->cast(@String)->parseDate()->cast(@X)->toMultiplicity(@[o]);,
-                        | if(!$rawT->isEmpty() && $rawT->toOne()->instanceOf(Enumeration) && $single->instanceOf(String),
-                            | // enum results travel as their NAME
-                              $rawT->toOne()->cast(@Enumeration<Any>)->extractEnumValue($single->cast(@String))->cast(@X)->toMultiplicity(@[o]);,
-                            | // audit 2026-08-18 finding G, adjudicated:
-                              // the Integer->Float WIDENING branch is
-                              // DELETED — the full suite (1110) proved
-                              // it dead compensation. The Decimal arm
-                              // below is an ADAPTER-CONTRACT RELABEL,
-                              // not computation: the reference keeps
-                              // Float literals decimal-exact
-                              // (testBigFloatAbs asserts the exact
-                              // digits; SpecParser's oracle-verified
-                              // promotion mirrors it), so the platform
-                              // returns the exact Decimal VALUE and
-                              // only its TYPE LABEL moves to the
-                              // declared Float — no value is produced
-                              // or changed here
-                              if(!$rawT->isEmpty() && $rawT->toOne() == Float && $single->instanceOf(Decimal),
-                                | $single->cast(@Decimal)->toFloat()->cast(@X)->toMultiplicity(@[o]);,
-                                | $single->cast(@X)->toMultiplicity(@[o]);
-                              );
-                          );
-                      );
+                  if(!$rawT->isEmpty() && $rawT->toOne() == Float && $single->instanceOf(Decimal),
+                    | $single->cast(@Decimal)->toFloat()->cast(@X)->toMultiplicity(@[o]);,
+                    | $single->cast(@X)->toMultiplicity(@[o]);
                   );
               );
           );
@@ -277,7 +259,10 @@ function <<access.private>> meta::legend::lite::pct::wrapPctList(retType:Generic
       | if($elemType == Boolean, | ^List<Boolean>(values = $vals->cast(@Boolean)),
         | if($elemType == String, | ^List<String>(values = $vals->cast(@String)),
           | if($elemType == Number, | ^List<Number>(values = $vals->cast(@Number)),
-            | ^List<Any>(values = $vals))))));
+            | // R2: measured zero — an unlisted element type is LOUD,
+              // never a silent List<Any> the caller's cast then blurs
+              meta::pure::functions::asserts::fail('unlisted List element type in PCT adapter: ' + $elemType->elementToPath());
+              ^List<Any>(values = $vals);)))));
 }
 
 function <<access.private>> meta::legend::lite::pct::wrapPctMap(retType:GenericType[1], flat:Any[*]):Map<Any,Any>[1]
@@ -295,7 +280,10 @@ function <<access.private>> meta::legend::lite::pct::wrapPctMap(retType:GenericT
         | $idx->map(i | pair($flat->at($i)->cast(@String), $flat->at($i + 1)->cast(@String)))->newMap(),
         | if($k == Integer && $v == String,
             | $idx->map(i | pair($flat->at($i)->cast(@Integer), $flat->at($i + 1)->cast(@String)))->newMap(),
-            | $idx->map(i | pair($flat->at($i), $flat->at($i + 1)))->newMap()
+            | // R2: measured zero — an unlisted key/value combo is LOUD,
+              // never a silent Map<Any,Any> rejected later by the cast
+              meta::pure::functions::asserts::fail('unlisted Map type combo in PCT adapter: ' + $k->elementToPath() + ' / ' + $v->elementToPath());
+              $idx->map(i | pair($flat->at($i), $flat->at($i + 1)))->newMap();
           )
       )
   );

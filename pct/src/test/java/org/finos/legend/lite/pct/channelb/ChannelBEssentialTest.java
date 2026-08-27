@@ -65,9 +65,12 @@ class ChannelBEssentialTest {
         // the naive-UTC carrier AT EMISSION (timezone('UTC',...)) — the
         // compensation-free fix passed the rows the deleted verdict
         // patch was written for
-        assertTrue(pass >= 295,
+        // 297 (F10 slice 4, 2026-08-27): banked at the adapter-shrink
+        // measure runs — 297 held on the cargo batch's G9 (with the
+        // parseDate StrictDate emission) and both measure lanes
+        assertTrue(pass >= 297,
                 "channel-B essential PASS fell below the pinned floor: "
-                        + pass + " < 295");
+                        + pass + " < 297");
 
         // THE THREE-BUCKET DIFF (plan addendum #6): channel A's outcome
         // per test is its suite ledger — the expectedFailures list IS

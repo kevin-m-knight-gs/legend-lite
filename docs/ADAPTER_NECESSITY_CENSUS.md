@@ -153,8 +153,102 @@ finding, not a silent absorb).
 - **P5/P6 enumerations**: language-constrained; loud at the caller's
   cast on any unlisted combo.
 
+## 5b. THE DERIVED MINIMUM — the rewrite spec (2026-08-27, supersedes
+the arm-by-arm framing above as the slice's governing analysis)
+
+User redirect (2026-08-27): don't trim the audited arms — derive from
+scratch what the MINIMUM adapter is now that the platform has real
+types end-to-end. No prior audit trusted; every claim below read from
+today's sources or measured on the full lanes.
+
+### The two surfaces, read from source
+
+**(a) What the framework requires** (`pct_core.pure`, legend-pure
+5.88 checkout): exactly ONE stereotyped function,
+`<<PCT.adapter>> <X|o>(f:Function<{->X[o]}>[1]):X[o]`. The In-Memory
+adapter is `$f->eval()` — one line. Everything beyond that line exists
+only because our executor is out-of-process from the interpreter.
+
+**(b) What the platform delivers** (read from `Executor.fetch/unwrap`,
+`LiteralText.parse`, `ExecutionResult`, `Column`): a CLOSED egress
+vocabulary — `null`, `Boolean`, `Long`/`BigInteger` (integral
+re-narrowing happens AT THE FETCH SEAM, `toBigIntegerExact` under
+integral labels), `BigDecimal` (DECIMAL contracts), `Double`,
+`String`, `PureDateLiteral` (ALL temporals — "FULL STOP", hardened
+2026-08-21), `LinkedHashMap` (structs, layout-keyed, recursive),
+`List` (arrays, recursive). `LiteralText.parse` returns inside the
+same set. Shape comes from the `ExecutionResult` VARIANT; types from
+`Column.pureType` (the object, per its own javadoc contract).
+
+### The derived minimum, by direction
+
+**Outbound (result → CoreInstance)**: one arm per vocabulary entry,
+keyed on the VALUE's class (kind-faithful by construction), plus three
+identity RESOLUTIONS that a value wire cannot avoid (enum name → the
+canonical enum instance; type name → the canonical Type instance;
+struct map → class instance via `structToInstance`). Declared-type
+reads are ASSERTIONS (walls), never choices. The post-cargo Java map
+IS this minimum — confirmed by derivation, not just by deletion.
+
+**Inbound (M3 function → execution)**: the pure side runs ON the
+reference interpreter, where M3 reflection is native — upstream's own
+relational adapter does ALL its reprocessing in pure
+(`pct_relational.pure` reprocess: FunctionExpression/InstanceValue/
+LambdaFunction/VariableExpression match arms; `^X(...)` exposes its
+class at `genericType.rawType`; `cast(@X)` carries Class-as-value in
+`InstanceValue.values`). Therefore the five Java DISCOVERY regexes
+(`INSTANCE_CLASS/TYPE_REF/ENUM_REF/PARAM_TYPE/BARE_REF/FQN_TOKEN`)
+are NOT minimal: discovery belongs in a ~50-line pure AST collector
+(the `substituteInExpression` walk skeleton, collecting `.func` refs,
+`genericType.rawType`s, Class-as-value nodes, enum classifiers, lambda
+param types), handed to the native as `dependents: String[*]`. Java
+keeps the PRECISE half it already has: M3-recursive extraction +
+source-registry slicing keyed on the given roots. Registration cost:
+one signature + one key
+(`executeLegendLiteQuery_String_1__String_MANY__Any_MANY_`).
+
+### The pure side, measured (G6 full lane, 1115/0, 2026-08-27)
+
+| Arm | Traffic | Verdict |
+|---|---:|---|
+| P5 Map flatten-rebuild (`wrapPctMap`) | 9 | **BOUNDARY** — the interpreter's Map is interpreter-internal state; `pair()/newMap()` is its sanctioned constructor. Keyed on declared Map — acceptable at the EMPTY/shape seam only. All 9 in the three named combos. |
+| P6 multi-value List wrap (`wrapPctList`) | 3 | **BOUNDARY (for now)** — all traffic in named combos. Candidate: move List construction to Java keyed on the PLATFORM's returnType (Java has dynamic generics via `genericTypeOf`), deleting the enumeration; sequenced after R1. |
+| P7 Decimal→Float relabel | 1 | **ADJUDICATED, one witness** — testBigFloatAbs (`abs(-123456789123456789.99)`): the platform keeps the value decimal-exact by contract; the label moves. Stays until the T4 builder leg gives Float labels to decimal-exact carriers. |
+| P4 empty-result declared-Map consult | **0** | DEAD — delete |
+| P6b scalar List wrap | **0** | DEAD — delete |
+| P8 String→parseDate on declared Date | **0** | DEAD — dates never cross as text (PureDateLiteral owns them); delete |
+| P9 enum extract at the scalar seam | **0** | DEAD — a DUPLICATE of the Java-side enum resolution (J8g owns it); delete |
+| P5/P6 `Any` fallback combos | **0** | never fire — make LOUD |
+
+### The rewrite slices
+
+- **R2 (this batch)**: delete the four dead pure arms + loud
+  fallbacks; the adapter function body shrinks to: substitute →
+  print → execute → (TDS | scalar with the two witnessed consults |
+  collection with Map/List rebuild).
+- **R1 (next)**: the inbound discovery rewrite. Transition
+  differential: the pure collector's root set and the regex set BOTH
+  feed one lane run, any difference logged by name
+  (`[discover-diff]`); regexes delete on a measured-equal (or
+  strictly-better) result. The census method applied to the rewrite
+  itself.
+- **After R1+R2** the files ARE the derived minimum for a text
+  transport: pure ≈ contract fn + β-subst + collector + printer +
+  Map/List rebuild (~230 lines); Java ≈ scaffold + QueryService call +
+  closed-vocabulary bijection + M3 extraction-by-FQN + error crossing
+  (~750 lines, of which ~260 is extraction that dies wholesale if the
+  transport ever goes structural — Gap A remains the only path below
+  that floor).
+
 ## 6. Landing record
 
+- **2026-08-27 — R2 (pure-side derived minimum)**: P4/P6b/P8/P9
+  deleted by measurement (§5b table), both `Any` fallback combos made
+  LOUD (`fail` with the offending type), probes removed. The adapter
+  body now reads the declared type at exactly three seams: Map
+  rebuild, List rebuild, the one-witness Decimal relabel. Channel B
+  Essential floor banked 295 → 297 (held across three post-change
+  runs).
 - **2026-08-27 — the cargo batch** (census §3's verdicts executed in
   one slice): nine dead arms deleted (J2, J8a, J8b-fallthrough, J8c
   ×2, J8d ×2, J8e, J8h, J8j, J8k+classInstance, P2), one platform
