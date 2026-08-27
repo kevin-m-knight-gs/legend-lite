@@ -145,6 +145,10 @@ class JdbcSurfaceCensusTest {
             // missing-required rejection pin e2e VALUE semantics — the
             // executed result IS the assertion (the BurnLaneTest form)
             "core/src/test/java/com/legend/lowering/Part1SemanticsTest.java",
+            // D100 witnesses (2026-08-26): connection-cache isolation —
+            // the resolver's per-(model, definition) key IS the feature
+            // under test; the SQLException surface is the assertion
+            "core/src/test/java/com/legend/server/ConnectionIsolationTest.java",
             // D102 witnesses (2026-08-26): the checked-envelope defect
             // CASE executes IN the database — the produced defects
             // JSON is the assertion (NULL-predicate unable-to-evaluate
