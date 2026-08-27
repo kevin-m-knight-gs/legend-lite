@@ -300,11 +300,19 @@ function meta::legend::lite::pct::substituteInExpression(expr:Any[1], openVars:M
                         value = $substExprs->cast(@ValueSpecification))
             ])->cast(@LambdaFunction<Any>);,
           fd:FunctionDefinition<Any>[1] |
-            // Handle nested lambdas
-            let substExprs = $fd.expressionSequence->evaluateAndDeactivate()->map(e |
+            // B9 (closed by construction): a lambda VALUE carries its
+            // OWN closure environment — resolve THAT first (recursive
+            // substituteOpenVariables; a plain nested lambda has no
+            // open values and passes through unchanged), then the
+            // outer substitution walks the result. Every spliced term
+            // is then closed AS TEXT, which is the premise the
+            // capture-safety proof rests on — and assertClosed below
+            // enforces it mechanically on every test.
+            let closed = substituteOpenVariables($fd);
+            let substExprs = $closed.expressionSequence->evaluateAndDeactivate()->map(e |
               substituteInExpression($e, $openVars)
             );
-            ^$fd(expressionSequence = $substExprs->cast(@ValueSpecification)->toOneMany());,
+            ^$closed(expressionSequence = $substExprs->cast(@ValueSpecification)->toOneMany());,
           a:Any[1] | $a
         ])
       );
@@ -322,6 +330,71 @@ function meta::legend::lite::pct::substituteInExpression(expr:Any[1], openVars:M
   ]);
 }
 
+
+// ===== B9 — THE CLOSEDNESS WALL (the capture-safety proof, enforced) =====
+// After substitution the tree must be CLOSED: every VariableExpression
+// bound by an enclosing lambda parameter or a preceding let. A free
+// name would print as dangling text (or capture under a same-named
+// binder) — this fails LOUDLY at the exact test instead. COVERAGE
+// EQUALS the substitution's own node vocabulary: anything the
+// substitution can reach, the wall can reach.
+
+function <<access.private>> meta::legend::lite::pct::assertClosed(f:FunctionDefinition<Any>[1]):Boolean[1]
+{
+  $f->lambdaClosed([])
+}
+
+function <<access.private>> meta::legend::lite::pct::lambdaClosed(fd:FunctionDefinition<Any>[1], bound:String[*]):Boolean[1]
+{
+  let params = $fd.classifierGenericType.typeArguments
+      ->map(ta | $ta.rawType)
+      ->filter(rt | $rt->instanceOf(meta::pure::metamodel::type::FunctionType))
+      ->cast(@meta::pure::metamodel::type::FunctionType)
+      ->map(ft | $ft.parameters->evaluateAndDeactivate().name);
+  seqClosed($fd.expressionSequence->evaluateAndDeactivate(), $bound->concatenate($params));
+}
+
+function <<access.private>> meta::legend::lite::pct::seqClosed(seq:ValueSpecification[*], bound:String[*]):Boolean[1]
+{
+  if($seq->isEmpty(),
+    | true,
+    | let h = $seq->at(0);
+      let ok = $h->exprClosed($bound);
+      // a let binds its name for the REST of the sequence
+      let newBound = if($h->instanceOf(SimpleFunctionExpression)
+              && ($h->cast(@SimpleFunctionExpression).func.functionName == 'letFunction'),
+          | $bound->concatenate($h->cast(@SimpleFunctionExpression)
+                .parametersValues->at(0)->cast(@InstanceValue).values->at(0)->cast(@String)),
+          | $bound);
+      seqClosed($seq->tail(), $newBound);
+  );
+}
+
+function <<access.private>> meta::legend::lite::pct::exprClosed(a:Any[1], bound:String[*]):Boolean[1]
+{
+  $a->match([
+    v:VariableExpression[1] |
+      if($bound->contains($v.name),
+        | true,
+        | meta::pure::functions::asserts::fail('B9 wall: unbound variable $' + $v.name
+              + ' survived substitution — the closedness premise broke');
+          false;
+      );,
+    fe:FunctionExpression[1] |
+      let checked = $fe.parametersValues->evaluateAndDeactivate()->map(p | $p->exprClosed($bound));
+      true;,
+    iv:InstanceValue[1] |
+      let checked = $iv.values->map(v | $v->match([
+          vs:ValueSpecification[1]      | $vs->exprClosed($bound),
+          fd:FunctionDefinition<Any>[1] | $fd->lambdaClosed($bound),
+          other:Any[1]                  | true
+        ]));
+      true;,
+    lf:LambdaFunction<Any>[1] | $lf->lambdaClosed($bound),
+    other:Any[1] | true
+  ]);
+}
+
 // PCT Adapter for Legend-Lite
 // This adapter serializes Pure functions to grammar text, executes through
 // legend-lite's QueryService, and converts results back to Pure values.
@@ -332,6 +405,7 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
     // This replaces VariableExpression nodes with their actual values
     let funcDef = $f->cast(@FunctionDefinition<Any>);
     let substituted = substituteOpenVariables($funcDef);
+    let closednessWall = assertClosed($substituted);
     
     // Serialize the substituted function definition to Pure grammar text
     let config = legendLiteGrammarConfiguration();

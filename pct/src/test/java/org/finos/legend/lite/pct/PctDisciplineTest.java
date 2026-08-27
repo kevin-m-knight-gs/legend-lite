@@ -55,8 +55,13 @@ class PctDisciplineTest {
      * reads the tree the interpreter holds instead of pattern-guessing
      * printed text; the adapter PAIR shrinks net. (410: the collector's
      * cycle-guard block — differential run 1's 23 stack overflows on
-     * cyclic captured-instance graphs, cured by chain-seen breaking.) */
-    private static final int ADAPTER_MAX_LINES = 410;
+     * cyclic captured-instance graphs, cured by chain-seen breaking.)
+     * 410 → 485 (B9 upgrade, user-directed): captured lambda VALUES
+     * close by construction (recursive environment resolution) and the
+     * capture-safety proof gained its EXECUTABLE WALL (assertClosed —
+     * the free-variable postcondition checked on every test). Wall
+     * growth; the proof stopped being testimony. */
+    private static final int ADAPTER_MAX_LINES = 485;
 
     @Test
     void noJavaSideComparisonInPct() throws IOException {
