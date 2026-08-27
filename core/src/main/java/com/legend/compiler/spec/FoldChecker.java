@@ -70,14 +70,32 @@ final class FoldChecker {
             transform = commutativeElementTransform(body0, accParam, init);
         }
         if (transform != null) {
-            TypedSpec typedTransform = t.synth(transform,
-                    env.with(elemParam, new ExprType(elementType, Multiplicity.Bounded.ONE)));
+            ExprType elemInfo = new ExprType(elementType, Multiplicity.Bounded.ONE);
+            TypedSpec typedTransform = t.synth(transform, env.with(elemParam, elemInfo));
             String op = ((AppliedFunction) body0).function();
             String freshParam = "__mr_x";
             TypedSpec typedReducer = t.synth(
                     new AppliedFunction(op, List.of(new Variable(accParam), new Variable(freshParam))),
                     env.with(accParam, init).with(freshParam, init));
-            return new FoldStrategy.MapReduce(typedTransform, typedReducer, accParam, freshParam);
+            // CLOSED lambdas (see MapReduce's javadoc): each tree binds
+            // its own parameters, so the inliner's α-hygiene reaches them
+            // through its ordinary TypedLambda arm. The reducer's params
+            // ride in the fold convention (transformed element first,
+            // accumulator second — the same order SameType's ps carries).
+            TypedLambda transformFn = new TypedLambda(
+                    List.of(elemParam), List.of(typedTransform),
+                    ExprType.one(new Type.FunctionType(
+                            List.of(new Type.Param(elementType, Multiplicity.Bounded.ONE)),
+                            new Type.Param(typedTransform.info().type(),
+                                    typedTransform.info().multiplicity()))));
+            TypedLambda reducerFn = new TypedLambda(
+                    List.of(freshParam, accParam), List.of(typedReducer),
+                    ExprType.one(new Type.FunctionType(
+                            List.of(new Type.Param(init.type(), init.multiplicity()),
+                                    new Type.Param(init.type(), init.multiplicity())),
+                            new Type.Param(typedReducer.info().type(),
+                                    typedReducer.info().multiplicity()))));
+            return new FoldStrategy.MapReduce(transformFn, reducerFn);
         }
         // 4. Not decomposable — the accumulator is built element-by-element.
         return new FoldStrategy.CollectionBuild();

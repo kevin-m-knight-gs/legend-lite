@@ -828,7 +828,10 @@ class TypeCheckerTest {
         TypedFold fold = assertInstanceOf(TypedFold.class,
                 typeQuery("['a', 'bb']->fold({e, a | $a + length($e)}, 0)"));
         FoldStrategy.MapReduce mr = assertInstanceOf(FoldStrategy.MapReduce.class, fold.strategy());
-        assertEquals(Type.Primitive.INTEGER, mr.transform().info().type());
+        // the transform is a CLOSED lambda now — its RESULT is the
+        // accumulator-typed element (the cross-tree-binding remediation)
+        assertEquals(Type.Primitive.INTEGER,
+                ((Type.FunctionType) mr.transform().info().type()).result().type());
         assertEquals(Type.Primitive.INTEGER, fold.info().type());
     }
 

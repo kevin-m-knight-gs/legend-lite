@@ -54,6 +54,27 @@ public class FoldCheckerTest extends AbstractDatabaseTest {
         if (connection != null) connection.close();
     }
 
+    @Test
+    @DisplayName("MapReduce strategy survives the inliner's α-renaming (closed-lambda witness)")
+    void testMapReduceFoldThroughLetInlining() throws SQLException {
+        // The exact testPlusInIterate shape: a LET-bound instance
+        // collection folded with a string-building MapReduce body. The
+        // let β-reduction α-renames the reducer's params; the strategy's
+        // trees must rename WITH them — the first draft stored bare
+        // expressions whose free vars were bound by the sibling reducer
+        // ("a scalar query has no row scope for $p.lastName"). CLOSED
+        // strategy lambdas make the walker's own α-hygiene reach them.
+        String model = "Class my::P { firstName: String[1]; lastName: String[1]; }";
+        var r = com.legend.Compiler.execute(model,
+                "{|let people = [^my::P(firstName='Pierre', lastName='Doe'),"
+                        + " ^my::P(firstName='Kevin', lastName='RoeDoe')];"
+                        + " $people->fold({p, s | $s + '; ' + $p.lastName->at(0)"
+                        + " + ', ' + $p.firstName->at(0)}, 'names');}",
+                connection);
+        assertEquals("names; Doe, Pierre; RoeDoe, Kevin",
+                ((com.legend.exec.ExecutionResult.Scalar) r).value());
+    }
+
     // ======================== Helpers ========================
 
     private ExecutionResult exec(String pureExpr) throws SQLException {

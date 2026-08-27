@@ -34,9 +34,8 @@ public record TypedFold(TypedSpec source, TypedLambda reducer, TypedSpec init,
         boolean mr = strategy instanceof FoldStrategy.MapReduce;
         TypedSpec.expectChildren(kids, mr ? 5 : 3, "TypedFold");
         FoldStrategy st = mr
-                ? new FoldStrategy.MapReduce(kids.get(3), kids.get(4),
-                        ((FoldStrategy.MapReduce) strategy).accParam(),
-                        ((FoldStrategy.MapReduce) strategy).freshParam())
+                ? new FoldStrategy.MapReduce((TypedLambda) kids.get(3),
+                        (TypedLambda) kids.get(4))
                 : strategy;
         return new TypedFold(kids.get(0), (TypedLambda) kids.get(1), kids.get(2), st, info);
     }

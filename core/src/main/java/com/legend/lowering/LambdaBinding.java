@@ -201,22 +201,26 @@ final class LambdaBinding {
                                                     lambdaResolver(ps, columns)))),
                             init, many(f.init()), true);
             case FoldStrategy.MapReduce mr -> {
-                String elem = ps.get(0);
+                // every name derives from the strategy lambdas' OWN
+                // parameters — the lambdas are CLOSED (MapReduce javadoc),
+                // so whatever α-renaming the inliner applied is already
+                // consistent between binder and body by construction
+                String elem = mr.transform().parameters().get(0);
                 SqlExpr.Lambda transform = new SqlExpr.Lambda(List.of(elem),
-                        lw.scalar(mr.transform(),
+                        lw.scalar(Lowerer.last(mr.transform()),
                                 mapElemResolver(elem, source, false,
                                         lambdaResolver(List.of(elem), columns))));
                 SqlExpr transformed = new SqlExpr.Call(
                         com.legend.sql.SqlFn.LIST_TRANSFORM,
                         List.of(source, transform));
                 // The transform makes source elements accumulator-typed.
+                List<String> rps = mr.reducer().parameters();
                 yield new SqlExpr.FoldCall(transformed,
-                        new SqlExpr.Lambda(List.of(mr.freshParam(), mr.accParam()),
-                                lw.scalar(mr.reducer(),
-                                        foldResolver(mr.freshParam(), transformed,
-                                                mr.accParam(), init,
-                                                lambdaResolver(
-                                                        List.of(mr.accParam(), mr.freshParam()), columns)))),
+                        new SqlExpr.Lambda(rps,
+                                lw.scalar(Lowerer.last(mr.reducer()),
+                                        foldResolver(rps.get(0), transformed,
+                                                rps.get(1), init,
+                                                lambdaResolver(rps, columns)))),
                         init, many(f.init()), true);
             }
             case FoldStrategy.CollectionBuild cb ->

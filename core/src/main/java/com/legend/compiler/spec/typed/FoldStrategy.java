@@ -29,13 +29,24 @@ public sealed interface FoldStrategy {
     /**
      * The body decomposed into an element-only transform plus a reducer.
      *
-     * @param transform  the checked element transform (element parameter bound to {@code T[1]})
-     * @param reducer    the checked reduction body over two accumulator-typed values
-     * @param accParam   the accumulator parameter name the reducer binds
-     * @param freshParam the synthetic second reducer parameter name
+     * <p>BOTH trees are CLOSED {@link TypedLambda}s — each binds its own
+     * parameters. The first draft stored bare expressions whose free
+     * variables were bound by the SIBLING reducer lambda's binders;
+     * cross-tree binding is invisible to every compositional rewriter,
+     * so the inliner's α-renaming left the strategy referencing dead
+     * names (testPlusInIterate — the let-inlined fold's transform still
+     * asked for {@code $p} after the reducer renamed to {@code _i0}).
+     * As lambdas they re-enter the walker's own TypedLambda arm and
+     * α-hygiene stays uniform (UserCallInliner's documented contract);
+     * the old {@code accParam}/{@code freshParam} name strings — which
+     * no tree walk could ever rename — are derived from the lambdas'
+     * OWN parameters at the one consumer instead.
+     *
+     * @param transform one-parameter lambda: element {@code T[1]} &rarr; accumulator type
+     * @param reducer   two-parameter lambda in the fold convention
+     *                  (transformed element first, accumulator second)
      */
-    record MapReduce(TypedSpec transform, TypedSpec reducer,
-                     String accParam, String freshParam) implements FoldStrategy {
+    record MapReduce(TypedLambda transform, TypedLambda reducer) implements FoldStrategy {
     }
 
     /** Not decomposable; the accumulator is built element-by-element. */

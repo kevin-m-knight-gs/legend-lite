@@ -86,7 +86,10 @@ class ChannelBGrammarTest {
         // (elementFqns), and instance-vs-primitive eq folds static
         // FALSE (InstanceEquality.staticallyDisjoint) — both
         // ExtendedInteger rows join
-        assertTrue(c.pass() >= 135, "grammar PASS fell: " + c.pass());
+        // 136 (2026-08-27 fold-strategy closure): MapReduce's trees are
+        // CLOSED TypedLambdas — cross-tree binding died, the inliner's
+        // α-renaming reaches them uniformly; testPlusInIterate joins
+        assertTrue(c.pass() >= 136, "grammar PASS fell: " + c.pass());
         assertTrue(c.wireBug() <= 1,
                 "grammar WIRE-BUG census grew: " + c.wireBug());
         assertTrue(c.trueWireBug() == 0,

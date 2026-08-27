@@ -234,7 +234,7 @@ class TypedSpecChildrenTest {
             return new TypedGraphTree("p", List.of());
         }
         if (type == FoldStrategy.class) {
-            return new FoldStrategy.MapReduce(leaf(), leaf(), "a", "m");
+            return new FoldStrategy.MapReduce(dummyLambda(), dummyLambda());
         }
         if (type == PureDateLiteral.class) {
             return new PureDateLiteral.StrictDate(2020, 1, 1);
@@ -307,6 +307,11 @@ class TypedSpecChildrenTest {
 
     private static TypedSpec leaf() {
         return new TypedVariable("v", one());
+    }
+
+    private static com.legend.compiler.spec.typed.TypedLambda dummyLambda() {
+        return new com.legend.compiler.spec.typed.TypedLambda(
+                java.util.List.of("x"), java.util.List.of(leaf()), one());
     }
 
     private static ExprType one() {
