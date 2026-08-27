@@ -302,6 +302,27 @@ class SqlTypingTest {
                 false, new SqlSource.Dual(), null, List.of(r), null, null,
                 List.of(), null, null, List.of());
         assertEquals(true, nul(new SqlExpr.ScalarSubquery(grouped)));
+        // §E3-S extension: the aggregate may sit anywhere in the
+        // projection — the joinStrings envelope
+        // coalesce(string_agg(r, ','), '') is single-row AND non-null
+        SqlSelect envelope = new SqlSelect(
+                List.of(new SqlSelect.Projection(
+                        SqlExpr.Call.of(SqlFn.COALESCE,
+                                SqlAgg.Reducer.of(SqlAgg.Fn.STRING_AGG, r,
+                                        new SqlExpr.StringLit(",")),
+                                new SqlExpr.StringLit("")), null)),
+                false, new SqlSource.Dual(), null, List.of(), null, null,
+                List.of(), null, null, List.of());
+        assertEquals(false, nul(new SqlExpr.ScalarSubquery(envelope)));
+        // a WINDOWED aggregate keeps per-row cardinality — no proof
+        SqlSelect windowed = new SqlSelect(
+                List.of(new SqlSelect.Projection(
+                        new SqlExpr.WindowCall(
+                                SqlAgg.Reducer.of(SqlAgg.Fn.SUM, r),
+                                List.of(), List.of(), null), null)),
+                false, new SqlSource.Dual(), null, List.of(), null, null,
+                List.of(), null, null, List.of());
+        assertEquals(true, nul(new SqlExpr.ScalarSubquery(windowed)));
     }
 
     @Test

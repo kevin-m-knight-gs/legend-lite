@@ -32,6 +32,17 @@ public final class SqlTyping {
     public static final TypeFact RAISES = new TypeFact.Raises();
     public static final TypeFact UNKNOWN = new TypeFact.Unknown();
 
+    /** §E3-S PAD PRICE TAG: construction-side counters for join-pad
+     * weakenings — the WHERE&equiv;INNER refinement's MAXIMUM value
+     * bracket. These count construction EVENTS (rebuilds re-enter the
+     * doors), not final plan slots — an upper bound, priced beside the
+     * slack census. Measurement only; runtime accumulation, the
+     * StampCensus/H2Verify static-counter precedent. */
+    public static final java.util.concurrent.atomic.LongAdder
+            PAD_FRAME_WEAKENED = new java.util.concurrent.atomic.LongAdder();
+    public static final java.util.concurrent.atomic.LongAdder
+            PAD_READ_FLIPPED = new java.util.concurrent.atomic.LongAdder();
+
     public static TypeFact typed(SqlType t) {
         return new TypeFact.Typed(t);
     }
@@ -947,19 +958,52 @@ public final class SqlTyping {
         return UNKNOWN;
     }
 
-    /** The ONE-ROW PROOF: an ungrouped select whose single projection
-     * is an aggregate returns exactly one row regardless of input —
-     * provided nothing can drop or skip that row (no HAVING, no
-     * QUALIFY, no OFFSET, no LIMIT 0). Everything else stays at the
-     * safe zero-rows-is-NULL default. */
+    /** The ONE-ROW PROOF: an ungrouped select that AGGREGATES returns
+     * exactly one row regardless of input — provided nothing can drop
+     * or skip that row (no HAVING, no QUALIFY, no OFFSET, no LIMIT 0).
+     * §E3-S extension (slack burn): the aggregate may sit ANYWHERE in
+     * a projection expression ({@code coalesce(string_agg(..), '')} —
+     * the joinStrings envelope), not only at the root: SQL makes the
+     * whole select single-row the moment one aggregate appears outside
+     * a window. Everything else stays at the safe zero-rows-is-NULL
+     * default. */
     private static boolean oneRowAggregate(SqlQuery sub) {
-        return sub instanceof SqlSelect s
-                && s.groupBy().isEmpty()
-                && s.having() == null && s.qualify() == null
-                && s.offset() == null
-                && (s.limit() == null || s.limit() >= 1)
-                && s.projections().size() == 1
-                && s.projections().get(0).expr() instanceof SqlAgg.Reducer;
+        if (!(sub instanceof SqlSelect s)
+                || !s.groupBy().isEmpty()
+                || s.having() != null || s.qualify() != null
+                || s.offset() != null
+                || (s.limit() != null && s.limit() < 1)) {
+            return false;
+        }
+        for (SqlSelect.Projection p : s.projections()) {
+            if (aggregateRooted(p.expr())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Does this expression AGGREGATE its select — a Reducer (or the
+     * ordered/JSON aggregation nodes) outside any window or lambda?
+     * Windowed aggregates keep per-row cardinality and never count;
+     * expression walkers never descend into subqueries by the
+     * children() contract. */
+    private static boolean aggregateRooted(SqlExpr e) {
+        if (e instanceof SqlAgg.Reducer
+                || e instanceof SqlExpr.OrderedListAgg
+                || e instanceof SqlExpr.JsonArrayAgg) {
+            return true;
+        }
+        if (e instanceof SqlExpr.WindowCall
+                || e instanceof SqlExpr.Lambda) {
+            return false;
+        }
+        for (SqlExpr c : e.children()) {
+            if (aggregateRooted(c)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** {@link SqlExpr.CheckedOne} — the element of a definite list;

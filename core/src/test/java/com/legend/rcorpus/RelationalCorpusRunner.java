@@ -667,6 +667,13 @@ public class RelationalCorpusRunner {
             // classes survive the chain (dump dies at gate 8's clean).
             System.out.println("[rcorpus] nullable-slack: "
                     + com.legend.exec.SqlTypeCensus.slackSummary());
+            // §E3-S pad price tag: construction-event upper bound for
+            // the WHERE≡INNER refinement (frames weakened + reads
+            // flipped; rebuilds re-enter doors — a bracket, not slots)
+            System.out.println("[rcorpus] pad-weaken: frames="
+                    + com.legend.sql.SqlTyping.PAD_FRAME_WEAKENED.sum()
+                    + " reads="
+                    + com.legend.sql.SqlTyping.PAD_READ_FLIPPED.sum());
             com.legend.exec.SqlTypeCensus.slackReport().stream().skip(1)
                     .limit(160).forEach(c -> System.out.println(
                             "[rcorpus] nullable-slack-class: " + c));

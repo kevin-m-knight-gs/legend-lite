@@ -620,6 +620,7 @@ final class Fold {
                 if (os == null) {
                     os = new ArrayList<>(outs);
                 }
+                com.legend.sql.SqlTyping.PAD_FRAME_WEAKENED.increment();
                 os.set(i, new OutputCol(c.name(), c.type(), true,
                         c.tolerated()));
             }

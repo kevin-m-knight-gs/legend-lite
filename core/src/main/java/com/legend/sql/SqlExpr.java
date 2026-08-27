@@ -356,10 +356,12 @@ public sealed interface SqlExpr
          * side may be NULL regardless of the column's DDL). Identity
          * when the fact already says so or makes no claim. */
         public Column asNullable() {
-            return type instanceof TypeFact.Typed t && !t.nullable()
-                    ? new Column(table, name, new TypeFact.Typed(
-                            t.type(), true, t.tolerated()))
-                    : this;
+            if (type instanceof TypeFact.Typed t && !t.nullable()) {
+                SqlTyping.PAD_READ_FLIPPED.increment();
+                return new Column(table, name, new TypeFact.Typed(
+                        t.type(), true, t.tolerated()));
+            }
+            return this;
         }
 
         /** A LAMBDA-PARAMETER reference, stamped MECHANICALLY as the

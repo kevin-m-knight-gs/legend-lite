@@ -997,3 +997,23 @@ remains the queued refinement, now with a measured price tag).
 (per-field struct presence, the LEFT-join+null-rejecting-WHERE ≡
 INNER shape) waits until a consumer of precision exists; the census
 is the standing worklist.
+
+**Fix 3 — the EXTENDED ONE-ROW PROOF (2026-08-27):** SQL makes an
+ungrouped select single-row the moment ANY projection aggregates —
+the aggregate may sit anywhere in the expression outside a window
+(`coalesce(string_agg(..), '')`, the joinStrings envelope;
+OrderedListAgg and JsonArrayAgg count as aggregates; windowed
+reducers and lambda bodies never do). +423 slots tightened, breach
+EQUALITY-0 held, slack 9,395 -> 8,973.
+
+**THE PAD PRICE TAG:** construction-side counters at the two pad
+doors (`SqlTyping.PAD_FRAME_WEAKENED` / `PAD_READ_FLIPPED`, printed
+as `[rcorpus] pad-weaken:`) — first sweep 24,505 frame weakenings /
+16,970 read flips. These are construction EVENTS (rebuilds re-enter
+the doors), an upper BRACKET, not final slots: the WHERE≡INNER
+refinement is clearly worth a slice when a precision consumer
+appears, and its first step is per-slot pad provenance (the finer
+costing this bracket cannot give). Slack end-state:
+8,973 = DDL-nullable-over-populated-fixtures Columns + honest
+empty-group/zero-row/missing-else tails + the pad-origin share the
+bracket bounds.
