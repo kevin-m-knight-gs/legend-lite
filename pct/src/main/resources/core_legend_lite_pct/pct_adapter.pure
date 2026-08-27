@@ -331,17 +331,14 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
     if($result->isEmpty(),
         | []->cast(@X)->toMultiplicity(@[o]),
         | if($result->size() > 1,
-            | // Multi-value result (collection from Java's CollectionResult dispatch)
-              let retType = $f->functionReturnType().rawType->toOne();
-              if($retType == Map,
-                | wrapPctMap($f->functionReturnType(), $result)->cast(@X)->toMultiplicity(@[o]);,
-                | if($retType == List,
-                    | wrapPctList($f->functionReturnType(), $result)->cast(@X)->toMultiplicity(@[o]);,
-                    | // Not a List type — return values directly as collection
-                      $result->cast(@X)->toMultiplicity(@[o]);
-                  );
-              );,
-            | // Single-value result: could be TDS or typed scalar
+            | // Multi-value result — B2: List/Map results never explode
+              // anymore (Java builds the typed instances from the
+              // PLATFORM's own generic type), so a multi-value crossing
+              // IS a plain collection
+              $result->cast(@X)->toMultiplicity(@[o]),
+            | // Single-value result: TDS text or a scalar (Map and List
+              // results arrive as REAL typed instances Java built from
+              // the platform's own generic returnType — B2)
               let single = $result->toOne();
               if($single->instanceOf(TDSResult),
                 | // F5.3 STAGE B: the WIRE header IS the header. The
@@ -369,40 +366,8 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
 }
 
 
-function <<access.private>> meta::legend::lite::pct::wrapPctList(retType:GenericType[1], vals:Any[*]):List<Any>[1]
-{
-  let elemType = $retType.typeArguments->at(0).rawType->toOne();
-  if($elemType == Integer, | ^List<Integer>(values = $vals->cast(@Integer)),
-    | if($elemType == Float, | ^List<Float>(values = $vals->cast(@Float)),
-      | if($elemType == Boolean, | ^List<Boolean>(values = $vals->cast(@Boolean)),
-        | if($elemType == String, | ^List<String>(values = $vals->cast(@String)),
-          | if($elemType == Number, | ^List<Number>(values = $vals->cast(@Number)),
-            | // R2: measured zero — an unlisted element type is LOUD,
-              // never a silent List<Any> the caller's cast then blurs
-              meta::pure::functions::asserts::fail('unlisted List element type in PCT adapter: ' + $elemType->elementToPath());
-              ^List<Any>(values = $vals);)))));
-}
-
-function <<access.private>> meta::legend::lite::pct::wrapPctMap(retType:GenericType[1], flat:Any[*]):Map<Any,Any>[1]
-{
-  // newMap derives Map<U,V> from the pairs' STATIC types — the keys and
-  // values must cast to the DECLARED type arguments (wrapPctList's
-  // enumeration pattern), or the rebuilt map is Map<Any,Any> and the
-  // caller's cast(@Map<String,Integer>) rejects it.
-  let k = $retType.typeArguments->at(0).rawType->toOne();
-  let v = $retType.typeArguments->at(1).rawType->toOne();
-  let idx = range(0, $flat->size(), 2);
-  if($k == String && $v == Integer,
-    | $idx->map(i | pair($flat->at($i)->cast(@String), $flat->at($i + 1)->cast(@Integer)))->newMap(),
-    | if($k == String && $v == String,
-        | $idx->map(i | pair($flat->at($i)->cast(@String), $flat->at($i + 1)->cast(@String)))->newMap(),
-        | if($k == Integer && $v == String,
-            | $idx->map(i | pair($flat->at($i)->cast(@Integer), $flat->at($i + 1)->cast(@String)))->newMap(),
-            | // R2: measured zero — an unlisted key/value combo is LOUD,
-              // never a silent Map<Any,Any> rejected later by the cast
-              meta::pure::functions::asserts::fail('unlisted Map type combo in PCT adapter: ' + $k->elementToPath() + ' / ' + $v->elementToPath());
-              $idx->map(i | pair($flat->at($i), $flat->at($i + 1)))->newMap();
-          )
-      )
-  );
-}
+// (wrapPctList and wrapPctMap DELETED — truthfulness burn B2: the
+// combo-enumeration tables read the TEST's declared type arguments.
+// Java now builds the ^List<E> instance and the MapResult's Pair<K,V>
+// values from the PLATFORM's own generic returnType; newMap in the
+// adapter body is the only constructor left, fed fully-stamped pairs.)

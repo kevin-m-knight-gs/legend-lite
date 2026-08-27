@@ -69,18 +69,13 @@ import java.util.Stack;
  */
 public class ExecuteLegendLiteQuery extends NativeFunction {
 
-    private static final String PURE_MODEL = """
-                Class model::DoyRecord { eventDate: StrictDate[1]; }
-            ###Relational
-                Database store::DoyDb ( Table T_DOY ( ID INTEGER, EVENT_DATE DATE ) )
-            ###Mapping
-                Mapping model::DoyMap ( DoyRecord: Relational { ~mainTable [DoyDb] T_DOY eventDate: [DoyDb] T_DOY.EVENT_DATE } )
-            ###Connection
-                RelationalDatabaseConnection store::TestConn { type: DuckDB; specification: DuckDB { }; auth: Test; }
-            ###Runtime
-                Runtime test::TestRuntime { mappings: [ model::DoyMap ]; connections: [ store::DoyDb: [ environment: store::TestConn ] ]; }
-
-            """;
+    // (The PURE_MODEL scaffold — a fixed Doy model/mapping/connection/
+    // runtime — is DELETED, truthfulness burn B1: PCT expressions are
+    // STORELESS, and the platform executes them against a bare
+    // connection with no model and no runtime; the dialect derives
+    // from the CONNECTION's own product metadata (Compiler.dialectOf's
+    // connection seam), which the scaffold's `type: H2;` flip was
+    // shadowing. Probed on both backends before the cut.)
 
     // (The five discovery regexes — INSTANCE_CLASS/TYPE_REF/ENUM_REF/
     // PARAM_TYPE/BARE_REF/FQN_TOKEN — are DELETED: R1 differential,
@@ -160,22 +155,19 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             // tests pass on the real Pair).
             java.util.TreeMap<String, String> injection =
                     injectionFromRoots(semanticRoots, processorSupport);
-            String model = h2
-                    ? PURE_MODEL.replace("type: DuckDB;", "type: H2;")
-                    : PURE_MODEL;
-            if (!injection.isEmpty()) {
-                StringBuilder defs = new StringBuilder();
-                // grouped enums → classes → functions (the E:/C:/F: keys)
-                for (String prefix : List.of("E:", "C:", "F:")) {
-                    for (var en : injection.entrySet()) {
-                        if (en.getKey().startsWith(prefix)) {
-                            defs.append(en.getValue()).append("\n");
-                        }
+            StringBuilder defs = new StringBuilder();
+            // grouped enums → classes → functions (the E:/C:/F: keys)
+            for (String prefix : List.of("E:", "C:", "F:")) {
+                for (var en : injection.entrySet()) {
+                    if (en.getKey().startsWith(prefix)) {
+                        defs.append(en.getValue()).append("\n");
                     }
                 }
-                System.out.println("[LegendLite PCT] Injected model:\n" + defs);
-                model = defs + model;
             }
+            if (defs.length() > 0) {
+                System.out.println("[LegendLite PCT] Injected model:\n" + defs);
+            }
+            String model = defs.toString();
 
             // E1 (JAVA_EVICTION_PLAN): relation-rooted queries render
             // their PCT wire text IN THE PLAN (Lowerer PCT-TDS root
@@ -186,7 +178,7 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             try (AutoCloseable ignored2 =
                     com.legend.exec.PctRenderOption.enable()) {
                 result = new QueryService().execute(model, pureExpression,
-                        "test::TestRuntime", connection);
+                        null, connection);
                 tdsRendered = com.legend.exec.PctRenderOption.wasRendered();
             }
             if (tdsRendered) {
@@ -228,30 +220,20 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             return ValueSpecificationBootstrap.wrapValueSpecification(
                     org.eclipse.collections.api.factory.Lists.immutable.empty(), true, ps);
         }
+        // B2 (truthfulness burn): the PLATFORM's returnType carries the
+        // full generic shape (Map<K,V> / List<E> with arguments) — Java
+        // builds the typed instances HERE; the pure side only constructs
+        // (newMap) or passes through. No shape decision ever consults
+        // the test's declared type.
         if (value instanceof java.util.Map<?, ?> map && isMapReturn(result.returnType())) {
-            // Map<U,V> results flatten to [k1, v1, k2, v2, ...]; the pure
-            // side rebuilds via pair()/newMap() (both native there).
-            // (JDBC also hands STRUCT values as java.util.Map — the DECLARED
-            // type gates, or ^Person(...) results would flatten here.)
-            var flat = new ArrayList<CoreInstance>();
-            for (var en : map.entrySet()) {
-                flat.add(toCoreInstance(en.getKey(), result.returnType(), ps));
-                flat.add(toCoreInstance(en.getValue(), result.returnType(), ps));
-            }
+            // (JDBC also hands STRUCT values as java.util.Map — the
+            // PLATFORM type gates, or ^Person(...) results would land here.)
             return ValueSpecificationBootstrap.wrapValueSpecification(
-                    org.eclipse.collections.impl.factory.Lists.immutable.withAll(flat), true, ps);
+                    mapInstance(map, result.returnType(), ps), true, ps);
         }
-        if (value instanceof java.util.List<?> list) {
-            // a List<T>-typed scalar (drop(1)->list()): elements convert
-            // individually; the pure side wraps them back into ^List
-            var elems = new ArrayList<CoreInstance>();
-            for (Object v : list) {
-                if (!emptyCell(v)) {
-                    elems.add(toCoreInstance(v, result.returnType(), ps));
-                }
-            }
+        if (value instanceof java.util.List<?> list && isListReturn(result.returnType())) {
             return ValueSpecificationBootstrap.wrapValueSpecification(
-                    org.eclipse.collections.impl.factory.Lists.immutable.withAll(elems), true, ps);
+                    listInstance(list, result.returnType(), ps), true, ps);
         }
         CoreInstance ci = toCoreInstance(value, result.returnType(), ps);
         return ValueSpecificationBootstrap.wrapValueSpecification(ci, true, ps);
@@ -442,6 +424,72 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         return "meta::pure::functions::collection::Map".equals(classFqnOf(t));
     }
 
+    private static boolean isListReturn(Type t) {
+        return "meta::pure::functions::collection::List".equals(classFqnOf(t));
+    }
+
+    /** B2 — a REAL {@code ^List<E>} instance built from the PLATFORM's
+     * own {@code List<E>} type: classifier + generic stamp + values.
+     * The harness's declared cast validates the stamp downstream. */
+    private CoreInstance listInstance(java.util.List<?> list, Type declared,
+            ProcessorSupport ps) {
+        CoreInstance listCls = ps.package_getByUserPath(
+                "meta::pure::functions::collection::List");
+        CoreInstance inst = modelRepository
+                .newEphemeralAnonymousCoreInstance(null, listCls);
+        CoreInstance gt = genericTypeOf(declared, ps);
+        if (gt != null) {
+            Instance.addValueToProperty(inst,
+                    M3Properties.classifierGenericType, gt, ps);
+        }
+        Type elem = declared instanceof Type.GenericType g
+                && g.arguments().size() == 1 ? g.arguments().get(0) : declared;
+        var cis = new ArrayList<CoreInstance>();
+        for (Object v : list) {
+            if (!emptyCell(v)) {
+                cis.add(toCoreInstance(v, elem, ps));
+            }
+        }
+        Instance.setValuesForProperty(inst, "values",
+                org.eclipse.collections.impl.factory.Lists.immutable
+                        .withAll(cis), ps);
+        return inst;
+    }
+
+    /** B2 — a REAL interpreter Map instance ({@code MapCoreInstance},
+     * the same class the interpreted {@code newMap} native constructs),
+     * stamped with the PLATFORM's own {@code Map<K,V>} generic type and
+     * filled directly. The pure side passes it through untouched — no
+     * marker class, no rebuild, no declared-type consult anywhere. */
+    private CoreInstance mapInstance(java.util.Map<?, ?> map, Type declared,
+            ProcessorSupport ps) {
+        Type k = declared instanceof Type.GenericType g
+                && g.arguments().size() == 2 ? g.arguments().get(0) : null;
+        Type v = declared instanceof Type.GenericType g
+                && g.arguments().size() == 2 ? g.arguments().get(1) : null;
+        CoreInstance mapRawType = ps.package_getByUserPath(
+                org.finos.legend.pure.m3.navigation.M3Paths.Map);
+        var inst = new org.finos.legend.pure.runtime.java.interpreted
+                .natives.MapCoreInstance(
+                        org.eclipse.collections.impl.factory.Lists
+                                .immutable.empty(),
+                        "", null, mapRawType, -1, modelRepository, false, ps);
+        CoreInstance gt = genericTypeOf(declared, ps);
+        if (gt != null) {
+            Instance.addValueToProperty(inst,
+                    M3Properties.classifierGenericType, gt, ps);
+        }
+        var internal = inst.getMap();
+        for (var en : map.entrySet()) {
+            internal.put(
+                    toCoreInstance(en.getKey(),
+                            k != null ? k : declared, ps),
+                    toCoreInstance(en.getValue(),
+                            v != null ? v : declared, ps));
+        }
+        return inst;
+    }
+
 
     /** THE channel-scoped empty rule — ONE owner (documented-debts
      * 2026-08-18; the audit counted six scattered unconditional drops
@@ -570,6 +618,11 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     "struct result reached the PCT bridge (type=" + type
                     + ", keys=" + map.keySet() + ") — no fabrication;"
                     + " add a typed conversion");
+        }
+        // a List VALUE under a List<E> type builds the real instance
+        // (B2 — nested list results recurse through the typed builder)
+        if (value instanceof List<?> nested && isListReturn(type)) {
+            return listInstance(nested, type, ps);
         }
         // List (struct arrays unwrapped by Row.java, e.g. zip → List<Pair>)
         if (value instanceof List<?> list) {

@@ -240,6 +240,33 @@ one signature + one key
   transport ever goes structural — Gap A remains the only path below
   that floor).
 
+## 5c. THE TRUTHFULNESS BURN (user directive 2026-08-27: "burn this
+all down … no cheating, no compensation, no shortcuts")
+
+The §5b residue plus every purist-nitpick, each with its truthful
+mechanism — never a quieter respelling of the same trick. One gated
+batch per row; rows close with receipts here.
+
+| # | Item | The truthful mechanism | State |
+|---|---|---|---|
+| B1 | `PURE_MODEL` scaffold (Doy model/mapping/runtime text in the harness) | The platform executes a STORELESS expression against a bare connection (no model, no runtime) — a product capability (REPL/standalone-SQL vision), not a test hook. Experiment first: does `execute("", expr, null-runtime, conn)` already work? | **EXECUTED 2026-08-27**: probed both backends — it already works; the scaffold's only live duty was the `type: H2;` DIALECT flip, which `Compiler.dialectOf`'s connection seam (JDBC product metadata) already supersedes. Scaffold deleted; runtime = null; injection-only model. One expected-failure pin became MORE honest (getAll now fails "class query requires an execution context" instead of citing a phantom TestRuntime). Both lanes at baseline. |
+| B2 | Result SHAPE consults the TEST's declared type (`wrapPctList`/`wrapPctMap`, the multi-value dispatch) | The PLATFORM's own `ExecutionResult.returnType()` decides the shape: Java builds the `List` instance itself (it has dynamic generics — no combo table), and the Map crossing went one better than designed: Java constructs the interpreter's OWN `MapCoreInstance` (the exact class `newMap` builds) stamped with the platform's `Map<K,V>` — no marker class, no pure-side rebuild at all. `functionReturnType()` is gone from every SHAPE decision. | **EXECUTED 2026-08-27**: wrapPctList/wrapPctMap + the whole multi-value dispatch deleted; first cut's `newMap`-over-marker-pairs FAILED honestly (interpreted newMap types statically → Map<Any,Any> cast rejections, 6 witnesses) and forced the better design. Full lane 1115/0; h2 at ledger. |
+| B3 | Decoration strip regexes in `sliceFunction` (`<<...>>`, `{doc…}`) | Verbatim injection: our parser already parses stereotypes/tagged values (the parity program); the question is compile-side profile resolution. If the PCT profile registers as a known platform profile (it IS real upstream pure), sliced source injects UNMODIFIED. Fallback: a string-literal-aware char walk (no regex, no corruption class). | OPEN |
+| B4 | `::tests::` path filter on function injection | The principled criterion: inject exactly the functions OUR platform does not know (native catalog + prelude lookup), whatever their package — resolution-driven, no name sniffing. (The path filter also silently protected against shadowing platform functions with reference impls — the resolution criterion keeps that property explicitly.) | OPEN |
+| B5 | Error-frame filter by source-name (`contains("core_legend_lite_pct")`) | Positive criterion: the TEST function's own source id (from `$f`) identifies the frame to report — assert what it IS, not what it isn't. | OPEN |
+| B6 | `SET TimeZone='UTC'` in the adapter | Session initialization is DIALECT-OWNED, one owner platform-side (audit the corpus lane's current handling first — no second owner). | OPEN |
+| B7 | J6 error-prefix strip (18 witnesses) | RESEARCH FIRST: how does upstream's own relational adapter treat DB transport prefixes for these same tests? Upstream-identical treatment = reference-parity BOUNDARY with receipt; anything else = the real error-shape fix comes INTO this campaign, no strip survives adjudication. | OPEN |
+| B8 | P7 Decimal→Float relabel (1 witness) | Real pure's Float literals ARE decimal-exact (testBigFloatAbs asserts the digits): the truthful fix is label fidelity — the typer labels the literal Float while the carrier stays decimal-exact, the census registers the DECIMAL←Float pair, the adapter keys on the PLATFORM label. The relabel arm then dies. | OPEN |
+| B9 | `substituteOpenVariables` "not capture-safe" (audit C21) | PROOF, not code: the substitution replaces variables with CLOSED VALUES (captured lambdas are closed terms) — closed-term substitution cannot capture. Written argument lands in the file; the nitpick dies by proof or, if the proof fails on a witness, by α-freshening. | OPEN |
+| B10 | `objectToGrammar` unguarded on cyclic instances | The collector's chain-seen guard, same mechanism, printer-side. | OPEN |
+| B11 | Class extraction degrades type parameters to Any | Bounded honestly: emit the parameter list when the source class is generic (extraction reads M3 typeParameters), or wall LOUDLY on generic user classes instead of degrading silently. | OPEN |
+| — | Structure: split `ExecuteLegendLiteQuery` → `PctExecuteNative` / `ModelPacker` / `ValueBridge` | The file seams become the architecture (permanent bijection / transport-contingent packer / thin entry). LAST batch, after the burns, so renames don't churn the diffs. | OPEN |
+
+OUT of even this campaign: Gap A itself (the structural transport —
+the packer's existence is the honest cost of a text wire, and B3/B11
+make its content verbatim-faithful); Variant/ScenarioQuant wiring
+(scope growth, not truthfulness).
+
 ## 6. Landing record
 
 - **2026-08-27 — the fold-in batch (D91 + D94)**: instance equality's
