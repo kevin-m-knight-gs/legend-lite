@@ -123,7 +123,13 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // deactivate() reflects the EXPRESSION (a ValueSpecification metamodel
             // object) — legend-lite compiles to SQL and holds no expression tree at
             // run time; metamodel reflection is out of vocabulary.
-            one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "\"unknown function 'meta::pure::functions::meta::deactivate' — no function of this name in the native or user catalog (unported platform function, or a misspelling)\""));
+            // 2026-08-27 leg 3b: the B lane PASSES this row (deactivate
+            // folds at TYPE time and the verdict reads the TypedTypeRef —
+            // B-FIXES-A); the A lane's composition EXECUTES the let
+            // eagerly, so the un-lowerable reflection carrier walls
+            // loudly at the Lowerer (correct: deactivate is compile-time
+            // and must never reach MIR)
+            one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "scalar lowering not yet implemented for TypedDeactivate"));
 
     public static Test suite() {
         // M4 §3.4: the census gate pins this JVM's SqlTypeCensus

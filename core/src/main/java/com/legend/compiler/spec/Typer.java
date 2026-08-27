@@ -1232,6 +1232,23 @@ final class Typer {
     private TypedSpec applyCore(CoreFn fn, AppliedFunction af, Env env) {
         return switch (fn) {
             case LET -> LetChecker.check(this, af, env);
+            // leg 3b: deactivate(e) is COMPILE-TIME reflection — the node
+            // carries the argument's DECLARED type (a match reports its
+            // all-branch LUB, never the emission-narrowed selection) and
+            // folds away entirely at .genericType.rawType (accessProperty)
+            case DEACTIVATE -> {
+                if (af.parameters().size() != 1) {
+                    throw new TypeInferenceException(
+                            "deactivate takes exactly one argument");
+                }
+                TypedSpec inner = synth(af.parameters().get(0), env);
+                ExprType declared = inner instanceof
+                        com.legend.compiler.spec.typed.TypedMatch tm
+                        ? tm.declared() : inner.info();
+                yield new com.legend.compiler.spec.typed.TypedDeactivate(
+                        inner, declared, false, ExprType.one(new Type.ClassType(
+                                "meta::pure::metamodel::valuespecification::ValueSpecification")));
+            }
             case IF -> IfChecker.check(this, af, env);
             // ^Class(...) desugars to new(PackageableElementPtr, NewInstance); the inner node
             // carries the payload. ^$var(...) (a Variable receiver) is COPY-
@@ -2772,6 +2789,45 @@ final class Typer {
             return colsMeta;
         }
         TypedSpec source = synth(ap.receiver(), env);
+        // leg 3b: the deactivate reflection chain folds HERE, at TYPE time
+        // — .genericType hops the carrier, .rawType lands the DECLARED
+        // type as a TypedTypeRef (the verdict layer's existing surface).
+        // A LET-bound carrier resolves through the exprAlias channel
+        // (referentially transparent, same as match branches). Any other
+        // property over the carrier is a LOUD wall — the metamodel class
+        // is deliberately unmodeled (absence, never fabrication).
+        TypedSpec reflect = source;
+        if (source instanceof com.legend.compiler.spec.typed.TypedVariable
+                && ap.receiver() instanceof com.legend.protocol.spec.Variable pv
+                // GATED on the metamodel carrier TYPE: an ordinary
+                // let-bound variable's property access must never
+                // re-synth its binding (cost + effect duplication)
+                && source.info().type() instanceof Type.ClassType mc
+                && (mc.fqn().equals(
+                        "meta::pure::metamodel::valuespecification::ValueSpecification")
+                    || mc.fqn().equals(
+                        "meta::pure::metamodel::type::generics::GenericType"))) {
+            var aliased = env.exprAlias(pv.name());
+            if (aliased.isPresent()) {
+                reflect = synth(aliased.get(), env);
+            }
+        }
+        if (reflect instanceof com.legend.compiler.spec.typed.TypedDeactivate td) {
+            if (!td.generic() && ap.property().equals("genericType")) {
+                return new com.legend.compiler.spec.typed.TypedDeactivate(
+                        td.inner(), td.declared(), true,
+                        ExprType.one(new Type.ClassType(
+                                "meta::pure::metamodel::type::generics::GenericType")));
+            }
+            if (td.generic() && ap.property().equals("rawType")) {
+                Type declared = td.declared().type();
+                return new com.legend.compiler.spec.typed.TypedTypeRef(declared,
+                        ExprType.one(declared));
+            }
+            throw new TypeInferenceException("reflection property '"
+                    + ap.property() + "' over deactivate is not modeled"
+                    + " (only genericType.rawType is)");
+        }
         Type.RelationType rt2 = Type.schemaView(source.info().type());
         if (rt2 != null) {
             // TDS surface over relation values (engine TabularDataSet)

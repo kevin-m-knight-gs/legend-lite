@@ -183,6 +183,10 @@ public final class Pure {
     /** Real M3 GenericType — {@code $x->genericType().rawType} reflection
      * (inheritance testGetAll: per-instance member class over a union). */
     public static final ClassDefinition GENERIC_TYPE_META = nativeClass("native Class meta::pure::metamodel::type::generics::GenericType { rawType: meta::pure::metamodel::type::Type[0..1]; }");
+    // leg 3b (dossier D3): the MINIMUM reflection surface — genericType
+    // only, so every other ValueSpecification read walls at ordinary
+    // property resolution instead of fabricating
+    public static final ClassDefinition VALUE_SPECIFICATION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::ValueSpecification { genericType: meta::pure::metamodel::type::generics::GenericType[1]; }");
     /** Real M3's element root (meta::pure::metamodel::ModelElement) — corpus fixtures pass these around. */
     public static final ClassDefinition MODEL_ELEMENT = nativeClass("native Class meta::pure::metamodel::ModelElement extends meta::pure::metamodel::type::Any {}");
 
@@ -1364,6 +1368,9 @@ public final class Pure {
     public static final NativeFunctionDefinition GENERATE_GUID = signature("native function meta::pure::functions::string::generation::generateGuid():meta::pure::metamodel::type::String[1];");
     // real legend-pure platform/pure/essential/meta/type/genericType.pure
     public static final NativeFunctionDefinition GENERIC_TYPE__ANY_MANY = signature("native function meta::pure::functions::meta::genericType(any:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::generics::GenericType[1];");
+    // deactivate.pure:19 verbatim (leg 3b): the CoreFn.DEACTIVATE
+    // checker folds it at TYPE time — never lowered
+    public static final NativeFunctionDefinition DEACTIVATE__ANY_MANY = signature("native function meta::pure::functions::meta::deactivate(var:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::valuespecification::ValueSpecification[1];");
     // real legend-pure platform/pure/essential/meta/instance/getHiddenPayload.pure
     // (compile surface only — reachable solely behind the elementOverride
     // guard, which our execution answers empty)

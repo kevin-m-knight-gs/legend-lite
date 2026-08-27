@@ -119,6 +119,8 @@ final class CollectionLanes {
             case TypedCopyInstance ignored -> true;
             case TypedTypeRef ignored -> true;
             case TypedPackageableRef ignored -> true;
+            // compile-time reflection carrier — folds before lowering
+            case com.legend.compiler.spec.typed.TypedDeactivate ignored -> true;
             // ---- lane-preserving transforms: the SOURCE decides ----
             case TypedIf i -> valueLane(PureSql.thunkBody(i.thenBranch()))
                     && i.elseBranch()

@@ -71,6 +71,13 @@ final class MatchChecker {
         if (runtimeTyped != null) {
             return runtimeTyped;
         }
+        // EVERY branch types (real pure compiles all branches; match<T|m>
+        // binds T across every func's return — the DECLARED LUB the
+        // deactivate reflection lane reads); the FIRST accepting branch
+        // is still the emission (first-match-wins, unchanged).
+        TypedMatch selected = null;
+        Type lub = null;
+        Multiplicity lubMult = null;
         for (LambdaFunction branch : branches(params.get(1), env)) {
             if (branch.parameters().isEmpty() || branch.parameters().size() > 2
                     || branch.body().size() != 1) {
@@ -86,10 +93,6 @@ final class MatchChecker {
                         "match branch parameter '" + param.name() + "' needs a declared type (t:Type[m]|…)");
             }
             Type branchType = t.namedType(param.type());
-            if (!t.kernel().accepts(branchType, input.info().type())
-                    || !multAccepts(param, input.info().multiplicity())) {
-                continue;
-            }
             // The body sees the parameter at the branch's DECLARED (narrowed) type — that
             // is the point of match — at the branch's declared multiplicity (or the input's).
             Multiplicity bound = param.multiplicity() != null
@@ -108,11 +111,26 @@ final class MatchChecker {
                 extraParam = Optional.of(second.name());
             }
             TypedSpec body = t.synth(branch.body().get(0), scope);
-            return new TypedMatch(input, param.name(), body, extraParam,
-                    extraParam.isPresent() ? extra : Optional.empty(), body.info());
+            lub = lub == null ? body.info().type()
+                    : t.kernel().commonSupertype(lub, body.info().type());
+            lubMult = lubMult == null ? body.info().multiplicity()
+                    : Multiplicity.union(lubMult, body.info().multiplicity());
+            if (selected == null
+                    && t.kernel().accepts(branchType, input.info().type())
+                    && multAccepts(param, input.info().multiplicity())) {
+                selected = new TypedMatch(input, param.name(), body, extraParam,
+                        extraParam.isPresent() ? extra : Optional.empty(),
+                        body.info(), null);
+            }
         }
-        throw new TypeInferenceException("match: no branch matches input type '"
-                + input.info().type().typeName() + input.info().multiplicity().text() + "'");
+        if (selected == null) {
+            throw new TypeInferenceException("match: no branch matches input type '"
+                    + input.info().type().typeName() + input.info().multiplicity().text() + "'");
+        }
+        return new TypedMatch(selected.input(), selected.param(), selected.body(),
+                selected.extraParam(), selected.extra(), selected.info(),
+                new ExprType(java.util.Objects.requireNonNull(lub),
+                        java.util.Objects.requireNonNull(lubMult)));
     }
 
     /** Build the runtime-dispatch node when static selection is unsound

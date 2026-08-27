@@ -93,9 +93,15 @@ class ChannelBEssentialTest {
         // (Typer.derivedShadow, the reference's property-route-first
         // ordering); a qualifier-less user instance prints its
         // repository id ('@_' || __id, read IN SQL)
-        assertTrue(pass >= 315,
+        // 316 (2026-08-27 leg 3b): deactivate — the compile-time
+        // reflection carrier (CoreFn fold to TypedTypeRef via the
+        // accessProperty chain; TypedMatch carries its DECLARED
+        // all-branch LUB alongside the emission-narrowed info) —
+        // testMatchWithMixedReturnType joins; the winnable set is EMPTY
+        // modulo the ledger
+        assertTrue(pass >= 316,
                 "channel-B essential PASS fell below the pinned floor: "
-                        + pass + " < 315");
+                        + pass + " < 316");
 
         // THE THREE-BUCKET DIFF (plan addendum #6): channel A's outcome
         // per test is its suite ledger — the expectedFailures list IS

@@ -488,7 +488,9 @@ class NativeFunctionTest {
         // machinery deleted; navigate subsumed it)
         // 200: +relation::Column (2026-08-19 — the columns() reflection
         //     surface; real M3 class, m3.pure:3530)
-        assertEquals(200, Pure.allNativeClasses().size(),
+        // 201: +valuespecification::ValueSpecification (2026-08-27
+        //     leg 3b — deactivate's return class; genericType only)
+        assertEquals(201, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -896,6 +898,16 @@ class NativeFunctionTest {
                 assertEquals(List.of("values"),
                         c.properties().stream().map(p -> p.name()).toList(),
                         "List declares exactly values (real pure anonymousCollections.pure:33-35)");
+            } else if (c.qualifiedName().equals(
+                    "meta::pure::metamodel::valuespecification::ValueSpecification")) {
+                // leg 3b (2026-08-27): the MINIMUM reflection surface —
+                // real M3 declares the property (m3.pure bootstrap,
+                // ValueSpecification.properties[genericType], e.g. :1140);
+                // ONLY genericType so every other read walls loudly
+                assertEquals(List.of("genericType"),
+                        c.properties().stream().map(p -> p.name()).toList(),
+                        "ValueSpecification declares exactly genericType"
+                                + " (the deactivate reflection minimum)");
             } else if (c.qualifiedName().equals(
                     "meta::pure::metamodel::relation::Column")) {
                 // real M3 Column (m3.pure:3530): name is String[0..1]
