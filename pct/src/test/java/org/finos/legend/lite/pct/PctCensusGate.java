@@ -143,7 +143,11 @@ public final class PctCensusGate {
     // an always-present label — 49 on this lane (46 HUGEINT
     // empty-group sums + 3 DOUBLE float aggregates). Ceiling;
     // burns at the nullability-inference leg.
-    private static final long MAX_NULL_BREACH = 49;
+    // §E3 M-N3 (2026-08-27): labels adopt slot-truth nullability at
+    // construction — a wire NULL under a never-null label is a
+    // compiler bug. 49 (46 HUGEINT empty-group sums + 3 DOUBLE,
+    // E2E-audit measure) -> 0 at the flip.
+    private static final long MAX_NULL_BREACH = 0;
     // §4bZ-V B3+B4 (2026-08-26): the admissible bucket is DELETED with
     // the relation itself — the temporal-text traffic is the
     // TEMPORAL_TEXT carrier, the JSON egress conforms by emission, and

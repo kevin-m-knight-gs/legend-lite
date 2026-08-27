@@ -884,3 +884,54 @@ SqlTypingTest `groupByRefinesReducerSlots` (all probed roster arms).
 are the flip's adjudication sets; `slotNullable` is the adoption
 function; the property-echo authority deletes at the flip slice
 (no adapter hedge).
+
+### M-N3 LANDING RECORD (2026-08-27) — THE FLIP
+
+**Landed, full chain green, breach EQUALITY-0 BOTH LANES.**
+
+**The mechanism:** `reconcileLabels(projections, groupBy, outputs)` —
+every paired projection's label nullability ADOPTS
+`slotNullable(pe, grouped)` in BOTH directions; the kind/tolerance
+arms are restructured onto one final `(type, nullable, tolerated)`
+write per slot, byte-equivalent to the old arms (the untagged-adopt
+branch still drops the tag; the projected-NullLit N1 arm is DELETED —
+subsumed by Bottom-is-nullable adoption). `reconcileUnionLabels`
+adopts the branches' OR outright (the contract echo is no longer a
+floor). The property-multiplicity echo survives only as the
+pre-reconcile SEED (dead for every paired frame; star frames' born
+outputs are the M-N2 DDL/pad authorities; the value-frame switch
+keeps multiplicity — the value lane's truth channel). Non-Typed slots
+adopt too: Unknown -> nullable (safe), Bottom -> nullable, Raises ->
+required (vacuous).
+
+**The measurement (clean run; a first measure was VOIDED — a doc
+comment landed mid-run, the read-only-during-runs rule applied):
+null-breach 841 -> 0. Differential under-declared 15,469 -> 0,
+over-declared 605 -> 0** (structural: labels ARE slot truth);
+agree-nullable 7,964 -> 24,664. The 605 tightened labels (nullable ->
+required) produced ZERO wire NULLs — the DDL never-null proofs held
+empirically. Type-channel census byte-identical (agree/subsumed/
+tolerated/mismatch/untyped all standing).
+
+**Pins hardened:** corpus null-breach ceiling(<=925) -> EQUALITY-0
+("a wire NULL under a never-null label is a compiler bug — the
+fact's proof was false"); NEW differential EQUALITY-0 pin (label
+nullability diverged from slot truth = a frame door bypassed
+reconciliation); pct MAX_NULL_BREACH 49 -> 0 (the empty-group
+HUGEINT/DOUBLE family closed by adoption — G6/G7 green on first
+run). The M-N1 factWitness legacy-format shim RETIRED (witnesses
+print the full fact). RequiredNullableCensus re-roled in its header:
+pure model-debt register (property promises [1], label honestly
+nullable) — the dialect-split warning's firing list, nothing else.
+
+**E3 ACCEPTANCE MET:** breach EQUALITY-0 both lanes ✓; property-echo
+authority deleted (adoption unconditional; N1 arm gone) ✓; zero
+exec-text movement (row verdicts, scoreboard, goldens all
+byte-stable across G4/G5/G8) ✓; full chain green per milestone ✓.
+
+**M-N4 residue check:** the pct 49 empty-group family closed HERE
+(adoption, not a separate slice); remaining M-N4 items = bottomMult
+re-adjudication (already structurally 0 — the census arm's comment
+refresh), D94's struct-field note, E2E seam-table refresh, and
+triage D27's closure note (the GROUP-BY refinement is live at the
+label seam).

@@ -999,23 +999,39 @@ public class RelationalCorpusRunner {
                                     + " past 97 — the census is going"
                                     + " blind on pairings it cannot"
                                     + " adjudicate"),
-                    // E2E-AUDIT CONVERSE CENSUS (TYPE_E2E_AUDIT §3,
-                    // 2026-08-26): wire NULL under an always-present
-                    // label — 925 measured (638 VARCHAR + 124 BIGINT +
-                    // 122 DOUBLE + 34 BOOLEAN + 7 HUGEINT; outer-join
-                    // slots, empty-group aggregates, subtype-pad-fed
-                    // sums, exprs over nullable reads). Values are
-                    // engine-correct; the label under-declares —
-                    // TypeFact carries no nullability, so expression
-                    // re-reads cannot transport it. Ceiling, down-only;
-                    // the burn is the chartered nullability-inference
-                    // leg.
-                    () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            com.legend.exec.SqlTypeCensus
-                                    .nullBreachCount() <= 925,
-                            "null-under-required-label breaches grew: "
+                    // E2E-AUDIT CONVERSE CENSUS → §E3 M-N3 TRIPWIRE
+                    // (2026-08-27): labels adopt slot-truth nullability
+                    // at construction (TypeFact.nullable through the
+                    // fact funnel: DDL base frames + join-pad
+                    // provenance + probed composition rules + GROUP-BY
+                    // refinement), so a wire NULL under a
+                    // nullable=false label is a COMPILER BUG — the
+                    // fact's never-null proof was false. Burn-down:
+                    // 925 measured (E2E audit) -> 841 (M-N2 pad
+                    // weakening) -> 0 (the flip; the 605 tightened
+                    // over-declared labels produced ZERO breaches —
+                    // the DDL proofs held). EQUALITY at zero, always
+                    // loud, witnesses in the failure.
+                    () -> org.junit.jupiter.api.Assertions.assertEquals(
+                            0, com.legend.exec.SqlTypeCensus
+                                    .nullBreachCount(),
+                            "wire NULL under a never-null label (a fact"
+                                    + " proof was false): "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
+                    // §E3 M-N3: the fact-vs-label differential is a
+                    // CONSTRUCTION INVARIANT post-flip (reconciled
+                    // labels ARE slotNullable) — a nonzero row means a
+                    // frame door bypassed reconciliation or a rebuild
+                    // dropped adopted labels. EQUALITY at zero.
+                    () -> org.junit.jupiter.api.Assertions.assertEquals(
+                            0L, com.legend.exec.SqlTypeCensus
+                                    .nullableUnderDeclaredCount()
+                                    + com.legend.exec.SqlTypeCensus
+                                            .nullableOverDeclaredCount(),
+                            "label nullability diverged from slot truth: "
+                                    + com.legend.exec.SqlTypeCensus
+                                            .nullableDifferentialSummary()),
                     // R1b census pin (CANONICAL_FORM_SPEC §0, measured
                     // 2026-08-22): 27 grid-text verdicts pass only via
                     // the kept leniencies — 6 row-order-only (R2's

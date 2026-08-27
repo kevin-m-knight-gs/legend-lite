@@ -107,16 +107,22 @@ public final class SqlTyping {
 
     /** Label reconciliation — called by {@link SqlSelect}'s canonical
      * constructor (the compact-constructor idiom: the select's labels
-     * are a property of the select, computed once). Equal or ADMITTED
-     * keeps the pure-contract erasure; a label lie ADOPTS the wire.
-     * (A third CONFORM-by-emitted-cast verdict was tried at this seam
-     * and REVERTED by the referee — a type-pair cannot distinguish
+     * are a property of the select, computed once). KIND: equal or
+     * ADMITTED keeps the pure-contract erasure; a label lie ADOPTS the
+     * wire. (A third CONFORM-by-emitted-cast verdict was tried at this
+     * seam and REVERTED by the referee — a type-pair cannot distinguish
      * the concrete-Float conversion from the abstract-Number identity
      * carrier; conformance by emission lives at the STAMP-GUARDED
-     * mapping-read seam in the lowering — T4 leg 1.) Star frames
-     * carry no per-column claim. */
+     * mapping-read seam in the lowering — T4 leg 1.) NULLABILITY (§E3
+     * M-N3 — THE FLIP): the label ADOPTS the slot truth
+     * ({@link #slotNullable}) in BOTH directions — the pure-multiplicity
+     * echo is no longer an authority here (the [1] contract stays the
+     * PURE type; the SQL label speaks the physics). A wire NULL under a
+     * nullable=false label is thereafter a compiler bug, pinned
+     * EQUALITY-0. Star frames carry no per-column claim (their born
+     * outputs are the DDL/join-pad authorities, M-N2). */
     static @com.legend.Nullable List<OutputCol> reconcileLabels(
-            List<SqlSelect.Projection> projections,
+            List<SqlSelect.Projection> projections, List<SqlExpr> groupBy,
             @com.legend.Nullable List<OutputCol> outputs) {
         if (outputs == null) {
             return null;
@@ -147,67 +153,49 @@ public final class SqlTyping {
             }
             shift = outputs.size() - (projections.size() - 1);
         }
+        boolean grouped = !groupBy.isEmpty();
         List<OutputCol> os = null;
         for (int p = shift == 0 ? 0 : 1; p < projections.size(); p++) {
             int i = shift == 0 ? p : shift + (p - 1);
             SqlExpr pe = projections.get(p).expr();
-            // N1 (§4bZ-V E, the nullability program): a projected
-            // LITERAL NULL declares its slot nullable — the slot truth,
-            // known at construction. Union member threads pad the other
-            // members' columns with literal NULL under the ORIGINAL
-            // column's required multiplicity (the NULL is correct, the
-            // label lied; N0 machine-counted the whole 6,472-row corpus
-            // backlog as exactly this shape). The pure-level [1]
-            // contract is untouched — member merging restores presence
-            // above the pads. Computed bottoms (NULL-propagating
-            // expressions) keep the contract and stay counted in the
-            // census ledger.
-            if (pe instanceof SqlExpr.NullLit) {
-                OutputCol nc = outputs.get(i);
-                if (!nc.nullable()) {
-                    if (os == null) {
-                        os = new java.util.ArrayList<>(outputs);
-                    }
-                    os.set(i, new OutputCol(nc.name(), nc.type(), true,
-                            nc.tolerated()));
-                }
-                continue;
-            }
-            if (!(pe.type() instanceof TypeFact.Typed t)) {
-                continue;   // unknown/computed-bottom wires keep the
-                            // contract
-            }
             OutputCol oc = outputs.get(i);
-            SqlType computed = t.type();
-            // ENGINE-COMPAT carry-through (charter §4bZ, replaces the
-            // two blanket coercion arms): a TAGGED read keeps its
-            // declared label across the registered kind pairs, and the
-            // slot records the tolerance (the wire census reads it; an
-            // UNTAGGED mismatch falls through to adoption — loud).
-            // The tag also PROPAGATES through stamped re-reads (an
-            // upper select's column claims the lower's label — equal
-            // types, tolerated fact): the slot stays marked at every
-            // level, so the FINAL plan's outputs carry the tolerance
-            // the wire census needs.
-            boolean tol = t.tolerated()
-                    && (computed.equals(oc.type())
-                            || carryThrough(oc.type(), computed));
-            if (tol && !oc.tolerated()) {
-                if (os == null) {
-                    os = new java.util.ArrayList<>(outputs);
+            SqlType type = oc.type();
+            boolean tolSlot = oc.tolerated();
+            if (pe.type() instanceof TypeFact.Typed t) {
+                SqlType computed = t.type();
+                // ENGINE-COMPAT carry-through (charter §4bZ, replaces
+                // the two blanket coercion arms): a TAGGED read keeps
+                // its declared label across the registered kind pairs,
+                // and the slot records the tolerance (the wire census
+                // reads it; an UNTAGGED mismatch falls through to
+                // adoption — loud). The tag also PROPAGATES through
+                // stamped re-reads (an upper select's column claims the
+                // lower's label — equal types, tolerated fact): the
+                // slot stays marked at every level, so the FINAL plan's
+                // outputs carry the tolerance the wire census needs.
+                if (t.tolerated() && (computed.equals(oc.type())
+                        || carryThrough(oc.type(), computed))) {
+                    tolSlot = true;
+                } else if (!computed.equals(oc.type())
+                        && !subsumes(oc.type(), computed)) {
+                    // untagged label lie: adopt the wire, tag dropped
+                    type = computed;
+                    tolSlot = false;
                 }
-                os.set(i, new OutputCol(oc.name(), oc.type(),
-                        oc.nullable(), true));
-                continue;
             }
-            if (computed.equals(oc.type())
-                    || subsumes(oc.type(), computed) || tol) {
+            // §E3 M-N3 THE FLIP: nullability adopts the slot truth in
+            // both directions (the projected-NullLit N1 arm is
+            // subsumed — a Bottom slot IS nullable by definition;
+            // union pads restore presence above by member merging).
+            boolean nul = SqlTyping.slotNullable(pe, grouped);
+            if (type.equals(oc.type()) && nul == oc.nullable()
+                    && tolSlot == oc.tolerated()) {
                 continue;
             }
             if (os == null) {
                 os = new java.util.ArrayList<>(outputs);
             }
-            os.set(i, new OutputCol(oc.name(), computed, oc.nullable()));
+            os.set(i, new OutputCol(oc.name(), type, nul, tolSlot));
         }
         return os == null ? outputs : List.copyOf(os);
     }
@@ -258,7 +246,10 @@ public final class SqlTyping {
             }
             SqlType type = !t.equals(oc.type()) && !subsumes(oc.type(), t)
                     && !tol ? t : oc.type();
-            boolean nullable = oc.nullable() || nul;
+            // §E3 M-N3: the union cell's nullability ADOPTS the
+            // branches' OR (a cell is nullable exactly when some
+            // branch's is — the contract echo is no longer a floor)
+            boolean nullable = nul;
             boolean tolerated = oc.tolerated() || tol;
             if (type.equals(oc.type()) && nullable == oc.nullable()
                     && tolerated == oc.tolerated()) {

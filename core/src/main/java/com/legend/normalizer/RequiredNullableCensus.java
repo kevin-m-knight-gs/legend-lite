@@ -25,6 +25,12 @@ import java.util.HashSet;
  * NULL — the static, compile-time-knowable slice of the wire-breach
  * census (E2E audit's 925).
  *
+ * <p>RE-ROLED at §E3 M-N3 (the label flip): SQL-layer labels now adopt
+ * slot truth at construction, so these pairings no longer produce
+ * label lies — each row is pure MODEL DEBT (the property PROMISES [1],
+ * the label honestly says nullable). This register is the
+ * dialect-split warning's firing list and nothing else.
+ *
  * <p>Deliberately a CENSUS, not a warning: on the engine's own fixture
  * models it fires wholesale (fixture debt — wrong audience); the
  * user-facing diagnostic waits for the dialect-levels split, and this

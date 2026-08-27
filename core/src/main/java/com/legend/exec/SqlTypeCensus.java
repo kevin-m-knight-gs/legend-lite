@@ -140,6 +140,16 @@ public final class SqlTypeCensus {
         }
     }
 
+    /** §E3 M-N3 pins: post-flip both counts are construction
+     * invariants (reconciled labels ARE the slot truth). */
+    public static long nullableUnderDeclaredCount() {
+        return NUL_UNDER_DECLARED.sum();
+    }
+
+    public static long nullableOverDeclaredCount() {
+        return NUL_OVER_DECLARED.sum();
+    }
+
     public static String nullableDifferentialSummary() {
         return "agree-required=" + NUL_AGREE_REQUIRED.sum()
                 + " agree-nullable=" + NUL_AGREE_NULLABLE.sum()
@@ -325,21 +335,12 @@ public final class SqlTypeCensus {
         if (plan instanceof SqlSelect s
                 && s.projections().size() == s.outputs().size()) {
             SqlExpr e = s.projections().get(i).expr();
-            return name + " := " + sketch(e) + " fact=" + factWitness(e.type());
+            // §E3 M-N3: the full fact prints (the M-N1 legacy-format
+            // shim retired with the flip — a breach witness's
+            // nullability IS the evidence now)
+            return name + " := " + sketch(e) + " fact=" + e.type();
         }
         return name;
-    }
-
-    /** The stored-fact spelling for D1/converse witnesses — PINNED to
-     * the pre-§E3 record print (type + tolerance) so the existing
-     * census dumps stay byte-stable while the nullability dimension
-     * lands consumer-less (M-N1). The M-N3 flip re-roles these
-     * witnesses and retires this formatter for the full fact. */
-    private static String factWitness(TypeFact f) {
-        return f instanceof TypeFact.Typed t
-                ? "Typed[type=" + t.type() + ", tolerated="
-                        + t.tolerated() + "]"
-                : String.valueOf(f);
     }
 
     /** Per-statement D1 watch state — set by {@link #probeWire},

@@ -29,7 +29,9 @@ public record SqlSelect(List<Projection> projections, boolean distinct,
         // idempotent, structurally unable to drift. (Conform-by-
         // emission lives at the stamp-guarded lowering seam, not here
         // — the referee's castErasure verdict, charter T4 leg 1.)
-        outputs = SqlTyping.reconcileLabels(projections, outputs);
+        // §E3 M-N3: nullability adopts the slot truth (reconcile reads
+        // the GROUP BY for the non-empty-group reducer refinement)
+        outputs = SqlTyping.reconcileLabels(projections, groupBy, outputs);
     }
 
     /** {@code SELECT * FROM source} with every other clause empty. */
