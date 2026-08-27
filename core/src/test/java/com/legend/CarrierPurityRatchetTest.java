@@ -150,7 +150,13 @@ class   CarrierPurityRatchetTest {
             // guess). Sits in the SAME arm as the pre-existing
             // property-nav LIST_TRANSFORM; both absorb together when
             // property navigation moves behind its semantic node.
-            "SqlFn\\.LIST_", 134,
+            // 134→135 (2026-08-27 Channel B leg-4 batch): the sort
+            // rule's dedup SEE-THROUGH pattern-MATCHES the existing
+            // orderedDedup emission (dc.fn() == SqlFn.LIST_FILTER) —
+            // a structural READ of a carrier idiom, not a new
+            // emission; absorbs when dedup moves behind its semantic
+            // node with the rest of the family.
+            "SqlFn\\.LIST_", 135,
             "SqlFn\\.UNNEST", 12,
             // the collect-carrier reducer (R1 recognizes it for fusion;
             // burns with R3/R4 when sources/values migrate)

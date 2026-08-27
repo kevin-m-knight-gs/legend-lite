@@ -1007,7 +1007,43 @@ final class Scalars {
                     return args.get(0);
                 }
                 if (n.args().size() == 1) {
-                    MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
+                    TypedSpec sortOperand = n.args().get(0);
+                    SqlExpr sortLowered = args.get(0);
+                    // SEE-THROUGH a plain removeDuplicates (callee-FQN
+                    // identified, never a name string): sort∘dedup =
+                    // dedup∘sort over identical (id, comparable) pairs, so
+                    // the encoding reads the INNER collection and the pair
+                    // subselect dedups with DISTINCT
+                    // (testRemoveDuplicates...MixedTypes sorts a dedup).
+                    boolean dedup = false;
+                    if (sortOperand instanceof
+                                com.legend.compiler.spec.typed.TypedNativeCall dd
+                            && Pure.nativeKeysAt("removeDuplicates")
+                                    .contains(dd.callee().signatureKey())
+                            && !dd.args().isEmpty()
+                            && sortLowered instanceof SqlExpr.Call dc
+                            && dc.fn() == SqlFn.LIST_FILTER
+                            && unwrapArrayCast(dc.args().get(0))
+                                    instanceof SqlExpr.ArrayLit innerLa) {
+                        sortOperand = dd.args().get(0);
+                        sortLowered = innerLa;
+                        dedup = true;
+                    }
+                    MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(sortOperand, sortLowered);
+                    if (mx == null) {
+                        // ANY-LUB mixed kinds (ints + strings): the rank-
+                        // struct comparable orders by the engine's compare
+                        // groups; the identity channel is the carrier's own
+                        // literal lane (testRemoveDuplicates...MixedTypes)
+                        mx = MixedEncoding.rankedElems(sortOperand, sortLowered);
+                    }
+                    if (mx == null && dedup) {
+                        // dedup detected but the inner shape isn't
+                        // encodable — fall back to the ORIGINAL operand
+                        sortOperand = n.args().get(0);
+                        sortLowered = args.get(0);
+                        dedup = false;
+                    }
                     if (mx != null) {
                         // identity-preserving mixed sort: order the ids by
                         // their comparables (parallel select-list unnests)
@@ -1016,7 +1052,7 @@ final class Scalars {
                                         SqlExpr.Call.of(SqlFn.UNNEST, mx.idList()), "i"),
                                 new SqlSelect.Projection(
                                         SqlExpr.Call.of(SqlFn.UNNEST, mx.valList()), "v")),
-                                false, new com.legend.sql.SqlSource.Dual(), null,
+                                dedup, new com.legend.sql.SqlSource.Dual(), null,
                                 List.of(), null, null, List.of(),
                                 null, null, List.of());
                         var src = new SqlSource.Subselect(inner, "_mx", null);
@@ -2758,6 +2794,13 @@ final class Scalars {
                     a.elements().stream().map(Scalars::undoubled).toList());
             default -> e.mapChildren(Scalars::undoubled);
         };
+    }
+
+    /** A typed-list conformance cast peels off (PureSql.typedList wraps
+     * the literal carrier in CAST(x AS T[]) — shape-transparent). */
+    static SqlExpr unwrapArrayCast(SqlExpr e) {
+        return e instanceof SqlExpr.Cast c
+                && c.target() instanceof SqlType.Array ? c.value() : e;
     }
 
     /** {@code CASE WHEN cond THEN error(msg) ELSE value END} — a DATABASE-raised guard. */

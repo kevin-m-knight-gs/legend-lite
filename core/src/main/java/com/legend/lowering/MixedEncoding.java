@@ -208,6 +208,86 @@ final class MixedEncoding {
         return null;
     }
 
+    /** The ANY-LUB two-channel encoding for SORT (interpreted
+     * Compare.java's general case): identity = the pure-literal spelling
+     * (the carrier's own lane), comparable = a RANK STRUCT ordering
+     * cross-kind by comparison group — numbers &lt; dates &lt; Boolean
+     * &lt; String ({@code PRIMITIVE_TYPE_COMPARISON_ORDER} collapsed to
+     * its comparable groups: numbers compare numerically ACROSS
+     * Integer/Float, dates chronologically ACROSS kinds — the engine's
+     * numeric/date arms run before the rank fallback) — and within a
+     * group by the group's own channel. Null = an element outside the
+     * spellable primitives (the caller keeps its current lane). */
+    static @com.legend.Nullable MixedElems rankedElems(TypedSpec arg,
+            SqlExpr lowered) {
+        if (!(arg instanceof TypedCollection c)
+                || c.elements().size() < 2
+                || !(lowered instanceof SqlExpr.ArrayLit la)
+                || la.elements().size() != c.elements().size()
+                || !PlatformTypes.isAny(c.info().type())) {
+            return null;
+        }
+        List<SqlExpr> ids = new ArrayList<>();
+        List<SqlExpr> vals = new ArrayList<>();
+        for (int i = 0; i < c.elements().size(); i++) {
+            TypedSpec e = c.elements().get(i);
+            // the Any-LUB carrier's elements ARE the pure-literal
+            // spellings already (the literal lane built them) — the
+            // identity passes through VERBATIM; the comparable derives
+            // from the spelling by the element's STATIC kind
+            SqlExpr x = la.elements().get(i);
+            SqlExpr cmp = rankedComparable(e, x);
+            if (cmp == null) {
+                return null;
+            }
+            ids.add(x);
+            vals.add(cmp);
+        }
+        return new MixedElems(ids, vals);
+    }
+
+    /** One element's rank-struct comparable, derived FROM ITS SPELLING —
+     * field order IS the comparison order (struct ordering is
+     * lexicographic); exactly one group channel is non-null, and the
+     * NULL slots carry their declared types (the StructLit declared-slot
+     * arm). Number spellings cast back numerically; a string's quoted
+     * spelling preserves string order under its constant quote prefix;
+     * boolean spellings order 'false' &lt; 'true' textually. Decimal
+     * (D-suffix spelling) and temporal (%-form) kinds bail — their
+     * spellings don't cast back; the caller keeps its lane. */
+    private static @com.legend.Nullable SqlExpr rankedComparable(
+            TypedSpec e, SqlExpr x) {
+        Type t = e.info().type();
+        int group;
+        SqlExpr n = null;
+        SqlExpr d = null;
+        SqlExpr s = null;
+        if (t == Type.Primitive.INTEGER || t == Type.Primitive.FLOAT
+                || t == Type.Primitive.NUMBER) {
+            group = 0;
+            n = new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE);
+        } else if (t == Type.Primitive.BOOLEAN) {
+            group = 2;
+            s = x;
+        } else if (t == Type.Primitive.STRING) {
+            group = 3;
+            s = x;
+        } else {
+            return null;
+        }
+        return new SqlExpr.StructLit(List.of(
+                new SqlExpr.StructLit.Field("g", new SqlExpr.IntLit(group)),
+                new SqlExpr.StructLit.Field("n",
+                        n != null ? n : new SqlExpr.NullLit(),
+                        SqlType.Scalar.DOUBLE),
+                new SqlExpr.StructLit.Field("d",
+                        d != null ? d : new SqlExpr.NullLit(),
+                        SqlType.Scalar.TIMESTAMP),
+                new SqlExpr.StructLit.Field("s",
+                        s != null ? s : new SqlExpr.NullLit(),
+                        SqlType.Scalar.VARCHAR)));
+    }
+
     /** A date operand's chronological comparable (strptime-padded partials); non-dates pass through. */
     static SqlExpr dateComparableOrSelf(TypedSpec e,
                                         SqlExpr x) {

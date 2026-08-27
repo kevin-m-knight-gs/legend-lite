@@ -951,6 +951,35 @@ public final class InferenceKernel {
                 List<TypedFunction> nativeWinners = winners.stream()
                         .filter(TypedFunction::isNative).toList();
                 if (nativeWinners.size() != 1) {
+                    // ENGINE bottom-value rule (GenericTypeMatch
+                    // MATCH_CAUTIOUSLY): a []-born argument is real pure's
+                    // UNRESOLVED T at match time, and a non-concrete value
+                    // matches ONLY a top-type or type-parameter formal —
+                    // relation::toString(Relation<T>) never even matches
+                    // the empty lambda's x where toString(Any) does
+                    // (testRemoveDuplicatesEmptyListExplicit). Our kernel
+                    // binds T=Nil eagerly, so the same rule applies here
+                    // as a TIE-break: a Nil-typed argument narrows the
+                    // tied winners to what real pure would have matched.
+                    List<TypedFunction> byBottom = winners;
+                    for (int i = 0; i < args.size(); i++) {
+                        if (!PlatformTypes.isNil(args.get(i).type())) {
+                            continue;
+                        }
+                        final int ai = i;
+                        List<TypedFunction> kept = byBottom.stream()
+                                .filter(w -> {
+                                    Type p = w.parameters().get(ai).type();
+                                    return PlatformTypes.isAny(p)
+                                            || p instanceof Type.TypeVar;
+                                }).toList();
+                        if (!kept.isEmpty()) {
+                            byBottom = kept;
+                        }
+                    }
+                    if (byBottom.size() == 1) {
+                        return resolveChosen(byBottom.get(0), args, name);
+                    }
                     throw new TypeInferenceException("ambiguous overload of '" + name + "': "
                             + winners.size() + " candidates tie for the argument types");
                 }

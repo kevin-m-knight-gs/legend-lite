@@ -138,7 +138,15 @@ public final class PctCensusGate {
     // fixtures — greatest/least_Empty et al.); a valued column lands
     // in diverge (EQUALITY-0) instead. Ceiling, shape-driven.
     private static final long MAX_WIRE_UNKNOWN = 0;
-    private static final long MAX_INT_NULL_EMPTY = 219;
+    // 219→226 (2026-08-27 Channel B leg-4 batch): mangled function
+    // ids now RESOLVE as value references, so the two previously
+    // ERRORING tests (testContainsWithFunction,
+    // testRemoveDuplicates...Explicit — ResolutionException, NO plan)
+    // compile real plans whose empty-fixture columns join this bucket
+    // — compile-COVERAGE growth, not a typed-column degradation
+    // (cumulative per-JVM counter: 223 Essential / 226 by
+    // Unclassified).
+    private static final long MAX_INT_NULL_EMPTY = 226;
     // E2E-audit converse census (TYPE_E2E_AUDIT §3): wire NULL under
     // an always-present label — 49 on this lane (46 HUGEINT
     // empty-group sums + 3 DOUBLE float aggregates). Ceiling;

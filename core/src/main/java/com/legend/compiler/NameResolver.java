@@ -1499,6 +1499,24 @@ public final class NameResolver {
                             q.tree(), q.pos());
             case PackageableElementPtr ptr -> {
                 String r = resolveName(ptr.fullPath(), scope);
+                // A BARE MANGLED function id in value position (leg 4:
+                // contains(x, comparator_A_1__A_1__Boolean_1_) — the
+                // reference tests pass same-package functions BY REFERENCE
+                // via their signature id): the id itself is never a known
+                // FQN (the catalog keys base names), so resolve the BASE
+                // through the same import/own-package tiers and re-attach
+                // the tail; the Typer's function-reference eta-expansion
+                // consumes the qualified id.
+                if (r.equals(ptr.fullPath()) && !r.contains("::")) {
+                    String base = com.legend.compiler.spec.SignatureMangle
+                            .stripTail(r);
+                    if (base != null) {
+                        String rb = resolveName(base, scope);
+                        if (!rb.equals(base)) {
+                            r = rb + r.substring(base.length());
+                        }
+                    }
+                }
                 yield r.equals(ptr.fullPath()) ? ptr : new PackageableElementPtr(r);
             }
             case EnumValue ev -> {

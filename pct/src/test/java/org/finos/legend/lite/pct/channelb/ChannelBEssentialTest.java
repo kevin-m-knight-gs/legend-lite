@@ -79,9 +79,15 @@ class ChannelBEssentialTest {
         // findBestCommonGenericType isFunction arm: contravariant param
         // meet, covariant return join) + the Env.exprAlias let-syntax
         // channel so match branches resolve through a let-bound variable
-        assertTrue(pass >= 308,
+        // 312 (Channel B leg 4 + leg-6 tie + mixed sort, 2026-08-27):
+        // mangled function ids resolve as value references (NameResolver
+        // tail-aware ptr arm + the existing eta-expansion); the engine's
+        // bottom-value rule breaks Nil-argument overload ties; Any-LUB
+        // mixed sort orders by the engine's compare groups (rank-struct
+        // comparable over the literal carrier, dedup seen through)
+        assertTrue(pass >= 312,
                 "channel-B essential PASS fell below the pinned floor: "
-                        + pass + " < 308");
+                        + pass + " < 312");
 
         // THE THREE-BUCKET DIFF (plan addendum #6): channel A's outcome
         // per test is its suite ledger — the expectedFailures list IS
