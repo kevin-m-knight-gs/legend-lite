@@ -784,6 +784,17 @@ of the 14,420; the 1,177 over-declared rows are M-N2/M-N3 homework
 where the fact proves presence; most should dissolve when M-N2 makes
 leaves DDL-true).
 
+TOP CLASSES (hand-run G4 decomposition, preserved witnesses): under-
+declared = 6,063 Column VARCHAR + 3,214 Column BIGINT (the E2E
+audit's re-read family — the fact TRANSPORTS the child slot's
+nullable while the outer label re-echoes the [1]; the transport is
+doing its job) + 929 UNNEST VARCHAR (CompactList carrier reads) +
+732 Reducer DOUBLE + 675/339 ScalarSubquery (empty-group aggregates
+and zero-row envelopes — the breach census's own families); over-
+declared = 611 Column BIGINT + 390 Column VARCHAR (echo says
+nullable, transported fact proves present — the DDL-truth swap at
+M-N2 adjudicates these).
+
 **Byte-stability note:** the D1/converse watch witness printed the raw
 record toString (`fact=Typed[...]`) — pinned to the pre-§E3 spelling
 via `factWitness` (type + tolerance); M-N3 re-roles those witnesses
