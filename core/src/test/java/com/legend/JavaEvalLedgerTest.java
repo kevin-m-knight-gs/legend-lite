@@ -79,7 +79,11 @@ class JavaEvalLedgerTest {
             // 250 -> 259 (B4): the no-shadowing WALL — a fixture function
             // colliding with a lite-native name refuses injection loudly;
             // guard growth, anti-compensation
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ModelPacker.java", 259),
+            // 259 -> 266 (B3+B11): the decoration-strip regexes DELETED
+            // (verbatim injection, probed) and the silent property-drop
+            // channels became LOUD WALLS (generic classes, no-path
+            // types) — wall growth, zero evaluation
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ModelPacker.java", 266),
             Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 353),
             Map.entry("core/src/main/java/com/legend/exec/MetamodelWalk.java", 1307),
             // 195→196 (audit slice 3): the walker's case list learns

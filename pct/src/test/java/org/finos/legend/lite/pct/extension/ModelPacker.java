@@ -140,9 +140,13 @@ final class ModelPacker {
                 && ln <= lines.length; ln++) {
             def.append(lines[ln - 1]).append('\n');
         }
-        out.put(key, def.toString()
-                .replaceAll("<<[^>]*>>", "")
-                .replaceAll("\\{doc[^}]*\\}", ""));
+        // B3 (truthfulness burn): sliced source injects BYTE-VERBATIM —
+        // the compiler accepts stereotypes and tagged values on injected
+        // functions (probed: <<PCT.test>>, the fully-qualified spelling,
+        // and {doc.doc=...} all compile and execute). The two
+        // decoration-strip regexes (and their corrupt-a-'>>'-in-a-
+        // string-literal failure class) are DELETED.
+        out.put(key, def.toString());
     }
 
     /** Renders {@code Enum fqn { A, B }} into {@code out} when the fqn
@@ -243,6 +247,18 @@ final class ModelPacker {
             discoveredEnums.add(className);
             return;
         }
+        // B11 (truthfulness burn): a GENERIC user class cannot extract
+        // faithfully without emitting its type parameters — refusing
+        // LOUDLY beats silently degrading them (the old shape dropped
+        // parameter-typed properties without a trace). Add parameter
+        // emission when a witness demands it. (Platform generics —
+        // Pair/List/Map — never reach here: the native filter refuses
+        // them upstream.)
+        if (!cls.getValueForMetaPropertyToMany("typeParameters").isEmpty()) {
+            throw new UnsupportedOperationException("generic user class '"
+                    + className + "' in test-model extraction — no silent"
+                    + " property degradation");
+        }
 
         List<String> propertyLines = new ArrayList<>();
         for (CoreInstance prop : ps.class_getSimpleProperties(cls)) {
@@ -279,8 +295,18 @@ final class ModelPacker {
                         ? primitivePureName(qualifiedTypeName) : null;
                 if (primitive != null) {
                     typeRef = primitive;
-                } else if (qualifiedTypeName == null
-                        || qualifiedTypeName.startsWith("meta::pure::metamodel")) {
+                } else if (qualifiedTypeName == null) {
+                    // B11: no silent shape change — a property whose type
+                    // has no packageable path names itself and refuses
+                    throw new UnsupportedOperationException("property '"
+                            + propName + "' of '" + className + "' has a"
+                            + " type with no packageable path — refusing"
+                            + " to silently drop it");
+                } else if (qualifiedTypeName.startsWith("meta::pure::metamodel")) {
+                    // metamodel-typed properties are reflection surface,
+                    // not model shape lite can host — the ONE documented
+                    // skip (a test USING such a property fails loudly at
+                    // its own compile)
                     continue;
                 } else if (Instance.instanceOf(rawType,
                         "meta::pure::metamodel::type::Enumeration", ps)) {
