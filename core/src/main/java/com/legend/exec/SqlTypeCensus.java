@@ -583,16 +583,14 @@ public final class SqlTypeCensus {
             TypeFact v = e.type();
             switch (v) {
                 case TypeFact.Bottom b -> {
-                    // §4bZ-V E (supersedes the 2026-08-23 T4-flip
-                    // framing): a projected LITERAL NULL declares its
-                    // slot nullable at construction (the
-                    // reconcileLabels arm — the frame's own ctor, one
-                    // owner, never the rejected builder+fixer split),
-                    // so a NullLit lands in bottom-ok by construction.
-                    // Every row COUNTED here is a COMPUTED bottom (a
-                    // NULL-propagating expression) under a required
-                    // label — the live tripwire, pinned per lane at
-                    // the adjudicated residue (EQUALITY 0 at N2).
+                    // §E3 M-N3/M-N4 (supersedes the N1/N2 framing):
+                    // labels adopt slot truth at construction and a
+                    // Bottom slot IS nullable, so EVERY Bottom row —
+                    // literal pad or computed — lands in bottom-ok BY
+                    // CONSTRUCTION; the bottom-mult bucket is
+                    // structurally empty (its EQUALITY-0 pin is now a
+                    // reconciliation-bypass tripwire, same class as
+                    // the differential pin).
                     if (declared.nullable()) {
                         BOTTOM_OK.increment();
                     } else {

@@ -32,7 +32,10 @@ CORRECT by design: adoption means the pair changed, so the stale tag
 must not survive (recorded, not fixed).
 
 **2. TypeFact carries no nullability — the expression channel cannot
-transport it.** Nullable moves only through output-list copies;
+transport it.** [RESOLVED 2026-08-27 — §E3 M-N1..M-N3 (TYPED_SQL_IR.md
+landing records): option (a)+(c) landed — Typed(type, nullable,
+tolerated) computed at construction, probed per-SqlFn arms, DDL/join-pad
+frame authorities, GROUP-BY slot refinement, labels adopt slot truth.] Nullable moves only through output-list copies;
 a Column re-read over a nullable child slot re-derives its frame's
 nullable from the pure multiplicity ([1] → false). Structural, not a
 site bug: no per-site fix exists without either (a) a nullable
@@ -54,12 +57,9 @@ sums (stc_* wheelCountSum), boolean exprs over nullable reads
 ADJUDICATION: the VALUES are correct (the engine produces the same
 NULLs — LEFT-join and empty-group semantics); the LABEL under-declares
 — label-honesty debt, the 6,472's sibling through the expression
-channel. The engine's own results carry no nullability dimension at
-all, and our flag still has NO execution consumer — so this is
-counted debt, not a live bug. CEILING-pinned both lanes (down-only);
-the burn belongs to the nullability-inference leg (finding 2), which
-should be designed WITH the flag's first real consumer so the meaning
-is set once.
+channel. [BURNED 2026-08-27: 925 -> 841 (M-N2 pad weakening) -> 0
+(M-N3 flip); pct 49 -> 0. Both lanes pinned EQUALITY-0 — a wire NULL
+under a never-null label is thereafter a compiler bug, always loud.]
 
 ## Fix slices
 

@@ -935,3 +935,23 @@ re-adjudication (already structurally 0 — the census arm's comment
 refresh), D94's struct-field note, E2E seam-table refresh, and
 triage D27's closure note (the GROUP-BY refinement is live at the
 label seam).
+
+### M-N4 EXECUTED (2026-08-27) — E3 CLOSED
+
+Documentation/adjudication tails, no behavior: (1) the census Bottom
+arm re-adjudicated — post-flip EVERY Bottom row lands bottom-ok BY
+CONSTRUCTION and the bottom-mult EQUALITY-0 pin re-roles as a
+reconciliation-bypass tripwire (same class as the differential pin);
+(2) TRIAGE D27 = E3 half CLOSED (empty-group aggregate families gone;
+the scalar-lane identity-owner unification remains the REAL-FIX);
+(3) TRIAGE D94 = E3 half ADJUDICATED (struct-field reads stamp
+may-be-null — the safe side; a per-field dimension is a queued
+refinement, not debt; the layout row stays with F10 slice 4);
+(4) TYPE_E2E_AUDIT findings 2+3 marked RESOLVED/BURNED with the
+landing-record pointers.
+
+**THE E3 LEG IS COMPLETE.** The nullability dimension is
+construction-computed, frame authorities are DDL + join-pad, labels
+are slot truth, and both lanes hold wire-NULL-under-required at
+EQUALITY-0 with the differential as a construction invariant. Next
+per the ratified queue: F10 slice 4 (D91 + D94's layout row folded).

@@ -73,7 +73,7 @@ stated explicitly.
 | D24 | REAL-FIX (M) | `includeType` emits the static class, not the runtime class (graph-lane leg). |
 | D25 | REAL-FIX (M, small) | `at(2^32+1)` truncates to int and reads a different column — exact-arithmetic family (same class as D32, now fixed; batch with D77). |
 | D26 | REAL-FIX (M, small) | Overload dispatch by `endsWith` — the BANNED idiom (exact-FQN rule). Replace with a real mangler. |
-| D27 | REAL-FIX (M) | Empty-collection identities in scalar lane but not aggregate lane. Also an E3-adjacent mechanism (empty-group aggregate NULLs are in the 925). Fix = one identity owner both lanes. |
+| D27 | REAL-FIX (M); E3 half CLOSED (M-N3) | Empty-collection identities in scalar lane but not aggregate lane. The E3 mechanism landed: empty-group aggregate NULLs carry honest nullable labels (reducers nullable-at-node, GROUP-BY slot refinement, breach EQUALITY-0) — the 925's aggregate families are gone. The remaining REAL-FIX is the scalar-lane identity-owner unification only. |
 | D28 | NEEDS-PROBE | `==` deliberately omits null guards (comment says so). Probe what the ENGINE emits for `==` over nullable operands before ruling — 3VL leak may be engine parity. |
 | D29 | CHARTERED (kernel-hardening) | The Any escape hatch in compatibleRebind. |
 | D30 | CHARTERED (carrier-types leg) | Enum identity collapses to bare strings on every carrier path. |
@@ -116,7 +116,7 @@ stated explicitly.
 | D83 | CHARTERED (foundations/error-discipline) | Decline tunnel swallows soundness walls — foundations program already instruments declines (56); the fix = decline classifier must not catch egress guards. |
 | D84 | REAL-FIX (M, small) | effectMemo writes `false` on cycle — classify in-progress as effectful (conservative) or two-phase. |
 | D85 | CHARTERED (foundations/null-policy) | Type-valued fallbacks (String default, [1] default, VARCHAR probe) — the no-fallbacks program owns; A21's 10 violations are its worklist. |
-| D94 | split: CHARTERED (E3) + slice-4 note | Struct.Field has no nullability/bound — the E3 label dimension reaches the struct layer; the [1]-vs-[*] diamond layout row belongs to the F10 carrier work. |
+| D94 | E3 half ADJUDICATED (M-N1/M-N4) + slice-4 note | Struct.Field still has no nullability dimension — E3's chosen posture: StructGet and struct-field reads stamp MAY-BE-NULL (the safe side; an absent optional property IS a NULL field), so no label lies; a per-field dimension remains a queued refinement, not debt. The [1]-vs-[*] diamond layout row belongs to F10 slice 4. |
 | D95 | REAL-FIX (L) | Lineage/validation re-derive without typed HIR; PkInference simple-name dispatch = banned idiom (batch with D26). |
 | D103 | REAL-FIX (L) | SPI ElementSink validates nothing; registry/lexer desync. Parser drop-in program's seam — add the contract there. |
 
@@ -194,8 +194,9 @@ stated explicitly.
 2. **F10 slice 4 folds in**: D91 (+ D94's layout row).
 3. **Small-batch A (silent-wrong-answer, low effort)**: D07, D10, D37, D12,
    D25+D77 (exact-arithmetic family), D84, D89, D90, D22-point, D52.
-4. **E3** (D31's nullability lanes, D94 label dimension, D27's aggregate-lane
-   mechanism) — ordering vs slice 4 = open user ruling.
+4. **E3** — EXECUTED 2026-08-27 (M-N1..M-N3, breach EQUALITY-0 both lanes;
+   D94 label dimension = safe-side stamps, D27 aggregate-lane mechanism
+   closed; charter §E3 landing records).
 5. **Probes** (read-only, batchable any time): D23, D28, D87-rest, D93-rest,
    D20-part, D02-edge.
 6. Legs by yield thereafter: signature-oracle (licenses D31d + D81 + D71),
