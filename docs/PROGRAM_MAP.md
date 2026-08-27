@@ -54,7 +54,7 @@ new roster items for a future leg.
   manifest's own enveloped texts — the divergence is the backend's
   physical range, not our pipeline. Ledger.
 - 2 sort rows (testSimpleSortWithKey, testSimpleSortWithFunctionVariables)
-  — **DRAFT amendment 9→11, PENDING USER SIGN-OFF**: independently
+  — **ADJUDICATED, user sign-off 2026-08-27 (ledger 9→11)**: independently
   re-diagnosed by the burn session AND the dossier branch
   (docs/channelb-dossiers leg5) as derived members of the register-A1
   substring family — the key/comparator machinery is correct (our
