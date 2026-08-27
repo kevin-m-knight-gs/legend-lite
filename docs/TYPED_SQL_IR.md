@@ -591,3 +591,103 @@ middle-end (parse/compile/lower/harness/verdict). Any future speed leg
 starts by bucketing that, not by touching the SQL layer. Ledger trap
 recorded: gate 8's `-am clean` wipes core/target — read the ledger
 straight after G4, or re-run G4 standalone.
+
+## E3 — THE NULLABILITY DIMENSION (designed 2026-08-26; user ruling:
+## E3 before F10 slice 4, "keep the order")
+
+**The problem (E2E audit findings 2+3, all receipts above and in
+TYPE_E2E_AUDIT_2026_08.md):** `OutputCol.nullable` exists but its
+AUTHORITY is the pure multiplicity echo ("nullable = multiplicity, one
+authority" — seam C), and `TypeFact` has no nullability dimension, so
+the expression channel cannot transport slot truth: a Column re-read
+over a nullable child slot re-derives `[1] → nullable=false`. Measured:
+925 corpus / 49 pct wire-NULLs under always-present labels
+(ceiling-pinned), plus the 520-pairing static census (fc2fe6bd) of
+class-mapped `[1]` properties over DDL-nullable columns.
+
+### The decision: (a) with (c) as its composition arm
+
+Nullability becomes a component of `TypeFact.Typed` —
+`Typed(SqlType type, boolean nullable, boolean tolerated)` — **assigned
+at construction**, exactly the M1 playbook replayed for a second
+dimension. The rejected options, by the program's own doctrine:
+
+- **(b) reconcileLabels consulting the from-tree at consumption** is
+  the judge disease by definition — re-deriving at consumption what
+  construction knew. This program's entire arc (M1→judge deletion)
+  exists because that architecture regenerates blind-spot patches.
+- **(c) alone (per-SqlFn NULL-propagation rules with no stored
+  dimension)** has no transport: the Column-re-read-over-child-slot
+  failure is exactly a missing stored fact. The rules are needed — but
+  they are the COMPOSITION arm of (a), living in the compact canonical
+  ctors like every type rule since M1, running once.
+
+Fact semantics: `Bottom` IS the null value (nullable by definition —
+it is what the dimension means); `Raises` never yields (vacuously
+non-null); `Unknown` stays structurally impossible (EQ-0 pins).
+
+### Authorities (where nullable is KNOWN at construction)
+
+1. **Base table columns: the DDL rule** — `notNull || primaryKey →
+   non-null`, else nullable (TableReferenceChecker already implements
+   it for the relation paradigm; engine receipt
+   RelationalCompilerExtension.java:940 `lowerBound = nullable ? 0 : 1`,
+   unknown defaults SAFE). The class-mapped lane's base frames adopt
+   THIS rule — the property echo dies as an authority. The 520 census
+   becomes a pure model-debt register (property promises [1], label
+   honestly says nullable): the dialect-split warning's firing list.
+2. **Join provenance** — a pad-side frame (LEFT/RIGHT/FULL/ASOF) flips
+   its columns nullable AT THE JOIN CONSTRUCTOR regardless of DDL
+   (engine parity: the values really are NULL-padded; milestoning
+   ON-clause channel untouched).
+3. **Literals** — non-null; `NullLit` is Bottom.
+4. **Composition rules (the (c) arm, in ctors):** default scalar Call =
+   any-operand-nullable (SQL propagation); exceptions table probed on
+   the 1.5.0 reference jar (the date_trunc version-skew lesson —
+   EMISSION not builtin): `IS_NULL/IS_NOT_NULL/EXISTS/COUNT` never;
+   `COALESCE` = all-operands-nullable; `CASE` = any-branch-nullable ∨
+   Bottom-branch ∨ missing-else; `Cast` transports. **Reducers**
+   (SUM/MIN/MAX/AVG…) are nullable AT THE NODE (empty input → NULL) and
+   REFINED at the `SqlSelect` compact ctor: a reducer projection under
+   a non-empty-group proof (GROUP BY present — SQL groups are non-empty
+   by construction) drops the empty-group nullability, keeping
+   operand-derived nullability. The ctor-refines idiom is the landed
+   SqlSelect/SqlUnion reconciliation precedent (§4bZ-V D).
+
+### The flip and the consumers
+
+The first consumer is the converse tripwire INVERTED: labels read the
+fact (`Lowerer.outputsOf` + the value frame switch authority;
+reconcileLabels adopts fact nullability alongside kind), and the
+925/49 breach ceilings become **EQUALITY-0 pins** — a wire NULL under a
+non-null label is then a compiler bug, always loud. Decode/verdict
+lanes unchanged (decode is label-KIND-driven; the engine carries no
+nullability on its results — zero wire-behavior change, this is label
+honesty only). Pure-level multiplicity is untouched: the ExprType [1]
+stays the PURE contract; the SQL layer stops echoing it as physics.
+
+### Milestones (each its own gated chain, M1 discipline)
+
+- **M-N1 the dimension**: Typed gains `nullable`; ctor compositions +
+  doors stamp (Column.of from OutputCol.nullable; audit the
+  3-arg Column.of callers for the authority in hand); ZERO consumers;
+  a differential instrument prints fact-nullable vs label-nullable
+  disagreement (the flip payload, census-first). All existing censuses
+  byte-stable (facts only). TRAP WATCH: a new Typed component changes
+  fact equality — G9/Comparators structural pattern-matching is the
+  recorded stamp-equality trip (min/max revert lesson); run the full
+  chain, watch G9 first.
+- **M-N2 frame authority**: base frames from DDL + join-pad provenance;
+  SqlSelect reducer refinement; label side still property-echo (no
+  flip); differential shrinks to the genuine-inference residue.
+- **M-N3 THE FLIP**: labels adopt facts; breach censuses → EQUALITY-0
+  both lanes; 520 census re-roled (model-debt register only); the
+  property-echo authority DELETED same slice (no adapter hedge).
+- **M-N4 tails**: pct 49 empty-group family closes via the reducer
+  rule (this also fixes triage D27's aggregate-lane identity gap);
+  bottomMult backlog re-adjudicated; D94's struct-field note updated;
+  E2E seam table refreshed.
+
+**Acceptance:** breach EQUALITY-0 both lanes + the property-echo
+authority deleted + zero exec-text movement (nullability renders
+nothing) + full chain green per milestone.
