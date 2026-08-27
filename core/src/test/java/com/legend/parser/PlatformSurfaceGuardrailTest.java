@@ -63,7 +63,7 @@ class PlatformSurfaceGuardrailTest {
                             throw new java.io.UncheckedIOException(e);
                         }
                     })
-                    .map(p -> root.relativize(p).toString())
+                    .map(p -> root.relativize(p).toString().replace(root.getFileSystem().getSeparator(), "/"))
                     .filter(p -> !WHITELIST.contains(p))
                     .toList();
         }

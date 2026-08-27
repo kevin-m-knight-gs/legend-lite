@@ -220,7 +220,7 @@ class   CarrierPurityRatchetTest {
             java.util.List<Path> out = s
                     .filter(f -> f.toString().endsWith(".java"))
                     .filter(f -> {
-                        String path = f.toString();
+                        String path = f.toString().replace(f.getFileSystem().getSeparator(), "/");
                         return (path.contains("/lowering/")
                                 || path.contains("/resolver/")
                                 || path.contains("/plan/"))

@@ -1,13 +1,14 @@
 package com.legend.sql.dialect;
 
-import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 
+import java.net.URI;
+import java.nio.file.FileSystemNotFoundException;
+import java.nio.file.Path;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -205,8 +206,21 @@ public final class DuckDb extends AnsiSqlRenderer {
             return "SELECT unnest(CAST(" + stringLit(content) + " AS JSON[])) AS data";
         }
         if (url.startsWith("file:")) {
-            String path = java.net.URI.create(url).getPath();
-            return "SELECT json AS data FROM read_json_objects(" + stringLit(path) + ")";
+            // URI.getPath() yields a URL path, not an OS path: a Windows
+            // file: URL spells "/D:/dir/f.json" and no reader opens the
+            // leading-slash form. Path.of(URI) is the JDK's own
+            // conversion. The separator then goes FORWARD on every
+            // platform: DuckDB's readers GLOB, and backslash is the glob
+            // ESCAPE character (stringLit escapes quotes, not slashes).
+            Path path;
+            try {
+                path = Path.of(URI.create(url));
+            } catch (IllegalArgumentException | FileSystemNotFoundException e) {
+                throw new IllegalStateException("not a local file: URL: " + url, e);
+            }
+            String separator = path.getFileSystem().getSeparator();
+            String pathString = "/".equals(separator) ? path.toString() : path.toString().replace(separator, "/");
+            return "SELECT json AS data FROM read_json_objects(" + stringLit(pathString) + ")";
         }
         throw new IllegalStateException("unsupported sourceUrl scheme: " + url);
     }

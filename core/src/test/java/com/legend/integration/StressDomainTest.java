@@ -34,17 +34,19 @@ class StressDomainTest {
     }
 
     /** Load all .pure files from the stress/ resource directory, sorted by name. */
-    private String loadStressModel() throws IOException {
+    private String loadStressModel() throws Exception {
         var stressUrl = getClass().getClassLoader().getResource("stress");
         assertNotNull(stressUrl, "stress/ resource directory not found on classpath");
 
-        Path stressDir = Path.of(stressUrl.getPath());
+        // toURI(), not getPath(): a URL path is not an OS path — on
+        // Windows getPath() hands back "/D:/...", which Path.of rejects.
+        Path stressDir = Path.of(stressUrl.toURI());
         List<Path> pureFiles;
         try (var stream = Files.list(stressDir)) {
             pureFiles = stream
                     .filter(p -> p.toString().endsWith(".pure"))
                     .sorted()
-                    .collect(Collectors.toList());
+                    .toList();
         }
         assertFalse(pureFiles.isEmpty(), "No .pure files found in stress/");
 

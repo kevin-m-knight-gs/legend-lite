@@ -142,7 +142,7 @@ class ParserBoundaryArchTest {
     }
 
     private static String rel(Path root, Path f) {
-        String s = root.relativize(f).toString().replace('\\', '/');
+        String s = root.relativize(f).toString().replace(root.getFileSystem().getSeparator(), "/");
         int i = s.indexOf("java/");
         return i >= 0 ? s.substring(i + 5) : s;
     }

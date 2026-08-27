@@ -67,8 +67,7 @@ class NoEagerTypeReferencesTest {
         List<String> violations = new ArrayList<>();
         try (Stream<Path> paths = Files.walk(classesRoot)) {
             paths.filter(p -> p.toString().endsWith(".class"))
-                    .map(p -> classesRoot.relativize(p).toString())
-                    .map(rel -> rel.replace('/', '.').replace('\\', '.'))
+                    .map(p -> classesRoot.relativize(p).toString().replace(p.getFileSystem().getSeparator(), "."))
                     .map(name -> name.substring(0, name.length() - ".class".length()))
                     .filter(fqn -> fqn.startsWith("com.legend."))
                     // Synthetic / lambda classes surface captured-variable

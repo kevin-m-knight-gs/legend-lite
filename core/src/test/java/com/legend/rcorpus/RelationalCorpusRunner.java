@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
@@ -2997,7 +2998,7 @@ public class RelationalCorpusRunner {
         Path parentDir = p.getParent();
         if (parentDir != null && !parentDir.equals(Corpus.RELATIONAL)) {
             String cand = Corpus.RELATIONAL.relativize(parentDir).toString();
-            if (cand.split("/").length >= 3) {
+            if (cand.split(Pattern.quote(parentDir.getFileSystem().getSeparator())).length >= 3) {
                 parentKey = cand;
             }
         }
