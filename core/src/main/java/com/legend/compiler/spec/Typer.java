@@ -1346,7 +1346,56 @@ final class Typer {
         if (requiresNormalization(a.chosen())) {
             return inlineNormalized(af, a.chosen(), env);
         }
+        TypedSpec shadow = derivedShadow(af, a, env);
+        if (shadow != null) {
+            return shadow;
+        }
         return rawGridOrSelf(emitCall(a.chosen(), a.args(), a.out(), af.pos()));
+    }
+
+    /** Leg 6a — the receiver's OWN qualified property SHADOWS an
+     * Any-first native: real pure routes property access FIRST and
+     * consults the function library only when no property matched
+     * (FunctionExpressionProcessor's ordering) — ClassWithComplexToString
+     * declares {@code toString()} and {@code ->toString()} runs IT, not
+     * {@code string::toString(Any)}. Decided AFTER one ordinary typing
+     * pass (no double typing on the common path): the chosen native's
+     * first parameter must be the TOP type (a catch-all — an
+     * exact-typed native is more specific than the property and keeps
+     * winning), the typed receiver's class must declare the same-name
+     * {@code Property.Derived} at matching arity, and the rewrite
+     * re-enters through the ordinary externalized-body route (the
+     * shadow target is a user function, so no re-shadowing recursion). */
+    private @com.legend.Nullable TypedSpec derivedShadow(AppliedFunction af,
+            Application a, Env env) {
+        if (af.parameters().isEmpty() || !a.chosen().isNative()
+                || a.chosen().parameters().isEmpty()
+                || !com.legend.compiler.element.type.PlatformTypes.isAny(
+                        a.chosen().parameters().get(0).type())) {
+            return null;
+        }
+        TypedSpec recv = a.args().get(0);
+        String classFqn = recv.info().type() instanceof Type.ClassType ct ? ct.fqn()
+                : recv.info().type() instanceof Type.GenericType g ? g.rawFqn() : null;
+        if (classFqn == null
+                || recv.info().multiplicity() instanceof Multiplicity.Bounded rb
+                        && rb.isMany()) {
+            return null;
+        }
+        if (!(ctx.findProperty(classFqn, af.function()).orElse(null)
+                        instanceof Property.Derived d)
+                || d.parameters().size() != af.parameters().size() - 1) {
+            return null;
+        }
+        java.util.List<ValueSpecification> qargs = new ArrayList<>(af.parameters());
+        if (!(recv.info().multiplicity() instanceof Multiplicity.Bounded rb1
+                && rb1.lower() == 1)) {
+            // the same [0..1]-runs-like-[1] conformance spelling as the
+            // main derived route (ledger cluster 48)
+            qargs.set(0, new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE,
+                    List.of(qargs.get(0))));
+        }
+        return applyGeneric(new AppliedFunction(d.bodyFunctionFqn(), qargs), env);
     }
 
     /** Phase 1c (One-Platform Plan): {@code executeInDb} with a LITERAL

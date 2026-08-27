@@ -281,8 +281,10 @@ final class InstanceEquality {
     }
 
     /** A user-model class value (the struct lane) — every platform
-     * carrier and the undecided tops are excluded above/here. */
-    private static boolean userClass(Type t) {
+     * carrier and the undecided tops are excluded above/here. Package
+     * visible: the toString default-instance arm keys on the same
+     * classification (ONE owner of "is this the struct lane"). */
+    static boolean userClass(Type t) {
         return (t instanceof Type.ClassType || t instanceof Type.GenericType)
                 && !PlatformTypes.isAny(t) && !PlatformTypes.isNil(t)
                 && !PlatformTypes.isVariant(t)

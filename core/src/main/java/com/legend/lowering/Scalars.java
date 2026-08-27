@@ -2722,6 +2722,22 @@ final class Scalars {
                     new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.JSON)),
                     com.legend.sql.SqlType.Scalar.VARCHAR);
         }
+        // Default INSTANCE print (leg 6a, testPersonToString): a user
+        // class with no toString() qualifier (the Typer's derivedShadow
+        // dispatched any declared one before this arm can see the call)
+        // prints its REPOSITORY ID — interpreted pure's anonymous-
+        // instance name; the accepted spellings are Anonymous_*/@_*,
+        // and our minted F13 site id rides the @_ form. The id is the
+        // struct's own __id field, read IN SQL — no Java formatting.
+        // ClassType ONLY — a GenericType here is a metamodel CARRIER
+        // (Class<T>/Enumeration<T> element refs print their NAME via
+        // their own arm), never an instance struct
+        if (t instanceof Type.ClassType && Type.schemaView(t) == null
+                && InstanceEquality.userClass(t)) {
+            return cat(new SqlExpr.StringLit("@_"),
+                    new SqlExpr.StructGet(x,
+                            com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID));
+        }
         if ((Type.schemaView(t) != null && !scalarCell)
                 || t instanceof Type.FunctionType
                 || t instanceof Type.SchemaAlgebra

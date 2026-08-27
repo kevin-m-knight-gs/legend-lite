@@ -62,7 +62,12 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // REPLACED a silently-fabricated VARCHAR cast, so this is a
             // designed refusal, not a wrong answer. The reference DuckDB
             // adapter excludes this same test ("type not supported").
-            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "\"toString over ClassType[fqn=meta::pure::functions::string::tests::toString::ClassWithComplexToString] is not modeled\""),
+            // 2026-08-27 leg 6a: the B lane PASSES this row (the class's
+            // own toString() qualifier dispatches — B-FIXES-A); the A
+            // lane's adapter-composed model drops the qualifier AND the
+            // __id slot, so the default-id arm fails honestly on the
+            // missing struct key (was the loud not-modeled wall)
+            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "Could not find key \"__id\" in struct"),
             // C1.5c extends the SAME divergence to indexOf: the engine's
             // relational runtime translates indexOf to 1-BASED locate()
             // verbatim (testSqlFunctionsInMapping golden + rows [12,12]);

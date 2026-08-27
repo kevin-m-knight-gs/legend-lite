@@ -88,9 +88,14 @@ class ChannelBEssentialTest {
         // 313 (2026-08-27 leg 7 D2): has* answers Boolean
         // UNCONDITIONALLY (the A24/D92 boolean-carrier fork deleted) —
         // testParseDateTypes joins
-        assertTrue(pass >= 313,
+        // 315 (2026-08-27 leg 6a): instance toString — the receiver's
+        // own toString() qualifier SHADOWS the Any-first native
+        // (Typer.derivedShadow, the reference's property-route-first
+        // ordering); a qualifier-less user instance prints its
+        // repository id ('@_' || __id, read IN SQL)
+        assertTrue(pass >= 315,
                 "channel-B essential PASS fell below the pinned floor: "
-                        + pass + " < 313");
+                        + pass + " < 315");
 
         // THE THREE-BUCKET DIFF (plan addendum #6): channel A's outcome
         // per test is its suite ledger — the expectedFailures list IS
