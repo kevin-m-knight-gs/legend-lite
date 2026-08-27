@@ -545,6 +545,24 @@ public class RelationalCorpusRunner {
             ws.forEach(w -> System.out.println(
                     "[rcorpus] fixture-skew-witness: " + cls + " :: " + w));
         });
+        // [1]-over-nullable-column census (typed-IR queue item 2):
+        // computed per compile at the platform's DeclaredCoercions
+        // pairing seam, aggregated by the harness — the unchecked
+        // "[1]-property => NOT NULL column" implication, per bucket
+        // with honesty buckets for unadjudicated arms. Census NOT
+        // warning (engine fixtures fire it wholesale; the diagnostic
+        // waits for the dialect split); quantifies model debt inside
+        // the 925 wire-breach census. Count pins in the full-run
+        // assert block below.
+        System.out.println("[rcorpus] required-over-nullable pairings: "
+                + reqNullAdjudicated());
+        Runner.REQUIRED_OVER_NULLABLE.forEach((bucket, ws) -> {
+            System.out.println("[rcorpus] required-over-nullable "
+                    + bucket + ": " + ws.size());
+            ws.forEach(w -> System.out.println(
+                    "[rcorpus] required-over-nullable-witness: "
+                            + bucket + " :: " + w));
+        });
         // M1 GATE PINNING (H2_BACKEND.md §12 step 13): on a FULL sweep,
         // any divergence fails the build (they already FAIL per-test —
         // this pins the aggregate against silent scoring drift), and the
@@ -923,6 +941,36 @@ public class RelationalCorpusRunner {
                                     + " ceiling 473 — a new declaration-"
                                     + "contradicting CREATE in the setup"
                                     + " streams"),
+                    // [1]-OVER-NULLABLE census (typed-IR queue item 2,
+                    // 2026-08-26): 520 measured (487 direct + 33
+                    // join-terminal) class-mapped required properties
+                    // over columns the store leaves nullable — the
+                    // engine-fixture model debt the future dialect-split
+                    // warning will name, and the static slice of the
+                    // 925 wire-breach census. Ceiling, down-only.
+                    () -> org.junit.jupiter.api.Assertions.assertTrue(
+                            reqNullAdjudicated() <= 520,
+                            "required-over-nullable pairings grew past"
+                                    + " the pinned ceiling 520 — a new"
+                                    + " [1]-property over a nullable"
+                                    + " column entered the corpus"
+                                    + " models"),
+                    // the census's own blindness must not grow: honesty
+                    // buckets (unresolved property/column lookups) pin
+                    // at 97 (55 column + 42 property, association-end
+                    // injections and scope-block reads) — growth means
+                    // the instrument stopped seeing pairings it used to
+                    () -> org.junit.jupiter.api.Assertions.assertTrue(
+                            Runner.REQUIRED_OVER_NULLABLE.entrySet()
+                                    .stream()
+                                    .filter(e -> e.getKey()
+                                            .startsWith("unresolved-"))
+                                    .mapToLong(e -> e.getValue().size())
+                                    .sum() <= 97,
+                            "required-over-nullable HONESTY buckets grew"
+                                    + " past 97 — the census is going"
+                                    + " blind on pairings it cannot"
+                                    + " adjudicate"),
                     // E2E-AUDIT CONVERSE CENSUS (TYPE_E2E_AUDIT §3,
                     // 2026-08-26): wire NULL under an always-present
                     // label — 925 measured (638 VARCHAR + 124 BIGINT +
@@ -1308,6 +1356,15 @@ public class RelationalCorpusRunner {
                         out.add(n);
                     }
                 });
+    }
+
+    /** ADJUDICATED [1]-over-nullable pairings (the two real buckets;
+     * honesty buckets excluded). */
+    private static long reqNullAdjudicated() {
+        return Runner.REQUIRED_OVER_NULLABLE.entrySet().stream()
+                .filter(e -> e.getKey().equals("direct")
+                        || e.getKey().equals("join-terminal"))
+                .mapToLong(e -> e.getValue().size()).sum();
     }
 
     private static String classNameOf(String classLine) {

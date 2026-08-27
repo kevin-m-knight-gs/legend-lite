@@ -98,6 +98,11 @@ public final class PureModelContext implements ModelContext {
         // 0-binder error's "failed to normalize" reasons read them here
         mb.mappingPoisons.putAll(normalized.mappingPoisons());
         mb.mixedUnions.putAll(normalized.mixedUnions());
+        // the [1]-over-nullable census rides the same route (the
+        // Phase-E builder the census wrote to is discarded above)
+        normalized.requiredNullableRows().forEach((b, ws) ->
+                mb.requiredNullableRows().computeIfAbsent(b,
+                        k -> new java.util.TreeSet<>()).addAll(ws));
         // the pre-Door-1 mapping surfaces ride as an ANALYSIS archive
         // (static lineage #44) — F+ compilation never reads them
         normalized.legacySurfaces().values()
@@ -355,6 +360,12 @@ public final class PureModelContext implements ModelContext {
             findTableMilestoning(String dbFqn, String name) {
         return model.findDatabase(dbFqn)
                 .flatMap(db -> milestoningWithIncludes(db, name, new java.util.HashSet<>()));
+    }
+
+    @Override
+    public java.util.Map<String, java.util.Set<String>>
+            requiredNullableCensus() {
+        return model.requiredNullableRows();
     }
 
     private Optional<com.legend.model.DatabaseDefinition.TableDefinition.Milestoning>

@@ -178,6 +178,14 @@ public interface ModelContext {
         return Optional.empty();
     }
 
+    /** The [1]-over-nullable-column census of the backing compile
+     * (bucket &rarr; witnesses; see {@code RequiredNullableCensus}) —
+     * empty on contexts with no compile behind them. */
+    default java.util.Map<String, java.util.Set<String>>
+            requiredNullableCensus() {
+        return java.util.Map.of();
+    }
+
     /** The full store definition — DDL derivation (the harness's model-
      * driven seeding) enumerates a module's databases through this. */
     default Optional<com.legend.model.DatabaseDefinition>

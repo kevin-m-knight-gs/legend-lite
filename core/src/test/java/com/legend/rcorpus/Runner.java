@@ -1434,6 +1434,15 @@ public final class Runner {
                 // declaration-vs-fixture skew census (§4bZ) — both
                 // session kinds; dedupe inside
                 noteFixtureSkew(ctx, recording);
+                // [1]-over-nullable census: the PLATFORM computed the
+                // rows per compile (DeclaredCoercions pairing seam);
+                // the harness only AGGREGATES across the corpus's
+                // models — scoreboard state, witness sets dedupe
+                ctx.requiredNullableCensus().forEach((bucket, ws) ->
+                        REQUIRED_OVER_NULLABLE.computeIfAbsent(bucket,
+                                k -> java.util.Collections.synchronizedSet(
+                                        new java.util.TreeSet<>()))
+                                .addAll(ws));
             }
         } catch (Exception e) {
             if (System.getenv("LEGEND_LITE_STACKS") != null) {
@@ -1834,6 +1843,15 @@ public final class Runner {
      * [family]; the count pins in the corpus runner. */
     public static final java.util.Map<String, java.util.Set<String>>
             FIXTURE_SKEW = java.util.Collections.synchronizedMap(
+                    new java.util.TreeMap<>());
+
+    /** Run-wide AGGREGATE of the per-compile [1]-over-nullable census
+     * (platform computes the rows on each ModelBuilder at the
+     * DeclaredCoercions pairing seam; the harness merges across the
+     * corpus's models). Bucket &rarr; witnesses; printed + ceiling-
+     * pinned in the corpus runner. */
+    public static final java.util.Map<String, java.util.Set<String>>
+            REQUIRED_OVER_NULLABLE = java.util.Collections.synchronizedMap(
                     new java.util.TreeMap<>());
     private final java.util.Set<String> skewChecked =
             new java.util.HashSet<>();

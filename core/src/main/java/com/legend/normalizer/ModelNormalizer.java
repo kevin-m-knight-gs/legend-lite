@@ -128,7 +128,7 @@ public final class ModelNormalizer {
         // normalized model into Phase F (StoreResolver's 0-binder reasons)
         normalized = new NormalizedModel(normalized.elements(), normalized.imports(),
                 model.mappingPoisons, normalized.legacySurfaces(),
-                model.mixedUnions);
+                model.mixedUnions, model.requiredNullableRows());
         List<FunctionDefinition> lifted = new ArrayList<>();
         liftDerivedProperties(parsed, lifted);  // E.2
         liftConstraints(parsed, lifted);        // E.3
@@ -140,7 +140,7 @@ public final class ModelNormalizer {
         elements.addAll(lifted);
         return new NormalizedModel(elements, normalized.imports(),
                 model.mappingPoisons, normalized.legacySurfaces(),
-                model.mixedUnions);
+                model.mixedUnions, model.requiredNullableRows());
     }
 
     private static ParsedModel adoptAssociationDerivedProperties(ParsedModel parsed) {

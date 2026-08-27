@@ -34,19 +34,20 @@ import java.util.Map;
 public record NormalizedModel(List<PackageableElement> elements, ImportScope imports,
         java.util.Map<String, String> mappingPoisons,
         java.util.Map<String, LegacyMappingDefinition> legacySurfaces,
-        java.util.Map<String, java.util.List<String>> mixedUnions) {
+        java.util.Map<String, java.util.List<String>> mixedUnions,
+        java.util.Map<String, java.util.Set<String>> requiredNullableRows) {
 
     /** Without poisons (tests, poison-free paths). */
     public NormalizedModel(List<PackageableElement> elements, ImportScope imports) {
         this(elements, imports, java.util.Map.of(), java.util.Map.of(),
-                java.util.Map.of());
+                java.util.Map.of(), java.util.Map.of());
     }
 
     /** Without legacy surfaces (poison-only callers). */
     public NormalizedModel(List<PackageableElement> elements, ImportScope imports,
             java.util.Map<String, String> mappingPoisons) {
         this(elements, imports, mappingPoisons, java.util.Map.of(),
-                java.util.Map.of());
+                java.util.Map.of(), java.util.Map.of());
     }
 
     /** Without mixed unions (pre-route-b callers). */
@@ -54,7 +55,17 @@ public record NormalizedModel(List<PackageableElement> elements, ImportScope imp
             java.util.Map<String, String> mappingPoisons,
             java.util.Map<String, LegacyMappingDefinition> legacySurfaces) {
         this(elements, imports, mappingPoisons, legacySurfaces,
-                java.util.Map.of());
+                java.util.Map.of(), java.util.Map.of());
+    }
+
+    /** Without the [1]-over-nullable census (poison-idiom callers that
+     * assemble it separately). */
+    public NormalizedModel(List<PackageableElement> elements, ImportScope imports,
+            java.util.Map<String, String> mappingPoisons,
+            java.util.Map<String, LegacyMappingDefinition> legacySurfaces,
+            java.util.Map<String, java.util.List<String>> mixedUnions) {
+        this(elements, imports, mappingPoisons, legacySurfaces,
+                mixedUnions, java.util.Map.of());
     }
 
     public NormalizedModel {
@@ -75,6 +86,19 @@ public record NormalizedModel(List<PackageableElement> elements, ImportScope imp
         // unions (Pure members — resolver-side arm synthesis, route b)
         mixedUnions = mixedUnions == null
                 ? java.util.Map.of() : java.util.Map.copyOf(mixedUnions);
+        // the [1]-over-nullable-column census of THIS compile (bucket
+        // -> witnesses; RequiredNullableCensus) — a Phase-E product
+        // that rides the record across the phase gate exactly like
+        // mappingPoisons (the normalizer's builder is discarded there)
+        if (requiredNullableRows == null) {
+            requiredNullableRows = java.util.Map.of();
+        } else {
+            java.util.Map<String, java.util.Set<String>> copy =
+                    new java.util.LinkedHashMap<>();
+            requiredNullableRows.forEach(
+                    (k, v) -> copy.put(k, java.util.Set.copyOf(v)));
+            requiredNullableRows = Collections.unmodifiableMap(copy);
+        }
     }
 
     /**

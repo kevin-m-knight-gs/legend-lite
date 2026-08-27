@@ -102,6 +102,21 @@ public final class ModelBuilder {
 
     private final SymbolTable symbols = new SymbolTable();
 
+    /** The [1]-over-nullable-column census rows of THIS compile
+     * (bucket &rarr; witnesses) — written at the DeclaredCoercions
+     * pairing seam during mapping normalization, read through
+     * {@code ModelContext.requiredNullableCensus()}. Per-compile BY
+     * DESIGN: a static sink would bleed unrelated models' rows into
+     * each other in long-lived processes (LSP, server). */
+    private final java.util.Map<String, java.util.Set<String>>
+            requiredNullableRows = new java.util.TreeMap<>();
+
+    /** Live census sink ({@code RequiredNullableCensus} writes during
+     * normalization; contexts read after). */
+    public java.util.Map<String, java.util.Set<String>> requiredNullableRows() {
+        return requiredNullableRows;
+    }
+
     // One slot per id; null where the kind doesn't apply to that id.
     private final ArrayList<ClassDefinition>       classes       = new ArrayList<>();
     private final ArrayList<AssociationDefinition> associations  = new ArrayList<>();

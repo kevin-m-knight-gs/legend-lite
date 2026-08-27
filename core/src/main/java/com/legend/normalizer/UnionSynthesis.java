@@ -971,7 +971,7 @@ final class UnionSynthesis {
                 KeyExpression mapped = own ? pp.fields().get(prop) : null;
                 ValueSpecification value = mapped == null
                         ? MappingNormalizer.nullOfDeclaredType(subDef, prop, model)
-                        : MappingNormalizer.coerceToDeclaredNumeric(
+                        : DeclaredCoercions.coerceToDeclaredNumeric(
                                 mapped.value(), prop, stEn.getKey(), model);
                 TypeExpression dt = subDef == null ? null
                         : MappingNormalizer.findPropertyTypeDeep(subDef, prop, model);
@@ -1008,7 +1008,7 @@ final class UnionSynthesis {
                 && ector.first(sub) != null
                 ? java.util.Objects.requireNonNull(ector.first(sub)).value()
                 : MappingNormalizer.nullOfDeclaredType(inner, sub, model);
-        value = MappingNormalizer.coerceToDeclaredNumeric(value, sub,
+        value = DeclaredCoercions.coerceToDeclaredNumeric(value, sub,
                 inner == null ? target : inner.qualifiedName(), model);
         TypeExpression sdt = inner == null ? null
                 : MappingNormalizer.findPropertyTypeDeep(inner, sub, model);
@@ -1175,7 +1175,7 @@ final class UnionSynthesis {
                 KeyExpression mapped = pp.fields().get(prop);
                 ValueSpecification value = mapped == null
                         ? MappingNormalizer.nullOfDeclaredType(owner, prop, model)
-                        : MappingNormalizer.coerceToDeclaredNumeric(
+                        : DeclaredCoercions.coerceToDeclaredNumeric(
                                 mapped.value(), prop, className, model);
                 // String is safe INSIDE the union projection: the members
                 // must agree on the declared kind, and the engine's union
@@ -1476,7 +1476,7 @@ final class UnionSynthesis {
                                 ector.first(sub)).value()
                         : MappingNormalizer.nullOfDeclaredType(
                                 inner, sub, model);
-                sv = MappingNormalizer.coerceToDeclaredNumeric(
+                sv = DeclaredCoercions.coerceToDeclaredNumeric(
                         sv, sub, embInner.get(epath), model);
                 TypeExpression sdt = inner == null ? null
                         : MappingNormalizer.findPropertyTypeDeep(
