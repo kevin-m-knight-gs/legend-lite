@@ -1,5 +1,38 @@
 # Channel B PCT burndown — the handoff (opened 2026-08-27, fresh-session charter)
 
+## 0. LANDING RECORD — THE BURN IS COMPLETE (2026-08-27, same day)
+
+**Essential 297 → 316/327, Grammar 133 → 135/137, eight gated batches,
+each pushed after a full green allgates** (`183aeb33`, `9465a235`,
+`2aa40bee`, `e9d3bfba`, `cd61bfd4`, `01d509dd`, `1d71da33`). Every
+winnable row in the roster below is burned; the remainder is the
+ledger (9 rows + the DRAFT 2-row sort amendment pending user
+sign-off) and the 2 UNOWNED Grammar rows (see PROGRAM_MAP). The §2/§3
+mechanism notes below are HISTORY — most did not survive contact (the
+dossier branch `docs/channelb-burndown-dossiers` re-diagnosed legs
+5/6/7/7b; its README synthesis is the accurate post-mortem):
+
+| Leg | Landed as | The mechanism that was actually true |
+|---|---|---|
+| 1 fold/F17 | 183aeb33 | '+=' desugar via AppliedProperty; NULL struct slots render their declared type |
+| 2 positions | 9465a235 | span rides the raise emission (U+001E inside the U+001F envelope → RaisedErrors.Positioned) |
+| 3 match LUB | 2aa40bee | engine FunctionType LUB + the Env.exprAlias let-syntax channel (the hidden second wall) |
+| 4 fn refs | e9d3bfba | name qualification only (mangled-id base resolution); eta-expansion pre-existed |
+| 5 mixed sort | e9d3bfba | rank-struct comparable per interpreted Compare.java groups; the 2 key-sort rows were A1-substring contamination, NOT ordering bugs |
+| 6 toString | cd61bfd4 (tie) + 01d509dd | Nil-tie-break (superseded by registry provenance when it lands) + qualifier-shadows-native + '@_'||__id default print |
+| 7 parseDate | cd61bfd4 | NOT a date leg: the A24/D92 boolean-carrier fork (has* now BoolLit unconditionally) |
+| 7b walls | cd61bfd4 (R0 only) | the 6 parse walls bank ZERO rows (no PCT.test functions); the 2-row item was elementFqns() publishing primitive extensions |
+| 3b deactivate | 1d71da33 | compile-time reflection fold to TypedTypeRef; TypedMatch carries its declared all-branch LUB |
+| 8 BigNumber | (doc, this commit) | formal adjudication in PROGRAM_MAP — our 4 pins byte-match the reference manifest |
+
+Deferred, explicitly NOT burndown: the 6 parse walls (drop-in-parity
+work, leg 7b R1–R4 — SpecParser at 3440/3500 splits first); the
+registry-provenance partition (dossier leg6 D7 — deletes the Nil
+tie-break, fixes []->sum/[]->max/->sort([]) family-wide); the 2
+unowned Grammar rows. Next arc: the test-corpus program (§5).
+
+---
+
 **Mission (user-ratified):** burn Channel B PCT to **100% modulo the
 nine adjudicated ledger rows** (5 indexOf/substring 1-based + 4
 adjustBy*BigNumber large dates). THEN the test-corpus arc (PROGRAM_MAP

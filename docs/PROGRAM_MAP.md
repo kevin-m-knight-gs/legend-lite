@@ -33,17 +33,33 @@ the carrier from genuine Variant's raw-JSON contract; one grammar owner
 
 ## BUCKET 2 — PCT burndown (after F10)
 
-Current: **1,084 / 1,118** (honest universe 1,117 — audit #A9's testGet
-double-count). Relation 355/355, Standard 204/204, Unclassified 95/95;
-all remaining rows in Essential (30) + Grammar (4).
+Current: **1,105 / 1,118** (honest universe 1,117 — audit #A9's testGet
+double-count). Relation 355/355, Standard 204/204, Unclassified 95/95,
+Essential 316/327, Grammar 135/137. THE WINNABLE SET IS BURNED
+(2026-08-27, eight gated batches 183aeb33→1d71da33; landing record in
+[CHANNELB_BURNDOWN_HANDOFF.md](CHANNELB_BURNDOWN_HANDOFF.md) §0):
+every remaining Essential row is ledger (below); the 2 remaining
+Grammar rows are UNOWNED — no charter leg claims them (getAll needs an
+execution-context story; testPlusInIterate needs iterate's row scope) —
+new roster items for a future leg.
 
 **The ledger boundary (not burnable):**
 - 5 indexOf/substring rows — user-adjudicated IRREDUCIBLE (register A1:
   1-based indexing is real core_relational pure semantics; a reverted
   draft proves the trap).
-- 4 adjustBy*BigNumber rows — dates beyond DuckDB's physical range;
-  reference fails identically; pending one formal adjudication, then
-  ledger.
+- 4 adjustBy*BigNumber rows — **FORMALLY ADJUDICATED 2026-08-27 (leg
+  8)**: dates beyond DuckDB's physical range; the reference DuckDB
+  target fails IDENTICALLY, and after the truthfulness burn's B7
+  provenance work our four pinned error texts BYTE-MATCH the reference
+  manifest's own enveloped texts — the divergence is the backend's
+  physical range, not our pipeline. Ledger.
+- 2 sort rows (testSimpleSortWithKey, testSimpleSortWithFunctionVariables)
+  — **DRAFT amendment 9→11, PENDING USER SIGN-OFF**: independently
+  re-diagnosed by the burn session AND the dossier branch
+  (docs/channelb-dossiers leg5) as derived members of the register-A1
+  substring family — the key/comparator machinery is correct (our
+  actual IS ascending-by-1-based-substring-key); interpreted substring
+  is Java 0-based. Not an ordering bug; not winnable while A1 stands.
 
 **The winnable 25, by leg:**
 | Leg | Rows | Notes |
