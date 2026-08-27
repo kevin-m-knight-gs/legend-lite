@@ -122,13 +122,23 @@ public final class ClassLayouts {
             }
             Type.Column col = new Type.Column(stored.name(),
                     substitute(stored.type(), typeArgs), stored.multiplicity());
-            Type.Column prev = out.put(stored.name(), col);   // keeps the first position
-            if (prev != null && isSuper && !prev.type().equals(col.type())) {
-                throw new IllegalStateException("class '" + cls.qualifiedName()
-                        + "' inherits conflicting declarations of property '"
-                        + stored.name() + "' (" + prev.type().typeName() + " vs "
-                        + col.type().typeName() + ")");
+            Type.Column prev = out.get(stored.name());
+            if (prev != null && isSuper) {
+                if (!prev.type().equals(col.type())) {
+                    throw new IllegalStateException("class '" + cls.qualifiedName()
+                            + "' inherits conflicting declarations of property '"
+                            + stored.name() + "' (" + prev.type().typeName() + " vs "
+                            + col.type().typeName() + ")");
+                }
+                // D94 (layout row): a DIAMOND duplicate keeps the FIRST
+                // super's declaration — multiplicity included — the same
+                // extends-order rule findProperty resolves by, so the
+                // layout and the property surface can never disagree
+                // (last-super-wins laid a [*] field under a [1] property:
+                // a list under an Integer[1] stamp)
+                continue;
             }
+            out.put(stored.name(), col);   // keeps the first position
         }
     }
 

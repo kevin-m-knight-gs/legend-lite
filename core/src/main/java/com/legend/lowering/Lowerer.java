@@ -199,18 +199,25 @@ public final class Lowerer {
      * evaluation. Null = a lane with no identity. */
     private @com.legend.Nullable Function<Object, String> instanceIdOf;
 
-    /** F13c — the driver-supplied {@code <<equality.Key>>} resolver
+    /** F13c/D91 — the driver-supplied {@code <<equality.Key>>} resolver
      * (EqualityKeys.resolve over the model): the in-SQL eq/equal arm
      * compiles instance equality from the SAME canon the verdict layer
-     * uses. Null outside the identity lane. */
+     * uses. D91 armed it on EVERY lane — a keyed class's equal() is the
+     * key relation wherever it lowers; only the IDENTITY pieces (eq,
+     * keyless equal) stay verdict-lane-gated via {@code instanceIdOf}
+     * and the {@code __id} layout field. */
     private @com.legend.Nullable Function<Type,
             com.legend.compiler.element.@com.legend.Nullable EqualityKeys>
             instanceKeysOf;
 
-    public Lowerer withInstanceIds(Function<Object, String> ids,
+    public Lowerer withInstanceIds(Function<Object, String> ids) {
+        this.instanceIdOf = ids;
+        return this;
+    }
+
+    public Lowerer withInstanceKeys(
             Function<Type, com.legend.compiler.element
                     .@com.legend.Nullable EqualityKeys> keys) {
-        this.instanceIdOf = ids;
         this.instanceKeysOf = keys;
         return this;
     }

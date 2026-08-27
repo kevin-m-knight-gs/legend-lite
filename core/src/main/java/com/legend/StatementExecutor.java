@@ -2317,10 +2317,14 @@ final class StatementExecutor {
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t,
                         identity),
                 f -> ctx.findClass(f).isPresent()).withEngineExistsJoinForm();
+        // D91: the <<equality.Key>> resolver rides EVERY lane — equal()
+        // over keyed instances is the key relation on the execute path
+        // too (the structural fallback erased class identity and read
+        // non-key fields). Identity minting stays verdict-lane-only.
+        lowerer = lowerer.withInstanceKeys(t2 -> com.legend.compiler
+                .element.EqualityKeys.resolve(ctx, t2));
         if (identity) {
-            lowerer = lowerer.withInstanceIds(env.instanceIds()::idOf,
-                    t2 -> com.legend.compiler.element.EqualityKeys
-                            .resolve(ctx, t2));
+            lowerer = lowerer.withInstanceIds(env.instanceIds()::idOf);
         }
         com.legend.sql.SqlQuery plan =
                 lowerer.lower(com.legend.lowering.SeedableLets

@@ -126,6 +126,11 @@ class JdbcSurfaceCensusTest {
             // computes both verdict sides; the site-minted __id rides
             // the SQL and the verdict IS the test
             "core/src/test/java/com/legend/exec/InstanceIdentityTest.java",
+            // D94 (slice-4 fold-in): the diamond-layout witness — the
+            // executed half proves the [1] property reads back scalar
+            // THROUGH the database (tenet #1: the value's shape is the
+            // SQL layout's, so the assertion needs a real session)
+            "core/src/test/java/com/legend/compiler/element/ClassLayoutsDiamondTest.java",
             // F10 v1: literal-channel spec pins — a DuckDB session
             // computes both sides; the byte verdict IS the test
             "core/src/test/java/com/legend/exec/LiteralChannelTest.java",

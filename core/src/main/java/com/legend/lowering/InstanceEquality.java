@@ -20,9 +20,13 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * F13c — the in-SQL INSTANCE-EQUALITY arm family (identity lane only):
- * ONE owner of the equality relation — the same canonical renders the
- * verdict layer byte-judges with ({@link CanonicalRenderSql}).
+ * F13c — the in-SQL INSTANCE-EQUALITY arm family: ONE owner of the
+ * equality relation — the same canonical renders the verdict layer
+ * byte-judges with ({@link CanonicalRenderSql}). D91 armed the KEYED
+ * half on every lane ({@code <<equality.Key>>} governs equal()
+ * wherever it lowers); the IDENTITY half (eq, keyless equal, the
+ * static cross-class fold) still needs the minted {@code __id} and
+ * stays verdict-lane-gated.
  *
  * <ul>
  *   <li>{@code eq(a,b)} is IDENTITY — {@code a.__id = b.__id} — with NO
@@ -102,10 +106,14 @@ final class InstanceEquality {
         String rf = Objects.requireNonNull(instanceFqn(r));
         SqlType lt = sqlTypeOf.apply(l.info().type());
         SqlType rt = sqlTypeOf.apply(r.info().type());
-        if (!hasIdentityField(lt) || !hasIdentityField(rt)) {
-            return null;
-        }
         if (isEq) {
+            // eq = INSTANCE IDENTITY — needs the minted __id, which
+            // rides only the verdict/identity lane; the value lane's
+            // plain layouts stay on the generic rule (named residue,
+            // census §5)
+            if (!hasIdentityField(lt) || !hasIdentityField(rt)) {
+                return null;
+            }
             return SqlExpr.Call.of(SqlFn.EQUAL,
                     new SqlExpr.StructGet(scalar.apply(l),
                             ClassLayouts.SYNTHETIC_ID),
@@ -113,9 +121,20 @@ final class InstanceEquality {
                             ClassLayouts.SYNTHETIC_ID));
         }
         if (!lf.equals(rf)) {
-            return new SqlExpr.BoolLit(false);
+            // the engine's exact-classifier FALSE fold — witnessed
+            // static-exact on the identity lane only; on the value
+            // lane a supertype-stamped alias could still be the same
+            // runtime class, so the shape stays unclaimed there
+            return hasIdentityField(lt) && hasIdentityField(rt)
+                    ? new SqlExpr.BoolLit(false) : null;
         }
         EqualityKeys keys = keysOf.apply(l.info().type());
+        if (keys == null
+                && (!hasIdentityField(lt) || !hasIdentityField(rt))) {
+            // keyless equal = identity (needs __id) — value-lane
+            // keyless shapes keep the generic rule (D91 residue)
+            return null;
+        }
         SqlExpr ca = CanonicalRenderSql.instanceEqualityCanon(
                 scalar.apply(l), keys, lf, lt);
         SqlExpr cb = CanonicalRenderSql.instanceEqualityCanon(
@@ -140,16 +159,19 @@ final class InstanceEquality {
         String cf = Objects.requireNonNull(
                 classInstanceFqn(coll.info().type()));
         String nf = Objects.requireNonNull(instanceFqn(needle));
-        if (!cf.equals(nf)) {
-            // engine equal(): classifiers must match — cross-class
-            // containment is statically FALSE
-            return new SqlExpr.BoolLit(false);
-        }
         SqlType lt = sqlTypeOf.apply(needle.info().type());
-        if (!hasIdentityField(lt)) {
-            return null;
+        if (!cf.equals(nf)) {
+            // engine equal(): classifiers must match — statically FALSE
+            // where the shapes are witnessed static-exact (identity
+            // lane); unclaimed on the value lane (D91 — see equality())
+            return hasIdentityField(lt)
+                    ? new SqlExpr.BoolLit(false) : null;
         }
         EqualityKeys keys = keysOf.apply(needle.info().type());
+        if (keys == null && !hasIdentityField(lt)) {
+            // keyless membership = per-element identity — needs __id
+            return null;
+        }
         String elemVar = freshVar.get();
         SqlExpr elemCanon = CanonicalRenderSql.instanceEqualityCanon(
                 new SqlExpr.Column(null, elemVar), keys, cf, lt);

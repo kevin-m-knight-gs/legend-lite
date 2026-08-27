@@ -269,4 +269,37 @@ class InstanceIdentityTest {
                         && "a".equals(m.get("name")),
                 "plain-lane instance wire changed: " + v);
     }
+
+    @Test
+    @DisplayName("D91: equal over KEYED instances in VALUE position (the"
+            + " execute path, no rider) is the KEY relation — non-key"
+            + " content is outside it; the structural fallback that read"
+            + " every field is gone")
+    void keyedEqualInValuePosition() throws Exception {
+        // same key, different non-key content: TRUE (the engine rule);
+        // the old structural lowering compared 'other' and said FALSE
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+                "{|let a = ^m::K(id=1, other='x');"
+                        + " let b = ^m::K(id=1, other='y');"
+                        + " equal($a, $b);}")).value());
+        // different key: FALSE
+        assertEquals(Boolean.FALSE, ((ExecutionResult.Scalar) run(
+                "{|let a = ^m::K(id=1, other='x');"
+                        + " let c = ^m::K(id=2, other='x');"
+                        + " equal($a, $c);}")).value());
+    }
+
+    @Test
+    @DisplayName("D91: keyed membership in VALUE position rides the same"
+            + " key canon")
+    void keyedMembershipInValuePosition() throws Exception {
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+                "{|let a = ^m::K(id=1, other='x');"
+                        + " [^m::K(id=1, other='y'), ^m::K(id=3, other='z')]"
+                        + "->contains($a);}")).value());
+        assertEquals(Boolean.FALSE, ((ExecutionResult.Scalar) run(
+                "{|let a = ^m::K(id=9, other='x');"
+                        + " [^m::K(id=1, other='y'), ^m::K(id=3, other='z')]"
+                        + "->contains($a);}")).value());
+    }
 }

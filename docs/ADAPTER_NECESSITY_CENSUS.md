@@ -137,8 +137,8 @@ finding, not a silent absorb).
 | DOUBLE←VARCHAR "NUMBER-slot identity carrier" admissibility row retires | **ALREADY RETIRED** | Row added at 77af0f37 (T3), deleted at 3c353706 (the label flip); the admissible() relation itself deleted at d4acdeca (§4bZ-V B4). No row in today's `SqlTypeCensus.delivers` mentions it. Recorded here as the receipt; nothing to do. |
 | Computed-mixed collections: carrier claim or named ledger row | **NAMED LEDGER ROW (this doc)** | `AssertVerdicts.mixedNumericKinds` residual guard: only a COMPUTED mixed collection (concatenated/derived — no carrier claim) can reach the decline; decline ceilings pinned 0 both lanes, so zero witnesses is machine-proven every chain. THE LEDGER ROW: a first firing is a named work item — extend the LITERAL carrier to the computed shape at that witness, never pre-build (no adapter hedges applies to platform hedges too). |
 | Wire pins bank DOWN | PctCensusGate: every pin already EQUALITY-0 except `MAX_INT_NULL_EMPTY=219` (ceiling, shape-driven); G7 ceilings fail<=1/err<=22. | Bank any floor the slice's runs prove lower, same-commit justified. A pin the deletions force UP is the no-hedges tell — stop and re-adjudicate. |
-| D91 fold-in | OPEN — this slice | Execute path (identity=false lane) never wires `instanceKeysOf`, so `equal()`/`contains()` over keyed instances lowers to the generic structural rule: `<<equality.Key>>` ignored, class identity erased. Fix = arm the EXISTING owner (`InstanceEquality`), never a second impl: wire `EqualityKeys.resolve` on the execute lane too, and let the KEYED canon claim without the `__id` field (key-tree canon reads key fields only; `eq()` and KEYLESS `equal()` still require the identity lane — keyless residue stays generic, recorded below). |
-| D94 layout row ([1]-vs-[*] diamond) | OPEN — this slice | Two supertypes declaring one property at different multiplicities: `findProperty` answers `[1]` while `ClassLayouts` lays out `[*]` — a list under an `Integer[1]` stamp. One owner: the layout adopts the same resolution `findProperty` uses. |
+| D91 fold-in | **LANDED 2026-08-27** (this slice's fold-in batch) | `EqualityKeys.resolve` now rides EVERY lane (StatementExecutor wires `withInstanceKeys` unconditionally; identity minting stays verdict-lane-only); `InstanceEquality`'s KEYED `equal()`/`contains()`/`in` claim on plain layouts (the key canon reads key fields, no `__id` needed). The identity pieces — `eq`, keyless `equal`, the static cross-class FALSE fold — stay verdict-lane-gated (a value-lane supertype alias could be the same runtime class; keyless equality IS identity and needs the minted id — named residue, §5). Witnesses: `InstanceIdentityTest.keyedEqualInValuePosition` (same key + different non-key content = TRUE, where the structural rule said FALSE) + `keyedMembershipInValuePosition`. |
+| D94 layout row ([1]-vs-[*] diamond) | **LANDED 2026-08-27** | `ClassLayouts.collect` keeps the FIRST super's declaration on a diamond duplicate (multiplicity included) — the same extends-order rule `findProperty` resolves by; the type-conflict wall unchanged. Witnesses: `ClassLayoutsDiamondTest` (layout ≡ findProperty; the A28 repro's `^m::D(w=1).w` reads back a SCALAR). |
 
 ## 5. Residue (named, not burned here)
 
@@ -242,6 +242,12 @@ one signature + one key
 
 ## 6. Landing record
 
+- **2026-08-27 — the fold-in batch (D91 + D94)**: instance equality's
+  KEYED half armed on every lane (one owner, the verdict layer's own
+  canon — see §4's row for scope and residue); the diamond layout
+  adopts findProperty's extends-order rule. Both witnessed; core suite
+  grows two witness tests (InstanceIdentityTest +2,
+  ClassLayoutsDiamondTest new).
 - **2026-08-27 — R1 (semantic discovery — the regexes die)**: the
   pure-side `collectRoots` M3 walk (userTypeRoot / typeRoots /
   instanceRoots / lambdaRoots, the substituteInExpression vocabulary +
