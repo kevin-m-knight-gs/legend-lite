@@ -242,6 +242,28 @@ one signature + one key
 
 ## 6. Landing record
 
+- **2026-08-27 — R1 (semantic discovery — the regexes die)**: the
+  pure-side `collectRoots` M3 walk (userTypeRoot / typeRoots /
+  instanceRoots / lambdaRoots, the substituteInExpression vocabulary +
+  upstream reprocess's arms) now supplies dependency roots to the
+  native (`executeLegendLiteQuery(String[1], String[*])`); Java's
+  `injectionFromRoots` resolves them in the M3 graph and dispatches on
+  what each element IS. All five discovery regexes + extractClassMetadata
+  + the regex halves of the enum/function extractors DELETED.
+  **Differential receipts** (census method applied to the rewrite):
+  run 1 found the collector's two real bugs before they could land —
+  23 stack overflows on CYCLIC captured-instance graphs (cured:
+  chain-seen cycle guard; the regex never saw cycles because text is
+  finite) and the CapturedInstance marker leaking via the wrapper's
+  own genericType (cured: own-namespace filter). Run 2: the walk
+  found every element the regexes found; the ONLY regex-only rows
+  were `^Pair(...)` sites wrongly injecting a shadow copy of the
+  native Pair — the walk's native-class filter refuses it, and all
+  four affected tests pass on the real Pair (a correctness
+  improvement the flip lands silently). Flip lane: 1115/0.
+  pct_adapter.pure pin 320 → 410 with written justification (the
+  collector is ANTI-compensation: the pair shrinks net — Java lost
+  ~150 lines of pattern-guessing).
 - **2026-08-27 — R2 (pure-side derived minimum)**: P4/P6b/P8/P9
   deleted by measurement (§5b table), both `Any` fallback combos made
   LOUD (`fail` with the offending type), probes removed. The adapter

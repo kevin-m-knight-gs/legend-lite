@@ -55,8 +55,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Native function that bridges PCT tests to Legend-Lite's QueryService.
@@ -84,15 +82,9 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
 
             """;
 
-    private static final Pattern INSTANCE_CLASS_PATTERN = Pattern.compile("\\^([\\w:]+)\\(");
-    private static final Pattern TYPE_REF_PATTERN = Pattern.compile("@(\\w+(?:::\\w+)+)");
-    private static final Pattern ENUM_REF_PATTERN = Pattern.compile("(\\w+(?:::\\w+)+)\\.\\w+");
-    /** Parameter type annotations — match clauses ({@code a: My::Type[1]|...}), typed lambdas. */
-    private static final Pattern PARAM_TYPE_PATTERN = Pattern.compile(":\\s*(\\w+(?:::\\w+)+)\\s*\\[");
-    /** Bare element references as values ({@code STR_Person->toString()}). */
-    private static final Pattern BARE_REF_PATTERN = Pattern.compile("(\\w+(?:::\\w+)+)\\s*->");
-    /** Any multi-segment FQN token (F5.7 support-function extraction). */
-    private static final Pattern FQN_TOKEN_PATTERN = Pattern.compile("(\\w+(?:::\\w+)+)");
+    // (The five discovery regexes — INSTANCE_CLASS/TYPE_REF/ENUM_REF/
+    // PARAM_TYPE/BARE_REF/FQN_TOKEN — are DELETED: R1 differential,
+    // 2026-08-27. Discovery is the pure-side collectRoots M3 walk.)
 
     private final ModelRepository modelRepository;
     private final FunctionExecutionInterpreted functionExecution;
@@ -124,6 +116,15 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         String pureExpression = PrimitiveUtilities.getStringValue(
                 Instance.getValueForMetaPropertyToOneResolved(params.get(0), M3Properties.values, processorSupport));
 
+        // R1 (census §5b): the SEMANTIC dependency roots — element paths
+        // the pure-side collectRoots walk read off the M3 tree. The
+        // differential below judges the regex discovery against them.
+        java.util.List<String> semanticRoots = new ArrayList<>();
+        for (CoreInstance v : Instance.getValueForMetaPropertyToManyResolved(
+                params.get(1), M3Properties.values, processorSupport)) {
+            semanticRoots.add(PrimitiveUtilities.getStringValue(v));
+        }
+
         System.out.println("[LegendLite PCT] Executing: " + pureExpression);
 
         // LEGENDLITE_PCT_BACKEND=h2 runs the SAME suite on the H2
@@ -147,31 +148,33 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 }
             }
 
-            // Inject class definitions from the interpreter's model
-            java.util.Set<String> discoveredEnums = new java.util.LinkedHashSet<>();
-            Map<String, String> extractedClasses =
-                    extractClassMetadata(pureExpression, discoveredEnums, processorSupport);
-            java.util.List<String> enumDefs =
-                    extractEnumDefinitions(pureExpression, discoveredEnums, processorSupport);
-            java.util.List<String> functionDefs =
-                    extractFunctionDefinitions(pureExpression, processorSupport);
+            // R1 (census §5b + §6): the model injection builds from the
+            // SEMANTIC roots the pure-side collectRoots walk supplied —
+            // discovery reads the M3 tree the interpreter holds. The
+            // five discovery regexes are DELETED BY DIFFERENTIAL
+            // (2026-08-27): one full-lane run built the injection both
+            // ways — the walk found every element the regexes found,
+            // and the only regex-only rows were the ^Pair(...) sites
+            // WRONGLY injecting a shadow copy of the platform's native
+            // Pair (the walk's native-class filter refuses it; all four
+            // tests pass on the real Pair).
+            java.util.TreeMap<String, String> injection =
+                    injectionFromRoots(semanticRoots, processorSupport);
             String model = h2
                     ? PURE_MODEL.replace("type: DuckDB;", "type: H2;")
                     : PURE_MODEL;
-            if (!extractedClasses.isEmpty() || !enumDefs.isEmpty()
-                    || !functionDefs.isEmpty()) {
-                StringBuilder classDefs = new StringBuilder();
-                for (String ed : enumDefs) {
-                    classDefs.append(ed).append("\n");
+            if (!injection.isEmpty()) {
+                StringBuilder defs = new StringBuilder();
+                // grouped enums → classes → functions (the E:/C:/F: keys)
+                for (String prefix : List.of("E:", "C:", "F:")) {
+                    for (var en : injection.entrySet()) {
+                        if (en.getKey().startsWith(prefix)) {
+                            defs.append(en.getValue()).append("\n");
+                        }
+                    }
                 }
-                for (String classText : extractedClasses.values()) {
-                    classDefs.append(classText).append("\n");
-                }
-                for (String fd : functionDefs) {
-                    classDefs.append(fd).append("\n");
-                }
-                System.out.println("[LegendLite PCT] Injected model:\n" + classDefs);
-                model = classDefs + model;
+                System.out.println("[LegendLite PCT] Injected model:\n" + defs);
+                model = defs + model;
             }
 
             // E1 (JAVA_EVICTION_PLAN): relation-rooted queries render
@@ -648,147 +651,156 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
      *  stereotype/tagged-value decorations ({@code <<...>>}, {@code
      *  {doc...}}) strip — they are PCT-harness metadata, not semantics,
      *  and their profiles are not part of the lite compile. */
-    private java.util.List<String> extractFunctionDefinitions(
-            String pureExpression, ProcessorSupport ps) {
-        java.util.List<String> defs = new java.util.ArrayList<>();
-        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
-        Matcher fqns = FQN_TOKEN_PATTERN.matcher(pureExpression);
-        while (fqns.find()) {
-            String fqn = fqns.group(1);
-            if (!fqn.contains("::tests::") || !seen.add(fqn)) {
+    /** Slices every ConcreteFunctionDefinition matching {@code path}
+     * (a {@code pkg::bareName} or a graph-mangled id) from the
+     * interpreter's source registry into {@code out}, keyed
+     * {@code pkg::bareName} — the mangling-free identity both discovery
+     * pipelines share (F5.7's registry slice; stereotype/doc decorations
+     * strip, they are PCT-harness metadata). */
+    private void sliceFunctionsNamed(String path,
+            java.util.Map<String, String> out, ProcessorSupport ps) {
+        // a graph-mangled id (pkg::name_A_1__B_1_) resolves DIRECTLY;
+        // a bare name scans the package's children by functionName
+        CoreInstance direct = ps.package_getByUserPath(path);
+        if (direct != null && Instance.instanceOf(direct,
+                "meta::pure::metamodel::function::ConcreteFunctionDefinition", ps)) {
+            sliceFunction(direct, out, ps);
+            return;
+        }
+        int cut = path.lastIndexOf("::");
+        if (cut < 0) {
+            return;
+        }
+        CoreInstance pkg = ps.package_getByUserPath(path.substring(0, cut));
+        if (pkg == null) {
+            return;
+        }
+        String name = path.substring(cut + 2);
+        for (CoreInstance child : Instance.getValueForMetaPropertyToManyResolved(
+                pkg, M3Properties.children, ps)) {
+            if (!Instance.instanceOf(child,
+                    "meta::pure::metamodel::function::ConcreteFunctionDefinition", ps)) {
                 continue;
             }
-            int cut = fqn.lastIndexOf("::");
-            CoreInstance pkg = ps.package_getByUserPath(fqn.substring(0, cut));
-            if (pkg == null) {
+            CoreInstance fn = child.getValueForMetaPropertyToOne(
+                    M3Properties.functionName);
+            if (fn != null && name.equals(fn.getName())) {
+                sliceFunction(child, out, ps);
+            }
+        }
+    }
+
+    private void sliceFunction(CoreInstance fnDef,
+            java.util.Map<String, String> out, ProcessorSupport ps) {
+        var si = fnDef.getSourceInformation();
+        if (si == null) {
+            return;
+        }
+        var src = functionExecution.getRuntime().getSourceById(si.getSourceId());
+        if (src == null) {
+            return;
+        }
+        // key = pkg::<graph-mangled id> — unique per OVERLOAD (a bare
+        // functionName key would collapse overload siblings)
+        String pkgPath = getQualifiedName(
+                fnDef.getValueForMetaPropertyToOne("package"));
+        String key = (pkgPath != null ? pkgPath : "") + "::" + fnDef.getName();
+        if (out.containsKey(key)) {
+            return;
+        }
+        String[] lines = src.getContent().split("\n", -1);
+        StringBuilder def = new StringBuilder();
+        for (int ln = si.getStartLine(); ln <= si.getEndLine()
+                && ln <= lines.length; ln++) {
+            def.append(lines[ln - 1]).append('\n');
+        }
+        out.put(key, def.toString()
+                .replaceAll("<<[^>]*>>", "")
+                .replaceAll("\\{doc[^}]*\\}", ""));
+    }
+
+    /** Renders {@code Enum fqn { A, B }} into {@code out} when the fqn
+     * is a real, non-native, non-metamodel Enumeration. */
+    private static void renderEnumDef(String fqn,
+            java.util.Map<String, String> out, ProcessorSupport ps) {
+        if (fqn.startsWith("meta::pure::metamodel") || out.containsKey(fqn)) {
+            return;
+        }
+        CoreInstance enumCls = ps.package_getByUserPath(fqn);
+        if (enumCls == null
+                || !Instance.instanceOf(enumCls, "meta::pure::metamodel::type::Enumeration", ps)
+                || com.legend.builtin.Pure.findNativeEnum(fqn).isPresent()) {
+            return;
+        }
+        StringBuilder def = new StringBuilder("Enum ").append(fqn).append(" { ");
+        boolean first = true;
+        for (CoreInstance v : Instance.getValueForMetaPropertyToManyResolved(
+                enumCls, M3Properties.values, ps)) {
+            if (!first) {
+                def.append(", ");
+            }
+            def.append(v.getName());
+            first = false;
+        }
+        def.append(" }");
+        out.put(fqn, def.toString());
+    }
+
+    // ===== R1 — the canonical injection map (differential seam) =====
+
+    /** One comparable identity for an injection, whichever discovery
+     * produced it: {@code E:fqn} / {@code C:fqn} / {@code F:pkg::id}
+     * → definition text. */
+    private static java.util.TreeMap<String, String> canonicalInjection(
+            java.util.Map<String, String> enums,
+            java.util.Map<String, String> classes,
+            java.util.Map<String, String> fns) {
+        var out = new java.util.TreeMap<String, String>();
+        enums.forEach((k, v) -> out.put("E:" + k, v));
+        classes.forEach((k, v) -> out.put("C:" + k, v));
+        fns.forEach((k, v) -> out.put("F:" + k, v));
+        return out;
+    }
+
+    /** The injection built from the SEMANTIC roots the pure-side
+     * collectRoots walk supplied — no text pattern-matching anywhere:
+     * each root resolves in the M3 graph and dispatches on what it IS;
+     * classes expand through the same M3-recursive extraction. */
+    private java.util.TreeMap<String, String> injectionFromRoots(
+            java.util.List<String> roots, ProcessorSupport ps) {
+        Map<String, String> classes = new HashMap<>();
+        Set<String> visited = new HashSet<>();
+        java.util.Set<String> enums = new java.util.LinkedHashSet<>();
+        var enumDefs = new java.util.LinkedHashMap<String, String>();
+        var fnDefs = new java.util.LinkedHashMap<String, String>();
+        for (String fqn : roots) {
+            if (fqn.startsWith("meta::pure::metamodel")
+                    || fqn.startsWith("meta::pure::precisePrimitives")) {
                 continue;
             }
-            String name = fqn.substring(cut + 2);
-            for (CoreInstance child : Instance.getValueForMetaPropertyToManyResolved(
-                    pkg, M3Properties.children, ps)) {
-                if (!Instance.instanceOf(child,
-                        "meta::pure::metamodel::function::ConcreteFunctionDefinition", ps)) {
-                    continue;
+            CoreInstance el = ps.package_getByUserPath(fqn);
+            if (el != null && Instance.instanceOf(el,
+                    "meta::pure::metamodel::type::Enumeration", ps)) {
+                enums.add(fqn);
+            } else if (el != null && Instance.instanceOf(el,
+                    "meta::pure::metamodel::type::Class", ps)) {
+                if (com.legend.builtin.Pure.findNativeClass(fqn).isEmpty()) {
+                    extractClassRecursive(fqn, classes, visited, enums, ps);
                 }
-                CoreInstance fn = child.getValueForMetaPropertyToOne(
-                        M3Properties.functionName);
-                if (fn == null || !name.equals(fn.getName())
-                        || child.getSourceInformation() == null) {
-                    continue;
-                }
-                var si = child.getSourceInformation();
-                var src = functionExecution.getRuntime()
-                        .getSourceById(si.getSourceId());
-                if (src == null) {
-                    continue;
-                }
-                String[] lines = src.getContent().split("\n", -1);
-                StringBuilder def = new StringBuilder();
-                for (int ln = si.getStartLine(); ln <= si.getEndLine()
-                        && ln <= lines.length; ln++) {
-                    def.append(lines[ln - 1]).append('\n');
-                }
-                String text = def.toString()
-                        .replaceAll("<<[^>]*>>", "")
-                        .replaceAll("\\{doc[^}]*\\}", "");
-                defs.add(text);
+            } else if (fqn.contains("::tests::")) {
+                sliceFunctionsNamed(fqn, fnDefs, ps);
             }
         }
-        return defs;
+        for (String fqn : enums) {
+            renderEnumDef(fqn, enumDefs, ps);
+        }
+        return canonicalInjection(enumDefs, classes, fnDefs);
     }
 
-    private java.util.List<String> extractEnumDefinitions(String pureExpression,
-            java.util.Set<String> discoveredEnums, ProcessorSupport ps) {
-        java.util.List<String> defs = new java.util.ArrayList<>();
-        try {
-            java.util.Set<String> enumFqns = new java.util.LinkedHashSet<>(discoveredEnums);
-            Matcher enumRef = ENUM_REF_PATTERN.matcher(pureExpression);
-            while (enumRef.find()) {
-                enumFqns.add(enumRef.group(1));
-            }
-            Matcher enumTypeRef = TYPE_REF_PATTERN.matcher(pureExpression);
-            while (enumTypeRef.find()) {
-                enumFqns.add(enumTypeRef.group(1));
-            }
-            for (String fqn : enumFqns) {
-                if (fqn.startsWith("meta::pure::metamodel")) {
-                    continue;
-                }
-                CoreInstance enumCls = ps.package_getByUserPath(fqn);
-                if (enumCls == null
-                        || !Instance.instanceOf(enumCls, "meta::pure::metamodel::type::Enumeration", ps)
-                        || com.legend.builtin.Pure.findNativeEnum(fqn).isPresent()) {
-                    continue;
-                }
-                StringBuilder def = new StringBuilder("Enum ").append(fqn).append(" { ");
-                boolean first = true;
-                for (CoreInstance v : Instance.getValueForMetaPropertyToManyResolved(
-                        enumCls, M3Properties.values, ps)) {
-                    if (!first) {
-                        def.append(", ");
-                    }
-                    def.append(v.getName());
-                    first = false;
-                }
-                def.append(" }");
-                defs.add(def.toString());
-            }
-        } catch (Exception e) {
-            System.out.println("[LegendLite PCT] Enum extraction failed: " + e.getMessage());
-        }
-        return defs;
-    }
-
-    private Map<String, String> extractClassMetadata(String pureExpression,
-            java.util.Set<String> discoveredEnums, ProcessorSupport ps) {
-        try {
-            Map<String, String> classes = new HashMap<>();
-            Set<String> visited = new HashSet<>();
-            Matcher matcher = INSTANCE_CLASS_PATTERN.matcher(pureExpression);
-            while (matcher.find()) {
-                extractClassRecursive(matcher.group(1), classes, visited, discoveredEnums, ps);
-            }
-            // MODEL classes referenced as type arguments (to(@X), cast(@X))
-            // or as parameter type annotations (match clauses a: X[1]|...):
-            // multi-segment FQNs outside the metamodel/platform space whose
-            // resolved element is a Class.
-            java.util.Set<String> typeFqns = new java.util.LinkedHashSet<>();
-            Matcher typeRef = TYPE_REF_PATTERN.matcher(pureExpression);
-            while (typeRef.find()) {
-                typeFqns.add(typeRef.group(1));
-            }
-            Matcher paramType = PARAM_TYPE_PATTERN.matcher(pureExpression);
-            while (paramType.find()) {
-                typeFqns.add(paramType.group(1));
-            }
-            Matcher bareRef = BARE_REF_PATTERN.matcher(pureExpression);
-            while (bareRef.find()) {
-                typeFqns.add(bareRef.group(1));
-            }
-            for (String fqn : typeFqns) {
-                if (fqn.startsWith("meta::pure::metamodel")
-                        || fqn.startsWith("meta::pure::precisePrimitives")) {
-                    continue;
-                }
-                CoreInstance cls = ps.package_getByUserPath(fqn);
-                // Never inject a class core knows NATIVELY (Pair, List, ...):
-                // the extraction degrades type parameters to Any and a
-                // redefinition could silently shift platform semantics.
-                if (cls == null || com.legend.builtin.Pure.findNativeClass(fqn).isPresent()) {
-                    continue;
-                }
-                if (Instance.instanceOf(cls, "meta::pure::metamodel::type::Enumeration", ps)) {
-                    discoveredEnums.add(fqn);
-                } else if (Instance.instanceOf(cls, "meta::pure::metamodel::type::Class", ps)) {
-                    extractClassRecursive(fqn, classes, visited, discoveredEnums, ps);
-                }
-            }
-            return classes;
-        } catch (Exception e) {
-            System.out.println("[LegendLite PCT] Class metadata extraction failed: " + e.getMessage());
-            return Map.of();
-        }
-    }
+    // (extractClassMetadata — the regex-driven root discovery — is
+    // DELETED: R1 differential 2026-08-27. injectionFromRoots consumes
+    // the pure walk's roots; extractClassRecursive below remains the
+    // M3-recursive expansion it always was.)
 
     private void extractClassRecursive(String className, Map<String, String> classes,
                                        Set<String> visited, java.util.Set<String> discoveredEnums,

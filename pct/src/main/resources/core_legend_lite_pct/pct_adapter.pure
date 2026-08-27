@@ -69,6 +69,117 @@ function meta::legend::lite::pct::legendLiteGrammarConfiguration():Configuration
 // (getSimpleTypeName DELETED — slice-4 census P2: its one consumer,
 // buildTypedHeader, died at F5.3 Stage B; zero callers remained.)
 
+// ===== R1 — semantic dependency DISCOVERY (census §5b) =====
+// The referenced user elements are read off the M3 tree the reference
+// interpreter already holds — never pattern-guessed from printed text.
+// ROOTS ONLY: the Java side's M3-recursive extraction expands supers,
+// property types and nested classes from these. The walk mirrors
+// substituteInExpression's vocabulary (the same closed AST set) plus
+// upstream pct_relational's reprocess arms (the existence proof:
+// ^X(...) carries X at genericType.rawType; cast(@X) carries the
+// Class AS A VALUE; enum values carry their Enumeration as classifier;
+// captured instances carry their class — including runtime subtypes
+// the declared property type cannot name).
+
+function <<access.private>> meta::legend::lite::pct::userTypeRoot(t:meta::pure::metamodel::type::Type[1]):String[*]
+{
+  if($t->instanceOf(Class) || $t->instanceOf(Enumeration),
+    | let p = $t->elementToPath();
+      // metamodel types and the adapter's OWN namespace (the
+      // CapturedInstance marker) are never model dependencies
+      if($p->startsWith('meta::pure::metamodel')
+         || $p->startsWith('meta::legend::lite::pct')
+         || !$p->contains('::'), |[], |$p);,
+    | []
+  );
+}
+
+function <<access.private>> meta::legend::lite::pct::typeRoots(gt:GenericType[*]):String[*]
+{
+  $gt->map(g |
+    $g.rawType->map(rt | $rt->userTypeRoot())
+      ->concatenate($g.typeArguments->map(t | $t->typeRoots()));
+  );
+}
+
+// An instance VALUE's classes: its own classifier plus every class
+// reachable through its property values (objectToGrammar's own walk —
+// nested instances may be runtime SUBTYPES no declared type names).
+// CYCLE GUARD (differential run 1's 23 stack overflows: captured
+// instance graphs cycle — Firm<->Person back-references): the walk
+// threads the classes seen ON THIS CHAIN and stops at a repeat —
+// discovery needs each class once, so chain-level breaking is exact.
+// Duplicate roots across sibling branches are fine: the Java consumer
+// dedups by construction (maps + visited sets).
+function <<access.private>> meta::legend::lite::pct::instanceRoots(a:Any[1]):String[*]
+{
+  $a->instanceRootsAcc([])
+}
+
+function <<access.private>> meta::legend::lite::pct::instanceRootsAcc(a:Any[1], seen:String[*]):String[*]
+{
+  $a->match([
+    i:Integer[1] | [],
+    x:String[1]  | [],
+    b:Boolean[1] | [],
+    f:Float[1]   | [],
+    d:Date[1]    | [],
+    dc:Decimal[1]| [],
+    e:Enum[1]    | $e->type()->userTypeRoot(),
+    v:Any[1] |
+      if(!$v->type()->instanceOf(Class), | [],
+        | let cls = $v->type()->cast(@Class<Any>);
+          let root = $cls->userTypeRoot();
+          if($root->isEmpty() || $seen->contains($root->toOne()),
+            | $root,
+            | let deeper = $seen->concatenate($root);
+              $root->concatenate(
+                $cls->meta::pure::functions::meta::hierarchicalProperties()
+                    ->map(p | $p->eval($v)->map(w | $w->instanceRootsAcc($deeper))));
+          );
+      );
+  ]);
+}
+
+function <<access.private>> meta::legend::lite::pct::lambdaRoots(fd:FunctionDefinition<Any>[1]):String[*]
+{
+  // match-clause / typed-lambda PARAMETER types ride the FunctionType
+  let paramRoots = $fd.classifierGenericType.typeArguments
+      ->map(ta | $ta.rawType)
+      ->filter(rt | $rt->instanceOf(meta::pure::metamodel::type::FunctionType))
+      ->cast(@meta::pure::metamodel::type::FunctionType)
+      ->map(ft | $ft.parameters->evaluateAndDeactivate()->map(p | $p.genericType->typeRoots()));
+  $paramRoots->concatenate(
+      $fd.expressionSequence->evaluateAndDeactivate()->map(e | $e->collectRoots()));
+}
+
+function <<access.private>> meta::legend::lite::pct::collectRoots(a:Any[1]):String[*]
+{
+  $a->match([
+    fe:FunctionExpression[1] |
+      let callee = $fe.func;
+      let calleeRoot = if($callee->instanceOf(ConcreteFunctionDefinition)
+                          && $callee->elementToPath()->contains('::tests::'),
+                          | $callee->elementToPath(), | []);
+      $calleeRoot
+        ->concatenate($fe.genericType->typeRoots())
+        ->concatenate($fe.parametersValues->evaluateAndDeactivate()->map(p | $p->collectRoots()));,
+    iv:InstanceValue[1] |
+      $iv.genericType->typeRoots()
+        ->concatenate($iv.values->map(v | $v->match([
+            vs:ValueSpecification[1]      | $vs->collectRoots(),
+            fd:FunctionDefinition<Any>[1] | $fd->lambdaRoots(),
+            c:Class<Any>[1]               | $c->userTypeRoot(),
+            en:Enumeration<Any>[1]        | $en->userTypeRoot(),
+            ci:CapturedInstance[1]        | $ci.value->instanceRoots(),
+            other:Any[1]                  | $other->instanceRoots();
+          ])));,
+    lf:LambdaFunction<Any>[1]   | $lf->lambdaRoots(),
+    ve:VariableExpression[1]    | $ve.genericType->typeRoots(),
+    other:Any[1]                | []
+  ]);
+}
+
 // Substitute open (captured) variables in the function's expression sequence
 // This replaces VariableExpression nodes with their captured values from outer scope
 function meta::legend::lite::pct::substituteOpenVariables(f:FunctionDefinition<Any>[1]):FunctionDefinition<Any>[1]
@@ -194,12 +305,19 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
     // Debug: print the serialized Pure text
     print('[LegendLite PCT] Executing Pure expression: ' + $pureText + '\n');
     
+    // R1: semantic dependency roots — read off the substituted M3 tree
+    // (collectRoots), handed to the native so the model hand-off never
+    // depends on pattern-matching the printed text
+    // (duplicates fine — the Java consumer dedups by construction)
+    let roots = $substituted.expressionSequence->evaluateAndDeactivate()
+        ->map(e | $e->collectRoots());
+
     // Execute through Legend-Lite's QueryService via native bridge
     // Java dispatch returns properly typed values:
     //   - TDSResult wrapper containing TDS string (for TabularResult)
     //   - Typed scalar values directly (Integer, Float, Boolean, String, Date, etc.)
     //   - Multi-value collection (for CollectionResult)
-    let result = executeLegendLiteQuery($pureText);
+    let result = executeLegendLiteQuery($pureText, $roots);
     
     // Handle result based on size and type. R2 (the derived minimum,
     // ADAPTER_NECESSITY_CENSUS §5b, measured on the full lane): the

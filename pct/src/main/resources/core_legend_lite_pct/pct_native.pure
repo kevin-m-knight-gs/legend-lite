@@ -6,5 +6,8 @@
 // via LegendLitePCTExtensionInterpreted with the interpreted runtime.
 //
 // Input: Pure expression as grammar text (e.g., "|1+1" or "|Person.all()->project(~name)")
+//        plus the SEMANTIC dependency roots (R1: element paths collected
+//        off the M3 tree by collectRoots — classes, enumerations and
+//        test-support functions the expression references)
 // Output: Either a scalar value (Integer, Float, Boolean, String) or TDSResult wrapper
-native function meta::legend::lite::pct::executeLegendLiteQuery(pureGrammar: String[1]): Any[*];
+native function meta::legend::lite::pct::executeLegendLiteQuery(pureGrammar: String[1], dependents: String[*]): Any[*];

@@ -47,8 +47,16 @@ class PctDisciplineTest {
      * adapter is the CONTRACT surface — growth is new adapter
      * compensation and needs a pin bump with a written justification.
      * Seeded 2026-08-18 (audit finding G resolution: dead widening
-     * deleted, exactness relabel documented in place). */
-    private static final int ADAPTER_MAX_LINES = 320;
+     * deleted, exactness relabel documented in place).
+     * 320 → 400 (2026-08-27, R1 — ADAPTER_NECESSITY_CENSUS §5b): the
+     * semantic dependency collector moved INTO pure (the M3 walk that
+     * replaces the Java side's five discovery regexes — deleted in the
+     * same commit). The growth is ANTI-compensation: discovery now
+     * reads the tree the interpreter holds instead of pattern-guessing
+     * printed text; the adapter PAIR shrinks net. (410: the collector's
+     * cycle-guard block — differential run 1's 23 stack overflows on
+     * cyclic captured-instance graphs, cured by chain-seen breaking.) */
+    private static final int ADAPTER_MAX_LINES = 410;
 
     @Test
     void noJavaSideComparisonInPct() throws IOException {

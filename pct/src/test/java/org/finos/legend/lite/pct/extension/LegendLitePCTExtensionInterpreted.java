@@ -28,7 +28,7 @@ import org.finos.legend.pure.runtime.java.interpreted.extension.InterpretedExten
 public class LegendLitePCTExtensionInterpreted extends BaseInterpretedExtension {
 
     public LegendLitePCTExtensionInterpreted() {
-        super("executeLegendLiteQuery_String_1__Any_MANY_", ExecuteLegendLiteQuery::new);
+        super("executeLegendLiteQuery_String_1__String_MANY__Any_MANY_", ExecuteLegendLiteQuery::new);
     }
 
     public static InterpretedExtension extension() {
