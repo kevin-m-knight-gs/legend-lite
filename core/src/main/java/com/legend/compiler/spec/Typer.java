@@ -243,7 +243,8 @@ final class Typer {
                                 && lset.parameters().size() == 2
                                 && lset.parameters().get(0) instanceof CString ln) {
                             TypedSpec val = synth(lset.parameters().get(1), scope);
-                            scope = scope.with(ln.value(), val.info());
+                            scope = scope.withLet(ln.value(), val.info(),
+                                    lset.parameters().get(1));
                             stmts.add(new com.legend.compiler.spec.typed.TypedLet(
                                     ln.value(), val, val.info()));
                             continue;
@@ -2105,7 +2106,8 @@ final class Typer {
                     && lf2.parameters().size() == 2
                     && lf2.parameters().get(0) instanceof CString ln) {
                 TypedSpec val = synth(lf2.parameters().get(1), lambdaScope);
-                lambdaScope = lambdaScope.with(ln.value(), val.info());
+                lambdaScope = lambdaScope.withLet(ln.value(), val.info(),
+                        lf2.parameters().get(1));
                 typedStmts.add(new com.legend.compiler.spec.typed.TypedLet(
                         ln.value(), val, val.info()));
                 continue;

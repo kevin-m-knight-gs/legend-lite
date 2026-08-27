@@ -166,7 +166,16 @@ public final class SpecCompiler {
             }
             typed.add(stmt);
             if (stmt instanceof TypedLet let) {
-                scope = scope.with(let.name(), let.value().info());   // bind for the following statements
+                // bind for the following statements — WITH the let's syntax
+                // (the Env.exprAlias channel: match branches through a
+                // let-bound variable). The TypedLet fact PROVES the protocol
+                // shape (LetChecker rejects anything but letFunction(name,
+                // value)) — no name string compare (dispatch freeze).
+                scope = body.get(i) instanceof com.legend.protocol.spec.AppliedFunction paf
+                        && paf.parameters().size() == 2
+                        ? scope.withLet(let.name(), let.value().info(),
+                                paf.parameters().get(1))
+                        : scope.with(let.name(), let.value().info());
             }
         }
         return new CompiledFunction(fn, typed);
@@ -198,7 +207,13 @@ public final class SpecCompiler {
                 TypedSpec typed = typer.typeBody(stmt, scope, Expected.infer());
                 body.add(typed);
                 if (typed instanceof TypedLet let) {
-                    scope = scope.with(let.name(), let.value().info());
+                    // same syntax-carrying bind as the function-body fold
+                    // (TypedLet proves the letFunction(name, value) shape)
+                    scope = stmt instanceof com.legend.protocol.spec.AppliedFunction paf
+                            && paf.parameters().size() == 2
+                            ? scope.withLet(let.name(), let.value().info(),
+                                    paf.parameters().get(1))
+                            : scope.with(let.name(), let.value().info());
                 }
             }
             if (body.isEmpty()) {

@@ -1266,6 +1266,30 @@ public final class InferenceKernel {
             }
             return new Type.GenericType(gpa.rawFqn(), lub);
         }
+        // FunctionType LUB (engine GenericType.findBestCommonGenericType,
+        // the isFunction arm — match over function values): different
+        // arities join at Any; same arity builds the function type whose
+        // params take the CONTRAVARIANT meet (commonSubtype below) and
+        // whose return takes the ordinary covariant join, multiplicities
+        // min-subsuming on both (Multiplicity.union IS the engine's
+        // minSubsumingMultiplicity for two).
+        if (a instanceof Type.FunctionType ffa && b instanceof Type.FunctionType ffb) {
+            if (ffa.params().size() != ffb.params().size()) {
+                return new Type.ClassType(
+                        com.legend.compiler.element.type.PlatformTypes.ANY);
+            }
+            List<Type.Param> ps = new java.util.ArrayList<>(ffa.params().size());
+            for (int i = 0; i < ffa.params().size(); i++) {
+                Type.Param pa = ffa.params().get(i);
+                Type.Param pb = ffb.params().get(i);
+                ps.add(new Type.Param(commonSubtype(pa.type(), pb.type()),
+                        Multiplicity.union(pa.multiplicity(), pb.multiplicity())));
+            }
+            return new Type.FunctionType(ps, new Type.Param(
+                    commonSupertype(ffa.result().type(), ffb.result().type()),
+                    Multiplicity.union(ffa.result().multiplicity(),
+                            ffb.result().multiplicity())));
+        }
         // The SCALAR-SUBQUERY ENCODING (a single-column relation in value
         // position — the fnlr discipline; the lowerer renders it as a
         // correlated scalar subquery) meeting a bare scalar in a branch or
@@ -1303,6 +1327,41 @@ public final class InferenceKernel {
             }
         }
         return anyType();
+    }
+
+    /**
+     * The lattice's MEET — {@link #commonSupertype}'s dual, consumed by the
+     * FunctionType LUB's contravariant parameter slots. Engine
+     * {@code Support.getBestGenericTypeUsingContravariance}, the two-type
+     * case: Nil absorbs, Any defers, a subtype wins, unrelated types meet
+     * at Nil (never a loud wall — the engine returns bottom).
+     */
+    public Type commonSubtype(Type a, Type b) {
+        if (a.equals(b)) {
+            return a;
+        }
+        if (com.legend.compiler.element.type.PlatformTypes.isNil(a)
+                || com.legend.compiler.element.type.PlatformTypes.isNil(b)) {
+            return new Type.ClassType(
+                    com.legend.compiler.element.type.PlatformTypes.NIL);
+        }
+        if (com.legend.compiler.element.type.PlatformTypes.isAny(a)) {
+            return b;
+        }
+        if (com.legend.compiler.element.type.PlatformTypes.isAny(b)) {
+            return a;
+        }
+        String fa = nominalFqn(a), fb = nominalFqn(b);
+        if (fa != null && fb != null) {
+            if (ctx.isSubtype(fa, fb)) {
+                return a;
+            }
+            if (ctx.isSubtype(fb, fa)) {
+                return b;
+            }
+        }
+        return new Type.ClassType(
+                com.legend.compiler.element.type.PlatformTypes.NIL);
     }
 
     /** {@code Function<{sig}>} unwraps to its bare {@code FunctionType}; everything else passes through. */

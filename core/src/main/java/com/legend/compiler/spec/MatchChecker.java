@@ -55,7 +55,7 @@ final class MatchChecker {
         // branch where pure takes the empty branch — silent wrong value.
         // Emission: if(isNotEmpty(input), <[1] branch>, <empty branch>).
         TypedSpec runtimeDispatch = optionalRuntimeDispatch(
-                t, input, extra, branches(params.get(1)), env);
+                t, input, extra, branches(params.get(1), env), env);
         if (runtimeDispatch != null) {
             return runtimeDispatch;
         }
@@ -67,11 +67,11 @@ final class MatchChecker {
         // keep ALL branches in a TypedMatchRuntime for the host channel
         // (SQL lowering has no runtime type dispatch and walls loudly).
         TypedSpec runtimeTyped = runtimeMatch(
-                t, input, extra, branches(params.get(1)), env);
+                t, input, extra, branches(params.get(1), env), env);
         if (runtimeTyped != null) {
             return runtimeTyped;
         }
-        for (LambdaFunction branch : branches(params.get(1))) {
+        for (LambdaFunction branch : branches(params.get(1), env)) {
             if (branch.parameters().isEmpty() || branch.parameters().size() > 2
                     || branch.body().size() != 1) {
                 throw new TypeInferenceException(
@@ -295,14 +295,26 @@ final class MatchChecker {
         return Multiplicity.from(param.multiplicity()).isMany();
     }
 
-    /** Branches: a collection of lambdas, or one bare lambda. */
-    private static List<LambdaFunction> branches(ValueSpecification vs) {
+    /** Branches: a collection of lambdas, one bare lambda, or a VARIABLE
+     * let-bound to either (testMatchWithFunctionsAsParam: {@code let
+     * lambdas = [...]; $x->match($lambdas)}) — the let is immutable and
+     * referentially transparent, so the checker substitutes its SYNTAX
+     * through the {@link Env#exprAlias} channel and types the branches
+     * exactly as if written inline. */
+    private static List<LambdaFunction> branches(ValueSpecification vs, Env env) {
         if (vs instanceof LambdaFunction lf) {
             return List.of(lf);
         }
         if (vs instanceof PureCollection c && !c.values().isEmpty()
                 && c.values().stream().allMatch(v -> v instanceof LambdaFunction)) {
             return c.values().stream().map(v -> (LambdaFunction) v).toList();
+        }
+        if (vs instanceof com.legend.protocol.spec.Variable v) {
+            com.legend.protocol.spec.ValueSpecification bound =
+                    env.exprAlias(v.name()).orElse(null);
+            if (bound != null) {
+                return branches(bound, env);
+            }
         }
         throw new TypeInferenceException("match expects a collection of branch lambdas");
     }

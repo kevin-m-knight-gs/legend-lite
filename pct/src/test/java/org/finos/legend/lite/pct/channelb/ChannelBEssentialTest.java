@@ -75,9 +75,13 @@ class ChannelBEssentialTest {
         // raise emission threads the raising call's name-token span
         // through the provenance envelope (PureSql.raise -> U+001E ->
         // RaisedErrors.Positioned); all six position rows join
-        assertTrue(pass >= 305,
+        // 308 (Channel B leg 3, 2026-08-27): FunctionType LUB (engine
+        // findBestCommonGenericType isFunction arm: contravariant param
+        // meet, covariant return join) + the Env.exprAlias let-syntax
+        // channel so match branches resolve through a let-bound variable
+        assertTrue(pass >= 308,
                 "channel-B essential PASS fell below the pinned floor: "
-                        + pass + " < 305");
+                        + pass + " < 308");
 
         // THE THREE-BUCKET DIFF (plan addendum #6): channel A's outcome
         // per test is its suite ledger — the expectedFailures list IS
