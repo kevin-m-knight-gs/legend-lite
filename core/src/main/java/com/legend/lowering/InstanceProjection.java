@@ -161,7 +161,10 @@ final class InstanceProjection {
                                         SqlSource.Join.Kind.LEFT_LATERAL,
                                         new SqlExpr.BoolLit(true));
                     }
-                    value = SqlExpr.Column.of(un.alias(), "elem", un.elemT());
+                    // §E3: LEFT_LATERAL pads with NULL on an empty
+                    // array — nullable slot
+                    value = SqlExpr.Column.of(un.alias(), "elem",
+                            un.elemT(), true);
                     for (int r = i + 1; r < path.size(); r++) {
                         value = new SqlExpr.StructGet(value, path.get(r).name());
                     }

@@ -894,7 +894,11 @@ final class Fold {
                     return new SqlExpr.Column(p.alias(), column, t);
                 }
                 if (u.type() != null) {
-                    return SqlExpr.Column.of(p.alias(), column, u.type());
+                    // §E3: model-channel fallback — the aggregate's
+                    // own fact is not in hand here, and a reducer
+                    // output may be NULL (empty groups); safe side
+                    return SqlExpr.Column.of(p.alias(), column,
+                            u.type(), true);
                 }
             }
         }

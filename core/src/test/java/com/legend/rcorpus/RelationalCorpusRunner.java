@@ -631,6 +631,34 @@ public class RelationalCorpusRunner {
                     ws.forEach(w -> System.out.println(
                             "[rcorpus] sqltypes-witness: " + cls + " :: "
                                     + w)));
+            // §E3 M-N1 — the nullability differential (fact vs label),
+            // census-first: the M-N3 flip's payload. Summary on the
+            // console, full class/witness decomposition to target/
+            // (the h2-verdicts dump idiom — attributable by diffing
+            // two sweeps' files). No pin this slice: measured, then
+            // adjudicated at M-N2/M-N3 (the converse-tripwire
+            // precedent).
+            System.out.println("[rcorpus] nullable-diff: "
+                    + com.legend.exec.SqlTypeCensus
+                            .nullableDifferentialSummary());
+            // top classes ALSO on the console (the sqltypes-class
+            // idiom): the target/ dump dies at gate 8's `-am clean`
+            // (the TimingLedger lesson — a chain-run G4's file is
+            // gone by chain end; the console line survives in g4.out)
+            com.legend.exec.SqlTypeCensus.nullableDifferentialReport()
+                    .stream().skip(1).limit(160).forEach(c ->
+                            System.out.println(
+                                    "[rcorpus] nullable-diff-class: "
+                                            + c));
+            try {
+                java.nio.file.Files.writeString(
+                        java.nio.file.Path.of("target",
+                                "nullable-differential.txt"),
+                        String.join("\n", com.legend.exec.SqlTypeCensus
+                                .nullableDifferentialReport()) + "\n");
+            } catch (java.io.IOException ignore) {
+                // best-effort diagnostic (histogram precedent)
+            }
         }
         // MECHANICAL REGRESSION GATE (audit: this runner carried NO
         // asserts — BUILD SUCCESS regardless of outcome). Every family

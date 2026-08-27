@@ -18,7 +18,21 @@ package com.legend.sql;
  * the tree.)
  */
 public sealed interface TypeFact {
-    /** {@code tolerated} — the ENGINE-COMPAT carry-through provenance
+    /** {@code nullable} — THE NULLABILITY DIMENSION (charter §E3,
+     * M-N1): may this expression's value be SQL NULL? {@code false} is
+     * a PROOF CLAIM (the wire never NULLs here — at the flip a NULL
+     * under it is a compiler bug, loud); {@code true} is the safe
+     * side, never a lie. Uncertainty therefore defaults TRUE — the
+     * engine's own DDL doctrine (RelationalCompilerExtension:940,
+     * unknown lowers to [0..1]). Computed at CONSTRUCTION through the
+     * {@link SqlTyping} rule funnel (default scalar composition =
+     * any-operand-nullable; per-fn exceptions probed on the 1.5.0
+     * reference jar AS EMISSIONS, receipts on the arms); leaves enter
+     * through the {@link SqlExpr.Column} doors (M-N1: the frame's
+     * echo-derived {@link OutputCol#nullable()}; DDL/join-pad
+     * authority is M-N2).
+     *
+     * <p>{@code tolerated} — the ENGINE-COMPAT carry-through provenance
      * (charter §4bZ): this value was read across a DECLARED
      * property/column kind mismatch at the mapping seam (the one site
      * that knows the pairing), where the engine's contract is raw
@@ -28,9 +42,10 @@ public sealed interface TypeFact {
      * a label/wire mismatch is tolerated ONLY when the value carries
      * this tag, so an untagged mismatch (a compiler accident) goes
      * loud instead of being blanket-forgiven. */
-    record Typed(SqlType type, boolean tolerated) implements TypeFact {
+    record Typed(SqlType type, boolean nullable,
+            boolean tolerated) implements TypeFact {
         public Typed(SqlType type) {
-            this(type, false);
+            this(type, false, false);
         }
     }
 

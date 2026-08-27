@@ -36,9 +36,13 @@ class DedupBindingTest {
             seen.add(cand.type());
             return SqlExpr.Call.of(SqlFn.EQUAL, prior, cand);
         });
+        // §E3: element stamps are MAY-BE-NULL — presence is not
+        // provable from Array(T) (the Column.param doctrine)
         assertEquals(List.of(
-                        SqlTyping.typed(SqlType.Scalar.LITERAL),
-                        SqlTyping.typed(SqlType.Scalar.LITERAL)),
+                        new TypeFact.Typed(SqlType.Scalar.LITERAL,
+                                true, false),
+                        new TypeFact.Typed(SqlType.Scalar.LITERAL,
+                                true, false)),
                 seen);
     }
 

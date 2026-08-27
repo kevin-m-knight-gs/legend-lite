@@ -135,18 +135,24 @@ final class LambdaBinding {
                 && t.type() instanceof SqlType.Struct st) {
             for (SqlType.Struct.Field f : st.fields()) {
                 if (f.name().equals(prop)) {
-                    return SqlExpr.Column.of(var, prop, f.type());
+                    // §E3: an absent optional property IS a NULL field
+                    // (the StructLit declared-slot arm) — presence not
+                    // provable, may-be-null (the structGetType rule)
+                    return SqlExpr.Column.of(var, prop, f.type(), true);
                 }
             }
         }
         return null;
     }
 
-    /** The collection fact's element fact (Array(T) -> Typed(T)). */
+    /** The collection fact's element fact (Array(T) -> Typed(T));
+     * §E3: element presence not provable from Array(T) — may-be-null
+     * (the {@link SqlExpr.Column#param} doctrine). */
     private static TypeFact elementOf(TypeFact collectionFact) {
         return collectionFact instanceof TypeFact.Typed t
                 && t.type() instanceof SqlType.Array at
-                ? new TypeFact.Typed(at.element()) : collectionFact;
+                ? new TypeFact.Typed(at.element(), true, false)
+                : collectionFact;
     }
 
     /** fold in PURE conventions ({@code (element, accumulator)}
@@ -263,12 +269,13 @@ final class LambdaBinding {
         return (var, prop) -> {
             if (param.equals(var) && elem != null) {
                 if (prop == null) {
-                    return SqlExpr.Column.of(null, param, elem);
+                    // §E3: element read — may-be-null (param doctrine)
+                    return SqlExpr.Column.of(null, param, elem, true);
                 }
                 // property read over the stamped element (same door as
                 // foldResolver's — §4bZ-U fold-tree receipts)
                 SqlExpr.Column c = structFieldRead(param, prop,
-                        new TypeFact.Typed(elem));
+                        new TypeFact.Typed(elem, true, false));
                 if (c != null) {
                     return c;
                 }

@@ -162,7 +162,7 @@ public final class Render {
         // engine's empty joinStrings is prefix+suffix)
         SqlExpr rowsJoined = SqlExpr.Call.of(SqlFn.COALESCE,
                 new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                        List.of(SqlExpr.Column.of(aggAlias, "_csv_line", SqlType.Scalar.VARCHAR), nl),
+                        List.of(SqlExpr.Column.of(aggAlias, "_csv_line", SqlType.Scalar.VARCHAR, false), nl),
                         false, aggOrder),
                 new SqlExpr.StringLit(""));
         SqlExpr text = cat(header, nl, rowsJoined, nl);
@@ -214,7 +214,7 @@ public final class Render {
         }
         SqlExpr crlf = new SqlExpr.StringLit("\r\n");
         SqlExpr agg = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                List.of(SqlExpr.Column.of(aggAlias, "_csv_line", SqlType.Scalar.VARCHAR), crlf),
+                List.of(SqlExpr.Column.of(aggAlias, "_csv_line", SqlType.Scalar.VARCHAR, false), crlf),
                 false, aggOrder);
         // an explicit IS NULL dispatch — concat() SKIPS null args, so a
         // coalesce over the concatenation could never see the null
@@ -291,7 +291,7 @@ public final class Render {
         List<SqlSelect.SortKey> aggOrder = hoistOrder(inner, cols,
                 rowAlias, aggAlias, new Object[] {rowProjs, rowOuts});
         SqlExpr agg = new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                List.of(SqlExpr.Column.of(aggAlias, "_wire_row", SqlType.Scalar.VARCHAR),
+                List.of(SqlExpr.Column.of(aggAlias, "_wire_row", SqlType.Scalar.VARCHAR, false),
                         new SqlExpr.StringLit(",")),
                 false, aggOrder);
         SqlExpr text = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
@@ -516,7 +516,7 @@ public final class Render {
         SqlExpr nl = new SqlExpr.StringLit("\n");
         SqlExpr rowsJoined = SqlExpr.Call.of(SqlFn.COALESCE,
                 new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                        List.of(SqlExpr.Column.of(aggAlias, "_tds_line", SqlType.Scalar.VARCHAR), nl),
+                        List.of(SqlExpr.Column.of(aggAlias, "_tds_line", SqlType.Scalar.VARCHAR, false), nl),
                         false, hoistOrder(inner, cols, rowAlias, aggAlias,
                                 new Object[] {rowProjs, rowOuts})),
                 new SqlExpr.StringLit(""));
@@ -675,7 +675,8 @@ public final class Render {
                                 src.tolerated()));
             }
             aggOrder.add(new SqlSelect.SortKey(
-                    SqlExpr.Column.of(aggAlias, oname, src.type()),
+                    SqlExpr.Column.of(aggAlias, oname, src.type(),
+                            src.nullable()),
                     k.ascending(),
                     k.nullOrder(), null));
         }
@@ -789,7 +790,7 @@ public final class Render {
         SqlExpr nl = new SqlExpr.StringLit("\n");
         SqlExpr rowsJoined = SqlExpr.Call.of(SqlFn.COALESCE,
                 cat(nl, new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
-                        List.of(SqlExpr.Column.of(aggAlias, "_pct_line", SqlType.Scalar.VARCHAR), nl),
+                        List.of(SqlExpr.Column.of(aggAlias, "_pct_line", SqlType.Scalar.VARCHAR, false), nl),
                         false, aggOrder)),
                 new SqlExpr.StringLit(""));
         SqlExpr text = cat(new SqlExpr.StringLit(pctHeader(relCols)),

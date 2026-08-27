@@ -101,7 +101,11 @@ class SqlTypingTest {
                                 new SqlExpr.StringLit("index out of bounds")))),
                 SqlExpr.Call.of(SqlFn.LIST_GET, carried,
                         new SqlExpr.IntLit(1)));
-        assertEquals(SqlTyping.typed(SqlType.Scalar.LITERAL), t(checked));
+        // §E3: LIST_GET is nullable at the node (probed 1.5.0:
+        // out-of-range list_extract -> NULL) and the branch family
+        // carries it
+        assertEquals(SqlTyping.nullable(
+                SqlTyping.typed(SqlType.Scalar.LITERAL)), t(checked));
         // an ALL-error family is bottom-like as a whole (raise dominates)
         assertEquals(SqlTyping.BOTTOM, t(new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(new SqlExpr.BoolLit(false),
@@ -128,5 +132,106 @@ class SqlTypingTest {
                 new SqlExpr.DecimalLit(new java.math.BigDecimal("1.0")))));
         // an unstamped column is UNKNOWN until its builder supplies it
         assertEquals(SqlTyping.UNKNOWN, t(new SqlExpr.Column("t", "c")));
+    }
+
+    // ------------------------------------------------------------------
+    // §E3 M-N1 — THE NULLABILITY DIMENSION. Every non-default arm below
+    // is a PROBED EMISSION receipt (DuckDB 1.5.0 reference jar,
+    // 2026-08-26 battery — spellings from our own renderers).
+    // ------------------------------------------------------------------
+
+    private static SqlExpr nullableCol(String name, SqlType type) {
+        return SqlExpr.Column.of("t",
+                new OutputCol(name, type, true));
+    }
+
+    private static SqlExpr requiredCol(String name, SqlType type) {
+        return SqlExpr.Column.of("t",
+                new OutputCol(name, type, false));
+    }
+
+    private static boolean nul(SqlExpr e) {
+        return ((TypeFact.Typed) e.type()).nullable();
+    }
+
+    @Test
+    void nullabilityComposesAnyOperandByDefault() {
+        // the Column doors transport the frame's declared nullability
+        SqlExpr n = nullableCol("n", SqlType.Scalar.BIGINT);
+        SqlExpr r = requiredCol("r", SqlType.Scalar.BIGINT);
+        assertEquals(true, nul(n));
+        assertEquals(false, nul(r));
+        // default scalar composition: any-operand-nullable (strict SQL)
+        assertEquals(true, nul(SqlExpr.Call.of(SqlFn.PLUS, n, r)));
+        assertEquals(false, nul(SqlExpr.Call.of(SqlFn.PLUS, r, r)));
+        // an UNKNOWN operand cannot prove presence — the safe side
+        // (LENGTH types BIGINT whatever the operand; PLUS would poison
+        // the KIND itself)
+        assertEquals(true, nul(SqlExpr.Call.of(SqlFn.LENGTH,
+                new SqlExpr.Column("t", "u"))));
+        // Cast TRANSPORTS presence, both directions
+        assertEquals(true, nul(new SqlExpr.Cast(n, SqlType.Scalar.DOUBLE)));
+        assertEquals(false, nul(new SqlExpr.Cast(r, SqlType.Scalar.DOUBLE)));
+        // literals are definite values
+        assertEquals(false, nul(new SqlExpr.StringLit("a")));
+    }
+
+    @Test
+    void nullabilityExceptionsAreProbedEmissions() {
+        SqlExpr n = nullableCol("n", SqlType.Scalar.VARCHAR);
+        SqlExpr r = requiredCol("r", SqlType.Scalar.VARCHAR);
+        // concat() SKIPS NULL args (probed: concat('a', NULL) -> 'a',
+        // concat(NULL, NULL) -> '') — never null, engine parity
+        assertEquals(false, nul(SqlExpr.Call.of(SqlFn.CONCAT, n, n)));
+        // the null tests always yield a boolean
+        assertEquals(false, nul(SqlExpr.Call.of(SqlFn.IS_NULL, n)));
+        // COALESCE/greatest/least: NULL only when EVERY operand is
+        // (probed: greatest(1, NULL) -> 1)
+        assertEquals(false, nul(SqlExpr.Call.of(SqlFn.COALESCE, n, r)));
+        assertEquals(true, nul(SqlExpr.Call.of(SqlFn.COALESCE, n, n)));
+        assertEquals(false, nul(SqlExpr.Call.of(SqlFn.GREATEST,
+                nullableCol("a", SqlType.Scalar.BIGINT),
+                requiredCol("b", SqlType.Scalar.BIGINT))));
+        // x // 0 and mod(x, 0) -> NULL (probed), whatever the operands
+        SqlExpr ri = requiredCol("i", SqlType.Scalar.BIGINT);
+        assertEquals(true, nul(SqlExpr.Call.of(SqlFn.INT_DIVIDE, ri, ri)));
+        assertEquals(true, nul(SqlExpr.Call.of(SqlFn.MOD, ri, ri)));
+        // out-of-range list_extract -> NULL (probed)
+        SqlExpr arr = new SqlExpr.ArrayLit(List.of(
+                new SqlExpr.IntLit(1)));
+        assertEquals(true, nul(SqlExpr.Call.of(SqlFn.LIST_GET, arr,
+                new SqlExpr.IntLit(5))));
+        // list_concat treats NULL as the empty list (probed) — and an
+        // ArrayLit is a definite value even over nullable members
+        assertEquals(false, nul(SqlExpr.Call.of(SqlFn.LIST_CONCAT,
+                arr, arr)));
+        // hash(NULL) yields a value through our signed reinterpretation
+        assertEquals(false, nul(SqlExpr.Call.of(SqlFn.HASH, n)));
+        // a missing CASE else is NULL (SQL); a full CASE of required
+        // branches is not
+        assertEquals(true, nul(new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(new SqlExpr.BoolLit(true), r)),
+                null)));
+        assertEquals(false, nul(new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(new SqlExpr.BoolLit(true), r)),
+                r)));
+        // membership: NULL needle -> NULL, NULL collection -> NULL
+        // (the node's probed truth table)
+        assertEquals(true, nul(new SqlExpr.Membership(n, arr)));
+        assertEquals(false, nul(new SqlExpr.Membership(
+                new SqlExpr.IntLit(1), arr)));
+    }
+
+    @Test
+    void reducersAreNullableAtTheNodeExceptCount() {
+        // probed: sum/min/string_agg over ZERO rows -> NULL; count -> 0
+        SqlExpr r = requiredCol("r", SqlType.Scalar.BIGINT);
+        assertEquals(true, nul(SqlAgg.Reducer.of(SqlAgg.Fn.SUM, r)));
+        assertEquals(true, nul(SqlAgg.Reducer.of(SqlAgg.Fn.MIN, r)));
+        assertEquals(false, nul(SqlAgg.Reducer.of(SqlAgg.Fn.COUNT, r)));
+        // a scalar subquery over zero rows is NULL (probed)
+        // (element stamps and empty-list reductions carry their own
+        // receipts in the rule table; the differential census is the
+        // corpus-wide witness roster)
     }
 }

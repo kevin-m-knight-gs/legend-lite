@@ -1421,8 +1421,11 @@ public final class Lowerer {
                                 SqlSource.Join.Kind.LEFT_LATERAL,
                                 new SqlExpr.BoolLit(true)));
                         ps.add(new SqlSelect.Projection(
+                                // §E3: LEFT_LATERAL pads with NULL on
+                                // an empty array — nullable slot
                                 SqlExpr.Column.of(lat, "elem",
-                                        PureSql.type(elemT)), c.name()));
+                                        PureSql.type(elemT), true),
+                                c.name()));
                         continue;
                     }
                     ps.add(new SqlSelect.Projection(r.expr(), c.name()));

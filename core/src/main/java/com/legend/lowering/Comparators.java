@@ -68,7 +68,8 @@ final class Comparators {
         SqlExpr.Column cx = list.type()
                 instanceof com.legend.sql.TypeFact.Typed lt
                 && lt.type() instanceof com.legend.sql.SqlType.Array at
-                ? SqlExpr.Column.of("_cx", "x", at.element())
+                // §E3: element presence not provable — may-be-null
+                ? SqlExpr.Column.of("_cx", "x", at.element(), true)
                 : new SqlExpr.Column("_cx", "x");
         SqlExpr keyOverElem = Scalars.substituteRef(keyOfX, px, cx);
         var inner = new SqlSelect(List.of(

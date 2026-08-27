@@ -861,6 +861,13 @@ final class ArchitectureTest {
                 // T3: bounded per-class WITNESSES (3 max each) — the
                 // emission-seam locator; measurement only
                 "com.legend.exec.SqlTypeCensus.SAMPLES",
+                // §E3 M-N1: the nullability differential's classified
+                // counters + bounded witnesses (fact-vs-label nullable
+                // — the M-N3 flip payload); measurement only, the
+                // SqlTypeCensus pattern (runtime accumulation is the
+                // legitimate static-census shape)
+                "com.legend.exec.SqlTypeCensus.NUL_CLASSES",
+                "com.legend.exec.SqlTypeCensus.NUL_SAMPLES",
                 // serializer registry: written once at static init; the
                 // ConcurrentHashMap spelling is for safe publication
                 "com.legend.server.serial.SerializerRegistry.SERIALIZERS");

@@ -691,3 +691,110 @@ stays the PURE contract; the SQL layer stops echoing it as physics.
 **Acceptance:** breach EQUALITY-0 both lanes + the property-echo
 authority deleted + zero exec-text movement (nullability renders
 nothing) + full chain green per milestone.
+
+### M-N1 LANDING RECORD (2026-08-26)
+
+**Landed: the dimension, zero consumers.** `TypeFact.Typed` is
+`Typed(type, nullable, tolerated)`; the old two-arg ctor is DELETED so
+every construction site was visited. Semantics pinned on the record:
+`nullable=false` is a PROOF CLAIM (at the M-N3 flip a wire NULL under
+it is a compiler bug, loud); uncertainty defaults TRUE (the engine's
+DDL doctrine). Bottom IS null; Raises vacuously non-null; ride-alongs
+(Lambda, FormatLit) and definite composites (ArrayLit/StructLit)
+contribute nothing as operands (`SqlTyping.mayBeNull`).
+
+**The rule funnel:** `callType = callNullability(callKind(...))` —
+default scalar composition any-operand-nullable; the default arm never
+LOWERS a rule-computed nullability. PROBED EMISSION exceptions (1.5.0
+reference jar battery, 2026-08-26; spellings from OUR renderers — the
+date_trunc/CEILING lesson):
+
+- `concat()/concat_ws` SKIP NULL args (`concat(NULL,NULL)` -> `''`) —
+  CONCAT/CONCAT_JOIN never null (AnsiSqlRenderer's engine-parity
+  comment was already the receipt);
+- greatest/least IGNORE NULL members — the all-operands rule, with
+  COALESCE;
+- `x // 0` and `mod(x, 0)` -> NULL, not an error — INT_DIVIDE/REM/MOD
+  nullable always (DIVIDE emits `(1.0*a)/b`; `/0` -> Infinity, stays
+  any-operand);
+- `list_extract` OOB / `list_position` missing -> NULL — always;
+- every list reduction over the EMPTY list -> NULL except count -> 0;
+  a NULL collection -> NULL even for count;
+- `list_concat`/`map_concat` treat NULL as the empty collection,
+  `list_append(NULL, x)` -> `[x]` — never null;
+- `hash(NULL)` yields a value (our signed reinterpretation preserves
+  it); `typeof(NULL)` -> `'NULL'` — never null;
+- json_extract missing path -> NULL — VARIANT_GET always;
+- math domain edges (sqrt(-1), ln(0), asin(2)) RAISE, they don't NULL;
+  string edges return EMPTIES not NULLs — any-operand stands for both.
+
+**Reducers nullable AT THE NODE except COUNT** (probed: sum/min/avg/
+median/string_agg/bool_and/list over zero rows -> NULL, count -> 0;
+windowed twins identical; lag/lead frame edges NULL -> ValueFn wraps).
+FOR M-N2: the GROUP-BY refinement must KEEP the moment family's
+nullability — stddev_samp needs n>=2 (NULL on one row, probed);
+var_pop(1 row) -> 0.0.
+
+**Node rules:** CASE = any-branch ∨ Bottom-branch ∨ missing-else
+(conditions never contribute); Cast TRANSPORTS; ScalarSubquery always
+(zero rows -> NULL; one-row proofs = queued refinement); CheckedOne
+exactly-one always (the 0/NULL flow contract); FoldCall = source ∨
+init ∨ body (`list_reduce(NULL)` -> NULL probed; foldType now takes
+the source); StructGet always (Struct.Field carries no nullability
+dimension — absent-optional IS a NULL field; per-field authority
+queued); Membership = needle ∨ collection (its probed truth table);
+OrderedListAgg always; JsonArrayAgg stays non-null (its own coalesce
+contract); Exists/rankings/literals/JsonObject/DeferredTdsString
+non-null.
+
+**Doors (every one visited, no defaults):** `Column.of(OutputCol)`
+transports the frame's nullable (M-N1 leaf = the echo; M-N2 swaps the
+authority behind the same door). The bare-name door is now
+`of(table, name, SqlType, boolean)` — the caller states nullability
+with the same authority as the type. Audit: Render's line/row re-reads
+= false (the row frames DECLARE false beside them; concat lines never
+null); Render's hoist-key re-read transports `src.nullable()`;
+LEFT_LATERAL `elem` reads (Lowerer, InstanceProjection) = true (pad
+slots); Fold's Using.type fallback = true (aggregate re-read, fact
+not in hand); Comparators' `_cx.x` = true. ELEMENT DOCTRINE: presence
+is NOT provable from Array(T) — no element-nullability dimension, and
+carriers physically hold SQL NULLs until compaction (CompactList's
+reason to exist) — `Column.param`, LambdaBinding.elementOf/
+structFieldRead/mapElemResolver all stamp may-be-null.
+
+**The differential instrument (the M-N3 flip payload):**
+`SqlTypeCensus.nulDifferential` rides the existing walk's Typed arm —
+SEPARATE NUL_* counters/class/sample maps, so every pre-§E3 census
+print stayed byte-stable (verified against the standing pins on the
+first sweep). Buckets: agree-required / agree-nullable /
+UNDER-DECLARED (fact may-null, label promises present — the adoption
+set) / OVER-DECLARED (label nullable, fact proves never-null — the
+flip TIGHTENS these; adjudicate against the breach ledger before
+M-N3). Bottom facts stay owned by bottom-ok/bottom-mult. Console:
+`[rcorpus] nullable-diff:` + class lines (the target/ dump dies at
+gate 8's clean — TimingLedger lesson); full report also written to
+`target/nullable-differential.txt` for hand-run diffing. No pin this
+slice (measure-first, the converse-tripwire precedent).
+
+**FIRST SWEEP NUMBERS (G4 corpus, 24,529 plans):**
+`agree-required=29,689 agree-nullable=7,373 under-declared=14,420
+over-declared=1,177`. The 925 wire breaches are the wire-visible tip
+of the 14,420; the 1,177 over-declared rows are M-N2/M-N3 homework
+(each is a label the flip would TIGHTEN — the echo says nullable
+where the fact proves presence; most should dissolve when M-N2 makes
+leaves DDL-true).
+
+**Byte-stability note:** the D1/converse watch witness printed the raw
+record toString (`fact=Typed[...]`) — pinned to the pre-§E3 spelling
+via `factWitness` (type + tolerance); M-N3 re-roles those witnesses
+and retires the formatter.
+
+**Trips (1):** HarnessDisciplineTest's sort-site pin — the
+differential report's largest-first ordering is a second display-only
+sort in SqlTypeCensus; pin 1 -> 2 with the reason. G9/Comparators did
+NOT trip (min/max stay outside the stamp roster; expr-keyed maps are
+IdentityHashMaps; recognizer equality untouched). Test updates: 2
+element-stamp expectations (DedupBindingTest, SqlTypingTest
+checked-extract) now honestly may-null; three new §E3 test blocks pin
+the composition default, every probed exception, and reducer node
+nullability.

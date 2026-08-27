@@ -36,6 +36,53 @@ public final class SqlTyping {
         return new TypeFact.Typed(t);
     }
 
+    /** The may-be-null variant of a fact (§E3 M-N1): marks a Typed
+     * fact nullable, preserving its type and tolerance. Bottom (IS the
+     * NULL value), Raises (never yields) and Unknown (no claim) pass
+     * through. */
+    static TypeFact nullable(TypeFact f) {
+        return f instanceof TypeFact.Typed t && !t.nullable()
+                ? new TypeFact.Typed(t.type(), true, t.tolerated()) : f;
+    }
+
+    /** Can this OPERAND deliver SQL NULL at runtime? Typed answers its
+     * own dimension; Bottom IS null; Raises never yields; UNKNOWN
+     * cannot prove presence — true, the safe side (TypeFact doc: false
+     * is a proof claim). Non-value ride-alongs contribute nothing:
+     * lambdas (bodies speak through the per-function rules), format
+     * literals; an ArrayLit/StructLit is a DEFINITE composite value
+     * even when its element type is unknowable (the empty []). */
+    static boolean mayBeNull(SqlExpr e) {
+        if (e instanceof SqlExpr.Lambda || e instanceof SqlExpr.FormatLit
+                || e instanceof SqlExpr.ArrayLit
+                || e instanceof SqlExpr.StructLit) {
+            return false;
+        }
+        return switch (e.type()) {
+            case TypeFact.Typed t -> t.nullable();
+            case TypeFact.Raises r -> false;
+            default -> true;
+        };
+    }
+
+    private static boolean anyNullable(List<SqlExpr> a) {
+        for (SqlExpr e : a) {
+            if (mayBeNull(e)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean allNullable(List<SqlExpr> a) {
+        for (SqlExpr e : a) {
+            if (!mayBeNull(e)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     // shared scalar verdicts — constructed once, stored on every node of
     // the kind (constants, not a cache: there is no lifecycle)
     static final TypeFact T_BOOLEAN = typed(SqlType.Scalar.BOOLEAN);
@@ -253,7 +300,7 @@ public final class SqlTyping {
         return e instanceof SqlExpr.Column c
                 && c.type() instanceof TypeFact.Typed t && !t.tolerated()
                 ? new SqlExpr.Column(c.table(), c.name(),
-                        new TypeFact.Typed(t.type(), true))
+                        new TypeFact.Typed(t.type(), t.nullable(), true))
                 : e;
     }
 
@@ -308,9 +355,65 @@ public final class SqlTyping {
     // walks a finished tree.
     // ------------------------------------------------------------------
 
-    /** {@link SqlExpr.Call} — the per-function rules (the Slice-1
-     * switch, verbatim, lifted to verdicts). */
+    /** {@link SqlExpr.Call} — the per-function rules: the KIND from
+     * {@link #callKind}, the NULLABILITY from the §E3 arm below. */
     static TypeFact callType(SqlFn fn, List<SqlExpr> a) {
+        return callNullability(fn, a, callKind(fn, a));
+    }
+
+    /** THE PER-FUNCTION NULLABILITY ARM (§E3 M-N1). Default scalar
+     * composition = any-operand-nullable (SQL strictness); every
+     * exception below is a PROBED EMISSION fact — DuckDB 1.5.0
+     * reference jar, 2026-08-26 battery (the date_trunc/CEILING
+     * lesson: the rule describes what WE deliver, never the bare
+     * builtin). The default arm never LOWERS a rule-computed
+     * nullability (identity transports already carry their operand's). */
+    private static TypeFact callNullability(SqlFn fn, List<SqlExpr> a,
+            TypeFact base) {
+        if (!(base instanceof TypeFact.Typed t)) {
+            return base;   // Bottom IS null; Raises never yields;
+                           // Unknown claims nothing
+        }
+        boolean nul = switch (fn) {
+            // SQL definition: the null tests always yield a boolean
+            case IS_NULL, IS_NOT_NULL -> false;
+            // probed: concat()/concat_ws SKIP NULL args (engine
+            // parity is the emission's own reason); all-NULL -> ''
+            case CONCAT, CONCAT_JOIN -> false;
+            // probed: hash(NULL) yields a value, and our signed
+            // reinterpretation preserves it; typeof(NULL) -> 'NULL'
+            case HASH, TYPEOF -> false;
+            // probed: list_concat/map_concat treat NULL as the empty
+            // collection; list_append(NULL, x) -> [x]
+            case LIST_CONCAT, MAP_CONCAT, LIST_APPEND -> false;
+            // NULL only when EVERY operand is (probed: greatest/least
+            // IGNORE NULL members — the COALESCE composition)
+            case COALESCE, GREATEST, LEAST -> allNullable(a);
+            // probed: out-of-range list_extract and missing
+            // list_position -> NULL; an element's own presence is not
+            // provable from Array(T) (no element-nullability dimension)
+            case LIST_GET, LIST_POSITION, UNNEST -> true;
+            // probed: x // 0 and mod(x, 0) -> NULL (not an error)
+            case INT_DIVIDE, REM, MOD -> true;
+            // probed: every list reduction over the EMPTY list -> NULL
+            // (sum/avg/median/mode/product/min/max/bool_and/bool_or)
+            case LIST_SUM, LIST_AVG, LIST_MEDIAN, LIST_MODE,
+                    LIST_PRODUCT, LIST_MAX, LIST_MIN, LIST_BOOL_AND,
+                    LIST_BOOL_OR -> true;
+            // probed: list_reduce(NULL, f) -> NULL, empty RAISES, and
+            // each step is the body's value — nullable at the node
+            case LIST_REDUCE -> true;
+            // probed: a missing key/path extracts NULL
+            case VARIANT_GET -> true;
+            default -> t.nullable() || anyNullable(a);
+        };
+        return nul == t.nullable() ? base
+                : new TypeFact.Typed(t.type(), nul, t.tolerated());
+    }
+
+    /** The per-function KIND rules (the Slice-1 switch, verbatim,
+     * lifted to verdicts). */
+    private static TypeFact callKind(SqlFn fn, List<SqlExpr> a) {
         return switch (fn) {
             case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER,
                     GREATER_EQUAL, IS_NULL, IS_NOT_NULL, IN, STARTS_WITH,
@@ -469,6 +572,23 @@ public final class SqlTyping {
             // everything else: no rule yet — counted, never guessed
             default -> UNKNOWN;
         };
+    }
+
+    /** {@link SqlExpr.Membership} — BOOLEAN, nullable when the needle
+     * or the collection may be NULL (the node's own probed truth
+     * table: NULL needle &rarr; NULL, NULL collection &rarr; NULL;
+     * absent-from-non-empty is FALSE, never NULL). */
+    static TypeFact membershipType(SqlExpr needle, SqlExpr collection) {
+        return mayBeNull(needle) || mayBeNull(collection)
+                ? nullable(T_BOOLEAN) : T_BOOLEAN;
+    }
+
+    /** {@link SqlExpr.Cast} — the target type; nullability TRANSPORTS
+     * (§E3 charter table: a cast never creates or removes presence —
+     * CAST(NULL AS T) is NULL). */
+    static TypeFact castType(SqlExpr value, SqlType target) {
+        TypeFact t = typed(target);
+        return mayBeNull(value) ? nullable(t) : t;
     }
 
     /** The ARITHMETIC rule family (split from callType at the
@@ -658,7 +778,11 @@ public final class SqlTyping {
     }
 
     /** {@link SqlExpr.Case} — the branch family's shared type; a CASE
-     * whose every branch is the NULL value is itself the NULL value. */
+     * whose every branch is the NULL value is itself the NULL value.
+     * §E3 nullability (the charter's CASE row): any nullable branch
+     * &or; any Bottom branch &or; a MISSING ELSE (SQL: unmatched
+     * &rarr; NULL). Conditions never contribute — an unmatched WHEN
+     * falls through. */
     static TypeFact caseType(List<SqlExpr.Case.When> whens,
             @com.legend.Nullable SqlExpr otherwise) {
         java.util.List<SqlExpr> branches =
@@ -669,7 +793,12 @@ public final class SqlTyping {
         if (otherwise != null) {
             branches.add(otherwise);
         }
-        return uniform(branches, BOTTOM);
+        TypeFact t = uniform(branches, BOTTOM);
+        boolean nul = otherwise == null;
+        for (SqlExpr b : branches) {
+            nul = nul || mayBeNull(b);
+        }
+        return nul ? nullable(t) : t;
     }
 
     /** {@link SqlExpr.ArrayLit} — the uniform element type, wrapped.
@@ -715,7 +844,12 @@ public final class SqlTyping {
                 && t.type() instanceof SqlType.Struct s) {
             for (SqlType.Struct.Field f : s.fields()) {
                 if (f.name().equals(field)) {
-                    return typed(f.type());
+                    // §E3: a field's PRESENCE is not provable —
+                    // Struct.Field carries no nullability dimension
+                    // and an absent optional property IS a NULL field
+                    // (structLitType's declared-slot arm). Safe side;
+                    // per-field authority is a queued refinement.
+                    return nullable(typed(f.type()));
                 }
             }
         }
@@ -730,15 +864,19 @@ public final class SqlTyping {
      * tree's construction-time knowledge through the select, never a
      * re-derivation. */
     static TypeFact scalarSubqueryType(SqlQuery sub) {
+        // §E3: a scalar subquery over ZERO rows is NULL (probed
+        // 1.5.0: (select 1 where false) -> NULL) — nullable at the
+        // node; a one-row proof (aggregate root, LIMIT 1 EXISTS
+        // shapes) is a queued refinement, the safe side stands
         if (sub.outputs().size() == 1) {
-            return typed(sub.outputs().get(0).type());
+            return nullable(typed(sub.outputs().get(0).type()));
         }
         if (sub instanceof SqlSelect s && s.outputs().isEmpty()
                 && s.projections().size() == 1
                 && !(s.projections().get(0).expr() instanceof SqlExpr.Star)
                 && !(s.projections().get(0).expr()
                         instanceof SqlExpr.StarExcept)) {
-            return s.projections().get(0).expr().type();
+            return nullable(s.projections().get(0).expr().type());
         }
         return UNKNOWN;
     }
@@ -750,9 +888,11 @@ public final class SqlTyping {
         if (lv instanceof TypeFact.Bottom) {
             return BOTTOM;
         }
+        // §E3: the exactly-one guard FLOWS the engine-noOp empty on a
+        // 0/NULL input (the node's own D1 contract) — nullable always
         return lv instanceof TypeFact.Typed t
                 && t.type() instanceof SqlType.Array at
-                ? typed(at.element()) : UNKNOWN;
+                ? nullable(typed(at.element())) : UNKNOWN;
     }
 
     /** {@link SqlExpr.FoldCall} — the fold's value is the ACCUMULATOR's:
@@ -761,19 +901,25 @@ public final class SqlTyping {
      * mid-flight) or an unknown body stays UNKNOWN, never guessed.
      * The list-boxed lane ({@code accIsList}) delivers the acc's own
      * ARRAY (probed — see the arm). */
-    static TypeFact foldType(SqlExpr.Lambda lambda, SqlExpr init,
-            boolean accIsList) {
+    static TypeFact foldType(SqlExpr source, SqlExpr.Lambda lambda,
+            SqlExpr init, boolean accIsList) {
         // ONE agree-check for both lanes; the LIST-boxed lane
         // additionally requires the agreed type to BE an array — it
         // delivers the accumulator's own array (PROBED 1.5.0, §4bZ-U:
         // list_reduce over [e]-wrapped elements with a list acc ->
         // INTEGER[], the fold-collection-accumulator receipt). A
         // type-changing fold stays honestly UNKNOWN either way.
-        return lambda.body().type() instanceof TypeFact.Typed bt
+        TypeFact t = lambda.body().type() instanceof TypeFact.Typed bt
                 && init.type() instanceof TypeFact.Typed it
                 && bt.type().equals(it.type())
                 && (!accIsList || bt.type() instanceof SqlType.Array)
                 ? typed(bt.type()) : UNKNOWN;
+        // §E3: a NULL source folds to NULL (probed 1.5.0:
+        // list_reduce(NULL, f) -> NULL), an empty source folds to the
+        // INIT, and every step is the BODY's value — the fold may be
+        // null when any of the three may
+        return mayBeNull(source) || mayBeNull(init)
+                || mayBeNull(lambda.body()) ? nullable(t) : t;
     }
 
     /** {@link SqlExpr.WindowCall} — a windowed {@link SqlAgg.Reducer}
@@ -792,8 +938,12 @@ public final class SqlTyping {
                 case PERCENT_RANK, CUME_DIST -> T_DOUBLE;
                 default -> UNKNOWN;
             };
+            // §E3: the value kinds read outside the frame at its edges
+            // (probed 1.5.0: lag over a one-row frame -> NULL; a
+            // default arg narrows this only when provably reached —
+            // unmodeled, the safe side stands)
             case SqlAgg.ValueFn vf -> vf.args().isEmpty()
-                    ? UNKNOWN : vf.args().get(0).type();
+                    ? UNKNOWN : nullable(vf.args().get(0).type());
         };
     }
 
@@ -826,8 +976,21 @@ public final class SqlTyping {
      * </ul>
      * Everything else (the Lowerer-internal markers, unprobed inputs)
      * stays UNKNOWN — certainty only, never a guess.
+     *
+     * <p>§E3 M-N1: every reducer except COUNT is NULLABLE AT THE NODE
+     * — probed 1.5.0 (2026-08-26): sum/min/avg/median/string_agg/
+     * bool_and/list over ZERO rows &rarr; NULL, count &rarr; 0;
+     * stddev_samp additionally needs n&ge;2 (NULL on a single row).
+     * Refinement under a GROUP BY proof (SQL groups are non-empty by
+     * construction) is the {@link SqlSelect} ctor's M-N2 arm — and the
+     * moment family must KEEP its nullability there.
      */
     static TypeFact reducerType(SqlAgg.Fn fn, TypeFact arg0) {
+        TypeFact base = reducerKind(fn, arg0);
+        return fn == SqlAgg.Fn.COUNT ? base : nullable(base);
+    }
+
+    private static TypeFact reducerKind(SqlAgg.Fn fn, TypeFact arg0) {
         switch (fn) {
             case COUNT -> {
                 return T_BIGINT;
@@ -862,7 +1025,7 @@ public final class SqlTyping {
                     // testReprocessGroupByAlias, the wire-7 review)
                     yield t0.tolerated()
                             ? new TypeFact.Typed(SqlType.Scalar.HUGEINT,
-                                    true)
+                                    false, true)
                             : T_HUGEINT;
                 }
                 if (t == SqlType.Scalar.DOUBLE) {
@@ -911,9 +1074,13 @@ public final class SqlTyping {
      * {@code list_aggregate} matches the grouped aggregate's result
      * types element-wise). */
     static TypeFact reduceCollectionType(SqlAgg.Fn fn, SqlExpr collection) {
-        return collection.type() instanceof TypeFact.Typed t
+        TypeFact r = collection.type() instanceof TypeFact.Typed t
                 && t.type() instanceof SqlType.Array at
                 ? reducerType(fn, typed(at.element())) : UNKNOWN;
+        // §E3: a NULL collection reduces to NULL even for COUNT
+        // (probed 1.5.0: list_aggregate(NULL, 'count') -> NULL); the
+        // empty-list NULLs already ride the reducer's node nullability
+        return mayBeNull(collection) ? nullable(r) : r;
     }
 
     private static boolean integerFamily(SqlType t) {

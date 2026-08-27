@@ -299,7 +299,7 @@ public sealed interface SqlExpr
     record Membership(SqlExpr needle, SqlExpr collection,
             TypeFact type) implements SqlExpr {
         public Membership {
-            type = SqlTyping.T_BOOLEAN;
+            type = SqlTyping.membershipType(needle, collection);
         }
 
         public Membership(SqlExpr needle, SqlExpr collection) {
@@ -323,15 +323,22 @@ public sealed interface SqlExpr
          * carry it for the wire census). */
         public static Column of(@com.legend.Nullable String table,
                 OutputCol col) {
-            return new Column(table, col.name(),
-                    new TypeFact.Typed(col.type(), col.tolerated()));
+            // §E3 M-N1 leaf input: the frame's OWN nullable label —
+            // today the pure-multiplicity echo; the DDL/join-pad
+            // authority replaces the echo at M-N2 and this door
+            // transports it unchanged
+            return new Column(table, col.name(), new TypeFact.Typed(
+                    col.type(), col.nullable(), col.tolerated()));
         }
 
         /** Stamped reference by bare name — for the builder's OWN
-         * synthetic columns, whose type it just declared. */
+         * synthetic columns, whose type it just declared. §E3: the
+         * caller states the slot's nullability with the same authority
+         * it states the type (no default — every site decides). */
         public static Column of(@com.legend.Nullable String table,
-                String name, SqlType t) {
-            return new Column(table, name, SqlTyping.typed(t));
+                String name, SqlType t, boolean nullable) {
+            return new Column(table, name,
+                    new TypeFact.Typed(t, nullable, false));
         }
 
         /** Stamped when {@code outs} claims the name, plain (UNKNOWN)
@@ -352,9 +359,15 @@ public sealed interface SqlExpr
          * hand-reasoned guess. NOT for fold accumulators (their type is
          * not the element's). */
         public static Column param(String name, SqlExpr collection) {
+            // §E3: element PRESENCE is not provable from Array(T) —
+            // SqlType carries no element-nullability dimension, and a
+            // carrier physically holds SQL NULLs until compaction
+            // (CompactList's own reason to exist) — so the param
+            // stamps may-be-null, the safe side
             return collection.type() instanceof TypeFact.Typed t
                     && t.type() instanceof SqlType.Array at
-                    ? new Column(null, name, SqlTyping.typed(at.element()))
+                    ? new Column(null, name,
+                            new TypeFact.Typed(at.element(), true, false))
                     : new Column(null, name);
         }
     }
@@ -546,7 +559,9 @@ public sealed interface SqlExpr
     record OrderedListAgg(SqlExpr value, SqlExpr orderBy,
             TypeFact type) implements SqlExpr {
         public OrderedListAgg {
-            type = SqlTyping.T_VARCHAR;
+            // §E3: an ordered aggregation over ZERO rows is NULL (the
+            // reducer node rule — probed string_agg/list empty -> NULL)
+            type = SqlTyping.nullable(SqlTyping.T_VARCHAR);
         }
 
         public OrderedListAgg(SqlExpr value, SqlExpr orderBy) {
@@ -905,7 +920,7 @@ public sealed interface SqlExpr
     record Cast(SqlExpr value, SqlType target, boolean conform,
             TypeFact type) implements SqlExpr {
         public Cast {
-            type = SqlTyping.typed(target);
+            type = SqlTyping.castType(value, target);
         }
 
         public Cast(SqlExpr value, SqlType target, boolean conform) {
@@ -927,7 +942,7 @@ public sealed interface SqlExpr
     record FoldCall(SqlExpr source, Lambda lambda, SqlExpr init, boolean accIsList,
                     boolean homogeneous, TypeFact type) implements SqlExpr {
         public FoldCall {
-            type = SqlTyping.foldType(lambda, init, accIsList);
+            type = SqlTyping.foldType(source, lambda, init, accIsList);
         }
 
         public FoldCall(SqlExpr source, Lambda lambda, SqlExpr init,

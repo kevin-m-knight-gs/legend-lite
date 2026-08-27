@@ -93,8 +93,10 @@ class HarnessDisciplineTest {
             // TYPED-IR Slice 1: census-class DISPLAY ordering
             // (largest-first report lines) — reporting, never a result
             // reordering; two-sided by construction (both sides of no
-            // comparison flow through it)
-            Map.entry("SqlTypeCensus.java", 1),
+            // comparison flow through it). 1 -> 2 (§E3 M-N1): the
+            // nullability differential's report sorts its OWN class
+            // map largest-first — the same display-only shape.
+            Map.entry("SqlTypeCensus.java", 2),
             // CanonicalDivergence: the assertSameElements byte-channel
             // stand-in sorts RENDERED STRINGS on BOTH sides (two-sided
             // comparison policy — the census-side mirror of R2's

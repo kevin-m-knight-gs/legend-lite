@@ -93,6 +93,73 @@ public final class SqlTypeCensus {
      * cell). Measure-first (E2E audit) — adjudicated before pinning. */
     private static final LongAdder NULL_BREACH = new LongAdder();
 
+    // ------------------------------------------------------------------
+    // §E3 M-N1 — THE NULLABILITY DIFFERENTIAL (fact vs label): for
+    // every labeled projection with a Typed fact, compare the fact's
+    // §E3 nullable (construction-computed, echo-derived leaves) against
+    // the label's OutputCol.nullable (the pure-multiplicity echo).
+    // Census-first: this is the M-N3 flip's payload — UNDER-DECLARED
+    // rows (fact may-null, label promises present) are the adoption
+    // set the 925-breach ceiling burns by; OVER-DECLARED rows (label
+    // nullable, fact PROVES never-null) tighten at the flip and must
+    // be adjudicated against the breach ledger first. Bottom facts are
+    // owned by the existing bottom-ok/bottom-mult ledgers; separate
+    // maps keep every pre-§E3 census print byte-stable.
+    // ------------------------------------------------------------------
+    private static final LongAdder NUL_AGREE_REQUIRED = new LongAdder();
+    private static final LongAdder NUL_AGREE_NULLABLE = new LongAdder();
+    private static final LongAdder NUL_UNDER_DECLARED = new LongAdder();
+    private static final LongAdder NUL_OVER_DECLARED = new LongAdder();
+    private static final Map<String, LongAdder> NUL_CLASSES =
+            new ConcurrentHashMap<>();
+    private static final Map<String, List<String>> NUL_SAMPLES =
+            new ConcurrentHashMap<>();
+
+    private static void nulDifferential(OutputCol declared, SqlExpr e,
+            TypeFact.Typed t) {
+        boolean fact = t.nullable();
+        boolean label = declared.nullable();
+        if (fact == label) {
+            (fact ? NUL_AGREE_NULLABLE : NUL_AGREE_REQUIRED).increment();
+            return;
+        }
+        String cls = (fact ? "nul-under-declared[" : "nul-over-declared[")
+                + shapeOf(e) + "] " + declared.type();
+        (fact ? NUL_UNDER_DECLARED : NUL_OVER_DECLARED).increment();
+        NUL_CLASSES.computeIfAbsent(cls, k -> new LongAdder()).increment();
+        List<String> ws = NUL_SAMPLES.computeIfAbsent(cls,
+                k -> java.util.Collections.synchronizedList(
+                        new ArrayList<>()));
+        if (ws.size() < SAMPLES_PER_CLASS) {
+            String ctx = CONTEXT.get();
+            ws.add(declared.name() + " := " + sketch(e)
+                    + (ctx == null ? "" : " [" + ctx + "]"));
+        }
+    }
+
+    public static String nullableDifferentialSummary() {
+        return "agree-required=" + NUL_AGREE_REQUIRED.sum()
+                + " agree-nullable=" + NUL_AGREE_NULLABLE.sum()
+                + " under-declared=" + NUL_UNDER_DECLARED.sum()
+                + " over-declared=" + NUL_OVER_DECLARED.sum();
+    }
+
+    /** The full differential report (summary + every class with its
+     * witnesses) — the runner's target/ dump payload. */
+    public static List<String> nullableDifferentialReport() {
+        List<String> out = new ArrayList<>();
+        out.add(nullableDifferentialSummary());
+        NUL_CLASSES.entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue().sum(),
+                        a.getValue().sum()))
+                .forEach(en -> {
+                    out.add(en.getValue().sum() + "x " + en.getKey());
+                    NUL_SAMPLES.getOrDefault(en.getKey(), List.of())
+                            .forEach(w -> out.add("  " + w));
+                });
+        return out;
+    }
+
     private static final LongAdder WIRE_AGREE = new LongAdder();
     private static final LongAdder WIRE_TOLERATED = new LongAdder();
     private static final LongAdder WIRE_DELIVERED = new LongAdder();
@@ -255,9 +322,21 @@ public final class SqlTypeCensus {
         if (plan instanceof SqlSelect s
                 && s.projections().size() == s.outputs().size()) {
             SqlExpr e = s.projections().get(i).expr();
-            return name + " := " + sketch(e) + " fact=" + e.type();
+            return name + " := " + sketch(e) + " fact=" + factWitness(e.type());
         }
         return name;
+    }
+
+    /** The stored-fact spelling for D1/converse witnesses — PINNED to
+     * the pre-§E3 record print (type + tolerance) so the existing
+     * census dumps stay byte-stable while the nullability dimension
+     * lands consumer-less (M-N1). The M-N3 flip re-roles these
+     * witnesses and retires this formatter for the full fact. */
+    private static String factWitness(TypeFact f) {
+        return f instanceof TypeFact.Typed t
+                ? "Typed[type=" + t.type() + ", tolerated="
+                        + t.tolerated() + "]"
+                : String.valueOf(f);
     }
 
     /** Per-statement D1 watch state — set by {@link #probeWire},
@@ -528,6 +607,7 @@ public final class SqlTypeCensus {
                     sample(cls, declared.name() + " := " + sketch(e));
                 }
                 case TypeFact.Typed t -> {
+                    nulDifferential(declared, e, t);
                     if (declared.tolerated()) {
                         // the reconciliation-stamped guest list (§4bZ),
                         // split by provenance: EQUAL pair = a
