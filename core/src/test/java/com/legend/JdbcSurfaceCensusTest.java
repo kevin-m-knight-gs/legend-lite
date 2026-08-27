@@ -326,7 +326,10 @@ class JdbcSurfaceCensusTest {
             // JDBC mention was the map test's expected-error text naming
             // org.duckdb.DuckDBArray — the flatten fix moved that failure
             // past the decode, the new expected text is JDBC-free
-            "pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java"
+            // renamed at the truthfulness-burn split (census §5c): the
+            // connection-opening entry file of the former
+            // ExecuteLegendLiteQuery triple
+            "pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java"
     ));
 
     @Test

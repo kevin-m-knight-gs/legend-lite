@@ -22,7 +22,7 @@ public class ComputedProjectIntegrationTest {
 
     /**
      * Class definitions matching the PCT test model.
-     * These are the same classes that ExecuteLegendLiteQuery.extractClassMetadata
+     * These are the same classes that the PCT ModelPacker's extraction
      * produces from the Pure interpreter.
      */
     private static final String MODEL = """

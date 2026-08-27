@@ -69,7 +69,15 @@ class JavaEvalLedgerTest {
             // declared-type consult (the one-carrier Executor change
             // exposed the missing StrictDate narrowing) — both shrink
             // ambiguity, not evaluation
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java", 850),
+            // 850 -> the three-file split (truthfulness burn, census
+            // §5c): the burns took the pair well below the old pin and
+            // the file split along the derived seams — entry (thin
+            // orchestration), packer (transport-contingent inbound),
+            // bridge (the permanent bijection). Pins re-seeded at the
+            // split's measured stripped counts; shrink-only from here.
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 131),
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ModelPacker.java", 250),
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 353),
             Map.entry("core/src/main/java/com/legend/exec/MetamodelWalk.java", 1307),
             // 195→196 (audit slice 3): the walker's case list learns
             // the trustOne spelling — recognition, not evaluation.
@@ -401,7 +409,10 @@ class JavaEvalLedgerTest {
         // instance precision decode), remapErrorMessage (error-text
         // adapter, H4 known weakness documented), reEscapeStringLiterals
         // (interpreter-artifact ingress).
-        EVICT_NAMES.put("pct/src/test/java/org/finos/legend/lite/pct/extension/ExecuteLegendLiteQuery.java",
+        EVICT_NAMES.put("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java",
+                new Object[]{"(formatAsTds|formatValue|formatDate|purePctName)\\(",
+                        0});
+        EVICT_NAMES.put("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java",
                 new Object[]{"(formatAsTds|formatValue|formatDate|purePctName)\\(",
                         0});
     }

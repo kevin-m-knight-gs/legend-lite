@@ -740,7 +740,7 @@ public final class Render {
      *  quote when the text contains comma, quote, LF or CR; embedded
      *  quotes double. */
     /** E1: the PCT wire TDS text (the deleted
-     *  ExecuteLegendLiteQuery.formatAsTds, spelled by the DATABASE).
+     *  the PCT bridge's deleted formatAsTds, spelled by the DATABASE).
      *  Header = a compile-time constant from the TYPED schema (name
      *  quoting incl. pivot identities, pure type names — Variant FQN —
      *  and data-independent multiplicity); rows '\n'-PREFIXED (no
