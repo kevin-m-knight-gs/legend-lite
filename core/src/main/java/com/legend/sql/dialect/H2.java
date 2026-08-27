@@ -152,9 +152,11 @@ public class H2 extends AnsiSqlRenderer {
         }
         // error(msg) (P3): SIGNAL raises with the message and is LAZY
         // under CASE (probed 2.1.214: guarded branches do not fire,
-        // taken branches raise, THEN-arm types unify).
+        // taken branches raise, THEN-arm types unify). B7: the U+001F
+        // provenance sentinel rides both ends (RaisedErrors).
         if (c.fn() == SqlFn.ERROR) {
-            return "SIGNAL('45000', " + expr(a.get(0), 0) + ")";
+            return "SIGNAL('45000', CHAR(31) || (" + expr(a.get(0), 0)
+                    + ") || CHAR(31))";
         }
         // split_part (R5c): H2 has no token pick — the probed EXACT
         // spelling (empty tokens KEPT, missing token -> '', matching

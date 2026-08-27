@@ -94,6 +94,11 @@ public final class Executor {
         try {
             return execute0(sql, plan, rootType, shape, connection, dialect,
                     rider);
+        } catch (SQLException e) {
+            // B7 (RaisedErrors): a message WE raised in SQL surfaces
+            // clean of the driver's transport envelope — HERE, once,
+            // for every consumer; native errors pass through whole
+            throw RaisedErrors.unwrapped(e);
         } finally {
             com.legend.exec.TimingLedger.add("query.exec",
                     System.nanoTime() - qt0);

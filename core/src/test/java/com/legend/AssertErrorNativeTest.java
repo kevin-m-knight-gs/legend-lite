@@ -115,18 +115,36 @@ class AssertErrorNativeTest {
         assertEquals("No error was thrown", e.getMessage());
     }
 
-    // ---- the decoder (backend prefix strip only — the U+001E span
-    // channel is DELETED; source position is unobservable) ----
+    // ---- B7 (RaisedErrors): the ONE envelope owner's spec — sentinel
+    // pair extracts OUR raised text from any transport envelope; a
+    // native error (no sentinel) passes through WHOLE, class and all
+    // (the old broad prefix strip could launder a native error into
+    // pure's expected text — that coincidence class is dead) ----
 
     @Test
-    @DisplayName("decode strips the backend's single-line error-kind prefix")
-    void decodePrefix() {
-        assertEquals("Cannot get hour for 2017", AssertErrorNative.decode(
-                "Invalid Input Error: Cannot get hour for 2017"));
-        assertEquals("expected:\nA\nactual:\nB", AssertErrorNative.decode(
-                "Invalid Input Error: expected:\nA\nactual:\nB"));
-        assertEquals("Could not convert string 'x' to INT64",
-                AssertErrorNative.decode(
+    @DisplayName("unwrap extracts between the provenance sentinels —"
+            + " prefix, suffix, or both envelopes")
+    void unwrapSentinels() {
+        String s = String.valueOf(com.legend.exec.RaisedErrors.SENTINEL);
+        assertEquals("Cannot get hour for 2017",
+                com.legend.exec.RaisedErrors.unwrap(
+                        "Invalid Input Error: " + s
+                        + "Cannot get hour for 2017" + s));
+        assertEquals("msg", com.legend.exec.RaisedErrors.unwrap(
+                s + "msg" + s + "; SQL statement: SELECT ... [45000-232]"));
+        assertEquals("a\nb", com.legend.exec.RaisedErrors.unwrap(
+                "Prefix: " + s + "a\nb" + s + " suffix"));
+    }
+
+    @Test
+    @DisplayName("a NATIVE error (no sentinel) passes through whole —"
+            + " envelope, class and all")
+    void nativeErrorsUntouched() {
+        assertEquals("Invalid Input Error: Cannot get hour for 2017",
+                com.legend.exec.RaisedErrors.unwrap(
+                        "Invalid Input Error: Cannot get hour for 2017"));
+        assertEquals("Conversion Error: Could not convert string 'x' to INT64",
+                com.legend.exec.RaisedErrors.unwrap(
                         "Conversion Error: Could not convert string 'x'"
                         + " to INT64"));
     }

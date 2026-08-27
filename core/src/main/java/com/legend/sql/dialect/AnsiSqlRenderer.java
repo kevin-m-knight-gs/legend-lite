@@ -525,6 +525,14 @@ public class AnsiSqlRenderer implements SqlDialect {
             return infix.prec() < parentPrec ? "(" + joined + ")" : joined.toString();
         }
         List<SqlExpr> a = c.args();
+        // B7 (RaisedErrors): a message WE raise carries the U+001F
+        // provenance sentinel at BOTH ends — the Executor funnel
+        // extracts between them, removing the driver's transport
+        // envelope from OUR OWN text only; native errors never match.
+        if (c.fn() == SqlFn.ERROR) {
+            return spellings.fnNames().get(SqlFn.ERROR) + "(chr(31) || ("
+                    + expr(a.get(0), 0) + ") || chr(31))";
+        }
         // PURE spellings are DATA (Spellings row): name(args), nothing else.
         String plain = spellings.fnNames().get(c.fn());
         if (plain != null) {

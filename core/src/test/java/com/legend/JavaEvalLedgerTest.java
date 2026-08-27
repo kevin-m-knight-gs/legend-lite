@@ -434,6 +434,12 @@ class JavaEvalLedgerTest {
                     // never produces a result (the permanent-allowed
                     // decision rule); wireEquals' private copy DIED here.
                     "PureAsserts.java", "GridCompare.java",
+                    // B7 (truthfulness burn): the ONE owner of raised-
+                    // message envelope unwrap — provenance-scoped
+                    // (sentinel pair), so native errors keep their class;
+                    // replaced the adapter's remapErrorMessage AND
+                    // AssertErrorNative's broad prefix regex
+                    "RaisedErrors.java",
                     // 2026-08-19 phase-2 deep audit: the ONE structural
                     // tree walker (wire-value trees + parsed JSON
                     // documents) — the harness's private jsonDeepEquals

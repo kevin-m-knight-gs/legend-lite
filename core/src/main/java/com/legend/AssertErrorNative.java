@@ -83,7 +83,13 @@ final class AssertErrorNative {
             // thrown") — a FAIL, not an orchestration error
             throw new java.sql.SQLException("No error was thrown");
         }
-        String actual = decode(String.valueOf(caught.getMessage()));
+        // B7 (RaisedErrors): messages arrive ALREADY clean — the
+        // Executor funnel unwraps the transport envelope from
+        // platform-raised text (provenance-sentinel scoped); a native
+        // error keeps its class and envelope, and a mismatch against
+        // pure's expectation is then an HONEST failure, never a strip
+        // coincidence. The old broad prefix regex is deleted.
+        String actual = String.valueOf(caught.getMessage());
         if (!actual.equals(expected)) {
             // assertError.pure:24 — the /4 body's assertEquals format,
             // verbatim
@@ -118,11 +124,4 @@ final class AssertErrorNative {
     /** Strip the backend's error-kind prefix ({@code "Invalid Input
      * Error: "} etc. — single-line kind, anchored at the start): the
      * pure-level MESSAGE is what the spec compares. */
-    static String decode(String raw) {
-        java.util.regex.Matcher m = PREFIX.matcher(raw);
-        return m.find() ? raw.substring(m.end()) : raw;
-    }
-
-    private static final java.util.regex.Pattern PREFIX =
-            java.util.regex.Pattern.compile("^[A-Za-z]+(?: [A-Za-z]+)* Error: ");
 }

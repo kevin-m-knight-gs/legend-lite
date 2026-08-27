@@ -100,6 +100,11 @@ class JdbcSurfaceCensusTest {
             // carrier, so the comparison layer's java.sql value arms
             // are GONE — sql types never escape the fetch seam.)
             "core/src/main/java/com/legend/exec/Executor.java",
+            // B7 (RaisedErrors): touches java.sql ONLY to rethrow a
+            // SQLException whose raised-message envelope it removed —
+            // the provenance seam at Executor's own funnel; it opens no
+            // connection and executes nothing
+            "core/src/main/java/com/legend/exec/RaisedErrors.java",
             // contract program: the wire census READS ResultSetMetaData
             // of results the Executor already fetched — measurement of
             // the wire's self-description, zero queries, zero decode;

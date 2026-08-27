@@ -209,36 +209,12 @@ public class PctExecuteNative extends NativeFunction {
                     break;
                 }
             }
-            throw new PureExecutionException(src, remapErrorMessage(e.getMessage()), e);
+            // B7 (RaisedErrors): the message arrives ALREADY clean — the
+            // platform's Executor funnel unwrapped the transport envelope
+            // from platform-raised text (provenance-sentinel scoped).
+            // remapErrorMessage — the last adapter arm that ever touched
+            // a message — is DELETED; native errors cross whole.
+            throw new PureExecutionException(src, e.getMessage(), e);
         }
     }
-    // ===== Utilities =====
-
-    private static String remapErrorMessage(String message) {
-        if (message == null) return null;
-        // The shift-message remap is DELETED (deep-audit H4: it returned
-        // the PCT expectation verbatim for ANY shift error, so the tests
-        // could never detect the real boundary). The 62-bit bound now
-        // guards AT RUNTIME in the lowering (Scalars bit-shift rule), so
-        // the database raises pure's own message.
-        //
-        // The prefix strip covers DuckDB's transport prefixes on raised
-        // and native errors. KNOWN WEAKNESS (deep-audit H4 second half,
-        // kept deliberately: PCT interval tests depend on the native
-        // Out-of-Range text surfacing bare): the strip erases the error
-        // CLASS, so class-confusions can compare equal.
-        java.util.regex.Matcher m = java.util.regex.Pattern
-                .compile("^(?:Invalid Input Error|Out of Range Error|Conversion Error): (.*)$",
-                        java.util.regex.Pattern.DOTALL)
-                .matcher(message);
-        if (m.matches()) {
-            // slice-4 census J6: LOAD-BEARING — 18 firings on the full
-            // DuckDB lane (interval tests pin the bare native text).
-            // Burn belongs to the error-shape leg (Bucket 2), never a
-            // silent delete here.
-            message = m.group(1);
-        }
-        return message;
-    }
-
 }

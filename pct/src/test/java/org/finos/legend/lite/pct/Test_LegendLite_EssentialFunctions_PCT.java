@@ -104,10 +104,17 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // to 294246 AD). Representing them would mean a string-domain
             // calendar reimplementation; ledgered as a carrier-domain limit
             // (the in-domain BigNumber adjusts — MINUTES, MICROSECONDS — pass).
-            one("meta::pure::functions::date::tests::testAdjustByDaysBigNumber_Function_1__Boolean_1_", "\"Type INT64 with value 12345678912 can't be cast because the value is out of range for the destination type INT32\""),
-            one("meta::pure::functions::date::tests::testAdjustByHoursBigNumber_Function_1__Boolean_1_", "\"Interval value 12345678912 hours out of range\""),
-            one("meta::pure::functions::date::tests::testAdjustByMonthsBigNumber_Function_1__Boolean_1_", "\"Type INT64 with value 9600000000 can't be cast because the value is out of range for the destination type INT32\""),
-            one("meta::pure::functions::date::tests::testAdjustByWeeksBigNumber_Function_1__Boolean_1_", "\"Type INT64 with value 12345678912 can't be cast because the value is out of range for the destination type INT32\""),
+            // B7 (RaisedErrors): NATIVE database errors now surface with
+            // their honest envelope — the class-blind strip is dead. The
+            // four BigNumber pins carry the SAME spellings upstream's own
+            // DuckDB manifest records for these tests (receipt: census
+            // §5c B7 — 'java.sql.SQLException: Invalid Input Error: …'),
+            // so the ledger is now byte-comparable to the reference
+            // target's.
+            one("meta::pure::functions::date::tests::testAdjustByDaysBigNumber_Function_1__Boolean_1_", "\"Invalid Input Error: Type INT64 with value 12345678912 can't be cast because the value is out of range for the destination type INT32\""),
+            one("meta::pure::functions::date::tests::testAdjustByHoursBigNumber_Function_1__Boolean_1_", "\"Out of Range Error: Interval value 12345678912 hours out of range\""),
+            one("meta::pure::functions::date::tests::testAdjustByMonthsBigNumber_Function_1__Boolean_1_", "\"Invalid Input Error: Type INT64 with value 9600000000 can't be cast because the value is out of range for the destination type INT32\""),
+            one("meta::pure::functions::date::tests::testAdjustByWeeksBigNumber_Function_1__Boolean_1_", "\"Invalid Input Error: Type INT64 with value 12345678912 can't be cast because the value is out of range for the destination type INT32\""),
             // deactivate() reflects the EXPRESSION (a ValueSpecification metamodel
             // object) — legend-lite compiles to SQL and holds no expression tree at
             // run time; metamodel reflection is out of vocabulary.
