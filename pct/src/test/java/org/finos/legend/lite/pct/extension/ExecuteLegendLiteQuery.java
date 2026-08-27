@@ -17,7 +17,6 @@ package org.finos.legend.lite.pct.extension;
 import org.eclipse.collections.api.list.ListIterable;
 import org.eclipse.collections.api.map.MutableMap;
 import org.eclipse.collections.api.stack.MutableStack;
-import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.exec.Column;
 import com.legend.exec.ExecutionResult;
@@ -49,11 +48,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -67,7 +61,7 @@ import java.util.regex.Pattern;
 /**
  * Native function that bridges PCT tests to Legend-Lite's QueryService.
  *
- * Pure expressions are re-escaped, executed via QueryService (compile → SQL → DuckDB),
+ * Pure expressions are executed via QueryService (compile → SQL → DuckDB),
  * and the typed ExecutionResult is converted back to Pure CoreInstances.
  *
  * Type information flows from Type on ExecutionResult: column names,
@@ -123,9 +117,12 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             Context context,
             ProcessorSupport processorSupport) throws PureExecutionException {
 
+        // J2 (slice-4 census): reEscapeStringLiterals is DELETED BY
+        // MEASUREMENT — zero input-changing calls across the full DuckDB
+        // lane (1115) and the h2 Relation lane. The serializer hands the
+        // expression over parse-ready.
         String pureExpression = PrimitiveUtilities.getStringValue(
                 Instance.getValueForMetaPropertyToOneResolved(params.get(0), M3Properties.values, processorSupport));
-        pureExpression = reEscapeStringLiterals(pureExpression);
 
         System.out.println("[LegendLite PCT] Executing: " + pureExpression);
 
@@ -476,6 +473,12 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
         if (value instanceof BigInteger bi) {
             return modelRepository.newIntegerCoreInstance(bi.toString());
         }
+        // Numeric kinds ride the WIRE's own carriers (slice-4 census,
+        // measured on both PCT lanes): a Decimal-contract value arrives
+        // as BigDecimal (DECIMAL column), a Float as Double. The old
+        // declared-kind consult arms on Double, the Float32 arm and the
+        // Number catch-all all measured ZERO — deleted; an unlisted
+        // numeric carrier now hits the terminal wall, loudly (F5.5).
         if (value instanceof BigDecimal bd) {
             if (type instanceof Type.Primitive p
                     && (p == Type.Primitive.DECIMAL || p == Type.Primitive.NUMBER)) {
@@ -485,41 +488,29 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                 // scale is part of the VALUE surface: abs(-3.0D) prints 3.0D
                 return modelRepository.newDecimalCoreInstance(bd);
             }
-            return modelRepository.newFloatCoreInstance(bd);
+            throw new UnsupportedOperationException(
+                    "DECIMAL wire value under a non-Decimal contract: "
+                    + type + " — the census measured this arm zero"
+                    + " (Float contracts arrive as DOUBLE)");
         }
         if (value instanceof Double d) {
-            if (type instanceof Type.Primitive p && p == Type.Primitive.DECIMAL) {
-                return modelRepository.newDecimalCoreInstance(BigDecimal.valueOf(d));
-            }
-            if (type instanceof Type.PrecisionDecimal) {
-                return modelRepository.newDecimalCoreInstance(BigDecimal.valueOf(d).stripTrailingZeros());
-            }
             return modelRepository.newFloatCoreInstance(BigDecimal.valueOf(d));
-        }
-        if (value instanceof Float f) {
-            return modelRepository.newFloatCoreInstance(BigDecimal.valueOf(f.doubleValue()));
-        }
-        if (value instanceof Number n) {
-            return modelRepository.newFloatCoreInstance(BigDecimal.valueOf(n.doubleValue()));
         }
         // Dates — THE wire temporal (D-arc 2026-08-21): PureDateLiteral
         // carries written precision; engine's own parser reconstructs
         // the precision-exact PureDate class from the spelling. The
-        // declared-type narrowing survives from the old Timestamp arm
-        // (a STRICT_DATE-typed value arriving time-bearing narrows to
-        // its day). The old java.sql/java.time arms are DELETED
-        // (cut-over-hard): a raw driver temporal reaching this
-        // extension is a fetch-seam leak and hits the terminal
-        // no-typed-conversion wall, loudly.
+        // old java.sql/java.time arms are DELETED (cut-over-hard): a
+        // raw driver temporal reaching this extension is a fetch-seam
+        // leak and hits the terminal no-typed-conversion wall, loudly.
         if (value instanceof com.legend.values.PureDateLiteral pdl) {
-            com.legend.values.PureDateLiteral narrowed = pdl;
-            if (type instanceof Type.Primitive p
-                    && p == Type.Primitive.STRICT_DATE
-                    && pdl.strictDatePart() != null) {
-                narrowed = pdl.strictDatePart();
-            }
-            PureDate pd = DateFunctions.parsePureDate(narrowed.toEngineString());
-            String topLevel = switch (narrowed.precision()) {
+            // J8a (slice-4 census): the declared-type NARROWING arm is
+            // DELETED — its one witness (parseDate over a bare-date
+            // literal, refined StrictDate but cast to TIMESTAMP) is
+            // cured at the emission (Scalars parseDate rule casts to
+            // DATE when the node's own stamp is StrictDate). The wire
+            // delivers kind-faithful temporals; the adapter only boxes.
+            PureDate pd = DateFunctions.parsePureDate(pdl.toEngineString());
+            String topLevel = switch (pdl.precision()) {
                 case YEAR, MONTH -> "Date";
                 case DAY -> "StrictDate";
                 default -> "DateTime";
@@ -527,10 +518,9 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
             return modelRepository.newCoreInstance(pd.toString(),
                     modelRepository.getTopLevel(topLevel), null);
         }
-        if (value instanceof LocalTime lt) {
-            PureDate pd = DateFunctions.newPureDate(1, 1, 1, lt.getHour(), lt.getMinute(), lt.getSecond());
-            return modelRepository.newCoreInstance(pd.toString(), modelRepository.getTopLevel("StrictTime"), null);
-        }
+        // (LocalTime/StrictTime arm DELETED by census — zero traffic;
+        // StrictTime has no SQL carrier (PureSql), so nothing crosses.
+        // A LocalTime reaching here hits the terminal wall by name.)
         // Strings
         if (value instanceof String s) {
             // type(x) crosses the wire as the type's NAME; resolve it to the
@@ -556,32 +546,15 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     }
                 }
             }
-            // Precision-faithful date STRINGS (the wire's date convention:
-            // partial dates, subsecond digit counts beyond the TIMESTAMP
-            // carrier) — parse preserving every written digit.
-            // Audit finding M, adjudicated (documented-debts 2026-08-18):
-            // reading precision from the TEXT here is VALUE DECODING, not
-            // magnitude classification — the declared type below is the
-            // Date UNION, where precision is part of the value itself
-            // (parseDate('2014-02-27') IS a StrictDate; the wire text
-            // carries exactly that fact). Non-union declared types never
-            // reach this classifier with a contradicting precision.
-            if (type instanceof Type.Primitive p
-                    && (p == Type.Primitive.DATE || p == Type.Primitive.DATE_TIME
-                            || p == Type.Primitive.STRICT_DATE)
-                    && s.matches("-?\\d{4,}(-\\d{2})?(-\\d{2})?([T ].*)?")) {
-                PureDate pd = DateFunctions.parsePureDate(s);
-                String classifier = pd.hasHour() ? "DateTime"
-                        : pd.hasDay() ? "StrictDate" : "Date";
-                return modelRepository.newCoreInstance(pd.toString(),
-                        modelRepository.getTopLevel(classifier), null);
-            }
+            // J8h (slice-4 census): the date-shaped-text reparse arm is
+            // DELETED BY MEASUREMENT — zero firings on both PCT lanes;
+            // temporals cross as PureDateLiteral (D-arc), never as bare
+            // date text. Any temporal-typed String is now the F5.5 wall.
             if (type instanceof Type.Primitive tp && tp.isTemporal()) {
-                // F5.5: a temporal-typed value whose text does not parse
-                // as a date used to fall through as a silent String
                 throw new UnsupportedOperationException(
-                        "temporal-typed value is not a date print form: '"
-                        + s + "' (" + tp + ")");
+                        "temporal-typed value crossed as text: '"
+                        + s + "' (" + tp + ") — the PureDateLiteral"
+                        + " carrier owns temporals");
             }
             return modelRepository.newStringCoreInstance(s);
         }
@@ -613,90 +586,17 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                     "list of " + coreInstances.size() + " elements in"
                     + " scalar conversion context (type=" + type + ")");
         }
-        // TYPED conversions the old stringify-anything fallback concealed
-        // (F5.5 made the wall loud; these are the adjudicated channels):
-        // a UUID under a String-typed slot IS its canonical text
-        if (value instanceof java.util.UUID u
-                && type == Type.Primitive.STRING) {
-            return modelRepository.newStringCoreInstance(u.toString());
-        }
-        // a DuckDB STRUCT under a class-typed slot builds the declared
-        // class instance (F5.6 deleted the MAP-branch twin by probe; the
-        // live channel was DuckDBStruct, and toString() was concealing it)
-        if (value instanceof org.duckdb.DuckDBStruct ds) {
-            java.util.Map<String, Object> m;
-            try {
-                m = ds.getMap();
-            } catch (java.sql.SQLException e) {
-                throw new RuntimeException(e);
-            }
-            return classInstance(m, type, ps);
-        }
-        // F5.5: the terminal stringify-anything fallback is LOUD — an
-        // unconverted kind is a missing typed conversion, not a String
+        // J8j/J8k (slice-4 census): the UUID-under-String arm and the
+        // DuckDBStruct arm (with its classInstance builder — the second
+        // struct→instance owner, whose positional type-arg indexing was
+        // a latent wrong-type channel) are DELETED BY MEASUREMENT —
+        // zero firings on both PCT lanes; structs cross as
+        // java.util.Map and build through structToInstance, the ONE
+        // owner. F5.5: the terminal fallback is LOUD — an unconverted
+        // kind is a missing typed conversion, not a String.
         throw new UnsupportedOperationException(
                 "no typed conversion for " + value.getClass().getName()
                 + " (type=" + type + ")");
-    }
-
-    /** Class instance from a struct's field map, keyed on the DECLARED
-     *  type — the honest survivor of the deleted createClassInstance:
-     *  the 'default -> Pair' fabrication is a LOUD wall now. */
-    private CoreInstance classInstance(Map<String, Object> structMap,
-            Type type, ProcessorSupport ps) {
-        String qualifiedName = switch (type) {
-            case Type.ClassType ct -> ct.fqn();
-            case Type.GenericType gt -> gt.rawFqn();
-            default -> throw new UnsupportedOperationException(
-                    "struct under non-class type " + type + " (keys="
-                    + structMap.keySet() + ") — no fabrication");
-        };
-        CoreInstance classCi = ps.package_getByUserPath(qualifiedName);
-        if (classCi == null) {
-            throw new RuntimeException("Pure class not found: " + qualifiedName);
-        }
-        String simpleName = qualifiedName
-                .substring(qualifiedName.lastIndexOf(':') + 1);
-        CoreInstance instance = modelRepository.newCoreInstance(
-                simpleName, classCi, null);
-        CoreInstance classifierGT = org.finos.legend.pure.m3.navigation
-                .type.Type.wrapGenericType(classCi, null, ps);
-        if (type instanceof Type.GenericType p) {
-            for (Type typeArg : p.arguments()) {
-                CoreInstance argTypeClass =
-                        ps.package_getByUserPath(typeArg.typeName());
-                if (argTypeClass != null) {
-                    Instance.addValueToProperty(classifierGT,
-                            M3Properties.typeArguments,
-                            org.finos.legend.pure.m3.navigation.type.Type
-                                    .wrapGenericType(argTypeClass, null, ps),
-                            ps);
-                }
-            }
-        }
-        Instance.addValueToProperty(instance,
-                M3Properties.classifierGenericType, classifierGT, ps);
-        int idx = 0;
-        for (Map.Entry<String, Object> entry : structMap.entrySet()) {
-            Object propValue = entry.getValue();
-            // a NULL field is an omitted property (the canonical layout's
-            // own convention); a field the DECLARED class does not own is
-            // PROJECTED AWAY — types drive construction: the covariant
-            // union layout carries every subtype's fields, and building
-            // the declared type keeps exactly its declared properties
-            if (propValue != null && ps.class_findPropertyUsingGeneralization(
-                    classCi, entry.getKey()) != null) {
-                Type propType = new Type.ClassType(PlatformTypes.ANY);
-                if (type instanceof Type.GenericType p
-                        && idx < p.arguments().size()) {
-                    propType = p.arguments().get(idx);
-                }
-                Instance.addValueToProperty(instance, entry.getKey(),
-                        toCoreInstance(propValue, propType, ps), ps);
-            }
-            idx++;
-        }
-        return instance;
     }
 
 
@@ -1044,61 +944,13 @@ public class ExecuteLegendLiteQuery extends NativeFunction {
                         java.util.regex.Pattern.DOTALL)
                 .matcher(message);
         if (m.matches()) {
+            // slice-4 census J6: LOAD-BEARING — 18 firings on the full
+            // DuckDB lane (interval tests pin the bare native text).
+            // Burn belongs to the error-shape leg (Bucket 2), never a
+            // silent delete here.
             message = m.group(1);
         }
         return message;
     }
 
-    /**
-     * Re-escapes literal special characters inside single-quoted strings.
-     * The Pure interpreter resolves escape sequences before passing the expression,
-     * but our parser expects them unresolved.
-     */
-    private static String reEscapeStringLiterals(String expr) {
-        StringBuilder sb = new StringBuilder(expr.length());
-        boolean inString = false;
-        for (int i = 0; i < expr.length(); i++) {
-            char c = expr.charAt(i);
-            if (c == '\'' && !inString) {
-                inString = true;
-                sb.append(c);
-            } else if (c == '\'' && inString) {
-                inString = false;
-                sb.append(c);
-            } else if (inString) {
-                switch (c) {
-                    case '\n' -> sb.append("\\n");
-                    case '\r' -> sb.append("\\r");
-                    case '\t' -> sb.append("\\t");
-                    case '\\' -> {
-                        // An ALREADY-escaped sequence (\', \n, \r, \t, \\)
-                        // must pass through unchanged — the serializer emits
-                        // control chars pre-escaped; doubling the backslash
-                        // turned \n into a literal backslash-n (and \' into
-                        // a string TERMINATOR, shredding pivot names).
-                        char next = i + 1 < expr.length() ? expr.charAt(i + 1) : 0;
-                        if (next == '\'' || next == 'n' || next == 'r'
-                                || next == 't' || next == '\\') {
-                            sb.append('\\').append(next);
-                            i++;
-                        } else {
-                            sb.append("\\\\");
-                        }
-                    }
-                    default -> sb.append(c);
-                }
-            } else {
-                sb.append(c);
-            }
-        }
-        return sb.toString();
-    }
-
-    private String stripTrailingZeros(String subsecond) {
-        int end = subsecond.length();
-        while (end > 1 && subsecond.charAt(end - 1) == '0') {
-            end--;
-        }
-        return subsecond.substring(0, end);
-    }
 }

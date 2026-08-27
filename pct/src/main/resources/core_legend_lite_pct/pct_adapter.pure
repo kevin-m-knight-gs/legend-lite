@@ -66,22 +66,8 @@ function meta::legend::lite::pct::legendLiteGrammarConfiguration():Configuration
   );
 }
 
-// Extract simple Pure type name from a GenericType (e.g., Integer, String, Date)
-function meta::legend::lite::pct::getSimpleTypeName(gt:GenericType[1]):String[1]
-{
-  let rawType = $gt.rawType->toOne();
-  let typeName = $rawType->elementToPath();
-  if($rawType->instanceOf(PrimitiveType),
-    | $rawType->cast(@PrimitiveType).name->toOne(),
-    | if($rawType->instanceOf(Enumeration),
-        | 'String',
-        | if($typeName->contains('Variant'),
-            | $typeName,
-            | 'String'
-          )
-      )
-  );
-}
+// (getSimpleTypeName DELETED — slice-4 census P2: its one consumer,
+// buildTypedHeader, died at F5.3 Stage B; zero callers remained.)
 
 // Substitute open (captured) variables in the function's expression sequence
 // This replaces VariableExpression nodes with their captured values from outer scope

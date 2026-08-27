@@ -72,6 +72,9 @@ Register F16 already predicts the decay ("adapter receives kind-faithful
 values and ONLY boxes; declared-type consult arms decay as F10 lands").
 Clause 2b doctrine governs what moves INTO the platform. Audit finding
 #A7 (F15 shadow-parser regexes are Channel A's alone) bounds the scope.
+Charter: [ADAPTER_NECESSITY_CENSUS.md](ADAPTER_NECESSITY_CENSUS.md)
+(opened 2026-08-27 — the per-arm verdict table; records that most of
+PCT_AUDIT §7's "free wins" were already executed by the F5.x program).
 
 ## BUCKET 4 — single-shot asserts (V12/V13, the thesis validator)
 

@@ -2264,7 +2264,17 @@ final class Scalars {
                     }
                     in = new SqlExpr.StringLit(v);
                 }
-                return new SqlExpr.Cast(in, PureSql.type(Type.Primitive.DATE_TIME));
+                // Conform-by-emission (slice-4 J8a): the Typer refines a
+                // bare-date literal to StrictDate (refineParseDate); the
+                // emission speaks that SAME fact — SQL DATE, day-precise
+                // on the wire. Casting everything to TIMESTAMP delivered a
+                // midnight DateTime under a StrictDate stamp, which only
+                // the PCT adapter's narrowing arm absorbed (now deleted).
+                Type rt = n.info().type();
+                return new SqlExpr.Cast(in, PureSql.type(
+                        rt == Type.Primitive.STRICT_DATE
+                                ? Type.Primitive.STRICT_DATE
+                                : Type.Primitive.DATE_TIME));
             });
         }
         // date(y,m,d[,h,mi,s]) constructors.

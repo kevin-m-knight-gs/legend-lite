@@ -249,7 +249,10 @@ territory, declared).
 F16 adapter kind re-derivation shrinks (register predicts this);
 SqlTypeCensus special cases re-adjudicate; print-form recovery lane
 retires where the LITERAL decode replaced it; relation-lane variant
-cells if separately chartered.
+cells if separately chartered. **Charter =
+[ADAPTER_NECESSITY_CENSUS.md](ADAPTER_NECESSITY_CENSUS.md)** (the
+necessity-proof census over ExecuteLegendLiteQuery + pct_adapter.pure;
+opened 2026-08-27).
 
 ## 4. Wire facts already probed (DuckDB, 2026-08-23)
 - JSON preserves numeric spelling text: '5.0'::JSON stays `5.0`
