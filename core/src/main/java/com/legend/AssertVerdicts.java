@@ -747,7 +747,20 @@ final class AssertVerdicts {
         if (kinds.size() == 1) {
             return fineNumericKind(kinds.get(0));
         }
-        return runtimeNumericKind(vals);
+        String k = runtimeNumericKind(vals);
+        // B8: a runtime BigDecimal is evidence of the CARRIER, not the
+        // kind — precision-exact Float literals are decimal-carried BY
+        // DESIGN (the reference's own interpreted Float is
+        // BigDecimal-backed; receipt in CFloat). When the compiler's
+        // candidate set rules pure-Decimal OUT (no decimal candidate)
+        // and a float candidate exists, the value IS a decimal-carried
+        // Float and judges through the float canon. Static truth gates
+        // the resolution; the value alone never decides a kind.
+        if ("decimal".equals(k) && candidateIndex(f, "decimal") < 0
+                && candidateIndex(f, "float") >= 0) {
+            return "float";
+        }
+        return k;
     }
 
     /** Index of the fine kind's candidate column in the rider's

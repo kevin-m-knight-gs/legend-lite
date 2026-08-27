@@ -824,13 +824,18 @@ public final class SpecParser implements TokenStreamCursor {
         }
         double d = Double.parseDouble(text);
         if (!dialect().refusesLiteExtensions()) {
-            // PLATFORM and LITE: legend-pure EXECUTION semantics — the PCT
-            // reference asserts the decimal-exact value, and lite's product
-            // promise is pure-correct execution (G6 1109/1109). Only the
-            // byte-parity ENGINE wire builds CFloat unconditionally.
+            // PLATFORM and LITE: legend-pure EXECUTION semantics. B8
+            // (proved from the reference source): the interpreted
+            // runtime's Float primitive IS BigDecimal-backed
+            // (FloatCoreInstance extends PrimitiveCoreInstance<BigDecimal>;
+            // newFloatCoreInstance(String) parses the SOURCE TEXT), so a
+            // precision-losing literal keeps its digits AND its Float
+            // label. The old promotion to CDecimal made the TYPE lie to
+            // keep the VALUE — deleted. Only the byte-parity ENGINE wire
+            // builds the bare double, like DomainParseTreeWalker.
             BigDecimal exact = new BigDecimal(text);
             if (exact.compareTo(BigDecimal.valueOf(d)) != 0) {
-                return new CDecimal(exact, text, spanOf(litTok, litTok));
+                return new CFloat(d, exact, spanOf(litTok, litTok));
             }
         }
         return new CFloat(d, spanOf(litTok, litTok));

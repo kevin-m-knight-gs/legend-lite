@@ -2371,7 +2371,10 @@ public final class Lowerer {
                     : new SqlExpr.IntLit(c.value().longValue());
             case TypedCString c -> new SqlExpr.StringLit(c.value());
             case TypedCBoolean c -> new SqlExpr.BoolLit(c.value());
-            case TypedCFloat c -> new SqlExpr.FloatLit(c.value());
+            // B8: exact digits emit as DecimalLit under the Float label (see CFloat)
+            case TypedCFloat c -> c.exact() != null
+                    ? new SqlExpr.DecimalLit(c.exact())
+                    : new SqlExpr.FloatLit(c.value());
             case TypedCDecimal c ->
                     new SqlExpr.DecimalLit(c.value());
             // Date literals: full dates/timestamps render typed; PARTIAL

@@ -385,16 +385,13 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
                   // classes; the producers were fixed, never the overlay.
                   let tdsString = $single->cast(@TDSResult).tdsString;
                   $tdsString->stringToTDS()->cast(@X)->toMultiplicity(@[o]);,
-                | // audit 2026-08-18 finding G, adjudicated; ONE witness
-                  // (testBigFloatAbs): the platform keeps Float literals
-                  // decimal-exact by contract, so only the TYPE LABEL
-                  // moves to the declared Float — no value is produced
-                  // or changed here. Burns at the T4 builder leg.
-                  let rawT = $f->functionReturnType().rawType;
-                  if(!$rawT->isEmpty() && $rawT->toOne() == Float && $single->instanceOf(Decimal),
-                    | $single->cast(@Decimal)->toFloat()->cast(@X)->toMultiplicity(@[o]);,
-                    | $single->cast(@X)->toMultiplicity(@[o]);
-                  );
+                | // B8 (the P7 relabel is DELETED): the platform now
+                  // labels precision-exact float literals FLOAT end to
+                  // end — proved against the reference source
+                  // (FloatCoreInstance IS BigDecimal-backed), so the
+                  // adapter's LAST declared-type read is gone; every
+                  // scalar passes through untouched.
+                  $single->cast(@X)->toMultiplicity(@[o]);
               );
           );
     );

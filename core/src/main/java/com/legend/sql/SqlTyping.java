@@ -1642,15 +1642,21 @@ public final class SqlTyping {
             v = v.setScale(0);
         }
         if (v.scale() > 0) {
-            // beyond DECIMAL's max precision the backend reads the
-            // literal DOUBLE (probed 1.5.0: 39+ digits -> DOUBLE, 38
-            // -> DECIMAL(38,s) — testComplexPow's 41-digit expected
-            // literal was the wire ledger's last row)
-            if (v.precision() > 38) {
+            // the fact counts the RENDERED digits (probed 1.5.0, B8:
+            // 0.99 -> DECIMAL(3,2), 0.5 -> DECIMAL(2,1), 12.345 ->
+            // DECIMAL(5,3) — a sub-1 literal's leading zero COUNTS, so
+            // precision = integer digits + scale; BigDecimal.precision()
+            // omits that zero and under-stated sub-1 facts by one, the
+            // corr-literal wire divergence's root). Beyond DECIMAL's
+            // max precision the backend reads the literal DOUBLE
+            // (probed 1.5.0: 39+ rendered digits -> DOUBLE, 38 ->
+            // DECIMAL(38,s) — testComplexPow's 41-digit expected
+            // literal was the wire ledger's last row).
+            int rendered = Math.max(v.precision() - v.scale(), 1) + v.scale();
+            if (rendered > 38) {
                 return T_DOUBLE;
             }
-            return typed(new SqlType.Decimal(
-                    Math.max(v.precision(), 1), v.scale()));
+            return typed(new SqlType.Decimal(rendered, v.scale()));
         }
         // scale-0 SPLITS by provenance, decidable by MAGNITUDE alone:
         // a value beyond long can only be a big PURE INTEGER (integer

@@ -84,7 +84,9 @@ class JavaEvalLedgerTest {
             // channels became LOUD WALLS (generic classes, no-path
             // types) — wall growth, zero evaluation
             Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ModelPacker.java", 266),
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 353),
+            // +2 (B8): the BigDecimal-under-FLOAT arm — the reference's own
+            // Float shape (FloatCoreInstance IS BigDecimal-backed)
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 355),
             Map.entry("core/src/main/java/com/legend/exec/MetamodelWalk.java", 1307),
             // 195→196 (audit slice 3): the walker's case list learns
             // the trustOne spelling — recognition, not evaluation.
@@ -281,7 +283,11 @@ class JavaEvalLedgerTest {
             // bypass. Routing + decline classification; the DATABASE
             // computes every literal render (anyJsonCanon,
             // lowering-owned).
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 829),
+            // +5 (B8): carrier-vs-kind resolution in selectedFineKind — a
+            // runtime BigDecimal under a candidate set that rules
+            // pure-Decimal OUT is a decimal-carried FLOAT (static truth
+            // gates; the value never decides a kind alone)
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 834),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

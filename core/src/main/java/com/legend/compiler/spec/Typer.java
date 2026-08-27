@@ -152,7 +152,7 @@ final class Typer {
             case CInteger lit -> new TypedCInteger(lit.value(), ExprType.one(Type.Primitive.INTEGER));
             case CString lit -> new TypedCString(lit.value(), ExprType.one(Type.Primitive.STRING));
             case CBoolean lit -> new TypedCBoolean(lit.value(), ExprType.one(Type.Primitive.BOOLEAN));
-            case CFloat lit -> new TypedCFloat(lit.value(), ExprType.one(Type.Primitive.FLOAT));
+            case CFloat lit -> new TypedCFloat(lit.value(), lit.exact(), ExprType.one(Type.Primitive.FLOAT));
             case CDecimal lit -> {
                 BigDecimal dv = lit.value();
                 // a PROMOTED literal (no D suffix — the parser's

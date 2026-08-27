@@ -2259,7 +2259,7 @@ public final class ProtocolEmitter {
                     valueSpec(b, new com.legend.protocol.spec.CString(c.value(), span,
                             c.multiLine()));
             case com.legend.protocol.spec.CFloat c ->
-                    valueSpec(b, new com.legend.protocol.spec.CFloat(c.value(), span));
+                    valueSpec(b, new com.legend.protocol.spec.CFloat(c.value(), c.exact(), span));
             case com.legend.protocol.spec.CDecimal c ->
                     // same let-span override as the other literals (probed:
                     // `let x = 1.5d;` spans let..literal-end on the wire)

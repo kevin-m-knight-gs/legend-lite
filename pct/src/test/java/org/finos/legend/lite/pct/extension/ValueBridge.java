@@ -380,10 +380,17 @@ final class ValueBridge {
                 // scale is part of the VALUE surface: abs(-3.0D) prints 3.0D
                 return modelRepository.newDecimalCoreInstance(bd);
             }
+            // B8: a decimal-exact value under the FLOAT label IS the
+            // reference's own Float shape — legend-pure's interpreted
+            // Float is BigDecimal-backed by declaration
+            // (FloatCoreInstance extends PrimitiveCoreInstance<BigDecimal>),
+            // and newFloatCoreInstance takes the BigDecimal directly.
+            if (type instanceof Type.Primitive p2 && p2 == Type.Primitive.FLOAT) {
+                return modelRepository.newFloatCoreInstance(bd);
+            }
             throw new UnsupportedOperationException(
                     "DECIMAL wire value under a non-Decimal contract: "
-                    + type + " — the census measured this arm zero"
-                    + " (Float contracts arrive as DOUBLE)");
+                    + type + " — no kind re-derivation");
         }
         if (value instanceof Double d) {
             return modelRepository.newFloatCoreInstance(BigDecimal.valueOf(d));

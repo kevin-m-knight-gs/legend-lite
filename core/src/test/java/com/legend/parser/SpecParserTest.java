@@ -2639,12 +2639,17 @@ final class SpecParserTest {
     @Test
     void floatExceedingDoublePrecisionIsDialectSplit() {
         // '1.0000000000000001' — double rounds this to 1.0. DIALECT SPLIT
-        // (both sides oracle-verified 2026-08-12): PLATFORM keeps
-        // legend-pure's precision promotion (the PCT reference asserts the
-        // decimal-exact value), the ENGINE surface builds CFloat like
+        // (both sides oracle-verified 2026-08-12; RE-GROUNDED B8
+        // 2026-08-27 from the reference SOURCE): legend-pure's
+        // interpreted Float primitive IS BigDecimal-backed
+        // (FloatCoreInstance extends PrimitiveCoreInstance<BigDecimal>;
+        // newFloatCoreInstance(String) parses the source text), so the
+        // execution surfaces keep the exact digits ON THE FLOAT — the
+        // old promotion to CDecimal made the TYPE lie to keep the
+        // VALUE. The ENGINE surface builds the bare double like
         // DomainParseTreeWalker (float 1.0 on the wire, probed).
         assertEquals(
-                new CDecimal(new BigDecimal("1.0000000000000001")),
+                new CFloat(1.0, new BigDecimal("1.0000000000000001"), null),
                 com.legend.testing.Platform.spec("1.0000000000000001"));
         assertEquals(new CFloat(1.0), SpecParser.parse(
                 "1.0000000000000001", com.legend.parser.Dialect.LEGEND_ENGINE));

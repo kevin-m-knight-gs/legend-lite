@@ -42,7 +42,10 @@ final class LiteralFolds {
         return switch (n) {
             case TypedCBoolean b -> b.value();
             case TypedCInteger i -> i.value();
-            case TypedCFloat f -> f.value();
+            // B8: an exact-digit Float literal folds on its EXACT value
+            // (literalEquals compares via BigDecimal, so 1.0000000000000001
+            // vs ...2 stay distinct — a rounded double compare would lie)
+            case TypedCFloat f -> f.exact() != null ? f.exact() : f.value();
             case TypedCString st -> st.value();
             default -> null;
         };
