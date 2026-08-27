@@ -476,7 +476,14 @@ public final class Compiler {
             java.sql.Connection connection) throws java.sql.SQLException {
         String product = connection.getMetaData().getDatabaseProductName();
         if (!"H2".equals(product)) {
-            return dialectOf(ctx, runtimeFqn);
+            // B6: session setup rides the connection-dialect resolution —
+            // the ONE seam every connection-bearing entry passes through;
+            // the dialect states the FACTS, the exec funnel executes
+            var d = dialectOf(ctx, runtimeFqn);
+            for (String s : d.sessionSetup()) {
+                com.legend.exec.Executor.executeRaw(connection, s);
+            }
+            return d;
         }
         if (runtimeFqn != null) {
             var rt = ctx.findRuntime(runtimeFqn);
@@ -502,9 +509,13 @@ public final class Compiler {
         // modern profile spells it natively; the 2.1 engine-parity
         // target keeps the walls.
         String ver = connection.getMetaData().getDatabaseProductVersion();
-        return ver.startsWith("2.1") || ver.startsWith("2.2")
+        var h2d = ver.startsWith("2.1") || ver.startsWith("2.2")
                 ? new com.legend.sql.dialect.H2()
                 : new com.legend.sql.dialect.H2Modern();
+        for (String s : h2d.sessionSetup()) {
+            com.legend.exec.Executor.executeRaw(connection, s);
+        }
+        return h2d;
     }
 
     static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,

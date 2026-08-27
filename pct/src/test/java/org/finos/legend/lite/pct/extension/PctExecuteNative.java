@@ -130,18 +130,10 @@ public class PctExecuteNative extends NativeFunction {
         try (Connection connection = DriverManager.getConnection(h2
                 ? "jdbc:h2:mem:" + com.legend.exec.H2Settings.SETTINGS
                 : "jdbc:duckdb:", h2 ? "sa" : null, h2 ? "" : null)) {
-            // DuckDB pins the session to UTC (its driver's Timestamps are
-            // wall-preserving under it). H2 must NOT: its driver funnels
-            // zone-less TIMESTAMPs through the SESSION zone, so a UTC
-            // session + local JVM shifted every wall time by the offset
-            // (witnessed: 2026-01-07T00:00 read back as 01-06T19:00);
-            // the JVM-local default round-trips wall times exactly, the
-            // same contract the corpus sweep runs under.
-            if (!h2) {
-                try (var tzStmt = connection.createStatement()) {
-                    tzStmt.execute("SET TimeZone='UTC'");
-                }
-            }
+            // B6: session settings are DIALECT-OWNED — the platform
+            // applies them at its connection-dialect seam
+            // (SqlDialect.initSession via Compiler.dialectOf); the
+            // adapter opens the connection and decides nothing.
 
             // R1 (census §5b + §6): the model injection builds from the
             // SEMANTIC roots the pure-side collectRoots walk supplied —
@@ -197,14 +189,20 @@ public class PctExecuteNative extends NativeFunction {
                 case Graph g -> bridge.graphString(g.json(), processorSupport);
             };
         } catch (Exception e) {
-            // the error's SOURCE INFO must point at the TEST's own call site
-            // (assertError checks line/column) — walk past adapter frames
+            // the error's SOURCE INFO must point at the TEST's own call
+            // site (assertError checks line/column). B5 (truthfulness
+            // burn): the criterion is POSITIVE — the adapter's own
+            // source id is READ off the top frame (the
+            // executeLegendLiteQuery call site inside pct_adapter.pure),
+            // and the reported frame is the first one from a DIFFERENT
+            // source: the caller's. No name pattern anywhere.
             org.finos.legend.pure.m4.coreinstance.SourceInformation src =
                     functionExpressionCallStack.peek().getSourceInformation();
+            String adapterSource = src != null ? src.getSourceId() : null;
             for (var frame : functionExpressionCallStack) {
                 var fs = frame.getSourceInformation();
                 if (fs != null && fs.getSourceId() != null
-                        && !fs.getSourceId().contains("core_legend_lite_pct")) {
+                        && !fs.getSourceId().equals(adapterSource)) {
                     src = fs;
                     break;
                 }

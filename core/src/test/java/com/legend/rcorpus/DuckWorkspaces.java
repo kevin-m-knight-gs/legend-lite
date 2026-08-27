@@ -95,6 +95,9 @@ final class DuckWorkspaces {
         Connection conn = root.duplicate();
         try (Statement st = conn.createStatement()) {
             st.execute("USE " + ws);
+            // (harness WARMUP of the dialect's own session contract —
+            // the DECISION lives in DuckDb.initSession (B6); this
+            // pre-applies it to pooled workspaces before any execute)
             st.execute("SET TimeZone='UTC'");
         }
         LIVE.add(ws);

@@ -20,6 +20,19 @@ import java.util.stream.Collectors;
  */
 public final class DuckDb extends AnsiSqlRenderer {
 
+    /** B6 — DuckDB sessions pin UTC: the driver's Timestamps are
+     * wall-preserving under it (the platform's naive-UTC temporal
+     * contract, PureDateLiteral); a local-zone session shifts wall
+     * times at the JDBC boundary. H2 deliberately does NOT pin (its
+     * driver funnels zone-less TIMESTAMPs through the session zone —
+     * a UTC session + local JVM shifted every wall time; witnessed
+     * 2026-01-07T00:00 read back as 01-06T19:00). The FACT lives here;
+     * execution stays in the exec funnel (F1.3). */
+    @Override
+    public java.util.List<String> sessionSetup() {
+        return java.util.List.of("SET TimeZone='UTC'");
+    }
+
     /** DuckDB's bare {@code TIMESTAMP} is MICROSECOND precision — a
      *  literal with NONZERO sub-microsecond digits silently truncates
      *  (proven with a standalone repro: comparisons against a

@@ -13,6 +13,16 @@ public interface SqlDialect {
 
     String render(SqlQuery query);
 
+    /** B6 (truthfulness burn) — SESSION SETUP IS DIALECT-OWNED as a
+     * FACT: the statements a backend's session needs for the
+     * platform's value contracts. The dialect DECIDES; the exec layer
+     * EXECUTES (F1.3: java.sql never enters this package) — applied at
+     * {@code Compiler.dialectOf}'s connection seam, idempotent by
+     * contract. Default: none. */
+    default java.util.List<String> sessionSetup() {
+        return java.util.List.of();
+    }
+
     /** JDBC cell value → canonical Java value for {@code type}. Default: identity. */
     default @com.legend.Nullable Object normalize(@com.legend.Nullable Object jdbcValue,
             com.legend.sql.@com.legend.Nullable SqlType type) {

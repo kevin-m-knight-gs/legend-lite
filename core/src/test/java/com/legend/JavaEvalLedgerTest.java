@@ -76,7 +76,10 @@ class JavaEvalLedgerTest {
             // bridge (the permanent bijection). Pins re-seeded at the
             // split's measured stripped counts; shrink-only from here.
             Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 131),
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ModelPacker.java", 250),
+            // 250 -> 259 (B4): the no-shadowing WALL — a fixture function
+            // colliding with a lite-native name refuses injection loudly;
+            // guard growth, anti-compensation
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ModelPacker.java", 259),
             Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 353),
             Map.entry("core/src/main/java/com/legend/exec/MetamodelWalk.java", 1307),
             // 195→196 (audit slice 3): the walker's case list learns

@@ -122,6 +122,18 @@ final class ModelPacker {
         if (out.containsKey(key)) {
             return;
         }
+        // B4: a fixture function may NEVER shadow platform surface — if
+        // the bare name resolves in lite's native catalog, injecting the
+        // reference's definition would silently replace OUR semantics
+        CoreInstance bareName = fnDef.getValueForMetaPropertyToOne(
+                M3Properties.functionName);
+        String bareFqn = (pkgPath != null ? pkgPath : "") + "::"
+                + (bareName != null ? bareName.getName() : fnDef.getName());
+        if (!com.legend.builtin.Pure.nativeFunctionsAt(bareFqn).isEmpty()) {
+            throw new IllegalStateException("test-support function '"
+                    + bareFqn + "' collides with a platform-native"
+                    + " function — refusing to shadow");
+        }
         String[] lines = src.getContent().split("\n", -1);
         StringBuilder def = new StringBuilder();
         for (int ln = si.getStartLine(); ln <= si.getEndLine()
