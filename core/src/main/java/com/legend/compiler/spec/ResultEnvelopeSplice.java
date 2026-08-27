@@ -158,7 +158,7 @@ public final class ResultEnvelopeSplice {
                     rp0.source(),
                     List.of(new TypedFuncCol("cnt", lam)),
                     new ExprType(Type.relation(cntRow), one1));
-            return new TypedNativeCall(szr.callee(), List.of(proj), szr.info());
+            return new TypedNativeCall(szr.callee(), List.of(proj), szr.info(), szr.pos());
         }
         // the Typer's `.rows` MARKER (identity over a relation value):
         // it exists so the arms below can tell a REAL row index
@@ -256,7 +256,7 @@ public final class ResultEnvelopeSplice {
                 }
                 List<TypedSpec> args = new java.util.ArrayList<>(w.args());
                 args.set(0, spliced);
-                return new TypedNativeCall(w.callee(), args, w.info());
+                return new TypedNativeCall(w.callee(), args, w.info(), w.pos());
             }
         }
         // aggregationAware rewrittenQuery: a DERIVED read — the routed

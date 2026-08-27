@@ -71,9 +71,13 @@ class ChannelBEssentialTest {
         // 299 (Channel B leg 1, 2026-08-27): F17 '+=' copy-add desugar
         // (concatenate at checkCopy) + declared-slot CAST on NULL struct
         // fields — testFoldToMany + testFoldFiltering join, fold 11/11
-        assertTrue(pass >= 299,
+        // 305 (Channel B leg 2, 2026-08-27): assertError positions — the
+        // raise emission threads the raising call's name-token span
+        // through the provenance envelope (PureSql.raise -> U+001E ->
+        // RaisedErrors.Positioned); all six position rows join
+        assertTrue(pass >= 305,
                 "channel-B essential PASS fell below the pinned floor: "
-                        + pass + " < 299");
+                        + pass + " < 305");
 
         // THE THREE-BUCKET DIFF (plan addendum #6): channel A's outcome
         // per test is its suite ledger — the expectedFailures list IS

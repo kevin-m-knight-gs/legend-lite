@@ -74,16 +74,40 @@ class AssertErrorNativeTest {
         assertEquals("No error was thrown", e.getMessage());
     }
 
-    // the Phase-4 redesign DELETED the U+001E span channel: source
-    // position is not observable from a database error — non-empty
-    // line/column expectations refuse LOUDLY (never a silent pass)
+    // leg 2 (assertError positions): the raise emission threads the
+    // raising call's NAME-token span through the provenance envelope
+    // (PureSql.raise -> U+001E -> RaisedErrors.Positioned) — interpreted
+    // AssertError.java:68 hands the matcher the raising expression's
+    // source info the same way. In this query text 'at' begins at 1:23.
     @Test
-    @DisplayName("line/column expectations refuse loudly — position is unobservable")
-    void lineColumnRefusesLoudly() {
-        assertThrows(com.legend.error.NotImplementedException.class, () -> run(
+    @DisplayName("matching line/column pass — the raise carries its source span")
+    void lineColumnMatches() throws Exception {
+        ExecutionResult r = run("{|assertError(|[1,2]->at(3),"
+                + "'The system is trying to get an element at offset 3"
+                + " where the collection is of size 2', 1, 23)}");
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) r).value());
+    }
+
+    @Test
+    @DisplayName("line mismatch fails with assertError.pure:25's exact spelling")
+    void lineMismatchSpelling() {
+        SQLException e = assertThrows(SQLException.class, () -> run(
                 "{|assertError(|[1,2]->at(3),"
                 + "'The system is trying to get an element at offset 3"
-                + " where the collection is of size 2', 1, 23)}"));
+                + " where the collection is of size 2', 42, [])}"));
+        assertEquals("Execution error line mismatch. Actual: 1"
+                + " where expected: 42", e.getMessage());
+    }
+
+    @Test
+    @DisplayName("column mismatch fails with assertError.pure:26's exact spelling")
+    void columnMismatchSpelling() {
+        SQLException e = assertThrows(SQLException.class, () -> run(
+                "{|assertError(|[1,2]->at(3),"
+                + "'The system is trying to get an element at offset 3"
+                + " where the collection is of size 2', 1, 5)}"));
+        assertEquals("Execution error column mismatch. Actual: 23"
+                + " where expected: 5", e.getMessage());
     }
 
 

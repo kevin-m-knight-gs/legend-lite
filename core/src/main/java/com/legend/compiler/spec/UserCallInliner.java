@@ -641,7 +641,7 @@ public final class UserCallInliner {
                 args.add(a instanceof TypedVariable v2
                         && v2.name().equals(param) ? lit : a);
             }
-            return new TypedNativeCall(nc.callee(), args, nc.info());
+            return new TypedNativeCall(nc.callee(), args, nc.info(), nc.pos());
         }
         if (referencesVar(node, param)) {
             throw new IllegalStateException("effectful map body reads the"

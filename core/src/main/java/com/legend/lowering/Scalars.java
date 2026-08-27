@@ -1133,10 +1133,10 @@ final class Scalars {
                     PureDateLiteral.Precision prec =
                             datePrecisionOrUnknown(n.args().get(0));
                     if (prec != null && !prec.atLeast(needed)) {
-                        return SqlExpr.Call.of(SqlFn.ERROR,
+                        return PureSql.raise(
                                 cat(new SqlExpr.StringLit(
                                                 "Cannot get " + label + " for "),
-                                        str(args.get(0))));
+                                        str(args.get(0))), n.pos());
                     }
                     // A PARTIAL date that HAS the component carries as its
                     // print-form string ('2015-04') — the component is a
@@ -1418,7 +1418,8 @@ final class Scalars {
                                 new SqlExpr.StringLit(" where the collection is of size "),
                                 str(size)),
                         new SqlExpr.Call(SqlFn.LIST_GET,
-                                List.of(op, plusOne(args.get(1)))));
+                                List.of(op, plusOne(args.get(1)))),
+                        n.pos());
             });
         }
         // list(items): the List<T> CARRIER — at SQL level the list value
@@ -2763,6 +2764,14 @@ final class Scalars {
     static SqlExpr guarded(SqlExpr cond, SqlExpr msg, SqlExpr value) {
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(cond,
                 SqlExpr.Call.of(SqlFn.ERROR, msg))), value);
+    }
+
+    /** The provenance-carrying guard: the raising call's source span rides
+     * the raise ({@link PureSql#raise}) — assertError's position channel. */
+    static SqlExpr guarded(SqlExpr cond, SqlExpr msg, SqlExpr value,
+            com.legend.protocol.@com.legend.Nullable SourceInfo pos) {
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(cond,
+                PureSql.raise(msg, pos))), value);
     }
 
     static SqlExpr str(SqlExpr x) {

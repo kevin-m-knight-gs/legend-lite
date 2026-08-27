@@ -530,8 +530,15 @@ public class AnsiSqlRenderer implements SqlDialect {
         // extracts between them, removing the driver's transport
         // envelope from OUR OWN text only; native errors never match.
         if (c.fn() == SqlFn.ERROR) {
-            return spellings.fnNames().get(SqlFn.ERROR) + "(chr(31) || ("
-                    + expr(a.get(0), 0) + ") || chr(31))";
+            // an optional SECOND arg is the raising call's source span
+            // ('line:col', a literal — PureSql.raise): it rides INSIDE
+            // the envelope behind a U+001E divider so RaisedErrors can
+            // hand assertError the position and production text stays
+            // clean (the funnel strips the whole envelope)
+            String position = a.size() > 1
+                    ? expr(a.get(1), 0) + " || chr(30) || " : "";
+            return spellings.fnNames().get(SqlFn.ERROR) + "(chr(31) || "
+                    + position + "(" + expr(a.get(0), 0) + ") || chr(31))";
         }
         // PURE spellings are DATA (Spellings row): name(args), nothing else.
         String plain = spellings.fnNames().get(c.fn());

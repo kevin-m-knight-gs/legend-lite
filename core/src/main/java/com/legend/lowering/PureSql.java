@@ -15,6 +15,24 @@ final class PureSql {
     private PureSql() {
     }
 
+    /** The raise emission with source provenance: {@code ERROR(message[,
+     * 'line:col'])}. Interpreted pure's {@code AssertError} hands the matcher
+     * the RAISING expression's source info; here the raiser is SQL, so the
+     * position (the call-name token — the parser's named-call span) rides the
+     * ERROR call as a literal second arg. Renderers thread it INSIDE the
+     * U+001F provenance envelope behind a U+001E divider and
+     * {@code RaisedErrors} parses it back off — production text stays clean
+     * (the funnel strips the whole envelope). A synthesized call (no span)
+     * raises position-free, exactly as before. */
+    static com.legend.sql.SqlExpr raise(com.legend.sql.SqlExpr message,
+            com.legend.protocol.@com.legend.Nullable SourceInfo pos) {
+        return pos == null
+                ? com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, message)
+                : com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, message,
+                        new com.legend.sql.SqlExpr.StringLit(
+                                pos.startLine() + ":" + pos.startColumn()));
+    }
+
     /**
      * One list element as TEXT (makeString): JSON-carried elements
      * extract through the dialect's unquoting cast —

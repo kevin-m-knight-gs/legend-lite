@@ -1345,7 +1345,7 @@ final class Typer {
         if (requiresNormalization(a.chosen())) {
             return inlineNormalized(af, a.chosen(), env);
         }
-        return rawGridOrSelf(emitCall(a.chosen(), a.args(), a.out()));
+        return rawGridOrSelf(emitCall(a.chosen(), a.args(), a.out(), af.pos()));
     }
 
     /** Phase 1c (One-Platform Plan): {@code executeInDb} with a LITERAL
@@ -1665,8 +1665,16 @@ final class Typer {
 
     /** Build the call node for the chosen overload &mdash; the resolved callee rides the node, never a name. */
     static TypedSpec emitCall(TypedFunction chosen, List<TypedSpec> args, ExprType out) {
+        return emitCall(chosen, args, out, null);
+    }
+
+    /** The parsed-call form: the source span (the call-NAME token, the parser's
+     * named-call convention) rides the native node — the raise-emission
+     * provenance channel (leg 2). */
+    static TypedSpec emitCall(TypedFunction chosen, List<TypedSpec> args, ExprType out,
+            com.legend.protocol.@com.legend.Nullable SourceInfo pos) {
         return chosen.isNative()
-                ? new TypedNativeCall(chosen, args, out)
+                ? new TypedNativeCall(chosen, args, out, pos)
                 : new TypedUserCall(chosen, args, out);
     }
 

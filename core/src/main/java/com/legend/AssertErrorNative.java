@@ -23,13 +23,16 @@ import java.util.List;
  * ("No error was thrown"); a caught error hands (message, source info) to
  * the matcher. Here {@code f}'s body executes IN THE DATABASE through the
  * ordinary statement pipeline (tenet #1 — the database raises the error);
- * the orchestrator catches the database error, decodes the message
- * (backend error-kind prefix strip only — the Clause-2c redesign deleted
- * the span channel; source position is unobservable from database
- * errors, so line/column expectations refuse loudly), and adjudicates
- * with the pure {@code assertError/4} body's EXACT failure spellings
- * (assertError.pure:24-26). Adjudication of orchestration artifacts is
- * host-side by charter (the {@code exec.PureAsserts} precedent).
+ * the orchestrator catches the database error, whose message arrives
+ * clean from the provenance funnel and whose source position — when the
+ * raise emission carried its span ({@code PureSql.raise}) — arrives as
+ * {@code RaisedErrors.Positioned} (leg 2: interpreted
+ * {@code AssertError.java:68} hands the matcher the raising expression's
+ * source info; ours rides the U+001E prefix inside the U+001F envelope),
+ * and adjudicates with the pure {@code assertError/4} body's EXACT
+ * failure spellings (assertError.pure:24-26). Adjudication of
+ * orchestration artifacts is host-side by charter (the
+ * {@code exec.PureAsserts} precedent).
  */
 final class AssertErrorNative {
 
@@ -51,15 +54,8 @@ final class AssertErrorNative {
                     + " literal");
         }
         String expected = exp.value();
-        // SOURCE POSITION is NOT OBSERVABLE from a database error (the
-        // Phase-4 redesign deleted the U+001E in-message span channel —
-        // production error text carries no wire protocol): non-empty
-        // line/column expectations refuse LOUDLY
-        if (optionalInt(ae, 2) != null || optionalInt(ae, 3) != null) {
-            throw new com.legend.error.NotImplementedException(
-                    "assertError line/column: source position is not"
-                    + " observable from database errors");
-        }
+        Long expectedLine = optionalInt(ae, 2);
+        Long expectedColumn = optionalInt(ae, 3);
         java.sql.SQLException caught = null;
         try {
             StatementExecutor.executeStatements(f.body(),
@@ -97,6 +93,35 @@ final class AssertErrorNative {
                     "Execution error message mismatch.\nThe actual message"
                     + " was \"" + actual + "\"\nwhere the expected"
                     + " message was:\"" + expected + "\"");
+        }
+        // POSITION adjudication (leg 2, assertError.pure:25-26 — message
+        // first, then line, then column, each only when expected): the
+        // raise emission threads the raising call's source span through
+        // the provenance envelope (PureSql.raise -> RaisedErrors
+        // .Positioned). Interpreted pure's matcher receives the raising
+        // expression's source info the same way (AssertError.java:68).
+        // An expectation over an error WITHOUT a captured span is LOUD —
+        // interpreted si.line->toOne() on empty raises too, and a quiet
+        // pass here would launder a native error's missing provenance.
+        if (expectedLine != null || expectedColumn != null) {
+            if (!(caught instanceof com.legend.exec.RaisedErrors.Positioned p)) {
+                throw new java.sql.SQLException(
+                        "assertError line/column: the caught error carries"
+                        + " no source position (a native database error, or"
+                        + " a raise emission without provenance)");
+            }
+            if (expectedLine != null && p.line() != expectedLine) {
+                // assertError.pure:25 — the /4 body's format, verbatim
+                throw new java.sql.SQLException(
+                        "Execution error line mismatch. Actual: " + p.line()
+                        + " where expected: " + expectedLine);
+            }
+            if (expectedColumn != null && p.column() != expectedColumn) {
+                // assertError.pure:26 — the /4 body's format, verbatim
+                throw new java.sql.SQLException(
+                        "Execution error column mismatch. Actual: "
+                        + p.column() + " where expected: " + expectedColumn);
+            }
         }
         return new ExecutionResult.Scalar(Boolean.TRUE,
                 com.legend.compiler.element.type.Type.Primitive.BOOLEAN);

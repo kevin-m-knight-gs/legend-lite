@@ -44,15 +44,15 @@ final class DateCtorRule {
                         && args.get(1) instanceof SqlExpr.IntLit ml
                         && ml.value() >= 1 && ml.value() <= 12
                         && lit.value() > daysInMonth(yl.value(), ml.value())) {
-                    return SqlExpr.Call.of(SqlFn.ERROR,
+                    return PureSql.raise(
                             new SqlExpr.StringLit("Invalid day: "
                             + yl.value() + "-" + ml.value() + "-"
-                            + lit.value()));
+                            + lit.value()), n.pos());
                 }
                 if (lit.value() < ranges[i][0] || lit.value() > ranges[i][1]) {
-                    return SqlExpr.Call.of(SqlFn.ERROR,
+                    return PureSql.raise(
                             new SqlExpr.StringLit(
-                            "Invalid " + comps[i] + ": " + lit.value()));
+                            "Invalid " + comps[i] + ": " + lit.value()), n.pos());
                 }
             } else if (args.get(i) instanceof SqlExpr.FloatLit
                     || args.get(i) instanceof SqlExpr.DecimalLit) {
@@ -63,9 +63,9 @@ final class DateCtorRule {
                         : ((SqlExpr.DecimalLit) args.get(i)).value();
                 if (v.signum() < 0
                         || v.compareTo(java.math.BigDecimal.valueOf(60)) >= 0) {
-                    return SqlExpr.Call.of(SqlFn.ERROR,
+                    return PureSql.raise(
                             new SqlExpr.StringLit(
-                            "Invalid " + comps[i] + ": " + v.toPlainString()));
+                            "Invalid " + comps[i] + ": " + v.toPlainString()), n.pos());
                 }
             } else {
                 // FRACTIONAL seconds are legal up to (not including)

@@ -30,14 +30,22 @@ public final class RaisedErrors {
 
     /** U+001F (unit separator) — the provenance mark the renderer puts
      * around raised messages. Never appears in pure's own error text. */
-    public static final char SENTINEL = '\u001F';
+    public static final char SENTINEL = '';
+
+    /** U+001E (record separator) — divides the OPTIONAL source-position
+     * prefix ({@code line:col}, the raising call's name-token span) from
+     * the message INSIDE the envelope (leg 2 — interpreted AssertError
+     * hands the matcher the raising expression's source info). Only ever
+     * read between a sentinel pair, so a native error can't fake it. */
+    public static final char POSITION_SEP = '';
 
     private RaisedErrors() {
     }
 
     /** The message with the transport envelope removed IF this is a
      * platform-raised message (sentinel pair present); unchanged
-     * otherwise. */
+     * otherwise. The in-envelope position prefix strips too —
+     * production text carries NO wire protocol. */
     public static @com.legend.Nullable String unwrap(
             @com.legend.Nullable String message) {
         if (message == null) {
@@ -45,19 +53,67 @@ public final class RaisedErrors {
         }
         int first = message.indexOf(SENTINEL);
         int last = message.lastIndexOf(SENTINEL);
-        return first >= 0 && last > first
-                ? message.substring(first + 1, last)
-                : message;
+        if (first < 0 || last <= first) {
+            return message;
+        }
+        String inner = message.substring(first + 1, last);
+        int sep = inner.indexOf(POSITION_SEP);
+        return sep >= 0 ? inner.substring(sep + 1) : inner;
+    }
+
+    /** A raised error whose emission carried its pure source position
+     * (the raising call's name-token span — {@code PureSql.raise}) —
+     * assertError's position channel. Message is the CLEAN text. */
+    public static final class Positioned extends java.sql.SQLException {
+        private final int line;
+        private final int column;
+
+        Positioned(String message, @com.legend.Nullable String sqlState,
+                java.sql.SQLException cause, int line, int column) {
+            super(message, sqlState, cause);
+            this.line = line;
+            this.column = column;
+        }
+
+        public int line() {
+            return line;
+        }
+
+        public int column() {
+            return column;
+        }
     }
 
     /** Funnel rethrow: a raised-message SQLException re-surfaces with
-     * the clean text (state and cause preserved); everything else
+     * the clean text (state and cause preserved) — as {@link Positioned}
+     * when the emission carried its source span; everything else
      * returns as-is. */
     public static java.sql.SQLException unwrapped(java.sql.SQLException e) {
         String msg = e.getMessage();
-        String clean = unwrap(msg);
-        if (clean == null || clean.equals(msg)) {
+        if (msg == null) {
             return e;
+        }
+        int first = msg.indexOf(SENTINEL);
+        int last = msg.lastIndexOf(SENTINEL);
+        if (first < 0 || last <= first) {
+            return e;
+        }
+        String inner = msg.substring(first + 1, last);
+        int sep = inner.indexOf(POSITION_SEP);
+        if (sep < 0) {
+            return new java.sql.SQLException(inner, e.getSQLState(), e);
+        }
+        String pos = inner.substring(0, sep);
+        String clean = inner.substring(sep + 1);
+        int colon = pos.indexOf(':');
+        if (colon > 0) {
+            try {
+                return new Positioned(clean, e.getSQLState(), e,
+                        Integer.parseInt(pos.substring(0, colon)),
+                        Integer.parseInt(pos.substring(colon + 1)));
+            } catch (NumberFormatException ignored) {
+                // a malformed prefix falls through to the plain strip
+            }
         }
         return new java.sql.SQLException(clean, e.getSQLState(), e);
     }
