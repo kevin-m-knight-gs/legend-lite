@@ -313,8 +313,22 @@ public final class DuckDb extends AnsiSqlRenderer {
         // stringLit, not raw interpolation: a Pure property name may carry
         // quotes ('quoted name' declarations) — C2.1 injection surface
         return "{" + s.fields().stream()
-                .map(f -> stringLit(f.name()) + ": " + expr(f.value(), 0))
+                .map(f -> stringLit(f.name()) + ": " + structFieldValue(f))
                 .collect(java.util.stream.Collectors.joining(", ")) + "}";
+    }
+
+    /** A NULL-valued field spells its builder-DECLARED slot type (the
+     * {@link SqlExpr.StructLit.Field#declared} half the IR types by —
+     * SqlTyping's declared-slot arm): DuckDB otherwise infers the
+     * "NULL" type for the slot and two instances of ONE class stop
+     * unifying (list_reduce accumulator vs reducer struct — the fold
+     * family's {@code VARCHAR[] -> "NULL"} cast wall). */
+    private String structFieldValue(SqlExpr.StructLit.Field f) {
+        return f.declared() != null
+                && f.value().type() instanceof com.legend.sql.TypeFact.Bottom
+                ? "CAST(" + expr(f.value(), 0) + " AS "
+                        + castTypeName(f.declared()) + ")"
+                : expr(f.value(), 0);
     }
 
     @Override

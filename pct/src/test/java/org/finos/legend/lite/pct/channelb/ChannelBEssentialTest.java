@@ -68,9 +68,12 @@ class ChannelBEssentialTest {
         // 297 (F10 slice 4, 2026-08-27): banked at the adapter-shrink
         // measure runs — 297 held on the cargo batch's G9 (with the
         // parseDate StrictDate emission) and both measure lanes
-        assertTrue(pass >= 297,
+        // 299 (Channel B leg 1, 2026-08-27): F17 '+=' copy-add desugar
+        // (concatenate at checkCopy) + declared-slot CAST on NULL struct
+        // fields — testFoldToMany + testFoldFiltering join, fold 11/11
+        assertTrue(pass >= 299,
                 "channel-B essential PASS fell below the pinned floor: "
-                        + pass + " < 297");
+                        + pass + " < 299");
 
         // THE THREE-BUCKET DIFF (plan addendum #6): channel A's outcome
         // per test is its suite ledger — the expectedFailures list IS

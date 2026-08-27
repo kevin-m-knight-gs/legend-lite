@@ -42,7 +42,21 @@ final class NewChecker {
             com.legend.protocol.spec.KeyExpression key = kb.expression();
             Property prop = t.model().findProperty(classFqn, name).orElseThrow(() ->
                     new TypeInferenceException("class '" + classFqn + "' has no property '" + name + "'"));
-            TypedSpec value = t.synth(key.value(), env);
+            // F17: '+=' APPENDS to the receiver's property (real pure's
+            // copy-add semantics) — desugared HERE to
+            // concatenate(receiver.prop, value), so downstream the
+            // override is the ordinary construction shape. The parsed
+            // isAdd flag was previously dropped: '+=' silently behaved
+            // as '=' (the fold family's wrong accumulators).
+            com.legend.protocol.spec.ValueSpecification overrideExpr = key.value();
+            if (key.isAdd()) {
+                var propRead = new com.legend.protocol.spec.AppliedProperty(receiver, name);
+                overrideExpr = new com.legend.protocol.spec.AppliedFunction(
+                        "concatenate",
+                        java.util.List.of(propRead, key.value()),
+                        java.util.List.of(), null, false, false, false);
+            }
+            TypedSpec value = t.synth(overrideExpr, env);
             t.kernel().unify(prop.type(), value.info().type(), new Bindings());
             // the SAME multiplicity subsumption as construction (real pure
             // validates copy through the instantiation validator too — the
