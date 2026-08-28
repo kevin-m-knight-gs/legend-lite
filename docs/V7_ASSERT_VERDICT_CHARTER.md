@@ -421,7 +421,8 @@ battery → allgates → push):**
      sweep GREEN — BUT disagreements 8 → 52. The +44: ~15 TDSNull
      null-cell spelling rows, ~9 order/cohesion variants, and a
      28-row class of "byte-verdict: canonical renders differ (host
-     lattice agreed)" whose accounting was NOT understood (the
+     lattice agreed)" whose accounting was NOT understood — full
+     witness list preserved in V7_FLATCELLS_ATTEMPT_CENSUS.md (the
      sql-verdict disagree counter stayed 0 while the message claims a
      divergence — reconcile the arm's `equal`-vs-message-lattice flow
      before trusting any of it). DIAGNOSE THE 28 FIRST; do not push
