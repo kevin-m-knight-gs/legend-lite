@@ -233,12 +233,14 @@ public final class PlatformTypes {
      * (audit 19d B2: {@code Result} is a typing surface plus an
      * orchestration handle, never a host object graph; reads over it
      * splice into SQL-bound typed queries in the statement executor). */
-    public static final String EXECUTE = "meta::pure::mapping::execute";
-    /** Both execute spellings — the MAPPING entry and the ROUTER entry
-     * (router_entry.pure) share one execution semantics. */
+    /** THE execute entry point — real pure's meta::pure::router::execute
+     * (router_entry.pure; reachable bare via m3.pure's auto-import of
+     * meta::pure::router). The old meta::pure::mapping::execute alias
+     * was an invented FQN (audit R8) and is deleted. */
+    public static final String EXECUTE = "meta::pure::router::execute";
+
     public static boolean isExecuteFqn(String fqn) {
-        return EXECUTE.equals(fqn)
-                || "meta::pure::router::execute".equals(fqn);
+        return EXECUTE.equals(fqn);
     }
 
     /**

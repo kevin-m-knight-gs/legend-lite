@@ -68,7 +68,7 @@ class ExecuteFrameTest {
     @Test
     @DisplayName("relation root: $r.values reads splice into the typed query and execute")
     void relationRootValues() throws Exception {
-        ExecutionResult r = run("{| let r = meta::pure::mapping::execute("
+        ExecutionResult r = run("{| let r = meta::pure::router::execute("
                 + "|m::Person.all()->project([p|$p.name], ['name']),"
                 + " m::M, m::RT, []);\n"
                 + "$r.values;}");
@@ -79,7 +79,7 @@ class ExecuteFrameTest {
     @Test
     @DisplayName("relation root: downstream ops COMPOSE over the spliced chain")
     void relationRootComposes() throws Exception {
-        ExecutionResult r = run("{| let r = meta::pure::mapping::execute("
+        ExecutionResult r = run("{| let r = meta::pure::router::execute("
                 + "|m::Person.all()->project([p|$p.name, p|$p.age],"
                 + " ['name', 'age']), m::M, m::RT, []);\n"
                 + "$r.values->filter(x|$x.age > 30);}");
@@ -90,7 +90,7 @@ class ExecuteFrameTest {
     @Test
     @DisplayName("relation root: ->at(0)/->toOne() collapse (the envelope holds one TDS)")
     void relationRootAtZeroCollapses() throws Exception {
-        ExecutionResult r = run("{| let r = meta::pure::mapping::execute("
+        ExecutionResult r = run("{| let r = meta::pure::router::execute("
                 + "|m::Person.all()->project([p|$p.name], ['name']),"
                 + " m::M, m::RT, []);\n"
                 + "$r.values->at(0);}");
@@ -100,7 +100,7 @@ class ExecuteFrameTest {
     @Test
     @DisplayName("relation root: ops compose OVER the collapsed ->at(0) wrapper")
     void relationRootOpsOverAtZero() throws Exception {
-        ExecutionResult r = run("{| let r = meta::pure::mapping::execute("
+        ExecutionResult r = run("{| let r = meta::pure::router::execute("
                 + "|m::Person.all()->project([p|$p.name], ['name']),"
                 + " m::M, m::RT, []);\n"
                 + "$r.values->at(0)->map(x|$x.name);}");
@@ -111,7 +111,7 @@ class ExecuteFrameTest {
     @DisplayName("relation root: at(k>0) is loud — the envelope has ONE element")
     void relationRootAtOneIsLoud() {
         IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> run("{| let r = meta::pure::mapping::execute("
+                () -> run("{| let r = meta::pure::router::execute("
                         + "|m::Person.all()->project([p|$p.name], ['name']),"
                         + " m::M, m::RT, []);\n"
                         + "$r.values->at(1);}"));
@@ -121,7 +121,7 @@ class ExecuteFrameTest {
     @Test
     @DisplayName("envelope alias: let tds = $r.values->at(0) keeps ONE-TDS semantics ($tds->size() == 1)")
     void envelopeAliasSize() throws Exception {
-        ExecutionResult r = run("{| let r = meta::pure::mapping::execute("
+        ExecutionResult r = run("{| let r = meta::pure::router::execute("
                 + "|m::Person.all()->project([p|$p.name], ['name']),"
                 + " m::M, m::RT, []);\n"
                 + "let tds = $r.values->at(0);\n"
@@ -133,7 +133,7 @@ class ExecuteFrameTest {
     @DisplayName("the eager run: a broken query surfaces AT the let, no read required")
     void eagerRunSurfacesAtLet() {
         assertThrows(RuntimeException.class,
-                () -> run("{| let r = meta::pure::mapping::execute("
+                () -> run("{| let r = meta::pure::router::execute("
                         + "|m::Person.all()->project([p|$p.nope], ['nope']),"
                         + " m::M, m::RT, []);\n"
                         + "true;}"));
@@ -142,7 +142,7 @@ class ExecuteFrameTest {
     @Test
     @DisplayName("execute() in result position: the frame's run is the value")
     void executeInResultPosition() throws Exception {
-        ExecutionResult r = run("{| meta::pure::mapping::execute("
+        ExecutionResult r = run("{| meta::pure::router::execute("
                 + "|m::Person.all()->project([p|$p.name], ['name']),"
                 + " m::M, m::RT, []);}");
         assertEquals(3, ((ExecutionResult.Tabular) r).rows().size());
@@ -153,7 +153,7 @@ class ExecuteFrameTest {
     void letBoundQueryLambda() throws Exception {
         ExecutionResult r = run("{| let q = {|m::Person.all()"
                 + "->project([p|$p.name], ['name'])};\n"
-                + "let r = meta::pure::mapping::execute($q, m::M, m::RT, []);\n"
+                + "let r = meta::pure::router::execute($q, m::M, m::RT, []);\n"
                 + "$r.values;}");
         assertEquals(3, ((ExecutionResult.Tabular) r).rows().size());
     }

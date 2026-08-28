@@ -1637,19 +1637,13 @@ public final class Pure {
     public static final ClassDefinition DEBUG_CONTEXT = nativeClass("native Class meta::pure::tools::DebugContext extends meta::pure::metamodel::type::Any { debug: meta::pure::metamodel::type::Boolean[1]; space: meta::pure::metamodel::type::String[1]; }");
     public static final NativeFunctionDefinition NO_DEBUG = signature("native function meta::pure::tools::noDebug():meta::pure::tools::DebugContext[1];");
     public static final ClassDefinition ACTIVITY = nativeClass("native Class meta::pure::mapping::Activity extends meta::pure::metamodel::type::Any {}");
-    // AUDIT R8 (2026-08-28): meta::pure::mapping::execute exists NOWHERE
-    // in the engine or legend-pure checkouts (grepped .pure AND .java) —
-    // the real bare 'execute' of the corpus is meta::pure::router::execute
-    // (router_entry.pure). This FQN is a legacy alias registration for
-    // the SAME real function, so its signature is spelled IDENTICALLY
-    // (f:FunctionDefinition<{->T[m]}>, verbatim from router_entry.pure) —
-    // the overload machinery's duplicate-signature tolerance then makes
-    // the two FQNs interchangeable at bare call sites (first wins
-    // deterministically); differing spellings made them a LOUD tie.
-    // Deleting the alias wholesale is its own leg (harness isExecuteFqn +
-    // any explicit-FQN corpus spellings ride on it).
-    public static final NativeFunctionDefinition EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::pure::mapping::execute<T|m>(f:meta::pure::metamodel::function::FunctionDefinition<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<T|m>[1];");
-    public static final NativeFunctionDefinition EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY__ANY_1 = signature("native function meta::pure::mapping::execute<T|m>(f:meta::pure::metamodel::function::FunctionDefinition<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::metamodel::type::Any[1]):meta::pure::mapping::Result<T|m>[1];");
+    // AUDIT R8 CUTOVER (2026-08-28): meta::pure::mapping::execute was an
+    // INVENTED FQN (nowhere in the engine or legend-pure checkouts —
+    // .pure and .java both grepped) and is DELETED. The real bare
+    // 'execute' resolves to meta::pure::router::execute below, exactly
+    // as real pure resolves it: m3.pure's auto-import list carries
+    // meta::pure::router, and this platform's prelude fallback resolves
+    // bare native names the same way.
     // The ROUTER entry spelling (REAL pure router_entry.pure:20/:50 —
     // execute<T|y>(f:FunctionDefinition<{->T[y]}>[1], m:Mapping[1],
     // runtime:Runtime[1], extensions:Extension[*])[, debug]):Result —
