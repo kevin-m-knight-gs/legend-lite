@@ -1166,15 +1166,41 @@ public final class StoreResolver {
         return Anchors.containsGetAll(n);
     }
 
+    /** Every {@code getAll} class FQN beneath {@code n} — D1's tracked-
+     * classifier gate reads the FULL descent (a nested user-class fetch
+     * under a metamodel chain must keep the wall). */
+    private static void collectGetAllClasses(TypedSpec n,
+            java.util.Set<String> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedGetAll g) {
+            out.add(g.classFqn());
+        }
+        for (TypedSpec c : n.children()) {
+            collectGetAllClasses(c, out);
+        }
+    }
+
     // =====================================================================
     // Object-space chain resolution (the H2 heart)
     // =====================================================================
 
     private TypedSpec resolveChain(TypedSpec top, Context context) {
         if (context.isNone()) {
-            throw new MappingResolutionException(
-                    "class query requires an execution context: add"
-                            + " ->from(mapping, runtime) or supply a runtime");
+            // D1 (METAMODEL_STORE_HANDOFF.md §2): a registry-tracked
+            // metamodel classifier's store is INTRINSIC — with no
+            // execution context, the resolver supplies the SYSTEM
+            // metamodel mapping. User classes are untouched: the loud
+            // wall stays (a forgotten ->from() must not return []).
+            java.util.Set<String> fetched = new java.util.HashSet<>();
+            collectGetAllClasses(top, fetched);
+            if (!fetched.isEmpty() && fetched.stream().allMatch(
+                    f -> ctx.classifierInstances(f) != null)) {
+                context = Context.ofMapping(
+                        com.legend.builtin.SystemMetamodel.MAPPING_FQN);
+            } else {
+                throw new MappingResolutionException(
+                        "class query requires an execution context: add"
+                                + " ->from(mapping, runtime) or supply a runtime");
+            }
         }
         // EVERY chain resolution (nested ones via ANY recursion path)
         // restores the caller's temporal frame on exit (T1.3 class kill)

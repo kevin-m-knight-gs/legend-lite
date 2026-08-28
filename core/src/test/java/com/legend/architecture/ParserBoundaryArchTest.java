@@ -43,6 +43,10 @@ class ParserBoundaryArchTest {
     private static final Set<String> DIALECT_CLASSES = Set.of(
             "com/legend/Compiler.java",
             "com/legend/builtin/Pure.java",
+            // metamodel-store leg (2026-08-28): the system store/mapping
+            // are fixed Pure SOURCE parsed once at class load — the same
+            // bootstrap-loader regime as Pure itself
+            "com/legend/builtin/SystemMetamodel.java",
             "com/legend/harness/EngineTestExecutor.java",
             "com/legend/harness/HarnessSubstitution.java",
             "com/legend/ide/ModelOrchestrator.java",

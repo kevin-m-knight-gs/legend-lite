@@ -68,7 +68,10 @@ class SqlTextRatchetTest {
         // compiler/spec/CatalogGrids (the Typer's fetchDb retype; pure
         // text composition, no JDBC)
         REGISTER.put("compiler/spec/CatalogGrids.java", 9);
-        REGISTER.put("exec/Ddl.java", 3);
+        // 3 -> 4 (metamodel-store leg 2026-08-28): metamodelSeed's
+        // registry-extent INSERT joins the one DDL owner — system
+        // setup text beside the create/drop it already renders
+        REGISTER.put("exec/Ddl.java", 4);
         REGISTER.put("plan/InProtocol.java", 1);
         REGISTER.put("plan/PlanText.java", 2);
         // 17 -> 16 (documented-debts 2026-08-18): the LL_TMP_DEBUG

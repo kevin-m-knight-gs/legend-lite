@@ -89,7 +89,12 @@ class ChannelBGrammarTest {
         // 136 (2026-08-27 fold-strategy closure): MapReduce's trees are
         // CLOSED TypedLambdas — cross-tree binding died, the inliner's
         // α-renaming reaches them uniformly; testPlusInIterate joins
-        assertTrue(c.pass() >= 136, "grammar PASS fell: " + c.pass());
+        // 137 (2026-08-28 metamodel-store leg): getAll::testBasic —
+        // Class.all() is a mapped-class query over the seeded
+        // metamodel.classes table through the ordinary store lane
+        // (METAMODEL_STORE_HANDOFF.md); the FULL grammar lane. Both
+        // channels pass; the channel A ledger entry removed same-commit.
+        assertTrue(c.pass() >= 137, "grammar PASS fell: " + c.pass());
         assertTrue(c.wireBug() <= 1,
                 "grammar WIRE-BUG census grew: " + c.wireBug());
         assertTrue(c.trueWireBug() == 0,

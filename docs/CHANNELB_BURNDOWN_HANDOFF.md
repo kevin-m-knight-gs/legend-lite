@@ -28,8 +28,11 @@ dossier branch `docs/channelb-burndown-dossiers` re-diagnosed legs
 Deferred, explicitly NOT burndown: the 6 parse walls (drop-in-parity
 work, leg 7b R1–R4 — SpecParser at 3440/3500 splits first); the
 registry-provenance partition (dossier leg6 D7 — deletes the Nil
-tie-break, fixes []->sum/[]->max/->sort([]) family-wide); the 2
-unowned Grammar rows. Next arc: the test-corpus program (§5).
+tie-break, fixes []->sum/[]->max/->sort([]) family-wide). The 2
+formerly-unowned Grammar rows BOTH LANDED 2026-08-28
+(testPlusInIterate — fold-strategy closure; getAll::testBasic — the
+metamodel-store leg, METAMODEL_STORE_HANDOFF.md §10): Grammar is
+137/137, the FULL lane. Next arc: the test-corpus program (§5).
 
 ---
 

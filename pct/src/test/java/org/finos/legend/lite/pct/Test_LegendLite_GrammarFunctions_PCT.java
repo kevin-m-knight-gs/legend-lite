@@ -51,10 +51,10 @@ public class Test_LegendLite_GrammarFunctions_PCT extends PCTReportConfiguration
             // adapter excludes it too, failing even earlier)
             one("meta::pure::functions::collection::tests::first::testFirstComplex_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),
 
-            // B1 (truthfulness burn): the PURE_MODEL scaffold died — bare
-            // execution now names the REAL gap (no execution context)
-            // instead of a phantom TestRuntime's empty mapping list
-            one("meta::pure::functions::collection::tests::getAll::testBasic_Function_1__Boolean_1_", "\"class query requires an execution context: add ->from(mapping, runtime) or supply a runtime\""),
+            // (getAll::testBasic FIXED 2026-08-28, metamodel-store leg:
+            // Class.all() is a mapped-class query over the seeded
+            // metamodel.classes table — the B1-era wall entry removed,
+            // the ledger failed loudly on the fix by design)
             // INSTANCE IDENTITY through the wire: these asserts require the
             // ORIGINAL let-bound instances back (assertIs / address-equal) —
             // reference identity cannot cross a value serialization boundary;

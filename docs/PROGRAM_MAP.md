@@ -33,19 +33,21 @@ the carrier from genuine Variant's raw-JSON contract; one grammar owner
 
 ## BUCKET 2 — PCT burndown (after F10)
 
-Current: **1,105 / 1,118** (honest universe 1,117 — audit #A9's testGet
+Current: **1,107 / 1,118** (honest universe 1,117 — audit #A9's testGet
 double-count). Relation 355/355, Standard 204/204, Unclassified 95/95,
-Essential 316/327, Grammar 135/137. THE WINNABLE SET IS BURNED
-(2026-08-27, eight gated batches 183aeb33→1d71da33; landing record in
+Essential 316/327, **Grammar 137/137 — the FULL grammar lane**. THE
+WINNABLE SET IS BURNED (2026-08-27, eight gated batches
+183aeb33→1d71da33; landing record in
 [CHANNELB_BURNDOWN_HANDOFF.md](CHANNELB_BURNDOWN_HANDOFF.md) §0):
-every remaining Essential row is ledger (below); the last Grammar
-row (getAll::testBasic) is OWNED by the METAMODEL STORE leg
-([METAMODEL_STORE_HANDOFF.md](METAMODEL_STORE_HANDOFF.md), chartered
-2026-08-28: the metamodel lives IN the database — Class.all() = SQL
-over a seeded metamodel.classes table through the ordinary store lane;
-end-state chosen over a host-side fold by the cut-over-hard doctrine).
+every remaining Essential row is ledger (below).
 testPlusInIterate LANDED 2026-08-28 (fold-strategy closure — the
-cross-tree-binding bug; Grammar 136/137).
+cross-tree-binding bug; Grammar 136/137). getAll::testBasic LANDED
+2026-08-28 — the METAMODEL STORE leg EXECUTED
+([METAMODEL_STORE_HANDOFF.md](METAMODEL_STORE_HANDOFF.md) §10 landing
+record: the metamodel lives IN the database — Class.all() = SQL over
+the seeded metamodel.classes table through the ordinary store lane;
+BOTH channels pass, the channel A ledger entry removed by its own
+loud-fail design).
 
 **The ledger boundary (not burnable):**
 - 5 indexOf/substring rows — user-adjudicated IRREDUCIBLE (register A1:

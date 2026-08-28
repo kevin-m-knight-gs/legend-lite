@@ -205,3 +205,72 @@ built — there is no hedge.
 Out of scope (name them if tempted): properties/generalizations
 tables, `Package` as elements, reflection over functions, the
 MODEL-WALL files themselves. Witnesses drive growth.
+
+---
+
+## 10. LANDING RECORD (EXECUTED 2026-08-28, two gated batches)
+
+**Batch 1** (32dd934a): §3 registry query
+(`ModelContext.classifierInstances` + `PureModelContext` impl over the
+ModelBuilder registry ∪ native catalogs, three unit witnesses) and the
+§4 metaclass surface (`Class` gains `name: String[1]`; the
+NativeFunctionTest documented-surface arm moved with a dated
+justification; size pin unchanged at 201 — a property, not a class).
+Full chain green.
+
+**Batch 2** (this commit): the whole behavior leg —
+
+- **Synthesis by injection:** the system Database + Mapping are fixed
+  Pure SOURCE (`builtin/SystemMetamodel`, parsed once at class load,
+  the `Pure` bootstrap discipline), appended to every model build in
+  the two `Compiler` doors (`buildModel`/`buildModule`). The resolver
+  sees ordinary parsed elements — no parallel lane. `name` column is
+  `NOT NULL` (the [1] property demands a [1] read — the normalizer's
+  toOne wrap covers [0..1]-to-[1] only for store emissions, and a
+  total column is the honest schema anyway).
+- **D1** at the `resolveChain` wall exactly: context NONE + every
+  `getAll` class beneath the chain registry-tracked → the system
+  mapping; anything else keeps the byte-exact wall (witness-pinned).
+- **Seeding** at the ONE execution-setup owner
+  (`StatementExecutor.executeTyped`, beside `runRuntimeSetups`): a
+  resolved body referencing the system store gets
+  `Ddl.metamodelSeed(...)` — schema + drop/create through the one DDL
+  generator + the registry extent as one multi-row insert. Content is
+  a pure function of the ACTIVE context (overlay re-seeds witnessed).
+- **Witnesses:** `integration/MetamodelStoreTest` (7: extent
+  non-empty, isEmpty=false, filter-by-name, map containment, user
+  wall byte-exact, per-context re-seed, mixed-chain wall).
+- **Floors banked:** Grammar B census 137/137 (the FULL lane), floor
+  pin 136→137; channel A ledger row REMOVED (A passes over the wire —
+  the ledger failed loudly on the fix by design); A grammar 136/136.
+- **Ratchets, all argued:** JavaEvalLedger StatementExecutor
+  2423→2456 (setup orchestration, zero evaluation); SqlTextRatchet
+  Ddl 3→4 (the seed INSERT joins the one DDL owner);
+  ParserBoundaryArch + JdbcSurfaceCensus register rows.
+- **Corpus insurance:** scoped
+  `-Drcorpus.only=graphFetch,tests/query,tests/mapping` baseline-diff
+  BYTE-IDENTICAL (families + FAIL names) across the resolver change.
+  Full-sweep PASS steady at 2334/2575.
+- **Census taught, pin unmoved:** the [1]-over-nullable census filed
+  the system mapping's `Class.name` under its unresolved-property
+  blindness bucket (98 > the honesty pin 97) — fixed by teaching
+  `RequiredNullableCensus` the native-catalog owner fallback (the
+  instrument now ADJUDICATES the pairing; `name` is NOT NULL, so it
+  adjudicates clean), never by bumping the honesty pin.
+
+**Traps hit (recorded for the next session):**
+- The G8 fixture-adjudication scanner treats test-tree STRING LITERALS
+  starting with Pure keywords as fixtures — an assert message
+  beginning `"Class declares…"` minted a new leniency KIND.
+- The pct ChannelB suites read `-Dlegend.pure.root` (SYSTEM PROPERTY);
+  the `LEGEND_PURE_ROOT` env var is IGNORED — a hand-run against the
+  default `~/legend/legend-pure` stale tree fakes `discovery 136 !=
+  137` and a vanished `testEqualEmpty` (the rcorpus -D trap's pct
+  twin; the gate script's own comment names the signature).
+- Injection un-walled `routing.pure` + `reactivate.pure` in the B
+  model-wall census (19→17, shrink-only ceiling intact) — the
+  walls-loop's drop cascade is order-sensitive to appended elements.
+
+Future lanes unchanged (§4 grow-by-witness): Enumeration/Association/
+Mapping classifiers are registry rows already; their store tables and
+mapping arms arrive with their first witness.

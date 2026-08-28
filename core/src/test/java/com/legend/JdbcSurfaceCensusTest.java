@@ -260,6 +260,10 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/integration/GroupByCheckerTest.java",
             "core/src/test/java/com/legend/integration/InheritanceIntegrationTest.java",
             "core/src/test/java/com/legend/integration/JoinCheckerTest.java",
+            // metamodel-store leg (2026-08-28): an ordinary integration
+            // suite — the caller's DuckDB connection through the one
+            // execute door, like every Checker suite above
+            "core/src/test/java/com/legend/integration/MetamodelStoreTest.java",
             "core/src/test/java/com/legend/integration/JsonM2MChainIntegrationTest.java",
             "core/src/test/java/com/legend/integration/JsonM2MIntegrationTest.java",
             "core/src/test/java/com/legend/integration/JsonMappingIntegrationTest.java",

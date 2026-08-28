@@ -378,6 +378,44 @@ public final class Ddl {
         }
     }
 
+    /** The SYSTEM metamodel seed (METAMODEL_STORE_HANDOFF.md &sect;5):
+     * schema + drop/create through the ONE generator, then the registry
+     * extent as a single multi-row VALUES insert (all-string columns,
+     * rows pre-sorted by the registry's deterministic-order contract).
+     * Idempotent per context &mdash; the content is a pure function of
+     * the active model context, so overlays simply re-seed. */
+    public static java.util.List<String> metamodelSeed(
+            DatabaseDefinition.TableDefinition def, String schema,
+            java.util.List<java.util.List<String>> rows,
+            boolean duckTarget) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        out.add("Create Schema if not exists " + schema + ";");
+        out.add(dropTable(schema, def.name()));
+        out.add(createTable(def, schema, duckTarget));
+        if (!rows.isEmpty()) {
+            StringBuilder ins = new StringBuilder("insert into ")
+                    .append(qualify(schema, def.name())).append(" values ");
+            for (int r = 0; r < rows.size(); r++) {
+                if (r > 0) {
+                    ins.append(", ");
+                }
+                ins.append('(');
+                java.util.List<String> row = rows.get(r);
+                for (int c = 0; c < row.size(); c++) {
+                    if (c > 0) {
+                        ins.append(", ");
+                    }
+                    ins.append('\'')
+                            .append(row.get(c).replace("'", "''"))
+                            .append('\'');
+                }
+                ins.append(')');
+            }
+            out.add(ins.append(';').toString());
+        }
+        return out;
+    }
+
     private static String qualify(@com.legend.Nullable String schema, String table) {
         return schema == null || schema.isEmpty() || "default".equals(schema)
                 ? table : schema + "." + table;

@@ -322,7 +322,13 @@ class JavaEvalLedgerTest {
             // (re-wrap without the literal candidate — bare byte
             // verdicts survive a lying stamp). Orchestration, zero
             // evaluation.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2423),
+            // 2423->2456 (metamodel-store leg 2026-08-28): the seed
+            // hook at the one execution-setup owner — a body reading
+            // the system store gets its registry extent seeded (Ddl
+            // renders, the database evaluates; the extent query itself
+            // is ordinary lowered SQL). Setup orchestration, zero
+            // evaluation.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2456),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

@@ -82,8 +82,15 @@ final class RequiredNullableCensus {
         if (ownerClassFqn == null) {
             return;
         }
+        // NATIVE catalog fallback (metamodel-store leg 2026-08-28): the
+        // system mapping binds properties of a native metaclass; the
+        // census must SEE the pairing, not file it under blindness
         ClassDefinition owner = MissProbe.knownMiss(
                 model.findClass(ownerClassFqn));
+        if (owner == null) {
+            owner = com.legend.builtin.Pure.findNativeClass(ownerClassFqn)
+                    .orElse(null);
+        }
         ClassDefinition.PropertyDefinition prop = owner == null ? null
                 : MappingNormalizer.findPropertyDefDeep(owner, propName,
                         model, new HashSet<>());

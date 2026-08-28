@@ -226,7 +226,10 @@ public final class Compiler {
      * per-unit texts).
      */
     public static ModelContext buildModel(ParsedModel parsed) {
-        ParsedModel resolved = NameResolver.resolve(parsed);
+        // the system metamodel store rides EVERY build (charter §4: one
+        // owner, parsed elements, no parallel lane)
+        ParsedModel resolved = NameResolver.resolve(
+                com.legend.builtin.SystemMetamodel.injectInto(parsed));
         NormalizedModel normalized = ModelNormalizer.normalize(resolved);
         return PureModelContext.from(normalized);
     }
@@ -260,7 +263,8 @@ public final class Compiler {
      */
     public static BuiltModule buildModule(ParsedModel parsed) {
         java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
-        ParsedModel resolved = NameResolver.resolve(parsed, walls);
+        ParsedModel resolved = NameResolver.resolve(
+                com.legend.builtin.SystemMetamodel.injectInto(parsed), walls);
         NormalizedModel normalized = ModelNormalizer.normalize(resolved, walls);
         PureModelContext ctx = PureModelContext.from(normalized, walls);
         return new BuiltModule(ctx, walls);

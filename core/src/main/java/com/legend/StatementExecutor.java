@@ -2298,6 +2298,47 @@ final class StatementExecutor {
         }
     }
 
+    /** METAMODEL SEED (METAMODEL_STORE_HANDOFF.md §5): a resolved body
+     * reading the SYSTEM store gets its extent seeded from the ACTIVE
+     * model context first — the one execution-setup owner, beside the
+     * runtime setups. Content is a pure function of the context
+     * (overlays included), so the seed is idempotent DROP+CREATE+INSERT;
+     * a body that never reads the store pays one tree walk and nothing
+     * else. */
+    private static void seedMetamodelStore(java.util.List<TypedSpec> body,
+            ExecEnv env) throws java.sql.SQLException {
+        if (body.stream().noneMatch(StatementExecutor::readsSystemStore)) {
+            return;
+        }
+        java.util.List<String> extent = env.ctx().classifierInstances(
+                com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS);
+        var def = env.ctx().findTableDefinition(
+                com.legend.builtin.SystemMetamodel.STORE_FQN,
+                "metamodel.classes").orElseThrow(() ->
+                new IllegalStateException("the system metamodel store is"
+                        + " not in the model — injection regressed"));
+        for (String stmt : Ddl.metamodelSeed(def, "metamodel",
+                com.legend.builtin.SystemMetamodel.seedRows(
+                        extent == null ? java.util.List.of() : extent),
+                !env.dialect().rawH2IsNative())) {
+            Executor.executeRaw(env.connection(), stmt);
+        }
+    }
+
+    private static boolean readsSystemStore(TypedSpec n) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedTableReference tr
+                && com.legend.builtin.SystemMetamodel.STORE_FQN
+                        .equals(tr.store())) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (readsSystemStore(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** ONE VALUE expression through the ordinary back half (G½ inline →
      * H resolve → lower/execute) — the assert-verdict arm's side
      * evaluator. The same sequence as the generic statement tail. */
@@ -2447,6 +2488,7 @@ final class StatementExecutor {
             root = fr.source();
         }
         runRuntimeSetups(runtimeSetups, root, env);
+        seedMetamodelStore(body, env);
         // K-NATIVE dispatch: executeInDb never lowers — it IS the phase-K
         // boundary (raw SQL over the ambient JDBC connection).
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
