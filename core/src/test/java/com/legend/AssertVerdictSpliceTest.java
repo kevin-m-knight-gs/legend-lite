@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AssertVerdictSpliceTest {
 
     private static final String MODEL = """
-            Class e::Person { name: String[1]; age: Integer[1]; }
+            Class e::Person { name: String[1]; age: Integer[1]; nick: String[0..1]; }
             function meta::pure::functions::asserts::assertEquals(expected:Any[*], actual:Any[*]):Boolean[1]
             {
                 if(eq($expected->size(), 1) && eq($actual->size(), 1),
@@ -65,13 +65,14 @@ class AssertVerdictSpliceTest {
             }
             ###Relational
             Database e::DB (
-              Table P (ID INTEGER PRIMARY KEY, NAME VARCHAR(200), AGE INTEGER)
+              Table P (ID INTEGER PRIMARY KEY, NAME VARCHAR(200), AGE INTEGER, NICK VARCHAR(50))
             )
             ###Mapping
             Mapping e::M (
               *e::Person : Relational { ~mainTable [e::DB] P
                 name: P.NAME,
-                age: P.AGE }
+                age: P.AGE,
+                nick: P.NICK }
             )
             ###Runtime
             Runtime e::RT { mappings: [e::M]; }
@@ -84,8 +85,9 @@ class AssertVerdictSpliceTest {
         conn = DriverManager.getConnection("jdbc:duckdb:");
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE P (ID INTEGER, NAME VARCHAR(200),"
-                    + " AGE INTEGER)");
-            st.execute("INSERT INTO P VALUES (10,'p1',30),(20,'p2',40)");
+                    + " AGE INTEGER, NICK VARCHAR(50))");
+            st.execute("INSERT INTO P VALUES (10,'p1',30,NULL),"
+                    + "(20,'p2',40,NULL)");
         }
     }
 
@@ -179,6 +181,81 @@ class AssertVerdictSpliceTest {
                 + " assertContains($result.values.age, 99);}"));
         assertTrue(String.valueOf(miss.getMessage()).contains("99"),
                 miss.getMessage());
+    }
+
+    @Test
+    @DisplayName("§8 leg 1 flat cells: ordered pass, row-swap passes under"
+            + " incidental order, CROSS-ROW SHUFFLE FAILS (row cohesion)")
+    void flatCellsRowCohesion() throws Exception {
+        String prefix = "{|let result = execute(|e::Person.all()"
+                + "->project([p|$p.name, p|$p.age], ['name','age']),"
+                + " e::M, e::RT, []);";
+        Object ordered = ((ExecutionResult.Scalar) run(prefix
+                + " assertEquals(['p1', 30, 'p2', 40],"
+                + " $result.values.rows.values);}")).value();
+        assertEquals(Boolean.TRUE, ordered);
+        // whole-row swap: DB arrival order is incidental — holds
+        Object swapped = ((ExecutionResult.Scalar) run(prefix
+                + " assertEquals(['p2', 40, 'p1', 30],"
+                + " $result.values.rows.values);}")).value();
+        assertEquals(Boolean.TRUE, swapped);
+        // cross-row CELL shuffle: same loose cells, broken row
+        // cohesion — must FAIL (audit 9)
+        SQLException e = assertThrows(SQLException.class, () -> run(prefix
+                + " assertEquals(['p1', 40, 'p2', 30],"
+                + " $result.values.rows.values);}"));
+        assertTrue(String.valueOf(e.getMessage()).contains("flat-cells"),
+                e.getMessage());
+    }
+
+    @Test
+    @DisplayName("§8 leg 1: the golden's TDSNull sentinel matches a NULL"
+            + " cell (expected direction, byte + host)")
+    void flatCellsTdsNullSentinel() throws Exception {
+        Object v = ((ExecutionResult.Scalar) run(
+                "{|let result = execute(|e::Person.all()"
+                + "->project([p|$p.name, p|$p.nick], ['name','nick']),"
+                + " e::M, e::RT, []);"
+                + " assertEquals(['p1', 'TDSNull', 'p2', 'TDSNull'],"
+                + " $result.values.rows.values);}")).value();
+        assertEquals(Boolean.TRUE, v);
+    }
+
+    @Test
+    @DisplayName("§8 leg 1: assertSameElements over flat cells is the"
+            + " LOOSE cell pool (cross-row shuffle holds there)")
+    void flatCellsSameElementsLoosePool() throws Exception {
+        Object v = ((ExecutionResult.Scalar) run(
+                "{|let result = execute(|e::Person.all()"
+                + "->project([p|$p.name, p|$p.age], ['name','age']),"
+                + " e::M, e::RT, []);"
+                + " assertSameElements(['p1', 40, 'p2', 30],"
+                + " $result.values.rows.values);}")).value();
+        assertEquals(Boolean.TRUE, v);
+        SQLException miss = assertThrows(SQLException.class, () -> run(
+                "{|let result = execute(|e::Person.all()"
+                + "->project([p|$p.name, p|$p.age], ['name','age']),"
+                + " e::M, e::RT, []);"
+                + " assertSameElements(['p1', 41, 'p2', 30],"
+                + " $result.values.rows.values);}"));
+        assertTrue(String.valueOf(miss.getMessage()).contains("41"),
+                miss.getMessage());
+    }
+
+    @Test
+    @DisplayName("§8 leg 1: emptiness of a TABULAR side is its row count")
+    void gridEmptiness() throws Exception {
+        Object notEmpty = ((ExecutionResult.Scalar) run(
+                "{|let result = execute(|e::Person.all()"
+                + "->project([p|$p.age], ['age']), e::M, e::RT, []);"
+                + " assertNotEmpty($result.values);}")).value();
+        assertEquals(Boolean.TRUE, notEmpty);
+        Object emptied = ((ExecutionResult.Scalar) run(
+                "{|let result = execute(|e::Person.all()"
+                + "->filter(p|$p.age > 99)"
+                + "->project([p|$p.age], ['age']), e::M, e::RT, []);"
+                + " assertEmpty($result.values);}")).value();
+        assertEquals(Boolean.TRUE, emptied);
     }
 
     @Test

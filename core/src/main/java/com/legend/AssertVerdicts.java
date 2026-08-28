@@ -164,10 +164,25 @@ final class AssertVerdicts {
                 // strictly ordered.
                 boolean incidental = orderView(args.get(1), letPrefix)
                         == OrderView.INCIDENTAL;
+                // §8 leg 1 — grid-ness is STATIC (the declared result
+                // shape, decided before execution — the ratified
+                // no-runtime-sniffing rule): a grid pair fetches in
+                // DEFINITION order (the peer's row chunking depends on
+                // it; the canonical-order rider would destroy it) and
+                // any multiset view sorts DB-computed canon texts
+                // host-side instead — semantics-free string sorting.
+                boolean gridPair = tabularShaped(args.get(0))
+                        || tabularShaped(args.get(1));
                 SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
-                        env, incidental, hook);
+                        env, incidental && !gridPair, hook);
                 SideFetch af = sideCanon(args.get(1), letPrefix, specs,
-                        env, incidental, hook);
+                        env, incidental && !gridPair, hook);
+                // the FLAT-CELLS verdict (grid canon byte channel +
+                // host cell lattice referee)
+                if (ef.grid() != null || af.grid() != null) {
+                    return gridCellsVerdict(name, wantEqual, args,
+                            letPrefix, ef, af, incidental);
+                }
                 // X5: a same-class KEYED pair restricts both sides to
                 // the key tree — the engine's own equality relation for
                 // keyed classes, applied before EITHER channel judges
@@ -225,10 +240,19 @@ final class AssertVerdicts {
                 if (rse != null) {
                     return rse;
                 }
+                boolean seGridPair = tabularShaped(args.get(0))
+                        || tabularShaped(args.get(1));
                 SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
-                        env, true, hook);
+                        env, !seGridPair, hook);
                 SideFetch af = sideCanon(args.get(1), letPrefix, specs,
-                        env, true, hook);
+                        env, !seGridPair, hook);
+                // §8 leg 1 — TABULAR sides under the MULTISET form:
+                // loose CELL pool (the corpus writes flat expected sets
+                // column-grouped — loose multiset IS this assert's
+                // reference semantics, audit 9), cell-level byte canon
+                if (ef.grid() != null || af.grid() != null) {
+                    return gridSameElementsVerdict(ef, af);
+                }
                 var ik = instanceKeys(args.get(0), args.get(1), env);
                 List<Object> e = ik != null
                         ? restrictToKeys(ef.values(), ik) : ef.values();
@@ -455,8 +479,14 @@ final class AssertVerdicts {
                 if (args.isEmpty()) {
                     return null;
                 }
-                boolean empty = side(args.get(0), letPrefix, specs, env, hook)
-                        .isEmpty();
+                // §8 leg 1: a TABULAR side's emptiness is its ROW count
+                // (engine relation semantics) — no canon involved
+                ExecutionResult er = StatementExecutor.evalValue(
+                        args.get(0), letPrefix, specs, env, null, false,
+                        hook);
+                boolean empty = er instanceof ExecutionResult.Tabular te3
+                        ? te3.rows().isEmpty()
+                        : decodeSide(er).isEmpty();
                 boolean held = empty == name.equals("assertEmpty");
                 return held ? ok()
                         : fail(name.equals("assertEmpty")
@@ -645,6 +675,342 @@ final class AssertVerdicts {
             }
         }
         return ok();
+    }
+
+    // ── §8 LEG 1 (grid canon, fusion-spike F2, user-ratified
+    // 2026-08-28): a TABULAR side's byte channel is its per-ROW canon
+    // (per-cell pure-literal spellings, GRID_CELL_SEP-joined, NULL
+    // cells spelling bare TDSNull — disjoint from a quoted string);
+    // the value peer's row canons FRAME from its literal-channel
+    // element canons (chunked by the grid's width — framing writes
+    // only separators, never renders). The host cell lattice stays
+    // the PARALLEL REFEREE, and the failure message derives from the
+    // SAME judgment that failed (the reverted attempt's 28-row
+    // phantom: message and judgment from different lattices with the
+    // probe unfired — structurally impossible here).
+
+    /** The FLAT-CELLS verdict for a pair with at least one TABULAR
+     * side (both-wrapped pairs took the grid-pair arm earlier). */
+    private static ExecutionResult gridCellsVerdict(String name,
+            boolean wantEqual, List<TypedSpec> args,
+            List<TypedSpec> letPrefix, SideFetch ef, SideFetch af,
+            boolean incidental) throws java.sql.SQLException {
+        List<Object> e = ef.values();
+        List<Object> a = af.values();
+        // audit 22b F2: raw cells (a bare .rows view) never equal a
+        // WHOLE-TDS value — flattening the TDS side would fabricate a
+        // match its column-name pin refuses. Static stamps decide.
+        boolean mixedFlatVsTds =
+                (bareRowStamp(args.get(0), letPrefix) && af.grid() != null
+                        && wrappedRelationStamp(args.get(1), letPrefix))
+                || (bareRowStamp(args.get(1), letPrefix) && ef.grid() != null
+                        && wrappedRelationStamp(args.get(0), letPrefix));
+        boolean hostHeld;
+        if (mixedFlatVsTds) {
+            hostHeld = false;
+        } else {
+            hostHeld = PureAsserts.equal(e, a);
+            if (!hostHeld && incidental && e.size() == a.size()) {
+                // ROW COHESION (audit 9): the incidental-order fallback
+                // matches ROW TUPLES of the grid's width — cross-row
+                // cell shuffles must FAIL; width 1 = the pool multiset
+                ExecutionResult.Tabular g = af.grid() != null ? af.grid()
+                        : ef.grid();
+                int w = g != null ? g.columns().size() : 1;
+                hostHeld = com.legend.exec.GridCompare.rowTupleMultiset(
+                        e, a, w > 1 && e.size() % w == 0 ? w : 1);
+            }
+        }
+        Boolean byteHeld = null;
+        if (!mixedFlatVsTds) {
+            ExecutionResult.Tabular wg = af.grid() != null ? af.grid()
+                    : java.util.Objects.requireNonNull(ef.grid(),
+                            "grid verdict without a grid side");
+            int w = wg.columns().size();
+            List<String> ec = rowCanonsOf(ef, w, true);
+            List<String> ac = rowCanonsOf(af, w, false);
+            if (ec != null && ac != null) {
+                List<String> es = new ArrayList<>(ec);
+                List<String> as2 = new ArrayList<>(ac);
+                if (incidental) {
+                    es.sort(String::compareTo);
+                    as2.sort(String::compareTo);
+                }
+                byteHeld = es.equals(as2);
+                // the DECLARED 2-ULP dialect-arithmetic policy, grid
+                // form (the scalar channel's withinDeclaredUlp arm):
+                // byte-differing rows whose every POSITIONAL cell pair
+                // holds in the lattice with only finite-Double drift
+                // hold BY POLICY — counted in the policy's own census
+                // row, never a disagreement rescue.
+                if (!byteHeld && hostHeld && ulpOnlyCellDrift(e, a)) {
+                    com.legend.exec.CanonicalDivergence.sqlUlpPolicy(
+                            "grid " + firstCanonDiff(es, as2));
+                    byteHeld = true;
+                }
+                com.legend.exec.CanonicalDivergence.probeSqlVerdict(name,
+                        hostHeld, byteHeld, "grid rows=" + ec.size() + "/"
+                                + ac.size()
+                                + (byteHeld ? "" : firstCanonDiff(es, as2)));
+            }
+        }
+        boolean held = byteHeld != null ? byteHeld : hostHeld;
+        if (name.equals("assertNotEquals")) {
+            return held ? fail("assertNotEquals: both sides are equal")
+                    : ok();
+        }
+        if (held) {
+            return ok();
+        }
+        String d = hostHeld ? null
+                : mixedFlatVsTds
+                        ? "\nraw cells do not equal a whole TDS value"
+                        : PureAsserts.assertEquals(e, a);
+        return fail(d != null
+                ? name + " (flat-cells) " + d.replaceFirst("^\\n", "")
+                : "byte-verdict: grid canonical renders differ (host"
+                        + " lattice agreed — dual-verdict divergence,"
+                        + " see [canon] census)");
+    }
+
+    /** The MULTISET flat-cells verdict: loose CELL pool host lattice
+     * (direction-aware sentinel — pool matching, never a sorted zip:
+     * sorting separates an expected 'TDSNull' from its NULL cell),
+     * cell-level canon multiset as the byte channel. */
+    private static ExecutionResult gridSameElementsVerdict(SideFetch ef,
+            SideFetch af) throws java.sql.SQLException {
+        List<Object> e = ef.values();
+        List<Object> a = af.values();
+        boolean hostHeld = e.size() == a.size()
+                && com.legend.exec.GridCompare.rowTupleMultiset(e, a, 1);
+        List<String> ec = cellCanonsOf(ef, true);
+        List<String> ac = cellCanonsOf(af, false);
+        Boolean byteHeld = null;
+        if (ec != null && ac != null) {
+            List<String> es = new ArrayList<>(ec);
+            List<String> as2 = new ArrayList<>(ac);
+            es.sort(String::compareTo);
+            as2.sort(String::compareTo);
+            byteHeld = es.equals(as2);
+            com.legend.exec.CanonicalDivergence.probeSqlVerdict(
+                    "assertSameElements", hostHeld, byteHeld,
+                    "grid cells=" + ec.size() + "/" + ac.size()
+                            + (byteHeld ? "" : firstCanonDiff(es, as2)));
+        }
+        boolean held = byteHeld != null ? byteHeld : hostHeld;
+        if (held) {
+            return ok();
+        }
+        if (!hostHeld) {
+            String d = PureAsserts.assertSameElements(e, a);
+            return fail(d != null
+                    ? "assertSameElements (flat-cells) "
+                            + d.replaceFirst("^\\n", "")
+                    : "assertSameElements (flat-cells): cell multiset"
+                            + " differs");
+        }
+        return fail("byte-verdict: grid canonical renders differ (host"
+                + " lattice agreed — dual-verdict divergence, see"
+                + " [canon] census)");
+    }
+
+    /** A side's per-ROW canon texts, or null = the byte channel
+     * declines (counted). A grid side reads its rider's harvested row
+     * canons; a value peer FRAMES rows from its literal-channel
+     * element canons, chunked by {@code width} — the golden's
+     * 'TDSNull' string cells map to the bare sentinel spelling on the
+     * EXPECTED side only (the declared direction-aware policy, applied
+     * at construction). */
+    private static @com.legend.Nullable List<String> rowCanonsOf(
+            SideFetch side, int width, boolean isExpected) {
+        if (side.grid() != null) {
+            if (!side.rider().gridWrapped()) {
+                com.legend.exec.CanonicalDivergence.sqlDeclined(
+                        "grid-side: " + (side.rider().declined() != null
+                                ? side.rider().declined()
+                                : "no grid canon"));
+                return null;
+            }
+            List<String> out = new ArrayList<>(side.rider().rows().size());
+            for (String[] r : side.rider().rows()) {
+                if (r[0] == null) {
+                    com.legend.exec.CanonicalDivergence.sqlDeclined(
+                            "grid-side: null-canon-cell");
+                    return null;
+                }
+                out.add(r[0]);
+            }
+            return out;
+        }
+        List<String> cells = peerElementCanons(side, isExpected);
+        if (cells == null) {
+            return null;
+        }
+        if (width <= 0 || cells.size() % width != 0) {
+            com.legend.exec.CanonicalDivergence.sqlDeclined(
+                    "grid-peer: " + cells.size()
+                            + " cells not divisible by width " + width);
+            return null;
+        }
+        List<String> out = new ArrayList<>(cells.size() / width);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < cells.size(); i++) {
+            if (i % width == 0) {
+                if (i > 0) {
+                    out.add(sb.toString());
+                }
+                sb.setLength(0);
+                sb.append(cells.get(i));
+            } else {
+                sb.append(com.legend.lowering.CanonicalRenderSql
+                        .GRID_CELL_SEP).append(cells.get(i));
+            }
+        }
+        if (!cells.isEmpty()) {
+            out.add(sb.toString());
+        }
+        return out;
+    }
+
+    /** A side's per-CELL canon texts (the sameElements view): a grid
+     * side splits its row canons on the reserved separator (the wrap
+     * poisons any cell carrying it, so the split is exact); a value
+     * peer reads its literal-channel element canons. */
+    private static @com.legend.Nullable List<String> cellCanonsOf(
+            SideFetch side, boolean isExpected) {
+        if (side.grid() == null) {
+            return peerElementCanons(side, isExpected);
+        }
+        List<String> rows = rowCanonsOf(side, -1, isExpected);
+        if (rows == null) {
+            return null;
+        }
+        List<String> out = new ArrayList<>();
+        for (String r : rows) {
+            for (String c : r.split(java.util.regex.Pattern.quote(
+                    com.legend.lowering.CanonicalRenderSql.GRID_CELL_SEP),
+                    -1)) {
+                out.add(c);
+            }
+        }
+        return out;
+    }
+
+    /** The value peer's element canons from its LITERAL channel — one
+     * canon per element, alignment-checked; null = decline, counted. */
+    private static @com.legend.Nullable List<String> peerElementCanons(
+            SideFetch side, boolean isExpected) {
+        var rider = side.rider();
+        int li = rider.literalIndex();
+        if (!rider.wrapped() || li < 0) {
+            com.legend.exec.CanonicalDivergence.sqlDeclined(
+                    "grid-peer: no literal channel"
+                            + (rider.declined() != null
+                                    ? ": " + rider.declined() : ""));
+            return null;
+        }
+        if (rider.rows().size() != side.values().size()) {
+            com.legend.exec.CanonicalDivergence.sqlDeclined(
+                    "grid-peer: canon rows misaligned "
+                            + rider.rows().size() + "/"
+                            + side.values().size());
+            return null;
+        }
+        List<String> out = new ArrayList<>(rider.rows().size());
+        for (String[] r : rider.rows()) {
+            String c = r[li];
+            if (c == null) {
+                com.legend.exec.CanonicalDivergence.sqlDeclined(
+                        "grid-peer: null element canon");
+                return null;
+            }
+            if (isExpected && "'TDSNull'".equals(c)) {
+                // the golden's null spelling (expected-direction only —
+                // audit 16 F5): the QUOTED string literal maps to the
+                // grid's bare sentinel; a real 'TDSNull' string on OUR
+                // wire stays quoted and can never fabricate a null
+                c = "TDSNull";
+            }
+            if (c.contains(com.legend.lowering.CanonicalRenderSql
+                    .GRID_CELL_SEP)) {
+                com.legend.exec.CanonicalDivergence.sqlDeclined(
+                        "grid-peer: reserved separator in element");
+                return null;
+            }
+            out.add(c);
+        }
+        return out;
+    }
+
+    /** Grid form of the declared 2-ULP policy's gate: every POSITIONAL
+     * cell pair holds in the lattice, and every pair that is not
+     * byte-identical is a finite Double pair (dialect libm drift —
+     * PureAsserts OWNS the tolerance; this only vectorizes it over
+     * cells). Positional by design: the policy never claims
+     * multiset-held pairs (zero witnesses; they stay alarmed). */
+    private static boolean ulpOnlyCellDrift(List<Object> e,
+            List<Object> a) {
+        if (e.isEmpty() || e.size() != a.size()) {
+            return false;
+        }
+        for (int i = 0; i < e.size(); i++) {
+            Object x = e.get(i);
+            Object y = a.get(i);
+            if (!PureAsserts.equalScalar(x, y)) {
+                return false;
+            }
+            if (java.util.Objects.equals(x, y)) {
+                continue;
+            }
+            if (!(x instanceof Double dx && y instanceof Double dy
+                    && Double.isFinite(dx) && Double.isFinite(dy))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** First differing entry of two (sorted) canon lists — the
+     * diagnosis payload a bare host/sql flag can never carry. */
+    private static String firstCanonDiff(List<String> e, List<String> a) {
+        int n = Math.min(e.size(), a.size());
+        for (int i = 0; i < n; i++) {
+            if (!e.get(i).equals(a.get(i))) {
+                return " diff@" + i + " e<" + truncCanon(e.get(i))
+                        + "> a<" + truncCanon(a.get(i)) + ">";
+            }
+        }
+        return e.size() != a.size()
+                ? " sizes " + e.size() + "/" + a.size() : "";
+    }
+
+    private static String truncCanon(String s) {
+        return s.length() > 120 ? s.substring(0, 120) + "…" : s;
+    }
+
+    /** Whether a side is STATICALLY table-shaped (its declared result
+     * shape — the same fact the executor's canon routing reads). */
+    private static boolean tabularShaped(TypedSpec s) {
+        return com.legend.exec.ResultShape.of(s)
+                == com.legend.exec.ResultShape.TABULAR;
+    }
+
+    /** A bare {@code .rows} view stamp (row collection — bare struct,
+     * many multiplicity), through let bindings. */
+    private static boolean bareRowStamp(TypedSpec s0,
+            List<TypedSpec> lets) {
+        TypedSpec s = chaseLets(s0, lets);
+        return s.info().type()
+                instanceof com.legend.compiler.element.type.Type.RelationType
+                && s.info().multiplicity().isMany();
+    }
+
+    /** A wrapped table stamp ({@code Relation<schema>}), through let
+     * bindings. */
+    private static boolean wrappedRelationStamp(TypedSpec s0,
+            List<TypedSpec> lets) {
+        return com.legend.compiler.element.type.Type.isRelation(
+                chaseLets(s0, lets).info().type());
     }
 
     // ── D3 (batch-2 slice 2): the GOLDEN GRID/ORDER conventions move
@@ -1497,9 +1863,13 @@ final class AssertVerdicts {
 
     /** One assert side under V11: the values (host referee, gates,
      * declared policies) and the canon rider (byte verdict texts) —
-     * both produced by the SAME single execution. */
+     * both produced by the SAME single execution. §8 leg 1: a TABULAR
+     * side keeps its grid ({@code grid} non-null; {@code values} are
+     * the row-major CELLS, NULL slots kept — engine TDSRow semantics,
+     * column names OUT) and its canon is the rider's per-ROW texts. */
     private record SideFetch(List<Object> values,
-            com.legend.exec.CanonRider rider) {
+            com.legend.exec.CanonRider rider,
+            ExecutionResult.@com.legend.Nullable Tabular grid) {
     }
 
     private static SideFetch sideCanon(TypedSpec arg,
@@ -1508,9 +1878,14 @@ final class AssertVerdicts {
             @com.legend.Nullable SpliceHook hook)
             throws java.sql.SQLException {
         var rider = new com.legend.exec.CanonRider(canonicalOrder);
-        List<Object> values = decodeSide(StatementExecutor.evalValue(
-                arg, letPrefix, specs, env, rider, false, hook));
-        return new SideFetch(values, rider);
+        ExecutionResult r = StatementExecutor.evalValue(arg, letPrefix,
+                specs, env, rider, false, hook);
+        if (r instanceof ExecutionResult.Tabular t) {
+            List<Object> cells = cells(t);
+            com.legend.exec.CanonicalDivergence.v7SideRows(cells.size());
+            return new SideFetch(cells, rider, t);
+        }
+        return new SideFetch(decodeSide(r), rider, null);
     }
 
     private static List<Object> side(TypedSpec arg, List<TypedSpec> letPrefix,

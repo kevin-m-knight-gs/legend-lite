@@ -43,10 +43,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * getString in the codec owner carries the DB-computed canonical
  * VARCHAR — pure text carriage (Charter C1.2's allowed class), and it
  * DELETED a whole per-side execution (runCanon) in exchange.
+ * 13 -> 14 (V7 §8 leg 1, grid canon): the tabular decode's ONE
+ * getString carries the DB-computed per-ROW canonical VARCHAR
+ * (__rowcanon, wrapGridCanon) — the same allowed carriage class as
+ * the 12->13 row; the DATABASE renders every cell, Java reads the
+ * finished text. Burns the 353-decline flat-cells wall.
  */
 class TenetRatchetTest {
 
-    private static final int RESULT_SET_ACCESSOR_SITES = 13;
+    private static final int RESULT_SET_ACCESSOR_SITES = 14;
 
     private static final Pattern ACCESSOR = Pattern.compile(
             "\\.get(String|Object|Int|Long|Double|Boolean|BigDecimal"

@@ -279,6 +279,120 @@ public final class CanonicalRenderSql {
                 candidates, many, literalIndex, null);
     }
 
+    /** V7 §8 leg 1 — the GRID canon wrap outcome: the plan with a
+     * per-ROW canonical text appended as the LAST column, or a decline
+     * with the plan unchanged. */
+    public record GridWrap(com.legend.sql.SqlQuery plan,
+            @com.legend.Nullable String declineReason) {
+
+        static GridWrap decline(com.legend.sql.SqlQuery plan,
+                String reason) {
+            return new GridWrap(plan, reason);
+        }
+    }
+
+    /** The row-canon cell separator: the unit-separator control
+     * character, reserved — a STRING cell containing it poisons its
+     * row canon to NULL (a counted decline downstream), never a
+     * silent mis-split. */
+    public static final String GRID_CELL_SEP = "\u001F";
+
+    /** V7 §8 leg 1 (fusion-spike F2, user-ratified) — wrap a TABULAR
+     * plan so every row carries its canonical text: per-cell
+     * PURE-LITERAL spellings ({@link LiteralSpelling#literal} — the
+     * six disjoint forms, the same grammar the value peer's literal
+     * channel spells, so grid cells and literal-list elements meet in
+     * ONE spelling) joined by {@link #GRID_CELL_SEP}; a NULL cell
+     * spells the golden convention's bare {@code TDSNull} — DISJOINT
+     * from a real string 'TDSNull', which spells QUOTED. Declines
+     * (named, counted) on late-bound schemas, plan/schema width
+     * mismatches (pivot, struct flattening), and unclaimed cell
+     * kinds. */
+    public static GridWrap wrapGridCanon(com.legend.sql.SqlQuery plan,
+            Type.@com.legend.Nullable RelationType schema) {
+        if (schema == null) {
+            return GridWrap.decline(plan, "grid-canon: no schema view");
+        }
+        if (schema.isLateBound()) {
+            return GridWrap.decline(plan, "grid-canon: late-bound schema");
+        }
+        if (plan.outputs().size() != schema.columns().size()
+                || plan.outputs().isEmpty()) {
+            return GridWrap.decline(plan, "grid-canon: plan/schema width "
+                    + plan.outputs().size() + "/" + schema.columns().size());
+        }
+        SqlExpr row = null;
+        for (int i = 0; i < plan.outputs().size(); i++) {
+            com.legend.sql.OutputCol col = plan.outputs().get(i);
+            Type kind = schema.columns().get(i).type();
+            // the §4M scalar precedent, grid form: an ENUM cell has no
+            // literal channel — the wire spells the VALUE as a string
+            // while pure's enum never equals its name string; a byte
+            // compare against a string golden would fabricate
+            // inequality (or worse, equality). Decline; the host
+            // lattice judges the pair.
+            if (kind instanceof Type.EnumType) {
+                return GridWrap.decline(plan,
+                        "grid-canon: enum cell has no literal channel");
+            }
+            SqlExpr ref = SqlExpr.Column.of(null, col);
+            SqlExpr lit = LiteralSpelling.literal(ref, kind);
+            if (lit == null) {
+                return GridWrap.decline(plan,
+                        "grid-canon: unclaimed cell kind "
+                                + kind.typeName());
+            }
+            SqlExpr cell = SqlExpr.Call.of(SqlFn.COALESCE,
+                    new SqlExpr.Cast(lit, SqlType.Scalar.VARCHAR),
+                    new SqlExpr.StringLit("TDSNull"));
+            // the reserved separator POISONS the row canon to NULL (a
+            // counted decline at the verdict frame — never a silent
+            // mis-split); the guard sits OUTSIDE the COALESCE so a
+            // poisoned cell is a null ROW CANON, never a fake TDSNull.
+            // Only string kinds can carry the separator, so only they
+            // pay the guard; NULL string cells short to TDSNull first
+            // (STRPOS over NULL would poison every null cell).
+            if (kind == Type.Primitive.STRING) {
+                cell = new SqlExpr.Case(List.of(
+                        new SqlExpr.Case.When(
+                                SqlExpr.Call.of(SqlFn.IS_NULL, ref),
+                                new SqlExpr.StringLit("TDSNull")),
+                        new SqlExpr.Case.When(
+                                SqlExpr.Call.of(SqlFn.GREATER,
+                                        SqlExpr.Call.of(SqlFn.STRPOS, ref,
+                                                new SqlExpr.StringLit(
+                                                        GRID_CELL_SEP)),
+                                        new SqlExpr.IntLit(0)),
+                                new SqlExpr.NullLit())), cell);
+            }
+            // NULL propagates through CONCAT — one poisoned cell nulls
+            // the whole row canon, exactly the decline we want
+            row = row == null ? cell
+                    : SqlExpr.Call.of(SqlFn.CONCAT,
+                            SqlExpr.Call.of(SqlFn.CONCAT, row,
+                                    new SqlExpr.StringLit(GRID_CELL_SEP)),
+                            cell);
+        }
+        List<com.legend.sql.SqlSelect.Projection> projections =
+                new java.util.ArrayList<>();
+        List<com.legend.sql.OutputCol> outputs = new java.util.ArrayList<>();
+        for (com.legend.sql.OutputCol col : plan.outputs()) {
+            projections.add(new com.legend.sql.SqlSelect.Projection(
+                    SqlExpr.Column.of(null, col), col.name()));
+            outputs.add(col);
+        }
+        projections.add(new com.legend.sql.SqlSelect.Projection(
+                Objects.requireNonNull(row, "grid canon over 0 columns"),
+                "__rowcanon"));
+        outputs.add(new com.legend.sql.OutputCol("__rowcanon",
+                SqlType.Scalar.VARCHAR, true));
+        return new GridWrap(new com.legend.sql.SqlSelect(projections,
+                false,
+                new com.legend.sql.SqlSource.Subselect(plan, "side", null),
+                null, List.of(), null, null, List.of(), null, null,
+                outputs), null);
+    }
+
     /** F13 — the IDENTITY canon of an instance whose layout carries the
      * synthetic {@code __id}: {@code {_type, _id}}, JSON-framed like the
      * keyed canon. Null when the layout has no identity field (Any/

@@ -295,7 +295,7 @@ public final class Executor {
             boolean variantRoot, @com.legend.Nullable CanonRider rider)
             throws SQLException {
         return switch (shape) {
-                case TABULAR -> tabular(rs, plan, rootType, dialect);
+                case TABULAR -> tabular(rs, plan, rootType, dialect, rider);
                 case SCALAR -> {
                     boolean hasRow = rs.next();
                     // ZERO ROWS under a REQUIRED declared bound raises —
@@ -702,14 +702,23 @@ public final class Executor {
      * outputs. The two type systems meet only here, each on its own side.
      */
     private static ExecutionResult.Tabular tabular(ResultSet rs, SqlQuery plan, ExprType rootType,
-                                                    com.legend.sql.dialect.SqlDialect dialect)
+                                                    com.legend.sql.dialect.SqlDialect dialect,
+                                                    @com.legend.Nullable CanonRider rider)
             throws SQLException {
         final Type.RelationType schema = tabularSchema(rootType);
-        int n = rs.getMetaData().getColumnCount();
+        // V7 §8 leg 1 — a grid-wrapped rider rode the plan's LAST
+        // column (__rowcanon): strip it from the value decode and
+        // harvest it row-aligned (shapeRow is 1:1 by construction)
+        CanonRider grid = rider != null && rider.gridWrapped()
+                ? rider : null;
+        int n = rs.getMetaData().getColumnCount() - (grid != null ? 1 : 0);
         List<Column> columns = resolveColumns(rs, plan, schema, n);
         List<Row> rows = new ArrayList<>();
         while (rs.next()) {
             rows.addAll(shapeRow(rs, n, plan, dialect, schema, columns));
+            if (grid != null) {
+                grid.rows().add(new String[] {rs.getString(n + 1)});
+            }
         }
         return new ExecutionResult.Tabular(columns, rows, rootType.type());
     }

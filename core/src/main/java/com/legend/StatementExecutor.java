@@ -2767,7 +2767,24 @@ final class StatementExecutor {
         com.legend.compiler.element.type.ExprType shapeInfo =
                 declaredInfo != null ? declaredInfo : root.info();
         com.legend.sql.SqlQuery bare = plan;
-        if (rider != null) {
+        com.legend.exec.ResultShape shape = declaredInfo != null
+                ? com.legend.exec.ResultShape.COLLECTION
+                : com.legend.exec.ResultShape.of(root);
+        if (rider != null && shape == com.legend.exec.ResultShape.TABULAR) {
+            // V7 §8 leg 1 — a TABULAR side rides the GRID canon: one
+            // per-ROW canonical text as the appended last column (the
+            // fusion-spike F2 shape); the tabular decode strips it into
+            // the rider, row-aligned.
+            var gw = com.legend.lowering.CanonicalRenderSql.wrapGridCanon(
+                    plan, com.legend.compiler.element.type.Type.schemaView(
+                            shapeInfo.type()));
+            if (gw.declineReason() != null) {
+                rider.decline(gw.declineReason());
+            } else {
+                rider.gridWrap(plan.outputs().size());
+                plan = gw.plan();
+            }
+        } else if (rider != null) {
             var w = com.legend.lowering.CanonicalRenderSql.wrapWithCanon(
                     plan, shapeInfo, rider.canonicalOrder(),
                     // substitution-aware (Pair-of-Pairs): the stamp's
@@ -2782,9 +2799,6 @@ final class StatementExecutor {
             }
         }
         com.legend.sql.dialect.SqlDialect dialect = env.dialect();
-        com.legend.exec.ResultShape shape = declaredInfo != null
-                ? com.legend.exec.ResultShape.COLLECTION
-                : com.legend.exec.ResultShape.of(root);
         if (rider == null) {
             return Executor.execute(dialect.render(plan), plan, shapeInfo,
                     shape, env.connection(), dialect, null);
@@ -2803,7 +2817,7 @@ final class StatementExecutor {
             // stamp-derived, the V6 circularity). The side re-executes
             // BARE (pure SELECT — effectful statements never reach the
             // K-arm) and the canon declines.
-            boolean wasWrapped = rider.wrapped();
+            boolean wasWrapped = rider.wrapped() || rider.gridWrapped();
             boolean hadDroppableLiteral = rider.literalIndex() >= 1;
             rider.rows().clear();
             if (wasWrapped) {

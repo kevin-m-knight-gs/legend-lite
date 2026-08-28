@@ -117,7 +117,12 @@ public final class LiteralSpelling {
                     new SqlExpr.StringLit("D"));
         }
         if (kind == Type.Primitive.STRICT_DATE
-                || kind == Type.Primitive.DATE_TIME) {
+                || kind == Type.Primitive.DATE_TIME
+                // the abstract Date stamp (grid schema columns carry
+                // it) is a temporal too — pure spells every temporal
+                // literal %-prefixed; leaf() already claims DATE, only
+                // the prefix was missing (V7 leg-1 alarm, dates family)
+                || kind == Type.Primitive.DATE) {
             return SqlExpr.Call.of(SqlFn.CONCAT,
                     new SqlExpr.StringLit("%"), leaf);
         }

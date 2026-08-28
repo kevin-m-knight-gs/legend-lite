@@ -55,6 +55,12 @@ class CodeShapeGuardrailTest {
      * memo cache. Everything else must be final or become part of an
      * explicit frame object. */
     private static final Set<String> MUTABLE_FIELD_ALLOWLIST = Set.of(
+            // V7 §8 leg 1: the canon rider IS a mutable per-side
+            // carrier by design (its wrap/declined fields share the
+            // lifecycle); gridWidth records the GRID wrap the executor
+            // chose — written once at wrap time, cleared by decline,
+            // scoped to one side evaluation
+            "CanonRider.gridWidth",
             // (Lowerer.relationDepth row DELETED 2026-08-24 — the audit
             // found the counter write-only; the allowlist justification
             // was a rationalization, exactly what this guardrail is for)

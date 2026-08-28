@@ -317,7 +317,26 @@ class JavaEvalLedgerTest {
             // decode convention (the DB-built JSON array's elements,
             // the harness Eval rule moved to the owner). Dispatch +
             // decode routing, not evaluation.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1240),
+            // 1240->1480 (V7 §8 leg 1, user-ratified grid canon): the
+            // FLAT-CELLS verdict arms — the DATABASE computes every
+            // row's canonical text (wrapGridCanon rides the side
+            // query); Java's share is framing (chunking peer element
+            // canons by width — separators only), the host-referee
+            // dispatch, and counted declines. The comparison POLICIES
+            // stay with GridCompare/PureAsserts; nothing here renders
+            // or evaluates. Burns the 353-decline wall class.
+            // 1480->1522 (leg 1 alarm diagnostics + declared policy):
+            // the dual-verdict disagreement detail carries the FIRST
+            // DIFFERING canon pair (the reverted attempt's lesson — a
+            // bare host/sql flag cannot be diagnosed), and the
+            // declared 2-ULP dialect-arithmetic policy gets its grid
+            // arm (positional cell gate; PureAsserts OWNS the
+            // tolerance — this vectorizes it, counted in the policy's
+            // own census row). Reporting + policy gate, zero
+            // evaluation. (+3: the witness message folds its first
+            // line so the census row carries the expected/actual
+            // payload — the same diagnosability rule.)
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1525),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -365,7 +384,11 @@ class JavaEvalLedgerTest {
             // the verdict side lane exactly as in the generic statement
             // path (the option is EXECUTION ENV — the validation-family
             // probe caught the missing ID column). Parity, not eval.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2472),
+            // 2472->2482 (V7 §8 leg 1): TABULAR-shaped rider routing —
+            // the executor picks the GRID canon wrap from the declared
+            // result shape (static, pre-execution); the database
+            // renders the row canons. Routing, zero evaluation.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2482),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

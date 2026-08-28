@@ -104,6 +104,33 @@ public final class CanonRider {
     /** The canon owner (or a non-SQL driver arm) records a decline. */
     public void decline(String reason) {
         this.wrap = null;
+        this.gridWidth = -1;
         this.declined = reason;
+    }
+
+    // ── V7 §8 leg 1 — the GRID mode: a TABULAR side's canon is one
+    // per-ROW text (per-cell pure-literal spellings, GRID_CELL_SEP
+    // joined, NULL cells spelling TDSNull) appended as the plan's last
+    // column; {@link #rows()} then holds one {@code String[1]} per
+    // data row, harvested by the Executor's tabular decode. Distinct
+    // from the scalar wrap ({@link #wrapped()} stays false) — the
+    // candidate-kind machinery never applies to a grid.
+
+    private int gridWidth = -1;
+
+    /** The canon owner records a successful GRID wrap of {@code width}
+     * data columns. */
+    public void gridWrap(int width) {
+        this.gridWidth = width;
+        this.declined = null;
+    }
+
+    public boolean gridWrapped() {
+        return gridWidth >= 0;
+    }
+
+    /** Data-column count of the grid the canon rode (-1 = not grid). */
+    public int gridWidth() {
+        return gridWidth;
     }
 }

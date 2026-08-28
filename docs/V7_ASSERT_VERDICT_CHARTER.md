@@ -375,6 +375,65 @@ recorded as an INVARIANT in AGENTS.md.
 change is exactly the 7 testExtension wall rows REVERTING; soft
 ceilings exact; inner alarm 0.
 
+## 4S. LEG 0 + LEG 1 LANDING RECORD (2026-08-28)
+
+**LEG 0 EXECUTED** (90be6b6c): lane-classification guard — sqltext 961
+/ tdg 123 pin EXACTLY in the corpus runner; h2-exec rescued ≥ 632
+floor + unverifiable ≤ 145 shrink-only ceiling (the leg-7 ratchet).
+
+**LEG 1 EXECUTED — the grid canon, the ratified end-state-shaped
+design (NOT a host-only arm). Census: agree 2,650 → 3,002 (+352),
+declined 2,583 → 2,230 (the FULL 353-row flat-cells wall), disagree
+8 → 9 (the +1 adjudicated below). Inner sql-verdict alarm 0,
+ulp-policy 7. Scoreboard byte-identical; witnesses 10/10; full chain
+GREEN.**
+
+- **The mechanism**: `wrapGridCanon` (CanonicalRenderSql) appends one
+  per-ROW canonical text to any TABULAR plan — per-cell PURE-LITERAL
+  spellings (LiteralSpelling.literal, the ONE grammar both the grid
+  cells and the value peer's literal channel spell), GRID_CELL_SEP
+  () joined, NULL cells spelling bare `TDSNull` (disjoint from
+  a quoted string by the grammar itself); a string cell carrying the
+  reserved separator POISONS its row canon to NULL (counted decline,
+  never a mis-split). The executor routes by the DECLARED result
+  shape (static, pre-execution); the tabular decode strips + harvests
+  the canon column row-aligned. The peer's row canons FRAME from its
+  literal-channel element canons chunked by the grid's width —
+  framing writes separators only. Judgment: ordered list equality,
+  or sorted-list equality under the INCIDENTAL view (cross-row
+  shuffles fail — audit 9); host cell lattice (rowTupleMultiset /
+  loose pool for sameElements) = the parallel referee; message,
+  verdict, and probe from ONE decision point (the 28-row phantom is
+  structurally impossible).
+- **Fetch rule discovered**: a grid pair fetches BOTH sides in
+  DEFINITION order (canonicalOrder=false) — the canonical-order rider
+  re-sorts a literal side's VALUES and destroys the row chunking (the
+  first witness run caught it; grid-ness is static, so the rule is
+  compile-time).
+- **Alarm catches, all fixed same-slice** (19 inner disagreements →
+  0): (1) ENUM cells decline the byte channel at wrap ("grid-canon:
+  enum cell has no literal channel" — the §4M scalar precedent);
+  (2) the abstract DATE stamp missed the pure-literal % prefix in
+  LiteralSpelling.literal — a real gap in the shared grammar, fixed
+  (leaf already claimed DATE); (3) the declared 2-ULP
+  dialect-arithmetic policy gets its grid arm (positional cell gate,
+  counted sqlUlpPolicy — 7 rows).
+- **The +1 outer disagreement is ADJUDICATED as a grid-form member of
+  the NAMED temporal subsecond wire-decode class** (§4N row 2;
+  witness `[%2014-12-05T21:00:00.000000, 5]` — the same value row the
+  flat-cells attempt census carried). Burns with leg 5's decode fix.
+- Registers moved with justification: JavaEvalLedger AssertVerdicts
+  1240→1525 + StatementExecutor 2472→2482; TenetRatchet 13→14 (the
+  grid harvest's ONE getString — text carriage); CodeShape allowlist
+  CanonRider.gridWidth.
+- **Traps recorded**: the battery shorthand "CodeShape" names NO test
+  class — the guard is `CodeShapeGuardrailTest`, and a -Dtest name
+  that matches nothing passes SILENTLY (two chain iterations lost);
+  measure the ledger AFTER the slice's last edit (a post-measure
+  3-line edit tripped a chain); allgates REQUIRES the
+  LEGEND_ENGINE_ROOT/LEGEND_PURE_ROOT env (bare launch = stale-root
+  phantom failures across 5 gates).
+
 ## 8. PLAN OF ATTACK — the batch-2 remainder → cutover (handoff,
 ## 2026-08-28)
 
