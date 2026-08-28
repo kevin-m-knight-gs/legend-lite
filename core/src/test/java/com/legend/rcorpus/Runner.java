@@ -213,6 +213,23 @@ public final class Runner {
         } catch (RuntimeException e) {
             return;   // unparseable library file: its elements stay dark
         }
+        // THE PLATFORM-NAMESPACE GUARD (V7 tenet correction 2026-08-28,
+        // user catch): a library source defining meta::pure::functions::
+        // elements would import the REFERENCE IMPLEMENTATION's stdlib
+        // into our runtime model. The platform stdlib is OURS (registry
+        // natives, signatures verified against the real sources);
+        // reference checkouts feed test FIXTURES only. Refuse LOUDLY —
+        // never a silent smuggle.
+        for (com.legend.model.PackageableElement el : unit.elements()) {
+            if (el.qualifiedName().startsWith("meta::pure::functions::")) {
+                throw new IllegalStateException("library source defines"
+                        + " platform-namespace element '"
+                        + el.qualifiedName() + "' — the platform stdlib"
+                        + " is legend-lite's own (registry natives);"
+                        + " reference sources are spec and test input,"
+                        + " never runtime components");
+            }
+        }
         for (com.legend.model.PackageableElement el : unit.elements()) {
             elementSource.putIfAbsent(el.qualifiedName(), source);
         }
@@ -1629,27 +1646,7 @@ public final class Runner {
                     "corpus duplicate elements (expected ZERO): "
                             + globalParsed.duplicateElements());
         }
-        // V7: LIBRARY sources' parsed NATIVE declarations drop before the
-        // build (ChannelB's prune, scoped to library-*.pure so corpus
-        // tree sources are untouched) — the registry is the definition;
-        // a kept twin makes every native call an ambiguous 2-candidate
-        // tie (assert.pure declares the registry-owned assert/2-fn).
-        com.legend.model.ParsedModel gm = globalParsed.model();
-        List<com.legend.model.PackageableElement> kept = gm.elements()
-                .stream()
-                .filter(e -> !(e instanceof
-                        com.legend.model.NativeFunctionDefinition
-                        && String.valueOf(gm.elementSources()
-                                .get(e.qualifiedName()))
-                                .startsWith("library-")))
-                .toList();
-        com.legend.model.ParsedModel prunedGm = kept.size()
-                == gm.elements().size() ? gm
-                : new com.legend.model.ParsedModel(kept, gm.imports(),
-                        gm.source(), gm.elementOffsets(),
-                        gm.elementImports(), gm.elementSources(),
-                        gm.unclaimedSections());
-        globalBuilt = com.legend.Compiler.buildModule(prunedGm);
+        globalBuilt = com.legend.Compiler.buildModule(globalParsed.model());
         globalBuilt.walls().forEach((fqn, msg) ->
                 wallOnce("global " + fqn + " => " + msg));
         java.util.Map<String, String> binds = new LinkedHashMap<>();

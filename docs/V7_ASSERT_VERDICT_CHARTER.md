@@ -341,6 +341,40 @@ sqltext 961 + TDG 123), disagree 8 (§4N).**
   assertEquals tabular/flat-cells conventions (~340); D4 typing
   (above); host-unsupported 30; tail.
 
+## 4Q. TENET CORRECTION (2026-08-28, user catch) — the pure-source
+## dependency is EVICTED
+
+**The violation:** slices 1–3b made corpus assert resolution work by
+LOADING real legend-pure assert sources (and engine's
+testExtension.pure) into the corpus model as library files. That made
+the reference implementation a RUNTIME COMPONENT of our platform —
+against the project's core premise (legend-lite REPLACES pure/engine;
+checkouts are spec and test input only). The error conflated
+oracle-as-test-input (corpus/PCT sources — legitimate) with
+oracle-as-platform-machinery (the stdlib our model resolves against —
+never).
+
+**The correction (this slice):** the assert family is now 47
+PLATFORM-OWNED registry natives in Pure.java — every real overload of
+assert/assertFalse/assertEquals/assertNotEquals/assertSameElements/
+assertSize/assertEq/assertEmpty/assertNotEmpty/assertInstanceOf/
+assertIs/assertContains/assertEqWithinTolerance +
+assertJsonStringsEqual, signatures copied VERBATIM from the real
+`.pure` files and verified (spec by verification, never by loading);
+`PlatformTypes.ASSERT_FAMILY_OWNED` suppresses parsed twins loudly
+(the existing platform-owned mechanism — the twin-shadowing fear that
+justified the library route was already solved by the house design).
+DELETED: Corpus.PURE_ROOT/PURE_ASSERTS/TEST_EXTENSION + their loads,
+the library-scoped native prune, v7Spell. GUARD:
+`Runner.registerLibrarySource` refuses `meta::pure::functions::`
+elements outright (`LibraryPlatformNamespaceGuardTest`); tenet
+recorded as an INVARIANT in AGENTS.md.
+
+**Verification:** full sweep GREEN with the census IMPROVED (agree
+2,637 → 2,650, declined 2,583, disagree 8 unchanged); the scoreboard
+change is exactly the 7 testExtension wall rows REVERTING; soft
+ceilings exact; inner alarm 0.
+
 ## 5. Witnesses (before behavior, where possible)
 
 1. Per-form verdict unit witnesses beside AssertVerdictsTest for each

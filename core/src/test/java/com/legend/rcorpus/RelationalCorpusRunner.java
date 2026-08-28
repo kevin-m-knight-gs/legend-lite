@@ -175,47 +175,15 @@ public class RelationalCorpusRunner {
                 // unreadable: the family stays walled as before
             }
         }
-        // V7 (V7_ASSERT_VERDICT_CHARTER §4.1): the ASSERT-FAMILY library
-        // — real legend-pure's asserts sources (the engine graph's own
-        // assert functions; real Pure AUTO-IMPORTS
-        // meta::pure::functions::asserts, m3.pure's system imports, so
-        // corpus tests call them bare) plus engine-core's
-        // testExtension.pure (assertJsonStringsEqual, same package).
-        // assert.pure loads for its CONCRETE overloads (the /3 format
-        // form assertEquals' bodies call, assertFalse/1); its one
-        // native declaration (assert/2-fn) drops at the global compile's
-        // library-scoped prune — the registry keeps that form. The other
-        // registry-owned forms (fail/assertEqWithinTolerance/assertError/
-        // assertTdsEquivalent) stay registry-resolved. Library elements
-        // only: never discovery, never setups; the dual channel
-        // FQN-spells bare assert calls at the splice
-        // (EngineTestExecutor.v7DualChannel).
-        for (String af : new String[] {"assert", "assertEquals", "assertNotEquals",
-                "assertSameElements", "assertSize", "assertEq",
-                "assertEmpty", "assertNotEmpty", "assertInstanceOf",
-                "assertIs", "assertContains", "assertFalse"}) {
-            Path f = Corpus.PURE_ASSERTS.resolve(af + ".pure");
-            if (Files.isRegularFile(f)) {
-                try {
-                    runner.registerLibrarySource(Files.readString(f));
-                } catch (Exception ignore) {
-                    // unreadable library file: the form declines, named
-                }
-            }
-        }
-        // D4 (batch-2 slice 3b): testExtension.pure loads — its
-        // assertJsonStringsEqual (same asserts package) resolves the
-        // JSON form; the unported meta::pure::functions::test siblings
-        // wall individually and their rows join the scoreboard's wall
-        // list (this slice's adjudicated doc change).
-        if (Files.isRegularFile(Corpus.TEST_EXTENSION)) {
-            try {
-                runner.registerLibrarySource(
-                        Files.readString(Corpus.TEST_EXTENSION));
-            } catch (Exception ignore) {
-                // unreadable: assertJsonStringsEqual declines, named
-            }
-        }
+        // V7 TENET CORRECTION (2026-08-28, user catch): the assert
+        // family is PLATFORM-OWNED registry natives (Pure.java, real
+        // signatures verified verbatim; AssertVerdicts is the
+        // implementation) — an earlier slice loaded the real
+        // legend-pure assert SOURCES here as library files, which made
+        // the reference implementation a runtime component of our
+        // model. Reference checkouts are SPEC and TEST INPUT, never
+        // platform machinery; registerLibrarySource now REFUSES
+        // platform-namespace elements outright.
         runner.classLookup = fqn -> {
             try {
                 return classIndex().get(fqn);

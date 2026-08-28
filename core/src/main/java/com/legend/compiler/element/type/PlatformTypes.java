@@ -238,11 +238,34 @@ public final class PlatformTypes {
     public static final String ASSERT_ERROR =
             "meta::pure::functions::asserts::assertError";
 
+    /** The ASSERT FAMILY is platform-owned WHOLESALE (V7 tenet
+     * correction 2026-08-28: asserts are verdicts ALWAYS —
+     * AssertVerdicts/the K-arm IS the implementation; the real pure
+     * bodies are the SPEC, verified by signature in the registry,
+     * NEVER loaded as runtime components). Parsed twins — PCT trees,
+     * any corpus/library source — suppress loudly. */
+    private static final java.util.Set<String> ASSERT_FAMILY_OWNED =
+            java.util.Set.of(
+                    "meta::pure::functions::asserts::assert",
+                    "meta::pure::functions::asserts::assertFalse",
+                    "meta::pure::functions::asserts::assertEquals",
+                    "meta::pure::functions::asserts::assertNotEquals",
+                    "meta::pure::functions::asserts::assertSameElements",
+                    "meta::pure::functions::asserts::assertSize",
+                    "meta::pure::functions::asserts::assertEq",
+                    "meta::pure::functions::asserts::assertEmpty",
+                    "meta::pure::functions::asserts::assertNotEmpty",
+                    "meta::pure::functions::asserts::assertIs",
+                    "meta::pure::functions::asserts::assertContains",
+                    "meta::pure::functions::asserts::assertEqWithinTolerance",
+                    "meta::pure::functions::asserts::assertJsonStringsEqual");
+
     public static boolean isPlatformOwnedFunction(String fqn) {
         return DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
                 || TO_REPRESENTATION.equals(fqn)
                 || ASSERT_ERROR.equals(fqn)
                 || ASSERT_INSTANCE_OF.equals(fqn)
+                || ASSERT_FAMILY_OWNED.contains(fqn)
                 || TO_CSV.equals(fqn)
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
                 || isDdlStatementFn(fqn)

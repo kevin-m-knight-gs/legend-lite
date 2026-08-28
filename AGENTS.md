@@ -34,6 +34,22 @@
 > engine-exact text → a render TARGET of the one compiler). Consult them
 > before any "may Java compute this?" decision.
 >
+> **Reference-checkout tenet — an INVARIANT (V7 correction 2026-08-28,
+> user catch):** legend-lite exists to REPLACE legend-pure and
+> legend-engine. The reference checkouts (`-Dlegend.engine.root` /
+> `-Dlegend.pure.root`) are SPEC and TEST INPUT only — corpus test
+> sources, PCT trees, parity fixtures, signature verification. They are
+> NEVER runtime components: no platform behavior (resolution, typing,
+> stdlib bodies) may depend on files from those checkouts. The platform
+> stdlib (`meta::pure::functions::*`) is OURS — registry natives with
+> signatures verified verbatim against the real `.pure` sources
+> (spec by VERIFICATION, never by LOADING), platform-owned so parsed
+> twins suppress. The line to draw: does the checkout feed the thing
+> UNDER TEST (fixture — fine) or the thing DOING THE JUDGING/RUNNING
+> (violation)? Mechanical guard: `Runner.registerLibrarySource` refuses
+> `meta::pure::functions::` elements
+> (`LibraryPlatformNamespaceGuardTest`).
+>
 > **Authoritative spec:** `core/README.md` — folder layout, per-package
 > contracts, open decisions. This file is the short form.
 >

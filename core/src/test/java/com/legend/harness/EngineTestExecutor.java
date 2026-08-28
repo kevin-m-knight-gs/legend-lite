@@ -2950,7 +2950,7 @@ public final class EngineTestExecutor {
         com.legend.exec.SqlTypeCensus.probeSuspend(true);
         com.legend.exec.CanonicalDivergence.r1Suspend(true);
         try {
-            evalSpliced(subst(v7Spell(af), lets), execStmts, execVars, ctx,
+            evalSpliced(subst(af, lets), execStmts, execVars, ctx,
                     imports, runtimeFqn, conn);
             com.legend.exec.CanonicalDivergence.v7Verdict(form, hostPass,
                     true, "");
@@ -2983,30 +2983,9 @@ public final class EngineTestExecutor {
         return String.valueOf(msg);
     }
 
-    /** Real Pure AUTO-IMPORTS {@code meta::pure::functions::asserts}
-     * (m3.pure's system imports) — that is why corpus tests call the
-     * assert family BARE. Our resolver's implicit tier is the native
-     * registry, which owns assert/fail/assertEqWithinTolerance/
-     * assertError/assertTdsEquivalent; the remaining family members are
-     * MODEL functions (the V7 assert library), so the splice spells the
-     * bare name to the FQN the auto-import denotes. Qualified and
-     * registry-owned spellings pass through untouched. */
-    private static final java.util.Set<String> V7_ASSERTS_PKG_FORMS =
-            java.util.Set.of("assertEquals", "assertNotEquals",
-                    "assertSameElements", "assertSize", "assertEq",
-                    "assertEmpty", "assertNotEmpty", "assertInstanceOf",
-                    "assertIs", "assertContains", "assertFalse",
-                    "assertJsonStringsEqual");
-
-    private static AppliedFunction v7Spell(AppliedFunction af) {
-        String fn = af.function();
-        if (!fn.contains("::") && V7_ASSERTS_PKG_FORMS.contains(fn)) {
-            return new AppliedFunction(
-                    "meta::pure::functions::asserts::" + fn,
-                    af.parameters());
-        }
-        return af;
-    }
+    // (v7Spell DELETED, tenet correction 2026-08-28: the assert family
+    // is registry natives — bare names resolve via the catalog like
+    // every platform function; no splice-time FQN spelling needed.)
 
     /** Compile + execute ONE expression through THE one back-half sequence
      * ({@link Compiler#executeResolved}); an expression that reads an
