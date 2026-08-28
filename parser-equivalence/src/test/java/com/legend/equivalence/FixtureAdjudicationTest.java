@@ -279,7 +279,9 @@ class FixtureAdjudicationTest {
         }
         try (Stream<Path> s = Files.walk(dir)) {
             s.filter(f -> f.toString().endsWith(".java"))
-                    .filter(f -> !f.toString().contains("/target/"))
+                    .filter(f -> !f.toString()
+                            .replace(f.getFileSystem().getSeparator(), "/")
+                            .contains("/target/"))
                     .sorted().forEach(out::add);
         } catch (IOException e) {
             throw new IllegalStateException("cannot walk " + dir, e);

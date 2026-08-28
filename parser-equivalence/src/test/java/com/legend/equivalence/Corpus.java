@@ -50,7 +50,9 @@ public final class Corpus {
         }
         try (Stream<Path> s = Files.walk(root)) {
             return s.filter(p -> p.toString().endsWith(ext))
-                    .filter(p -> !p.toString().contains("/target/"))
+                    .filter(p -> !p.toString()
+                            .replace(p.getFileSystem().getSeparator(), "/")
+                            .contains("/target/"))
                     .sorted()
                     .toList();
         } catch (IOException e) {
