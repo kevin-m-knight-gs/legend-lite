@@ -609,10 +609,13 @@ public class RelationalCorpusRunner {
             // partition counts pin EXACTLY — an assert can never change
             // lanes silently; a corpus change that moves these updates
             // the pin AND the charter table in the same commit.
-            // 961 -> 1529 (§8 leg 4 census split, PROVISIONAL pending
-            // the agree-column audit): content-based classification —
-            // an assert whose args pull sqlQueryToString-family
-            // vocabulary is a plan-text compare whatever its form name
+            // 961 -> 1529 (§8 leg 4 census split): content-based
+            // classification — an assert whose args pull a sql-producer
+            // call is a plan-text compare whatever its form name.
+            // CONFIRMED at 1529 by the task-#13 slice-2 rewire: the
+            // RESOLUTION-backed classifier (exact FQNs, resolvesTo)
+            // reproduces this count exactly — the name-sniffing
+            // deletion moved the mechanism, not one row.
             org.junit.jupiter.api.Assertions.assertEquals(1529,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReason("host-partition-sqltext"),

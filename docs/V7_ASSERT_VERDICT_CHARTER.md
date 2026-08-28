@@ -554,6 +554,45 @@ verbatim signature; deletion = named future leg. Deferred with the
 reflection leg: eta value-identity (R6/R7). Census exactly
 3,161/9/2,071 through every iteration.
 
+## 4X. SQL-PRODUCER LEG, SLICES 1+2 LANDING RECORD (2026-08-28)
+
+**Slice 1 — the activity log answers from the compiler.** The whole
+sql/sqlRemoveFormatting/assertSameSQL family (helperFunctions.pure:
+38-60, testAssert.pure:18-25) telescopes to ONE fact: the SQL an
+execute() generated — the COMPILER's own output. ExecFrame retains
+its source execute call; Frames.relationalActivitySql renders it
+through the SAME engineSql pipeline as toSQLString (EngineStyleH2).
+Two splice arms answer the reads by exact FQN: the INLINED activities
+chain, and the producer CALL pre-inline (the inliner's hook rewrites
+a bare frame-var argument into its chain, erasing frame identity —
+the call folds first; the verbatim corpus bodies are the SPEC,
+mirrored exactly incl. the \n/\t strip). Witnesses pin the exact
+render both ways. +2 agree (3,161→3,163); two bitemporal-union rows
+advanced ERROR→honest FAIL (real SQL divergence now visible).
+
+**Slice 2 — classification by resolution; ALL sql name-sniffing
+DELETED.** isSqlText (endsWith), containsSqlText, the simple-name
+form set (which carried 'assertSameSQLs' — defined NOWHERE in the
+engine, R8's smaller sibling, dropped), and ExecCallFinder's
+simple-name terminal/through sets are GONE. One classifier:
+resolvesTo(af, ctx, fqns) — explicit FQN, resolver-recorded import
+candidates, model lookup, then an exact simple-name REGISTER lookup
+(the set's own FQNs) for bare native spellings. Registers:
+SQL_PRODUCER_FQNS {mapping::sql, mapping::sqlRemoveFormatting,
+sqlstring::toSQLString, ::toSQLStringPretty} (shared with the splice)
+and SQL_ASSERT_FORM_FQNS (asserts::assertSameSQL,
+h2::assertEqualsH2Compatible, tests::assertSqlEquals). FALSIFIER:
+the sqltext partition re-measured EXACTLY 1529 — mechanism moved,
+zero rows moved; the §8.0 pin's provisional marker retired.
+
+REMAINING DISTANCE (named): harnessVocabName survives in its
+UNRELATED assert-form dispatch role (planToString wrappers,
+runLegendTest — not sql classification); the D3 bare-name hijack
+exposure is unchanged from the old vocab gate and dies at the
+typed-tree cutover; slice 3 = the host-produced String[1] short
+circuit + routing these asserts through actual evaluation with the
+advisory/h2-replay POLICY preserved at the verdict layer.
+
 ## 8. PLAN OF ATTACK — the batch-2 remainder → cutover (handoff,
 ## 2026-08-28)
 

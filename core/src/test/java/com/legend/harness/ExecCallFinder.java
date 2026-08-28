@@ -17,16 +17,20 @@ final class ExecCallFinder {
     private ExecCallFinder() {
     }
 
+    /** THE execute entry point, as a matcher set (router FQN — the one
+     * real spelling after the R8 cutover). */
+    static final java.util.Set<String> EXECUTE_FQNS = java.util.Set.of(
+            com.legend.compiler.element.type.PlatformTypes.EXECUTE);
+
     /** The execute(...) call behind a golden-SQL read chain
      * ({@code $r->sqlRemoveFormatting()} / direct), or null. */
     static @com.legend.Nullable AppliedFunction find(
             @com.legend.Nullable ValueSpecification v,
             Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts) {
-        AppliedFunction t = findTerminal(v, lets, execStmts,
-                java.util.Set.of("execute"));
-        return t != null && EngineTestExecutor.simpleName(t.function())
-                .equals("execute") ? t : null;
+        AppliedFunction t = findTerminal(v, lets, execStmts, EXECUTE_FQNS);
+        return t != null && EngineTestExecutor.resolvesTo(t, null,
+                EXECUTE_FQNS) ? t : null;
     }
 
     /** The terminal call (its simple name &isin; {@code stops}) behind a
@@ -76,10 +80,10 @@ final class ExecCallFinder {
                 continue;
             }
             if (cur instanceof AppliedFunction af
-                    && !stops.contains(EngineTestExecutor.simpleName(af.function()))
+                    && !EngineTestExecutor.resolvesTo(af, null, stops)
                     && !af.parameters().isEmpty()) {
-                if (through != null && !through.contains(
-                        EngineTestExecutor.simpleName(af.function()))) {
+                if (through != null && !EngineTestExecutor.resolvesTo(
+                        af, null, through)) {
                     return null;
                 }
                 cur = EngineTestExecutor.substitute(af.parameters().get(0), lets);
@@ -92,7 +96,7 @@ final class ExecCallFinder {
             break;
         }
         return cur instanceof AppliedFunction ex
-                && stops.contains(EngineTestExecutor.simpleName(ex.function()))
+                && EngineTestExecutor.resolvesTo(ex, null, stops)
                 ? ex : null;
     }
 
@@ -112,16 +116,25 @@ final class ExecCallFinder {
             com.legend.model.ImportScope imports, String runtimeFqn,
             java.sql.Connection conn) {
         AppliedFunction term = findTerminal(side, lets, execStmts,
-                java.util.Set.of("execute", "toSQLString",
-                        "toSQLStringPretty"),
-                java.util.Set.of("sqlRemoveFormatting", "sql", "toOne",
-                        "at"));
+                java.util.Set.of(
+                        com.legend.compiler.element.type.PlatformTypes.EXECUTE,
+                        com.legend.compiler.element.type.PlatformTypes
+                                .TO_SQL_STRING,
+                        com.legend.compiler.element.type.PlatformTypes
+                                .TO_SQL_STRING_PRETTY),
+                java.util.Set.of(
+                        com.legend.compiler.spec.ResultEnvelopeSplice.SQL_FQN,
+                        com.legend.compiler.spec.ResultEnvelopeSplice
+                                .SQL_REMOVE_FORMATTING_FQN,
+                        com.legend.compiler.spec.ResultEnvelopeSplice
+                                .TO_ONE_FQN,
+                        com.legend.compiler.spec.ResultEnvelopeSplice.AT_FQN));
         if (term == null) {
             return null;
         }
         try {
             ValueSpecification call = term;
-            if (EngineTestExecutor.simpleName(term.function()).equals("execute")) {
+            if (EngineTestExecutor.resolvesTo(term, null, EXECUTE_FQNS)) {
                 if (term.parameters().size() < 2) {
                     return null;
                 }

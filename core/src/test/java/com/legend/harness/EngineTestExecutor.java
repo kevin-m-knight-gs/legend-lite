@@ -2063,7 +2063,7 @@ public final class EngineTestExecutor {
                             execVars, execChains, ctx, imports,
                             runtimeFqn, conn);
                 }
-                if (containsSqlText(args.get(0))) {
+                if (containsSqlProducer(args.get(0), ctx)) {
                     // predicate PURELY over golden SQL text is advisory; a
                     // MIXED assert (sql text AND value reads) must not have
                     // its value conjuncts silently skipped (audit 9)
@@ -2136,8 +2136,8 @@ public final class EngineTestExecutor {
                 // #67: a PURE golden-SQL assert upgrades to ROW-VERIFIED
                 // when the H2 second target can replay the seeds and run
                 // the golden (h2Upgrade; unverifiable stays advisory).
-                if (containsSqlText(args.get(args.size() - 1))
-                        || containsSqlText(args.get(0))) {
+                if (containsSqlProducer(args.get(args.size() - 1), ctx)
+                        || containsSqlProducer(args.get(0), ctx)) {
                     if (containsValuesRead(args.get(0))
                             || containsValuesRead(args.get(args.size() - 1))) {
                         return UNSUPPORTED_MARKER;
@@ -2652,16 +2652,63 @@ public final class EngineTestExecutor {
         return cut < 0 ? fn : fn.substring(cut + 2);
     }
 
-    /** A golden-SQL spelling: any chain ending in sqlRemoveFormatting()/sql(). */
-    private static boolean isSqlText(ValueSpecification v) {
-        // audit 23 D3: harness-vocab gate — a user function named 'sql'
-        // must not demote a whole assert to advisory
-        return v instanceof AppliedFunction af
-                && harnessVocabName(af.function())
-                && (af.function().equals("sqlRemoveFormatting")
-                        || af.function().endsWith("::sqlRemoveFormatting")
-                        || af.function().equals("sql")
-                        || af.function().endsWith("::sql"));
+    /** The sql-producer register, by EXACT FQN (task #13 slice 2): the
+     * activity-log SQL reads (helperFunctions.pure:38-60, the splice's
+     * own register) and the generate-without-executing renders. */
+    static final java.util.Set<String> SQL_PRODUCER_FQNS = java.util.Set.of(
+            com.legend.compiler.spec.ResultEnvelopeSplice.SQL_FQN,
+            com.legend.compiler.spec.ResultEnvelopeSplice
+                    .SQL_REMOVE_FORMATTING_FQN,
+            com.legend.compiler.element.type.PlatformTypes.TO_SQL_STRING,
+            com.legend.compiler.element.type.PlatformTypes
+                    .TO_SQL_STRING_PRETTY);
+
+    /** SQL-text ASSERT FORMS by exact FQN (testAssert.pure:18,
+     * sqlQueryToString/h2, testDataGeneration/tests). The old
+     * simple-name set also carried 'assertSameSQLs' — defined NOWHERE
+     * in the engine (vestigial, audit R8's smaller sibling): dropped. */
+    static final java.util.Set<String> SQL_ASSERT_FORM_FQNS = java.util.Set.of(
+            "meta::relational::functions::asserts::assertSameSQL",
+            "meta::relational::functions::sqlQueryToString::h2"
+                    + "::assertEqualsH2Compatible",
+            "meta::relational::testDataGeneration::tests::assertSqlEquals");
+
+    /** Whether a call RESOLVES to one of {@code fqns} — the platform's
+     * own resolution layers: an explicit FQN spelling, the resolver's
+     * recorded import candidates, the model lookup (when a context is
+     * available), and — for BARE spellings — an exact simple-name
+     * lookup against the set's OWN FQNs (a register lookup, never a
+     * suffix scan; audit 23 D3's hijack exposure for a bare user
+     * function shadowing a register simple name is unchanged from the
+     * old vocab gate and dies at the typed-tree cutover). */
+    static boolean resolvesTo(AppliedFunction af,
+            @com.legend.Nullable ModelContext ctx,
+            java.util.Set<String> fqns) {
+        if (fqns.contains(af.function())) {
+            return true;
+        }
+        for (String c : af.candidateFqns()) {
+            if (fqns.contains(c)) {
+                return true;
+            }
+        }
+        if (af.function().contains("::")) {
+            return false;
+        }
+        if (ctx != null) {
+            for (var f : ctx.findFunction(af.function())) {
+                if (fqns.contains(f.qualifiedName())) {
+                    return true;
+                }
+            }
+        }
+        for (String p : fqns) {
+            int cut = p.lastIndexOf("::");
+            if (cut >= 0 && p.substring(cut + 2).equals(af.function())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** A Result VALUES read anywhere in the expression — the assert also
@@ -2686,19 +2733,23 @@ public final class EngineTestExecutor {
     /** A golden-SQL read ANYWHERE in the expression (nested spellings:
      * {@code $r->sqlRemoveFormatting()->toLower()->contains(...)}) — the
      * whole assertion is about SQL text, advisory by policy. */
-    private static boolean containsSqlText(ValueSpecification v) {
-        if (isSqlText(v)) {
-            return true;
-        }
+    /** Whether the expression tree contains a call resolving to the
+     * sql-producer register — the CONTENT half of the sql-text
+     * partition, by resolution, never by name shape. */
+    private static boolean containsSqlProducer(ValueSpecification v,
+            @com.legend.Nullable ModelContext ctx) {
         if (v instanceof AppliedFunction af) {
+            if (resolvesTo(af, ctx, SQL_PRODUCER_FQNS)) {
+                return true;
+            }
             for (ValueSpecification p : af.parameters()) {
-                if (containsSqlText(p)) {
+                if (containsSqlProducer(p, ctx)) {
                     return true;
                 }
             }
         }
         if (v instanceof AppliedProperty ap) {
-            return containsSqlText(ap.receiver());
+            return containsSqlProducer(ap.receiver(), ctx);
         }
         return false;
     }
@@ -2922,22 +2973,18 @@ public final class EngineTestExecutor {
             return;
         }
         // §2: the SQL-TEXT forms compare the PLAN, not data — host by
-        // design regardless of outcome; never routed (their sides pull
-        // sqlQueryToString-family vocabulary through the pipeline)
-        if (java.util.Set.of("assertSameSQL", "assertSameSQLs",
-                "assertEqualsH2Compatible", "assertSqlEquals")
-                .contains(simpleName(af.function()))) {
+        // design regardless of outcome; never routed. RESOLVED exact
+        // FQNs (task #13 slice 2), never simple names.
+        if (resolvesTo(af, ctx, SQL_ASSERT_FORM_FQNS)) {
             com.legend.exec.CanonicalDivergence.v7Declined(form,
                     "host-partition-sqltext");
             return;
         }
         // §8 leg 4 (census-first split): an assert whose ARGUMENTS pull
-        // the sqlQueryToString-family vocabulary compares PLAN TEXT by
-        // content, whatever its form name — §2 partition, never routed
-        // (these were the sql-text rows hiding inside the resolver's
-        // class-query-under wall census)
+        // a sql-producer call compares PLAN TEXT by content, whatever
+        // its form name — §2 partition, never routed
         if (af.parameters().stream()
-                .anyMatch(EngineTestExecutor::containsSqlText)) {
+                .anyMatch(p -> containsSqlProducer(p, ctx))) {
             com.legend.exec.CanonicalDivergence.v7Declined(form,
                     "host-partition-sqltext");
             return;
