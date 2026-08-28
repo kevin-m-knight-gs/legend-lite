@@ -550,9 +550,7 @@ public final class EngineTestExecutor {
             // clean run counts as engine-parity execution; a wall keeps
             // the old skip (tolerant: print text is never asserted)
             if (stmt instanceof AppliedFunction pln
-                    && harnessVocabName(pln.function())
-                    && ("println".equals(simpleName(pln.function()))
-                            || "print".equals(simpleName(pln.function())))) {
+                    && resolvesTo(pln, ctx, PRINT_FQNS)) {
                 if (pln.parameters().size() == 1
                         && !(pln.parameters().get(0) instanceof CString)) {
                     try {
@@ -570,11 +568,7 @@ public final class EngineTestExecutor {
             // engine test-harness WRAPPERS: the lambda argument's body IS
             // the test — inline its statements at the front of the worklist
             if (stmt instanceof AppliedFunction wrap
-                    && harnessVocabName(wrap.function())
-                    && java.util.Set.of("runLegendTest", "runTest",
-                            "runGraphFetchTest", "mayExecuteAlloyTest",
-                            "mayExecuteLegendTest")
-                            .contains(simpleName(wrap.function()))) {
+                    && resolvesTo(wrap, ctx, TEST_WRAPPER_FQNS)) {
                 LambdaFunction inner = null;
                 // mayExecute* carries TWO legs (alloy-lambda, pure-lambda):
                 // legend-lite executes the in-process Alloy-shaped path, so
@@ -751,8 +745,7 @@ public final class EngineTestExecutor {
                 }
             }
             if (stmt instanceof AppliedFunction af
-                    && harnessVocabName(af.function())
-                    && simpleName(af.function()).startsWith("assert")) {
+                    && resolvesTo(af, ctx, ASSERT_FORM_FQNS)) {
                 String failure = checkAssert(af, lets, execStmts, execVars,
                         execChains, ctx, imports,
                         runtimeFqn, conn, emptinessUnverifiable
@@ -1080,8 +1073,7 @@ public final class EngineTestExecutor {
             }
         }
         if (!(cur instanceof AppliedFunction clg)
-                || !harnessVocabName(clg.function())
-                || !simpleName(clg.function()).equals("compileLegendGrammar")
+                || !resolvesTo(clg, null, COMPILE_LEGEND_GRAMMAR_FQNS)
                 || clg.parameters().size() != 1) {
             return rhs;
         }
@@ -2365,12 +2357,53 @@ public final class EngineTestExecutor {
         }
     }
 
-    /** Harness vocabulary matches by SIMPLE name only for BARE or
-     * meta::-qualified spellings — a user function my::pkg::assertFoo
-     * must route to the platform, never be hijacked (audit 17). */
-    static boolean harnessVocabName(String fn) {
-        return !fn.contains("::") || fn.startsWith("meta::");
+    /** The ASSERT-FORM register: DERIVED from the platform registry
+     * (every native in the meta::pure::functions::asserts package) plus
+     * the corpus-defined assert functions, by exact FQN. Replaces the
+     * old name-shape gate (harnessVocabName + startsWith("assert") —
+     * the same sniffing class slice 2 deleted for sql producers). */
+    static final java.util.Set<String> ASSERT_FORM_FQNS;
+    static {
+        java.util.Set<String> s = new java.util.LinkedHashSet<>();
+        for (var f : com.legend.builtin.Pure.all()) {
+            String q = f.qualifiedName();
+            if (q.startsWith("meta::pure::functions::asserts::")) {
+                s.add(q);
+            }
+        }
+        // corpus-defined assert forms (engine .pure sources, exact FQNs)
+        s.add("meta::relational::functions::asserts::assertSameSQL");
+        s.add("meta::relational::functions::sqlQueryToString::h2"
+                + "::assertEqualsH2Compatible");
+        s.add("meta::relational::testDataGeneration::tests::assertSqlEquals");
+        s.add("meta::relational::testDataGeneration::tests::assertTestData");
+        s.add("meta::pure::functions::relation::assertTdsEquivalent");
+        ASSERT_FORM_FQNS = java.util.Set.copyOf(s);
     }
+
+    /** Engine test-harness WRAPPER functions whose lambda argument's
+     * body IS the test (exact corpus FQNs). */
+    static final java.util.Set<String> TEST_WRAPPER_FQNS = java.util.Set.of(
+            "meta::relational::tests::query::runLegendTest",
+            "meta::relational::tests::query::paginate::helper::runTest",
+            "meta::external::query::graphQL::transformation::queryToPure"
+                    + "::dynamic::tests::objectValueToExpression::runTest",
+            "meta::external::query::graphQL::transformation::queryToPure"
+                    + "::dynamic::tests::queryToLambda::runTest",
+            "meta::relational::tests::query::paginate::helper"
+                    + "::runGraphFetchTest",
+            "meta::alloy::test::mayExecuteAlloyTest",
+            "meta::legend::test::mayExecuteLegendTest");
+
+    static final java.util.Set<String> PRINT_FQNS = java.util.Set.of(
+            "meta::pure::functions::io::print",
+            "meta::pure::functions::io::println");
+
+    static final java.util.Set<String> COMPILE_LEGEND_GRAMMAR_FQNS =
+            java.util.Set.of("meta::legend::compileLegendGrammar");
+
+    static final java.util.Set<String> MAP_FQNS =
+            java.util.Set.of("meta::pure::functions::collection::map");
 
     /** The WithVariables wrapper idiom (runLegendTest($f, pairs,
      * expected) / runTest($f, vars, sql, count), $f a PARAMETERIZED query
@@ -2460,9 +2493,7 @@ public final class EngineTestExecutor {
                         continue;
                     }
                     if (s2 instanceof AppliedFunction af2
-                            && harnessVocabName(af2.function())
-                            && simpleName(af2.function())
-                                    .startsWith("assert")) {
+                            && resolvesTo(af2, ctx, ASSERT_FORM_FQNS)) {
                         String failure = checkAssert(af2, loopLets,
                                 execStmts, execVars, execChains, ctx,
                                 imports, runtimeFqn, conn,
@@ -2506,8 +2537,7 @@ public final class EngineTestExecutor {
      * elements is a QUERY and must not unroll. */
     private static @com.legend.Nullable List<ValueSpecification> resultVarLoop(ValueSpecification stmt) {
         if (!(stmt instanceof AppliedFunction m
-                && harnessVocabName(m.function())
-                && simpleName(m.function()).equals("map")
+                && resolvesTo(m, null, MAP_FQNS)
                 && m.parameters().size() == 2
                 && m.parameters().get(0) instanceof PureCollection pc
                 && !pc.values().isEmpty()
@@ -2972,12 +3002,21 @@ public final class EngineTestExecutor {
                     "host-partition-tdg");
             return;
         }
-        // §2: the SQL-TEXT forms compare the PLAN, not data — host by
-        // design regardless of outcome; never routed. RESOLVED exact
-        // FQNs (task #13 slice 2), never simple names.
+        // §2: the SQL-TEXT partition — SPLIT run-vs-gen (user question
+        // 2026-08-28): an assert whose sides touch an EXECUTE binding
+        // belongs to a test that ran its query through the platform and
+        // then inspected the generated SQL; a gen-only assert
+        // (toSQLString-family render, no execution anywhere) never ran
+        // anything. Same partition policy, honest census columns.
+        java.util.function.Supplier<String> sqltextReason = () ->
+                af.parameters().stream().anyMatch(p ->
+                        referencesAny(p, execVars) || containsExecute(p))
+                ? "host-partition-sqltext-run"
+                : "host-partition-sqltext-gen";
+        // sql-text ASSERT FORMS — resolved exact FQNs, never names
         if (resolvesTo(af, ctx, SQL_ASSERT_FORM_FQNS)) {
             com.legend.exec.CanonicalDivergence.v7Declined(form,
-                    "host-partition-sqltext");
+                    sqltextReason.get());
             return;
         }
         // §8 leg 4 (census-first split): an assert whose ARGUMENTS pull
@@ -2986,7 +3025,7 @@ public final class EngineTestExecutor {
         if (af.parameters().stream()
                 .anyMatch(p -> containsSqlProducer(p, ctx))) {
             com.legend.exec.CanonicalDivergence.v7Declined(form,
-                    "host-partition-sqltext");
+                    sqltextReason.get());
             return;
         }
         if (hostFailure == UNSUPPORTED_MARKER) {
@@ -2997,7 +3036,7 @@ public final class EngineTestExecutor {
         if (hostFailure == ADVISORY_MARKER || hostFailure != null
                 && hostFailure.startsWith("sql-text: ")) {
             com.legend.exec.CanonicalDivergence.v7Declined(form,
-                    "host-partition-sqltext");
+                    sqltextReason.get());
             return;
         }
         boolean hostPass = hostFailure == null;
@@ -3314,12 +3353,10 @@ public final class EngineTestExecutor {
     // ===== substitution: lets inline, handles splice =====
 
     private static boolean isExecuteCall(AppliedFunction af) {
-        // audit 23 D3: harness-vocab gate — a USER function named
-        // 'execute' (my::execute) must not be commandeered into the
-        // platform result-frame path
-        return harnessVocabName(af.function())
-                && (af.function().equals("execute")
-                        || af.function().endsWith("::execute"))
+        // by RESOLUTION to the one real execute FQN (router, post-R8) —
+        // a user function my::execute never matches (audit 23 D3 intact,
+        // now by identity instead of the vocab gate + suffix pair)
+        return resolvesTo(af, null, ExecCallFinder.EXECUTE_FQNS)
                 && af.parameters().size() >= 2;
     }
 

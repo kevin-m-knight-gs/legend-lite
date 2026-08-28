@@ -50,9 +50,8 @@ final class ElqSplice {
             CString name, ValueSpecification rhs,
             Map<String, ValueSpecification> lets) {
         if (!(rhs instanceof AppliedFunction elq)
-                || !EngineTestExecutor.harnessVocabName(elq.function())
-                || !EngineTestExecutor.simpleName(elq.function())
-                        .equals("executeLegendQuery")
+                || !EngineTestExecutor.resolvesTo(elq, null,
+                        java.util.Set.of("meta::legend::executeLegendQuery"))
                 || elq.parameters().isEmpty()
                 || !(EngineTestExecutor.substitute(elq.parameters().get(0), lets)
                         instanceof LambdaFunction qlf)

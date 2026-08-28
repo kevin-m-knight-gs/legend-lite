@@ -593,6 +593,63 @@ typed-tree cutover; slice 3 = the host-produced String[1] short
 circuit + routing these asserts through actual evaluation with the
 advisory/h2-replay POLICY preserved at the verdict layer.
 
+## 4Y. HARNESS-DISPATCH IDENTITY CUTOVER (2026-08-28)
+
+**harnessVocabName is DELETED — all nine sites.** The user's catch:
+a hard-coded name list deciding what the harness recognizes is the
+same disease as the sql sniffing, and `startsWith("assert")` was a
+name-PREFIX match. Every recognition site now resolves IDENTITY
+through the one `resolvesTo` path (explicit FQN → resolver import
+candidates → model lookup → exact register lookup for bare
+spellings):
+
+| site | old gate | new register |
+|---|---|---|
+| assert dispatch (main + per-driver loop) | vocab + startsWith("assert") | ASSERT_FORM_FQNS — DERIVED from the platform registry (every native in meta::pure::functions::asserts) + 5 corpus assert FQNs |
+| test wrappers (runLegendTest/runTest/runGraphFetchTest/mayExecute*) | vocab + simple-name set | TEST_WRAPPER_FQNS (7 exact corpus FQNs) |
+| print/println statements | vocab + simple names | PRINT_FQNS (io::print, io::println) |
+| compileLegendGrammar splice | vocab + simple name | COMPILE_LEGEND_GRAMMAR_FQNS |
+| per-driver map loop | vocab + "map" | MAP_FQNS (collection::map) |
+| executeLegendQuery splice (ElqSplice) | vocab + simple name | meta::legend::executeLegendQuery |
+| isExecuteCall | vocab + bare-or-::execute suffix | ExecCallFinder.EXECUTE_FQNS (router, post-R8) |
+
+WHAT REMAINS in the harness, honestly classified: checkAssert — the
+HOST LATTICE, the V7 program's own referee (dual-channel, counted
+every sweep, D3-pinned for wholesale deletion at cutover) — plus
+pure ORCHESTRATION (unwrap wrappers, unroll loops, splice sources)
+whose evaluation all happens through the platform. Recognition is
+now identity everywhere; evaluation-in-harness = the referee only.
+
+**Census headline honesty**: v7Summary now prints
+`agree / disagree / sqltext / tdg / declined` — the two BY-DESIGN
+text partitions (sql renders 1,529; test-data-generation CSV 123)
+are their own columns; `declined` finally means real migration
+backlog only: **417** (the leg-4 remainder estimate ~419, confirmed
+by measurement). FALSIFIER: both partitions re-measured EXACTLY
+under identity dispatch — zero rows moved.
+
+sql-text anatomy (user question, MEASURED and pinned): the 1,529
+splits **run 1,491 / gen 38**. -gen = render-only (toSQLString
+family reads with no execute anywhere in the assert's sides) — pure
+short circuit, nothing ran. -run = the test EXECUTED its query
+through the platform (seeds, SQL, rows — pure is strict) and the
+assert inspects the generated SQL; only the COMPARE is a text
+short-circuit.
+
+**Text-vs-exec disagreement is already separated** (user question):
+the dual channel is PER-ASSERT, so a run-backed test's ROW asserts
+land in agree/disagree (the exec verdict) while its SQL assert
+lands in sqltext. Within sqltext-run, the golden-replay machinery
+decomposes the compare outcome: 320 text-match (replayed on H2,
+rows verified) + 632 text-DIFFERS-rows-EQUAL (the "disagree on
+text, agree on exec" class, each divergence recorded) + 0
+rows-DIFFER (HARD-GATED at zero — a real exec disagreement fails
+the sweep) + 145 unverifiable (the honest unknown, shrink-only,
+leg 7). The remaining 394 run-backed asserts have their own compare
+arms (assertEqualsH2Compatible's 322 compare two pre-rendered
+strings; mixed forms stay unsupported) — reconciling those into
+the replay machinery is a named follow-up, not a silent gap.
+
 ## 8. PLAN OF ATTACK — the batch-2 remainder → cutover (handoff,
 ## 2026-08-28)
 
@@ -617,7 +674,7 @@ once during a full corpus sweep. Of **5,241** total:
 
 | bucket | count | plan |
 |---|---|---|
-| sql/plan-text compares (assertSameSQL family + CONTENT-classified sqlQueryToString-family args, §4U census split) | 1,529 | **OUT of the migration by design, permanently.** Already end-state: text match → H2 row-check (320, 0 diverged); text differs → engine's golden SQL executes on H2, rows vs our rows (632 verified, 0 diverged); unverifiable → advisory, counted by reason (145 — LEG 8 burns these) |
+| sql/plan-text compares (assertSameSQL family + CONTENT-classified sqlQueryToString-family args, §4U census split; §4Y run/gen split: **run 1,491 / gen 38**) | 1,529 | **OUT of the migration by design, permanently.** Already end-state: text match → H2 row-check (320, 0 diverged); text differs → engine's golden SQL executes on H2, rows vs our rows (632 verified, 0 diverged); unverifiable → advisory, counted by reason (145 — LEG 8 burns these); 394 run-backed asserts on their own compare arms (h2Compatible 322 + mixed) — reconciliation = named follow-up |
 | TDG/test-data-gen text compares | 123 | OUT by design, permanently (host artifacts) |
 | host-unsupported forms | 28 | name-by-name adjudication (leg 6) |
 | **adjudicating through the production verdict path today** | **2,658** | 2,650 agree + 8 named wire-fidelity disagreements (leg 5) |

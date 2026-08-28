@@ -403,13 +403,23 @@ class EngineTestExecutorTest {
     }
 
     @Test
-    void unknownAssertFormIsLoudUnsupported() throws Exception {
-        EngineTestExecutor.Outcome o = run("""
+    void unknownAssertFormIsLoudFailure() throws Exception {
+        // Identity dispatch (§4Y): a call is an ASSERT FORM iff it
+        // RESOLVES into the assert register — an assert-SHAPED name that
+        // resolves nowhere is an ordinary unknown function and fails
+        // LOUDLY at the platform (real pure would not compile it either).
+        // Under the old startsWith("assert") prefix gate this was a
+        // named Unsupported; the intent — never a silent pass — holds
+        // in the STRONGER form.
+        Exception e = org.junit.jupiter.api.Assertions.assertThrows(
+                Exception.class, () -> run("""
                 let result = execute(|Person.all()->project([p|$p.name], ['name']),
                         test::M, r(), e());
                 assertContainsExactly($result.values, 'Bob');
-                """);
-        assertInstanceOf(EngineTestExecutor.Outcome.Unsupported.class, o);
+                """));
+        assertTrue(String.valueOf(e.getMessage())
+                        .contains("assertContainsExactly"),
+                String.valueOf(e.getMessage()));
     }
 
     @Test

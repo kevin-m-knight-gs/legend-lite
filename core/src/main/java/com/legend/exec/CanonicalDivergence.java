@@ -384,8 +384,19 @@ public final class CanonicalDivergence {
                         .append(':').append(n);
             }
         }
+        // sql-text and tdg are BY-DESIGN partitions, not migration debt
+        // — their own headline columns (task #13). sqltext splits
+        // run-vs-gen: -run members EXECUTED their query through the
+        // platform and then inspected the generated SQL (only the
+        // compare is a text short-circuit); -gen members render without
+        // executing (toSQLString family).
+        long stRun = v7DeclinedByReason("host-partition-sqltext-run");
+        long stGen = v7DeclinedByReason("host-partition-sqltext-gen");
+        long tdg = v7DeclinedByReason("host-partition-tdg");
         return "dual-channel agree=" + agree + " disagree=" + disagree
-                + " declined=" + v7DeclinedCount()
+                + " sqltext-run=" + stRun + " sqltext-gen=" + stGen
+                + " tdg=" + tdg
+                + " declined=" + (v7DeclinedCount() - stRun - stGen - tdg)
                 + " | side-rows" + (hist.isEmpty() ? " none" : hist);
     }
 

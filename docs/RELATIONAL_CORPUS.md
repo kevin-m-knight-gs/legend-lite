@@ -54,7 +54,7 @@ shared source registered by several families cannot double-count. Run with
 | postprocessor | 7 | 0 | 0 | 7 | 0 | 0 | 0 | 0 | 0 |
 | postprocessor/tests | 30 | 23 | 2 | 1 | 4 | 1 | 1 | 0 | 20 |
 | pureToSQLQuery/tests | 14 | 6 | 0 | 0 | 8 | 0 | 0 | 0 | 1 |
-| router/tests | 26 | 20 | 0 | 3 | 3 | 3 | 3 | 0 | 2 |
+| router/tests | 26 | 20 | 0 | 4 | 2 | 3 | 3 | 0 | 2 |
 | sqlDialectTranslation | 21 | 21 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/DDL | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,7 +99,7 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2334** | 71 | 77 | 93 | 258 | 304 | 27 | 614 |
+| **total** | 2575 | **2334** | 71 | 78 | 92 | 258 | 304 | 27 | 614 |
 
 SOFT-PASS RECONCILIATION (F2.1): 2334 PASS = 1397 clean + 937 carrying softness (sqldiff 258, advisory 304, 0-asserts 27, text-rescued 614; flags overlap — the union is 937).
 
@@ -1244,7 +1244,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2334 PASS = 1397 clean + 937 carrying softness 
 - SHAPE testImportDataFlow [pureToSQLQuery/tests]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - SHAPE testMergeOldAliasToNewAlias [pureToSQLQuery/tests]: no execute(|...) call — wall: in function 'meta::relational::functions::pureToSqlQuery::mergeOldAliasToNewAlias': cannot access 'name' on V
 - SHAPE testReAliasMergedJoinOperations [pureToSQLQuery/tests]: no execute(|...) call — wall: in function 'meta::relational::tests::functions::pureToSqlQuery::buildJoinTreeNode': class 'meta::external::query::sql::metamodel::Join' has no property 'name'
-- SHAPE testPrerouting42 [router/tests]: assert form 'assertRoundTrip/3' is not supported yet
+- ERROR testPrerouting42 [router/tests]: 'meta::pure::router::preeval::tests::Person' is not a known class, mapping, runtime, connection, or database
 - ERROR testRoutingWithSubtypePropagation [router/tests]: multi-hop navigation employees.stc_meta__relational__tests__model__simple__PersonExtension___manager.stc_meta__relational__tests__model__simple__PersonExtension___firstName through an embedded/slot head is not supported yet [assocs=[employees]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testPlatformExpressionDependencyOnAFromExpression [router/tests]: no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - ERROR testPlatformExpressionDependencyOnAFromExpression2 [router/tests]: no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
@@ -1270,7 +1270,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2334 PASS = 1397 clean + 937 carrying softness 
 - ERROR testExtendDigest_Relational [tds/tests]: unbound variable '$_nr2'
 - SHAPE testFirstNotNull [tds/tests]: no execute(|...) call [calls meta::pure::tds::extensions] — wall: unresolved type variable T reached the lowering boundary
 - SHAPE zScoreTest [tds/tests]: no execute(|...) call — wall: unknown function 'getNumber' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
-- SHAPE resolveSchemaTest [tds/tests]: no execute(|...) call [calls meta::relational::functions::database] — wall: assert form 'meta::pure::tds::schema::tests::assertSchemaRoundTripEquality/2' is not supported yet
+- SHAPE resolveSchemaTest [tds/tests]: no execute(|...) call [calls meta::relational::functions::database] — wall: 'Address' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - SHAPE testParseDate [tds/tests]: no execute(|...) call [calls meta::relational::functions::sqlstring] — wall: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedNativeCall > TypedLambda > TypedExte
 - ERROR testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: unbound variable '$_nr2'

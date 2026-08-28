@@ -27,13 +27,17 @@ class V7DualChannelCensusTest {
             CanonicalDivergence.v7Verdict("assertSameElements/2", false,
                     true, "host multiset failed, prod passed");
             CanonicalDivergence.v7Declined("assertSameSQL/2",
-                    "host-partition-sqltext");
+                    "host-partition-sqltext-run");
             CanonicalDivergence.v7Declined("assertSameSQL/2",
-                    "host-partition-sqltext");
+                    "host-partition-sqltext-run");
             assertEquals(2, CanonicalDivergence.v7DisagreeCount());
             assertEquals(2, CanonicalDivergence.v7DeclinedCount());
+            // by-design partitions are their own headline columns; the
+            // declined column is real backlog ONLY (run/gen split:
+            // -run executed its query, -gen rendered without executing)
             assertTrue(CanonicalDivergence.v7Summary().startsWith(
-                    "dual-channel agree=2 disagree=2 declined=2"),
+                    "dual-channel agree=2 disagree=2 sqltext-run=2"
+                            + " sqltext-gen=0 tdg=0 declined=0"),
                     CanonicalDivergence.v7Summary());
             var report = CanonicalDivergence.v7Report();
             assertTrue(report.contains(
@@ -42,7 +46,7 @@ class V7DualChannelCensusTest {
                     "form assertSameElements/2 agree=0 disagree=1"),
                     report.toString());
             assertTrue(report.contains(
-                    "declined assertSameSQL/2 :: host-partition-sqltext = 2"),
+                    "declined assertSameSQL/2 :: host-partition-sqltext-run = 2"),
                     report.toString());
             // both disagreements carry a witness row
             assertEquals(2, report.stream()

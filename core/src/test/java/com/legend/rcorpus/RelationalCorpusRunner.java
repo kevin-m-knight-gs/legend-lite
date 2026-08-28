@@ -616,10 +616,19 @@ public class RelationalCorpusRunner {
             // RESOLUTION-backed classifier (exact FQNs, resolvesTo)
             // reproduces this count exactly — the name-sniffing
             // deletion moved the mechanism, not one row.
-            org.junit.jupiter.api.Assertions.assertEquals(1529,
+            // run-vs-gen split (user question 2026-08-28, measured then
+            // pinned): -run EXECUTED its query through the platform and
+            // then inspected the generated SQL; -gen rendered without
+            // executing (toSQLString family). Sum = the ratified 1529.
+            org.junit.jupiter.api.Assertions.assertEquals(1491,
                     com.legend.exec.CanonicalDivergence
-                            .v7DeclinedByReason("host-partition-sqltext"),
-                    "lane guard: host-partition-sqltext moved — update"
+                            .v7DeclinedByReason("host-partition-sqltext-run"),
+                    "lane guard: host-partition-sqltext-run moved — update"
+                            + " the charter §8.0 scope table with it");
+            org.junit.jupiter.api.Assertions.assertEquals(38,
+                    com.legend.exec.CanonicalDivergence
+                            .v7DeclinedByReason("host-partition-sqltext-gen"),
+                    "lane guard: host-partition-sqltext-gen moved — update"
                             + " the charter §8.0 scope table with it");
             org.junit.jupiter.api.Assertions.assertEquals(123,
                     com.legend.exec.CanonicalDivergence
