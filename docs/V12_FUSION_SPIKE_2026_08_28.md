@@ -16,8 +16,15 @@ CTE; side-tagged UNION ALL evidence; per-side canon columns with
 equality; expected literals inline). Canon spellings hand-mirrored
 from `LiteralSpelling` (the platform's SQL canon owner). Executed on
 python-duckdb 1.4.4 (platform runs JDBC 1.5.0 — a landing slice must
-re-verify through the platform's own emission). Script:
-[`tools/spikes/fusion_spike_2026_08_28.py`](../tools/spikes/fusion_spike_2026_08_28.py).
+re-verify through the platform's own emission). Runnable receipts,
+all in `tools/spikes/`:
+[`fusion_spike_2026_08_28.py`](../tools/spikes/fusion_spike_2026_08_28.py)
+(round 1: the four base tests + micro-probes),
+[`fusion_spike2_2026_08_28.py`](../tools/spikes/fusion_spike2_2026_08_28.py)
+(round 2: the five harder tests),
+[`fusion_probes_2026_08_28.py`](../tools/spikes/fusion_probes_2026_08_28.py)
+(the adjudication micro-probes: canonical JSON emission, MATERIALIZED
+evaluate-once, one-result-set evidence layout).
 
 | test (real corpus fn) | shape | fused verdicts | polarity |
 |---|---|---|---|
