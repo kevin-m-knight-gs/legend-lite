@@ -2188,6 +2188,12 @@ Derivation points settled en route:
   Same execution count as the deleted runCanon round trip. The fold
   survives as the last-resort value source for literals SQL cannot
   spell (NUL-bearing strings — testEmptyChar) with a counted decline.
+  [OUTDATED 2026-08-28, user catch: the unspellable class no longer
+  exists — AnsiSqlRenderer.stringLit splices chr(0) between quoted
+  segments (landed 2026-08-22, user-verified against the database in
+  the code comment itself). Every string literal is SQL-spellable;
+  LiteralFold is purely a round-trip optimization on unfused rungs,
+  with no last-resort semantic role.]
 - The canon-exec decline tunnel (the V11 form of prepCanon's catch):
   a wrapped-query failure re-executes the BARE plan and declines the
   canon — a canon column can never poison the value fetch. Witness:
