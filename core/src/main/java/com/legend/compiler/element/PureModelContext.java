@@ -396,6 +396,37 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public java.util.@com.legend.Nullable List<String> classifierInstances(
+            String classifierFqn) {
+        // the registry table (METAMODEL_STORE_HANDOFF.md §3): tracked
+        // classifiers answer their extent, everything else is null (a
+        // user class — the store lane owns it)
+        java.util.stream.Stream<String> fqns;
+        if (com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS
+                .equals(classifierFqn)) {
+            fqns = java.util.stream.Stream.concat(
+                    model.classes().map(c -> c.qualifiedName()),
+                    com.legend.builtin.Pure.allNativeClasses().stream()
+                            .map(c -> c.qualifiedName()));
+        } else if (com.legend.builtin.Pure.ENUMERATION.qualifiedName()
+                .equals(classifierFqn)) {
+            fqns = java.util.stream.Stream.concat(
+                    model.enums().map(e -> e.qualifiedName()),
+                    com.legend.builtin.Pure.allNativeEnums().stream()
+                            .map(e -> e.qualifiedName()));
+        } else if ("meta::pure::metamodel::relationship::Association"
+                .equals(classifierFqn)) {
+            fqns = model.associations().map(a -> a.qualifiedName());
+        } else if (com.legend.builtin.Pure.MAPPING_METACLASS.qualifiedName()
+                .equals(classifierFqn)) {
+            fqns = model.mappings().map(m -> m.qualifiedName());
+        } else {
+            return null;
+        }
+        return fqns.distinct().sorted().toList();
+    }
+
+    @Override
     public java.util.Set<String> functionFqns() {
         java.util.Set<String> out = new java.util.HashSet<>();
         model.functions().forEach(f -> out.add(f.qualifiedName()));

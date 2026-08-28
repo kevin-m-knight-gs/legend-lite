@@ -534,7 +534,12 @@ public final class Pure {
     // ---- Metaclass ----
     // Pure exposes the metaclass as `Class<T>` (parameterized over the
     // class it describes); used by signatures like `getAll(Class<T>):T[*]`.
-    public static final ClassDefinition CLASS = nativeClass("native Class meta::pure::metamodel::type::Class<T> extends meta::pure::metamodel::type::Type {}");
+    // name: real M3 inherits it from ModelElement (m3.pure); declared
+    // here directly since our native chain carries no ModelElement
+    // properties — the metamodel-store leg's witnessed reflection
+    // surface (METAMODEL_STORE_HANDOFF.md §4, 2026-08-28). `package`
+    // stays a store COLUMN only until a witness reads the property.
+    public static final ClassDefinition CLASS = nativeClass("native Class meta::pure::metamodel::type::Class<T> extends meta::pure::metamodel::type::Type { name: meta::pure::metamodel::type::String[1]; }");
     // the m3 relation COLUMN metaclass (columns() reflection — the
     // witnessed surface is .name; real m3 Column<T,X|z>'s multiplicity
     // param drops per the ratified single-divergence convention)

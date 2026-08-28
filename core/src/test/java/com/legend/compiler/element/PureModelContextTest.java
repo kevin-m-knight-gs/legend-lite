@@ -284,4 +284,46 @@ class PureModelContextTest {
               + "Class model::P2 [adult: my::funcs::isAdult] { x: Integer[1]; }");
         assertTrue(ctx.findClass("model::P2").isPresent());   // does not throw
     }
+
+    // ====================================================================
+    // classifierInstances — the virtual metamodel graph source
+    // (METAMODEL_STORE_HANDOFF.md §3)
+    // ====================================================================
+
+    @Test
+    @DisplayName("classifierInstances(Class) = user classes ∪ native classes, sorted by FQN")
+    void classifierInstancesClassExtent() {
+        PureModelContext ctx = fixture();
+        List<String> extent = ctx.classifierInstances(
+                com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS);
+        assertTrue(extent.contains("model::Person") && extent.contains("model::Address"),
+                () -> "user classes missing from the Class extent");
+        assertTrue(extent.contains(Pure.CLASS.qualifiedName())
+                        && extent.contains(Pure.ANY.qualifiedName()),
+                () -> "native classes missing from the Class extent");
+        assertEquals(extent.stream().sorted().toList(), extent,
+                "deterministic order: sorted by FQN");
+    }
+
+    @Test
+    @DisplayName("classifierInstances(Enumeration) includes user and native enums")
+    void classifierInstancesEnumExtent() {
+        List<String> extent = fixture().classifierInstances(
+                Pure.ENUMERATION.qualifiedName());
+        assertTrue(extent.contains("model::Color"),
+                "user enum missing from the Enumeration extent");
+        assertTrue(extent.contains(Pure.MONTH.qualifiedName()),
+                "native enum missing from the Enumeration extent");
+    }
+
+    @Test
+    @DisplayName("an untracked classifier answers null (the store lane owns it); a tracked-but-empty one answers []")
+    void classifierInstancesUntrackedIsNull() {
+        PureModelContext ctx = fixture();
+        // a user class is NOT a tracked classifier — null, never []
+        assertSame(null, ctx.classifierInstances("model::Person"));
+        // Association IS tracked; the fixture declares none — honest empty
+        assertEquals(List.of(), ctx.classifierInstances(
+                "meta::pure::metamodel::relationship::Association"));
+    }
 }

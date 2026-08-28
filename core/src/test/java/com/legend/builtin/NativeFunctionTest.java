@@ -909,6 +909,17 @@ class NativeFunctionTest {
                         "ValueSpecification declares exactly genericType"
                                 + " (the deactivate reflection minimum)");
             } else if (c.qualifiedName().equals(
+                    "meta::pure::metamodel::type::Class")) {
+                // metamodel-store leg (2026-08-28,
+                // METAMODEL_STORE_HANDOFF.md §4): the metaclass's
+                // witnessed reflection surface — real M3 inherits name
+                // from ModelElement; ONLY name, so every other read
+                // walls loudly (package stays a store column only)
+                assertEquals(List.of("name"),
+                        c.properties().stream().map(p -> p.name()).toList(),
+                        "the Class metaclass declares exactly name"
+                                + " (the metamodel-store reflection minimum)");
+            } else if (c.qualifiedName().equals(
                     "meta::pure::metamodel::relation::Column")) {
                 // real M3 Column (m3.pure:3530): name is String[0..1]
                 // (elementToPath.pure:24 reads $c.name->toOne());

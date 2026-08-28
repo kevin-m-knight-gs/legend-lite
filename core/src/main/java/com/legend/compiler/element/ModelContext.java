@@ -162,6 +162,19 @@ public interface ModelContext {
         return java.util.Set.of();
     }
 
+    /** THE VIRTUAL METAMODEL GRAPH source: the compile context's
+     * registered instances of {@code classifierFqn}, as element FQNs —
+     * the engine's instancesByClassifier index transposed onto our
+     * element registry. No metaclass list rides any DISPATCH: coverage
+     * is a fact about what the registry stores, and new element kinds
+     * join by joining the registry. {@code null} = the registry does not
+     * TRACK this classifier (a user class — the store lane owns it); an
+     * empty list is an honest empty extent. Deterministic: sorted by FQN. */
+    default java.util.@com.legend.Nullable List<String> classifierInstances(
+            String classifierFqn) {
+        return null;
+    }
+
     /** Is {@code fqn} a Database store element? (Typed as the store
      * metaclass in value position — see Typer.classReference.) */
     default boolean isDatabase(String fqn) {
