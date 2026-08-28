@@ -589,6 +589,34 @@ public class RelationalCorpusRunner {
                     com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 320,
                     "M1 h2-exec verified fell below the 320 floor: "
                     + com.legend.harness.H2Verify.M1_VERIFIED.sum());
+            // V7 §8.0 leg 0 — the LANE-CLASSIFICATION GUARD (charter
+            // scope table, user-ratified 2026-08-28): the sql-text/TDG
+            // partition counts pin EXACTLY — an assert can never change
+            // lanes silently; a corpus change that moves these updates
+            // the pin AND the charter table in the same commit.
+            org.junit.jupiter.api.Assertions.assertEquals(961,
+                    com.legend.exec.CanonicalDivergence
+                            .v7DeclinedByReason("host-partition-sqltext"),
+                    "lane guard: host-partition-sqltext moved — update"
+                            + " the charter §8.0 scope table with it");
+            org.junit.jupiter.api.Assertions.assertEquals(123,
+                    com.legend.exec.CanonicalDivergence
+                            .v7DeclinedByReason("host-partition-tdg"),
+                    "lane guard: host-partition-tdg moved — update the"
+                            + " charter §8.0 scope table with it");
+            // leg 7 ratchets: row-verification coverage holds its
+            // floor; the unverifiable residue only SHRINKS (the 145
+            // burndown — each fix converts an advisory pass into a
+            // row-verified pass and moves these two in lockstep).
+            org.junit.jupiter.api.Assertions.assertTrue(
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 632,
+                    "M1 h2-exec rescued fell below the 632 floor: "
+                    + com.legend.harness.H2Verify.M1_RESCUED.sum());
+            org.junit.jupiter.api.Assertions.assertTrue(
+                    com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 145,
+                    "M1 h2-exec unverifiable grew past the 145 ceiling"
+                    + " (leg-7 burndown is shrink-only): "
+                    + com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum());
         }
         System.out.println("[rcorpus] seed replay: "
                 + Runner.SEED_CALLS.get() + " calls, "

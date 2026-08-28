@@ -356,6 +356,16 @@ public final class CanonicalDivergence {
         return V7_DECLINES.values().stream().mapToLong(AtomicLong::get).sum();
     }
 
+    /** V7 §8.0 leg 0 — the lane-classification guard's reader: total
+     * declines carrying one classification reason (the "form ::
+     * reason" key tail), summed across forms. */
+    public static long v7DeclinedByReason(String reason) {
+        String tail = " :: " + reason;
+        return V7_DECLINES.entrySet().stream()
+                .filter(e -> e.getKey().endsWith(tail))
+                .mapToLong(e -> e.getValue().get()).sum();
+    }
+
     public static String v7Summary() {
         long agree = 0;
         long disagree = 0;
