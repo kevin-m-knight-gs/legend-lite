@@ -89,6 +89,16 @@ public final class ResultEnvelopeSplice {
          * recomputed from the frame's actual chain. Null when the chain
          * is not that shape. */
         @com.legend.Nullable String aggAwareRewrittenQuery(TypedSpec chain);
+
+        /** The activity log's {@code RelationalActivity[n].sql} — the
+         * engine-style rendered SQL of the frame's OWN query (the
+         * compiler's rendered text, the same derived-read doctrine as
+         * {@link #aggAwareRewrittenQuery}; helperFunctions.pure:38-60).
+         * Null when the frame cannot answer (no retained execute call,
+         * or an activity index this platform's single-statement
+         * execution does not produce). */
+        @com.legend.Nullable String relationalActivitySql(
+                String frameName, long activityNumber);
     }
 
     /**
@@ -124,6 +134,14 @@ public final class ResultEnvelopeSplice {
             public @com.legend.Nullable String aggAwareRewrittenQuery(
                     TypedSpec chain) {
                 return frames.aggAwareRewrittenQuery(chain);
+            }
+
+            @Override
+            public @com.legend.Nullable String relationalActivitySql(
+                    String frameName, long activityNumber) {
+                return boundVars.contains(frameName) ? null
+                        : frames.relationalActivitySql(frameName,
+                                activityNumber);
             }
         };
     }
@@ -265,6 +283,25 @@ public final class ResultEnvelopeSplice {
         if (act != null) {
             return act;
         }
+        // sql(result[, n]) family (helperFunctions.pure:38-60, INLINED):
+        // the activity log's RelationalActivity .sql — the frame's own
+        // rendered SQL, same derived-read doctrine as rewrittenQuery
+        TypedSpec sqlRead = relationalSqlRead(n, frames);
+        if (sqlRead != null) {
+            return sqlRead;
+        }
+        // The SAME functions matched AT THE CALL, by exact FQN, before
+        // inlining: the hook rewrites a bare frame-variable ARGUMENT into
+        // its query chain during inlining (the bare-frame arm below), so
+        // by the time the verbatim bodies are spliced in, the frame
+        // identity the activities read needs is gone. The corpus bodies
+        // stay the SPEC; this fold mirrors them exactly (sql = render;
+        // sqlRemoveFormatting = render with \n and \t stripped —
+        // helperFunctions.pure:58).
+        TypedSpec sqlCall = sqlProducerCall(n, frames);
+        if (sqlCall != null) {
+            return sqlCall;
+        }
         // F6.1: $r.activities — the engine's execution-activity trail.
         // We record NONE, and we no longer pretend otherwise: the old
         // empty-collection fold made absence asserts pass for the wrong
@@ -336,6 +373,124 @@ public final class ResultEnvelopeSplice {
                 && ap.property().equals("activities")
                 && ap.source() instanceof TypedVariable av
                 && frames.frame(av.name()) != null;
+    }
+
+    /** The m3 class of the relational activity record (registered
+     * verbatim in {@code Pure.RELATIONAL_ACTIVITY}). */
+    private static final String RELATIONAL_ACTIVITY_FQN =
+            "meta::relational::mapping::RelationalActivity";
+    private static final String INSTANCE_OF_FQN =
+            "meta::pure::functions::meta::instanceOf";
+
+    /** The INLINED {@code sql($result[, n])} chain
+     * (helperFunctions.pure:38-60):
+     * {@code $r.activities->filter(a|$a->instanceOf(RelationalActivity))
+     * ->at(n)->cast(@RelationalActivity).sql} — folded to the frame's own
+     * rendered SQL (a compile-time fact: the SQL is the compiler's
+     * output, retained, not re-derived). Null when not this shape or the
+     * frame cannot answer. */
+    private static @com.legend.Nullable TypedSpec relationalSqlRead(
+            TypedSpec n, Frames frames) {
+        if (!(n instanceof TypedPropertyAccess pa)
+                || !pa.property().equals("sql")) {
+            return null;
+        }
+        TypedSpec src = pa.source();
+        if (src instanceof TypedCast tc) {
+            src = tc.source();
+        }
+        long k;
+        TypedSpec coll;
+        if (src instanceof TypedNativeCall w && !w.args().isEmpty()) {
+            String fq = w.callee().qualifiedName();
+            if (AT_FQN.equals(fq) && w.args().size() == 2
+                    && w.args().get(1) instanceof TypedCInteger ki) {
+                k = ki.value().longValue();
+                coll = w.args().get(0);
+            } else if (TO_ONE_FQN.equals(fq) || FIRST_FQN.equals(fq)) {
+                k = 0;
+                coll = w.args().get(0);
+            } else {
+                return null;
+            }
+        } else {
+            return null;
+        }
+        if (coll instanceof TypedCast c2) {
+            coll = c2.source();
+        }
+        if (!(coll instanceof TypedFilter tf
+                && activitiesRead(tf.source(), frames)
+                && tf.source() instanceof TypedPropertyAccess ap
+                && ap.source() instanceof TypedVariable av
+                && filterKeepsExactly(tf.predicate(), RELATIONAL_ACTIVITY_FQN))) {
+            return null;
+        }
+        String sql = frames.relationalActivitySql(av.name(), k);
+        return sql == null ? null : new TypedCString(sql, n.info());
+    }
+
+    /** The sql-producer FUNCTIONS of the corpus (helperFunctions.pure:
+     * 38-60), by exact FQN — the classification register the sql-text
+     * partition reads (never a name suffix). */
+    public static final String SQL_FQN = "meta::relational::mapping::sql";
+    public static final String SQL_REMOVE_FORMATTING_FQN =
+            "meta::relational::mapping::sqlRemoveFormatting";
+
+    /** A {@code sql($frame[, n])} / {@code sqlRemoveFormatting($frame[, n])}
+     * USER CALL over a frame variable — folded to the frame's rendered
+     * SQL (stripped of {@code \n}/{@code \t} for the RemoveFormatting
+     * forms, mirroring the verbatim body). The String-typed
+     * {@code sqlRemoveFormatting(String)} overload is NOT matched here —
+     * it is ordinary string code and evaluates as written. */
+    private static @com.legend.Nullable TypedSpec sqlProducerCall(
+            TypedSpec n, Frames frames) {
+        if (!(n instanceof com.legend.compiler.spec.typed.TypedUserCall uc)) {
+            return null;
+        }
+        String fqn = uc.callee().qualifiedName();
+        boolean strip = SQL_REMOVE_FORMATTING_FQN.equals(fqn);
+        if (!strip && !SQL_FQN.equals(fqn)) {
+            return null;
+        }
+        if (uc.args().isEmpty()
+                || !(uc.args().get(0) instanceof TypedVariable av)
+                || frames.frame(av.name()) == null) {
+            return null;
+        }
+        long k;
+        if (uc.args().size() == 1) {
+            k = 0;
+        } else if (uc.args().size() == 2
+                && uc.args().get(1) instanceof TypedCInteger ki) {
+            k = ki.value().longValue();
+        } else {
+            return null;
+        }
+        String sql = frames.relationalActivitySql(av.name(), k);
+        if (sql == null) {
+            return null;
+        }
+        return new TypedCString(
+                strip ? sql.replace("\n", "").replace("\t", "") : sql,
+                n.info());
+    }
+
+    /** Whether the filter predicate is the single-statement
+     * {@code x|$x->instanceOf(<classFqn>)} shape — identified by EXACT
+     * FQN of both the native and the class argument, never by name. */
+    private static boolean filterKeepsExactly(TypedLambda pred, String classFqn) {
+        if (pred.parameters().size() != 1 || pred.body().size() != 1) {
+            return false;
+        }
+        return pred.body().get(0) instanceof TypedNativeCall io
+                && INSTANCE_OF_FQN.equals(io.callee().qualifiedName())
+                && io.args().size() == 2
+                && io.args().get(0) instanceof TypedVariable v
+                && v.name().equals(pred.parameters().get(0))
+                && io.args().get(1) instanceof com.legend.compiler.spec.typed
+                        .TypedPackageableRef cr
+                && classFqn.equals(cr.fullPath());
     }
 
     /** Splice a {@code .values} read (over a frame variable or an INLINE

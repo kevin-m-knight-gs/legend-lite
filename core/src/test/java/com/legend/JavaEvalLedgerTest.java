@@ -401,7 +401,13 @@ class JavaEvalLedgerTest {
             // the executor picks the GRID canon wrap from the declared
             // result shape (static, pre-execution); the database
             // renders the row canons. Routing, zero evaluation.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2482),
+            // 2482 -> 2513 (sql-producer leg slice 1, task #13): the
+            // Frames.relationalActivitySql door — the activity log's
+            // RelationalActivity.sql answered from the frame's OWN query
+            // via the SAME engineSql render toSQLString uses (a COMPILER
+            // fact retained and served, no evaluation; ExecFrame keeps
+            // its source execute call for it)
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2513),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

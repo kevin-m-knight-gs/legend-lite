@@ -63,6 +63,26 @@ class AssertVerdictSpliceTest {
             {
                 assert($collection->contains($value), $message);
             }
+            function meta::relational::mapping::sql(result:meta::pure::mapping::Result<Any|*>[1]):String[1]
+            {
+                $result->meta::relational::mapping::sql(0)
+            }
+            function meta::relational::mapping::sql(result:meta::pure::mapping::Result<Any|*>[1], activityNumber:Integer[1]):String[1]
+            {
+                $result.activities->filter(a | $a->instanceOf(meta::relational::mapping::RelationalActivity))->at($activityNumber)->cast(@meta::relational::mapping::RelationalActivity).sql
+            }
+            function meta::relational::mapping::sqlRemoveFormatting(result:meta::pure::mapping::Result<Any|*>[1]):String[1]
+            {
+                $result->meta::relational::mapping::sqlRemoveFormatting(0);
+            }
+            function meta::relational::mapping::sqlRemoveFormatting(result:meta::pure::mapping::Result<Any|*>[1], activityNumber:Integer[1]):String[1]
+            {
+                $result->meta::relational::mapping::sql($activityNumber)->meta::relational::mapping::sqlRemoveFormatting()
+            }
+            function meta::relational::mapping::sqlRemoveFormatting(sql:String[1]):String[1]
+            {
+                $sql->replace('\\n', '')->replace('\\t', '')
+            }
             ###Relational
             Database e::DB (
               Table P (ID INTEGER PRIMARY KEY, NAME VARCHAR(200), AGE INTEGER, NICK VARCHAR(50))
@@ -109,6 +129,32 @@ class AssertVerdictSpliceTest {
                 + " assertEquals(['p1','p2'],"
                 + " $result.values.name->sort());}")).value();
         assertEquals(Boolean.TRUE, v);
+    }
+
+    @Test
+    @DisplayName("sql(result) reads the activity log — the frame's own"
+            + " rendered SQL (engine helperFunctions bodies, verbatim)")
+    void sqlReadFoldsToFrameRender() throws Exception {
+        Object v = ((ExecutionResult.Scalar) run(
+                "{|let result = execute(|e::Person.all()"
+                + "->project([p|$p.name], ['name']), e::M, e::RT, []);"
+                + " $result.activities->filter(a|$a->instanceOf("
+                + "meta::relational::mapping::RelationalActivity))->at(0)"
+                + "->cast(@meta::relational::mapping::RelationalActivity)"
+                + ".sql;}")).value();
+        assertEquals("select \"root\".NAME as \"name\" from P as \"root\"", v);
+    }
+
+    @Test
+    @DisplayName("sqlRemoveFormatting($result) through the VERBATIM helper"
+            + " functions folds at the call (exact FQN, pre-inline)")
+    void sqlProducerCallFolds() throws Exception {
+        Object v = ((ExecutionResult.Scalar) run(
+                "{|let result = execute(|e::Person.all()"
+                + "->project([p|$p.name], ['name']), e::M, e::RT, []);"
+                + " meta::relational::mapping::sqlRemoveFormatting($result);}"))
+                .value();
+        assertEquals("select \"root\".NAME as \"name\" from P as \"root\"", v);
     }
 
     @Test

@@ -1838,7 +1838,15 @@ final class StatementExecutor {
      * scalar root, values IS the collection), and the eager run's result. */
     record ExecFrame(TypedSpec chain, boolean relationRooted,
             @com.legend.Nullable ExecutionResult result,
-            java.util.Map<String, String> tableReplace) {
+            java.util.Map<String, String> tableReplace,
+            @com.legend.Nullable com.legend.compiler.spec.typed
+                    .TypedNativeCall sourceExec) {
+        /** Pre-activity-model constructor (alias frames keep it). */
+        ExecFrame(TypedSpec chain, boolean relationRooted,
+                @com.legend.Nullable ExecutionResult result,
+                java.util.Map<String, String> tableReplace) {
+            this(chain, relationRooted, result, tableReplace, null);
+        }
     }
 
     /**
@@ -1922,7 +1930,7 @@ final class StatementExecutor {
             run = executeTyped(body, env);
         }
         return new ExecFrame(assembled.chain(),
-                assembled.relationRooted(), run, env.tableReplace());
+                assembled.relationRooted(), run, env.tableReplace(), ec);
     }
 
     /** Effectful user calls inside an execute() RUNTIME argument run once
@@ -2074,6 +2082,39 @@ final class StatementExecutor {
             public @com.legend.Nullable String aggAwareRewrittenQuery(
                     TypedSpec chain) {
                 return AggAwareActivities.rewrittenQuery(chain, env.ctx());
+            }
+
+            @Override
+            public @com.legend.Nullable String relationalActivitySql(
+                    String frameName, long activityNumber) {
+                ExecFrame f = allFrames.get(frameName);
+                if (f == null || f.sourceExec() == null
+                        || activityNumber != 0) {
+                    // single-statement execution: exactly one
+                    // RelationalActivity per execute; other indices (and
+                    // alias frames, which lost the source call) stay at
+                    // the loud activities wall
+                    return null;
+                }
+                var ec = f.sourceExec();
+                if (!(ec.args().get(0) instanceof com.legend.compiler.spec
+                                .typed.TypedLambda lam)
+                        || !(ec.args().get(1) instanceof com.legend.compiler
+                                .spec.typed.TypedPackageableRef pr)) {
+                    return null;
+                }
+                // the engine-style render of the frame's own query — the
+                // SAME pipeline as toSQLString(query, mapping, H2, ext)
+                // (the activity log records the SQL the engine GENERATED;
+                // goldens are engine-H2-spelled)
+                var renderer = new com.legend.sql.dialect.EngineStyleH2();
+                EngineSql es = engineSql(lam, pr.fullPath(), specs, env,
+                        renderer);
+                com.legend.sql.SqlQuery post =
+                        com.legend.lowering.SqlPostProcessors.apply(
+                                es.plan(), com.legend.exec
+                                        .PostProcessBoundary.tableReplace());
+                return post == es.plan() ? es.sql() : renderer.render(post);
             }
         });
     }
