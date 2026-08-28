@@ -201,9 +201,14 @@ final class StatementExecutor {
             // Clause 2c: a STATEMENT-ROOT assert-family call is a
             // VERDICT — arguments execute in the database, the judgment
             // is World 1's (AssertVerdicts; pre-inline so the assert
-            // library's pure bodies never β-inline into SQL)
+            // library's pure bodies never β-inline into SQL). V7 batch
+            // 2: the verdict side evaluation carries the SAME envelope
+            // splice hook as ordinary statements — an assert reading an
+            // execute() handle adjudicates over the spliced chain
+            // (audit 19d B2; the splice pin: AssertVerdictSpliceTest).
             ExecutionResult verdict = AssertVerdicts.tryAdjudicate(
-                    bare, letPrefix, specs, env);
+                    bare, letPrefix, specs, env,
+                    spliceHook(execFrames, letPrefix, specs, env));
             if (verdict != null) {
                 result = verdict;
                 continue;
@@ -2429,9 +2434,27 @@ final class StatementExecutor {
             com.legend.exec.@com.legend.Nullable CanonRider rider,
             boolean identity)
             throws java.sql.SQLException {
+        return evalValue(value, letPrefix, specs, env, rider, identity, null);
+    }
+
+    /** V7 batch 2: {@code hook} non-null threads the statement loop's
+     * result-envelope splice into the verdict side evaluation — the
+     * SAME {@code UserCallInliner} hook ordinary statements get, so an
+     * assert side reading an execute() frame compiles the spliced
+     * chain (never a raw variable read). */
+    static @com.legend.Nullable ExecutionResult evalValue(TypedSpec value,
+            java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
+            com.legend.exec.@com.legend.Nullable CanonRider rider,
+            boolean identity,
+            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+                    java.util.Set<String>, TypedSpec> hook)
+            throws java.sql.SQLException {
         java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
         single.add(value);
-        var inliner = new com.legend.compiler.spec.UserCallInliner(specs);
+        var inliner = hook == null
+                ? new com.legend.compiler.spec.UserCallInliner(specs)
+                : new com.legend.compiler.spec.UserCallInliner(specs, hook);
         java.util.List<TypedSpec> body = inliner.inlineBody(single);
         env.queryLets().putAll(inliner.queryLets());
         body = new com.legend.resolver.StoreResolver(env.ctx(), specs)

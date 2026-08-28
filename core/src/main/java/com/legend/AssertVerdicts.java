@@ -43,14 +43,27 @@ final class AssertVerdicts {
 
     private static final String PKG = "meta::pure::functions::asserts::";
 
+    /** V7 batch 2: the statement loop's result-envelope splice hook,
+     * threaded into every side evaluation so an assert argument reading
+     * an execute() frame compiles the SPLICED chain — identical to the
+     * ordinary-statement path (audit 19d B2; splice pin:
+     * AssertVerdictSpliceTest). Null = no frames in scope. */
+    interface SpliceHook extends java.util.function.BiFunction<TypedSpec,
+            java.util.Set<String>, TypedSpec> {
+    }
+
     /** Null = not a statement-root assert this arm owns (generic path
      * continues); otherwise the verdict (TRUE, or the spec's failure
      * raised as the runner's failure). */
     static @com.legend.Nullable ExecutionResult tryAdjudicate(TypedSpec bare,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env) throws java.sql.SQLException {
+            StatementExecutor.ExecEnv env,
+            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+                    java.util.Set<String>, TypedSpec> rawHook)
+            throws java.sql.SQLException {
+        SpliceHook hook = rawHook == null ? null : rawHook::apply;
         if (bare instanceof com.legend.compiler.spec.typed.TypedMap qm) {
-            return quantified(qm, letPrefix, specs, env);
+            return quantified(qm, letPrefix, specs, env, hook);
         }
         String fqn = calleeFqn(bare);
         if (fqn == null) {
@@ -69,17 +82,17 @@ final class AssertVerdicts {
                 return null;
             }
             ExecutionResult.Tabular one =
-                    tabular(targs.get(0), letPrefix, specs, env);
+                    tabular(targs.get(0), letPrefix, specs, env, hook);
             ExecutionResult.Tabular two =
-                    tabular(targs.get(1), letPrefix, specs, env);
+                    tabular(targs.get(1), letPrefix, specs, env, hook);
             if (one == null || two == null) {
                 return null;   // non-tabular shape — fall through, loud later
             }
             double delta = ((Number) one(side(targs.get(2), letPrefix,
-                    specs, env), "assertTdsEquivalent delta")).doubleValue();
+                    specs, env, hook), "assertTdsEquivalent delta")).doubleValue();
             double timeDelta = targs.size() == 4
                     ? ((Number) one(side(targs.get(3), letPrefix, specs,
-                            env), "assertTdsEquivalent timeDelta"))
+                            env, hook), "assertTdsEquivalent timeDelta"))
                             .doubleValue()
                     : 0.0;
             List<String> c1 = one.columns().stream()
@@ -106,9 +119,9 @@ final class AssertVerdicts {
                     return null;
                 }
                 SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
-                        env, false);
+                        env, false, hook);
                 SideFetch af = sideCanon(args.get(1), letPrefix, specs,
-                        env, false);
+                        env, false, hook);
                 // X5: a same-class KEYED pair restricts both sides to
                 // the key tree — the engine's own equality relation for
                 // keyed classes, applied before EITHER channel judges
@@ -131,7 +144,7 @@ final class AssertVerdicts {
                 // rescue. A decline (unclaimed kind, non-SQL arm,
                 // non-scalar shape) is counted and the host judges.
                 SqlVerdict byteVerdict = sqlByteVerdict(args.get(0),
-                        args.get(1), ef, af, letPrefix, env);
+                        args.get(1), ef, af, letPrefix, env, equal);
                 if (byteVerdict != null) {
                     com.legend.exec.CanonicalDivergence.probeSqlVerdict(
                             name, equal, byteVerdict.held(),
@@ -157,9 +170,9 @@ final class AssertVerdicts {
                     return null;
                 }
                 SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
-                        env, true);
+                        env, true, hook);
                 SideFetch af = sideCanon(args.get(1), letPrefix, specs,
-                        env, true);
+                        env, true, hook);
                 var ik = instanceKeys(args.get(0), args.get(1), env);
                 List<Object> e = ik != null
                         ? restrictToKeys(ef.values(), ik) : ef.values();
@@ -173,7 +186,7 @@ final class AssertVerdicts {
                 // the SAME execution; the host multiset judgment above
                 // is the parallel referee.
                 SqlVerdict byteVerdict = sqlByteVerdict(args.get(0),
-                        args.get(1), ef, af, letPrefix, env);
+                        args.get(1), ef, af, letPrefix, env, d == null);
                 if (byteVerdict != null) {
                     com.legend.exec.CanonicalDivergence.probeSqlVerdict(
                             "assertSameElements", d == null,
@@ -192,8 +205,8 @@ final class AssertVerdicts {
                 if (args.size() < 2) {
                     return null;
                 }
-                List<Object> coll = side(args.get(0), letPrefix, specs, env);
-                Object n = one(side(args.get(1), letPrefix, specs, env),
+                List<Object> coll = side(args.get(0), letPrefix, specs, env, hook);
+                Object n = one(side(args.get(1), letPrefix, specs, env, hook),
                         "assertSize size");
                 String d = PureAsserts.assertSize(coll,
                         ((Number) n).longValue());
@@ -204,9 +217,9 @@ final class AssertVerdicts {
                     return null;
                 }
                 SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
-                        env, false);
+                        env, false, hook);
                 SideFetch af = sideCanon(args.get(1), letPrefix, specs,
-                        env, false);
+                        env, false, hook);
                 Object ee = one(ef.values(), "assertEq expected");
                 Object aa = one(af.values(), "assertEq actual");
                 // host judgment FIRST: eq's non-primitive identity rule
@@ -218,7 +231,7 @@ final class AssertVerdicts {
                 // V5/V11 — byte verdict of record (primitive eq
                 // coincides with equal; the identity rule walled above)
                 SqlVerdict byteVerdict = sqlByteVerdict(args.get(0),
-                        args.get(1), ef, af, letPrefix, env);
+                        args.get(1), ef, af, letPrefix, env, d == null);
                 if (byteVerdict != null) {
                     com.legend.exec.CanonicalDivergence.probeSqlVerdict(
                             "assertEq", d == null, byteVerdict.held(),
@@ -238,11 +251,11 @@ final class AssertVerdicts {
                     return null;
                 }
                 String d = PureAsserts.assertEqWithinTolerance(
-                        (Number) one(side(args.get(0), letPrefix, specs, env),
+                        (Number) one(side(args.get(0), letPrefix, specs, env, hook),
                                 "tolerance expected"),
-                        (Number) one(side(args.get(1), letPrefix, specs, env),
+                        (Number) one(side(args.get(1), letPrefix, specs, env, hook),
                                 "tolerance actual"),
-                        (Number) one(side(args.get(2), letPrefix, specs, env),
+                        (Number) one(side(args.get(2), letPrefix, specs, env, hook),
                                 "tolerance delta"));
                 return d == null ? ok() : fail(d);
             }
@@ -255,7 +268,7 @@ final class AssertVerdicts {
                 // (identity/key canon); the egress is one boolean, so
                 // no other lane ever sees the identity field
                 Object c = one(identitySide(args.get(0), letPrefix,
-                        specs, env), name + " condition");
+                        specs, env, hook), name + " condition");
                 boolean held = Boolean.TRUE.equals(c) == name.equals("assert");
                 return held ? ok() : fail("Assert failed");
             }
@@ -267,7 +280,7 @@ final class AssertVerdicts {
                 if (args.size() != 2) {
                     return null;
                 }
-                Object v = one(side(args.get(0), letPrefix, specs, env),
+                Object v = one(side(args.get(0), letPrefix, specs, env, hook),
                         "assertInstanceOf instance");
                 String type = typeRefName(args.get(1));
                 if (type == null) {
@@ -289,7 +302,7 @@ final class AssertVerdicts {
                 if (args.isEmpty()) {
                     return null;
                 }
-                boolean empty = side(args.get(0), letPrefix, specs, env)
+                boolean empty = side(args.get(0), letPrefix, specs, env, hook)
                         .isEmpty();
                 boolean held = empty == name.equals("assertEmpty");
                 return held ? ok()
@@ -434,7 +447,9 @@ final class AssertVerdicts {
     private static @com.legend.Nullable ExecutionResult quantified(
             com.legend.compiler.spec.typed.TypedMap qm,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env) throws java.sql.SQLException {
+            StatementExecutor.ExecEnv env,
+            @com.legend.Nullable SpliceHook hook)
+            throws java.sql.SQLException {
         var lam = qm.mapper();
         if (lam.body().size() != 1) {
             return null;
@@ -469,7 +484,7 @@ final class AssertVerdicts {
         // below stays host-side (Clause 2c)
         TypedSpec predMap = com.legend.compiler.spec.VerdictQueries
                 .predicateVector(qm, lam, aargs.get(0));
-        List<Object> verdicts = identitySide(predMap, letPrefix, specs, env);
+        List<Object> verdicts = identitySide(predMap, letPrefix, specs, env, hook);
         boolean wantTrue = name.equals("assert");
         for (Object v : verdicts) {
             if (Boolean.TRUE.equals(v) != wantTrue) {
@@ -505,7 +520,8 @@ final class AssertVerdicts {
 
     private static @com.legend.Nullable SqlVerdict sqlByteVerdict(
             TypedSpec eSpec, TypedSpec aSpec, SideFetch ef, SideFetch af,
-            List<TypedSpec> letPrefix, StatementExecutor.ExecEnv env) {
+            List<TypedSpec> letPrefix, StatementExecutor.ExecEnv env,
+            boolean hostHeld) {
         List<Object> eVals = ef.values();
         List<Object> aVals = af.values();
         String ke = kindClassOf(eSpec.info().type());
@@ -604,6 +620,20 @@ final class AssertVerdicts {
         // kind; the RUNTIME value kinds (pure's own Number dispatch)
         // SELECT the column — selection, never evaluation. Cross-kind
         // pairs decline to the host lattice's engine-FALSE.
+        // V7 batch 2 (corpus alarm witness GeographicEntityType): an
+        // ENUM kind cannot ride the literal channel — the Any/literal
+        // wire spells the enum VALUE as a string ('CITY') while the
+        // enum canon spells the bare name (CITY), so a byte compare
+        // fabricates inequality where pure's own enum equality holds.
+        // Decline, counted; the host lattice judges.
+        if (!anyNil && (anyAny || ef.rider().literalOnly()
+                || af.rider().literalOnly())
+                && (ke.startsWith("enum:") || ka.startsWith("enum:"))) {
+            com.legend.exec.CanonicalDivergence.sqlDeclined(
+                    "any-pair: enum kind has no literal channel: "
+                            + (ke.startsWith("enum:") ? ke : ka));
+            return null;
+        }
         int ei = 0;
         int ai = 0;
         if ((anyAny || ef.rider().literalOnly()
@@ -676,7 +706,34 @@ final class AssertVerdicts {
             com.legend.exec.CanonicalDivergence.sqlUlpPolicy(detail);
             return new SqlVerdict(true, "2ulp-policy " + detail);
         }
+        // DECLARED TDSNull-sentinel policy (PureAsserts equalScalar:
+        // an EXPECTED literal 'TDSNull' equals an actual NULL cell —
+        // the engine golden's null spelling; audit 16 F5 keeps it
+        // direction-aware). The canon spells the two differently by
+        // construction, so a byte-differing pair that the host lattice
+        // HOLDS and whose expected side carries the sentinel holds BY
+        // POLICY — counted in its own census row (the 2-ULP shape),
+        // never a silent rescue.
+        if (!byteEqual && hostHeld && containsTdsNullSentinel(eVals)) {
+            com.legend.exec.CanonicalDivergence.sqlTdsNullPolicy(detail);
+            return new SqlVerdict(true, "tdsnull-policy " + detail);
+        }
         return new SqlVerdict(byteEqual, detail);
+    }
+
+    /** The engine golden's null spelling anywhere in the EXPECTED wire
+     * values (scalar cells, instance properties, nested lists). */
+    private static boolean containsTdsNullSentinel(
+            @com.legend.Nullable Object v) {
+        return switch (v) {
+            case null -> false;
+            case String s -> "TDSNull".equals(s);
+            case List<?> l -> l.stream()
+                    .anyMatch(AssertVerdicts::containsTdsNullSentinel);
+            case java.util.Map<?, ?> m -> m.values().stream()
+                    .anyMatch(AssertVerdicts::containsTdsNullSentinel);
+            default -> false;
+        };
     }
 
     private static boolean isAnyStamped(TypedSpec s) {
@@ -1001,19 +1058,21 @@ final class AssertVerdicts {
 
     private static SideFetch sideCanon(TypedSpec arg,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env, boolean canonicalOrder)
+            StatementExecutor.ExecEnv env, boolean canonicalOrder,
+            @com.legend.Nullable SpliceHook hook)
             throws java.sql.SQLException {
         var rider = new com.legend.exec.CanonRider(canonicalOrder);
         List<Object> values = decodeSide(StatementExecutor.evalValue(
-                arg, letPrefix, specs, env, rider));
+                arg, letPrefix, specs, env, rider, false, hook));
         return new SideFetch(values, rider);
     }
 
     private static List<Object> side(TypedSpec arg, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env)
+            SpecCompiler specs, StatementExecutor.ExecEnv env,
+            @com.legend.Nullable SpliceHook hook)
             throws java.sql.SQLException {
         return decodeSide(StatementExecutor.evalValue(arg, letPrefix,
-                specs, env));
+                specs, env, null, false, hook));
     }
 
     /** F13c — a side on the IDENTITY LANE without a canon rider: the
@@ -1022,9 +1081,10 @@ final class AssertVerdicts {
      * blind to the field). */
     private static List<Object> identitySide(TypedSpec arg,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env) throws java.sql.SQLException {
+            StatementExecutor.ExecEnv env, @com.legend.Nullable SpliceHook hook)
+            throws java.sql.SQLException {
         return decodeSide(StatementExecutor.evalValue(arg, letPrefix,
-                specs, env, null, true));
+                specs, env, null, true, hook));
     }
 
     private static List<Object> decodeSide(
@@ -1105,9 +1165,10 @@ final class AssertVerdicts {
      * null = the value did not execute to a relation (fall through). */
     private static ExecutionResult.@com.legend.Nullable Tabular tabular(
             TypedSpec arg, List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env) throws java.sql.SQLException {
+            StatementExecutor.ExecEnv env, @com.legend.Nullable SpliceHook hook)
+            throws java.sql.SQLException {
         ExecutionResult r = StatementExecutor.evalValue(arg,
-                letPrefix, specs, env);
+                letPrefix, specs, env, null, false, hook);
         return r instanceof ExecutionResult.Tabular t ? t : null;
     }
 

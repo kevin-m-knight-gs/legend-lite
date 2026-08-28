@@ -42,6 +42,7 @@ class AssertVerdictsTest {
             {
                 assert($condition, | format($formatString, $formatArgs));
             }
+            Enum t::Kind { CITY, REGION }
             """;
 
     private static Connection conn;
@@ -113,6 +114,30 @@ class AssertVerdictsTest {
                 + "  id\n  2\n#, 0.01)}"));
         assertTrue(e.getMessage().contains("assertTdsEquivalent"),
                 e.getMessage());
+    }
+
+    @Test
+    @DisplayName("enum under an Any stamp DECLINES the byte verdict (literal channel"
+            + " cannot spell enum kind) — the host lattice judges, never a fabricated"
+            + " inequality")
+    void enumUnderAnyDeclinesToHost() throws Exception {
+        long disagreeBefore =
+                com.legend.exec.CanonicalDivergence.sqlDisagreeCount();
+        long declinedBefore =
+                com.legend.exec.CanonicalDivergence.sqlDeclinedCount();
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+                "{|assertEquals(t::Kind.CITY, t::Kind.CITY->cast(@Any))}"))
+                .value());
+        assertEquals(disagreeBefore,
+                com.legend.exec.CanonicalDivergence.sqlDisagreeCount(),
+                "enum-under-Any pair must DECLINE, never disagree — the"
+                        + " Any wire spells the enum as a string and a byte"
+                        + " compare against the enum canon fabricates: "
+                        + com.legend.exec.CanonicalDivergence.summary());
+        assertTrue(com.legend.exec.CanonicalDivergence.sqlDeclinedCount()
+                > declinedBefore,
+                "the decline must be COUNTED (never a silent skip): "
+                        + com.legend.exec.CanonicalDivergence.summary());
     }
 
     @Test

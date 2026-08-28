@@ -858,6 +858,10 @@ final class ArchitectureTest {
                 // bounded classified declines, bounded disagreement
                 // witnesses; measurement only — the CanonicalDivergence
                 // pattern
+                // reserved dual-verdict ALARM witness buffer (bounded
+                // 50) — the alarm row must never lose its witness to
+                // shared-sample crowding; measurement only
+                "com.legend.exec.CanonicalDivergence.SQL_DISAGREE_SAMPLES",
                 "com.legend.exec.CanonicalDivergence.V7_FORMS",
                 "com.legend.exec.CanonicalDivergence.V7_DECLINES",
                 "com.legend.exec.CanonicalDivergence.V7_SAMPLES",

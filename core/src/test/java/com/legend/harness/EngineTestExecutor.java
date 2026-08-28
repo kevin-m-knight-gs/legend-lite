@@ -2948,7 +2948,12 @@ public final class EngineTestExecutor {
     }
 
     private static String firstLine(@com.legend.Nullable String msg) {
-        return String.valueOf(msg).split("\\n")[0];
+        for (String ln : String.valueOf(msg).split("\\n")) {
+            if (!ln.isBlank()) {
+                return ln;
+            }
+        }
+        return String.valueOf(msg);
     }
 
     /** Real Pure AUTO-IMPORTS {@code meta::pure::functions::asserts}

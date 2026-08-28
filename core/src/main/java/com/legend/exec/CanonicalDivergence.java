@@ -189,6 +189,17 @@ public final class CanonicalDivergence {
         probeSqlVerdict(family, hostHeld, sqlHeld, "");
     }
 
+    /** RESERVED witness buffer for the DUAL-VERDICT ALARM: a
+     * disagreement is the gated-to-zero signal and must never lose its
+     * witness to shared-buffer crowding (a 200-cap buffer full of
+     * decline rows swallowed the one alarm row, 2026-08-28). */
+    private static final ConcurrentLinkedQueue<Row> SQL_DISAGREE_SAMPLES =
+            new ConcurrentLinkedQueue<>();
+
+    public static List<Row> sqlDisagreeSamples() {
+        return List.copyOf(SQL_DISAGREE_SAMPLES);
+    }
+
     /** {@code detail} carries the two canon texts + fine kinds so a
      * disagreement names its own diagnosis in the census. */
     public static void probeSqlVerdict(String family, boolean hostHeld,
@@ -197,9 +208,13 @@ public final class CanonicalDivergence {
             SQL_AGREE.incrementAndGet();
         } else {
             SQL_DISAGREE.incrementAndGet();
-            sample(new Row(family, hostHeld,
+            Row r = new Row(family, hostHeld,
                     "sql-verdict host=" + hostHeld + " sql=" + sqlHeld
-                            + " " + detail));
+                            + " " + detail);
+            if (SQL_DISAGREE_SAMPLES.size() < 50) {
+                SQL_DISAGREE_SAMPLES.add(r);
+            }
+            sample(r);
         }
     }
 
@@ -236,6 +251,22 @@ public final class CanonicalDivergence {
 
     public static long sqlUlpPolicyCount() {
         return SQL_ULP_POLICY.get();
+    }
+
+    /** V7 batch 2: a byte-differing pair the DECLARED TDSNull-sentinel
+     * policy adjudicated equal (PureAsserts equalScalar: an EXPECTED
+     * 'TDSNull' equals an actual NULL cell — the engine golden's null
+     * spelling). Counted like the 2-ULP policy: rides ON TOP of the
+     * byte channel, never a disagreement rescue. */
+    private static final AtomicLong SQL_TDSNULL_POLICY = new AtomicLong();
+
+    public static void sqlTdsNullPolicy(String detail) {
+        SQL_TDSNULL_POLICY.incrementAndGet();
+        sample(new Row("sqlTdsNullPolicy", true, detail));
+    }
+
+    public static long sqlTdsNullPolicyCount() {
+        return SQL_TDSNULL_POLICY.get();
     }
 
     // ── V7 (docs/V7_ASSERT_VERDICT_CHARTER.md §4.1): the corpus DUAL
@@ -387,7 +418,9 @@ public final class CanonicalDivergence {
         SQL_DISAGREE.set(0);
         SQL_DECLINED.set(0);
         SQL_ULP_POLICY.set(0);
+        SQL_TDSNULL_POLICY.set(0);
         SAMPLES.clear();
+        SQL_DISAGREE_SAMPLES.clear();
         V7_FORMS.clear();
         V7_DECLINES.clear();
         V7_SAMPLES.clear();

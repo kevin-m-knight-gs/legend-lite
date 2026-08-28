@@ -290,7 +290,14 @@ class JavaEvalLedgerTest {
             // +6 (2026-08-28 V7 batch 1): the side-size histogram hook in
             // decodeSide (CanonicalDivergence.v7SideRows) — measurement
             // only, the V12 VALUES-cost bracket; no evaluation added
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 840),
+            // 840->878 (V7 batch 2): SpliceHook threading through every
+            // side evaluation (routing, not evaluation) + two byte-
+            // channel adjudications the dual-verdict alarm caught: the
+            // enum-under-Any NAMED decline and the DECLARED TDSNull-
+            // sentinel policy arm (the 2-ULP shape — a counted policy
+            // row, the LATTICE still owns the rule; the walker only
+            // detects the golden's sentinel spelling)
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 878),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -331,7 +338,10 @@ class JavaEvalLedgerTest {
             // renders, the database evaluates; the extent query itself
             // is ordinary lowered SQL). Setup orchestration, zero
             // evaluation.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2456),
+            // 2456->2469 (V7 batch 2): the evalValue hook overload —
+            // the statement loop's envelope-splice hook threads into
+            // verdict side evaluation. Orchestration, zero evaluation.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2469),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

@@ -637,6 +637,11 @@ public class RelationalCorpusRunner {
         // across every K-arm assert this sweep computed? DISAGREE rows
         // are R2 cutover blockers; RESIDUE sizes the walls.
         System.out.println("[canon] " + com.legend.exec.CanonicalDivergence.summary());
+        // the ALARM witnesses print first from their reserved buffer —
+        // never lost to shared-sample crowding
+        com.legend.exec.CanonicalDivergence.sqlDisagreeSamples().forEach(r ->
+                System.out.println("[canon] ALARM " + r.family() + " "
+                        + r.detail()));
         com.legend.exec.CanonicalDivergence.samples().forEach(r ->
                 System.out.println("[canon] " + r.family() + " " + r.detail()));
         // V7 batch 1 (V7_ASSERT_VERDICT_CHARTER §4.1): the corpus dual
@@ -1124,7 +1129,10 @@ public class RelationalCorpusRunner {
                                     .sqlDisagreeCount() == 0,
                             "DUAL-VERDICT DISAGREEMENT: "
                                     + com.legend.exec.CanonicalDivergence
-                                            .summary()));
+                                            .summary()
+                                    + " witnesses="
+                                    + com.legend.exec.CanonicalDivergence
+                                            .sqlDisagreeSamples()));
             System.out.println("[rcorpus] soft ceilings: sqldiff " + softDiff
                     + "/258, adv " + softAdv + "/304, 0-asserts " + softZero
                     + "/27, rescued " + softRescued + "/614");

@@ -204,6 +204,43 @@ burn is the DECLINE table — chiefly the exec-envelope read lane
 verdict-side lowering/resolver gaps; the host-partition rows (375) are
 the named §2 residue and stay.
 
+## 4M. Batch-2 slice 1 LANDING RECORD (2026-08-28)
+
+**The envelope splice reaches the verdict lane; two byte-channel gaps
+the alarm caught are fixed. Census: agree 141→2,023, declined
+5,100→3,128, disagree 0→90 (named, the next slices' work list).**
+
+- **The splice**: `evalValue` built its `UserCallInliner` WITHOUT the
+  statement loop's `spliceHook` — verdict sides compiled
+  `$result.values` as raw variable reads and walled. The hook now
+  threads `executeStatements` → `tryAdjudicate` → every side
+  evaluation (`SpliceHook`); pin: `AssertVerdictSpliceTest` (adjudicate
+  + polarity + condition/size lanes). `.activities` reads hit F6.1's
+  loud wall — honest declines.
+- **Alarm catch #1 (enum-under-Any)**: the literal channel spells an
+  Any-carried enum as a quoted string while the enum canon spells the
+  bare name — the byte verdict FAILED an assert the engine holds.
+  Fixed as a NAMED decline (`enum kind has no literal channel`);
+  witness `AssertVerdictsTest.enumUnderAnyDeclinesToHost`.
+- **Alarm catch #2 (TDSNull sentinel)**: expected `'TDSNull'` vs an
+  actual NULL cell holds in the lattice by the DECLARED sentinel
+  policy (PureAsserts, expected-direction only) but byte-differs by
+  construction. New declared-policy arm on the byte channel
+  (`sqlTdsNullPolicy`, the 2-ULP shape) — hold BY POLICY, counted.
+- **Alarm witnesses got a RESERVED buffer** (`sqlDisagreeSamples`,
+  printed as `[canon] ALARM`) after the one alarm row was crowded out
+  of the 200-cap shared sample buffer.
+- Full sweep GREEN: inner `sql-verdict disagree=0` (1,464 agree, 478
+  declines), scoreboard byte-identical, soft ceilings exact.
+- **Remaining outer census (next slices)**: disagree 90 = the
+  grid-text render family (CSV floats/TDSNull-in-joined-strings/`~`
+  joins — D3's `GridCompare.renderedText` arm), arrival-order rows
+  (D3 order key), decimal/temporal golden spellings, 3 forAll-contains
+  shapes. Declined 3,128 = resolver class-query-under 924 (largely
+  sql-text family), Tabular sides 654 + Graph sides 214 (the D3 grid /
+  D4 graph verdict arms), §2 partition 375, unknown-function 180 (D4),
+  getAll shapes 177, assertContains-overload 89, TDG unbound 68, tail.
+
 ## 5. Witnesses (before behavior, where possible)
 
 1. Per-form verdict unit witnesses beside AssertVerdictsTest for each
