@@ -2908,6 +2908,16 @@ public final class EngineTestExecutor {
             ImportScope imports, String runtimeFqn, Connection conn) {
         String form = simpleName(af.function()) + "/"
                 + af.parameters().size();
+        // §2: the SQL-TEXT forms compare the PLAN, not data — host by
+        // design regardless of outcome; never routed (their sides pull
+        // sqlQueryToString-family vocabulary through the pipeline)
+        if (java.util.Set.of("assertSameSQL", "assertSameSQLs",
+                "assertEqualsH2Compatible", "assertSqlEquals")
+                .contains(simpleName(af.function()))) {
+            com.legend.exec.CanonicalDivergence.v7Declined(form,
+                    "host-partition-sqltext");
+            return;
+        }
         if (hostFailure == UNSUPPORTED_MARKER) {
             com.legend.exec.CanonicalDivergence.v7Declined(form,
                     "host-unsupported");
@@ -2921,8 +2931,11 @@ public final class EngineTestExecutor {
         }
         boolean hostPass = hostFailure == null;
         // probe isolation: the duplicate executions must not double-feed
-        // the primary lane's pinned compiler censuses
+        // the primary lane's pinned censuses (SqlTypeCensus ceilings,
+        // the R1 [canon] disagree pin); the sql-verdict channel and the
+        // V7 table stay live — they are the probe's own instruments
         com.legend.exec.SqlTypeCensus.probeSuspend(true);
+        com.legend.exec.CanonicalDivergence.r1Suspend(true);
         try {
             evalSpliced(subst(v7Spell(af), lets), execStmts, execVars, ctx,
                     imports, runtimeFqn, conn);
@@ -2944,6 +2957,7 @@ public final class EngineTestExecutor {
                             + firstLine(other.getMessage()));
         } finally {
             com.legend.exec.SqlTypeCensus.probeSuspend(false);
+            com.legend.exec.CanonicalDivergence.r1Suspend(false);
         }
     }
 

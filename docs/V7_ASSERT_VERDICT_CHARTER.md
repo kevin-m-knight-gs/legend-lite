@@ -241,6 +241,80 @@ the alarm caught are fixed. Census: agree 141→2,023, declined
   D4 graph verdict arms), §2 partition 375, unknown-function 180 (D4),
   getAll shapes 177, assertContains-overload 89, TDG unbound 68, tail.
 
+## 4N. Batch-2 slice 2 LANDING RECORD (2026-08-28)
+
+**D3 executed — the grid/order conventions live in verdict
+construction. Census: disagree 90 → 8, agree 2,023 → 2,105.**
+
+- **ORDER VIEW** (`AssertVerdicts.orderView`): SORTED (ends in sort
+  through the audited order-preserving tails, moved verbatim from the
+  harness) / INCIDENTAL (bottoms at a store source or an execution
+  frame — SQL arrival order; engine goldens encode H2's) / DEFINED
+  (pure values). An INCIDENTAL assertEquals fetches CANONICAL-order
+  riders on both sides and judges order-insensitively (exactly the
+  assertSameElements shape); SORTED/DEFINED stay strict. Witness:
+  `AssertVerdictSpliceTest.incidentalOrderPolicy` (reversed golden
+  holds unsorted, FAILS under sort()).
+- **RENDERED-TEXT arm**: toCSV/toString-over-relation/
+  toCSV→replace('\n',sep)/sep-join-over-incidental spellings route to
+  `GridCompare.renderedText` — the one policy owner, R1b-probed;
+  assertSameElements gets the token-multiset view. Burned the
+  calendar CSVJOIN family and the joined-string rows.
+- **GRID-PAIR arm**: both sides statically relation-stamped →
+  `GridCompare.grids`. Witness `gridPairVerdict` (#TDS golden vs
+  project). Non-tabular execution under a relation stamp is a LOUD
+  wall.
+- **forAll-contains subset fold** moved from the harness's fc arm:
+  both sides DB-computed, membership judged by the lattice.
+- **DriverPk parity**: the verdict side lane now applies
+  `DriverPkAppend` exactly like the generic statement path — the
+  option is EXECUTION ENV (the validation family's 14 disagreements
+  were a missing ID column; all burned).
+- **R1 probe isolation** (`r1Suspend`): the dual channel's duplicate
+  executions no longer double-feed the [canon] disagree≤27 pin.
+- **The remaining 8 disagreement rows are WIRE-FIDELITY findings,
+  not verdict-construction gaps** — the census doing its job:
+  1. Decimal SCALE drift (×4, testDataTypeMapping): literal `1.234d`
+     vs the column-scaled wire cell — X2's own doctrine ("fixed at
+     emission, never re-blurred"); an emission-scale work item.
+  2. Temporal nine-digit convention (×2, graphFetch dates): the wire
+     decode must carry the engine's fromSQLTimestamp nine-digit
+     subseconds for the lattice's exact compare.
+  3. Sort-TIE order (×1, testTDSConcatenate): golden encodes one tie
+     order; a re-plan legally produces another (the charter's phantom
+     class).
+  4. Milestoning TDSNull row-strings (×1): null-cell string-concat
+     spelling across lanes.
+  Cutover (batch 3) requires these adjudicated: emission fixes or
+  NAMED ceiling-pinned residue agreed with the user (D4's mechanism).
+
+## 4O. Batch-2 slice 3a LANDING RECORD (2026-08-28)
+
+**Census: agree 2,105 → 2,635, declined 3,128 → 2,598, disagree
+steady at the 8 named §4N rows.**
+
+- **§2 partition BY FORM at the splice**: assertSameSQL/
+  assertSameSQLs/assertEqualsH2Compatible/assertSqlEquals classify as
+  `host-partition-sqltext` WITHOUT routing — they compare the PLAN by
+  design; routing them only produced noise walls.
+- **assertSize learns the result kinds** (cluster 34 moved to the
+  owner): grid ROWS, graph array length, values otherwise; the
+  ONE-CARRIER envelope rule ($r.values of a relation execute = one
+  TDS) reads from the MODEL (`ExecutionResult.envelopeCarriers`),
+  keyed by the same read shape as the harness arm
+  (`envelopeValuesRead`).
+- **assertContains arm**: both sides DB-computed, lattice membership.
+- Witnesses: `AssertVerdictSpliceTest.sizeEnvelopeAndContains`.
+- Remaining declines (~2,598): §2 partition ~690, class-query-under
+  ~610, assertEquals tabular/flat-cells ~340, D4 JSON 175 + graph
+  sides, getAll shapes ~175, TDG unbound ~68, tail. Remaining
+  slices: flat-cells/tabular assertEquals conventions, D4
+  (testExtension + JSON verdict arm), resolver gaps adjudication.
+
+**Process note (recorded twice now)**: no repo writes while a chain
+runs — two chains were stopped mid-run after edits started; the
+certification chain must launch AFTER the slice's last write.
+
 ## 5. Witnesses (before behavior, where possible)
 
 1. Per-form verdict unit witnesses beside AssertVerdictsTest for each

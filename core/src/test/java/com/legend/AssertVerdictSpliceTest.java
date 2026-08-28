@@ -55,6 +55,14 @@ class AssertVerdictSpliceTest {
             {
                 assert($collection->size() == $size, $formatString, $formatArgs);
             }
+            function meta::pure::functions::asserts::assertContains(collection:Any[*], value:Any[1]):Boolean[1]
+            {
+                assertContains($collection, $value, 'does not contain');
+            }
+            function meta::pure::functions::asserts::assertContains(collection:Any[*], value:Any[1], message:String[1]):Boolean[1]
+            {
+                assert($collection->contains($value), $message);
+            }
             ###Relational
             Database e::DB (
               Table P (ID INTEGER PRIMARY KEY, NAME VARCHAR(200), AGE INTEGER)
@@ -111,6 +119,66 @@ class AssertVerdictSpliceTest {
                 + " $result.values.name->sort());}"));
         assertTrue(String.valueOf(e.getMessage()).contains("zz"),
                 e.getMessage());
+    }
+
+    @Test
+    @DisplayName("D3 order view: an UNSORTED store read compares as a multiset"
+            + " (DB-incidental order); a SORTED read stays strict")
+    void incidentalOrderPolicy() throws Exception {
+        // golden written in the REVERSED order of arrival — engine
+        // goldens encode H2's incidental order, ours is DuckDB's
+        Object v = ((ExecutionResult.Scalar) run(
+                "{|let result = execute(|e::Person.all(), e::M, e::RT, []);"
+                + " assertEquals([40, 30], $result.values.age);}")).value();
+        assertEquals(Boolean.TRUE, v);
+        // a SORTED chain pins the order — the reversed golden FAILS
+        SQLException e = assertThrows(SQLException.class, () -> run(
+                "{|let result = execute(|e::Person.all(), e::M, e::RT, []);"
+                + " assertEquals([40, 30], $result.values.age->sort());}"));
+        assertTrue(String.valueOf(e.getMessage()).contains("40"),
+                e.getMessage());
+    }
+
+    @Test
+    @DisplayName("D3 grid pair: two relation-stamped sides adjudicate via the"
+            + " grid owner (columns + rows), not a byte decline")
+    void gridPairVerdict() throws Exception {
+        Object v = ((ExecutionResult.Scalar) run(
+                "{|assertEquals(#TDS\n  age\n  30\n  40\n#,"
+                + " e::Person.all()->project([p|$p.age], ['age'])"
+                + "->sort('age')->from(e::M, e::RT));}")).value();
+        assertEquals(Boolean.TRUE, v);
+        SQLException e = assertThrows(SQLException.class, () -> run(
+                "{|assertEquals(#TDS\n  age\n  30\n  41\n#,"
+                + " e::Person.all()->project([p|$p.age], ['age'])"
+                + "->sort('age')->from(e::M, e::RT));}"));
+        assertTrue(String.valueOf(e.getMessage()).contains("assertEquals"),
+                e.getMessage());
+    }
+
+    @Test
+    @DisplayName("assertSize envelope rule: $r.values of a relation execute is ONE"
+            + " carrier; a rows read counts rows; assertContains judges membership")
+    void sizeEnvelopeAndContains() throws Exception {
+        Object one = ((ExecutionResult.Scalar) run(
+                "{|let result = execute(|e::Person.all()"
+                + "->project([p|$p.age], ['age']), e::M, e::RT, []);"
+                + " assertSize($result.values, 1);}")).value();
+        assertEquals(Boolean.TRUE, one);
+        Object rows = ((ExecutionResult.Scalar) run(
+                "{|let result = execute(|e::Person.all()"
+                + "->project([p|$p.age], ['age']), e::M, e::RT, []);"
+                + " assertSize($result.values.rows, 2);}")).value();
+        assertEquals(Boolean.TRUE, rows);
+        Object member = ((ExecutionResult.Scalar) run(
+                "{|let result = execute(|e::Person.all(), e::M, e::RT, []);"
+                + " assertContains($result.values.age, 30);}")).value();
+        assertEquals(Boolean.TRUE, member);
+        SQLException miss = assertThrows(SQLException.class, () -> run(
+                "{|let result = execute(|e::Person.all(), e::M, e::RT, []);"
+                + " assertContains($result.values.age, 99);}"));
+        assertTrue(String.valueOf(miss.getMessage()).contains("99"),
+                miss.getMessage());
     }
 
     @Test

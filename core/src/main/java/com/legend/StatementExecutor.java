@@ -2460,6 +2460,13 @@ final class StatementExecutor {
         body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
                 .withLetBindings(env.queryLets())
                 .resolve(body, env.runtimeFqn());
+        // the addDriverTablePkForProject option is part of the EXECUTION
+        // ENV — a verdict side must project the same columns the generic
+        // statement path projects (#45; the validation-family probe
+        // caught the missing ID column, V7 batch 2)
+        if (env.addDriverTablePk()) {
+            body = com.legend.resolver.DriverPkAppend.apply(body, env.ctx());
+        }
         return executeTyped(body, env, rider, identity);
     }
 

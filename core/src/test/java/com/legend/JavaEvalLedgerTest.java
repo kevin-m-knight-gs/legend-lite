@@ -297,7 +297,21 @@ class JavaEvalLedgerTest {
             // sentinel policy arm (the 2-ULP shape — a counted policy
             // row, the LATTICE still owns the rule; the walker only
             // detects the golden's sentinel spelling)
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 878),
+            // 878->1145 (V7 batch 2 slice 2, D3): the ORDER-VIEW walker
+            // (SORTED/INCIDENTAL/DEFINED — routing facts, the audited
+            // harness list moved verbatim), the rendered-text and
+            // grid-pair ARMS (the DATABASE still renders/computes every
+            // side; the arms only ROUTE to the one comparison owner,
+            // GridCompare), and the forAll-contains subset fold (both
+            // sides DB-computed, membership judged by the lattice — the
+            // interpreter-free quantified shape). Routing + dispatch;
+            // the burn target is the HARNESS lattice this replaces
+            // wholesale at cutover.
+            // 1145->1210 (slice 3a): assertSize's per-result-kind size
+            // rule (envelopeCarriers is the MODEL's; the arm only keys
+            // the read shape) + the assertContains membership arm (both
+            // sides DB-computed, lattice judges). Dispatch, not eval.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1210),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -341,7 +355,11 @@ class JavaEvalLedgerTest {
             // 2456->2469 (V7 batch 2): the evalValue hook overload —
             // the statement loop's envelope-splice hook threads into
             // verdict side evaluation. Orchestration, zero evaluation.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2469),
+            // 2469->2472 (V7 batch 2 slice 2): DriverPkAppend applies in
+            // the verdict side lane exactly as in the generic statement
+            // path (the option is EXECUTION ENV — the validation-family
+            // probe caught the missing ID column). Parity, not eval.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2472),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

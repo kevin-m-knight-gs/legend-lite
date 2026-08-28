@@ -163,7 +163,24 @@ public final class CanonicalDivergence {
         };
     }
 
+    /** V7 probe isolation for the R1 instrument family (probeEqual/
+     * probeSameElements/probeGridText → AGREE/DISAGREE/RESIDUE): the
+     * corpus dual channel re-runs the same asserts through the
+     * production path, and un-gated probes would double-count the
+     * HOST lane's pinned leniency census (disagree ≤ 27). The
+     * sql-verdict channel and the declared-policy counters stay LIVE
+     * during the probe — they are the probe's own instruments. */
+    private static final java.util.concurrent.atomic.AtomicBoolean
+            R1_SUSPENDED = new java.util.concurrent.atomic.AtomicBoolean();
+
+    public static void r1Suspend(boolean on) {
+        R1_SUSPENDED.set(on);
+    }
+
     private static void record(String family, boolean held, String byteAns) {
+        if (R1_SUSPENDED.get()) {
+            return;
+        }
         if (byteAns.startsWith("residue:")) {
             RESIDUE.incrementAndGet();
             sample(new Row(family, held, byteAns));

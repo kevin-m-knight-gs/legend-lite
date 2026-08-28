@@ -118,10 +118,56 @@ final class AssertVerdicts {
                 if (args.size() < 2) {
                     return null;
                 }
+                boolean wantEqual = name.equals("assertEquals");
+                // D3 — the RENDERED-TEXT arm: exactly one side is a
+                // DB-rendered grid text (toCSV/toString/replace/join
+                // spellings), the peer a string value. The DATABASE
+                // computed the render; GridCompare.renderedText (the
+                // one policy owner, R1b-probed) judges the texts.
+                ExecutionResult ra = renderedArm(name, wantEqual, args,
+                        letPrefix, specs, env, hook, true);
+                if (ra != null) {
+                    return ra;
+                }
+                // D3 — the GRID-PAIR arm: both sides statically
+                // relation-stamped execute as grids; the grid owner
+                // (GridCompare.grids: columns ordered, rows under the
+                // order policy) judges — never a byte decline.
+                if (com.legend.compiler.element.type.Type.isRelation(
+                        args.get(0).info().type())
+                        && com.legend.compiler.element.type.Type.isRelation(
+                                args.get(1).info().type())) {
+                    ExecutionResult.Tabular te = tabular(args.get(0),
+                            letPrefix, specs, env, hook);
+                    ExecutionResult.Tabular ta = tabular(args.get(1),
+                            letPrefix, specs, env, hook);
+                    if (te == null || ta == null) {
+                        throw new com.legend.error.NotImplementedException(
+                                "relation-stamped assert side executed"
+                                        + " to a non-tabular result");
+                    }
+                    boolean held = com.legend.exec.GridCompare.grids(te,
+                            ta, orderView(args.get(1), letPrefix)
+                                    == OrderView.SORTED);
+                    if (held != wantEqual) {
+                        return fail(name + ":\n" + summarize(te)
+                                + "\n does not match:\n" + summarize(ta));
+                    }
+                    return ok();
+                }
+                // D3 — the ORDER VIEW: an INCIDENTAL-order actual side
+                // (unsorted store read / frame read) has SQL arrival
+                // order — engine goldens encode H2's, ours is DuckDB's
+                // — so both sides fetch with the CANONICAL-order riders
+                // and the judgment is order-insensitive (exactly the
+                // assertSameElements shape). SORTED/DEFINED sides stay
+                // strictly ordered.
+                boolean incidental = orderView(args.get(1), letPrefix)
+                        == OrderView.INCIDENTAL;
                 SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
-                        env, false, hook);
+                        env, incidental, hook);
                 SideFetch af = sideCanon(args.get(1), letPrefix, specs,
-                        env, false, hook);
+                        env, incidental, hook);
                 // X5: a same-class KEYED pair restricts both sides to
                 // the key tree — the engine's own equality relation for
                 // keyed classes, applied before EITHER channel judges
@@ -130,7 +176,9 @@ final class AssertVerdicts {
                         ? restrictToKeys(ef.values(), ik) : ef.values();
                 List<Object> a = ik != null
                         ? restrictToKeys(af.values(), ik) : af.values();
-                boolean equal = PureAsserts.equal(e, a);
+                boolean equal = incidental
+                        ? PureAsserts.assertSameElements(e, a) == null
+                        : PureAsserts.equal(e, a);
                 // R1a divergence instrument (CANONICAL_FORM_SPEC §0):
                 // host lattice vs host byte channel, measurement only
                 com.legend.exec.CanonicalDivergence.probeEqual(
@@ -159,7 +207,8 @@ final class AssertVerdicts {
                 if (held) {
                     return ok();
                 }
-                String d = PureAsserts.assertEquals(e, a);
+                String d = incidental ? PureAsserts.assertSameElements(e, a)
+                        : PureAsserts.assertEquals(e, a);
                 return fail(d != null ? d
                         : "byte-verdict: canonical renders differ (host"
                                 + " lattice agreed — dual-verdict divergence,"
@@ -168,6 +217,13 @@ final class AssertVerdicts {
             case "assertSameElements" -> {
                 if (args.size() < 2) {
                     return null;
+                }
+                // D3 — rendered-text sides (a sep-joined grid string
+                // vs its golden): the token/line multiset judges
+                ExecutionResult rse = renderedArm(name, true, args,
+                        letPrefix, specs, env, hook, false);
+                if (rse != null) {
+                    return rse;
                 }
                 SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
                         env, true, hook);
@@ -205,12 +261,54 @@ final class AssertVerdicts {
                 if (args.size() < 2) {
                     return null;
                 }
-                List<Object> coll = side(args.get(0), letPrefix, specs, env, hook);
                 Object n = one(side(args.get(1), letPrefix, specs, env, hook),
                         "assertSize size");
-                String d = PureAsserts.assertSize(coll,
-                        ((Number) n).longValue());
-                return d == null ? ok() : fail(d);
+                // D3: the size rule is per-result-kind — grid ROWS,
+                // graph array length, values otherwise; the ONE-CARRIER
+                // envelope rule ({@code $r.values} of a relation-rooted
+                // execute holds one TDS) is the MODEL's
+                // (ExecutionResult.envelopeCarriers), keyed by the READ
+                // SHAPE exactly as the harness's cluster-34 arm.
+                ExecutionResult r0 = StatementExecutor.evalValue(
+                        args.get(0), letPrefix, specs, env, null, false,
+                        hook);
+                long actual = switch (r0) {
+                    case null -> 0L;
+                    case ExecutionResult.Tabular t ->
+                            envelopeValuesRead(args.get(0), letPrefix)
+                                    ? t.envelopeCarriers(t.rows().size())
+                                    : t.rows().size();
+                    case ExecutionResult.Graph g -> {
+                        Object p = com.legend.sql.Json.parse(g.json());
+                        yield p instanceof List<?> l ? l.size() : 1L;
+                    }
+                    default -> decodeSide(r0).size();
+                };
+                boolean heldSize = n instanceof Number num
+                        && num.longValue() == actual;
+                return heldSize ? ok()
+                        : fail("assertSize: expected " + n + ", got "
+                                + actual);
+            }
+            case "assertContains" -> {
+                // real pure membership (assertContains.pure): both
+                // sides DB-computed, the lattice judges element
+                // equality; message args are failure-position only
+                if (args.size() < 2) {
+                    return null;
+                }
+                List<Object> coll = side(args.get(0), letPrefix, specs,
+                        env, hook);
+                List<Object> val = side(args.get(1), letPrefix, specs,
+                        env, hook);
+                if (val.size() != 1) {
+                    return null;   // non-[1] value arg — generic path
+                }
+                boolean member = coll.stream().anyMatch(x ->
+                        PureAsserts.equalScalar(x, val.get(0)));
+                return member ? ok()
+                        : fail("assertContains: " + coll
+                                + " does not contain " + val.get(0));
             }
             case "assertEq" -> {
                 if (args.size() < 2) {
@@ -262,6 +360,29 @@ final class AssertVerdicts {
             case "assert", "assertFalse" -> {
                 if (args.isEmpty()) {
                     return null;
+                }
+                // forAll-contains SUBSET (the functionvariables idiom
+                // — the harness's audited fc arm, moved to the owner):
+                // both sides evaluate IN THE DATABASE; the membership
+                // fold is assert-level logic judged host-side (a
+                // subquery inside a SQL lambda cannot lower, and
+                // pure's own evaluation of this shape is in-memory).
+                TypedSpec[] fc = forAllContains(args.get(0));
+                if (fc != null) {
+                    List<Object> need = side(fc[0], letPrefix, specs,
+                            env, hook);
+                    List<Object> have = side(fc[1], letPrefix, specs,
+                            env, hook);
+                    List<Object> missing = need.stream()
+                            .filter(n2 -> have.stream().noneMatch(h ->
+                                    PureAsserts.equalScalar(n2, h)))
+                            .toList();
+                    boolean subsetHolds = missing.isEmpty();
+                    if (subsetHolds == name.equals("assert")) {
+                        return ok();
+                    }
+                    return fail(name + " (forAll-contains subset):"
+                            + " missing " + missing);
                 }
                 // F13c: the CONDITION rides the identity lane — eq/
                 // equal over instances compile the engine relation
@@ -492,6 +613,299 @@ final class AssertVerdicts {
             }
         }
         return ok();
+    }
+
+    // ── D3 (batch-2 slice 2): the GOLDEN GRID/ORDER conventions move
+    // into verdict construction — the ORDER VIEW of a side, the
+    // rendered-text forms, and the grid-pair route. The comparison
+    // POLICIES stay with their one production owner (GridCompare).
+
+    /** A side's order semantics: SORTED (ends in a sort through
+     * order-preserving tails — the engine contract pins the order),
+     * INCIDENTAL (bottoms at a store source or an execution-frame
+     * read with no sort — SQL arrival order, engine goldens encode
+     * H2's), DEFINED (pure values — the language's own order). */
+    enum OrderView { SORTED, INCIDENTAL, DEFINED }
+
+    private static final java.util.Set<String> SORT_FQNS = java.util.Set.of(
+            "meta::pure::functions::collection::sort",
+            "meta::pure::functions::collection::sortBy",
+            "meta::pure::functions::collection::sortByReversed",
+            "meta::pure::functions::relation::sort");
+
+    /** Order-preserving native tails, BY SIMPLE NAME — the harness's
+     * audited list (audit 23 D1), moved verbatim. */
+    private static final java.util.Set<String> ORDER_PRESERVING =
+            java.util.Set.of("map", "limit", "take", "drop", "slice",
+                    "rows", "toOne", "at", "makeString", "toCSV",
+                    "toString", "from", "filter", "select", "rename",
+                    "renameColumns", "restrict", "project", "distinct");
+
+    static OrderView orderView(TypedSpec s0, List<TypedSpec> letPrefix) {
+        return orderView(s0, letPrefix, new java.util.HashSet<>());
+    }
+
+    private static OrderView orderView(TypedSpec s, List<TypedSpec> lets,
+            java.util.Set<String> seen) {
+        if (s instanceof com.legend.compiler.spec.typed.TypedSort
+                || s instanceof com.legend.compiler.spec.typed.TypedSortBy) {
+            return OrderView.SORTED;
+        }
+        if (s instanceof TypedNativeCall c) {
+            String fqn = c.callee().qualifiedName();
+            if (SORT_FQNS.contains(fqn)) {
+                return OrderView.SORTED;
+            }
+            String simple = fqn.substring(fqn.lastIndexOf(':') + 1);
+            if (ORDER_PRESERVING.contains(simple) && !c.args().isEmpty()) {
+                return orderView(c.args().get(0), lets, seen);
+            }
+            return OrderView.DEFINED;
+        }
+        if (s instanceof com.legend.compiler.spec.typed.TypedGetAll
+                || s instanceof com.legend.compiler.spec.typed
+                        .TypedTableReference
+                || s instanceof com.legend.compiler.spec.typed
+                        .TypedRawSqlRelation) {
+            return OrderView.INCIDENTAL;
+        }
+        if (s instanceof com.legend.compiler.spec.typed.TypedVariable v) {
+            if (!seen.add(v.name())) {
+                return OrderView.DEFINED;
+            }
+            for (int i = lets.size() - 1; i >= 0; i--) {
+                if (lets.get(i) instanceof
+                        com.legend.compiler.spec.typed.TypedLet l
+                        && l.name().equals(v.name())) {
+                    return orderView(l.value(), lets, seen);
+                }
+            }
+            // unresolvable binding = an execution frame ($result) —
+            // its chain is a store query by construction
+            return OrderView.INCIDENTAL;
+        }
+        // order-preserving wrappers descend to their SOURCE (first
+        // child); anything else keeps the language's defined order
+        if (s instanceof com.legend.compiler.spec.typed.TypedFilter
+                || s instanceof com.legend.compiler.spec.typed.TypedProject
+                || s instanceof com.legend.compiler.spec.typed.TypedSelect
+                || s instanceof com.legend.compiler.spec.typed.TypedRename
+                || s instanceof com.legend.compiler.spec.typed.TypedDistinct
+                || s instanceof com.legend.compiler.spec.typed.TypedLimit
+                || s instanceof com.legend.compiler.spec.typed.TypedDrop
+                || s instanceof com.legend.compiler.spec.typed.TypedSlice
+                || s instanceof com.legend.compiler.spec.typed.TypedMap
+                || s instanceof com.legend.compiler.spec.typed
+                        .TypedPropertyAccess
+                || s instanceof com.legend.compiler.spec.typed.TypedCast
+                || s instanceof com.legend.compiler.spec.typed.TypedFrom
+                || s instanceof com.legend.compiler.spec.typed.TypedNavigate
+                || s instanceof com.legend.compiler.spec.typed
+                        .TypedMilestonedAccess) {
+            List<TypedSpec> ch = s.children();
+            return ch.isEmpty() ? OrderView.DEFINED
+                    : orderView(ch.get(0), lets, seen);
+        }
+        return OrderView.DEFINED;
+    }
+
+    private static final String FQ_TO_STRING =
+            "meta::pure::functions::string::toString";
+    private static final String FQ_REPLACE =
+            "meta::pure::functions::string::replace";
+    private static final String FQ_MAKE_STRING =
+            "meta::pure::functions::string::makeString";
+    private static final String FQ_JOIN_STRINGS =
+            "meta::pure::functions::string::joinStrings";
+
+    private static TypedSpec chaseLets(TypedSpec s0, List<TypedSpec> lets) {
+        TypedSpec s = s0;
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        while (s instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && seen.add(v.name())) {
+            TypedSpec bound = null;
+            for (int i = lets.size() - 1; i >= 0; i--) {
+                if (lets.get(i) instanceof
+                        com.legend.compiler.spec.typed.TypedLet l
+                        && l.name().equals(v.name())) {
+                    bound = l.value();
+                    break;
+                }
+            }
+            if (bound == null) {
+                return s;
+            }
+            s = bound;
+        }
+        return s;
+    }
+
+    /** The D3 RENDERED-TEXT verdict, or null when the pair is not the
+     * shape (exactly one side a render form, both sides one string).
+     * {@code orderedForm} false = the sameElements view (token/line
+     * multiset regardless of the chain's sort). */
+    private static @com.legend.Nullable ExecutionResult renderedArm(
+            String name, boolean wantEqual, List<TypedSpec> args,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env,
+            @com.legend.Nullable SpliceHook hook, boolean orderedForm)
+            throws java.sql.SQLException {
+        String eForm = renderForm(args.get(0), letPrefix);
+        String aForm = renderForm(args.get(1), letPrefix);
+        if ((eForm == null) == (aForm == null)) {
+            return null;
+        }
+        String form = aForm != null ? aForm
+                : java.util.Objects.requireNonNull(eForm);
+        TypedSpec rendered = aForm != null ? args.get(1) : args.get(0);
+        List<Object> ev = side(args.get(0), letPrefix, specs, env, hook);
+        List<Object> av = side(args.get(1), letPrefix, specs, env, hook);
+        if (ev.size() == 1 && ev.get(0) instanceof String et
+                && av.size() == 1 && av.get(0) instanceof String at) {
+            boolean sorted = orderedForm
+                    && orderView(rendered, letPrefix) == OrderView.SORTED;
+            boolean held = com.legend.exec.GridCompare.renderedText(
+                    aForm != null ? et : at, aForm != null ? at : et,
+                    form, sorted);
+            if (held != wantEqual) {
+                return fail(name + " (rendered " + form + "): "
+                        + firstTextDiff(et, at));
+            }
+            return ok();
+        }
+        // a render form whose sides are not two strings — loud, never
+        // a silent fall-through re-execution
+        throw new com.legend.error.NotImplementedException(
+                "rendered-text assert side is not a string pair ("
+                        + form + ")");
+    }
+
+    /** One-line first-difference sketch of two rendered texts (failure
+     * message position — the full texts drown the diagnosis). */
+    private static String firstTextDiff(String e, String a) {
+        String[] el = e.split("\n", -1);
+        String[] al = a.split("\n", -1);
+        if (el.length != al.length) {
+            return "line-count " + el.length + " != " + al.length
+                    + " (expected first line: " + el[0] + ")";
+        }
+        for (int i = 0; i < el.length; i++) {
+            if (!el[i].equals(al[i])) {
+                return "line " + i + ": expected <" + el[i] + "> got <"
+                        + al[i] + ">";
+            }
+        }
+        return "texts differ only in leniency-adjudicated cells";
+    }
+
+    /** The RENDERED-TEXT form of a side, or null: toCSV → CSVTEXT,
+     * toString over a relation → TDSTEXT, toCSV->replace('\n', sep) →
+     * CSVJOIN:sep (the calendar family's one-line spelling), and a
+     * makeString/joinStrings join over an INCIDENTAL-order chain →
+     * CSVJOIN:sep (token multiset — sep-joined DB arrival order).
+     * The comparison policy is {@link com.legend.exec.GridCompare
+     * #renderedText} — the one owner, probed by its own R1b census. */
+    private static @com.legend.Nullable String renderForm(TypedSpec s0,
+            List<TypedSpec> lets) {
+        TypedSpec s = chaseLets(s0, lets);
+        if (s instanceof TypedNativeCall rep
+                && FQ_REPLACE.equals(rep.callee().qualifiedName())
+                && rep.args().size() == 3
+                && chaseLets(rep.args().get(0), lets)
+                        instanceof TypedNativeCall csv
+                && com.legend.compiler.element.type.PlatformTypes.TO_CSV
+                        .equals(csv.callee().qualifiedName())
+                && rep.args().get(1) instanceof
+                        com.legend.compiler.spec.typed.TypedCString from
+                && "\n".equals(from.value())
+                && rep.args().get(2) instanceof
+                        com.legend.compiler.spec.typed.TypedCString to) {
+            return "CSVJOIN:" + to.value();
+        }
+        if (s instanceof TypedNativeCall csv2
+                && com.legend.compiler.element.type.PlatformTypes.TO_CSV
+                        .equals(csv2.callee().qualifiedName())
+                && csv2.args().size() == 1) {
+            return "CSVTEXT";
+        }
+        if (s instanceof TypedNativeCall ts
+                && FQ_TO_STRING.equals(ts.callee().qualifiedName())
+                && ts.args().size() == 1
+                && com.legend.compiler.element.type.Type.isRelation(
+                        ts.args().get(0).info().type())) {
+            return "TDSTEXT";
+        }
+        if (s instanceof TypedNativeCall j
+                && (FQ_MAKE_STRING.equals(j.callee().qualifiedName())
+                        || FQ_JOIN_STRINGS.equals(j.callee().qualifiedName()))
+                && j.args().size() == 2
+                && j.args().get(1) instanceof
+                        com.legend.compiler.spec.typed.TypedCString sep
+                && orderView(j.args().get(0), lets) == OrderView.INCIDENTAL) {
+            return "CSVJOIN:" + sep.value();
+        }
+        return null;
+    }
+
+    /** The cluster-34 envelope READ SHAPE: {@code $r.values} (through
+     * optional toOne/first/at(0) peels) over a binding OUTSIDE the let
+     * prefix — an execution frame; the TDS envelope is ONE carrier. */
+    private static boolean envelopeValuesRead(TypedSpec arg,
+            List<TypedSpec> letPrefix) {
+        TypedSpec s = arg;
+        while (s instanceof TypedNativeCall c && !c.args().isEmpty()) {
+            String fqn = c.callee().qualifiedName();
+            String simple = fqn.substring(fqn.lastIndexOf(':') + 1);
+            if (simple.equals("toOne") || simple.equals("first")
+                    || (simple.equals("at") && c.args().size() == 2
+                            && c.args().get(1) instanceof
+                                    com.legend.compiler.spec.typed
+                                            .TypedCInteger ci
+                            && ci.value().longValue() == 0)) {
+                s = c.args().get(0);
+                continue;
+            }
+            break;
+        }
+        if (!(s instanceof com.legend.compiler.spec.typed
+                .TypedPropertyAccess pa
+                && pa.property().equals("values")
+                && pa.source() instanceof
+                        com.legend.compiler.spec.typed.TypedVariable v)) {
+            return false;
+        }
+        for (TypedSpec l : letPrefix) {
+            if (l instanceof com.legend.compiler.spec.typed.TypedLet tl
+                    && tl.name().equals(v.name())) {
+                return false;   // an ordinary let, not a frame
+            }
+        }
+        return true;
+    }
+
+    /** The {@code $exp->forAll(e|$act->contains($e))} SUBSET shape:
+     * {expected, actual} sources, or null when not this idiom (the
+     * predicate must be a contains of the forAll binder itself). */
+    private static TypedSpec @com.legend.Nullable [] forAllContains(
+            TypedSpec a0) {
+        if (a0 instanceof TypedNativeCall fa
+                && "meta::pure::functions::collection::forAll"
+                        .equals(fa.callee().qualifiedName())
+                && fa.args().size() == 2
+                && fa.args().get(1) instanceof
+                        com.legend.compiler.spec.typed.TypedLambda lam
+                && lam.parameters().size() == 1
+                && lam.body().size() == 1
+                && lam.body().get(0) instanceof TypedNativeCall cont
+                && "meta::pure::functions::collection::contains"
+                        .equals(cont.callee().qualifiedName())
+                && cont.args().size() == 2
+                && cont.args().get(1) instanceof
+                        com.legend.compiler.spec.typed.TypedVariable ev
+                && ev.name().equals(lam.parameters().get(0))) {
+            return new TypedSpec[] {fa.args().get(0), cont.args().get(0)};
+        }
+        return null;
     }
 
     private static @com.legend.Nullable String calleeFqn(TypedSpec bare) {
