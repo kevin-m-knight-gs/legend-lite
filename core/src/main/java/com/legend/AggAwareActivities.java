@@ -199,7 +199,9 @@ final class AggAwareActivities {
     /** {@code name:FQN[1] | <body>;} — the routed lambda spelling. */
     private static boolean lambda(TypedLambda l, StringBuilder sb) {
         if (l.parameters().size() != 1 || l.body().size() != 1
-                || !(l.info().type() instanceof Type.FunctionType ft)
+                || !(com.legend.compiler.element.type.PlatformTypes
+                        .functionTypeOf(l.info().type())
+                        instanceof Type.FunctionType ft)
                 || ft.params().size() != 1
                 || !(ft.params().get(0).type() instanceof Type.ClassType pct)) {
             return false;

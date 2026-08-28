@@ -582,13 +582,11 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
         TypedLambda fb = (TypedLambda) b[1];
         Type.RelationType row = new Type.RelationType(List.of(
                 new Type.Column("first",
-                        ((Type.FunctionType) fa.info().type()).result().type(),
-                        ((Type.FunctionType) fa.info().type()).result()
-                                .multiplicity()),
+                        fa.functionType().result().type(),
+                        fa.functionType().result().multiplicity()),
                 new Type.Column("second",
-                        ((Type.FunctionType) fb.info().type()).result().type(),
-                        ((Type.FunctionType) fb.info().type()).result()
-                                .multiplicity())));
+                        fb.functionType().result().type(),
+                        fb.functionType().result().multiplicity())));
         TypedProject proj = new TypedProject((TypedSpec) a[0],
                 List.of(new TypedFuncCol("first", fa),
                         new TypedFuncCol("second", fb)),
@@ -599,7 +597,7 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
 
     private static Object @com.legend.Nullable [] zipSide(TypedSpec n) {
         if (n instanceof TypedMap m && m.mapper().parameters().size() == 1
-                && !(((Type.FunctionType) m.mapper().info().type()).result()
+                && !(m.mapper().functionType().result()
                         .type() instanceof Type.ClassType)) {
             return new Object[] {m.source(), m.mapper()};
         }
@@ -2088,9 +2086,8 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             // is the same ORDER metadata as above.
             if (nc.args().get(0) instanceof TypedMap tmap
                     && tmap.mapper().parameters().size() == 1
-                    && !(tmap.mapper().info().type()
-                            instanceof Type.FunctionType mft
-                            && mft.result().type() instanceof Type.ClassType)) {
+                    && !(tmap.mapper().functionType().result().type()
+                            instanceof Type.ClassType)) {
                 TypedSpec mapSrc = tmap.source();
                 TypedLambda mOrder = null;
                 boolean mAsc = true;

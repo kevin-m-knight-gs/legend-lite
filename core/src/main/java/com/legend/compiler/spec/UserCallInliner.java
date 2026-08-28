@@ -542,7 +542,7 @@ public final class UserCallInliner {
             }
         }
         Map<String, TypedSpec> inner = new LinkedHashMap<>(env);
-        var fnType = (com.legend.compiler.element.type.Type.FunctionType) l.info().type();
+        var fnType = l.functionType();
         List<String> params = new ArrayList<>(l.parameters().size());
         // binder bookkeeping runs in BOTH branches (ledger cluster 16:
         // recording binders only under an empty env left spliceHook's

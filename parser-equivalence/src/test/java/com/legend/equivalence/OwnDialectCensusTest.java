@@ -91,7 +91,12 @@ class OwnDialectCensusTest {
                                        // — invariant 2 allows either set)
                     java.util.Map.entry("AdversarialParityTest.java", 1),
                     java.util.Map.entry("CleanSheetProtocolShapeTest.java", 6),
-                    java.util.Map.entry("CompileFunctionTest.java", 2),
+                    // 2 -> 3 (2026-08-28, REVIEWED): the lambda-classifier
+                    // witness (charter §4V) — the Function<{...}>-typed
+                    // variable REJECTED by a FunctionDefinition<Any> formal
+                    // (the lattice direction that keeps native refs out)
+                    // cannot be spelled without a function-type parameter
+                    java.util.Map.entry("CompileFunctionTest.java", 3),
                     java.util.Map.entry("ElementParserTest.java", 17),
                     java.util.Map.entry(
                             "LegacyCleanSheetConvergenceTest.java", 4),

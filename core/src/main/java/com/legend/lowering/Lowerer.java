@@ -287,13 +287,16 @@ public final class Lowerer {
         if (spec instanceof TypedMap m
                 && Type.relationValued(m.source().info())
                 && m.mapper() instanceof TypedLambda ml
-                && !(ml.info().type() instanceof Type.FunctionType ft
+                && !(com.legend.compiler.element.type.PlatformTypes
+                        .functionTypeOf(ml.info().type()) instanceof Type.FunctionType ft
                         && Type.isRelation(ft.result().type()))) {
             boolean collectionMapper = ValueCollections.isCollectionMapper(ml);
             Multiplicity colMult =
-                    ml.info().type() instanceof Type.FunctionType fnT
-                            ? fnT.result().multiplicity()
-                            : Multiplicity.Bounded.ZERO_ONE;
+                    com.legend.compiler.element.type.PlatformTypes
+                            .functionTypeOf(ml.info().type())
+                            instanceof Type.FunctionType fnT
+                    ? fnT.result().multiplicity()
+                    : Multiplicity.Bounded.ZERO_ONE;
             SqlSelect proj = relation(ValueCollections.valueColumnProject(
                     m.source(), ml, spec.info().type(), colMult));
             // SCALAR-STAMPED cells (C1) are one element per row ALREADY —
@@ -2987,12 +2990,15 @@ public final class Lowerer {
             case TypedMap m2
                     when Type.relationValued(m2.source().info())
                     && m2.mapper() instanceof TypedLambda ml2
-                    && !(ml2.info().type() instanceof Type.FunctionType ft2
+                    && !(com.legend.compiler.element.type.PlatformTypes
+                            .functionTypeOf(ml2.info().type()) instanceof Type.FunctionType ft2
                             && Type.isRelation(ft2.result().type())) -> {
                 Multiplicity colMult2 =
-                        ml2.info().type() instanceof Type.FunctionType fnT2
-                                ? fnT2.result().multiplicity()
-                                : Multiplicity.Bounded.ZERO_ONE;
+                        com.legend.compiler.element.type.PlatformTypes
+                                .functionTypeOf(ml2.info().type())
+                                instanceof Type.FunctionType fnT2
+                        ? fnT2.result().multiplicity()
+                        : Multiplicity.Bounded.ZERO_ONE;
                 SqlSelect proj = relation(ValueCollections.valueColumnProject(
                         m2.source(), ml2, m2.info().type(), colMult2));
                 // pure map FLATTENS collection-valued mappers ($r.values):

@@ -1098,8 +1098,7 @@ final class AssociationJoins {
                     nestedPrefixByProp,
                     Type.requireRelationSchema(tMat.pipeline().info().type()));
             if (pm.reverse()) {
-                var ft = (Type.FunctionType)
-                        cond.info().type();
+                var ft = cond.functionType();
                 var swapped = new Type.FunctionType(
                         List.of(ft.params().get(1), ft.params().get(0)),
                         ft.result());
@@ -1538,7 +1537,7 @@ final class AssociationJoins {
         Set<String> unconvertedTgt = new LinkedHashSet<>(
                 Pipelines.slotAliases(target.pipeline()));
         unconvertedTgt.removeAll(targetSlotPrefixes.keySet());
-        var ft = (Type.FunctionType) cond.info().type();
+        var ft = cond.functionType();
         // the assoc-route cond declares concrete relation params; the
         // navigate-step emission is GENERIC (TypeVars) — the actual
         // pipelines carry the row shapes either way
@@ -1640,10 +1639,10 @@ final class AssociationJoins {
             Map<String, String> parentCopySlotPrefixes,
             Map<String, Substitution.SubNav> parentCopySubNavs,
             String rowVar, Type.RelationType rowType) {
-        String paramClass = pred.info().type()
-                instanceof Type.FunctionType ft
-                && ft.params().get(0).type()
-                        instanceof Type.ClassType pc
+        String paramClass = com.legend.compiler.element.type.PlatformTypes
+                        .functionTypeOf(pred.info().type())
+                        instanceof Type.FunctionType pft0
+                && pft0.params().get(0).type() instanceof Type.ClassType pc
                 ? pc.fqn() : target.classFqn();
         return corrPredOnJoinedRowCore(pred, parent, target, targetPrefix,
                 Map.of(), sn.children(), parentCopySlotPrefixes,
@@ -1733,7 +1732,9 @@ final class AssociationJoins {
                         rowVar, rowInfo));
         // the result kind is the INPUT lambda's (a Boolean pred, or a
         // computed mapper's scalar — this rewriter serves both)
-        Type.Param res = pred.info().type() instanceof Type.FunctionType pft
+        Type.Param res = com.legend.compiler.element.type.PlatformTypes
+                        .functionTypeOf(pred.info().type())
+                        instanceof Type.FunctionType pft
                 ? pft.result()
                 : new Type.Param(Type.Primitive.BOOLEAN,
                         com.legend.compiler.element.type.Multiplicity

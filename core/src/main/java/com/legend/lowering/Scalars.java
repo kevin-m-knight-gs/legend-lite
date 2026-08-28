@@ -2739,7 +2739,8 @@ final class Scalars {
                             com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID));
         }
         if ((Type.schemaView(t) != null && !scalarCell)
-                || t instanceof Type.FunctionType
+                || com.legend.compiler.element.type.PlatformTypes
+                        .functionTypeOf(t) != null
                 || t instanceof Type.SchemaAlgebra
                 || (t instanceof Type.ClassType tc
                         && !PlatformTypes.isAny(tc))) {

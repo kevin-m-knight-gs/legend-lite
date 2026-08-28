@@ -127,4 +127,58 @@ class CompileFunctionTest {
         assertTrue(cf.signature().returnType().typeName().contains("Box"),
                 "Return type must reference the user class by name. Got: " + cf.signature().returnType());
     }
+
+    // ===== function-value classifiers (m3.pure hierarchy: LambdaFunction /
+    // ConcreteFunctionDefinition extend FunctionDefinition extends Function) =====
+
+    @Test
+    void lambdaLiteralClassifiesAsLambdaFunction() {
+        // A lambda literal's m3 classifier is LambdaFunction<ft>, never the
+        // bare structural FunctionType (engine stamps
+        // LambdaFunction<{->Integer[1]}> on the instance).
+        CompiledFunction cf = compile(
+                "function test::t(): Any[1] { {x:Integer[1]|$x + 1} }", "test::t");
+        Type t = cf.result().info().type();
+        assertTrue(t instanceof Type.GenericType g
+                        && com.legend.compiler.element.type.PlatformTypes
+                                .LAMBDA_FUNCTION.equals(g.rawFqn())
+                        && g.arguments().get(0) instanceof Type.FunctionType,
+                "lambda literal must classify as LambdaFunction<ft>, got " + t.typeName());
+    }
+
+    @Test
+    void functionDefinitionParamAcceptsLambdaLiteral() {
+        // pkOfFunc shape (engine pkInferenceTests.pure): a
+        // FunctionDefinition<Any>[1] formal accepts a lambda literal —
+        // LambdaFunction ≤ FunctionDefinition on the class lattice.
+        CompiledFunction cf = compile(
+                "function test::pk(func: FunctionDefinition<Any>[1]): Integer[1] { 1 }\n"
+              + "function test::t(): Integer[1] { test::pk({|2}) }", "test::t");
+        assertEquals(Type.Primitive.INTEGER, cf.result().info().type());
+    }
+
+    @Test
+    void functionDefinitionParamAcceptsConcreteFunctionReference() {
+        // A mangled reference to a body-bearing user function classifies as
+        // ConcreteFunctionDefinition<ft> ≤ FunctionDefinition (the engine
+        // call shape: pkOfFunc(pkTestBare__Relation_1_)).
+        CompiledFunction cf = compile(
+                "function test::inc(i: Integer[1]): Integer[1] { $i + 1 }\n"
+              + "function test::pk(func: FunctionDefinition<Any>[1]): Integer[1] { 1 }\n"
+              + "function test::t(): Integer[1] { test::pk(test::inc_Integer_1__Integer_1_) }",
+                "test::t");
+        assertEquals(Type.Primitive.INTEGER, cf.result().info().type());
+    }
+
+    @Test
+    void functionDefinitionParamRejectsFunctionTypedVariable() {
+        // A Function<{…}>-DECLARED parameter is only known to be a Function —
+        // Function is the SUPERTYPE of FunctionDefinition, so it must NOT
+        // conform (native-function references are Functions but not
+        // FunctionDefinitions; the lattice direction is load-bearing).
+        assertThrows(TypeInferenceException.class, () -> compile(
+                "function test::pk(func: FunctionDefinition<Any>[1]): Integer[1] { 1 }\n"
+              + "function test::t(f: Function<{Integer[1]->Integer[1]}>[1]): Integer[1] { test::pk($f) }",
+                "test::t"));
+    }
 }

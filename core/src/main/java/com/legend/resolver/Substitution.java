@@ -435,7 +435,7 @@ final class Substitution {
         for (TypedSpec stmt : lambda.body()) {
             body.add(rewrite(stmt));
         }
-        Type.FunctionType oldFn = (Type.FunctionType) lambda.info().type();
+        Type.FunctionType oldFn = lambda.functionType();
         Type.FunctionType newFn = new Type.FunctionType(
                 List.of(new Type.Param(target.rowType(), Multiplicity.Bounded.ONE)),
                 oldFn.result());
@@ -449,7 +449,7 @@ final class Substitution {
      * var, which the lowerer's bare-map arm turns into a no-value reducer.
      */
     TypedLambda identityLambda(TypedLambda lambda) {
-        Type.FunctionType oldFn = (Type.FunctionType) lambda.info().type();
+        Type.FunctionType oldFn = lambda.functionType();
         Type.FunctionType newFn = new Type.FunctionType(
                 List.of(new Type.Param(target.rowType(), Multiplicity.Bounded.ONE)),
                 oldFn.result());

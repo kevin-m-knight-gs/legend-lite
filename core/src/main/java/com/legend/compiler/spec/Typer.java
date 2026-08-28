@@ -1825,8 +1825,15 @@ final class Typer {
                         || (isLambdaCollection(raw.get(i))
                                 && chosen.parameters().get(i).type()
                                         instanceof Type.TypeVar)) {
+                    // A NOMINAL function carrier (FunctionDefinition<Any> —
+                    // no structural signature to solve the lambda's params
+                    // from) types like a TypeVar slot: the lambda is
+                    // self-typable, then the carrier lattice judges
+                    // (LambdaFunction ≤ FunctionDefinition).
                     if (chosen.parameters().get(i).type()
-                            instanceof Type.TypeVar) {
+                            instanceof Type.TypeVar
+                            || nominalFunctionCarrier(
+                                    chosen.parameters().get(i).type())) {
                         // self-typable lambda against T: synthesize
                         // standalone, bind the variable to its type
                         typed[i] = synth(raw.get(i), env);
@@ -1996,6 +2003,18 @@ final class Typer {
         return t instanceof Type.GenericType g && g.rawFqn().equals(def.qualifiedName());
     }
 
+    /** A function-carrier formal whose argument is NOMINAL, not a structural
+     * signature ({@code FunctionDefinition<Any>}): function-typed, but with
+     * no parameter shapes to drive a deferred lambda — the lambda
+     * self-types and the carrier lattice judges conformance. */
+    private static boolean nominalFunctionCarrier(Type t) {
+        return t instanceof Type.GenericType g
+                && com.legend.compiler.spec.InferenceKernel
+                        .FUNCTION_CARRIER_FQNS.contains(g.rawFqn())
+                && com.legend.compiler.element.type.PlatformTypes
+                        .functionTypeOf(t) == null;
+    }
+
     /** Candidates best-score-first (stable — declaration order breaks
      *  ties, preserving first-max semantics for the winner); arity
      *  misfits filtered; empty = the same loud no-overload error. */
@@ -2043,7 +2062,8 @@ final class Typer {
                 continue;
             }
             Type pt = c.parameters().get(i).type();
-            if (pt instanceof Type.TypeVar) {
+            if (pt instanceof Type.TypeVar || nominalFunctionCarrier(pt)) {
+                // no structural signature to fit against — self-typable slot
                 continue;
             }
             Integer want;
@@ -2289,7 +2309,7 @@ final class Typer {
                 throw new SchemaInvariantException("duplicate column '" + cs.name() + "' in ~[…]");
             }
             TypedLambda lam = (TypedLambda) typeLambda(cs.function1(), f, b, env);
-            Type.Param result = ((Type.FunctionType) lam.info().type()).result();
+            Type.Param result = lam.functionType().result();
             cols.add(new TypedFuncCol(cs.name(), lam));
             schema.add(new Type.Column(cs.name(), result.type(), result.multiplicity()));
         }
@@ -2337,7 +2357,7 @@ final class Typer {
             Bindings local = b.copy();   // K/V are per-column (see javadoc)
             TypedLambda map = (TypedLambda) typeLambda(cs.function1(), mapF, local, env);
             TypedLambda reduce = (TypedLambda) typeLambda(cs.function2(), reduceF, local, env);
-            Type.Param result = ((Type.FunctionType) reduce.info().type()).result();
+            Type.Param result = reduce.functionType().result();
             cols.add(new TypedAggCol(cs.name(), map, reduce, null, true));
             schema.add(new Type.Column(cs.name(), result.type(), result.multiplicity()));
         }
@@ -2377,13 +2397,32 @@ final class Typer {
             // compute() — text-surgery audit §1.1 #4)
             int arity = SignatureMangle.tailArity(name);
             String ret = SignatureMangle.tailReturnTypeName(name);
+            // the mangled tail spells the return type's RAW simple name
+            // (pkTestBare__Relation_1_ names a Relation<Any>[1] function) —
+            // compare exactly against the raw name, never a suffix of the
+            // parameterized typeName spelling (which ends in the arguments)
             return ctx.findFunction(base).stream()
                     .filter(f -> f.parameters().size() == arity
-                            && f.returnType().typeName().endsWith(
-                                    String.valueOf(ret)))
+                            && ret != null
+                            && rawSimpleName(f.returnType()).equals(ret))
                     .toList();
         }
         return found;
+    }
+
+    /** The RAW type's simple name — the spelling engine signature
+     * mangling uses for a return type (type arguments never appear). */
+    private static String rawSimpleName(Type t) {
+        String q = switch (t) {
+            case Type.GenericType g -> g.rawFqn();
+            case Type.ClassType c -> c.fqn();
+            case Type.EnumType e -> e.fqn();
+            case Type.Primitive p -> p.qualifiedName();
+            case Type.PrecisionDecimal pd -> pd.basePrimitive().qualifiedName();
+            default -> t.typeName();
+        };
+        int cut = q.lastIndexOf("::");
+        return cut < 0 ? q : q.substring(cut + 2);
     }
 
     /**
@@ -2510,9 +2549,17 @@ final class Typer {
             }
             ExprType out = new ExprType(fn.returnType(), fn.returnMultiplicity());
             TypedSpec body = Typer.emitCall(fn, argRefs, out);
-            Type ft = new Type.FunctionType(ftParams,
+            var ft = new Type.FunctionType(ftParams,
                     new Type.FunctionType.Param(fn.returnType(), fn.returnMultiplicity()));
-            return new TypedLambda(params, List.of(body), ExprType.one(ft));
+            // The eta-expanded VALUE is a lambda, but the reference's m3
+            // classifier is the referenced function's:
+            // ConcreteFunctionDefinition<ft> (⊆ FunctionDefinition — a
+            // pkOfFunc-shaped formal accepts it; a lambda-literal stamp
+            // here would be pure-false). Passed explicitly so the
+            // TypedLambda constructor keeps it.
+            return new TypedLambda(params, List.of(body), ExprType.one(
+                    com.legend.compiler.element.type.PlatformTypes
+                            .concreteFunctionDefinitionType(ft)));
         }
         // Semantically a RESOLUTION failure (an unresolvable name), even
         // though it surfaces during type-checking — typed for what it MEANS.

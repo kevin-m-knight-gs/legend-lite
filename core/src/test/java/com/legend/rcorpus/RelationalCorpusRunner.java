@@ -581,6 +581,21 @@ public class RelationalCorpusRunner {
         // nulls clause; ratchet on deliberate gains). 309→320
         // (2026-08-20 stamp C2-i): provably-single cell reads lower as
         // PLAIN scalar subqueries — 11 more texts byte-match.
+        // DIAGNOSTICS BEFORE VERDICTS (the program's first-failure rule):
+        // the canon/v7 census prints precede the lane-guard asserts — a
+        // tripped guard must never hide the very numbers that diagnose it.
+        System.out.println("[canon] " + com.legend.exec.CanonicalDivergence.summary());
+        // the ALARM witnesses print first from their reserved buffer —
+        // never lost to shared-sample crowding
+        com.legend.exec.CanonicalDivergence.sqlDisagreeSamples().forEach(r ->
+                System.out.println("[canon] ALARM " + r.family() + " "
+                        + r.detail()));
+        com.legend.exec.CanonicalDivergence.samples().forEach(r ->
+                System.out.println("[canon] " + r.family() + " " + r.detail()));
+        System.out.println("[v7] "
+                + com.legend.exec.CanonicalDivergence.v7Summary());
+        com.legend.exec.CanonicalDivergence.v7Report().forEach(l ->
+                System.out.println("[v7] " + l));
         if (onlyFilters.isEmpty()) {
             org.junit.jupiter.api.Assertions.assertEquals(0,
                     com.legend.harness.H2Verify.M1_DIVERGED.sum(),
@@ -641,26 +656,8 @@ public class RelationalCorpusRunner {
         // TEMPORARY (2026-08-15): full wall reconciliation ledger
         com.legend.exec.TimingLedger.dump();
         // R1 canonical-byte-channel divergence table (CANONICAL_FORM_SPEC
-        // §0): does render(e)==render(a) agree with the host lattice
-        // across every K-arm assert this sweep computed? DISAGREE rows
-        // are R2 cutover blockers; RESIDUE sizes the walls.
-        System.out.println("[canon] " + com.legend.exec.CanonicalDivergence.summary());
-        // the ALARM witnesses print first from their reserved buffer —
-        // never lost to shared-sample crowding
-        com.legend.exec.CanonicalDivergence.sqlDisagreeSamples().forEach(r ->
-                System.out.println("[canon] ALARM " + r.family() + " "
-                        + r.detail()));
-        com.legend.exec.CanonicalDivergence.samples().forEach(r ->
-                System.out.println("[canon] " + r.family() + " " + r.detail()));
-        // V7 batch 1 (V7_ASSERT_VERDICT_CHARTER §4.1): the corpus dual
-        // channel — harness host verdict vs the production AssertVerdicts
-        // route, per form. Disagree rows are batch 2's work list; the
-        // cutover pin (batch 3) reads disagree==0 and declines == the §2
-        // host partition. No gate assertion yet: census-first.
-        System.out.println("[v7] "
-                + com.legend.exec.CanonicalDivergence.v7Summary());
-        com.legend.exec.CanonicalDivergence.v7Report().forEach(l ->
-                System.out.println("[v7] " + l));
+        // §0) and the V7 dual-channel census (V7_ASSERT_VERDICT_CHARTER
+        // §4.1) print ABOVE, before the lane guards.
         System.out.println("[rcorpus] walls (mappings + dropped base elements): "
                 + runner.walls().size());
         if (System.getProperty("rcorpus.walls") != null) {

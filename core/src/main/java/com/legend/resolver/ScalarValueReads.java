@@ -41,8 +41,7 @@ final class ScalarValueReads {
         String name = com.legend.sql.SqlSelect.SYNTH_MAP_COL
                 + (body instanceof TypedPropertyAccess bpa
                         ? bpa.property() : "value");
-        Type.Param result =
-                ((Type.FunctionType) mapper.info().type()).result();
+        Type.Param result = mapper.functionType().result();
         Multiplicity cellMult =
                 result.multiplicity() instanceof Multiplicity.Bounded rb
                         && rb.upper() != null && rb.upper() <= 1

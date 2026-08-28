@@ -189,8 +189,7 @@ public final class RelationalRootForm {
         TypedPropertyAccess read = reads.get(0);
         var fnType = new Type.FunctionType(
                 java.util.List.of(new Type.Param(
-                        ((Type.FunctionType) leaf.fn().info().type())
-                                .params().get(0).type(),
+                        leaf.fn().functionType().params().get(0).type(),
                         Multiplicity.Bounded.ONE)),
                 new Type.Param(read.info().type(),
                         read.info().multiplicity()));

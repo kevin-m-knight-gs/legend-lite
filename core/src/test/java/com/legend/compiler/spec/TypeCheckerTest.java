@@ -831,7 +831,7 @@ class TypeCheckerTest {
         // the transform is a CLOSED lambda now — its RESULT is the
         // accumulator-typed element (the cross-tree-binding remediation)
         assertEquals(Type.Primitive.INTEGER,
-                ((Type.FunctionType) mr.transform().info().type()).result().type());
+                mr.transform().functionType().result().type());
         assertEquals(Type.Primitive.INTEGER, fold.info().type());
     }
 

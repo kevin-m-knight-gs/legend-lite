@@ -51,6 +51,44 @@ public final class PlatformTypes {
     public static final String LIST = "meta::pure::functions::collection::List";
     public static final String PAIR = "meta::pure::functions::collection::Pair";
     public static final String FUNCTION = "meta::pure::metamodel::function::Function";
+    /** The m3 function-carrier hierarchy under {@link #FUNCTION}:
+     * {@code LambdaFunction<F>} and {@code ConcreteFunctionDefinition<F>}
+     * extend {@code FunctionDefinition<F>} extends {@code Function<F>}
+     * (m3.pure). A value-level function's CLASSIFIER is one of these
+     * carriers; the structural {@code FunctionType} it wraps is the
+     * signature. Lambda literals classify as LambdaFunction; references
+     * to body-bearing user functions as ConcreteFunctionDefinition;
+     * native-function references are NOT FunctionDefinitions. */
+    public static final String FUNCTION_DEFINITION = "meta::pure::metamodel::function::FunctionDefinition";
+    public static final String LAMBDA_FUNCTION = "meta::pure::metamodel::function::LambdaFunction";
+    public static final String CONCRETE_FUNCTION_DEFINITION = "meta::pure::metamodel::function::ConcreteFunctionDefinition";
+
+    /** The classifier of a lambda literal: {@code LambdaFunction<ft>}. */
+    public static Type lambdaType(Type.FunctionType ft) {
+        return new Type.GenericType(LAMBDA_FUNCTION, java.util.List.of(ft));
+    }
+
+    /** The classifier of a reference to a body-bearing user function:
+     * {@code ConcreteFunctionDefinition<ft>}. */
+    public static Type concreteFunctionDefinitionType(Type.FunctionType ft) {
+        return new Type.GenericType(CONCRETE_FUNCTION_DEFINITION, java.util.List.of(ft));
+    }
+
+    /** The structural signature a function-valued type carries — the bare
+     * {@code FunctionType}, or the one inside a carrier spelling
+     * ({@code Function<{…}>}, {@code LambdaFunction<{…}>}, …); {@code null}
+     * when {@code t} is not function-valued (including carriers whose
+     * argument is nominal, e.g. {@code FunctionDefinition<Any>}). */
+    public static Type.@com.legend.Nullable FunctionType functionTypeOf(Type t) {
+        if (t instanceof Type.FunctionType ft) {
+            return ft;
+        }
+        if (t instanceof Type.GenericType g && g.arguments().size() == 1
+                && g.arguments().get(0) instanceof Type.FunctionType ft) {
+            return ft;
+        }
+        return null;
+    }
     /** The legacy TDS surface — ≡ the relation carrier at the value level
      * ({@code cast(@TabularDataSet)} is a type ASSERTION, never a wire
      * conversion). */

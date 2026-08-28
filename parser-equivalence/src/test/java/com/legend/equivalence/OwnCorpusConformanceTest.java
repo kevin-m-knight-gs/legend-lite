@@ -229,7 +229,11 @@ class OwnCorpusConformanceTest {
                 // (VarianceD4Test, extension host declared in
                 // OwnDialectCensusTest) — the contravariance spec cannot
                 // be written without Function<{...}> parameter signatures
-                Map.entry("PURE-DIALECT-function-types", 15),
+                // 15 -> 16 (2026-08-28, REVIEWED): charter §4V lambda-
+                // classifier witness — the negative case (Function<{...}>-
+                // typed variable must NOT conform to FunctionDefinition<Any>)
+                // requires a function-type parameter spelling
+                Map.entry("PURE-DIALECT-function-types", 16),
                 Map.entry("PURE-DIALECT-generics", 7),
                 Map.entry("DIALECT-milestoning-range", 1),
                 Map.entry("ENGINE-TEST-SCOPED-section", 1),

@@ -67,7 +67,7 @@ final class NavigateChecker {
         Type.GenericType colspecParam = (Type.GenericType) sig.parameters().get(1).type();
         TypedLambda thunk = (TypedLambda) t.typeLambda(cs.function1(),
                 colspecParam.arguments().get(0), b, env);
-        Type target = ((Type.FunctionType) thunk.info().type()).result().type();
+        Type target = thunk.functionType().result().type();
         if (!(target instanceof Type.ClassType)) {
             throw new TypeInferenceException("legacyNavigate target must be a class"
                     + " extent (Class.all()), got " + target.typeName());
@@ -188,7 +188,7 @@ final class NavigateChecker {
         Type.GenericType colspecParam = (Type.GenericType) sig.parameters().get(1).type();
         TypedLambda thunk = (TypedLambda) t.typeLambda(cs.function1(),
                 colspecParam.arguments().get(0), b, env);
-        Type target = ((Type.FunctionType) thunk.info().type()).result().type();
+        Type target = thunk.functionType().result().type();
         // Class extent (Class.all()) or a RELATION target (a table/pipeline)
         // — the slot column carries the target's row-struct; the lowerer
         // flattens it as a prefixed LEFT join.

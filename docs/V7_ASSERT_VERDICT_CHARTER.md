@@ -481,8 +481,61 @@ form name; §2 by definition). Result: sqltext partition 961 → 1,529
 2,071 — the movement was entirely within the declined column; a
 split, not a burn). Lane-guard pin moved with this table. Leg 4's
 REAL remainder: getAll shapes ~175, TypedMap wrappers 63, pkOfFunc
-FunctionDefinition-vs-Function typing 43, metamodel-fn lowering gaps
+FunctionDefinition-vs-Function typing 43 (CLOSED §4V — now the
+expressionSequence reflection wall), metamodel-fn lowering gaps
 ~50, tail.
+
+## 4V. LAMBDA/REFERENCE CLASSIFIER LANDING RECORD (2026-08-28)
+
+**Function values now classify m3-true.** A lambda literal's stamp is
+`LambdaFunction<ft>` (normalized in the TypedLambda CONSTRUCTOR — the
+node owns its classifier, every mint site inherits it); an eta-expanded
+reference to a body-bearing user function stamps
+`ConcreteFunctionDefinition<ft>` (passed explicitly; the ctor keeps a
+non-bare info); an overloaded/unresolvable mangled ref keeps
+`Function<Any>`. Structural `FunctionType` survives only as the
+SIGNATURE under the carrier; one reader (`TypedLambda.functionType()`
+strict / `PlatformTypes.functionTypeOf` tolerant) replaced ~35
+ad-hoc casts and instanceof reads. Kernel: PAIRWISE carrier
+unwrapping (a formal that keeps its carrier nominal —
+`FunctionDefinition<Any>`, argument not a FunctionType — sees the
+actual's carrier; everything else unwraps both sides as before) +
+raw-class lattice subtyping in BOTH unify and paramTypeScore generic
+arms (the two halves agree). Deferred lambda literals against a
+nominal carrier formal self-type like the TypeVar slot
+(`nominalFunctionCarrier`). Demangle fix: the mangled tail's return
+name compares EXACTLY against the raw simple name
+(`rawSimpleName`), never `endsWith` on the parameterized typeName —
+`pkTestBare__Relation_1_` (returns `Relation<Any>[1]`) now resolves
+and eta-expands.
+
+RESULT: pkOfFunc 43 rows advanced from the TYPE wall
+("expected FunctionDefinition<Any>, got Function<…>") to the honest
+REFLECTION wall ("FunctionDefinition has no property
+'expressionSequence'" — the metamodel growth-by-witness arc's next
+leg). Census EXACTLY stable 3,161/9/2,071, sqltext 1,529, h2 lanes
+unchanged; scoreboard diff = diagnostic-dump spellings only (dumped
+lambda infos now show the carrier) + one SHAPE wall message became
+more precise. Witnesses: CompileFunctionTest ×4 (classifier stamp;
+lambda literal and concrete-ref acceptance into
+FunctionDefinition<Any>; Function<{…}>-typed variable REJECTED — the
+lattice direction that keeps native refs out).
+
+TWO TRAPS: (1) five formerly-TOLERANT instanceof readers (Lowerer
+map-mapper ×2, Fold.isManyScalarCol, AssociationJoins paramClass/res)
+were first converted to the STRICT accessor and threw
+"non-function classifier" across validation/milestoning — constraint
+desugar paths mint TypedLambda with BODY-typED infos (Integer/String;
+pure-false, recorded debt below); converted-from-CAST sites keep the
+strict accessor (they threw before too). (2) A failed lane guard used
+to HIDE the census — the [canon]/[v7] prints now run BEFORE the
+guard asserts (diagnostics before verdicts).
+
+DEBT (named, not fixed here): resolver/desugar mint sites that stamp
+TypedLambda with a non-function info (constraint validation,
+milestoning frames). The ctor normalization passes them through; the
+tolerant readers preserve behavior. The proper fix is minting real
+`{row->Boolean}`-shaped FunctionTypes at those sites.
 
 ## 8. PLAN OF ATTACK — the batch-2 remainder → cutover (handoff,
 ## 2026-08-28)

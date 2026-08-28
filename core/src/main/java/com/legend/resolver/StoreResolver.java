@@ -2650,7 +2650,7 @@ public final class StoreResolver {
             // flatten IS the mapper body with the source spliced for the
             // param (flatten composition is associative) — keep walking.
             if (cur instanceof TypedMap cm
-                    && ((Type.FunctionType) cm.mapper().info().type()).result()
+                    && cm.mapper().functionType().result()
                             .type() instanceof Type.ClassType) {
                 cur = substituteParam(cm.mapper(), cm.source());
                 continue;

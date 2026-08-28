@@ -320,7 +320,9 @@ final class StatementExecutor {
                                 .typed.TypedLambda plam
                         && pep.args().get(1) instanceof com.legend.compiler
                                 .spec.typed.TypedPackageableRef pmr
-                        && plam.info().type() instanceof com.legend.compiler
+                        && com.legend.compiler.element.type.PlatformTypes
+                                .functionTypeOf(plam.info().type())
+                                instanceof com.legend.compiler
                                 .element.type.Type.FunctionType pft) {
                     java.util.Set<String> seenFns =
                             new java.util.LinkedHashSet<>();
@@ -927,8 +929,7 @@ final class StatementExecutor {
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env, boolean quote, @com.legend.Nullable String timeZone,
             @com.legend.Nullable String connName, @com.legend.Nullable String dbType) {
-        var fnType = (com.legend.compiler.element.type.Type.FunctionType)
-                lam.info().type();
+        var fnType = lam.functionType();
         java.util.LinkedHashMap<String, com.legend.sql.SqlExpr.PlanParam>
                 params = new java.util.LinkedHashMap<>();
         java.util.LinkedHashMap<String, String> paramSpells =
@@ -1751,8 +1752,7 @@ final class StatementExecutor {
                 : null;
         boolean quote = rtArg2 != null && ConnectionFlags.quoteIdentifiersOf(rtArg2);
         String tz = rtArg2 != null ? ConnectionFlags.timeZoneOf(rtArg2) : null;
-        var fnType = (com.legend.compiler.element.type.Type.FunctionType)
-                lam.info().type();
+        var fnType = lam.functionType();
         java.util.LinkedHashMap<String, com.legend.sql.SqlExpr.PlanParam>
                 params = new java.util.LinkedHashMap<>();
         java.util.List<com.legend.plan.PlanNode.Param> fps =

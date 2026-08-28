@@ -235,10 +235,10 @@ final class SyntheticHeads {
                     + " merge-by-identity registry yet");
         }
         String param = pred.parameters().get(0);
-        var pInfo = pred.info().type() instanceof Type.FunctionType ft
-                && ft.params().size() == 1
-                ? new ExprType(ft.params().get(0).type(),
-                        ft.params().get(0).multiplicity())
+        Type.FunctionType pft = pred.functionType();
+        var pInfo = pft.params().size() == 1
+                ? new ExprType(pft.params().get(0).type(),
+                        pft.params().get(0).multiplicity())
                 : null;
         if (pInfo == null) {
             throw new IllegalStateException("resolver bug: filtered-nav"
@@ -630,8 +630,7 @@ final class SyntheticHeads {
                 mapper.info());
         TypedSpec inlined = Substitution.inlineParam(f.predicate().body().get(0),
                 f.predicate().parameters().get(0), renamed);
-        var srcParam = ((Type.FunctionType)
-                mapper.info().type()).params().get(0);
+        var srcParam = mapper.functionType().params().get(0);
         TypedLambda filterLam = new TypedLambda(mapper.parameters(),
                 List.of(inlined),
                 new ExprType(

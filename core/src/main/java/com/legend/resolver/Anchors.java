@@ -91,7 +91,7 @@ final class Anchors {
                     spaceOf(pa.source()) == Space.OBJECT;
             // ->map with a CLASS-result mapper stays in object space
             case TypedMap m
-                    when ((Type.FunctionType) m.mapper().info().type()).result()
+                    when m.mapper().functionType().result()
                             .type() instanceof Type.ClassType ->
                     spaceOf(m.source()) == Space.OBJECT;
             case TypedFrom fr -> spaceOf(fr.source()) == Space.OBJECT;

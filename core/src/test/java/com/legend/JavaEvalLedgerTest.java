@@ -98,7 +98,10 @@ class JavaEvalLedgerTest {
             // 749 -> 750 (Phase 1 dialect-blind fix: spliceLeftVar takes
             // a render FUNCTION instead of the AnsiSqlRenderer type)
             Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 750),
-            Map.entry("core/src/main/java/com/legend/AggAwareActivities.java", 225),
+            // 225 -> 227 (lambda-classifier slice: the lambda spelling
+            // reader unwraps the m3 carrier stamp — LambdaFunction<ft> —
+            // via PlatformTypes.functionTypeOf; a TYPE read, no evaluation)
+            Map.entry("core/src/main/java/com/legend/AggAwareActivities.java", 227),
             // ADVERSARIAL_TENET_AUDIT_2026_08_18 §5: the grid egress was
             // "the sixth class the JDBC guard doesn't name" — these four
             // rows pin it until the relation-typed fetchDb leg DELETES

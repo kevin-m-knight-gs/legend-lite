@@ -63,10 +63,18 @@ public final class InferenceKernel {
      */
     public void unify(Type formal, Type actual, Bindings b) {
         // Function<{...}> is the WRAPPED spelling of a bare FunctionType —
-        // signatures use the wrapper, lambda-typed values may carry the bare
-        // form. Normalize BOTH sides so the FunctionType arm sees one shape.
+        // signatures use the wrapper, function VALUES carry a carrier
+        // (LambdaFunction<{…}> etc.). Normalization is PAIRWISE: when the
+        // formal is (or unwraps to) a structural FunctionType the actual
+        // unwraps with it; a formal that KEEPS its carrier nominal
+        // (FunctionDefinition<Any> — its argument is no FunctionType) must
+        // see the actual's carrier too, so the nominal lattice can judge
+        // (LambdaFunction ≤ FunctionDefinition; a Function<Any> ref is NOT).
         Type ff = unwrapFunction(formal);
-        Type fa = unwrapFunction(actual);
+        boolean formalKeepsCarrier = ff == formal
+                && formal instanceof Type.GenericType fg
+                && FUNCTION_CARRIER_FQNS.contains(fg.rawFqn());
+        Type fa = formalKeepsCarrier ? actual : unwrapFunction(actual);
         if (ff != formal || fa != actual) {
             unify(ff, fa, b);
             return;
@@ -151,8 +159,14 @@ public final class InferenceKernel {
                     && PlatformTypes.isAny(g.arguments().get(0))
                     && actual instanceof Type.FunctionType -> { }
             case Type.GenericType g -> {
+                // Nominal on the raw class, with the class lattice — a
+                // parameterized SUBCLASS actual conforms (m3's function
+                // carriers: LambdaFunction<{…}> flows into a
+                // FunctionDefinition<Any> formal), mirroring the ClassType
+                // arm's isSubtype rule.
                 if (!(actual instanceof Type.GenericType ag
-                        && ag.rawFqn().equals(g.rawFqn())
+                        && (ag.rawFqn().equals(g.rawFqn())
+                                || ctx.isSubtype(ag.rawFqn(), g.rawFqn()))
                         && ag.arguments().size() == g.arguments().size())) {
                     throw fail(formal, actual);
                 }
@@ -1083,12 +1097,17 @@ public final class InferenceKernel {
 
     /** Type specificity: exact=2, subtype=1, type-var/Any=0, no match=-1. */
     private int paramTypeScore(Type formal, Type actual) {
-        // Function<{...}> vs bare FunctionType: normalize BOTH sides the
-        // way unify() does — the two kernel halves must agree, or scoring
+        // Function<{...}> vs bare FunctionType: normalize PAIRWISE the way
+        // unify() does — the two kernel halves must agree, or scoring
         // rejects what unification accepts (map-built lambda collections
-        // against a Function<...>[*] param).
+        // against a Function<...>[*] param). A formal that keeps its
+        // carrier nominal (FunctionDefinition<Any>) sees the actual's
+        // carrier too — the generic arm's lattice rule judges it.
         Type nf = unwrapFunction(formal);
-        Type na = unwrapFunction(actual);
+        boolean formalKeepsCarrier = nf == formal
+                && formal instanceof Type.GenericType fg
+                && FUNCTION_CARRIER_FQNS.contains(fg.rawFqn());
+        Type na = formalKeepsCarrier ? actual : unwrapFunction(actual);
         if (nf != formal || na != actual) {
             return paramTypeScore(nf, na);
         }
@@ -1126,9 +1145,14 @@ public final class InferenceKernel {
                     when g.rawFqn().equals(PlatformTypes.TABULAR_DATA_SET)
                     && Type.isRelation(actual) -> 1;
             case Type.GenericType g -> {
-                if (!(actual instanceof Type.GenericType ag)
-                        || !ag.rawFqn().equals(g.rawFqn())) {
+                // Nominal raw-class lattice, mirroring the unify arm: a
+                // subclass raw scores like the exact raw (m3 function
+                // carriers — LambdaFunction into FunctionDefinition<Any>).
+                if (!(actual instanceof Type.GenericType ag)) {
                     yield -1;
+                }
+                if (!ag.rawFqn().equals(g.rawFqn())) {
+                    yield ctx.isSubtype(ag.rawFqn(), g.rawFqn()) ? 1 : -1;
                 }
                 // Function<{...->V[m]}> carriers: a KNOWN function value
                 // must fit the formal's interior RESULT multiplicity —
@@ -1406,9 +1430,9 @@ public final class InferenceKernel {
     static final java.util.Set<String> FUNCTION_CARRIER_FQNS =
             java.util.Set.of(
                     com.legend.compiler.element.type.PlatformTypes.FUNCTION,
-                    "meta::pure::metamodel::function::FunctionDefinition",
-                    "meta::pure::metamodel::function::LambdaFunction",
-                    "meta::pure::metamodel::function::ConcreteFunctionDefinition");
+                    com.legend.compiler.element.type.PlatformTypes.FUNCTION_DEFINITION,
+                    com.legend.compiler.element.type.PlatformTypes.LAMBDA_FUNCTION,
+                    com.legend.compiler.element.type.PlatformTypes.CONCRETE_FUNCTION_DEFINITION);
 
     private static Type unwrapFunction(Type t) {
         if (t instanceof Type.GenericType g

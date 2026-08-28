@@ -77,7 +77,8 @@ final class Pivots {
         for (TypedAggCol a : pv.aggs()) {
             // the using carries its LOWERING-typed result slot — the
             // typed fact pivot-generated columns inherit (E1)
-            Type aggT = a.reduce().info().type()
+            Type aggT = com.legend.compiler.element.type.PlatformTypes
+                    .functionTypeOf(a.reduce().info().type())
                     instanceof Type.FunctionType ft
                     ? ft.result().type() : Type.Primitive.STRING;
             usings.add(new SqlSource.Pivot.Using(lw.aggExpr(forAgg, a),

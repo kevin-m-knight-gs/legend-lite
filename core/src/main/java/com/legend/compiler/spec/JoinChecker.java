@@ -364,7 +364,7 @@ final class JoinChecker {
         Type.GenericType slotParam = (Type.GenericType) sig.parameters().get(1).type();
         TypedLambda thunk = (TypedLambda) t.typeLambda(cs.function1(),
                 slotParam.arguments().get(0), b, env);
-        Type targetRow = ((Type.FunctionType) thunk.info().type()).result().type();
+        Type targetRow = thunk.functionType().result().type();
         Type.RelationType targetSchema = Type.relationSchema(targetRow);
         if (targetSchema == null) {
             throw new TypeInferenceException(
