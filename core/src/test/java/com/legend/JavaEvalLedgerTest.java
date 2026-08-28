@@ -191,7 +191,7 @@ class JavaEvalLedgerTest {
             // never evaluation — the instance still computes in the DB.
             // 246→300 (2026-08-19 relation-suite landing): the GRID VERDICT
             // arm — assertTdsEquivalent executes BOTH relations in the
-            // database and cell-zips host-side via GridCompare (Clause
+            // database and cell-zips host-side via TdsCompare (Clause
             // 2c's chartered route; the 79-row relation witness). Verdict
             // orchestration over DB-produced frames, never evaluation.
             // 300→304 (2026-08-19 burn slice 1): the side-flatten's
@@ -302,7 +302,7 @@ class JavaEvalLedgerTest {
             // harness list moved verbatim), the rendered-text and
             // grid-pair ARMS (the DATABASE still renders/computes every
             // side; the arms only ROUTE to the one comparison owner,
-            // GridCompare), and the forAll-contains subset fold (both
+            // TdsCompare), and the forAll-contains subset fold (both
             // sides DB-computed, membership judged by the lattice — the
             // interpreter-free quantified shape). Routing + dispatch;
             // the burn target is the HARNESS lattice this replaces
@@ -319,11 +319,11 @@ class JavaEvalLedgerTest {
             // decode routing, not evaluation.
             // 1240->1480 (V7 §8 leg 1, user-ratified grid canon): the
             // FLAT-CELLS verdict arms — the DATABASE computes every
-            // row's canonical text (wrapGridCanon rides the side
+            // row's canonical text (wrapTdsCanon rides the side
             // query); Java's share is framing (chunking peer element
             // canons by width — separators only), the host-referee
             // dispatch, and counted declines. The comparison POLICIES
-            // stay with GridCompare/PureAsserts; nothing here renders
+            // stay with TdsCompare/PureAsserts; nothing here renders
             // or evaluates. Burns the 353-decline wall class.
             // 1480->1522 (leg 1 alarm diagnostics + declared policy):
             // the dual-verdict disagreement detail carries the FIRST
@@ -338,7 +338,7 @@ class JavaEvalLedgerTest {
             // payload — the same diagnosability rule.)
             // 1525 -> 1401 (user ruling 2026-08-28, consolidation):
             // the grid comparison POLICIES moved to their owner
-            // (GridCompare — see its row); this file keeps dispatch
+            // (TdsCompare — see its row); this file keeps dispatch
             // only. Shrink banked.
             Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1401),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
@@ -406,7 +406,7 @@ class JavaEvalLedgerTest {
             // sides, never produces a result — the header's
             // permanent-allowed class); the paired AssertVerdicts row
             // SHRANK 1525 -> 1401 in the same slice.
-            Map.entry("core/src/main/java/com/legend/exec/GridCompare.java", 431));
+            Map.entry("core/src/main/java/com/legend/exec/TdsCompare.java", 431));
     // Phase 1c: DbMetaData MOVED OUT of the evaluator surface — its
     // content was always pure catalog-SQL composition (zero JDBC), now
     // compiler/spec/CatalogGrids (the Typer's fetchDb retype needs the
@@ -525,7 +525,7 @@ class JavaEvalLedgerTest {
                     // policies. Verification CONSUMES two produced sides,
                     // never produces a result (the permanent-allowed
                     // decision rule); wireEquals' private copy DIED here.
-                    "PureAsserts.java", "GridCompare.java",
+                    "PureAsserts.java", "TdsCompare.java",
                     // B7 (truthfulness burn): the ONE owner of raised-
                     // message envelope unwrap — provenance-scoped
                     // (sentinel pair), so native errors keep their class;

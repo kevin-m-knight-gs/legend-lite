@@ -802,7 +802,7 @@ final class ArchitectureTest {
             .that().doNotHaveFullyQualifiedName("com.legend.AssertVerdicts")
             .and().doNotHaveFullyQualifiedName("com.legend.AssertErrorNative")
             .and().doNotHaveFullyQualifiedName("com.legend.exec.PureAsserts")
-            .and().doNotHaveFullyQualifiedName("com.legend.exec.GridCompare")
+            .and().doNotHaveFullyQualifiedName("com.legend.exec.TdsCompare")
             .and().doNotHaveFullyQualifiedName("com.legend.exec.CanonicalForm")
             .and().doNotHaveFullyQualifiedName("com.legend.exec.CanonicalDivergence")
             // testdatagen composes seed SOURCE TEXT via the ONE repr

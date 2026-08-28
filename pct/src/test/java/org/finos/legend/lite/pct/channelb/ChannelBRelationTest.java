@@ -68,7 +68,7 @@ class ChannelBRelationTest {
                         + "RelationFunctions_manifest.duckdb.json"));
         // measured 2026-08-19 at the relation-scope landing (the
         // let-indirection adapter arm + the assertTdsEquivalent GRID
-        // VERDICT [Clause 2c's chartered GridCompare route, 79-row
+        // VERDICT [Clause 2c's chartered TdsCompare route, 79-row
         // witness] + Variant toString-as-JSON-text). The 51 DECLINED are
         // deeper non-identity adapter shapes; the TRUE tail (33, pinned
         // SHRINK-ONLY) is the recorded burn queue — window semantics,

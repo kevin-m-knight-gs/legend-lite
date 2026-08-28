@@ -36,10 +36,10 @@ public final class CanonRider {
     /** The wrap outcome frame — IMMUTABLE: candidate canon kinds in
      * projected-column order, whether the side is a collection, and
      * (V7 §8 leg 1) the GRID width when the canon rode a TABULAR plan
-     * as one per-row text ({@code gridWidth} &lt; 0 = a scalar wrap;
+     * as one per-row text ({@code tdsWidth} &lt; 0 = a scalar wrap;
      * the two modes are mutually exclusive by construction). */
     public record Wrap(List<Type> kinds, boolean many, int literalIndex,
-            int gridWidth) {
+            int tdsWidth) {
     }
 
     private final boolean canonicalOrder;
@@ -72,7 +72,7 @@ public final class CanonRider {
     }
 
     public boolean wrapped() {
-        return wrap != null && wrap.gridWidth() < 0;
+        return wrap != null && wrap.tdsWidth() < 0;
     }
 
     /** Whether the side is a collection (drives the renderSide list
@@ -111,8 +111,8 @@ public final class CanonRider {
     }
 
     // ── V7 §8 leg 1 — the GRID mode, carried by the SAME immutable
-    // wrap frame (gridWidth >= 0): a TABULAR side's canon is one
-    // per-ROW text (per-cell pure-literal spellings, GRID_CELL_SEP
+    // wrap frame (tdsWidth >= 0): a TABULAR side's canon is one
+    // per-ROW text (per-cell pure-literal spellings, TDS_CELL_SEP
     // joined, NULL cells spelling TDSNull) appended as the plan's last
     // column; {@link #rows()} then holds one {@code String[1]} per
     // data row, harvested by the Executor's ONE canon choke point.
@@ -121,17 +121,17 @@ public final class CanonRider {
 
     /** The canon owner records a successful GRID wrap of {@code width}
      * data columns. */
-    public void gridWrap(int width) {
+    public void tdsWrap(int width) {
         this.wrap = new Wrap(List.of(), true, -1, width);
         this.declined = null;
     }
 
-    public boolean gridWrapped() {
-        return wrap != null && wrap.gridWidth() >= 0;
+    public boolean tdsWrapped() {
+        return wrap != null && wrap.tdsWidth() >= 0;
     }
 
     /** Data-column count of the grid the canon rode (-1 = not grid). */
-    public int gridWidth() {
-        return wrap == null ? -1 : wrap.gridWidth();
+    public int tdsWidth() {
+        return wrap == null ? -1 : wrap.tdsWidth();
     }
 }

@@ -34,7 +34,7 @@ class VerdictChannelRegisterTest {
             // the K-arm: statement-root assert-family verdicts (World 1)
             "core/src/main/java/com/legend/AssertVerdicts.java",
             // grid verdicts (corpus/PCT TDS comparison, Clause 2b owner)
-            "core/src/main/java/com/legend/exec/GridCompare.java",
+            "core/src/main/java/com/legend/exec/TdsCompare.java",
             // tree verdicts (wire-tree leaves ride equalScalar as a
             // method reference)
             "core/src/main/java/com/legend/exec/JsonCompare.java",

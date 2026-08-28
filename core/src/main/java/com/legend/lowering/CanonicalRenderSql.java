@@ -282,12 +282,12 @@ public final class CanonicalRenderSql {
     /** V7 §8 leg 1 — the GRID canon wrap outcome: the plan with a
      * per-ROW canonical text appended as the LAST column, or a decline
      * with the plan unchanged. */
-    public record GridWrap(com.legend.sql.SqlQuery plan,
+    public record TdsWrap(com.legend.sql.SqlQuery plan,
             @com.legend.Nullable String declineReason) {
 
-        static GridWrap decline(com.legend.sql.SqlQuery plan,
+        static TdsWrap decline(com.legend.sql.SqlQuery plan,
                 String reason) {
-            return new GridWrap(plan, reason);
+            return new TdsWrap(plan, reason);
         }
     }
 
@@ -295,30 +295,30 @@ public final class CanonicalRenderSql {
      * character, reserved — a STRING cell containing it poisons its
      * row canon to NULL (a counted decline downstream), never a
      * silent mis-split. */
-    public static final String GRID_CELL_SEP = "\u001F";
+    public static final String TDS_CELL_SEP = "\u001F";
 
     /** V7 §8 leg 1 (fusion-spike F2, user-ratified) — wrap a TABULAR
      * plan so every row carries its canonical text: per-cell
      * PURE-LITERAL spellings ({@link LiteralSpelling#literal} — the
      * six disjoint forms, the same grammar the value peer's literal
      * channel spells, so grid cells and literal-list elements meet in
-     * ONE spelling) joined by {@link #GRID_CELL_SEP}; a NULL cell
+     * ONE spelling) joined by {@link #TDS_CELL_SEP}; a NULL cell
      * spells the golden convention's bare {@code TDSNull} — DISJOINT
      * from a real string 'TDSNull', which spells QUOTED. Declines
      * (named, counted) on late-bound schemas, plan/schema width
      * mismatches (pivot, struct flattening), and unclaimed cell
      * kinds. */
-    public static GridWrap wrapGridCanon(com.legend.sql.SqlQuery plan,
+    public static TdsWrap wrapTdsCanon(com.legend.sql.SqlQuery plan,
             Type.@com.legend.Nullable RelationType schema) {
         if (schema == null) {
-            return GridWrap.decline(plan, "grid-canon: no schema view");
+            return TdsWrap.decline(plan, "tds-canon: no schema view");
         }
         if (schema.isLateBound()) {
-            return GridWrap.decline(plan, "grid-canon: late-bound schema");
+            return TdsWrap.decline(plan, "tds-canon: late-bound schema");
         }
         if (plan.outputs().size() != schema.columns().size()
                 || plan.outputs().isEmpty()) {
-            return GridWrap.decline(plan, "grid-canon: plan/schema width "
+            return TdsWrap.decline(plan, "tds-canon: plan/schema width "
                     + plan.outputs().size() + "/" + schema.columns().size());
         }
         SqlExpr row = null;
@@ -332,14 +332,14 @@ public final class CanonicalRenderSql {
             // inequality (or worse, equality). Decline; the host
             // lattice judges the pair.
             if (kind instanceof Type.EnumType) {
-                return GridWrap.decline(plan,
-                        "grid-canon: enum cell has no literal channel");
+                return TdsWrap.decline(plan,
+                        "tds-canon: enum cell has no literal channel");
             }
             SqlExpr ref = SqlExpr.Column.of(null, col);
             SqlExpr lit = LiteralSpelling.literal(ref, kind);
             if (lit == null) {
-                return GridWrap.decline(plan,
-                        "grid-canon: unclaimed cell kind "
+                return TdsWrap.decline(plan,
+                        "tds-canon: unclaimed cell kind "
                                 + kind.typeName());
             }
             SqlExpr cell = SqlExpr.Call.of(SqlFn.COALESCE,
@@ -361,7 +361,7 @@ public final class CanonicalRenderSql {
                                 SqlExpr.Call.of(SqlFn.GREATER,
                                         SqlExpr.Call.of(SqlFn.STRPOS, ref,
                                                 new SqlExpr.StringLit(
-                                                        GRID_CELL_SEP)),
+                                                        TDS_CELL_SEP)),
                                         new SqlExpr.IntLit(0)),
                                 new SqlExpr.NullLit())), cell);
             }
@@ -370,7 +370,7 @@ public final class CanonicalRenderSql {
             row = row == null ? cell
                     : SqlExpr.Call.of(SqlFn.CONCAT,
                             SqlExpr.Call.of(SqlFn.CONCAT, row,
-                                    new SqlExpr.StringLit(GRID_CELL_SEP)),
+                                    new SqlExpr.StringLit(TDS_CELL_SEP)),
                             cell);
         }
         List<com.legend.sql.SqlSelect.Projection> projections =
@@ -386,7 +386,7 @@ public final class CanonicalRenderSql {
                 "__rowcanon"));
         outputs.add(new com.legend.sql.OutputCol("__rowcanon",
                 SqlType.Scalar.VARCHAR, true));
-        return new GridWrap(new com.legend.sql.SqlSelect(projections,
+        return new TdsWrap(new com.legend.sql.SqlSelect(projections,
                 false,
                 new com.legend.sql.SqlSource.Subselect(plan, "side", null),
                 null, List.of(), null, null, List.of(), null, null,

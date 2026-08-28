@@ -2775,13 +2775,13 @@ final class StatementExecutor {
             // per-ROW canonical text as the appended last column (the
             // fusion-spike F2 shape); the tabular decode strips it into
             // the rider, row-aligned.
-            var gw = com.legend.lowering.CanonicalRenderSql.wrapGridCanon(
+            var gw = com.legend.lowering.CanonicalRenderSql.wrapTdsCanon(
                     plan, com.legend.compiler.element.type.Type.schemaView(
                             shapeInfo.type()));
             if (gw.declineReason() != null) {
                 rider.decline(gw.declineReason());
             } else {
-                rider.gridWrap(plan.outputs().size());
+                rider.tdsWrap(plan.outputs().size());
                 plan = gw.plan();
             }
         } else if (rider != null) {
@@ -2817,7 +2817,7 @@ final class StatementExecutor {
             // stamp-derived, the V6 circularity). The side re-executes
             // BARE (pure SELECT — effectful statements never reach the
             // K-arm) and the canon declines.
-            boolean wasWrapped = rider.wrapped() || rider.gridWrapped();
+            boolean wasWrapped = rider.wrapped() || rider.tdsWrapped();
             boolean hadDroppableLiteral = rider.literalIndex() >= 1;
             rider.rows().clear();
             if (wasWrapped) {

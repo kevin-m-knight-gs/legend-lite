@@ -2140,10 +2140,10 @@ public final class Pure {
     // assertTdsEquivalent (REAL core_functions_relation
     // relation/functions/tdsEquivalent.pure:26/:31, signatures verbatim;
     // stereotyped PCT.platformOnly there): the GRID VERDICT — Clause 2c's
-    // chartered GridCompare route. The pure body is m3-reflective
+    // chartered TdsCompare route. The pure body is m3-reflective
     // (columns(), classifierGenericType); the K-arm executes both
     // relations IN THE DATABASE and cell-zips host-side with the spec's
-    // numeric-delta + temporal-seconds policies (GridCompare, one owner).
+    // numeric-delta + temporal-seconds policies (TdsCompare, one owner).
     public static final NativeFunctionDefinition ASSERT_TDS_EQUIVALENT__REL_1__REL_1__NUMBER_1 = signature("native function meta::pure::functions::relation::assertTdsEquivalent<T,Z>(one:meta::pure::metamodel::relation::Relation<T>[1], two:meta::pure::metamodel::relation::Relation<Z>[1], delta:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition ASSERT_TDS_EQUIVALENT__REL_1__REL_1__NUMBER_1__NUMBER_1 = signature("native function meta::pure::functions::relation::assertTdsEquivalent<T,Z>(one:meta::pure::metamodel::relation::Relation<T>[1], two:meta::pure::metamodel::relation::Relation<Z>[1], delta:meta::pure::metamodel::type::Number[1], timeDeltaInSeconds:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Boolean[1];");
 

@@ -204,7 +204,7 @@ class AssertVerdictSpliceTest {
         SQLException e = assertThrows(SQLException.class, () -> run(prefix
                 + " assertEquals(['p1', 40, 'p2', 30],"
                 + " $result.values.rows.values);}"));
-        assertTrue(String.valueOf(e.getMessage()).contains("flat-cells"),
+        assertTrue(String.valueOf(e.getMessage()).contains("TDSRow.values"),
                 e.getMessage());
     }
 

@@ -41,7 +41,7 @@ final class TdsEquivalence {
         double timeDelta = args.size() == 4 ? asNumber(EngineTestExecutor.eval(
                 EngineTestExecutor.subst(args.get(3), lets), lets, execStmts, execVars,
                 execChains, ctx, imports, runtimeFqn, conn).values()) : 0.0;
-        return com.legend.exec.GridCompare.tdsEquivalent(
+        return com.legend.exec.TdsCompare.tdsEquivalent(
                 exp.values(), got.values(), delta, timeDelta);
     }
 

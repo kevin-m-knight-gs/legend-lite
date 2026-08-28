@@ -95,7 +95,7 @@ class JdbcSurfaceCensusTest {
             // RETIRED: moved to compiler/spec/CatalogGrids — pure
             // SQL-text composition.)
             "core/src/main/java/com/legend/exec/GridProbe.java",
-            // (PureAsserts + GridCompare rows RETIRED 2026-08-21, the
+            // (PureAsserts + TdsCompare rows RETIRED 2026-08-21, the
             // D-arc dividend: PureDateLiteral is THE wire temporal
             // carrier, so the comparison layer's java.sql value arms
             // are GONE — sql types never escape the fetch seam.)

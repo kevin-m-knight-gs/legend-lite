@@ -270,7 +270,7 @@ class EngineTestExecutorTest {
     }
 
     @Test
-    void tdsLiteralGridCompare() throws Exception {
+    void tdsLiteralTdsCompare() throws Exception {
         assertHeld(run("""
                 let result = execute(|Person.all()->project([p|$p.name, p|$p.age],
                         ['name', 'age']), test::M, r(), e());

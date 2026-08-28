@@ -30,9 +30,9 @@ import java.util.List;
  * (C0.4/F2.4); measurement only, never the verdict.</li>
  * </ul>
  */
-public final class GridCompare {
+public final class TdsCompare {
 
-    private GridCompare() {
+    private TdsCompare() {
     }
 
     /** TDS grids compare STRUCTURALLY: column names ordered+exact, rows
@@ -118,10 +118,10 @@ public final class GridCompare {
     /** A grid side's per-ROW canon texts from its rider (harvested by
      * the Executor's one canon choke point), or null = the byte
      * channel declines, counted. */
-    public static @com.legend.Nullable List<String> gridRowCanons(
+    public static @com.legend.Nullable List<String> tdsRowCanons(
             CanonRider rider) {
-        if (!rider.gridWrapped()) {
-            CanonicalDivergence.sqlDeclined("grid-side: "
+        if (!rider.tdsWrapped()) {
+            CanonicalDivergence.sqlDeclined("tds-side: "
                     + (rider.declined() != null ? rider.declined()
                             : "no grid canon"));
             return null;
@@ -129,7 +129,7 @@ public final class GridCompare {
         List<String> out = new ArrayList<>(rider.rows().size());
         for (String[] r : rider.rows()) {
             if (r[0] == null) {
-                CanonicalDivergence.sqlDeclined("grid-side: null-canon-cell");
+                CanonicalDivergence.sqlDeclined("tds-side: null-canon-cell");
                 return null;
             }
             out.add(r[0]);
@@ -150,7 +150,7 @@ public final class GridCompare {
             return null;
         }
         if (width <= 0 || cells.size() % width != 0) {
-            CanonicalDivergence.sqlDeclined("grid-peer: " + cells.size()
+            CanonicalDivergence.sqlDeclined("tds-peer: " + cells.size()
                     + " cells not divisible by width " + width);
             return null;
         }
@@ -166,7 +166,7 @@ public final class GridCompare {
                 sb.append(cells.get(i));
             } else {
                 sb.append(com.legend.lowering.CanonicalRenderSql
-                        .GRID_CELL_SEP).append(cells.get(i));
+                        .TDS_CELL_SEP).append(cells.get(i));
             }
         }
         if (!cells.isEmpty()) {
@@ -185,14 +185,14 @@ public final class GridCompare {
             CanonRider rider, int valueCount, boolean isExpected) {
         int li = rider.literalIndex();
         if (!rider.wrapped() || li < 0) {
-            CanonicalDivergence.sqlDeclined("grid-peer: no literal channel"
+            CanonicalDivergence.sqlDeclined("tds-peer: no literal channel"
                     + (rider.declined() != null
                             ? ": " + rider.declined() : ""));
             return null;
         }
         if (rider.rows().size() != valueCount) {
             CanonicalDivergence.sqlDeclined(
-                    "grid-peer: canon rows misaligned "
+                    "tds-peer: canon rows misaligned "
                             + rider.rows().size() + "/" + valueCount);
             return null;
         }
@@ -201,16 +201,16 @@ public final class GridCompare {
             String c = r[li];
             if (c == null) {
                 CanonicalDivergence.sqlDeclined(
-                        "grid-peer: null element canon");
+                        "tds-peer: null element canon");
                 return null;
             }
             if (isExpected && "'TDSNull'".equals(c)) {
                 c = "TDSNull";
             }
             if (c.contains(com.legend.lowering.CanonicalRenderSql
-                    .GRID_CELL_SEP)) {
+                    .TDS_CELL_SEP)) {
                 CanonicalDivergence.sqlDeclined(
-                        "grid-peer: reserved separator in element");
+                        "tds-peer: reserved separator in element");
                 return null;
             }
             out.add(c);
@@ -221,9 +221,9 @@ public final class GridCompare {
     /** Per-CELL canons of a grid side (the sameElements view): row
      * canons split on the reserved separator — exact, because the wrap
      * poisons any cell carrying it. */
-    public static @com.legend.Nullable List<String> gridCellCanons(
+    public static @com.legend.Nullable List<String> tdsCellCanons(
             CanonRider rider) {
-        List<String> rows = gridRowCanons(rider);
+        List<String> rows = tdsRowCanons(rider);
         if (rows == null) {
             return null;
         }
@@ -232,7 +232,7 @@ public final class GridCompare {
             java.util.Collections.addAll(out, r.split(
                     java.util.regex.Pattern.quote(
                             com.legend.lowering.CanonicalRenderSql
-                                    .GRID_CELL_SEP), -1));
+                                    .TDS_CELL_SEP), -1));
         }
         return out;
     }

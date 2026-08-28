@@ -69,7 +69,7 @@ final class AssertVerdicts {
         if (fqn == null) {
             return null;
         }
-        // THE GRID VERDICT (Clause 2c — GridCompare's chartered route;
+        // THE GRID VERDICT (Clause 2c — TdsCompare's chartered route;
         // witness: the relation suite's 79 assertTdsEquivalent rows):
         // both relations execute IN THE DATABASE, the cell-zip
         // adjudicates host-side (tdsEquivalent.pure's numeric delta +
@@ -103,7 +103,7 @@ final class AssertVerdicts {
                 return fail("\n" + summarize(one) + "\n is not"
                         + " equivalent to:\n" + summarize(two));
             }
-            String d = com.legend.exec.GridCompare.tdsEquivalent(
+            String d = com.legend.exec.TdsCompare.tdsEquivalent(
                     cells(one), cells(two), delta, timeDelta);
             return d == null ? ok() : fail(d);
         }
@@ -122,7 +122,7 @@ final class AssertVerdicts {
                 // D3 — the RENDERED-TEXT arm: exactly one side is a
                 // DB-rendered grid text (toCSV/toString/replace/join
                 // spellings), the peer a string value. The DATABASE
-                // computed the render; GridCompare.renderedText (the
+                // computed the render; TdsCompare.renderedText (the
                 // one policy owner, R1b-probed) judges the texts.
                 ExecutionResult ra = renderedArm(name, wantEqual, args,
                         letPrefix, specs, env, hook, true);
@@ -131,7 +131,7 @@ final class AssertVerdicts {
                 }
                 // D3 — the GRID-PAIR arm: both sides statically
                 // relation-stamped execute as grids; the grid owner
-                // (GridCompare.grids: columns ordered, rows under the
+                // (TdsCompare.grids: columns ordered, rows under the
                 // order policy) judges — never a byte decline.
                 if (com.legend.compiler.element.type.Type.isRelation(
                         args.get(0).info().type())
@@ -146,7 +146,7 @@ final class AssertVerdicts {
                                 "relation-stamped assert side executed"
                                         + " to a non-tabular result");
                     }
-                    boolean held = com.legend.exec.GridCompare.grids(te,
+                    boolean held = com.legend.exec.TdsCompare.grids(te,
                             ta, orderView(args.get(1), letPrefix)
                                     == OrderView.SORTED);
                     if (held != wantEqual) {
@@ -180,7 +180,7 @@ final class AssertVerdicts {
                 // the FLAT-CELLS verdict (grid canon byte channel +
                 // host cell lattice referee)
                 if (ef.grid() != null || af.grid() != null) {
-                    return gridCellsVerdict(name, wantEqual, args,
+                    return tdsRowValuesVerdict(name, wantEqual, args,
                             letPrefix, ef, af, incidental);
                 }
                 // X5: a same-class KEYED pair restricts both sides to
@@ -251,7 +251,7 @@ final class AssertVerdicts {
                 // column-grouped — loose multiset IS this assert's
                 // reference semantics, audit 9), cell-level byte canon
                 if (ef.grid() != null || af.grid() != null) {
-                    return gridSameElementsVerdict(ef, af);
+                    return tdsRowValuesSameElements(ef, af);
                 }
                 var ik = instanceKeys(args.get(0), args.get(1), env);
                 List<Object> e = ik != null
@@ -679,7 +679,7 @@ final class AssertVerdicts {
 
     // ── §8 LEG 1 (grid canon, fusion-spike F2, user-ratified
     // 2026-08-28): a TABULAR side's byte channel is its per-ROW canon
-    // (per-cell pure-literal spellings, GRID_CELL_SEP-joined, NULL
+    // (per-cell pure-literal spellings, TDS_CELL_SEP-joined, NULL
     // cells spelling bare TDSNull — disjoint from a quoted string);
     // the value peer's row canons FRAME from its literal-channel
     // element canons (chunked by the grid's width — framing writes
@@ -691,7 +691,7 @@ final class AssertVerdicts {
 
     /** The FLAT-CELLS verdict for a pair with at least one TABULAR
      * side (both-wrapped pairs took the grid-pair arm earlier). */
-    private static ExecutionResult gridCellsVerdict(String name,
+    private static ExecutionResult tdsRowValuesVerdict(String name,
             boolean wantEqual, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SideFetch ef, SideFetch af,
             boolean incidental) throws java.sql.SQLException {
@@ -717,7 +717,7 @@ final class AssertVerdicts {
                 ExecutionResult.Tabular g = af.grid() != null ? af.grid()
                         : ef.grid();
                 int w = g != null ? g.columns().size() : 1;
-                hostHeld = com.legend.exec.GridCompare.rowTupleMultiset(
+                hostHeld = com.legend.exec.TdsCompare.rowTupleMultiset(
                         e, a, w > 1 && e.size() % w == 0 ? w : 1);
             }
         }
@@ -744,17 +744,17 @@ final class AssertVerdicts {
                 // hold BY POLICY — counted in the policy's own census
                 // row, never a disagreement rescue.
                 if (!byteHeld && hostHeld
-                        && com.legend.exec.GridCompare
+                        && com.legend.exec.TdsCompare
                                 .ulpOnlyCellDrift(e, a)) {
                     com.legend.exec.CanonicalDivergence.sqlUlpPolicy(
-                            "grid " + com.legend.exec.GridCompare
+                            "grid " + com.legend.exec.TdsCompare
                                     .firstCanonDiff(es, as2));
                     byteHeld = true;
                 }
                 com.legend.exec.CanonicalDivergence.probeSqlVerdict(name,
-                        hostHeld, byteHeld, "grid rows=" + ec.size() + "/"
+                        hostHeld, byteHeld, "tds rows=" + ec.size() + "/"
                                 + ac.size() + (byteHeld ? ""
-                                        : com.legend.exec.GridCompare
+                                        : com.legend.exec.TdsCompare
                                                 .firstCanonDiff(es, as2)));
             }
         }
@@ -771,7 +771,7 @@ final class AssertVerdicts {
                         ? "\nraw cells do not equal a whole TDS value"
                         : PureAsserts.assertEquals(e, a);
         return fail(d != null
-                ? name + " (flat-cells) " + d.replaceFirst("^\\n", "")
+                ? name + " (TDSRow.values) " + d.replaceFirst("^\\n", "")
                 : "byte-verdict: grid canonical renders differ (host"
                         + " lattice agreed — dual-verdict divergence,"
                         + " see [canon] census)");
@@ -781,12 +781,12 @@ final class AssertVerdicts {
      * (direction-aware sentinel — pool matching, never a sorted zip:
      * sorting separates an expected 'TDSNull' from its NULL cell),
      * cell-level canon multiset as the byte channel. */
-    private static ExecutionResult gridSameElementsVerdict(SideFetch ef,
+    private static ExecutionResult tdsRowValuesSameElements(SideFetch ef,
             SideFetch af) throws java.sql.SQLException {
         List<Object> e = ef.values();
         List<Object> a = af.values();
         boolean hostHeld = e.size() == a.size()
-                && com.legend.exec.GridCompare.rowTupleMultiset(e, a, 1);
+                && com.legend.exec.TdsCompare.rowTupleMultiset(e, a, 1);
         List<String> ec = sideCellCanons(ef, true);
         List<String> ac = sideCellCanons(af, false);
         Boolean byteHeld = null;
@@ -798,8 +798,8 @@ final class AssertVerdicts {
             byteHeld = es.equals(as2);
             com.legend.exec.CanonicalDivergence.probeSqlVerdict(
                     "assertSameElements", hostHeld, byteHeld,
-                    "grid cells=" + ec.size() + "/" + ac.size()
-                            + (byteHeld ? "" : com.legend.exec.GridCompare
+                    "tds cells=" + ec.size() + "/" + ac.size()
+                            + (byteHeld ? "" : com.legend.exec.TdsCompare
                                     .firstCanonDiff(es, as2)));
         }
         boolean held = byteHeld != null ? byteHeld : hostHeld;
@@ -809,9 +809,9 @@ final class AssertVerdicts {
         if (!hostHeld) {
             String d = PureAsserts.assertSameElements(e, a);
             return fail(d != null
-                    ? "assertSameElements (flat-cells) "
+                    ? "assertSameElements (TDSRow.values) "
                             + d.replaceFirst("^\\n", "")
-                    : "assertSameElements (flat-cells): cell multiset"
+                    : "assertSameElements (TDSRow.values): cell multiset"
                             + " differs");
         }
         return fail("byte-verdict: grid canonical renders differ (host"
@@ -822,12 +822,12 @@ final class AssertVerdicts {
     /** A side's per-ROW canon texts via the grid policy owner: a
      * grid side reads its harvested row canons; a value peer frames
      * rows from its literal-channel element canons ({@link
-     * com.legend.exec.GridCompare} owns every rule and decline). */
+     * com.legend.exec.TdsCompare} owns every rule and decline). */
     private static @com.legend.Nullable List<String> sideRowCanons(
             SideFetch side, int width, boolean isExpected) {
         return side.grid() != null
-                ? com.legend.exec.GridCompare.gridRowCanons(side.rider())
-                : com.legend.exec.GridCompare.peerRowCanons(side.rider(),
+                ? com.legend.exec.TdsCompare.tdsRowCanons(side.rider())
+                : com.legend.exec.TdsCompare.peerRowCanons(side.rider(),
                         side.values().size(), width, isExpected);
     }
 
@@ -836,8 +836,8 @@ final class AssertVerdicts {
     private static @com.legend.Nullable List<String> sideCellCanons(
             SideFetch side, boolean isExpected) {
         return side.grid() != null
-                ? com.legend.exec.GridCompare.gridCellCanons(side.rider())
-                : com.legend.exec.GridCompare.peerElementCanons(
+                ? com.legend.exec.TdsCompare.tdsCellCanons(side.rider())
+                : com.legend.exec.TdsCompare.peerElementCanons(
                         side.rider(), side.values().size(), isExpected);
     }
 
@@ -869,7 +869,7 @@ final class AssertVerdicts {
     // ── D3 (batch-2 slice 2): the GOLDEN GRID/ORDER conventions move
     // into verdict construction — the ORDER VIEW of a side, the
     // rendered-text forms, and the grid-pair route. The comparison
-    // POLICIES stay with their one production owner (GridCompare).
+    // POLICIES stay with their one production owner (TdsCompare).
 
     /** A side's order semantics: SORTED (ends in a sort through
      * order-preserving tails — the engine contract pins the order),
@@ -1015,7 +1015,7 @@ final class AssertVerdicts {
                 && av.size() == 1 && av.get(0) instanceof String at) {
             boolean sorted = orderedForm
                     && orderView(rendered, letPrefix) == OrderView.SORTED;
-            boolean held = com.legend.exec.GridCompare.renderedText(
+            boolean held = com.legend.exec.TdsCompare.renderedText(
                     aForm != null ? et : at, aForm != null ? at : et,
                     form, sorted);
             if (held != wantEqual) {
@@ -1054,7 +1054,7 @@ final class AssertVerdicts {
      * CSVJOIN:sep (the calendar family's one-line spelling), and a
      * makeString/joinStrings join over an INCIDENTAL-order chain →
      * CSVJOIN:sep (token multiset — sep-joined DB arrival order).
-     * The comparison policy is {@link com.legend.exec.GridCompare
+     * The comparison policy is {@link com.legend.exec.TdsCompare
      * #renderedText} — the one owner, probed by its own R1b census. */
     private static @com.legend.Nullable String renderForm(TypedSpec s0,
             List<TypedSpec> lets) {

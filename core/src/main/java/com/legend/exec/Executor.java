@@ -419,11 +419,11 @@ public final class Executor {
         int count;
         if (rider == null) {
             return;
-        } else if (rider.gridWrapped()) {
+        } else if (rider.tdsWrapped()) {
             // position derives from the WRAP FRAME (the grid's data
             // width was recorded at wrap time; the canon is the one
             // appended column) — never re-asked of the result set
-            base = rider.gridWidth() + 1;
+            base = rider.tdsWidth() + 1;
             count = 1;
         } else if (rider.wrapped()) {
             base = 2;
@@ -724,7 +724,7 @@ public final class Executor {
         // V7 §8 leg 1 — a grid-wrapped rider rode the plan's LAST
         // column (__rowcanon): strip it from the value decode and
         // harvest it row-aligned (shapeRow is 1:1 by construction)
-        boolean grid = rider != null && rider.gridWrapped();
+        boolean grid = rider != null && rider.tdsWrapped();
         int n = rs.getMetaData().getColumnCount() - (grid ? 1 : 0);
         List<Column> columns = resolveColumns(rs, plan, schema, n);
         List<Row> rows = new ArrayList<>();

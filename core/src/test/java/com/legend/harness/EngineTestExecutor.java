@@ -3115,7 +3115,7 @@ public final class EngineTestExecutor {
                 && rsc.value() instanceof String atext
                 && expected.values().size() == 1
                 && expected.values().get(0) instanceof String etext) {
-            return com.legend.exec.GridCompare.renderedText(etext, atext,
+            return com.legend.exec.TdsCompare.renderedText(etext, atext,
                     actual.joinSep().substring("RENDERED:".length()),
                     ordered && actual.sortedChain());
         }
@@ -3127,7 +3127,7 @@ public final class EngineTestExecutor {
                 && actual.values().size() == 1
                 && actual.values().get(0) instanceof String atext2) {
             // the mirrored spelling (rendered expected vs literal actual)
-            return com.legend.exec.GridCompare.renderedText(atext2, etext2,
+            return com.legend.exec.TdsCompare.renderedText(atext2, etext2,
                     expected.joinSep().substring("RENDERED:".length()),
                     true);
         }
@@ -3139,7 +3139,7 @@ public final class EngineTestExecutor {
         if (expected.result() instanceof com.legend.exec.ExecutionResult.Tabular te
                 && actual.result() instanceof com.legend.exec.ExecutionResult.Tabular ta
                 && !expected.flatCells() && !actual.flatCells()) {
-            return com.legend.exec.GridCompare.grids(te, ta, ordered && actual.sortedChain());
+            return com.legend.exec.TdsCompare.grids(te, ta, ordered && actual.sortedChain());
         }
 
         // MIXED flat-cells vs whole-TDS VALUE (audit 22b F2): pure equality
@@ -3214,7 +3214,7 @@ public final class EngineTestExecutor {
                         || (expected.flatCells() && actual.flatCells()))
                 && e.size() == a.size() && a.size() % tab.columns().size() == 0) {
             // row cohesion + F2.4 instrument live with the policy owner
-            return com.legend.exec.GridCompare.rowTupleMultiset(
+            return com.legend.exec.TdsCompare.rowTupleMultiset(
                     e, a, tab.columns().size());
         }
         List<Object> pool = new ArrayList<>(a);
@@ -3241,7 +3241,7 @@ public final class EngineTestExecutor {
         // F2.4: loose-pool cell multiset — previously uninstrumented.
         // The tag (audit #10) separates THIS site — assertSameElements'
         // pure-spec order-insensitivity — from genuine row leniency.
-        com.legend.exec.GridCompare.ordLeniency("sameElements-values", () -> {
+        com.legend.exec.TdsCompare.ordLeniency("sameElements-values", () -> {
             for (int i = 0; i < e.size(); i++) {
                 if (!goldenEqualScalar(e.get(i), a.get(i))) {
                     return false;
