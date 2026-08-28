@@ -54,14 +54,25 @@ fused verdict passes byte-exact. Adjudication still required: the
 canon convention change must move host `CanonicalForm` and the SQL
 canon together (PCT lanes pin today's spelling).
 
-**F4 — JSON verdicts do not ride plain SQL equality.** DuckDB JSON
-equality is key-order SENSITIVE; the engine rule is key-order
-insensitive (arrays sensitive). Byte verdict works when the emission
-and the golden agree on key order (the common recorded case); the
-semantic rule needs recursive key-sorted canonicalization DuckDB does
-not provide natively. Recommendation: JSON remains a host-judged rung
-(JsonCompare), byte channel as fast-path — a NAMED fold-rung residue,
-not a blocker.
+**F4 (AMENDED 2026-08-28, user catch) — JSON rides the byte channel
+like every other kind, via canonical EMISSION, no SQL-side recursion
+needed.** The original finding ("DuckDB JSON equality is key-order
+sensitive → host-judged") tested the wrong mechanism — the `=`
+operator over arbitrary documents — instead of applying the canon
+doctrine (render canonically, compare bytes). The two sides don't
+need runtime canonicalization at all: the ACTUAL side's JSON is built
+by OUR serializer, whose key set per object is STATIC (the fetch
+tree), so the canon channel emits a second build with keys pre-sorted
+at compile time (tree-order emission stays the product output); the
+EXPECTED side is a compile-time literal, canonicalized once at
+inlining (parse, sort keys, minify). Probed: sorted-key DB emission
+byte-equals the host-canonicalized golden, including int/double
+number spellings. Named residual seams for the landing slice: float
+edge spellings in JSON leaves (exponent/zero forms — the floatCanon
+class), string escapes/unicode, and key order after
+`json_merge_patch` (the removeNullKeys shape). Arrays keep order on
+both sides (engine rule) naturally. Host JsonCompare remains the
+parallel referee, not the judge.
 
 **F5 — the eager-evaluation hazard is real, and mitigable.** A later
 assert whose evaluation ERRORS kills the whole fused statement
@@ -91,6 +102,25 @@ the register's NULL-padded typed value columns remain the design for
 the EVIDENCE layout, but the verdict itself never needed a promoting
 union.
 
+## Rung choice: per-assert statements over whole-body single-shot
+## (2026-08-28, user question → adopted framing)
+
+The spike demonstrated the TOP rung (whole test body = one
+statement). The right DEFAULT landing rung is the register's own
+"split": **the shared `$result` materializes ONCE (the let-IS-WITH
+materialization — evaluate-once semantics; two asserts must see the
+SAME rows of a nondeterministically-ordered result), then EACH assert
+is its own small verdict statement against it.** What that buys, for
+free: pure's stop-at-first-failure (assert 2's statement never runs
+if assert 1 fails — the F5 eager-evaluation hazard vanishes without
+CASE nesting), and exact error attribution (a statement error IS that
+assert's error). Cost: 1+N round trips instead of 1 — at 0.26 ms per
+query, noise. Whole-body single-shot remains the top rung for bodies
+proven hazard-free, gated by the V12 TimingLedger measurement. The
+one forbidden shape: re-executing the shared query per assert
+(violates evaluate-once; nondeterministic order/sequences would let
+asserts disagree about the same result).
+
 ## Roadmap implications (PROPOSED — for ratification)
 
 1. **Leg 1 (flat cells) lands as the grid-canon extension** of
@@ -106,9 +136,13 @@ union.
    the emission target concretely for scalar/multiset/grid shapes.
    Runtime shape-sniffing arms are the one layer fusion discards;
    stop growing that layer.
-4. **JSON** = named fold-rung residue (host JsonCompare), byte
-   fast-path optional.
-5. **V12/V13 sequencing after V7 cutover is unchanged** (the
+4. **JSON rides the byte channel** via canonical emission (F4 as
+   amended): sorted-key canon build on the actual side, compile-time
+   canonicalized golden on the expected side; JsonCompare = referee.
+5. **Per-assert verdict statements over a once-materialized result**
+   are the default rung (see the rung-choice section); whole-body
+   single-shot is the measured top rung.
+6. **V12/V13 sequencing after V7 cutover is unchanged** (the
    dual-referee and pinned semantics are what make the flip safe).
 
 **Limitations.** Inner SQL hand-written for three tests (engine SQL
