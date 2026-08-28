@@ -391,14 +391,67 @@ mvn -pl core test -Dtest=RelationalCorpusRunner \
 # (scoped runs never write the scoreboard)
 ```
 
+## 8.0 SCOPE TABLE — the ratified denominator (2026-08-28, user
+## sign-off; measured from the baseline full sweep at 9958c040)
+
+Plain reading: an "assert execution" is one assert statement judged
+once during a full corpus sweep. Of **5,241** total:
+
+| bucket | count | plan |
+|---|---|---|
+| sql/plan-text compares (assertSameSQL family — compare COMPILER OUTPUT text, not data) | 961 | **OUT of the migration by design, permanently.** Already end-state: text match → H2 row-check (320, 0 diverged); text differs → engine's golden SQL executes on H2, rows vs our rows (632 verified, 0 diverged); unverifiable → advisory, counted by reason (145 — LEG 8 burns these) |
+| TDG/test-data-gen text compares | 123 | OUT by design, permanently (host artifacts) |
+| host-unsupported forms | 28 | name-by-name adjudication (leg 6) |
+| **adjudicating through the production verdict path today** | **2,658** | 2,650 agree + 8 named wire-fidelity disagreements (leg 5) |
+| resolver: class query under wrapper | 614 | leg 4 (compiler-resolver work, not assert work) |
+| resolver: getAll/call shapes | 175 | leg 4 |
+| flat-cells / tabular sides | 353 | leg 1 (grid canon — fusion-spike F2 proved the SQL) |
+| JSON family typing | 163 | legs 2–3 (arm exists; Result<T\|m> typing + 2 natives) |
+| lowering gaps + tail | 166 | leg 6 |
+
+Cutover acceptance re-stated against this denominator: disagree 0 and
+declines == exactly the two BY-DESIGN rows (961 + 123) + adjudicated
+residue. RATIFIED DESIGN for every remaining leg (fusion spike,
+[V12_FUSION_SPIKE_2026_08_28.md](V12_FUSION_SPIKE_2026_08_28.md), user
+sign-off across four rounds): comparison policy chosen at COMPILE TIME
+from static types; host-executed today, emittable tomorrow as ONE
+statement per test body (lets = `WITH ... AS MATERIALIZED`, asserts =
+plain verdict columns, evidence side-tagged in the same result set;
+first-failure = diagnostics not semantics — split rung is the
+error-diagnosis fallback only; JSON rides the byte channel via
+canonical sorted-key EMISSION; literals always inline — no
+unspellable class, stringLit splices chr(0)).
+
 **Leg order (each leg: witness → implement → full sweep → guardrail
 battery → allgates → push):**
 
-1. **Flat-cells compare (~340 declines).** `rows.values` reads execute
-   to a grid; engine semantics: column names OUT, cells compare
-   row-wise; ordered exact first, ROW-TUPLE multiset under incidental
-   order (audit 9: cross-row shuffles must FAIL —
-   `GridCompare.rowTupleMultiset` is the owner).
+0. **Lane-classification guard (with the scope table, this slice).**
+   The sqltext/tdg partition counts pin EXACTLY in the corpus runner
+   (shrink-or-justify), and the h2-exec `diverged` counter pins 0 —
+   an assert can never silently change lanes, and a replay divergence
+   can never pass silently.
+
+1. **Flat-cells compare (353 declines) — DESIGN SUPERSEDED
+   2026-08-28 (user ratification after the fusion spike): lands as
+   the GRID-CANON EXTENSION of `wrapWithCanon`, NOT a host-only arm.**
+   `wrapWithCanon`'s 1-column decline is the whole blocker (spike F2);
+   the extension: per-cell leaf spelling (LiteralSpelling) joined by a
+   separator no cell can contain (chr(31)) into a per-ROW canon text;
+   the row-canon multiset (sorted-list equality) is the byte verdict;
+   NULL cells spell the golden's sentinel convention at the canon
+   (COALESCE → 'TDSNull', direction preserved at compile time — spike
+   R2-3); an explicit `->sort()` side orders by PURE'S TOTAL ORDER
+   (kind-rank + typed value), never canon text (spike R2-1). The host
+   cell lattice (`GridCompare.rowTupleMultiset`, engine semantics:
+   column names OUT, cells row-wise, cross-row shuffles FAIL — audit
+   9) stays as the PARALLEL REFEREE, exactly the scalar channel's
+   dual-verdict shape. The failure message derives from the SAME
+   judgment that failed — the reverted attempt printed the
+   byte-verdict text for judgments the byte channel never made (its
+   28-row phantom: judgment and message from different lattices with
+   the probe unfired; the committed tail couples message⇔probe, the
+   arm must too).
+   Historical findings (the reverted attempt, still true):
    **ATTEMPTED AND REVERTED 2026-08-28 — findings for the retry
    (an attempt was measured then rolled back at ec9f6fe8; nothing
    half-understood was pushed):**
@@ -450,9 +503,18 @@ battery → allgates → push):**
    wire temporal seam); then the two phantoms (sort-tie order policy,
    TDSNull row-string spelling) — adjudicate with the user if a
    mechanical fix doesn't fall out.
-6. **host-unsupported 30 + tail**: name-by-name adjudication (§2 rows
+6. **host-unsupported 28 + tail**: name-by-name adjudication (§2 rows
    or feature rows).
-7. **BATCH 3 — the cutover (one slice, only at disagree 0 and
+7. **H2-replay unverifiable burndown (145)** — user-ratified as its
+   own leg 2026-08-28 ("so we actually do that"). The sql-text
+   family's row-verification oracle currently declines 145 asserts
+   (census by reason: non-tabular result frames 452-class dominant,
+   no-root-exec-variable, array-literal dialect gaps, non-lambda
+   toSQLString shapes, enum-decoded columns). Each fix converts an
+   advisory pass into a ROW-VERIFIED pass; target: unverifiable → 0
+   or a named, user-adjudicated residue. Independent of the cutover
+   (advisory channel) — schedulable any time.
+8. **BATCH 3 — the cutover (one slice, only at disagree 0 and
    declines == §2 partition):** SQL verdict becomes the verdict of
    record; DELETE `checkAssert`'s comparison lattice,
    `goldenEqualScalar`, the golden temporal-decode arms, `compare()`/
