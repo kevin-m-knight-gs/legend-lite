@@ -74,6 +74,20 @@ public final class InferenceKernel {
         boolean formalKeepsCarrier = ff == formal
                 && formal instanceof Type.GenericType fg
                 && FUNCTION_CARRIER_FQNS.contains(fg.rawFqn());
+        // NOMINAL GATE before any structural unwrap (audit 2026-08-28
+        // R5): when BOTH sides are carriers the class lattice judges
+        // FIRST — a Function-carrier actual must not slip into a
+        // LambdaFunction<{sig}> formal just because the signatures line
+        // up. A bare-FunctionType side imposes/carries no nominal
+        // constraint and keeps the structural path.
+        if (formal instanceof Type.GenericType nf2
+                && FUNCTION_CARRIER_FQNS.contains(nf2.rawFqn())
+                && actual instanceof Type.GenericType na2
+                && FUNCTION_CARRIER_FQNS.contains(na2.rawFqn())
+                && !na2.rawFqn().equals(nf2.rawFqn())
+                && !ctx.isSubtype(na2.rawFqn(), nf2.rawFqn())) {
+            throw fail(formal, actual);
+        }
         Type fa = formalKeepsCarrier ? actual : unwrapFunction(actual);
         if (ff != formal || fa != actual) {
             unify(ff, fa, b);
@@ -1000,7 +1014,15 @@ public final class InferenceKernel {
                         return resolveChosen(byBottom.get(0), args, name);
                     }
                     throw new TypeInferenceException("ambiguous overload of '" + name + "': "
-                            + winners.size() + " candidates tie for the argument types");
+                            + winners.size() + " candidates tie for the argument types ["
+                            + winners.stream().map(w -> w.qualifiedName()
+                                    + "/" + w.parameters().size()
+                                    + (w.isNative() ? ":native" : ":module")
+                                    + " p0=" + w.parameters().get(0).type().typeName()
+                                    + " ret=" + w.returnType().typeName()
+                                    + "[" + w.returnMultiplicity() + "]")
+                                    .collect(java.util.stream.Collectors.joining("; "))
+                            + "]");
                 }
                 return resolveChosen(nativeWinners.get(0), args, name);
             }
@@ -1107,6 +1129,16 @@ public final class InferenceKernel {
         boolean formalKeepsCarrier = nf == formal
                 && formal instanceof Type.GenericType fg
                 && FUNCTION_CARRIER_FQNS.contains(fg.rawFqn());
+        // NOMINAL GATE mirroring unify() (audit R5): carrier-vs-carrier
+        // is judged on the class lattice BEFORE structural unwrap.
+        if (formal instanceof Type.GenericType nf2
+                && FUNCTION_CARRIER_FQNS.contains(nf2.rawFqn())
+                && actual instanceof Type.GenericType na2
+                && FUNCTION_CARRIER_FQNS.contains(na2.rawFqn())
+                && !na2.rawFqn().equals(nf2.rawFqn())
+                && !ctx.isSubtype(na2.rawFqn(), nf2.rawFqn())) {
+            return -1;
+        }
         Type na = formalKeepsCarrier ? actual : unwrapFunction(actual);
         if (nf != formal || na != actual) {
             return paramTypeScore(nf, na);

@@ -96,7 +96,12 @@ class OwnDialectCensusTest {
                     // variable REJECTED by a FunctionDefinition<Any> formal
                     // (the lattice direction that keeps native refs out)
                     // cannot be spelled without a function-type parameter
-                    java.util.Map.entry("CompileFunctionTest.java", 3),
+                    // 3 -> 5 (2026-08-28, REVIEWED): audit fix-slice §4W —
+                    // the router-execute and concatenateTemporalTdsQueries
+                    // NEGATIVES (Function-carrier rejected by verbatim
+                    // FunctionDefinition/LambdaFunction formals) each need
+                    // a Function<{...}>-typed parameter spelling
+                    java.util.Map.entry("CompileFunctionTest.java", 5),
                     java.util.Map.entry("ElementParserTest.java", 17),
                     java.util.Map.entry(
                             "LegacyCleanSheetConvergenceTest.java", 4),

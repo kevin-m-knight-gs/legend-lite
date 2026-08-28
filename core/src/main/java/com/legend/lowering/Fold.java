@@ -778,10 +778,8 @@ final class Fold {
     static boolean isManyScalarCol(
             com.legend.compiler.spec.typed.TypedFuncCol c) {
         List<com.legend.compiler.spec.typed.TypedSpec> body = c.fn().body();
-        return com.legend.compiler.element.type.PlatformTypes
-                        .functionTypeOf(c.fn().info().type())
-                        instanceof Type.FunctionType ft
-                && ft.result().multiplicity().isMany()
+        Type.FunctionType ft = c.fn().functionType();
+        return ft.result().multiplicity().isMany()
                 && Type.schemaView(ft.result().type()) == null
                 && body.get(body.size() - 1)
                         instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
@@ -1086,11 +1084,7 @@ final class Fold {
      * there; the body's own info is column-typed). */
     static com.legend.compiler.element.type.Type leafResultType(
             com.legend.compiler.spec.typed.TypedFuncCol leaf) {
-        Type.FunctionType ft = com.legend.compiler.element.type.PlatformTypes
-                .functionTypeOf(leaf.fn().info().type());
-        return ft != null ? ft.result().type()
-                : leaf.fn().body().get(leaf.fn().body().size() - 1)
-                        .info().type();
+        return leaf.fn().functionType().result().type();
     }
 
 

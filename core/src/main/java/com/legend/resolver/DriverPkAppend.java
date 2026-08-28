@@ -141,9 +141,17 @@ public final class DriverPkAppend {
             TypedSpec read = new TypedPropertyAccess(
                     new TypedVariable(rowVar, rowInfo), src.name(),
                     new ExprType(src.type(), src.multiplicity()));
+            // the lambda's info is its CLASSIFIER over a real {row->col}
+            // signature — never the bare column type (audit R1: this was
+            // the one body-typed mint the tolerant readers existed for)
             cols.add(new TypedFuncCol(cd.name(), new TypedLambda(
                     List.of(rowVar), List.of(read),
-                    new ExprType(src.type(), src.multiplicity()))));
+                    com.legend.compiler.element.type.ExprType.one(
+                            new Type.FunctionType(
+                                    List.of(new Type.Param(rowInfo.type(),
+                                            rowInfo.multiplicity())),
+                                    new Type.Param(src.type(),
+                                            src.multiplicity()))))));
             outCols.add(new Type.Column(cd.name(), src.type(),
                     src.multiplicity()));
         }

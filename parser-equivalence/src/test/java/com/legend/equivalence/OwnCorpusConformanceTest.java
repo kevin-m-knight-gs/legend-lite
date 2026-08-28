@@ -233,7 +233,11 @@ class OwnCorpusConformanceTest {
                 // classifier witness — the negative case (Function<{...}>-
                 // typed variable must NOT conform to FunctionDefinition<Any>)
                 // requires a function-type parameter spelling
-                Map.entry("PURE-DIALECT-function-types", 16),
+                // 16 -> 18 (2026-08-28, REVIEWED): §4W audit fix-slice —
+                // the two verbatim-signature NEGATIVES (router execute,
+                // concatenateTemporalTdsQueries) spell Function<{...}>
+                // parameters to witness the nominal gate's reject direction
+                Map.entry("PURE-DIALECT-function-types", 18),
                 Map.entry("PURE-DIALECT-generics", 7),
                 Map.entry("DIALECT-milestoning-range", 1),
                 Map.entry("ENGINE-TEST-SCOPED-section", 1),

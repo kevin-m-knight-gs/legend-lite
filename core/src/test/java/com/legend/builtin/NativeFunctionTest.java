@@ -523,6 +523,37 @@ class NativeFunctionTest {
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
+    /**
+     * Lambda-audit R2/F3 governance pin: every PARAMETERIZED
+     * generalization in the registry is IDENTITY-ARGUMENT — a class
+     * {@code X<T> extends Y<T>} passes its own type parameters through,
+     * in order. The kernel's generic conformance arms pair type
+     * arguments POSITIONALLY along the raw-class lattice (unify +
+     * paramTypeScore); that pairing is only sound under this invariant.
+     * A violating shape ({@code X<T> extends Y<String>}) is legal pure —
+     * landing one requires teaching the kernel generalization-argument
+     * substitution FIRST, then retiring this pin in the same commit.
+     */
+    @org.junit.jupiter.api.Test
+    void parameterizedGeneralizationsAreIdentityArgument() {
+        for (com.legend.model.ClassDefinition cd : Pure.allNativeClasses()) {
+            for (com.legend.protocol.TypeExpression sup : cd.superClasses()) {
+                if (!(sup instanceof com.legend.protocol.TypeExpression.Generic g)) {
+                    continue;
+                }
+                List<String> args = g.arguments().stream()
+                        .map(a -> a instanceof com.legend.protocol
+                                .TypeExpression.NameRef nr ? nr.name() : "<non-name>")
+                        .toList();
+                assertEquals(cd.typeParams(), args,
+                        cd.qualifiedName() + " extends " + g.name()
+                        + ": generalization arguments must be the class's own"
+                        + " type parameters, in order (positional-pairing"
+                        + " soundness — see kernel generic arms)");
+            }
+        }
+    }
+
     private static final java.util.Map<String, List<String>> RUNTIME_SURFACE_PROPERTIES =
             java.util.Map.ofEntries(
                     java.util.Map.entry(

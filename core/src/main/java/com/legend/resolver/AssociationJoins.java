@@ -1639,10 +1639,8 @@ final class AssociationJoins {
             Map<String, String> parentCopySlotPrefixes,
             Map<String, Substitution.SubNav> parentCopySubNavs,
             String rowVar, Type.RelationType rowType) {
-        String paramClass = com.legend.compiler.element.type.PlatformTypes
-                        .functionTypeOf(pred.info().type())
-                        instanceof Type.FunctionType pft0
-                && pft0.params().get(0).type() instanceof Type.ClassType pc
+        String paramClass = pred.functionType().params().get(0).type()
+                        instanceof Type.ClassType pc
                 ? pc.fqn() : target.classFqn();
         return corrPredOnJoinedRowCore(pred, parent, target, targetPrefix,
                 Map.of(), sn.children(), parentCopySlotPrefixes,
@@ -1732,13 +1730,7 @@ final class AssociationJoins {
                         rowVar, rowInfo));
         // the result kind is the INPUT lambda's (a Boolean pred, or a
         // computed mapper's scalar — this rewriter serves both)
-        Type.Param res = com.legend.compiler.element.type.PlatformTypes
-                        .functionTypeOf(pred.info().type())
-                        instanceof Type.FunctionType pft
-                ? pft.result()
-                : new Type.Param(Type.Primitive.BOOLEAN,
-                        com.legend.compiler.element.type.Multiplicity
-                                .Bounded.ONE);
+        Type.Param res = pred.functionType().result();
         return new com.legend.compiler.spec.typed.TypedLambda(
                 List.of(rowVar), List.of(body),
                 new ExprType(

@@ -537,6 +537,23 @@ milestoning frames). The ctor normalization passes them through; the
 tolerant readers preserve behavior. The proper fix is minting real
 `{row->Boolean}`-shaped FunctionTypes at those sites.
 
+## 4W. LAMBDA-SLICE AUDIT + FIX-SLICE LANDING RECORD (2026-08-28)
+
+User-directed adversarial audit of §4V BEFORE the sql-producer leg —
+full findings + receipts in docs/V7_LAMBDA_AUDIT_2026_08_28.md.
+Verdict: core architectural (ctor-owned classifier, one reader,
+kernel lattice); three burns executed same-day (F1 honest
+DriverPkAppend mint + ALL readers strict, falsifier-verified sole
+producer; F2 engine-verbatim carrier signatures — router execute,
+preval, concatenateTemporalTdsQueries — + kernel nominal-gate-before-
+structural-unwrap, witnessed both directions; F3 identity-argument
+generalization governance pin). NEW FINDING R8:
+meta::pure::mapping::execute is an INVENTED FQN (nowhere in either
+checkout) — kept as a legacy alias spelled identically to router's
+verbatim signature; deletion = named future leg. Deferred with the
+reflection leg: eta value-identity (R6/R7). Census exactly
+3,161/9/2,071 through every iteration.
+
 ## 8. PLAN OF ATTACK — the batch-2 remainder → cutover (handoff,
 ## 2026-08-28)
 

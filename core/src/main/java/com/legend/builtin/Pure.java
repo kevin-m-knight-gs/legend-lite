@@ -1637,35 +1637,66 @@ public final class Pure {
     public static final ClassDefinition DEBUG_CONTEXT = nativeClass("native Class meta::pure::tools::DebugContext extends meta::pure::metamodel::type::Any { debug: meta::pure::metamodel::type::Boolean[1]; space: meta::pure::metamodel::type::String[1]; }");
     public static final NativeFunctionDefinition NO_DEBUG = signature("native function meta::pure::tools::noDebug():meta::pure::tools::DebugContext[1];");
     public static final ClassDefinition ACTIVITY = nativeClass("native Class meta::pure::mapping::Activity extends meta::pure::metamodel::type::Any {}");
-    public static final NativeFunctionDefinition EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::pure::mapping::execute<T|m>(f:meta::pure::metamodel::function::Function<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<T|m>[1];");
-    public static final NativeFunctionDefinition EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY__ANY_1 = signature("native function meta::pure::mapping::execute<T|m>(f:meta::pure::metamodel::function::Function<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::metamodel::type::Any[1]):meta::pure::mapping::Result<T|m>[1];");
-    // The ROUTER entry spelling (REAL pure router_entry.pure:20/:47 —
+    // AUDIT R8 (2026-08-28): meta::pure::mapping::execute exists NOWHERE
+    // in the engine or legend-pure checkouts (grepped .pure AND .java) —
+    // the real bare 'execute' of the corpus is meta::pure::router::execute
+    // (router_entry.pure). This FQN is a legacy alias registration for
+    // the SAME real function, so its signature is spelled IDENTICALLY
+    // (f:FunctionDefinition<{->T[m]}>, verbatim from router_entry.pure) —
+    // the overload machinery's duplicate-signature tolerance then makes
+    // the two FQNs interchangeable at bare call sites (first wins
+    // deterministically); differing spellings made them a LOUD tie.
+    // Deleting the alias wholesale is its own leg (harness isExecuteFqn +
+    // any explicit-FQN corpus spellings ride on it).
+    public static final NativeFunctionDefinition EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::pure::mapping::execute<T|m>(f:meta::pure::metamodel::function::FunctionDefinition<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<T|m>[1];");
+    public static final NativeFunctionDefinition EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY__ANY_1 = signature("native function meta::pure::mapping::execute<T|m>(f:meta::pure::metamodel::function::FunctionDefinition<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::metamodel::type::Any[1]):meta::pure::mapping::Result<T|m>[1];");
+    // The ROUTER entry spelling (REAL pure router_entry.pure:20/:50 —
     // execute<T|y>(f:FunctionDefinition<{->T[y]}>[1], m:Mapping[1],
     // runtime:Runtime[1], extensions:Extension[*])[, debug]):Result —
     // same execution semantics as mapping::execute; the harness
-    // recognizes both FQNs (PlatformTypes.isExecuteFqn).
-    public static final NativeFunctionDefinition ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::pure::router::execute<T|m>(f:meta::pure::metamodel::function::Function<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<T|m>[1];");
-    public static final NativeFunctionDefinition ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY__ANY_1 = signature("native function meta::pure::router::execute<T|m>(f:meta::pure::metamodel::function::Function<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::metamodel::type::Any[1]):meta::pure::mapping::Result<T|m>[1];");
+    // recognizes both FQNs (PlatformTypes.isExecuteFqn). The f
+    // parameter is VERBATIM (audit 2026-08-28 R4: the old
+    // Function<{...}> spelling was a carrier WEAKENING — a lambda
+    // conforms via LambdaFunction ≤ FunctionDefinition, a plain
+    // Function-typed value must NOT). Mapping/runtime/extensions stay
+    // Any (pre-existing distance: the engine's Runtime/Extension
+    // classes are not registered; this platform's execution-context
+    // values stamp Any — a separate leg). The engine spells the 4-arg
+    // mult var 'y'; registered ALPHA-RENAMED to 'm' — bound-variable
+    // names are not signature semantics, and the overload tie-break's
+    // same-shape test compares Result<T|m> by equality against
+    // mapping::execute's return (a 'y' spelling broke bare-'execute'
+    // calls whose imports cover both FQNs).
+    public static final NativeFunctionDefinition ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::pure::router::execute<T|m>(f:meta::pure::metamodel::function::FunctionDefinition<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<T|m>[1];");
+    public static final NativeFunctionDefinition ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY__ANY_1 = signature("native function meta::pure::router::execute<T|m>(f:meta::pure::metamodel::function::FunctionDefinition<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::metamodel::type::Any[1]):meta::pure::mapping::Result<T|m>[1];");
 
     // preval: the engine's PLAN-TIME pre-evaluation pass (REAL pure
     // preeval.pure:53/:58 — preval<T>(f:FunctionDefinition<T>[1],
     // extensions:Extension[*])[, debug:DebugContext[1]]:FunctionDefinition
-    // <T>[1]). IDENTITY for row semantics; f spelled with this platform's
-    // execute convention (Function<{->T[*]}>) so the wrapped query
-    // composes through execute with the same T. Never evaluated — the
-    // harness reads through it to the query lambda.
-    public static final NativeFunctionDefinition PREVAL__FN_1__ANY_MANY = signature("native function meta::pure::router::preeval::preval<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::function::Function<{->T[*]}>[1];");
-    public static final NativeFunctionDefinition PREVAL__FN_1__ANY_MANY__DEBUG_1 = signature("native function meta::pure::router::preeval::preval<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::tools::DebugContext[1]):meta::pure::metamodel::function::Function<{->T[*]}>[1];");
+    // <T>[1]). IDENTITY for row semantics; f VERBATIM (audit 2026-08-28
+    // R4 — T binds the whole FunctionType through the carrier; a lambda
+    // conforms via LambdaFunction ≤ FunctionDefinition). Never
+    // evaluated — the harness reads through it to the query lambda.
+    public static final NativeFunctionDefinition PREVAL__FN_1__ANY_MANY = signature("native function meta::pure::router::preeval::preval<T>(f:meta::pure::metamodel::function::FunctionDefinition<T>[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::function::FunctionDefinition<T>[1];");
+    public static final NativeFunctionDefinition PREVAL__FN_1__ANY_MANY__DEBUG_1 = signature("native function meta::pure::router::preeval::preval<T>(f:meta::pure::metamodel::function::FunctionDefinition<T>[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::tools::DebugContext[1]):meta::pure::metamodel::function::FunctionDefinition<T>[1];");
 
     // concatenateTemporalTdsQueries (REAL milestoning.pure:753 —
-    // (lfs:LambdaFunction<{->TabularDataSet[1]}>[*]):LambdaFunction<...>
+    // (lfs:LambdaFunction<{->TabularDataSet[1]}>[*]):LambdaFunction<…>
     // [1]): its real body folds the queries into concatenate
     // SimpleFunctionExpressions — reflection metamodel this platform
     // lacks, so the corpus copy is signature-broken and drops at
     // overload collection. This native carries the TYPE; the harness
     // splices the SAME semantics by EMISSION (TypedConcatenate fold in
-    // StatementExecutor.buildFrame).
-    public static final NativeFunctionDefinition CONCATENATE_TEMPORAL_TDS_QUERIES = signature("native function meta::relational::milestoning::concatenateTemporalTdsQueries<T>(lfs:meta::pure::metamodel::function::Function<{->T[*]}>[*]):meta::pure::metamodel::function::Function<{->T[*]}>[1];");
+    // StatementExecutor.buildFrame). CARRIER verbatim (audit R4: the
+    // LambdaFunction formal is nominal — eta refs and Function-typed
+    // values must NOT conform; witnessed). INTERIOR is a DECLARED
+    // deviation: the engine's TabularDataSet spelling schema-ERASES,
+    // which its late-bound TDS tolerates — this platform types rows
+    // statically, so T carries the query's row schema through the
+    // concatenation (re-spelling TabularDataSet verbatim broke the six
+    // testConcatenationOf* downstream sorts/groupBys on the erased
+    // schema; audit fix-slice receipt 2026-08-28).
+    public static final NativeFunctionDefinition CONCATENATE_TEMPORAL_TDS_QUERIES = signature("native function meta::relational::milestoning::concatenateTemporalTdsQueries<T>(lfs:meta::pure::metamodel::function::LambdaFunction<{->T[*]}>[*]):meta::pure::metamodel::function::LambdaFunction<{->T[*]}>[1];");
 
     // withFeatureFlags (REAL executionPlanFeature.pure:27): IDENTITY —
     // the flags ride the plan context; the harness reads through it.

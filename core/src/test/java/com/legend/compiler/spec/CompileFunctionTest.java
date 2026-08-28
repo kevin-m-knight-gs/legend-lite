@@ -171,6 +171,56 @@ class CompileFunctionTest {
     }
 
     @Test
+    void prevalAcceptsLambdaVerbatimSignature() {
+        // preval<T>(f:FunctionDefinition<T>[1], ...) — engine-verbatim
+        // (preeval.pure:53; audit R4 fix): the lambda self-types against
+        // the nominal carrier, T binds the whole FunctionType.
+        CompiledFunction cf = compile(
+                "function test::t(): Any[1] { meta::pure::router::preeval::preval({|1}, []) }",
+                "test::t");
+        Type t = cf.result().info().type();
+        assertTrue(t instanceof Type.GenericType g
+                        && com.legend.compiler.element.type.PlatformTypes
+                                .FUNCTION_DEFINITION.equals(g.rawFqn()),
+                "preval must return FunctionDefinition<T> resolved, got " + t.typeName());
+    }
+
+    @Test
+    void routerExecuteAcceptsLambdaLiteral() {
+        // router execute<T|y>(f:FunctionDefinition<{->T[y]}>[1], ...) —
+        // engine-verbatim (router_entry.pure:20; audit R4 fix): a lambda
+        // conforms (LambdaFunction ≤ FunctionDefinition).
+        CompiledFunction cf = compile(
+                "function test::t(): Any[1] { meta::pure::router::execute({|1}, 'm', 'r', []) }",
+                "test::t");
+        assertTrue(cf.result().info().type().typeName().contains("Result"),
+                "router execute must produce a Result, got "
+                        + cf.result().info().type().typeName());
+    }
+
+    @Test
+    void routerExecuteRejectsFunctionTypedVariable() {
+        // The verbatim FunctionDefinition formal must REJECT a value only
+        // known to be a Function — the supertype direction (audit R4/R5).
+        assertThrows(TypeInferenceException.class, () -> compile(
+                "function test::t(f: Function<{->Integer[1]}>[1]): Any[1]"
+                + " { meta::pure::router::execute($f, 'm', 'r', []) }",
+                "test::t"));
+    }
+
+    @Test
+    void lambdaFunctionFormalRejectsFunctionCarrier() {
+        // concatenateTemporalTdsQueries(lfs:LambdaFunction<{->TDS[1]}>[*])
+        // — the nominal gate judges BEFORE the structural unwrap (audit
+        // R5's hole, closed): a Function-carrier value with a MATCHING
+        // signature still does not conform to a LambdaFunction formal.
+        assertThrows(TypeInferenceException.class, () -> compile(
+                "function test::t(f: Function<{->meta::pure::tds::TabularDataSet[1]}>[1]): Any[1]"
+                + " { meta::relational::milestoning::concatenateTemporalTdsQueries($f) }",
+                "test::t"));
+    }
+
+    @Test
     void functionDefinitionParamRejectsFunctionTypedVariable() {
         // A Function<{…}>-DECLARED parameter is only known to be a Function —
         // Function is the SUPERTYPE of FunctionDefinition, so it must NOT
