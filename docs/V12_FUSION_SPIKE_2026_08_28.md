@@ -162,3 +162,44 @@ construction; effectful shapes are host-partition anyway).
 verbatim only for the association test); no milestoning/union/window
 shapes attempted; python-duckdb 1.4.4 vs platform JDBC 1.5.0; canon
 spellings mirrored by hand, not emitted by the platform.
+
+## ROUND 2 (2026-08-28) — the ratified design confirmed on harder
+## real tests
+
+Script: [`tools/spikes/fusion_spike2_2026_08_28.py`](../tools/spikes/fusion_spike2_2026_08_28.py).
+Five more real corpus tests, each targeting one ratified claim — ALL
+verdicts correct, all polarity checks fail as required:
+
+| claim under test | real test | result |
+|---|---|---|
+| TWO lets as MATERIALIZED CTEs + three verdict columns, ONE statement | `dates::datetime::testQuery` (result + result2) | ✓✓✓ (nine-digit canon; `assertSize 13` true only with the cumulative fixture — 4th witness for F6) |
+| deep join chain, engine SQL verbatim | `toMany::testTwoAssociationsToManyDeepWithOr` (double-nested left joins) | ✓✓ |
+| flat cells `->sort()` over MIXED KINDS (15 Integers + 15 StrictDates) | `dates::strictdate::testProject` | ✓✓; swapped golden fails ✓ |
+| NESTED-object JSON, sorted-key canon emission at every level | `graphFetch::testOneComplexProperty` (person→firm) | ✓; perturbed nested golden fails ✓ |
+| NULL cells in the grid canon (TDSNull sentinel mapped at compile time) | Trade id+settlement over 15 rows (real query/fixture; golden in the harness convention) | ✓ |
+| fused error → split-rung diagnostic fallback | synthetic erroring side | statement errors; split localizes: assert1=False recovered, error attributed to assert2 ✓ |
+
+**New design facts surfaced by round 2:**
+- **R2-1 — pure `sort()` needs pure's TOTAL ORDER as the SQL sort
+  key, never the canon text.** Mixed-kind cells sort numbers-before-
+  temporals with numeric (not lexicographic — '10'<'2' would lie)
+  within-kind order: emit (kind-rank, typed value) as the ORDER BY
+  key, canon text only as the compared value. sameElements multiset
+  compares may use ANY consistent key (canon text fine); an explicit
+  `->sort()` in the assert side must use pure's order.
+- **R2-2 — the probe itself was bitten by the nine-digit class**: a
+  python-datetime round trip truncates ns to µs, corrupting a golden.
+  Confirms the F3 rule from the other side: goldens and canon must
+  meet in ONE spelling convention; any host-language datetime hop is
+  a corruption vector (the platform's Java lane must keep temporals
+  in the text/PureDateLiteral convention end to end).
+- **R2-3 — NULL cells**: `COALESCE(<cell canon>, 'TDSNull')` on the
+  actual side + the compile-time inliner emitting the golden's
+  'TDSNull' cells verbatim = byte-equal row canons; the audit-16
+  direction-awareness becomes a compile-time fact (only the EXPECTED
+  side ever spells the sentinel).
+- **R2-4 — `now()` typing seam**: TIMESTAMP_NS comparisons against
+  `now()` (TIMESTAMPTZ) need an explicit two-step cast in DuckDB —
+  a dialect rule for the emitter, found by the probe erroring.
+- Timing at 2 CTEs + 3 verdicts: fused 0.52 ms vs split 0.54 ms —
+  wall-clock remains a non-motive; architecture is the motive.
