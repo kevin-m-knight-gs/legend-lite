@@ -120,19 +120,53 @@ where the engine's own DuckDB adapter fails (B-FIXES-A, the
 established category — 9 precedent rows); PCT gains up to 7 Essential
 rows (316→323 candidate); our own pins = 0 moved.
 
-## 5. Open items (the design leg's §2, if chartered)
+## 5. The composite case — RESOLVED BY HOMEWORK (2026-08-28, part 2)
 
-1. **The composite case** — a value-space `let` whose result feeds a
-   store/relation lambda (engine: router `inScopeVars` evaluate
-   Java-side, splice as constants). No live corpus shape exists
-   (bucket C empty), but OUR `queryLets`/`SeedableLets`/inliner path
-   must be audited so provenance survives inlining; needs its own
-   witnesses + engine-source grounding.
-2. Engine ground truth for the NEW relation lane's string translation
+**Q1 — engine ground truth for lets.** `router_routing.pure:553`:
+`letFunction` is EXPLICITLY never routed (`shouldBeRouted = false`);
+`pureToSQLQuery.pure:84` receives `inScopeVars: Map<String,
+List<Any>>` — pre-EVALUATED VALUES, not expressions. A let's
+right-hand side is ALWAYS Java-lane (0-based) in the engine, even
+written inside the query function; only its value reaches SQL, as a
+constant.
+
+**Q2 — constant subexpressions written inside routed lambdas.**
+`pureToSqlQuery` translates by FUNCTION IDENTITY, not operand
+provenance — the same code path the `testWithFunction` witness pins.
+SQL semantics. (Basis: code-path identity; no direct
+constant-operand golden found.)
+
+**Q3 — our pipeline (the real finding).**
+`UserCallInliner.inlineBody` β-REDUCES query-level lets into the body
+("binders die in the one substitution pass … downstream phases never
+see a let"; the values also survive in `queryLets` for the resolver's
+inScopeVars-style reads, and `SeedableLets` re-prefixes seedable ones
+for leaf reads). Consequence: a let value expression IS spliced into
+what becomes a store-routed subtree — β-reduction erases the lane
+fact the engine preserves. USER-FUNCTION bodies are fine: the engine
+routes function calls INTO the SQL translation (bodies inline → SQL
+semantics), matching our inliner. **Exactly one structural
+divergence: let β-reduction.** Live occurrences today: ZERO (corpus
+bucket C empty; the PCT lets are string literals, not computed).
+
+Charter options for the let divergence (a design DECISION, not a
+remaining fact question):
+  (a) classify/rewrite PRE-inline (lets still visible; store chains
+      identifiable via anchors/types) so β-substitution carries
+      already-correct spellings — engine-faithful;
+  (b) stop consuming lets into store subtrees (CTE sharing — the
+      inliner's own noted "future fix" for its double-evaluation
+      trade) — bigger, out of scope;
+  (c) pin "lets inherit the use site's lane" as a NAMED divergence
+      with a witness — cheapest, but a documented engine mismatch.
+
+## 6. Remaining open items
+
+1. Engine ground truth for the NEW relation lane's string translation
    (assumed verbatim like the store lane; corroborated indirectly by
    the DuckDB adapters, not yet read from the relation-to-SQL source).
-3. The 3-arg indexOf convention (ours, not the engine's) gets a
+2. The 3-arg indexOf convention (ours, not the engine's) gets a
    spec-semantics twin in value space; its store-lane spelling stays.
-4. OPEN_REGISTER A1 says "do NOT re-attempt" — reopening requires an
+3. OPEN_REGISTER A1 says "do NOT re-attempt" — reopening requires an
    explicit user ruling superseding 2026-08-23, with this census as
    the distinguishing evidence (the failed draft's seam ≠ this seam).
