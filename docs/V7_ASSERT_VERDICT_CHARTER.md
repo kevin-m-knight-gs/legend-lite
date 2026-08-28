@@ -105,12 +105,25 @@ cutover, not after.
 ## 4. Sequencing (~3 gated batches inside the one leg)
 
 1. **Wire the dual channel** (no behavior change): the assert
-   dispatch arm additionally routes each assert through
-   `AssertVerdicts` on the same connection; host verdict remains of
-   record; counters populate. Instrument: per-form
-   agree/disagree/declined + a rows-fetched-per-assert histogram (the
-   golden-size fact §5-1 of the census). Scoreboard byte-identical BY
-   CONSTRUCTION — full chain green.
+   dispatch arm (`EngineTestExecutor:753`, gated by
+   `harnessVocabName`) additionally routes each assert through the
+   production path; host verdict remains of record; counters
+   populate. **The wiring shortcut — do NOT hand-plumb**: the harness
+   ALREADY calls `Compiler.executeResolved(...)` for setup statements
+   (`:793-809`, with the `LambdaFunction(execStmts + spliced)` wrap
+   and `NameResolver.resolveQuery(wrapped, imports,
+   ctx.elementFqns())`) — and `executeResolved` →
+   `StatementExecutor.executeStatements` ALREADY dispatches
+   statement-root assert-family calls to `AssertVerdicts
+   .tryAdjudicate`. Batch 1 = the same call for assert statements
+   with the outcome captured instead of thrown away; never construct
+   `ExecEnv`/call `AssertVerdicts` directly from the harness. The
+   counters' owner is `com.legend.exec.CanonicalDivergence`
+   (`probeSqlVerdict`/`sqlDisagreeCount`/`sqlDeclinedCount` — the
+   [canon]/sql-verdict lines the runner already prints). Instrument:
+   per-form agree/disagree/declined + a rows-fetched-per-assert
+   histogram (the golden-size fact §5-1 of the census). Scoreboard
+   byte-identical BY CONSTRUCTION — full chain green.
 2. **Burn the census to zero**: fix verdict-construction gaps
    per-form (order keys, TDSNull, temporal spellings, the JSON form);
    every fix is a production-side change with a witness. DECLINED
@@ -151,6 +164,18 @@ cutover, not after.
   on every hand-run.
 - H2 advisory channel consumes our DuckDB rows — verify the re-route
   leaves its feed intact (it reads results, not assert outcomes).
+- **Dual-phase double execution**: batch 1 runs each assert's sides
+  TWICE (host path + verdict path; ~+1 s at 0.26 ms/query — fine).
+  Consequence: any stateful or nondeterministic assert side (sequence
+  reads, unordered limits) surfaces as a PHANTOM disagreement — that
+  is the census working, not a verdict-construction bug; adjudicate
+  such rows as nondeterminism (order-key or setup fix), don't chase
+  the verdict SQL.
+- Batches 1-2 must not touch production files' behavior for
+  NON-corpus lanes: AssertVerdicts changes ride behind witnesses and
+  the PCT suites (G6/G7) pin the existing dual-verdict behavior —
+  any [canon]/sql-verdict census movement on the PCT lanes is a
+  regression, not progress.
 
 ## 7. Out of scope (name them if tempted)
 
