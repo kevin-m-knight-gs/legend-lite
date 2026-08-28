@@ -125,13 +125,23 @@ Fold.isManyScalarCol, Fold.leafResultType, Pivots, AssociationJoins
 ×2). Census exactly 3,161/9/2,071 end-to-end.
 
 **R8 (found DURING the fix): `meta::pure::mapping::execute` is an
-INVENTED FQN.** It exists nowhere in the engine or legend-pure
-checkouts (.pure and .java both grepped); the corpus's real bare
-`execute` is `meta::pure::router::execute`. The registration stays as
-a legacy alias, spelled IDENTICALLY to router's verbatim signature —
-the overload machinery's duplicate-signature tolerance makes the two
-FQNs interchangeable (first wins deterministically). Deleting the
-alias is its own leg (harness isExecuteFqn + explicit-FQN spellings).
+INVENTED FQN.** Four receipts: (a) no .pure declaration in either
+checkout; (b) no .java reference to the FQN in either checkout (the
+package-name hits are unrelated — RoutedValueSpecification, service
+DSL); (c) structurally, a real-pure native REQUIRES a .pure
+declaration even when Java-implemented — no declaration, no function;
+(d) the POSITIVE proof of what bare `execute` really resolves to:
+real pure's AUTO-IMPORT list (legend-pure m3.pure, the Import
+instances around :195-210) includes `meta::pure::router` — engine
+tests need no explicit import to reach `router::execute`. The
+invention was a plausible early guess (bare call + Result living in
+meta::pure::mapping) that violates the FQN-partition doctrine
+(platform inventions belong in the Pure.Lite namespace; real packages
+stay verbatim). The registration stays as a legacy alias, spelled
+IDENTICALLY to router's verbatim signature — the overload machinery's
+duplicate-signature tolerance makes the two FQNs interchangeable
+(first wins deterministically). Deleting the alias is its own leg
+(harness isExecuteFqn + explicit-FQN spellings).
 
 Three iterations the falsifier forced, each a receipt:
 1. `<T|y>` verbatim mult-var name made router's shape unequal to the
