@@ -407,18 +407,33 @@ public final class Executor {
             };
     }
 
-    /** V11: read the appended canon columns (2..1+k) of the current
-     * row into the rider, row-aligned with the value decode. A wrapped
-     * rider implies a non-variant scalar shape, so no value row is
-     * ever dropped out of alignment (the COLLECTION null wall). */
+    /** THE ONE canon read (V11 + V7 §8 leg 1): every appended canon
+     * column — scalar candidates at 2..1+k, or a grid's single
+     * per-row canon at the LAST column — reads through this single
+     * choke point, row-aligned with the value decode. A wrapped rider
+     * implies a non-variant scalar shape, so no value row is ever
+     * dropped out of alignment (the COLLECTION null wall). */
     private static void harvestCanon(ResultSet rs,
             @com.legend.Nullable CanonRider rider) throws SQLException {
-        if (rider == null || !rider.wrapped()) {
+        int base;
+        int count;
+        if (rider == null) {
+            return;
+        } else if (rider.gridWrapped()) {
+            // position derives from the WRAP FRAME (the grid's data
+            // width was recorded at wrap time; the canon is the one
+            // appended column) — never re-asked of the result set
+            base = rider.gridWidth() + 1;
+            count = 1;
+        } else if (rider.wrapped()) {
+            base = 2;
+            count = rider.kinds().size();
+        } else {
             return;
         }
-        String[] cs = new String[rider.kinds().size()];
-        for (int i = 0; i < cs.length; i++) {
-            cs[i] = rs.getString(2 + i);
+        String[] cs = new String[count];
+        for (int i = 0; i < count; i++) {
+            cs[i] = rs.getString(base + i);
         }
         rider.rows().add(cs);
     }
@@ -709,16 +724,13 @@ public final class Executor {
         // V7 §8 leg 1 — a grid-wrapped rider rode the plan's LAST
         // column (__rowcanon): strip it from the value decode and
         // harvest it row-aligned (shapeRow is 1:1 by construction)
-        CanonRider grid = rider != null && rider.gridWrapped()
-                ? rider : null;
-        int n = rs.getMetaData().getColumnCount() - (grid != null ? 1 : 0);
+        boolean grid = rider != null && rider.gridWrapped();
+        int n = rs.getMetaData().getColumnCount() - (grid ? 1 : 0);
         List<Column> columns = resolveColumns(rs, plan, schema, n);
         List<Row> rows = new ArrayList<>();
         while (rs.next()) {
             rows.addAll(shapeRow(rs, n, plan, dialect, schema, columns));
-            if (grid != null) {
-                grid.rows().add(new String[] {rs.getString(n + 1)});
-            }
+            harvestCanon(rs, rider);
         }
         return new ExecutionResult.Tabular(columns, rows, rootType.type());
     }

@@ -727,8 +727,8 @@ final class AssertVerdicts {
                     : java.util.Objects.requireNonNull(ef.grid(),
                             "grid verdict without a grid side");
             int w = wg.columns().size();
-            List<String> ec = rowCanonsOf(ef, w, true);
-            List<String> ac = rowCanonsOf(af, w, false);
+            List<String> ec = sideRowCanons(ef, w, true);
+            List<String> ac = sideRowCanons(af, w, false);
             if (ec != null && ac != null) {
                 List<String> es = new ArrayList<>(ec);
                 List<String> as2 = new ArrayList<>(ac);
@@ -743,15 +743,19 @@ final class AssertVerdicts {
                 // holds in the lattice with only finite-Double drift
                 // hold BY POLICY — counted in the policy's own census
                 // row, never a disagreement rescue.
-                if (!byteHeld && hostHeld && ulpOnlyCellDrift(e, a)) {
+                if (!byteHeld && hostHeld
+                        && com.legend.exec.GridCompare
+                                .ulpOnlyCellDrift(e, a)) {
                     com.legend.exec.CanonicalDivergence.sqlUlpPolicy(
-                            "grid " + firstCanonDiff(es, as2));
+                            "grid " + com.legend.exec.GridCompare
+                                    .firstCanonDiff(es, as2));
                     byteHeld = true;
                 }
                 com.legend.exec.CanonicalDivergence.probeSqlVerdict(name,
                         hostHeld, byteHeld, "grid rows=" + ec.size() + "/"
-                                + ac.size()
-                                + (byteHeld ? "" : firstCanonDiff(es, as2)));
+                                + ac.size() + (byteHeld ? ""
+                                        : com.legend.exec.GridCompare
+                                                .firstCanonDiff(es, as2)));
             }
         }
         boolean held = byteHeld != null ? byteHeld : hostHeld;
@@ -783,8 +787,8 @@ final class AssertVerdicts {
         List<Object> a = af.values();
         boolean hostHeld = e.size() == a.size()
                 && com.legend.exec.GridCompare.rowTupleMultiset(e, a, 1);
-        List<String> ec = cellCanonsOf(ef, true);
-        List<String> ac = cellCanonsOf(af, false);
+        List<String> ec = sideCellCanons(ef, true);
+        List<String> ac = sideCellCanons(af, false);
         Boolean byteHeld = null;
         if (ec != null && ac != null) {
             List<String> es = new ArrayList<>(ec);
@@ -795,7 +799,8 @@ final class AssertVerdicts {
             com.legend.exec.CanonicalDivergence.probeSqlVerdict(
                     "assertSameElements", hostHeld, byteHeld,
                     "grid cells=" + ec.size() + "/" + ac.size()
-                            + (byteHeld ? "" : firstCanonDiff(es, as2)));
+                            + (byteHeld ? "" : com.legend.exec.GridCompare
+                                    .firstCanonDiff(es, as2)));
         }
         boolean held = byteHeld != null ? byteHeld : hostHeld;
         if (held) {
@@ -814,178 +819,26 @@ final class AssertVerdicts {
                 + " [canon] census)");
     }
 
-    /** A side's per-ROW canon texts, or null = the byte channel
-     * declines (counted). A grid side reads its rider's harvested row
-     * canons; a value peer FRAMES rows from its literal-channel
-     * element canons, chunked by {@code width} — the golden's
-     * 'TDSNull' string cells map to the bare sentinel spelling on the
-     * EXPECTED side only (the declared direction-aware policy, applied
-     * at construction). */
-    private static @com.legend.Nullable List<String> rowCanonsOf(
+    /** A side's per-ROW canon texts via the grid policy owner: a
+     * grid side reads its harvested row canons; a value peer frames
+     * rows from its literal-channel element canons ({@link
+     * com.legend.exec.GridCompare} owns every rule and decline). */
+    private static @com.legend.Nullable List<String> sideRowCanons(
             SideFetch side, int width, boolean isExpected) {
-        if (side.grid() != null) {
-            if (!side.rider().gridWrapped()) {
-                com.legend.exec.CanonicalDivergence.sqlDeclined(
-                        "grid-side: " + (side.rider().declined() != null
-                                ? side.rider().declined()
-                                : "no grid canon"));
-                return null;
-            }
-            List<String> out = new ArrayList<>(side.rider().rows().size());
-            for (String[] r : side.rider().rows()) {
-                if (r[0] == null) {
-                    com.legend.exec.CanonicalDivergence.sqlDeclined(
-                            "grid-side: null-canon-cell");
-                    return null;
-                }
-                out.add(r[0]);
-            }
-            return out;
-        }
-        List<String> cells = peerElementCanons(side, isExpected);
-        if (cells == null) {
-            return null;
-        }
-        if (width <= 0 || cells.size() % width != 0) {
-            com.legend.exec.CanonicalDivergence.sqlDeclined(
-                    "grid-peer: " + cells.size()
-                            + " cells not divisible by width " + width);
-            return null;
-        }
-        List<String> out = new ArrayList<>(cells.size() / width);
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < cells.size(); i++) {
-            if (i % width == 0) {
-                if (i > 0) {
-                    out.add(sb.toString());
-                }
-                sb.setLength(0);
-                sb.append(cells.get(i));
-            } else {
-                sb.append(com.legend.lowering.CanonicalRenderSql
-                        .GRID_CELL_SEP).append(cells.get(i));
-            }
-        }
-        if (!cells.isEmpty()) {
-            out.add(sb.toString());
-        }
-        return out;
+        return side.grid() != null
+                ? com.legend.exec.GridCompare.gridRowCanons(side.rider())
+                : com.legend.exec.GridCompare.peerRowCanons(side.rider(),
+                        side.values().size(), width, isExpected);
     }
 
-    /** A side's per-CELL canon texts (the sameElements view): a grid
-     * side splits its row canons on the reserved separator (the wrap
-     * poisons any cell carrying it, so the split is exact); a value
-     * peer reads its literal-channel element canons. */
-    private static @com.legend.Nullable List<String> cellCanonsOf(
+    /** A side's per-CELL canon texts (the sameElements view), via the
+     * grid policy owner. */
+    private static @com.legend.Nullable List<String> sideCellCanons(
             SideFetch side, boolean isExpected) {
-        if (side.grid() == null) {
-            return peerElementCanons(side, isExpected);
-        }
-        List<String> rows = rowCanonsOf(side, -1, isExpected);
-        if (rows == null) {
-            return null;
-        }
-        List<String> out = new ArrayList<>();
-        for (String r : rows) {
-            for (String c : r.split(java.util.regex.Pattern.quote(
-                    com.legend.lowering.CanonicalRenderSql.GRID_CELL_SEP),
-                    -1)) {
-                out.add(c);
-            }
-        }
-        return out;
-    }
-
-    /** The value peer's element canons from its LITERAL channel — one
-     * canon per element, alignment-checked; null = decline, counted. */
-    private static @com.legend.Nullable List<String> peerElementCanons(
-            SideFetch side, boolean isExpected) {
-        var rider = side.rider();
-        int li = rider.literalIndex();
-        if (!rider.wrapped() || li < 0) {
-            com.legend.exec.CanonicalDivergence.sqlDeclined(
-                    "grid-peer: no literal channel"
-                            + (rider.declined() != null
-                                    ? ": " + rider.declined() : ""));
-            return null;
-        }
-        if (rider.rows().size() != side.values().size()) {
-            com.legend.exec.CanonicalDivergence.sqlDeclined(
-                    "grid-peer: canon rows misaligned "
-                            + rider.rows().size() + "/"
-                            + side.values().size());
-            return null;
-        }
-        List<String> out = new ArrayList<>(rider.rows().size());
-        for (String[] r : rider.rows()) {
-            String c = r[li];
-            if (c == null) {
-                com.legend.exec.CanonicalDivergence.sqlDeclined(
-                        "grid-peer: null element canon");
-                return null;
-            }
-            if (isExpected && "'TDSNull'".equals(c)) {
-                // the golden's null spelling (expected-direction only —
-                // audit 16 F5): the QUOTED string literal maps to the
-                // grid's bare sentinel; a real 'TDSNull' string on OUR
-                // wire stays quoted and can never fabricate a null
-                c = "TDSNull";
-            }
-            if (c.contains(com.legend.lowering.CanonicalRenderSql
-                    .GRID_CELL_SEP)) {
-                com.legend.exec.CanonicalDivergence.sqlDeclined(
-                        "grid-peer: reserved separator in element");
-                return null;
-            }
-            out.add(c);
-        }
-        return out;
-    }
-
-    /** Grid form of the declared 2-ULP policy's gate: every POSITIONAL
-     * cell pair holds in the lattice, and every pair that is not
-     * byte-identical is a finite Double pair (dialect libm drift —
-     * PureAsserts OWNS the tolerance; this only vectorizes it over
-     * cells). Positional by design: the policy never claims
-     * multiset-held pairs (zero witnesses; they stay alarmed). */
-    private static boolean ulpOnlyCellDrift(List<Object> e,
-            List<Object> a) {
-        if (e.isEmpty() || e.size() != a.size()) {
-            return false;
-        }
-        for (int i = 0; i < e.size(); i++) {
-            Object x = e.get(i);
-            Object y = a.get(i);
-            if (!PureAsserts.equalScalar(x, y)) {
-                return false;
-            }
-            if (java.util.Objects.equals(x, y)) {
-                continue;
-            }
-            if (!(x instanceof Double dx && y instanceof Double dy
-                    && Double.isFinite(dx) && Double.isFinite(dy))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /** First differing entry of two (sorted) canon lists — the
-     * diagnosis payload a bare host/sql flag can never carry. */
-    private static String firstCanonDiff(List<String> e, List<String> a) {
-        int n = Math.min(e.size(), a.size());
-        for (int i = 0; i < n; i++) {
-            if (!e.get(i).equals(a.get(i))) {
-                return " diff@" + i + " e<" + truncCanon(e.get(i))
-                        + "> a<" + truncCanon(a.get(i)) + ">";
-            }
-        }
-        return e.size() != a.size()
-                ? " sizes " + e.size() + "/" + a.size() : "";
-    }
-
-    private static String truncCanon(String s) {
-        return s.length() > 120 ? s.substring(0, 120) + "…" : s;
+        return side.grid() != null
+                ? com.legend.exec.GridCompare.gridCellCanons(side.rider())
+                : com.legend.exec.GridCompare.peerElementCanons(
+                        side.rider(), side.values().size(), isExpected);
     }
 
     /** Whether a side is STATICALLY table-shaped (its declared result

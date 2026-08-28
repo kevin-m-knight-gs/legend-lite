@@ -336,7 +336,11 @@ class JavaEvalLedgerTest {
             // evaluation. (+3: the witness message folds its first
             // line so the census row carries the expected/actual
             // payload — the same diagnosability rule.)
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1525),
+            // 1525 -> 1401 (user ruling 2026-08-28, consolidation):
+            // the grid comparison POLICIES moved to their owner
+            // (GridCompare — see its row); this file keeps dispatch
+            // only. Shrink banked.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1401),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -393,7 +397,16 @@ class JavaEvalLedgerTest {
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
             Map.entry("core/src/main/java/com/legend/exec/JsonCompare.java", 70),
-            Map.entry("core/src/main/java/com/legend/exec/GridCompare.java", 295));
+            // 295 -> 431 (V7 §8 leg 1 + user consolidation ruling
+            // 2026-08-28): the GRID-CANON byte-channel policies land
+            // with the OTHER grid comparison rules — row/cell canon
+            // extraction, peer framing (separators only), the 2-ULP
+            // grid gate (PureAsserts owns the tolerance), the alarm's
+            // first-diff payload. Comparison layer (consumes two
+            // sides, never produces a result — the header's
+            // permanent-allowed class); the paired AssertVerdicts row
+            // SHRANK 1525 -> 1401 in the same slice.
+            Map.entry("core/src/main/java/com/legend/exec/GridCompare.java", 431));
     // Phase 1c: DbMetaData MOVED OUT of the evaluator surface — its
     // content was always pure catalog-SQL composition (zero JDBC), now
     // compiler/spec/CatalogGrids (the Typer's fetchDb retype needs the

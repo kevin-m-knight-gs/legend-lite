@@ -33,10 +33,13 @@ import java.util.List;
  */
 public final class CanonRider {
 
-    /** The wrap outcome frame: candidate canon kinds in
-     * projected-column order, and whether the side is a collection
-     * (drives the renderSide list framing at the verdict layer). */
-    public record Wrap(List<Type> kinds, boolean many, int literalIndex) {
+    /** The wrap outcome frame — IMMUTABLE: candidate canon kinds in
+     * projected-column order, whether the side is a collection, and
+     * (V7 §8 leg 1) the GRID width when the canon rode a TABULAR plan
+     * as one per-row text ({@code gridWidth} &lt; 0 = a scalar wrap;
+     * the two modes are mutually exclusive by construction). */
+    public record Wrap(List<Type> kinds, boolean many, int literalIndex,
+            int gridWidth) {
     }
 
     private final boolean canonicalOrder;
@@ -69,7 +72,7 @@ public final class CanonRider {
     }
 
     public boolean wrapped() {
-        return wrap != null;
+        return wrap != null && wrap.gridWidth() < 0;
     }
 
     /** Whether the side is a collection (drives the renderSide list
@@ -78,11 +81,11 @@ public final class CanonRider {
         return wrap != null && wrap.many();
     }
 
-    /** The canon owner records a successful wrap. */
+    /** The canon owner records a successful scalar wrap. */
     public void wrap(List<Type> candidateKinds, boolean isMany,
             int literalIndex) {
         this.wrap = new Wrap(List.copyOf(candidateKinds), isMany,
-                literalIndex);
+                literalIndex, -1);
         this.declined = null;
     }
 
@@ -104,33 +107,31 @@ public final class CanonRider {
     /** The canon owner (or a non-SQL driver arm) records a decline. */
     public void decline(String reason) {
         this.wrap = null;
-        this.gridWidth = -1;
         this.declined = reason;
     }
 
-    // ── V7 §8 leg 1 — the GRID mode: a TABULAR side's canon is one
+    // ── V7 §8 leg 1 — the GRID mode, carried by the SAME immutable
+    // wrap frame (gridWidth >= 0): a TABULAR side's canon is one
     // per-ROW text (per-cell pure-literal spellings, GRID_CELL_SEP
     // joined, NULL cells spelling TDSNull) appended as the plan's last
     // column; {@link #rows()} then holds one {@code String[1]} per
-    // data row, harvested by the Executor's tabular decode. Distinct
-    // from the scalar wrap ({@link #wrapped()} stays false) — the
-    // candidate-kind machinery never applies to a grid.
-
-    private int gridWidth = -1;
+    // data row, harvested by the Executor's ONE canon choke point.
+    // {@link #wrapped()} stays false — the candidate-kind machinery
+    // never applies to a grid.
 
     /** The canon owner records a successful GRID wrap of {@code width}
      * data columns. */
     public void gridWrap(int width) {
-        this.gridWidth = width;
+        this.wrap = new Wrap(List.of(), true, -1, width);
         this.declined = null;
     }
 
     public boolean gridWrapped() {
-        return gridWidth >= 0;
+        return wrap != null && wrap.gridWidth() >= 0;
     }
 
     /** Data-column count of the grid the canon rode (-1 = not grid). */
     public int gridWidth() {
-        return gridWidth;
+        return wrap == null ? -1 : wrap.gridWidth();
     }
 }

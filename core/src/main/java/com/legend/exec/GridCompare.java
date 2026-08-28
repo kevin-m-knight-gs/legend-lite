@@ -109,6 +109,180 @@ public final class GridCompare {
         return true;
     }
 
+    // ── V7 §8 leg 1: the GRID-CANON byte-channel policies — the
+    // flat-cells comparison rules live HERE with the other grid
+    // policies (renderedText/grids/rowTupleMultiset), the one owner;
+    // the verdict arm only dispatches. Every refusal counts a named
+    // decline — census fuel, never a silent skip.
+
+    /** A grid side's per-ROW canon texts from its rider (harvested by
+     * the Executor's one canon choke point), or null = the byte
+     * channel declines, counted. */
+    public static @com.legend.Nullable List<String> gridRowCanons(
+            CanonRider rider) {
+        if (!rider.gridWrapped()) {
+            CanonicalDivergence.sqlDeclined("grid-side: "
+                    + (rider.declined() != null ? rider.declined()
+                            : "no grid canon"));
+            return null;
+        }
+        List<String> out = new ArrayList<>(rider.rows().size());
+        for (String[] r : rider.rows()) {
+            if (r[0] == null) {
+                CanonicalDivergence.sqlDeclined("grid-side: null-canon-cell");
+                return null;
+            }
+            out.add(r[0]);
+        }
+        return out;
+    }
+
+    /** A value peer's per-ROW canons FRAMED from its literal-channel
+     * element canons, chunked by the grid's {@code width} — framing
+     * writes separators only, never renders. Null = declined,
+     * counted. */
+    public static @com.legend.Nullable List<String> peerRowCanons(
+            CanonRider rider, int valueCount, int width,
+            boolean isExpected) {
+        List<String> cells = peerElementCanons(rider, valueCount,
+                isExpected);
+        if (cells == null) {
+            return null;
+        }
+        if (width <= 0 || cells.size() % width != 0) {
+            CanonicalDivergence.sqlDeclined("grid-peer: " + cells.size()
+                    + " cells not divisible by width " + width);
+            return null;
+        }
+        List<String> out = new ArrayList<>(
+                width == 0 ? 0 : cells.size() / width);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < cells.size(); i++) {
+            if (i % width == 0) {
+                if (i > 0) {
+                    out.add(sb.toString());
+                }
+                sb.setLength(0);
+                sb.append(cells.get(i));
+            } else {
+                sb.append(com.legend.lowering.CanonicalRenderSql
+                        .GRID_CELL_SEP).append(cells.get(i));
+            }
+        }
+        if (!cells.isEmpty()) {
+            out.add(sb.toString());
+        }
+        return out;
+    }
+
+    /** The value peer's element canons from its LITERAL channel — one
+     * canon per element, alignment-checked; the golden's 'TDSNull'
+     * string cells map to the bare sentinel spelling on the EXPECTED
+     * side only (audit 16 F5's direction-aware policy, applied at
+     * construction — a real 'TDSNull' string on OUR wire stays quoted
+     * and can never fabricate a null). Null = declined, counted. */
+    public static @com.legend.Nullable List<String> peerElementCanons(
+            CanonRider rider, int valueCount, boolean isExpected) {
+        int li = rider.literalIndex();
+        if (!rider.wrapped() || li < 0) {
+            CanonicalDivergence.sqlDeclined("grid-peer: no literal channel"
+                    + (rider.declined() != null
+                            ? ": " + rider.declined() : ""));
+            return null;
+        }
+        if (rider.rows().size() != valueCount) {
+            CanonicalDivergence.sqlDeclined(
+                    "grid-peer: canon rows misaligned "
+                            + rider.rows().size() + "/" + valueCount);
+            return null;
+        }
+        List<String> out = new ArrayList<>(rider.rows().size());
+        for (String[] r : rider.rows()) {
+            String c = r[li];
+            if (c == null) {
+                CanonicalDivergence.sqlDeclined(
+                        "grid-peer: null element canon");
+                return null;
+            }
+            if (isExpected && "'TDSNull'".equals(c)) {
+                c = "TDSNull";
+            }
+            if (c.contains(com.legend.lowering.CanonicalRenderSql
+                    .GRID_CELL_SEP)) {
+                CanonicalDivergence.sqlDeclined(
+                        "grid-peer: reserved separator in element");
+                return null;
+            }
+            out.add(c);
+        }
+        return out;
+    }
+
+    /** Per-CELL canons of a grid side (the sameElements view): row
+     * canons split on the reserved separator — exact, because the wrap
+     * poisons any cell carrying it. */
+    public static @com.legend.Nullable List<String> gridCellCanons(
+            CanonRider rider) {
+        List<String> rows = gridRowCanons(rider);
+        if (rows == null) {
+            return null;
+        }
+        List<String> out = new ArrayList<>();
+        for (String r : rows) {
+            java.util.Collections.addAll(out, r.split(
+                    java.util.regex.Pattern.quote(
+                            com.legend.lowering.CanonicalRenderSql
+                                    .GRID_CELL_SEP), -1));
+        }
+        return out;
+    }
+
+    /** Grid form of the declared 2-ULP dialect-arithmetic policy's
+     * gate: every POSITIONAL cell pair holds in the lattice, and every
+     * non-byte-identical pair is a finite Double pair (dialect libm
+     * drift — {@link PureAsserts} OWNS the tolerance; this only
+     * vectorizes it over cells). Positional by design: the policy
+     * never claims multiset-held pairs. */
+    public static boolean ulpOnlyCellDrift(List<Object> e,
+            List<Object> a) {
+        if (e.isEmpty() || e.size() != a.size()) {
+            return false;
+        }
+        for (int i = 0; i < e.size(); i++) {
+            Object x = e.get(i);
+            Object y = a.get(i);
+            if (!PureAsserts.equalScalar(x, y)) {
+                return false;
+            }
+            if (java.util.Objects.equals(x, y)) {
+                continue;
+            }
+            if (!(x instanceof Double dx && y instanceof Double dy
+                    && Double.isFinite(dx) && Double.isFinite(dy))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** First differing entry of two (sorted) canon lists — the alarm's
+     * diagnosis payload (a bare host/sql flag cannot be diagnosed). */
+    public static String firstCanonDiff(List<String> e, List<String> a) {
+        int n = Math.min(e.size(), a.size());
+        for (int i = 0; i < n; i++) {
+            if (!e.get(i).equals(a.get(i))) {
+                return " diff@" + i + " e<" + truncCanon(e.get(i))
+                        + "> a<" + truncCanon(a.get(i)) + ">";
+            }
+        }
+        return e.size() != a.size()
+                ? " sizes " + e.size() + "/" + a.size() : "";
+    }
+
+    private static String truncCanon(String s) {
+        return s.length() > 120 ? s.substring(0, 120) + "…" : s;
+    }
+
     private static List<List<Object>> chunk(List<Object> flat, int w) {
         List<List<Object>> out = new ArrayList<>(flat.size() / w);
         for (int i = 0; i < flat.size(); i += w) {
