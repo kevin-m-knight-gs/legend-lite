@@ -2931,6 +2931,17 @@ public final class EngineTestExecutor {
                     "host-partition-sqltext");
             return;
         }
+        // §8 leg 4 (census-first split): an assert whose ARGUMENTS pull
+        // the sqlQueryToString-family vocabulary compares PLAN TEXT by
+        // content, whatever its form name — §2 partition, never routed
+        // (these were the sql-text rows hiding inside the resolver's
+        // class-query-under wall census)
+        if (af.parameters().stream()
+                .anyMatch(EngineTestExecutor::containsSqlText)) {
+            com.legend.exec.CanonicalDivergence.v7Declined(form,
+                    "host-partition-sqltext");
+            return;
+        }
         if (hostFailure == UNSUPPORTED_MARKER) {
             com.legend.exec.CanonicalDivergence.v7Declined(form,
                     "host-unsupported");

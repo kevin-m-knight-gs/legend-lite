@@ -1090,7 +1090,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2334 PASS = 1397 clean + 937 carrying softness 
 - 2x extend/project columns [firm] reference names unresolvable even after isolation [col='firm' ref='firm']
 - 2x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]], …
 - 2x nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
-- 2x class query under TypedUserCall is not resolvable yet (H2 vocabulary)
+- 2x class query under TypedUserCall[meta::relational::mapping::sql] is not resolvable yet (H2 vocabulary)
 - 1x Unknown type: 'PlanVarPlaceHolder' is not a known primitive, class, or enum
 - 1x graphFetch expects (classCollection, #{Class{…}}#)
 - 1x collection reduction 'STRING_AGG' reached a dialect without a list encoding
@@ -1325,8 +1325,8 @@ SOFT-PASS RECONCILIATION (F2.1): 2334 PASS = 1397 clean + 937 carrying softness 
 - ERROR testProject [tests/mapping/sqlFunction]: no scalar lowering registered for resolved overload 'meta::pure::functions::asserts::assertEqWithinTolerance' with 3 parameter(s)
 - SHAPE testAdjustDateTranslationInMappingAndQuery [tests/mapping/sqlFunction]: statement 'map' failed through the pipeline: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - FAIL testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: assertEquals: expected [11, Alex, OrgName3, OrgName2], got [11, Alex, OrgName3, null]
-- ERROR testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting [tests/mapping/union]: class query under TypedUserCall is not resolvable yet (H2 vocabulary)
-- ERROR testBiTemporalUnionJoin_milestoningColumnInOnClause [tests/mapping/union]: class query under TypedUserCall is not resolvable yet (H2 vocabulary)
+- ERROR testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting [tests/mapping/union]: class query under TypedUserCall[meta::relational::mapping::sql] is not resolvable yet (H2 vocabulary)
+- ERROR testBiTemporalUnionJoin_milestoningColumnInOnClause [tests/mapping/union]: class query under TypedUserCall[meta::relational::mapping::sql] is not resolvable yet (H2 vocabulary)
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'employees' (the demand scan and the rewrite disagreed)
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'employees' (the demand scan and the rewrite disagreed)
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: plan wall: plan: alias 't2' not resolvable to a table (Subselect) [surfaced via assert form 'assertEquals/2']

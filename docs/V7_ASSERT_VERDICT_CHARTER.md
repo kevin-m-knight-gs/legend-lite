@@ -469,6 +469,21 @@ h2-exec counters IDENTICAL (320/632/0/145). Full chain GREEN.**
   **RULE: before attributing a sweep FAIL row to the change under
   test, grep the committed scoreboard for it.**
 
+## 4U. LEG 4 CENSUS SPLIT LANDING RECORD (2026-08-28)
+
+**The 513-row "class query under TypedUserCall" bucket was ENTIRELY
+sql-text family.** Two diagnostics: the resolver wall names its
+wrapper CALLEE, and v7DualChannel classifies by CONTENT (an assert
+whose args pull the sqlQueryToString-family vocabulary — the
+harness's own containsSqlText — is a plan-text compare whatever its
+form name; §2 by definition). Result: sqltext partition 961 → 1,529
+(+568), agree/disagree/declined-total EXACTLY unchanged (3,161/9/
+2,071 — the movement was entirely within the declined column; a
+split, not a burn). Lane-guard pin moved with this table. Leg 4's
+REAL remainder: getAll shapes ~175, TypedMap wrappers 63, pkOfFunc
+FunctionDefinition-vs-Function typing 43, metamodel-fn lowering gaps
+~50, tail.
+
 ## 8. PLAN OF ATTACK — the batch-2 remainder → cutover (handoff,
 ## 2026-08-28)
 
@@ -493,12 +508,12 @@ once during a full corpus sweep. Of **5,241** total:
 
 | bucket | count | plan |
 |---|---|---|
-| sql/plan-text compares (assertSameSQL family — compare COMPILER OUTPUT text, not data) | 961 | **OUT of the migration by design, permanently.** Already end-state: text match → H2 row-check (320, 0 diverged); text differs → engine's golden SQL executes on H2, rows vs our rows (632 verified, 0 diverged); unverifiable → advisory, counted by reason (145 — LEG 8 burns these) |
+| sql/plan-text compares (assertSameSQL family + CONTENT-classified sqlQueryToString-family args, §4U census split) | 1,529 | **OUT of the migration by design, permanently.** Already end-state: text match → H2 row-check (320, 0 diverged); text differs → engine's golden SQL executes on H2, rows vs our rows (632 verified, 0 diverged); unverifiable → advisory, counted by reason (145 — LEG 8 burns these) |
 | TDG/test-data-gen text compares | 123 | OUT by design, permanently (host artifacts) |
 | host-unsupported forms | 28 | name-by-name adjudication (leg 6) |
 | **adjudicating through the production verdict path today** | **2,658** | 2,650 agree + 8 named wire-fidelity disagreements (leg 5) |
-| resolver: class query under wrapper | 614 | leg 4 (compiler-resolver work, not assert work) |
-| resolver: getAll/call shapes | 175 | leg 4 |
+| resolver: class query under wrapper | 63 (was 614 — §4U: 513 were sql-text content, 33+30 TypedMap remain) | leg 4 |
+| resolver: getAll/call shapes | ~175 | leg 4 |
 | flat-cells / tabular sides | 353 | leg 1 (grid canon — fusion-spike F2 proved the SQL) |
 | JSON family typing | 163 | legs 2–3 (arm exists; Result<T\|m> typing + 2 natives) |
 | lowering gaps + tail | 166 | leg 6 |

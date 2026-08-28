@@ -594,7 +594,11 @@ public class RelationalCorpusRunner {
             // partition counts pin EXACTLY — an assert can never change
             // lanes silently; a corpus change that moves these updates
             // the pin AND the charter table in the same commit.
-            org.junit.jupiter.api.Assertions.assertEquals(961,
+            // 961 -> 1529 (§8 leg 4 census split, PROVISIONAL pending
+            // the agree-column audit): content-based classification —
+            // an assert whose args pull sqlQueryToString-family
+            // vocabulary is a plan-text compare whatever its form name
+            org.junit.jupiter.api.Assertions.assertEquals(1529,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReason("host-partition-sqltext"),
                     "lane guard: host-partition-sqltext moved — update"

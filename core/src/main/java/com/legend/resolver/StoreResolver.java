@@ -8,6 +8,7 @@ import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedAggCol;
+import com.legend.compiler.spec.typed.TypedUserCall;
 import com.legend.compiler.spec.typed.TypedAggregate;
 import com.legend.compiler.spec.typed.TypedCBoolean;
 import com.legend.compiler.spec.typed.TypedCFloat;
@@ -490,9 +491,15 @@ public final class StoreResolver {
                             r -> resolveNode(r, context)));
             // The NAMED wall: an ANCHORED variant with no arm — loud,
             // never a silent pass-through (the old default's silent
-            // 'yield n' path is now the INERT level).
+            // 'yield n' path is now the INERT level). §8 leg 4: a USER
+            // CALL wrapper names its CALLEE — the census buckets by
+            // function, splitting §2 sql-text-family rows from real
+            // resolver work.
             default -> throw new NotImplementedException("class query under "
                     + n.getClass().getSimpleName()
+                    + (n instanceof TypedUserCall wuc
+                            ? "[" + wuc.callee().qualifiedName() + "]"
+                            : "")
                     + " is not resolvable yet (H2 vocabulary)");
         };
     }
