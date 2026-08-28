@@ -375,6 +375,102 @@ recorded as an INVARIANT in AGENTS.md.
 change is exactly the 7 testExtension wall rows REVERTING; soft
 ceilings exact; inner alarm 0.
 
+## 8. PLAN OF ATTACK — the batch-2 remainder → cutover (handoff,
+## 2026-08-28)
+
+**State on entry**: batches 1 + 2.1–2.3b + the §4Q eviction are
+EXECUTED and pushed (..ec9f6fe8). Census: agree 2,650 / disagree 8 /
+declined 2,583 (partition NAMED: sqltext 961 + tdg 123). Scoreboard
+byte-identical throughout. The census console is the work list:
+
+```
+mvn -pl core test -Dtest=RelationalCorpusRunner \
+  -Dlegend.engine.root=/Users/neemsandv/legend/legend-engine \
+  -Dlegend.pure.root=/Users/neemsandv/legend/legend-pure
+# read the [v7] lines; scoped probes: -Drcorpus.only=<family>
+# (scoped runs never write the scoreboard)
+```
+
+**Leg order (each leg: witness → implement → full sweep → guardrail
+battery → allgates → push):**
+
+1. **Flat-cells compare (~340 declines).** `rows.values` reads execute
+   to a grid; engine semantics: column names OUT, cells compare
+   row-wise; ordered exact first, ROW-TUPLE multiset under incidental
+   order (audit 9: cross-row shuffles must FAIL —
+   `GridCompare.rowTupleMultiset` is the owner).
+   **ATTEMPTED AND REVERTED 2026-08-28 — findings for the retry
+   (an attempt was measured then rolled back at ec9f6fe8; nothing
+   half-understood was pushed):**
+   - The TYPER COLLAPSES the trailing `TDSRow.values`: the typed side
+     for `$r.values.rows.values` is a `rows` PropertyAccess over the
+     values read — detect the flat-cells shape as a `rows` read at the
+     side root (both property-access and call spellings), NOT as
+     values-over-rows.
+   - The CANON-RIDER execution changes the RESULT KIND (a rider-free
+     probe returned Tabular; the ridered fetch did not) — the arm must
+     fetch rider-free and skip the byte channel entirely (decoded
+     cells have no canon; count a named decline).
+   - A working shape: dedicated arm before the order-view path —
+     rider-free evalValue both sides, flatten Tabular to cells (the
+     harness Eval convention), ordered exact then rowTupleMultiset
+     under INCIDENTAL view; witness pinned ordered/row-swap/cross-row-
+     shuffle (shuffle must FAIL; its failure message is PureAsserts'
+     "expected:" text, not the word "assert").
+   - Measured outcome: declines 2,583 → 2,230 (−353), agree → 2,959,
+     sweep GREEN — BUT disagreements 8 → 52. The +44: ~15 TDSNull
+     null-cell spelling rows, ~9 order/cohesion variants, and a
+     28-row class of "byte-verdict: canonical renders differ (host
+     lattice agreed)" whose accounting was NOT understood (the
+     sql-verdict disagree counter stayed 0 while the message claims a
+     divergence — reconcile the arm's `equal`-vs-message-lattice flow
+     before trusting any of it). DIAGNOSE THE 28 FIRST; do not push
+     the leg with an unexplained class.
+   Watch: PCT G7/G9 ledger movement and the chB canon residue counts.
+2. **Result typing (~175, unlocks the JSON family).** The engine's
+   `Result<T|m>`: `execute(q,...).values` types as q's element type
+   and multiplicity (a serialize query → `String[1]`); ours stamps
+   `[*]`, so strict signatures (assertJsonStringsEqual) reject BEFORE
+   any arm. Fix in the TYPER where the execute call's return/values
+   read is stamped — engine-parity typing, not verdict work.
+3. **Two JSON natives (small; pairs with #2).** `parseJSON` +
+   `equalJsonStrings` registry natives (real signatures verbatim —
+   engine-core corefunctions; the eviction's §4Q pattern). The
+   assertJsonStringsEqual verdict ARM already exists (JsonCompare).
+4. **Resolver legs (census-first; the deep one).** class-query-under
+   ~610 + getAll shapes ~175. FIRST: group the sweep's decline
+   details by wrapper node and split out the sql-text-family rows
+   hiding in the 610 (they belong to the §2 partition). THEN
+   per-shape StoreResolver arms, biggest bucket first. Large enough
+   to charter its own slices.
+5. **Wire-fidelity fixes = the 8 disagreements (§4N).** Decimal SCALE
+   at emission (X2's doctrine — never re-blur the judge); temporal
+   NINE-DIGIT decode (the engine fromSQLTimestamp convention, at the
+   wire temporal seam); then the two phantoms (sort-tie order policy,
+   TDSNull row-string spelling) — adjudicate with the user if a
+   mechanical fix doesn't fall out.
+6. **host-unsupported 30 + tail**: name-by-name adjudication (§2 rows
+   or feature rows).
+7. **BATCH 3 — the cutover (one slice, only at disagree 0 and
+   declines == §2 partition):** SQL verdict becomes the verdict of
+   record; DELETE `checkAssert`'s comparison lattice,
+   `goldenEqualScalar`, the golden temporal-decode arms, `compare()`/
+   `Eval`'s leniencies (shrink pins move with dated justifications);
+   re-anchor 0-assert accounting (27) + softness attribution; the
+   dual-verdict alarm stays armed permanently. Acceptance: scoreboard
+   IDENTICAL, full chain green, push. Then V12 (fusion) and V13 per
+   PROGRAM_MAP; indexOf/substring stays parked behind V13.
+
+**Standing traps for the next session** (all bitten this session):
+run the GUARDRAIL BATTERY (JavaEvalLedger, JdbcSurfaceCensus,
+CodeShape, ErrorShape, HarnessDiscipline, ArchitectureTest,
+NativeFunctionTest's golden catalog) BEFORE launching a chain — six
+register/golden bumps tripped chains; ZERO repo writes while a chain
+runs (launch only after the slice's last write); roots are -D
+properties at the /Users/neemsandv checkouts; the reference-checkout
+INVARIANT (AGENTS.md): checkouts feed the thing UNDER test, never the
+thing judging — `registerLibrarySource` enforces it.
+
 ## 5. Witnesses (before behavior, where possible)
 
 1. Per-form verdict unit witnesses beside AssertVerdictsTest for each
