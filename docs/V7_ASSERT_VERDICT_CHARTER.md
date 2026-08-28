@@ -315,6 +315,32 @@ steady at the 8 named §4N rows.**
 runs — two chains were stopped mid-run after edits started; the
 certification chain must launch AFTER the slice's last write.
 
+## 4P. Batch-2 slice 3b LANDING RECORD (2026-08-28)
+
+**D4 partially landed; the §2 partition is fully NAMED. Census:
+agree 2,637, declined 2,596 (of which the honest partition:
+sqltext 961 + TDG 123), disagree 8 (§4N).**
+
+- `testExtension.pure` loads (the 7 unported-sibling wall rows join
+  the scoreboard doc — this slice's adjudicated change);
+  `assertJsonStringsEqual` now RESOLVES and the verdict ARM exists
+  (JsonCompare, the V3 tree owner; the [x]≡x root bridge moved).
+- Graph sides DECODE (the DB-built JSON array's elements — the
+  harness Eval convention moved to the owner).
+- TDG/plan-text asserts classify `host-partition-tdg` at the splice
+  (§2's TDG arms), joining the sqltext partition.
+- **D4 remainder (typing/registry legs, the arm is ready)**: the JSON
+  form's sites stay declined on (a) `Result<T|m>` — our
+  `execute().values` types `[*]` where the engine refines to the
+  inner query's `String[1]` (multiplicity failure BEFORE any arm),
+  and (b) the `equalJsonStrings`/`parseJSON` natives the loaded
+  bodies reference. Both are engine-parity platform work, not
+  verdict-construction.
+- **Remaining non-partition declines (~1,512)**: resolver
+  class-query-under (~610) + getAll shapes (~175) — resolver legs;
+  assertEquals tabular/flat-cells conventions (~340); D4 typing
+  (above); host-unsupported 30; tail.
+
 ## 5. Witnesses (before behavior, where possible)
 
 1. Per-form verdict unit witnesses beside AssertVerdictsTest for each

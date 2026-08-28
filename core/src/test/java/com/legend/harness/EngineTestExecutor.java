@@ -759,7 +759,8 @@ public final class EngineTestExecutor {
                                 || seedFailures != null && !seedFailures.isEmpty(),
                         tdg, planText);
                 v7DualChannel(af, failure, lets, execStmts, execVars, ctx,
-                        imports, runtimeFqn, conn);
+                        imports, runtimeFqn, conn,
+                        tdg.keySet(), planText);
                 int[] cs = {verified, advisory};
                 Outcome oc = scoreAssert(af, failure, cs, sqlDiffs,
                         executed);
@@ -2467,7 +2468,8 @@ public final class EngineTestExecutor {
                                 imports, runtimeFqn, conn,
                                 unverifiable, Map.of(), java.util.Set.of());
                         v7DualChannel(af2, failure, loopLets, execStmts,
-                                execVars, ctx, imports, runtimeFqn, conn);
+                                execVars, ctx, imports, runtimeFqn, conn,
+                                java.util.Set.of(), java.util.Set.of());
                         if (failure == UNSUPPORTED_MARKER) {
                             String why2 = takeUnsupportedReason();
                             return new Outcome.Unsupported(
@@ -2905,9 +2907,20 @@ public final class EngineTestExecutor {
             Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts,
             java.util.Set<String> execVars, ModelContext ctx,
-            ImportScope imports, String runtimeFqn, Connection conn) {
+            ImportScope imports, String runtimeFqn, Connection conn,
+            java.util.Set<String> tdgVars,
+            java.util.Set<String> planTextVars) {
         String form = simpleName(af.function()) + "/"
                 + af.parameters().size();
+        // §2: TDG generator reads and plan-text lets are HOST artifacts
+        // by design (generateSeedDataString CSV compares, plan strings)
+        if (!tdgVars.isEmpty() && referencesAny(af, tdgVars)
+                || !planTextVars.isEmpty()
+                        && referencesAny(af, planTextVars)) {
+            com.legend.exec.CanonicalDivergence.v7Declined(form,
+                    "host-partition-tdg");
+            return;
+        }
         // §2: the SQL-TEXT forms compare the PLAN, not data — host by
         // design regardless of outcome; never routed (their sides pull
         // sqlQueryToString-family vocabulary through the pipeline)

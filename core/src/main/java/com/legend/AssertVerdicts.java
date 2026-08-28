@@ -290,6 +290,38 @@ final class AssertVerdicts {
                         : fail("assertSize: expected " + n + ", got "
                                 + actual);
             }
+            case "assertJsonStringsEqual" -> {
+                // D4 — the JSON verdict: engine semantics (object keys
+                // order-INSENSITIVE, arrays order-SENSITIVE) over
+                // PARSED structures; JsonCompare is the one tree owner
+                // (V3 register). Sides are DB-computed strings.
+                if (args.size() != 2) {
+                    return null;
+                }
+                List<Object> ev = side(args.get(0), letPrefix, specs,
+                        env, hook);
+                List<Object> av = side(args.get(1), letPrefix, specs,
+                        env, hook);
+                if (ev.size() != 1 || av.size() != 1
+                        || !(ev.get(0) instanceof String ejson)
+                        || !(av.get(0) instanceof String ajson)) {
+                    return null;   // non-[1]-string shape: generic path
+                }
+                Object expected = com.legend.sql.Json.parse(ejson);
+                Object actual = com.legend.sql.Json.parse(ajson);
+                // pure's [x] ≡ x at the ROOT: the engine serializes a
+                // one-element result as the bare object; an enveloping
+                // array bridges exactly that case (harness parity)
+                if (!(expected instanceof List)
+                        && actual instanceof List<?> al && al.size() == 1) {
+                    actual = al.get(0);
+                }
+                String diff = com.legend.exec.JsonCompare.document(
+                        expected, actual);
+                return diff == null ? ok()
+                        : fail("assertJsonStringsEqual: FIRST DIFF at "
+                                + diff);
+            }
             case "assertContains" -> {
                 // real pure membership (assertContains.pure): both
                 // sides DB-computed, the lattice judges element
@@ -1546,9 +1578,18 @@ final class AssertVerdicts {
                 yield out;
             }
             case ExecutionResult.Collection c -> c.values();
+            // D4: a GRAPH side's values are the DATABASE-built JSON
+            // array's elements (the harness Eval convention moved to
+            // the owner) — parsed structures; the lattice/JsonCompare
+            // judge them, never raw json text
+            case ExecutionResult.Graph g -> {
+                Object p = com.legend.sql.Json.parse(g.json());
+                yield p instanceof List<?> l ? new ArrayList<Object>(l)
+                        : new ArrayList<>(List.of(p));
+            }
             default -> throw new com.legend.error.NotImplementedException(
                     "assert verdict over a " + r.getClass().getSimpleName()
-                    + " side — grid/graph asserts stay with their own"
+                    + " side — grid asserts stay with their own"
                     + " compare owners");
         };
     }

@@ -203,11 +203,19 @@ public class RelationalCorpusRunner {
                 }
             }
         }
-        // testExtension.pure (assertJsonStringsEqual) deliberately does
-        // NOT load in batch 1: its unported meta::pure::functions::test
-        // siblings would add wall rows to the scoreboard, and batch 1's
-        // acceptance is a byte-identical scoreboard. It loads with D4
-        // (batch 2), where the doc change is the slice's own.
+        // D4 (batch-2 slice 3b): testExtension.pure loads — its
+        // assertJsonStringsEqual (same asserts package) resolves the
+        // JSON form; the unported meta::pure::functions::test siblings
+        // wall individually and their rows join the scoreboard's wall
+        // list (this slice's adjudicated doc change).
+        if (Files.isRegularFile(Corpus.TEST_EXTENSION)) {
+            try {
+                runner.registerLibrarySource(
+                        Files.readString(Corpus.TEST_EXTENSION));
+            } catch (Exception ignore) {
+                // unreadable: assertJsonStringsEqual declines, named
+            }
+        }
         runner.classLookup = fqn -> {
             try {
                 return classIndex().get(fqn);

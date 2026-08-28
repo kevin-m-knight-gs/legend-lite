@@ -311,7 +311,13 @@ class JavaEvalLedgerTest {
             // rule (envelopeCarriers is the MODEL's; the arm only keys
             // the read shape) + the assertContains membership arm (both
             // sides DB-computed, lattice judges). Dispatch, not eval.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1210),
+            // 1210->1240 (slice 3b, D4): the assertJsonStringsEqual
+            // verdict arm (sides DB-computed; JsonCompare — the V3
+            // register's one tree walker — judges) and the Graph-side
+            // decode convention (the DB-built JSON array's elements,
+            // the harness Eval rule moved to the owner). Dispatch +
+            // decode routing, not evaluation.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1240),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
