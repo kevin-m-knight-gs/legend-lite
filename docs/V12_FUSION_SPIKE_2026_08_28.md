@@ -102,24 +102,36 @@ the register's NULL-padded typed value columns remain the design for
 the EVIDENCE layout, but the verdict itself never needed a promoting
 union.
 
-## Rung choice: per-assert statements over whole-body single-shot
-## (2026-08-28, user question → adopted framing)
+## Rung choice (2026-08-28, adjudicated with the user across three
+## rounds): ONE statement per test body; split = diagnostic fallback
 
-The spike demonstrated the TOP rung (whole test body = one
-statement). The right DEFAULT landing rung is the register's own
-"split": **the shared `$result` materializes ONCE (the let-IS-WITH
-materialization — evaluate-once semantics; two asserts must see the
-SAME rows of a nondeterministically-ordered result), then EACH assert
-is its own small verdict statement against it.** What that buys, for
-free: pure's stop-at-first-failure (assert 2's statement never runs
-if assert 1 fails — the F5 eager-evaluation hazard vanishes without
-CASE nesting), and exact error attribution (a statement error IS that
-assert's error). Cost: 1+N round trips instead of 1 — at 0.26 ms per
-query, noise. Whole-body single-shot remains the top rung for bodies
-proven hazard-free, gated by the V12 TimingLedger measurement. The
-one forbidden shape: re-executing the shared query per assert
-(violates evaluate-once; nondeterministic order/sequences would let
-asserts disagree about the same result).
+**Default = the top rung**: one SQL statement per test body — every
+`let` a `WITH ... AS MATERIALIZED` CTE (the keyword is LOAD-BEARING:
+it is DuckDB's explicit evaluate-once, so all asserts see the SAME
+rows of a nondeterministically-ordered result; a plain CTE may
+legally inline per reference — pin with a witness), every assert a
+verdict column, evidence rows side-tagged in the same result set
+(probed: verdicts + evidence coexist in one result). No temp tables
+(session state, DDL churn, cleanup — rejected). NO CASE-guard
+nesting either:
+
+**The first-failure hazard is ADJUDICATED DOWN (user challenge —
+"are we over-indexing?"): pure's stop-at-first-failing-assert is not
+a semantic requirement for a conformance corpus.** Case analysis: on
+a PASSING test sequencing is unobservable (the entire green set); on
+a failing test the outcome is red either way and reporting ALL
+failing verdicts beats reporting the first; the ONLY divergent case
+— an earlier assert fails AND a later side ERRORS — cannot occur on
+a green test and differs only in diagnosis class. The real cost is
+that an erroring statement returns NO verdict row (the "assert 1 had
+already failed" fact is lost with it). Resolution: **on statement
+error, that one test re-runs assert-by-assert (the split rung) as a
+DIAGNOSTIC FALLBACK** — re-execution is acceptable there (the test
+is broken; localization is the goal). The register V13 hazard row
+("eager CTE vs first-failure sequencing") is thereby resolved:
+diagnostics, not semantics. Standing guard: assert sides must be
+statically effect-free to fuse (true of the data-assert family by
+construction; effectful shapes are host-partition anyway).
 
 ## Roadmap implications (PROPOSED — for ratification)
 
@@ -139,9 +151,10 @@ asserts disagree about the same result).
 4. **JSON rides the byte channel** via canonical emission (F4 as
    amended): sorted-key canon build on the actual side, compile-time
    canonicalized golden on the expected side; JsonCompare = referee.
-5. **Per-assert verdict statements over a once-materialized result**
-   are the default rung (see the rung-choice section); whole-body
-   single-shot is the measured top rung.
+5. **One statement per test body is the default** (see the
+   rung-choice section): MATERIALIZED CTEs for lets, plain verdict
+   columns (no CASE nesting — first-failure adjudicated down to
+   diagnostics), split rung = error-diagnosis fallback only.
 6. **V12/V13 sequencing after V7 cutover is unchanged** (the
    dual-referee and pinned semantics are what make the flip safe).
 
