@@ -122,7 +122,7 @@ Notes NOT lost — register §1:
 | **The builder leg** (label-at-construction) | register T3/T4 | HUGEINT adopt-pending 108/130 (contract widens per testLargePlus; labels derive from the RELATION SCHEMA, needs builders not expr-sniffing) + Number-erasure wire residue (~73 PCT / ~179 corpus) |
 | **In-SQL equal() third lane** | audit #A2 | the X1–X4 treatment or three-lane pinning (see audit intake) |
 | **V8/X6 2-ULP retirement** | register | `ulp-policy=0` across the whole corpus = the evidence it waited for; same-arithmetic H2 referee design briefed |
-| **V7 corpus-lane cutover** | register | LAST of the verdict programs; V13 sequenced behind it |
+| **V7 corpus-lane cutover** | **CHARTERED 2026-08-28** — [V7_ASSERT_VERDICT_CHARTER.md](V7_ASSERT_VERDICT_CHARTER.md) (census: [V7_ASSERT_VERDICT_CENSUS.md](V7_ASSERT_VERDICT_CENSUS.md)) | unblocked by PCT completion; ~1,880 data asserts through AssertVerdicts (11/12 forms already covered; assertJsonStringsEqual is the one new form), 570 sql-text sites stay host BY DESIGN; dual-referee then hard cutover; V13 sequenced behind it |
 | **Parser strict flip** | A2/A3, DEEP_AUDIT_HANDOFF | invention census (53 skew + 42 crash) then flip |
 | **Foundations Phase 3 dedup** | A4, FOUNDATIONS_PLAN §4 | |
 | **Prepared statements** | A7 merge | deliberately LAST (text-lane perturbation) |
