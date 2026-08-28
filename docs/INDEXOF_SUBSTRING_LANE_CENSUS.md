@@ -170,3 +170,16 @@ remaining fact question):
 3. OPEN_REGISTER A1 says "do NOT re-attempt" — reopening requires an
    explicit user ruling superseding 2026-08-23, with this census as
    the distinguishing evidence (the failed draft's seam ≠ this seam).
+
+## 7. SEQUENCING (user direction 2026-08-28): PARKED BEHIND V13
+
+The leg PAUSES here, deliberately unattempted. Rationale: V13
+("let IS WITH", PROGRAM_MAP bucket 4) makes lets evaluate-once
+materialized CTEs — the engine's inScopeVars contract — which kills
+the §5 composite divergence BY CONSTRUCTION (lets stop β-splicing
+into store subtrees). The verdict chain runs first (V7 corpus
+assert→SQL-verdict migration, now unblocked by PCT completion, is
+V13's recorded prerequisite). Resume order: V7 → V13 → reopen A1
+with this census → the seam leg (then just the 4-overload value-space
+emission + witnesses §4). Nothing in this doc goes stale by waiting:
+every fact is pinned to engine source, not to our tree's state.
