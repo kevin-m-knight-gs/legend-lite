@@ -340,7 +340,10 @@ class JavaEvalLedgerTest {
             // the grid comparison POLICIES moved to their owner
             // (TdsCompare — see its row); this file keeps dispatch
             // only. Shrink banked.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1401),
+            // 1401 -> 1394 (D1, arch-audit): five hand-copied
+            // verdict/message/probe tails become ONE finisher with the
+            // structural coupling invariant. Shrink banked.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1394),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -569,6 +572,13 @@ class JavaEvalLedgerTest {
                     // second per-side execution (runCanon) could be
                     // deleted — tenet #1's number went DOWN with it.
                     "CanonRider.java",
+                    // D4 (arch-audit 2026-08-28, user-ratified): the
+                    // DECLINE-TAXONOMY REGISTER — a constants list of
+                    // the byte channel's refusal prefixes, guarded by
+                    // CanonDeclineTaxonomyTest so a respelled reason
+                    // can never silently split a census class. Pure
+                    // data: no JDBC, no evaluation, no verdict.
+                    "CanonDeclines.java",
                     // F13 (2026-08-22, OPEN_REGISTER): the SITE-ID
                     // minter for synthetic instance identity — an
                     // IdentityHashMap from construction-site NODE to a

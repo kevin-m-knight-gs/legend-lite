@@ -573,6 +573,17 @@ battery → allgates → push):**
    advisory pass into a ROW-VERIFIED pass; target: unverifiable → 0
    or a named, user-adjudicated residue. Independent of the cutover
    (advisory channel) — schedulable any time.
+   **D3 PIN (arch-audit 2026-08-28, user-ratified): the cutover's
+   DELETION LIST is an acceptance criterion, not an intention.** The
+   dual-referee period's deliberate harness mirror dies with batch 3,
+   enumerated: `checkAssert`'s comparison lattice, `goldenEqualScalar`
+   + the golden temporal-decode arms, the harness `compare()`/`Eval`
+   leniencies, the harness `endsInSort`/`orderView` duplicate, the
+   harness rendered-form recognition (its `renderForm` twin), and
+   `isFlatCellsRead` — each with its shrink pins moved (dated
+   justifications). A batch-3 slice that flips the verdict of record
+   WITHOUT this list deleted does not merge.
+
 8. **BATCH 3 — the cutover (one slice, only at disagree 0 and
    declines == §2 partition):** SQL verdict becomes the verdict of
    record; DELETE `checkAssert`'s comparison lattice,

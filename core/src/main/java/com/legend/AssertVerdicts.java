@@ -208,26 +208,15 @@ final class AssertVerdicts {
                 // non-scalar shape) is counted and the host judges.
                 SqlVerdict byteVerdict = sqlByteVerdict(args.get(0),
                         args.get(1), ef, af, letPrefix, env, equal);
-                if (byteVerdict != null) {
-                    com.legend.exec.CanonicalDivergence.probeSqlVerdict(
-                            name, equal, byteVerdict.held(),
-                            byteVerdict.detail());
-                }
-                boolean held = byteVerdict != null ? byteVerdict.held() : equal;
-                if (name.equals("assertNotEquals")) {
-                    return held
-                            ? fail("assertNotEquals: both sides are equal")
-                            : ok();
-                }
-                if (held) {
-                    return ok();
-                }
-                String d = incidental ? PureAsserts.assertSameElements(e, a)
-                        : PureAsserts.assertEquals(e, a);
-                return fail(d != null ? d
-                        : "byte-verdict: canonical renders differ (host"
-                                + " lattice agreed — dual-verdict divergence,"
-                                + " see [canon] census)");
+                return finish(name, wantEqual, equal,
+                        byteVerdict == null ? null : byteVerdict.held(),
+                        byteVerdict == null ? "" : byteVerdict.detail(),
+                        () -> incidental
+                                ? PureAsserts.assertSameElements(e, a)
+                                : PureAsserts.assertEquals(e, a),
+                        "byte-verdict: canonical renders differ (host"
+                                + " lattice agreed — dual-verdict"
+                                + " divergence, see [canon] census)");
             }
             case "assertSameElements" -> {
                 if (args.size() < 2) {
@@ -267,17 +256,11 @@ final class AssertVerdicts {
                 // is the parallel referee.
                 SqlVerdict byteVerdict = sqlByteVerdict(args.get(0),
                         args.get(1), ef, af, letPrefix, env, d == null);
-                if (byteVerdict != null) {
-                    com.legend.exec.CanonicalDivergence.probeSqlVerdict(
-                            "assertSameElements", d == null,
-                            byteVerdict.held(), byteVerdict.detail());
-                }
-                boolean held = byteVerdict != null ? byteVerdict.held() : d == null;
-                if (held) {
-                    return ok();
-                }
-                return fail(d != null ? d
-                        : "byte-verdict: canonical sorted renders differ"
+                return finish("assertSameElements", true, d == null,
+                        byteVerdict == null ? null : byteVerdict.held(),
+                        byteVerdict == null ? "" : byteVerdict.detail(),
+                        () -> d,
+                        "byte-verdict: canonical sorted renders differ"
                                 + " (host multiset agreed — dual-verdict"
                                 + " divergence, see [canon] census)");
             }
@@ -386,19 +369,13 @@ final class AssertVerdicts {
                 // coincides with equal; the identity rule walled above)
                 SqlVerdict byteVerdict = sqlByteVerdict(args.get(0),
                         args.get(1), ef, af, letPrefix, env, d == null);
-                if (byteVerdict != null) {
-                    com.legend.exec.CanonicalDivergence.probeSqlVerdict(
-                            "assertEq", d == null, byteVerdict.held(),
-                            byteVerdict.detail());
-                }
-                boolean held = byteVerdict != null ? byteVerdict.held() : d == null;
-                if (held) {
-                    return ok();
-                }
-                return fail(d != null ? d
-                        : "byte-verdict: canonical renders differ (host"
-                                + " lattice agreed — dual-verdict divergence,"
-                                + " see [canon] census)");
+                return finish("assertEq", true, d == null,
+                        byteVerdict == null ? null : byteVerdict.held(),
+                        byteVerdict == null ? "" : byteVerdict.detail(),
+                        () -> d,
+                        "byte-verdict: canonical renders differ (host"
+                                + " lattice agreed — dual-verdict"
+                                + " divergence, see [canon] census)");
             }
             case "assertEqWithinTolerance" -> {
                 if (args.size() < 3) {
@@ -677,6 +654,42 @@ final class AssertVerdicts {
         return ok();
     }
 
+    /** D1 (V7_ARCH_AUDIT 2026-08-28) — THE ONE dual-verdict finisher:
+     * the census probe, the verdict of record, and the failure
+     * narrative all derive from a single judgment. {@code byteHeld}
+     * null = the byte channel declined (already counted); the host
+     * lattice judges. {@code hostMessage} is consulted ONLY when the
+     * host lattice failed, and must speak then — a silent host failure
+     * is a verdict/message divergence and THROWS (the reverted
+     * flat-cells attempt's 28-row phantom, made structurally
+     * impossible: no arm can print the byte-divergence text for a
+     * judgment the byte channel never made, because the probe and the
+     * message read the same two booleans). */
+    private static ExecutionResult finish(String family, boolean wantEqual,
+            boolean hostHeld, @com.legend.Nullable Boolean byteHeld,
+            String detail,
+            java.util.function.Supplier<@com.legend.Nullable String> hostMessage,
+            String byteMessage) throws java.sql.SQLException {
+        if (byteHeld != null) {
+            com.legend.exec.CanonicalDivergence.probeSqlVerdict(family,
+                    hostHeld, byteHeld, detail);
+        }
+        boolean held = byteHeld != null ? byteHeld : hostHeld;
+        if (held == wantEqual) {
+            return ok();
+        }
+        if (!wantEqual) {
+            return fail("assertNotEquals: both sides are equal");
+        }
+        String d = hostHeld ? null : hostMessage.get();
+        if (!hostHeld && d == null) {
+            throw new IllegalStateException(family
+                    + ": verdict/message divergence — the host lattice"
+                    + " failed but its message lattice held");
+        }
+        return fail(d != null ? d : byteMessage);
+    }
+
     // ── §8 LEG 1 (grid canon, fusion-spike F2, user-ratified
     // 2026-08-28): a TABULAR side's byte channel is its per-ROW canon
     // (per-cell pure-literal spellings, TDS_CELL_SEP-joined, NULL
@@ -722,6 +735,7 @@ final class AssertVerdicts {
             }
         }
         Boolean byteHeld = null;
+        String detail = "";
         if (!mixedFlatVsTds) {
             ExecutionResult.Tabular wg = af.grid() != null ? af.grid()
                     : java.util.Objects.requireNonNull(ef.grid(),
@@ -751,30 +765,28 @@ final class AssertVerdicts {
                                     .firstCanonDiff(es, as2));
                     byteHeld = true;
                 }
-                com.legend.exec.CanonicalDivergence.probeSqlVerdict(name,
-                        hostHeld, byteHeld, "tds rows=" + ec.size() + "/"
-                                + ac.size() + (byteHeld ? ""
-                                        : com.legend.exec.TdsCompare
-                                                .firstCanonDiff(es, as2)));
+                detail = "tds rows=" + ec.size() + "/" + ac.size()
+                        + (byteHeld ? "" : com.legend.exec.TdsCompare
+                                .firstCanonDiff(es, as2));
             }
         }
-        boolean held = byteHeld != null ? byteHeld : hostHeld;
-        if (name.equals("assertNotEquals")) {
-            return held ? fail("assertNotEquals: both sides are equal")
-                    : ok();
-        }
-        if (held) {
-            return ok();
-        }
-        String d = hostHeld ? null
-                : mixedFlatVsTds
-                        ? "\nraw cells do not equal a whole TDS value"
-                        : PureAsserts.assertEquals(e, a);
-        return fail(d != null
-                ? name + " (TDSRow.values) " + d.replaceFirst("^\\n", "")
-                : "byte-verdict: grid canonical renders differ (host"
+        return finish(name, wantEqual, hostHeld, byteHeld, detail,
+                () -> mixedFlatVsTds
+                        ? name + " (TDSRow.values) raw cells do not"
+                                + " equal a whole TDS value"
+                        : tdsHostMessage(name,
+                                PureAsserts.assertEquals(e, a)),
+                "byte-verdict: grid canonical renders differ (host"
                         + " lattice agreed — dual-verdict divergence,"
                         + " see [canon] census)");
+    }
+
+    /** The TDSRow.values failure narrative — the host lattice's text
+     * with the pure-API prefix; null iff the lattice held. */
+    private static @com.legend.Nullable String tdsHostMessage(String name,
+            @com.legend.Nullable String d) {
+        return d == null ? null
+                : name + " (TDSRow.values) " + d.replaceFirst("^\\n", "");
     }
 
     /** The MULTISET flat-cells verdict: loose CELL pool host lattice
@@ -790,33 +802,29 @@ final class AssertVerdicts {
         List<String> ec = sideCellCanons(ef, true);
         List<String> ac = sideCellCanons(af, false);
         Boolean byteHeld = null;
+        String detail = "";
         if (ec != null && ac != null) {
             List<String> es = new ArrayList<>(ec);
             List<String> as2 = new ArrayList<>(ac);
             es.sort(String::compareTo);
             as2.sort(String::compareTo);
             byteHeld = es.equals(as2);
-            com.legend.exec.CanonicalDivergence.probeSqlVerdict(
-                    "assertSameElements", hostHeld, byteHeld,
-                    "tds cells=" + ec.size() + "/" + ac.size()
-                            + (byteHeld ? "" : com.legend.exec.TdsCompare
-                                    .firstCanonDiff(es, as2)));
+            detail = "tds cells=" + ec.size() + "/" + ac.size()
+                    + (byteHeld ? "" : com.legend.exec.TdsCompare
+                            .firstCanonDiff(es, as2));
         }
-        boolean held = byteHeld != null ? byteHeld : hostHeld;
-        if (held) {
-            return ok();
-        }
-        if (!hostHeld) {
-            String d = PureAsserts.assertSameElements(e, a);
-            return fail(d != null
-                    ? "assertSameElements (TDSRow.values) "
-                            + d.replaceFirst("^\\n", "")
-                    : "assertSameElements (TDSRow.values): cell multiset"
-                            + " differs");
-        }
-        return fail("byte-verdict: grid canonical renders differ (host"
-                + " lattice agreed — dual-verdict divergence, see"
-                + " [canon] census)");
+        return finish("assertSameElements", true, hostHeld, byteHeld,
+                detail,
+                () -> {
+                    String d = PureAsserts.assertSameElements(e, a);
+                    return d != null
+                            ? tdsHostMessage("assertSameElements", d)
+                            : "assertSameElements (TDSRow.values): cell"
+                                    + " multiset differs";
+                },
+                "byte-verdict: grid canonical renders differ (host"
+                        + " lattice agreed — dual-verdict divergence,"
+                        + " see [canon] census)");
     }
 
     /** A side's per-ROW canon texts via the grid policy owner: a
