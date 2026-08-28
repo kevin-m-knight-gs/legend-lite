@@ -366,6 +366,20 @@ public final class CanonicalDivergence {
                 .mapToLong(e -> e.getValue().get()).sum();
     }
 
+    /** Bucket reader: declines whose reason STARTS with {@code bucket}
+     * (sub-reasons ride behind " :: " — assert-sql-text-unable-to-exec
+     * :: diff-noreplay counts under its bucket). */
+    public static long v7DeclinedByReasonPrefix(String bucket) {
+        String tail = " :: " + bucket;
+        return V7_DECLINES.entrySet().stream()
+                .filter(e -> {
+                    int i = e.getKey().indexOf(" :: ");
+                    return i >= 0 && e.getKey().substring(i + 4)
+                            .startsWith(bucket);
+                })
+                .mapToLong(e -> e.getValue().get()).sum();
+    }
+
     public static String v7Summary() {
         long agree = 0;
         long disagree = 0;
@@ -384,19 +398,25 @@ public final class CanonicalDivergence {
                         .append(':').append(n);
             }
         }
-        // sql-text and tdg are BY-DESIGN partitions, not migration debt
-        // — their own headline columns (task #13). sqltext splits
-        // run-vs-gen: -run members EXECUTED their query through the
-        // platform and then inspected the generated SQL (only the
-        // compare is a text short-circuit); -gen members render without
-        // executing (toSQLString family).
-        long stRun = v7DeclinedByReason("host-partition-sqltext-run");
-        long stGen = v7DeclinedByReason("host-partition-sqltext-gen");
-        long tdg = v7DeclinedByReason("host-partition-tdg");
+        // The user-ratified OUTCOME buckets (2026-08-28): sql-text and
+        // test-data are BY-DESIGN partitions with honest strength
+        // labels — exec-passing = golden EXECUTED on H2, rows EQUAL
+        // (the only comfort bucket); text-only = nothing ran, text is
+        // the contract; unable-to-exec = transparent residue by named
+        // sub-reason; csv = the TDG compares. declined = real backlog.
+        long execPass = v7DeclinedByReasonPrefix(
+                "assert-sql-text-with-exec-passing");
+        long textOnly = v7DeclinedByReasonPrefix("assert-sql-text-only");
+        long noExec = v7DeclinedByReasonPrefix(
+                "assert-sql-text-unable-to-exec");
+        long csv = v7DeclinedByReasonPrefix("assert-test-data-csv");
         return "dual-channel agree=" + agree + " disagree=" + disagree
-                + " sqltext-run=" + stRun + " sqltext-gen=" + stGen
-                + " tdg=" + tdg
-                + " declined=" + (v7DeclinedCount() - stRun - stGen - tdg)
+                + " | sql-text: exec-passing=" + execPass
+                + " text-only=" + textOnly
+                + " UNABLE-TO-EXEC=" + noExec
+                + " | test-data-csv=" + csv
+                + " | declined=" + (v7DeclinedCount()
+                        - execPass - textOnly - noExec - csv)
                 + " | side-rows" + (hist.isEmpty() ? " none" : hist);
     }
 

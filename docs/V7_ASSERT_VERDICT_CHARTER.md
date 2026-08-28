@@ -628,27 +628,33 @@ backlog only: **417** (the leg-4 remainder estimate ~419, confirmed
 by measurement). FALSIFIER: both partitions re-measured EXACTLY
 under identity dispatch — zero rows moved.
 
-sql-text anatomy (user question, MEASURED and pinned): the 1,529
-splits **run 1,491 / gen 38**. -gen = render-only (toSQLString
-family reads with no execute anywhere in the assert's sides) — pure
-short circuit, nothing ran. -run = the test EXECUTED its query
-through the platform (seeds, SQL, rows — pure is strict) and the
-assert inspects the generated SQL; only the COMPARE is a text
-short-circuit.
+## 4Z. SQL-TEXT OUTCOME BUCKETS — user-ratified, measured, pinned
+## (2026-08-28)
 
-**Text-vs-exec disagreement is already separated** (user question):
-the dual channel is PER-ASSERT, so a run-backed test's ROW asserts
-land in agree/disagree (the exec verdict) while its SQL assert
-lands in sqltext. Within sqltext-run, the golden-replay machinery
-decomposes the compare outcome: 320 text-match (replayed on H2,
-rows verified) + 632 text-DIFFERS-rows-EQUAL (the "disagree on
-text, agree on exec" class, each divergence recorded) + 0
-rows-DIFFER (HARD-GATED at zero — a real exec disagreement fails
-the sweep) + 145 unverifiable (the honest unknown, shrink-only,
-leg 7). The remaining 394 run-backed asserts have their own compare
-arms (assertEqualsH2Compatible's 322 compare two pre-rendered
-strings; mixed forms stay unsupported) — reconciling those into
-the replay machinery is a named follow-up, not a silent gap.
+The run/gen split was scaffolding; the user's directive replaced it:
+"sql-run should ONLY count if we are 100% confident we ran the H2
+dual and compared equal; whatever is left that is NOT 100% verified
+must be transparent." Mechanism: the verify machinery records a
+PER-ASSERT OUTCOME at every exit (SQL_TEXT_OUTCOME); the census
+consumes outcome + shape — it reads what HAPPENED, never a guess.
+
+MEASURED (sum 1,652 = old sqltext 1,529 + tdg 123, exact):
+
+| bucket | count | meaning |
+|---|---|---|
+| assert-sql-text-with-exec-passing | **989** | golden EXECUTED on H2, rows compared EQUAL to our DuckDB rows (both text-match and text-differs paths; row divergence stays HARD-GATED 0). The ONLY comfort bucket. |
+| assert-sql-text-only | **44** | nothing executed in the assert's sides — text IS the contract (plan-literal 17, plan-let 6 pulled OUT of the old tdg bucket which conflated them, render tails) |
+| assert-sql-text-UNABLE-TO-EXEC | **502** | transparent residue, per named sub-reason: **diff-noreplay 321** (text DIFFERS and replay impossible — the WEAKEST class, previously invisible: no counter incremented, soft-ceilinged only), match-noreplay 142, no-generator-noreplay 20, predicate 16, both-ours 3 |
+| assert-test-data-csv | **117** | TDG CSV compares (pass/fail definitive; was 123 with the 6 plan-let rows wrongly inside) |
+
+FINDINGS the instrumentation forced: (1) the old "145 unverifiable"
+was only the match-noreplay slice — the 321 diff-noreplay class is
+2.2× larger and WEAKER (text disagrees AND rows never checked);
+both are now shrink-only burndown scope. (2) the old tdg 123
+carried 6 plan-text rows. (3) the "394 own-arm" estimate dissolved:
+h2compat rows replay-verify inside exec-passing (989 > the old 952
+estimate). Pins: 989 grows-only-by-burndown / 44 / 502 shrink-only
+/ 117 — all EXACT lane guards.
 
 ## 8. PLAN OF ATTACK — the batch-2 remainder → cutover (handoff,
 ## 2026-08-28)

@@ -1238,6 +1238,7 @@ public final class EngineTestExecutor {
                     execStmts, execVars, execChains, ctx, imports,
                     runtimeFqn, conn);
             if (other != null) {
+                sqlTextOutcome("both-ours");
                 return other.equals(sql) ? null
                         : "sql sides differ: " + other + " vs " + sql;
             }
@@ -1254,13 +1255,16 @@ public final class EngineTestExecutor {
                 if (h2rows == null) {
                     H2Verify.M1_VERIFIED.increment();
                     H2Verify.verdict("textmatch");
+                    sqlTextOutcome("exec-pass");
                     return null;
                 }
                 if (java.util.Objects.equals(h2rows, ADVISORY_MARKER)) {
                     H2Verify.M1_UNVERIFIABLE.increment();
+                    sqlTextOutcome("match-noreplay");
                     return null;
                 }
                 H2Verify.M1_DIVERGED.increment();
+                sqlTextOutcome("exec-diverged");
                 return "h2-exec: OUR byte-matched SQL on H2 diverged"
                         + " from our DuckDB rows — " + h2rows;
             }
@@ -1273,15 +1277,24 @@ public final class EngineTestExecutor {
                 if (rows == null) {
                     H2Verify.M1_RESCUED.increment();
                     H2Verify.verdict("rescued");
+                    sqlTextOutcome("exec-pass");
                 } else {
                     H2Verify.verdict("execfail");
+                    sqlTextOutcome("exec-diverged");
                 }
                 return rows;
             }
+            sqlTextOutcome("diff-noreplay");
             return "sql-text: expected " + golden + ", got " + sql;
         }
-        return h2Upgrade(args, lets, execStmts, execVars, execChains, ctx,
-                imports, runtimeFqn, conn);
+        // no reachable generator for OUR side — the golden may still
+        // row-verify on H2 (rows vs our DuckDB rows)
+        String tail = h2Upgrade(args, lets, execStmts, execVars, execChains,
+                ctx, imports, runtimeFqn, conn);
+        sqlTextOutcome(tail == null ? "exec-pass"
+                : java.util.Objects.equals(tail, ADVISORY_MARKER)
+                        ? "no-generator-noreplay" : "exec-diverged");
+        return tail;
     }
 
 
@@ -2059,8 +2072,9 @@ public final class EngineTestExecutor {
                     // predicate PURELY over golden SQL text is advisory; a
                     // MIXED assert (sql text AND value reads) must not have
                     // its value conjuncts silently skipped (audit 9)
-                    return containsValuesRead(args.get(0))
-                            ? UNSUPPORTED_MARKER : ADVISORY_MARKER;
+                    boolean mixed = containsValuesRead(args.get(0));
+                    sqlTextOutcome(mixed ? "mixed" : "predicate");
+                    return mixed ? UNSUPPORTED_MARKER : ADVISORY_MARKER;
                 }
                 if (emptinessUnverifiable) {
                     // seeds failed: a predicate like isEmpty(...) would
@@ -2110,6 +2124,7 @@ public final class EngineTestExecutor {
                 // string through the K-native (toSQLString doctrine):
                 // skip the golden-SQL advisory routing entirely
                 if (PlanAsserts.wantsPlanText(args, lets)) {
+                    sqlTextOutcome("plan-literal");
                     return PlanAsserts.planTextAssert(args, lets, execStmts, execVars,
                             execChains, ctx, imports, runtimeFqn, conn);
                 } else {
@@ -2132,6 +2147,7 @@ public final class EngineTestExecutor {
                         || containsSqlProducer(args.get(0), ctx)) {
                     if (containsValuesRead(args.get(0))
                             || containsValuesRead(args.get(args.size() - 1))) {
+                        sqlTextOutcome("mixed");
                         return UNSUPPORTED_MARKER;
                     }
                     return sqlTextVerify(args, lets, execStmts, execVars,
@@ -2682,6 +2698,18 @@ public final class EngineTestExecutor {
         return cut < 0 ? fn : fn.substring(cut + 2);
     }
 
+    /** Per-assert SQL-TEXT verification OUTCOME (user-ratified buckets
+     * 2026-08-28): set at each verify exit, consumed by the v7 census —
+     * the census reads what actually HAPPENED, never what was
+     * classified. One assert, one outcome; null = no sql-text machinery
+     * touched this assert. */
+    static final ThreadLocal<@com.legend.Nullable String> SQL_TEXT_OUTCOME =
+            new ThreadLocal<>();
+
+    static void sqlTextOutcome(String o) {
+        SQL_TEXT_OUTCOME.set(o);
+    }
+
     /** The sql-producer register, by EXACT FQN (task #13 slice 2): the
      * activity-log SQL reads (helperFunctions.pure:38-60, the splice's
      * own register) and the generate-without-executing renders. */
@@ -2993,26 +3021,47 @@ public final class EngineTestExecutor {
             java.util.Set<String> planTextVars) {
         String form = simpleName(af.function()) + "/"
                 + af.parameters().size();
-        // §2: TDG generator reads and plan-text lets are HOST artifacts
-        // by design (generateSeedDataString CSV compares, plan strings)
-        if (!tdgVars.isEmpty() && referencesAny(af, tdgVars)
-                || !planTextVars.isEmpty()
-                        && referencesAny(af, planTextVars)) {
+        // §2: TDG generator reads are the CSV test-data bucket; plan-text
+        // LETS are renders (the plan string is the contract) — separated
+        // (user catch 2026-08-28: the old shared reason conflated them)
+        if (!tdgVars.isEmpty() && referencesAny(af, tdgVars)) {
             com.legend.exec.CanonicalDivergence.v7Declined(form,
-                    "host-partition-tdg");
+                    "assert-test-data-csv");
             return;
         }
-        // §2: the SQL-TEXT partition — SPLIT run-vs-gen (user question
-        // 2026-08-28): an assert whose sides touch an EXECUTE binding
-        // belongs to a test that ran its query through the platform and
-        // then inspected the generated SQL; a gen-only assert
-        // (toSQLString-family render, no execution anywhere) never ran
-        // anything. Same partition policy, honest census columns.
-        java.util.function.Supplier<String> sqltextReason = () ->
-                af.parameters().stream().anyMatch(p ->
-                        referencesAny(p, execVars) || containsExecute(p))
-                ? "host-partition-sqltext-run"
-                : "host-partition-sqltext-gen";
+        if (!planTextVars.isEmpty() && referencesAny(af, planTextVars)) {
+            com.legend.exec.CanonicalDivergence.v7Declined(form,
+                    "assert-sql-text-only :: plan-let");
+            return;
+        }
+        // §2: the SQL-TEXT partition — the user-ratified OUTCOME buckets
+        // (2026-08-28). The verify machinery recorded what actually
+        // HAPPENED for this assert (SQL_TEXT_OUTCOME, set per exit);
+        // classification here is shape + outcome, never a guess:
+        //   assert-sql-text-with-exec-passing — the golden EXECUTED on
+        //     H2 and rows compared EQUAL (the only comfort bucket);
+        //   assert-sql-text-only — nothing executed anywhere in the
+        //     assert's sides: the text IS the contract (render/plan/
+        //     both-ours), hard pass/fail;
+        //   assert-sql-text-unable-to-exec :: <sub> — transparent
+        //     residue by named reason (match-noreplay, diff-noreplay,
+        //     predicate, mixed, no-generator-noreplay, exec-diverged
+        //     stays a REAL failure and never lands here).
+        String outcome = SQL_TEXT_OUTCOME.get();
+        SQL_TEXT_OUTCOME.remove();
+        java.util.function.Supplier<String> sqltextReason = () -> {
+            boolean run = af.parameters().stream().anyMatch(p ->
+                    referencesAny(p, execVars) || containsExecute(p));
+            if ("exec-pass".equals(outcome)) {
+                return "assert-sql-text-with-exec-passing";
+            }
+            if (!run) {
+                return "assert-sql-text-only"
+                        + (outcome != null ? " :: " + outcome : "");
+            }
+            return "assert-sql-text-unable-to-exec :: "
+                    + (outcome != null ? outcome : "unclassified");
+        };
         // sql-text ASSERT FORMS — resolved exact FQNs, never names
         if (resolvesTo(af, ctx, SQL_ASSERT_FORM_FQNS)) {
             com.legend.exec.CanonicalDivergence.v7Declined(form,

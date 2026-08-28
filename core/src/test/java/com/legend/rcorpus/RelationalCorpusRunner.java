@@ -616,25 +616,34 @@ public class RelationalCorpusRunner {
             // RESOLUTION-backed classifier (exact FQNs, resolvesTo)
             // reproduces this count exactly — the name-sniffing
             // deletion moved the mechanism, not one row.
-            // run-vs-gen split (user question 2026-08-28, measured then
-            // pinned): -run EXECUTED its query through the platform and
-            // then inspected the generated SQL; -gen rendered without
-            // executing (toSQLString family). Sum = the ratified 1529.
-            org.junit.jupiter.api.Assertions.assertEquals(1491,
+            // The user-ratified OUTCOME buckets (2026-08-28), measured
+            // then pinned EXACTLY (sum = the ratified 1529+123; csv lost
+            // its 6 plan-let rows to text-only — the old tdg reason
+            // conflated them). exec-passing may only GROW by burndown;
+            // UNABLE-TO-EXEC (esp. diff-noreplay 321, the weakest class:
+            // text DIFFERS and no replay ran) may only SHRINK.
+            org.junit.jupiter.api.Assertions.assertEquals(989,
                     com.legend.exec.CanonicalDivergence
-                            .v7DeclinedByReason("host-partition-sqltext-run"),
-                    "lane guard: host-partition-sqltext-run moved — update"
-                            + " the charter §8.0 scope table with it");
-            org.junit.jupiter.api.Assertions.assertEquals(38,
+                            .v7DeclinedByReasonPrefix(
+                                    "assert-sql-text-with-exec-passing"),
+                    "lane guard: assert-sql-text-with-exec-passing moved —"
+                            + " update the charter §8.0 scope table");
+            org.junit.jupiter.api.Assertions.assertEquals(44,
                     com.legend.exec.CanonicalDivergence
-                            .v7DeclinedByReason("host-partition-sqltext-gen"),
-                    "lane guard: host-partition-sqltext-gen moved — update"
-                            + " the charter §8.0 scope table with it");
-            org.junit.jupiter.api.Assertions.assertEquals(123,
+                            .v7DeclinedByReasonPrefix("assert-sql-text-only"),
+                    "lane guard: assert-sql-text-only moved — update the"
+                            + " charter §8.0 scope table");
+            org.junit.jupiter.api.Assertions.assertEquals(502,
                     com.legend.exec.CanonicalDivergence
-                            .v7DeclinedByReason("host-partition-tdg"),
-                    "lane guard: host-partition-tdg moved — update the"
-                            + " charter §8.0 scope table with it");
+                            .v7DeclinedByReasonPrefix(
+                                    "assert-sql-text-unable-to-exec"),
+                    "lane guard: assert-sql-text-unable-to-exec moved —"
+                            + " update the charter §8.0 scope table");
+            org.junit.jupiter.api.Assertions.assertEquals(117,
+                    com.legend.exec.CanonicalDivergence
+                            .v7DeclinedByReasonPrefix("assert-test-data-csv"),
+                    "lane guard: assert-test-data-csv moved — update the"
+                            + " charter §8.0 scope table");
             // leg 7 ratchets: row-verification coverage holds its
             // floor; the unverifiable residue only SHRINKS (the 145
             // burndown — each fix converts an advisory pass into a

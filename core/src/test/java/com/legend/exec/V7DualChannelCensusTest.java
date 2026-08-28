@@ -27,17 +27,18 @@ class V7DualChannelCensusTest {
             CanonicalDivergence.v7Verdict("assertSameElements/2", false,
                     true, "host multiset failed, prod passed");
             CanonicalDivergence.v7Declined("assertSameSQL/2",
-                    "host-partition-sqltext-run");
+                    "assert-sql-text-with-exec-passing");
             CanonicalDivergence.v7Declined("assertSameSQL/2",
-                    "host-partition-sqltext-run");
+                    "assert-sql-text-unable-to-exec :: diff-noreplay");
             assertEquals(2, CanonicalDivergence.v7DisagreeCount());
             assertEquals(2, CanonicalDivergence.v7DeclinedCount());
-            // by-design partitions are their own headline columns; the
-            // declined column is real backlog ONLY (run/gen split:
-            // -run executed its query, -gen rendered without executing)
+            // the user-ratified OUTCOME buckets are headline columns;
+            // 'declined' is real backlog ONLY; sub-reasons ride behind
+            // " :: " and count under their bucket prefix
             assertTrue(CanonicalDivergence.v7Summary().startsWith(
-                    "dual-channel agree=2 disagree=2 sqltext-run=2"
-                            + " sqltext-gen=0 tdg=0 declined=0"),
+                    "dual-channel agree=2 disagree=2 | sql-text:"
+                            + " exec-passing=1 text-only=0 UNABLE-TO-EXEC=1"
+                            + " | test-data-csv=0 | declined=0"),
                     CanonicalDivergence.v7Summary());
             var report = CanonicalDivergence.v7Report();
             assertTrue(report.contains(
@@ -46,7 +47,13 @@ class V7DualChannelCensusTest {
                     "form assertSameElements/2 agree=0 disagree=1"),
                     report.toString());
             assertTrue(report.contains(
-                    "declined assertSameSQL/2 :: host-partition-sqltext-run = 2"),
+                    "declined assertSameSQL/2 ::"
+                            + " assert-sql-text-with-exec-passing = 1"),
+                    report.toString());
+            assertTrue(report.contains(
+                    "declined assertSameSQL/2 ::"
+                            + " assert-sql-text-unable-to-exec ::"
+                            + " diff-noreplay = 1"),
                     report.toString());
             // both disagreements carry a witness row
             assertEquals(2, report.stream()
