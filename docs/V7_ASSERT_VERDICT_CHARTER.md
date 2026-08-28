@@ -3,11 +3,23 @@
 **Mission.** Retire the corpus harness's private assert-comparison
 lattice — the THIRD implementation of pure equality semantics — by
 routing corpus assert statements through the production verdict path
-(`StatementExecutor` → `AssertVerdicts`): both sides lower into ONE
-verdict query, the DATABASE adjudicates, the harness receives a
-verdict row. Standing ruling 2026-08-24 (PROGRAM_MAP longer-arc §3):
-one leg, no incremental drift, no half-migrated referee; unblocked by
-PCT completion 2026-08-28. Phase-0 census with the measured numbers:
+(`StatementExecutor` → `AssertVerdicts`), i.e. the PCT lane's
+RATIFIED dual-verdict architecture EXACTLY AS IT EXISTS
+(`AssertVerdicts:125-140`): each side executes with the canonical
+render RIDING THE SIDE QUERY ITSELF (`wrapWithCanon` — the DATABASE
+computes the canonical bytes; sameElements arrives ORDER BY canon
+text in the same execution); the verdict of record is byte equality
+of DB-computed canonical renders (Java's remaining role is a
+semantics-free `String.equals`); the host lattice stays as the
+PERMANENT parallel referee with the disagreement alarm; boolean
+`assert`/`assertFalse` K-arm conditions adjudicate fully in-DB.
+What dies is the corpus harness's SEMANTIC compare code
+(`goldenEqualScalar`, temporal decode, numeric-by-value) — the
+semantics move into the one canon owner's SQL. TRUE single-query
+fusion (both sides in one round trip, one verdict row out) is V12,
+deliberately NOT this leg. Standing ruling 2026-08-24 (PROGRAM_MAP
+longer-arc §3): one leg, no incremental drift, no half-migrated
+referee; unblocked by PCT completion 2026-08-28. Phase-0 census:
 [V7_ASSERT_VERDICT_CENSUS.md](V7_ASSERT_VERDICT_CENSUS.md).
 
 ---
@@ -33,8 +45,11 @@ PCT completion 2026-08-28. Phase-0 census with the measured numbers:
   + the byte-canon channel are its design anchors — Channel B's
   graph verdicts are the precedent).
 - **Performance is a non-issue, measured**: 24,529 queries / 6.5 s
-  full-sweep (0.26 ms each); verdicts fuse sides and return ONE row
-  where today full result sets cross JDBC for the Java compare.
+  full-sweep (0.26 ms each). Per-assert round trips are UNCHANGED by
+  this leg (both sides already execute today; the canon rides those
+  same executions as appended columns — wire grows by the canon
+  column, shrinks by nothing yet). The round-trip HALVING (fused
+  sides, one verdict row) is V12's payoff, measured then.
 - **The dual-referee plumbing already exists**: the corpus lane
   prints `sql-verdict agree/disagree/declined` counters (all zero,
   unexercised).

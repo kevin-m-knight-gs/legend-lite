@@ -18,12 +18,16 @@ query.exec     6.5s   n=24,529  <- 0.26 ms PER QUERY (in-mem DuckDB)
 test.wall    131.8s   n=2,575
 ```
 
-- Our query execution is 5% of the sweep. At 0.26 ms/query, adding
-  one verdict query per data assert (~1,880 sites, §2) costs ~0.5 s.
-- The likely shape is BETTER than that: today both assert sides
-  execute as SQL and the FULL RESULT SETS cross JDBC for the Java
-  compare; a verdict query fuses the sides and returns ONE row. Wire
-  bytes shrink; round trips do not multiply.
+- Our query execution is 5% of the sweep. At 0.26 ms/query, even
+  DOUBLING the query count costs ~6 s of a 132 s sweep.
+- CORRECTED (2026-08-28, user catch): the PCT architecture V7 adopts
+  does NOT fuse sides into one verdict query — each side executes
+  with the canonical render riding the SIDE query (`wrapWithCanon`,
+  DB-computed bytes; Java's verdict of record is a semantics-free
+  byte compare of those DB-computed renders). Per-assert round trips
+  are therefore UNCHANGED by V7 (both sides already execute today);
+  the wire gains a canon column per side. Round-trip HALVING (fused
+  sides, one verdict row out) is V12, measured when V12 runs.
 - The real perf unknown is VERDICT TEXT SIZE (golden rows inlined as
   VALUES). Charter measurement: the golden result-size distribution;
   a per-size parse-cost probe. (V12's one-round-trip UNION ALL shape
