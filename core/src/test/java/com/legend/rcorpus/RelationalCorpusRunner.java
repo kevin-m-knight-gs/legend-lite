@@ -175,6 +175,39 @@ public class RelationalCorpusRunner {
                 // unreadable: the family stays walled as before
             }
         }
+        // V7 (V7_ASSERT_VERDICT_CHARTER §4.1): the ASSERT-FAMILY library
+        // — real legend-pure's asserts sources (the engine graph's own
+        // assert functions; real Pure AUTO-IMPORTS
+        // meta::pure::functions::asserts, m3.pure's system imports, so
+        // corpus tests call them bare) plus engine-core's
+        // testExtension.pure (assertJsonStringsEqual, same package).
+        // assert.pure loads for its CONCRETE overloads (the /3 format
+        // form assertEquals' bodies call, assertFalse/1); its one
+        // native declaration (assert/2-fn) drops at the global compile's
+        // library-scoped prune — the registry keeps that form. The other
+        // registry-owned forms (fail/assertEqWithinTolerance/assertError/
+        // assertTdsEquivalent) stay registry-resolved. Library elements
+        // only: never discovery, never setups; the dual channel
+        // FQN-spells bare assert calls at the splice
+        // (EngineTestExecutor.v7DualChannel).
+        for (String af : new String[] {"assert", "assertEquals", "assertNotEquals",
+                "assertSameElements", "assertSize", "assertEq",
+                "assertEmpty", "assertNotEmpty", "assertInstanceOf",
+                "assertIs", "assertContains", "assertFalse"}) {
+            Path f = Corpus.PURE_ASSERTS.resolve(af + ".pure");
+            if (Files.isRegularFile(f)) {
+                try {
+                    runner.registerLibrarySource(Files.readString(f));
+                } catch (Exception ignore) {
+                    // unreadable library file: the form declines, named
+                }
+            }
+        }
+        // testExtension.pure (assertJsonStringsEqual) deliberately does
+        // NOT load in batch 1: its unported meta::pure::functions::test
+        // siblings would add wall rows to the scoreboard, and batch 1's
+        // acceptance is a byte-identical scoreboard. It loads with D4
+        // (batch 2), where the doc change is the slice's own.
         runner.classLookup = fqn -> {
             try {
                 return classIndex().get(fqn);
@@ -606,6 +639,15 @@ public class RelationalCorpusRunner {
         System.out.println("[canon] " + com.legend.exec.CanonicalDivergence.summary());
         com.legend.exec.CanonicalDivergence.samples().forEach(r ->
                 System.out.println("[canon] " + r.family() + " " + r.detail()));
+        // V7 batch 1 (V7_ASSERT_VERDICT_CHARTER §4.1): the corpus dual
+        // channel — harness host verdict vs the production AssertVerdicts
+        // route, per form. Disagree rows are batch 2's work list; the
+        // cutover pin (batch 3) reads disagree==0 and declines == the §2
+        // host partition. No gate assertion yet: census-first.
+        System.out.println("[v7] "
+                + com.legend.exec.CanonicalDivergence.v7Summary());
+        com.legend.exec.CanonicalDivergence.v7Report().forEach(l ->
+                System.out.println("[v7] " + l));
         System.out.println("[rcorpus] walls (mappings + dropped base elements): "
                 + runner.walls().size());
         if (System.getProperty("rcorpus.walls") != null) {

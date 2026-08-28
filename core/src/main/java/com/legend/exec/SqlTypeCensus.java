@@ -214,6 +214,9 @@ public final class SqlTypeCensus {
             String dialect) {
         WIRE_WATCH.remove();   // defensive: a statement that errored
                                // before settling must not leak watches
+        if (PROBE_SUSPENDED.get()) {
+            return;   // V7 probe isolation — see probe()
+        }
         try {
             java.sql.ResultSetMetaData md = rs.getMetaData();
             List<OutputCol> outs = plan.outputs();
@@ -646,7 +649,24 @@ public final class SqlTypeCensus {
         return n;
     }
 
+    /** V7 probe isolation (V7_ASSERT_VERDICT_CHARTER §4.1): the corpus
+     * dual channel RE-EXECUTES assert statements through the production
+     * path as a referee probe; those duplicate executions must not
+     * double-feed this census — its sweep ceilings pin the PRIMARY
+     * lane's counts, and a probe-inflated count reads as compiler
+     * drift. Toggled by the single-threaded harness around the probe
+     * only; every other lane sees the flag permanently false. */
+    private static final java.util.concurrent.atomic.AtomicBoolean
+            PROBE_SUSPENDED = new java.util.concurrent.atomic.AtomicBoolean();
+
+    public static void probeSuspend(boolean on) {
+        PROBE_SUSPENDED.set(on);
+    }
+
     public static void probe(SqlQuery plan) {
+        if (PROBE_SUSPENDED.get()) {
+            return;
+        }
         PLANS.increment();
         walk(plan);
     }

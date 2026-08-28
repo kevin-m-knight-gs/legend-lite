@@ -238,6 +238,126 @@ public final class CanonicalDivergence {
         return SQL_ULP_POLICY.get();
     }
 
+    // ── V7 (docs/V7_ASSERT_VERDICT_CHARTER.md §4.1): the corpus DUAL
+    // CHANNEL census — the harness's host verdict vs the production
+    // AssertVerdicts route, per assert FORM (name/arity). DISTINCT from
+    // the sql-verdict counters above (those are the production path's
+    // INNER referee: PureAsserts vs the DB byte canon); this table
+    // compares two whole adjudicators, and its disagree rows ARE batch
+    // 2's work list. Measurement only — no entry can affect a verdict.
+    private static final java.util.concurrent.ConcurrentHashMap<String, long[]>
+            V7_FORMS = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.ConcurrentHashMap<String, AtomicLong>
+            V7_DECLINES = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final int V7_DECLINE_KEY_CAP = 400;
+    private static final ConcurrentLinkedQueue<Row> V7_SAMPLES =
+            new ConcurrentLinkedQueue<>();
+    /** Side-size histogram, log2 buckets (0, 1, 2-3, 4-7, …): the
+     * golden-size fact the census's §5-1 homework asked for — V12's
+     * VALUES-literal cost bracket rides these counts. */
+    private static final java.util.concurrent.atomic.AtomicLongArray
+            V7_SIDE_ROWS = new java.util.concurrent.atomic.AtomicLongArray(16);
+
+    /** One dual-channel verdict pair: both adjudicators judged. */
+    public static void v7Verdict(String form, boolean hostPass,
+            boolean prodPass, String detail) {
+        long[] c = V7_FORMS.computeIfAbsent(form, k -> new long[2]);
+        synchronized (c) {
+            c[hostPass == prodPass ? 0 : 1]++;
+        }
+        if (hostPass != prodPass && V7_SAMPLES.size() < SAMPLE_CAP) {
+            V7_SAMPLES.add(new Row(form, hostPass,
+                    "host=" + (hostPass ? "pass" : "fail")
+                            + " prod=" + (prodPass ? "pass" : "fail")
+                            + " " + detail));
+        }
+    }
+
+    /** A NAMED per-form decline (D2: never a silent skip) — the §2 host
+     * partition, host-unsupported forms, and production walls. The
+     * reason is a bounded classification key, not free prose. */
+    public static void v7Declined(String form, String reason) {
+        String r = reason.length() > 200 ? reason.substring(0, 200) + "…"
+                : reason;
+        String key = form + " :: " + r;
+        if (V7_DECLINES.size() >= V7_DECLINE_KEY_CAP
+                && !V7_DECLINES.containsKey(key)) {
+            key = form + " :: …overflow";
+        }
+        V7_DECLINES.computeIfAbsent(key, k -> new AtomicLong())
+                .incrementAndGet();
+    }
+
+    /** One assert side's fetched element count (histogram feed). */
+    public static void v7SideRows(int n) {
+        int b = n <= 0 ? 0 : Math.min(64 - Long.numberOfLeadingZeros(n), 15);
+        V7_SIDE_ROWS.incrementAndGet(b);
+    }
+
+    public static long v7DisagreeCount() {
+        long d = 0;
+        for (long[] c : V7_FORMS.values()) {
+            synchronized (c) {
+                d += c[1];
+            }
+        }
+        return d;
+    }
+
+    public static long v7DeclinedCount() {
+        return V7_DECLINES.values().stream().mapToLong(AtomicLong::get).sum();
+    }
+
+    public static String v7Summary() {
+        long agree = 0;
+        long disagree = 0;
+        for (long[] c : V7_FORMS.values()) {
+            synchronized (c) {
+                agree += c[0];
+                disagree += c[1];
+            }
+        }
+        StringBuilder hist = new StringBuilder();
+        for (int i = 0; i < V7_SIDE_ROWS.length(); i++) {
+            long n = V7_SIDE_ROWS.get(i);
+            if (n > 0) {
+                hist.append(' ').append(i == 0 ? "0" : i == 1 ? "1"
+                        : (1L << (i - 1)) + "-" + ((1L << i) - 1))
+                        .append(':').append(n);
+            }
+        }
+        return "dual-channel agree=" + agree + " disagree=" + disagree
+                + " declined=" + v7DeclinedCount()
+                + " | side-rows" + (hist.isEmpty() ? " none" : hist);
+    }
+
+    /** Per-form table + classified decline reasons + disagreement
+     * samples — sorted for stable console diffs (DISPLAY ordering only,
+     * the SqlTypeCensus report precedent). */
+    public static List<String> v7Report() {
+        List<String> out = new ArrayList<>();
+        V7_FORMS.entrySet().stream()
+                .sorted(java.util.Map.Entry.comparingByKey())
+                .forEach(e -> {
+                    long[] c = e.getValue();
+                    long a;
+                    long d;
+                    synchronized (c) {
+                        a = c[0];
+                        d = c[1];
+                    }
+                    out.add("form " + e.getKey() + " agree=" + a
+                            + " disagree=" + d);
+                });
+        V7_DECLINES.entrySet().stream()
+                .sorted(java.util.Map.Entry.comparingByKey())
+                .forEach(e -> out.add("declined " + e.getKey() + " = "
+                        + e.getValue().get()));
+        V7_SAMPLES.forEach(r -> out.add("disagree-witness " + r.family()
+                + " " + r.detail()));
+        return out;
+    }
+
     public static String summary() {
         return "agree=" + AGREE.get() + " disagree=" + DISAGREE.get()
                 + " residue=" + RESIDUE.get()
@@ -268,5 +388,11 @@ public final class CanonicalDivergence {
         SQL_DECLINED.set(0);
         SQL_ULP_POLICY.set(0);
         SAMPLES.clear();
+        V7_FORMS.clear();
+        V7_DECLINES.clear();
+        V7_SAMPLES.clear();
+        for (int i = 0; i < V7_SIDE_ROWS.length(); i++) {
+            V7_SIDE_ROWS.set(i, 0);
+        }
     }
 }

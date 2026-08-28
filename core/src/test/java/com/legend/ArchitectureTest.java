@@ -853,6 +853,14 @@ final class ArchitectureTest {
                 // bounded witness sample for the harness-published
                 // table; measurement only, never verdict-affecting
                 "com.legend.exec.CanonicalDivergence.SAMPLES",
+                // V7 dual-channel census (V7_ASSERT_VERDICT_CHARTER
+                // §4.1): per-form harness-vs-production verdict counts,
+                // bounded classified declines, bounded disagreement
+                // witnesses; measurement only — the CanonicalDivergence
+                // pattern
+                "com.legend.exec.CanonicalDivergence.V7_FORMS",
+                "com.legend.exec.CanonicalDivergence.V7_DECLINES",
+                "com.legend.exec.CanonicalDivergence.V7_SAMPLES",
                 // TYPED-IR Slice 1: the label-lie census's classified
                 // counters (declared-vs-computed pair -> count);
                 // measurement only, never verdict-affecting — the

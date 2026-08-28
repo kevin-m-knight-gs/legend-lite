@@ -61,6 +61,29 @@ public final class Corpus {
             + "legend-engine-pure-code-compiled-core/"
             + "src/main/resources/core/store/m2m/tests");
 
+    /** The legend-pure checkout root ({@code -Dlegend.pure.root}, the
+     * same property the PCT lanes read) — V7's assert-family library
+     * sources live here. */
+    public static final Path PURE_ROOT = Path.of(System.getProperty(
+            "legend.pure.root",
+            System.getProperty("user.home") + "/legend/legend-pure"));
+
+    /** Real legend-pure's assert-family sources (essential/tests): the
+     * engine graph's own assert functions, compiled into the corpus
+     * model exactly as the PCT ChannelB model compiles them. */
+    public static final Path PURE_ASSERTS = PURE_ROOT.resolve(
+            "legend-pure-core/legend-pure-m3-core/"
+            + "src/main/resources/platform/pure/essential/tests");
+
+    /** Engine-core's test extensions ({@code assertJsonStringsEqual}
+     * lives here — same {@code meta::pure::functions::asserts}
+     * package). */
+    public static final Path TEST_EXTENSION = ENGINE_ROOT.resolve(
+            "legend-engine-core/legend-engine-core-pure/"
+            + "legend-engine-pure-code-compiled-core/"
+            + "src/main/resources/core/pure/corefunctions/"
+            + "testExtension.pure");
+
     private Corpus() {
     }
 

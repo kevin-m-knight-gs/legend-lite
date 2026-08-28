@@ -1029,6 +1029,16 @@ final class AssertVerdicts {
 
     private static List<Object> decodeSide(
             @com.legend.Nullable ExecutionResult r) {
+        List<Object> side = decodeSideValues(r);
+        // V7 §5-1 instrument: the side-size histogram (VALUES-literal
+        // cost bracket for V12's fused-verdict design) — measurement
+        // only, fed from the one place every side already flows through
+        com.legend.exec.CanonicalDivergence.v7SideRows(side.size());
+        return side;
+    }
+
+    private static List<Object> decodeSideValues(
+            @com.legend.Nullable ExecutionResult r) {
         return switch (r) {
             case null -> new ArrayList<>();
             case ExecutionResult.Scalar s -> {

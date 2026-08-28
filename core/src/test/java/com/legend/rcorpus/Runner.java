@@ -1629,7 +1629,27 @@ public final class Runner {
                     "corpus duplicate elements (expected ZERO): "
                             + globalParsed.duplicateElements());
         }
-        globalBuilt = com.legend.Compiler.buildModule(globalParsed.model());
+        // V7: LIBRARY sources' parsed NATIVE declarations drop before the
+        // build (ChannelB's prune, scoped to library-*.pure so corpus
+        // tree sources are untouched) — the registry is the definition;
+        // a kept twin makes every native call an ambiguous 2-candidate
+        // tie (assert.pure declares the registry-owned assert/2-fn).
+        com.legend.model.ParsedModel gm = globalParsed.model();
+        List<com.legend.model.PackageableElement> kept = gm.elements()
+                .stream()
+                .filter(e -> !(e instanceof
+                        com.legend.model.NativeFunctionDefinition
+                        && String.valueOf(gm.elementSources()
+                                .get(e.qualifiedName()))
+                                .startsWith("library-")))
+                .toList();
+        com.legend.model.ParsedModel prunedGm = kept.size()
+                == gm.elements().size() ? gm
+                : new com.legend.model.ParsedModel(kept, gm.imports(),
+                        gm.source(), gm.elementOffsets(),
+                        gm.elementImports(), gm.elementSources(),
+                        gm.unclaimedSections());
+        globalBuilt = com.legend.Compiler.buildModule(prunedGm);
         globalBuilt.walls().forEach((fqn, msg) ->
                 wallOnce("global " + fqn + " => " + msg));
         java.util.Map<String, String> binds = new LinkedHashMap<>();

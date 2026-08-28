@@ -100,7 +100,12 @@ class ErrorShapeGuardrailTest {
             // ResultSetMetaData is a counted unknown, never a failure
             Map.entry("SqlTypeCensus.java", 1),
             Map.entry("StaticFold.java", 1),
-            Map.entry("EngineTestExecutor.java", 3),
+            // 3 -> 4 (2026-08-28 V7 batch 1): the dual channel's decline
+            // tunnel — a production-route probe failure becomes a COUNTED
+            // per-form decline (CanonicalDivergence.v7Declined), never a
+            // swallow and never a verdict (the host verdict of record is
+            // computed before the probe runs); the V2/V6 tunnel idiom
+            Map.entry("EngineTestExecutor.java", 4),
             Map.entry("QuotedSpecParser.java", 1),
             Map.entry("Typer.java", 1),
             Map.entry("ValidateDesugar.java", 2));

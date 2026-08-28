@@ -137,6 +137,73 @@ cutover, not after.
    (2,334 + the family table), disagreement 0, declines = the §2
    partition only, full chain green, push.
 
+## 4L. Batch-1 LANDING RECORD (2026-08-28)
+
+**EXECUTED — the dual channel is live; scoreboard byte-identical.**
+
+- **Call-site census**: `checkAssert` has exactly TWO direct call
+  sites — the main dispatch arm (`EngineTestExecutor` statement loop)
+  and `runPerDriverLoop`. `AssertLoopForm` and `RuntimeIfForm` re-enter
+  by pushing statements onto the `work` deque, so their asserts land at
+  the main arm — both direct sites carry the dual channel
+  (`v7DualChannel`), so coverage is total.
+- **The wiring is the §4.1 shortcut verbatim**: `v7DualChannel` calls
+  `evalSpliced(subst(spelledAssert, lets), execStmts, …)` — the
+  existing setup-statement pattern; `AssertVerdicts` is never touched
+  from the harness. Two enabling facts discovered en route:
+  1. Real Pure AUTO-IMPORTS `meta::pure::functions::asserts`
+     (m3.pure:202's system imports) — that is why corpus tests call
+     the family bare. Our implicit tier is the native registry, which
+     owns only assert/fail/assertEqWithinTolerance/assertError/
+     assertTdsEquivalent. So (a) the corpus global model now loads the
+     REAL legend-pure assert sources (12 files, `Corpus.PURE_ASSERTS`)
+     as library sources — parsed native twins drop at the global
+     compile's library-scoped prune (the ChannelB idiom; registry is
+     the definition) — and (b) the splice FQN-spells bare assert names
+     the registry does not own (`v7Spell`). Qualified and
+     registry-owned spellings pass through untouched.
+  2. **Probe isolation**: the duplicate executions must not feed the
+     primary lane's pinned compiler censuses —
+     `SqlTypeCensus.probeSuspend` brackets the probe (first sweep
+     tripped four ceiling pins purely by double-counting).
+- `testExtension.pure` (`assertJsonStringsEqual` — same asserts
+  package) deliberately does NOT load in batch 1: its unported
+  `meta::pure::functions::test` siblings add wall rows to the
+  scoreboard doc. It loads with D4 in batch 2.
+- **Census (full DuckDB sweep 2026-08-28, the batch-2 work list)**:
+  `dual-channel agree=141 disagree=0 declined=5100`. ZERO
+  disagreements — every pair both adjudicators judged, they agreed
+  (per-form agrees: assertSize 79, assertEquals 44, assertSameElements
+  10, assert 4, assertEq 2, assertFalse 1, assertNotEmpty 1). Inner
+  referee on those pairs: `sql-verdict agree=41 disagree=0
+  declined=15`; [canon] pin 27 held exactly. Declines by class
+  (console `[v7]` lines are the authority):
+  | class | ~sites |
+  |---|---|
+  | lowering gap (TypedPropertyAccess/TypedVariable under verdict sides) | 1,644 |
+  | exec-envelope reads (`$result.values`/`.activities` — "no row scope") | 1,407 |
+  | resolver: class query under wrapper (TypedUserCall/TypedMap/if) | 703 |
+  | host partition: sql/plan-text forms (§2, BY DESIGN) | 375 |
+  | unknown function (assertJsonStringsEqual et al — D4) | 180 |
+  | resolver: getAll shape unresolved | 174 |
+  | no scalar lowering for overload (assert/2 under assertContains etc.) | 89 |
+  | unbound variable (TDG lets) + host-unsupported + grid sides + tail | ~200 |
+- **§5-1 answered**: side-rows histogram `0:24 1:2069 2-3:666 4-7:455
+  8-15:87 16-31:21 32-63:3` — 92% of sides are ≤3 elements, max
+  bucket 32–63. VALUES-literal cost for V12 is a non-issue.
+- Guardrail registers moved with justification: ErrorShape
+  EngineTestExecutor 3→4 (the decline tunnel), HarnessDiscipline
+  CanonicalDivergence 4→6 (report display sort), JavaEvalLedger
+  AssertVerdicts 834→840 (histogram hook), ArchitectureTest statics
+  (V7_FORMS/V7_DECLINES/V7_SAMPLES). Witness:
+  `V7DualChannelCensusTest`.
+
+**Batch-2 reading of the census**: with disagreement already ZERO, the
+burn is the DECLINE table — chiefly the exec-envelope read lane
+(`$result.values` splice into the verdict side path) and the
+verdict-side lowering/resolver gaps; the host-partition rows (375) are
+the named §2 residue and stay.
+
 ## 5. Witnesses (before behavior, where possible)
 
 1. Per-form verdict unit witnesses beside AssertVerdictsTest for each

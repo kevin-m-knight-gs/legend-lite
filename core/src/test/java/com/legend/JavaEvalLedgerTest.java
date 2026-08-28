@@ -287,7 +287,10 @@ class JavaEvalLedgerTest {
             // runtime BigDecimal under a candidate set that rules
             // pure-Decimal OUT is a decimal-carried FLOAT (static truth
             // gates; the value never decides a kind alone)
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 834),
+            // +6 (2026-08-28 V7 batch 1): the side-size histogram hook in
+            // decodeSide (CanonicalDivergence.v7SideRows) — measurement
+            // only, the V12 VALUES-cost bracket; no evaluation added
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 840),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

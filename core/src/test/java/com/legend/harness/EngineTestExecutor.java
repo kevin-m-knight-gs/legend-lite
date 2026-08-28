@@ -758,6 +758,8 @@ public final class EngineTestExecutor {
                         runtimeFqn, conn, emptinessUnverifiable
                                 || seedFailures != null && !seedFailures.isEmpty(),
                         tdg, planText);
+                v7DualChannel(af, failure, lets, execStmts, execVars, ctx,
+                        imports, runtimeFqn, conn);
                 int[] cs = {verified, advisory};
                 Outcome oc = scoreAssert(af, failure, cs, sqlDiffs,
                         executed);
@@ -2464,6 +2466,8 @@ public final class EngineTestExecutor {
                                 execStmts, execVars, execChains, ctx,
                                 imports, runtimeFqn, conn,
                                 unverifiable, Map.of(), java.util.Set.of());
+                        v7DualChannel(af2, failure, loopLets, execStmts,
+                                execVars, ctx, imports, runtimeFqn, conn);
                         if (failure == UNSUPPORTED_MARKER) {
                             String why2 = takeUnsupportedReason();
                             return new Outcome.Unsupported(
@@ -2882,6 +2886,94 @@ public final class EngineTestExecutor {
         Eval e = eval(expr, lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
         List<Object> v = e.values();
         return v.size() == 1 ? v.get(0) : v;
+    }
+
+    /** V7 batch 1 (docs/V7_ASSERT_VERDICT_CHARTER.md §4.1) — the DUAL
+     * CHANNEL: every dispatched assert ALSO routes through the
+     * production verdict path, via exactly the setup-statement pattern
+     * ({@link #evalSpliced}: the {@code LambdaFunction(execStmts +
+     * spliced)} wrap → {@code executeResolved} → StatementExecutor's
+     * statement-root assert dispatch → {@code AssertVerdicts}) — never
+     * hand-plumbed adjudication. The HOST verdict stays the verdict of
+     * record; this channel only populates the per-form census
+     * (agree/disagree/declined) whose disagree rows are batch 2's work
+     * list. Host-partition results (§2: plan/sql-text advisory, TDG)
+     * and host-unsupported forms are NAMED declines, not routed — that
+     * partition is by design, not migration debt. */
+    private static void v7DualChannel(AppliedFunction af,
+            @com.legend.Nullable String hostFailure,
+            Map<String, ValueSpecification> lets,
+            List<ValueSpecification> execStmts,
+            java.util.Set<String> execVars, ModelContext ctx,
+            ImportScope imports, String runtimeFqn, Connection conn) {
+        String form = simpleName(af.function()) + "/"
+                + af.parameters().size();
+        if (hostFailure == UNSUPPORTED_MARKER) {
+            com.legend.exec.CanonicalDivergence.v7Declined(form,
+                    "host-unsupported");
+            return;
+        }
+        if (hostFailure == ADVISORY_MARKER || hostFailure != null
+                && hostFailure.startsWith("sql-text: ")) {
+            com.legend.exec.CanonicalDivergence.v7Declined(form,
+                    "host-partition-sqltext");
+            return;
+        }
+        boolean hostPass = hostFailure == null;
+        // probe isolation: the duplicate executions must not double-feed
+        // the primary lane's pinned compiler censuses
+        com.legend.exec.SqlTypeCensus.probeSuspend(true);
+        try {
+            evalSpliced(subst(v7Spell(af), lets), execStmts, execVars, ctx,
+                    imports, runtimeFqn, conn);
+            com.legend.exec.CanonicalDivergence.v7Verdict(form, hostPass,
+                    true, "");
+        } catch (java.sql.SQLException prodFail) {
+            com.legend.exec.CanonicalDivergence.v7Verdict(form, hostPass,
+                    false, firstLine(prodFail.getMessage()));
+        } catch (com.legend.error.NotImplementedException wall) {
+            com.legend.exec.CanonicalDivergence.v7Declined(form,
+                    "wall: " + firstLine(wall.getMessage()));
+        } catch (RuntimeException other) {
+            // V7 decline tunnel (the V2/V6 idiom, ErrorShapeGuardrail
+            // register): a probe failure becomes a COUNTED per-form
+            // decline — never a swallow, never a verdict (the host
+            // verdict of record was already computed above)
+            com.legend.exec.CanonicalDivergence.v7Declined(form,
+                    other.getClass().getSimpleName() + ": "
+                            + firstLine(other.getMessage()));
+        } finally {
+            com.legend.exec.SqlTypeCensus.probeSuspend(false);
+        }
+    }
+
+    private static String firstLine(@com.legend.Nullable String msg) {
+        return String.valueOf(msg).split("\\n")[0];
+    }
+
+    /** Real Pure AUTO-IMPORTS {@code meta::pure::functions::asserts}
+     * (m3.pure's system imports) — that is why corpus tests call the
+     * assert family BARE. Our resolver's implicit tier is the native
+     * registry, which owns assert/fail/assertEqWithinTolerance/
+     * assertError/assertTdsEquivalent; the remaining family members are
+     * MODEL functions (the V7 assert library), so the splice spells the
+     * bare name to the FQN the auto-import denotes. Qualified and
+     * registry-owned spellings pass through untouched. */
+    private static final java.util.Set<String> V7_ASSERTS_PKG_FORMS =
+            java.util.Set.of("assertEquals", "assertNotEquals",
+                    "assertSameElements", "assertSize", "assertEq",
+                    "assertEmpty", "assertNotEmpty", "assertInstanceOf",
+                    "assertIs", "assertContains", "assertFalse",
+                    "assertJsonStringsEqual");
+
+    private static AppliedFunction v7Spell(AppliedFunction af) {
+        String fn = af.function();
+        if (!fn.contains("::") && V7_ASSERTS_PKG_FORMS.contains(fn)) {
+            return new AppliedFunction(
+                    "meta::pure::functions::asserts::" + fn,
+                    af.parameters());
+        }
+        return af;
     }
 
     /** Compile + execute ONE expression through THE one back-half sequence

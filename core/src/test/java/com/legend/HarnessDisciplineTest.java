@@ -104,8 +104,12 @@ class HarnessDisciplineTest {
             // canonical ORDER BY; CANONICAL_FORM_SPEC §0), and the R1b
             // grid-text CLASSIFIER sorts both sides' lines to name
             // row-order-only divergences. Measurement only — no probe
-            // can affect a verdict. 2→4 (2026-08-22, R1b).
-            Map.entry("CanonicalDivergence.java", 4),
+            // can affect a verdict. 2→4 (2026-08-22, R1b). 4→6
+            // (2026-08-28, V7 batch 1): the dual-channel census REPORT
+            // sorts its own form/decline tables for stable console
+            // diffs — DISPLAY ordering only, the SqlTypeCensus report
+            // precedent; no comparison flows through it.
+            Map.entry("CanonicalDivergence.java", 6),
             // MetamodelWalk: `.distinct()` here is the RECORD ACCESSOR
             // cm().distinct() (a mapping fact), not a stream reorder —
             // counted because the spelling matches; the honest fix is
