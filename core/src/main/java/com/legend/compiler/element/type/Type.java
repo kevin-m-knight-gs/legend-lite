@@ -296,11 +296,22 @@ public sealed interface Type permits
      * {@code List<T>}, {@code Function<F>}, {@code ColSpec<T>}. {@code rawFqn}
      * points at the parameterized native class (e.g. {@code Pure.RELATION}).
      */
-    record GenericType(String rawFqn, List<Type> arguments) implements Type {
+    record GenericType(String rawFqn, List<Type> arguments,
+            List<Multiplicity> multArguments) implements Type {
         public GenericType {
             Objects.requireNonNull(rawFqn, "rawFqn");
             Objects.requireNonNull(arguments, "arguments");
+            Objects.requireNonNull(multArguments, "multArguments");
             arguments = List.copyOf(arguments);
+            multArguments = List.copyOf(multArguments);
+        }
+
+        /** The overwhelmingly common shape — no multiplicity
+         * arguments (engine parity: only Result&lt;T|m&gt;-style
+         * classes carry them; every existing construction site keeps
+         * this arity). */
+        public GenericType(String rawFqn, List<Type> arguments) {
+            this(rawFqn, arguments, List.of());
         }
 
         @Override

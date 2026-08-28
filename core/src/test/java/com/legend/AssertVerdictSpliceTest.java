@@ -259,6 +259,30 @@ class AssertVerdictSpliceTest {
     }
 
     @Test
+    @DisplayName("§8 leg 2: a serialize execute's Result carries the inner"
+            + " query's multiplicity — .values types String[1] and the"
+            + " strict JSON signature accepts it")
+    void resultMultiplicityRefinesForJsonAssert() throws Exception {
+        Object v = ((ExecutionResult.Scalar) run(
+                "{|let result = execute(|e::Person.all()"
+                + "->graphFetch(#{e::Person{name}}#)"
+                + "->serialize(#{e::Person{name}}#), e::M, e::RT, []);"
+                + " assertJsonStringsEqual("
+                + "'[{\"name\":\"p1\"},{\"name\":\"p2\"}]',"
+                + " $result.values);}")).value();
+        assertEquals(Boolean.TRUE, v);
+        SQLException miss = assertThrows(SQLException.class, () -> run(
+                "{|let result = execute(|e::Person.all()"
+                + "->graphFetch(#{e::Person{name}}#)"
+                + "->serialize(#{e::Person{name}}#), e::M, e::RT, []);"
+                + " assertJsonStringsEqual("
+                + "'[{\"name\":\"zz\"},{\"name\":\"p2\"}]',"
+                + " $result.values);}"));
+        assertTrue(String.valueOf(miss.getMessage()).contains("zz"),
+                miss.getMessage());
+    }
+
+    @Test
     @DisplayName("assert condition + assertSize over frame reads adjudicate")
     void conditionAndSizeLanesSplice() throws Exception {
         Object c = ((ExecutionResult.Scalar) run(

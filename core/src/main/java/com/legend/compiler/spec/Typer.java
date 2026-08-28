@@ -2977,27 +2977,10 @@ final class Typer {
                 relColName = col.name();
                 yield new ExprType(col.type(), Multiplicity.Bounded.ZERO_MANY);
             }
-            // A PARAMETERIZED class receiver (Pair<Integer,String>.first): the
-            // property's declared type is written in the class's type parameters
-            // — instantiate them at the receiver's arguments (positional, real
-            // pure's generic instantiation).
-            case Type.GenericType g -> {
-                var cls = ctx.findClass(g.rawFqn()).orElseThrow(() -> new TypeInferenceException(
-                        "unknown class '" + g.rawFqn() + "'"));
-                Property prop = ctx.findProperty(g.rawFqn(), ap.property()).orElseThrow(() ->
-                        new TypeInferenceException("class " + g.rawFqn()
-                                + " has no property '" + ap.property() + "'"));
-                if (cls.typeParameters().size() != g.arguments().size()) {
-                    throw new TypeInferenceException("class " + g.rawFqn() + " declares "
-                            + cls.typeParameters().size() + " type parameter(s) but the receiver "
-                            + g.typeName() + " supplies " + g.arguments().size());
-                }
-                Bindings b = new Bindings();
-                for (int i = 0; i < cls.typeParameters().size(); i++) {
-                    b.bindType(cls.typeParameters().get(i), g.arguments().get(i));
-                }
-                yield new ExprType(kernel.resolve(prop.type(), b), prop.multiplicity());
-            }
+            // A PARAMETERIZED class receiver (Pair<Integer,String>.first,
+            // Result<String|1>.values): instantiation extracted to its
+            // own method (CodeShape seam — leg 2 grew this arm).
+            case Type.GenericType g -> genericReceiverProperty(g, ap);
             // A ROW receiver (Row-vs-Relation): a bare struct IS one
             // row — one cell, the per-cell stamp BY TYPE. This arm is
             // the detective's replacement: no walk, no inference — the
@@ -3021,6 +3004,49 @@ final class Typer {
         return new TypedPropertyAccess(source,
                 relColName != null ? relColName : ap.property(),
                 new ExprType(member.type(), mult));
+    }
+
+    /** A PARAMETERIZED class receiver's property: the declared type is
+     * written in the class's type parameters — instantiate them at the
+     * receiver's arguments (positional, real pure's generic
+     * instantiation). Leg 2 (Result&lt;T|m&gt;, engine parity): the
+     * class parameter list is LUMPED source-order type-then-mult names
+     * (the M3-dialect parser convention); the receiver may spell its
+     * multiplicity arguments or omit them (Result&lt;X&gt; vs
+     * Result&lt;X|1&gt; — the leniency): bind what's supplied
+     * POSITIONALLY; an omitted mult falls back to [*] (pre-leg
+     * behavior), an unbound TYPE variable stays loud at kernel
+     * resolve; over-supply is always an error. A property multiplicity
+     * spelled with the class's multiplicity parameter
+     * ({@code values: T[m]}) instantiates at the receiver's argument —
+     * a serialize execute's {@code Result<String|1>.values} types
+     * {@code String[1]}, never {@code [*]}. */
+    private ExprType genericReceiverProperty(Type.GenericType g,
+            AppliedProperty ap) {
+        var cls = ctx.findClass(g.rawFqn()).orElseThrow(() -> new TypeInferenceException(
+                "unknown class '" + g.rawFqn() + "'"));
+        Property prop = ctx.findProperty(g.rawFqn(), ap.property()).orElseThrow(() ->
+                new TypeInferenceException("class " + g.rawFqn()
+                        + " has no property '" + ap.property() + "'"));
+        int supplied = g.arguments().size() + g.multArguments().size();
+        if (supplied > cls.typeParameters().size()) {
+            throw new TypeInferenceException("class " + g.rawFqn() + " declares "
+                    + cls.typeParameters().size() + " type parameter(s) but the receiver "
+                    + g.typeName() + " supplies " + supplied);
+        }
+        Bindings b = new Bindings();
+        int pi = 0;
+        for (Type targ : g.arguments()) {
+            b.bindType(cls.typeParameters().get(pi++), targ);
+        }
+        for (Multiplicity marg : g.multArguments()) {
+            b.bindMult(cls.typeParameters().get(pi++), marg);
+        }
+        Multiplicity pm = prop.multiplicity();
+        if (pm instanceof Multiplicity.Var mv) {
+            pm = b.mult(mv.name()).orElse(Multiplicity.Bounded.ZERO_MANY);
+        }
+        return new ExprType(kernel.resolve(prop.type(), b), pm);
     }
 
     /** A TDS-surface receiver: a whole relation (wrapped) OR one row of

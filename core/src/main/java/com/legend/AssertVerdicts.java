@@ -305,13 +305,11 @@ final class AssertVerdicts {
                 if (args.size() != 2) {
                     return null;
                 }
-                List<Object> ev = side(args.get(0), letPrefix, specs,
-                        env, hook);
-                List<Object> av = side(args.get(1), letPrefix, specs,
-                        env, hook);
-                if (ev.size() != 1 || av.size() != 1
-                        || !(ev.get(0) instanceof String ejson)
-                        || !(av.get(0) instanceof String ajson)) {
+                String ejson = jsonSideText(args.get(0), letPrefix,
+                        specs, env, hook);
+                String ajson = jsonSideText(args.get(1), letPrefix,
+                        specs, env, hook);
+                if (ejson == null || ajson == null) {
                     return null;   // non-[1]-string shape: generic path
                 }
                 Object expected = com.legend.sql.Json.parse(ejson);
@@ -1755,6 +1753,25 @@ final class AssertVerdicts {
             throws java.sql.SQLException {
         return decodeSide(StatementExecutor.evalValue(arg, letPrefix,
                 specs, env, null, false, hook));
+    }
+
+    /** A JSON assert side's ONE document text: a GRAPH result's JSON
+     * IS the {@code String[1]} (a serialize execute's {@code .values}
+     * — leg 2 made its stamp String[1], and the DB-built envelope is
+     * the value); any other result must decode to one string. Null =
+     * not this shape (generic path, loud downstream). */
+    private static @com.legend.Nullable String jsonSideText(TypedSpec arg,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env,
+            @com.legend.Nullable SpliceHook hook)
+            throws java.sql.SQLException {
+        ExecutionResult r = StatementExecutor.evalValue(arg, letPrefix,
+                specs, env, null, false, hook);
+        if (r instanceof ExecutionResult.Graph g) {
+            return g.json();
+        }
+        List<Object> v = decodeSide(r);
+        return v.size() == 1 && v.get(0) instanceof String s ? s : null;
     }
 
     /** F13c — a side on the IDENTITY LANE without a canon rider: the

@@ -434,6 +434,41 @@ GREEN.**
   LEGEND_ENGINE_ROOT/LEGEND_PURE_ROOT env (bare launch = stale-root
   phantom failures across 5 gates).
 
+## 4T. LEGS 2+3 LANDING RECORD (2026-08-28) — Result<T|m> ENGINE-
+## VERBATIM + the JSON natives; a misdiagnosis caught by the user
+
+**Census: agree 3,002 → 3,161 (+159), declined 2,230 → 2,071 (the
+JSON family adjudicates), disagree 9 unchanged, inner alarm 0,
+h2-exec counters IDENTICAL (320/632/0/145). Full chain GREEN.**
+
+- **Leg 2 — the engine's `Result<T|m>` (result.pure:17), spelled
+  VERBATIM and solved by the GENERAL machinery**: `execute<T|m>
+  (f:Function<{->T[m]}>…):Result<T|m>[1]` (router_entry.pure's own
+  shape). New capability, general: class-level MULTIPLICITY
+  parameters — GenericType carries multiplicity arguments
+  (TypeClassifier captures the `|m`/`|1` spellings the parser always
+  preserved), the kernel resolves them through the same bindings the
+  if/let machinery fills, and parameterized-receiver property access
+  instantiates `values:T[m]` positionally (mults-omitted receivers
+  keep the pre-leg [*]; over-supply throws). A serialize execute's
+  `.values` types `String[1]` and the strict JSON signature accepts.
+- **Leg 3**: `parseJSON`/`equalJsonStrings`/`JSONElement` registered
+  verbatim from core_functions_json/json.pure (§4Q pattern); the
+  JSON-assert side reader accepts a GRAPH result (the DB-built
+  envelope IS the String[1] document). JSON tail now 4 rows (2
+  strict-parse, 2 toPrettyJSONString) — leg 6.
+- **THE PROCESS RECORD (user catch — "we need to support the correct
+  signatures")**: the first signature attempt was retreated to a
+  call-site fix-up on a MISDIAGNOSIS: the sweep's per-test FAIL lines
+  were read as regressions without checking the COMMITTED scoreboard
+  — all 7 "regressed plan goldens" were pre-existing FAIL rows that
+  print on every sweep. The real attempt-1 damage was the then-
+  incomplete instantiation arm THROWING on 1-arg Result receivers.
+  With the machinery completed, the engine spelling passes every
+  gate with ZERO h2/plan movement; the fix-up seam is DELETED.
+  **RULE: before attributing a sweep FAIL row to the change under
+  test, grep the committed scoreboard for it.**
+
 ## 8. PLAN OF ATTACK — the batch-2 remainder → cutover (handoff,
 ## 2026-08-28)
 

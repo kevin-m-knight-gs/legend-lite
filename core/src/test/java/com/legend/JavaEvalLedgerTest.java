@@ -343,7 +343,10 @@ class JavaEvalLedgerTest {
             // 1401 -> 1394 (D1, arch-audit): five hand-copied
             // verdict/message/probe tails become ONE finisher with the
             // structural coupling invariant. Shrink banked.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1394),
+            // 1394 -> 1405 (leg 2/3): the JSON side reader — a GRAPH
+            // result's DB-built envelope IS the String[1] document
+            // (leg 2 typed it so); decode routing, zero evaluation.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1405),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

@@ -319,7 +319,14 @@ class NativeFunctionTest {
             boolean usesParam =
                     def.returnMultiplicity() instanceof Multiplicity.Parameter
                             || def.parameters().stream()
-                                    .anyMatch(p -> p.multiplicity() instanceof Multiplicity.Parameter);
+                                    .anyMatch(p -> p.multiplicity() instanceof Multiplicity.Parameter)
+                            // leg 2 (Result<T|m>): a class-generic
+                            // MULTIPLICITY ARGUMENT (execute's return
+                            // Result<T|m>) is a structural reference
+                            // too — the scan predates that surface
+                            || def.parameters().stream()
+                                    .anyMatch(p -> referencesMultArgument(p.type()))
+                            || referencesMultArgument(def.returnType());
             assertTrue(usesParam,
                     () -> "native '" + def.qualifiedName()
                             + "' declares multiplicityParameters="
@@ -330,6 +337,26 @@ class NativeFunctionTest {
             // signature's |m,n list — the parser must not invent names.
             checkParameterNamesDeclared(def);
         }
+    }
+
+    /** A non-numeric multiplicity ARGUMENT anywhere in a type
+     * expression tree ({@code Result<T|m>}) — the class-generic
+     * reference surface leg 2 added. */
+    private static boolean referencesMultArgument(
+            com.legend.protocol.TypeExpression te) {
+        if (te instanceof com.legend.protocol.TypeExpression.Generic g) {
+            for (String ma : g.multiplicityArguments()) {
+                if (!ma.strip().matches("[0-9.*]+")) {
+                    return true;
+                }
+            }
+            for (var arg : g.arguments()) {
+                if (referencesMultArgument(arg)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static void checkParameterNamesDeclared(NativeFunctionDefinition def) {
@@ -490,7 +517,9 @@ class NativeFunctionTest {
         //     surface; real M3 class, m3.pure:3530)
         // 201: +valuespecification::ValueSpecification (2026-08-27
         //     leg 3b — deactivate's return class; genericType only)
-        assertEquals(201, Pure.allNativeClasses().size(),
+        // 202: +meta::json::JSONElement (V7 §8 leg 3 — parseJSON's
+        //     return class, verbatim core_functions_json/json.pure)
+        assertEquals(202, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -1108,7 +1137,10 @@ class NativeFunctionTest {
                 // plan-time metamodel + cross-store set impls
                 "meta::external::query::sql::metamodel::extension",
                 "meta::relational::functions::pureToSqlQuery::metamodel",
-                "meta::pure::router::clustering");
+                "meta::pure::router::clustering",
+                // V7 §8 leg 3: parseJSON's JSONElement (real engine
+                // package, core_functions_json)
+                "meta::json");
         for (ClassDefinition c : Pure.allNativeClasses()) {
             String fqn = c.qualifiedName();
             boolean ok = expected.stream().anyMatch(p -> fqn.startsWith(p + "::"));

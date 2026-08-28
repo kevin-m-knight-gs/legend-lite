@@ -743,7 +743,12 @@ public final class InferenceKernel {
             // rides through the generic descent below — a table type
             // leaves resolution as GenericType(Relation, [schema]).
             case Type.GenericType g -> new Type.GenericType(g.rawFqn(),
-                    g.arguments().stream().map(a -> resolve(a, b)).toList());
+                    g.arguments().stream().map(a -> resolve(a, b)).toList(),
+                    // Result<T|m>-style multiplicity arguments resolve
+                    // through the SAME bindings the if/let machinery
+                    // fills (leg 2 — dropping them erased Result's m)
+                    g.multArguments().stream()
+                            .map(m -> resolveMultIfBound(m, b)).toList());
 
             case Type.SchemaAlgebra sa -> resolveSchemaAlgebra(sa, b);
             // dynamicColumns (pivot templates) RIDE resolution — rebuilding

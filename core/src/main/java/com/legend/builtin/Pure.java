@@ -1627,7 +1627,7 @@ public final class Pure {
     // multiplicity params are the task-#50 parse gap (the corpus's OWN
     // Result<T|m> spelling darkens the postprocessor family the same
     // way). T[*] is safe meanwhile — consumers normalize multiplicity.
-    public static final ClassDefinition RESULT = nativeClass("native Class meta::pure::mapping::Result<T> extends meta::pure::metamodel::type::Any { values: T[*]; activities: meta::pure::mapping::Activity[*]; }");
+    public static final ClassDefinition RESULT = nativeClass("native Class meta::pure::mapping::Result<T|m> extends meta::pure::metamodel::type::Any { values: T[m]; activities: meta::pure::mapping::Activity[*]; }");
     // debug-context surface (REAL legend-pure platform/pure/tools.pure +
     // essential/tools/debug/noDebug.pure): the corpus's debug-arity execute
     // calls type against these. RelationalDebugContext/IsolationStrategy
@@ -1637,15 +1637,15 @@ public final class Pure {
     public static final ClassDefinition DEBUG_CONTEXT = nativeClass("native Class meta::pure::tools::DebugContext extends meta::pure::metamodel::type::Any { debug: meta::pure::metamodel::type::Boolean[1]; space: meta::pure::metamodel::type::String[1]; }");
     public static final NativeFunctionDefinition NO_DEBUG = signature("native function meta::pure::tools::noDebug():meta::pure::tools::DebugContext[1];");
     public static final ClassDefinition ACTIVITY = nativeClass("native Class meta::pure::mapping::Activity extends meta::pure::metamodel::type::Any {}");
-    public static final NativeFunctionDefinition EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::pure::mapping::execute<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<T>[1];");
-    public static final NativeFunctionDefinition EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY__ANY_1 = signature("native function meta::pure::mapping::execute<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::metamodel::type::Any[1]):meta::pure::mapping::Result<T>[1];");
+    public static final NativeFunctionDefinition EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::pure::mapping::execute<T|m>(f:meta::pure::metamodel::function::Function<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<T|m>[1];");
+    public static final NativeFunctionDefinition EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY__ANY_1 = signature("native function meta::pure::mapping::execute<T|m>(f:meta::pure::metamodel::function::Function<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::metamodel::type::Any[1]):meta::pure::mapping::Result<T|m>[1];");
     // The ROUTER entry spelling (REAL pure router_entry.pure:20/:47 —
     // execute<T|y>(f:FunctionDefinition<{->T[y]}>[1], m:Mapping[1],
     // runtime:Runtime[1], extensions:Extension[*])[, debug]):Result —
     // same execution semantics as mapping::execute; the harness
     // recognizes both FQNs (PlatformTypes.isExecuteFqn).
-    public static final NativeFunctionDefinition ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::pure::router::execute<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<T>[1];");
-    public static final NativeFunctionDefinition ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY__ANY_1 = signature("native function meta::pure::router::execute<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::metamodel::type::Any[1]):meta::pure::mapping::Result<T>[1];");
+    public static final NativeFunctionDefinition ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::pure::router::execute<T|m>(f:meta::pure::metamodel::function::Function<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<T|m>[1];");
+    public static final NativeFunctionDefinition ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY__ANY_1 = signature("native function meta::pure::router::execute<T|m>(f:meta::pure::metamodel::function::Function<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::metamodel::type::Any[1]):meta::pure::mapping::Result<T|m>[1];");
 
     // preval: the engine's PLAN-TIME pre-evaluation pass (REAL pure
     // preeval.pure:53/:58 — preval<T>(f:FunctionDefinition<T>[1],
@@ -2129,6 +2129,15 @@ public final class Pure {
     // testExtension.pure:38 — same asserts package): the JSON verdict
     // arm (JsonCompare) is the implementation.
     public static final NativeFunctionDefinition ASSERT_JSON_STRINGS_EQUAL__STRING_1__STRING_1 = signature("native function meta::pure::functions::asserts::assertJsonStringsEqual(expected:meta::pure::metamodel::type::String[1], actual:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
+
+    // V7 §8 leg 3 — the two JSON natives the assert family's loaded
+    // shapes reference, signatures VERBATIM from the real engine
+    // source (core_functions_json/json.pure:19,29 — the §4Q spec-by-
+    // verification pattern, never by loading). No SQL lowering yet: a
+    // side that EXECUTES them declines loudly by name.
+    public static final ClassDefinition JSON_ELEMENT = nativeClass("native Class meta::json::JSONElement extends meta::pure::metamodel::type::Any {}");
+    public static final NativeFunctionDefinition PARSE_JSON__STRING_1 = signature("native function meta::json::parseJSON(string:meta::pure::metamodel::type::String[1]):meta::json::JSONElement[1];");
+    public static final NativeFunctionDefinition EQUAL_JSON_STRINGS__STRING_1__STRING_1 = signature("native function meta::pure::functions::boolean::equalJsonStrings(left:meta::pure::metamodel::type::String[1], right:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
 
     // columns (REAL core_functions_relation columns.pure-adjacent
     // declaration, PCT.platformOnly): relation COLUMN METADATA — the
