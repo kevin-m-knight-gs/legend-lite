@@ -81,9 +81,18 @@ public final class Ddl {
             // DIRECTLY on DuckDB (F7.4 — the boundary serves
             // hand-written text only) and DuckDB reserves words H2's
             // session un-reserves (default, else, do ...).
+            // a DECLARED-QUOTED column ("date" DATE in the store
+            // source) KEEPS its quotes — the engine preserves them in
+            // the metamodel and its corpus references the column quoted
+            // (datePeriods calendar: create "date" + insert "date");
+            // our model unquotes the NAME but stamps quoted()
             sb.append(switch (f) {
-                        case ENGINE_TEXT -> processColumnName(col.name());
-                        case H2_EXEC -> execIdentifier(col.name());
+                        case ENGINE_TEXT -> col.quoted()
+                                ? '"' + col.name() + '"'
+                                : processColumnName(col.name());
+                        case H2_EXEC -> col.quoted()
+                                ? '"' + col.name() + '"'
+                                : execIdentifier(col.name());
                         case DUCK_EXEC -> '"' + col.name() + '"';
                     })
                     .append(' ').append(spell(col.dataType(), f));
@@ -354,7 +363,9 @@ public final class Ddl {
             // SAME identifier rule as the create (batch A): a reserved
             // or space-bearing column quotes in BOTH or the pair breaks
             // on a case-sensitive session
-            colNames.add(execIdentifier(col != null ? col.name() : h));
+            colNames.add(col != null && col.quoted()
+                    ? '"' + col.name() + '"'
+                    : execIdentifier(col != null ? col.name() : h));
             String cell = cells.get(c);
             boolean numeric = col != null && isNumericType(col.dataType());
             values.add(numeric ? cell.strip()
