@@ -139,6 +139,45 @@ fixed before landing: the extend builder paired star-headed projection
 lists POSITIONALLY (the very coupling this slice deletes) — replaced
 with `Fold.named` attachment; 258 red tests → 0.
 
+## FINISH RECORD — slice 2 residuals burned (2026-08-29, same day,
+## user-directed: "finish the work", ALLGATES GREEN again)
+
+The landing record above disclosed two structural residuals; both are
+now gone, and the door is pinned:
+
+- **Pad truth stamped at the join node**: `SqlSource.Join.outputs()`
+  delivers its sides with the padded side weakened to nullable — the
+  join is the ONE owner holding both the kind and the sides (§E3 M-N2
+  moved home). `Fold.padJoinOutputs` DELETED (the name-keyed repair
+  pass over schema-asserted outputs had nothing left to repair); its
+  `PAD_FRAME_WEAKENED` counter deleted with it (frame weakening is a
+  derived fact now — no construction event exists to count).
+- **No frame asserts schema outputs where source truth exists**: the
+  no-prefix `joined()` branch and the cross-lateral flatten frame are
+  plain `SqlSelect.starOf(join)` — outputs are the source's own,
+  origins included. The blanket-DERIVED star-join-frame residual is
+  gone.
+- **`outputsOf` pinned so it cannot be abused**
+  (CodeShapeGuardrailTest.schemaAssertedOutputsOnlyShrink): after the
+  burn its every surviving call is a schema DOOR (three physical
+  doors, TDS/VALUES literals, Pivot source) or the per-projection
+  CONTRACT supplier (`paired`/`named` attachment); `withOutputs` has
+  ONE production caller (the dynamic-pivot probe — outputs discovered
+  by JDBC probe, genuinely external knowledge). Both counts pinned
+  shrink-only (23 / 2). `outputsOf` is not deleted outright because
+  the LABEL FLIP doctrine (TYPED_SQL_IR §3/§6) needs the
+  pure-contract erasure supplied per slot — deleting it would make
+  labels pure wire truth and abandon the subsumption-keeps-contract
+  rule; the pin makes the remaining surface closed instead.
+- Receipts: full chain GREEN again (~440s); h2 sweep EXACTLY 1372
+  (floor held, no lane movement — the derivation flip is
+  behavior-preserving where measured); DuckDB census byte-identical.
+
+Still open (unchanged by this finish, separate legs): the
+chained-joins DEMAND/PRUNING divergence above, and the pair-native
+loop form at the ~9 `paired()` zip sites (construction-lockstep,
+loud-on-desync — honest but not terminal).
+
 ## Process note (recorded so it binds)
 
 The smells all entered during the 03:00-05:00 fix-probe-fix cycle

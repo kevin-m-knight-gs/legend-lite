@@ -469,6 +469,39 @@ class CodeShapeGuardrailTest {
                 + " origin-preserving rebuilds only");
     }
 
+    /** SQL-IR slice 2 finish (outputs-from-projections): a projection
+     * frame's outputs DERIVE from its projections; {@code outputsOf}
+     * survives only as the schema DOORS (three physical doors,
+     * TDS/VALUES literals, the Pivot source) and the per-projection
+     * CONTRACT supplier ({@code paired}/{@code named} attachment at
+     * construction). {@code withOutputs} is the star-frame door with
+     * ONE production caller (the pivot probe — genuinely external
+     * knowledge). A new call site is a new frame ASSERTING outputs the
+     * projections should carry — count only SHRINKS. */
+    @Test
+    void schemaAssertedOutputsOnlyShrink() throws IOException {
+        int outputsOf = 0;
+        int withOutputs = 0;
+        for (Path p : mainSources()) {
+            String src = Files.readString(p);
+            for (int i = 0; (i = src.indexOf("outputsOf(", i)) >= 0; i++) {
+                outputsOf++;
+            }
+            for (int i = 0; (i = src.indexOf("withOutputs(", i)) >= 0; i++) {
+                withOutputs++;
+            }
+        }
+        assertTrue(outputsOf <= 23, "outputsOf call sites grew: "
+                + outputsOf + " > 23 — outputs derive from projections;"
+                + " attach the contract slot per projection"
+                + " (SqlSelect.paired / Fold.named), never assert a"
+                + " frame's outputs from the schema");
+        assertTrue(withOutputs <= 2, "withOutputs call sites grew: "
+                + withOutputs + " > 2 — star frames read their source;"
+                + " only externally-discovered outputs (pivot probe) may"
+                + " use this door");
+    }
+
     @Test
     void mutableInstanceStateIsExplicit() throws IOException {
         List<String> violations = new ArrayList<>();

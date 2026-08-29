@@ -541,8 +541,8 @@ public final class Lowerer {
                         new SqlSource.Subselect(right, nextAlias(), null),
                         SqlSource.Join.Kind.CROSS_LATERAL,
                         null);   // CROSS JOIN takes no ON clause
-                yield SqlSelect.starOf(join)
-                        .withOutputs(outputsOf(nc.info()));
+                // star frame: the join's own outputs (left ++ lateral)
+                yield SqlSelect.starOf(join);
             }
             // relation::variant::flatten(collection, ~col): the collection
             // UNNESTs as the single column (real flatten.pure semantics).
@@ -2000,8 +2000,10 @@ public final class Lowerer {
                              Predicate<String> renameWhen) {
         SqlSelect out = SqlSelect.starOf(source);
         if (prefix.isEmpty()) {
-            return out.withOutputs(Fold.padJoinOutputs(
-                    outputsOf(info), source, prefix, renameWhen));
+            // star frame over the join: outputs are the SOURCE's own
+            // (Join.outputs() carries the pad truth) — starOf already
+            // read them; no schema-asserted list, nothing to repair
+            return out;
         }
         // Outputs-from-projections (SQL-IR slice 2): each projection
         // carries its declared slot — the star carries the left side's

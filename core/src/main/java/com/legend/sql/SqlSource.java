@@ -182,11 +182,29 @@ public sealed interface SqlSource {
             }
         }
 
+        /** The join's delivered columns: both sides, with the PAD
+         * TRUTH stamped at the source (§E3 M-N2 moved home — SQL-IR
+         * slice 2 finish): a padded side's non-null columns weaken to
+         * nullable HERE, because this node is the one owner that holds
+         * both the kind and the sides. Every consumer (starOf frames,
+         * star expansion, wraps) spends the fact instead of running a
+         * repair pass — the old Fold.padJoinOutputs is deleted. */
         @Override
         public List<OutputCol> outputs() {
-            List<OutputCol> all = new ArrayList<>(left.outputs());
-            all.addAll(right.outputs());
+            List<OutputCol> all = new ArrayList<>();
+            side(left.outputs(), kind.padsLeft(), all);
+            side(right.outputs(), kind.padsRight(), all);
             return List.copyOf(all);
+        }
+
+        private static void side(List<OutputCol> outs, boolean padded,
+                List<OutputCol> into) {
+            for (OutputCol c : outs) {
+                into.add(padded && !c.nullable()
+                        ? new OutputCol(c.name(), c.type(), true,
+                                c.tolerated(), c.origin())
+                        : c);
+            }
         }
     }
 }

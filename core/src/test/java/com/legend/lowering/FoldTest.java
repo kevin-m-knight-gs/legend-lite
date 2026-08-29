@@ -216,25 +216,14 @@ class FoldTest {
         SqlSource.Join left = new SqlSource.Join(
                 table("A", "a0", "ID"), table("B", "b0", "BID"),
                 SqlSource.Join.Kind.LEFT, new SqlExpr.BoolLit(true));
-        List<com.legend.sql.OutputCol> outs = List.of(
-                new com.legend.sql.OutputCol("ID",
-                        com.legend.sql.SqlType.Scalar.BIGINT, false),
-                new com.legend.sql.OutputCol("BID",
-                        com.legend.sql.SqlType.Scalar.BIGINT, false));
-        List<com.legend.sql.OutputCol> padded = Fold.padJoinOutputs(outs,
-                left, java.util.Optional.empty(), name -> true);
+        // slice-2 finish: the pad truth is the JOIN NODE's own fact —
+        // Join.outputs() delivers the padded side weakened
+        List<com.legend.sql.OutputCol> padded = left.outputs();
         assertFalse(padded.get(0).nullable(), "left side keeps DDL truth");
         assertTrue(padded.get(1).nullable(), "right side is pad-weakened");
-        // prefix renames follow the outer spelling
-        List<com.legend.sql.OutputCol> renamed = List.of(
-                new com.legend.sql.OutputCol("ID",
-                        com.legend.sql.SqlType.Scalar.BIGINT, false),
-                new com.legend.sql.OutputCol("p_BID",
-                        com.legend.sql.SqlType.Scalar.BIGINT, false));
-        List<com.legend.sql.OutputCol> padded2 = Fold.padJoinOutputs(
-                renamed, left, java.util.Optional.of("p_"), name -> true);
-        assertFalse(padded2.get(0).nullable());
-        assertTrue(padded2.get(1).nullable(),
-                "renamed right column weakens under its outer name");
+        org.junit.jupiter.api.Assertions.assertEquals(
+                java.util.List.of("ID", "BID"),
+                padded.stream().map(com.legend.sql.OutputCol::name).toList(),
+                "names and order are the sides' own");
     }
 }

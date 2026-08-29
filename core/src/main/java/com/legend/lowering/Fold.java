@@ -627,42 +627,10 @@ final class Fold {
     // so no construct-then-patch pass, name lookup, or kind-guess
     // fallback exists to lose the thread.
 
-    static List<OutputCol> padJoinOutputs(List<OutputCol> outs,
-            SqlSource.Join source, java.util.Optional<String> prefix,
-            java.util.function.Predicate<String> renameWhen) {
-        boolean pl = source.kind().padsLeft();
-        boolean pr = source.kind().padsRight();
-        if (!pl && !pr || outs.isEmpty()) {
-            return outs;
-        }
-        java.util.Set<String> pad = new java.util.HashSet<>();
-        if (pr) {
-            for (OutputCol c : source.right().outputs()) {
-                pad.add(prefix.isPresent() && renameWhen.test(c.name())
-                        ? prefix.get() + c.name() : c.name());
-            }
-        }
-        if (pl) {
-            for (OutputCol c : source.left().outputs()) {
-                pad.add(c.name());
-            }
-        }
-        List<OutputCol> os = null;
-        for (int i = 0; i < outs.size(); i++) {
-            OutputCol c = outs.get(i);
-            if (!c.nullable() && pad.contains(c.name())) {
-                if (os == null) {
-                    os = new ArrayList<>(outs);
-                }
-                com.legend.sql.SqlTyping.PAD_FRAME_WEAKENED.increment();
-                // origin TRANSPORTS (slice 2): the weaken touches only
-                // nullability — the spelling fact is not this pass's
-                os.set(i, new OutputCol(c.name(), c.type(), true,
-                        c.tolerated(), c.origin()));
-            }
-        }
-        return os == null ? outs : List.copyOf(os);
-    }
+    // padJoinOutputs DELETED (slice-2 finish): the pad truth is
+    // stamped at the source — SqlSource.Join.outputs() weakens its
+    // padded sides — so no frame runs a name-keyed repair pass over
+    // schema-asserted outputs.
 
     static SqlExpr.@com.legend.Nullable Column sourceColumnDriving(SqlSource src, String column) {
         if (src instanceof SqlSource.Join j) {
