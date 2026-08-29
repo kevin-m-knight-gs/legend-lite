@@ -656,6 +656,46 @@ h2compat rows replay-verify inside exec-passing (989 > the old 952
 estimate). Pins: 989 grows-only-by-burndown / 44 / 502 shrink-only
 / 117 — all EXACT lane guards.
 
+## 4AA. SLICE 3 LANDING RECORD — REAL EVALUATION, TASK #13 CORE
+## COMPLETE (2026-08-28, pushed 518f32d8 + 62a09657)
+
+**Predicates (518f32d8):** the 16 fragment-check predicates evaluate
+for real (activity-log strings) — 10 verified dual-channel passes, 6
+predicate-diverged (engine-internal naming markers our correct SQL
+spells differently; recorded via the sql-text: channel, never a hard
+fail — the dialect-text policy uniform at the verdict layer).
+
+**Equality half (62a09657):** evalSideText = the assert's OWN side
+evaluated (outcome-driven: as written; a non-string value — the raw
+Result envelope — re-evaluates through the corpus body's definition
+sqlRemoveFormatting($result), testAssert.pure:20, exact FQN).
+ExecCallFinder.sideSqlText terminal surgery DELETED; finder retired
+from the JDBC register. THE FIND: toSQLString dispatched at
+STATEMENT ROOT only — nested calls leaked their lambda to resolver
+walls, masked by the surgery for months; it now folds
+POSITION-INDEPENDENTLY at the splice (Frames.renderSqlText → the
+same toSqlString K-arm). Side effect: **94 backlog rows burned** —
+census agree 3173→3269, backlog 417→**323**, exec-passing 989→990;
+verified/rescued/diverged 321/632/0; zero test regressions.
+
+Registers adjudicated with receipts: evaluator ledger 2513→2520;
+sql-text-side gap 57→66 (RECATEGORIZATION — every acquisition
+failure now counted with its cause where old surgery failed
+silently; verification equal-or-better in the same sweep); four
+typed-IR tolerance pins scaled with ~1000 new plans over the SAME
+registered seams (all EQUALITY-0 gates held); h2 capability walls
+945→946. NAMED FOLLOW-UP: tolerance pins should key by DISTINCT
+SEAM KIND (mapping × column × type-pair), not slot count — plan
+volume must never masquerade as model change again.
+
+CURRENT CENSUS (the §4Z bucket table's exec-passing is now 990;
+backlog 323): agree 3269 / disagree 9 | exec-passing 990 /
+text-only 44 / unable-to-exec 492 / csv 117 | backlog 323.
+BURNDOWN INVENTORY: 9 disagreements (leg 5) + 323 backlog (leg 4:
+getAll ~175 partially burned, TypedMap, expressionSequence 43,
+tail) + 492 unable-to-exec (diff-noreplay 321 FIRST, by replay
+root cause).
+
 ## 8. PLAN OF ATTACK — the batch-2 remainder → cutover (handoff,
 ## 2026-08-28)
 
