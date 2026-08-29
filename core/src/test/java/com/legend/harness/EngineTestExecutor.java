@@ -2069,11 +2069,45 @@ public final class EngineTestExecutor {
                             runtimeFqn, conn);
                 }
                 if (containsSqlProducer(args.get(0), ctx)) {
-                    // predicate PURELY over golden SQL text is advisory; a
-                    // MIXED assert (sql text AND value reads) must not have
-                    // its value conjuncts silently skipped (audit 9)
+                    // SLICE 3 (real evaluation): sql()/sqlRemoveFormatting()
+                    // fold to the compiler's rendered SQL at the splice —
+                    // the predicate is an ordinary boolean now; RUN it.
+                    // Audit 9's mixed-conjunct worry dissolves when every
+                    // conjunct actually evaluates. Guards kept: failed
+                    // seeds + value reads = hollow-pass risk (audit 16 F4);
+                    // a shape that still walls falls back to the NAMED
+                    // advisory/unsupported it always was — never silent.
                     boolean mixed = containsValuesRead(args.get(0));
-                    sqlTextOutcome(mixed ? "mixed" : "predicate");
+                    if (emptinessUnverifiable && mixed) {
+                        return UNSUPPORTED_MARKER;
+                    }
+                    try {
+                        Object pv = evalScalar(args.get(0), lets, execStmts,
+                                execVars, execChains, ctx, imports,
+                                runtimeFqn, conn);
+                        if (pv instanceof Boolean) {
+                            boolean want = simpleName(af.function())
+                                    .equals("assert");   // F6.9 polarity
+                            if (Boolean.valueOf(want).equals(pv)) {
+                                return null;   // REAL verified pass
+                            }
+                            // dialect-owned text: a failed text-predicate
+                            // is a RECORDED divergence, never a hard test
+                            // failure — the SAME verdict policy as an
+                            // assertSameSQL text mismatch; no golden
+                            // exists to row-replay a fragment check. The
+                            // "sql-text: " prefix rides the existing
+                            // divergence-recording channel (sqlDiffs).
+                            sqlTextOutcome("predicate-diverged");
+                            return "sql-text: assert" + (want ? "" : "False")
+                                    + " predicate over generated SQL did"
+                                    + " not hold";
+                        }
+                    } catch (com.legend.error.NotImplementedException
+                            | com.legend.error.LegendCompileException e) {
+                        // fall through to the named non-verdict below
+                    }
+                    sqlTextOutcome(mixed ? "mixed" : "predicate-wall");
                     return mixed ? UNSUPPORTED_MARKER : ADVISORY_MARKER;
                 }
                 if (emptinessUnverifiable) {
@@ -3069,13 +3103,19 @@ public final class EngineTestExecutor {
             return;
         }
         // §8 leg 4 (census-first split): an assert whose ARGUMENTS pull
-        // a sql-producer call compares PLAN TEXT by content, whatever
-        // its form name — §2 partition, never routed
+        // a sql-producer call — §2 partition when its verdict came from
+        // the TEXT machinery (outcome recorded). SLICE 3: an sql-content
+        // assert that REALLY EVALUATED (predicate over the folded string;
+        // no outcome recorded, hostFailure is a real verdict) flows to
+        // the ordinary dual channel below — both channels judged it.
         if (af.parameters().stream()
                 .anyMatch(p -> containsSqlProducer(p, ctx))) {
-            com.legend.exec.CanonicalDivergence.v7Declined(form,
-                    sqltextReason.get());
-            return;
+            if (outcome != null || hostFailure == UNSUPPORTED_MARKER
+                    || hostFailure == ADVISORY_MARKER) {
+                com.legend.exec.CanonicalDivergence.v7Declined(form,
+                        sqltextReason.get());
+                return;
+            }
         }
         if (hostFailure == UNSUPPORTED_MARKER) {
             com.legend.exec.CanonicalDivergence.v7Declined(form,

@@ -633,7 +633,11 @@ public class RelationalCorpusRunner {
                             .v7DeclinedByReasonPrefix("assert-sql-text-only"),
                     "lane guard: assert-sql-text-only moved — update the"
                             + " charter §8.0 scope table");
-            org.junit.jupiter.api.Assertions.assertEquals(502,
+            // 502 -> 492 (slice 3 real evaluation): the predicate 16
+            // became 10 REAL verified passes (dual-channel agree) + 6
+            // recorded divergences (predicate-diverged — dialect-owned
+            // text, same policy as assertSameSQL mismatch)
+            org.junit.jupiter.api.Assertions.assertEquals(492,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-unable-to-exec"),
@@ -801,7 +805,13 @@ public class RelationalCorpusRunner {
             // boxed spelling diverges from engine golden text on 3
             // row-verified tests; rows are the contract, all pass
             // counts unchanged, corpus untyped hit 0 with this slice.
-            int maxAdvisorySqlDiffs = 312;
+            // +6 2026-08-28 (slice 3 predicate real-evaluation,
+            // JUSTIFIED): six fragment-check predicates (contains
+            // 'union_gen_source_pk_0' etc.) now EVALUATE and record
+            // their dialect divergence here instead of being invisible
+            // advisory skips — strictly more information, rows verified
+            // by the same tests' row asserts (charter §4Z addendum)
+            int maxAdvisorySqlDiffs = 318;
             org.junit.jupiter.api.Assertions.assertTrue(
                     advisorySqlDiffs <= maxAdvisorySqlDiffs,
                     "advisory golden-SQL diffs grew: " + advisorySqlDiffs
@@ -835,10 +845,16 @@ public class RelationalCorpusRunner {
             // byte-exact/advisory-clean passes now differ from engine
             // golden text by exactly that wrap; rows verified, corpus
             // untyped 0.
+            // 258 -> 264 (slice 3 predicate real-evaluation 2026-08-28,
+            // JUSTIFIED with the advisory-ceiling move in the same
+            // commit): six fragment-check predicates now EVALUATE and
+            // their tests pass CARRYING a recorded divergence instead
+            // of an invisible advisory skip — no exact pass demoted
+            // (exec-passing 989 and the pass total unchanged).
             org.junit.jupiter.api.Assertions.assertAll(
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            softDiff <= 258, "sqldiff-pass grew: " + softDiff
-                                    + " > 258 — exact passes may have been"
+                            softDiff <= 264, "sqldiff-pass grew: " + softDiff
+                                    + " > 264 — exact passes may have been"
                                     + " demoted; bump only with written"
                                     + " justification"),
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
