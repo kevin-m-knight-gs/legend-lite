@@ -290,9 +290,20 @@ total AND safe.
    relations move onto the GROUPED JOIN form. Named here so it
    cannot linger as an unscheduled clause — it is the same
    syntax-directed rule applied to the relation-argument spellings.
-7. **Slice 2 (SEPARATE, user-gated)**: filter-position dedup removal
-   per charter decision 2 — needs its own reviewed plan before any
-   code.
+7. **Batch 7 — FILTER POSITION (charter slice 2, THE DEDUP LEG)** —
+   the same syntax-directed rule extended to predicate consumptions;
+   plan below (§8) so nothing in §4AD is left unplanned. Lands only
+   after batches 2-6 are green (it builds on the same materializer
+   capability and the same one-owner router).
+8. **Batch 8 — ORACLE-LANE UNPARK (charter slice 3)**: the parked
+   Collection/Scalar verify lane (H2Verify "non-tabular result
+   frame", 54 declines at the last census) turns on — the
+   string-plus empty-vs-'' semantic gap that parked it is RESOLVED
+   by batches 5+7 (our rows become the engine's rows); the
+   "row-cardinality skew (distinct rows agree)" decline reason
+   RETIRES (its reason for existing is gone — charter's own words).
+   Expected: unable-to-exec 97 → ~50 (charter), both known semantic
+   divergences become verified agreements.
 
 Acceptance per batch (charter §4AD): zero DuckDB-lane pass
 regressions (zero means zero, not net-zero — check individual flips,
@@ -309,3 +320,72 @@ route totality is structural: every consumption matches exactly one
 of two syntactic categories, both compile to joins, and unbuildable
 material walls loudly instead of falling back. One owner, one fact,
 decided where the whole tree is visible, recorded in the tree itself.
+
+## 8. THE DEDUP LEG IN FULL (charter slice 2 — the plan the user
+## asked to see before any dedup work; review happens with THIS
+## design, one sign-off for the whole program)
+
+**What changes, observably (charter decision 2, USER-RATIFIED in the
+charter with "flagged and accepted"):** a filter over a fanned-out
+navigation keeps duplicates. Witness `testQualifierQueryWithOr`:
+engine 7 rows, ours today 1. Our weak value-asserts often pass both
+ways; the ORACLE (golden-SQL row compare) is the referee that sees
+the difference — today it counts these as "row-cardinality skew
+(distinct rows agree)" declines.
+
+**The mechanism (same one-owner rule, predicate position):** a
+navigation consumed inside a class-lane FILTER predicate compiles to
+a READ OF THE JOINED ROW in the WHERE clause — the engine's own
+shape (witness `testQualifierQueryWithOr` golden: two filtered
+subselects LEFT JOINed, `WHERE "p0".FIRSTNAME = 'Peter' OR
+"p3".FIRSTNAME = 'John'` — reads of joined columns, no EXISTS, no
+DISTINCT, duplicates preserved). Concretely:
+
+- The router (batch 5's same pre-pass) rewrites predicate-position
+  filtered-nav reads exactly like value-position ones: plain chain
+  reads over `#fN` heads. The demand scan's "FILTER position →
+  implicit EXISTS per boolean leaf" rule (StoreResolver's
+  position-aware demand, the comment at ~line 2775) is DELETED for
+  these shapes — filter paths join projection paths in the ONE
+  explosion channel.
+- DELETED with it: `ExistsJoinForm.rewrite`'s DISTINCT-key
+  row-count-preserving join (the 109-test `exists-join-form-dedup`
+  census arm — its entire purpose is preserving root cardinality,
+  which decision 2 removes), and the EXISTS-material registration for
+  plain filter predicates (`registerExistsSubs` and the ExistsSub
+  machinery SHRINK to the shapes that remain genuinely
+  boolean-emptiness — `isEmpty`/`isNotEmpty`/`exists` calls, which
+  ARE row-count-preserving semantics by definition and stay
+  semi-joins in the engine too).
+- The batch-1 slot-prefix collision (duplicate `employees_ID` when a
+  synthetic head's material met a plain head's) is IN SCOPE here and
+  must be fixed structurally (per-identity slot prefixes), not
+  avoided — it was the measured wall that position-scoped batch 1.
+
+**Blast radius, measured (NAV_ARM_CENSUS_4AD.md):** exists-material
+946 tests / exists-join-form-dedup 109. NOT all of exists-material
+changes behavior: the `isEmpty`-family stays semi-join. Batch 7's
+FIRST step is splitting that census arm by consumption kind
+(predicate-read vs emptiness-call) so the observable-change set is a
+NAMED list before any rewrite — the same census-first discipline as
+every other leg.
+
+**Sequencing inside batch 7:** (a) census split → (b) predicate-read
+rewrite + deletions, gated exactly like batch 5 → (c) oracle
+reconciliation: tests whose OWN asserts encode the deduped
+cardinality (if any exist beyond weak asserts — the census split
+names them) are adjudicated against the charter's ratified decision
+with the oracle as referee, each row named in the charter, never
+silently re-pinned.
+
+## 9. DEFERRAL LEDGER (kept honest)
+
+After this document, NOTHING in §4AD is deferred-without-a-plan:
+- Batches 2-8 cover value position, capability bugs, the router,
+  the correlated reducers, filter position/dedup, and the oracle
+  unpark — the complete charter §4AD program to 100%.
+- The ONLY item on the user is ONE sign-off of this document.
+- Anything discovered mid-implementation that would create a new
+  deferral gets its own named batch in this ledger, or it does not
+  land ("finish-the-last-percent" rule: burn disclosed residuals in
+  the same arc; a documented residual is still an open seam).
