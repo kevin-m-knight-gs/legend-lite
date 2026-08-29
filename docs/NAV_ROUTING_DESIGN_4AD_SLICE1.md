@@ -118,7 +118,9 @@ vs one construction-time fact).
 Key routing facts established by bisection (worth not re-deriving):
 
 - `testChainedInnerJoinsWithQualifierInGroupBy` PASSES at pre-slice
-  baseline via the AGGREGATION route: its qualifier consumption is
+  baseline — PLAUSIBLY via the AGGREGATION route (inferred from
+  bisection, never directly attributed; batch 2 MUST attribute it
+  before batch 5's rules are final): its qualifier consumption is
   lifted by the pre-existing `[*]`/map-normalization arms (head is
   `#fN` **without** the scalar gate being involved), and its `plus`
   is claimed by aggScan. Its leaf (`extraInformation`) reads a join
@@ -139,8 +141,10 @@ Key routing facts established by bisection (worth not re-deriving):
   non-matching roots vanish because the WHERE fails on NULL (this is
   charter §4AD's "empty propagation falls out of the shape").
 - The engine compiles explicit reduction
-  (`$f.employees.age->sum()`-style, the subAggregation golden) as
+  (`$f.employees.age->sum()`-style, the subAggregation shape) as
   `LEFT JOIN (SELECT key, SUM(x) … GROUP BY key)` — STILL a join.
+  [ASSERTED from our own code comments, not read this session —
+  0a/0b must verify against a named engine golden.]
 
 ## 3. THE DESIGN (user-ratified direction, this session)
 
@@ -206,7 +210,10 @@ aggScan plus arms deleted.
 1. `Substitution.filteredNavLeafRead` — value-position matching
    (the correlated arm for these shapes). The slot-demanding-leaf
    wall inside it disappears WITH it (the fanned/grouped forms read
-   materialized slots through the join material).
+   materialized slots through the join material). AUDIT NOTE: fnlr
+   has THREE call sites (Substitution ~1035, ~1042, dispatch ~1758);
+   only the dispatch arm was analyzed — the deletion must account
+   for all three (batch-2 census attributes their firings).
 2. `CorrelatedSubselects.aggScan`'s implicit-plus classification —
    the size-2 leaf arm's ability to claim n-ary `plus` (and any other
    n-ary scalar op registered as a reducer family). Explicit reducer
@@ -236,7 +243,10 @@ rule is measured from a single-occurrence witness, and a shared WHERE
 would make the two predicates interact (a row dying when EITHER
 qualifier misses may not be engine semantics). Placement for the
 multi-occurrence case is decided by that witness's golden, not
-asserted.
+asserted. FALLBACK if no such corpus witness exists: the placement
+rule is derived from the 0a chooser reading and MARKED code-derived
+in the routing map until a witness (corpus or newly-authored probe
+against the golden oracle) confirms it.
 
 Named witnesses (all shapes must be green post-implementation):
 - `advanced::structure::testQualifierWithOperation` (fanned, map `+`)
@@ -300,10 +310,18 @@ total AND safe.
      ROW semantics the engine's three strategies collapse to ONE BIT
      — predicate placement. ON-clause pred = row-preserving
      (non-matching root survives with NULLs); top-WHERE pred =
-     row-dropping; and BuildCorrelatedSubQuery's rows are IDENTICAL
-     to the ON-pred join's (root survives, value NULL) — it is an
-     expensive IMPLEMENTATION of row-preserving placement, not a
-     third semantics (the engine's own pros/cons comment concurs).
+     row-dropping; and `buildCorrelatedSubQuery` — VERIFIED at
+     L1181+ ("Build a nested select", rejoined as a TableAlias) —
+     emits a FILTERED-SUBSELECT JOIN, not a SQL scalar subquery:
+     subselect-WHERE placement, row-preserving AND fanning, i.e.
+     row-equivalent to ON placement. So ALL THREE strategies are
+     joins already; the engine NEVER emits a scalar subquery on this
+     path — only OUR filteredNavLeafRead does. "Zero correlated
+     scalar subqueries" is engine CONFORMANCE here, not merely
+     improvement. (An earlier revision claimed row-equivalence via
+     "root survives, value NULL" — wrong mechanism, corrected by
+     reading the function; kept as a record of why claims get read,
+     not inferred.)
      So §3 does NOT gain a third form after all. It gains a
      PLACEMENT BIT: joins only, always (fanned or grouped, zero
      correlated subqueries — strictly better implementation), with
@@ -334,8 +352,11 @@ total AND safe.
    emission fix is provably inert on the sweep.
 3. **Batch 3 — capability: per-occurrence mid-hop bundling** (the
    engine's own shape — mid ⋈ target inside each filtered
-   occurrence's subselect). Pure materializer capability; existing
-   routing untouched; zero behavior change expected on green tests.
+   occurrence's subselect). RULE (audit fix): a capability batch
+   must name a WITNESS reachable through EXISTING routing (batch-2's
+   census identifies whether any [*]-lift shape exercises shared-mid
+   material today); if none exists, this batch is UNTESTABLE dead
+   code and MERGES INTO batch 5 rather than landing unverified.
 4. **Batch 4 — capability: dated-head materialization alias fix**
    (the unbound `t1.*`-vs-"root" bug; its witness fails at baseline,
    so this one can only improve).
@@ -347,15 +368,23 @@ total AND safe.
    permission and the plus rule flip together — the #4 lesson).
    Pred placement for MULTI-OCCURRENCE value position follows the
    engine witness batch 2 must have located (see §5 addendum) — a
-   single shared top WHERE is NOT assumed. Pins from the topology
-   round (exec-passing ≥1,390, h2 ≥1,374, walls 947, rescued 817,
-   advanced ≥64) are floors to re-measure, not targets.
+   single shared top WHERE is NOT assumed. The topology-round
+   numbers (exec-passing 1,390, h2 1,374, walls 947, rescued 817,
+   advanced 64) are REFERENCE POINTS from a deleted mechanism —
+   re-measure everything; do not treat them as floors.
 6. **Batch 6 — retire the RelationPredicates correlated reducers**
    (`correlated-count-reducer` 234 + `correlated-agg-reducer` 2 from
    the census): count/size/sum-style consumptions of navigation
    relations move onto the GROUPED JOIN form. Named here so it
    cannot linger as an unscheduled clause — it is the same
    syntax-directed rule applied to the relation-argument spellings.
+   ROW-EQUALITY argument (required because our own code comment says
+   the ENGINE emits correlated scalar aggregate subqueries in the
+   graph sub-aggregation context — 0a verifies): an aggregate
+   delivers exactly one value per root either way (aggregates cannot
+   fan), so grouped-join is row-equal by construction; COUNT's
+   zero-when-empty edge needs the join-back COALESCE the existing
+   grouped machinery already carries.
 7. **Batch 7 — FILTER POSITION (charter slice 2, THE DEDUP LEG)** —
    the same syntax-directed rule extended to predicate consumptions;
    plan below (§8) so nothing in §4AD is left unplanned. Lands only
@@ -374,14 +403,24 @@ total AND safe.
 Acceptance per batch (charter §4AD): zero DuckDB-lane pass
 regressions (zero means zero, not net-zero — check individual flips,
 not just family counts), oracle conversions grow-only, pins + charter
-in the same commit, ALLGATES green before push.
+in the same commit, ALLGATES green before push. The full chain also
+referees the H2 lane, PCT (G6/G7) and the graph/metamodel-store
+shapes — class-lane routing changes CAN move all of them (the
+metamodel-store leg runs Class.all() through the store lane), so
+"green" means the WHOLE chain, and any moved pin gets the standing
+ratchet treatment (justified growth or a named regression, never a
+silent re-pin).
 
 ## 7. WHY THIS DESIGN AND NOT THE GATES (for the record)
 
 The gates all tried to answer "which route does this HEAD take?" —
-but the head was never the deciding entity; the CONSUMPTION is. The
-engine's own compiler is syntax-directed the same way (reducer call →
-grouped join; anything else → fanned join). Once stated that way,
+but the head was never the deciding entity; the CONSUMPTION is.
+(CORRECTED by the 0a reading: the engine's own chooser is
+TREE-SHAPE-heuristic, not syntax-directed — projection-thread flag,
+suitable-node test, inner-join demotion. The syntax-directed collapse
+is OURS, justified by the row-equivalence of the placements the
+engine picks among, never by claiming the engine does the same.)
+Once stated that way,
 route totality is structural: every consumption matches exactly one
 of two syntactic categories, both compile to joins, and unbuildable
 material walls loudly instead of falling back. One owner, one fact,
@@ -401,11 +440,14 @@ the difference — today it counts these as "row-cardinality skew
 
 **The mechanism (same one-owner rule, predicate position):** a
 navigation consumed inside a class-lane FILTER predicate compiles to
-a READ OF THE JOINED ROW in the WHERE clause — the engine's own
-shape (witness `testQualifierQueryWithOr` golden: two filtered
-subselects LEFT JOINed, `WHERE "p0".FIRSTNAME = 'Peter' OR
-"p3".FIRSTNAME = 'John'` — reads of joined columns, no EXISTS, no
-DISTINCT, duplicates preserved). Concretely:
+a READ OF THE JOINED ROW in the WHERE clause. AUDIT NOTE: the shape
+witness here (`testQualifierQueryWithOr` golden: two filtered
+subselects LEFT JOINed, `WHERE "p0".FIRSTNAME = 'Peter' OR …`, no
+EXISTS, no DISTINCT, duplicates preserved) is a FORCED-strategy
+test — the DEFAULT filter-position shape comes from 0b's non-forced
+survey + the 0a chooser reading before this mechanism is final (the
+same sampling flaw §5's addendum flags for value position, caught
+here too by the audit). Concretely:
 
 - The router (batch 5's same pre-pass) rewrites predicate-position
   filtered-nav reads exactly like value-position ones: plain chain
@@ -455,3 +497,28 @@ After this document, NOTHING in §4AD is deferred-without-a-plan:
   deferral gets its own named batch in this ledger, or it does not
   land ("finish-the-last-percent" rule: burn disclosed residuals in
   the same arc; a documented residual is still an open seam).
+
+## 10. AUDIT LOG (2026-08-29, full plan+homework audit)
+
+Findings applied above, kept here so the epistemics stay visible:
+1. `buildCorrelatedSubQuery` READ (L1181+): emits a filtered-subselect
+   JOIN — the engine never emits scalar subqueries on the isolation
+   path; our fnlr is the only producer. Rationale in 0a corrected.
+2. §7's "engine is syntax-directed too" was stale — corrected: the
+   collapse is ours, justified by placement row-equivalence.
+3. The canary's aggregation-route claim downgraded to PLAUSIBLE;
+   batch 2 attributes it.
+4. The subAggregation grouped-join shape marked ASSERTED pending a
+   named golden (0a/0b).
+5. fnlr's three call sites named; deletion must cover all.
+6. Batch 6 gains its row-equality argument (aggregates cannot fan).
+7. Capability batches must name witnesses reachable via existing
+   routing or merge into the router batch (batch 3 flagged).
+8. Topology-round numbers demoted from floors to reference points.
+9. §8's mechanism witness flagged as FORCED-strategy; default shape
+   comes from the survey.
+10. Multi-occurrence placement gains a code-derived fallback.
+11. Acceptance names every lane the chain referees.
+Grade after audit: every §3/§8 mechanism claim is now either VERIFIED
+(read at a cited line), MEASURED (sweep/probe), or explicitly MARKED
+as pending 0a/0b — nothing is silently inferred.
