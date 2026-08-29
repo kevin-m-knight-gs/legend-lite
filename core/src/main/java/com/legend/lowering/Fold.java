@@ -100,7 +100,7 @@ final class Fold {
         var red2 = new com.legend.sql.SqlAgg.Reducer(red.fn(), red.args(),
                 red.distinct(), java.util.List.of(
                         new com.legend.sql.SqlSelect.SortKey(
-                                new com.legend.sql.SqlExpr.Column(
+                                com.legend.sql.SqlExpr.Column.derived(
                                         sub.alias(), "u_ord"), true, null, null)));
         return new OrderedAgg(
                 base.withFrom(replaceSub(base.from(), sub, repl)), red2);
@@ -598,6 +598,49 @@ final class Fold {
      * and the sides. Names match by the frame's OUTER spelling
      * (prefix renames applied to the padded right side); a name miss
      * merely keeps today's claim (under-weakening, never a lie). */
+    /** ORIGIN reconciliation for a join-slot frame (the padJoinOutputs
+     * idiom applied to spelling): a PREFIX-RENAMED column is explicitly
+     * aliased — DERIVED; a passthrough column rides the star/bare
+     * projection and keeps ITS SOURCE's label — inherit the side's
+     * declared origin by name; a fallback follows the star side's KIND
+     * (physical source labels fold; derived frames label explicitly). */
+    /** The star-passthrough side's LABEL namespace when its outputs
+     * make no claim: a physical source (table / raw sql / external)
+     * labels in the DATABASE's folded spelling; any derived frame
+     * labels explicitly (the H2 renderer aliases every projection),
+     * so its labels are the declared names. */
+    static OutputCol.Origin starSideOrigin(SqlSource side) {
+        return side instanceof SqlSource.Table
+                || side instanceof SqlSource.RawSql
+                || side instanceof SqlSource.SourceUrl
+                ? OutputCol.Origin.PHYSICAL
+                : OutputCol.Origin.DERIVED;
+    }
+
+    static List<OutputCol> stampJoinOrigins(List<OutputCol> outs,
+            SqlSource.Join source, java.util.Optional<String> prefix,
+            java.util.function.Predicate<String> renameWhen) {
+        java.util.Map<String, OutputCol.Origin> bySide =
+                new java.util.HashMap<>();
+        for (OutputCol c : source.left().outputs()) {
+            bySide.put(c.name(), c.origin());
+        }
+        for (OutputCol c : source.right().outputs()) {
+            bySide.putIfAbsent(c.name(), c.origin());
+        }
+        List<OutputCol> os = new ArrayList<>(outs.size());
+        for (OutputCol c : outs) {
+            boolean renamed = prefix.isPresent()
+                    && c.name().startsWith(prefix.get());
+            OutputCol.Origin o = renamed ? OutputCol.Origin.DERIVED
+                    : bySide.getOrDefault(c.name(),
+                            starSideOrigin(source.left()));
+            os.add(new OutputCol(c.name(), c.type(), c.nullable(),
+                    c.tolerated(), o));
+        }
+        return os;
+    }
+
     static List<OutputCol> padJoinOutputs(List<OutputCol> outs,
             SqlSource.Join source, java.util.Optional<String> prefix,
             java.util.function.Predicate<String> renameWhen) {

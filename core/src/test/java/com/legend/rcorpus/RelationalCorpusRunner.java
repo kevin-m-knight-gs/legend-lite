@@ -392,8 +392,18 @@ public class RelationalCorpusRunner {
             if (onlyFilters.isEmpty()) {
                 org.junit.jupiter.api.Assertions.assertAll(
                         () -> org.junit.jupiter.api.Assertions.assertTrue(
-                                p >= 1361, "h2 sweep pass fell: " + p
-                                        + " < floor 1361"),
+                                p >= 1367, "h2 sweep pass fell: " + p
+                                        + " < floor 1367 (batch-C"
+                                        + " landing: 1369 lenient - 2"
+                                        + " NAMED rows — testChained"
+                                        + "JoinsWithUnionsAndIsolation"
+                                        + "WithProjectionQueryTableFilter"
+                                        + " + testPropertyProjection"
+                                        + "QueryWithInnerJoinClassMapping"
+                                        + "WithMilestoningTableFilter:"
+                                        + " label-vs-physical skew in"
+                                        + " deep union wraps, follow-up"
+                                        + " on the origin propagation)"),
                         () -> org.junit.jupiter.api.Assertions.assertTrue(
                                 seedFails.size() <= 6,
                                 "h2 failed seeds grew: " + seedFails.size()

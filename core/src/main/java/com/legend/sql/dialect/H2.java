@@ -58,9 +58,61 @@ public class H2 extends AnsiSqlRenderer {
                 + execPart(name.substring(dot + 1));
     }
 
+    /** EXCEPT names are DERIVED labels of the framed source (TDS/pivot
+     * frames — the only EXCEPT producers) — they spell like every other
+     * derived name: the alias rule. */
     @Override
     protected String starExceptName(String name) {
-        return ident(name);
+        return aliasIdent(name);
+    }
+
+    /** Aliases and every DERIVED label quote UNCONDITIONALLY — the
+     * engine's own convention (as "root", as "legalName"): on the
+     * case-sensitive session a bare invented name would uppercase in
+     * result-set LABELS and break label-reading consumers (the PCT
+     * minted-name decode saw 'ID' for 'id' — the batch-C blocker). */
+    @Override
+    protected String aliasIdent(String name) {
+        if (name.length() > 1 && name.charAt(0) == '"'
+                && name.endsWith("\"")) {
+            return name;
+        }
+        return '"' + name.replace("\"", "\"\"") + '"';
+    }
+
+    /** Alias-less projections label EXPLICITLY from the declared
+     * output (engine convention): on this case-sensitive session an
+     * implicit label folds to the PHYSICAL case while downstream
+     * layers reference the DECLARED name (witness: the calendar
+     * aggregate's bare hireType labeling HIRETYPE under the csv
+     * wrap's "hireType" read). */
+    @Override
+    protected String projection(com.legend.sql.SqlSelect.Projection p,
+            com.legend.sql.@com.legend.Nullable OutputCol out) {
+        if (p.alias() != null || out == null) {
+            return projection(p);
+        }
+        return expr(p.expr(), 0) + " AS " + aliasIdent(out.name());
+    }
+
+    /** The origin-driven reference rule (convergence slice 3): DERIVED
+     * spells exactly like its definition ({@link #aliasIdent});
+     * PHYSICAL spells as the DDL spelled it (bare-unless-special —
+     * pre-quoted declarations ride their quotes in the name);
+     * origin-LESS walls loudly — a guessed spelling on a
+     * case-sensitive session is a silent wrong answer. */
+    @Override
+    protected String columnName(SqlExpr.Column c) {
+        if (c.origin() == null) {
+            throw new DialectCapability("origin-less column reference"
+                    + " reached the case-sensitive H2 renderer: "
+                    + (c.table() == null ? "" : c.table() + ".")
+                    + c.name() + " — stamp the construction site"
+                    + " (Column.derived/physical or an OutputCol door)");
+        }
+        return c.origin() == com.legend.sql.OutputCol.Origin.DERIVED
+                ? aliasIdent(c.name())
+                : execPart(c.name());
     }
 
     private String execPart(String part) {

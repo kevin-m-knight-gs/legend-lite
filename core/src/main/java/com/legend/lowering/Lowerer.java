@@ -2020,9 +2020,12 @@ public final class Lowerer {
                     source.kind().padsRight() ? rc.asNullable() : rc,
                     renameWhen.test(c.name()) ? prefix.get() + c.name() : null));
         }
-        return out.withProjections(ps, Fold.padJoinOutputs(
-                outputsOf(info), source, prefix, renameWhen));
+        return out.withProjections(ps, Fold.stampJoinOrigins(
+                Fold.padJoinOutputs(outputsOf(info), source, prefix,
+                        renameWhen),
+                source, prefix, renameWhen));
     }
+
 
     /**
      * Star + plain-column renames, nothing else — the shape a prefixed join

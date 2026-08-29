@@ -136,9 +136,25 @@ public class AnsiSqlRenderer implements SqlDialect {
         if (s.distinct()) {
             sb.append("DISTINCT ");
         }
-        sb.append(s.projections().isEmpty()
-                ? "*"
-                : s.projections().stream().map(this::projection).collect(Collectors.joining(", ")));
+        if (s.projections().isEmpty()) {
+            sb.append("*");
+        } else {
+            // a STAR projection expands to many columns: it can take no
+            // alias and it desynchronizes the positional projection ->
+            // output pairing — explicit labeling is off for the whole
+            // select when one is present
+            boolean starred = s.projections().stream().anyMatch(p2 ->
+                    p2.expr() instanceof SqlExpr.Star
+                            || p2.expr() instanceof SqlExpr.StarExcept);
+            for (int i = 0; i < s.projections().size(); i++) {
+                if (i > 0) {
+                    sb.append(", ");
+                }
+                sb.append(projection(s.projections().get(i),
+                        starred || i >= s.outputs().size()
+                                ? null : s.outputs().get(i)));
+            }
+        }
         if (!(s.from() instanceof SqlSource.Dual)) {
             nl(sb, depth).append("FROM ");
             source(sb, s.from(), depth);
@@ -193,6 +209,18 @@ public class AnsiSqlRenderer implements SqlDialect {
         // from the (prefixed) row type; engine-TEXT renderers drop it
         String e = expr(p.expr(), 0);
         return p.alias() == null ? e : e + " AS " + aliasIdent(p.alias());
+    }
+
+    /** Projection with its declared {@link OutputCol} in hand (same
+     * position). The base ignores the output — an alias-less
+     * projection keeps its implicit label (correct where labels fold
+     * case-insensitively). A case-sensitive dialect aliases EXPLICITLY
+     * from the declared output so downstream references to the
+     * declared name always resolve — the engine's own convention
+     * (every golden aliases every projection). */
+    protected String projection(SqlSelect.Projection p,
+            @com.legend.Nullable com.legend.sql.OutputCol out) {
+        return projection(p);
     }
 
     protected String sortKey(SqlSelect.SortKey k) {
@@ -374,13 +402,16 @@ public class AnsiSqlRenderer implements SqlDialect {
                     + " executable dialect — plan templates render via the"
                     + " engine-style dialect only");
             case SqlExpr.RowOrder r -> (r.table() == null ? ""
-                    : ident(r.table()) + ".") + rowOrderColumn();
+                    : aliasIdent(r.table()) + ".") + rowOrderColumn();
+            // the QUALIFIER is structurally always a source ALIAS (the
+            // lowerer aliases every FROM source) — it spells with the
+            // alias rule; the NAME spells by its ORIGIN (columnName)
             case SqlExpr.Column c -> c.table() == null
-                    ? ident(c.name()) : ident(c.table()) + "." + ident(c.name());
-            case SqlExpr.Star s -> s.table() == null ? "*" : ident(s.table()) + ".*";
+                    ? columnName(c) : aliasIdent(c.table()) + "." + columnName(c);
+            case SqlExpr.Star s -> s.table() == null ? "*" : aliasIdent(s.table()) + ".*";
             // DuckDB's EXCLUDE spelling (the one PIVOT backend); the dropped
             // names quote UNCONDITIONALLY — the corpus pins the quoted form.
-            case SqlExpr.StarExcept se -> (se.table() == null ? "*" : ident(se.table()) + ".*")
+            case SqlExpr.StarExcept se -> (se.table() == null ? "*" : aliasIdent(se.table()) + ".*")
                     + " " + starExceptKeyword() + " (" + se.except().stream()
                             .map(this::starExceptName)
                             .collect(java.util.stream.Collectors.joining(", ")) + ")";
@@ -1031,6 +1062,17 @@ public class AnsiSqlRenderer implements SqlDialect {
         }
         char q = quoteChar();
         return q + name.substring(0, dot) + q + "." + q + name.substring(dot + 1) + q;
+    }
+
+    /** COLUMN-NAME spelling at a reference — DIALECT-owned. The base
+     * spells every name via {@link #ident} (correct for
+     * case-insensitive engines). A case-sensitive dialect dispatches
+     * on the reference's ORIGIN: a DERIVED name (the query invented
+     * it) quotes like its alias definition; a PHYSICAL name spells as
+     * the DDL spelled it; an origin-less reference WALLS rather than
+     * guess. */
+    protected String columnName(SqlExpr.Column c) {
+        return ident(c.name());
     }
 
     /** EXCEPT/EXCLUDE-list name spelling — DIALECT-owned: the base

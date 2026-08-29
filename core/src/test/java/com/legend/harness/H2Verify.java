@@ -290,30 +290,9 @@ public final class H2Verify {
                 }
             }
         }
-        try {
-            return verifyOnce(seeds, goldenSql, ours, enumDecode,
-                    graphEnumProp);
-        } catch (Unverifiable u) {
-            if (!String.valueOf(u.getMessage())
-                    .contains("Duplicate column name")) {
-                throw u;
-            }
-            // CASE-COLLISION goldens (probe-verified, stock h2): legal
-            // on the engine's case-SENSITIVE session, rejected only by
-            // OUR CASE_INSENSITIVE_IDENTIFIERS session. Dies with batch
-            // C (SETTINGS becomes ENGINE_CASED; blocked on the PCT
-            // label seam — see H2Settings).
-            return freshVerify(com.legend.exec.H2Settings.ENGINE_CASED,
-                    seeds, goldenSql, ours, enumDecode, graphEnumProp);
-        }
-    }
-
-    private static @com.legend.Nullable String verifyOnce(
-            java.util.@com.legend.Nullable List<String> seeds,
-            String goldenSql, ExecutionResult ours,
-            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
-            java.util.function.Function<String,
-                    java.util.Map<String, String>> graphEnumProp) {
+        // ONE session, the engine's own (batch C landed): the
+        // "Duplicate column name" sniff-retry died with the second
+        // session — there is no other semantics to fall back to.
         MirrorState mirror = MIRROR;
         if (mirror != null && !mirror.suspended) {
             // INCREMENTAL path: apply only the ledger entries not yet
@@ -346,13 +325,13 @@ public final class H2Verify {
                         + e.getMessage(), e);
             }
         }
-        return freshVerify(SETTINGS, seeds, goldenSql, ours, enumDecode,
+        return freshVerify(seeds, goldenSql, ours, enumDecode,
                 graphEnumProp);
     }
 
-    /** Fresh-replay verification on a NEW in-memory H2 opened with
-     * {@code settings}: extensions + recorded seeds + golden compare. */
-    private static @com.legend.Nullable String freshVerify(String settings,
+    /** Fresh-replay verification on a NEW in-memory H2 (the ONE
+     * session): extensions + recorded seeds + golden compare. */
+    private static @com.legend.Nullable String freshVerify(
             java.util.@com.legend.Nullable List<String> seeds,
             String goldenSql, ExecutionResult ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
@@ -360,7 +339,7 @@ public final class H2Verify {
                     java.util.Map<String, String>> graphEnumProp) {
         int id = COUNTER.getAndIncrement();
         try (Connection h2 = DriverManager.getConnection(
-                "jdbc:h2:mem:advisory" + id + settings, "sa", "")) {
+                "jdbc:h2:mem:advisory" + id + SETTINGS, "sa", "")) {
             try (Statement st = h2.createStatement()) {
                 // the engine's H2 extension functions, lite-implemented —
                 // golden SQL calling legend_h2_extension_* declined

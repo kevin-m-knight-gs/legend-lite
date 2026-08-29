@@ -55,7 +55,7 @@ class DynamicPivotKeyLiteralTest {
         }
         SqlSource.Pivot pivot = new SqlSource.Pivot(
                 new SqlSource.Table("T", "t", List.of()),
-                List.of(new SqlExpr.Column("t", col)),
+                List.of(SqlExpr.Column.physical("t", col)),
                 List.of(),          // empty IN = dynamic — triggers discovery
                 List.of(), "p", List.of());
         SqlQuery out = DynamicPivot.staticize(
