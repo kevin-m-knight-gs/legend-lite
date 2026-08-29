@@ -1084,6 +1084,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             throw new UnsupportedOperationException(
                     "plan: struct extraction has no engine-H2 spelling");
         }
+        // a QUALIFIED star's frame alias renames exactly like a column
+        // read ("root".* — the dated-head nav frame; batch 4: the star
+        // was the ONE reference class that bypassed rename())
+        if (e instanceof SqlExpr.Star st && st.table() != null) {
+            return '"' + rename(st.table()) + "\".*";
+        }
         // alias part quoted, physical column bare — "root".FIRSTNAME;
         // reads of a frame's PROJECTED TDS aliases quote the column too
         // ("persontable_0"."firstName" — rename/union frame goldens)
