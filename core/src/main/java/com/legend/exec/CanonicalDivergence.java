@@ -306,6 +306,12 @@ public final class CanonicalDivergence {
     private static final java.util.concurrent.atomic.AtomicLongArray
             V7_SIDE_ROWS = new java.util.concurrent.atomic.AtomicLongArray(16);
 
+    /** Attribution source for disagreement samples — the HARNESS wires
+     * its per-test context holder here (invariant 6d: exec never
+     * depends on the middle-end, so the supplier is injected). */
+    public static volatile java.util.function.Supplier<String>
+            CONTEXT_SOURCE = () -> "<unattributed>";
+
     /** One dual-channel verdict pair: both adjudicators judged. */
     public static void v7Verdict(String form, boolean hostPass,
             boolean prodPass, String detail) {
@@ -317,7 +323,7 @@ public final class CanonicalDivergence {
             V7_SAMPLES.add(new Row(form, hostPass,
                     "host=" + (hostPass ? "pass" : "fail")
                             + " prod=" + (prodPass ? "pass" : "fail")
-                            + " " + detail));
+                            + " [" + CONTEXT_SOURCE.get() + "] " + detail));
         }
     }
 

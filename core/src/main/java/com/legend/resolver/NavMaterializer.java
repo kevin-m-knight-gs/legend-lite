@@ -406,8 +406,10 @@ final class NavMaterializer {
 
 
     /** The pipeline with one navigate step's predicate REPLACED (the
-     * composite's oriented hop-1 condition). */
-    private static TypedSpec rewriteNavPredicate(TypedSpec pipe, String alias,
+     * composite's oriented hop-1 condition) — shared by the sub-level
+     * composite arm and the top-level per-occurrence bundling
+     * (StoreResolver, §4AD batch 5). */
+    static TypedSpec rewriteNavPredicate(TypedSpec pipe, String alias,
             com.legend.compiler.spec.typed.TypedLambda cond) {
         if (pipe instanceof com.legend.compiler.spec.typed.TypedNavigate nav
                 && nav.alias().isPresent()

@@ -82,7 +82,7 @@ public class AnsiSqlRenderer implements SqlDialect {
     public String render(SqlQuery query) {
         SqlQuery q = query;
         for (com.legend.sql.SqlRewriter pass : passes()) {
-            q = pass.rewrite(q);
+            q = pass.rewriteRoot(q);
         }
         StringBuilder sb = new StringBuilder();
         query(sb, q, 0);

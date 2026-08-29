@@ -391,9 +391,11 @@ public class RelationalCorpusRunner {
             // capability budget only shrink.
             if (onlyFilters.isEmpty()) {
                 org.junit.jupiter.api.Assertions.assertAll(
+                        // 1372 -> 1375 (§4AD batch 5, THE ROUTER FLIP):
+                        // +3 h2-lane passes from the lifted fan-out shapes
                         () -> org.junit.jupiter.api.Assertions.assertTrue(
-                                p >= 1372, "h2 sweep pass fell: " + p
-                                        + " < floor 1372 (SQL-IR slice 2"
+                                p >= 1375, "h2 sweep pass fell: " + p
+                                        + " < floor 1375 (SQL-IR slice 2"
                                         + " outputs-from-projections:"
                                         + " 1367 -> 1372 — the milestoning"
                                         + " union-wrap residue healed +"
@@ -420,9 +422,14 @@ public class RelationalCorpusRunner {
                         // — one more plan reading a known gap, not a
                         // widened gap (DuckDB sweep pass counts and all
                         // EQUALITY-0 gates unchanged)
+                        // 946 -> 947 (§4AD batch 5, JUSTIFIED — the
+                        // design doc's predicted pattern: UNNEST 903 ->
+                        // 904; a lifted fan-out shape reads the
+                        // REGISTERED h2 UNNEST-placement gap, not a
+                        // widened gap; h2 floor +3 in the same commit)
                         () -> org.junit.jupiter.api.Assertions.assertTrue(
-                                u <= 946, "h2 capability walls grew: " + u
-                                        + " > 946 — a renderer gap widened"
+                                u <= 947, "h2 capability walls grew: " + u
+                                        + " > 947 — a renderer gap widened"
                                         + " silently"));
             }
             return;
@@ -686,7 +693,13 @@ public class RelationalCorpusRunner {
             // testChainedInnerJoinsWithQualifierInGroupBy row-verify
             // against the engine goldens; 2 more UPGRADED
             // rescued -> byte-matched (testQualifierWithVariableArg ×2).
-            org.junit.jupiter.api.Assertions.assertEquals(1387,
+            // 1387 -> 1396 (§4AD batch 5, THE ROUTER FLIP): +9
+            // row-verified — testQualifierWithIsolation (a baseline
+            // ERROR, the topology round's predicted win), the
+            // filter-mapping overlap pair, and six wrapper/hop-rich
+            // projection qualifiers (first()/head() unwrap +
+            // per-occurrence bundling), all via the one-owner router.
+            org.junit.jupiter.api.Assertions.assertEquals(1396,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-with-exec-passing"),
@@ -977,9 +990,18 @@ public class RelationalCorpusRunner {
                     // the advisory channel to the rescue channel on the
                     // same tests; no exact pass was demoted (exec-passing
                     // 990 -> 1276, pass baselines unchanged).
+                    // 816 -> 823 (§4AD batch 5, THE ROUTER FLIP —
+                    // JUSTIFIED with exec-passing 1,387 -> 1,396 in the
+                    // same commit): the lift's per-occurrence bundled
+                    // frames are row-equal to the engine's flat form by
+                    // LEFT-join associativity but text-divergent (nested
+                    // vs flat bundling) — 7 passes moved byte-match ->
+                    // row-verified rescue; zero passes demoted. Text
+                    // re-convergence = the emission-anatomy leg (mirror
+                    // the engine's frame shape), not a routing concern.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            softRescued <= 816, "text-rescued passes grew: "
-                                    + softRescued + " > 816"),
+                            softRescued <= 823, "text-rescued passes grew: "
+                                    + softRescued + " > 823"),
                     // contract-program wire ratchets (RE-PINNED at the
                     // 2026-08-24 label flip: 181->114->56 and 130->13 —
                     // adopted HUGEINT labels, registered carriages, then

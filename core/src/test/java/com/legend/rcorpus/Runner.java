@@ -1266,6 +1266,8 @@ public final class Runner {
     private Outcome run0(ParsedTest t) {
         com.legend.harness.H2Verify.CURRENT_TEST.set(t.fqn());
         com.legend.lowering.StampCensus.CONTEXT.set(t.fqn());
+        com.legend.exec.CanonicalDivergence.CONTEXT_SOURCE =
+                com.legend.lowering.StampCensus.CONTEXT::get;
         com.legend.exec.SqlTypeCensus.CONTEXT.set(t.fqn());
         // #67: record every raw corpus statement this test executes —
         // the H2 advisory second target replays them verbatim to verify

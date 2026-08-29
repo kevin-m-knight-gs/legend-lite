@@ -1239,7 +1239,8 @@ public final class StoreResolver {
             Map<String, String> extraNavHeads,
             Map<String, List<List<String>>> extraNavTails,
             Map<String, TypedNavigate> navSteps,
-            Map<String, String> corrNavHeads) {}
+            Map<String, String> corrNavHeads,
+            Map<String, TypedLambda> compositeConds) {}
 
     /** PHASE — slot + navigate-step demand: heads whose bindings read
      * join slots demand them; class-typed Join PM heads materialize their
@@ -1272,30 +1273,6 @@ public final class StoreResolver {
         }
     }
 
-    /** OTHERWISE per-leaf dispatch (V1 §D.5): an embedded-partial leaf
-     * reads the PARENT row — {@code null} means no join demand (the
-     * caller skips the path). KIND-aware (ledger cluster 50): membership
-     * in the partial proves same-row ONLY for a genuine column read; a
-     * CLASS-TYPED navigate-slot member (structural Join sub-PM) returns
-     * the PARTIAL so the ctor drill descends and registers the dotted
-     * AssocSub (the partial's own mapping wins over the otherwise
-     * target's); any other leaf demands the FALLBACK's navigate slot. */
-    private static @com.legend.Nullable TypedSpec otherwiseNavRead(
-            TypedSpec headBinding, List<String> path, ClassSource cs,
-            Set<String> navStepKeys) {
-        var ow = Substitution.otherwiseOf(headBinding);
-        if (ow == null) {
-            return headBinding;
-        }
-        var partial = (TypedNewInstance) ow.args().get(0);
-        TypedSpec pb = partial.properties().get(
-                SyntheticHeads.realHead(path.get(1)));
-        if (pb == null) {
-            return ow.args().get(1);
-        }
-        return InnerDemand.navSlotAlias(pb, cs.rowVar(), navStepKeys) == null
-                ? null : partial;
-    }
 
     private NavPlan registerNavigations(ClassSource cs,
             Set<List<String>> paths, Set<String> splitChains) {
@@ -1348,7 +1325,7 @@ public final class StoreResolver {
             if (headBinding == null) {
                 continue;   // association heads (below)
             }
-            TypedSpec navRead = otherwiseNavRead(headBinding, path, cs,
+            TypedSpec navRead = OccurrenceBundling.otherwiseNavRead(headBinding, path, cs,
                     navSteps.keySet());
             if (navRead == null) {
                 continue;   // embedded leaf: parent-alias read, no join
@@ -1439,17 +1416,21 @@ public final class StoreResolver {
                 continue;
             }
             demandedNavs.add(alias);
-            var nav = java.util.Objects.requireNonNull(
-                    navSteps.get(alias));
-            // The nav condition may read joinslot sub-rows: demand them too.
-            for (TypedSpec b : nav.predicate().body()) {
-                for (String slot : slotAliases) {
-                    if (Pipelines.referencesAliasOn(b,
-                            nav.predicate().parameters().get(0), Set.of(slot))) {
-                        demanded.add(slot);
-                    }
-                }
+        }
+        // §4AD batch 5 (merged batch 3): per-occurrence mid-hop bundling
+        // — the routing decision + emission live in OccurrenceBundling.
+        Set<String> compositedNavs = new LinkedHashSet<>();
+        Map<String, TypedLambda> compositeConds = new LinkedHashMap<>();
+        for (String alias : demandedNavs) {
+            var nav = java.util.Objects.requireNonNull(navSteps.get(alias));
+            if (OccurrenceBundling.readsSiblingSlot(nav, slotAliases)
+                    && OccurrenceBundling.perOccurrenceBundles(synthetics,
+                            alias, navHeadByAlias, extraNavHeads)) {
+                compositedNavs.add(alias);
+                continue;   // mid bundles into each occurrence's frame
             }
+            // The nav condition may read joinslot sub-rows: demand them too.
+            OccurrenceBundling.demandSiblingSlots(nav, slotAliases, demanded);
         }
         demanded = Pipelines.closeOverConditions(cs.pipeline(), demanded);
         // Materialize each demanded navigate TARGET with the slot demand its
@@ -1497,6 +1478,11 @@ public final class StoreResolver {
                                         pred, cs.mappingFqn())),
                         mat.slotPrefixes(), mat.stripped(), mat.subNavs()));
             }
+            if (compositedNavs.contains(alias)) {
+                demanded = OccurrenceBundling.compositeOrFallback(cs,
+                        corrSubs, alias, navSteps, navMats, compositedNavs,
+                        compositeConds, demanded, slotAliases);
+            }
         }
         for (String alias : demandedNavs) {
             var nav = java.util.Objects.requireNonNull(
@@ -1532,8 +1518,9 @@ public final class StoreResolver {
 
         return new NavPlan(demanded, demandedNavs, assocs, navMats, navTails,
                 navHeadByAlias, extraNavHeads, extraNavTails, navSteps,
-                corrNavHeads);
+                corrNavHeads, compositeConds);
     }
+
 
     /** #70 composite chain-backed exists/scalar target: the pipeline with
      * the sibling slot's table joined IN, and hop-1's condition oriented
@@ -1754,12 +1741,17 @@ public final class StoreResolver {
             Set<String> demanded, Set<String> demandedNavs,
             Map<String, NavMaterializer.NavMat> navMats, Map<String, String> navHeadByAlias,
             Map<String, Substitution.AssocSub> parentAssocs,
-            Set<String> dateAliases) {
+            Set<String> dateAliases,
+            Map<String, TypedLambda> compositeConds) {
         Set<String> corrComposed = new LinkedHashSet<>();
         TypedSpec csPipe = augmentNavPredicates(
                 Pipelines.sinkNavSteps(cs.pipeline(), dateAliases), cs,
                 navHeadByAlias, demandedNavs, corrComposed, parentAssocs,
                 navMats);
+        // per-occurrence bundling (batch 5): install the oriented
+        // hop-1 conditions on the composited steps
+        csPipe = OccurrenceBundling.applyOrientedConds(csPipe,
+                compositeConds);
         // audit 21b F1 backstop: a demanded navigate head carrying a
         // correlated predicate that the augment walk did NOT compose has
         // exactly one fate — loud. The lifted-pred apply site skips
@@ -2307,7 +2299,8 @@ public final class StoreResolver {
             Map<String, List<List<String>>> extraNavTails,
             Map<String, Substitution.AssocSub> assocs,
             Map<String, String> corrNavHeads,
-            Map<String, List<List<String>>> navTailsByAlias) {
+            Map<String, List<List<String>>> navTailsByAlias,
+            Set<String> compositedNavs) {
         List<AssociationJoins.AssocJoin> assocJoins = new ArrayList<>();
         Map<String, AssociationJoins.AssocJoin> joinsByChain = new LinkedHashMap<>();
         // Per chain-prefix leaf demand: hop 'firm' materializes its OWN
@@ -2482,17 +2475,19 @@ public final class StoreResolver {
             tPipe = synthetics.applyToPipe(exPredKey, tPipe, (p, pred) ->
                     CorrelatedSubselects.predFilteredPipe(p, target, mat.slotPrefixes(),
                             mat.subNavs(), pred, cs.mappingFqn()));
-            // a FINGERPRINTED identity prefixes alias_dN_ (NavMaterializer
-            // xPrefix rule at root depth) — prefixFor's collision set sees
-            // only the base row, never the slot's alias_-prefixed columns
-            String exFp = headKey.lastIndexOf('#') >= 0
-                    ? headKey.substring(headKey.lastIndexOf('#') + 1) : null;
-            AssociationJoins.AssocJoin aj = new AssociationJoins.AssocJoin(exFp != null
-                    ? alias + "_" + exFp + "_"
-                    : AssociationJoins.prefixFor(headKey, cs), target, tPipe,
+            // batch 5: a composited step's extra identity bundles ITS
+            // OWN mid copy; prefix rule = OccurrenceBundling.extraPrefix
+            var exc = OccurrenceBundling.extraComposite(cs, corrSubs,
+                    compositedNavs.contains(alias), nav, tPipe, headKey,
+                    alias);
+            tPipe = exc.pipe();
+            TypedLambda exCond = exc.cond();
+            AssociationJoins.AssocJoin aj = new AssociationJoins.AssocJoin(
+                    OccurrenceBundling.extraPrefix(headKey, alias, cs),
+                    target, tPipe,
                     Type.requireRelationSchema(tPipe.info().type()),
                     AssociationJoins.withOuterDatedWindow(temporal, cs, target,
-                            headKey, nav.predicate(), tPipe),
+                            headKey, exCond, tPipe),
                     mat.slotPrefixes());
             assocJoins.add(aj);
             // the identity's OWN join — outer-dated windows must bind to
@@ -2848,7 +2843,8 @@ public final class StoreResolver {
         // (corpus testDistinctMappingSimpleProjectSelectOneOfTheDistinct-
         // Properties: name-only projection must keep BOTH 'IF 2' rows).
         RootPipe rootPipe = materializeRoot(cs, g, demanded, demandedNavs,
-                navMats, navHeadByAlias, assocs, dateAliases);
+                navMats, navHeadByAlias, assocs, dateAliases,
+                navPlan.compositeConds());
         Pipelines.Materialized m = rootPipe.m();
         final TypedSpec materializedPipe = rootPipe.materializedPipe();
 
@@ -2858,7 +2854,8 @@ public final class StoreResolver {
 
         AssocPlan assocPlan = registerAssociationJoins(cs, paths, context,
                 navSteps, extraNavHeads, extraNavTails, assocs,
-                navPlan.corrNavHeads(), navPlan.navTails());
+                navPlan.corrNavHeads(), navPlan.navTails(),
+                navPlan.compositeConds().keySet());
         List<AssociationJoins.AssocJoin> assocJoins = assocPlan.assocJoins();
         Map<String, AssociationJoins.AssocJoin> joinsByChain = assocPlan.joinsByChain();
 

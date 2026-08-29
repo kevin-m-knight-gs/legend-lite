@@ -279,36 +279,26 @@ final class SyntheticHeads {
      * never silent SQL.
      */
     TypedSpec liftFilteredHeads(TypedSpec n) {
-        scalarLiftHeads = scalarSafeHeads(n);
         return liftFilteredHeads(n, true);
     }
-
-    /** §4AD slice 1 batch-1 SCOPE GATE — heads whose SCALAR ([0..1])
-     * filtered reads may lift to the fan-out route: exactly ONE
-     * distinct predicate query-wide. Two distinct preds on one head
-     * over a CHAINED property mapping share the mid-hop join and
-     * cross-fan (testProjectMerge 3 -> 10, the batch's one measured
-     * regression); single-pred heads are the four measured wins.
-     * NAMED residue: multi-pred scalar heads keep the correlated arm
-     * until per-occurrence mid-hop materialization lands. */
-    private java.util.Set<String> scalarLiftHeads = java.util.Set.of();
 
     /** Nesting depth inside op-level filter PREDICATES — the scalar
      * lift is value-position only (see the TypedFilter walk case). */
     private int filterPredDepth;
 
-    /** §4AD slice 1 — may this filtered-nav READ take the fan-out
-     * route? Non-scalar reads always lift (pre-existing). The scalar
-     * ([0..1]) depth-1 exclusion NARROWS: the engine's row algebra
-     * fans a filtered navigation regardless of the read's declared
-     * multiplicity (charter decision 1; witness
-     * testQualifierWithOperation: LEFT JOIN + WHERE, never a
-     * correlated scalar subquery), so plain single-pred heads lift in
-     * VALUE position and filteredNavLeafRead loses them.
-     * Correlated-arm RESIDUE (named, each measured): filter-position
-     * reads (slice-2 scope; slot-prefix collision), MILESTONED heads
-     * (lift emits unbound-alias SQL — testTemporalDateVariable...),
-     * MULTI-PRED heads (shared mid-hop cross-fan — testProjectMerge). */
+    /** §4AD batch 5 (THE ROUTER FLIP) — may this filtered-nav READ
+     * take the fan-out route? Non-scalar reads always lift
+     * (pre-existing). Scalar ([0..1]) reads lift in VALUE and
+     * PROJECTION position — the engine's row algebra fans a filtered
+     * navigation regardless of the read's declared multiplicity
+     * (charter decision 1; batch-0 placement table: in-target parking
+     * is row-equal to the engine's WHERE via NULL propagation + the
+     * value lane's egress null-drop, and IS the ON cell in projection
+     * position). Batch-1's pred-count and milestoned exclusions are
+     * DELETED: multi-pred heads emit per-occurrence identities
+     * (2a-x/foldExtraSubIdentities) and the dated-head alias bug died
+     * in batch 4. The ONLY remaining scope gate is FILTER position
+     * (batch 7, charter slice 2 — the dedup leg). */
     private boolean scalarReadLifts(TypedPropertyAccess pa, TypedFilter f) {
         if (!(pa.info().multiplicity()
                 instanceof com.legend.compiler.element.type
@@ -317,49 +307,7 @@ final class SyntheticHeads {
                 && directlyOnVar(f.source()))) {
             return true;   // non-scalar / deep: the pre-existing lift
         }
-        if (filterPredDepth > 0
-                || f.source() instanceof TypedMilestonedAccess) {
-            return false;
-        }
-        String prop = f.source() instanceof TypedPropertyAccess shp
-                ? shp.property()
-                : ((TypedMilestonedAccess) f.source()).property();
-        return scalarLiftHeads.contains(prop);
-    }
-
-    private java.util.Set<String> scalarSafeHeads(TypedSpec top) {
-        java.util.Map<String, java.util.Set<TypedSpec>> perHead =
-                new java.util.LinkedHashMap<>();
-        scanScalarPreds(top, perHead);
-        java.util.Set<String> out = new java.util.LinkedHashSet<>();
-        perHead.forEach((h, ps) -> {
-            if (ps.size() == 1) {
-                out.add(h);
-            }
-        });
-        return out;
-    }
-
-    private void scanScalarPreds(TypedSpec n,
-            java.util.Map<String, java.util.Set<TypedSpec>> out) {
-        if (n instanceof TypedFilter f
-                && f.predicate().parameters().size() == 1
-                && f.predicate().body().size() == 1
-                && f.info().type() instanceof Type.ClassType
-                && isLiftableNav(f.source())) {
-            String prop = switch (f.source()) {
-                case TypedPropertyAccess hp -> hp.property();
-                case TypedMilestonedAccess ma -> ma.property();
-                default -> null;
-            };
-            if (prop != null) {
-                out.computeIfAbsent(prop, k -> new java.util.LinkedHashSet<>())
-                        .add(alphaCanonicalBody(f.predicate()));
-            }
-        }
-        for (TypedSpec c : n.children()) {
-            scanScalarPreds(c, out);
-        }
+        return filterPredDepth == 0;
     }
 
     /** Node-local canonicalizer applied before the lift arms (identity by
@@ -847,7 +795,7 @@ final class SyntheticHeads {
      * collision and get applied inside the target pipeline where the
      * outer row does not exist. (Conservative the other way stays fine:
      * over-refusing the lift is loud.) */
-    private static boolean predClosedOverParam(TypedLambda pred) {
+    static boolean predClosedOverParam(TypedLambda pred) {
         Set<String> bound = new LinkedHashSet<>(pred.parameters());
         return pred.body().stream().allMatch(b -> readsOnly(b, bound));
     }
@@ -929,15 +877,24 @@ final class SyntheticHeads {
         return false;
     }
 
-    /** The filter node, looking through a conform-by-emission
-     * {@code ->toOne()} wrapper (a qualifier body's own coercion —
-     * multiplicity-only, SQL-erased; the read semantics are the LEFT
-     * join's NULL-on-no-match either way). */
+    /** The filter node, looking through MULTIPLICITY wrappers — a
+     * {@code ->toOne()} coercion, and {@code ->first()}/{@code ->head()}
+     * (a qualifier body's own narrowing; batch 5): the engine compiles
+     * first-over-filtered-nav as the PLAIN fanned join with the
+     * predicate in the frame (conditionRightTableNested golden — no
+     * LIMIT), so under charter decision 1 the wrappers are SQL-erased
+     * here exactly like toOne; the read semantics are the LEFT join's
+     * NULL-on-no-match either way. Wrappers STACK (toOne(first(...))). */
     private static TypedSpec filterBehindToOne(TypedSpec n) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+        while (n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                 && c.args().size() == 1
-                && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
-            return c.args().get(0);
+                && (com.legend.builtin.Pure.isToOneCall(
+                        c.callee().qualifiedName())
+                    || c.callee().qualifiedName().equals(
+                        "meta::pure::functions::collection::first")
+                    || c.callee().qualifiedName().equals(
+                        "meta::pure::functions::collection::head"))) {
+            n = c.args().get(0);
         }
         return n;
     }

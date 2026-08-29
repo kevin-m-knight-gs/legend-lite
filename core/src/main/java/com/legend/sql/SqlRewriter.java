@@ -35,6 +35,14 @@ public abstract class SqlRewriter {
         return e;
     }
 
+    /** Entry point for the RENDERER'S pass loop: sees the statement
+     * ROOT before the deep walk — the one place a root-only rule
+     * (clause of the outermost select) can live inside the pass
+     * framework. Default: the plain deep rewrite. */
+    public SqlQuery rewriteRoot(SqlQuery q) {
+        return rewrite(q);
+    }
+
     // ---- the walk ----
 
     public final SqlQuery rewrite(SqlQuery q) {

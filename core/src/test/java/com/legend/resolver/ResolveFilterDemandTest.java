@@ -173,7 +173,10 @@ class ResolveFilterDemandTest {
         String sql = sqlOf("m::SOrg.all()->project("
                 + "[o|$o.name, o|$o.parent.name], ['name','p_name'])"
                 + "->from(m::M, m::RT)");
-        List<String> rows = exec(sql + " ORDER BY 1");
+        // sorted host-side: the DuckDB dialect's StableScanOrder pass
+        // already gives frame-joined roots a base-scan ORDER BY
+        List<String> rows = exec(sql);
+        rows.sort(null);
         // SAlpha: no parent -> null. SBeta: parent SAlpha (in extent).
         // SDelta: parent SGamma is FILTERED OUT -> null, row SURVIVES
         // (the ON-fold contract; a WHERE-placed hop filter would drop it).

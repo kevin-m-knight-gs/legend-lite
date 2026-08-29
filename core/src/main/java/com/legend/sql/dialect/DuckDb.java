@@ -98,7 +98,8 @@ public final class DuckDb extends AnsiSqlRenderer {
         return java.util.List.of(
                 new CarrierStrategies(CarrierStrategies.Caps.DUCKDB),
                 new UnqualifyPivotArgs(), new FoldToListReduce(),
-                new SubstringClamp(), new RawSqlAdapt());
+                new SubstringClamp(), new RawSqlAdapt(),
+                new StableScanOrder());
     }
 
     /** DuckDB's native list carrier: {@code list_aggregate(list,

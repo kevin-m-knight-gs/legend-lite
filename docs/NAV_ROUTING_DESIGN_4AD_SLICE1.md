@@ -501,6 +501,29 @@ silently re-pinned.
 
 ## 9. DEFERRAL LEDGER (kept honest)
 
+**BATCH-5 LANDING RECORD (2026-08-29): THE ROUTER FLIP LANDED.**
+Deleted: the pred-count prescan (scalarLiftHeads/scalarSafeHeads/
+scanScalarPreds), the scalar milestoned-head exclusion, and fnlr's
+TOP-LEVEL value/projection-position dispatch (a LOUD wall guards
+route totality). Landed capability: per-occurrence mid-hop bundling
+(compositeChainTarget at TOP level, feasibility-checked with the
+shared-slot fallback), first()/head() multiplicity-wrapper unwrap in
+the lift (engine golden: no LIMIT — charter decision 1), and
+StableScanOrder (DuckDB-only root/verdict-wrapper base-scan rowid
+determinism for frame-joined shapes — BOTH verdict channels read the
+same row; the blanket version was measured wrong twice and corrected
+by reading the verdict SQL). Measured: exec-passing 1,387→1,396 (+9,
+incl. the predicted testQualifierWithIsolation win), dual-channel
+agree +39 / disagree 9 (=), scoreboard −10 failures / 0 new,
+rescued-passes 816→823 (justified: nested-vs-flat bundling text,
+row-equal by LEFT-join associativity — re-convergence = the
+emission-anatomy leg). SURVIVING fnlr (census-attributed, structural
+boundaries, never topology): filter-position (batch 7), NESTED
+instance-scoped substitution (constraint bodies — the
+nested-material leg), CORRELATED-pred reads (the engine's own
+projection-thread chooser is correlated there — retires with the
+#69 ON-composition leg).
+
 After this document, NOTHING in §4AD is deferred-without-a-plan:
 - Batches 2-8 cover value position, capability bugs, the router,
   the correlated reducers, filter position/dedup, and the oracle
@@ -510,6 +533,15 @@ After this document, NOTHING in §4AD is deferred-without-a-plan:
   deferral gets its own named batch in this ledger, or it does not
   land ("finish-the-last-percent" rule: burn disclosed residuals in
   the same arc; a documented residual is still an open seam).
+- **Batch-5 discovered deferrals (named, census-attributed):**
+  (a) NESTED-INSTANCE MATERIAL leg — constraint/instance-project
+  bodies rewritten per exists-target row keep the correlated read
+  (`fnlr-nested-dispatch` census arm names the population); (b)
+  CORRELATED ON-COMPOSITION leg — scalar correlated-pred reads move
+  onto the #69 exploding/ON-composition route
+  (`fnlr-correlated-dispatch` arm); (c) EMISSION-ANATOMY leg —
+  mirror the engine's flat frame shape (mid-based narrow frames) to
+  re-converge the 7 rescued texts to byte-match.
 
 ## 10. AUDIT LOG (2026-08-29, full plan+homework audit)
 

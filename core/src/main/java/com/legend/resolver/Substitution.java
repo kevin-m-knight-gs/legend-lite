@@ -1758,7 +1758,7 @@ final class Substitution {
                     && f.predicate().body().size() == 1 ->
                     filteredInstanceRead(pa, f);
             case TypedPropertyAccess pa when filteredNavLeafRead(pa) != null ->
-                    firedFnlrValueDispatch(pa);
+                    fnlrScopedOrWall(pa);   // §4AD batch 5: routes doc'd there
             case TypedPropertyAccess pa when subTypeLeafRead(pa) != null ->
                     java.util.Objects.requireNonNull(subTypeLeafRead(pa), "subTypeLeafRead(pa)");
             case TypedVariable v when v.name().equals(target.userVar()) ->
@@ -2600,11 +2600,59 @@ final class Substitution {
                 && !v.name().equals(target.freshRowVar());
     }
 
-    /** The value-position fnlr dispatch arm, census-attributed (§4AD
-     * round-2 instrument; the arm the batch-5 deletion must cover). */
-    private TypedSpec firedFnlrValueDispatch(TypedPropertyAccess pa) {
-        com.legend.lowering.NavArmCensus.fire("fnlr-value-dispatch");
-        return java.util.Objects.requireNonNull(filteredNavLeafRead(pa));
+    /** §4AD batch 5 (THE ROUTER FLIP): fnlr's TOP-LEVEL value/projection
+     * dispatch is DELETED — those reads lift to the #fN fan-out join
+     * (SyntheticHeads.scalarReadLifts); a top-level read still matching
+     * is a lift gap and WALLS (route totality is structural, never a
+     * silent correlated subquery). THREE routes survive, each structural
+     * and census-attributed: (1) FILTER position — untouched by design
+     * until batch 7 (charter slice 2; constraint-as-filter and
+     * non-equality predicate reads always rode this dispatch); (2)
+     * NESTED instance-scoped substitution (constraint bodies rewritten
+     * per exists-target row — the lift cannot serve material that
+     * exists only at substitution time; retires with the
+     * nested-material leg); (3) CORRELATED-pred reads (the engine's own
+     * projection-thread chooser is correlated there — batch-0 0a
+     * L7568-7572; retires with the #69 ON-composition leg; the boundary
+     * is parkFiltered's closed/correlated fact, never head topology). */
+    private TypedSpec fnlrScopedOrWall(TypedPropertyAccess pa) {
+        if (target.nested() || target.filterPosition()
+                || correlatedFilteredRead(pa)) {
+            com.legend.lowering.NavArmCensus.fire(target.nested()
+                    ? "fnlr-nested-dispatch"
+                    : target.filterPosition() ? "fnlr-filter-dispatch"
+                            : "fnlr-correlated-dispatch");
+            return java.util.Objects.requireNonNull(filteredNavLeafRead(pa));
+        }
+        throw new NotImplementedException(
+                "filtered-navigation read '" + pa.property()
+                + "' reached substitution unlifted — the router flip owns"
+                + " this shape (batch 5); the lift pre-pass must rewrite"
+                + " it [userVar=" + target.userVar() + "]");
+    }
+
+    /** Does this read's underlying filter carry a CORRELATED predicate
+     * (free reads of the OUTER row)? Same unwrapping as
+     * {@link #filteredNavLeafRead} (class hops + 1-arg multiplicity
+     * wrappers); the closed/correlated fact is
+     * {@link SyntheticHeads#predClosedOverParam} — the one owner. */
+    private boolean correlatedFilteredRead(TypedPropertyAccess pa) {
+        TypedSpec s = pa.source();
+        while (true) {
+            if (s instanceof TypedPropertyAccess p2
+                    && p2.info().type() instanceof Type.ClassType) {
+                s = p2.source();
+                continue;
+            }
+            if (s instanceof TypedNativeCall c && c.args().size() == 1) {
+                s = c.args().get(0);
+                continue;
+            }
+            break;
+        }
+        return s instanceof TypedFilter f
+                && f.predicate().parameters().size() == 1
+                && !SyntheticHeads.predClosedOverParam(f.predicate());
     }
 
     private @com.legend.Nullable TypedSpec filteredNavLeafRead(TypedPropertyAccess pa) {
