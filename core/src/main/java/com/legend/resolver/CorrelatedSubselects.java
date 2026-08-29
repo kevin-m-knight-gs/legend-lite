@@ -1631,6 +1631,13 @@ private static boolean readsVarOutsideSlot(TypedSpec n, String var,
         return com.legend.lowering.Aggregates.isDemandReducer(callee);
     }
 
+    /** Node-level gate (§4AD decision 1): infix plus (n-ary args) is
+     * row-wise over navigations — see Aggregates.isDemandReducer. */
+    static boolean isAggregate(TypedNativeCall nc) {
+        return com.legend.lowering.Aggregates.isDemandReducer(
+                nc.callee(), nc.args().size());
+    }
+
 
 static boolean isCountFamily(TypedNativeCall nc) {
         String q = nc.callee().qualifiedName();
@@ -2057,7 +2064,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                          java.util.function.BiPredicate<ClassSource, String> bareHead) {
         if (n instanceof TypedNativeCall nc
                 && !nc.args().isEmpty()
-                && isAggregate(nc.callee())) {
+                && isAggregate(nc)) {
             List<String> path =
                     Substitution.pathOf(nc.args().get(0), userVar);
             // AGG(PA(leaf, sortBy(<nav>, key))) — ORDERED aggregation:

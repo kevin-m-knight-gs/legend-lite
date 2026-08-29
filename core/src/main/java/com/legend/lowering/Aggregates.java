@@ -130,6 +130,22 @@ public final class Aggregates {
                 && REDUCERS.get(callee.signatureKey()) != SqlAgg.Fn.ANY_VALUE;
     }
 
+    /** Node-level demand membership (§4AD decision 1): INFIX plus —
+     * the n-ary spelling {@code a + b} — is a ROW-WISE operation over
+     * a mapped navigation in the engine's algebra (witness
+     * testQualifierWithOperation: concat per fanned row), never a
+     * reduction; only the 1-arg collection form ({@code ->plus()} ==
+     * sum) reduces. The and/or arity precedent, applied at the node. */
+    public static boolean isDemandReducer(TypedFunction callee, int argc) {
+        return isDemandReducer(callee)
+                && !(PLUS_KEYS.contains(callee.signatureKey()) && argc > 1);
+    }
+
+    /** The plus-family overload keys (the one FQN family whose infix
+     * spelling is not a reduction). */
+    private static final java.util.Set<String> PLUS_KEYS =
+            java.util.Set.copyOf(Pure.nativeKeysAt("plus"));
+
     static boolean isReducerKey(String signatureKey) {
         return REDUCERS.containsKey(signatureKey);
     }

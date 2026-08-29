@@ -1790,7 +1790,7 @@ final class Substitution {
                 // ->map(b|1)->sum() collapsed to the constant) — reducer
                 // aggregation registers via the demand scan; reaching here
                 // means the scan missed it, which stays a loud wall.
-                if (CorrelatedSubselects.isAggregate(c.callee())
+                if (CorrelatedSubselects.isAggregate(c)
                         && !c.args().isEmpty()
                         && c.args().get(0) instanceof TypedMap rm
                         && !Type.isRelation(rm.source().info().type())

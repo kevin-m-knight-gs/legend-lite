@@ -279,7 +279,87 @@ final class SyntheticHeads {
      * never silent SQL.
      */
     TypedSpec liftFilteredHeads(TypedSpec n) {
+        scalarLiftHeads = scalarSafeHeads(n);
         return liftFilteredHeads(n, true);
+    }
+
+    /** §4AD slice 1 batch-1 SCOPE GATE — heads whose SCALAR ([0..1])
+     * filtered reads may lift to the fan-out route: exactly ONE
+     * distinct predicate query-wide. Two distinct preds on one head
+     * over a CHAINED property mapping share the mid-hop join and
+     * cross-fan (testProjectMerge 3 -> 10, the batch's one measured
+     * regression); single-pred heads are the four measured wins.
+     * NAMED residue: multi-pred scalar heads keep the correlated arm
+     * until per-occurrence mid-hop materialization lands. */
+    private java.util.Set<String> scalarLiftHeads = java.util.Set.of();
+
+    /** Nesting depth inside op-level filter PREDICATES — the scalar
+     * lift is value-position only (see the TypedFilter walk case). */
+    private int filterPredDepth;
+
+    /** §4AD slice 1 — may this filtered-nav READ take the fan-out
+     * route? Non-scalar reads always lift (pre-existing). The scalar
+     * ([0..1]) depth-1 exclusion NARROWS: the engine's row algebra
+     * fans a filtered navigation regardless of the read's declared
+     * multiplicity (charter decision 1; witness
+     * testQualifierWithOperation: LEFT JOIN + WHERE, never a
+     * correlated scalar subquery), so plain single-pred heads lift in
+     * VALUE position and filteredNavLeafRead loses them.
+     * Correlated-arm RESIDUE (named, each measured): filter-position
+     * reads (slice-2 scope; slot-prefix collision), MILESTONED heads
+     * (lift emits unbound-alias SQL — testTemporalDateVariable...),
+     * MULTI-PRED heads (shared mid-hop cross-fan — testProjectMerge). */
+    private boolean scalarReadLifts(TypedPropertyAccess pa, TypedFilter f) {
+        if (!(pa.info().multiplicity()
+                instanceof com.legend.compiler.element.type
+                        .Multiplicity.Bounded b
+                && Integer.valueOf(1).equals(b.upper())
+                && directlyOnVar(f.source()))) {
+            return true;   // non-scalar / deep: the pre-existing lift
+        }
+        if (filterPredDepth > 0
+                || f.source() instanceof TypedMilestonedAccess) {
+            return false;
+        }
+        String prop = f.source() instanceof TypedPropertyAccess shp
+                ? shp.property()
+                : ((TypedMilestonedAccess) f.source()).property();
+        return scalarLiftHeads.contains(prop);
+    }
+
+    private java.util.Set<String> scalarSafeHeads(TypedSpec top) {
+        java.util.Map<String, java.util.Set<TypedSpec>> perHead =
+                new java.util.LinkedHashMap<>();
+        scanScalarPreds(top, perHead);
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        perHead.forEach((h, ps) -> {
+            if (ps.size() == 1) {
+                out.add(h);
+            }
+        });
+        return out;
+    }
+
+    private void scanScalarPreds(TypedSpec n,
+            java.util.Map<String, java.util.Set<TypedSpec>> out) {
+        if (n instanceof TypedFilter f
+                && f.predicate().parameters().size() == 1
+                && f.predicate().body().size() == 1
+                && f.info().type() instanceof Type.ClassType
+                && isLiftableNav(f.source())) {
+            String prop = switch (f.source()) {
+                case TypedPropertyAccess hp -> hp.property();
+                case TypedMilestonedAccess ma -> ma.property();
+                default -> null;
+            };
+            if (prop != null) {
+                out.computeIfAbsent(prop, k -> new java.util.LinkedHashSet<>())
+                        .add(alphaCanonicalBody(f.predicate()));
+            }
+        }
+        for (TypedSpec c : n.children()) {
+            scanScalarPreds(c, out);
+        }
     }
 
     /** Node-local canonicalizer applied before the lift arms (identity by
@@ -361,18 +441,7 @@ final class SyntheticHeads {
                 && f.info().type()
                         instanceof Type.ClassType
                 && isLiftableNav(f.source())
-                // scalar ([0..1]) reads: DEPTH-1 heads stay with the
-                // correlated-scalar arm (filteredNavLeafRead — the
-                // complementary split); a DEEP head has no scalar arm and
-                // lifts into the chained assoc-join route, whose LEFT
-                // joins deliver NULL on no match (engine golden
-                // testQualifierInLambdaDeep: the closed pred wraps the
-                // chained hop's target subselect).
-                && !(pa.info().multiplicity()
-                        instanceof com.legend.compiler.element.type
-                                .Multiplicity.Bounded b
-                        && Integer.valueOf(1).equals(b.upper())
-                        && directlyOnVar(f.source()))) {
+                && scalarReadLifts(pa, f)) {
             TypedSpec head = liftFilteredHeads(f.source(), true);
             TypedSpec renamed;
             String synth;
@@ -452,10 +521,26 @@ final class SyntheticHeads {
                                                             .contains(c.fn()))))
                                     .toList(),
                             p.info());
-            case TypedFilter f -> new TypedFilter(
-                    liftFilteredHeads(f.source(), enabled),
-                    (TypedLambda) liftFilteredHeads(f.predicate(), enabled),
-                    f.info());
+            case TypedFilter f -> {
+                // §4AD slice 1 POSITION SCOPE: the newly-permitted
+                // scalar lift is VALUE-position only (map/project
+                // bodies) — a filter PREDICATE keeps the correlated
+                // arm until slice 2 (dedup) is designed and agreed
+                // (measured: lifting there collides the synthetic
+                // head's slot prefix with the plain head's —
+                // duplicate 'employees_ID' walls on two advanced
+                // qualifier tests).
+                TypedSpec src2 = liftFilteredHeads(f.source(), enabled);
+                filterPredDepth++;
+                TypedLambda p2;
+                try {
+                    p2 = (TypedLambda) liftFilteredHeads(
+                            f.predicate(), enabled);
+                } finally {
+                    filterPredDepth--;
+                }
+                yield new TypedFilter(src2, p2, f.info());
+            }
             case TypedSortBy sb -> new TypedSortBy(
                     liftFilteredHeads(sb.source(), enabled),
                     (TypedLambda) liftFilteredHeads(sb.key(), enabled),
@@ -546,7 +631,7 @@ final class SyntheticHeads {
     private @com.legend.Nullable TypedSpec liftAggBareFilter(
             TypedNativeCall agg, boolean enabled) {
         if (agg.args().isEmpty()
-                || !CorrelatedSubselects.isAggregate(agg.callee())
+                || !CorrelatedSubselects.isAggregate(agg)
                 || !(agg.args().get(0) instanceof TypedFilter fa)
                 || fa.predicate().parameters().size() != 1
                 || !(fa.info().type() instanceof Type.ClassType)

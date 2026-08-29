@@ -681,7 +681,12 @@ public class RelationalCorpusRunner {
             // frame row-count verdict (+84); per-key enum decode for
             // class frames (+14); case-collision goldens retried on
             // the engine's own casing, H2Settings.ENGINE_CASED (+11).
-            org.junit.jupiter.api.Assertions.assertEquals(1385,
+            // 1385 -> 1387 (§4AD slice 1 batch 1, value-position
+            // fan-out): testQualifierWithIsolationXX +
+            // testChainedInnerJoinsWithQualifierInGroupBy row-verify
+            // against the engine goldens; 2 more UPGRADED
+            // rescued -> byte-matched (testQualifierWithVariableArg ×2).
+            org.junit.jupiter.api.Assertions.assertEquals(1387,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-with-exec-passing"),

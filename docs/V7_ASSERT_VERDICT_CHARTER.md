@@ -864,7 +864,19 @@ never an estimate — **DONE 2026-08-29**: NAV_ARM_CENSUS_4AD.md,
 exists-material 946 / correlated-count 234 / exists-join-dedup 109 /
 correlated-agg 2; 1,017 distinct tests, committed witness dump
 nav-arm-census-4AD.txt, instrument lowering/NavArmCensus prints
-per-sweep) → slice 1 map/select navigations → slice 2
+per-sweep) → slice 1 map/select navigations (**BATCH 1 LANDED
+2026-08-29, ALLGATES GREEN**: scalar filtered-nav reads in VALUE
+position lift to the #fN fan-out join — the correlated-scalar arm
+loses the shape; infix plus is row-wise over navigations, never an
+aggregate demand (arity gate, the and/or precedent); position-scoped
+— filter predicates untouched pending the slice-2 dedup plan (user
+directive). Receipts: exec-passing 1,385→1,387, M1 matched 455→457
+(2 upgraded rescued→byte-match), tests/advanced 62→63, zero
+regressions. NAMED residue on the correlated arm, each measured:
+MILESTONED heads (lift emits unbound-alias SQL), MULTI-PRED heads
+over chained PMs (shared mid-hop cross-fan, testProjectMerge 3→10 —
+burn = per-occurrence mid-hop materialization), filter-position
+reads (slot-prefix collision; slice-2 scope)) → slice 2
 filter/qualifier predicates (dedup removal) → slice 3 unpark the
 oracle Collection/Scalar lane (45 verify; the cardinality-skew
 decline RETIRES — its reason for existing is gone). Acceptance per
@@ -897,7 +909,7 @@ once during a full corpus sweep. Of **5,241** total:
 
 | bucket | count | plan |
 |---|---|---|
-| sql/plan-text compares (assertSameSQL family + CONTENT-classified sqlQueryToString-family args, §4U census split; §4Y run/gen split: **run 1,491 / gen 38**) | 1,529 | **OUT of the migration by design, permanently.** Already end-state: text match → H2 row-check (320, 0 diverged); text differs → engine's golden SQL executes on H2, rows vs our rows (632 verified, 0 diverged); unverifiable → advisory, counted by reason (145 — LEG 8 burns these); 394 run-backed asserts on their own compare arms (h2Compatible 322 + mixed) — reconciliation = named follow-up. **§4AB-§4AC update (2026-08-28): exec-passing 1,385 / text-only 44 / unable-to-exec 97 (diff-noreplay 71, match-noreplay 8); M1 455 matched + 880 rescued, 0 diverged, 11 unverifiable** |
+| sql/plan-text compares (assertSameSQL family + CONTENT-classified sqlQueryToString-family args, §4U census split; §4Y run/gen split: **run 1,491 / gen 38**) | 1,529 | **OUT of the migration by design, permanently.** Already end-state: text match → H2 row-check (320, 0 diverged); text differs → engine's golden SQL executes on H2, rows vs our rows (632 verified, 0 diverged); unverifiable → advisory, counted by reason (145 — LEG 8 burns these); 394 run-backed asserts on their own compare arms (h2Compatible 322 + mixed) — reconciliation = named follow-up. **§4AB-§4AC update (2026-08-28): exec-passing 1,385 / text-only 44 / unable-to-exec 97 (diff-noreplay 71, match-noreplay 8); M1 455 matched + 880 rescued, 0 diverged, 11 unverifiable. §4AD slice-1 batch-1 update (2026-08-29): exec-passing 1,387 (+2 row-verified), M1 457 matched (+2 upgraded rescued→byte-match)** |
 | TDG/test-data-gen text compares | 123 | OUT by design, permanently (host artifacts) |
 | host-unsupported forms | 28 | name-by-name adjudication (leg 6) |
 | **adjudicating through the production verdict path today** | **2,658** | 2,650 agree + 8 named wire-fidelity disagreements (leg 5) |

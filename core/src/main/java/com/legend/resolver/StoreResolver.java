@@ -3155,7 +3155,7 @@ public final class StoreResolver {
         // scan did not recognize this shape").
         if (n instanceof TypedNativeCall ac
                 && !ac.args().isEmpty()
-                && CorrelatedSubselects.isAggregate(ac.callee())
+                && CorrelatedSubselects.isAggregate(ac)
                 && CorrelatedSubselects.containsToManyCrossing(
                         ac.args().get(0), userVar, cs,
                         this::isToManyAssocHead)) {

@@ -136,6 +136,14 @@ class CodeShapeGuardrailTest {
             // property user calls stand for structural extraction —
             // same lifecycle as a parser cursor, scoped to one rewrite
             "UserCallInliner.configMode",
+            // §4AD slice 1: filter-predicate nesting depth during the
+            // one liftFilteredHeads walk (value-position scope gate) —
+            // same lifecycle as a parser cursor
+            "SyntheticHeads.filterPredDepth",
+            // §4AD slice 1: the walk's pre-scanned single-pred head set
+            // (scalar-lift scope gate) — set once at walk entry, read
+            // during the same walk; same lifecycle as a parser cursor
+            "SyntheticHeads.scalarLiftHeads",
             // NormalizeRequired inline α-rename counter — same lifecycle as
             // UserCallInliner.fresh (fresh-name generation per compile)
             "Typer.nrFresh",
