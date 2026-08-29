@@ -80,19 +80,20 @@ public class H2 extends AnsiSqlRenderer {
         return '"' + name.replace("\"", "\"\"") + '"';
     }
 
-    /** Alias-less projections label EXPLICITLY from the declared
-     * output (engine convention): on this case-sensitive session an
-     * implicit label folds to the PHYSICAL case while downstream
-     * layers reference the DECLARED name (witness: the calendar
-     * aggregate's bare hireType labeling HIRETYPE under the csv
-     * wrap's "hireType" read). */
+    /** Alias-less projections label EXPLICITLY from the projection's
+     * DECLARED output (engine convention; outputs-from-projections —
+     * the output rides the projection itself, no positional pairing):
+     * on this case-sensitive session an implicit label folds to the
+     * PHYSICAL case while downstream layers reference the DECLARED
+     * name (witness: the calendar aggregate's bare hireType labeling
+     * HIRETYPE under the csv wrap's "hireType" read). Stars and
+     * deliberately output-less projections pass labels through. */
     @Override
-    protected String projection(com.legend.sql.SqlSelect.Projection p,
-            com.legend.sql.@com.legend.Nullable OutputCol out) {
-        if (p.alias() != null || out == null) {
-            return projection(p);
+    protected String projection(com.legend.sql.SqlSelect.Projection p) {
+        if (p.alias() != null || p.out() == null) {
+            return super.projection(p);
         }
-        return expr(p.expr(), 0) + " AS " + aliasIdent(out.name());
+        return expr(p.expr(), 0) + " AS " + aliasIdent(p.out().name());
     }
 
     /** The origin-driven reference rule (convergence slice 3): DERIVED

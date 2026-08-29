@@ -53,22 +53,18 @@ final class Pivots {
                                                 .Type.RelationType.PIVOT_SEPARATOR)),
                                 col);
             }
-            List<OutputCol> keyedOutputs = new ArrayList<>();
-            for (OutputCol oc : inner.outputs()) {
-                if (!pv.pivotColumns().contains(oc.name())) {
-                    keyedOutputs.add(oc);
-                }
-            }
-            keyedOutputs.add(new OutputCol(keyName,
-                    SqlType.Scalar.VARCHAR, false));
+            // outputs-from-projections: the StarExcept expands inner's
+            // outputs minus the pivot columns; the key slot rides its
+            // projection — the old hand-built keyedOutputs list is gone
             SqlSelect keyed = SqlSelect.starOf(inner).withProjections(
                     List.of(new SqlSelect.Projection(
-                                    new SqlExpr.StarExcept(inner.alias(), pv.pivotColumns()), null),
+                                    new SqlExpr.StarExcept(inner.alias(), pv.pivotColumns()), null, null),
                             new SqlSelect.Projection(
                                     Objects.requireNonNull(key,
                                             "pivot requires a key column"),
-                                    keyName)),
-                    keyedOutputs);
+                                    keyName,
+                                    new OutputCol(keyName,
+                                            SqlType.Scalar.VARCHAR, false))));
             inner = new SqlSource.Subselect(keyed, lw.nextAlias(), null);
             on = List.of(Fold.sourceColumn(inner, keyName));
         }

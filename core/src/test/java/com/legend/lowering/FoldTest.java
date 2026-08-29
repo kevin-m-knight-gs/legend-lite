@@ -58,7 +58,7 @@ class FoldTest {
                 List.of(), List.of(SqlSelect.SortKey.asc(col("A"))), null);
         assertEquals(Fold.FilterSlot.WHERE, Fold.filterSlot(
                 BARE.withProjections(List.of(
-                        new SqlSelect.Projection(rank, "r")), null), false));
+                        new SqlSelect.Projection(rank, "r", null))), false));
         // ...and expression-deep containment stays available to the seam
         assertTrue(Fold.containsWindow(
                 SqlExpr.Call.of(SqlFn.PLUS, rank, new SqlExpr.IntLit(1))));
@@ -133,9 +133,8 @@ class FoldTest {
     @DisplayName("resolveInto sees THROUGH a star projection to source columns")
     void resolveThroughStar() {
         SqlSelect extended = BARE.withProjections(List.of(
-                new SqlSelect.Projection(new SqlExpr.Star("t0"), null),
-                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.PLUS, col("A"), col("B")), "computed")),
-                List.of());
+                new SqlSelect.Projection(new SqlExpr.Star("t0"), null, null),
+                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.PLUS, col("A"), col("B")), "computed", null)));
         assertEquals(col("AGE"), Fold.resolveInto(extended, "AGE"),
                 "unclaimed names pass through the star to the source");
         assertEquals(SqlExpr.Call.of(SqlFn.PLUS, col("A"), col("B")),
@@ -149,10 +148,9 @@ class FoldTest {
     void resolveIntoRules() {
         assertEquals(col("AGE"), Fold.resolveInto(BARE, "AGE"));
         SqlSelect projected = BARE.withProjections(List.of(
-                new SqlSelect.Projection(col("AGE"), "YEARS"),
-                new SqlSelect.Projection(col("NAME"), null),
-                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.PLUS, col("A"), col("B")), "SUM_AB")),
-                List.of());
+                new SqlSelect.Projection(col("AGE"), "YEARS", null),
+                new SqlSelect.Projection(col("NAME"), null, null),
+                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.PLUS, col("A"), col("B")), "SUM_AB", null)));
         assertEquals(col("AGE"), Fold.resolveInto(projected, "YEARS"),
                 "renamed column substitutes to its source");
         assertEquals(col("NAME"), Fold.resolveInto(projected, "NAME"));

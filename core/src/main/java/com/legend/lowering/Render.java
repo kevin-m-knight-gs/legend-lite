@@ -146,7 +146,7 @@ public final class Render {
         }
         List<SqlSelect.Projection> rowProjs = new ArrayList<>();
         List<OutputCol> rowOuts = new ArrayList<>();
-        rowProjs.add(new SqlSelect.Projection(line, "_csv_line"));
+        rowProjs.add(new SqlSelect.Projection(line, "_csv_line", null));
         rowOuts.add(new OutputCol("_csv_line", SqlType.Scalar.VARCHAR, false));
         List<SqlSelect.SortKey> aggOrder = hoistOrder(inner, cols,
                 rowAlias, aggAlias, new Object[] {rowProjs, rowOuts});
@@ -168,12 +168,10 @@ public final class Render {
         SqlExpr text = cat(header, nl, rowsJoined, nl);
         SqlSelect rows = SqlSelect.starOf(
                         new SqlSource.Subselect(inner, rowAlias, null))
-                .withProjections(rowProjs, rowOuts);
+                .withProjections(SqlSelect.paired(rowProjs, rowOuts));
         return SqlSelect.starOf(new SqlSource.Subselect(rows, aggAlias, null))
-                .withProjections(
-                        List.of(new SqlSelect.Projection(text, "csv")),
-                        List.of(new OutputCol("csv",
-                                SqlType.Scalar.VARCHAR, false)));
+                .withProjections(List.of(new SqlSelect.Projection(text, "csv",
+                        new OutputCol("csv", SqlType.Scalar.VARCHAR, false))));
     }
 
     /** The PRODUCT CSV wire (E5): RFC 4180 — CRLF line endings, header
@@ -203,7 +201,7 @@ public final class Render {
         }
         List<SqlSelect.Projection> rowProjs = new ArrayList<>();
         List<OutputCol> rowOuts = new ArrayList<>();
-        rowProjs.add(new SqlSelect.Projection(line, "_csv_line"));
+        rowProjs.add(new SqlSelect.Projection(line, "_csv_line", null));
         rowOuts.add(new OutputCol("_csv_line", SqlType.Scalar.VARCHAR, false));
         List<SqlSelect.SortKey> aggOrder = hoistOrder(inner, cols,
                 rowAlias, aggAlias, new Object[] {rowProjs, rowOuts});
@@ -223,12 +221,10 @@ public final class Render {
                 cat(header, crlf, agg, crlf));
         SqlSelect rows = SqlSelect.starOf(
                         new SqlSource.Subselect(inner, rowAlias, null))
-                .withProjections(rowProjs, rowOuts);
+                .withProjections(SqlSelect.paired(rowProjs, rowOuts));
         return SqlSelect.starOf(new SqlSource.Subselect(rows, aggAlias, null))
-                .withProjections(
-                        List.of(new SqlSelect.Projection(text, "wire")),
-                        List.of(new OutputCol("wire",
-                                SqlType.Scalar.VARCHAR, false)));
+                .withProjections(List.of(new SqlSelect.Projection(text, "wire",
+                        new OutputCol("wire", SqlType.Scalar.VARCHAR, false))));
     }
 
     /** The per-row product JSON object ({@code json_object} of the
@@ -263,10 +259,8 @@ public final class Render {
                     k.nullOrder(), null));
         }
         return SqlSelect.starOf(new SqlSource.Subselect(inner, rowAlias, null))
-                .withProjections(
-                        List.of(new SqlSelect.Projection(obj, "_wire_row")),
-                        List.of(new OutputCol("_wire_row",
-                                SqlType.Scalar.VARCHAR, false)))
+                .withProjections(List.of(new SqlSelect.Projection(obj, "_wire_row",
+                        new OutputCol("_wire_row", SqlType.Scalar.VARCHAR, false))))
                 .withOrderBy(lifted);
     }
 
@@ -286,7 +280,7 @@ public final class Render {
                 SqlType.Scalar.VARCHAR);
         List<SqlSelect.Projection> rowProjs = new ArrayList<>();
         List<OutputCol> rowOuts = new ArrayList<>();
-        rowProjs.add(new SqlSelect.Projection(obj, "_wire_row"));
+        rowProjs.add(new SqlSelect.Projection(obj, "_wire_row", null));
         rowOuts.add(new OutputCol("_wire_row", SqlType.Scalar.VARCHAR, false));
         List<SqlSelect.SortKey> aggOrder = hoistOrder(inner, cols,
                 rowAlias, aggAlias, new Object[] {rowProjs, rowOuts});
@@ -301,12 +295,10 @@ public final class Render {
                         new SqlExpr.StringLit("]")));
         SqlSelect rows = SqlSelect.starOf(
                         new SqlSource.Subselect(inner, rowAlias, null))
-                .withProjections(rowProjs, rowOuts);
+                .withProjections(SqlSelect.paired(rowProjs, rowOuts));
         return SqlSelect.starOf(new SqlSource.Subselect(rows, aggAlias, null))
-                .withProjections(
-                        List.of(new SqlSelect.Projection(text, "wire")),
-                        List.of(new OutputCol("wire",
-                                SqlType.Scalar.VARCHAR, false)));
+                .withProjections(List.of(new SqlSelect.Projection(text, "wire",
+                        new OutputCol("wire", SqlType.Scalar.VARCHAR, false))));
     }
 
     /** The Lowerer's relation-toString dispatch target (engine
@@ -437,7 +429,7 @@ public final class Render {
             // reads the bare SQL column, labeled with the presented name)
             String presented = Type.RelationType.presentPivotName(oc.name());
             projs.add(new SqlSelect.Projection(
-                    SqlExpr.Column.of(wrapAlias, oc), presented));
+                    SqlExpr.Column.of(wrapAlias, oc), presented, null));
             Type t = colType.apply(presented);
             relCols.add(new Type.Column(presented, t,
                     com.legend.compiler.element.type.Multiplicity
@@ -447,7 +439,7 @@ public final class Render {
         }
         SqlSelect concrete = SqlSelect.starOf(
                         new SqlSource.Subselect(d.inner(), wrapAlias, null))
-                .withProjections(projs, presentedOuts);
+                .withProjections(SqlSelect.paired(projs, presentedOuts));
         // ROW ORDER: an ordered inner keeps plain-column keys on the
         // wrapper so tdsString's hoist sees them; anything else stays
         // loud in the hoist itself.
@@ -511,7 +503,7 @@ public final class Render {
         }
         List<SqlSelect.Projection> rowProjs = new ArrayList<>();
         List<OutputCol> rowOuts = new ArrayList<>();
-        rowProjs.add(new SqlSelect.Projection(line, "_tds_line"));
+        rowProjs.add(new SqlSelect.Projection(line, "_tds_line", null));
         rowOuts.add(new OutputCol("_tds_line", SqlType.Scalar.VARCHAR, false));
         SqlExpr nl = new SqlExpr.StringLit("\n");
         SqlExpr rowsJoined = SqlExpr.Call.of(SqlFn.COALESCE,
@@ -525,12 +517,10 @@ public final class Render {
                 new SqlExpr.StringLit("\n#"));
         SqlSelect rows = SqlSelect.starOf(
                         new SqlSource.Subselect(inner, rowAlias, null))
-                .withProjections(rowProjs, rowOuts);
+                .withProjections(SqlSelect.paired(rowProjs, rowOuts));
         return SqlSelect.starOf(new SqlSource.Subselect(rows, aggAlias, null))
-                .withProjections(
-                        List.of(new SqlSelect.Projection(text, "tds")),
-                        List.of(new OutputCol("tds",
-                                SqlType.Scalar.VARCHAR, false)));
+                .withProjections(List.of(new SqlSelect.Projection(text, "tds",
+                        new OutputCol("tds", SqlType.Scalar.VARCHAR, false))));
     }
 
     /** The engine {@code s()} cell (s.pure:23-38). */
@@ -634,10 +624,10 @@ public final class Render {
         SqlSelect count = SqlSelect.starOf(
                         new SqlSource.Subselect(src, alias, null))
                 .withProjections(List.of(new SqlSelect.Projection(
-                                new SqlAgg.Reducer(SqlAgg.Fn.COUNT,
-                                        List.of(), false, List.of()), null)),
-                        List.of(new OutputCol("count",
-                                SqlType.Scalar.BIGINT, false)));
+                        new SqlAgg.Reducer(SqlAgg.Fn.COUNT,
+                                List.of(), false, List.of()), null,
+                        new OutputCol("count",
+                                SqlType.Scalar.BIGINT, false))));
         return new SqlExpr.ScalarSubquery(count);
     }
 
@@ -668,7 +658,7 @@ public final class Render {
                 ((List<SqlSelect.Projection>) carry[0]).add(
                         new SqlSelect.Projection(
                                 SqlExpr.Column.of(rowAlias, src),
-                                oname));
+                                oname, null));
                 // E2E audit: hoist carry transports all four dimensions
                 ((List<OutputCol>) carry[1]).add(
                         new OutputCol(oname, src.type(), src.nullable(),
@@ -784,7 +774,7 @@ public final class Render {
         }
         List<SqlSelect.Projection> rowProjs = new ArrayList<>();
         List<OutputCol> rowOuts = new ArrayList<>();
-        rowProjs.add(new SqlSelect.Projection(line, "_pct_line"));
+        rowProjs.add(new SqlSelect.Projection(line, "_pct_line", null));
         rowOuts.add(new OutputCol("_pct_line", SqlType.Scalar.VARCHAR, false));
         List<SqlSelect.SortKey> aggOrder = hoistOrder(inner, hoistCols,
                 rowAlias, aggAlias, new Object[] {rowProjs, rowOuts});
@@ -798,12 +788,10 @@ public final class Render {
                 rowsJoined);
         SqlSelect rows = SqlSelect.starOf(
                         new SqlSource.Subselect(inner, rowAlias, null))
-                .withProjections(rowProjs, rowOuts);
+                .withProjections(SqlSelect.paired(rowProjs, rowOuts));
         return SqlSelect.starOf(new SqlSource.Subselect(rows, aggAlias, null))
-                .withProjections(
-                        List.of(new SqlSelect.Projection(text, "pctTds")),
-                        List.of(new OutputCol("pctTds",
-                                SqlType.Scalar.VARCHAR, false)));
+                .withProjections(List.of(new SqlSelect.Projection(text, "pctTds",
+                        new OutputCol("pctTds", SqlType.Scalar.VARCHAR, false))));
     }
 
     /** The header line — a COMPILE-TIME constant from the typed schema

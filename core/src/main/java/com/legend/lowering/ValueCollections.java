@@ -63,11 +63,11 @@ final class ValueCollections {
                 ? new SqlExpr.ArrayLit(List.of(cellRead)) : cellRead;
         SqlSelect agg = SqlSelect.starOf(new SqlSource.Subselect(proj, sub, null))
                 .withProjections(List.of(new SqlSelect.Projection(
-                                new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
-                                        collected), false, List.of()),
-                                null)),
-                        List.of(new OutputCol("value",
-                                SqlType.Scalar.VARCHAR, true)));
+                        new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
+                                collected), false, List.of()),
+                        null,
+                        new OutputCol("value",
+                                SqlType.Scalar.VARCHAR, true))));
         SqlExpr listed = new SqlExpr.ScalarSubquery(agg);
         return collMapper
                 ? SqlExpr.Call.of(SqlFn.LIST_FLATTEN, listed)
@@ -79,13 +79,13 @@ final class ValueCollections {
     static SqlSelect columnList(SqlSelect rel, String col, String sub) {
         return SqlSelect.starOf(new SqlSource.Subselect(rel, sub, null))
                 .withProjections(List.of(new SqlSelect.Projection(
-                                new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
-                                        SqlExpr.Column.of(sub, rel.outputs(),
-                                                col)),
-                                        false, java.util.List.of()),
-                                null)),
-                        List.of(new OutputCol(col, SqlType.Scalar.VARCHAR,
-                                true)));
+                        new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
+                                SqlExpr.Column.of(sub, rel.outputs(),
+                                        col)),
+                                false, java.util.List.of()),
+                        null,
+                        new OutputCol(col, SqlType.Scalar.VARCHAR,
+                                true))));
     }
 
     /** {@code SELECT flatten(LIST([cells...]))} over {@code rel} — a
@@ -118,15 +118,15 @@ final class ValueCollections {
         }
         return SqlSelect.starOf(new SqlSource.Subselect(rel, sub, null))
                 .withProjections(List.of(new SqlSelect.Projection(
-                                SqlExpr.Call.of(SqlFn.LIST_FLATTEN,
-                                        new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
-                                                new SqlExpr.ArrayLit(cells)),
-                                                false, java.util.List.of())),
-                                null)),
-                        List.of(new OutputCol("value",
+                        SqlExpr.Call.of(SqlFn.LIST_FLATTEN,
+                                new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
+                                        new SqlExpr.ArrayLit(cells)),
+                                        false, java.util.List.of())),
+                        null,
+                        new OutputCol("value",
                                 allSpell ? SqlType.Scalar.LITERAL
                                         : SqlType.Scalar.VARCHAR,
-                                true)));
+                                true))));
     }
 
     /** Delegates to the canonical reader on the node itself. */

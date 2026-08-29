@@ -139,99 +139,59 @@ public final class SqlTyping {
     // flip encodes it; the census reads the same relation).
     // ------------------------------------------------------------------
 
-    /** Label reconciliation — called by {@link SqlSelect}'s canonical
-     * constructor (the compact-constructor idiom: the select's labels
-     * are a property of the select, computed once). KIND: equal or
-     * ADMITTED keeps the pure-contract erasure; a label lie ADOPTS the
-     * wire. (A third CONFORM-by-emitted-cast verdict was tried at this
-     * seam and REVERTED by the referee — a type-pair cannot distinguish
-     * the concrete-Float conversion from the abstract-Number identity
-     * carrier; conformance by emission lives at the STAMP-GUARDED
-     * mapping-read seam in the lowering — T4 leg 1.) NULLABILITY (§E3
-     * M-N3 — THE FLIP): the label ADOPTS the slot truth
-     * ({@link #slotNullable}) in BOTH directions — the pure-multiplicity
-     * echo is no longer an authority here (the [1] contract stays the
-     * PURE type; the SQL label speaks the physics). A wire NULL under a
-     * nullable=false label is thereafter a compiler bug, pinned
-     * EQUALITY-0. Star frames carry no per-column claim (their born
-     * outputs are the DDL/join-pad authorities, M-N2). */
-    static @com.legend.Nullable List<OutputCol> reconcileLabels(
-            List<SqlSelect.Projection> projections, List<SqlExpr> groupBy,
-            @com.legend.Nullable List<OutputCol> outputs) {
-        if (outputs == null) {
-            return null;
+    /** Per-SLOT label reconciliation — called by {@link SqlSelect}'s
+     * constructor for each explicit projection against its DECLARED
+     * output (outputs-from-projections: the positional reconcileLabels
+     * and its star-tail shift are subsumed — every slot arrives already
+     * paired). KIND: equal or ADMITTED keeps the pure-contract erasure;
+     * a label lie ADOPTS the wire. (A third CONFORM-by-emitted-cast
+     * verdict was tried at this seam and REVERTED by the referee — a
+     * type-pair cannot distinguish the concrete-Float conversion from
+     * the abstract-Number identity carrier; conformance by emission
+     * lives at the STAMP-GUARDED mapping-read seam in the lowering —
+     * T4 leg 1.) NULLABILITY (§E3 M-N3 — THE FLIP): the label ADOPTS
+     * the slot truth ({@link #slotNullable}) in BOTH directions — the
+     * pure-multiplicity echo is no longer an authority here (the [1]
+     * contract stays the PURE type; the SQL label speaks the physics).
+     * A wire NULL under a nullable=false label is thereafter a compiler
+     * bug, pinned EQUALITY-0. Star expansions carry no per-column claim
+     * (their inherited outputs are the DDL/join-pad authorities, M-N2). */
+    static OutputCol reconcileSlot(SqlExpr pe, OutputCol oc,
+            boolean grouped) {
+        SqlType type = oc.type();
+        boolean tolSlot = oc.tolerated();
+        if (pe.type() instanceof TypeFact.Typed t) {
+            SqlType computed = t.type();
+            // ENGINE-COMPAT carry-through (charter §4bZ, replaces
+            // the two blanket coercion arms): a TAGGED read keeps
+            // its declared label across the registered kind pairs,
+            // and the slot records the tolerance (the wire census
+            // reads it; an UNTAGGED mismatch falls through to
+            // adoption — loud). The tag also PROPAGATES through
+            // stamped re-reads (an upper select's column claims the
+            // lower's label — equal types, tolerated fact): the
+            // slot stays marked at every level, so the FINAL plan's
+            // outputs carry the tolerance the wire census needs.
+            if (t.tolerated() && (computed.equals(oc.type())
+                    || carryThrough(oc.type(), computed))) {
+                tolSlot = true;
+            } else if (!computed.equals(oc.type())
+                    && !subsumes(oc.type(), computed)) {
+                // untagged label lie: adopt the wire, tag dropped
+                type = computed;
+                tolSlot = false;
+            }
         }
-        // STAR-TAIL frames (§4bZ-V C, 2026-08-26 — the wire-ledger
-        // capture's finding: EVERY remaining diverge/adopt row lived in
-        // a star-bearing select, where the old size gate skipped
-        // reconciliation wholesale and computed types never reached the
-        // labels): one leading star + k computed projections pair with
-        // the LAST k outputs (extend/window append columns — the star
-        // covers the head, whose labels the INNER select already
-        // reconciled). Anything shapelier keeps the no-claim skip.
-        int shift = 0;
-        if (projections.size() != outputs.size()) {
-            boolean starTail = projections.size() >= 2
-                    && projections.size() - 1 <= outputs.size()
-                    && (projections.get(0).expr() instanceof SqlExpr.Star
-                            || projections.get(0).expr()
-                                    instanceof SqlExpr.StarExcept);
-            for (int j = 1; starTail && j < projections.size(); j++) {
-                starTail = !(projections.get(j).expr()
-                                instanceof SqlExpr.Star)
-                        && !(projections.get(j).expr()
-                                instanceof SqlExpr.StarExcept);
-            }
-            if (!starTail) {
-                return outputs;
-            }
-            shift = outputs.size() - (projections.size() - 1);
+        // §E3 M-N3 THE FLIP: nullability adopts the slot truth in
+        // both directions (the projected-NullLit N1 arm is
+        // subsumed — a Bottom slot IS nullable by definition;
+        // union pads restore presence above by member merging).
+        boolean nul = SqlTyping.slotNullable(pe, grouped);
+        if (type.equals(oc.type()) && nul == oc.nullable()
+                && tolSlot == oc.tolerated()) {
+            return oc;
         }
-        boolean grouped = !groupBy.isEmpty();
-        List<OutputCol> os = null;
-        for (int p = shift == 0 ? 0 : 1; p < projections.size(); p++) {
-            int i = shift == 0 ? p : shift + (p - 1);
-            SqlExpr pe = projections.get(p).expr();
-            OutputCol oc = outputs.get(i);
-            SqlType type = oc.type();
-            boolean tolSlot = oc.tolerated();
-            if (pe.type() instanceof TypeFact.Typed t) {
-                SqlType computed = t.type();
-                // ENGINE-COMPAT carry-through (charter §4bZ, replaces
-                // the two blanket coercion arms): a TAGGED read keeps
-                // its declared label across the registered kind pairs,
-                // and the slot records the tolerance (the wire census
-                // reads it; an UNTAGGED mismatch falls through to
-                // adoption — loud). The tag also PROPAGATES through
-                // stamped re-reads (an upper select's column claims the
-                // lower's label — equal types, tolerated fact): the
-                // slot stays marked at every level, so the FINAL plan's
-                // outputs carry the tolerance the wire census needs.
-                if (t.tolerated() && (computed.equals(oc.type())
-                        || carryThrough(oc.type(), computed))) {
-                    tolSlot = true;
-                } else if (!computed.equals(oc.type())
-                        && !subsumes(oc.type(), computed)) {
-                    // untagged label lie: adopt the wire, tag dropped
-                    type = computed;
-                    tolSlot = false;
-                }
-            }
-            // §E3 M-N3 THE FLIP: nullability adopts the slot truth in
-            // both directions (the projected-NullLit N1 arm is
-            // subsumed — a Bottom slot IS nullable by definition;
-            // union pads restore presence above by member merging).
-            boolean nul = SqlTyping.slotNullable(pe, grouped);
-            if (type.equals(oc.type()) && nul == oc.nullable()
-                    && tolSlot == oc.tolerated()) {
-                continue;
-            }
-            if (os == null) {
-                os = new java.util.ArrayList<>(outputs);
-            }
-            os.set(i, new OutputCol(oc.name(), type, nul, tolSlot));
-        }
-        return os == null ? outputs : List.copyOf(os);
+        return new OutputCol(oc.name(), type, nul, tolSlot);
     }
 
     /** Union-label reconciliation — called by {@link SqlUnion}'s
@@ -245,7 +205,12 @@ public final class SqlTyping {
      * computed type when it differs unsubsumed from the label;
      * branch tolerance and nullability propagate (a union cell is
      * nullable when any branch's is). Mixed branch types keep the
-     * contract — loud at the wire, never guessed. */
+     * contract — loud at the wire, never guessed. ORIGIN (SQL-IR
+     * slice 2, audit #7 — the union blanket-DERIVED gap deleted): a
+     * union's delivered labels are its FIRST branch's labels (SQL's
+     * own rule), so each slot inherits the first branch's origin —
+     * branch outputs now derive from branch projections, so the
+     * inherited fact is construction truth, never a stamp. */
     static @com.legend.Nullable List<OutputCol> reconcileUnionLabels(
             List<? extends SqlQuery> branches,
             @com.legend.Nullable List<OutputCol> outputs) {
@@ -259,6 +224,7 @@ public final class SqlTyping {
             boolean tol = false;
             boolean nul = false;
             boolean uniform = true;
+            OutputCol.Origin first = null;
             for (SqlQuery b : branches) {
                 List<OutputCol> bo = b.outputs();
                 if (bo == null || bo.size() != outputs.size()) {
@@ -266,6 +232,9 @@ public final class SqlTyping {
                     break;
                 }
                 OutputCol bc = bo.get(i);
+                if (first == null) {
+                    first = bc.origin();
+                }
                 tol |= bc.tolerated();
                 nul |= bc.nullable();
                 if (t == null) {
@@ -275,7 +244,7 @@ public final class SqlTyping {
                     break;
                 }
             }
-            if (!uniform || t == null) {
+            if (!uniform || t == null || first == null) {
                 continue;
             }
             SqlType type = !t.equals(oc.type()) && !subsumes(oc.type(), t)
@@ -286,13 +255,14 @@ public final class SqlTyping {
             boolean nullable = nul;
             boolean tolerated = oc.tolerated() || tol;
             if (type.equals(oc.type()) && nullable == oc.nullable()
-                    && tolerated == oc.tolerated()) {
+                    && tolerated == oc.tolerated() && first == oc.origin()) {
                 continue;
             }
             if (os == null) {
                 os = new java.util.ArrayList<>(outputs);
             }
-            os.set(i, new OutputCol(oc.name(), type, nullable, tolerated));
+            os.set(i, new OutputCol(oc.name(), type, nullable, tolerated,
+                    first));
         }
         return os == null ? outputs : List.copyOf(os);
     }

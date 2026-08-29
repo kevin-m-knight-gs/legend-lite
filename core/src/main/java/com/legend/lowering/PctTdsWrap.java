@@ -53,7 +53,7 @@ public final class PctTdsWrap {
         outs = lift.outs();
         SqlSelect inner = SqlSelect.starOf(
                         new SqlSource.Subselect(inner0, alias, null))
-                .withProjections(List.of(), outs)
+                .withOutputs(outs)
                 .withOrderBy(lift.remapped());
         return Render.pctTds(inner, typedCols, "_pct1");
     }
@@ -154,7 +154,8 @@ public final class PctTdsWrap {
                         + " star-projected plan cannot hoist");
             }
             String hn = "_pct_ord" + ord++;
-            hiddenProjs.add(new SqlSelect.Projection(k.expr(), hn));
+            hiddenProjs.add(new SqlSelect.Projection(k.expr(), hn,
+                    new OutputCol(hn, SqlType.Scalar.VARCHAR, true)));
             hiddenOuts.add(new OutputCol(hn, SqlType.Scalar.VARCHAR, true));
             remapped.add(new SqlSelect.SortKey(
                     SqlExpr.Column.derived(alias, hn), k.ascending(),
@@ -167,11 +168,9 @@ public final class PctTdsWrap {
         List<SqlSelect.Projection> allProjs =
                 new ArrayList<>(ps2.projections());
         allProjs.addAll(hiddenProjs);
-        List<OutputCol> allOuts = new ArrayList<>(ps2.outputs());
-        allOuts.addAll(hiddenOuts);
         List<OutputCol> outs2 = new ArrayList<>(outs);
         outs2.addAll(hiddenOuts);
-        return new Lift(ps2.withProjections(allProjs, allOuts), outs2,
+        return new Lift(ps2.withProjections(allProjs), outs2,
                 remapped);
     }
 

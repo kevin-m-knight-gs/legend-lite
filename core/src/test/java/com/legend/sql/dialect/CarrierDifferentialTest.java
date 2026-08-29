@@ -38,15 +38,13 @@ class CarrierDifferentialTest {
                                 new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
                                         new SqlExpr.Column("s", "v")), false,
                                         List.of()),
-                                null)),
-                        List.of());
+                                null, null)));
         SqlExpr reduce = new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG,
                 new SqlExpr.ScalarSubquery(collect),
                 List.of(new SqlExpr.StringLit("*")));
         SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
                 .withProjections(List.of(
-                                new SqlSelect.Projection(reduce, "joined")),
-                        List.of());
+                                new SqlSelect.Projection(reduce, "joined", null)));
 
         String nativeSql = new DuckDb().render(q);
         // the PORTABLE strategy must also be VALID DuckDB — that is the
@@ -80,8 +78,7 @@ class CarrierDifferentialTest {
                                 new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
                                         new SqlExpr.Column("s", "v")), false,
                                         List.of()),
-                                null)),
-                        List.of());
+                                null, null)));
         SqlExpr transformed = SqlExpr.Call.of(
                 com.legend.sql.SqlFn.LIST_TRANSFORM,
                 new SqlExpr.ScalarSubquery(collect),
@@ -92,8 +89,7 @@ class CarrierDifferentialTest {
                 transformed, List.of(new SqlExpr.StringLit(",")));
         SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
                 .withProjections(List.of(
-                                new SqlSelect.Projection(reduce, "joined")),
-                        List.of());
+                                new SqlSelect.Projection(reduce, "joined", null)));
         String nativeSql = new DuckDb().render(q);
         String portableSql = new AnsiSqlRenderer(Lexicon.DUCKDB,
                 TypeNames.DUCKDB, Spellings.DUCKDB).render(q);
@@ -123,8 +119,7 @@ class CarrierDifferentialTest {
                 transformed, List.of(new SqlExpr.StringLit("|")));
         SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
                 .withProjections(List.of(
-                                new SqlSelect.Projection(reduce, "joined")),
-                        List.of());
+                                new SqlSelect.Projection(reduce, "joined", null)));
         String nativeSql = new DuckDb().render(q);
         String portableSql = new AnsiSqlRenderer(Lexicon.DUCKDB,
                 TypeNames.DUCKDB, Spellings.DUCKDB).render(q);
@@ -162,8 +157,7 @@ class CarrierDifferentialTest {
                     new SqlExpr.BoolLit(false));
             SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
                     .withProjections(List.of(
-                                    new SqlSelect.Projection(member, "m")),
-                            List.of());
+                                    new SqlSelect.Projection(member, "m", null)));
             String nativeSql = new DuckDb().render(q);
             String portableSql = new AnsiSqlRenderer(Lexicon.DUCKDB,
                     TypeNames.DUCKDB, Spellings.DUCKDB).render(q);
@@ -244,14 +238,12 @@ class CarrierDifferentialTest {
                         new SqlSource.Table("t", "s", List.of()))
                 .withProjections(List.of(new SqlSelect.Projection(
                                 new SqlExpr.ArrayLit(List.of(
-                                        new SqlExpr.Column("s", "v"))), "c")),
-                        List.of());
+                                        new SqlExpr.Column("s", "v"))), "c", null)));
         SqlSelect q = SqlSelect.starOf(
                         new SqlSource.Subselect(inner, "sub", null))
                 .withProjections(List.of(new SqlSelect.Projection(
                                 SqlExpr.Call.of(com.legend.sql.SqlFn.UNNEST,
-                                        new SqlExpr.Column("sub", "c")), "e")),
-                        List.of());
+                                        new SqlExpr.Column("sub", "c")), "e", null)));
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                 Statement st = c.createStatement()) {
             seed(st);
@@ -275,14 +267,12 @@ class CarrierDifferentialTest {
                                         SqlExpr.Call.of(
                                                 com.legend.sql.SqlFn.UPPER,
                                                 new SqlExpr.Column("s", "v")))),
-                                "c")),
-                        List.of());
+                                "c", null)));
         SqlSelect q = SqlSelect.starOf(
                         new SqlSource.Subselect(inner, "sub", null))
                 .withProjections(List.of(new SqlSelect.Projection(
                                 SqlExpr.Call.of(com.legend.sql.SqlFn.UNNEST,
-                                        new SqlExpr.Column("sub", "c")), "e")),
-                        List.of());
+                                        new SqlExpr.Column("sub", "c")), "e", null)));
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                 Statement st = c.createStatement()) {
             seed(st);
@@ -320,7 +310,7 @@ class CarrierDifferentialTest {
                     List.of(new SqlExpr.StringLit("|")));
             SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
                     .withProjections(List.of(
-                            new SqlSelect.Projection(reduce, "j")), List.of());
+                            new SqlSelect.Projection(reduce, "j", null)));
             try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                     Statement st = c.createStatement()) {
                 seed(st);
@@ -343,7 +333,7 @@ class CarrierDifferentialTest {
                     new SqlExpr.IntLit(ix));
             SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
                     .withProjections(List.of(
-                            new SqlSelect.Projection(get, "e")), List.of());
+                            new SqlSelect.Projection(get, "e", null)));
             try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                     Statement st = c.createStatement()) {
                 assertEquals(one(st, new DuckDb().render(q)),
@@ -362,7 +352,7 @@ class CarrierDifferentialTest {
                     collectOfV(), new SqlExpr.IntLit(ix));
             SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
                     .withProjections(List.of(
-                            new SqlSelect.Projection(get, "e")), List.of());
+                            new SqlSelect.Projection(get, "e", null)));
             try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                     Statement st = c.createStatement()) {
                 seed(st);
@@ -386,7 +376,7 @@ class CarrierDifferentialTest {
             SqlSelect q = SqlSelect.starOf(
                             new SqlSource.Table("t", "s", List.of()))
                     .withProjections(List.of(
-                            new SqlSelect.Projection(get, "e")), List.of());
+                            new SqlSelect.Projection(get, "e", null)));
             try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                     Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE t (v VARCHAR)");
@@ -412,7 +402,7 @@ class CarrierDifferentialTest {
                 filtered, new SqlExpr.IntLit(1));
         SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
                 .withProjections(List.of(
-                        new SqlSelect.Projection(get, "e")), List.of());
+                        new SqlSelect.Projection(get, "e", null)));
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                 Statement st = c.createStatement()) {
             assertEquals(one(st, new DuckDb().render(q)),
@@ -436,7 +426,7 @@ class CarrierDifferentialTest {
             SqlSelect q = SqlSelect.starOf(
                             new SqlSource.Table("t", "s", List.of()))
                     .withProjections(List.of(
-                            new SqlSelect.Projection(probe, "k")), List.of());
+                            new SqlSelect.Projection(probe, "k", null)));
             try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                     Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE t (d DATE, ts TIMESTAMP)");
@@ -458,7 +448,7 @@ class CarrierDifferentialTest {
                 collectOfV());
         SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
                 .withProjections(List.of(
-                        new SqlSelect.Projection(sorted, "l")), List.of());
+                        new SqlSelect.Projection(sorted, "l", null)));
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                 Statement st = c.createStatement()) {
             seed(st);
@@ -480,7 +470,7 @@ class CarrierDifferentialTest {
                                 new SqlExpr.Column(null, "x"))));
         SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
                 .withProjections(List.of(
-                        new SqlSelect.Projection(filtered, "l")), List.of());
+                        new SqlSelect.Projection(filtered, "l", null)));
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                 Statement st = c.createStatement()) {
             seed(st);
@@ -515,7 +505,7 @@ class CarrierDifferentialTest {
                     new SqlExpr.BoolLit(false));
             SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
                     .withProjections(List.of(
-                            new SqlSelect.Projection(member, "m")), List.of());
+                            new SqlSelect.Projection(member, "m", null)));
             try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                     Statement st = c.createStatement()) {
                 assertEquals(one(st, new DuckDb().render(q)),
@@ -551,7 +541,7 @@ class CarrierDifferentialTest {
                     new SqlExpr.ArrayLit(fx.elems()));
             SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
                     .withProjections(List.of(
-                            new SqlSelect.Projection(fold, "r")), List.of());
+                            new SqlSelect.Projection(fold, "r", null)));
             try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                     Statement st = c.createStatement()) {
                 assertEquals(one(st, new DuckDb().render(q)),
@@ -573,7 +563,7 @@ class CarrierDifferentialTest {
         for (SqlExpr len : List.of(litLen, collLen)) {
             SqlSelect q = SqlSelect.starOf(new SqlSource.Dual())
                     .withProjections(List.of(
-                            new SqlSelect.Projection(len, "n")), List.of());
+                            new SqlSelect.Projection(len, "n", null)));
             try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                     Statement st = c.createStatement()) {
                 seed(st);
@@ -596,15 +586,13 @@ class CarrierDifferentialTest {
                                         SqlExpr.Call.of(
                                                 com.legend.sql.SqlFn.UPPER,
                                                 new SqlExpr.Column("s", "v")))),
-                                "c")),
-                        List.of());
+                                "c", null)));
         return SqlSelect.starOf(new SqlSource.Subselect(inner, "sub", null))
                 .withProjections(List.of(new SqlSelect.Projection(
                                 new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
                                         new SqlExpr.Column("sub", "c")),
                                         false, List.of()),
-                                "l")),
-                        List.of());
+                                "l", null)));
     }
 
     // ---- R5b fixture plumbing ----
@@ -621,16 +609,14 @@ class CarrierDifferentialTest {
                                 new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
                                         new SqlExpr.Column("s", "v")), false,
                                         List.of()),
-                                null)),
-                        List.of()));
+                                null, null))));
     }
 
     private static SqlSelect unnestOverDual(SqlExpr arg, String alias) {
         return SqlSelect.starOf(new SqlSource.Dual())
                 .withProjections(List.of(new SqlSelect.Projection(
                                 SqlExpr.Call.of(com.legend.sql.SqlFn.UNNEST,
-                                        arg), alias)),
-                        List.of());
+                                        arg), alias, null)));
     }
 
     private static AnsiSqlRenderer portable() {

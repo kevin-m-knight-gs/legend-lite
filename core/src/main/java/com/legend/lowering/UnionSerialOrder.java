@@ -59,11 +59,11 @@ final class UnionSerialOrder {
                 }
                 List<SqlSelect.Projection> ps = new ArrayList<>(bs.projections());
                 ps.add(new SqlSelect.Projection(
-                        new SqlExpr.IntLit(-i), COLUMN));
-                List<OutputCol> outs = new ArrayList<>(bs.outputs());
-                outs.add(new OutputCol(COLUMN,
-                        PureSql.type(Type.Primitive.INTEGER), false));
-                branches.add(bs.withProjections(ps, outs));
+                        new SqlExpr.IntLit(-i), COLUMN,
+                        new OutputCol(COLUMN,
+                                PureSql.type(Type.Primitive.INTEGER),
+                                false)));
+                branches.add(bs.withProjections(ps));
             }
             List<OutputCol> uOuts = new ArrayList<>(u.outputs());
             uOuts.add(new OutputCol(COLUMN,

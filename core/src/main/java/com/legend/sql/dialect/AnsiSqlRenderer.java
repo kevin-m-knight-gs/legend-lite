@@ -139,20 +139,14 @@ public class AnsiSqlRenderer implements SqlDialect {
         if (s.projections().isEmpty()) {
             sb.append("*");
         } else {
-            // a STAR projection expands to many columns: it can take no
-            // alias and it desynchronizes the positional projection ->
-            // output pairing — explicit labeling is off for the whole
-            // select when one is present
-            boolean starred = s.projections().stream().anyMatch(p2 ->
-                    p2.expr() instanceof SqlExpr.Star
-                            || p2.expr() instanceof SqlExpr.StarExcept);
+            // each projection CARRIES its declared output (outputs-from-
+            // projections, SQL-IR slice 2) — the old positional
+            // projection↔outputs pairing and its star guard are gone
             for (int i = 0; i < s.projections().size(); i++) {
                 if (i > 0) {
                     sb.append(", ");
                 }
-                sb.append(projection(s.projections().get(i),
-                        starred || i >= s.outputs().size()
-                                ? null : s.outputs().get(i)));
+                sb.append(projection(s.projections().get(i)));
             }
         }
         if (!(s.from() instanceof SqlSource.Dual)) {
@@ -203,24 +197,18 @@ public class AnsiSqlRenderer implements SqlDialect {
         throw new DialectCapability("QUALIFY reached a dialect without native support");
     }
 
+    /** The base renders the projection's own spelling — an alias-less
+     * projection keeps its implicit label (correct where labels fold
+     * case-insensitively). A case-sensitive dialect reads the
+     * projection's DECLARED output ({@code p.out()}) and labels
+     * explicitly — the engine's own convention (every golden aliases
+     * every projection). */
     protected String projection(SqlSelect.Projection p) {
         // the synthetic scalar-map marker (PlatformTypes.SYNTH_MAP_COL)
         // stays IN the execution alias — downstream references are built
         // from the (prefixed) row type; engine-TEXT renderers drop it
         String e = expr(p.expr(), 0);
         return p.alias() == null ? e : e + " AS " + aliasIdent(p.alias());
-    }
-
-    /** Projection with its declared {@link OutputCol} in hand (same
-     * position). The base ignores the output — an alias-less
-     * projection keeps its implicit label (correct where labels fold
-     * case-insensitively). A case-sensitive dialect aliases EXPLICITLY
-     * from the declared output so downstream references to the
-     * declared name always resolve — the engine's own convention
-     * (every golden aliases every projection). */
-    protected String projection(SqlSelect.Projection p,
-            @com.legend.Nullable com.legend.sql.OutputCol out) {
-        return projection(p);
     }
 
     protected String sortKey(SqlSelect.SortKey k) {

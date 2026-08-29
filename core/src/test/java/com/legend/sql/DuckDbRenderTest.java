@@ -45,9 +45,8 @@ class DuckDbRenderTest {
     void fullSingleSelect() {
         SqlSelect s = SqlSelect.starOf(T_PERSON)
                 .withProjections(List.of(
-                        new SqlSelect.Projection(col("FIRM"), null),
-                        new SqlSelect.Projection(SqlAgg.Reducer.of(SqlAgg.Fn.SUM, col("AGE")), "totalAge")),
-                        List.of())
+                        new SqlSelect.Projection(col("FIRM"), null, null),
+                        new SqlSelect.Projection(SqlAgg.Reducer.of(SqlAgg.Fn.SUM, col("AGE")), "totalAge", null)))
                 .withWhere(SqlExpr.Call.of(SqlFn.GREATER, col("AGE"), new SqlExpr.IntLit(30)))
                 .withGroupBy(List.of(col("FIRM")))
                 .withHaving(SqlExpr.Call.of(SqlFn.GREATER,
@@ -74,10 +73,9 @@ class DuckDbRenderTest {
     void leanQuoting() {
         SqlSelect s = SqlSelect.starOf(new SqlSource.Table("my table", "t0", List.of()))
                 .withProjections(List.of(
-                        new SqlSelect.Projection(new SqlExpr.Column("t0", "NAME"), null),
-                        new SqlSelect.Projection(new SqlExpr.Column("t0", "order"), null),
-                        new SqlSelect.Projection(new SqlExpr.Column("t0", "first name"), null)),
-                        List.of());
+                        new SqlSelect.Projection(new SqlExpr.Column("t0", "NAME"), null, null),
+                        new SqlSelect.Projection(new SqlExpr.Column("t0", "order"), null, null),
+                        new SqlSelect.Projection(new SqlExpr.Column("t0", "first name"), null, null)));
         assertEquals("""
                 SELECT t0.NAME, t0."order", t0."first name"
                 FROM "my table" AS t0""",
@@ -104,14 +102,13 @@ class DuckDbRenderTest {
     @DisplayName("literals: escaping, dates, booleans, arrays")
     void literals() {
         SqlSelect s = SqlSelect.starOf(T_PERSON).withProjections(List.of(
-                new SqlSelect.Projection(new SqlExpr.StringLit("O'Brien"), "s"),
-                new SqlSelect.Projection(new SqlExpr.DateLit("2024-01-15"), "d"),
-                new SqlSelect.Projection(new SqlExpr.TimestampLit("2024-01-15 10:30:00"), "ts"),
-                new SqlSelect.Projection(new SqlExpr.BoolLit(true), "b"),
-                new SqlSelect.Projection(new SqlExpr.NullLit(), "n"),
+                new SqlSelect.Projection(new SqlExpr.StringLit("O'Brien"), "s", null),
+                new SqlSelect.Projection(new SqlExpr.DateLit("2024-01-15"), "d", null),
+                new SqlSelect.Projection(new SqlExpr.TimestampLit("2024-01-15 10:30:00"), "ts", null),
+                new SqlSelect.Projection(new SqlExpr.BoolLit(true), "b", null),
+                new SqlSelect.Projection(new SqlExpr.NullLit(), "n", null),
                 new SqlSelect.Projection(new SqlExpr.ArrayLit(List.of(
-                        new SqlExpr.IntLit(1), new SqlExpr.IntLit(2))), "arr")),
-                List.of());
+                        new SqlExpr.IntLit(1), new SqlExpr.IntLit(2))), "arr", null)));
         assertEquals("SELECT 'O''Brien' AS s, DATE '2024-01-15' AS d,"
                         + " TIMESTAMP '2024-01-15 10:30:00' AS ts, TRUE AS b, NULL AS n,"
                         + " [1, 2] AS arr",
@@ -208,9 +205,8 @@ class DuckDbRenderTest {
                         new SqlExpr.WindowCall.Frame.Bound.CurrentRow()));
         SqlSelect s = SqlSelect.starOf(T_PERSON)
                 .withProjections(List.of(
-                        new SqlSelect.Projection(rank, "rn"),
-                        new SqlSelect.Projection(running, "running")),
-                        List.of())
+                        new SqlSelect.Projection(rank, "rn", null),
+                        new SqlSelect.Projection(running, "running", null)))
                 .withQualify(SqlExpr.Call.of(SqlFn.EQUAL, new SqlExpr.Column(null, "rn"),
                         new SqlExpr.IntLit(1)));
         assertEquals("""
@@ -380,7 +376,7 @@ class DuckDbRenderTest {
 
     private String renderExpr(SqlExpr e) {
         return duck.render(SqlSelect.starOf(T_PERSON)
-                        .withProjections(List.of(new SqlSelect.Projection(e, null)), List.of()))
+                        .withProjections(List.of(new SqlSelect.Projection(e, null, null))))
                 .lines().findFirst().orElseThrow().substring("SELECT ".length());
     }
 }

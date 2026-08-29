@@ -2,6 +2,7 @@ package com.legend.sql;
 
 import com.legend.Nullable;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -10,6 +11,17 @@ import java.util.List;
  * single {@code SqlSelect} through a run of compatible relational ops via the
  * {@code with*} copiers; a fresh nesting level exists only as an explicit
  * {@link SqlSource.Subselect}. Empty {@link #projections} means {@code SELECT *}.
+ *
+ * <p>OUTPUTS-FROM-PROJECTIONS (SQL-IR backend-agnosticism slice 2,
+ * ORIGIN_ARCHITECTURE_AUDIT_2026_08.md): a projection frame's
+ * {@link #outputs} are BUILT here from the projection list — each
+ * {@link Projection} carries its declared {@link OutputCol} (reconciled
+ * against the expression's stored type per slot), a star projection
+ * carries the starred source's whole list verbatim (origins included,
+ * join pads applied). The list recomputes at every construction, so a
+ * rebuild can never hold a stale claim. Only STAR FRAMES (empty
+ * projections — {@code SELECT *}) take their outputs from the caller:
+ * the source passthrough, schema-born at the physical doors.
  */
 public record SqlSelect(List<Projection> projections, boolean distinct,
                         SqlSource from,
@@ -22,23 +34,72 @@ public record SqlSelect(List<Projection> projections, boolean distinct,
     public SqlSelect {
         java.util.Objects.requireNonNull(from,
                 "a FROM-less select spells SqlSource.Dual, never null");
-        // THE LABEL FLIP (TYPED_SQL_IR.md, 2026-08-24): output labels
-        // reconcile with the projections' STORED types at construction
-        // — equal or ADMITTED keeps the pure-contract erasure; a label
-        // lie ADOPTS the wire. Compact-ctor idiom: computed once,
-        // idempotent, structurally unable to drift. (Conform-by-
-        // emission lives at the stamp-guarded lowering seam, not here
-        // — the referee's castErasure verdict, charter T4 leg 1.)
-        // §E3 M-N3: nullability adopts the slot truth (reconcile reads
-        // the GROUP BY for the non-empty-group reducer refinement)
-        outputs = SqlTyping.reconcileLabels(projections, groupBy, outputs);
-        // §E3-S WHERE≡INNER: a star-framed join whose WHERE
-        // null-rejects a pad side restores that side's DDL truth (no
-        // padded row survives the filter). Star frames only —
-        // projection frames adopt from facts above.
-        if (projections.isEmpty() && from instanceof SqlSource.Join j
+        if (!projections.isEmpty()) {
+            // THE LABEL RULE, per slot at construction (subsumes the old
+            // positional reconcileLabels and its star-tail shift): the
+            // declared label keeps the pure-contract erasure when equal
+            // or ADMITTED; a label lie ADOPTS the wire; nullability
+            // adopts the slot truth (§E3 M-N3). Stars expand the
+            // starred source's own outputs — origin and tolerance ride
+            // along, pad sides weaken (§E3 M-N2).
+            outputs = outputsFrom(projections, from, groupBy);
+        } else if (from instanceof SqlSource.Join j
                 && where != null && outputs != null && !outputs.isEmpty()) {
+            // §E3-S WHERE≡INNER: a star-framed join whose WHERE
+            // null-rejects a pad side restores that side's DDL truth (no
+            // padded row survives the filter). Star frames only —
+            // projection frames adopt from facts above.
             outputs = SqlTyping.wherePadNeutralized(j, where, outputs);
+        }
+    }
+
+    /** The projection-frame output list: declared slots reconciled
+     * against their expressions' stored types; stars expand their
+     * source verbatim; output-less projections (scalar envelopes)
+     * contribute no slot. */
+    private static List<OutputCol> outputsFrom(List<Projection> ps,
+            SqlSource from, List<SqlExpr> groupBy) {
+        boolean grouped = !groupBy.isEmpty();
+        List<OutputCol> out = new ArrayList<>(ps.size());
+        for (Projection p : ps) {
+            if (p.expr() instanceof SqlExpr.Star s) {
+                expandStar(from, s.table(), false, null, out);
+            } else if (p.expr() instanceof SqlExpr.StarExcept se) {
+                expandStar(from, se.table(), false,
+                        java.util.Set.copyOf(se.except()), out);
+            } else if (p.out() != null) {
+                out.add(SqlTyping.reconcileSlot(p.expr(), p.out(), grouped));
+            }
+        }
+        return List.copyOf(out);
+    }
+
+    /** A star projection's expansion: the starred source's outputs,
+     * VERBATIM — the star passes labels through, so origin, tolerance
+     * and spelling are the source's own facts. Descending through a
+     * padding join weakens that side's columns to nullable (the
+     * padJoinOutputs truth, structural — no name lookup). */
+    private static void expandStar(SqlSource src, @Nullable String table,
+            boolean padded, java.util.@Nullable Set<String> except,
+            List<OutputCol> into) {
+        if (src instanceof SqlSource.Join j) {
+            expandStar(j.left(), table, padded || j.kind().padsLeft(),
+                    except, into);
+            expandStar(j.right(), table, padded || j.kind().padsRight(),
+                    except, into);
+            return;
+        }
+        if (table != null && !table.equals(src.alias())) {
+            return;
+        }
+        for (OutputCol c : src.outputs()) {
+            if (except != null && except.contains(c.name())) {
+                continue;
+            }
+            into.add(padded && !c.nullable()
+                    ? new OutputCol(c.name(), c.type(), true, c.tolerated(),
+                            c.origin())
+                    : c);
         }
     }
 
@@ -54,7 +115,38 @@ public record SqlSelect(List<Projection> projections, boolean distinct,
      * execution keeps them (downstream references use the row type). */
     public static final String SYNTH_MAP_COL = "u_map__";
 
-    public record Projection(SqlExpr expr, @Nullable String alias) {
+    /** One projection with its DECLARED output column. {@code out} is
+     * the slot this projection delivers — the contract label the frame
+     * above reads through. Null in exactly two shapes: a STAR (the
+     * projection delivers the starred source's whole list — carrying a
+     * single slot would be a lie), and a deliberately OUTPUT-LESS
+     * projection (scalar-position value envelopes, {@code SELECT 1}
+     * exists probes — nothing reads the frame by name).
+     *
+     * <p>An explicit projection's output name is the QUERY's own
+     * declaration — the renderer that spends origins labels every such
+     * projection explicitly (the engine's convention) — so an attached
+     * output is normalized to DERIVED at construction; PHYSICAL
+     * spellings survive only through star passthrough and the frame
+     * doors. */
+    public record Projection(SqlExpr expr, @Nullable String alias,
+            @Nullable OutputCol out) {
+
+        public Projection {
+            if (expr instanceof SqlExpr.Star
+                    || expr instanceof SqlExpr.StarExcept) {
+                if (out != null) {
+                    throw new IllegalArgumentException("a star projection"
+                            + " carries the source's whole output list —"
+                            + " attaching a single OutputCol is a caller"
+                            + " bug");
+                }
+            } else if (out != null
+                    && out.origin() != OutputCol.Origin.DERIVED) {
+                out = new OutputCol(out.name(), out.type(), out.nullable(),
+                        out.tolerated());
+            }
+        }
 
         /**
          * The projected OUTPUT name: the alias, else the bare column's own
@@ -67,6 +159,26 @@ public record SqlSelect(List<Projection> projections, boolean distinct,
                     : expr instanceof SqlExpr.Column c ? c.name() : null;
         }
 
+    }
+
+    /** Attach declared outputs to projections POSITIONALLY — for the
+     * builders that compute both halves side by side in one loop (the
+     * lists are the same knowledge, stated twice). Sizes must match
+     * exactly and no star may be present — a mismatch is the old
+     * silent-desync bug surfacing loudly at the construction site. */
+    public static List<Projection> paired(List<Projection> ps,
+            List<OutputCol> outs) {
+        if (ps.size() != outs.size()) {
+            throw new IllegalArgumentException("projection/output pairing"
+                    + " mismatch: " + ps.size() + " projections vs "
+                    + outs.size() + " outputs");
+        }
+        List<Projection> out = new ArrayList<>(ps.size());
+        for (int i = 0; i < ps.size(); i++) {
+            Projection p = ps.get(i);
+            out.add(new Projection(p.expr(), p.alias(), outs.get(i)));
+        }
+        return out;
     }
 
     /** One ORDER BY key; {@code nullOrder} null = dialect default.
@@ -98,8 +210,29 @@ public record SqlSelect(List<Projection> projections, boolean distinct,
                 qualify, orderBy, limit, offset, outputs);
     }
 
-    public SqlSelect withProjections(List<Projection> p, List<OutputCol> out) {
-        return new SqlSelect(p, distinct, from, where, groupBy, having, qualify, orderBy, limit, offset, out);
+    /** Replace the projection list; outputs REBUILD from it (each
+     * projection carries its slot). Non-empty only — a star frame's
+     * outputs are the caller's fact: {@link #withOutputs}. */
+    public SqlSelect withProjections(List<Projection> p) {
+        if (p.isEmpty()) {
+            throw new IllegalArgumentException("withProjections(empty):"
+                    + " a star frame's outputs are caller knowledge —"
+                    + " use withOutputs");
+        }
+        return new SqlSelect(p, distinct, from, where, groupBy, having,
+                qualify, orderBy, limit, offset, outputs);
+    }
+
+    /** STAR-FRAME outputs door ({@code SELECT *} — empty projections):
+     * the one shape whose outputs are the caller's own fact (source
+     * passthrough / schema-born at the physical doors). */
+    public SqlSelect withOutputs(List<OutputCol> out) {
+        if (!projections.isEmpty()) {
+            throw new IllegalStateException("withOutputs on a projection"
+                    + " frame: its outputs derive from the projections");
+        }
+        return new SqlSelect(projections, distinct, from, where, groupBy,
+                having, qualify, orderBy, limit, offset, out);
     }
 
     public SqlSelect withDistinct() {

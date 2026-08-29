@@ -67,6 +67,78 @@ outputs list honest is slice 2) and should land BEFORE the §4AD
 conformance leg builds new join shapes on top of the current
 reconciliation.
 
+## LANDING RECORD — slice 2 EXECUTED (2026-08-29, ALLGATES GREEN)
+
+Outputs-from-projections landed exactly as chartered; the deletions
+are the receipts:
+
+- `SqlSelect.Projection` carries its declared `OutputCol` (3rd
+  component). A star projection carries null and expands the starred
+  source's whole list — origin, tolerance and join-pad weakening
+  included (`SqlSelect.outputsFrom`/`expandStar`, structural descent,
+  no name lookup). An explicit projection's attached output normalizes
+  to DERIVED at construction: its name is the QUERY's own declaration,
+  and the origin-spending renderer labels every such projection
+  explicitly from `p.out()` (the engine's own convention).
+- A projection frame's `outputs` REBUILD in the canonical constructor
+  at every construction — a rebuild can never hold a stale claim
+  (residue test 2's exact disease: `starSideOrigin` captured PHYSICAL
+  from the raw scan before the left side was isolated into a
+  subselect, and the patched list never recomputed). Star FRAMES
+  (empty projections) keep caller outputs — source passthrough, the
+  three physical doors, TDS/VALUES literals, and the no-prefix join
+  frame.
+- DELETED: `Fold.stampJoinOrigins` (#4/#5), `Fold.starSideOrigin`
+  (#6), the union blanket-DERIVED gap (#7 — `reconcileUnionLabels`
+  adopts the FIRST branch's origin per slot: SQL's own
+  first-branch-label rule, and branch outputs now derive from branch
+  projections so the inherited fact is construction truth), the
+  renderer's positional projection↔outputs pairing and its star guard
+  (#8 — `AnsiSqlRenderer.select` renders `projection(p)`; H2 reads
+  `p.out()`), and `SqlTyping.reconcileLabels` with its star-tail
+  shift arm (subsumed by per-slot `reconcileSlot` at pairing time).
+- API: `withProjections(ps, outs)` → `withProjections(ps)` +
+  `withOutputs` (star frames only, walls on projection frames). The
+  ~70 call sites migrated by compiler-driven totality;
+  `SqlSelect.paired` zips construction-lockstep lists (loud on size
+  mismatch — the old silent-desync bug surfaces at the site),
+  `Fold.named` attaches contract slots by name for star-headed
+  builders (extend/window/prefix-join — name-keyed at CONSTRUCTION
+  against the declared schema, not consumption re-derivation).
+  `padJoinOutputs` survives (it owns nullability, not spelling) and
+  now transports origin through its weaken. Several sites got
+  shorter (Pivots' hand-built keyedOutputs list is gone; the pruners
+  no longer maintain parallel lists).
+
+Residue outcome — the audit predicted both named rows heal;
+measurement says one, plus three unpredicted:
+
+- testPropertyProjectionQueryWithInnerJoinClassMappingWithMilestoning
+  TableFilter — HEALED (probed): the `"t5".name` bare-PHYSICAL read
+  spells DERIVED because the wrap's outputs rebuild from its
+  `Star(t2)` projection at every rebuild.
+- testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter
+  — RE-DIAGNOSED, not an origin skew: the Firm union extent projects
+  an UNDEMANDED `"t5".name AS "legalName"` whose physical column does
+  not exist on the family's session (its own store recreates FirmSet1
+  with LegalName); the engine's plan prunes that projection at birth.
+  Our prune is blocked by the `"t7".*` star over the union frame
+  (`SubselectPrune.pruneUnion` bails on starred aliases). DEMAND/
+  PRUNING divergence — a separate leg, recorded, not repaired by
+  spelling.
+- h2 sweep 1367 → 1372 (floor RATCHETED to 1372): the milestoning row
+  plus 3 label-consistency rows healed by explicit `AS "name"`
+  labeling now reaching star-bearing frames (the old renderer guard
+  disabled labeling for the whole select when any star was present).
+
+Gate receipts: full chain GREEN in 440s (G1 4339/0/0; G4 DuckDB
+census byte-identical, exec-passing 1385 / text-only 44 / unable 97 /
+csv 117 intact; G5 h2 1372/2575, capability walls 946, seeds ≤ 6;
+G6-G9 green). One migration bug was caught by the first chain run and
+fixed before landing: the extend builder paired star-headed projection
+lists POSITIONALLY (the very coupling this slice deletes) — replaced
+with `Fold.named` attachment; 258 red tests → 0.
+
 ## Process note (recorded so it binds)
 
 The smells all entered during the 03:00-05:00 fix-probe-fix cycle

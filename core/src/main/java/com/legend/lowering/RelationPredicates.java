@@ -67,7 +67,7 @@ final class RelationPredicates {
                         : SqlAgg.Reducer.of(SqlAgg.Fn.COUNT);
                 return new SqlExpr.ScalarSubquery(base
                         .withProjections(List.of(new SqlSelect.Projection(
-                                counter, null)), List.of()));
+                                counter, null, null))));
             };
         }
         // GENERAL reducer over a single-scalar-column RELATION argument
@@ -94,8 +94,7 @@ final class RelationPredicates {
                 return new SqlExpr.ScalarSubquery(base.withProjections(
                         List.of(new SqlSelect.Projection(
                                 new SqlAgg.Reducer(fam, List.of(col), false,
-                                        List.of()), null)),
-                        List.of()));
+                                        List.of()), null, null))));
             };
         }
         if ((Lowerer.isFamily(n, "isEmpty") || Lowerer.isFamily(n, "isNotEmpty"))

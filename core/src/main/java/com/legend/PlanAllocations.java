@@ -106,7 +106,7 @@ final class PlanAllocations {
         com.legend.sql.SqlSelect bareSel = new com.legend.sql.SqlSelect(
                 sel.projections().stream().map(p ->
                         new com.legend.sql.SqlSelect.Projection(
-                                p.expr(), null)).toList(),
+                                p.expr(), null, p.out())).toList(),
                 sel.distinct(), sel.from(), sel.where(), sel.groupBy(),
                 sel.having(), sel.qualify(), sel.orderBy(), sel.limit(),
                 sel.offset(), sel.outputs());

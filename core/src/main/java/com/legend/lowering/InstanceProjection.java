@@ -107,7 +107,7 @@ final class InstanceProjection {
                     return pv == null ? new SqlExpr.NullLit()
                             : scalar.apply(pv, noScope);
                 });
-                ps.add(new SqlSelect.Projection(computed, col.name()));
+                ps.add(new SqlSelect.Projection(computed, col.name(), null));
                 continue;
             }
             // Walk the path over the literal: to-one instance hops recurse;
@@ -176,11 +176,11 @@ final class InstanceProjection {
                     cur = v;
                 }
             }
-            ps.add(new SqlSelect.Projection(Objects.requireNonNull(value, "value"), col.name()));
+            ps.add(new SqlSelect.Projection(Objects.requireNonNull(value, "value"), col.name(), null));
         }
-        return new SqlSelect(ps, false,
+        return new SqlSelect(SqlSelect.paired(ps, outputs), false,
                 src == null ? new SqlSource.Dual() : src, null, List.of(),
-                null, null, List.of(), null, null, outputs);
+                null, null, List.of(), null, null, List.of());
     }
 
     /** The 1-row anchor a lateral chain hangs off (an empty array must NULL, not kill, the row). */

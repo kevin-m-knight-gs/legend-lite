@@ -32,9 +32,10 @@ final class StreamingGraphRoot {
                     : SqlSelect.SortKey.asc(k.expr()));
         }
         SqlSelect s = envelope.withProjections(
-                List.of(new SqlSelect.Projection(obj, "result")),
-                List.of(new OutputCol("result",
-                        PureSql.type(Type.Primitive.STRING), false)));
+                List.of(new SqlSelect.Projection(obj, "result",
+                        new OutputCol("result",
+                                PureSql.type(Type.Primitive.STRING),
+                                false))));
         return new SqlSelect(s.projections(), s.distinct(), s.from(),
                 s.where(), s.groupBy(), s.having(), s.qualify(), order,
                 s.limit(), s.offset(), s.outputs());

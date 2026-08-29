@@ -29,6 +29,26 @@ import java.util.Locale;
  */
 public final class CarrierStrategies extends SqlRewriter {
 
+    /** The declared slot for {@code name} in a source's output list,
+     * or null when the list makes no claim (outputs-from-projections:
+     * the rewritten projection carries the slot it preserves). */
+    private static com.legend.sql.@com.legend.Nullable OutputCol slot(
+            List<com.legend.sql.OutputCol> outs, String name) {
+        for (com.legend.sql.OutputCol c : outs) {
+            if (c.name().equals(name)) {
+                return c;
+            }
+        }
+        return null;
+    }
+
+    /** The single slot of a one-column frame, or null (no claim). */
+    private static com.legend.sql.@com.legend.Nullable OutputCol slot0(
+            List<com.legend.sql.OutputCol> outs) {
+        return outs.isEmpty() ? null : outs.get(0);
+    }
+
+
     /** The dialect's collection CAPABILITIES (§2b: a record, not a
      * binary — SQLite/MariaDB have correlated explosion but no native
      * lists; H2 has neither; DuckDB has everything). Strategy rules
@@ -70,8 +90,8 @@ public final class CarrierStrategies extends SqlRewriter {
                         new SqlExpr.Exists(SqlSelect.starOf(leftCopy)
                                 .withProjections(List.of(
                                         new SqlSelect.Projection(
-                                                new SqlExpr.IntLit(1), null)),
-                                        List.of())
+                                                new SqlExpr.IntLit(1), null,
+                                                null)))
                                 .withWhere(remapAlias(fj.on(),
                                         fj.left().alias(), "_full"))));
                 SqlSelect rightBranch = s.withFrom(new com.legend.sql
@@ -137,7 +157,7 @@ public final class CarrierStrategies extends SqlRewriter {
             if (!oc.name().contains("__|__")) {
                 SqlExpr g = SqlExpr.Column.of(p.source().alias(), oc);
                 group.add(g);
-                ps.add(new SqlSelect.Projection(g, oc.name()));
+                ps.add(new SqlSelect.Projection(g, oc.name(), oc));
             }
         }
         for (SqlExpr v : p.in()) {
@@ -151,14 +171,15 @@ public final class CarrierStrategies extends SqlRewriter {
                         SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL,
                                 p.on().get(0), v),
                         args.get(0))), null));
+                String pname = litText(v) + "__|__" + u.alias();
                 ps.add(new SqlSelect.Projection(
                         new SqlAgg.Reducer(agg.fn(), args, agg.distinct(),
                                 agg.orderBy()),
-                        litText(v) + "__|__" + u.alias()));
+                        pname, slot(p.outputs(), pname)));
             }
         }
         SqlSelect sel = SqlSelect.starOf(p.source())
-                .withProjections(ps, p.outputs())
+                .withProjections(ps)
                 .withGroupBy(group);
         return new com.legend.sql.SqlSource.Subselect(sel, p.alias(), null);
     }
@@ -224,7 +245,7 @@ public final class CarrierStrategies extends SqlRewriter {
                                 List.of(remapAlias(rightKey, rightAlias,
                                         "_asof")),
                                 false, List.of()),
-                        null)), List.of())
+                        null, null)))
                 .withWhere(where);
         SqlExpr on = SqlExpr.Call.of(com.legend.sql.SqlFn.AND,
                 java.util.Objects.requireNonNull(j.on()),
@@ -332,7 +353,8 @@ public final class CarrierStrategies extends SqlRewriter {
         // select shape, kill it with WHERE FALSE.
         if (arg instanceof SqlExpr.NullLit) {
             return s.withProjections(List.of(new SqlSelect.Projection(
-                            new SqlExpr.NullLit(), alias)), s.outputs())
+                            new SqlExpr.NullLit(), alias,
+                            slot0(s.outputs()))))
                     .withWhere(new SqlExpr.BoolLit(false));
         }
         // LITERAL-COLLECTION EXPLODE (R3a): UNION ALL of one-row selects
@@ -342,8 +364,8 @@ public final class CarrierStrategies extends SqlRewriter {
             List<com.legend.sql.SqlQuery> branches = new ArrayList<>();
             for (SqlExpr el : al.elements()) {
                 branches.add(s.withProjections(
-                        List.of(new SqlSelect.Projection(el, alias)),
-                        s.outputs()));
+                        List.of(new SqlSelect.Projection(el, alias,
+                                slot0(s.outputs())))));
             }
             return new com.legend.sql.SqlUnion(branches, true, s.outputs());
         }
@@ -357,8 +379,8 @@ public final class CarrierStrategies extends SqlRewriter {
                         (SqlAgg.Reducer) coll.projections().get(0).expr();
                 return coll.withProjections(
                                 List.of(new SqlSelect.Projection(
-                                        collect.args().get(0), alias)),
-                                s.outputs())
+                                        collect.args().get(0), alias,
+                                        slot0(s.outputs()))))
                         .withOrderBy(collect.orderBy());
             }
         }
@@ -378,8 +400,8 @@ public final class CarrierStrategies extends SqlRewriter {
                         SqlSelect.SortKey.NullOrder.NULLS_LAST, null));
                 keys.addAll(collect.orderBy());
                 return coll.withProjections(
-                                List.of(new SqlSelect.Projection(raw, alias)),
-                                s.outputs())
+                                List.of(new SqlSelect.Projection(raw, alias,
+                                        slot0(s.outputs()))))
                         .withOrderBy(keys);
             }
         }
@@ -425,8 +447,8 @@ public final class CarrierStrategies extends SqlRewriter {
                 List<com.legend.sql.SqlQuery> branches = new ArrayList<>();
                 for (SqlExpr cell : cells.elements()) {
                     branches.add(inner.withProjections(
-                            List.of(new SqlSelect.Projection(cell, alias)),
-                            s.outputs()));
+                            List.of(new SqlSelect.Projection(cell, alias,
+                                    slot0(s.outputs())))));
                 }
                 return branches.size() == 1 ? branches.get(0)
                         : new com.legend.sql.SqlUnion(branches, true,
@@ -550,8 +572,8 @@ public final class CarrierStrategies extends SqlRewriter {
                         List.of(new SqlSelect.Projection(
                                 new SqlAgg.Reducer(SqlAgg.Fn.COUNT,
                                         List.of(), false, List.of()),
-                                sel.projections().get(0).alias())),
-                        sel.outputs()));
+                                sel.projections().get(0).alias(),
+                                sel.projections().get(0).out()))));
             }
         }
         // LITERAL-VARIANT const-folds (PV3, witnessed: PCT navigates
@@ -638,8 +660,8 @@ public final class CarrierStrategies extends SqlRewriter {
                         List.of(new SqlSelect.Projection(
                                 new SqlAgg.Reducer(SqlAgg.Fn.LIST,
                                         collect.args(), false, keys),
-                                sel.projections().get(0).alias())),
-                        sel.outputs()));
+                                sel.projections().get(0).alias(),
+                                sel.projections().get(0).out()))));
             }
         }
         // filtered collect VALUE (R5d, witnessed): LIST_FILTER(collect,
@@ -777,8 +799,8 @@ public final class CarrierStrategies extends SqlRewriter {
                 && ual.elements().size() == 1) {
             SqlSelect newInner = uinner.withProjections(
                     List.of(new SqlSelect.Projection(ual.elements().get(0),
-                            uinner.projections().get(0).alias())),
-                    uinner.outputs());
+                            uinner.projections().get(0).alias(),
+                            uinner.projections().get(0).out())));
             coll = new SqlExpr.ScalarSubquery(usel.withFrom(
                     new com.legend.sql.SqlSource.Subselect(newInner,
                             usub.alias(), usub.frameName())));
@@ -811,8 +833,8 @@ public final class CarrierStrategies extends SqlRewriter {
                         false, fcollect.orderBy());
                 return new SqlExpr.ScalarSubquery(fsel.withProjections(
                         List.of(new SqlSelect.Projection(fused,
-                                fsel.projections().get(0).alias())),
-                        fsel.outputs()));
+                                fsel.projections().get(0).alias(),
+                                fsel.projections().get(0).out()))));
             }
             // SORTED row-major join (witnessed R1d): cells sort GLOBALLY
             // across rows — per-row CONCAT cannot express it. The
@@ -821,8 +843,7 @@ public final class CarrierStrategies extends SqlRewriter {
             List<com.legend.sql.SqlQuery> branches = new ArrayList<>();
             for (SqlExpr cell : cells.elements()) {
                 branches.add(fsel.withProjections(
-                        List.of(new SqlSelect.Projection(cell, "v")),
-                        List.of()));
+                        List.of(new SqlSelect.Projection(cell, "v", null))));
             }
             com.legend.sql.SqlUnion union =
                     new com.legend.sql.SqlUnion(branches, true, List.of());
@@ -837,7 +858,7 @@ public final class CarrierStrategies extends SqlRewriter {
                             new com.legend.sql.SqlSource.Subselect(union,
                                     "_cells", null))
                     .withProjections(List.of(new SqlSelect.Projection(
-                            fused, null)), List.of()));
+                            fused, null, null))));
         }
         // THROUGH-SUBSELECT ROW-MAJOR (R5c, witnessed): FLATTEN(collect)
         // where the collected COLUMN resolves to an ArrayLit in the
@@ -881,26 +902,27 @@ public final class CarrierStrategies extends SqlRewriter {
                     List<SqlSelect.Projection> np =
                             new ArrayList<>(finner.projections());
                     np.set(srcIx, new SqlSelect.Projection(rowJoined,
-                            fcol.name()));
+                            fcol.name(),
+                            finner.projections().get(srcIx).out()));
                     SqlAgg.Reducer fused = new SqlAgg.Reducer(
                             SqlAgg.Fn.STRING_AGG, List.of(fcol, sep), false,
                             fc2.orderBy());
                     return new SqlExpr.ScalarSubquery(fsel2
                             .withFrom(new com.legend.sql.SqlSource.Subselect(
-                                    finner.withProjections(np,
-                                            finner.outputs()),
+                                    finner.withProjections(np),
                                     fsub.alias(), fsub.frameName()))
                             .withProjections(List.of(
                                     new SqlSelect.Projection(fused,
                                             fsel2.projections().get(0)
-                                                    .alias())),
-                                    fsel2.outputs()));
+                                                    .alias(),
+                                            fsel2.projections().get(0)
+                                                    .out()))));
                 }
                 List<com.legend.sql.SqlQuery> branches = new ArrayList<>();
                 for (SqlExpr cell : cells2.elements()) {
                     branches.add(finner.withProjections(
-                            List.of(new SqlSelect.Projection(cell, "v")),
-                            List.of()));
+                            List.of(new SqlSelect.Projection(cell, "v",
+                                    null))));
                 }
                 com.legend.sql.SqlUnion union =
                         new com.legend.sql.SqlUnion(branches, true,
@@ -916,7 +938,7 @@ public final class CarrierStrategies extends SqlRewriter {
                                 new com.legend.sql.SqlSource.Subselect(union,
                                         "_cells", null))
                         .withProjections(List.of(new SqlSelect.Projection(
-                                fused, null)), List.of()));
+                                fused, null, null))));
             }
         }
         if (!(coll instanceof SqlExpr.ScalarSubquery sq)
@@ -943,8 +965,8 @@ public final class CarrierStrategies extends SqlRewriter {
                         : collect.orderBy());
         return new SqlExpr.ScalarSubquery(sel.withProjections(
                 List.of(new SqlSelect.Projection(fused,
-                        sel.projections().get(0).alias())),
-                sel.outputs()));
+                        sel.projections().get(0).alias(),
+                        sel.projections().get(0).out()))));
     }
 
     /** {@code t(e1) || sep || t(e2) || …} over compile-time elements. */
@@ -1033,8 +1055,8 @@ public final class CarrierStrategies extends SqlRewriter {
                     (SqlAgg.Reducer) sel.projections().get(0).expr();
             SqlSelect picked = sel.withProjections(
                     List.of(new SqlSelect.Projection(collect.args().get(0),
-                            sel.projections().get(0).alias())),
-                    sel.outputs());
+                            sel.projections().get(0).alias(),
+                            sel.projections().get(0).out())));
             if (i >= 1) {
                 return new SqlExpr.ScalarSubquery(picked
                         .withOrderBy(collect.orderBy())
@@ -1232,7 +1254,7 @@ public final class CarrierStrategies extends SqlRewriter {
                     collect.args().get(0), m.needle());
             SqlSelect inner = sel.withProjections(
                     List.of(new SqlSelect.Projection(
-                            new SqlExpr.IntLit(1), null)), List.of());
+                            new SqlExpr.IntLit(1), null, null)));
             SqlSelect withEq = inner.withWhere(inner.where() == null ? eq
                     : SqlExpr.Call.of(com.legend.sql.SqlFn.AND,
                             inner.where(), eq));

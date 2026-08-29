@@ -45,9 +45,10 @@ final class SnapshotEnvelope {
                         List.of(count, new SqlExpr.IntLit(1))), sole)),
                 ja);
         return env.withProjections(
-                List.of(new SqlSelect.Projection(chosen, "result")),
-                List.of(new OutputCol("result",
-                        PureSql.type(Type.Primitive.STRING), false)));
+                List.of(new SqlSelect.Projection(chosen, "result",
+                        new OutputCol("result",
+                                PureSql.type(Type.Primitive.STRING),
+                                false))));
     }
 
     /** The null-stripping envelope object (Lowerer.serializeGraph):

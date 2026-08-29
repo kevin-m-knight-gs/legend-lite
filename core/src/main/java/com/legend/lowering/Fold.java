@@ -88,11 +88,15 @@ final class Fold {
             if (ps.isEmpty()) {
                 // a star branch keeps its star AND gains the ordinal
                 ps.add(new com.legend.sql.SqlSelect.Projection(
-                        new com.legend.sql.SqlExpr.Star(null), null));
+                        new com.legend.sql.SqlExpr.Star(null), null, null));
             }
+            // label = wire truth (typed-IR census witness): the ordinal IS
+            // a BIGINT
             ps.add(new com.legend.sql.SqlSelect.Projection(
-                    new com.legend.sql.SqlExpr.IntLit(i++), "u_ord"));
-            bs.add(s.withProjections(ps, widen(s.outputs())));
+                    new com.legend.sql.SqlExpr.IntLit(i++), "u_ord",
+                    new com.legend.sql.OutputCol("u_ord",
+                            com.legend.sql.SqlType.Scalar.BIGINT, false)));
+            bs.add(s.withProjections(ps));
         }
         var nu = new com.legend.sql.SqlUnion(bs, true, widen(u.outputs()));
         var repl = new com.legend.sql.SqlSource.Subselect(nu, sub.alias(),
@@ -598,48 +602,30 @@ final class Fold {
      * and the sides. Names match by the frame's OUTER spelling
      * (prefix renames applied to the padded right side); a name miss
      * merely keeps today's claim (under-weakening, never a lie). */
-    /** ORIGIN reconciliation for a join-slot frame (the padJoinOutputs
-     * idiom applied to spelling): a PREFIX-RENAMED column is explicitly
-     * aliased — DERIVED; a passthrough column rides the star/bare
-     * projection and keeps ITS SOURCE's label — inherit the side's
-     * declared origin by name; a fallback follows the star side's KIND
-     * (physical source labels fold; derived frames label explicitly). */
-    /** The star-passthrough side's LABEL namespace when its outputs
-     * make no claim: a physical source (table / raw sql / external)
-     * labels in the DATABASE's folded spelling; any derived frame
-     * labels explicitly (the H2 renderer aliases every projection),
-     * so its labels are the declared names. */
-    static OutputCol.Origin starSideOrigin(SqlSource side) {
-        return side instanceof SqlSource.Table
-                || side instanceof SqlSource.RawSql
-                || side instanceof SqlSource.SourceUrl
-                ? OutputCol.Origin.PHYSICAL
-                : OutputCol.Origin.DERIVED;
+    /** The DECLARED slot for {@code name} out of a contract output
+     * list — the attachment door for builders whose projections don't
+     * line up positionally with the schema (star-headed extends,
+     * prefix joins). Name-keyed at CONSTRUCTION against the declared
+     * schema: spending builder knowledge, not consumption re-derivation.
+     * A miss is a builder bug and walls loudly. */
+    static com.legend.sql.OutputCol named(List<com.legend.sql.OutputCol> outs, String name) {
+        for (com.legend.sql.OutputCol c : outs) {
+            if (c.name().equals(name)) {
+                return c;
+            }
+        }
+        throw new IllegalStateException("declared output '" + name
+                + "' missing from the contract list "
+                + outs.stream().map(com.legend.sql.OutputCol::name).toList());
     }
 
-    static List<OutputCol> stampJoinOrigins(List<OutputCol> outs,
-            SqlSource.Join source, java.util.Optional<String> prefix,
-            java.util.function.Predicate<String> renameWhen) {
-        java.util.Map<String, OutputCol.Origin> bySide =
-                new java.util.HashMap<>();
-        for (OutputCol c : source.left().outputs()) {
-            bySide.put(c.name(), c.origin());
-        }
-        for (OutputCol c : source.right().outputs()) {
-            bySide.putIfAbsent(c.name(), c.origin());
-        }
-        List<OutputCol> os = new ArrayList<>(outs.size());
-        for (OutputCol c : outs) {
-            boolean renamed = prefix.isPresent()
-                    && c.name().startsWith(prefix.get());
-            OutputCol.Origin o = renamed ? OutputCol.Origin.DERIVED
-                    : bySide.getOrDefault(c.name(),
-                            starSideOrigin(source.left()));
-            os.add(new OutputCol(c.name(), c.type(), c.nullable(),
-                    c.tolerated(), o));
-        }
-        return os;
-    }
+    // stampJoinOrigins + starSideOrigin DELETED (SQL-IR slice 2,
+    // ORIGIN_ARCHITECTURE_AUDIT mechanisms #4-#6): join-frame outputs
+    // now BUILD from the projection list at construction — a star
+    // projection inherits the starred source's outputs verbatim, an
+    // explicit projection is the query's own declaration (DERIVED) —
+    // so no construct-then-patch pass, name lookup, or kind-guess
+    // fallback exists to lose the thread.
 
     static List<OutputCol> padJoinOutputs(List<OutputCol> outs,
             SqlSource.Join source, java.util.Optional<String> prefix,
@@ -669,8 +655,10 @@ final class Fold {
                     os = new ArrayList<>(outs);
                 }
                 com.legend.sql.SqlTyping.PAD_FRAME_WEAKENED.increment();
+                // origin TRANSPORTS (slice 2): the weaken touches only
+                // nullability — the spelling fact is not this pass's
                 os.set(i, new OutputCol(c.name(), c.type(), true,
-                        c.tolerated()));
+                        c.tolerated(), c.origin()));
             }
         }
         return os == null ? outs : List.copyOf(os);
@@ -791,9 +779,8 @@ final class Fold {
                         : SqlExpr.Column.derived(srcAlias, col));
         return SqlSelect.starOf(src)
                 .withProjections(List.of(new SqlSelect.Projection(
-                                SqlExpr.Call.of(SqlFn.UNNEST, listRef),
-                                out)),
-                        List.of(new OutputCol(out, elemType, true)));
+                        SqlExpr.Call.of(SqlFn.UNNEST, listRef),
+                        out, new OutputCol(out, elemType, true))));
     }
 
     /** Row explosion of a (possibly CORRELATED) list expression: a
@@ -803,11 +790,12 @@ final class Fold {
             com.legend.sql.SqlType elemType,
             String carryAlias, String outerAlias) {
         SqlSelect carry = new SqlSelect(
-                List.of(new SqlSelect.Projection(list, "lst")),
+                List.of(new SqlSelect.Projection(list, "lst",
+                        new OutputCol("lst",
+                                new com.legend.sql.SqlType.Array(elemType),
+                                true))),
                 false, new SqlSource.Dual(), null, List.of(),
-                null, null, List.of(), null, null,
-                List.of(new OutputCol("lst",
-                        new com.legend.sql.SqlType.Array(elemType), true)));
+                null, null, List.of(), null, null, List.of());
         return new SqlSource.Subselect(
                 unnestColumn(new SqlSource.Subselect(carry, carryAlias, null),
                         carryAlias, "lst", "elem", elemType),
@@ -1178,7 +1166,7 @@ final class Fold {
                     && sub.alias().equals(uc.table());
             ps.add(new SqlSelect.Projection(e,
                     !unionRead && e instanceof SqlExpr.Column col
-                            && col.name().equals(c) ? null : c));
+                            && col.name().equals(c) ? null : c, null));
         }
         return ps;
     }

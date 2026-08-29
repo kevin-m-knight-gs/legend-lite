@@ -24,7 +24,8 @@ final class QualifyToSubselect extends SqlRewriter {
         }
         SqlSelect inner = s.withQualify(null);
         return new SqlSelect(
-                List.of(new SqlSelect.Projection(new SqlExpr.Star(null), null)),
+                List.of(new SqlSelect.Projection(new SqlExpr.Star(null),
+                        null, null)),
                 false,
                 new SqlSource.Subselect(inner, "qualify_src", null),
                 s.qualify(), List.of(), null, null,

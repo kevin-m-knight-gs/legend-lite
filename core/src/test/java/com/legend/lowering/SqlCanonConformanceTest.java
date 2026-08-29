@@ -82,7 +82,7 @@ class SqlCanonConformanceTest {
         SqlExpr canon = CanonicalRenderSql.scalarCanon(v, t);
         SqlSelect q = new SqlSelect(
                 List.of(new SqlSelect.Projection(
-                        java.util.Objects.requireNonNull(canon), "canon")),
+                        java.util.Objects.requireNonNull(canon), "canon", null)),
                 false, new SqlSource.Dual(), null, List.of(), null, null,
                 List.of(), null, null,
                 List.of(new OutputCol("canon", SqlType.Scalar.VARCHAR, true)));
@@ -149,7 +149,7 @@ class SqlCanonConformanceTest {
     private static String dbText(Connection c, SqlExpr expr)
             throws Exception {
         SqlSelect q = new SqlSelect(
-                List.of(new SqlSelect.Projection(expr, "t")),
+                List.of(new SqlSelect.Projection(expr, "t", null)),
                 false, new SqlSource.Dual(), null, List.of(), null, null,
                 List.of(), null, null,
                 List.of(new OutputCol("t", SqlType.Scalar.VARCHAR, true)));

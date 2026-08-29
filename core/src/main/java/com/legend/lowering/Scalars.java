@@ -1054,9 +1054,9 @@ final class Scalars {
                         // their comparables (parallel select-list unnests)
                         var inner = new SqlSelect(List.of(
                                 new SqlSelect.Projection(
-                                        SqlExpr.Call.of(SqlFn.UNNEST, mx.idList()), "i"),
+                                        SqlExpr.Call.of(SqlFn.UNNEST, mx.idList()), "i", null),
                                 new SqlSelect.Projection(
-                                        SqlExpr.Call.of(SqlFn.UNNEST, mx.valList()), "v")),
+                                        SqlExpr.Call.of(SqlFn.UNNEST, mx.valList()), "v", null)),
                                 dedup, new com.legend.sql.SqlSource.Dual(), null,
                                 List.of(), null, null, List.of(),
                                 null, null, List.of());
@@ -1065,7 +1065,7 @@ final class Scalars {
                                 new SqlSelect.Projection(
                                         new SqlExpr.OrderedListAgg(
                                                 SqlExpr.Column.derived("_mx", "i"),
-                                                SqlExpr.Column.derived("_mx", "v")), "s")),
+                                                SqlExpr.Column.derived("_mx", "v")), "s", null)),
                                 false, src, null, List.of(), null, null, List.of(),
                                 null, null, List.of());
                         // F10 slice 2/3: the sorted ids ARE pure-literal
@@ -1954,9 +1954,9 @@ final class Scalars {
                             ? args.get(1) : new SqlExpr.ArrayLit(List.of(args.get(1))));
                     var inner = new SqlSelect(List.of(
                             new SqlSelect.Projection(
-                                    SqlExpr.Call.of(SqlFn.UNNEST, xs), "a"),
+                                    SqlExpr.Call.of(SqlFn.UNNEST, xs), "a", null),
                             new SqlSelect.Projection(
-                                    SqlExpr.Call.of(SqlFn.UNNEST, ys), "b")),
+                                    SqlExpr.Call.of(SqlFn.UNNEST, ys), "b", null)),
                             false, new com.legend.sql.SqlSource.Dual(), null,
                             List.of(), null, null, List.of(), null, null,
                             List.of());
@@ -1965,7 +1965,7 @@ final class Scalars {
                                     new SqlAgg.Reducer(e.getValue(),
                                             List.of(SqlExpr.Column.derived(null, "a"),
                                                     SqlExpr.Column.derived(null, "b")), false, java.util.List.of()),
-                                    null)),
+                                    null, null)),
                             false, new SqlSource.Subselect(inner, "_uz", null),
                             null, List.of(), null, null, List.of(), null, null, List.of());
                     // MISMATCHED lengths would zip-pad with NULLs and the
@@ -3393,8 +3393,8 @@ final class Scalars {
         return new SqlExpr.ScalarSubquery(ss.withProjections(
                 List.of(new SqlSelect.Projection(
                         r.args().get(0),
-                        ss.projections().get(0).alias())),
-                ss.outputs()));
+                        ss.projections().get(0).alias(),
+                        ss.projections().get(0).out()))));
     }
 
     /** The reduction rules' identity-arm guard — Stamps.toOne, the

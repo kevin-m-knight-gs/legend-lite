@@ -65,7 +65,6 @@ public final class WireRender {
 
     private static SqlSelect asSelect(SqlQuery plan) {
         return plan instanceof SqlSelect s ? s
-                : SqlSelect.starOf(new SqlSource.Subselect(plan, "_wire0", null))
-                        .withProjections(List.of(), plan.outputs());
+                : SqlSelect.starOf(new SqlSource.Subselect(plan, "_wire0", null));
     }
 }

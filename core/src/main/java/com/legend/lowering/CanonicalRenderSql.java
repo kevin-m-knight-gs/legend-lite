@@ -106,11 +106,13 @@ public final class CanonicalRenderSql {
             // and the ONE candidate is the literal channel.
             return new CanonWrap(new com.legend.sql.SqlSelect(
                     List.of(new com.legend.sql.SqlSelect.Projection(
-                                    valueRef, valueCol.name()),
+                                    valueRef, valueCol.name(), valueCol),
                             new com.legend.sql.SqlSelect.Projection(
                                     new SqlExpr.Cast(valueRef,
                                             SqlType.Scalar.VARCHAR),
-                                    "__canon0")),
+                                    "__canon0",
+                                    new com.legend.sql.OutputCol("__canon0",
+                                            SqlType.Scalar.VARCHAR, true))),
                     false,
                     new com.legend.sql.SqlSource.Subselect(plan, "side",
                             null),
@@ -259,14 +261,12 @@ public final class CanonicalRenderSql {
         List<com.legend.sql.SqlSelect.Projection> projections =
                 new java.util.ArrayList<>();
         projections.add(new com.legend.sql.SqlSelect.Projection(
-                valueRef, valueCol.name()));
-        List<com.legend.sql.OutputCol> outputs = new java.util.ArrayList<>();
-        outputs.add(valueCol);
+                valueRef, valueCol.name(), valueCol));
         for (int i = 0; i < canons.size(); i++) {
             projections.add(new com.legend.sql.SqlSelect.Projection(
-                    canons.get(i), "__canon" + i));
-            outputs.add(new com.legend.sql.OutputCol("__canon" + i,
-                    SqlType.Scalar.VARCHAR, true));
+                    canons.get(i), "__canon" + i,
+                    new com.legend.sql.OutputCol("__canon" + i,
+                            SqlType.Scalar.VARCHAR, true)));
         }
         List<com.legend.sql.SqlSelect.SortKey> sort = canonicalOrder
                 ? List.of(new com.legend.sql.SqlSelect.SortKey(
@@ -275,7 +275,7 @@ public final class CanonicalRenderSql {
         return new CanonWrap(new com.legend.sql.SqlSelect(projections,
                 false,
                 new com.legend.sql.SqlSource.Subselect(plan, "side", null),
-                null, List.of(), null, null, sort, null, null, outputs),
+                null, List.of(), null, null, sort, null, null, List.of()),
                 candidates, many, literalIndex, null);
     }
 
@@ -375,22 +375,20 @@ public final class CanonicalRenderSql {
         }
         List<com.legend.sql.SqlSelect.Projection> projections =
                 new java.util.ArrayList<>();
-        List<com.legend.sql.OutputCol> outputs = new java.util.ArrayList<>();
         for (com.legend.sql.OutputCol col : plan.outputs()) {
             projections.add(new com.legend.sql.SqlSelect.Projection(
-                    SqlExpr.Column.of(null, col), col.name()));
-            outputs.add(col);
+                    SqlExpr.Column.of(null, col), col.name(), col));
         }
         projections.add(new com.legend.sql.SqlSelect.Projection(
                 Objects.requireNonNull(row, "grid canon over 0 columns"),
-                "__rowcanon"));
-        outputs.add(new com.legend.sql.OutputCol("__rowcanon",
-                SqlType.Scalar.VARCHAR, true));
+                "__rowcanon",
+                new com.legend.sql.OutputCol("__rowcanon",
+                        SqlType.Scalar.VARCHAR, true)));
         return new TdsWrap(new com.legend.sql.SqlSelect(projections,
                 false,
                 new com.legend.sql.SqlSource.Subselect(plan, "side", null),
                 null, List.of(), null, null, List.of(), null, null,
-                outputs), null);
+                List.of()), null);
     }
 
     /** F13 — the IDENTITY canon of an instance whose layout carries the

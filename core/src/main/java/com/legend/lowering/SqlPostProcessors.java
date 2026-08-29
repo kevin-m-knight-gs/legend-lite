@@ -235,7 +235,7 @@ public final class SqlPostProcessors {
             java.util.function.UnaryOperator<String> m) {
         return new SqlSelect(
                 s.projections().stream().map(p -> new SqlSelect.Projection(
-                        expr(p.expr(), m), p.outputName())).toList(),
+                        expr(p.expr(), m), p.outputName(), p.out())).toList(),
                 s.distinct(),
                 source(s.from(), m),
                 s.where() == null ? null : expr(s.where(), m),

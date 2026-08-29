@@ -397,16 +397,13 @@ final class SubselectPrune {
                 continue;
             }
             SqlSelect bs = (SqlSelect) b;
+            // outputs-from-projections: kept projections carry their
+            // slots — the pruned branch's outputs rebuild themselves
             List<SqlSelect.Projection> ps = new ArrayList<>();
-            List<OutputCol> os = new ArrayList<>();
             for (int i : keep) {
                 ps.add(bs.projections().get(i));
-                if (bs.outputs().size() == n) {
-                    os.add(bs.outputs().get(i));
-                }
             }
-            nb.add(bs.withProjections(ps,
-                    bs.outputs().size() == n ? os : bs.outputs()));
+            nb.add(bs.withProjections(ps));
         }
         List<OutputCol> uo = new ArrayList<>();
         for (int i : keep) {
@@ -427,16 +424,12 @@ final class SubselectPrune {
         }
         Set<String> used = r.cols().getOrDefault(alias, Set.of());
         List<SqlSelect.Projection> kept = new ArrayList<>();
-        Set<String> keptNames = new HashSet<>();
         for (SqlSelect.Projection p : sel.projections()) {
             String out = p.alias() != null ? p.alias()
                     : p.expr() instanceof SqlExpr.Column c ? c.name() : null;
             if (!(p.expr() instanceof SqlExpr.Column) || out == null
                     || used.contains(out) || r.unqualified().contains(out)) {
                 kept.add(p);
-                if (out != null) {
-                    keptNames.add(out);
-                }
             }
         }
         if (kept.size() == sel.projections().size()) {
@@ -445,30 +438,8 @@ final class SubselectPrune {
         if (kept.isEmpty()) {
             // an empty SELECT list is not SQL — keep the first projection
             kept.add(sel.projections().get(0));
-            SqlSelect.Projection p0 = sel.projections().get(0);
-            if (p0.alias() != null) {
-                keptNames.add(p0.alias());
-            } else if (p0.expr() instanceof SqlExpr.Column c0) {
-                keptNames.add(c0.name());
-            }
         }
-        // outputs stay name-consistent with the projections when they were
-        // (root outputs never prune — the root select is not a Subselect)
-        List<OutputCol> outs = sel.outputs();
-        if (outs.size() == sel.projections().size()) {
-            List<OutputCol> keptOuts = new ArrayList<>();
-            for (OutputCol oc : outs) {
-                if (keptNames.contains(oc.name())
-                        || kept.stream().anyMatch(p ->
-                                p.alias() == null
-                                && p.expr() instanceof SqlExpr.Star)) {
-                    keptOuts.add(oc);
-                }
-            }
-            if (!keptOuts.isEmpty()) {
-                outs = keptOuts;
-            }
-        }
-        return sel.withProjections(kept, outs);
+        // outputs-from-projections: kept projections carry their slots
+        return sel.withProjections(kept);
     }
 }

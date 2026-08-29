@@ -100,7 +100,6 @@ final class ExistsJoinForm {
             // tables gets a DISAMBIGUATED output alias; the common
             // single-table case keeps the bare name (golden-stable).
             List<SqlSelect.Projection> projs = new ArrayList<>();
-            List<OutputCol> outs = new ArrayList<>();
             java.util.Map<String, String> aliasFor = new java.util.LinkedHashMap<>();
             Set<String> usedNames = new LinkedHashSet<>();
             for (CorrPair p2 : corr) {
@@ -115,20 +114,20 @@ final class ExistsJoinForm {
                     outName = in.name() + "_" + k++;
                 }
                 aliasFor.put(key2, outName);
-                projs.add(new SqlSelect.Projection(in,
-                        outName.equals(in.name()) ? null : outName));
                 OutputCol oc = outputColOf(sub.from(), in);
                 // E2E audit: a RENAME rebuild transports ALL FOUR
-                // dimensions — the 3-arg ctor silently dropped the
-                // tolerated tag (the SqlUnion-bug species, latent here)
-                outs.add(outName.equals(oc.name()) ? oc
-                        : new OutputCol(outName, oc.type(), oc.nullable(),
-                                oc.tolerated()));
+                // dimensions — the old 3-arg OutputCol ctor silently
+                // dropped the tolerated tag (the SqlUnion-bug species)
+                projs.add(new SqlSelect.Projection(in,
+                        outName.equals(in.name()) ? null : outName,
+                        outName.equals(oc.name()) ? oc
+                                : new OutputCol(outName, oc.type(),
+                                        oc.nullable(), oc.tolerated())));
             }
             SqlSelect keys = new SqlSelect(projs, true, sub.from(),
                     keysWhere(local, sub.where() == null ? null
                             : zones.apply(sub.where())),
-                    List.of(), null, null, List.of(), null, null, outs);
+                    List.of(), null, null, List.of(), null, null, List.of());
             SqlSource.Subselect side = new SqlSource.Subselect(
                     keys, alias.get(),
                     SqlSource.Subselect.EXISTS_KEYS_FRAME);

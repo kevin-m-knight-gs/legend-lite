@@ -392,18 +392,23 @@ public class RelationalCorpusRunner {
             if (onlyFilters.isEmpty()) {
                 org.junit.jupiter.api.Assertions.assertAll(
                         () -> org.junit.jupiter.api.Assertions.assertTrue(
-                                p >= 1367, "h2 sweep pass fell: " + p
-                                        + " < floor 1367 (batch-C"
-                                        + " landing: 1369 lenient - 2"
-                                        + " NAMED rows — testChained"
+                                p >= 1372, "h2 sweep pass fell: " + p
+                                        + " < floor 1372 (SQL-IR slice 2"
+                                        + " outputs-from-projections:"
+                                        + " 1367 -> 1372 — the milestoning"
+                                        + " union-wrap residue healed +"
+                                        + " 3 more label-consistency rows."
+                                        + " Known residue testChained"
                                         + "JoinsWithUnionsAndIsolation"
                                         + "WithProjectionQueryTableFilter"
-                                        + " + testPropertyProjection"
-                                        + "QueryWithInnerJoinClassMapping"
-                                        + "WithMilestoningTableFilter:"
-                                        + " label-vs-physical skew in"
-                                        + " deep union wraps, follow-up"
-                                        + " on the origin propagation)"),
+                                        + " is a DEMAND divergence, not"
+                                        + " origin: the union extent"
+                                        + " projects an undemanded"
+                                        + " legalName the engine prunes;"
+                                        + " our prune is blocked by the"
+                                        + " star over the union frame —"
+                                        + " charter ORIGIN_ARCHITECTURE"
+                                        + "_AUDIT landing record)"),
                         () -> org.junit.jupiter.api.Assertions.assertTrue(
                                 seedFails.size() <= 6,
                                 "h2 failed seeds grew: " + seedFails.size()

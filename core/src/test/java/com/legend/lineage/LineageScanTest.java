@@ -46,7 +46,7 @@ class LineageScanTest {
                 SqlSource.Join.Kind.LEFT,
                 eq(col("t0", "FIRMID"), col("t1", "ID")));
         SqlSelect q = select(
-                List.of(new SqlSelect.Projection(col("t0", "NAME"), "name")),
+                List.of(new SqlSelect.Projection(col("t0", "NAME"), "name", null)),
                 from,
                 eq(col("t1", "LEGAL"), new SqlExpr.StringLit("x")));
         assertEquals(List.of(
@@ -62,8 +62,8 @@ class LineageScanTest {
         // SELECT t2.nm FROM (SELECT t0.NAME AS nm, t0.ID AS id FROM T t0) t2
         // JOIN U t3 ON t2.id = t3.fk
         SqlSelect inner = select(List.of(
-                new SqlSelect.Projection(col("t0", "NAME"), "nm"),
-                new SqlSelect.Projection(col("t0", "ID"), "id")),
+                new SqlSelect.Projection(col("t0", "NAME"), "nm", null),
+                new SqlSelect.Projection(col("t0", "ID"), "id", null)),
                 new SqlSource.Table("T", "t0", List.of()), null);
         SqlSource from = new SqlSource.Join(
                 new SqlSource.Subselect(inner, "t2", null),
@@ -71,7 +71,7 @@ class LineageScanTest {
                 SqlSource.Join.Kind.INNER,
                 eq(col("t2", "id"), col("t3", "fk")));
         SqlSelect q = select(
-                List.of(new SqlSelect.Projection(col("t2", "nm"), "nm")),
+                List.of(new SqlSelect.Projection(col("t2", "nm"), "nm", null)),
                 from, null);
         assertEquals(List.of(
                 "T.ID <JoinTreeNode>",
@@ -85,13 +85,13 @@ class LineageScanTest {
         // SELECT t4.c FROM (SELECT a.x AS c FROM A a
         //                   UNION ALL SELECT b.y AS c FROM B b) t4
         SqlSelect left = select(
-                List.of(new SqlSelect.Projection(col("a", "x"), "c")),
+                List.of(new SqlSelect.Projection(col("a", "x"), "c", null)),
                 new SqlSource.Table("A", "a", List.of()), null);
         SqlSelect right = select(
-                List.of(new SqlSelect.Projection(col("b", "y"), "c")),
+                List.of(new SqlSelect.Projection(col("b", "y"), "c", null)),
                 new SqlSource.Table("B", "b", List.of()), null);
         SqlSelect q = select(
-                List.of(new SqlSelect.Projection(col("t4", "c"), "c")),
+                List.of(new SqlSelect.Projection(col("t4", "c"), "c", null)),
                 new SqlSource.Subselect(
                         new SqlUnion(List.of(left, right), true, List.of()),
                         "t4", null),

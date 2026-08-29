@@ -280,25 +280,25 @@ class SqlTypingTest {
         SqlExpr r = requiredCol("r", SqlType.Scalar.BIGINT);
         SqlSelect count = new SqlSelect(
                 List.of(new SqlSelect.Projection(
-                        SqlAgg.Reducer.of(SqlAgg.Fn.COUNT, r), null)),
+                        SqlAgg.Reducer.of(SqlAgg.Fn.COUNT, r), null, null)),
                 false, new SqlSource.Dual(), null, List.of(), null, null,
                 List.of(), null, null, List.of());
         assertEquals(false, nul(new SqlExpr.ScalarSubquery(count)));
         SqlSelect sum = new SqlSelect(
                 List.of(new SqlSelect.Projection(
-                        SqlAgg.Reducer.of(SqlAgg.Fn.SUM, r), null)),
+                        SqlAgg.Reducer.of(SqlAgg.Fn.SUM, r), null, null)),
                 false, new SqlSource.Dual(), null, List.of(), null, null,
                 List.of(), null, null, List.of());
         assertEquals(true, nul(new SqlExpr.ScalarSubquery(sum)));
         SqlSelect plain = new SqlSelect(
-                List.of(new SqlSelect.Projection(r, null)),
+                List.of(new SqlSelect.Projection(r, null, null)),
                 false, new SqlSource.Dual(), null, List.of(), null, null,
                 List.of(), null, null, List.of());
         assertEquals(true, nul(new SqlExpr.ScalarSubquery(plain)));
         // a GROUP BY voids the proof (groups can number zero)
         SqlSelect grouped = new SqlSelect(
                 List.of(new SqlSelect.Projection(
-                        SqlAgg.Reducer.of(SqlAgg.Fn.COUNT, r), null)),
+                        SqlAgg.Reducer.of(SqlAgg.Fn.COUNT, r), null, null)),
                 false, new SqlSource.Dual(), null, List.of(r), null, null,
                 List.of(), null, null, List.of());
         assertEquals(true, nul(new SqlExpr.ScalarSubquery(grouped)));
@@ -310,7 +310,7 @@ class SqlTypingTest {
                         SqlExpr.Call.of(SqlFn.COALESCE,
                                 SqlAgg.Reducer.of(SqlAgg.Fn.STRING_AGG, r,
                                         new SqlExpr.StringLit(",")),
-                                new SqlExpr.StringLit("")), null)),
+                                new SqlExpr.StringLit("")), null, null)),
                 false, new SqlSource.Dual(), null, List.of(), null, null,
                 List.of(), null, null, List.of());
         assertEquals(false, nul(new SqlExpr.ScalarSubquery(envelope)));
@@ -319,7 +319,7 @@ class SqlTypingTest {
                 List.of(new SqlSelect.Projection(
                         new SqlExpr.WindowCall(
                                 SqlAgg.Reducer.of(SqlAgg.Fn.SUM, r),
-                                List.of(), List.of(), null), null)),
+                                List.of(), List.of(), null), null, null)),
                 false, new SqlSource.Dual(), null, List.of(), null, null,
                 List.of(), null, null, List.of());
         assertEquals(true, nul(new SqlExpr.ScalarSubquery(windowed)));

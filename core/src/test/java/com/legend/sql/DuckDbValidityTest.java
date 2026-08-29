@@ -66,7 +66,7 @@ class DuckDbValidityTest {
 
     private Object execExpr(SqlExpr e) throws SQLException {
         return exec(SqlSelect.starOf(T_PERSON)
-                .withProjections(List.of(new SqlSelect.Projection(e, "v")), List.of())
+                .withProjections(List.of(new SqlSelect.Projection(e, "v", null)))
                 .withLimit(1L));
     }
 
@@ -75,9 +75,8 @@ class DuckDbValidityTest {
     void fullClauseSet() throws SQLException {
         SqlSelect s = SqlSelect.starOf(T_PERSON)
                 .withProjections(List.of(
-                        new SqlSelect.Projection(col("FIRM_ID"), null),
-                        new SqlSelect.Projection(SqlAgg.Reducer.of(SqlAgg.Fn.SUM, col("AGE")), "total")),
-                        List.of())
+                        new SqlSelect.Projection(col("FIRM_ID"), null, null),
+                        new SqlSelect.Projection(SqlAgg.Reducer.of(SqlAgg.Fn.SUM, col("AGE")), "total", null)))
                 .withWhere(SqlExpr.Call.of(SqlFn.GREATER, col("AGE"), new SqlExpr.IntLit(20)))
                 .withGroupBy(List.of(col("FIRM_ID")))
                 .withHaving(SqlExpr.Call.of(SqlFn.GREATER_EQUAL,
@@ -118,9 +117,9 @@ class DuckDbValidityTest {
                         new SqlExpr.WindowCall.Frame.Bound.CurrentRow()));
         SqlSelect s = SqlSelect.starOf(T_PERSON)
                 .withProjections(List.of(
-                        new SqlSelect.Projection(col("NAME"), null),
-                        new SqlSelect.Projection(rank, "rn"),
-                        new SqlSelect.Projection(running, "running")), List.of())
+                        new SqlSelect.Projection(col("NAME"), null, null),
+                        new SqlSelect.Projection(rank, "rn", null),
+                        new SqlSelect.Projection(running, "running", null)))
                 .withQualify(SqlExpr.Call.of(SqlFn.EQUAL,
                         new SqlExpr.Column(null, "rn"), new SqlExpr.IntLit(1)));
         exec(s);
@@ -179,7 +178,7 @@ class DuckDbValidityTest {
         exec(SqlSelect.starOf(v));
 
         assertEquals(3L, ((Number) exec(new SqlSelect(
-                List.of(new SqlSelect.Projection(SqlAgg.Reducer.of(SqlAgg.Fn.COUNT), null)),
+                List.of(new SqlSelect.Projection(SqlAgg.Reducer.of(SqlAgg.Fn.COUNT), null, null)),
                 false,
                 new SqlSource.Subselect(new SqlUnion(List.of(
                         SqlSelect.starOf(T_PERSON), SqlSelect.starOf(T_PERSON)), false, List.of()),
@@ -191,7 +190,7 @@ class DuckDbValidityTest {
 
         assertEquals("ACME", execExpr(new SqlExpr.ScalarSubquery(
                 new SqlSelect(List.of(new SqlSelect.Projection(
-                        new SqlExpr.Column("t1", "LEGAL_NAME"), null)), false,
+                        new SqlExpr.Column("t1", "LEGAL_NAME"), null, null)), false,
                         new SqlSource.Table("T_FIRM", "t1", List.of()),
                         null, List.of(), null, null, List.of(), null, null, List.of()))));
     }
@@ -205,9 +204,8 @@ class DuckDbValidityTest {
         }
         SqlSelect s = SqlSelect.starOf(new SqlSource.Table("my table", "t0", List.of()))
                 .withProjections(List.of(
-                        new SqlSelect.Projection(new SqlExpr.Column("t0", "order"), null),
-                        new SqlSelect.Projection(new SqlExpr.Column("t0", "first name"), null)),
-                        List.of());
+                        new SqlSelect.Projection(new SqlExpr.Column("t0", "order"), null, null),
+                        new SqlSelect.Projection(new SqlExpr.Column("t0", "first name"), null, null)));
         assertEquals(1, ((Number) exec(s)).intValue());
     }
 

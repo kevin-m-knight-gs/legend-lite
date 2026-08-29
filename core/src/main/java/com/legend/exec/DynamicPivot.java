@@ -71,8 +71,8 @@ public final class DynamicPivot {
             throws SQLException {
         SqlExpr key = p.on().get(0);
         SqlSelect q = SqlSelect.starOf(p.source())
-                .withProjections(List.of(new SqlSelect.Projection(key, "v")),
-                        List.of())
+                .withProjections(List.of(
+                        new SqlSelect.Projection(key, "v", null)))
                 .withDistinct()
                 .withWhere(SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NOT_NULL,
                         key))

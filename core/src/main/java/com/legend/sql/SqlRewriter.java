@@ -42,7 +42,8 @@ public abstract class SqlRewriter {
             case SqlSelect s -> {
                 List<SqlSelect.Projection> ps = mapList(s.projections(), p -> {
                     SqlExpr e2 = rewriteExpr(p.expr());
-                    return e2 == p.expr() ? p : new SqlSelect.Projection(e2, p.alias());
+                    return e2 == p.expr() ? p
+                            : new SqlSelect.Projection(e2, p.alias(), p.out());
                 });
                 SqlSource f = rewriteSource(s.from());
                 SqlExpr w = s.where() == null ? null : rewriteExpr(s.where());

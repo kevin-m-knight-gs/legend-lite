@@ -80,12 +80,12 @@ class BurnLaneTest {
     @DisplayName("§3b: 3-arg joinStrings (CONCAT wrap) still mints u_ord")
     void orderObligationSeesThroughConcat() {
         SqlSelect b1 = new SqlSelect(
-                List.of(new SqlSelect.Projection(new SqlExpr.StringLit("a"), "v")),
+                List.of(new SqlSelect.Projection(new SqlExpr.StringLit("a"), "v", null)),
                 false, new SqlSource.Dual(), null, List.of(), null, null,
                 List.of(), null, null,
                 List.of(new OutputCol("v", SqlType.Scalar.VARCHAR, false)));
         SqlSelect b2 = new SqlSelect(
-                List.of(new SqlSelect.Projection(new SqlExpr.StringLit("b"), "v")),
+                List.of(new SqlSelect.Projection(new SqlExpr.StringLit("b"), "v", null)),
                 false, new SqlSource.Dual(), null, List.of(), null, null,
                 List.of(), null, null,
                 List.of(new OutputCol("v", SqlType.Scalar.VARCHAR, false)));
@@ -103,10 +103,8 @@ class BurnLaneTest {
         assertTrue(oa != null,
                 "the obligation must fire through the CONCAT wrap");
         String sql = new com.legend.sql.dialect.DuckDb()
-                .render(oa.base().withProjections(
-                        List.of(new SqlSelect.Projection(oa.expr(), "r")),
-                        List.of(new OutputCol("r",
-                                SqlType.Scalar.VARCHAR, false))));
+                .render(oa.base().withProjections(SqlSelect.paired(List.of(new SqlSelect.Projection(oa.expr(), "r", null)), List.of(new OutputCol("r",
+                                SqlType.Scalar.VARCHAR, false)))));
         assertTrue(sql.contains("u_ord"),
                 "u_ord must be minted and ordered by, got:\n" + sql);
         assertTrue(sql.contains("ORDER BY") || sql.contains("order by"),

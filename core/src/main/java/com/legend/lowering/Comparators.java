@@ -75,18 +75,19 @@ final class Comparators {
         SqlExpr keyOverElem = Scalars.substituteRef(keyOfX, px, cx);
         var inner = new SqlSelect(List.of(
                 new SqlSelect.Projection(
-                        SqlExpr.Call.of(SqlFn.UNNEST, list), "x"),
+                        SqlExpr.Call.of(SqlFn.UNNEST, list), "x", null),
                 new SqlSelect.Projection(
                         SqlExpr.Call.of(SqlFn.UNNEST, SqlExpr.Call.of(SqlFn.RANGE_FN,
                                 new SqlExpr.IntLit(1),
                                 SqlExpr.Call.of(SqlFn.PLUS,
                                         SqlExpr.Call.of(SqlFn.LIST_LENGTH, list),
-                                        new SqlExpr.IntLit(1)))), "i")),
+                                        new SqlExpr.IntLit(1)))), "i",
+                        null)),
                 false, new com.legend.sql.SqlSource.Dual(), null,
                             List.of(), null, null, List.of(), null, null, List.of());
         var src = new SqlSource.Subselect(inner, "_cx", null);
         var outer = new SqlSelect(List.of(
-                new SqlSelect.Projection(cx, "w")),
+                new SqlSelect.Projection(cx, "w", null)),
                 false, src, null, List.of(), null, null,
                 List.of(new SqlSelect.SortKey(keyOverElem, !max,
                                 SqlSelect.SortKey.NullOrder.NULLS_LAST, null),

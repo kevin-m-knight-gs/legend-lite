@@ -41,7 +41,8 @@ public final class PlanEnumForm {
             // (monthOf's formatdatetime) keep their expression
             if (isEnum && p.expr() instanceof SqlExpr.Case
                     && (raw = singleColumnIn(p.expr())) != null) {
-                ps.add(new SqlSelect.Projection(raw, p.outputName()));
+                ps.add(new SqlSelect.Projection(raw, p.outputName(),
+                        p.out()));
                 changed = true;
             } else if (isEnum && com.legend.sql.DecodeShapes
                     .stripDecodes(p.expr()) instanceof SqlExpr st
@@ -49,7 +50,8 @@ public final class PlanEnumForm {
                 // computed enum projection (e.g. an if over the enum
                 // value): interior decode chains reduce to their raw
                 // store column — the plan keeps enum columns raw
-                ps.add(new SqlSelect.Projection(st, p.outputName()));
+                ps.add(new SqlSelect.Projection(st, p.outputName(),
+                        p.out()));
                 changed = true;
             } else {
                 ps.add(p);

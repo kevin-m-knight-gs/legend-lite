@@ -396,11 +396,12 @@ public final class Lowerer {
             e = SqlExpr.Call.of(SqlFn.UNNEST, new SqlExpr.CompactList(e));
         }
         return new SqlSelect(
-                List.of(new SqlSelect.Projection(e, "value")), false,
-                new SqlSource.Dual(),
+                List.of(new SqlSelect.Projection(e, "value",
+                        new OutputCol("value", label,
+                                PureSql.nullable(spec.info().multiplicity())))),
+                false, new SqlSource.Dual(),
                 null, List.of(), null, null, List.of(), null, null,
-                List.of(new OutputCol("value", label,
-                        PureSql.nullable(spec.info().multiplicity()))));
+                List.of());
     }
 
     /**
@@ -541,7 +542,7 @@ public final class Lowerer {
                         SqlSource.Join.Kind.CROSS_LATERAL,
                         null);   // CROSS JOIN takes no ON clause
                 yield SqlSelect.starOf(join)
-                        .withProjections(List.of(), outputsOf(nc.info()));
+                        .withOutputs(outputsOf(nc.info()));
             }
             // relation::variant::flatten(collection, ~col): the collection
             // UNNESTs as the single column (real flatten.pure semantics).
@@ -572,13 +573,13 @@ public final class Lowerer {
                         && !(elem instanceof Type.ClassType)) {
                     list = SqlExpr.Call.of(SqlFn.VARIANT_ELEMENTS, value);
                 }
+                var unnestP = new SqlSelect.Projection(
+                        SqlExpr.Call.of(SqlFn.UNNEST, list), cr.column(),
+                        Fold.named(outputsOf(cr.info()), cr.column()));
                 yield SqlSelect.starOf(new SqlSource.Subselect(
-                        new SqlSelect(List.of(new SqlSelect.Projection(
-                                        SqlExpr.Call.of(SqlFn.UNNEST, list),
-                                        cr.column())),
-                                false, new SqlSource.Dual(), null, List.of(),
-                                null, null, List.of(),
-                                null, null, outputsOf(cr.info())),
+                        new SqlSelect(List.of(unnestP), false,
+                                new SqlSource.Dual(), null, List.of(), null,
+                                null, List.of(), null, null, List.of()),
                         nextAlias(), null));
             }
 
@@ -760,12 +761,13 @@ public final class Lowerer {
                     && sub.alias().equals(uc.table());
             ps.add(new SqlSelect.Projection(e,
                     !unionRead && e instanceof SqlExpr.Column c
-                            && c.name().equals(k.column()) ? null : k.column()));
+                            && c.name().equals(k.column()) ? null : k.column(),
+                    null));
         }
         AggCols ac = aggCols(base, g.aggs(), calCtx);
         ps.addAll(ac.ps());
         return ac.base().withGroupBy(keys)
-                .withProjections(ps, outputsOf(g.info()));
+                .withProjections(SqlSelect.paired(ps, outputsOf(g.info())));
     }
 
     /** One envelope lambda lowered STRICTLY against the base select —
@@ -807,8 +809,7 @@ public final class Lowerer {
         return s.withProjections(
                 List.of(new SqlSelect.Projection(new SqlExpr.Cast(
                         p.expr(), SqlType.Scalar.VARCHAR, true),
-                        p.outputName())),
-                s.outputs());
+                        p.outputName(), p.out())));
     }
 
     private SqlSelect serializeGraph(TypedSerializeGraph g,
@@ -971,8 +972,10 @@ public final class Lowerer {
             result = obj;
         }
         return envelope.withProjections(
-                List.of(new SqlSelect.Projection(result, "result")),
-                List.of(new OutputCol("result", PureSql.type(Type.Primitive.STRING), false)));
+                List.of(new SqlSelect.Projection(result, "result",
+                        new OutputCol("result",
+                                PureSql.type(Type.Primitive.STRING),
+                                false))));
     }
 
     /** An INLINE (embedded) child's json object over the parent select:
@@ -1027,7 +1030,8 @@ public final class Lowerer {
         SqlSelect base = Fold.groupByFolds(src) ? src : isolate(src);
         return foldOrIsolate(base, "aggregate", b -> {
             AggCols ac = aggCols(b, a.aggs(), null);
-            return ac.base().withProjections(ac.ps(), outputsOf(a.info()));
+            return ac.base().withProjections(
+                    SqlSelect.paired(ac.ps(), outputsOf(a.info())));
         });
     }
 
@@ -1047,7 +1051,7 @@ public final class Lowerer {
                 base = oa.base();
                 av = oa.expr();
             }
-            ps.add(new SqlSelect.Projection(av, a.name()));
+            ps.add(new SqlSelect.Projection(av, a.name(), null));
         }
         return new AggCols(base, ps);
     }
@@ -1385,6 +1389,7 @@ public final class Lowerer {
             base = isolate(base);
         }
         SqlSelect target = base;
+        List<OutputCol> contract = outputsOf(info);
         List<SqlSelect.Projection> ps = new ArrayList<>();
         if (keepExisting) {
             // starProjections handles the JOIN-source case (no single alias:
@@ -1429,10 +1434,11 @@ public final class Lowerer {
                                 SqlExpr.Column.of(lat, "elem",
                                         PureSql.type(elemT), true,
                                         com.legend.sql.OutputCol.Origin.DERIVED),
-                                c.name()));
+                                c.name(), Fold.named(contract, c.name())));
                         continue;
                     }
-                    ps.add(new SqlSelect.Projection(r.expr(), c.name()));
+                    ps.add(new SqlSelect.Projection(r.expr(), c.name(),
+                            Fold.named(contract, c.name())));
                 }
                 case Resolution.Unfoldable u -> {
                     miss[0] = c.name();
@@ -1441,7 +1447,7 @@ public final class Lowerer {
                 }
             }
         }
-        return target.withProjections(ps, outputsOf(info));
+        return target.withProjections(ps);
     }
 
     private SqlSelect filter(TypedFilter f) {
@@ -1707,7 +1713,7 @@ public final class Lowerer {
                         + " cannot all be resolved even after isolation");
             }
         }
-        return base.withProjections(ps, outputsOf(info));
+        return base.withProjections(SqlSelect.paired(ps, outputsOf(info)));
     }
 
     /** Single-column relation removeDuplicates (rule owned by
@@ -1736,10 +1742,11 @@ public final class Lowerer {
                     .columns()) {
                 projs.add(new SqlSelect.Projection(
                         SqlExpr.Column.of(sub.alias(), u.outputs(),
-                                c.name()), c.name()));
+                                c.name()), c.name(),
+                        Fold.named(u.outputs(), c.name())));
             }
             return new SqlSelect(projs, false, sub, null, List.of(), null,
-                    null, List.of(), null, null, u.outputs());
+                    null, List.of(), null, null, List.of());
         }
         SqlSelect src = relation(d.source());
         if (!d.columns().isEmpty()) {
@@ -1792,9 +1799,10 @@ public final class Lowerer {
                         + "' cannot be resolved after isolation");
             }
             ps.add(new SqlSelect.Projection(e, c.name().equals(
-                    e instanceof SqlExpr.Column col ? col.name() : null) ? null : c.name()));
+                    e instanceof SqlExpr.Column col ? col.name() : null)
+                            ? null : c.name(), null));
         }
-        return base.withProjections(ps, outputsOf(r.info()));
+        return base.withProjections(SqlSelect.paired(ps, outputsOf(r.info())));
     }
 
 
@@ -1937,11 +1945,11 @@ public final class Lowerer {
         // — downstream ops read the wrapper's outputs (engine model)
         if (unionSide(left) || unionSide(right)) {
             // §E3 M-N2: the wrapper INHERITS the joined frame's outputs
-            // (pad-weakened) — re-asserting outputsOf(info) here would
+            // (pad-weakened) — starOf reads them straight off the
+            // Subselect; re-asserting outputsOf(info) here would
             // re-echo the kind-blind contract (the SqlUnion ctor lesson)
             return SqlSelect.starOf(new SqlSource.Subselect(out, nextAlias(),
-                    "unionAlias")).withProjections(List.of(),
-                            out.outputs());
+                    "unionAlias"));
         }
         return out;
     }
@@ -1992,9 +2000,15 @@ public final class Lowerer {
                              Predicate<String> renameWhen) {
         SqlSelect out = SqlSelect.starOf(source);
         if (prefix.isEmpty()) {
-            return out.withProjections(List.of(), Fold.padJoinOutputs(
+            return out.withOutputs(Fold.padJoinOutputs(
                     outputsOf(info), source, prefix, renameWhen));
         }
+        // Outputs-from-projections (SQL-IR slice 2): each projection
+        // carries its declared slot — the star carries the left side's
+        // whole list, explicit columns attach their contract slot by
+        // name — so the frame's outputs are right at birth (the old
+        // stampJoinOrigins/starSideOrigin repair pass is deleted).
+        List<OutputCol> contract = outputsOf(info);
         List<SqlSelect.Projection> ps = new ArrayList<>();
         if (leftCarry != null) {
             ps.addAll(leftCarry);   // the hosted chain's star + prior renames
@@ -2008,22 +2022,22 @@ public final class Lowerer {
                 ps.add(new SqlSelect.Projection(
                         Objects.requireNonNull(
                                 Fold.sourceColumn(leftTree, c.name()),
-                                c.name()), null));
+                                c.name()), null, Fold.named(contract, c.name())));
             }
         } else {
-            ps.add(new SqlSelect.Projection(new SqlExpr.Star(source.left().alias()), null));
+            ps.add(new SqlSelect.Projection(
+                    new SqlExpr.Star(source.left().alias()), null, null));
         }
         for (Type.Column c : schemaOf(rightNode).columns()) {
             SqlExpr.Column rc = SqlExpr.Column.of(source.right().alias(),
                     source.right().outputs(), c.name());
+            boolean renamed = renameWhen.test(c.name());
+            String outName = renamed ? prefix.get() + c.name() : c.name();
             ps.add(new SqlSelect.Projection(
                     source.kind().padsRight() ? rc.asNullable() : rc,
-                    renameWhen.test(c.name()) ? prefix.get() + c.name() : null));
+                    renamed ? outName : null, Fold.named(contract, outName)));
         }
-        return out.withProjections(ps, Fold.stampJoinOrigins(
-                Fold.padJoinOutputs(outputsOf(info), source, prefix,
-                        renameWhen),
-                source, prefix, renameWhen));
+        return out.withProjections(ps);
     }
 
 
@@ -2138,18 +2152,20 @@ public final class Lowerer {
         SqlSelect base = Fold.windowFolds(src) ? src : isolate(src);
         return foldOrIsolate(base, "extend window", b -> {
             Over over = lowerOver(b, w.window());
+            List<OutputCol> contract = outputsOf(w.info());
             List<SqlSelect.Projection> ps = new ArrayList<>(starProjections(b));
             for (TypedFuncCol c : w.columns()) {
                 SqlExpr e = windowScalar(last(c.fn()), b, over);
-                ps.add(new SqlSelect.Projection(e, c.name()));
+                ps.add(new SqlSelect.Projection(e, c.name(),
+                        Fold.named(contract, c.name())));
             }
             for (TypedAggCol a : w.aggs()) {
                 ps.add(new SqlSelect.Projection(
                         Windows.windowize(aggValue(b, a), over.partitionBy(), over.orderBy(),
                                 over.frame()),
-                        a.name()));
+                        a.name(), Fold.named(contract, a.name())));
             }
-            return b.withProjections(ps, outputsOf(w.info()));
+            return b.withProjections(ps);
         });
     }
 
@@ -2158,13 +2174,14 @@ public final class Lowerer {
         SqlSelect src = relation(ea.source());
         SqlSelect base = Fold.windowFolds(src) ? src : isolate(src);
         return foldOrIsolate(base, "extend aggregate", b -> {
+            List<OutputCol> contract = outputsOf(ea.info());
             List<SqlSelect.Projection> ps = new ArrayList<>(starProjections(b));
             for (TypedAggCol a : ea.aggs()) {
                 ps.add(new SqlSelect.Projection(
                         Windows.windowize(aggValue(b, a), List.of(), List.of(), null),
-                        a.name()));
+                        a.name(), Fold.named(contract, a.name())));
             }
-            return b.withProjections(ps, outputsOf(ea.info()));
+            return b.withProjections(ps);
         });
     }
 
@@ -2174,7 +2191,7 @@ public final class Lowerer {
         }
         SqlExpr star = base.from() instanceof SqlSource.Join
                 ? new SqlExpr.Star(null) : new SqlExpr.Star(base.from().alias());
-        return List.of(new SqlSelect.Projection(star, null));
+        return List.of(new SqlSelect.Projection(star, null, null));
     }
 
     private record Over(List<SqlExpr> partitionBy, List<SqlSelect.SortKey> orderBy,
@@ -3167,12 +3184,13 @@ public final class Lowerer {
                         ? new SqlExpr.Call(SqlFn.VARIANT_ELEMENTS, List.of(col))
                         : col;
                 ps.add(new SqlSelect.Projection(
-                        new SqlExpr.Call(SqlFn.UNNEST, List.of(list)), c.name()));
+                        new SqlExpr.Call(SqlFn.UNNEST, List.of(list)),
+                        c.name(), null));
             } else {
-                ps.add(new SqlSelect.Projection(col, null));
+                ps.add(new SqlSelect.Projection(col, null, null));
             }
         }
-        return base.withProjections(ps, outputsOf(fl.info()));
+        return base.withProjections(SqlSelect.paired(ps, outputsOf(fl.info())));
     }
 
     /**
@@ -3277,14 +3295,14 @@ public final class Lowerer {
                             || !CastPolicy.isSqlPrimitive(tc.type()) || !CastPolicy.isSqlPrimitive(from)
                             ? r.expr()
                             : new SqlExpr.Cast(r.expr(), PureSql.type(tc.type()));
-                    ps.add(new SqlSelect.Projection(v, tc.name()));
+                    ps.add(new SqlSelect.Projection(v, tc.name(), null));
                 }
                 case Resolution.Unfoldable u -> {
                     return null;
                 }
             }
         }
-        return base.withProjections(ps, outputsOf(c.info()));
+        return base.withProjections(SqlSelect.paired(ps, outputsOf(c.info())));
     }
 
     /** Field access over a TO-MANY class value: MAP the extraction
@@ -3389,7 +3407,7 @@ public final class Lowerer {
      */
     static SqlSelect select1(SqlSelect s) {
         return s.withProjections(List.of(new SqlSelect.Projection(
-                new SqlExpr.IntLit(1), null)), List.of());
+                new SqlExpr.IntLit(1), null, null)));
     }
 
     /** Lower {@code rel} and fold {@code pred} (negated for forAll) into its WHERE. */

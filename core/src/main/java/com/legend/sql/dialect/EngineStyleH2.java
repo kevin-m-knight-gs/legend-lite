@@ -287,12 +287,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                                     com.legend.sql.SqlTyping.UNKNOWN,
                                     com.legend.sql.OutputCol.Origin
                                             .DERIVED),
-                                    o.name()))
+                                    o.name(), o))
                             .toList();
             return new SqlSelect(cols, false,
                     new SqlSource.Subselect(s, wrap, null), null,
                     java.util.List.of(), null, null, java.util.List.of(),
-                    null, null, s.outputs());
+                    null, null, java.util.List.of());
         }
         return query;
     }
@@ -751,7 +751,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                         .map(p -> bareKeys
                                 && p.expr() instanceof SqlExpr.Column pc
                                 && pc.name().equals(p.alias())
-                                ? new SqlSelect.Projection(p.expr(), null)
+                                ? new SqlSelect.Projection(p.expr(), null,
+                                        p.out())
                                 : p)
                         .map(this::projection)
                         .collect(Collectors.joining(", ")));
@@ -903,8 +904,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     private String correlatedExistsSpelling(SqlSelect xs) {
         return "exists (" + inline(xs.withProjections(
                 java.util.List.of(new SqlSelect.Projection(
-                        new SqlExpr.IntLit(1), null)),
-                java.util.List.of())) + ")";
+                        new SqlExpr.IntLit(1), null, null)))) + ")";
     }
 
     /** engine text: an arithmetic op with a MIXED-OPERATOR composite
