@@ -705,7 +705,16 @@ public class RelationalCorpusRunner {
             // filter-mapping overlap pair, and six wrapper/hop-rich
             // projection qualifiers (first()/head() unwrap +
             // per-occurrence bundling), all via the one-owner router.
-            org.junit.jupiter.api.Assertions.assertEquals(1396,
+            // 1396 -> 1448 (§4AD P0.5, THE CORRECTED ORACLE UNPARK —
+            // NAV_ROUTING_PLACEMENT_ADDENDUM_4AD): Collection/Scalar
+            // verify lane ON, golden rows flattened at the VALUE
+            // observable (H2Verify.goldenRowsCompare receipt). The lane
+            // is NOT clean: testQualifierWithOperation +
+            // testTwoQualifiersWithOperation FAIL as NAMED DEFECTS
+            // (batch-5 placement defect, tests/advanced baseline 66 ->
+            // 64) — burned by P1, which restores 66. Never re-parked,
+            // never re-adjudicated.
+            org.junit.jupiter.api.Assertions.assertEquals(1448,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-with-exec-passing"),
@@ -721,13 +730,17 @@ public class RelationalCorpusRunner {
             // recorded divergences (predicate-diverged — dialect-owned
             // text, same policy as assertSameSQL mismatch)
             // 492 -> 206 -> 97 (diff-noreplay burndown slices 1-4):
-            // diff-noreplay 321 -> 71, match-noreplay 142 -> 8; residue
-            // per-cause: collection/scalar frames 45 (PARKED on the
-            // set-vs-row semantics adjudication), enum underivable 7,
-            // case-sensitive seed replay 6, graph-keys tail 6,
-            // tempTableForIn 4, arity 2, skew 1 + no-gen 7,
-            // predicate-diverged 6, both-ours 5
-            org.junit.jupiter.api.Assertions.assertEquals(97,
+            // diff-noreplay 321 -> 71, match-noreplay 142 -> 8; then
+            // 97 -> 45 (§4AD P0.5, the corrected unpark): the 45
+            // collection/scalar PARKED rows all verify now (the park's
+            // "set-vs-row adjudication" was the batch-5 placement
+            // defect wearing a policy name — addendum §7 item 4), plus
+            // the 2 value-observable flatten conversions and 5 more
+            // reclassified by execution. Residue = enum underivable,
+            // case-sensitive seed replay, graph-keys tail,
+            // tempTableForIn, arity, skew, no-gen, predicate-diverged,
+            // both-ours (per-cause census in the sweep log).
+            org.junit.jupiter.api.Assertions.assertEquals(45,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-unable-to-exec"),
@@ -1005,9 +1018,15 @@ public class RelationalCorpusRunner {
                     // row-verified rescue; zero passes demoted. Text
                     // re-convergence = the emission-anatomy leg (mirror
                     // the engine's frame shape), not a routing concern.
+                    // 823 -> 861 (§4AD P0.5, the corrected unpark —
+                    // JUSTIFIED by exec-passing 1,396 -> 1,448 and
+                    // unable-to-exec 97 -> 45 in the SAME commit): 38
+                    // formerly-unverifiable value-frame passes now
+                    // carry the ROW-VERIFIED rescue flag —
+                    // verification gained, not text decayed.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            softRescued <= 823, "text-rescued passes grew: "
-                                    + softRescued + " > 823"),
+                            softRescued <= 861, "text-rescued passes grew: "
+                                    + softRescued + " > 861"),
                     // contract-program wire ratchets (RE-PINNED at the
                     // 2026-08-24 label flip: 181->114->56 and 130->13 —
                     // adopted HUGEINT labels, registered carriages, then

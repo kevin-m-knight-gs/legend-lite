@@ -263,18 +263,15 @@ public final class H2Verify {
         }
         // TABULAR frames compare cell-for-cell positionally; a GRAPH
         // frame compares by LABEL (the database built the instance
-        // array — goldenGraphCompare). Collection/Scalar frames are
-        // positional-ready through the sealed interface but PARKED: the
-        // first probes hit the string-plus empty-vs-'' semantic gap
-        // (engine relational drops empty-driven map rows, our compiled
-        // concat keeps them as pure's plus([...]) would — witness
-        // testQualifierWithOperation, golden 1 row vs our 4) — an
-        // engine-vs-pure adjudication, not a referee call.
-        if (!(ours instanceof ExecutionResult.Tabular)
-                && !(ours instanceof ExecutionResult.Graph)) {
-            throw new Unverifiable("non-tabular result frame", null);
-        }
-        if (ours instanceof ExecutionResult.Tabular) {
+        // array — goldenGraphCompare). Collection/Scalar frames UNPARKED
+        // (§4AD P0.5, NAV_ROUTING_PLACEMENT_ADDENDUM_4AD): positional-
+        // ready 1-column frames; golden rows flatten at the VALUE
+        // OBSERVABLE (goldenRowsCompare). The phantom-row gap the old
+        // park hid (golden 1 row vs our 4 — testQualifierWithOperation)
+        // is the batch-5 PLACEMENT DEFECT: a NAMED-DEFECT ceiling in the
+        // corpus runner until P1 burns it — never a park, never a
+        // re-adjudication.
+        if (!(ours instanceof ExecutionResult.Graph)) {
             // ENUM-typed frames compare through the SAME decode the frame
             // ran: some queries select the RAW source code (the engine
             // decodes post-SQL) while the frame carries decoded names — the
@@ -452,12 +449,8 @@ public final class H2Verify {
             Connection session, String goldenSql, ExecutionResult ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp) {
-        if (!(ours instanceof ExecutionResult.Tabular)
-                && !(ours instanceof ExecutionResult.Graph)) {
-            // Collection/Scalar parked — see the verify() gate note
-            throw new Unverifiable("non-tabular result frame", null);
-        }
-        if (ours instanceof ExecutionResult.Tabular) {
+        // Collection/Scalar UNPARKED — see the verify() gate note
+        if (!(ours instanceof ExecutionResult.Graph)) {
             for (int i = 0; i < ours.columns().size(); i++) {
                 if (ours.columns().get(i).pureType()
                         instanceof com.legend.compiler.element.type.Type.EnumType
@@ -701,22 +694,41 @@ public final class H2Verify {
             throws SQLException {
                 List<String> theirs = new ArrayList<>();
                 int[] theirsCols = {0};
+                // VALUE frames (Collection/Scalar) compare at the
+                // OBSERVABLE boundary: a [*]-valued query flattens
+                // per-root collections, so the engine's raw NULL row
+                // (empty collection under a preserved root) never
+                // reaches .values — the engine's own assert is the
+                // receipt (testChainedUnionsWithMapAggregation,
+                // testUnionWithExtends.pure:291 asserts ONE value while
+                // its golden SQL returns that value plus a NULL row).
+                // GOLDEN-side only, single-column NULL rows only: our
+                // pipeline drops these in-DB (egress null-drop, Blocker
+                // 1), so a lane that wrongly KEEPS a null still fails.
+                boolean valueFrame =
+                        !(tab instanceof ExecutionResult.Tabular);
                 try (ResultSet rs = st.executeQuery(goldenSql)) {
                     int n = rs.getMetaData().getColumnCount();
                     theirsCols[0] = n;
                     while (rs.next()) {
                         StringBuilder row = new StringBuilder();
+                        boolean allNull = true;
                         for (int i = 1; i <= n; i++) {
                             if (i > 1) {
                                 row.append('|');
                             }
-                            String cell = norm(rs.getObject(i));
+                            Object raw = rs.getObject(i);
+                            allNull &= raw == null;
+                            String cell = norm(raw);
                             // raw source code -> decoded name, the same
                             // transform the compared frame ran (0-based
                             // frame column = 1-based JDBC index - 1)
                             var dec = enumDecode.get(i - 1);
                             row.append(dec == null ? cell
                                     : dec.getOrDefault(cell, cell));
+                        }
+                        if (valueFrame && n == 1 && allNull) {
+                            continue;
                         }
                         theirs.add(row.toString());
                     }

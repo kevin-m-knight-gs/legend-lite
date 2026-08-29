@@ -304,3 +304,39 @@ Marker sweep receipt: zero TODO/FIXME/XXX/hack/interim/stopgap
 markers in any §4AD-touched file (grep, 2026-08-29). The only
 undisclosed debt found by this census was item 2 — surfaced by the
 homework itself and folded into P1's scope.
+
+## 8. Landing records
+
+**P0 EXECUTED 2026-08-29 (read-only bisect; verdict three-way, all
+three prior hypotheses wrong):**
+(1) the biTemporal…Quoting pair FAILS ON THE COMMITTED TREE — they
+are pre-existing baseline failures (union family = 120/127 on the
+bare tree, the 4 FAILs all pre-date this program); the batch-8 sweep
+attribution was a MISREAD of fail lines. (2) The REAL flips under the
+H2Verify delta alone: testChainedUnionsWithMapAggregation (extend::
+and plain) — the unpark working as designed, exposing a REFEREE-
+BOUNDARY gap, not a pipeline defect: the golden's raw NULL row is
+sub-observable (the engine's own assert takes ONE value while its
+golden SQL returns value+NULL — testUnionWithExtends.pure:291); our
+pipeline drops that row in-DB (Blocker-1 egress design). (3) The
+advanced pair diverges for real — ours-only [Test, Test, Test], the
+predicted phantom-row signature of the batch-5 placement defect.
+
+**P0.5 EXECUTED same day: the corrected unpark.** H2Verify:
+Collection/Scalar frames verify; goldenRowsCompare flattens GOLDEN-
+side single-column all-NULL rows for VALUE frames only (the
+observable boundary; receipt in the code comment) — golden-side only,
+so a lane wrongly keeping NULLs still fails; the false "RESOLVED by
+batches 5+7" comment replaced with the named-defect truth. Corpus
+sweep GREEN at measured pins: exec-passing 1,396 -> 1,448,
+unable-to-exec 97 -> 45 (the 45 "parked on set-vs-row adjudication"
+rows all verify — that adjudication was the placement defect wearing
+a policy name), rescued ceiling 823 -> 861 (verification gained, not
+text decayed — justified by the twin lane moves in the same commit),
+tests/advanced baseline 66 -> 64 with testQualifierWithOperation +
+testTwoQualifiersWithOperation as NAMED DEFECTS (burned by P1, which
+restores 66). Scoreboard rewrite verified: all family pass counts
+byte-stable except the named advanced row; remaining movement is
+byte-match -> row-verified reclassification. The referee is now
+ACTIVE ON MAIN with the defect visible — R2 satisfied; P4 collapses
+into this record (pins already at measured).

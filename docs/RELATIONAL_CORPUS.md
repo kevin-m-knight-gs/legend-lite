@@ -34,13 +34,13 @@ shared source registered by several families cannot double-count. Run with
 | family | tests | pass | fail | error | shape | sqldiff-pass | adv-pass | 0-asserts | rescued |
 |---|---|---|---|---|---|---|---|---|---|
 | aggregationAware/test/rewrite | 13 | 9 | 0 | 4 | 0 | 0 | 0 | 0 | 9 |
-| aggregationAware/test/rewrite/NOP | 15 | 7 | 0 | 8 | 0 | 1 | 1 | 0 | 0 |
+| aggregationAware/test/rewrite/NOP | 15 | 7 | 0 | 8 | 0 | 0 | 0 | 0 | 1 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 39 |
 | executionPlan/tests | 108 | 74 | 13 | 3 | 18 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 241 | 4 | 9 | 5 | 39 | 41 | 1 | 72 |
+| functions/tests | 259 | 241 | 4 | 9 | 5 | 12 | 13 | 1 | 99 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
-| functions/tests/projection | 155 | 147 | 3 | 5 | 0 | 2 | 2 | 0 | 71 |
+| functions/tests/projection | 155 | 147 | 3 | 5 | 0 | 1 | 1 | 0 | 72 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | graphFetch/tests | 144 | 136 | 3 | 2 | 3 | 0 | 0 | 0 | 0 |
 | graphFetch/tests/union | 15 | 14 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -54,7 +54,7 @@ shared source registered by several families cannot double-count. Run with
 | postprocessor | 7 | 0 | 0 | 7 | 0 | 0 | 0 | 0 | 0 |
 | postprocessor/tests | 30 | 25 | 1 | 1 | 3 | 0 | 0 | 0 | 23 |
 | pureToSQLQuery/tests | 14 | 6 | 0 | 0 | 8 | 0 | 0 | 0 | 1 |
-| router/tests | 26 | 20 | 0 | 4 | 2 | 3 | 3 | 0 | 2 |
+| router/tests | 26 | 20 | 0 | 4 | 2 | 0 | 0 | 0 | 5 |
 | sqlDialectTranslation | 21 | 21 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sqlQueryToString | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/DDL | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -64,13 +64,13 @@ shared source registered by several families cannot double-count. Run with
 | tds/tests | 266 | 253 | 3 | 4 | 6 | 2 | 2 | 0 | 90 |
 | testDataGeneration/tests | 68 | 63 | 0 | 2 | 3 | 0 | 17 | 24 | 0 |
 | tests | 39 | 33 | 2 | 0 | 4 | 0 | 0 | 0 | 0 |
-| tests/advanced | 68 | 66 | 1 | 1 | 0 | 5 | 5 | 0 | 52 |
+| tests/advanced | 68 | 64 | 3 | 1 | 0 | 1 | 1 | 0 | 52 |
 | tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping | 10 | 9 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/association | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 31 | 0 | 1 | 0 | 0 | 0 | 0 | 29 |
-| tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 1 | 1 | 0 | 17 |
+| tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 0 | 0 | 0 | 18 |
 | tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | tests/mapping/embedded | 63 | 63 | 0 | 0 | 0 | 0 | 0 | 1 | 32 |
 | tests/mapping/enumeration | 26 | 19 | 3 | 1 | 3 | 0 | 0 | 0 | 3 |
@@ -82,7 +82,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | tests/mapping/inheritance | 47 | 46 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
-| tests/mapping/join | 28 | 27 | 1 | 0 | 0 | 3 | 3 | 0 | 13 |
+| tests/mapping/join | 28 | 27 | 1 | 0 | 0 | 0 | 0 | 0 | 16 |
 | tests/mapping/merge | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/modelJoin | 48 | 45 | 0 | 3 | 0 | 0 | 0 | 0 | 42 |
 | tests/mapping/multigrain | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 2 |
@@ -92,16 +92,16 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/selfJoin | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
 | tests/mapping/sqlFunction | 74 | 73 | 0 | 1 | 0 | 0 | 0 | 0 | 23 |
 | tests/mapping/tree | 12 | 11 | 1 | 0 | 0 | 0 | 0 | 0 | 8 |
-| tests/mapping/union | 127 | 120 | 2 | 4 | 1 | 9 | 9 | 0 | 65 |
+| tests/mapping/union | 127 | 120 | 2 | 4 | 1 | 7 | 7 | 0 | 67 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/query | 87 | 80 | 2 | 5 | 0 | 1 | 3 | 0 | 42 |
+| tests/query | 87 | 80 | 2 | 5 | 0 | 1 | 2 | 0 | 42 |
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2353** | 59 | 74 | 89 | 70 | 91 | 27 | 823 |
+| **total** | 2575 | **2351** | 61 | 74 | 89 | 28 | 47 | 27 | 861 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2353 PASS = 1415 clean + 938 carrying softness (sqldiff 70, advisory 91, 0-asserts 27, text-rescued 823; flags overlap — the union is 938).
+SOFT-PASS RECONCILIATION (F2.1): 2351 PASS = 1419 clean + 932 carrying softness (sqldiff 28, advisory 47, 0-asserts 27, text-rescued 861; flags overlap — the union is 932).
 
 ### mapping walls (dropped at assembly)
 
@@ -1087,7 +1087,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2353 PASS = 1415 clean + 938 carrying softness 
 - 2x Binder Error: subqueries in lambda expressions are not supported
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - 2x unbound variable '$_nr2'
-- 2x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]], …
 - 2x nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
 - 1x Unknown type: 'PlanVarPlaceHolder' is not a known primitive, class, or enum
 - 1x graphFetch expects (classCollection, #{Class{…}}#)
@@ -1111,6 +1110,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2353 PASS = 1415 clean + 938 carrying softness 
 - 1x in function 'meta::relational::tests::postProcessor::nonExecutable::runtimeWithNonExecutable': no overload of 'meta::relational::postProcessor::nonExecutable' structurally matches the argument types (ExprType[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]], ExprType[type=ClassType[fqn=meta::pure::metamodel::type::Any], multiplicity=Bounded[lower=0, upper=null]]); [TypedParameter[name=selectSQLQuery, type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=extensions, type=ClassType[fqn=meta::pure::extension::Extension], multiplicity=Bounded[lower=0, upper=null]]]; [TypedParameter[name=selectSQLQuery, type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]], TypedParameter[name=extensions, type=ClassType[fqn=meta::pure::extension::Extension], multiplicity=Bounded[lower=0, upper=null]]]
 - 1x 'meta::pure::router::preeval::tests::Person' is not a known class, mapping, runtime, connection, or database
 - 1x multi-hop navigation employees.stc_meta__relational__tests__model__simple__PersonExtension___manager.stc_meta__relational__tests__model__simple__PersonExtension___firstName through an embedded/slot head is not supported yet [assocs=[employees]; head subNavs=[]; head binding=TypedPropertyAccess]
+- 1x cannot access 'name' on String
 
 ### per-test outcomes (non-passing)
 
@@ -1273,7 +1273,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2353 PASS = 1415 clean + 938 carrying softness 
 - SHAPE testErrorDueToNoSeedForRoot [testDataGeneration/tests]: testDataGen plan: no row identifiers for root 'Person' [surfaced via assert form 'assertEquals/2']
 - ERROR testInheritanceMultipleLevel [testDataGeneration/tests]: multi-hop navigation vehicles#f1.stc_meta__relational__tests__model__inheritance__Bicycle___person.name through an embedded/slot head is not supported yet [assocs=[vehicles#f0, vehicles#f1]; head subNavs=[]; head binding=ABSENT]
 - ERROR testUnionToUnion [testDataGeneration/tests]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'employees' (the demand scan and the rewrite disagreed)
-- FAIL testRelationalMapperTwoDBs [tests]: assertEquals: expected select "root".NAME as "name", "synonymtable_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join snDB.productSchemaNewDB.synonymTableNew as "synonymtable_0" on ("synonymtable_0".PRODID = "root".ID and "synonymtable_0".TYPE = 'CUSIP' and "synonymtable_0".ID <> 1) where "synonymtable_0".NAME = 'CUSIP1', got select "root".NAME as "name", "synonymtablenew_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join (select * from snDB.productSchemaNewDB.synonymTableNew as "root" where "root".ID is distinct from 1 and "root".TYPE = 'CUSIP') as "synonymtablenew_0" on ("synonymtablenew_0".PRODID = "root".ID) left outer join (select distinct "synonymtablenew_3".PRODID from snDB.productSchemaNewDB.synonymTableNew as "synonymtablenew_3" where "synonymtablenew_3".ID is distinct from 1 and "synonymtablenew_3".TYPE = 'CUSIP' and "synonymtablenew_3".NAME = 'CUSIP1') as "synonymtablenew_2" on ("root".ID = "synonymtablenew_2".PRODID) where "synonymtablenew_2".PRODID is not null
+- FAIL testRelationalMapperTwoDBs [tests]: assertEquals: expected select "root".NAME as "name", "synonymtable_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join snDB.productSchemaNewDB.synonymTableNew as "synonymtable_0" on ("synonymtable_0".PRODID = "root".ID and "synonymtable_0".TYPE = 'CUSIP' and "synonymtable_0".ID <> 1) where "synonymtable_0".NAME = 'CUSIP1', got select "root".NAME as "name", "synonymtablenew_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join (select * from snDB.productSchemaNewDB.synonymTableNew as "root" where "root".ID is distinct from 1 and "root".TYPE = 'CUSIP') as "synonymtablenew_0" on ("synonymtablenew_0".PRODID = "root".ID) where "synonymtablenew_0".NAME = 'CUSIP1'
 - FAIL testRelationalMapperWithJoin [tests]: assertEquals: expected select "addresstable_0".NAME as "address" from snDBDefault.default.firmTableNew as "root" left outer join snDBDefault.default.personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID and "persontable_0".LASTNAME = 'Smith') left outer join snDBDefault.default.addressTable as "addresstable_0" on ("addresstable_0".ID = "persontable_0".ADDRESSID), got select "persontable_0"."address_NAME" as "address" from snDBDefault.default.firmTableNew as "root" left outer join (select "root".*, "addresstable_0".NAME as "address_NAME" from snDBDefault.default.personTable as "root" left outer join snDBDefault.default.addressTable as "addresstable_0" on ("addresstable_0".ID = "root".ADDRESSID) where "root".LASTNAME = 'Smith') as "persontable_0" on ("root".ID = "persontable_0".FIRMID)
 - SHAPE testExecuteInDbToTDS [tests]: no execute(|...) call [calls meta::relational::metamodel::execute] — wall: let-bound setup: NormalizeRequired function 'meta::relational::metamodel::execute::resultSetToTDS' has non-let intermediate statements — cannot inline
 - SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: class 'meta::pure::tds::TDSColumn' has no property 'type'
@@ -1281,8 +1281,10 @@ SOFT-PASS RECONCILIATION (F2.1): 2353 PASS = 1415 clean + 938 carrying softness 
 - SHAPE testTranslateDbType [tests]: no execute(|...) call [calls meta::relational::metamodel::datatype] — wall: unknown class 'meta::relational::metamodel::datatype::Varchar' in ^meta::relational::metamodel::datatype::Varchar(…)
 - FAIL isolationTest [tests/advanced]: assertEquals: expected firmname,employeeProductName,testCol\nFirm X,Peter Smith,NICDev\nFirm X,David Scott,\nFirm A,John Hill,\nFirm B, ,\nFirm C, ,\n, got firmname,employeeProductName,testCol\nFirm X,Peter Smith,NICEngegement\nFirm A,John Hill,\nFirm X,Peter Smith,NICEngegement\nFirm X,David Scott,\nFirm X,Peter Smith,NICDev\nFirm X,Peter Smith,NICDev\nFirm C, ,\nFirm B, ,\n
 - ERROR relationalResultSourcingOfListExecutionPlan [tests/advanced]: UNNEST reached a dialect without an unnest placement
+- FAIL testQualifierWithOperation [tests/advanced]: h2-advisory divergence: golden SQL on H2 gave 1 row(s), our pipeline gave 4 row(s); golden-only [], ours-only [Test, Test, Test]
+- FAIL testTwoQualifiersWithOperation [tests/advanced]: h2-advisory divergence: golden SQL on H2 gave 1 row(s), our pipeline gave 4 row(s); golden-only [], ours-only [, , ]
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: unknown function 'toJSON' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
-- ERROR testProjectThroughAssociation [tests/injection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]
+- ERROR testProjectThroughAssociation [tests/injection]: filtered-navigation read 'name' reached substitution unlifted — the router owns this shape (batches 5+7); the lift pre-pass must rewrite it [userVar=b]
 - ERROR testProjectThroughAssociationAutoMap [tests/injection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]
 - ERROR testProject [tests/mapping]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::sort' in relation position)
 - ERROR testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: Binder Error: Referenced table "t5" not found! | Candidate tables: "t4" |  | LINE 16:     SELECT t5.name AS legalName, t5.ID AS ID_0, NULL AS ID_1 |                     ^
@@ -1294,7 +1296,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2353 PASS = 1415 clean + 938 carrying softness 
 - FAIL testProjectWithIfWhereOneSideIsEnumLiteral [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, GS_NUMBER]
 - FAIL testProjectionWithEnumThroughAssociation [tests/mapping/enumeration]: assertEquals: expected [GS_NUMBER, GS_NUMBER, false], got [CUSIP, CUSIP, true]
 - SHAPE testStoreSubstitution [tests/mapping/include]: no execute(|...) call — wall: assert form 'assertIs/2' is not supported yet
-- ERROR testForcedSubTypeProjectDirect [tests/mapping/inheritance]: property 'stc_meta__relational__tests__model__inheritance__Bicycle___person' of class 'meta::relational::tests::model::inheritance::RoadVehicle' has no binding in mapping 'meta::relational::tests::mapping::inheritance::relational::multiJoins::inheritance' (unmapped, or routed to a non-root mapping s
+- ERROR testForcedSubTypeProjectDirect [tests/mapping/inheritance]: filtered-navigation read 'name' reached substitution unlifted — the router owns this shape (batches 5+7); the lift pre-pass must rewrite it [userVar=r]
 - FAIL testMultipleJoinsInPropertyMappingWithDatesInClass [tests/mapping/join]: assertSameElements: expected [Row1, Row2, Row3, Row1, Row2, Row3], got [Row1, Row2, Row3] [expected types=[String, String, String, String, String, String]; got types=[String, String, String]]
 - ERROR testNestedModelJoinCompoundInnerCondition [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedModelJoinWithPropertyAccess' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Address': $person.profile has n
 - ERROR testQualifiedPropertyInQuery [tests/mapping/modelJoin]: nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
