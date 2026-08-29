@@ -1038,6 +1038,8 @@ final class Substitution {
                 }
             }
             if (side >= 0) {
+                com.legend.lowering.NavArmCensus.fire(
+                        "fnlr-filter-equality-fold");
                 TypedSpec rel = java.util.Objects.requireNonNull(
                         filteredNavLeafRead((TypedPropertyAccess)
                                 cmp.args().get(side)));
@@ -1756,7 +1758,7 @@ final class Substitution {
                     && f.predicate().body().size() == 1 ->
                     filteredInstanceRead(pa, f);
             case TypedPropertyAccess pa when filteredNavLeafRead(pa) != null ->
-                    java.util.Objects.requireNonNull(filteredNavLeafRead(pa));
+                    firedFnlrValueDispatch(pa);
             case TypedPropertyAccess pa when subTypeLeafRead(pa) != null ->
                     java.util.Objects.requireNonNull(subTypeLeafRead(pa), "subTypeLeafRead(pa)");
             case TypedVariable v when v.name().equals(target.userVar()) ->
@@ -2596,6 +2598,13 @@ final class Substitution {
         return src instanceof TypedVariable v
                 && !v.name().equals(target.userVar())
                 && !v.name().equals(target.freshRowVar());
+    }
+
+    /** The value-position fnlr dispatch arm, census-attributed (§4AD
+     * round-2 instrument; the arm the batch-5 deletion must cover). */
+    private TypedSpec firedFnlrValueDispatch(TypedPropertyAccess pa) {
+        com.legend.lowering.NavArmCensus.fire("fnlr-value-dispatch");
+        return java.util.Objects.requireNonNull(filteredNavLeafRead(pa));
     }
 
     private @com.legend.Nullable TypedSpec filteredNavLeafRead(TypedPropertyAccess pa) {

@@ -1813,6 +1813,9 @@ public final class StoreResolver {
                                 Set.of(slot))) {
                             String priorChain = midPrefixToChain
                                     .putIfAbsent(slot + "_", chain);
+                            com.legend.lowering.NavArmCensus.fireIf(priorChain
+                                    != null && !priorChain.equals(chain),
+                                    "shared-mid-slot");
                             if (priorChain != null && !priorChain.equals(chain)
                                     && !Objects.equals(
                                             temporal.spec(priorChain),

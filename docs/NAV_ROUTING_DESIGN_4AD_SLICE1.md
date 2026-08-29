@@ -362,6 +362,14 @@ total AND safe.
    census identifies whether any [*]-lift shape exercises shared-mid
    material today); if none exists, this batch is UNTESTABLE dead
    code and MERGES INTO batch 5 rather than landing unverified.
+   **BATCH-2 VERDICT (2026-08-29, NAV_ARM_CENSUS_4AD_ROUND2.md):
+   MERGED INTO BATCH 5** — the 11 `shared-mid-slot` firings are all
+   milestoning-context/isolation nav-condition sharing, none a
+   [*]-lift filtered-head shape; the cross-fan witness
+   (testProjectMerge) rides fnlr and only becomes reachable when the
+   flip widens the lift. ALSO measured: the CANARY fires ONLY
+   exists-material (the aggregation-route claim REFUTED) — batch 5
+   cannot strand it; its route is batch-7 scope.
 4. **Batch 4 — capability: dated-head materialization alias fix**
    (the unbound `t1.*`-vs-"root" bug; its witness fails at baseline,
    so this one can only improve).

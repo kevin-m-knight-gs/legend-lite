@@ -38,6 +38,14 @@ public final class NavArmCensus {
                 .add(StampCensus.CONTEXT.get());
     }
 
+    /** Conditional {@link #fire} — keeps call sites one statement where
+     * line-budget seams matter (round-2 instrumentation). */
+    public static void fireIf(boolean condition, String arm) {
+        if (condition) {
+            fire(arm);
+        }
+    }
+
     /** Sorted arm → sorted witness-test set, for the runner's dump. */
     public static java.util.SortedMap<String,
             java.util.SortedSet<String>> snapshot() {
