@@ -34,10 +34,12 @@ ratified design, the deletion list, and the implementation plan.
   (UNNEST 903→904, the justified pattern), rescued-passes 817,
   tests/advanced 64 (incl. `testQualifierWithIsolation`, a baseline
   ERROR that flips to PASS).
-- **On implementation start: revert the working tree to `a618c5d2`**
-  (`git checkout -- core/ docs/` for the touched files, or stash) and
-  build fresh against THIS design. Do not try to salvage the gates —
-  the design makes all of them unnecessary.
+- **The working tree was reverted to `a618c5d2` code state at
+  session close (2026-08-29)** — the hack wreckage is gone; its
+  evidentiary content lives entirely in §2. HEAD differs from
+  `a618c5d2` only by this design doc + its charter pointer. A fresh
+  session starts at batch 0 directly. Do not try to resurrect the
+  gates — the design makes all of them unnecessary.
 - Standing rules that bind (from the session handoff + memory):
   sweeps/probes need
   `-Dlegend.engine.root=/Users/neemsandv/legend/legend-engine
