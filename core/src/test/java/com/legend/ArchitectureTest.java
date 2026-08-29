@@ -876,6 +876,9 @@ final class ArchitectureTest {
                 // §E3 M-N1: the nullability differential's classified
                 // counters + bounded witnesses (fact-vs-label nullable
                 // — the M-N3 flip payload); measurement only, the
+                // §4AD navigation-arm census: runtime accumulation,
+                // dumped by the corpus runner (NAV_ARM_CENSUS_4AD.md)
+                "com.legend.lowering.NavArmCensus.FIRINGS",
                 // SqlTypeCensus pattern (runtime accumulation is the
                 // legitimate static-census shape)
                 "com.legend.exec.SqlTypeCensus.NUL_CLASSES",

@@ -3,6 +3,7 @@
 
 package com.legend.lowering;
 
+
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.sql.SqlAgg;
@@ -65,6 +66,9 @@ final class RelationPredicates {
                         ? new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(ps.get(0).expr()),
                                 false, java.util.List.of())
                         : SqlAgg.Reducer.of(SqlAgg.Fn.COUNT);
+                // §4AD census: correlated scalar COUNT subquery — the
+                // rule bans correlated scalar subqueries for navigations
+                NavArmCensus.fire("correlated-count-reducer");
                 return new SqlExpr.ScalarSubquery(base
                         .withProjections(List.of(new SqlSelect.Projection(
                                 counter, null, null))));
@@ -91,6 +95,8 @@ final class RelationPredicates {
                         ? base.projections().get(0).expr()
                         : Fold.sourceColumn(base.from(),
                                 rt2.columns().get(0).name());
+                // §4AD census: correlated scalar aggregate subquery
+                NavArmCensus.fire("correlated-agg-reducer");
                 return new SqlExpr.ScalarSubquery(base.withProjections(
                         List.of(new SqlSelect.Projection(
                                 new SqlAgg.Reducer(fam, List.of(col), false,

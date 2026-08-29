@@ -819,6 +819,27 @@ public class RelationalCorpusRunner {
             // is now a derived fact of Join.outputs() — uncounted)
             System.out.println("[rcorpus] pad-weaken: reads="
                     + com.legend.sql.SqlTyping.PAD_READ_FLIPPED.sum());
+            // §4AD navigation-arm census: blast radius of the
+            // relational-conformance redesign as NAMED witness lists
+            // (charter execution step 1) — console counts here, full
+            // per-test lists in target/nav-arm-census.txt (the
+            // h2-verdicts dump idiom)
+            var navArms = com.legend.lowering.NavArmCensus.snapshot();
+            StringBuilder navDump = new StringBuilder();
+            navArms.forEach((arm, tests) -> {
+                System.out.println("[rcorpus] nav-arm " + arm + ": "
+                        + tests.size() + " tests");
+                tests.forEach(t2 -> navDump.append(arm).append(' ')
+                        .append(t2).append('\n'));
+            });
+            try {
+                java.nio.file.Files.writeString(
+                        java.nio.file.Path.of("target",
+                                "nav-arm-census.txt"),
+                        navDump.toString());
+            } catch (java.io.IOException e) {
+                System.out.println("[rcorpus] nav-arm dump failed: " + e);
+            }
             com.legend.exec.SqlTypeCensus.slackReport().stream().skip(1)
                     .limit(160).forEach(c -> System.out.println(
                             "[rcorpus] nullable-slack-class: " + c));

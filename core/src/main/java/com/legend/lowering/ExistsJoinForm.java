@@ -155,6 +155,10 @@ final class ExistsJoinForm {
         if (!changed) {
             return outer;
         }
+        // §4AD census: the DISTINCT-key join dedup form fired — a
+        // navigation filter compiled to row-count-preserving material
+        // where the engine's row algebra would fan out
+        NavArmCensus.fire("exists-join-form-dedup");
         return outer.withFrom(from).withWhere(
                 Fold.mergeAnd(keep.toArray(SqlExpr[]::new)));
     }

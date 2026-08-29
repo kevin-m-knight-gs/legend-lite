@@ -860,7 +860,11 @@ queries, not pure collections.)
 
 **Execution (each slice a gated batch, battery-then-chain):**
 census of navigation-arm firings (blast radius as a NAMED list,
-never an estimate) → slice 1 map/select navigations → slice 2
+never an estimate — **DONE 2026-08-29**: NAV_ARM_CENSUS_4AD.md,
+exists-material 946 / correlated-count 234 / exists-join-dedup 109 /
+correlated-agg 2; 1,017 distinct tests, committed witness dump
+nav-arm-census-4AD.txt, instrument lowering/NavArmCensus prints
+per-sweep) → slice 1 map/select navigations → slice 2
 filter/qualifier predicates (dedup removal) → slice 3 unpark the
 oracle Collection/Scalar lane (45 verify; the cardinality-skew
 decline RETIRES — its reason for existing is gone). Acceptance per
