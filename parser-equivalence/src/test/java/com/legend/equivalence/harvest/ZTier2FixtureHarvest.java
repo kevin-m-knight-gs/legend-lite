@@ -1,5 +1,6 @@
 package com.legend.equivalence.harvest;
 
+import com.legend.testing.WalkedPath;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -38,8 +39,8 @@ class ZTier2FixtureHarvest {
                 for (Path p : s.filter(f -> f.toString().endsWith(".class"))
                         .filter(f -> !f.toString().contains("$"))
                         .sorted().toList()) {
-                    String cls = root.relativize(p).toString()
-                            .replace(".class", "").replace('/', '.');
+                    String cls = WalkedPath.spell(root.relativize(p), ".")
+                            .replace(".class", "");
                     if (!cls.substring(cls.lastIndexOf('.') + 1)
                             .startsWith("Test")) {
                         continue;

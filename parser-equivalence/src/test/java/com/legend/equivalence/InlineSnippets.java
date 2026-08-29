@@ -1,5 +1,6 @@
 package com.legend.equivalence;
 
+import com.legend.testing.WalkedPath;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -62,16 +63,12 @@ final class InlineSnippets {
         }
         try (Stream<Path> s = Files.walk(root)) {
             for (Path p : s.filter(f -> f.toString().endsWith(".java"))
-                    .filter(f -> f.toString()
-                            .replace(f.getFileSystem().getSeparator(), "/")
-                            .contains("/src/test/"))
-                    .filter(f -> !f.toString()
-                            .replace(f.getFileSystem().getSeparator(), "/")
-                            .contains("/target/"))
+                    .filter(f -> WalkedPath.containsSubPath(f, "src", "test"))
+                    .filter(f -> !WalkedPath.containsSubPath(f, "target"))
                     .sorted().toList()) {
                 try {
-                    out.add(new FileRuns(root.relativize(p).toString()
-                            .replace(root.getFileSystem().getSeparator(), "/"),
+                    out.add(new FileRuns(
+                            WalkedPath.spell(root.relativize(p), "/"),
                             literalRuns(Files.readString(p))));
                 } catch (Exception ignored) {
                     // non-UTF8 — visible via extract()'s counters
@@ -95,12 +92,8 @@ final class InlineSnippets {
         if (Files.isDirectory(root)) {
             try (Stream<Path> s = Files.walk(root)) {
                 s.filter(p -> p.toString().endsWith(".java"))
-                        .filter(p -> p.toString()
-                                .replace(p.getFileSystem().getSeparator(), "/")
-                                .contains("/src/test/"))
-                        .filter(p -> !p.toString()
-                                .replace(p.getFileSystem().getSeparator(), "/")
-                                .contains("/target/"))
+                        .filter(p -> WalkedPath.containsSubPath(p, "src", "test"))
+                        .filter(p -> !WalkedPath.containsSubPath(p, "target"))
                         .sorted()
                         .forEach(javaFiles::add);
             } catch (IOException e) {
@@ -122,9 +115,9 @@ final class InlineSnippets {
             int idx = 0;
             for (String run : found) {
                 if (run.length() > 20 && candidate.matcher(run).find()) {
-                    byText.putIfAbsent(run, root.relativize(p).toString()
-                            .replace(root.getFileSystem().getSeparator(), "/")
-                            + "#" + idx);
+                    byText.putIfAbsent(run,
+                            WalkedPath.spell(root.relativize(p), "/")
+                                    + "#" + idx);
                 }
                 idx++;
             }

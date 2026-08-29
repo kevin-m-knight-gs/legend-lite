@@ -3,6 +3,7 @@
 
 package com.legend.equivalence;
 
+import com.legend.testing.WalkedPath;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
 import org.junit.jupiter.api.Test;
 
@@ -279,9 +280,7 @@ class FixtureAdjudicationTest {
         }
         try (Stream<Path> s = Files.walk(dir)) {
             s.filter(f -> f.toString().endsWith(".java"))
-                    .filter(f -> !f.toString()
-                            .replace(f.getFileSystem().getSeparator(), "/")
-                            .contains("/target/"))
+                    .filter(f -> !WalkedPath.containsSubPath(f, "target"))
                     .sorted().forEach(out::add);
         } catch (IOException e) {
             throw new IllegalStateException("cannot walk " + dir, e);

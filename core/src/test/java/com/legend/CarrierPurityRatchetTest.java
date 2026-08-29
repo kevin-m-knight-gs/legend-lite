@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.WalkedPath;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -219,13 +220,10 @@ class   CarrierPurityRatchetTest {
         try (Stream<Path> s = Files.walk(Path.of("src/main/java/com/legend"))) {
             java.util.List<Path> out = s
                     .filter(f -> f.toString().endsWith(".java"))
-                    .filter(f -> {
-                        String path = f.toString().replace(f.getFileSystem().getSeparator(), "/");
-                        return (path.contains("/lowering/")
-                                || path.contains("/resolver/")
-                                || path.contains("/plan/"))
-                                && !path.contains("/sql/dialect/");
-                    })
+                    .filter(f -> (WalkedPath.containsSubPath(f, "lowering")
+                            || WalkedPath.containsSubPath(f, "resolver")
+                            || WalkedPath.containsSubPath(f, "plan"))
+                            && !WalkedPath.containsSubPath(f, "sql", "dialect"))
                     .toList();
             GuardCoverage.assertFloor("CarrierPurityRatchetTest",
                     out.size(), 74);

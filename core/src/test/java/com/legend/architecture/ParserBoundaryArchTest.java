@@ -3,6 +3,7 @@
 
 package com.legend.architecture;
 
+import com.legend.testing.WalkedPath;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -142,7 +143,7 @@ class ParserBoundaryArchTest {
     }
 
     private static String rel(Path root, Path f) {
-        String s = root.relativize(f).toString().replace(root.getFileSystem().getSeparator(), "/");
+        String s = WalkedPath.spell(root.relativize(f), "/");
         int i = s.indexOf("java/");
         return i >= 0 ? s.substring(i + 5) : s;
     }

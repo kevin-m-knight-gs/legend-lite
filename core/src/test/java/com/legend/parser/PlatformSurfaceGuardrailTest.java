@@ -3,6 +3,7 @@
 
 package com.legend.parser;
 
+import com.legend.testing.WalkedPath;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -63,7 +64,7 @@ class PlatformSurfaceGuardrailTest {
                             throw new java.io.UncheckedIOException(e);
                         }
                     })
-                    .map(p -> root.relativize(p).toString().replace(root.getFileSystem().getSeparator(), "/"))
+                    .map(p -> WalkedPath.spell(root.relativize(p), "/"))
                     .filter(p -> !WHITELIST.contains(p))
                     .toList();
         }

@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.WalkedPath;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -94,9 +95,8 @@ class SqlTextRatchetTest {
         try (Stream<Path> s = Files.walk(root)) {
             for (Path p : s.filter(f -> f.toString().endsWith(".java"))
                     .toList()) {
-                String rel = root.toAbsolutePath().normalize()
-                        .relativize(p.toAbsolutePath().normalize())
-                        .toString().replace(root.getFileSystem().getSeparator(), "/");
+                String rel = WalkedPath.spell(root.toAbsolutePath().normalize()
+                        .relativize(p.toAbsolutePath().normalize()), "/");
                 if (rel.startsWith("sql/dialect/")) {
                     continue;
                 }

@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.WalkedPath;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -438,10 +439,10 @@ class JdbcSurfaceCensusTest {
                     .replaceAll("//.*", "")
                     .replaceAll("(?s)/\\*.*?\\*/", "");
             if (JDBC.matcher(src).find()) {
-                String rel = Path.of("..").toAbsolutePath().normalize()
-                        .relativize(p.toAbsolutePath().normalize())
-                        .toString().replace('\\', '/');
-                (rel.contains("/main/") ? mainHits : testHits).add(rel);
+                Path rel = Path.of("..").toAbsolutePath().normalize()
+                        .relativize(p.toAbsolutePath().normalize());
+                (WalkedPath.containsSubPath(rel, "main") ? mainHits : testHits)
+                        .add(WalkedPath.spell(rel, "/"));
             }
         }
         StringBuilder drift = new StringBuilder();
