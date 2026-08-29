@@ -407,7 +407,12 @@ class JavaEvalLedgerTest {
             // via the SAME engineSql render toSQLString uses (a COMPILER
             // fact retained and served, no evaluation; ExecFrame keeps
             // its source execute call for it)
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2513),
+            // 2513 -> 2520 (slice-3 equality half): the renderSqlText
+            // Frames door — toSQLString folds POSITION-INDEPENDENTLY at
+            // the splice through the SAME toSqlString K-arm (a render
+            // reuse, no evaluation added; burned 94 backlog rows whose
+            // asserts were walled behind statement-root-only dispatch)
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2520),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

@@ -40,7 +40,7 @@ shared source registered by several families cannot double-count. Run with
 | executionPlan/tests | 108 | 74 | 13 | 3 | 18 | 0 | 0 | 1 | 0 |
 | functions/tests | 259 | 240 | 5 | 9 | 5 | 76 | 89 | 1 | 34 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
-| functions/tests/projection | 155 | 146 | 3 | 6 | 0 | 2 | 4 | 0 | 72 |
+| functions/tests/projection | 155 | 146 | 3 | 6 | 0 | 2 | 2 | 0 | 72 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | graphFetch/tests | 144 | 136 | 3 | 2 | 3 | 0 | 0 | 0 | 0 |
 | graphFetch/tests/union | 15 | 14 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -52,7 +52,7 @@ shared source registered by several families cannot double-count. Run with
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational/milestoned | 7 | 5 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
 | postprocessor | 7 | 0 | 0 | 7 | 0 | 0 | 0 | 0 | 0 |
-| postprocessor/tests | 30 | 23 | 2 | 1 | 4 | 1 | 1 | 0 | 20 |
+| postprocessor/tests | 30 | 23 | 3 | 1 | 3 | 1 | 1 | 0 | 20 |
 | pureToSQLQuery/tests | 14 | 6 | 0 | 0 | 8 | 0 | 0 | 0 | 1 |
 | router/tests | 26 | 20 | 0 | 4 | 2 | 3 | 3 | 0 | 2 |
 | sqlDialectTranslation | 21 | 21 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -61,7 +61,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
-| tds/tests | 266 | 253 | 2 | 4 | 7 | 7 | 7 | 0 | 85 |
+| tds/tests | 266 | 253 | 3 | 4 | 6 | 7 | 7 | 0 | 85 |
 | testDataGeneration/tests | 68 | 63 | 0 | 2 | 3 | 0 | 17 | 24 | 0 |
 | tests | 39 | 33 | 2 | 0 | 4 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 61 | 4 | 3 | 0 | 21 | 21 | 0 | 32 |
@@ -90,7 +90,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/relation | 109 | 104 | 4 | 0 | 1 | 0 | 0 | 0 | 0 |
 | tests/mapping/relation/aggregation | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/mapping/sqlFunction | 74 | 72 | 0 | 1 | 1 | 0 | 0 | 0 | 23 |
+| tests/mapping/sqlFunction | 74 | 73 | 0 | 1 | 0 | 0 | 0 | 0 | 23 |
 | tests/mapping/tree | 12 | 11 | 1 | 0 | 0 | 2 | 2 | 0 | 6 |
 | tests/mapping/union | 127 | 120 | 2 | 4 | 1 | 12 | 12 | 0 | 62 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2334** | 71 | 78 | 92 | 264 | 299 | 27 | 614 |
+| **total** | 2575 | **2335** | 73 | 78 | 89 | 264 | 297 | 27 | 614 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2334 PASS = 1398 clean + 936 carrying softness (sqldiff 264, advisory 299, 0-asserts 27, text-rescued 614; flags overlap — the union is 936).
+SOFT-PASS RECONCILIATION (F2.1): 2335 PASS = 1400 clean + 935 carrying softness (sqldiff 264, advisory 297, 0-asserts 27, text-rescued 614; flags overlap — the union is 935).
 
 ### mapping walls (dropped at assembly)
 
@@ -1235,7 +1235,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2334 PASS = 1398 clean + 936 carrying softness 
 - SHAPE testPostProcessTransformJoinOp [postprocessor/tests]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - FAIL testReplaceTablePostProcessorWithExists [postprocessor/tests]: sql-text: expected select "root".ID as "pk_0", "root".LEGALNAME as "legalName" from firmTable as "root" left outer join (select distinct "persontable_1".FIRMID from differentPersonTable as "persontable_1" where "persontable_1".FIRSTNAME = 'John') as "persontable_0" on ("root".ID = "persontable_0".FIRMID) where "persontable_0".FIRMID is not null, got select "root".ID as "pk_0", "root".LEGALNAME as "legalName" from firmTable as "root" left outer join (select distinct "differentpersontable_1".FIRMID from differentPersonTable as "differentpersontable_1" where "differentpersontable_1".FIRSTNAME = 'John') as "differentpersontable_0" on ("root".ID = "differentpersontable_0".FIRMID) where "differentpersontable_0".FIRMID is not null
 - FAIL testReplaceTablePostProcessorWithView [postprocessor/tests]: sql-text: expected select "root".ID as "pk_0", "root".ID as "id", "root".quantity as "quantity", "root".orderDate as "date", "root".settlementDateTime as "settlementDateTime" from orderTable as "root" left outer join (select distinct "salespersontable_1".ACCOUNT_ID from (select "salespersontable_1".ACCOUNT_ID as ACCOUNT_ID, "personfirmview_0".firm_name as firm_name from salesPersonTable as "salespersontable_1" inner join (select "root".ID as PERSON_ID, "root".LASTNAME as lastName, "firmtable_0".LEGALNAME as firm_name from differentPersonTable as "root" left outer join firmTable as "firmtable_0" on ("firmtable_0".ID = "root".FIRMID)) as "personfirmview_0" on ("salespersontable_1".PERSON_ID = "personfirmview_0".PERSON_ID) where "personfirmview_0".firm_name = 'Johnson') as "salespersontable_1" where "salespersontable_1".firm_name = 'Johnson') as "salespersontable_0" on ("root".accountID = "salespersontable_0".ACCOUNT_ID) where "salespersontable_0".ACCOUNT_ID is not null, got select "root".ID as "pk_0", "root".ID as "id", "root".quantity as "quantity", "root".orderDate as "date", "root".settlementDateTime as "settlementDateTime" from orderTable as "root" left outer join (select distinct "salespersontable_0".ACCOUNT_ID from differentPersonTable as "differentpersontable_1" left outer join firmTable as "firmtable_0" on ("firmtable_0".ID = "differentpersontable_1".FIRMID) left outer join salesPersonTable as "salespersontable_0" on ("salespersontable_0".PERSON_ID = "differentpersontable_1".ID) where "firmtable_0".LEGALNAME = 'Johnson') as "differentpersontable_0" on ("root".accountID = "differentpersontable_0".ACCOUNT_ID) where "differentpersontable_0".ACCOUNT_ID is not null
-- SHAPE testToSqlStringReplaceTablesPostProcessor [postprocessor/tests]: no execute(|...) call [calls meta::relational::functions::sqlstring] — wall: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- FAIL testToSqlStringReplaceTablesPostProcessor [postprocessor/tests]: sql-text: expected select "root".LEGALNAME as "firm", "persontable_0".FIRSTNAME as "employee" from otherFirmTable as "root" left outer join differentPersonTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID), got select "root".LEGALNAME as "firm", "persontable_0".FIRSTNAME as "employee" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID)
 - SHAPE addDriverTablePkForProject [pureToSQLQuery/tests]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - SHAPE simpleFunctionExpressionTranslationAdjust [pureToSQLQuery/tests]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - SHAPE simpleFunctionExpressionTranslationNow [pureToSQLQuery/tests]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: Unknown type: 'SQLQuery' is not a known primitive, class, or enum
@@ -1272,7 +1272,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2334 PASS = 1398 clean + 936 carrying softness 
 - SHAPE zScoreTest [tds/tests]: no execute(|...) call — wall: unknown function 'getNumber' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - SHAPE resolveSchemaTest [tds/tests]: no execute(|...) call [calls meta::relational::functions::database] — wall: 'Address' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
-- SHAPE testParseDate [tds/tests]: no execute(|...) call [calls meta::relational::functions::sqlstring] — wall: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet [at root > TypedNativeCall > TypedNativeCall > TypedLambda > TypedExte
+- FAIL testParseDate [tds/tests]: assert did not hold (false)
 - ERROR testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: unbound variable '$_nr2'
 - FAIL testRestrictDistinct_NoOptimization_WindowColumns [tds/tests]: assertEquals: expected select distinct "root".LASTNAME as "lastName", "root".FIRSTNAME as "firstName", sum("root".AGE) over (partition by "root".FIRSTNAME) as "sumAge", max("root".AGE) over (partition by "root".FIRSTNAME) as "maxAge" from personTable as "root" left outer join firmTable as "firmTable_d#6_d#3_m3" on ("firmTable_d#6_d#3_m3".ID = "root".FIRMID), got select distinct "root".LASTNAME as "lastName", "root".FIRSTNAME as "firstName", sum("root".AGE) over (partition by "root".FIRSTNAME) as "sumAge", max("root".AGE) over (partition by "root".FIRSTNAME) as "maxAge" from personTable as "root" left outer join firmTable as "firmtable_0" on ("firmtable_0".ID = "root".FIRMID)
 - SHAPE testExecutionPlanGeneration [tds/tests]: plan wall: no overload of 'meta::pure::functions::relation::over' structurally matches the argument types (ExprType[type=GenericType[rawFqn=meta::pure::metamodel::relation::ColSpec, arguments=[RelationType[columns=[Column[name=firstName, type=TypeVar[name=?], multiplicity=Bounded[lower=1, upper=1]],
@@ -1323,7 +1323,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2334 PASS = 1398 clean + 936 carrying softness 
 - FAIL testSelfJoinPropertyMappingOverlap [tests/mapping/selfJoin]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - FAIL testSelfJoinPropertyMappingWithDynaFunction [tests/mapping/selfJoin]: assertEquals: expected [ROOT, TDSNull, TDSNull, true], got [Banking_c1_c1, Firm X, ROOT, false]
 - ERROR testProject [tests/mapping/sqlFunction]: no scalar lowering registered for resolved overload 'meta::pure::functions::asserts::assertEqWithinTolerance' with 3 parameter(s)
-- SHAPE testAdjustDateTranslationInMappingAndQuery [tests/mapping/sqlFunction]: statement 'map' failed through the pipeline: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - FAIL testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: assertEquals: expected [11, Alex, OrgName3, OrgName2], got [11, Alex, OrgName3, null]
 - FAIL testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting [tests/mapping/union]: assert did not hold (false)
 - FAIL testBiTemporalUnionJoin_milestoningColumnInOnClause [tests/mapping/union]: assert did not hold (false)

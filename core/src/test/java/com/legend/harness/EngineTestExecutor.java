@@ -1227,14 +1227,14 @@ public final class EngineTestExecutor {
             }
         }
         long gt0 = System.nanoTime();   // GOLDEN_NANOS perf instrument
-        String sql = ExecCallFinder.sideSqlText(actual, lets, execStmts,
+        String sql = evalSideText(actual, lets, execStmts,
                 execVars, execChains, ctx, imports, runtimeFqn, conn);
         H2Verify.GOLDEN_NANOS.addAndGet(System.nanoTime() - gt0);
         if (golden == null && args.size() == 2 && sql != null) {
             // NO golden literal: the contract is the two sides' SQL being
             // IDENTICAL (slice-0-is-take shape) — both texts are OURS, so
             // the compare verifies without any engine-text parity
-            String other = ExecCallFinder.sideSqlText(args.get(0), lets,
+            String other = evalSideText(args.get(0), lets,
                     execStmts, execVars, execChains, ctx, imports,
                     runtimeFqn, conn);
             if (other != null) {
@@ -1303,6 +1303,61 @@ public final class EngineTestExecutor {
      * printing and the per-reason census live in {@link H2Verify#decline}. */
     private static void h2Decline(String reason) {
         H2Verify.decline(reason);
+    }
+
+    /** OUR side's SQL text by REAL EVALUATION (slice 3, equality half):
+     * a side that already spells a sql-producer call evaluates AS
+     * WRITTEN (the splice folds activity-log reads; toSQLString runs as
+     * the K-native; string transforms like ->replace apply natively); a
+     * raw Result side evaluates through the corpus body's OWN
+     * definition — assertSameSQL(s,r) ≡ assertEquals(s,
+     * r->sqlRemoveFormatting()) (testAssert.pure:20) — spelled by exact
+     * FQN, never a name. Replaces ExecCallFinder.sideSqlText's terminal
+     * surgery (find the generator call, hand-rebuild a toSQLString
+     * invocation). Null when the side still walls — the caller's
+     * existing null-handling (golden-only replay / advisory) applies. */
+    private static @com.legend.Nullable String evalSideText(
+            @com.legend.Nullable ValueSpecification side,
+            Map<String, ValueSpecification> lets,
+            List<ValueSpecification> execStmts,
+            java.util.Set<String> execVars,
+            Map<String, ValueSpecification> execChains, ModelContext ctx,
+            ImportScope imports, String runtimeFqn, Connection conn) {
+        if (side == null) {
+            return null;
+        }
+        // OUTCOME-driven, never shape-guessed: the side evaluates AS
+        // WRITTEN first — a producer call, a let-bound rendered string,
+        // a transform chain all yield their String directly (wrapping a
+        // string side would strip formatting its golden expects). Only
+        // a side whose value is NOT a string (the raw Result envelope of
+        // assertSameSQL(s, $result)) evaluates through the corpus body's
+        // own definition — ≡ $result->sqlRemoveFormatting()
+        // (testAssert.pure:20), spelled by exact FQN.
+        try {
+            if (evalScalar(side, lets, execStmts, execVars, execChains,
+                    ctx, imports, runtimeFqn, conn)
+                    instanceof String s) {
+                return s;
+            }
+            return evalScalar(new AppliedFunction(
+                            com.legend.compiler.spec.ResultEnvelopeSplice
+                                    .SQL_REMOVE_FORMATTING_FQN,
+                            List.of(side)),
+                    lets, execStmts, execVars, execChains,
+                    ctx, imports, runtimeFqn, conn)
+                    instanceof String s2 ? s2 : null;
+        } catch (RuntimeException | java.sql.SQLException e) {
+            // F2.3 discipline carried over from sideSqlText: a side that
+            // cannot produce its text is a COUNTED decline, never a
+            // silent null — the caller falls back to golden-only replay
+            // or the named advisory
+            H2Verify.decline("sql-text side: "
+                    + (e.getMessage() == null
+                            ? e.getClass().getSimpleName()
+                            : e.getMessage()));
+            return null;
+        }
     }
 
     /** #67: a pure golden-SQL assert upgrades to ROW-VERIFIED when the

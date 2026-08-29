@@ -238,7 +238,9 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/harness/AssertLoopForm.java",
             "core/src/test/java/com/legend/harness/EngineTestExecutor.java",
             "core/src/test/java/com/legend/harness/EngineTestExecutorTest.java",
-            "core/src/test/java/com/legend/harness/ExecCallFinder.java",
+            // (ExecCallFinder RETIRED from the register 2026-08-28 —
+            // sideSqlText's evaluation path deleted with the slice-3
+            // equality half; the finder is pure tree navigation now)
             "core/src/test/java/com/legend/harness/H2Verify.java",
             "core/src/test/java/com/legend/harness/PlanAsserts.java",
             "core/src/test/java/com/legend/harness/RuntimeIfForm.java",

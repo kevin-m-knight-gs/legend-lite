@@ -48,12 +48,9 @@ class ErrorShapeGuardrailTest {
             Map.entry("TdsChecker.java", 1),
             Map.entry("ClassSources.java", 1),
             Map.entry("Compiler.java", 2),
-            // sideSqlText's generation probe (reviewed): rebuilding a
-            // side's engine text may throw anywhere in compile/lowering;
-            // null return falls back to the row-replay/advisory channel —
-            // the same boundary EngineTestExecutor's sqlTextVerify catch owned
-            // before the extraction (LL_SQLTEXT_DEBUG surfaces the cause)
-            Map.entry("ExecCallFinder.java", 1),
+            // (ExecCallFinder's sideSqlText probe DELETED — slice 3
+            // equality half: sides evaluate for REAL via evalSideText,
+            // whose counted-decline catch moved to EngineTestExecutor)
             Map.entry("FunctionCompiler.java", 1),
             // D5 (reviewed): the generic checked-exception carrier —
             // getOrOpen tunnels the caller's E through compute's
@@ -105,7 +102,11 @@ class ErrorShapeGuardrailTest {
             // per-form decline (CanonicalDivergence.v7Declined), never a
             // swallow and never a verdict (the host verdict of record is
             // computed before the probe runs); the V2/V6 tunnel idiom
-            Map.entry("EngineTestExecutor.java", 4),
+            // 4 -> 5 (slice 3 equality half, reviewed): evalSideText's
+            // counted-decline boundary — the F2.3 catch inherited from
+            // the deleted ExecCallFinder.sideSqlText, same discipline
+            // (every failure lands in the H2Verify decline census)
+            Map.entry("EngineTestExecutor.java", 5),
             Map.entry("QuotedSpecParser.java", 1),
             Map.entry("Typer.java", 1),
             Map.entry("ValidateDesugar.java", 2));

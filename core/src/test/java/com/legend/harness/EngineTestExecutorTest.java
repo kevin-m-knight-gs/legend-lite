@@ -26,6 +26,34 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
  */
 class EngineTestExecutorTest {
 
+
+    /** The corpus's OWN sql-producer helper functions (helperFunctions
+     * .pure:38-60, verbatim) — always present in the real corpus model;
+     * the unit models need them since slice 3's real evaluation runs the
+     * asserts' actual sides instead of rebuilding a toSQLString call. */
+    private static final String SQL_HELPERS = """
+            function meta::relational::mapping::sql(result:meta::pure::mapping::Result<Any|*>[1]):String[1]
+            {
+                $result->meta::relational::mapping::sql(0)
+            }
+            function meta::relational::mapping::sql(result:meta::pure::mapping::Result<Any|*>[1], activityNumber:Integer[1]):String[1]
+            {
+                $result.activities->filter(a | $a->instanceOf(meta::relational::mapping::RelationalActivity))->at($activityNumber)->cast(@meta::relational::mapping::RelationalActivity).sql
+            }
+            function meta::relational::mapping::sqlRemoveFormatting(result:meta::pure::mapping::Result<Any|*>[1]):String[1]
+            {
+                $result->meta::relational::mapping::sqlRemoveFormatting(0);
+            }
+            function meta::relational::mapping::sqlRemoveFormatting(result:meta::pure::mapping::Result<Any|*>[1], activityNumber:Integer[1]):String[1]
+            {
+                $result->meta::relational::mapping::sql($activityNumber)->meta::relational::mapping::sqlRemoveFormatting()
+            }
+            function meta::relational::mapping::sqlRemoveFormatting(sql:String[1]):String[1]
+            {
+                $sql->replace('\\n', '')->replace('\\t', '')
+            }
+            """;
+
     private static final String MODEL = """
             Class test::Person
             {
@@ -61,10 +89,15 @@ class EngineTestExecutorTest {
             ###Pure
             function test::r(): meta::pure::metamodel::type::Any[1] { 1 }
             function test::e(): meta::pure::metamodel::type::Any[*] { [] }
-            """;
+            """ + SQL_HELPERS;
 
     private static final ImportScope IMPORTS =
-            new ImportScope(List.of("test"));
+            new ImportScope(List.of("test",
+                    // the real corpus test files import the sql-helper
+                    // package (bare sqlRemoveFormatting resolves through
+                    // it — the same resolution slice 3's real evaluation
+                    // relies on)
+                    "meta::relational::mapping"));
 
     private static Connection seeded() throws Exception {
         Connection conn = DriverManager.getConnection("jdbc:duckdb:");
@@ -356,7 +389,7 @@ class EngineTestExecutorTest {
             ###Pure
             function test::r(): meta::pure::metamodel::type::Any[1] { 1 }
             function test::e(): meta::pure::metamodel::type::Any[*] { [] }
-            """;
+            """ + SQL_HELPERS;
 
     private static EngineTestExecutor.Outcome runFirm(String body) throws Exception {
         ModelContext ctx = Compiler.compileModel(FIRM_MODEL);

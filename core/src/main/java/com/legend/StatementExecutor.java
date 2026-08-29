@@ -2116,6 +2116,14 @@ final class StatementExecutor {
                                         .PostProcessBoundary.tableReplace());
                 return post == es.plan() ? es.sql() : renderer.render(post);
             }
+
+            @Override
+            public @com.legend.Nullable String renderSqlText(
+                    com.legend.compiler.spec.typed.TypedNativeCall call) {
+                ExecutionResult r = toSqlString(call, specs, env);
+                return r instanceof ExecutionResult.Scalar sc
+                        && sc.value() instanceof String s ? s : null;
+            }
         });
     }
 

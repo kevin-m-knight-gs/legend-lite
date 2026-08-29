@@ -99,6 +99,14 @@ public final class ResultEnvelopeSplice {
          * execution does not produce). */
         @com.legend.Nullable String relationalActivitySql(
                 String frameName, long activityNumber);
+
+        /** A {@code toSQLString(...)} / {@code toSQLStringPretty(...)}
+         * call's rendered text — the K-native evaluated WHEREVER the
+         * call appears (the old statement-root-only dispatch was
+         * position-dependent: nested under sqlRemoveFormatting the
+         * lambda leaked to the resolver). Null when the call cannot
+         * render (non-literal lambda etc.) — the caller's walls stand. */
+        @com.legend.Nullable String renderSqlText(TypedNativeCall call);
     }
 
     /**
@@ -142,6 +150,12 @@ public final class ResultEnvelopeSplice {
                 return boundVars.contains(frameName) ? null
                         : frames.relationalActivitySql(frameName,
                                 activityNumber);
+            }
+
+            @Override
+            public @com.legend.Nullable String renderSqlText(
+                    TypedNativeCall call) {
+                return frames.renderSqlText(call);
             }
         };
     }
@@ -282,6 +296,20 @@ public final class ResultEnvelopeSplice {
         TypedSpec act = activityEnvelopeRead(n, frames);
         if (act != null) {
             return act;
+        }
+        // toSQLString/Pretty ANYWHERE in an expression folds to its
+        // rendered text (position-independent — the statement-root-only
+        // dispatch left nested calls leaking their lambda to the
+        // resolver; found by slice 3's real evaluation)
+        if (n instanceof TypedNativeCall tsq
+                && (PlatformTypes.TO_SQL_STRING
+                        .equals(tsq.callee().qualifiedName())
+                    || PlatformTypes.TO_SQL_STRING_PRETTY
+                        .equals(tsq.callee().qualifiedName()))) {
+            String rendered = frames.renderSqlText(tsq);
+            if (rendered != null) {
+                return new TypedCString(rendered, n.info());
+            }
         }
         // sql(result[, n]) family (helperFunctions.pure:38-60, INLINED):
         // the activity log's RelationalActivity .sql — the frame's own
