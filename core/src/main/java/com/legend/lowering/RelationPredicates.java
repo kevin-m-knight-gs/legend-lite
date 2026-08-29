@@ -38,46 +38,29 @@ final class RelationPredicates {
                 && nc.args().size() == 1;
     }
 
-    /** Does {@code s} read any column whose alias is not bound anywhere
-     * inside it (an OUTER-row correlation)? Conservative census split:
-     * all aliases bound in the select's whole source tree (subselect
-     * inners included) count as local. */
+    /** Does {@code s} read any column whose alias is not bound in an
+     * ENCLOSING scope within it (an OUTER-row correlation)? Each nested
+     * select extends the visible-alias set with its own FROM aliases —
+     * a subquery reading its own tables is not "correlated" (the first
+     * cut missed this and over-counted 204 whole-extent counts as
+     * correlated). Lenient on SQL's derived-table visibility rules —
+     * we only ask whether the whole tree references anything OUTSIDE
+     * itself. */
     static boolean referencesOuter(SqlSelect s) {
-        java.util.Set<String> bound = new java.util.HashSet<>();
-        boundAliases(s, bound);
-        return readsUnbound(s, bound);
-    }
-
-    private static void boundAliases(com.legend.sql.SqlQuery q,
-            java.util.Set<String> bound) {
-        if (q instanceof SqlSelect sel) {
-            boundSource(sel.from(), bound);
-        } else if (q instanceof com.legend.sql.SqlUnion u) {
-            u.branches().forEach(b -> boundAliases(b, bound));
-        }
-    }
-
-    private static void boundSource(com.legend.sql.SqlSource src,
-            java.util.Set<String> bound) {
-        if (src instanceof com.legend.sql.SqlSource.Join j) {
-            boundSource(j.left(), bound);
-            boundSource(j.right(), bound);
-            return;
-        }
-        if (src.alias() != null) {
-            bound.add(src.alias());
-        }
-        if (src instanceof com.legend.sql.SqlSource.Subselect sub) {
-            boundAliases(sub.inner(), bound);
-        }
+        return readsUnbound(s, java.util.Set.of());
     }
 
     private static boolean readsUnbound(com.legend.sql.SqlQuery q,
-            java.util.Set<String> bound) {
+            java.util.Set<String> outer) {
         if (q instanceof com.legend.sql.SqlUnion u) {
-            return u.branches().stream().anyMatch(b -> readsUnbound(b, bound));
+            return u.branches().stream().anyMatch(b -> readsUnbound(b, outer));
         }
         SqlSelect sel = (SqlSelect) q;
+        java.util.Set<String> scope = new java.util.HashSet<>(outer);
+        scopeAliases(sel.from(), scope);
+        if (sourceUnbound(sel.from(), scope)) {
+            return true;
+        }
         java.util.List<SqlExpr> roots = new java.util.ArrayList<>();
         sel.projections().forEach(p -> roots.add(p.expr()));
         if (sel.where() != null) {
@@ -88,44 +71,51 @@ final class RelationPredicates {
             roots.add(sel.having());
         }
         sel.orderBy().forEach(k -> roots.add(k.expr()));
-        if (sel.from() instanceof com.legend.sql.SqlSource.Join j
-                && joinOnUnbound(j, bound)) {
-            return true;
-        }
-        if (sel.from() instanceof com.legend.sql.SqlSource.Subselect sub
-                && readsUnbound(sub.inner(), bound)) {
-            return true;
-        }
-        return roots.stream().anyMatch(e -> exprUnbound(e, bound));
+        return roots.stream().anyMatch(e -> exprUnbound(e, scope));
     }
 
-    private static boolean joinOnUnbound(com.legend.sql.SqlSource.Join j,
-            java.util.Set<String> bound) {
-        boolean on = j.on() != null && exprUnbound(j.on(), bound);
-        boolean l = j.left() instanceof com.legend.sql.SqlSource.Join jl
-                ? joinOnUnbound(jl, bound)
-                : j.left() instanceof com.legend.sql.SqlSource.Subselect sl
-                        && readsUnbound(sl.inner(), bound);
-        boolean r = j.right() instanceof com.legend.sql.SqlSource.Join jr
-                ? joinOnUnbound(jr, bound)
-                : j.right() instanceof com.legend.sql.SqlSource.Subselect sr
-                        && readsUnbound(sr.inner(), bound);
-        return on || l || r;
+    /** The aliases THIS select's FROM tree binds (join members' aliases;
+     * never descends into subselect inners — those are their own scope). */
+    private static void scopeAliases(com.legend.sql.SqlSource src,
+            java.util.Set<String> scope) {
+        if (src instanceof com.legend.sql.SqlSource.Join j) {
+            scopeAliases(j.left(), scope);
+            scopeAliases(j.right(), scope);
+            return;
+        }
+        if (src.alias() != null) {
+            scope.add(src.alias());
+        }
+    }
+
+    /** Unbound reads inside the FROM tree: join ON conditions (this
+     * scope) and subselect inners (their own nested scope). */
+    private static boolean sourceUnbound(com.legend.sql.SqlSource src,
+            java.util.Set<String> scope) {
+        if (src instanceof com.legend.sql.SqlSource.Join j) {
+            return (j.on() != null && exprUnbound(j.on(), scope))
+                    || sourceUnbound(j.left(), scope)
+                    || sourceUnbound(j.right(), scope);
+        }
+        if (src instanceof com.legend.sql.SqlSource.Subselect sub) {
+            return readsUnbound(sub.inner(), scope);
+        }
+        return false;
     }
 
     private static boolean exprUnbound(SqlExpr e,
-            java.util.Set<String> bound) {
+            java.util.Set<String> scope) {
         if (e instanceof SqlExpr.Column c) {
-            return c.table() != null && !bound.contains(c.table());
+            return c.table() != null && !scope.contains(c.table());
         }
         if (e instanceof SqlExpr.ScalarSubquery sq) {
-            return readsUnbound(sq.subquery(), bound);
+            return readsUnbound(sq.subquery(), scope);
         }
         if (e instanceof SqlExpr.Exists ex) {
-            return readsUnbound(ex.subquery(), bound);
+            return readsUnbound(ex.subquery(), scope);
         }
         for (SqlExpr c : e.children()) {
-            if (exprUnbound(c, bound)) {
+            if (exprUnbound(c, scope)) {
                 return true;
             }
         }

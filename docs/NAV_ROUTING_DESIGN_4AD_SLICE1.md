@@ -385,7 +385,21 @@ total AND safe.
    numbers (exec-passing 1,390, h2 1,374, walls 947, rescued 817,
    advanced 64) are REFERENCE POINTS from a deleted mechanism —
    re-measure everything; do not treat them as floors.
-6. **Batch 6 — retire the RelationPredicates correlated reducers**
+6. **BATCH-6 CENSUS VERDICT (2026-08-29, correlation-split
+   executed):** the "234+2" blast radius was an over-count — the
+   census arm fired for EVERY size/count-over-relation lowering. A
+   scope-correct outer-reference detector splits it: **5 truly
+   correlated** (4 graphFetch chain counts + 1 graph qualifier
+   sub-aggregation — all GRAPH-lane, all passing, rows correct by
+   this batch's own aggregates-cannot-fan argument) vs 231
+   whole-extent scalar envelopes (`extent-count/agg-reducer` arms —
+   NOT the banned navigation class; a whole-extent count is not a
+   navigation). The conversion of the 5 = a contained GRAPH-EMISSION
+   slice (H4b's correlated-target-relation rewrite), sequenced AFTER
+   batches 7-8 (they carry the observable, charter-ratified value
+   and do not consume this batch); it remains THIS batch's named
+   clause — never an unscheduled deferral.
+   **Batch 6 — retire the RelationPredicates correlated reducers**
    (`correlated-count-reducer` 234 + `correlated-agg-reducer` 2 from
    the census): count/size/sum-style consumptions of navigation
    relations move onto the GROUPED JOIN form. Named here so it
