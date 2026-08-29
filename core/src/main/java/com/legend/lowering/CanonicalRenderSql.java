@@ -321,6 +321,13 @@ public final class CanonicalRenderSql {
             return TdsWrap.decline(plan, "tds-canon: plan/schema width "
                     + plan.outputs().size() + "/" + schema.columns().size());
         }
+        // ASSERT-BOUNDARY determinism (user design, 2026-08-29): results
+        // under assertion are deterministically ordered even when the
+        // test forgot to sort — positional reads over an unordered
+        // relation are otherwise undefined. Always on: a FEATURE of the
+        // assert surface, and both verdict channels read one ordered
+        // relation by construction. ScanOrder is the one key owner.
+        plan = com.legend.sql.ScanOrder.stabilize(plan);
         SqlExpr row = null;
         for (int i = 0; i < plan.outputs().size(); i++) {
             com.legend.sql.OutputCol col = plan.outputs().get(i);
