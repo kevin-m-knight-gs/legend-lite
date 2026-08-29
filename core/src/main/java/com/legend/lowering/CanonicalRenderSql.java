@@ -450,7 +450,7 @@ public final class CanonicalRenderSql {
         if (layout instanceof SqlType.Array at
                 && keys.keys().size() == 1 && keys.keys().get(0).many()) {
             var k = keys.keys().get(0);
-            SqlExpr leaf = taggedLeaf(new SqlExpr.Column(null, "__e"),
+            SqlExpr leaf = taggedLeaf(SqlExpr.Column.derived(null, "__e"),
                     at.element(), k.nested());
             if (leaf == null) {
                 return null;
@@ -497,7 +497,7 @@ public final class CanonicalRenderSql {
                 SqlType elem = ft instanceof SqlType.Array at
                         ? at.element() : null;
                 SqlExpr leaf = elem == null ? null
-                        : taggedLeaf(new SqlExpr.Column(null, "__e"),
+                        : taggedLeaf(SqlExpr.Column.derived(null, "__e"),
                                 elem, k.nested());
                 if (leaf == null) {
                     return null;
@@ -542,7 +542,7 @@ public final class CanonicalRenderSql {
         if (!(layout instanceof SqlType.Map mt)) {
             return null;
         }
-        SqlExpr k = new SqlExpr.Column(null, "__k");
+        SqlExpr k = SqlExpr.Column.derived(null, "__k");
         SqlExpr kLeaf = taggedLeaf(k, mt.key(), null);
         SqlExpr vLeaf = taggedLeaf(SqlExpr.Call.of(SqlFn.LIST_GET,
                 SqlExpr.Call.of(SqlFn.MAP_EXTRACT, v, k),

@@ -143,7 +143,7 @@ public final class PctTdsWrap {
             if (k.expr() instanceof SqlExpr.Column kc
                     && outNames.contains(kc.name())) {
                 remapped.add(new SqlSelect.SortKey(
-                        new SqlExpr.Column(alias, kc.name()), k.ascending(),
+                        SqlExpr.Column.derived(alias, kc.name()), k.ascending(),
                         k.nullOrder(), k.outputName()));
                 continue;
             }
@@ -157,7 +157,7 @@ public final class PctTdsWrap {
             hiddenProjs.add(new SqlSelect.Projection(k.expr(), hn));
             hiddenOuts.add(new OutputCol(hn, SqlType.Scalar.VARCHAR, true));
             remapped.add(new SqlSelect.SortKey(
-                    new SqlExpr.Column(alias, hn), k.ascending(),
+                    SqlExpr.Column.derived(alias, hn), k.ascending(),
                     k.nullOrder(), null));
         }
         if (hiddenProjs.isEmpty()) {

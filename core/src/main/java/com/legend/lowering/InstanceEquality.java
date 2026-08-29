@@ -174,7 +174,7 @@ final class InstanceEquality {
         }
         String elemVar = freshVar.get();
         SqlExpr elemCanon = CanonicalRenderSql.instanceEqualityCanon(
-                new SqlExpr.Column(null, elemVar), keys, cf, lt);
+                SqlExpr.Column.derived(null, elemVar), keys, cf, lt);
         SqlExpr needleCanon = CanonicalRenderSql.instanceEqualityCanon(
                 scalar.apply(needle), keys, cf, lt);
         if (elemCanon == null || needleCanon == null) {

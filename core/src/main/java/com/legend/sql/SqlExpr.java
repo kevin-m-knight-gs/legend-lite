@@ -315,15 +315,21 @@ public sealed interface SqlExpr
             this(table, name, SqlTyping.UNKNOWN, null);
         }
 
-        /** Origin-unstamped compat door (convergence slice 1): the raw
-         * construction sites carry a NULL origin until the slice-2
-         * burn adjudicates each one PHYSICAL or DERIVED (the
-         * stamped-reference doors below inherit origin from their
-         * {@link OutputCol}). A case-sensitive renderer WALLS on null
-         * origin rather than guess a spelling. */
-        public Column(@com.legend.Nullable String table, String name,
-                TypeFact type) {
-            this(table, name, type, null);
+
+        /** An UNTYPED reference to a name the query INVENTED (alias,
+         * projection label) — origin stamped, type unknown (M1). */
+        public static Column derived(@com.legend.Nullable String table,
+                String name) {
+            return new Column(table, name, SqlTyping.UNKNOWN,
+                    OutputCol.Origin.DERIVED);
+        }
+
+        /** An UNTYPED reference to a name that exists in DDL — origin
+         * stamped, type unknown (M1). */
+        public static Column physical(@com.legend.Nullable String table,
+                String name) {
+            return new Column(table, name, SqlTyping.UNKNOWN,
+                    OutputCol.Origin.PHYSICAL);
         }
 
         /** The STAMPED reference to a source's declared output — the M2
@@ -349,9 +355,10 @@ public sealed interface SqlExpr
          * caller states the slot's nullability with the same authority
          * it states the type (no default — every site decides). */
         public static Column of(@com.legend.Nullable String table,
-                String name, SqlType t, boolean nullable) {
+                String name, SqlType t, boolean nullable,
+                OutputCol.Origin origin) {
             return new Column(table, name,
-                    new TypeFact.Typed(t, nullable, false));
+                    new TypeFact.Typed(t, nullable, false), origin);
         }
 
         /** Stamped when {@code outs} claims the name, plain (UNKNOWN)
@@ -393,8 +400,9 @@ public sealed interface SqlExpr
             return collection.type() instanceof TypeFact.Typed t
                     && t.type() instanceof SqlType.Array at
                     ? new Column(null, name,
-                            new TypeFact.Typed(at.element(), true, false))
-                    : new Column(null, name);
+                            new TypeFact.Typed(at.element(), true, false),
+                            OutputCol.Origin.DERIVED)
+                    : derived(null, name);
         }
     }
 

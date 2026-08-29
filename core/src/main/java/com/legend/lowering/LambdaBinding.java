@@ -77,8 +77,8 @@ final class LambdaBinding {
             if (var == null || !params.contains(var)) {
                 return outer.resolve(var, prop);
             }
-            return prop == null ? new SqlExpr.Column(null, var)
-                    : new SqlExpr.Column(var, prop);
+            return prop == null ? SqlExpr.Column.derived(null, var)
+                    : SqlExpr.Column.derived(var, prop);
         };
     }
 
@@ -99,7 +99,8 @@ final class LambdaBinding {
                 }
                 if (var.equals(accParam)
                         && init.type() instanceof TypeFact.Typed it) {
-                    return new SqlExpr.Column(null, var, it);
+                    return new SqlExpr.Column(null, var, it,
+                            com.legend.sql.OutputCol.Origin.DERIVED);
                 }
             }
             // a PROPERTY read over a stamped struct param ($p.lastName
@@ -138,7 +139,8 @@ final class LambdaBinding {
                     // §E3: an absent optional property IS a NULL field
                     // (the StructLit declared-slot arm) — presence not
                     // provable, may-be-null (the structGetType rule)
-                    return SqlExpr.Column.of(var, prop, f.type(), true);
+                    return SqlExpr.Column.of(var, prop, f.type(), true,
+                            com.legend.sql.OutputCol.Origin.DERIVED);
                 }
             }
         }
@@ -274,7 +276,8 @@ final class LambdaBinding {
             if (param.equals(var) && elem != null) {
                 if (prop == null) {
                     // §E3: element read — may-be-null (param doctrine)
-                    return SqlExpr.Column.of(null, param, elem, true);
+                    return SqlExpr.Column.of(null, param, elem, true,
+                            com.legend.sql.OutputCol.Origin.DERIVED);
                 }
                 // property read over the stamped element (same door as
                 // foldResolver's — §4bZ-U fold-tree receipts)

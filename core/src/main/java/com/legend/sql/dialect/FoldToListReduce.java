@@ -45,7 +45,7 @@ final class FoldToListReduce extends SqlRewriter {
         // semantic ArrayLit), unwrap refs via LIST_GET(e, 1).
         SqlExpr wrapped = new SqlExpr.Call(SqlFn.LIST_TRANSFORM, List.of(f.source(),
                 new SqlExpr.Lambda(List.of(elem),
-                        new SqlExpr.ArrayLit(List.of(new SqlExpr.Column(null, elem))))));
+                        new SqlExpr.ArrayLit(List.of(SqlExpr.Column.derived(null, elem))))));
         SqlExpr body = unwrapElemRefs(f.lambda().body(), elem);
         SqlExpr.Lambda swapped = new SqlExpr.Lambda(List.of(acc, elem), body);
         return SqlExpr.Call.of(SqlFn.LIST_REDUCE, wrapped, swapped, f.init());
@@ -61,7 +61,7 @@ final class FoldToListReduce extends SqlRewriter {
             case SqlExpr.TempTableInSplice t -> t;
             case SqlExpr.Column c when c.table() == null && elem.equals(c.name()) ->
                     SqlExpr.Call.of(SqlFn.LIST_GET,
-                            new SqlExpr.Column(null, elem), new SqlExpr.IntLit(1));
+                            SqlExpr.Column.derived(null, elem), new SqlExpr.IntLit(1));
             case SqlExpr.Column c -> c;
             case SqlExpr.RowOrder r2 -> r2;
             case SqlExpr.ReduceCollection rc -> rc;

@@ -440,12 +440,14 @@ class CodeShapeGuardrailTest {
         assertTrue(violations.isEmpty(), String.join("\n", violations));
     }
 
-    /** Convergence slice 1 (SQL-IR backend-agnosticism): every
-     * origin-UNSTAMPED Column construction is a site the slice-2 burn
-     * must adjudicate PHYSICAL or DERIVED — the count only SHRINKS.
-     * The stamped doors (Column.of over an OutputCol) inherit origin
-     * and are not counted; SqlExpr.java's own ctor delegations are the
-     * doors themselves. Measured 2026-08-29. */
+    /** Convergence slice 2 EXECUTED (SQL-IR backend-agnosticism):
+     * the 62 origin-unstamped sites burned to 7, every survivor a
+     * 4-arg construction CARRYING its origin (rebuild-transports +
+     * three adjudicated stamps). The 2-arg M1 door survives for TEST
+     * fixtures and the of(outs,name) unclaimed-name fallback — a
+     * production null-origin reaching the strict H2 renderer WALLS
+     * (slice 3), so any residue surfaces as a counted decline, never
+     * a guessed spelling. Count only SHRINKS. */
     @Test
     void unstampedColumnConstructionOnlyShrinks() throws IOException {
         int count = 0;
@@ -459,19 +461,12 @@ class CodeShapeGuardrailTest {
                 count++;
                 i++;
             }
-            i = 0;
-            while ((i = src.indexOf("new Column(", i)) >= 0) {
-                if (i == 0 || src.charAt(i - 1) != '.') {
-                    count++;
-                }
-                i++;
-            }
         }
-        assertTrue(count <= 62, "origin-unstamped SqlExpr.Column"
-                + " construction sites grew: " + count + " > 62 — new"
-                + " references go through the stamped Column.of doors"
-                + " (origin rides the OutputCol); the slice-2 burn only"
-                + " shrinks this");
+        assertTrue(count <= 7, "raw SqlExpr.Column construction sites"
+                + " grew: " + count + " > 7 — new references go through"
+                + " the stamped doors (Column.of over an OutputCol /"
+                + " derived / physical); raw construction is for"
+                + " origin-preserving rebuilds only");
     }
 
     @Test

@@ -178,7 +178,7 @@ final class ListEncodings {
                 SqlExpr.Call.of(SqlFn.COALESCE,
                         SqlExpr.Call.of(SqlFn.LIST_LENGTH, b),
                         new SqlExpr.IntLit(0)));
-        SqlExpr i = new SqlExpr.Column(null, "_zip_i");
+        SqlExpr i = SqlExpr.Column.derived(null, "_zip_i");
         SqlExpr body = new SqlExpr.StructLit(List.of(
                 new SqlExpr.StructLit.Field("first",
                         SqlExpr.Call.of(SqlFn.LIST_GET, a, i)),
@@ -226,8 +226,8 @@ final class ListEncodings {
                 new SqlExpr.Lambda(List.of("_ddx", "_ddi"),
                         new SqlExpr.Call(SqlFn.EQUAL, List.of(
                                 SqlExpr.Call.of(SqlFn.LIST_POSITION, list,
-                                        new SqlExpr.Column(null, "_ddx")),
-                                new SqlExpr.Column(null, "_ddi"))))));
+                                        SqlExpr.Column.derived(null, "_ddx")),
+                                SqlExpr.Column.derived(null, "_ddi"))))));
     }
 
     /** A concatenate SIDE: scalar encodings (TO-ONE stamps, many-

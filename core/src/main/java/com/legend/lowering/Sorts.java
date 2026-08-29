@@ -96,7 +96,7 @@ final class Sorts {
                 Type.schemaView(nc.args().get(0).info().type()),
                 "naturalSort needs a relation-ish stream");
         return lw.relation(nc.args().get(0)).withOrderBy(List.of(
-                SqlSelect.SortKey.asc(new SqlExpr.Column(null,
+                SqlSelect.SortKey.asc(SqlExpr.Column.derived(null,
                         srt.columns().get(0).name()))));
     }
 }

@@ -100,7 +100,7 @@ final class Pivots {
             // H2's staticized-pivot restructuring (G7 caught the stale
             // qualifier: Column "_tds0.year" not found)
             SqlExpr key = on.get(0) instanceof SqlExpr.Column kc
-                    ? new SqlExpr.Column(null, kc.name())
+                    ? SqlExpr.Column.derived(null, kc.name())
                     : on.get(0);
             SqlSelect filtered = SqlSelect.starOf(inner)
                     .withWhere(new SqlExpr.Membership(key,

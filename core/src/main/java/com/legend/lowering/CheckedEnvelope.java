@@ -63,7 +63,7 @@ final class CheckedEnvelope {
                                 new SqlExpr.ArrayLit(cases),
                                 new SqlExpr.Lambda(List.of("x"),
                                         SqlExpr.Call.of(SqlFn.IS_NOT_NULL,
-                                                new SqlExpr.Column(null,
+                                                SqlExpr.Column.derived(null,
                                                         "x")))));
         return new SqlExpr.JsonObject(List.of(
                 new SqlExpr.StringLit("defects"), defects,

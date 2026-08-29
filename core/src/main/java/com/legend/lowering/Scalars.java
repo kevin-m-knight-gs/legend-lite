@@ -1064,8 +1064,8 @@ final class Scalars {
                         var outer = new SqlSelect(List.of(
                                 new SqlSelect.Projection(
                                         new SqlExpr.OrderedListAgg(
-                                                new SqlExpr.Column("_mx", "i"),
-                                                new SqlExpr.Column("_mx", "v")), "s")),
+                                                SqlExpr.Column.derived("_mx", "i"),
+                                                SqlExpr.Column.derived("_mx", "v")), "s")),
                                 false, src, null, List.of(), null, null, List.of(),
                                 null, null, List.of());
                         // F10 slice 2/3: the sorted ids ARE pure-literal
@@ -1921,7 +1921,7 @@ final class Scalars {
                         new SqlExpr.Lambda(List.of(x, "_rd_i"),
                                 SqlExpr.Call.of(SqlFn.EQUAL,
                                         SqlExpr.Call.of(SqlFn.LIST_POSITION, keys, key.body()),
-                                        new SqlExpr.Column(null, "_rd_i"))));
+                                        SqlExpr.Column.derived(null, "_rd_i"))));
             });
         }
         // corr/covarPopulation/covarSample over two LISTS: the paired-unnest
@@ -1963,8 +1963,8 @@ final class Scalars {
                     var outer = new SqlSelect(List.of(
                             new SqlSelect.Projection(
                                     new SqlAgg.Reducer(e.getValue(),
-                                            List.of(new SqlExpr.Column(null, "a"),
-                                                    new SqlExpr.Column(null, "b")), false, java.util.List.of()),
+                                            List.of(SqlExpr.Column.derived(null, "a"),
+                                                    SqlExpr.Column.derived(null, "b")), false, java.util.List.of()),
                                     null)),
                             false, new SqlSource.Subselect(inner, "_uz", null),
                             null, List.of(), null, null, List.of(), null, null, List.of());

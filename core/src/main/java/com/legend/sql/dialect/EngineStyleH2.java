@@ -283,7 +283,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                             new SqlSelect.Projection(new SqlExpr.Column(
                                     wrap, phCols.contains(o.name())
                                             ? o.name()
-                                            : "\"" + o.name() + "\""),
+                                            : "\"" + o.name() + "\"",
+                                    com.legend.sql.SqlTyping.UNKNOWN,
+                                    com.legend.sql.OutputCol.Origin
+                                            .DERIVED),
                                     o.name()))
                             .toList();
             return new SqlSelect(cols, false,

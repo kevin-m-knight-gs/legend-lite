@@ -77,7 +77,7 @@ public final class DynamicPivot {
                 .withWhere(SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NOT_NULL,
                         key))
                 .withOrderBy(List.of(SqlSelect.SortKey.asc(
-                        new SqlExpr.Column(null, "v"))));
+                        SqlExpr.Column.derived(null, "v"))));
         List<SqlExpr> in = new ArrayList<>();
         try (Statement st = connection.createStatement();
                 ResultSet rs = st.executeQuery(dialect.render(q))) {

@@ -89,7 +89,7 @@ final class CastPolicy {
                         ? SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, value,
                                 new SqlExpr.Lambda(List.of("x"),
                                         new SqlExpr.Cast(
-                                                new SqlExpr.Column(null, "x"),
+                                                SqlExpr.Column.derived(null, "x"),
                                                 PureSql.type(c.target()))))
                         : new SqlExpr.Cast(value, PureSql.type(c.target()));
             }

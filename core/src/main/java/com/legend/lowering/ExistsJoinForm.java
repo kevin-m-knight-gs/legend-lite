@@ -135,7 +135,7 @@ final class ExistsJoinForm {
             List<SqlExpr> on = new ArrayList<>();
             for (CorrPair p2 : corr) {
                 on.add(SqlExpr.Call.of(SqlFn.EQUAL, p2.outer(),
-                        new SqlExpr.Column(side.alias(),
+                        SqlExpr.Column.derived(side.alias(),
                         java.util.Objects.requireNonNull(aliasFor.get(
                                 p2.inner().table() + " "
                                         + p2.inner().name()),
@@ -143,7 +143,7 @@ final class ExistsJoinForm {
             }
             from = new SqlSource.Join(from, side, SqlSource.Join.Kind.LEFT,
                     Fold.mergeAnd(on.toArray(SqlExpr[]::new)));
-            SqlExpr key = new SqlExpr.Column(side.alias(),
+            SqlExpr key = SqlExpr.Column.derived(side.alias(),
                     java.util.Objects.requireNonNull(
                             aliasFor.get(corr.get(0).inner().table() + " "
                                     + corr.get(0).inner().name()),

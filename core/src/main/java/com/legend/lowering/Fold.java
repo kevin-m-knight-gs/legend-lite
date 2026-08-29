@@ -685,7 +685,7 @@ final class Fold {
                                 .findFirst()
                                 .map(oc -> SqlExpr.Column.of(sub, oc))
                                 .orElseGet(() ->
-                                        new SqlExpr.Column(sub, col))));
+                                        SqlExpr.Column.derived(sub, col))));
     }
 
     /** A projection expression that may be repeated in WHERE: no window
@@ -743,7 +743,9 @@ final class Fold {
         SqlExpr listRef = src.outputs().stream()
                 .filter(oc -> oc.name().equals(col)).findFirst()
                 .map(oc -> (SqlExpr) SqlExpr.Column.of(srcAlias, oc))
-                .orElseGet(() -> new SqlExpr.Column(srcAlias, col));
+                .orElseGet(() -> src instanceof SqlSource.Table
+                        ? SqlExpr.Column.physical(srcAlias, col)
+                        : SqlExpr.Column.derived(srcAlias, col));
         return SqlSelect.starOf(src)
                 .withProjections(List.of(new SqlSelect.Projection(
                                 SqlExpr.Call.of(SqlFn.UNNEST, listRef),
@@ -872,9 +874,9 @@ final class Fold {
             // the database resolves it. A STAMPED grid keeps the old
             // behavior (never claims — resolution rides its subselect).
             case SqlSource.RawSql raw -> raw.outputs().isEmpty()
-                    ? new SqlExpr.Column(raw.alias(), column) : null;
+                    ? SqlExpr.Column.physical(raw.alias(), column) : null;
             case SqlSource.Subselect sub -> lateBoundGrid(sub)
-                    ? new SqlExpr.Column(sub.alias(), column)
+                    ? SqlExpr.Column.derived(sub.alias(), column)
                     : stamped(sub.alias(), sub.outputs(), column);
             case SqlSource.Values v -> stamped(v.alias(), v.outputs(), column);
             case SqlSource.SourceUrl u ->
@@ -989,18 +991,19 @@ final class Fold {
                     // the fact transports WHOLE — the engine-compat
                     // tolerance included (§5 traps: provenance flags
                     // ride every rebuild site)
-                    return new SqlExpr.Column(p.alias(), column, t);
+                    return new SqlExpr.Column(p.alias(), column, t,
+                            com.legend.sql.OutputCol.Origin.DERIVED);
                 }
                 if (u.type() != null) {
                     // §E3: model-channel fallback — the aggregate's
                     // own fact is not in hand here, and a reducer
                     // output may be NULL (empty groups); safe side
                     return SqlExpr.Column.of(p.alias(), column,
-                            u.type(), true);
+                            u.type(), true, com.legend.sql.OutputCol.Origin.DERIVED);
                 }
             }
         }
-        return new SqlExpr.Column(p.alias(), column);
+        return SqlExpr.Column.derived(p.alias(), column);
     }
 
     private static boolean claims(List<OutputCol> outputs, String column) {

@@ -280,7 +280,7 @@ public final class CarrierStrategies extends SqlRewriter {
         if (e instanceof SqlExpr.Column c && from.equals(c.table())) {
             // alias remap transports the stamped type (M2: a derived
             // reference never drops leaf knowledge)
-            return new SqlExpr.Column(to, c.name(), c.type());
+            return new SqlExpr.Column(to, c.name(), c.type(), c.origin());
         }
         List<SqlExpr> kids = e.children();
         if (kids.isEmpty()) {
@@ -826,7 +826,7 @@ public final class CarrierStrategies extends SqlRewriter {
             }
             com.legend.sql.SqlUnion union =
                     new com.legend.sql.SqlUnion(branches, true, List.of());
-            SqlExpr vRead = new SqlExpr.Column("_cells", "v");
+            SqlExpr vRead = SqlExpr.Column.derived("_cells", "v");
             SqlExpr tv = transform == null ? vRead
                     : substParam(transform.body(),
                             transform.params().get(0), vRead);
@@ -905,7 +905,7 @@ public final class CarrierStrategies extends SqlRewriter {
                 com.legend.sql.SqlUnion union =
                         new com.legend.sql.SqlUnion(branches, true,
                                 List.of());
-                SqlExpr vRead = new SqlExpr.Column("_cells", "v");
+                SqlExpr vRead = SqlExpr.Column.derived("_cells", "v");
                 SqlExpr tv = transform == null ? vRead
                         : substParam(transform.body(),
                                 transform.params().get(0), vRead);

@@ -1427,7 +1427,8 @@ public final class Lowerer {
                                 // §E3: LEFT_LATERAL pads with NULL on
                                 // an empty array — nullable slot
                                 SqlExpr.Column.of(lat, "elem",
-                                        PureSql.type(elemT), true),
+                                        PureSql.type(elemT), true,
+                                        com.legend.sql.OutputCol.Origin.DERIVED),
                                 c.name()));
                         continue;
                     }
@@ -3297,7 +3298,7 @@ public final class Lowerer {
                 paColl,
                 SqlExpr.Lambda.bind(new SqlExpr.Lambda(List.of(elem),
                         new SqlExpr.StructGet(
-                                new SqlExpr.Column(null, elem),
+                                SqlExpr.Column.derived(null, elem),
                                 p.property())), paColl));
         boolean manyProp = classLayout
                 .apply(p.source().info().type()).orElseThrow()

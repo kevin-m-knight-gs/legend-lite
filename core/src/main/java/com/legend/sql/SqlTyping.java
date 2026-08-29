@@ -325,7 +325,8 @@ public final class SqlTyping {
         return e instanceof SqlExpr.Column c
                 && c.type() instanceof TypeFact.Typed t && !t.tolerated()
                 ? new SqlExpr.Column(c.table(), c.name(),
-                        new TypeFact.Typed(t.type(), t.nullable(), true))
+                        new TypeFact.Typed(t.type(), t.nullable(), true),
+                        c.origin())
                 : e;
     }
 

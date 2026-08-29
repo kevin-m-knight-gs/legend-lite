@@ -46,17 +46,17 @@ final class Comparators {
         SqlExpr keyOfX = mc.args().get(0);
         // the two sides must be the SAME key over the two params —
         // {x,y | f($x) - f($y)} ascending, {x,y | f($y) - f($x)} REVERSED
-        SqlExpr rightAsX = Scalars.substituteRef(mc.args().get(1), py, new SqlExpr.Column(null, px));
+        SqlExpr rightAsX = Scalars.substituteRef(mc.args().get(1), py, SqlExpr.Column.derived(null, px));
         if (!keyOfX.equals(rightAsX)) {
-            SqlExpr leftAsY = Scalars.substituteRef(mc.args().get(0), py, new SqlExpr.Column(null, px));
+            SqlExpr leftAsY = Scalars.substituteRef(mc.args().get(0), py, SqlExpr.Column.derived(null, px));
             SqlExpr rightSide = mc.args().get(1);
             if (leftAsY.equals(rightSide)
-                    || Scalars.substituteRef(rightSide, px, new SqlExpr.Column(null, py)).equals(
+                    || Scalars.substituteRef(rightSide, px, SqlExpr.Column.derived(null, py)).equals(
                             Scalars.substituteRef(mc.args().get(0),
-                                    px, new SqlExpr.Column(null, py)))) {
+                                    px, SqlExpr.Column.derived(null, py)))) {
                 // reversed comparator: max-by-it is MIN by the key
-                keyOfX = Scalars.substituteRef(mc.args().get(1), px, new SqlExpr.Column(null, px));
-                keyOfX = Scalars.substituteRef(keyOfX, py, new SqlExpr.Column(null, px));
+                keyOfX = Scalars.substituteRef(mc.args().get(1), px, SqlExpr.Column.derived(null, px));
+                keyOfX = Scalars.substituteRef(keyOfX, py, SqlExpr.Column.derived(null, px));
                 max = !max;
             } else {
                 throw new IllegalStateException("comparator max/min: the two comparator"
@@ -69,8 +69,9 @@ final class Comparators {
                 instanceof com.legend.sql.TypeFact.Typed lt
                 && lt.type() instanceof com.legend.sql.SqlType.Array at
                 // §E3: element presence not provable — may-be-null
-                ? SqlExpr.Column.of("_cx", "x", at.element(), true)
-                : new SqlExpr.Column("_cx", "x");
+                ? SqlExpr.Column.of("_cx", "x", at.element(), true,
+                        com.legend.sql.OutputCol.Origin.DERIVED)
+                : SqlExpr.Column.derived("_cx", "x");
         SqlExpr keyOverElem = Scalars.substituteRef(keyOfX, px, cx);
         var inner = new SqlSelect(List.of(
                 new SqlSelect.Projection(
@@ -89,7 +90,7 @@ final class Comparators {
                 false, src, null, List.of(), null, null,
                 List.of(new SqlSelect.SortKey(keyOverElem, !max,
                                 SqlSelect.SortKey.NullOrder.NULLS_LAST, null),
-                        SqlSelect.SortKey.asc(new SqlExpr.Column("_cx", "i"))),
+                        SqlSelect.SortKey.asc(SqlExpr.Column.derived("_cx", "i"))),
                 1L, null, List.of());
         return new SqlExpr.ScalarSubquery(outer);
     }

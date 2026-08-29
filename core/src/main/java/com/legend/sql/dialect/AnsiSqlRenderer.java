@@ -358,7 +358,7 @@ public class AnsiSqlRenderer implements SqlDialect {
                 com.legend.sql.SqlFn.LIST_FILTER, cl.list(),
                 new SqlExpr.Lambda(java.util.List.of("x"),
                         SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NOT_NULL,
-                                new SqlExpr.Column(null, "x")))),
+                                SqlExpr.Column.derived(null, "x")))),
                 parentPrec);
     }
 

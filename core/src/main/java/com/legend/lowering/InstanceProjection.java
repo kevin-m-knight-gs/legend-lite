@@ -164,7 +164,7 @@ final class InstanceProjection {
                     // §E3: LEFT_LATERAL pads with NULL on an empty
                     // array — nullable slot
                     value = SqlExpr.Column.of(un.alias(), "elem",
-                            un.elemT(), true);
+                            un.elemT(), true, com.legend.sql.OutputCol.Origin.DERIVED);
                     for (int r = i + 1; r < path.size(); r++) {
                         value = new SqlExpr.StructGet(value, path.get(r).name());
                     }

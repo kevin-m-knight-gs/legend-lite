@@ -54,8 +54,9 @@ final class Dedup {
         SqlExpr kept = list.type() instanceof
                 com.legend.sql.TypeFact.Typed t
                 && t.type() instanceof SqlType.Array
-                ? new SqlExpr.Column(null, ra, list.type())
-                : new SqlExpr.Column(null, ra);
+                ? new SqlExpr.Column(null, ra, list.type(),
+                        com.legend.sql.OutputCol.Origin.DERIVED)
+                : SqlExpr.Column.derived(null, ra);
         SqlExpr cand = SqlExpr.Call.of(SqlFn.LIST_GET,
                 SqlExpr.Column.param(rx, wrapped), new SqlExpr.IntLit(1));
         SqlExpr dup = SqlExpr.Call.of(SqlFn.GREATER,

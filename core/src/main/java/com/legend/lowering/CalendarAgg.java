@@ -75,12 +75,12 @@ final class CalendarAgg {
                         new SqlSource.Table(table, cal0, List.of()),
                         SqlSource.Join.Kind.LEFT,
                         SqlExpr.Call.of(SqlFn.EQUAL, dateExpr,
-                                new SqlExpr.Column(cal0, "date")));
+                                SqlExpr.Column.physical(cal0, "date")));
                 from = new SqlSource.Join(from,
                         new SqlSource.Table(table, cal1, List.of()),
                         SqlSource.Join.Kind.LEFT,
                         SqlExpr.Call.of(SqlFn.EQUAL, endExpr,
-                                new SqlExpr.Column(cal1, "date")));
+                                SqlExpr.Column.physical(cal1, "date")));
                 ctx = new Ctx(cal0, cal1);
                 byKey.put(key, ctx);
             }
@@ -242,7 +242,8 @@ final class CalendarAgg {
     // ---- the per-function fiscal conditions (engine transcriptions) ----
 
     private static SqlExpr col(String alias, String name) {
-        return new SqlExpr.Column(alias, name);
+        // calendar-table columns exist in DDL — PHYSICAL by definition
+        return SqlExpr.Column.physical(alias, name);
     }
 
     private static SqlExpr eq(SqlExpr l, SqlExpr r) {
