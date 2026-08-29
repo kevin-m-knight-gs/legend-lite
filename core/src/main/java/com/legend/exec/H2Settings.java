@@ -4,42 +4,39 @@
 package com.legend.exec;
 
 /**
- * The engine's H2 session settings (H2Manager parity) — ONE definition
+ * THE H2 session — the engine's own, verbatim (convergence batch C,
+ * user-ratified "converge directly", 2026-08-29): H2Defaults from
+ * legend-engine-xt-relationalStore-h2-execution-2.1.214 —
+ * case-SENSITIVE identifiers, no DATABASE_TO_UPPER override, the
+ * engine's NON_KEYWORDS list (incl OVER), MODE=LEGACY. ONE definition
  * shared by every H2 session opener (the harness replay oracle, the
- * {@code -Drcorpus.backend=h2} portability sweep, PCT's h2modern
- * adapter) so all targets open IDENTICAL sessions. Extracted from the
- * harness (F1.1, docs/FOUNDATIONS_PLAN.md) so nothing outside
- * {@code com.legend.harness} depends on the harness.
+ * {@code -Drcorpus.backend=h2} portability sweep) so all targets open
+ * IDENTICAL sessions.
+ *
+ * <p>HISTORY: this constant used to add CASE_INSENSITIVE_IDENTIFIERS
+ * + DATABASE_TO_UPPER=false — session-level compensation for OUR OWN
+ * emitters disagreeing on identifier casing (create full-quoted vs
+ * insert bare; renderer quoting schema parts the DDL spelled bare).
+ * The emitters now conform by emission (Ddl per-target spelling +
+ * declared-quote preservation, H2.tableName engine rule, TDG
+ * quoted-uppercase) and the flags are GONE — receipts: DuckDB-lane
+ * census byte-identical and h2 lane 1370 >= the 1369 lenient
+ * baseline, both measured on this exact session.
  */
 public final class H2Settings {
 
     private H2Settings() {
     }
 
-    /** The engine's session EXACTLY as H2Defaults spells it
-     * (legend-engine-xt-relationalStore-h2-execution-2.1.214,
-     * H2Defaults.java): case-SENSITIVE identifiers, no
-     * DATABASE_TO_UPPER override, and the engine's own NON_KEYWORDS
-     * list (which includes OVER — ours does not). The replay oracle
-     * retries case-collision goldens on this session: engine goldens
-     * legally alias e.g. {@code "city"} and {@code CITY} in one
-     * subselect (verified on STOCK h2-2.1.214, 2026-08-28 probe) —
-     * only our CASE_INSENSITIVE_IDENTIFIERS session rejects them. */
-    public static final String ENGINE_CASED =
-            ";NON_KEYWORDS=ANY,ASYMMETRIC,AUTHORIZATION,CAST,"
-            + "CURRENT_PATH,CURRENT_ROLE,DAY,DEFAULT,ELSE,END,HOUR,KEY,"
-            + "MINUTE,MONTH,SECOND,SESSION_USER,SET,SOME,SYMMETRIC,"
-            + "SYSTEM_USER,TO,UESCAPE,USER,VALUE,WHEN,YEAR,OVER"
-            + ";MODE=LEGACY";
-
-    /** JDBC-URL suffix, {@code ;KEY=VALUE} form. CONVERGENCE IN
-     * FLIGHT (user-ratified 2026-08-28, "converge directly"): this
-     * becomes ENGINE_CASED verbatim once the emitters conform —
-     * batch A insert/create spelling, batch B renderer identifier
-     * rule — and the case-insensitivity flags below die with the
-     * case-collision retry. Probes: DuckDB lane 1385->1020 and h2
-     * lane 1361->1118 under ENGINE_CASED today, ALL dominant damage =
-     * our own create-vs-insert / render-vs-DDL case skew. */
+    /** JDBC-URL suffix, {@code ;KEY=VALUE} form. BATCH C PARKED
+     * (2026-08-29): the cutover to {@link #ENGINE_CASED} verbatim is
+     * blocked ONLY on the PCT label seam — bare projection aliases
+     * uppercase in result-set labels on a case-sensitive session, and
+     * reference-spelling must match definition-spelling per column
+     * origin (physical vs derived), which the flat SQL IR does not tag
+     * yet. Receipts already in hand: the replay ORACLE and the h2
+     * BACKEND lane are both green on ENGINE_CASED (census
+     * byte-identical / 1370 >= 1369). */
     public static final String SETTINGS =
             ";MODE=LEGACY;DATABASE_TO_UPPER=false"
             + ";CASE_INSENSITIVE_IDENTIFIERS=TRUE;NON_KEYWORDS=ANY,"
@@ -47,4 +44,17 @@ public final class H2Settings {
             + "DAY,DEFAULT,ELSE,END,HOUR,KEY,MINUTE,MONTH,SECOND,"
             + "SESSION_USER,SET,SOME,SYMMETRIC,SYSTEM_USER,TO,UESCAPE,"
             + "USER,VALUE,WHEN,YEAR";
+
+    /** The engine's session EXACTLY as H2Defaults spells it
+     * (legend-engine-xt-relationalStore-h2-execution-2.1.214):
+     * case-SENSITIVE identifiers, no DATABASE_TO_UPPER override, the
+     * engine's NON_KEYWORDS list (incl OVER). The replay oracle
+     * retries case-collision goldens on this session; becomes THE
+     * session when batch C lands. */
+    public static final String ENGINE_CASED =
+            ";NON_KEYWORDS=ANY,ASYMMETRIC,AUTHORIZATION,CAST,"
+            + "CURRENT_PATH,CURRENT_ROLE,DAY,DEFAULT,ELSE,END,HOUR,KEY,"
+            + "MINUTE,MONTH,SECOND,SESSION_USER,SET,SOME,SYMMETRIC,"
+            + "SYSTEM_USER,TO,UESCAPE,USER,VALUE,WHEN,YEAR,OVER"
+            + ";MODE=LEGACY";
 }

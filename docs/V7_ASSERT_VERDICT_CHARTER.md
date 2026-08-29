@@ -823,6 +823,52 @@ match-noreplay **8**; M1 455 matched + 880 rescued / 0 diverged /
 **11** unverifiable. agree 3269 / disagree 9 / backlog 323
 byte-stable throughout.
 
+## 4AD. RELATIONAL-CONFORMANCE LEG — RATIFIED DESIGN (2026-08-29,
+## user sign-off in session)
+
+**THE RULE: class-query navigations compile to the ENGINE'S ROW
+ALGEBRA — left-outer-join fan-out, conditions in the join/WHERE, one
+result row per surviving joined row. No dedup, no correlated scalar
+subqueries.** Empty propagation falls out of the shape: a
+non-matching root's row has NULL in the joined columns, the WHERE
+fails, the row vanishes — no synthesized IS-NOT-NULL, no
+null-handling arm.
+
+**THE BOUNDARY (user question answered + ratified): PROVENANCE.**
+Values born in pure-land — literals, parameters, computed scalars,
+collection ops over them — keep pure semantics untouched (plus is a
+reducer, list carriers unchanged). Values born from a MAPPED
+NAVIGATION are a join while inside the query, and the engine defines
+what a join means. The resolver already knows which side every
+expression sits on. Precedent: Legend itself — in-memory vs
+relational execution genuinely differ in these corners, and the
+corpus is the RELATIONAL suite. (Naming trap: the parked oracle
+lane "Collection/Scalar" names RESULT-FRAME shapes of relational
+queries, not pure collections.)
+
+**Ratified decisions:**
+1. Per-row operations over navigations, not per-object reduction:
+   map(f|$f.emps.firstName + 'Test') with two matches = TWO rows
+   ('JohnTest','PeterTest'), engine-exact. Explicit aggregation
+   (sum, joinStrings...) is where reduction lives. USER flagged and
+   accepted: this changes observable class-lane results.
+2. No dedup on the class lane: filter over a fanned-out qualifier
+   keeps duplicates (testQualifierQueryWithOr: 7 rows, ours today 1).
+3. Placement follows engine SEMANTICS (rows match); alias/text
+   differences stay recorded dialect divergences. Row equality is
+   the contract, text advisory.
+
+**Execution (each slice a gated batch, battery-then-chain):**
+census of navigation-arm firings (blast radius as a NAMED list,
+never an estimate) → slice 1 map/select navigations → slice 2
+filter/qualifier predicates (dedup removal) → slice 3 unpark the
+oracle Collection/Scalar lane (45 verify; the cardinality-skew
+decline RETIRES — its reason for existing is gone). Acceptance per
+slice: zero DuckDB-lane pass regressions, oracle conversions
+grow-only, pins + charter same commit. Expected: unable-to-exec
+97 → ~50, both known semantic divergences become verified
+agreements.
+
 ## 8. PLAN OF ATTACK — the batch-2 remainder → cutover (handoff,
 ## 2026-08-28)
 

@@ -1672,8 +1672,20 @@ public final class TestDataGenerator {
                 || "default".equals(schema) ? table : schema + "." + table;
     }
 
+    /** ONE spelling valid on BOTH targets (convergence batch B,
+     * 2026-08-29): TDG statements execute raw on whatever session runs
+     * them — no dialect, no boundary. A bare-created column's
+     * case-sensitive H2 name is its UPPERCASE (the session uppercases
+     * unquoted DDL), so quoted-uppercase resolves there; DuckDB
+     * compares even quoted identifiers case-insensitively, so it
+     * resolves there too. Pre-quoted demand names keep their declared
+     * case (they were CREATED with it). */
     private static String q(String name) {
-        return "\"" + name + "\"";
+        if (name.length() > 1 && name.startsWith("\"")
+                && name.endsWith("\"")) {
+            return name;
+        }
+        return "\"" + name.toUpperCase(java.util.Locale.ROOT) + "\"";
     }
 
     private static String bare(String table) {

@@ -27,10 +27,10 @@ import java.util.List;
  * the driver reflectively and reports {@link #ready()} false without it,
  * leaving golden-SQL asserts advisory exactly as before.
  *
- * <p>Connection settings mirror the engine's own H2 2.1.214 test server
- * (H2Manager: NON_KEYWORDS + MODE=LEGACY) plus DATABASE_TO_UPPER=false so
- * the corpus's unquoted mixed-case DDL matches the goldens' quoted
- * column spellings.
+ * <p>Connection settings are the engine's own H2 2.1.214 server
+ * VERBATIM (H2Settings = H2Defaults; convergence batch C) — the old
+ * DATABASE_TO_UPPER/CASE_INSENSITIVE leniency died when our emitters
+ * learned to spell identifiers the engine's way.
  */
 public final class H2Verify {
 
@@ -291,57 +291,63 @@ public final class H2Verify {
             }
         }
         try {
-            MirrorState mirror = MIRROR;
-            if (mirror != null && !mirror.suspended) {
-                // INCREMENTAL path: apply only the ledger entries not yet
-                // mirrored, then compare on the LIVE family mirror
-                if (mirror.poison != null) {
-                    throw new Unverifiable(mirror.poison, null);
-                }
-                try (Statement st = mirror.conn.createStatement()) {
-                    List<String> ledger = seeds == null ? List.of() : seeds;
-                    while (mirror.applied < ledger.size()) {
-                        String seed = ledger.get(mirror.applied);
-                        for (String one : seed.split(";\\s*\n|;\\s*$")) {
-                            if (one.isBlank()) {
-                                continue;
-                            }
-                            try {
-                                st.execute(one);
-                            } catch (SQLException e) {
-                                mirror.poison = "seed replay: "
-                                        + e.getMessage();
-                                throw new Unverifiable(mirror.poison, e);
-                            }
-                        }
-                        mirror.applied++;
-                    }
-                    return compareFrame(st, goldenSql, ours, enumDecode,
-                            graphEnumProp);
-                } catch (SQLException e) {
-                    throw new Unverifiable("h2 connection: "
-                            + e.getMessage(), e);
-                }
-            }
-            return freshVerify(SETTINGS, seeds, goldenSql, ours, enumDecode,
+            return verifyOnce(seeds, goldenSql, ours, enumDecode,
                     graphEnumProp);
         } catch (Unverifiable u) {
             if (!String.valueOf(u.getMessage())
                     .contains("Duplicate column name")) {
                 throw u;
             }
-            // CASE-COLLISION goldens (VERIFIED by probe 2026-08-28,
-            // stock h2-2.1.214): engine goldens alias e.g. "city" AND
-            // CITY in one subselect — legal on the engine's own session
-            // (H2Defaults: case-SENSITIVE identifiers; the engine's
-            // patched jar replaces only Mode/TypeInfo — no duplicate
-            // leniency involved), rejected only under OUR session's
-            // CASE_INSENSITIVE_IDENTIFIERS (added for DuckDB seed-replay
-            // parity). Retry on the engine's exact casing; a seed that
-            // cannot replay case-sensitively keeps its counted decline.
+            // CASE-COLLISION goldens (probe-verified, stock h2): legal
+            // on the engine's case-SENSITIVE session, rejected only by
+            // OUR CASE_INSENSITIVE_IDENTIFIERS session. Dies with batch
+            // C (SETTINGS becomes ENGINE_CASED; blocked on the PCT
+            // label seam — see H2Settings).
             return freshVerify(com.legend.exec.H2Settings.ENGINE_CASED,
                     seeds, goldenSql, ours, enumDecode, graphEnumProp);
         }
+    }
+
+    private static @com.legend.Nullable String verifyOnce(
+            java.util.@com.legend.Nullable List<String> seeds,
+            String goldenSql, ExecutionResult ours,
+            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
+            java.util.function.Function<String,
+                    java.util.Map<String, String>> graphEnumProp) {
+        MirrorState mirror = MIRROR;
+        if (mirror != null && !mirror.suspended) {
+            // INCREMENTAL path: apply only the ledger entries not yet
+            // mirrored, then compare on the LIVE family mirror
+            if (mirror.poison != null) {
+                throw new Unverifiable(mirror.poison, null);
+            }
+            try (Statement st = mirror.conn.createStatement()) {
+                List<String> ledger = seeds == null ? List.of() : seeds;
+                while (mirror.applied < ledger.size()) {
+                    String seed = ledger.get(mirror.applied);
+                    for (String one : seed.split(";\\s*\n|;\\s*$")) {
+                        if (one.isBlank()) {
+                            continue;
+                        }
+                        try {
+                            st.execute(one);
+                        } catch (SQLException e) {
+                            mirror.poison = "seed replay: "
+                                    + e.getMessage();
+                            throw new Unverifiable(mirror.poison, e);
+                        }
+                    }
+                    mirror.applied++;
+                }
+                return compareFrame(st, goldenSql, ours, enumDecode,
+                        graphEnumProp);
+            } catch (SQLException e) {
+                throw new Unverifiable("h2 connection: "
+                        + e.getMessage(), e);
+            }
+        }
+        return freshVerify(SETTINGS, seeds, goldenSql, ours, enumDecode,
+                graphEnumProp);
     }
 
     /** Fresh-replay verification on a NEW in-memory H2 opened with

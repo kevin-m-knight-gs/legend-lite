@@ -192,7 +192,7 @@ public class AnsiSqlRenderer implements SqlDialect {
         // stays IN the execution alias — downstream references are built
         // from the (prefixed) row type; engine-TEXT renderers drop it
         String e = expr(p.expr(), 0);
-        return p.alias() == null ? e : e + " AS " + ident(p.alias());
+        return p.alias() == null ? e : e + " AS " + aliasIdent(p.alias());
     }
 
     protected String sortKey(SqlSelect.SortKey k) {
@@ -215,7 +215,7 @@ public class AnsiSqlRenderer implements SqlDialect {
             case SqlSource.Table t -> {
                 sb.append(tableName(t.name()));
                 if (t.alias() != null) {
-                    sb.append(" AS ").append(ident(t.alias()));
+                    sb.append(" AS ").append(aliasIdent(t.alias()));
                 }
             }
             case SqlSource.Subselect sub -> subselectSource(sb, sub, depth);
@@ -224,16 +224,16 @@ public class AnsiSqlRenderer implements SqlDialect {
             // execution reaching this dies loudly at SQL parse)
             case SqlSource.VarSetPlaceholder vp -> sb.append("(${")
                     .append(vp.varName()).append("}) as ")
-                    .append(ident(vp.alias()));
+                    .append(aliasIdent(vp.alias()));
             case SqlSource.Values v -> valuesSource(sb, v);
             // corpus-authored raw SQL as a relation source (Phase 1:
             // the typed executeInDb grid) — carried text, parenthesized
             case SqlSource.RawSql r -> sb.append("(").append(r.sql())
-                    .append(") AS ").append(ident(r.alias()));
+                    .append(") AS ").append(aliasIdent(r.alias()));
             case SqlSource.SourceUrl u -> {
                 sb.append("(");
                 nl(sb, depth + 1).append(sourceUrl(u.url()));
-                nl(sb, depth).append(") AS ").append(ident(u.alias()));
+                nl(sb, depth).append(") AS ").append(aliasIdent(u.alias()));
             }
             case SqlSource.Pivot p -> pivotSource(sb, p, depth);
             case SqlSource.Join j -> {
@@ -259,7 +259,7 @@ public class AnsiSqlRenderer implements SqlDialect {
         sb.append("(");
         nl(sb, depth + 1);
         query(sb, sub.inner(), depth + 1);
-        nl(sb, depth).append(") AS ").append(ident(sub.alias()));
+        nl(sb, depth).append(") AS ").append(aliasIdent(sub.alias()));
     }
 
     protected void valuesSource(StringBuilder sb, SqlSource.Values v) {
@@ -268,9 +268,9 @@ public class AnsiSqlRenderer implements SqlDialect {
                         .map(row -> "(" + row.stream().map(e -> expr(e, 0))
                                 .collect(Collectors.joining(", ")) + ")")
                         .collect(Collectors.joining(", ")))
-                .append(") AS ").append(ident(v.alias()))
+                .append(") AS ").append(aliasIdent(v.alias()))
                 .append("(")
-                .append(v.columns().stream().map(this::ident).collect(Collectors.joining(", ")))
+                .append(v.columns().stream().map(this::aliasIdent).collect(Collectors.joining(", ")))
                 .append(")");
     }
 
@@ -382,7 +382,7 @@ public class AnsiSqlRenderer implements SqlDialect {
             // names quote UNCONDITIONALLY — the corpus pins the quoted form.
             case SqlExpr.StarExcept se -> (se.table() == null ? "*" : ident(se.table()) + ".*")
                     + " " + starExceptKeyword() + " (" + se.except().stream()
-                            .map(n -> quoteChar() + n + quoteChar())
+                            .map(this::starExceptName)
                             .collect(java.util.stream.Collectors.joining(", ")) + ")";
             case SqlExpr.StringLit s -> stringLit(s.value());
             case SqlExpr.FormatLit fl -> stringLit(formatText(fl));
@@ -1031,6 +1031,27 @@ public class AnsiSqlRenderer implements SqlDialect {
         }
         char q = quoteChar();
         return q + name.substring(0, dot) + q + "." + q + name.substring(dot + 1) + q;
+    }
+
+    /** EXCEPT/EXCLUDE-list name spelling — DIALECT-owned: the base
+     * keeps the UNCONDITIONAL quote (DuckDB's EXCLUDE form, corpus-
+     * pinned); the H2 dialect spells via {@link #ident} so the names
+     * match every other reference in the same statement on a
+     * case-sensitive session (PCT witness: EXCEPT ("country") vs bare
+     * _tds0.country in one SELECT). */
+    protected String starExceptName(String name) {
+        return quoteChar() + name + quoteChar();
+    }
+
+    /** ALIAS/label positions ({@code AS x}, VALUES column lists) —
+     * default = {@link #ident}. The H2 dialect quotes these
+     * UNCONDITIONALLY, the engine's own convention (every golden
+     * spells {@code as "root"}, {@code as "legalName"}): on a
+     * case-sensitive session a bare alias uppercases in result-set
+     * LABELS, breaking every label-reading consumer (witness: PCT
+     * dynamic-pivot minted-name decode saw 'ID' for 'id'). */
+    protected String aliasIdent(String name) {
+        return ident(name);
     }
 
     protected String ident(String name) {

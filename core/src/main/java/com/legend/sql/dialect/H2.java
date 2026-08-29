@@ -37,6 +37,45 @@ public class H2 extends AnsiSqlRenderer {
         return true;
     }
 
+    /** SCHEMA-QUALIFIED references spell like the engine (convergence
+     * batch B, 2026-08-29): the engine renders schema and table parts
+     * through its identifierProcessor — bare unless pre-quoted,
+     * reserved, or space-bearing — and its schema/table DDL spells the
+     * SAME way, so bare references resolve on a case-sensitive
+     * session (witness: calendarAggregation's
+     * LegendCalendarSchema.NY_Calendar — created bare, referenced
+     * quoted by the ANSI base's unconditional per-part quote → whole
+     * family dead under engine casing). Single-part names already ride
+     * {@link #ident} (bare-unless-needed); this brings the dotted
+     * branch to the same rule. */
+    @Override
+    protected String tableName(String name) {
+        int dot = name.indexOf('.');
+        if (dot <= 0) {
+            return super.tableName(name);
+        }
+        return execPart(name.substring(0, dot)) + "."
+                + execPart(name.substring(dot + 1));
+    }
+
+    @Override
+    protected String starExceptName(String name) {
+        return ident(name);
+    }
+
+    private String execPart(String part) {
+        if (part.length() > 1 && part.charAt(0) == '"'
+                && part.endsWith("\"")) {
+            return part;
+        }
+        if (!part.matches("[A-Za-z_][A-Za-z0-9_$]*")
+                || reservedWords()
+                        .contains(part.toLowerCase(java.util.Locale.ROOT))) {
+            return '"' + part + '"';
+        }
+        return part;
+    }
+
     @Override
     public boolean rawH2IsNative() {
         return true;

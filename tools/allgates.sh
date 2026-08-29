@@ -95,7 +95,19 @@ if want 1; then
   g "GATE1 core suite (CLEAN is load-bearing: NullAway binds to default-compile,"
   g "       so a warm target/ silently no-ops the null gate)"
   mvn "${OFF[@]}" -pl core clean test > "$OUT/g1.out" 2>&1
-  rec 1 $?; grep -E "Tests run: [0-9]+, Fail" "$OUT/g1.out" | tail -1 >> "$L"
+  G1_EXIT=$?
+  rec 1 $G1_EXIT; grep -E "Tests run: [0-9]+, Fail" "$OUT/g1.out" | tail -1 >> "$L"
+  # G1 FAILS FAST (user directive 2026-08-29): the core suite is the
+  # "does the code even work" gate — when it is red the same broken
+  # jar feeds every later gate and their results are noise. G2-G9 keep
+  # collect-all semantics (scan ALL tripped registers in one pass);
+  # only G1 aborts the chain.
+  if [ "$G1_EXIT" -ne 0 ]; then
+    echo "ALLGATES_DONE — FAILED: G1 (fail-fast; later gates skipped)" >> "$L"
+    echo "ALLGATES_DONE — FAILED: G1 (fail-fast; later gates skipped)  (detail: $L)" >&2
+    cp "$OUT/g1.out" "${L%.log}.g1.out" 2>/dev/null
+    exit 1
+  fi
 fi
 
 if want 2; then
