@@ -56,3 +56,41 @@ witness lists above; acceptance per slice: zero DuckDB-lane pass
 regressions, oracle conversions grow-only, pins + charter same
 commit. Regenerate the dump on any full sweep and diff against the
 committed snapshot — shrink per slice is the ratchet.
+
+## SLICE 1 DESIGN — measured witnesses + transformation (2026-08-29)
+
+**Witness 1 `testQualifierWithOperation`** (map value position):
+- ENGINE: `select concat(p.FIRSTNAME,'Test') from firmTable root LEFT
+  JOIN personTable p ON root.ID=p.FIRMID LEFT JOIN … WHERE
+  p.LASTNAME='Smith' AND (…)` — flat fan-out, filter in the TOP
+  WHERE, non-matching roots vanish (NULL fails the WHERE). 1 row.
+- OURS: `select concat((SELECT t1.FIRSTNAME … WHERE t0.ID=t1.FIRMID
+  AND <filter>), 'Test') …` — a CORRELATED SCALAR SUBQUERY per root
+  row (`Substitution.filteredNavLeafRead`), then CONCAT's null-skip
+  mints 'Test' rows for non-matching roots. 4 rows. This arm was NOT
+  in the round-1 census — a THIRD correlated family
+  (`value-position filtered-nav read`), to be counted in round 2.
+- Oracle verdict today: witness 1 = "non-tabular result frame"
+  (parked lane); witness 2 (`testQualifierQueryWithOr`, filter
+  position) = "row-cardinality skew (distinct rows agree)". Both
+  PASS our weak value-asserts — the oracle is the referee, exactly
+  as §4AD says.
+
+**The transformation (engine-exact, mechanism inventory all
+pre-existing):** `filter($x.head, pred).leaf` in VALUE position ⇒
+1. demand `[head, leaf]` through the BARE explosion channel
+   (projection-position LEFT JOIN — the task-#78 fan-out arm's own
+   material);
+2. rewrite the leaf read to the joined column (the inline arm);
+3. lift `pred` onto the joined row (`corrPredOnJoinedRow` rule) and
+   AND it into the query WHERE — the engine's own placement
+   (witness 1's golden). Distinct filtered occurrences of one head
+   get per-occurrence join copies (`InnerDemand.occurrenceSplitChains`
+   — witness 2's golden joins two filtered subselects);
+4. `filteredNavLeafRead`'s correlated arm stops matching in value
+   position (DELETION is the acceptance test — filter position
+   follows in slice 2 with the dedup removal).
+
+Filter predicates on nav joins ride the JOIN-CONDITION channel the
+milestoning seam already owns — a qualifier filter is the same
+species of fact as a temporal condition on the same join.
