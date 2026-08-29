@@ -257,7 +257,7 @@ public final class H2Verify {
             java.util.@com.legend.Nullable List<String> seeds, String goldenSql,
             ExecutionResult ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
-            java.util.function.Predicate<String> graphEnumProp) {
+            java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp) {
         if (!READY) {
             throw new Unverifiable("h2 driver not on classpath", null);
         }
@@ -290,39 +290,71 @@ public final class H2Verify {
                 }
             }
         }
-        MirrorState mirror = MIRROR;
-        if (mirror != null && !mirror.suspended) {
-            // INCREMENTAL path: apply only the ledger entries not yet
-            // mirrored, then compare on the LIVE family mirror
-            if (mirror.poison != null) {
-                throw new Unverifiable(mirror.poison, null);
-            }
-            try (Statement st = mirror.conn.createStatement()) {
-                List<String> ledger = seeds == null ? List.of() : seeds;
-                while (mirror.applied < ledger.size()) {
-                    String seed = ledger.get(mirror.applied);
-                    for (String one : seed.split(";\\s*\n|;\\s*$")) {
-                        if (one.isBlank()) {
-                            continue;
-                        }
-                        try {
-                            st.execute(one);
-                        } catch (SQLException e) {
-                            mirror.poison = "seed replay: " + e.getMessage();
-                            throw new Unverifiable(mirror.poison, e);
-                        }
-                    }
-                    mirror.applied++;
+        try {
+            MirrorState mirror = MIRROR;
+            if (mirror != null && !mirror.suspended) {
+                // INCREMENTAL path: apply only the ledger entries not yet
+                // mirrored, then compare on the LIVE family mirror
+                if (mirror.poison != null) {
+                    throw new Unverifiable(mirror.poison, null);
                 }
-                return compareFrame(st, goldenSql, ours, enumDecode,
-                        graphEnumProp);
-            } catch (SQLException e) {
-                throw new Unverifiable("h2 connection: " + e.getMessage(), e);
+                try (Statement st = mirror.conn.createStatement()) {
+                    List<String> ledger = seeds == null ? List.of() : seeds;
+                    while (mirror.applied < ledger.size()) {
+                        String seed = ledger.get(mirror.applied);
+                        for (String one : seed.split(";\\s*\n|;\\s*$")) {
+                            if (one.isBlank()) {
+                                continue;
+                            }
+                            try {
+                                st.execute(one);
+                            } catch (SQLException e) {
+                                mirror.poison = "seed replay: "
+                                        + e.getMessage();
+                                throw new Unverifiable(mirror.poison, e);
+                            }
+                        }
+                        mirror.applied++;
+                    }
+                    return compareFrame(st, goldenSql, ours, enumDecode,
+                            graphEnumProp);
+                } catch (SQLException e) {
+                    throw new Unverifiable("h2 connection: "
+                            + e.getMessage(), e);
+                }
             }
+            return freshVerify(SETTINGS, seeds, goldenSql, ours, enumDecode,
+                    graphEnumProp);
+        } catch (Unverifiable u) {
+            if (!String.valueOf(u.getMessage())
+                    .contains("Duplicate column name")) {
+                throw u;
+            }
+            // CASE-COLLISION goldens (VERIFIED by probe 2026-08-28,
+            // stock h2-2.1.214): engine goldens alias e.g. "city" AND
+            // CITY in one subselect — legal on the engine's own session
+            // (H2Defaults: case-SENSITIVE identifiers; the engine's
+            // patched jar replaces only Mode/TypeInfo — no duplicate
+            // leniency involved), rejected only under OUR session's
+            // CASE_INSENSITIVE_IDENTIFIERS (added for DuckDB seed-replay
+            // parity). Retry on the engine's exact casing; a seed that
+            // cannot replay case-sensitively keeps its counted decline.
+            return freshVerify(com.legend.exec.H2Settings.ENGINE_CASED,
+                    seeds, goldenSql, ours, enumDecode, graphEnumProp);
         }
+    }
+
+    /** Fresh-replay verification on a NEW in-memory H2 opened with
+     * {@code settings}: extensions + recorded seeds + golden compare. */
+    private static @com.legend.Nullable String freshVerify(String settings,
+            java.util.@com.legend.Nullable List<String> seeds,
+            String goldenSql, ExecutionResult ours,
+            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
+            java.util.function.Function<String,
+                    java.util.Map<String, String>> graphEnumProp) {
         int id = COUNTER.getAndIncrement();
         try (Connection h2 = DriverManager.getConnection(
-                "jdbc:h2:mem:advisory" + id + SETTINGS, "sa", "")) {
+                "jdbc:h2:mem:advisory" + id + settings, "sa", "")) {
             try (Statement st = h2.createStatement()) {
                 // the engine's H2 extension functions, lite-implemented —
                 // golden SQL calling legend_h2_extension_* declined
@@ -412,7 +444,7 @@ public final class H2Verify {
             java.util.@com.legend.Nullable List<String> seeds,
             String goldenSql, ExecutionResult ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
-            java.util.function.Predicate<String> graphEnumProp)
+            java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp)
             throws SQLException {
         long t0 = System.nanoTime();
         try {
@@ -434,7 +466,7 @@ public final class H2Verify {
     public static @com.legend.Nullable String verifyOnSession(
             Connection session, String goldenSql, ExecutionResult ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
-            java.util.function.Predicate<String> graphEnumProp) {
+            java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp) {
         if (!(ours instanceof ExecutionResult.Tabular)
                 && !(ours instanceof ExecutionResult.Graph)) {
             // Collection/Scalar parked — see the verify() gate note
@@ -464,21 +496,31 @@ public final class H2Verify {
     private static @com.legend.Nullable String compareFrame(Statement st,
             String goldenSql, ExecutionResult ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
-            java.util.function.Predicate<String> graphEnumProp)
+            java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp)
             throws SQLException {
         return ours instanceof ExecutionResult.Graph g
                 ? goldenGraphCompare(st, goldenSql, g, graphEnumProp)
                 : goldenRowsCompare(st, goldenSql, ours, enumDecode);
     }
 
-    /** Engine bookkeeping aliases in a class-mapped golden select:
-     * {@code pk_$i} instance-identity columns and the milestoning
-     * constant columns — selected by the engine only to ASSEMBLE
-     * instances, never observable on the result the assert's own test
-     * verifies. The spellings are the engine's own generation
-     * convention (relational mapping select generation). */
+    /** Engine bookkeeping aliases in a class-mapped golden select —
+     * selected by the engine only to ASSEMBLE instances, never
+     * observable on the result the assert's own test verifies. The
+     * spellings are the engine's own generation convention (relational
+     * mapping select generation): {@code pk_$i} instance identity —
+     * union set implementations suffix the member ({@code pk_0_1});
+     * {@code u_type} the union member discriminator (drives WHICH
+     * class instantiates); {@code k_businessDate}/{@code
+     * k_processingDate} the milestoning-context constants; the
+     * milestoning period columns ({@code from_z/thru_z/in_z/out_z},
+     * union-suffixed too) ride golden selects to build temporal
+     * instance state — the frame's instances never carry them (their
+     * coordinate is the reserved businessDate/processingDate
+     * property, see the frame-side twin in goldenGraphCompare). */
     private static boolean bookkeepingAlias(String label) {
-        return label.matches("pk_\\d+")
+        return label.matches("pk_\\d+(_\\d+)*")
+                || label.equals("u_type")
+                || label.matches("(from_z|thru_z|in_z|out_z)(_\\d+)*")
                 || label.equals("k_businessDate")
                 || label.equals("k_processingDate");
     }
@@ -499,7 +541,8 @@ public final class H2Verify {
      * guessed compare. */
     private static @com.legend.Nullable String goldenGraphCompare(Statement st,
             String goldenSql, ExecutionResult.Graph g,
-            java.util.function.Predicate<String> enumProp) {
+            java.util.function.Function<String,
+                    java.util.Map<String, String>> enumProp) {
         Object parsed = com.legend.sql.Json.parse(g.json());
         if (!(parsed instanceof List<?> arr)) {
             throw new Unverifiable("graph frame is not a json array", null);
@@ -523,10 +566,22 @@ public final class H2Verify {
             }
             objs.add(flat);
         }
+        // per-key enum decode (the tabular per-column decode's
+        // label-mapped twin): null = not an enum property; an EMPTY map
+        // = enum whose mapping is underivable — the counted decline
+        // stands (never a guessed decode); non-empty = the golden's raw
+        // source codes decode to the names the frame carries.
+        java.util.Map<String, java.util.Map<String, String>> keyDecode =
+                new java.util.HashMap<>();
         for (String k : keys) {
-            if (enumProp.test(k)) {
-                throw new Unverifiable(
-                        "enum-decoded column (post-transform rows)", null);
+            var dec = enumProp.apply(k);
+            if (dec != null) {
+                if (dec.isEmpty()) {
+                    throw new Unverifiable(
+                            "enum-decoded column (post-transform rows)",
+                            null);
+                }
+                keyDecode.put(k, dec);
             }
         }
         List<String> theirs = new ArrayList<>();
@@ -556,6 +611,41 @@ public final class H2Verify {
                 throw new Unverifiable(
                         "duplicate data alias in golden select", null);
             }
+            // EMPTY frame: no instances, so no keys to match — the
+            // verdict is the golden's row count (data rows only: a
+            // golden row that is all-NULL across data columns is the
+            // engine's client-side SQLNull drop — no instance arises
+            // from it, relationalMappingExecution.pure:480)
+            if (objs.isEmpty()) {
+                int dataRows = 0;
+                while (rs.next()) {
+                    for (String lbl : dataLabels) {
+                        // index recomputed below for the non-empty path;
+                        // here a linear label read suffices
+                        if (rs.getObject(lbl) != null) {
+                            dataRows++;
+                            break;
+                        }
+                    }
+                }
+                return dataRows == 0 ? null
+                        : "h2-advisory divergence: golden SQL on H2 gave "
+                                + dataRows + " data row(s), our pipeline"
+                                + " gave 0 instances";
+            }
+            // frame-side twin of the k_* exclusion: the reserved
+            // milestoning coordinates (businessDate/processingDate) on
+            // the instance are the query's temporal CONTEXT echoed
+            // back; when the golden never selects an alias of that
+            // name, they are not queried data. A class property that
+            // genuinely maps one keeps it — the golden then selects
+            // the alias and the sets already agree.
+            for (String ctx : new String[]{"businessDate",
+                    "processingDate"}) {
+                if (keys.contains(ctx) && !labelSet.contains(ctx)) {
+                    keys.remove(ctx);
+                }
+            }
             if (!labelSet.equals(keys)) {
                 throw new Unverifiable("graph keys mismatch golden aliases:"
                         + " golden " + labelSet + " vs frame " + keys, null);
@@ -572,7 +662,10 @@ public final class H2Verify {
                     if (row.length() > 0) {
                         row.append('|');
                     }
-                    row.append(norm(rs.getObject(byLabel.get(k))));
+                    String cell = norm(rs.getObject(byLabel.get(k)));
+                    var dec = keyDecode.get(k);
+                    row.append(dec == null ? cell
+                            : dec.getOrDefault(cell, cell));
                 }
                 theirs.add(row.toString());
             }
@@ -683,14 +776,17 @@ public final class H2Verify {
     }
 
     /** The one divergence tail (both compare paths): identical DISTINCT
-     * row sets differing only in duplication are NOT adjudicable by a
-     * raw-row referee — the engine's own tests pin BOTH cardinality
-     * conventions for identical-row fan-out (testQualifierQueryWithOr
-     * asserts 1 instance off 7 identical golden rows; ...FilterWith
-     * ChainedJoins asserts 4 duplicates off 4), so duplication is an
-     * assembly-layer fact, not row evidence. COUNTED decline, never a
-     * verdict either way. A difference in row VALUES stays the hard
-     * divergence. */
+     * row sets differing only in duplication mark OUR set-shaped
+     * compilation against the engine's row algebra — the engine's
+     * execute path builds ONE OBJECT PER ROW, no pk dedup anywhere
+     * (RelationalResult.java, verified 2026-08-28: zero
+     * distinct/dedup/pk sites), so join fan-out duplicates instances
+     * (7 Firm X for testQualifierQueryWithOr — its
+     * assertSize(values->at(0),1) sizes a single element and pins
+     * nothing) while our filter lowering dedups. Same engine-vs-our
+     * semantic gap as the parked Collection/Scalar lane; COUNTED
+     * decline until that adjudication, never a verdict either way. A
+     * difference in row VALUES stays the hard divergence. */
     private static String divergenceOrSkew(List<String> theirs,
             List<String> mine) {
         if (new java.util.HashSet<>(theirs)
@@ -744,27 +840,10 @@ public final class H2Verify {
         if (!anyEnum) {
             return java.util.Map.of();
         }
-        var exec = ExecCallFinder.find(actual, lets, execStmts);
-        String mappingRef = exec != null && exec.parameters().size() >= 2
-                && exec.parameters().get(1) instanceof
-                        com.legend.protocol.spec.PackageableElementPtr p
-                ? p.fullPath() : null;
-        if (mappingRef == null) {
+        String mappingFqn = mappingFqnOf(actual, lets, execStmts, ctx,
+                imports);
+        if (mappingFqn == null) {
             return java.util.Map.of();
-        }
-        // the pointer carries the SOURCE spelling — resolve simple names
-        // through the test's import wildcards (findLegacyMapping wants
-        // the FQN)
-        String mappingFqn = mappingRef;
-        if (!mappingRef.contains("::")
-                && ctx.findLegacyMapping(mappingRef).isEmpty()) {
-            for (String w : imports.wildcards()) {
-                if (ctx.findLegacyMapping(w + "::" + mappingRef)
-                        .isPresent()) {
-                    mappingFqn = w + "::" + mappingRef;
-                    break;
-                }
-            }
         }
         var out = new java.util.LinkedHashMap<Integer,
                 java.util.Map<String, String>>();
@@ -773,36 +852,74 @@ public final class H2Verify {
                     com.legend.compiler.element.type.Type.EnumType et)) {
                 continue;
             }
-            var em = com.legend.plan.PlanText.enumMappingOf(ctx, mappingFqn,
-                    et.fqn());
-            if (em == null) {
-                continue;
-            }
-            var dec = new java.util.LinkedHashMap<String, String>();
-            boolean whole = true;
-            for (var vm : em.valueMappings()) {
-                for (var sv : vm.sourceValues()) {
-                    switch (sv) {
-                        case com.legend.model.EnumerationMapping.SourceValue
-                                .StringValue s ->
-                                dec.put(s.value(), vm.enumValue());
-                        case com.legend.model.EnumerationMapping.SourceValue
-                                .IntegerValue n ->
-                                dec.put(String.valueOf(n.value()),
-                                        vm.enumValue());
-                        // cross-enum source: not decodable here — the
-                        // WHOLE column keeps the decline (a partial map
-                        // would half-decode)
-                        case com.legend.model.EnumerationMapping.SourceValue
-                                .EnumRef ignored -> whole = false;
-                    }
-                }
-            }
-            if (whole) {
+            var dec = decodeOf(ctx, mappingFqn, et.fqn());
+            if (dec != null) {
                 out.put(i, dec);
             }
         }
         return out;
+    }
+
+    /** The exec call's mapping FQN (the pointer carries the SOURCE
+     * spelling — simple names resolve through the test's import
+     * wildcards; findLegacyMapping wants the FQN). */
+    static @com.legend.Nullable String mappingFqnOf(
+            com.legend.protocol.spec.@com.legend.Nullable ValueSpecification actual,
+            java.util.Map<String, com.legend.protocol.spec.ValueSpecification> lets,
+            List<com.legend.protocol.spec.ValueSpecification> execStmts,
+            com.legend.compiler.element.ModelContext ctx,
+            com.legend.model.ImportScope imports) {
+        var exec = ExecCallFinder.find(actual, lets, execStmts);
+        String mappingRef = exec != null && exec.parameters().size() >= 2
+                && exec.parameters().get(1) instanceof
+                        com.legend.protocol.spec.PackageableElementPtr p
+                ? p.fullPath() : null;
+        if (mappingRef == null) {
+            return null;
+        }
+        if (!mappingRef.contains("::")
+                && ctx.findLegacyMapping(mappingRef).isEmpty()) {
+            for (String w : imports.wildcards()) {
+                if (ctx.findLegacyMapping(w + "::" + mappingRef)
+                        .isPresent()) {
+                    return w + "::" + mappingRef;
+                }
+            }
+        }
+        return mappingRef;
+    }
+
+    /** The raw-source -> enum-name decode from {@code mappingFqn}'s
+     * EnumerationMapping for {@code enumFqn}; null when underivable —
+     * a cross-enum source value keeps the WHOLE map underivable (a
+     * partial map would half-decode). */
+    static java.util.@com.legend.Nullable Map<String, String> decodeOf(
+            com.legend.compiler.element.ModelContext ctx, String mappingFqn,
+            String enumFqn) {
+        var em = com.legend.plan.PlanText.enumMappingOf(ctx, mappingFqn,
+                enumFqn);
+        if (em == null) {
+            return null;
+        }
+        var dec = new java.util.LinkedHashMap<String, String>();
+        for (var vm : em.valueMappings()) {
+            for (var sv : vm.sourceValues()) {
+                switch (sv) {
+                    case com.legend.model.EnumerationMapping.SourceValue
+                            .StringValue s ->
+                            dec.put(s.value(), vm.enumValue());
+                    case com.legend.model.EnumerationMapping.SourceValue
+                            .IntegerValue n ->
+                            dec.put(String.valueOf(n.value()),
+                                    vm.enumValue());
+                    case com.legend.model.EnumerationMapping.SourceValue
+                            .EnumRef ignored -> {
+                        return null;
+                    }
+                }
+            }
+        }
+        return dec;
     }
 
     /** One normalization for BOTH sides: JDBC drivers disagree on exact

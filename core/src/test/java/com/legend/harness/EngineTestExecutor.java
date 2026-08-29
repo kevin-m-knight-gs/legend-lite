@@ -1416,20 +1416,31 @@ public final class EngineTestExecutor {
                     new Variable(var, null, null), "values"), lets,
                     execStmts, execVars, execChains, ctx, imports,
                     runtimeFqn, conn);
-            // the Graph-frame enum guard, TYPE-driven from the class
-            // model: a decoded-name key cannot compare against the
-            // golden's raw source codes (same rule as the tabular
-            // enum-decode decline)
+            // the Graph-frame per-key enum decode, TYPE-driven from the
+            // class model + the exec call's mapping (the tabular
+            // enumDecodeFor's label-mapped twin): null = not enum;
+            // empty = enum with no derivable decode (counted decline);
+            // else the golden's raw codes decode to the frame's names.
             com.legend.compiler.element.type.Type rt = rows.result()
                     .returnType();
-            java.util.function.Predicate<String> enumProp = key ->
-                    rt instanceof com.legend.compiler.element.type.Type
-                            .ClassType ct
-                    && ctx.findProperty(ct.fqn(), key)
-                            .map(p -> p.type() instanceof
-                                    com.legend.compiler.element.type.Type
-                                            .EnumType)
-                            .orElse(false);
+            final var actualSide = actual;
+            java.util.function.Function<String,
+                    java.util.Map<String, String>> enumProp = key -> {
+                if (!(rt instanceof com.legend.compiler.element.type.Type
+                        .ClassType ct)) {
+                    return null;
+                }
+                var prop = ctx.findProperty(ct.fqn(), key);
+                if (prop.isEmpty() || !(prop.get().type() instanceof
+                        com.legend.compiler.element.type.Type.EnumType et)) {
+                    return null;
+                }
+                String mfqn = H2Verify.mappingFqnOf(actualSide, lets,
+                        execStmts, ctx, imports);
+                var dec = mfqn == null ? null
+                        : H2Verify.decodeOf(ctx, mfqn, et.fqn());
+                return dec == null ? java.util.Map.of() : dec;
+            };
             // session-direct on an H2 backend, seed-replay elsewhere —
             // the routing lives with the oracle (H2Verify.verifyAuto)
             return H2Verify.verifyAuto(conn,

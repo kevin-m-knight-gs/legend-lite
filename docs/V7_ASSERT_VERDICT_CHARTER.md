@@ -725,18 +725,26 @@ temporal floor** in norm() (H2 nanos vs DuckDB's microsecond STORAGE
 .123456789 vs .123456) and divergence messages print the DIFFERING
 rows (diffRows), not two identical-looking heads.
 
-**Two adjudications the referee refuses (named, counted, never a
-verdict):** (1) row-cardinality skew — the engine's own tests pin
-BOTH conventions for identical-row fan-out (testQualifierQueryWithOr:
-1 instance off 7 identical golden rows; …FilterWithChainedJoins: 4
-duplicates off 4), so duplication is an assembly-layer fact;
-(2) Collection/Scalar frames are positional-ready but PARKED on a
-REAL finding: **string-plus over an empty qualifier result** — engine
-relational drops the row (golden 1 row), our concat keeps it as
-pure's plus([...]) would ('Test' rows; witness
-testQualifierWithOperation golden 1 vs ours 4, invisible to the
-test's own at(0) asserts). Engine-vs-pure semantics — USER
-adjudication owed before that lane opens.
+**ONE adjudication the referee refuses (named, counted, never a
+verdict) — CORRECTED after user challenge + code homework (see the
+§4AC receipts):** the engine's relational execution is a consistent
+ROW ALGEBRA — one object per result-set row, NO pk dedup anywhere
+(RelationalResult.java: zero distinct/dedup/pk sites; the qualifier
+test's assertSize(values->at(0),1) sizes one element and pins
+nothing — the earlier "engine pins both conventions" reading was a
+misread). OUR compilation is set-shaped (filters dedup via
+subselect/exists; string-plus keeps pure's plus([...]) reducer
+semantics — plus.pure: joinStrings over the flattened collection).
+Witnesses: testQualifierQueryWithOr golden 7 identical rows vs our
+1; testQualifierWithOperation golden 1 row vs our 4 ('Test' from
+concat over the empty qualifier — invisible to the test's own at(0)
+asserts). BOTH the cardinality skew and the parked Collection/Scalar
+lane are the SAME finding: our relational lane diverges from the
+engine's row semantics. Direction per the relation-lane tenet:
+conform BY EMISSION (qualifier/filter lowering fans out rows like
+the engine; string-plus over an optional column null-propagates so
+the empty row vanishes) — a design leg to schedule, not a referee
+patch.
 
 **MOVEMENT (all lanes else byte-stable, zero test regressions):**
 exec-passing 990 → **1276** (+286 REAL golden-vs-ours row compares),
@@ -758,6 +766,62 @@ association/nested-property alias classes) → collection/scalar 45
 decode for class frames like enumDecodeFor does for tabular) →
 residue ~24 (engine-golden defects + machinery gaps, permanent named
 transparency candidates).
+
+## 4AC. SLICES 2–4 + THE HOMEWORK CORRECTIONS (2026-08-28, user
+## challenge answered with code receipts)
+
+**Slice 2 (keys-mismatch 69 → 6):** three measured classes, all
+engine-generation conventions — union bookkeeping (pk_$i_$j member
+pks, u_type discriminator) and milestoning period columns
+(from_z/thru_z/in_z/out_z, union-suffixed) joined bookkeepingAlias;
+the frame-side twin: an instance's reserved businessDate/
+processingDate keys with NO same-named golden alias are the query's
+temporal context echoed back (golden spells them k_*), excluded;
+an EMPTY frame verifies by golden row count (data rows only —
+all-NULL golden rows are the engine's client-side SQLNull drop,
+relationalMappingExecution.pure:480). +84 exec-passing.
+
+**Slice 3 (enum 22 → 7):** per-key enum decode for class frames —
+mappingFqnOf + decodeOf extracted from enumDecodeFor; the golden's
+raw source codes decode to the frame's names through the SAME
+EnumerationMapping; underivable keeps the counted decline. +14.
+
+**Slice 4 (dup-col 17 → 0) — REGISTRY STORY FALSIFIED BY PROBE:**
+stock h2-2.1.214 accepts the "duplicate column" goldens on the
+ENGINE's session (H2Defaults: case-SENSITIVE; its patched jar
+replaces only Mode/TypeInfo — NO duplicate leniency exists). The
+collisions ("city" vs CITY in one subselect,
+testColumnCollisionInSubselect) were created by OUR
+CASE_INSENSITIVE_IDENTIFIERS session (added for DuckDB seed-replay
+parity). Fix: H2Settings.ENGINE_CASED (H2Defaults verbatim, incl.
+OVER in NON_KEYWORDS which ours lacks); the oracle retries
+case-collision goldens on it. Registry row ratcheted 17 → 0; the 6
+seeds that cannot replay case-sensitively surface under their own
+'seed replay' cause. modelJoin family: 44/44 row-verified.
+
+**Q2 correction (the §4AB "both conventions" claim was WRONG):**
+assertSize($result.values->at(0), 1) pins nothing (sizes a single
+element); RelationalResult.java builds one object per row with no
+dedup. Engine row algebra is consistent; the skew is OURS. §4AB's
+adjudication list corrected in place.
+
+**NAMED FOLLOW-UP (user challenge on the slice-2 exclusions):** the
+bookkeeping exclusion verifies every mapped property value row-wise
+but NOT instance identity (pk_$i_$j) or union-member attribution
+(u_type) — the frame's json never carries them, though OUR executed
+SQL computes them before the json assembly discards them. The
+strictly stronger fix: capture the pre-assembly raw rows alongside
+the Graph frame (executor graph-egress change) and compare the
+golden's COMPLETE column list, no exclusions but k_* constants.
+Queue after the set-vs-row adjudication or before — user's call.
+
+**CENSUS after slices 2–4:** exec-passing **1385** / text-only 44 /
+unable-to-exec **97** / csv 117; diff-noreplay 321 → **71**
+(collection-scalar 45 PARKED + enum-underivable 7 + case-sensitive
+seed replay 6 + keys tail 6 + tempTableForIn 4 + arity 2 + skew 1),
+match-noreplay **8**; M1 455 matched + 880 rescued / 0 diverged /
+**11** unverifiable. agree 3269 / disagree 9 / backlog 323
+byte-stable throughout.
 
 ## 8. PLAN OF ATTACK — the batch-2 remainder → cutover (handoff,
 ## 2026-08-28)
@@ -783,7 +847,7 @@ once during a full corpus sweep. Of **5,241** total:
 
 | bucket | count | plan |
 |---|---|---|
-| sql/plan-text compares (assertSameSQL family + CONTENT-classified sqlQueryToString-family args, §4U census split; §4Y run/gen split: **run 1,491 / gen 38**) | 1,529 | **OUT of the migration by design, permanently.** Already end-state: text match → H2 row-check (320, 0 diverged); text differs → engine's golden SQL executes on H2, rows vs our rows (632 verified, 0 diverged); unverifiable → advisory, counted by reason (145 — LEG 8 burns these); 394 run-backed asserts on their own compare arms (h2Compatible 322 + mixed) — reconciliation = named follow-up. **§4AB update (2026-08-28): exec-passing 1,276 / text-only 44 / unable-to-exec 206 (diff-noreplay 160, match-noreplay 27); M1 436 matched + 791 rescued, 0 diverged, 30 unverifiable** |
+| sql/plan-text compares (assertSameSQL family + CONTENT-classified sqlQueryToString-family args, §4U census split; §4Y run/gen split: **run 1,491 / gen 38**) | 1,529 | **OUT of the migration by design, permanently.** Already end-state: text match → H2 row-check (320, 0 diverged); text differs → engine's golden SQL executes on H2, rows vs our rows (632 verified, 0 diverged); unverifiable → advisory, counted by reason (145 — LEG 8 burns these); 394 run-backed asserts on their own compare arms (h2Compatible 322 + mixed) — reconciliation = named follow-up. **§4AB-§4AC update (2026-08-28): exec-passing 1,385 / text-only 44 / unable-to-exec 97 (diff-noreplay 71, match-noreplay 8); M1 455 matched + 880 rescued, 0 diverged, 11 unverifiable** |
 | TDG/test-data-gen text compares | 123 | OUT by design, permanently (host artifacts) |
 | host-unsupported forms | 28 | name-by-name adjudication (leg 6) |
 | **adjudicating through the production verdict path today** | **2,658** | 2,650 agree + 8 named wire-fidelity disagreements (leg 5) |

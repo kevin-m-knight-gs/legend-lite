@@ -512,14 +512,17 @@ public class RelationalCorpusRunner {
                     // own golden that selects a name twice, not our SQL — so
                     // this is one more instance of the registered gap, not a
                     // new one.
-                    // 11 -> 17 (diff-noreplay burndown, 2026-08-28,
-                    // JUSTIFIED): Graph frames now REPLAY (goldenGraph
-                    // Compare) — six class-mapped tests that used to
-                    // decline at 'non-tabular result frame' BEFORE their
-                    // golden ever executed now reach H2 execution and hit
-                    // the SAME engine-golden duplicate-alias defect. More
-                    // rows of the registered gap, zero new gap classes.
-                    "Duplicate column name", 17,
+                    // STORY CORRECTED 2026-08-28 (probe on stock
+                    // h2-2.1.214): these are NOT engine-golden defects
+                    // and NO fork leniency exists — the engine's patched
+                    // jar replaces only Mode/TypeInfo. The goldens alias
+                    // e.g. "city" AND CITY in one subselect, legal on
+                    // the engine's case-SENSITIVE session (H2Defaults);
+                    // only OUR CASE_INSENSITIVE_IDENTIFIERS session
+                    // collides them. The oracle now retries on
+                    // H2Settings.ENGINE_CASED — rows landing here are
+                    // seeds that cannot replay case-sensitively.
+                    "Duplicate column name", 0,
                     // engine plan-level temp-table for IN lists — a
                     // machinery gap, not a rendering one
                     "tempTableForIn", 6,
@@ -629,8 +632,8 @@ public class RelationalCorpusRunner {
             // frames replay — byte-matched goldens of class-mapped
             // queries now row-verify instead of declining non-tabular
             org.junit.jupiter.api.Assertions.assertTrue(
-                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 436,
-                    "M1 h2-exec verified fell below the 436 floor: "
+                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 455,
+                    "M1 h2-exec verified fell below the 455 floor: "
                     + com.legend.harness.H2Verify.M1_VERIFIED.sum());
             // V7 §8.0 leg 0 — the LANE-CLASSIFICATION GUARD (charter
             // scope table, user-ratified 2026-08-28): the sql-text/TDG
@@ -658,7 +661,12 @@ public class RelationalCorpusRunner {
             // excluded by the engine's own spelling) + the microsecond
             // temporal floor (DuckDB storage precision). 286 rows
             // converted, every one a REAL golden-vs-ours row compare.
-            org.junit.jupiter.api.Assertions.assertEquals(1276,
+            // 1276 -> 1385 (slices 2-4 same day): union/milestoning
+            // bookkeeping aliases + frame-side context echo + empty
+            // frame row-count verdict (+84); per-key enum decode for
+            // class frames (+14); case-collision goldens retried on
+            // the engine's own casing, H2Settings.ENGINE_CASED (+11).
+            org.junit.jupiter.api.Assertions.assertEquals(1385,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-with-exec-passing"),
@@ -673,14 +681,14 @@ public class RelationalCorpusRunner {
             // became 10 REAL verified passes (dual-channel agree) + 6
             // recorded divergences (predicate-diverged — dialect-owned
             // text, same policy as assertSameSQL mismatch)
-            // 492 -> 206 (diff-noreplay burndown, with the exec-passing
-            // 1276 move above): diff-noreplay 321 -> 160, match-noreplay
-            // 142 -> 27; the residue is per-cause named in the census
-            // (graph-keys-mismatch 69, collection/scalar frames 45,
-            // enum-decode 22, engine-golden duplicate-column 17,
-            // tempTableForIn 4, arity 2, cardinality-skew 1 + no-gen 8,
-            // predicate-diverged 6, both-ours 5)
-            org.junit.jupiter.api.Assertions.assertEquals(206,
+            // 492 -> 206 -> 97 (diff-noreplay burndown slices 1-4):
+            // diff-noreplay 321 -> 71, match-noreplay 142 -> 8; residue
+            // per-cause: collection/scalar frames 45 (PARKED on the
+            // set-vs-row semantics adjudication), enum underivable 7,
+            // case-sensitive seed replay 6, graph-keys tail 6,
+            // tempTableForIn 4, arity 2, skew 1 + no-gen 7,
+            // predicate-diverged 6, both-ours 5
+            org.junit.jupiter.api.Assertions.assertEquals(97,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-unable-to-exec"),
@@ -700,12 +708,12 @@ public class RelationalCorpusRunner {
             // row-verified rescues and byte-matched rows out of the
             // unverifiable residue — ratchet to measured
             org.junit.jupiter.api.Assertions.assertTrue(
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 791,
-                    "M1 h2-exec rescued fell below the 791 floor: "
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 880,
+                    "M1 h2-exec rescued fell below the 880 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
-                    com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 30,
-                    "M1 h2-exec unverifiable grew past the 30 ceiling"
+                    com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,
+                    "M1 h2-exec unverifiable grew past the 11 ceiling"
                     + " (leg-7 burndown is shrink-only): "
                     + com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum());
         }
@@ -858,11 +866,11 @@ public class RelationalCorpusRunner {
             // their dialect divergence here instead of being invisible
             // advisory skips — strictly more information, rows verified
             // by the same tests' row asserts (charter §4Z addendum)
-            // 318 -> 157 (diff-noreplay burndown 2026-08-28, down-only
+            // 318 -> 157 -> 76 (diff-noreplay burndown 2026-08-28, down-only
             // ratchet): 161 divergent-text sql asserts converted to
             // row-verified rescues — their diffs now ride the rescue
             // channel (counted, visible), not the advisory-diff channel
-            int maxAdvisorySqlDiffs = 157;
+            int maxAdvisorySqlDiffs = 76;
             org.junit.jupiter.api.Assertions.assertTrue(
                     advisorySqlDiffs <= maxAdvisorySqlDiffs,
                     "advisory golden-SQL diffs grew: " + advisorySqlDiffs
@@ -922,7 +930,7 @@ public class RelationalCorpusRunner {
                     // the golden by exactly that semantic clause, so the
                     // pass carries the rescue flag. Corpus 2332 -> 2333;
                     // a gained pass, not text decay.
-                    // 614 -> 751 (diff-noreplay burndown 2026-08-28,
+                    // 614 -> 751 -> 816 (diff-noreplay slices 1-4,
                     // JUSTIFIED with the advisory-ceiling drop 318->157
                     // in the same commit): Graph-frame replay upgrades
                     // divergent-text advisory skips on PASSING tests to
@@ -931,8 +939,8 @@ public class RelationalCorpusRunner {
                     // same tests; no exact pass was demoted (exec-passing
                     // 990 -> 1276, pass baselines unchanged).
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            softRescued <= 751, "text-rescued passes grew: "
-                                    + softRescued + " > 751"),
+                            softRescued <= 816, "text-rescued passes grew: "
+                                    + softRescued + " > 816"),
                     // contract-program wire ratchets (RE-PINNED at the
                     // 2026-08-24 label flip: 181->114->56 and 130->13 —
                     // adopted HUGEINT labels, registered carriages, then
