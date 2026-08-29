@@ -1312,14 +1312,14 @@ public final class StoreResolver {
         Map<String, List<List<String>>> extraNavTails =
                 new LinkedHashMap<>();
         Map<String, String> corrNavHeads = new LinkedHashMap<>();
-        // slot claims resolve PLAIN-first (stable): the un-fingerprinted
-        // identity keeps the physical slot (its copy columns spell
-        // alias_leaf); fingerprinted identities take the extra prefixed
-        // route — a renamed head claiming the slot would force the plain
-        // identity into a prefix colliding with the slot's own columns
+        // slot claims resolve PLAIN-first (stable): the plain identity
+        // keeps the physical slot; EVERY synthetic identity (#dN/#fN/#cN
+        // — batch 7 co-occurrence) takes the extra prefixed route
+        // (alias_fN_), else the plain identity's prefix collides with
+        // the slot's columns (the duplicate-employees_ID class).
         List<List<String>> orderedPaths = new ArrayList<>(paths);
         orderedPaths.sort(java.util.Comparator.comparingInt(
-                pp -> pp.get(0).contains("#d") ? 1 : 0));
+                pp -> pp.get(0).indexOf('#') >= 0 ? 1 : 0));
         for (List<String> path : orderedPaths) {
             if (path.size() < 2) {
                 continue;

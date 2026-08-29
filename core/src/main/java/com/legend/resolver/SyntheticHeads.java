@@ -282,33 +282,6 @@ final class SyntheticHeads {
         return liftFilteredHeads(n, true);
     }
 
-    /** Nesting depth inside op-level filter PREDICATES — the scalar
-     * lift is value-position only (see the TypedFilter walk case). */
-    private int filterPredDepth;
-
-    /** §4AD batch 5 (THE ROUTER FLIP) — may this filtered-nav READ
-     * take the fan-out route? Non-scalar reads always lift
-     * (pre-existing). Scalar ([0..1]) reads lift in VALUE and
-     * PROJECTION position — the engine's row algebra fans a filtered
-     * navigation regardless of the read's declared multiplicity
-     * (charter decision 1; batch-0 placement table: in-target parking
-     * is row-equal to the engine's WHERE via NULL propagation + the
-     * value lane's egress null-drop, and IS the ON cell in projection
-     * position). Batch-1's pred-count and milestoned exclusions are
-     * DELETED: multi-pred heads emit per-occurrence identities
-     * (2a-x/foldExtraSubIdentities) and the dated-head alias bug died
-     * in batch 4. The ONLY remaining scope gate is FILTER position
-     * (batch 7, charter slice 2 — the dedup leg). */
-    private boolean scalarReadLifts(TypedPropertyAccess pa, TypedFilter f) {
-        if (!(pa.info().multiplicity()
-                instanceof com.legend.compiler.element.type
-                        .Multiplicity.Bounded b
-                && Integer.valueOf(1).equals(b.upper())
-                && directlyOnVar(f.source()))) {
-            return true;   // non-scalar / deep: the pre-existing lift
-        }
-        return filterPredDepth == 0;
-    }
 
     /** Node-local canonicalizer applied before the lift arms (identity by
      * default) — the resolver wires the subType-cast rewrite here so a
@@ -382,14 +355,20 @@ final class SyntheticHeads {
         if (betaLeaf != null) {
             return betaLeaf;
         }
+        // §4AD batches 5+7: every filtered-nav read takes the fan-out
+        // route, ALL positions and multiplicities (charter decisions
+        // 1-2; batch-0 placement table). Batch-1's pred-count,
+        // milestoned, and filter-position exclusions are ALL deleted —
+        // the walk has no position gates left; a filter-position
+        // consumption compares over the fanned row in WHERE, duplicates
+        // kept (decision 2, ratified).
         if (enabled
                 && n instanceof TypedPropertyAccess pa
                 && filterBehindToOne(pa.source()) instanceof TypedFilter f
                 && f.predicate().parameters().size() == 1
                 && f.info().type()
                         instanceof Type.ClassType
-                && isLiftableNav(f.source())
-                && scalarReadLifts(pa, f)) {
+                && isLiftableNav(f.source())) {
             TypedSpec head = liftFilteredHeads(f.source(), true);
             TypedSpec renamed;
             String synth;
@@ -469,26 +448,10 @@ final class SyntheticHeads {
                                                             .contains(c.fn()))))
                                     .toList(),
                             p.info());
-            case TypedFilter f -> {
-                // §4AD slice 1 POSITION SCOPE: the newly-permitted
-                // scalar lift is VALUE-position only (map/project
-                // bodies) — a filter PREDICATE keeps the correlated
-                // arm until slice 2 (dedup) is designed and agreed
-                // (measured: lifting there collides the synthetic
-                // head's slot prefix with the plain head's —
-                // duplicate 'employees_ID' walls on two advanced
-                // qualifier tests).
-                TypedSpec src2 = liftFilteredHeads(f.source(), enabled);
-                filterPredDepth++;
-                TypedLambda p2;
-                try {
-                    p2 = (TypedLambda) liftFilteredHeads(
-                            f.predicate(), enabled);
-                } finally {
-                    filterPredDepth--;
-                }
-                yield new TypedFilter(src2, p2, f.info());
-            }
+            case TypedFilter f -> new TypedFilter(
+                    liftFilteredHeads(f.source(), enabled),
+                    (TypedLambda) liftFilteredHeads(f.predicate(), enabled),
+                    f.info());
             case TypedSortBy sb -> new TypedSortBy(
                     liftFilteredHeads(sb.source(), enabled),
                     (TypedLambda) liftFilteredHeads(sb.key(), enabled),
@@ -1012,18 +975,6 @@ final class SyntheticHeads {
                         b1.info())), p1.info());
     }
 
-    /** The navigation's receiver IS the lambda variable (depth-1 head). */
-    private static boolean directlyOnVar(TypedSpec n) {
-        return switch (n) {
-            case TypedPropertyAccess pa ->
-                    pa.source() instanceof com.legend.compiler.spec.typed
-                            .TypedVariable;
-            case TypedMilestonedAccess ma ->
-                    ma.source() instanceof com.legend.compiler.spec.typed
-                            .TypedVariable;
-            default -> false;
-        };
-    }
 
     private static boolean navBottomsAtVar(TypedSpec n) {
         return switch (n) {

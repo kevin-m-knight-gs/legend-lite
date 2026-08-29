@@ -1016,61 +1016,13 @@ final class Substitution {
                 }
             }
         }
-        // FILTER-POSITION pierced-toOne EQUALITY folds into EXISTS: the
-        // engine LEFT JOINs with the inner filter in the ON clause and
-        // compares in the outer WHERE — join multiplication collapses at
-        // the PK-dedup reader, so the OBSERVABLE semantics is
-        // ∃(assoc-cond AND inner-filter AND leaf-compare). The strict
-        // scalar subquery raises on >1 match where the engine never does
-        // (LEG1 doc: filterFunctionExpressionWithOrConditionOnRightTable).
-        // PROJECTION position keeps the scalar subquery (row-stable).
-        // EQUAL only: notEqual/ordering carry per-operator null
-        // compensation (audit 23 B2) and stay on the strict path.
-        if (n instanceof TypedNativeCall cmp && target.filterPosition()
-                && Pure.nativeNamed("equal", cmp.callee().signatureKey())
-                && cmp.args().size() == 2) {
-            int side = -1;
-            for (int i = 0; i < 2; i++) {
-                if (cmp.args().get(i) instanceof TypedPropertyAccess pp
-                        && filteredNavLeafRead(pp) != null) {
-                    side = i;
-                    break;
-                }
-            }
-            if (side >= 0) {
-                com.legend.lowering.NavArmCensus.fire(
-                        "fnlr-filter-equality-fold");
-                TypedSpec rel = java.util.Objects.requireNonNull(
-                        filteredNavLeafRead((TypedPropertyAccess)
-                                cmp.args().get(side)));
-                if (Type.relationSchema(rel.info().type()) instanceof Type.RelationType rt
-                        && rt.columns().size() == 1) {
-                    Type.Column leaf = rt.columns().get(0);
-                    ExprType boolOne = new ExprType(Type.Primitive.BOOLEAN,
-                            Multiplicity.Bounded.ONE);
-                    TypedSpec leafRead = new TypedPropertyAccess(
-                            new TypedVariable("_exfold",
-                                    new ExprType(rt, Multiplicity.Bounded.ONE)),
-                            leaf.name(),
-                            new ExprType(leaf.type(), Multiplicity.Bounded.ONE));
-                    TypedSpec other = rewrite(cmp.args().get(1 - side));
-                    TypedSpec inner = new TypedNativeCall(cmp.callee(),
-                            side == 0 ? List.of(leafRead, other)
-                                    : List.of(other, leafRead), boolOne);
-                    TypedLambda pred = new TypedLambda(List.of("_exfold"),
-                            List.of(inner),
-                            new ExprType(new Type.FunctionType(
-                                    List.of(new Type.Param(rt,
-                                            Multiplicity.Bounded.ONE)),
-                                    new Type.Param(Type.Primitive.BOOLEAN,
-                                            Multiplicity.Bounded.ONE)),
-                                    Multiplicity.Bounded.ONE));
-                    return new TypedNativeCall(neCallee(),
-                            List.of(new TypedFilter(rel, pred, rel.info())),
-                            cmp.info());
-                }
-            }
-        }
+        // §4AD batch 7: the FILTER-POSITION pierced-toOne equality-fold
+        // (EXISTS over the correlated leaf relation) is DELETED — the
+        // lift claims filter position, the read compares over the fanned
+        // joined row in WHERE (the engine's own shape; duplicates kept,
+        // charter decision 2). Measured dead before deletion: the
+        // fnlr-filter-equality-fold census arm fired ZERO corpus-wide
+        // once the position gates dropped.
         // NEGATION ISOLATION over a to-many crossing (AUDIT 9 — the engine
         // testInNegated golden is `NOT X OR <read> IS NULL` over a bare
         // LEFT JOIN with per-row duplicate parents; the crossing itself
@@ -1757,8 +1709,8 @@ final class Substitution {
                     && f.predicate().parameters().size() == 1
                     && f.predicate().body().size() == 1 ->
                     filteredInstanceRead(pa, f);
-            case TypedPropertyAccess pa when filteredNavLeafRead(pa) != null ->
-                    fnlrScopedOrWall(pa);   // §4AD batch 5: routes doc'd there
+            case TypedPropertyAccess pa when unliftedFilteredRead(pa) ->
+                    throw unliftedWall(pa);   // §4AD 5+7 route totality
             case TypedPropertyAccess pa when subTypeLeafRead(pa) != null ->
                     java.util.Objects.requireNonNull(subTypeLeafRead(pa), "subTypeLeafRead(pa)");
             case TypedVariable v when v.name().equals(target.userVar()) ->
@@ -2600,242 +2552,51 @@ final class Substitution {
                 && !v.name().equals(target.freshRowVar());
     }
 
-    /** §4AD batch 5 (THE ROUTER FLIP): fnlr's TOP-LEVEL value/projection
-     * dispatch is DELETED — those reads lift to the #fN fan-out join
-     * (SyntheticHeads.scalarReadLifts); a top-level read still matching
-     * is a lift gap and WALLS (route totality is structural, never a
-     * silent correlated subquery). ONE route survives: FILTER position —
-     * untouched by design until batch 7 (charter slice 2;
-     * constraint-as-filter and non-equality predicate reads always rode
-     * this dispatch). Position is the Target's own construction fact,
-     * never a consumption-side re-classification (the nested/correlated
-     * gates of the first landing measured ZERO firings corpus-wide and
-     * were DELETED — user tenet audit, 2026-08-29). */
-    private TypedSpec fnlrScopedOrWall(TypedPropertyAccess pa) {
-        if (target.filterPosition()) {
-            com.legend.lowering.NavArmCensus.fire("fnlr-filter-dispatch");
-            return java.util.Objects.requireNonNull(filteredNavLeafRead(pa));
-        }
-        throw new NotImplementedException(
+    /** The route-totality wall (§4AD batches 5+7): every filtered-nav
+     * read lifts; one still spelling raw at substitution is a LIFT GAP —
+     * loud, never a silent correlated subquery. */
+    private NotImplementedException unliftedWall(TypedPropertyAccess pa) {
+        return new NotImplementedException(
                 "filtered-navigation read '" + pa.property()
-                + "' reached substitution unlifted — the router flip owns"
-                + " this shape (batch 5); the lift pre-pass must rewrite"
-                + " it [userVar=" + target.userVar() + "]");
+                + "' reached substitution unlifted — the router owns this"
+                + " shape (batches 5+7); the lift pre-pass must rewrite it"
+                + " [userVar=" + target.userVar() + "]");
     }
 
-    private @com.legend.Nullable TypedSpec filteredNavLeafRead(TypedPropertyAccess pa) {
-        boolean dbg = System.getenv("LL_FNLR_DEBUG") != null;
+    /** §4AD batches 5+7 — the SHAPE TEST that guards the route-totality
+     * WALL: a scalar read whose source unwraps (class hops, then
+     * toOne()/first()/head() multiplicity wrappers) to a filtered
+     * navigation. The correlated EMITTER this matcher used to feed
+     * (filteredNavLeafRead — the banned correlated-scalar-subquery arm)
+     * is DELETED: every position lifts to the #fN fan-out join, and the
+     * census measured every surviving dispatch at ZERO before this
+     * deletion. Bare un-wrapped [*] reads are NOT matched — the fan
+     * channel owns them (audit 9).
+     */
+    private boolean unliftedFilteredRead(TypedPropertyAccess pa) {
         TypedSpec src = pa.source();
-        boolean firstRow = false;
-        boolean unwrapped = true;
-        // CONTINUED CLASS HOPS between the leaf and the filtered head
-        // (orgByName('X').parent.name — #70): peel them; the leaf then
-        // dispatches through the ExistsSub's materialized SubNav.
-        java.util.List<String> hops = new java.util.ArrayList<>();
         while (src instanceof TypedPropertyAccess hp
                 && hp.info().type() instanceof Type.ClassType) {
-            hops.add(0, hp.property());
             src = hp.source();
         }
-        // multiplicity wrappers STACK (a qualifier body's own ->first()
-        // under the call site's ->toOne(): toOne(first(filter(...)))) —
-        // unwrap the whole chain; any first()/head() in it means the
-        // subquery must LIMIT 1
-        while (src instanceof TypedNativeCall c && c.args().size() == 1) {
-            String callee = c.callee().qualifiedName();
-            if (com.legend.builtin.Pure.isToOneCall(callee)) {
-                src = c.args().get(0);
-                unwrapped = false;
-            } else if (callee.equals("meta::pure::functions::collection::first")
-                    || callee.equals("meta::pure::functions::collection::head")) {
-                // first()/head() keep AT MOST one row — the scalar bridge's
-                // toOne rendering raises on >1, so the subquery must LIMIT 1
-                src = c.args().get(0);
-                firstRow = true;
-                unwrapped = false;
-            } else {
-                break;
-            }
+        boolean sawWrapper = false;
+        while (src instanceof TypedNativeCall c && c.args().size() == 1
+                && (com.legend.builtin.Pure.isToOneCall(
+                        c.callee().qualifiedName())
+                    || c.callee().qualifiedName().equals(
+                        "meta::pure::functions::collection::first")
+                    || c.callee().qualifiedName().equals(
+                        "meta::pure::functions::collection::head"))) {
+            src = c.args().get(0);
+            sawWrapper = true;
         }
-        if (unwrapped
-                && !(pa.info().multiplicity() instanceof Multiplicity.Bounded ub
-                        && Integer.valueOf(1).equals(ub.upper()))) {
-            // a BARE [*] read ($p.xs->filter(..).name) is a collection, not
-            // a scalar — imposing toOne semantics on it would raise (or
-            // worse, be wrong under an aggregation); fall through loud
-            return null;
+        if (!sawWrapper
+                && !(pa.info().multiplicity() instanceof Multiplicity.Bounded b
+                        && Integer.valueOf(1).equals(b.upper()))) {
+            return false;
         }
-        if (!(src instanceof TypedFilter f)) {
-            if (dbg && String.valueOf(src).contains("TypedFilter")) {
-                System.err.println("[fnlr] not-direct-filter: "
-                        + src.getClass().getSimpleName());
-            }
-            return null;
-        }
-        // the head may be a plain access OR a DATED property function
-        // ($o.product(%d)->filter(..).name) — both key existsSubs by the
-        // property; the dated head's temporal filter already rides the
-        // registered exists pipeline (chain-keyed specs)
-        String headProp;
-        if (f.source() instanceof TypedPropertyAccess head
-                && head.source() instanceof TypedVariable hv
-                && hv.name().equals(target.userVar())) {
-            headProp = head.property();
-        } else if (f.source()
-                instanceof TypedMilestonedAccess ma
-                && ma.source() instanceof TypedVariable mv
-                && mv.name().equals(target.userVar())) {
-            headProp = ma.property();
-        } else {
-            if (dbg) {
-                System.err.println("[fnlr] head not on userVar: "
-                        + f.source().getClass().getSimpleName());
-            }
-            return null;
-        }
-        ExistsSub ex = target.existsSubs().get(headProp);
-        if (ex == null) {
-            if (dbg) {
-                System.err.println("[fnlr] no ExistsSub for '" + headProp
-                        + "' (keys=" + target.existsSubs().keySet() + ")");
-            }
-            return null;
-        }
-        // 1. correlated association condition over the target pipeline.
-        // Freshen the corr binder against the enclosing scope (audit 18):
-        // in a nested scope target.freshRowVar() IS the enclosing renamed
-        // var — an unfreshened 't' binder here (and in the RowScope below)
-        // would capture the parent-correlation reads. Rename TARGET-side
-        // reads FIRST, then the parent rewrite (same order as rewriteExists).
-        TypedLambda cond = ex.orientedCond();
-        String pVar = cond.parameters().get(0);
-        String tVar = cond.parameters().get(1);
-        String freshT = freshTargetBinder(tVar, cond, null);
-        final String tRenamed = freshT;
-        List<TypedSpec> corrBody = cond.body().stream()
-                .map(b -> tRenamed.equals(tVar) ? b
-                        : Pipelines.rewriteRowReads(b, tVar, Map.of(), Set.of(),
-                                v -> new TypedVariable(tRenamed,
-                                        new ExprType(ex.scalarRow(),
-                                                Multiplicity.Bounded.ONE))))
-                .map(b -> Pipelines.rewriteRowReads(b, pVar, Map.of(), Set.of(),
-                        v -> new TypedVariable(target.freshRowVar(),
-                                new ExprType(target.rowType(), Multiplicity.Bounded.ONE))))
-                .toList();
-        TypedLambda corr = new TypedLambda(List.of(tRenamed), corrBody,
-                new ExprType(new Type.FunctionType(
-                        List.of(new Type.Param(ex.scalarRow(), Multiplicity.Bounded.ONE)),
-                        new Type.Param(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE)),
-                        Multiplicity.Bounded.ONE));
-        // the SCALAR pipeline (slot-UNDEMANDED): a slot demanded by some
-        // OTHER consumer (an exists site) must not fan this single-row
-        // subquery out (audit 13 B3 — data-dependent "more than one row")
-        TypedSpec rel = new TypedFilter(
-                ex.scalarPipeline(), corr, ex.scalarPipeline().info());
-        // 2. the user predicate, substituted against the TARGET's bindings
-        //    (outer reads correlate through a second pass — same as exists)
-        TypedLambda predLam = f.predicate();
-        // the pred's target-side reads may hop the target's OWN
-        // class-typed slots ($e.address.name — the qualifier-with-
-        // operation family): the registration MATERIALIZED those slots
-        // (innerLeaves demand) — dispatch through the recorded prefixes;
-        // only the un-materialized aliases stay loud
-        Set<String> unconvertedT = new java.util.LinkedHashSet<>(
-                ex.targetSlotAliases());
-        unconvertedT.removeAll(ex.targetSlotPrefixes().keySet());
-        Substitution predSub = new Substitution(new Target(
-                new RowScope(predLam.parameters().get(0), tRenamed,
-                        ex.targetClassFqn(), target.mappingFqn(),
-                        ex.targetRowVar(), ex.targetBindings(), ex.targetRow(),
-                        unconvertedT, ex.targetSlotPrefixes(), Map.of()),
-                withCallees(ex.innerRegs()), TemporalView.NONE, true, true));
-        TypedLambda inner = predSub.rewriteLambda(predLam);
-        TypedLambda innerOuter = new TypedLambda(inner.parameters(),
-                inner.body().stream().map(this::rewrite).toList(), inner.info());
-        rel = new TypedFilter(rel, innerOuter, rel.info());
-        // 3. project the leaf binding. A CONTINUED chain dispatches
-        // through the registered SubNav (the hop's nav step materialized
-        // into the scalar pipeline): the leaf is the HOP TARGET's binding
-        // re-pointed onto the composed prefix (same idiom as
-        // rewriteMultiHop's SubNav walk).
-        SubNav hopNav = null;
-        if (!hops.isEmpty()) {
-            hopNav = ex.subNavs().get(hops.get(0));
-            int h = 1;
-            while (hopNav != null && h < hops.size()) {
-                hopNav = hopNav.children().get(hops.get(h));
-                h++;
-            }
-            if (hopNav == null) {
-                throw new NotImplementedException("filtered-navigation read '"
-                        + String.join(".", hops) + "." + pa.property()
-                        + "' continues through a hop of '"
-                        + ex.targetClassFqn()
-                        + "' whose nav step is not materialized yet");
-            }
-        }
-        TypedSpec leafBinding = (hopNav != null ? hopNav.bindings()
-                : ex.targetBindings()).get(pa.property());
-        if (dbg) {
-            System.err.println("[fnlr] leaf '" + pa.property() + "' hops="
-                    + hops + " type=" + pa.info().type()
-                    + " binding=" + leafBinding
-                    + " slotPrefixes=" + ex.targetSlotPrefixes());
-        }
-        if (leafBinding == null) {
-            throw new MappingResolutionException("property '" + pa.property()
-                    + "' of class '" + ex.targetClassFqn()
-                    + (hops.isEmpty() ? "" : "' via '" + String.join(".", hops))
-                    + "' has no binding in mapping '" + target.mappingFqn()
-                    + "' (filtered-navigation leaf)", ex.targetClassFqn());
-        }
-        if (hopNav != null) {
-            final SubNav hn = hopNav;
-            leafBinding = Pipelines.prefixColumns(leafBinding, hn.rowVar(),
-                    hn.prefix(), v -> new TypedVariable(ex.targetRowVar(),
-                            new ExprType(ex.targetRow(),
-                                    Multiplicity.Bounded.ONE)));
-        } else if (Pipelines.referencesAliasOn(leafBinding, ex.targetRowVar(),
-                unconvertedT)) {
-            throw new NotImplementedException("filtered-navigation leaf '"
-                    + pa.property() + "' reads a join slot of '"
-                    + ex.targetClassFqn() + "' — slot-demanding leaves under"
-                    + " value-position filters are not supported yet");
-        } else if (Pipelines.referencesAliasOn(leafBinding, ex.targetRowVar(),
-                ex.targetSlotPrefixes().keySet())) {
-            // CONVERTED join-slot leaf (locationStreet via @Address_Location
-            // | locationTable.STREET): the demand scan materialized the slot
-            // into the target pipeline — dispatch the read through the
-            // recorded prefix, same discipline as the predicate path.
-            leafBinding = Pipelines.rewriteRowReads(leafBinding,
-                    ex.targetRowVar(), ex.targetSlotPrefixes(), Set.of(),
-                    v -> v);
-        }
-        Type leafType = pa.info().type();
-        TypedLambda leafFn = new TypedLambda(List.of(ex.targetRowVar()),
-                List.of(leafBinding),
-                new ExprType(new Type.FunctionType(
-                        List.of(new Type.Param(ex.targetRow(), Multiplicity.Bounded.ONE)),
-                        new Type.Param(leafType, Multiplicity.Bounded.ONE)),
-                        Multiplicity.Bounded.ONE));
-        Type.RelationType outRow = new Type.RelationType(List.of(
-                new Type.RelationType.Column(pa.property(), leafType,
-                        pa.info().multiplicity())));
-        // stamped with the READ's multiplicity ([0..1]) — the relation
-        // REPRESENTS an optional scalar value, and emptiness consumers
-        // must test the VALUE (IS NULL), not the row set (engine: a
-        // Smith with no address name IS empty — testIsEmpty1.pure:84)
-        TypedSpec projected = new TypedProject(rel,
-                List.of(new TypedFuncCol(
-                        pa.property(), leafFn)),
-                new ExprType(Type.relation(outRow), pa.info().multiplicity()));
-        if (firstRow) {
-            projected = new TypedLimit(projected,
-                    new TypedCInteger(1L,
-                            ExprType.one(Type.Primitive.INTEGER)),
-                    projected.info());
-        }
-        return projected;
+        return src instanceof TypedFilter f
+                && f.predicate().parameters().size() == 1;
     }
 
     /** $r->subType(@Sub).prop — the cast is a same-source dispatch: the

@@ -547,15 +547,37 @@ After this document, NOTHING in §4AD is deferred-without-a-plan:
   deferral gets its own named batch in this ledger, or it does not
   land ("finish-the-last-percent" rule: burn disclosed residuals in
   the same arc; a documented residual is still an open seam).
-- **Batch-5 discovered deferrals (named, census-attributed):**
-  (a) NESTED-INSTANCE MATERIAL leg — constraint/instance-project
-  bodies rewritten per exists-target row keep the correlated read
-  (`fnlr-nested-dispatch` census arm names the population); (b)
-  CORRELATED ON-COMPOSITION leg — scalar correlated-pred reads move
-  onto the #69 exploding/ON-composition route
-  (`fnlr-correlated-dispatch` arm); (c) EMISSION-ANATOMY leg —
-  mirror the engine's flat frame shape (mid-based narrow frames) to
-  re-converge the 7 rescued texts to byte-match.
+- **Batch-5 discovered deferrals — STATUS AFTER BATCH 7 (2026-08-29):**
+  (a) NESTED-INSTANCE MATERIAL leg — **RETIRED**: with the position
+  gates deleted, every dispatch measured ZERO and fnlr was deleted in
+  full; nothing routes through it. (b) CORRELATED ON-COMPOSITION
+  leg — **RETIRED** same way (correlated preds ride the lift's
+  corrPreds/#69 machinery). (c) EMISSION-ANATOMY leg — OPEN (the
+  rescued nested-vs-flat texts).
+- **BATCH-7 LANDING RECORD (2026-08-29): THE DEDUP LEG LANDED.**
+  Step (a): exists-material split — 101 emptiness-calls (semi-join BY
+  SEMANTICS, stay) vs 76 predicate-reads (the decision-2 set).
+  Step (b): the lift's LAST position gate (filterPredDepth) deleted —
+  filtered reads fan in EVERY position; the slot-claim ordering rule
+  extended to ALL synthetic identities (#f/#c/#d — the
+  duplicate-employees_ID class, fixed at the ordering rule +
+  per-identity prefixFor, identity ⇒ name); **filteredNavLeafRead
+  DELETED IN FULL** (§4 acceptance met — a compact shape test guards
+  the route-totality wall); the filter-position equality-fold deleted
+  (census-measured ZERO first); ExistsJoinForm RE-ADJUDICATED
+  engine-conformant (it mirrors buildExistsAsJoinWithNullCheck and
+  now serves only emptiness semantics; 109→96). MEASURED: full sweep
+  + ALLGATES GREEN with every pin byte-stable — the feared
+  decision-2 test-level divergences NEVER MATERIALIZED because the
+  engine's own asserts encode the fanned cardinality (e.g.
+  filterFunctionExpressionWithConditionOnRightTableAndExpression
+  asserts ['Firm B','Firm B']). Ledger residue: (i)
+  testGroupByWithFilterFunction_noDatePath — replay-side advisory
+  decline naming the route-totality wall (a lift gap on a
+  date-period spelling; counted, not a failure); (ii)
+  registerExistsSubs SHRINK blocked: the ExistsSub registry doubles
+  as the to-many FACT SOURCE for the negation-isolation arm — the
+  shrink needs a to-many fact refactor first (named follow-up).
 
 ## 10. AUDIT LOG (2026-08-29, full plan+homework audit)
 

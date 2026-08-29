@@ -802,16 +802,23 @@ final class AssociationJoins {
         return prefix;
     }
 
-    /** Deterministic prefix with ordinal bump on collision against the parent row (plan §2.3). */
+    /** Deterministic prefix with ordinal bump on collision against the
+     * parent row (plan §2.3). PER-IDENTITY (§4AD batch 7): a SYNTHETIC
+     * head spells its identity suffix into the prefix
+     * ({@code employees#f0 → employees_f0_}) — identity ⇒ name,
+     * collision-free against the PLAIN head's material BY CONSTRUCTION
+     * (the batch-1 duplicate-{@code employees_ID} wall, fixed
+     * structurally, never by registration-order probing). */
     static String prefixFor(String head, ClassSource cs) {
         Set<String> taken = new LinkedHashSet<>();
         for (Type.Column c : cs.rowType().columns()) {
             taken.add(c.name());
         }
-        String prefix = head + "_";
+        String base = head.replace('#', '_');
+        String prefix = base + "_";
         int ordinal = 2;
         while (hasPrefixCollision(prefix, taken)) {
-            prefix = head + "_" + ordinal++ + "_";
+            prefix = base + "_" + ordinal++ + "_";
         }
         return prefix;
     }

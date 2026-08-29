@@ -155,9 +155,11 @@ final class ExistsJoinForm {
         if (!changed) {
             return outer;
         }
-        // §4AD census: the DISTINCT-key join dedup form fired — a
-        // navigation filter compiled to row-count-preserving material
-        // where the engine's row algebra would fan out
+        // §4AD census (batch-7 re-adjudication): this form now serves
+        // ONLY genuine emptiness-family predicates — row-count-preserving
+        // BY THEIR OWN SEMANTICS, and the engine's own
+        // buildExistsAsJoinWithNullCheck shape. Predicate-reads left this
+        // channel for the fan-out route (charter decision 2).
         NavArmCensus.fire("exists-join-form-dedup");
         return outer.withFrom(from).withWhere(
                 Fold.mergeAnd(keep.toArray(SqlExpr[]::new)));
