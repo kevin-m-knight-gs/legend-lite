@@ -64,7 +64,12 @@ class HarnessDisciplineTest {
             // own PURE-SPEC semantics (assertSameElements), not
             // leniency; registered, [ord]-tagged.
             Map.entry("EngineTestExecutor.java", 4),
-            Map.entry("H2Verify.java", 2),
+            // 2 -> 4 (diff-noreplay burndown 2026-08-28): the GRAPH
+            // frame compare (goldenGraphCompare) sorts BOTH sides for
+            // the same order-insensitive row-multiset verdict the
+            // tabular pair implements — two-sided by design, the §4AB
+            // label-mapped twin of the positional oracle
+            Map.entry("H2Verify.java", 4),
             Map.entry("JsonAssertCanon.java", 1),
             Map.entry("LineageForm.java", 1),
             Map.entry("Runner.java", 2),

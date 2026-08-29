@@ -38,7 +38,7 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 39 |
 | executionPlan/tests | 108 | 74 | 13 | 3 | 18 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 240 | 5 | 9 | 5 | 76 | 89 | 1 | 34 |
+| functions/tests | 259 | 240 | 5 | 9 | 5 | 41 | 44 | 1 | 69 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 146 | 3 | 6 | 0 | 2 | 2 | 0 | 72 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -47,12 +47,12 @@ shared source registered by several families cannot double-count. Run with
 | helperFunctions/tests | 7 | 5 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | lineage/scanRelations | 49 | 47 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
-| milestoning/tests | 228 | 216 | 8 | 1 | 3 | 34 | 34 | 0 | 98 |
+| milestoning/tests | 228 | 216 | 8 | 1 | 3 | 32 | 32 | 0 | 100 |
 | modelJoins | 7 | 4 | 0 | 0 | 3 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational/milestoned | 7 | 5 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
 | postprocessor | 7 | 0 | 0 | 7 | 0 | 0 | 0 | 0 | 0 |
-| postprocessor/tests | 30 | 23 | 3 | 1 | 3 | 1 | 1 | 0 | 20 |
+| postprocessor/tests | 30 | 23 | 3 | 1 | 3 | 0 | 0 | 0 | 21 |
 | pureToSQLQuery/tests | 14 | 6 | 0 | 0 | 8 | 0 | 0 | 0 | 1 |
 | router/tests | 26 | 20 | 0 | 4 | 2 | 3 | 3 | 0 | 2 |
 | sqlDialectTranslation | 21 | 21 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -61,28 +61,28 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
-| tds/tests | 266 | 253 | 3 | 4 | 6 | 7 | 7 | 0 | 85 |
+| tds/tests | 266 | 253 | 3 | 4 | 6 | 2 | 2 | 0 | 90 |
 | testDataGeneration/tests | 68 | 63 | 0 | 2 | 3 | 0 | 17 | 24 | 0 |
 | tests | 39 | 33 | 2 | 0 | 4 | 0 | 0 | 0 | 0 |
-| tests/advanced | 68 | 61 | 4 | 3 | 0 | 21 | 21 | 0 | 32 |
+| tests/advanced | 68 | 61 | 4 | 3 | 0 | 6 | 6 | 0 | 47 |
 | tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping | 10 | 9 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/association | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
-| tests/mapping/classMappingFilterWithInnerJoin | 32 | 31 | 0 | 1 | 0 | 12 | 12 | 0 | 17 |
-| tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 7 | 7 | 0 | 11 |
-| tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 | 2 | 2 | 0 | 1 |
+| tests/mapping/classMappingFilterWithInnerJoin | 32 | 31 | 0 | 1 | 0 | 2 | 2 | 0 | 27 |
+| tests/mapping/distinct | 18 | 18 | 0 | 0 | 0 | 1 | 1 | 0 | 17 |
+| tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
 | tests/mapping/embedded | 63 | 63 | 0 | 0 | 0 | 0 | 0 | 1 | 32 |
 | tests/mapping/enumeration | 26 | 19 | 3 | 1 | 3 | 0 | 0 | 0 | 3 |
-| tests/mapping/extends | 23 | 23 | 0 | 0 | 0 | 12 | 12 | 0 | 0 |
+| tests/mapping/extends | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
 | tests/mapping/extends/union | 8 | 8 | 0 | 0 | 0 | 7 | 7 | 0 | 1 |
-| tests/mapping/filter | 9 | 8 | 1 | 0 | 0 | 3 | 3 | 0 | 1 |
-| tests/mapping/groupBy | 10 | 10 | 0 | 0 | 0 | 4 | 4 | 0 | 6 |
+| tests/mapping/filter | 9 | 8 | 1 | 0 | 0 | 0 | 0 | 0 | 4 |
+| tests/mapping/groupBy | 10 | 10 | 0 | 0 | 0 | 2 | 2 | 0 | 8 |
 | tests/mapping/inClause | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | tests/mapping/inheritance | 47 | 46 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
-| tests/mapping/join | 28 | 26 | 1 | 1 | 0 | 10 | 10 | 0 | 5 |
+| tests/mapping/join | 28 | 26 | 1 | 1 | 0 | 3 | 3 | 0 | 12 |
 | tests/mapping/merge | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/modelJoin | 48 | 45 | 0 | 3 | 0 | 11 | 11 | 0 | 31 |
 | tests/mapping/multigrain | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 2 |
@@ -91,17 +91,17 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/relation/aggregation | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 73 | 0 | 1 | 0 | 0 | 0 | 0 | 23 |
-| tests/mapping/tree | 12 | 11 | 1 | 0 | 0 | 2 | 2 | 0 | 6 |
+| tests/mapping/tree | 12 | 11 | 1 | 0 | 0 | 0 | 0 | 0 | 8 |
 | tests/mapping/union | 127 | 120 | 2 | 4 | 1 | 12 | 12 | 0 | 62 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/query | 87 | 79 | 3 | 5 | 0 | 37 | 40 | 0 | 5 |
+| tests/query | 87 | 79 | 3 | 5 | 0 | 4 | 6 | 0 | 40 |
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2335** | 73 | 78 | 89 | 264 | 297 | 27 | 614 |
+| **total** | 2575 | **2335** | 73 | 78 | 89 | 129 | 151 | 27 | 751 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2335 PASS = 1400 clean + 935 carrying softness (sqldiff 264, advisory 297, 0-asserts 27, text-rescued 614; flags overlap — the union is 935).
+SOFT-PASS RECONCILIATION (F2.1): 2335 PASS = 1411 clean + 924 carrying softness (sqldiff 129, advisory 151, 0-asserts 27, text-rescued 751; flags overlap — the union is 924).
 
 ### mapping walls (dropped at assembly)
 

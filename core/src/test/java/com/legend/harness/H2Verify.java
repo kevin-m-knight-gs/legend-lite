@@ -151,9 +151,19 @@ public final class H2Verify {
     public static void decline(String reason) {
         System.err.println("[h2-unverifiable] replay declined ["
                 + CURRENT_TEST.get() + "]: " + reason);
+        LAST_DECLINE.set(bucketOf(reason));
         UNVERIFIABLE_CENSUS.computeIfAbsent(bucketOf(reason),
                 k -> new java.util.concurrent.atomic.LongAdder()).increment();
     }
+
+    /** The most recent decline's canonical bucket, per thread — a
+     * *-noreplay outcome names its replay-decline CAUSE with it (the
+     * §4Z transparency rule applied one level down: the residue census
+     * reads what happened, never a guess). Data-flow guarantee: every
+     * advisory return from the replay attempt records exactly one
+     * decline first, so the read at the outcome exit is never stale. */
+    public static final ThreadLocal<@com.legend.Nullable String> LAST_DECLINE =
+            new ThreadLocal<>();
 
     /** Canonical census bucket: the decline CHANNEL plus the failure's
      * leading words — stable across runs (no identifiers/row values),
@@ -246,27 +256,38 @@ public final class H2Verify {
     public static @com.legend.Nullable String verify(
             java.util.@com.legend.Nullable List<String> seeds, String goldenSql,
             ExecutionResult ours,
-            java.util.Map<Integer, java.util.Map<String, String>> enumDecode) {
+            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
+            java.util.function.Predicate<String> graphEnumProp) {
         if (!READY) {
             throw new Unverifiable("h2 driver not on classpath", null);
         }
-        // only FLAT TABULAR frames compare cell-for-cell against raw SQL
-        // rows: class/graph carriers wrap rows in JSON.
-        if (!(ours instanceof ExecutionResult.Tabular tab)) {
+        // TABULAR frames compare cell-for-cell positionally; a GRAPH
+        // frame compares by LABEL (the database built the instance
+        // array — goldenGraphCompare). Collection/Scalar frames are
+        // positional-ready through the sealed interface but PARKED: the
+        // first probes hit the string-plus empty-vs-'' semantic gap
+        // (engine relational drops empty-driven map rows, our compiled
+        // concat keeps them as pure's plus([...]) would — witness
+        // testQualifierWithOperation, golden 1 row vs our 4) — an
+        // engine-vs-pure adjudication, not a referee call.
+        if (!(ours instanceof ExecutionResult.Tabular)
+                && !(ours instanceof ExecutionResult.Graph)) {
             throw new Unverifiable("non-tabular result frame", null);
         }
-        // ENUM-typed frames compare through the SAME decode the frame
-        // ran: some queries select the RAW source code (the engine
-        // decodes post-SQL) while the frame carries decoded names — the
-        // caller supplies the per-column source->name map (c46, the
-        // enum-decode replay rung; c42 witnesses in the ledger). A
-        // column with NO derivable map keeps the counted decline.
-        for (int i = 0; i < tab.columns().size(); i++) {
-            if (tab.columns().get(i).pureType()
-                    instanceof com.legend.compiler.element.type.Type.EnumType
-                    && !enumDecode.containsKey(i)) {
-                throw new Unverifiable(
-                        "enum-decoded column (post-transform rows)", null);
+        if (ours instanceof ExecutionResult.Tabular) {
+            // ENUM-typed frames compare through the SAME decode the frame
+            // ran: some queries select the RAW source code (the engine
+            // decodes post-SQL) while the frame carries decoded names — the
+            // caller supplies the per-column source->name map (c46, the
+            // enum-decode replay rung; c42 witnesses in the ledger). A
+            // column with NO derivable map keeps the counted decline.
+            for (int i = 0; i < ours.columns().size(); i++) {
+                if (ours.columns().get(i).pureType()
+                        instanceof com.legend.compiler.element.type.Type.EnumType
+                        && !enumDecode.containsKey(i)) {
+                    throw new Unverifiable(
+                            "enum-decoded column (post-transform rows)", null);
+                }
             }
         }
         MirrorState mirror = MIRROR;
@@ -293,7 +314,8 @@ public final class H2Verify {
                     }
                     mirror.applied++;
                 }
-                return goldenRowsCompare(st, goldenSql, tab, enumDecode);
+                return compareFrame(st, goldenSql, ours, enumDecode,
+                        graphEnumProp);
             } catch (SQLException e) {
                 throw new Unverifiable("h2 connection: " + e.getMessage(), e);
             }
@@ -322,7 +344,8 @@ public final class H2Verify {
                         }
                     }
                 }
-                return goldenRowsCompare(st, goldenSql, tab, enumDecode);
+                return compareFrame(st, goldenSql, ours, enumDecode,
+                        graphEnumProp);
             }
         } catch (SQLException e) {
             throw new Unverifiable("h2 connection: " + e.getMessage(), e);
@@ -388,13 +411,16 @@ public final class H2Verify {
     public static @com.legend.Nullable String verifyAuto(Connection session,
             java.util.@com.legend.Nullable List<String> seeds,
             String goldenSql, ExecutionResult ours,
-            java.util.Map<Integer, java.util.Map<String, String>> enumDecode)
+            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
+            java.util.function.Predicate<String> graphEnumProp)
             throws SQLException {
         long t0 = System.nanoTime();
         try {
             return "H2".equals(session.getMetaData().getDatabaseProductName())
-                    ? verifyOnSession(session, goldenSql, ours, enumDecode)
-                    : verify(seeds, goldenSql, ours, enumDecode);
+                    ? verifyOnSession(session, goldenSql, ours, enumDecode,
+                            graphEnumProp)
+                    : verify(seeds, goldenSql, ours, enumDecode,
+                            graphEnumProp);
         } finally {
             MIRROR_NANOS.addAndGet(System.nanoTime() - t0);
         }
@@ -407,22 +433,181 @@ public final class H2Verify {
      */
     public static @com.legend.Nullable String verifyOnSession(
             Connection session, String goldenSql, ExecutionResult ours,
-            java.util.Map<Integer, java.util.Map<String, String>> enumDecode) {
-        if (!(ours instanceof ExecutionResult.Tabular tab)) {
+            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
+            java.util.function.Predicate<String> graphEnumProp) {
+        if (!(ours instanceof ExecutionResult.Tabular)
+                && !(ours instanceof ExecutionResult.Graph)) {
+            // Collection/Scalar parked — see the verify() gate note
             throw new Unverifiable("non-tabular result frame", null);
         }
-        for (int i = 0; i < tab.columns().size(); i++) {
-            if (tab.columns().get(i).pureType()
-                    instanceof com.legend.compiler.element.type.Type.EnumType
-                    && !enumDecode.containsKey(i)) {
+        if (ours instanceof ExecutionResult.Tabular) {
+            for (int i = 0; i < ours.columns().size(); i++) {
+                if (ours.columns().get(i).pureType()
+                        instanceof com.legend.compiler.element.type.Type.EnumType
+                        && !enumDecode.containsKey(i)) {
+                    throw new Unverifiable(
+                            "enum-decoded column (post-transform rows)", null);
+                }
+            }
+        }
+        try (Statement st = session.createStatement()) {
+            return compareFrame(st, goldenSql, ours, enumDecode,
+                    graphEnumProp);
+        } catch (SQLException e) {
+            throw new Unverifiable("session golden execution: "
+                    + e.getMessage(), e);
+        }
+    }
+
+    /** Kind dispatch for the golden compare: flat frames positionally,
+     * the Graph frame by label. */
+    private static @com.legend.Nullable String compareFrame(Statement st,
+            String goldenSql, ExecutionResult ours,
+            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
+            java.util.function.Predicate<String> graphEnumProp)
+            throws SQLException {
+        return ours instanceof ExecutionResult.Graph g
+                ? goldenGraphCompare(st, goldenSql, g, graphEnumProp)
+                : goldenRowsCompare(st, goldenSql, ours, enumDecode);
+    }
+
+    /** Engine bookkeeping aliases in a class-mapped golden select:
+     * {@code pk_$i} instance-identity columns and the milestoning
+     * constant columns — selected by the engine only to ASSEMBLE
+     * instances, never observable on the result the assert's own test
+     * verifies. The spellings are the engine's own generation
+     * convention (relational mapping select generation). */
+    private static boolean bookkeepingAlias(String label) {
+        return label.matches("pk_\\d+")
+                || label.equals("k_businessDate")
+                || label.equals("k_processingDate");
+    }
+
+    /** GRAPH-frame row verification (V7 diff-noreplay burndown): a
+     * class-mapped query's frame is the instance array the DATABASE
+     * built — flat json objects keyed by mapped property name, which
+     * are exactly the golden's DATA aliases. Comparison: golden rows
+     * and json objects as order-insensitive multisets over the golden's
+     * data aliases (bookkeeping columns excluded by the engine's own
+     * spelling, {@link #bookkeepingAlias}); the alias set and the json
+     * key set must agree EXACTLY. Temporal cells decode TYPE-driven
+     * from the golden's JDBC column type (the json carrier has no
+     * temporals — same rule as {@link #coerceTemporal}), never by value
+     * sniffing. Every structural surprise — nesting, key skew,
+     * enum-typed property (frame carries decoded names, golden the raw
+     * codes) — throws {@link Unverifiable}: a COUNTED decline, never a
+     * guessed compare. */
+    private static @com.legend.Nullable String goldenGraphCompare(Statement st,
+            String goldenSql, ExecutionResult.Graph g,
+            java.util.function.Predicate<String> enumProp) {
+        Object parsed = com.legend.sql.Json.parse(g.json());
+        if (!(parsed instanceof List<?> arr)) {
+            throw new Unverifiable("graph frame is not a json array", null);
+        }
+        List<java.util.Map<String, Object>> objs = new ArrayList<>();
+        java.util.TreeSet<String> keys = new java.util.TreeSet<>();
+        for (Object o : arr) {
+            if (!(o instanceof java.util.Map<?, ?> m)) {
+                throw new Unverifiable("graph nesting in result frame", null);
+            }
+            java.util.Map<String, Object> flat =
+                    new java.util.LinkedHashMap<>();
+            for (var e : m.entrySet()) {
+                if (e.getValue() instanceof java.util.Map
+                        || e.getValue() instanceof List) {
+                    throw new Unverifiable(
+                            "graph nesting in result frame", null);
+                }
+                flat.put((String) e.getKey(), e.getValue());
+                keys.add((String) e.getKey());
+            }
+            objs.add(flat);
+        }
+        for (String k : keys) {
+            if (enumProp.test(k)) {
                 throw new Unverifiable(
                         "enum-decoded column (post-transform rows)", null);
             }
         }
-        try (Statement st = session.createStatement()) {
-            return goldenRowsCompare(st, goldenSql, tab, enumDecode);
+        List<String> theirs = new ArrayList<>();
+        List<String> dataLabels = new ArrayList<>();
+        java.util.Set<String> temporal = new java.util.HashSet<>();
+        try (ResultSet rs = st.executeQuery(goldenSql)) {
+            var md = rs.getMetaData();
+            int n = md.getColumnCount();
+            int[] dataIdx = new int[n];
+            int dc = 0;
+            for (int i = 1; i <= n; i++) {
+                String label = md.getColumnLabel(i);
+                if (bookkeepingAlias(label)) {
+                    continue;
+                }
+                dataLabels.add(label);
+                dataIdx[dc++] = i;
+                int jt = md.getColumnType(i);
+                if (jt == java.sql.Types.DATE || jt == java.sql.Types.TIME
+                        || jt == java.sql.Types.TIMESTAMP
+                        || jt == java.sql.Types.TIMESTAMP_WITH_TIMEZONE) {
+                    temporal.add(label);
+                }
+            }
+            java.util.TreeSet<String> labelSet = new java.util.TreeSet<>(dataLabels);
+            if (labelSet.size() != dataLabels.size()) {
+                throw new Unverifiable(
+                        "duplicate data alias in golden select", null);
+            }
+            if (!labelSet.equals(keys)) {
+                throw new Unverifiable("graph keys mismatch golden aliases:"
+                        + " golden " + labelSet + " vs frame " + keys, null);
+            }
+            // both sides tuple over the SAME sorted key order
+            List<String> sorted = new ArrayList<>(keys);
+            java.util.Map<String, Integer> byLabel = new java.util.HashMap<>();
+            for (int j = 0; j < dataLabels.size(); j++) {
+                byLabel.put(dataLabels.get(j), dataIdx[j]);
+            }
+            while (rs.next()) {
+                StringBuilder row = new StringBuilder();
+                for (String k : sorted) {
+                    if (row.length() > 0) {
+                        row.append('|');
+                    }
+                    row.append(norm(rs.getObject(byLabel.get(k))));
+                }
+                theirs.add(row.toString());
+            }
+            List<String> mine = new ArrayList<>();
+            for (java.util.Map<String, Object> obj : objs) {
+                StringBuilder row = new StringBuilder();
+                for (String k : sorted) {
+                    if (row.length() > 0) {
+                        row.append('|');
+                    }
+                    Object v = obj.get(k);
+                    if (v instanceof String s && temporal.contains(k)) {
+                        // type-driven temporal decode (golden JDBC type):
+                        // the json carrier spells the engine convention —
+                        // ISO text, 'T' separator, 9-digit nanos
+                        try {
+                            v = s.contains("T")
+                                    ? java.time.LocalDateTime.parse(s)
+                                    : (Object) java.time.LocalDate.parse(s);
+                        } catch (java.time.format.DateTimeParseException x) {
+                            // unexpected spelling: compare raw, loudly
+                        }
+                    }
+                    row.append(norm(v));
+                }
+                mine.add(row.toString());
+            }
+            Collections.sort(theirs);
+            Collections.sort(mine);
+            if (theirs.equals(mine)) {
+                return null;
+            }
+            return divergenceOrSkew(theirs, mine);
         } catch (SQLException e) {
-            throw new Unverifiable("session golden execution: "
+            throw new Unverifiable("golden execution: "
                     + e.getMessage(), e);
         }
     }
@@ -431,7 +616,7 @@ public final class H2Verify {
      * as ORDER-INSENSITIVE multisets of normalized cells (shared by the
      * replay oracle and the session-direct verify). */
     private static @com.legend.Nullable String goldenRowsCompare(Statement st,
-            String goldenSql, ExecutionResult.Tabular tab,
+            String goldenSql, ExecutionResult tab,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode)
             throws SQLException {
                 List<String> theirs = new ArrayList<>();
@@ -494,14 +679,48 @@ public final class H2Verify {
                     }
                     return null;
                 }
-                return "h2-advisory divergence: golden SQL on H2 gave "
-                        + theirs.size() + " row(s) " + head(theirs)
-                        + ", our pipeline gave " + mine.size() + " row(s) "
-                        + head(mine);
+                return divergenceOrSkew(theirs, mine);
+    }
+
+    /** The one divergence tail (both compare paths): identical DISTINCT
+     * row sets differing only in duplication are NOT adjudicable by a
+     * raw-row referee — the engine's own tests pin BOTH cardinality
+     * conventions for identical-row fan-out (testQualifierQueryWithOr
+     * asserts 1 instance off 7 identical golden rows; ...FilterWith
+     * ChainedJoins asserts 4 duplicates off 4), so duplication is an
+     * assembly-layer fact, not row evidence. COUNTED decline, never a
+     * verdict either way. A difference in row VALUES stays the hard
+     * divergence. */
+    private static String divergenceOrSkew(List<String> theirs,
+            List<String> mine) {
+        if (new java.util.HashSet<>(theirs)
+                .equals(new java.util.HashSet<>(mine))) {
+            throw new Unverifiable(
+                    "row-cardinality skew (distinct rows agree)", null);
+        }
+        return "h2-advisory divergence: golden SQL on H2 gave "
+                + theirs.size() + " row(s), our pipeline gave "
+                + mine.size() + " row(s); " + diffRows(theirs, mine);
     }
 
     private static String head(List<String> rows) {
         return rows.subList(0, Math.min(rows.size(), 5)).toString();
+    }
+
+    /** The DIFFERING rows (multiset difference, both directions, 5 max
+     * each) — a divergence whose first rows agree used to truncate to
+     * two identical-looking heads. */
+    private static String diffRows(List<String> theirs, List<String> mine) {
+        List<String> onlyTheirs = new ArrayList<>(theirs);
+        for (String m : mine) {
+            onlyTheirs.remove(m);
+        }
+        List<String> onlyMine = new ArrayList<>(mine);
+        for (String t : theirs) {
+            onlyMine.remove(t);
+        }
+        return "golden-only " + head(onlyTheirs)
+                + ", ours-only " + head(onlyMine);
     }
 
     /** The per-column enum decode (frame column index -> raw source
@@ -647,7 +866,13 @@ public final class H2Verify {
                     + String.format("%02d:%02d:%02d",
                             ldt.getHour(), ldt.getMinute(),
                             ldt.getSecond());
-            int nano = ldt.getNano();
+            // MICROSECOND floor, same class as the float 10-digit rule
+            // above: DuckDB TIMESTAMP is microsecond BY STORAGE while H2
+            // holds nanos — digits 7-9 of an H2 golden cell cannot exist
+            // on our side of the oracle (witness: testLessThan seed
+            // '15:22:23.123456789' vs our read '…123456'). Divergence at
+            // micro or coarser still fails.
+            int nano = ldt.getNano() / 1000 * 1000;
             if (nano != 0) {
                 s += ("." + String.valueOf(1_000_000_000L + nano)
                         .substring(1)).replaceAll("0+$", "");

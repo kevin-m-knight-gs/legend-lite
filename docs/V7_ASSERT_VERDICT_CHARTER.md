@@ -696,6 +696,69 @@ getAll ~175 partially burned, TypedMap, expressionSequence 43,
 tail) + 492 unable-to-exec (diff-noreplay 321 FIRST, by replay
 root cause).
 
+## 4AB. DIFF-NOREPLAY BURNDOWN, SLICE 1 — GRAPH FRAMES REPLAY
+## (2026-08-28)
+
+**Census-first (the h2-unverifiable causes now RIDE the outcome):**
+H2Verify.decline stashes its canonical bucket per thread
+(LAST_DECLINE); the diff-noreplay exit names its replay-decline cause
+(`diff-noreplay :: <cause>`) — the §4Z transparency rule one level
+down. Measured composition of the 321 (never guessed): **non-tabular
+result frame 295** (Graph 314 / Collection 41 / Scalar 6 across the
+noreplay classes), engine-golden duplicate-alias 11, enum-decode 7,
+tempTableForIn 4, arity 2 (+7 more under text-only).
+
+**The fix (one root cause = 93%):** class-mapped queries produce a
+GRAPH frame — the instance array the DATABASE built, flat json
+objects keyed by mapped property name — and those keys are EXACTLY
+the golden's data aliases. `H2Verify.goldenGraphCompare`: golden rows
+vs json objects as order-insensitive multisets over the golden's data
+aliases; `pk_$i`/`k_businessDate`/`k_processingDate` are the engine's
+graph-assembly bookkeeping (excluded by the engine's own spelling);
+temporal json text decodes TYPE-driven from the golden's JDBC column
+type. Every structural surprise is a COUNTED decline: nesting, key
+skew, enum-typed property (frame carries decoded names, golden raw
+codes — same rule as the tabular enum decline, predicate supplied by
+the harness from ctx.findProperty). Rider fixes: **microsecond
+temporal floor** in norm() (H2 nanos vs DuckDB's microsecond STORAGE
+— the float 10-digit rule's temporal twin; witness testLessThan seed
+.123456789 vs .123456) and divergence messages print the DIFFERING
+rows (diffRows), not two identical-looking heads.
+
+**Two adjudications the referee refuses (named, counted, never a
+verdict):** (1) row-cardinality skew — the engine's own tests pin
+BOTH conventions for identical-row fan-out (testQualifierQueryWithOr:
+1 instance off 7 identical golden rows; …FilterWithChainedJoins: 4
+duplicates off 4), so duplication is an assembly-layer fact;
+(2) Collection/Scalar frames are positional-ready but PARKED on a
+REAL finding: **string-plus over an empty qualifier result** — engine
+relational drops the row (golden 1 row), our concat keeps it as
+pure's plus([...]) would ('Test' rows; witness
+testQualifierWithOperation golden 1 vs ours 4, invisible to the
+test's own at(0) asserts). Engine-vs-pure semantics — USER
+adjudication owed before that lane opens.
+
+**MOVEMENT (all lanes else byte-stable, zero test regressions):**
+exec-passing 990 → **1276** (+286 REAL golden-vs-ours row compares),
+UNABLE-TO-EXEC 492 → **206**: diff-noreplay 321 → **160**
+(graph-keys-mismatch 69, collection/scalar 45, enum-decode 22,
+engine-golden dup-alias 17, tempTableForIn 4, arity 2, skew 1),
+match-noreplay 142 → **27**, no-generator 8, predicate-diverged 6,
+both-ours 5. M1 verified 320-floor → 436, rescued 632-floor → 791,
+unverifiable 145 → 30, diverged 0. Registers adjudicated in the same
+commit: dup-alias registry 11 → 17 (same engine-golden gap, reached
+by 6 more rows now that goldens actually execute), advisory sql
+diffs 318 → 157 (down-ratchet: diffs moved to the counted rescue
+channel), rescued-passes ceiling 614 → 751 (flag moved channels on
+the same passing tests; no exact pass demoted).
+
+**NEXT (by size):** graph-keys-mismatch 69 (measure shapes; likely
+association/nested-property alias classes) → collection/scalar 45
+(BLOCKED on the plus adjudication) → enum-decode 22 (derive the
+decode for class frames like enumDecodeFor does for tabular) →
+residue ~24 (engine-golden defects + machinery gaps, permanent named
+transparency candidates).
+
 ## 8. PLAN OF ATTACK — the batch-2 remainder → cutover (handoff,
 ## 2026-08-28)
 
@@ -720,7 +783,7 @@ once during a full corpus sweep. Of **5,241** total:
 
 | bucket | count | plan |
 |---|---|---|
-| sql/plan-text compares (assertSameSQL family + CONTENT-classified sqlQueryToString-family args, §4U census split; §4Y run/gen split: **run 1,491 / gen 38**) | 1,529 | **OUT of the migration by design, permanently.** Already end-state: text match → H2 row-check (320, 0 diverged); text differs → engine's golden SQL executes on H2, rows vs our rows (632 verified, 0 diverged); unverifiable → advisory, counted by reason (145 — LEG 8 burns these); 394 run-backed asserts on their own compare arms (h2Compatible 322 + mixed) — reconciliation = named follow-up |
+| sql/plan-text compares (assertSameSQL family + CONTENT-classified sqlQueryToString-family args, §4U census split; §4Y run/gen split: **run 1,491 / gen 38**) | 1,529 | **OUT of the migration by design, permanently.** Already end-state: text match → H2 row-check (320, 0 diverged); text differs → engine's golden SQL executes on H2, rows vs our rows (632 verified, 0 diverged); unverifiable → advisory, counted by reason (145 — LEG 8 burns these); 394 run-backed asserts on their own compare arms (h2Compatible 322 + mixed) — reconciliation = named follow-up. **§4AB update (2026-08-28): exec-passing 1,276 / text-only 44 / unable-to-exec 206 (diff-noreplay 160, match-noreplay 27); M1 436 matched + 791 rescued, 0 diverged, 30 unverifiable** |
 | TDG/test-data-gen text compares | 123 | OUT by design, permanently (host artifacts) |
 | host-unsupported forms | 28 | name-by-name adjudication (leg 6) |
 | **adjudicating through the production verdict path today** | **2,658** | 2,650 agree + 8 named wire-fidelity disagreements (leg 5) |

@@ -1284,7 +1284,16 @@ public final class EngineTestExecutor {
                 }
                 return rows;
             }
-            sqlTextOutcome("diff-noreplay");
+            // burndown census: the decline CAUSE rides the outcome (the
+            // replay attempt above recorded exactly one decline)
+            String cause = H2Verify.LAST_DECLINE.get();
+            sqlTextOutcome("diff-noreplay"
+                    + (cause != null ? " :: " + cause : ""));
+            if (System.getenv("LL_TMP_DEBUG") != null) {
+                System.err.println("[diff-noreplay] ["
+                        + H2Verify.CURRENT_TEST.get() + "]\n  golden: "
+                        + golden + "\n  ours:   " + sql);
+            }
             return "sql-text: expected " + golden + ", got " + sql;
         }
         // no reachable generator for OUR side — the golden may still
@@ -1407,12 +1416,26 @@ public final class EngineTestExecutor {
                     new Variable(var, null, null), "values"), lets,
                     execStmts, execVars, execChains, ctx, imports,
                     runtimeFqn, conn);
+            // the Graph-frame enum guard, TYPE-driven from the class
+            // model: a decoded-name key cannot compare against the
+            // golden's raw source codes (same rule as the tabular
+            // enum-decode decline)
+            com.legend.compiler.element.type.Type rt = rows.result()
+                    .returnType();
+            java.util.function.Predicate<String> enumProp = key ->
+                    rt instanceof com.legend.compiler.element.type.Type
+                            .ClassType ct
+                    && ctx.findProperty(ct.fqn(), key)
+                            .map(p -> p.type() instanceof
+                                    com.legend.compiler.element.type.Type
+                                            .EnumType)
+                            .orElse(false);
             // session-direct on an H2 backend, seed-replay elsewhere —
             // the routing lives with the oracle (H2Verify.verifyAuto)
             return H2Verify.verifyAuto(conn,
                     com.legend.sql.dialect.RawSqlBoundary.recording(), golden,
                     rows.result(), H2Verify.enumDecodeFor(rows.result(),
-                            actual, lets, execStmts, ctx, imports));
+                            actual, lets, execStmts, ctx, imports), enumProp);
         } catch (java.sql.SQLException | RuntimeException e) {
             // audit (TENET V2.1): this decline was visible ONLY under
             // LL_H2_DEBUG — a row-verification opportunity silently fell
