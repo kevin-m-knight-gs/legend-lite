@@ -1,6 +1,7 @@
 # §4AD SLICE 1 — NAVIGATION-CONSUMPTION ROUTING DESIGN (2026-08-29)
 
-Status: **DESIGN, awaiting user sign-off before implementation.**
+Status: **DESIGN — §3 PROVISIONAL pending Batch 0 (engine routing
+map + golden survey); user sign-off gates implementation.**
 Parent charter: V7_ASSERT_VERDICT_CHARTER.md §4AD (ratified row-algebra
 rule + decisions 1-3). Census: NAV_ARM_CENSUS_4AD.md (blast radius:
 1,017 tests / 4 named correlated-or-dedup arms; witness dump
@@ -260,6 +261,48 @@ is regression with good posture. So the materializer bugs burn
 before the router flips, and the deletion lands only when it is
 total AND safe.
 
+0. **BATCH 0 — THE HOMEWORK (read the spec, survey the goldens;
+   read-only; the design's §3 is PROVISIONAL until this lands).**
+   Added after the user asked "did we do the actual research or did
+   we guess and sample from docs" — the honest answer was: direction
+   measured, central routing claim inferred from TWO goldens (one of
+   them a FORCED-strategy test) and comments in our own code.
+   - **0a. Engine routing map**: read the engine's own router —
+     `pureToSQLQuery.pure` (10,385 lines, local checkout) — and
+     document with line citations: the qualified-property /
+     navigation compilation entry points, the aggregation-over-nav
+     path (subAggregation), the exists path
+     (buildExistsAsJoinWithNullCheck, chooser ~L5607), and the
+     ISOLATION-STRATEGY chooser. **FIRST FINDING (2026-08-29,
+     L7485-7600)**: the engine has THREE strategies
+     (`MoveFilterOnTop`, `MoveFilterInOnClause`,
+     `BuildCorrelatedSubQuery`) with a real decision procedure — in
+     PROJECTION THREADS it defaults to `BuildCorrelatedSubQuery`
+     when the filtered node is not a suitable direct child
+     (L7568-7572); MoveFilterOnTop over an inner-join tree demotes
+     to correlated (L7581); and the engine's own comments state the
+     strategies are NOT row-equivalent ("MoveFilterOnTop … Cons:
+     when n threads are projected some rows may be canceled if a
+     data point is missing"). CONSEQUENCE: §3's "two forms, zero
+     correlated" is OUR simplification, not the engine's behavior —
+     it survives only if the golden survey (0b) proves our fanned
+     form row-equal on every shape where the engine's default
+     chooser picks correlated or on-clause placement, INCLUDING the
+     multi-thread null-cancellation edge the engine comment names.
+     Otherwise §3 gains a third form matching the engine's chooser.
+   - **0b. Golden shape SURVEY (not sampling)**: script over the
+     corpus's golden SQL strings — classify EVERY
+     qualifier/navigation golden (fanned join / grouped subselect /
+     correlated scalar / exists / on-clause pred), split FORCED vs
+     non-forced tests (`forcedIsolation` in the body; the
+     `advanced::forced::*` families' goldens are NOT default engine
+     shapes — the witness-2 lesson). Deliverable: a shape×position
+     table with counts and named witnesses per cell, incl. the
+     multi-occurrence value-position cell.
+   - **0c. Pure-semantics verification**: `plus` overloads from the
+     legend-pure sources (1-arg collection plus == sum claim), and
+     the isEmpty/exists family's engine compilation (semi-join
+     claim) from 0a — both currently asserted, not verified.
 1. **Revert working tree to `a618c5d2`.**
 2. **Batch 2 — arm-attribution census** (design §5, incl. fnlr
    firings per test — the family round 1 missed) + the standalone
