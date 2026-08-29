@@ -53,6 +53,12 @@ public class RelationalCorpusRunner {
     @Test
     void scoreboard() throws Exception {
         Assumptions.assumeTrue(Corpus.available(), "legend-engine checkout not present");
+        // ENGINE-CORPUS-COMPAT (user ruling 2026-08-29, the ENGINE_CASED
+        // precedent): the engine's tests assert positionally while
+        // relying on H2's implicit scan order — replaying them on DuckDB
+        // opts into the explicit scan-order pass. The PLATFORM default
+        // stays order-honest (no sort demanded = no order guaranteed).
+        System.setProperty("legend.exec.engineScanOrder", "true");
 
         List<String> shared = List.of(
                 Corpus.read("tests/testModel/simpleTestModel.pure"),

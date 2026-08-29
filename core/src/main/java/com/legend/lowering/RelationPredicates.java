@@ -38,6 +38,100 @@ final class RelationPredicates {
                 && nc.args().size() == 1;
     }
 
+    /** Does {@code s} read any column whose alias is not bound anywhere
+     * inside it (an OUTER-row correlation)? Conservative census split:
+     * all aliases bound in the select's whole source tree (subselect
+     * inners included) count as local. */
+    static boolean referencesOuter(SqlSelect s) {
+        java.util.Set<String> bound = new java.util.HashSet<>();
+        boundAliases(s, bound);
+        return readsUnbound(s, bound);
+    }
+
+    private static void boundAliases(com.legend.sql.SqlQuery q,
+            java.util.Set<String> bound) {
+        if (q instanceof SqlSelect sel) {
+            boundSource(sel.from(), bound);
+        } else if (q instanceof com.legend.sql.SqlUnion u) {
+            u.branches().forEach(b -> boundAliases(b, bound));
+        }
+    }
+
+    private static void boundSource(com.legend.sql.SqlSource src,
+            java.util.Set<String> bound) {
+        if (src instanceof com.legend.sql.SqlSource.Join j) {
+            boundSource(j.left(), bound);
+            boundSource(j.right(), bound);
+            return;
+        }
+        if (src.alias() != null) {
+            bound.add(src.alias());
+        }
+        if (src instanceof com.legend.sql.SqlSource.Subselect sub) {
+            boundAliases(sub.inner(), bound);
+        }
+    }
+
+    private static boolean readsUnbound(com.legend.sql.SqlQuery q,
+            java.util.Set<String> bound) {
+        if (q instanceof com.legend.sql.SqlUnion u) {
+            return u.branches().stream().anyMatch(b -> readsUnbound(b, bound));
+        }
+        SqlSelect sel = (SqlSelect) q;
+        java.util.List<SqlExpr> roots = new java.util.ArrayList<>();
+        sel.projections().forEach(p -> roots.add(p.expr()));
+        if (sel.where() != null) {
+            roots.add(sel.where());
+        }
+        roots.addAll(sel.groupBy());
+        if (sel.having() != null) {
+            roots.add(sel.having());
+        }
+        sel.orderBy().forEach(k -> roots.add(k.expr()));
+        if (sel.from() instanceof com.legend.sql.SqlSource.Join j
+                && joinOnUnbound(j, bound)) {
+            return true;
+        }
+        if (sel.from() instanceof com.legend.sql.SqlSource.Subselect sub
+                && readsUnbound(sub.inner(), bound)) {
+            return true;
+        }
+        return roots.stream().anyMatch(e -> exprUnbound(e, bound));
+    }
+
+    private static boolean joinOnUnbound(com.legend.sql.SqlSource.Join j,
+            java.util.Set<String> bound) {
+        boolean on = j.on() != null && exprUnbound(j.on(), bound);
+        boolean l = j.left() instanceof com.legend.sql.SqlSource.Join jl
+                ? joinOnUnbound(jl, bound)
+                : j.left() instanceof com.legend.sql.SqlSource.Subselect sl
+                        && readsUnbound(sl.inner(), bound);
+        boolean r = j.right() instanceof com.legend.sql.SqlSource.Join jr
+                ? joinOnUnbound(jr, bound)
+                : j.right() instanceof com.legend.sql.SqlSource.Subselect sr
+                        && readsUnbound(sr.inner(), bound);
+        return on || l || r;
+    }
+
+    private static boolean exprUnbound(SqlExpr e,
+            java.util.Set<String> bound) {
+        if (e instanceof SqlExpr.Column c) {
+            return c.table() != null && !bound.contains(c.table());
+        }
+        if (e instanceof SqlExpr.ScalarSubquery sq) {
+            return readsUnbound(sq.subquery(), bound);
+        }
+        if (e instanceof SqlExpr.Exists ex) {
+            return readsUnbound(ex.subquery(), bound);
+        }
+        for (SqlExpr c : e.children()) {
+            if (exprUnbound(c, bound)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     static Lowerer.@com.legend.Nullable RelationPredicate of(TypedNativeCall n) {
         // count over a RELATION argument is size (row count) — the graph-
         // leaf sub-aggregation emission rewrites nav-slot reads to their
@@ -66,9 +160,13 @@ final class RelationPredicates {
                         ? new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(ps.get(0).expr()),
                                 false, java.util.List.of())
                         : SqlAgg.Reducer.of(SqlAgg.Fn.COUNT);
-                // §4AD census: correlated scalar COUNT subquery — the
-                // rule bans correlated scalar subqueries for navigations
-                NavArmCensus.fire("correlated-count-reducer");
+                // §4AD census, batch-6 SPLIT: a genuinely CORRELATED
+                // scalar COUNT subquery (outer-row refs — the banned
+                // navigation class) vs a WHOLE-EXTENT count (no outer
+                // refs — a plain scalar envelope, row- and shape-benign)
+                NavArmCensus.fire(referencesOuter(base)
+                        ? "correlated-count-reducer"
+                        : "extent-count-reducer");
                 return new SqlExpr.ScalarSubquery(base
                         .withProjections(List.of(new SqlSelect.Projection(
                                 counter, null, null))));
@@ -95,8 +193,10 @@ final class RelationPredicates {
                         ? base.projections().get(0).expr()
                         : Fold.sourceColumn(base.from(),
                                 rt2.columns().get(0).name());
-                // §4AD census: correlated scalar aggregate subquery
-                NavArmCensus.fire("correlated-agg-reducer");
+                // §4AD census, batch-6 split (see the COUNT arm)
+                NavArmCensus.fire(referencesOuter(base)
+                        ? "correlated-agg-reducer"
+                        : "extent-agg-reducer");
                 return new SqlExpr.ScalarSubquery(base.withProjections(
                         List.of(new SqlSelect.Projection(
                                 new SqlAgg.Reducer(fam, List.of(col), false,

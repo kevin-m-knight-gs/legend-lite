@@ -795,7 +795,7 @@ final class SyntheticHeads {
      * collision and get applied inside the target pipeline where the
      * outer row does not exist. (Conservative the other way stays fine:
      * over-refusing the lift is loud.) */
-    static boolean predClosedOverParam(TypedLambda pred) {
+    private static boolean predClosedOverParam(TypedLambda pred) {
         Set<String> bound = new LinkedHashSet<>(pred.parameters());
         return pred.body().stream().allMatch(b -> readsOnly(b, bound));
     }

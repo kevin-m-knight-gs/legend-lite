@@ -1479,9 +1479,9 @@ public final class StoreResolver {
                         mat.slotPrefixes(), mat.stripped(), mat.subNavs()));
             }
             if (compositedNavs.contains(alias)) {
-                demanded = OccurrenceBundling.compositeOrFallback(cs,
-                        corrSubs, alias, navSteps, navMats, compositedNavs,
-                        compositeConds, demanded, slotAliases);
+                demanded = OccurrenceBundling.composite(cs, corrSubs,
+                        alias, navSteps, navMats, compositeConds,
+                        demanded, slotAliases);
             }
         }
         for (String alias : demandedNavs) {

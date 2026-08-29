@@ -88,37 +88,45 @@ final class OccurrenceBundling {
     }
 
     /** Composite this identity's frame (mid ⋈ filtered-target with
-     * hop-1's oriented condition — the #70 machinery at TOP level), or
-     * FALL BACK to the shared-slot emission when infeasible (deep
-     * chains, multi-slot disjuncts — probe semantics on the composite's
-     * own loud guards): mutates {@code navMats}/{@code compositeConds}/
-     * {@code compositedNavs}/{@code demanded} accordingly; returns the
-     * possibly re-closed demand set. */
-    static Set<String> compositeOrFallback(ClassSource cs,
+     * hop-1's oriented condition — the #70 machinery at TOP level,
+     * upstream-slot reads allowed for DEEP chains): the route was
+     * decided ONCE by {@link #perOccurrenceBundles}; a shape the
+     * composite cannot build WALLS loudly (never a fallback — user
+     * tenet audit 2026-08-29). Upstream slots the ORIENTED condition
+     * still reads stay demanded at parent level (the engine's own
+     * shape: frames join onto the shared upstream hop). Returns the
+     * re-closed demand set. */
+    static Set<String> composite(ClassSource cs,
             CorrelatedSubselects corrSubs, String alias,
             Map<String, TypedNavigate> navSteps,
             Map<String, NavMaterializer.NavMat> navMats,
-            Set<String> compositedNavs,
             Map<String, TypedLambda> compositeConds,
             Set<String> demanded, Set<String> slotAliases) {
         var nav = java.util.Objects.requireNonNull(navSteps.get(alias));
         var mat = java.util.Objects.requireNonNull(navMats.get(alias));
-        CorrelatedSubselects.CompositeChain cc;
-        try {
-            cc = corrSubs.compositeChainTarget(cs, nav.predicate(),
-                    mat.pipeline());
-        } catch (com.legend.error.NotImplementedException e) {
-            cc = null;
-        }
+        CorrelatedSubselects.CompositeChain cc =
+                corrSubs.compositeChainTarget(cs, nav.predicate(),
+                        mat.pipeline(), true);
         if (cc == null) {
-            compositedNavs.remove(alias);
-            demandSiblingSlots(nav, slotAliases, demanded);
-            return Pipelines.closeOverConditions(cs.pipeline(), demanded);
+            throw new com.legend.error.NotImplementedException(
+                    "per-occurrence mid-hop bundling: composite not"
+                    + " applicable for navigate step '" + alias
+                    + "' — the multi-identity chained shape is not"
+                    + " built yet");
         }
         navMats.put(alias, new NavMaterializer.NavMat(cc.pipeline(),
                 mat.slotPrefixes(), mat.stripped(), mat.subNavs()));
         compositeConds.put(alias, cc.orientedCond());
-        return demanded;
+        for (TypedSpec b : cc.orientedCond().body()) {
+            for (String slot : slotAliases) {
+                if (Pipelines.referencesAliasOn(b,
+                        cc.orientedCond().parameters().get(0),
+                        Set.of(slot))) {
+                    demanded.add(slot);
+                }
+            }
+        }
+        return Pipelines.closeOverConditions(cs.pipeline(), demanded);
     }
 
     /** The EXTRA identity's frame + join condition, composited with its
@@ -135,7 +143,8 @@ final class OccurrenceBundling {
             return new ExtraComposite(tPipe, nav.predicate());
         }
         CorrelatedSubselects.CompositeChain cc =
-                corrSubs.compositeChainTarget(cs, nav.predicate(), tPipe);
+                corrSubs.compositeChainTarget(cs, nav.predicate(), tPipe,
+                        true);
         if (cc == null) {
             throw new com.legend.error.NotImplementedException(
                     "per-occurrence mid-hop bundling: composite not"

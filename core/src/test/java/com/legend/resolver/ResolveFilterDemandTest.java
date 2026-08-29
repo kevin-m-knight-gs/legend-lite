@@ -170,13 +170,12 @@ class ResolveFilterDemandTest {
         // with a filtered-out (or absent) parent survive with NULLs; the
         // ROOT keeps its own filter in WHERE. Org here has a plain
         // single-table filter via OrgSelfFilter to isolate the strategy.
+        // The QUERY asks for its order (a positional assertion must
+        // demand ordering — never inherit anyone's scan-order habit).
         String sql = sqlOf("m::SOrg.all()->project("
                 + "[o|$o.name, o|$o.parent.name], ['name','p_name'])"
-                + "->from(m::M, m::RT)");
-        // sorted host-side: the DuckDB dialect's StableScanOrder pass
-        // already gives frame-joined roots a base-scan ORDER BY
+                + "->sort(asc(~name))->from(m::M, m::RT)");
         List<String> rows = exec(sql);
-        rows.sort(null);
         // SAlpha: no parent -> null. SBeta: parent SAlpha (in extent).
         // SDelta: parent SGamma is FILTERED OUT -> null, row SURVIVES
         // (the ON-fold contract; a WHERE-placed hop filter would drop it).

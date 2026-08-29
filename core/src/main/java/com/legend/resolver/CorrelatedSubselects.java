@@ -1359,6 +1359,20 @@ record CompositeChain(TypedSpec pipeline,
 
 @com.legend.Nullable CompositeChain compositeChainTarget(ClassSource cs,
         TypedLambda navCond, TypedSpec targetPipe) {
+        return compositeChainTarget(cs, navCond, targetPipe, false);
+    }
+
+    /** {@code allowUpstreamSlotReads} (batch 5, deep chains): hop-1's
+     * condition may reference FURTHER sibling slots — those reads stay
+     * parent-level slot reads in the ORIENTED condition (the engine's
+     * testIsolationForFiltersWithoutAliasAndInnerJoins golden: each
+     * occurrence's frame bundles ITS OWN mid, and joins onto the shared
+     * upstream hop, which remains a parent join). The caller owns
+     * keeping those upstream slots demanded. Existing (sub-level)
+     * callers keep the loud guard. */
+@com.legend.Nullable CompositeChain compositeChainTarget(ClassSource cs,
+        TypedLambda navCond, TypedSpec targetPipe,
+        boolean allowUpstreamSlotReads) {
         Set<String> parentSlots = Pipelines.slotAliases(cs.pipeline());
         if (parentSlots.isEmpty()) {
             return null;
@@ -1464,14 +1478,17 @@ record CompositeChain(TypedSpec pipeline,
             TypedLambda c1 = js.condition();
             // GUARD (loud, never silent): hop-1's own condition must not
             // read further slots.
-            for (TypedSpec b : c1.body()) {
-                for (String sl : parentSlots) {
-                    if (Pipelines.referencesAliasOn(b,
-                            c1.parameters().get(0), Set.of(sl))) {
-                        throw new NotImplementedException(
-                                "chained joinslot condition reads a further"
-                                        + " sibling slot — deep composite"
-                                        + " chains are not built yet");
+            if (!allowUpstreamSlotReads) {
+                for (TypedSpec b : c1.body()) {
+                    for (String sl : parentSlots) {
+                        if (Pipelines.referencesAliasOn(b,
+                                c1.parameters().get(0), Set.of(sl))) {
+                            throw new NotImplementedException(
+                                    "chained joinslot condition reads a"
+                                            + " further sibling slot — deep"
+                                            + " composite chains are not"
+                                            + " built here");
+                        }
                     }
                 }
             }

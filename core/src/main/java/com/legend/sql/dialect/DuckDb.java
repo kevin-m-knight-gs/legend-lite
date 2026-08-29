@@ -95,11 +95,21 @@ public final class DuckDb extends AnsiSqlRenderer {
     protected java.util.List<com.legend.sql.SqlRewriter> passes() {
         // carrier strategies FIRST (base contract), then this dialect's
         // structural rewrites
-        return java.util.List.of(
-                new CarrierStrategies(CarrierStrategies.Caps.DUCKDB),
-                new UnqualifyPivotArgs(), new FoldToListReduce(),
-                new SubstringClamp(), new RawSqlAdapt(),
-                new StableScanOrder());
+        // StableScanOrder is ENGINE-CORPUS-COMPAT ONLY (user ruling,
+        // 2026-08-29): the engine's own tests assert positionally while
+        // relying on H2's implicit scan order — replaying them on DuckDB
+        // needs the order made explicit. The PLATFORM default stays
+        // order-honest (no sort demanded = no order guaranteed); the
+        // corpus runner opts in, the ENGINE_CASED precedent.
+        java.util.List<com.legend.sql.SqlRewriter> ps =
+                new java.util.ArrayList<>(java.util.List.of(
+                        new CarrierStrategies(CarrierStrategies.Caps.DUCKDB),
+                        new UnqualifyPivotArgs(), new FoldToListReduce(),
+                        new SubstringClamp(), new RawSqlAdapt()));
+        if (Boolean.getBoolean("legend.exec.engineScanOrder")) {
+            ps.add(new StableScanOrder());
+        }
+        return java.util.List.copyOf(ps);
     }
 
     /** DuckDB's native list carrier: {@code list_aggregate(list,
