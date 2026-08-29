@@ -1,7 +1,10 @@
 # §4AD SLICE 1 — NAVIGATION-CONSUMPTION ROUTING DESIGN (2026-08-29)
 
-Status: **DESIGN — §3 PROVISIONAL pending Batch 0 (engine routing
-map + golden survey); user sign-off gates implementation.**
+Status: **DESIGN — Batch 0 EXECUTED 2026-08-29 (see
+NAV_ROUTING_BATCH0_4AD.md): §3 CONFIRMED, no third form, two
+refinements (reducer test = engine's argument-shape condition;
+placement bit = measured witness table). USER SIGN-OFF still gates
+implementation.**
 Parent charter: V7_ASSERT_VERDICT_CHARTER.md §4AD (ratified row-algebra
 rule + decisions 1-3). Census: NAV_ARM_CENSUS_4AD.md (blast radius:
 1,017 tests / 4 named correlated-or-dedup arms; witness dump
