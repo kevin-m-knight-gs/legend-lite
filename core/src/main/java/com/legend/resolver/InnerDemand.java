@@ -45,6 +45,47 @@ import java.util.Set;
  */
 final class InnerDemand {
 
+    /** §4AD batch 7 census (design §8 step a): classify every FILTER-
+     * predicate to-many navigation consumption — a genuine EMPTINESS
+     * call (isEmpty/isNotEmpty/exists/forAll: row-count-preserving
+     * semantics by definition, stays a semi-join) vs a PREDICATE-READ
+     * (boolean leaves over the exploded values — the dedup leg's
+     * observable-change set, charter decision 2). Measurement only. */
+    static void existsKindScan(com.legend.compiler.spec.typed.TypedSpec n,
+            String userVar, ClassSource cs,
+            java.util.function.BiPredicate<ClassSource, String> toManyHead,
+            boolean underEmptiness) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                && !nc.args().isEmpty()) {
+            String key = nc.callee().signatureKey();
+            if (com.legend.builtin.Pure.nativeNamed("isEmpty", key)
+                    || com.legend.builtin.Pure.nativeNamed("isNotEmpty", key)
+                    || com.legend.builtin.Pure.nativeNamed("exists", key)
+                    || com.legend.builtin.Pure.nativeNamed("forAll", key)) {
+                existsKindScan(nc.args().get(0), userVar, cs, toManyHead,
+                        true);
+                for (int i = 1; i < nc.args().size(); i++) {
+                    existsKindScan(nc.args().get(i), userVar, cs,
+                            toManyHead, false);
+                }
+                return;
+            }
+        }
+        java.util.List<String> p = Substitution.pathOf(n, userVar);
+        if (p != null && !p.isEmpty() && toManyHead.test(cs, p.get(0))) {
+            com.legend.lowering.NavArmCensus.fire(underEmptiness
+                    ? "filter-emptiness-call" : "filter-pred-read");
+            return;
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedLambda l
+                && l.parameters().contains(userVar)) {
+            return;
+        }
+        for (com.legend.compiler.spec.typed.TypedSpec c : n.children()) {
+            existsKindScan(c, userVar, cs, toManyHead, underEmptiness);
+        }
+    }
+
     /** GRAPH-terminal demand: tree LEAF paths feed slot demand (a leaf's
      * binding may read a demanded join slot); an EMBEDDED/INLINE ctor
      * child reads the PARENT row, so its demanded sub-properties ride as

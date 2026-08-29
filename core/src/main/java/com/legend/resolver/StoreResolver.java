@@ -1257,6 +1257,9 @@ public final class StoreResolver {
             if (op instanceof TypedFilter f) {
                 for (TypedSpec b : f.predicate().body()) {
                     memberScan(b, f.predicate().parameters().get(0), cs, filterPaths);
+                    InnerDemand.existsKindScan(b,
+                            f.predicate().parameters().get(0), cs,
+                            this::isToManyAssocHead, false);
                 }
                 // #69: outer reads in corrPreds may root at THIS filter's
                 // param too (the RhsFilter family) — same parent demand
