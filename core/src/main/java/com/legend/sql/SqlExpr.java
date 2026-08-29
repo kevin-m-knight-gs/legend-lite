@@ -308,10 +308,22 @@ public sealed interface SqlExpr
     }
 
     record Column(@com.legend.Nullable String table, String name,
-            TypeFact type) implements SqlExpr {
+            TypeFact type, OutputCol.@com.legend.Nullable Origin origin)
+            implements SqlExpr {
         /** M1 leaf default — the builder supplies the type in M2. */
         public Column(@com.legend.Nullable String table, String name) {
-            this(table, name, SqlTyping.UNKNOWN);
+            this(table, name, SqlTyping.UNKNOWN, null);
+        }
+
+        /** Origin-unstamped compat door (convergence slice 1): the raw
+         * construction sites carry a NULL origin until the slice-2
+         * burn adjudicates each one PHYSICAL or DERIVED (the
+         * stamped-reference doors below inherit origin from their
+         * {@link OutputCol}). A case-sensitive renderer WALLS on null
+         * origin rather than guess a spelling. */
+        public Column(@com.legend.Nullable String table, String name,
+                TypeFact type) {
+            this(table, name, type, null);
         }
 
         /** The STAMPED reference to a source's declared output — the M2
@@ -328,7 +340,8 @@ public sealed interface SqlExpr
             // authority replaces the echo at M-N2 and this door
             // transports it unchanged
             return new Column(table, col.name(), new TypeFact.Typed(
-                    col.type(), col.nullable(), col.tolerated()));
+                    col.type(), col.nullable(), col.tolerated()),
+                    col.origin());
         }
 
         /** Stamped reference by bare name — for the builder's OWN
@@ -359,7 +372,7 @@ public sealed interface SqlExpr
             if (type instanceof TypeFact.Typed t && !t.nullable()) {
                 SqlTyping.PAD_READ_FLIPPED.increment();
                 return new Column(table, name, new TypeFact.Typed(
-                        t.type(), true, t.tolerated()));
+                        t.type(), true, t.tolerated()), origin);
             }
             return this;
         }

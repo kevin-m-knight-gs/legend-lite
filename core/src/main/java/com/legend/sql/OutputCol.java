@@ -7,10 +7,28 @@ package com.legend.sql;
  * typed root, never from the plan.
  */
 public record OutputCol(String name, SqlType type, boolean nullable,
-        boolean tolerated) {
+        boolean tolerated, Origin origin) {
+
+    /** WHERE the column NAME was born — the fact a case-sensitive
+     * renderer needs (convergence batch C blocker; SQL-IR
+     * backend-agnosticism slice 1): a PHYSICAL name exists in DDL and
+     * spells bare-unless-special (folds with the DDL's casing); a
+     * DERIVED name is invented by the query (projection label, VALUES
+     * column) and quotes unconditionally at definition AND reference —
+     * the engine's own convention (as "root", as "legalName").
+     * Stamped at construction, never re-derived at consumption. */
+    public enum Origin { PHYSICAL, DERIVED }
+
+    /** Derived-frame convenience — PHYSICAL outputs are born ONLY at
+     * the store boundary ({@code Lowerer.outputsOf}), which uses the
+     * canonical constructor explicitly. */
+    public OutputCol(String name, SqlType type, boolean nullable,
+            boolean tolerated) {
+        this(name, type, nullable, tolerated, Origin.DERIVED);
+    }
 
     public OutputCol(String name, SqlType type, boolean nullable) {
-        this(name, type, nullable, false);
+        this(name, type, nullable, false, Origin.DERIVED);
     }
 
     /** {@code tolerated} — the slot carries an ENGINE-COMPAT

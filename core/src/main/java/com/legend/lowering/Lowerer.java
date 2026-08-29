@@ -489,15 +489,15 @@ public final class Lowerer {
         }
         return switch (spec) {
             case TypedSourceUrl su -> SqlSelect.starOf(
-                    new SqlSource.SourceUrl(su.url(), nextAlias(), outputsOf(su.info())));
+                    new SqlSource.SourceUrl(su.url(), nextAlias(), outputsOf(su.info(), OutputCol.Origin.PHYSICAL)));
             case TypedTableReference t -> SqlSelect.starOf(
-                    new SqlSource.Table(t.table(), nextAlias(), outputsOf(t.info())));
+                    new SqlSource.Table(t.table(), nextAlias(), outputsOf(t.info(), OutputCol.Origin.PHYSICAL)));
 
             case TypedTds tds -> tdsLiteral(tds);
 
             case com.legend.compiler.spec.typed.TypedRawSqlRelation raw ->
                     SqlSelect.starOf(new SqlSource.RawSql(   // Phase 1c
-                            raw.sql(), nextAlias(), outputsOf(raw.info())));
+                            raw.sql(), nextAlias(), outputsOf(raw.info(), OutputCol.Origin.PHYSICAL)));
 
             case TypedFilter f -> filter(f);
 
@@ -3427,7 +3427,14 @@ public final class Lowerer {
         return Type.requireRelationSchema(spec.info().type());
     }
 
+    /** DERIVED-origin convenience — the three PHYSICAL doors (table
+     * scan, sourceUrl, rawSql: names owned by an external reality, not
+     * invented by this query) pass the origin explicitly. */
     List<OutputCol> outputsOf(ExprType info) {
+        return outputsOf(info, OutputCol.Origin.DERIVED);
+    }
+
+    List<OutputCol> outputsOf(ExprType info, OutputCol.Origin origin) {
         Type.RelationType rt = Type.schemaView(info.type());
         if (rt == null) {
             return List.of();
@@ -3443,13 +3450,16 @@ public final class Lowerer {
                     c.type() instanceof Type.RelationType r0 ? r0 : null;
             if (sub != null) {
                 for (Type.Column sc : sub.columns()) {
+                    // join-prefixed slot columns are INVENTED spellings
+                    // even over a physical scan
                     out.add(new OutputCol(c.name() + "_" + sc.name(),
-                            PureSql.type(sc.type()), true));
+                            PureSql.type(sc.type()), true, false,
+                            OutputCol.Origin.DERIVED));
                 }
                 continue;
             }
             out.add(new OutputCol(c.name(), sqlTypeOf(c.type()),
-                    PureSql.nullable(c.multiplicity())));
+                    PureSql.nullable(c.multiplicity()), false, origin));
         }
         return out;
     }

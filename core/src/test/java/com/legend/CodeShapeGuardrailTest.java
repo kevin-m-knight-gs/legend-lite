@@ -440,6 +440,40 @@ class CodeShapeGuardrailTest {
         assertTrue(violations.isEmpty(), String.join("\n", violations));
     }
 
+    /** Convergence slice 1 (SQL-IR backend-agnosticism): every
+     * origin-UNSTAMPED Column construction is a site the slice-2 burn
+     * must adjudicate PHYSICAL or DERIVED — the count only SHRINKS.
+     * The stamped doors (Column.of over an OutputCol) inherit origin
+     * and are not counted; SqlExpr.java's own ctor delegations are the
+     * doors themselves. Measured 2026-08-29. */
+    @Test
+    void unstampedColumnConstructionOnlyShrinks() throws IOException {
+        int count = 0;
+        for (Path p : mainSources()) {
+            if (p.getFileName().toString().equals("SqlExpr.java")) {
+                continue;
+            }
+            String src = Files.readString(p);
+            int i = 0;
+            while ((i = src.indexOf("new SqlExpr.Column(", i)) >= 0) {
+                count++;
+                i++;
+            }
+            i = 0;
+            while ((i = src.indexOf("new Column(", i)) >= 0) {
+                if (i == 0 || src.charAt(i - 1) != '.') {
+                    count++;
+                }
+                i++;
+            }
+        }
+        assertTrue(count <= 62, "origin-unstamped SqlExpr.Column"
+                + " construction sites grew: " + count + " > 62 — new"
+                + " references go through the stamped Column.of doors"
+                + " (origin rides the OutputCol); the slice-2 burn only"
+                + " shrinks this");
+    }
+
     @Test
     void mutableInstanceStateIsExplicit() throws IOException {
         List<String> violations = new ArrayList<>();
