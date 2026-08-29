@@ -156,7 +156,11 @@ the choice between them is decided by **expression syntax alone**:
 >   construction (`concat` per fanned row). One result row per
 >   surviving joined row. The filter predicate lands where the engine
 >   puts it (top WHERE for the value position — which also delivers
->   empty propagation with no synthesized IS-NOT-NULL).
+>   empty propagation with no synthesized IS-NOT-NULL). Placement of
+>   the parked predicate is a PER-SHAPE BIT (ON = row-preserving /
+>   WHERE = row-dropping) pinned to the engine chooser's semantics —
+>   see Batch 0a's doctrine refinement; the value-position witness's
+>   top-WHERE shape is one cell of that table, not the general rule.
 > - **GROUPED JOIN READ** — the consumption IS an explicit reducer
 >   call (`->sum()`, `->max()`, `->count()`, `->joinStrings()`, …,
 >   including pure's 1-arg collection `->plus()` which IS sum): the
@@ -290,6 +294,25 @@ total AND safe.
      chooser picks correlated or on-clause placement, INCLUDING the
      multi-thread null-cancellation edge the engine comment names.
      Otherwise §3 gains a third form matching the engine's chooser.
+     **DOCTRINE REFINEMENT (user ruling, 2026-08-29): the source is
+     the SEMANTIC spec, not the implementation spec — we should be
+     BETTER where we can.** And the finding permits exactly that: in
+     ROW semantics the engine's three strategies collapse to ONE BIT
+     — predicate placement. ON-clause pred = row-preserving
+     (non-matching root survives with NULLs); top-WHERE pred =
+     row-dropping; and BuildCorrelatedSubQuery's rows are IDENTICAL
+     to the ON-pred join's (root survives, value NULL) — it is an
+     expensive IMPLEMENTATION of row-preserving placement, not a
+     third semantics (the engine's own pros/cons comment concurs).
+     So §3 does NOT gain a third form after all. It gains a
+     PLACEMENT BIT: joins only, always (fanned or grouped, zero
+     correlated subqueries — strictly better implementation), with
+     per-shape placement (ON vs WHERE) pinned to what the engine's
+     chooser semantics deliver for that shape — derived from the 0a
+     routing map, verified by the 0b survey and the row oracle.
+     Deliberate row DIVERGENCES from the engine remain possible only
+     as user-ratified charter adjudications (the decision-1
+     precedent), never as implementation side effects.
    - **0b. Golden shape SURVEY (not sampling)**: script over the
      corpus's golden SQL strings — classify EVERY
      qualifier/navigation golden (fanned join / grouped subselect /
