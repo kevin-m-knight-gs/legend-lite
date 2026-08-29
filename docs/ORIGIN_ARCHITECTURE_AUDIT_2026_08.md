@@ -173,10 +173,22 @@ now gone, and the door is pinned:
   (floor held, no lane movement — the derivation flip is
   behavior-preserving where measured); DuckDB census byte-identical.
 
-Still open (unchanged by this finish, separate legs): the
-chained-joins DEMAND/PRUNING divergence above, and the pair-native
-loop form at the ~9 `paired()` zip sites (construction-lockstep,
-loud-on-desync — honest but not terminal).
+**PAIR-NATIVE ROUND (same day, second user push — "why do we let it
+in tests?"):** the positional zip is GONE ENTIRELY. Every production
+builder now mints each projection WITH its slot in the same loop
+iteration — `Fold.slot(c, sqlTypeOf(c))` where the loop holds the
+result `Type.Column` (rename, cast), `Fold.named(contract, name)`
+where it holds a lambda/key handle (groupBy keys, aggCols, project,
+flatten, InstanceProjection, tryProjectAll — contract threaded in),
+and born-together literals in Render (the hoistOrder carry became a
+single attached-projection list; rowOuts/presentedOuts deleted).
+`SqlSelect.paired` is DELETED OUTRIGHT — tests included (the one
+fixture converted to a born pair) — so the compiler itself is the
+guard; the interim `positionalPairingIsTestDslOnly` census pin was
+deleted as redundant. ALLGATES GREEN again (438s).
+
+Still open (a genuinely separate disease, not a deferral): the
+chained-joins DEMAND/PRUNING divergence above.
 
 ## Process note (recorded so it binds)
 

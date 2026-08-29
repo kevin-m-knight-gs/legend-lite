@@ -743,6 +743,7 @@ public final class Lowerer {
         SqlSelect base = CalendarAgg.joinCalendars(base0, g.aggs(), calCtx,
                 spec -> scalar(spec, (v, name) -> resolveOrThrow(base0, name)),
                 () -> aliasCounter++);
+        List<OutputCol> contract = outputsOf(g.info());
         List<SqlExpr> keys = new ArrayList<>(g.keys().size());
         List<SqlSelect.Projection> ps = new ArrayList<>();
         for (TypedGroupBy.GroupKey k : g.keys()) {
@@ -762,12 +763,12 @@ public final class Lowerer {
             ps.add(new SqlSelect.Projection(e,
                     !unionRead && e instanceof SqlExpr.Column c
                             && c.name().equals(k.column()) ? null : k.column(),
-                    null));
+                    Fold.named(contract, k.column())));
         }
-        AggCols ac = aggCols(base, g.aggs(), calCtx);
+        AggCols ac = aggCols(base, g.aggs(), calCtx, contract);
         ps.addAll(ac.ps());
         return ac.base().withGroupBy(keys)
-                .withProjections(SqlSelect.paired(ps, outputsOf(g.info())));
+                .withProjections(ps);
     }
 
     /** One envelope lambda lowered STRICTLY against the base select —
@@ -1029,9 +1030,8 @@ public final class Lowerer {
         SqlSelect src = relation(a.source());
         SqlSelect base = Fold.groupByFolds(src) ? src : isolate(src);
         return foldOrIsolate(base, "aggregate", b -> {
-            AggCols ac = aggCols(b, a.aggs(), null);
-            return ac.base().withProjections(
-                    SqlSelect.paired(ac.ps(), outputsOf(a.info())));
+            AggCols ac = aggCols(b, a.aggs(), null, outputsOf(a.info()));
+            return ac.base().withProjections(ac.ps());
         });
     }
 
@@ -1041,7 +1041,8 @@ public final class Lowerer {
     }
 
     private AggCols aggCols(SqlSelect base, List<TypedAggCol> aggs,
-            java.util.@com.legend.Nullable Map<TypedAggCol, CalendarAgg.Ctx> cal) {
+            java.util.@com.legend.Nullable Map<TypedAggCol, CalendarAgg.Ctx> cal,
+            List<OutputCol> contract) {
         List<SqlSelect.Projection> ps = new ArrayList<>(aggs.size());
         for (TypedAggCol a : aggs) {
             SqlExpr av = aggValue(base, a, cal == null ? null : cal.get(a));
@@ -1051,7 +1052,8 @@ public final class Lowerer {
                 base = oa.base();
                 av = oa.expr();
             }
-            ps.add(new SqlSelect.Projection(av, a.name(), null));
+            ps.add(new SqlSelect.Projection(av, a.name(),
+                    Fold.named(contract, a.name())));
         }
         return new AggCols(base, ps);
     }
@@ -1704,16 +1706,18 @@ public final class Lowerer {
      */
     private SqlSelect projectColumns(SqlSelect base, List<String> columns,
                                      ExprType info) {
-        List<SqlSelect.Projection> ps = Fold.tryProjectAll(base, columns);
+        List<OutputCol> contract = outputsOf(info);
+        List<SqlSelect.Projection> ps = Fold.tryProjectAll(base, columns,
+                contract);
         if (ps == null) {
             base = isolate(base);
-            ps = Fold.tryProjectAll(base, columns);
+            ps = Fold.tryProjectAll(base, columns, contract);
             if (ps == null) {
                 throw new IllegalStateException("select/distinct columns " + columns
                         + " cannot all be resolved even after isolation");
             }
         }
-        return base.withProjections(SqlSelect.paired(ps, outputsOf(info)));
+        return base.withProjections(ps);
     }
 
     /** Single-column relation removeDuplicates (rule owned by
@@ -1800,9 +1804,9 @@ public final class Lowerer {
             }
             ps.add(new SqlSelect.Projection(e, c.name().equals(
                     e instanceof SqlExpr.Column col ? col.name() : null)
-                            ? null : c.name(), null));
+                            ? null : c.name(), Fold.slot(c, sqlTypeOf(c.type()))));
         }
-        return base.withProjections(SqlSelect.paired(ps, outputsOf(r.info())));
+        return base.withProjections(ps);
     }
 
 
@@ -2000,16 +2004,13 @@ public final class Lowerer {
                              Predicate<String> renameWhen) {
         SqlSelect out = SqlSelect.starOf(source);
         if (prefix.isEmpty()) {
-            // star frame over the join: outputs are the SOURCE's own
-            // (Join.outputs() carries the pad truth) — starOf already
-            // read them; no schema-asserted list, nothing to repair
+            // star frame: outputs are the SOURCE's own (Join.outputs()
+            // carries the pad truth) — starOf already read them
             return out;
         }
-        // Outputs-from-projections (SQL-IR slice 2): each projection
-        // carries its declared slot — the star carries the left side's
-        // whole list, explicit columns attach their contract slot by
-        // name — so the frame's outputs are right at birth (the old
-        // stampJoinOrigins/starSideOrigin repair pass is deleted).
+        // Outputs-from-projections: the star carries the left side's
+        // whole list; explicit columns attach their contract slot —
+        // outputs right at birth (stampJoinOrigins is deleted).
         List<OutputCol> contract = outputsOf(info);
         List<SqlSelect.Projection> ps = new ArrayList<>();
         if (leftCarry != null) {
@@ -3178,6 +3179,7 @@ public final class Lowerer {
     private SqlSelect buildFlatten(SqlSelect base,
             TypedFlatten fl) {
         Type.RelationType schema = schemaOf(fl.source());
+        List<OutputCol> contract = outputsOf(fl.info());
         List<SqlSelect.Projection> ps = new ArrayList<>();
         for (Type.Column c : schema.columns()) {
             SqlExpr col = resolveOrThrow(base, c.name());
@@ -3187,12 +3189,13 @@ public final class Lowerer {
                         : col;
                 ps.add(new SqlSelect.Projection(
                         new SqlExpr.Call(SqlFn.UNNEST, List.of(list)),
-                        c.name(), null));
+                        c.name(), Fold.named(contract, c.name())));
             } else {
-                ps.add(new SqlSelect.Projection(col, null, null));
+                ps.add(new SqlSelect.Projection(col, null,
+                        Fold.named(contract, c.name())));
             }
         }
-        return base.withProjections(SqlSelect.paired(ps, outputsOf(fl.info())));
+        return base.withProjections(ps);
     }
 
     /**
@@ -3297,14 +3300,15 @@ public final class Lowerer {
                             || !CastPolicy.isSqlPrimitive(tc.type()) || !CastPolicy.isSqlPrimitive(from)
                             ? r.expr()
                             : new SqlExpr.Cast(r.expr(), PureSql.type(tc.type()));
-                    ps.add(new SqlSelect.Projection(v, tc.name(), null));
+                    ps.add(new SqlSelect.Projection(v, tc.name(),
+                            Fold.slot(tc, sqlTypeOf(tc.type()))));
                 }
                 case Resolution.Unfoldable u -> {
                     return null;
                 }
             }
         }
-        return base.withProjections(SqlSelect.paired(ps, outputsOf(c.info())));
+        return base.withProjections(ps);
     }
 
     /** Field access over a TO-MANY class value: MAP the extraction
@@ -3451,9 +3455,8 @@ public final class Lowerer {
         return Type.requireRelationSchema(spec.info().type());
     }
 
-    /** DERIVED-origin convenience — the three PHYSICAL doors (table
-     * scan, sourceUrl, rawSql: names owned by an external reality, not
-     * invented by this query) pass the origin explicitly. */
+    /** DERIVED-origin convenience — the three PHYSICAL doors pass
+     * the origin explicitly (names owned by an external reality). */
     List<OutputCol> outputsOf(ExprType info) {
         return outputsOf(info, OutputCol.Origin.DERIVED);
     }

@@ -161,26 +161,6 @@ public record SqlSelect(List<Projection> projections, boolean distinct,
 
     }
 
-    /** Attach declared outputs to projections POSITIONALLY — for the
-     * builders that compute both halves side by side in one loop (the
-     * lists are the same knowledge, stated twice). Sizes must match
-     * exactly and no star may be present — a mismatch is the old
-     * silent-desync bug surfacing loudly at the construction site. */
-    public static List<Projection> paired(List<Projection> ps,
-            List<OutputCol> outs) {
-        if (ps.size() != outs.size()) {
-            throw new IllegalArgumentException("projection/output pairing"
-                    + " mismatch: " + ps.size() + " projections vs "
-                    + outs.size() + " outputs");
-        }
-        List<Projection> out = new ArrayList<>(ps.size());
-        for (int i = 0; i < ps.size(); i++) {
-            Projection p = ps.get(i);
-            out.add(new Projection(p.expr(), p.alias(), outs.get(i)));
-        }
-        return out;
-    }
-
     /** One ORDER BY key; {@code nullOrder} null = dialect default.
      * {@code outputName} — the projected TDS column a COLUMN-NAME-keyed
      * sort addresses; engine text spells it ({@code order by "name"

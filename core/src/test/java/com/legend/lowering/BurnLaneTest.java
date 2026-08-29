@@ -103,8 +103,10 @@ class BurnLaneTest {
         assertTrue(oa != null,
                 "the obligation must fire through the CONCAT wrap");
         String sql = new com.legend.sql.dialect.DuckDb()
-                .render(oa.base().withProjections(SqlSelect.paired(List.of(new SqlSelect.Projection(oa.expr(), "r", null)), List.of(new OutputCol("r",
-                                SqlType.Scalar.VARCHAR, false)))));
+                .render(oa.base().withProjections(List.of(
+                        new SqlSelect.Projection(oa.expr(), "r",
+                                new OutputCol("r",
+                                        SqlType.Scalar.VARCHAR, false)))));
         assertTrue(sql.contains("u_ord"),
                 "u_ord must be minted and ordered by, got:\n" + sql);
         assertTrue(sql.contains("ORDER BY") || sql.contains("order by"),

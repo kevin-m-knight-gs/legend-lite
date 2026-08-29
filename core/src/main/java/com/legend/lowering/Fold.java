@@ -602,6 +602,20 @@ final class Fold {
      * and the sides. Names match by the frame's OUTER spelling
      * (prefix renames applied to the padded right side); a name miss
      * merely keeps today's claim (under-weakening, never a lie). */
+    /** PAIR-NATIVE minter: the contract slot for ONE typed result
+     * column, from the very {@code Type.Column} the builder's loop
+     * holds ({@code t} = the Lowerer's dialect-aware SQL type for it)
+     * — outputsOf's scalar arm; a ROW-STRUCT column walls. */
+    static com.legend.sql.OutputCol slot(Type.Column c,
+            com.legend.sql.SqlType t) {
+        if (c.type() instanceof Type.RelationType) {
+            throw new IllegalStateException("row-struct column '"
+                    + c.name() + "' has no single output slot");
+        }
+        return new com.legend.sql.OutputCol(c.name(), t,
+                PureSql.nullable(c.multiplicity()), false);
+    }
+
     /** The DECLARED slot for {@code name} out of a contract output
      * list — the attachment door for builders whose projections don't
      * line up positionally with the schema (star-headed extends,
@@ -1104,7 +1118,8 @@ final class Fold {
 
     /** All columns resolved against {@code base}, or null if any misses
      * (moved from Lowerer — this is Fold's own resolveInto vocabulary). */
-    static @com.legend.Nullable List<SqlSelect.Projection> tryProjectAll(SqlSelect base, List<String> columns) {
+    static @com.legend.Nullable List<SqlSelect.Projection> tryProjectAll(
+            SqlSelect base, List<String> columns, List<OutputCol> contract) {
         List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
         for (String c : columns) {
             SqlExpr e = Fold.resolveInto(base, c);
@@ -1134,7 +1149,8 @@ final class Fold {
                     && sub.alias().equals(uc.table());
             ps.add(new SqlSelect.Projection(e,
                     !unionRead && e instanceof SqlExpr.Column col
-                            && col.name().equals(c) ? null : c, null));
+                            && col.name().equals(c) ? null : c,
+                    named(contract, c)));
         }
         return ps;
     }
