@@ -102,8 +102,39 @@ def body_of(lines, start):
         out.append(lines[j])
     return "".join(out)
 
-# golden = pure single-quoted string literal starting with select
-golden_re = re.compile(r"'((?:select|Select|SELECT)\s(?:[^'\\]|\\.)*)'")
+# golden = pure single-quoted string literal starting with select/with;
+# concatenated continuations ('…' + '…' + $var + '…') are stitched, with
+# non-literal chunks replaced by a ¤ placeholder (interpolated dates etc.)
+start_re = re.compile(r"'((?:select|with)\s(?:[^'\\]|\\.)*)'", re.IGNORECASE)
+lit_re = re.compile(r"'((?:[^'\\]|\\.)*)'")
+plus_re = re.compile(r"\s*\+\s*")
+expr_re = re.compile(r"\$?[\w.:]+(?:\([^()]*\))?(?:->\w+\([^()]*\))*")
+
+def extract_goldens(body):
+    out, pos = [], 0
+    while True:
+        m = start_re.search(body, pos)
+        if not m:
+            break
+        g, end = m.group(1), m.end()
+        while True:
+            m2 = plus_re.match(body, end)
+            if not m2:
+                break
+            rest = m2.end()
+            m3 = lit_re.match(body, rest)
+            if m3:
+                g += m3.group(1)
+                end = m3.end()
+            else:
+                m4 = expr_re.match(body, rest)
+                if not m4:
+                    break
+                g += " ¤ "
+                end = rest + m4.end()
+        out.append(g)
+        pos = end
+    return out
 
 def unescape(s):
     return s.replace("\\'", "'").replace("\\n", " ")
@@ -123,10 +154,10 @@ def classify_sql(sql):
         else:
             shapes.append("filtered-subselect-join")
     # correlated scalar subquery: a (select ...) NOT preceded by
-    # join/exists/in/from/union (those are inline views / set ops)
+    # join/exists/in/from/union/as (inline views, set ops, CTE bodies)
     for m in re.finditer(r"\(\s*select\b", s):
         pre = s[max(0, m.start()-16):m.start()]
-        if re.search(r"(join|exists|in|from|union|union all|,)\s*$", pre):
+        if re.search(r"(join|exists|in|from|union|union all|as|,)\s*$", pre):
             continue
         shapes.append("scalar-subquery")
     # on-clause non-key predicate: literal comparison inside on(...)
@@ -167,7 +198,7 @@ for t in sorted(tests):
     path, start, lines = index[t]
     body = body_of(lines, start)
     forced = ("::forced::" in t) or ("forcedIsolation" in body) or ("Forced" in t)
-    goldens = [unescape(g) for g in golden_re.findall(body)]
+    goldens = [unescape(g) for g in extract_goldens(body)]
     position = classify_position(body)
     if not goldens:
         rows.append((t, "forced" if forced else "default", position, "no-sql-golden", "", "|".join(sorted(arms.get(t, set())))))

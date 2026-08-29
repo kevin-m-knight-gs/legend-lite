@@ -176,7 +176,7 @@ IN-literal join-condition tests, located by hand, not
 navigation-routing shapes).
 
 **Headline: ZERO correlated scalar subqueries in the entire golden
-universe.** Every `(select` in all 1,083 SQL goldens is an inline
+universe.** Every `(select` in all 1,085 SQL goldens is an inline
 view (`from (select`/`join (select`), a set-op member, or an
 `exists`/`in` predicate — none in a SELECT list or comparison.
 (Honesty note: the first classifier pass reported ~205
@@ -191,18 +191,20 @@ Shape counts (test×golden rows; a row can carry several tags):
 
 | shape tag | rows (default) | rows (forced) |
 |---|---|---|
-| top-where predicate | 670 | 20 |
-| filtered-subselect join | 324 | 12 |
+| top-where predicate | 689 | 20 |
+| filtered-subselect join | 358 | 12 |
 | on-clause literal predicate | 195 | 4 |
-| plain join (keys only) | 185 | 0 |
-| single table | 125 | 0 |
+| plain join (keys only) | 203 | 0 |
+| single table | 70 | 0 |
 | grouped-subselect join | 28 | 0 |
-| exists predicate | 23 | 0 |
-| no SQL golden (result-only test) | 248 | 1 |
+| exists predicate | 25 | 0 |
+| no SQL golden (result-only test) | 246 | 1 |
 | correlated scalar subquery | **0** | **0** |
 
 (1,309 default + 23 forced test×golden rows; a row can carry several
-tags.)
+tags. Counts are POST-AUDIT: the extractor stitches concatenated
+golden literals and accepts `with`-prefixed CTE goldens — see the
+audit log below.)
 
 The `_ecq` distinct-join exists form appears in ZERO goldens (grepped
 across the whole engine tests tree) — committed exists goldens pin
@@ -287,3 +289,62 @@ code-verified at the emitting lines.
   the assert spelling).
 - The engine checkout is the pinned oracle version (W10 re-pin,
   4.138.2 lineage) — line numbers cite that tree.
+
+## AUDIT LOG (same day, user-ordered "audit the homework" — every
+## receipt re-tested adversarially; all corrections applied above)
+
+1. **Truncation hole FOUND AND FIXED.** The first extractor stopped a
+   golden at its first string literal — 63 goldens across 48 tests
+   (testDataGeneration, modelJoin::advanced, sqlstring families) were
+   concatenations whose TAILS were never scanned. Extractor now
+   stitches `'…' + '…' + $var + '…'` chains (non-literal chunks
+   become a `¤` placeholder); the shape table above is the re-run.
+   Movement was shape-refinement only (truncated single-table/plain
+   rows revealed their joins and subselects); the zero-correlated
+   headline held.
+2. **Whole-tree raw-text sweep** (2,009 .pure files — independent of
+   extraction, census universe, and concatenation): every
+   `(select`-after-paren in the core_relational test trees resolves
+   to a split-literal `join (select` inline view (4), a CTE (2), or
+   ONE genuinely correlated scalar subquery that is COMMENTED OUT
+   (functions/tests/projection/testFilter.pure:31 — dead code, not a
+   golden). The headline is now verified against the whole tests
+   tree, not just the census universe. (The 374 raw survivors outside
+   it are dialect-module metamodel literals `^select(…)` and
+   renderer source — not goldens.)
+3. **Six extraction misses adjudicated**: 2 contains-assert quoting
+   tests — including `testBiTemporalUnionAsJoinTarget_
+   correlatedSubqueryQuoting`, whose asserts pin the
+   buildCorrelatedSubQuery WRAPPER aliases (`as "unionalias_0"`),
+   CORROBORATING the join-not-scalar reading; 2 routing tests whose
+   goldens start with `with` (CTE — extractor now accepts them; they
+   classify as join fan-out + CTE-level count); 2 relation-paradigm
+   filter tests (no full golden).
+4. **ON-cell mechanism verified at the model source** (the audit's
+   sharpest check — was the ON predicate a qualifier's or the
+   mapping join's?): `cusip(){$this.synonymByType(CUSIP).name}` and
+   `synonymByType(type){$this.synonyms->filter(s|$s.type ==
+   $type)->toOne()}` (simpleTestModel.pure:408,454) — a genuine
+   filtered-navigation qualifier over the synonyms association. The
+   ON placement in that golden IS the projection-thread chooser
+   branch (L7570-7571) lifting a QUALIFIER predicate; the cell
+   stands, now with its mechanism attributed.
+5. **`sum` absence re-verified against BOTH registries**: no row in
+   `getSupportedFunctions` AND none in
+   `getContextBasedSupportedFunctions` (L9543+, entries are
+   at/match/typeName/…): sum reaches routing only as its body.
+6. **`buildExistsPredicate` upgraded from asserted to READ**
+   (L5507-5573): emits `exists(<subselect>)` as a DynaFunction over
+   a subselect projecting `1` — with a group-by/having relocation
+   arm (L5543-5551) that moves outer GROUP BY into the EXISTS body
+   when its columns aren't visible outside.
+7. **Stale pointer corrected**: the design doc's "exists chooser
+   ~L5607" lands inside `processIn`; the actual exists dispatch is
+   L5363-5368 (`shouldBuildExistsPredicate` at L5378).
+8. Known remaining coarseness (disclosed, not load-bearing): shape
+   tags are regex-level; `top-where-pred` fires on any WHERE
+   comparison; the "engine 7 raw rows" figure for
+   testQualifierQueryWithOr is the charter's measurement, not
+   re-measured here; the 3 multi-line-header census stragglers
+   remain out of the TSV (located, IN-clause join tests, not
+   navigation shapes).
