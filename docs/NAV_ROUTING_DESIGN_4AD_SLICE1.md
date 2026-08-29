@@ -222,6 +222,17 @@ sortBy / bare / fnlr). The rewrite rules in §3 are then checked
 against that table, not against guesses — hacks #5/#6 both died from
 guessing arm attribution.
 
+ADDENDUM (self-audit, 2026-08-29): the census must ALSO (a) count
+`filteredNavLeafRead` firings per test — the correlated family round
+1 missed; its blast radius bounds what the batch-5 deletion must
+cover — and (b) locate an engine witness with TWO differently-
+filtered VALUE-position reads in one query: the top-WHERE placement
+rule is measured from a single-occurrence witness, and a shared WHERE
+would make the two predicates interact (a row dying when EITHER
+qualifier misses may not be engine semantics). Placement for the
+multi-occurrence case is decided by that witness's golden, not
+asserted.
+
 Named witnesses (all shapes must be green post-implementation):
 - `advanced::structure::testQualifierWithOperation` (fanned, map `+`)
 - `advanced::forced::structure::testQualifierQueryWithOr`
@@ -238,28 +249,48 @@ Named witnesses (all shapes must be green post-implementation):
 ## 6. IMPLEMENTATION PLAN (gated batches, each: witness probe →
 ## full sweep → allgates → push)
 
-1. **Revert working tree to `a618c5d2`.** Then delete batch-1's
-   pred-count gate + blanket arity gate as part of batch 2 (below) —
-   NOT as a standalone revert commit (the lift permission and the
-   plus rule must flip together with the new rewrite, or shapes
-   strand — the #4 lesson).
-2. **Batch 2 — the router**: `liftFilteredHeads` classifies each
-   filtered-nav consumption by syntax (explicit-reducer vs not) and
-   rewrites to the canonical form. The scalar `[0..1]` value reads
-   join the fanned form (no gate — but chained/milestoned heads make
-   the materializer wall LOUDLY with named messages until their bugs
-   are fixed; walls are counted, never routed around). aggScan's
-   plus arms + `filteredNavLeafRead` value matching die in the same
-   batch. Expected pins from the topology round's measurements:
-   exec-passing ≥1,390, h2 floor ≥1,374, walls 947 (justified UNNEST
-   +1), rescued-passes 817, tests/advanced ≥64 — re-measure, don't
-   assume; the grouped-form rewrite may move more.
-3. **Batch 3 — burn the named bugs**: per-occurrence mid-hop
-   bundling (unlocks chained heads incl. `testProjectMerge`'s shape
-   as fan-out and `testChainedInnerJoinsWithQualifierInGroupBy`'s
-   qualifier), then the dated-head alias fix (unlocks milestoned).
-   Each deletion of a wall is its own receipt.
-4. **Slice 2 (SEPARATE, user-gated)**: filter-position dedup removal
+**ORDERING PRINCIPLE (self-audit fix, 2026-08-29): capability FIRST,
+routing flip SECOND.** An earlier draft deleted the correlated arm in
+the router batch with chained/milestoned shapes "walling until
+fixed" — that would convert an UNMEASURED number of currently-green
+tests (the fnlr-riding shapes the census never counted) into walls,
+contradicting the zero-regressions criterion below. Walls-not-
+fallbacks is right for NEW capability; applied to working shapes it
+is regression with good posture. So the materializer bugs burn
+before the router flips, and the deletion lands only when it is
+total AND safe.
+
+1. **Revert working tree to `a618c5d2`.**
+2. **Batch 2 — arm-attribution census** (design §5, incl. fnlr
+   firings per test — the family round 1 missed) + the standalone
+   size-2 emission bug fix if separable (n-ary plus can never emit a
+   valid AggDemand). Measurement batch; behavior change only if the
+   emission fix is provably inert on the sweep.
+3. **Batch 3 — capability: per-occurrence mid-hop bundling** (the
+   engine's own shape — mid ⋈ target inside each filtered
+   occurrence's subselect). Pure materializer capability; existing
+   routing untouched; zero behavior change expected on green tests.
+4. **Batch 4 — capability: dated-head materialization alias fix**
+   (the unbound `t1.*`-vs-"root" bug; its witness fails at baseline,
+   so this one can only improve).
+5. **Batch 5 — THE ROUTER FLIP**: `liftFilteredHeads` classifies
+   each filtered-nav consumption by syntax and rewrites to the
+   canonical form; batch-1's pred-count + blanket-arity gates,
+   aggScan's implicit-plus arms, and `filteredNavLeafRead`'s
+   value-position matching are DELETED in this one batch (the lift
+   permission and the plus rule flip together — the #4 lesson).
+   Pred placement for MULTI-OCCURRENCE value position follows the
+   engine witness batch 2 must have located (see §5 addendum) — a
+   single shared top WHERE is NOT assumed. Pins from the topology
+   round (exec-passing ≥1,390, h2 ≥1,374, walls 947, rescued 817,
+   advanced ≥64) are floors to re-measure, not targets.
+6. **Batch 6 — retire the RelationPredicates correlated reducers**
+   (`correlated-count-reducer` 234 + `correlated-agg-reducer` 2 from
+   the census): count/size/sum-style consumptions of navigation
+   relations move onto the GROUPED JOIN form. Named here so it
+   cannot linger as an unscheduled clause — it is the same
+   syntax-directed rule applied to the relation-argument spellings.
+7. **Slice 2 (SEPARATE, user-gated)**: filter-position dedup removal
    per charter decision 2 — needs its own reviewed plan before any
    code.
 
