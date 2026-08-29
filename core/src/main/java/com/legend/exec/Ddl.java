@@ -69,13 +69,23 @@ public final class Ddl {
                 sb.append(f == Flavor.ENGINE_TEXT ? "," : ", ");
             }
             first = false;
-            // EXEC flavors FULL-quote (corpus columns carry spaces and
-            // reserved words — the dialect's quoteCreateColumns passes
-            // quoted heads through); ENGINE_TEXT quotes by the engine's
-            // processColumnName rule
-            sb.append(f == Flavor.ENGINE_TEXT
-                            ? processColumnName(col.name())
-                            : '"' + col.name() + '"')
+            // Column spelling is PER TARGET (convergence batch A,
+            // 2026-08-28): H2_EXEC follows the engine's own rule plus
+            // the execution necessity (execIdentifier) — the old
+            // full-quote made OUR create disagree with OUR insert's
+            // bare spelling, and only session case-insensitivity
+            // papered over it (engine-cased probe: 300+ seed-replay
+            // failures, all this skew; the engine's java-keyword table
+            // runs BARE on its session — that is what NON_KEYWORDS is
+            // for). DUCK_EXEC keeps the full quote: this DDL executes
+            // DIRECTLY on DuckDB (F7.4 — the boundary serves
+            // hand-written text only) and DuckDB reserves words H2's
+            // session un-reserves (default, else, do ...).
+            sb.append(switch (f) {
+                        case ENGINE_TEXT -> processColumnName(col.name());
+                        case H2_EXEC -> execIdentifier(col.name());
+                        case DUCK_EXEC -> '"' + col.name() + '"';
+                    })
                     .append(' ').append(spell(col.dataType(), f));
             if (f == Flavor.ENGINE_TEXT) {
                 sb.append(col.primaryKey() || col.notNull()
@@ -129,6 +139,21 @@ public final class Ddl {
             return '"' + name.replace("\"", "") + '"';
         }
         return name;
+    }
+
+    /** The engine's identifier rule PLUS the EXECUTION necessity: an
+     * identifier that cannot lexically spell BARE (digit-leading, any
+     * non-word char) must quote — the engine's own rule has no such
+     * trigger because it never EXECUTES that DDL (witness:
+     * tableWithQuotedColumns' 1columnStartsWithNumber lives in a
+     * lineage-only model; extensionDefaults.pure:557-563 quotes only
+     * pre-quoted/reserved/space). We execute every module's DDL, and
+     * H2 and DuckDB both reject bare digit-leading identifiers. */
+    private static String execIdentifier(String name) {
+        if (!name.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+            return '"' + name.replace("\"", "") + '"';
+        }
+        return processColumnName(name);
     }
 
     /** The ENGINE's setUpDataSQLs TEXT (toDDL.pure:186-195 +
@@ -326,7 +351,10 @@ public final class Ddl {
                     }
                 }
             }
-            colNames.add(col != null ? col.name() : h);
+            // SAME identifier rule as the create (batch A): a reserved
+            // or space-bearing column quotes in BOTH or the pair breaks
+            // on a case-sensitive session
+            colNames.add(execIdentifier(col != null ? col.name() : h));
             String cell = cells.get(c);
             boolean numeric = col != null && isNumericType(col.dataType());
             values.add(numeric ? cell.strip()

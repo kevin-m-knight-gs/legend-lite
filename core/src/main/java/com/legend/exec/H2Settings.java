@@ -16,19 +16,6 @@ public final class H2Settings {
     private H2Settings() {
     }
 
-    /** JDBC-URL suffix, {@code ;KEY=VALUE} form. */
-    public static final String SETTINGS =
-            // CASE_INSENSITIVE_IDENTIFIERS mirrors DuckDB's matching —
-            // the SAME recorded statements already ran there; quoted
-            // model-DDL case vs unquoted corpus-INSERT case must not
-            // diverge between the two targets
-            ";MODE=LEGACY;DATABASE_TO_UPPER=false"
-            + ";CASE_INSENSITIVE_IDENTIFIERS=TRUE;NON_KEYWORDS=ANY,"
-            + "ASYMMETRIC,AUTHORIZATION,CAST,CURRENT_PATH,CURRENT_ROLE,"
-            + "DAY,DEFAULT,ELSE,END,HOUR,KEY,MINUTE,MONTH,SECOND,"
-            + "SESSION_USER,SET,SOME,SYMMETRIC,SYSTEM_USER,TO,UESCAPE,"
-            + "USER,VALUE,WHEN,YEAR";
-
     /** The engine's session EXACTLY as H2Defaults spells it
      * (legend-engine-xt-relationalStore-h2-execution-2.1.214,
      * H2Defaults.java): case-SENSITIVE identifiers, no
@@ -44,4 +31,20 @@ public final class H2Settings {
             + "MINUTE,MONTH,SECOND,SESSION_USER,SET,SOME,SYMMETRIC,"
             + "SYSTEM_USER,TO,UESCAPE,USER,VALUE,WHEN,YEAR,OVER"
             + ";MODE=LEGACY";
+
+    /** JDBC-URL suffix, {@code ;KEY=VALUE} form. CONVERGENCE IN
+     * FLIGHT (user-ratified 2026-08-28, "converge directly"): this
+     * becomes ENGINE_CASED verbatim once the emitters conform —
+     * batch A insert/create spelling, batch B renderer identifier
+     * rule — and the case-insensitivity flags below die with the
+     * case-collision retry. Probes: DuckDB lane 1385->1020 and h2
+     * lane 1361->1118 under ENGINE_CASED today, ALL dominant damage =
+     * our own create-vs-insert / render-vs-DDL case skew. */
+    public static final String SETTINGS =
+            ";MODE=LEGACY;DATABASE_TO_UPPER=false"
+            + ";CASE_INSENSITIVE_IDENTIFIERS=TRUE;NON_KEYWORDS=ANY,"
+            + "ASYMMETRIC,AUTHORIZATION,CAST,CURRENT_PATH,CURRENT_ROLE,"
+            + "DAY,DEFAULT,ELSE,END,HOUR,KEY,MINUTE,MONTH,SECOND,"
+            + "SESSION_USER,SET,SOME,SYMMETRIC,SYSTEM_USER,TO,UESCAPE,"
+            + "USER,VALUE,WHEN,YEAR";
 }

@@ -519,7 +519,9 @@ public final class H2Verify {
      * property, see the frame-side twin in goldenGraphCompare). */
     private static boolean bookkeepingAlias(String label) {
         return label.matches("pk_\\d+(_\\d+)*")
-                || label.equals("u_type")
+                // both engine spellings: union mappings emit u_type,
+                // modelJoin's materialized-subselect goldens U_TYPE
+                || label.equalsIgnoreCase("u_type")
                 || label.matches("(from_z|thru_z|in_z|out_z)(_\\d+)*")
                 || label.equals("k_businessDate")
                 || label.equals("k_processingDate");
