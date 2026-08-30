@@ -442,22 +442,23 @@ public final class PlanText {
         return sb.toString();
     }
 
-    /** The mapping's ENUMERATION-MAPPING for an enum FQN (exact match
-     * first, simple-name second — parsed mappings may hold either
-     * spelling), or null. */
+    /** The mapping's ENUMERATION-MAPPING for an enum FQN — includes'
+     * transitively, own first (exact match first, simple-name second —
+     * parsed mappings may hold either spelling), or null. */
     public static com.legend.model.@com.legend.Nullable EnumerationMapping enumMappingOf(
             ModelContext ctx, String mappingFqn, String enumFqn) {
         var md = ctx.findLegacyMapping(mappingFqn).orElse(null);
         if (md == null) {
             return null;
         }
+        var ems = md.enumerationMappingsWithIncludes(ctx::findLegacyMapping);
         String simple = enumFqn.substring(enumFqn.lastIndexOf(':') + 1);
-        for (var em : md.enumerationMappings()) {
+        for (var em : ems) {
             if (em.enumName().equals(enumFqn)) {
                 return em;
             }
         }
-        for (var em : md.enumerationMappings()) {
+        for (var em : ems) {
             if (em.enumName().equals(simple)
                     || em.enumName().endsWith("::" + simple)) {
                 return em;
@@ -466,13 +467,7 @@ public final class PlanText {
         return null;
     }
 
-    private static @com.legend.Nullable String enumMappingIdOf(ModelContext ctx,
-            String mappingFqn, String enumFqn) {
-        var em = enumMappingOf(ctx, mappingFqn, enumFqn);
-        return em == null ? null : em.mappingId();
-    }
-
-    /** enumMappingIdOf, disambiguated: a mapping may declare SEVERAL
+    /** enumMappingOf's id, disambiguated: a mapping may declare SEVERAL
      * enumeration mappings over one enum — the PROPERTY MAPPING that
      * reads the column declares which one ({@code prop:
      * EnumerationMapping synonym: T.COL}). Falls back to
@@ -484,7 +479,8 @@ public final class PlanText {
             return null;
         }
         String simple = enumFqn.substring(enumFqn.lastIndexOf(':') + 1);
-        var candidates = md.enumerationMappings().stream()
+        var candidates = md
+                .enumerationMappingsWithIncludes(ctx::findLegacyMapping).stream()
                 .filter(em -> em.enumName().equals(enumFqn)
                         || em.enumName().equals(simple)
                         || em.enumName().endsWith("::" + simple))
@@ -526,7 +522,8 @@ public final class PlanText {
      * mapping carries no enumeration mapping for the enum. */
     public static @com.legend.Nullable String enumMapFnOf(ModelContext ctx, String mappingFqn,
             String enumFqn) {
-        String id = enumMappingIdOf(ctx, mappingFqn, enumFqn);
+        var em = enumMappingOf(ctx, mappingFqn, enumFqn);
+        String id = em == null ? null : em.mappingId();
         return id == null ? null
                 : "enumMap_" + mappingFqn.replace("::", "_") + "_" + id;
     }

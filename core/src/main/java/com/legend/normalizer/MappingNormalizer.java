@@ -2759,31 +2759,6 @@ public final class MappingNormalizer {
                 colRead, md, ownerClassFqn, model);
     }
 
-    /** This mapping's enum mappings PLUS its includes' (transitively; own first). */
-    private static List<EnumerationMapping> enumerationMappingsWithIncludes(
-            LegacyMappingDefinition md, ModelBuilder model) {
-        List<EnumerationMapping> out = new ArrayList<>(md.enumerationMappings());
-        Set<String> seen = new HashSet<>();
-        collectIncludedEnumMappings(md, model, out, seen);
-        return out;
-    }
-
-    private static void collectIncludedEnumMappings(LegacyMappingDefinition md,
-            ModelBuilder model, List<EnumerationMapping> out, Set<String> seen) {
-        for (MappingInclude inc : md.includes()) {
-            if (!seen.add(inc.mappingPath())) {
-                continue;
-            }
-            LegacyMappingDefinition included =
-                    model.findLegacyMapping(inc.mappingPath()).orElse(null);
-            if (included == null) {
-                continue;
-            }
-            out.addAll(included.enumerationMappings());
-            collectIncludedEnumMappings(included, model, out, seen);
-        }
-    }
-
     /**
      * The enum-decode if/equal chain over ANY source read — a column or a
      * translated expression ({@code role: EnumerationMapping M : case(...)},
@@ -2794,7 +2769,8 @@ public final class MappingNormalizer {
             String propertyName, @com.legend.Nullable String enumMappingId, ValueSpecification sourceRead,
             LegacyMappingDefinition md, String ownerClassFqn, ModelBuilder model) {
         EnumerationMapping em = null;
-        List<EnumerationMapping> ems = enumerationMappingsWithIncludes(md, model);
+        List<EnumerationMapping> ems =
+                md.enumerationMappingsWithIncludes(model::findLegacyMapping);
         if (enumMappingId != null) {
             // engine getEnumerationMappingId (HelperMappingBuilder:348-351):
             // an anonymous enum mapping's IMPLICIT id is its enumeration FQN

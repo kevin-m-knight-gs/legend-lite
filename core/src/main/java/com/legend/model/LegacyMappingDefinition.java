@@ -86,6 +86,53 @@ public record LegacyMappingDefinition(
     }
 
     /**
+     * This mapping's enumeration mappings PLUS its includes' (transitively,
+     * own-first, cycle-safe) &mdash; the ONE answer to &quot;what
+     * enumeration mappings does this mapping carry?&quot; (engine
+     * HelperMappingBuilder: an included mapping's enumeration mappings are
+     * part of the includer). A bare include path (no {@code ::}) resolves
+     * in the INCLUDER's package when the direct lookup misses
+     * (grammar-side sources carry bare names; the engine resolves them
+     * against the importer's scope). An unresolvable include is skipped
+     * here &mdash; {@code ClassSources} owns the loud guard when the
+     * include is consumed for class bindings.
+     */
+    public List<EnumerationMapping> enumerationMappingsWithIncludes(
+            java.util.function.Function<String,
+                    java.util.Optional<LegacyMappingDefinition>> find) {
+        List<EnumerationMapping> out = new java.util.ArrayList<>(enumerationMappings);
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        seen.add(qualifiedName);
+        collectIncludedEnums(this, find, out, seen);
+        return out;
+    }
+
+    private static void collectIncludedEnums(LegacyMappingDefinition md,
+            java.util.function.Function<String,
+                    java.util.Optional<LegacyMappingDefinition>> find,
+            List<EnumerationMapping> out, java.util.Set<String> seen) {
+        for (MappingInclude inc : md.includes()) {
+            String path = inc.mappingPath();
+            if (!path.contains("::") && md.qualifiedName().contains("::")) {
+                String inPkg = md.qualifiedName().substring(0,
+                        md.qualifiedName().lastIndexOf("::")) + "::" + path;
+                if (find.apply(inPkg).isPresent()) {
+                    path = inPkg;
+                }
+            }
+            if (!seen.add(path)) {
+                continue;
+            }
+            LegacyMappingDefinition included = find.apply(path).orElse(null);
+            if (included == null) {
+                continue;
+            }
+            out.addAll(included.enumerationMappings());
+            collectIncludedEnums(included, find, out, seen);
+        }
+    }
+
+    /**
      * A db-qualified table reference: {@code [database::name] TABLE_NAME}.
      * Used for class-mapping main tables and other relational anchors. Both
      * fields are required; bare-table references inside mapping context are
