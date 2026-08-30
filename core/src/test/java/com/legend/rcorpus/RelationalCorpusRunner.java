@@ -714,7 +714,11 @@ public class RelationalCorpusRunner {
             // (batch-5 placement defect, tests/advanced baseline 66 ->
             // 64) — burned by P1, which restores 66. Never re-parked,
             // never re-adjudicated.
-            org.junit.jupiter.api.Assertions.assertEquals(1448,
+            // 1448 -> 1449 (§4AD task #72, strict-read hoist): the
+            // formerly-WALLED testInputNotIsolatedWhenPropertyPathIsToOne
+            // now executes — its sql-text assert row-verifies (our
+            // presence spelling vs the engine's hoisted-pred text).
+            org.junit.jupiter.api.Assertions.assertEquals(1449,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-with-exec-passing"),
@@ -1033,9 +1037,13 @@ public class RelationalCorpusRunner {
                     // RightTable + ...WithAndConditionOnRootAndRight-
                     // Table — engine spells the pred ONCE in the ON,
                     // ours ALSO guards the WHERE).
+                    // 863 -> 864 (§4AD task #72): the un-walled
+                    // testInputNotIsolatedWhenPropertyPathIsToOne passes
+                    // CARRYING the row-verified rescue (ERROR -> PASS,
+                    // functions/tests 241 -> 242, corpus 2,353 -> 2,354).
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            softRescued <= 863, "text-rescued passes grew: "
-                                    + softRescued + " > 863"),
+                            softRescued <= 864, "text-rescued passes grew: "
+                                    + softRescued + " > 864"),
                     // contract-program wire ratchets (RE-PINNED at the
                     // 2026-08-24 label flip: 181->114->56 and 130->13 —
                     // adopted HUGEINT labels, registered carriages, then

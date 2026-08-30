@@ -818,16 +818,18 @@ public final class Lowerer {
         SqlSelect src = relation(g.source());
         // json_group_array is an AGGREGATE and the envelope REPLACES the
         // projection list — the groupBy folding constraints are exactly right.
-        SqlSelect base = Fold.groupByFolds(src) ? src : isolate(src);
-        SqlSelect envelope = base;
-        ColumnResolver own = scopedResolver(base, g.rowVar());
+        SqlSelect base0 = Fold.groupByFolds(src) ? src : isolate(src);
+        // §4AD batch-6 tail: fr[0] = the LIVE frame (decorrelated
+        // reducer leaves add grouped LEFT joins to it)
+        SqlSelect[] fr = {base0};
+        ColumnResolver own = scopedResolver(base0, g.rowVar());
         List<SqlExpr> kv = new ArrayList<>(2 * (g.leaves().size() + g.nested().size()));
         java.util.Set<String> arrayProps = new java.util.LinkedHashSet<>();
         for (TypedFuncCol leaf : g.leaves()) {
             kv.add(new SqlExpr.StringLit(leaf.name()));
-            kv.add(Fold.jsonDateWrap(
-                    envelopeScalar(leaf, base, "serialize leaf"),
-                    Fold.leafResultType(leaf)));
+            kv.add(GraphAggDecorrelate.apply(fr, Fold.jsonDateWrap(
+                    envelopeScalar(leaf, fr[0], "serialize leaf"),
+                    Fold.leafResultType(leaf)), this::nextAlias));
         }
         for (var child : g.nested()) {
             kv.add(new SqlExpr.StringLit(child.property()));
@@ -837,7 +839,7 @@ public final class Lowerer {
             if (child.node().inlineChild()) {
                 // EMBEDDED child: same-row json object, leaves resolve
                 // against the PARENT select — no subquery (task #78 H4b)
-                kv.add(inlineWrapped(base, child.node()));
+                kv.add(inlineWrapped(fr[0], child.node()));
                 continue;
             }
             enclosing.push(own);
@@ -867,7 +869,7 @@ public final class Lowerer {
                                 arrayProps, g.removeEmptySets())
                         : new SqlExpr.JsonObject(baseKv);
         // ->subType views: DISJOINT members -> ONE CASE over the witnesses;
-        // a member's branch serializes base + subtype fields IN FULL (engine
+        // a member's branch serializes fr[0] + subtype fields IN FULL (engine
         // keeps "coordinate":null on member rows); non-members fall through
         if (!g.subTypePatches().isEmpty() && !g.bareValue()) {
             List<SqlExpr.Case.When> whens = new ArrayList<>();
@@ -882,7 +884,7 @@ public final class Lowerer {
                 for (TypedFuncCol leaf : p.leaves()) {
                     pkv.add(new SqlExpr.StringLit(leaf.name()));
                     pkv.add(Fold.jsonDateWrap(
-                            envelopeScalar(leaf, base, "subType patch leaf"),
+                            envelopeScalar(leaf, fr[0], "subType patch leaf"),
                             Fold.leafResultType(leaf)));
                 }
                 for (var child : p.children()) {
@@ -895,7 +897,7 @@ public final class Lowerer {
                         enclosing.pop();
                     }
                 }
-                SqlExpr member = envelopeScalar(p.member(), base,
+                SqlExpr member = envelopeScalar(p.member(), fr[0],
                         "subType membership witness");
                 whens.add(new SqlExpr.Case.When(member,
                         new SqlExpr.JsonObject(pkv)));
@@ -905,12 +907,13 @@ public final class Lowerer {
         // CHECKED envelope: {defects: [...], value: obj} — extracted rule
         if (g.checkedConstraints() != null) {
             obj = CheckedEnvelope.wrap(g, obj,
-                    cc -> envelopeScalar(cc, base, "checked constraint"));
+                    cc -> envelopeScalar(cc, fr[0], "checked constraint"));
         }
         if (g.objectRefPrefix() != null) {   // ASOR {objectReference, value}
             obj = SnapshotEnvelope.asorWrap(g, obj,
-                    k -> envelopeScalar(k, base, "objectReference pk"));
+                    k -> envelopeScalar(k, fr[0], "objectReference pk"));
         }
+        SqlSelect envelope = fr[0];
         SqlExpr result;
         if (g.arrayWrap()) {
             List<SqlExpr.JsonArrayAgg.Key> okeys =
@@ -919,33 +922,33 @@ public final class Lowerer {
                 if (!k.name().startsWith(TypedSerializeGraph.PK_ORDER_PREFIX)) {
                     // union WITNESS key: DESC (TRUE-first), load-bearing
                     okeys.add(new SqlExpr.JsonArrayAgg.Key(
-                            envelopeScalar(k, base, "envelope order key"), true));
+                            envelopeScalar(k, fr[0], "envelope order key"), true));
                     continue;
                 }
                 // PK determinism key: ASC and BEST-EFFORT — an explicit
-                // base projection resolves normally; a star pass-through
+                // fr[0] projection resolves normally; a star pass-through
                 // resolves against the DRIVING (leftmost) source only (pk
                 // spellings collide across tables — never bind a guessed
                 // join side). Pruned or ambiguous columns skip, scan order
                 // stands.
                 String col = k.name().substring(
                         TypedSerializeGraph.PK_ORDER_PREFIX.length());
-                boolean explicit = base.projections().stream()
+                boolean explicit = fr[0].projections().stream()
                         .anyMatch(p -> col.equals(p.outputName()));
                 SqlExpr pkE = null;
                 if (explicit) {
                     if (attempt(() -> scalar(last(k.fn()),
-                            (v, name) -> resolveOrThrow(base, name)))
+                            (v, name) -> resolveOrThrow(fr[0], name)))
                             instanceof Resolution.Resolved r) {
                         pkE = r.expr();
                     }
-                } else if (base.projections().isEmpty()
-                        || base.projections().stream().anyMatch(
+                } else if (fr[0].projections().isEmpty()
+                        || fr[0].projections().stream().anyMatch(
                                 p -> p.expr() instanceof SqlExpr.Star)) {
-                    pkE = Fold.sourceColumnDriving(base.from(), col);
+                    pkE = Fold.sourceColumnDriving(fr[0].from(), col);
                 }
                 if (pkE instanceof SqlExpr.Column pc
-                        && !Fold.physicallyRenderable(base.from(), pc)) {
+                        && !Fold.physicallyRenderable(fr[0].from(), pc)) {
                     pkE = null;   // stale stamping — skip, scan order stands
                 }
                 if (pkE != null) {
@@ -959,7 +962,7 @@ public final class Lowerer {
             // ordinal projection, NEGATED because the ordered-agg renders
             // DESC (the witness TRUE-first contract). SQL-level only —
             // the typed schema never sees the column.
-            SqlSelect withOrd = UnionSerialOrder.inject(base);
+            SqlSelect withOrd = UnionSerialOrder.inject(fr[0]);
             if (withOrd != null) {
                 envelope = withOrd;
                 okeys.add(0, new SqlExpr.JsonArrayAgg.Key(

@@ -710,6 +710,67 @@ final class Substitution {
         }
     }
 
+    /** §4AD task #72 — the strict-read hoist, WITNESSED flavor only:
+     * {@code isEmpty(chain pierced by toOne through a ~filter-mapped
+     * head)} rewrites to {@code isNotEmpty($v.head) && isEmpty(chain
+     * sans toOne)}; both conjuncts take their existing routes (semi-
+     * join presence over the ~filtered set; plain pierced leaf read —
+     * per-row IS NULL). Null when the shape is not the witnessed one
+     * (caller keeps the loud wall). */
+    private @com.legend.Nullable TypedSpec strictReadHoist(
+            TypedNativeCall call) {
+        if (!com.legend.builtin.Pure.nativeNamed("isEmpty",
+                        call.callee().signatureKey())
+                || call.args().size() != 1
+                || target.regs().isNotEmptyCallee() == null
+                || target.regs().andCallee() == null) {
+            return null;
+        }
+        TypedSpec stripped = stripToOnes(call.args().get(0));
+        // the head read: the deepest access whose source is the user var
+        TypedSpec headRead = stripped;
+        while (headRead instanceof TypedPropertyAccess hp
+                && !(hp.source() instanceof TypedVariable hv
+                        && hv.name().equals(target.userVar()))) {
+            headRead = hp.source();
+        }
+        if (!(headRead instanceof TypedPropertyAccess)) {
+            return null;
+        }
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        ExprType boolOne =
+                new ExprType(Type.Primitive.BOOLEAN, one);
+        TypedNativeCall present = new TypedNativeCall(
+                target.regs().isNotEmptyCallee(), List.of(headRead), boolOne);
+        TypedNativeCall leafEmpty = new TypedNativeCall(
+                call.callee(), List.of(stripped), call.info());
+        return new TypedNativeCall(target.regs().andCallee(),
+                List.of(present, leafEmpty), boolOne);
+    }
+
+    /** The chain with every explicit toOne()/first()/head-of-one wrapper
+     * removed (SQL-erased, charter decision 1 — same policy as the
+     * lift's filterBehindToOne). */
+    private static TypedSpec stripToOnes(TypedSpec n) {
+        if (n instanceof TypedNativeCall c && c.args().size() == 1
+                && com.legend.builtin.Pure.isToOneCall(
+                        c.callee().qualifiedName())) {
+            return stripToOnes(c.args().get(0));
+        }
+        if (n instanceof TypedPropertyAccess pa) {
+            TypedSpec src = stripToOnes(pa.source());
+            return src == pa.source() ? pa
+                    : new TypedPropertyAccess(src, pa.property(), pa.info());
+        }
+        if (n instanceof TypedMilestonedAccess ma) {
+            TypedSpec src = stripToOnes(ma.source());
+            return src == ma.source() ? ma
+                    : new TypedMilestonedAccess(src, ma.property(),
+                            ma.dates(), ma.sweep(), ma.info());
+        }
+        return n;
+    }
+
     /** THE PATH VIEW — the one reader of navigation hop-sequences,
      * satisfied by BOTH spellings (path-view unification, closed by
      * measurement 2026-08-21): the sugar chain {@code $v.a.b}, the
@@ -905,11 +966,26 @@ final class Substitution {
                     && piercesToOne(call.args().get(0))) {
                 AssocSub fh = target.assocs().get(headPath.get(0));
                 if (fh != null && fh.filteredTarget()) {
+                    // §4AD task #72 — the WITNESSED flavor (golden
+                    // testInputNotIsolatedWhenPropertyPathIsToOne): the
+                    // engine hoists the ~filter row-DROPPING and tests
+                    // the pierced leaf per row. Since the join target is
+                    // ALREADY ~filtered, re-evaluating the hoisted pred
+                    // over the slot ≡ slot PRESENCE — spelled with the
+                    // two EXISTING routes: isNotEmpty(head) rides the
+                    // semi-join channel (whose set IS the ~filtered
+                    // target), the leaf test rides the plain pierced
+                    // read (toOne wrappers SQL-erased, charter dec. 1).
+                    TypedSpec rewritten = strictReadHoist(call);
+                    if (rewritten != null) {
+                        return rewrite(rewritten);
+                    }
                     throw new NotImplementedException("emptiness check over"
                             + " a toOne()-pierced navigation through the"
                             + " ~filter-mapped set of '" + headPath.get(0)
                             + "' needs the strict-read filter hoist —"
-                            + " not supported yet");
+                            + " not supported yet (only the isEmpty"
+                            + " flavor is golden-witnessed)");
                 }
             }
             if (com.legend.builtin.Pure.nativeNamed("tdsContains",

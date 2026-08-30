@@ -74,6 +74,15 @@ final class RelationPredicates {
         return roots.stream().anyMatch(e -> exprUnbound(e, scope));
     }
 
+    /** The aliases a select's FROM tree binds — the frame scope
+     * (§4AD batch-6 tail: GraphAggDecorrelate splits correlation keys
+     * against it). */
+    static java.util.Set<String> frameAliases(SqlSelect sel) {
+        java.util.Set<String> scope = new java.util.HashSet<>();
+        scopeAliases(sel.from(), scope);
+        return scope;
+    }
+
     /** The aliases THIS select's FROM tree binds (join members' aliases;
      * never descends into subselect inners — those are their own scope). */
     private static void scopeAliases(com.legend.sql.SqlSource src,

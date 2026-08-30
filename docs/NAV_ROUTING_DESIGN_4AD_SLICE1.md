@@ -560,6 +560,35 @@ liftValueMapFilter's single-plain-read guard) is deleted; equivalence
 PROSE justifying emission against a measured cell is the
 stop-condition per [[spec-cells-bind-emission]].
 
+**BATCH-6 TAIL LANDING RECORD (2026-08-30): the 5 graph-lane
+correlated reducers DECORRELATED.** GraphAggDecorrelate (lowering):
+a ScalarSubquery whose inner is a bare single-Reducer over a WHERE
+splitting into (outer=inner) equality keys + inner-only conjuncts
+rewrites to a GROUPED subselect LEFT-joined on the keys (the measured
+reducer cell), COUNT-zero via COALESCE; the frame threads mutably
+through serializeGraph (fr[0]). Any unprovable shape keeps the
+correlated form and its census arm — loud, never guessed; the
+conversion fires the graph-reducer-decorrelated census arm. Witness
+emission (testRelationalChainExecutionFlat): 'employeeCount',
+coalesce(t2.aggCol, 0) over LEFT OUTER JOIN (SELECT FIRMID k0,
+COUNT(*) aggCol ... GROUP BY FIRMID) — values byte-identical to
+golden. graphFetch families exactly at baseline; full sweep green,
+zero pin movement. §3's "zero correlated scalar subqueries" now
+holds in the GRAPH lane too.
+
+**TASK-#72 LANDING RECORD (2026-08-30): the strict-read hoist,
+witnessed flavor.** Substitution.strictReadHoist: isEmpty(chain
+pierced by toOne through a ~filter-mapped head) rewrites to
+isNotEmpty($v.head) && isEmpty(chain sans toOne) — the ~filtered
+join target makes hoisted-pred re-evaluation ≡ slot PRESENCE, so
+both conjuncts ride EXISTING routes (semi-join presence; plain
+pierced leaf IS NULL). Golden witness
+testInputNotIsolatedWhenPropertyPathIsToOne: ERROR -> PASS
+(functions/tests 241 -> 242, corpus 2,353 -> 2,354; its sql-text
+assert row-verifies — exec-passing 1,448 -> 1,449, rescued 863 ->
+864, both attributed in the pins). Non-isEmpty flavors keep the
+LOUD wall (no witnesses).
+
 After this document, NOTHING in §4AD is deferred-without-a-plan:
 - Batches 2-8 cover value position, capability bugs, the router,
   the correlated reducers, filter position/dedup, and the oracle
