@@ -201,7 +201,9 @@ public final class TdgNatives {
                 dates[0], hash[0], conn);
     }
 
-    private static void classifyArg(ValueSpecification arg,
+    /** Package-visible for the harness's DEFERRED plan-text arm (the
+     * alloy lane) — ONE argument classifier, no test-side twin. */
+    public static void classifyArg(ValueSpecification arg,
             List<TestDataGenerator.TableRowIds> rowIds,
             TestDataGenerator.MilestoningDates[] dates, boolean[] hash) {
         if (arg instanceof com.legend.protocol.spec.CBoolean b) {

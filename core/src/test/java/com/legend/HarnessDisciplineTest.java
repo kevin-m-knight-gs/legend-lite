@@ -63,7 +63,9 @@ class HarnessDisciplineTest {
             // never seen — order-insensitivity there is the assert's
             // own PURE-SPEC semantics (assertSameElements), not
             // leniency; registered, [ord]-tagged.
-            Map.entry("EngineTestExecutor.java", 4),
+            // 4 -> 3 (TDG S4): a sort site died with csvCensusAssert —
+            // the census asserts route through the platform now
+            Map.entry("EngineTestExecutor.java", 3),
             // 2 -> 4 (diff-noreplay burndown 2026-08-28): the GRAPH
             // frame compare (goldenGraphCompare) sorts BOTH sides for
             // the same order-insensitive row-multiset verdict the

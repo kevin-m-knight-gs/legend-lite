@@ -788,9 +788,9 @@ public final class EngineTestExecutor {
             // failures report Unsupported (body data untrusted after).
             if (stmt instanceof AppliedFunction af3) {
                 try {
-                    ValueSpecification sub = java.util.Objects.requireNonNull(
-                            TestDataGenForm.inlineReads(
-                                    subst(stmt, lets), tdg));
+                    // S4: no harness pre-inlining — the platform's TDG
+                    // carrier folds dataCsvString/sqls reads itself
+                    ValueSpecification sub = subst(stmt, lets);
                     ValueSpecification wrapped =
                             referencesAny(sub, execVars)
                                     ? new LambdaFunction(List.of(),
@@ -1772,9 +1772,7 @@ public final class EngineTestExecutor {
         }
         try {
             Compiler.executeResolved(NameResolver.resolveQuery(
-                    java.util.Objects.requireNonNull(TestDataGenForm
-                            .inlineReads(subst(rhs, lets), tdg)),
-                    imports, ctx.elementFqns()),
+                    subst(rhs, lets), imports, ctx.elementFqns()),
                     ctx, runtimeFqn, conn);
             return null;
         } catch (com.legend.error.NotImplementedException
@@ -1961,16 +1959,13 @@ public final class EngineTestExecutor {
             // row-contract asserts route as REAL verdicts); the harness
             // copy stays ONLY for the sqls-TEXT advisory (S3 converts it,
             // S4 deletes this arm).
-            try {
-                tdg.put(name.value(), TestDataGenForm.run(rhs, ctx,
-                        imports, conn));
-            } catch (com.legend.error.NotImplementedException e) {
-                return new TdgLet(new Outcome.Unsupported(String.valueOf(
-                        e.getMessage()).split("\\n")[0]), null, false);
-            }
+            // S4: NO duplicate generator run — the map entry is a
+            // NAME-ONLY classifier (the platform carrier executes the
+            // one real extraction)
+            tdg.put(name.value(), TestDataGenForm.NAME_ONLY);
             return new TdgLet(null, rhs, false);
         }
-        rhs = TestDataGenForm.inlineReads(rhs, tdg);
+        // (S4: no harness pre-inlining — the platform carrier folds reads)
         if (rhs instanceof AppliedFunction ep
                 && simpleName(ep.function()).equals("executionPlan")
                 && (ep.function().equals("executionPlan")
@@ -2111,10 +2106,6 @@ public final class EngineTestExecutor {
         }
         // generateSeedDataString ROUTES (S3 tail): the carrier folds it
         // to a string literal and the assert compares in the DB.
-        String cz = csvCensusAssert(af, args, lets, tdg);
-        if (cz != NOT_TDG_MARKER) {
-            return cz;
-        }
         if (!planText.isEmpty()) {
             for (ValueSpecification arg : args) {
                 if (referencesAnyVar(arg, planText)) {
@@ -2156,81 +2147,6 @@ public final class EngineTestExecutor {
     /** getRelationalCSVDataFromQuery reads: {@code $x.tables->size()}
      * and the schema/table/values map-join idiom — host-side over the
      * census triples. */
-    private static @com.legend.Nullable String csvCensusAssert(AppliedFunction af,
-            List<ValueSpecification> args,
-            Map<String, ValueSpecification> lets,
-            Map<String, com.legend.testdatagen.TestDataGenerator.Result> tdg) {
-        if (!simpleName(af.function()).equals("assertEquals")
-                || args.size() != 2) {
-            return NOT_TDG_MARKER;
-        }
-        ValueSpecification actual = args.get(1);
-        if (actual instanceof AppliedFunction sz
-                && simpleName(sz.function()).equals("size")
-                && sz.parameters().size() == 1
-                && sz.parameters().get(0) instanceof AppliedProperty tp
-                && tp.property().equals("tables")
-                && tp.receiver() instanceof Variable v
-                && tdg.get(v.name()) != null
-                && tdg.get(v.name()).tables() != null) {
-            long got = java.util.Objects.requireNonNull(
-                    java.util.Objects.requireNonNull(tdg.get(v.name())).tables()).size();
-            if (!(args.get(0)
-                    instanceof com.legend.protocol.spec.CInteger ci)) {
-                return NOT_TDG_MARKER;
-            }
-            return ci.value().longValue() == got ? null
-                    : "assertEquals: expected " + ci.value() + ", got "
-                            + got;
-        }
-        if (actual instanceof AppliedFunction js
-                && simpleName(js.function()).equals("joinStrings")
-                && js.parameters().size() == 2
-                && js.parameters().get(1) instanceof CString sep
-                && js.parameters().get(0) instanceof AppliedFunction mp2
-                && simpleName(mp2.function()).equals("map")
-                && mp2.parameters().size() == 2
-                && mp2.parameters().get(1) instanceof LambdaFunction ml
-                && java.util.Objects.equals(propertyReadOrder(ml),
-                        List.of("schema", "table", "values"))) {
-            // the source may carry an optional sortBy(schema+table)
-            ValueSpecification src = mp2.parameters().get(0);
-            boolean sorted = false;
-            if (src instanceof AppliedFunction sb
-                    && simpleName(sb.function()).equals("sortBy")
-                    && sb.parameters().size() == 2
-                    && sb.parameters().get(1) instanceof LambdaFunction sl
-                    && java.util.Objects.equals(propertyReadOrder(sl),
-                            List.of("schema", "table"))) {
-                sorted = true;
-                src = sb.parameters().get(0);
-            }
-            if (!(src instanceof AppliedProperty tp2
-                    && tp2.property().equals("tables")
-                    && tp2.receiver() instanceof Variable v2
-                    && tdg.get(v2.name()) != null
-                    && tdg.get(v2.name()).tables() != null)) {
-                return NOT_TDG_MARKER;
-            }
-            List<String[]> triples =
-                    new ArrayList<>(java.util.Objects.requireNonNull(
-                            java.util.Objects.requireNonNull(tdg.get(v2.name())).tables()));
-            if (sorted) {
-                triples.sort(java.util.Comparator.comparing(
-                        t -> t[0] + t[1]));
-            }
-            String got = triples.stream()
-                    .map(t -> t[0] + "\n" + t[1] + "\n" + t[2])
-                    .collect(java.util.stream.Collectors
-                            .joining(sep.value()));
-            String exp = TestDataGenForm.foldString(
-                    subst(args.get(0), lets));
-            return got.equals(exp) ? null
-                    : "assertEquals: expected " + exp + ", got " + got;
-        }
-        return NOT_TDG_MARKER;
-    }
-
     /** The lambda body's property-read names in source order (the
      * census join idiom pin — anything else stays a wall). */
     private static @com.legend.Nullable List<String> propertyReadOrder(LambdaFunction ml) {
@@ -3308,27 +3224,9 @@ public final class EngineTestExecutor {
         // LETS are renders (the plan string is the contract) — separated
         // (user catch 2026-08-28: the old shared reason conflated them)
         if (!tdgVars.isEmpty() && referencesAny(af, tdgVars)) {
-            // S3: sqls-TEXT asserts ride the golden-SQL referee host-side
-            // (sqlTextVerify records the outcome; the sql-text
-            // classification below buckets them) — the only remaining
-            // decline is a binding the harness CONSUMED (none today; the
-            // guard stays as the loud residue detector)
-            boolean consumedRef = false;
-            for (ValueSpecification p : af.parameters()) {
-                TestDataGenForm.Read r = TestDataGenForm.read(p);
-                String var = r != null ? r.var()
-                        : p instanceof Variable bv ? bv.name() : null;
-                if (var != null && tdgVars.contains(var)
-                        && !lets.containsKey(var)) {
-                    consumedRef = true;
-                    break;
-                }
-            }
-            if (consumedRef) {
-                com.legend.exec.CanonicalDivergence.v7Declined(form,
-                        "assert-test-data-csv");
-                return;
-            }
+            // S4: every TDG binding FLOWS (no consuming arms remain) —
+            // the asserts classify by their own shapes below; the
+            // ZERO-frozen csv pin is the regression guard
         }
         if (!planTextVars.isEmpty() && referencesAny(af, planTextVars)) {
             com.legend.exec.CanonicalDivergence.v7Declined(form,
