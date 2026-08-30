@@ -648,9 +648,21 @@ public final class H2Verify {
                     keys.remove(ctx);
                 }
             }
-            if (!labelSet.equals(keys)) {
+            // ONE-DIRECTIONAL key rule (sql-exec burn 2026-08-30): every
+            // FRAME key must appear in the golden — a frame property the
+            // golden never selects is OUR bug and stays the loud decline.
+            // GOLDEN-ONLY aliases are the engine's ASSEMBLY PLUMBING
+            // (association stitch keys zzfirmId/yyID, physical key
+            // spellings ACC_NUM beside acctNum, milestoning
+            // snapshotDate_N coordinates, sort keys) — the OBJECT is the
+            // observable and our frame IS the fetch tree by
+            // construction, so they drop, COUNTED on the verdict roster.
+            if (!labelSet.containsAll(keys)) {
                 throw new Unverifiable("graph keys mismatch golden aliases:"
                         + " golden " + labelSet + " vs frame " + keys, null);
+            }
+            if (!keys.containsAll(labelSet)) {
+                verdict("golden-stitch-keys-dropped");
             }
             // both sides tuple over the SAME sorted key order
             List<String> sorted = new ArrayList<>(keys);

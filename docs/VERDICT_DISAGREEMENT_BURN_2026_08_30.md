@@ -124,3 +124,25 @@ the two starred buckets are the genuinely burnable follow-up legs.
 h2-exec unverifiable 5: paginate-with-variables, groupBy date-period
 (the ledgered lift-gap leg), tempTable query-chaining x2,
 view-chains-with-business-date — each a named standing leg.
+## ROW-BY-ROW RESEARCH (2026-08-30, user-ordered — every row, no sampling)
+
+UNABLE-TO-EXEC = 35 after the stitch-key burn. Every row classified
+at SOURCE (engine .pure + our harness code), corrections to the first
+register marked:
+
+| rows | class | verdict (receipt) |
+|---|---|---|
+| 7 | enum-decode (5 groupBy address.type + testDayOfWeekFunction + tdsFilter/tdsProject enum reads) | **BURNABLE — ONE ROOT FIX**: PlanText.enumMappingOf iterates only the NAMED mapping's enumerationMappings; the GE EnumerationMapping lives in simpleRelationalMappingInc and every test names the INCLUDER (relationalSetUp.pure:785 include; :418 GE def). Fix = include traversal. |
+| 4 | tempTableForIn missing tables (testInExecutionWithTempTableAndQueryChaining + OnIntegerColumn) | **BURNABLE — CORRECTED from "by construction"**: the temp table's contents ARE statement 0's own golden results (test source :306-316: stmt 0 = select distinct FIRSTNAME, stmt 1 reads tempTableForIn_validFirstNames). A chained-replay synthesis (exec stmt 0 -> materialize tempTableForIn_<var> -> exec stmt 1) is fully derivable. Medium leg. |
+| 2 | arity golden-1-vs-frame-2 (same two tempTable tests, their stmt-0 frames) | same chained-replay leg (our stmt-0 frame carries an extra column vs the 1-column golden — investigate inside that leg) |
+| 6 | predicate-diverged | BY-DESIGN recorded text divergences (EngineTestExecutor:2190 — slice-3 policy: an evaluated fragment-check that fails records divergence, "no golden exists to row-replay a fragment"). Burn = per-fragment text convergence (emission-anatomy). |
+| 5 | both-ours | **ZERO DEBT — mislabeled lane**: two OUR-side renderings compared for IDENTITY and VERIFIED (EngineTestExecutor:1233-1245); nothing to execute against by definition. Lane-relabel candidate. |
+| 4 | no-generator-noreplay | no SQL generator on the assert route — named; attribution run queued |
+| 2 | match-noreplay | our text BYTE-MATCHED the engine golden; only the replay is blocked (ADVISORY_MARKER — seed class). Strongest possible text evidence already in hand. |
+| 2 | forced-isolation VALUE frames | adjudicated (P2, addendum §8) |
+| 1 | row-cardinality skew (testQualifierQueryWithOr) | adjudicated fan-shape class: distinct rows agree, duplication differs (in-target vs flat fan counts; charter decision-2 territory; divergenceOrSkew is the designed verdict). Burn = flat-form emission (emission-anatomy). |
+| 2 | graph-keys frame-extra (milestoning stock) | our single-statement frame carries MORE than the one golden selects — engine multi-statement assembly; undecidable from one golden (verify claim when that leg opens) |
+
+Burnable now, ranked: enum include-traversal (7, small), tempTable
+chained replay (6, medium). Everything else is by-design, adjudicated,
+or an emission-anatomy dependency — no floating rows remain.

@@ -734,7 +734,11 @@ public class RelationalCorpusRunner {
                     com.legend.exec.CanonicalDivergence.v7DisagreeCount(),
                     "dual-channel disagreements moved off the NAMED 9 —"
                             + " see VERDICT_DISAGREEMENT_BURN_2026_08_30");
-            org.junit.jupiter.api.Assertions.assertEquals(1449,
+            // 1449 -> 1459 (sql-exec burn 2026-08-30, the STITCH-KEY
+            // rule): 10 graph-keys declines now EXECUTE and row-verify
+            // (golden-only assembly aliases drop, counted on the
+            // verdict roster; frame-side strictness unchanged).
+            org.junit.jupiter.api.Assertions.assertEquals(1459,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-with-exec-passing"),
@@ -760,7 +764,12 @@ public class RelationalCorpusRunner {
             // case-sensitive seed replay, graph-keys tail,
             // tempTableForIn, arity, skew, no-gen, predicate-diverged,
             // both-ours (per-cause census in the sweep log).
-            org.junit.jupiter.api.Assertions.assertEquals(45,
+            // 45 -> 35 (sql-exec burn 2026-08-30): the graph-keys
+            // bucket's 10 golden-extra rows converted by the stitch-key
+            // rule; the 2 frame-extra rows (multi-statement stitch
+            // shape) remain declined by design. Register:
+            // docs/VERDICT_DISAGREEMENT_BURN_2026_08_30.md.
+            org.junit.jupiter.api.Assertions.assertEquals(35,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-unable-to-exec"),
@@ -1057,9 +1066,14 @@ public class RelationalCorpusRunner {
                     // testInputNotIsolatedWhenPropertyPathIsToOne passes
                     // CARRYING the row-verified rescue (ERROR -> PASS,
                     // functions/tests 241 -> 242, corpus 2,353 -> 2,354).
+                    // 864 -> 871 (sql-exec burn 2026-08-30, JUSTIFIED
+                    // by exec-passing 1,449 -> 1,459 + unable-to-exec
+                    // 45 -> 35 in the same commit): 7 stitch-key tests'
+                    // passes now carry the ROW-VERIFIED rescue —
+                    // verification gained, not text decayed.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            softRescued <= 864, "text-rescued passes grew: "
-                                    + softRescued + " > 864"),
+                            softRescued <= 871, "text-rescued passes grew: "
+                                    + softRescued + " > 871"),
                     // contract-program wire ratchets (RE-PINNED at the
                     // 2026-08-24 label flip: 181->114->56 and 130->13 —
                     // adopted HUGEINT labels, registered carriages, then
