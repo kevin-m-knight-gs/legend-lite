@@ -926,11 +926,49 @@ public final class H2Verify {
      * EnumerationMapping for {@code enumFqn}; null when underivable —
      * a cross-enum source value keeps the WHOLE map underivable (a
      * partial map would half-decode). */
+    /** PlanText.enumMappingOf plus MAPPING-INCLUDE traversal (sql-exec
+     * burn 2026-08-30 — harness-side by the Java-eviction ledger: an
+     * included mapping's EnumerationMappings are part of the including
+     * mapping by engine semantics; the GE mapping lives in
+     * simpleRelationalMappingInc while every consuming test names the
+     * includer. Bare include paths resolve in the includer's package). */
+    private static com.legend.model.@com.legend.Nullable EnumerationMapping
+            enumMappingIncluding(com.legend.compiler.element.ModelContext ctx,
+            String mappingFqn, String enumFqn, java.util.Set<String> seen) {
+        if (!seen.add(mappingFqn)) {
+            return null;
+        }
+        var em = com.legend.plan.PlanText.enumMappingOf(ctx, mappingFqn,
+                enumFqn);
+        if (em != null) {
+            return em;
+        }
+        var md = ctx.findLegacyMapping(mappingFqn).orElse(null);
+        if (md == null) {
+            return null;
+        }
+        for (var inc : md.includes()) {
+            String path = inc.mappingPath();
+            if (!path.contains("::") && mappingFqn.contains("::")) {
+                String inPkg = mappingFqn.substring(0,
+                        mappingFqn.lastIndexOf("::")) + "::" + path;
+                if (ctx.findLegacyMapping(inPkg).isPresent()) {
+                    path = inPkg;
+                }
+            }
+            var found = enumMappingIncluding(ctx, path, enumFqn, seen);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
     static java.util.@com.legend.Nullable Map<String, String> decodeOf(
             com.legend.compiler.element.ModelContext ctx, String mappingFqn,
             String enumFqn) {
-        var em = com.legend.plan.PlanText.enumMappingOf(ctx, mappingFqn,
-                enumFqn);
+        var em = enumMappingIncluding(ctx, mappingFqn, enumFqn,
+                new java.util.HashSet<>());
         if (em == null) {
             return null;
         }

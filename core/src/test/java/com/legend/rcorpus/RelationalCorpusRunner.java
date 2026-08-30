@@ -578,7 +578,12 @@ public class RelationalCorpusRunner {
                     // not lost verification: verified 320→321, rescued
                     // 632, diverged 0, unverifiable 145 — all equal or
                     // better in the same sweep, zero test regressions.
-                    "sql-text side", 66);
+                    // 66 -> 67 (tempTable chained-replay burn
+                    // 2026-08-30): a converted test's next-in-line
+                    // decline surfaced (its Table-not-found row
+                    // previously pre-empted the H2-vocabulary side
+                    // wall) — recategorization, not lost verification.
+                    "sql-text side", 67);
             registry.forEach((needle, expected) -> {
                 long got = com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS
                         .entrySet().stream()
@@ -738,7 +743,14 @@ public class RelationalCorpusRunner {
             // rule): 10 graph-keys declines now EXECUTE and row-verify
             // (golden-only assembly aliases drop, counted on the
             // verdict roster; frame-side strictness unchanged).
-            org.junit.jupiter.api.Assertions.assertEquals(1459,
+            // 1459 -> 1467 (enum include-traversal burn 2026-08-30):
+            // the 7-8 enum-decode declines now decode via the INCLUDED
+            // mapping's EnumerationMapping and row-verify.
+            // 1467 -> 1475 (tempTable chained replay): 8 more asserts
+            // execute and row-verify (the synthesized
+            // tempTableForIn_<var>/<n> tables replay the engine's
+            // runtime artifacts from derivable values).
+            org.junit.jupiter.api.Assertions.assertEquals(1475,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-with-exec-passing"),
@@ -769,7 +781,13 @@ public class RelationalCorpusRunner {
             // rule; the 2 frame-extra rows (multi-statement stitch
             // shape) remain declined by design. Register:
             // docs/VERDICT_DISAGREEMENT_BURN_2026_08_30.md.
-            org.junit.jupiter.api.Assertions.assertEquals(35,
+            // 35 -> 27 (enum include-traversal): all 8 enum-decode
+            // rows burned (the register counted 7; the 8th shared a
+            // reason line).
+            // 27 -> 21 (tempTable chained replay): the 4 missing-table
+            // rows + 2 reclassified; ONLY the 2 statement-pairing arity
+            // rows remain of the tempTable family.
+            org.junit.jupiter.api.Assertions.assertEquals(21,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-unable-to-exec"),
@@ -1071,9 +1089,17 @@ public class RelationalCorpusRunner {
                     // 45 -> 35 in the same commit): 7 stitch-key tests'
                     // passes now carry the ROW-VERIFIED rescue —
                     // verification gained, not text decayed.
+                    // 871 -> 877 (enum include-traversal, JUSTIFIED by
+                    // exec-passing 1,459 -> 1,467 + unable-to-exec
+                    // 35 -> 27 in the same commit): 6 enum tests'
+                    // passes now carry the ROW-VERIFIED rescue.
+                    // 877 -> 881 (tempTable chained replay, JUSTIFIED
+                    // by exec-passing 1,467 -> 1,475 + unable-to-exec
+                    // 27 -> 21 in the same commit): 4 tempTable tests'
+                    // passes now carry the ROW-VERIFIED rescue.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            softRescued <= 871, "text-rescued passes grew: "
-                                    + softRescued + " > 871"),
+                            softRescued <= 881, "text-rescued passes grew: "
+                                    + softRescued + " > 881"),
                     // contract-program wire ratchets (RE-PINNED at the
                     // 2026-08-24 label flip: 181->114->56 and 130->13 —
                     // adopted HUGEINT labels, registered carriages, then

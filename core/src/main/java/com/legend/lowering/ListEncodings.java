@@ -222,12 +222,55 @@ final class ListEncodings {
      * keep element x at 1-based index i iff its first position is i.
      */
     static SqlExpr orderedDedup(SqlExpr list) {
+        // The list appears TWICE (once as the filter source, once inside
+        // the position lambda). A SUBQUERY-carried list inside the
+        // lambda is a DuckDB binder error ("subqueries in lambda
+        // expressions are not supported" — sql-exec burn 2026-08-30,
+        // value-lane distinct probe), so it hoists through a one-row
+        // carrier and the lambda references the COLUMN.
+        if (hasSubquery(list)
+                && list.type() instanceof com.legend.sql.TypeFact.Typed t) {
+            SqlExpr l = SqlExpr.Column.of("_ddc", "l", t.type(),
+                    t.nullable(), com.legend.sql.OutputCol.Origin.DERIVED);
+            com.legend.sql.SqlSelect carry = new com.legend.sql.SqlSelect(
+                    List.of(new com.legend.sql.SqlSelect.Projection(list, "l",
+                            new com.legend.sql.OutputCol("l", t.type(),
+                                    t.nullable()))),
+                    false, new com.legend.sql.SqlSource.Dual(), null,
+                    List.of(), null, null, List.of(), null, null, List.of());
+            return new SqlExpr.ScalarSubquery(new com.legend.sql.SqlSelect(
+                    List.of(new com.legend.sql.SqlSelect.Projection(
+                            dedupFilter(l), "v",
+                            new com.legend.sql.OutputCol("v", t.type(),
+                                    t.nullable()))),
+                    false, new com.legend.sql.SqlSource.Subselect(carry,
+                            "_ddc", null),
+                    null, List.of(), null, null, List.of(), null, null,
+                    List.of()));
+        }
+        return dedupFilter(list);
+    }
+
+    private static SqlExpr dedupFilter(SqlExpr list) {
         return new SqlExpr.Call(SqlFn.LIST_FILTER, List.of(list,
                 new SqlExpr.Lambda(List.of("_ddx", "_ddi"),
                         new SqlExpr.Call(SqlFn.EQUAL, List.of(
                                 SqlExpr.Call.of(SqlFn.LIST_POSITION, list,
                                         SqlExpr.Column.derived(null, "_ddx")),
                                 SqlExpr.Column.derived(null, "_ddi"))))));
+    }
+
+    private static boolean hasSubquery(SqlExpr e) {
+        if (e instanceof SqlExpr.ScalarSubquery
+                || e instanceof SqlExpr.Exists) {
+            return true;
+        }
+        for (SqlExpr c : e.children()) {
+            if (hasSubquery(c)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** A concatenate SIDE: scalar encodings (TO-ONE stamps, many-

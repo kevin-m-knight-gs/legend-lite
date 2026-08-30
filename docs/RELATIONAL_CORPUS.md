@@ -38,7 +38,7 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 39 |
 | executionPlan/tests | 108 | 74 | 13 | 3 | 18 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 242 | 4 | 8 | 5 | 11 | 12 | 1 | 101 |
+| functions/tests | 259 | 243 | 4 | 7 | 5 | 2 | 3 | 1 | 110 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 147 | 3 | 5 | 0 | 1 | 1 | 0 | 72 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -61,7 +61,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 | 0 | 0 | 0 | 0 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
-| tds/tests | 266 | 253 | 3 | 4 | 6 | 2 | 2 | 0 | 90 |
+| tds/tests | 266 | 253 | 3 | 4 | 6 | 1 | 1 | 0 | 91 |
 | testDataGeneration/tests | 68 | 63 | 0 | 2 | 3 | 0 | 17 | 24 | 0 |
 | tests | 39 | 33 | 2 | 0 | 4 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 66 | 1 | 1 | 0 | 3 | 3 | 0 | 54 |
@@ -95,13 +95,13 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/union | 127 | 120 | 2 | 4 | 1 | 4 | 4 | 0 | 70 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/query | 87 | 80 | 2 | 5 | 0 | 1 | 2 | 0 | 42 |
+| tests/query | 87 | 81 | 2 | 4 | 0 | 1 | 2 | 0 | 42 |
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2354** | 59 | 73 | 89 | 23 | 42 | 27 | 871 |
+| **total** | 2575 | **2356** | 59 | 71 | 89 | 13 | 32 | 27 | 881 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2354 PASS = 1417 clean + 937 carrying softness (sqldiff 23, advisory 42, 0-asserts 27, text-rescued 871; flags overlap — the union is 937).
+SOFT-PASS RECONCILIATION (F2.1): 2356 PASS = 1419 clean + 937 carrying softness (sqldiff 13, advisory 32, 0-asserts 27, text-rescued 881; flags overlap — the union is 937).
 
 ### mapping walls (dropped at assembly)
 
@@ -1084,7 +1084,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2354 PASS = 1417 clean + 937 carrying softness 
 - 13x execution activities are not recorded
 - 7x sqlQueryPostProcessorsConnectionAware hook shape is not a replaceTables lambda — post-processor recognizer pending for: TypedLambda[parameters=[s], body=[TypedNewInstance[classFqn=meta::pure::mapping::Result, properties={values=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=select, type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]], returnType=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], returnMultiplicity=Bounded[lower=1, upper=1], body=Optional.empty, isNative=true, definition=NativeFunctionDefinition[qualifiedName=meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs, typeParameters=[], multiplicityParameters=[], parameters=[ParameterDefinition[name=select, type=NameRef[name=meta::relational::metamodel::relation::SelectSQLQuery, pos=SourceInfo[sourceId=, startLine=1, startColumn=96, endLine=1, endColumn=148]], multiplicity=[1]]], returnType=NameRef[name=meta::relational::metamodel::relation::SelectSQLQuery, pos=SourceInfo[sourceId=, startLine=1, startColumn=154, endLine=1, endColumn=206]], returnMultiplicity=[1], stereotypes=[], taggedValues=[]]], args=[TypedVariable[name=s, info=ExprType[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]], pos=SourceInfo[sourceId=, startLine=139, startColumn=121, endLine=139, endColumn=143]]}, info=ExprType[type=GenericType[rawFqn=meta::pure::mapping::Result, arguments=[ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery]], multArguments=[]], multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=GenericType[rawFqn=meta::pure::metamodel::function::LambdaFunction, arguments=[FunctionType[params=[Param[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]], result=Param[type=GenericType[rawFqn=meta::pure::mapping::Result, arguments=[ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery]], multArguments=[]], multiplicity=Bounded[lower=1, upper=1]]]], multArguments=[]], multiplicity=Bounded[lower=1, upper=1]]]
 - 3x resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'employees' (the demand scan and the rewrite disagreed)
-- 2x Binder Error: subqueries in lambda expressions are not supported
 - 2x no overload of 'routeFunction' matches 4 argument(s) of these shapes (no candidates at all)
 - 2x unbound variable '$_nr2'
 - 2x nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
@@ -1111,6 +1110,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2354 PASS = 1417 clean + 937 carrying softness 
 - 1x multi-hop navigation employees.stc_meta__relational__tests__model__simple__PersonExtension___manager.stc_meta__relational__tests__model__simple__PersonExtension___firstName through an embedded/slot head is not supported yet [assocs=[employees]; head subNavs=[]; head binding=TypedPropertyAccess]
 - 1x cannot access 'name' on String
 - 1x unknown function 'enumValues' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
+- 1x multi-hop navigation vehicles#f1.stc_meta__relational__tests__model__inheritance__Bicycle___person.name through an embedded/slot head is not supported yet [assocs=[vehicles#f0, vehicles#f1]; head subNavs=[]; head binding=ABSENT]
 
 ### per-test outcomes (non-passing)
 
@@ -1168,7 +1168,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2354 PASS = 1417 clean + 937 carrying softness 
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
 - SHAPE testBuildFilterWithValueThatCanBeNullPlanSql [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testAssociationWithProjectionHandlingDups [functions/tests]: Binder Error: subqueries in lambda expressions are not supported
 - ERROR testNestedExistsWithExistsInAbstractProperty [functions/tests]: exists/forAll predicate references column 'firm_employees', unresolvable even after isolation [param=t_n; pred=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::collection::exists, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[name=value, type=Type
 - FAIL testInExecutionWithTempTableForDateTimesWithTz [functions/tests]: assertSize: expected 5, got 0
 - FAIL testIsEmptyOnCollection [functions/tests]: assertEquals: expected Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"where(${collectionSize(input![])})=0connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"wherecoalesce(len('${input?replace("'","''")}'),0)=0connection=TestDatabaseConnection(type="H2"))))
@@ -1318,7 +1317,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2354 PASS = 1417 clean + 937 carrying softness 
 - ERROR testPushDownProjectWithParameter [tests/query]: unknown type 'JSONObject' in @JSONObject
 - ERROR testFilterUsingArcCosFunction [tests/query]: Unable to compute acos of 1.1
 - ERROR testFilterUsingArcSinFunction [tests/query]: Unable to compute asin of 1.1
-- ERROR testCollectionDistinctFunction [tests/query]: Binder Error: subqueries in lambda expressions are not supported
 - ERROR testFilterTimesWithManyOperands [tests/query]: aggregate 'meta::pure::functions::math::sum' over the navigation firm.employees.age whose to-many hop sits BEHIND a to-one head is not supported yet (study #12 — the silent-eaten-aggregate class)
 - FAIL testLegacyFlagProjectionEmitsPlainEquals [tests/query]: assert did not hold (false)
 - FAIL testLegacyFlagRestoresOptionalParamFreeMarkerSelector [tests/query]: assert did not hold (false)

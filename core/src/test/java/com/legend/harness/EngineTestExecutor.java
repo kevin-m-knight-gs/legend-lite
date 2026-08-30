@@ -1443,8 +1443,20 @@ public final class EngineTestExecutor {
             };
             // session-direct on an H2 backend, seed-replay elsewhere —
             // the routing lives with the oracle (H2Verify.verifyAuto)
+            java.util.List<String> seeds =
+                    com.legend.sql.dialect.RawSqlBoundary.recording();
+            if (golden.toLowerCase().contains("temptableforin_")) {
+                java.util.List<String> extra = tempTableSeeds(golden,
+                        actual, lets, execStmts, execVars, execChains, ctx,
+                        imports, runtimeFqn, conn);
+                if (extra != null) {
+                    var all = new java.util.ArrayList<>(seeds);
+                    all.addAll(extra);
+                    seeds = all;
+                }
+            }
             return H2Verify.verifyAuto(conn,
-                    com.legend.sql.dialect.RawSqlBoundary.recording(), golden,
+                    seeds, golden,
                     rows.result(), H2Verify.enumDecodeFor(rows.result(),
                             actual, lets, execStmts, ctx, imports), enumProp);
         } catch (java.sql.SQLException | RuntimeException e) {
@@ -1457,6 +1469,179 @@ public final class EngineTestExecutor {
                     + String.valueOf(e.getMessage()).replace('\n', ' '));
             return ADVISORY_MARKER;
         }
+    }
+
+    /** tempTableForIn CHAINED REPLAY (sql-exec burn 2026-08-30): the
+     * engine's IN-collection strategy materializes a RUNTIME temp table
+     * ({@code tempTableForIn_<letVar>}, one
+     * {@code ColumnForStoringInCollection} column) from an in-lambda
+     * let, and the golden references it — standalone replay finds no
+     * table. The CONTENTS are fully derivable: evaluate the let's own
+     * expression through OUR platform with the SAME exec call's
+     * mapping/runtime and seed the table from the values. ONE temp var
+     * per golden is the witnessed shape; anything else keeps the
+     * counted decline. */
+    private static java.util.@com.legend.Nullable List<String> tempTableSeeds(
+            String golden, @com.legend.Nullable ValueSpecification actual,
+            Map<String, ValueSpecification> lets,
+            List<ValueSpecification> execStmts,
+            java.util.Set<String> execVars,
+            Map<String, ValueSpecification> execChains, ModelContext ctx,
+            ImportScope imports, String runtimeFqn, Connection conn) {
+        var m = java.util.regex.Pattern
+                .compile("tempTableForIn_([A-Za-z0-9]+)")
+                .matcher(golden);
+        java.util.Set<String> vars = new java.util.LinkedHashSet<>();
+        while (m.find()) {
+            vars.add(m.group(1));
+        }
+        if (vars.size() != 1) {
+            return null;
+        }
+        String var = vars.iterator().next();
+        AppliedFunction exec = ExecCallFinder.find(actual, lets, execStmts);
+        if (exec == null || exec.parameters().isEmpty()) {
+            return null;
+        }
+        ValueSpecification q = subst(exec.parameters().get(0), lets);
+        if (q instanceof AppliedFunction dq && dq.parameters().size() == 1
+                && simpleName(dq.function()).equals("deferred")) {
+            q = dq.parameters().get(0);
+        }
+        if (!(q instanceof LambdaFunction qlam)) {
+            return null;
+        }
+        ValueSpecification expr = null;
+        for (ValueSpecification b : qlam.body()) {
+            if (b instanceof AppliedFunction lf
+                    && simpleName(lf.function()).equals("letFunction")
+                    && lf.parameters().size() == 2
+                    && lf.parameters().get(0) instanceof CString cs
+                    && cs.value().equals(var)) {
+                expr = lf.parameters().get(1);
+            }
+        }
+        if (expr == null && var.matches("\\d+")) {
+            // NUMBERED temp table = an INLINE literal in-collection (the
+            // engine numbers it by plan node); the values are the
+            // query's own literals — unambiguous when exactly ONE
+            // inline in() collection exists in the lambda
+            java.util.List<PureCollection> colls = new ArrayList<>();
+            collectInCollections(qlam, colls);
+            if (colls.size() == 1) {
+                return literalTempSeeds(var, colls.get(0));
+            }
+            return null;
+        }
+        if (expr == null) {
+            return null;
+        }
+        List<ValueSpecification> ps = new ArrayList<>(exec.parameters());
+        ps.set(0, new LambdaFunction(java.util.List.of(),
+                java.util.List.of(expr), null));
+        AppliedFunction subExec = new AppliedFunction(exec.function(), ps,
+                exec.candidateFqns(), null, false, false, false);
+        try {
+            Eval fed = eval(subExec,
+                    lets, execStmts, execVars, execChains, ctx, imports,
+                    runtimeFqn, conn);
+            var res = fed.result();
+            if (res == null || res.columns().size() != 1) {
+                return null;
+            }
+            java.util.List<Object> vals = new ArrayList<>();
+            for (com.legend.exec.Row r : res.rows()) {
+                vals.add(r.values().get(0));
+            }
+            boolean allNum = vals.stream().allMatch(v ->
+                    v instanceof Long || v instanceof Integer);
+            boolean allStr = vals.stream().allMatch(v -> v instanceof String);
+            if (!allNum && !allStr) {
+                return null;   // witnessed shapes only: ints or strings
+            }
+            java.util.List<String> out = new ArrayList<>();
+            out.add("CREATE LOCAL TEMPORARY TABLE tempTableForIn_" + var
+                    + " (ColumnForStoringInCollection "
+                    + (allStr ? "VARCHAR(1024)" : "BIGINT") + ")");
+            for (Object v : vals) {
+                out.add("INSERT INTO tempTableForIn_" + var + " VALUES ("
+                        + (allStr ? "'" + String.valueOf(v)
+                                .replace("'", "''") + "'"
+                                  : String.valueOf(v)) + ")");
+            }
+            return out;
+        } catch (java.sql.SQLException | RuntimeException e) {
+            return null;   // derivation failed — the counted decline stands
+        }
+    }
+
+    private static void collectInCollections(ValueSpecification v,
+            java.util.List<PureCollection> out) {
+        if (v instanceof AppliedFunction af
+                && simpleName(af.function()).equals("in")
+                && af.parameters().size() == 2
+                && af.parameters().get(1) instanceof PureCollection pc) {
+            out.add(pc);
+        }
+        for (ValueSpecification c : childrenOfSpec(v)) {
+            collectInCollections(c, out);
+        }
+    }
+
+    private static java.util.List<ValueSpecification> childrenOfSpec(
+            ValueSpecification v) {
+        if (v instanceof AppliedFunction af) {
+            return af.parameters();
+        }
+        if (v instanceof AppliedProperty ap) {
+            return java.util.List.of(ap.receiver());
+        }
+        if (v instanceof LambdaFunction lf) {
+            return lf.body();
+        }
+        if (v instanceof PureCollection pc) {
+            return pc.values();
+        }
+        return java.util.List.of();
+    }
+
+    /** Seeds for a NUMBERED temp table from the inline literal
+     * collection (dates/datetimes/strings/ints — the witnessed kinds). */
+    private static java.util.@com.legend.Nullable List<String> literalTempSeeds(
+            String var, PureCollection pc) {
+        java.util.List<String> lits = new ArrayList<>();
+        String colType = null;
+        for (ValueSpecification v : pc.values()) {
+            if (v instanceof com.legend.protocol.spec.CDate cd) {
+                // GMT offset suffixes strip — pure date literals are
+                // UTC and H2's TIMESTAMP parser takes the bare form
+                String t = cd.value().toString()
+                        .replaceAll("(\\+0000|Z)$", "");
+                boolean timed = t.contains("T");
+                colType = timed ? "TIMESTAMP" : "DATE";
+                lits.add((timed ? "TIMESTAMP '" : "DATE '")
+                        + t.replace('T', ' ') + "'");
+            } else if (v instanceof CString cs) {
+                colType = "VARCHAR(1024)";
+                lits.add("'" + cs.value().replace("'", "''") + "'");
+            } else if (v instanceof CInteger ci) {
+                colType = "BIGINT";
+                lits.add(String.valueOf(ci.value()));
+            } else {
+                return null;   // unwitnessed literal kind — keep decline
+            }
+        }
+        if (colType == null) {
+            return null;
+        }
+        java.util.List<String> out = new ArrayList<>();
+        out.add("CREATE LOCAL TEMPORARY TABLE tempTableForIn_" + var
+                + " (ColumnForStoringInCollection " + colType + ")");
+        for (String l : lits) {
+            out.add("INSERT INTO tempTableForIn_" + var + " VALUES ("
+                    + l + ")");
+        }
+        return out;
     }
 
     /** {@code assertEquals/assertSameElements(cols, pkOfFunc(fnRef))} —
