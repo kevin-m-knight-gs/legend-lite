@@ -1949,16 +1949,8 @@ public final class EngineTestExecutor {
             lets.put(name.value(), subst(rhs, lets));   // F3.2a
             return new TdgLet(null, null, true);
         }
-        if (TestDataGenForm.hasSeedDataString(rhs)) {
-            try {
-                tdg.put(name.value(), TestDataGenForm.runSeedDataString(
-                        rhs, ctx, imports, conn));
-            } catch (com.legend.error.NotImplementedException e) {
-                return new TdgLet(new Outcome.Unsupported(String.valueOf(
-                        e.getMessage()).split("\\n")[0]), null, false);
-            }
-            return new TdgLet(null, null, true);
-        }
+        // generateSeedDataString is a PLATFORM construct now (S3 tail):
+        // the let rides the ordinary lazy path (carrier fold).
         // csvCensus (getRelationalCSVDataFromQuery) is a PLATFORM
         // construct now (TDG lane S1): the CHECKER folds it to instance
         // literals (CsvCensusChecker), so the let rides the ordinary
@@ -2083,8 +2075,14 @@ public final class EngineTestExecutor {
             case "assertSqlEquals" -> {
                 TestDataGenForm.Read r = readTdg(args.size() == 2
                         ? args.get(1) : args.get(0), lets);
-                return r != null && tdg.containsKey(r.var())
-                        ? ADVISORY_MARKER : UNSUPPORTED_MARKER;
+                if (r == null || !tdg.containsKey(r.var())) {
+                    return UNSUPPORTED_MARKER;
+                }
+                // S3: our generated .sqls text rides the SAME golden-SQL
+                // referee as every other sql-producer assert — byte
+                // compare, H2 exec-verify on divergence, outcome-bucketed
+                return sqlTextVerify(args, lets, execStmts, execVars,
+                        execChains, ctx, imports, runtimeFqn, conn);
             }
             default -> {
             }
@@ -2097,31 +2095,22 @@ public final class EngineTestExecutor {
                         && args.size() == 2) {
                     return NOT_TDG_MARKER;   // S2: the COUNT routes
                 }
-                return ADVISORY_MARKER;   // SQL-text reads: engine H2 text
+                // S3: the golden-SQL referee (byte compare + H2
+                // exec-verify), never a blanket advisory
+                return sqlTextVerify(args, lets, execStmts, execVars,
+                        execChains, ctx, imports, runtimeFqn, conn);
             }
             for (ValueSpecification a : args) {
                 TestDataGenForm.Read r = readTdg(a, lets);
                 if (r != null && tdg.containsKey(r.var())
                         && "sqls".equals(r.kind())) {
-                    return ADVISORY_MARKER;   // text advisory (S3)
+                    return sqlTextVerify(args, lets, execStmts, execVars,
+                            execChains, ctx, imports, runtimeFqn, conn);
                 }
             }
         }
-        if (simpleName(af.function()).equals("assertEquals")
-                && args.size() == 2
-                && args.get(1) instanceof Variable sv
-                && tdg.get(sv.name()) != null
-                && tdg.get(sv.name()).tables() == null
-                && tdg.get(sv.name()).sqls().isEmpty()
-                && tdg.get(sv.name()).dataCsvString() != null) {
-            // a STRING-product binding (generateSeedDataString): literal
-            String got2 = java.util.Objects.requireNonNull(
-                    java.util.Objects.requireNonNull(tdg.get(sv.name())).dataCsvString());
-            String exp2 = TestDataGenForm.foldString(
-                    subst(args.get(0), lets));
-            return got2.equals(exp2) ? null
-                    : "assertEquals: expected " + exp2 + ", got " + got2;
-        }
+        // generateSeedDataString ROUTES (S3 tail): the carrier folds it
+        // to a string literal and the assert compares in the DB.
         String cz = csvCensusAssert(af, args, lets, tdg);
         if (cz != NOT_TDG_MARKER) {
             return cz;
@@ -3319,22 +3308,11 @@ public final class EngineTestExecutor {
         // LETS are renders (the plan string is the contract) — separated
         // (user catch 2026-08-28: the old shared reason conflated them)
         if (!tdgVars.isEmpty() && referencesAny(af, tdgVars)) {
-            // S2: only the sqls-TEXT reads stay declined (engine H2 text —
-            // S3's golden-SQL doctrine); size and row-contract asserts
-            // fall through and ROUTE
-            boolean sqlsRead = false;
-            for (ValueSpecification p : af.parameters()) {
-                TestDataGenForm.Read r = TestDataGenForm.read(p);
-                if (r != null && tdgVars.contains(r.var())
-                        && "sqls".equals(r.kind())) {
-                    sqlsRead = true;
-                    break;
-                }
-            }
-            String fn = simpleName(af.function());
-            // a binding the harness CONSUMED (handled=true — e.g. the
-            // seedDataString arm) is not in the lets: its asserts cannot
-            // route until that arm converts
+            // S3: sqls-TEXT asserts ride the golden-SQL referee host-side
+            // (sqlTextVerify records the outcome; the sql-text
+            // classification below buckets them) — the only remaining
+            // decline is a binding the harness CONSUMED (none today; the
+            // guard stays as the loud residue detector)
             boolean consumedRef = false;
             for (ValueSpecification p : af.parameters()) {
                 TestDataGenForm.Read r = TestDataGenForm.read(p);
@@ -3346,13 +3324,7 @@ public final class EngineTestExecutor {
                     break;
                 }
             }
-            boolean routable = !consumedRef
-                    && (fn.equals("assertSize")   // counts route
-                    || !sqlsRead && (fn.equals("assertTestData")
-                            || fn.equals("assertEquals")
-                            || fn.equals("assertSameElements")
-                            || fn.equals("assertNotEmpty")));
-            if (!routable) {
+            if (consumedRef) {
                 com.legend.exec.CanonicalDivergence.v7Declined(form,
                         "assert-test-data-csv");
                 return;
@@ -3379,8 +3351,20 @@ public final class EngineTestExecutor {
         String outcome = SQL_TEXT_OUTCOME.get();
         SQL_TEXT_OUTCOME.remove();
         java.util.function.Supplier<String> sqltextReason = () -> {
-            boolean run = af.parameters().stream().anyMatch(p ->
-                    referencesAny(p, execVars) || containsExecute(p));
+            // S3 correction (user catch): a TDG sqls read means OUR side
+            // EXECUTED — the .sqls text IS the fetch SQL the generator
+            // ran, and its output data is row-verified by the same
+            // test's agreeing assertTestData. These rows are
+            // unable-to-exec (golden replay declined), NEVER text-only
+            // ("nothing executed anywhere" would be a false claim).
+            boolean run = af.parameters().stream().anyMatch(p -> {
+                if (referencesAny(p, execVars) || containsExecute(p)) {
+                    return true;
+                }
+                TestDataGenForm.Read r = TestDataGenForm.read(p);
+                return r != null && tdgVars.contains(r.var())
+                        && "sqls".equals(r.kind());
+            });
             if ("exec-pass".equals(outcome)) {
                 return "assert-sql-text-with-exec-passing";
             }

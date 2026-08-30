@@ -47,6 +47,19 @@ public final class TdgNatives {
         }
         if (stmt instanceof com.legend.compiler.spec.typed
                 .TypedTestDataGen g) {
+            if ("seedString".equals(g.flavor())) {
+                return com.legend.compiler.spec.CsvCensusChecker
+                        .literalStrings(List.of(
+                                TestDataGenerator.seedDataString(ctx,
+                                        (LambdaFunction) g.params().get(0),
+                                        ((com.legend.protocol.spec
+                                                .PackageableElementPtr)
+                                                g.params().get(1)).fullPath(),
+                                        conn)),
+                                g.info())
+                        // a [1] string, not a collection — unwrap
+                        .children().get(0);
+            }
             TestDataGenerator.Result r = runGenerate(g, ctx, conn);
             return com.legend.compiler.spec.CsvCensusChecker.literalTestData(
                     java.util.Objects.requireNonNull(r.dataCsvString(),

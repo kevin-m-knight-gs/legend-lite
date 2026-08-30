@@ -41,8 +41,22 @@ public final class GenerateTestDataChecker {
                             + " reference INLINE at the call site (>=4 args;"
                             + " let-bound arguments are S4 work)");
         }
-        return new TypedTestDataGen(af.parameters(),
+        return new TypedTestDataGen(af.parameters(), "generate",
                 new ExprType(new Type.ClassType(RESULT_FQN),
+                        Multiplicity.Bounded.ONE));
+    }
+
+    /** {@code generateSeedDataString(...)} — same carrier, String[1]. */
+    static TypedSpec checkSeed(Typer t, AppliedFunction af, Env env) {
+        if (af.parameters().size() < 2
+                || !(af.parameters().get(0) instanceof LambdaFunction)
+                || !(af.parameters().get(1) instanceof PackageableElementPtr)) {
+            throw new TypeInferenceException(
+                    "generateSeedDataString needs its query lambda and"
+                            + " mapping reference INLINE at the call site");
+        }
+        return new TypedTestDataGen(af.parameters(), "seedString",
+                new ExprType(Type.Primitive.STRING,
                         Multiplicity.Bounded.ONE));
     }
 }

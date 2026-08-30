@@ -37,6 +37,8 @@ public enum CoreFn {
     GET_RELATIONAL_CSV_DATA("getRelationalCSVDataFromQuery"),
     /** {@code generateTestData(...)} &mdash; TDG lane S2: RUNTIME data extraction; the checker emits a protocol-capturing carrier ({@code GenerateTestDataChecker}). */
     GENERATE_TEST_DATA("generateTestData"),
+    /** {@code generateSeedDataString(...)} &mdash; TDG lane S3 tail: runtime seed-text extraction, same carrier. */
+    GENERATE_SEED_DATA_STRING("generateSeedDataString"),
     /** {@code if(cond, |then, |else)} &mdash; thunk branches + branch-type join. */
     IF("if"),
     /** {@code ^Class(prop=value, &hellip;)} &mdash; instance construction ({@code new}). */

@@ -18,7 +18,11 @@ import java.util.List;
  */
 public record TypedTestDataGen(
         List<com.legend.protocol.spec.ValueSpecification> params,
+        String flavor,
         ExprType info) implements TypedSpec {
+
+    /** {@code "generate"} (TestDataGenResult) | {@code "seedString"}
+     * (String[1]) — the orchestrator's fold dispatch. */
 
     public TypedTestDataGen {
         params = List.copyOf(params);

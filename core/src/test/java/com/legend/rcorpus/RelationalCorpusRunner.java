@@ -771,6 +771,8 @@ public class RelationalCorpusRunner {
                                     "assert-sql-text-with-exec-passing"),
                     "lane guard: assert-sql-text-with-exec-passing moved —"
                             + " update the charter §8.0 scope table");
+            // (TDG S3 rows are unable-to-exec, NOT text-only — user
+            // catch: our fetch SQL EXECUTED and its data row-verified)
             org.junit.jupiter.api.Assertions.assertEquals(44,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix("assert-sql-text-only"),
@@ -802,7 +804,14 @@ public class RelationalCorpusRunner {
             // 27 -> 21 (tempTable chained replay): the 4 missing-table
             // rows + 2 reclassified; ONLY the 2 statement-pairing arity
             // rows remain of the tempTable family.
-            org.junit.jupiter.api.Assertions.assertEquals(21,
+            // 21 -> 70 (TDG lane S3, user-corrected classification): the
+            // 49 sqls-TEXT rows are UNABLE-TO-EXEC, not text-only — our
+            // fetch SQL EXECUTED (the generator ran it; its data is
+            // row-verified by the same tests' agreeing assertTestData)
+            // and only the GOLDEN replay declined (48 diff-noreplay ::
+            // no-root-exec-variable + 1 no-generator). Burnable by the
+            // same replay machinery as the rest of this bucket.
+            org.junit.jupiter.api.Assertions.assertEquals(70,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-unable-to-exec"),
@@ -810,12 +819,14 @@ public class RelationalCorpusRunner {
                             + " update the charter §8.0 scope table");
             // 117 -> 111 (TDG lane S1): the census folds in the CHECKER
             // — the 6 necessaryColumns asserts route and AGREE.
-            // 111 -> 50 (TDG lane S2): the ROW CONTRACT routes — the
-            // generateTestData carrier executes the extraction, splices
-            // literals, assertTestData inlines over the folded
-            // setUpDataSQLs, verdicts in the DB (size 26 + testData 35
-            // agree); the 50 = S3's sqls-TEXT rows + 1 seedDataString
-            org.junit.jupiter.api.Assertions.assertEquals(50,
+            // 111 -> 50 (TDG lane S2): the ROW CONTRACT routes (size 26 +
+            // testData 35 agree, verdicts in the DB).
+            // 50 -> 0 (TDG lane S3): the sqls-TEXT rows ride the
+            // golden-SQL referee (sqlTextVerify — outcome-bucketed
+            // diff-noreplay in the sql-text lane) and seedDataString
+            // routes and AGREES. ZERO-FROZEN: a new row here is a NEW
+            // harness compensation — the lane is CLOSED.
+            org.junit.jupiter.api.Assertions.assertEquals(0,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix("assert-test-data-csv"),
                     "lane guard: assert-test-data-csv moved — update the"

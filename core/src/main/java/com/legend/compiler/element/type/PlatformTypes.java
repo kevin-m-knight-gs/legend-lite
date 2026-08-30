@@ -292,6 +292,8 @@ public final class PlatformTypes {
      * literals. */
     public static final String GENERATE_TEST_DATA =
             "meta::relational::testDataGeneration::generateTestData";
+    public static final String GENERATE_SEED_DATA_STRING =
+            "meta::relational::testDataGeneration::generateSeedDataString";
 
     /** The ASSERT FAMILY is platform-owned WHOLESALE (V7 tenet
      * correction 2026-08-28: asserts are verdicts ALWAYS —
@@ -333,6 +335,7 @@ public final class PlatformTypes {
                 || CREATE_DB_CONFIG.equals(fqn)
                 || GET_RELATIONAL_CSV_DATA.equals(fqn)
                 || GENERATE_TEST_DATA.equals(fqn)
+                || GENERATE_SEED_DATA_STRING.equals(fqn)
                 || EXECUTE.equals(fqn);
     }
 
