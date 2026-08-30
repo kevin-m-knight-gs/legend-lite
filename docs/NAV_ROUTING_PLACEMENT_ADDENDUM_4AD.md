@@ -294,12 +294,12 @@ delete ALL shortcuts — every known item, with its disposition)
 |---|---|---|
 | 1 | in-target VALUE placement (batch 5 — THE defect) | **DELETED by P1** (closed preds) |
 | 2 | corrPreds-at-ON for VALUE position (same hazard, correlated flavor) | **DELETED by P1** (unified conjunct) |
-| 3 | in-target FILTER placement (batch 7 — green by equality-luck) | **DELETED by P2** (conjoined, shape-witnessed) |
+| 3 | in-target FILTER placement (batch 7 — green by equality-luck) | **RESOLVED by P2, disposition CORRECTED at implementation**: the in-target mechanism itself was RE-ADJUDICATED engine-measured (pred-in-ON is the engine's own emission for these shapes, with the measured fan counts) — what died was the LUCK: the conjoined pad guard makes the equality-family survival structural (§8 P2) |
 | 4 | batch-5 equivalence PROSE in code (NavMaterializer:112-121) and in the design doc's batch-5 landing record | **CORRECTED by P3** — the ~filter ARM stays (it has its own golden receipt: filter-in-ON, testFilterAfterFilter) but the comment re-anchors on the receipt, not the argument |
 | 5 | batch-8 uncommitted pins (1446/47/859) — pinned OVER the divergence | **REGENERATED at P4** from the post-fix sweep; never carried |
 | 6 | ScanOrder at the assert boundary + StableScanOrder behind legend.exec.engineScanOrder | NOT a hack — user-designed feature + quarantined corpus-compat flag (runner-only); STAYS with its adjudication |
 | 7 | ExistsJoinForm | NOT a hack — re-adjudicated engine-conformant (mirrors buildExistsAsJoinWithNullCheck); STAYS |
-| 8 | loud walls: unliftedWall route-totality, toOne-pierced strict read (task #72), V4 union-assoc-sub, nested temporal targets, requireNoCorrelatedPred (StoreResolver:578) | walls are HONEST (loud, never wrong). Each keeps a named retirement leg; after P1, re-measure requireNoCorrelatedPred + task #72 — P1's uniform conjunct is their natural retirement path (separate witnessed slices) |
+| 8 | loud walls: unliftedWall route-totality, toOne-pierced strict read (task #72), V4 union-assoc-sub, nested temporal targets, requireNoCorrelatedPred (StoreResolver:578) | walls are HONEST (loud, never wrong). **RE-MEASURED post-P2 (2026-08-30, scoreboard detail register)**: task #72 population = ONE test (testInputNotIsolatedWhenPropertyPathIsToOne — emptiness check + ~filter-mapped set + toOne pierce, the SEMI-JOIN route P1/P2 deliberately left alone) — final retirement = one small witnessed slice; requireNoCorrelatedPred = ZERO register rows. Others keep their named legs |
 | 9 | §9 ledger deferrals (emission-anatomy leg, registerExistsSubs shrink blocked on the to-many-fact refactor, groupBy date-period lift gap) | named, owned legs — deferred by decision, not silence |
 | 10 | pre-§4AD "row-equivalent" comments (FlattenOps:29/:147, StoreResolver:743 — INNER-hop flatten equivalences) | out of this program's scope; receipted in the flatten program; listed for completeness |
 
