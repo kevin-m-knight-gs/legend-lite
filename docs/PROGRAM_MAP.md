@@ -200,3 +200,123 @@ match, indexOf +1, and the residual list).
    parser-parity-SIZED program (plan OBJECT-MODEL parity, not SQL-text
    parity). Same playbook when we get there: oracle-first census,
    byte-exact ratchets, family-by-family.
+
+## DEFERRED PROGRAM — METAMODEL AS DATA (quarantined 2026-08-30,
+## user ruling; homework preserved here, do not re-derive)
+
+**The decision (user, 2026-08-30):** quarantine every METAMODEL-ONLY
+decline into a named, exact-pinned census partition and burn
+everything else to zero first (declined / mismatch / sql-exec); come
+back to this program afterwards. Quarantine is a partition, NEVER a
+test exclusion — the tests keep running and passing on host; their
+dual-channel rows carry a `metamodel-reflection` classification.
+
+**CENSUS UPDATE (same day, step-0 row-by-row census —
+docs/FULL_RESIDUE_CENSUS_2026_08_30.md is now the authority on
+composition):** the quarantine set is **144 rows**, not 107 — the
+1-by-1 pass moved the boundary: ONE-STAMP 17 + SQLNull-layout 1
+join the toPostgresModel family (all their witnesses are inside
+it; the stamp bucket is NOT an independent bug leg — repromote
+only on a non-quarantine witness); bare-lambda 10 + InstanceValue
+2 are tesIsToOne* expression-tree reflection (pkOfFunc's class);
+2 expressionSequence walls hid under host-unsupported;
+routerExtensions 5 is extension-lambda eval over constructed
+connections (proposed in, user to confirm). The original
+scoped-probe table below stands for the no-scalar cluster detail.
+
+**Quarantined rows (census 2026-08-30, baseline a6115d56 —
+attribution measured by scoped probes, not guessed):**
+- classMappingById 21 — tests/mapping/extends (mainTable handle
+  compares ×4 + `.column.name`/`.id` string compares; witness
+  testExtendsForMainTable.pure:79).
+- rootClassMappingByClass 13 + view 6 + inferRelationalType 5 —
+  meta::relational::tests::typeInference::* (testRelationalExtension
+  .pure); every assert compares a STRING against dataTypeToSqlText.
+- _classMappingByClass 1 — testSubtypeMapping.pure:70 (assertSize).
+- toPostgresModel::newState 18 — sqlDialectTranslation family;
+  assertConversion compares CONSTRUCTED protocol-node trees
+  (a different shape: runtime-constructed values, NOT authored
+  facts — flagged below as the bucket that fits NO current frame).
+- pkOfFunc 43 — pkInferenceTests.pure: one private helper reads
+  `$func.expressionSequence` (function BODIES reified as metamodel
+  data) and runs engine PK auto-inference over the tree; all 43
+  funnel through the one helper (single-design bucket).
+- routerExtensions 5 (metamodel::execute tests) — probe before
+  adding: may be this program's shape, may be plan-text.
+NOT quarantined: relationalExtensions 8 (plan-text compares that
+crash before lane classification — burn with the plan-text/
+classification work); TypedMap 65 (h2-lane owned).
+
+**The architecture ruling that stands over this program
+([[one-router-one-evaluator]] memory, ratified in session):** ONE
+entry point for ALL pure code; no bespoke per-FQN entry points ever
+again (the TdgNatives fold is named an instance of the wrong
+pattern and owes a spelled-out rename when it migrates); no pure
+source carried by the platform. Two candidate resolutions were
+explored and neither is ratified:
+1. A host-side evaluator for store-free clusters — REJECTED as
+   drafted: it is a parallel metamodel interpreter, and we already
+   have one (MetamodelWalk 1307 + MetamodelSteps 196 stripped
+   lines, ledger-pinned) — that debt should shrink, not
+   consolidate.
+2. **Metamodel in the database (the speculative TODO this section
+   exists to preserve):** extend SystemMetamodel — the ratified
+   precedent where `Class.all()` is a real SELECT over
+   metamodel.classes seeded from the compiler registry, "zero
+   special cases in dispatch" — so reflection queries LOWER like
+   everything else. Grow-by-witness: mappings / class_mappings
+   (fqn key, id, root, class, superSetImplementationId) /
+   mapping_includes; schemas / tables / views / columns /
+   view_column_mappings. Include-chain recursion: seed the
+   TRANSITIVE CLOSURE at extent-render time (seedStatements
+   already renders the extent) rather than recursive CTEs.
+   Identity: FQN/path primary key (SystemMetamodel D2 rule).
+   MetamodelWalk arms then DELETE as store lowerings claim their
+   FQNs (ledger to zero).
+
+**Homework DONE (do not redo):** exact census + witnesses (above);
+engine .pure specs read from the real checkouts
+(functions_Mapping.pure:28-79, platform_store_relational/
+functions.pure:254, relationalExtension.pure:120-137,
+toPostgresModel.pure:31-48, extensions/extension.pure:62,
+pkInferenceTests.pure:25-29); decline mechanism verified (dual
+channel → AssertVerdicts verdict-in-DB → Scalars.lower, no rule);
+SystemMetamodel v1 scope verified (ONE table, name property only —
+the trivial fragment; nothing multi-table has ever been proven).
+
+**Homework OPEN (the tractability gate — run these BEFORE
+chartering execution):**
+1. Compile-time-fact vs derived-on-the-fly: read
+   MetamodelWalk.mainTable/resolvePrimaryKey/infer +
+   MappingNormalizer; if the compiled model already HOLDS the
+   resolved facts (extends-chain main table, groupBy/distinct PK,
+   view column types), seeding is a dump and lowerings are simple
+   SELECTs; if the walk DERIVES them, the derivation must move to
+   seed time — a design decision, not a detail.
+2. Function-shaped navigation over mapped metamodel rows
+   (`$x->mainTable()` is a function, not a property): mapped
+   association vs per-native compiler-synthesized query — design
+   not done; nobody has demonstrated cast->map(fn) chains or
+   assertEquals over row-backed metamodel instances in the store
+   lane.
+3. Seed cost at corpus scale (compile-once sweep ~185s; metamodel
+   extent per test/connection unmeasured).
+4. inferRelationalType (5) and pkOfFunc (43): expression TREES as
+   data — the hard end (trees-as-rows or trees-as-structs); no
+   design.
+5. newState (18): runtime-CONSTRUCTED protocol values compared
+   structurally — fits neither seeded-facts nor the evaluator
+   frame; needs its own design (struct-values canonical layouts
+   are the one lead: constructed instances already lower as
+   structs when the class declares stored properties).
+6. Tractability prototype: ONE witness end-to-end
+   (testMainTableForB1 — seed a class_mappings+tables fragment,
+   hand-register one lowering, watch the verdict land in-DB)
+   before designing the other 45.
+
+**Per-bucket tractability verdict (honest, as of 2026-08-30):**
+classMappingById/mainTable/view family (~40 rows) — probably
+tractable under the store frame (ordinary mapped navigation over
+facts the compiler demonstrably has). inferRelationalType +
+pkOfFunc + newState (66 rows) — NOT honestly tractable under any
+design discussed so far.

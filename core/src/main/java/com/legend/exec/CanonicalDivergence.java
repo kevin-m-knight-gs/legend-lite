@@ -305,6 +305,16 @@ public final class CanonicalDivergence {
      * VALUES-literal cost bracket rides these counts. */
     private static final java.util.concurrent.atomic.AtomicLongArray
             V7_SIDE_ROWS = new java.util.concurrent.atomic.AtomicLongArray(16);
+    /** Per-ROW decline attribution (step-0 census, 2026-08-30): every
+     * non-exec-passing decline records {@code test :: form :: reason}.
+     * UNCAPPED by doctrine — a census surface with a silent cap reads
+     * as "covered everything" when it didn't (the sqltypes top-20
+     * lesson); the population is bounded by the sweep's own decline
+     * count (~420 at the last pin), never unbounded growth. The
+     * exec-passing bucket is EXCLUDED (1,495 verified-comfort rows —
+     * not census targets). */
+    private static final ConcurrentLinkedQueue<String>
+            V7_DECLINE_WITNESSES = new ConcurrentLinkedQueue<>();
 
     /** Attribution source for disagreement samples — the HARNESS wires
      * its per-test context holder here (invariant 6d: exec never
@@ -340,6 +350,16 @@ public final class CanonicalDivergence {
         }
         V7_DECLINES.computeIfAbsent(key, k -> new AtomicLong())
                 .incrementAndGet();
+        if (!r.startsWith("assert-sql-text-with-exec-passing")) {
+            // the witness carries a WIDER reason cut than the aggregate
+            // key (500 vs 200): the key bounds the aggregation space,
+            // the witness is diagnosis — the getAll walk contexts and
+            // stamp callees live past the key's cut
+            String rw = reason.length() > 500
+                    ? reason.substring(0, 500) + "…" : reason;
+            V7_DECLINE_WITNESSES.add(
+                    CONTEXT_SOURCE.get() + " :: " + form + " :: " + rw);
+        }
     }
 
     /** One assert side's fetched element count (histogram feed). */
@@ -448,6 +468,11 @@ public final class CanonicalDivergence {
                 .sorted(java.util.Map.Entry.comparingByKey())
                 .forEach(e -> out.add("declined " + e.getKey() + " = "
                         + e.getValue().get()));
+        // per-row attribution AFTER the aggregate table (sorted for
+        // stable console diffs — display ordering only); witness sums
+        // reconcile against the non-exec-passing aggregate counts
+        V7_DECLINE_WITNESSES.stream().sorted()
+                .forEach(w -> out.add("decline-witness " + w));
         V7_SAMPLES.forEach(r -> out.add("disagree-witness " + r.family()
                 + " " + r.detail()));
         return out;

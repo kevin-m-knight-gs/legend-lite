@@ -899,6 +899,94 @@ grow-only, pins + charter same commit. Expected: unable-to-exec
 97 → ~50, both known semantic divergences become verified
 agreements.
 
+## 4AE. MAPPING-REFLECTION FOLD LEG — SLICE PLAN (2026-08-30,
+## census-first; the no-scalar-lowering cluster, 72 declines)
+
+**Census (measured — baseline sweep at a6115d56 reproduces the
+handoff scoreboard exactly: agree=3381 disagree=9 declined=323).**
+The 72 `no scalar lowering registered for resolved overload` rows
+split into THREE shapes, not one:
+
+| shape | rows | witnesses (probed, scoped runs) |
+|---|---|---|
+| A. mapping/store reflection, scalar-ending chains | 46 | classMappingById 21 (tests/mapping/extends — testExtendsForMainTable: 4 assertEquals over mainTable() HANDLES + testSuperSetIdsAreCollected `.id` strings; testExtendsForPrimaryKey: 14 assertEquals + 2 assertSameElements, all ending `.column.name` STRINGS); rootClassMappingByClass 13 + view 6 + inferRelationalType 5 (meta::relational::tests::typeInference::* in tests/testRelationalExtension.pure — EVERY assert compares a STRING against dataTypeToSqlText); _classMappingByClass 1 (testSubtypeMapping.pure:70, assertSize over a filtered set) |
+| B. toPostgresModel::newState | 18 | sqlDialectTranslation family (tests.pure assertConversion helpers): `assertEquals(^Node-literal, convertElement($input, newState()))` — NESTED PROTOCOL-NODE structural compares. The handoff's caution CONFIRMED: state-threading for dialect translation, a different shape than mapping reflection — its own slice, same seam |
+| C. relationalExtensions | 8 | plan-text compares (`assertEquals($expectedPlan, $plan->planToStringWithoutFormatting(relationalExtensions()))` in testUnion/testRelationalResultSourcing + one `assert($result2->sql()->contains(...))`) — NOT reflection at all; the probe crashes at the extensions arg before the sql-text partition can claim the assert. A LANE-CLASSIFICATION row |
+
+**Mechanism (probed, not guessed).** The HOST channel passes every
+one of these tests today via the ratified read-only metamodel
+vocabulary (MetamodelSteps/MetamodelWalk — planWalk claims
+statement roots). The decline is DUAL-CHANNEL-ONLY: a statement-root
+assert routes to AssertVerdicts (verdict-in-DB), its args lower
+through Scalars.lower, and reflection natives have — correctly — no
+scalar rule. The typing/checker half of the TDG template ALREADY
+EXISTS: every FQN here is a registered Pure.java native validated
+against the real legend-pure/engine .pure sources (CLASS_MAPPING_BY_ID
+et al; specs re-read this session: functions_Mapping.pure:28-79,
+platform_store_relational/functions.pure:254, relationalExtension.pure
+:120-137, toPostgresModel.pure:31-48, extensions/extension.pure:62).
+The MISSING half is the orchestration-time FOLD.
+
+**RESOLUTION — QUARANTINE (user ruling 2026-08-30).** Three
+designs were drafted and reviewed in session (per-FQN orchestrator
+fold; platform pure-source library; one-router/one-evaluator, then
+its metamodel-in-the-database correction). The tractability
+homework showed the classMappingById family is probably tractable
+under the metamodel-store frame but 66 of the rows
+(inferRelationalType, pkOfFunc, newState) have no honest design
+yet. RULING: **quarantine every metamodel-only decline into a
+named, exact-pinned census partition and burn everything else to
+zero first** (declined / mismatch / sql-exec); return to this
+program afterwards. The full record — census, specs read, homework
+done, homework open, per-bucket tractability verdicts, and the
+standing one-entry-point architecture ruling — lives in
+**docs/PROGRAM_MAP.md § "DEFERRED PROGRAM — METAMODEL AS DATA"**;
+do not re-derive it here.
+
+**STEP-0 CENSUS EXECUTED FIRST (user directive, same day):**
+docs/FULL_RESIDUE_CENSUS_2026_08_30.md — every one of the 417
+residue rows bucketed 1-by-1 via the new per-row decline-witness
+instrument; docs/METAMODEL_MACHINERY_CENSUS.md — the machinery
+lay-of-the-land. The census MOVED the quarantine boundary to
+**144 rows** (ONE-STAMP 17 + SQLNull 1 are toPostgresModel-family
+co-located; bare-lambda 10 + InstanceValue 2 are expression-tree
+reflection; 2 expressionSequence walls hid in host-unsupported;
+routerExtensions 5 proposed in) and collapsed getAll-76 to ONE
+design leg (lambda-under-native splice resolution). The census doc
+§6 carries the proposed burn order; its numbers supersede this
+section's earlier 46/18/43 sketch.
+
+**The quarantine slice (the only §4AE code change):**
+- A `metamodel-reflection :: <detail>` classification bucket in
+  the dual-channel census — a PARTITION, never a test exclusion
+  (the tests keep running and passing on host). Composition: the
+  census doc §4a's 144 rows (verified per test). Out:
+  relationalExtensions 8 (plan-text lane rows — they burn with
+  the classification work) and TypedMap 65 + TypedGraphFetch 2
+  (h2-lane).
+- Exact pin on the bucket total + per-FQN sub-reasons preserved;
+  `declined` returns to meaning REAL BACKLOG. Scope table §8.0,
+  the pins, and this charter move in the same commit.
+- Classification is exact (resolver-produced FQNs / the metamodel
+  property name), never message-sniffing beyond the production
+  system's own refusal vocabulary; the chosen detection site is
+  recorded at landing.
+
+**Then the burn order for everything else (agreed in session):**
+ONE-STAMP 17 (live invariant firing — a bug leg, outranks ports) →
+getAll 76 (census-first, ~20 tests, expect shape families) →
+relationalExtensions 8 + routerExtensions 5 classification →
+bare-lambda 10 → host-unsupported 26 + tail 9; in parallel lanes:
+sql-exec unable-to-exec 50 (TDG §S5 + emission-anatomy 7) and
+text-only 44 re-examination after S5. Mismatch stays frozen at the
+user-ruled 9.
+
+**Do-NOTs (unchanged):** disagree-9 pin untouched (user ruling
+only); TypedMap-65 rows untouched (h2-lane); TDG §S5 execution
+untouched until its turn; NO new per-FQN pure entry points
+anywhere ([[one-router-one-evaluator]] — the standing architecture
+ruling survives the deferral); walls stay loud.
+
 ## 8. PLAN OF ATTACK — the batch-2 remainder → cutover (handoff,
 ## 2026-08-28)
 

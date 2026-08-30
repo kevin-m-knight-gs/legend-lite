@@ -865,6 +865,11 @@ final class ArchitectureTest {
                 "com.legend.exec.CanonicalDivergence.V7_FORMS",
                 "com.legend.exec.CanonicalDivergence.V7_DECLINES",
                 "com.legend.exec.CanonicalDivergence.V7_SAMPLES",
+                // step-0 residue census (FULL_RESIDUE_CENSUS_2026_08_30):
+                // per-ROW decline attribution, UNCAPPED by census
+                // doctrine but bounded by the sweep's own decline count
+                // (~420); measurement only, never verdict-affecting
+                "com.legend.exec.CanonicalDivergence.V7_DECLINE_WITNESSES",
                 // TYPED-IR Slice 1: the label-lie census's classified
                 // counters (declared-vs-computed pair -> count);
                 // measurement only, never verdict-affecting — the

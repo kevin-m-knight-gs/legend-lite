@@ -121,7 +121,11 @@ class HarnessDisciplineTest {
             // sorts its own form/decline tables for stable console
             // diffs — DISPLAY ordering only, the SqlTypeCensus report
             // precedent; no comparison flows through it.
-            Map.entry("CanonicalDivergence.java", 6),
+            // 6→7 (2026-08-30, step-0 residue census): the per-row
+            // decline-witness list sorts for stable console diffs —
+            // the SAME display-ordering class; no comparison flows
+            // through it (FULL_RESIDUE_CENSUS_2026_08_30.md §0).
+            Map.entry("CanonicalDivergence.java", 7),
             // MetamodelWalk: `.distinct()` here is the RECORD ACCESSOR
             // cm().distinct() (a mapping fact), not a stream reorder —
             // counted because the spelling matches; the honest fix is
