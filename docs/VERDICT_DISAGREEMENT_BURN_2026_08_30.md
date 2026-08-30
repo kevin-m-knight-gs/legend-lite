@@ -146,3 +146,21 @@ register marked:
 Burnable now, ranked: enum include-traversal (7, small), tempTable
 chained replay (6, medium). Everything else is by-design, adjudicated,
 or an emission-anatomy dependency — no floating rows remain.
+
+## CLOSING-ARC RESULTS (2026-08-30, commit 7cfdf144)
+
+Burned since the row-by-row register: enum include-traversal (8 rows;
+implemented HARNESS-side after the Java-eviction ledger correctly
+rejected the PlanText placement), tempTable chained replay (8 asserts
+— referee capability, NOT platform: our compiler inlines in-lists;
+the synthesis makes ENGINE goldens executable for verification), and
+the probe-confirmed PLATFORM bug fix (orderedDedup lambda-subquery —
+value-lane distinct now executes). UNABLE-TO-EXEC = 21, every row
+named: predicate-diverged 6 (by-design text records), both-ours 5
+(verified identity checks — zero debt), no-generator 4 (toSQLString
+generate-only shapes — no execution exists, category-inapplicable),
+match-noreplay 2 (BYTE-MATCHED engine text, replay blocked:
+testSqlGenerationForAdjustStrictDateUsage{InFilters,InProjection}ForH2,
+tdsExtend::testDecimal attributed), forced 2 (P2 adjudication),
+tempTable statement-pairing arity 2, fan-shape skew 1, graph
+frame-extra 2 (multi-statement stitch).
