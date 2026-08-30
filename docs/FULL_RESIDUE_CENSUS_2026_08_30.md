@@ -141,3 +141,54 @@ instrument; per-test tables above are complete (no "misc", no
    predicate + 1 skew); both-ours/graph-keys/arity residue
    re-adjudicated after.
 7. Quarantine 144 + h2-lane 67: deferred programs, untouched.
+
+## 7. WALL-DEEPENING SLICE (same day, user-directed): unknown-name
+## masks LIFTED — the registrations and what they revealed
+
+**The move:** every distinct unknown-FUNCTION name across the corpus
+registered as a SIGNATURE (declarations only, verbatim from the
+reference .pure sources; zero evaluation added), so first-failure
+masks lift and the census shows each test's REAL next wall.
+Registered (9): routerExtensions (+ RouterExtension class,
+router_extension.pure:22, connectionEquality with its real function
+type), router::printer::asString (printer.pure:43), withMapping
+(mappingExtension.pure:386), enumerationMappingByName
+(functions_Mapping.pure:19, + EnumerationMapping class,
+mapping.pure:40), enumValues (legend-pure enumValues.pure:18),
+toJSON Any[*] (toJSON.pure:54), toPrettyJSONString,
+tds getNumber (tds.pure:83), TableAlias.relation()
+(relational.pure:211). PLUS one signature FIX:
+relationalExtensions() return tightened Any[*] → Extension[*]
+(the spec's own type, extension.pure:62 — the routerExtensions
+receiver typing demanded it). Governance: class pin 209→211,
+package whitelist +meta::pure::router::extension, property-surface
+rows, catalog golden regenerated (diff = exactly the new lines).
+
+**Measured outcome (three sweeps, before/after):** ZERO verdict
+flips — corpus 2356/2575 byte-identical per family, every lane pin
+unchanged (agree=3381 disagree=9 declined=323 / 1495/44/50/0);
+`unknown function` occurrences across the whole sweep: 9 → 0. The
+masked rows' REAL walls, now on the record:
+
+| was | now (the honest next wall) |
+|---|---|
+| routerExtensions ×5-6 | auto-map gap: `routerExtensions` argument 1 multiplicity [*] vs [1] — the helper maps a qualified-property native over Extension[*] (pure auto-map); confirms the quarantine class (extension-lambda eval behind it) |
+| toPrettyJSONString ×3 | `unknown class 'JSONArray'` — the meta::json node-class family is the next registration set |
+| withMapping ×2 | `lowering not yet implemented for TypedNativeCall ('withMapping' in relation position)` — a REAL routing-marker lowering gap, named |
+| enumValues ×2 | `no scalar lowering registered` — honest catalog wall |
+| toJSON ×1 | `no scalar lowering registered` — honest catalog wall |
+| getNumber ×2 | `no overload of 'col' matches 2 argument(s)` — the tds outlier tests' true blocker is a col() overload gap, NOT getNumber |
+| relation ×1 | `argument 1: expected TableAlias, got V` — a typing question at the call site, investigate with its family |
+| asString ×1 | `unknown function 'routeFunction'` — the router-test machinery goes deeper (more unported router functions behind it) |
+| exampleExternalFormatExtension ×2 | NOT registered — a TEST function from the external-format module; module-scope fact, same class as the mft finding below |
+
+**Firm/Person diagnosis (census §4's flag) — CLOSED, not a
+resolver bug:** the 13+5 `unknown class 'Firm'/'Person'` rows are
+GLOBAL element walls on mft-package mappings
+(tests/mft/*): they bind `meta::pure::mft::tests::collection::Firm`,
+defined in engine-CORE's MFT module
+(core/pure/test/mft/collectionTests.pure) — OUTSIDE the corpus
+walk. Honest dropped-base-element walls. Named future fix:
+register the MFT collection model as library sources (the
+m2m-test-library precedent in the runner) — its own slice, since it
+changes the corpus denominator.

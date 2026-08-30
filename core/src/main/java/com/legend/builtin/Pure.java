@@ -267,6 +267,11 @@ public final class Pure {
     // SIGNATURES name it (extensions:Extension[*]) even where the value
     // only ever passes through
     public static final ClassDefinition EXTENSION = nativeClass("native Class meta::pure::extension::Extension {}");
+    // Real core/pure/router/extension/router_extension.pure:22 — the
+    // router-facing extension hooks; ONLY the property the corpus
+    // demands (connectionEquality, spelled with its REAL function type)
+    // — the routing/instanceProcessors hooks join by witness.
+    public static final ClassDefinition ROUTER_EXTENSION = nativeClass("native Class meta::pure::router::extension::RouterExtension extends meta::pure::metamodel::type::Any { connectionEquality: meta::pure::metamodel::function::Function<{meta::core::runtime::Connection[1]->meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Nil[1]->meta::pure::metamodel::type::Boolean[1]}>[*]}>[0..1]; }");
     // scalar properties as REAL relationalRuntime.pure declares them (the
     // Function-typed post-processor properties are omitted until demanded);
     // the corpus's testDatabaseConnection(...) constructs these
@@ -393,6 +398,11 @@ public final class Pure {
     // collapses to single inheritance, subsumption preserved for the
     // corpus's cast(@PropertyMappingsImplementation) sites
     public static final ClassDefinition PROPERTY_MAPPINGS_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::PropertyMappingsImplementation extends meta::pure::mapping::SetImplementation {}");
+    // Real platform_dsl_mapping/grammar/mapping.pure:40 (extends
+    // ValueTransformer<T> — parent flattened to Any until a witness
+    // demands the transformer surface, the SetImplementation flatten
+    // precedent; enumValueMappings omitted until demanded).
+    public static final ClassDefinition ENUMERATION_MAPPING = nativeClass("native Class meta::pure::mapping::EnumerationMapping<T> extends meta::pure::metamodel::type::Any { name: meta::pure::metamodel::type::String[1]; parent: meta::pure::mapping::Mapping[1]; enumeration: meta::pure::metamodel::type::Enumeration<T>[1]; }");
     public static final ClassDefinition INSTANCE_SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::InstanceSetImplementation extends meta::pure::mapping::PropertyMappingsImplementation { class: meta::pure::metamodel::type::Any[0..1]; }");
     /** Real core/pure/router/store/cluster.pure:43. */
     public static final ClassDefinition CROSS_SET_IMPLEMENTATION = nativeClass("native Class meta::pure::router::clustering::CrossSetImplementation extends meta::pure::mapping::InstanceSetImplementation { targetStore: meta::pure::store::Store[0..1]; varName: meta::pure::metamodel::type::String[1]; }");
@@ -1355,6 +1365,9 @@ public final class Pure {
     /** Pure-code composition in real pure (dateExtension.pure:482 — today()->firstDayOfYear()); platform-native here, composed BY EMISSION. */
     /** Real pure platform/pure/grammar/functions/lang/enum/extractEnumValue.pure:25; the TYPER constant-folds literal calls to the enum value (special form). */
     public static final NativeFunctionDefinition EXTRACT_ENUM_VALUE = signature("native function meta::pure::functions::lang::extractEnumValue<T>(enum:meta::pure::metamodel::type::Enumeration<T>[1], value:meta::pure::metamodel::type::String[1]):T[1];");
+    // Real legend-pure platform/pure/essential/meta/type/enum/
+    // enumValues.pure:18 (PCT.platformOnly).
+    public static final NativeFunctionDefinition ENUM_VALUES = signature("native function meta::pure::functions::meta::enumValues<T>(enum:meta::pure::metamodel::type::Enumeration<T>[1]):T[*];");
     public static final NativeFunctionDefinition FIRST_DAY_OF_THIS_YEAR = signature("native function meta::pure::functions::date::firstDayOfThisYear():meta::pure::metamodel::type::Date[1];");
     /** Real pure dateExtension.pure:472. */
     public static final NativeFunctionDefinition FIRST_DAY_OF_THIS_MONTH = signature("native function meta::pure::functions::date::firstDayOfThisMonth():meta::pure::metamodel::type::Date[1];");
@@ -1388,6 +1401,10 @@ public final class Pure {
     // query-side chain channel; FromChecker absorbs it into
     // TypedFrom.chainMappings)
     public static final NativeFunctionDefinition WITH_CHAINED_MAPPINGS = signature("native function meta::pure::mapping::withChainedMappings<T>(source:T[*], mappings:meta::pure::mapping::Mapping[*]):T[*];");
+    // Real core/pure/mapping/mappingExtension.pure:386 (a
+    // functionType.NotImplementedFunction routing marker, the from()
+    // sibling — testFrom's withMapping spelling).
+    public static final NativeFunctionDefinition WITH_MAPPING = signature("native function meta::pure::mapping::withMapping<T|m>(t:T[m], m:meta::pure::mapping::Mapping[1]):T[m];");
     public static final NativeFunctionDefinition GENERATE_GUID = signature("native function meta::pure::functions::string::generation::generateGuid():meta::pure::metamodel::type::String[1];");
     // real legend-pure platform/pure/essential/meta/type/genericType.pure
     public static final NativeFunctionDefinition GENERIC_TYPE__ANY_MANY = signature("native function meta::pure::functions::meta::genericType(any:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::generics::GenericType[1];");
@@ -1595,11 +1612,27 @@ public final class Pure {
     // relational/functions.pure:277/:191 — ordinary pure there; typed
     // natives here, evaluated K-side over the compiled model)
     public static final NativeFunctionDefinition CLASS_MAPPING_BY_ID = signature("native function meta::pure::mapping::classMappingById(_this:meta::pure::mapping::Mapping[1], id:meta::pure::metamodel::type::String[1]):meta::pure::mapping::SetImplementation[0..1];");
+    // Real platform_dsl_mapping/functions_Mapping.pure:19.
+    public static final NativeFunctionDefinition ENUMERATION_MAPPING_BY_NAME = signature("native function meta::pure::mapping::enumerationMappingByName(_this:meta::pure::mapping::Mapping[1], name:meta::pure::metamodel::type::String[1]):meta::pure::mapping::EnumerationMapping<meta::pure::metamodel::type::Any>[0..1];");
+    // Real core/pure/extensions/extension.pure:46 — Extension's
+    // routerExtensions() QUALIFIED PROPERTY (availableStores ++
+    // availableFeatures cast to RouterExtension), registered as a
+    // receiver-first native (the tds getString idiom). Registration
+    // deepens the census wall from 'unknown function' to the honest
+    // downstream refusal — no evaluation is added here.
+    public static final NativeFunctionDefinition ROUTER_EXTENSIONS = signature("native function meta::pure::extension::routerExtensions(_this:meta::pure::extension::Extension[1]):meta::pure::router::extension::RouterExtension[*];");
+    // Real core/pure/router/printer/printer.pure:43 — the router
+    // debug-print of a routed function (testRouting composition tests
+    // assert its text).
+    public static final NativeFunctionDefinition ROUTER_PRINTER_AS_STRING = signature("native function meta::pure::router::printer::asString(f:meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition SUPER_MAPPING = signature("native function meta::pure::mapping::superMapping(_this:meta::pure::mapping::PropertyMappingsImplementation[1]):meta::pure::mapping::PropertyMappingsImplementation[0..1];");
     public static final NativeFunctionDefinition ALL_SUPER_SET_IMPLEMENTATIONS = signature("native function meta::pure::mapping::allSuperSetImplementations(set:meta::pure::mapping::PropertyMappingsImplementation[1], m:meta::pure::mapping::Mapping[1]):meta::pure::mapping::PropertyMappingsImplementation[*];");
     public static final NativeFunctionDefinition MAIN_TABLE = signature("native function meta::relational::metamodel::mainTable(_this:meta::relational::metamodel::RelationalMappingSpecification[1]):meta::relational::metamodel::relation::Table[1];");
     public static final NativeFunctionDefinition RESOLVE_PRIMARY_KEY = signature("native function meta::relational::mapping::resolvePrimaryKey(_this:meta::relational::mapping::RootRelationalInstanceSetImplementation[1]):meta::relational::metamodel::RelationalOperationElement[*];");
     public static final NativeFunctionDefinition VIEW__SCHEMA_1__STRING_1 = signature("native function meta::relational::metamodel::view(_this:meta::relational::metamodel::Schema[1], name:meta::pure::metamodel::type::String[1]):meta::relational::metamodel::relation::View[0..1];");
+    // Real platform_store_relational/grammar/relational.pure:211 —
+    // TableAlias.relation() qualified property (relationalElement cast).
+    public static final NativeFunctionDefinition RELATION__TABLE_ALIAS_1 = signature("native function meta::relational::metamodel::relation(_this:meta::relational::metamodel::TableAlias[1]):meta::relational::metamodel::relation::Relation[1];");
     public static final NativeFunctionDefinition INFER_RELATIONAL_TYPE = signature("native function meta::relational::functions::typeInference::inferRelationalType(rop:meta::relational::metamodel::RelationalOperationElement[1]):meta::relational::metamodel::datatype::DataType[0..1];");
     public static final NativeFunctionDefinition DATA_TYPE_TO_SQL_TEXT = signature("native function meta::relational::metamodel::datatype::dataTypeToSqlText(type:meta::relational::metamodel::datatype::DataType[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition SCHEMA__DB_1__STRING_1 = signature("native function meta::relational::metamodel::schema(_this:meta::relational::metamodel::Database[1], name:meta::pure::metamodel::type::String[1]):meta::relational::metamodel::Schema[0..1];");
@@ -1718,7 +1751,12 @@ public final class Pure {
     // broken in this platform (the Extension metamodel class), so it never
     // enters the module — this native exists for TYPING the context
     // argument of toSQLString/execute calls; it is never evaluated.
-    public static final NativeFunctionDefinition RELATIONAL_EXTENSIONS__ANY_MANY = signature("native function meta::relational::extension::relationalExtensions():meta::pure::metamodel::type::Any[*];");
+    // Return TIGHTENED Any[*] -> Extension[*] (wall-deepening slice,
+    // FULL_RESIDUE_CENSUS §5): the REAL spec (extensions/extension.pure
+    // :62) returns Extension[*], and routerExtensions' receiver typing
+    // demanded the truth; Extension <: Any so every Any[*] consumer
+    // still types.
+    public static final NativeFunctionDefinition RELATIONAL_EXTENSIONS__ANY_MANY = signature("native function meta::relational::extension::relationalExtensions():meta::pure::extension::Extension[*];");
 
     // setUpDataSQLsV2: the engine's CSV-seed SQL generator (module-
     // external to the corpus) — K-dispatched via CsvSeed; dbConfig types
@@ -2199,6 +2237,12 @@ public final class Pure {
     // side that EXECUTES them declines loudly by name.
     public static final ClassDefinition JSON_ELEMENT = nativeClass("native Class meta::json::JSONElement extends meta::pure::metamodel::type::Any {}");
     public static final NativeFunctionDefinition PARSE_JSON__STRING_1 = signature("native function meta::json::parseJSON(string:meta::pure::metamodel::type::String[1]):meta::json::JSONElement[1];");
+    // Real core/external/format/json/toJSON.pure:54 (the Any[*]
+    // overload — TDS/instance serialization the datatype tests assert).
+    public static final NativeFunctionDefinition TO_JSON__ANY_M = signature("native function meta::json::toJSON(obj:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1];");
+    // Real core/external/format/json/toJSON.pure — the JSONElement
+    // pretty-printer the graphFetch subType tests compare with.
+    public static final NativeFunctionDefinition TO_PRETTY_JSON_STRING = signature("native function meta::json::toPrettyJSONString(json:meta::json::JSONElement[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition EQUAL_JSON_STRINGS__STRING_1__STRING_1 = signature("native function meta::pure::functions::boolean::equalJsonStrings(left:meta::pure::metamodel::type::String[1], right:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
 
     // columns (REAL core_functions_relation columns.pure-adjacent
@@ -2219,6 +2263,9 @@ public final class Pure {
     public static final NativeFunctionDefinition ASSERT_TDS_EQUIVALENT__REL_1__REL_1__NUMBER_1__NUMBER_1 = signature("native function meta::pure::functions::relation::assertTdsEquivalent<T,Z>(one:meta::pure::metamodel::relation::Relation<T>[1], two:meta::pure::metamodel::relation::Relation<Z>[1], delta:meta::pure::metamodel::type::Number[1], timeDeltaInSeconds:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Boolean[1];");
 
     public static final NativeFunctionDefinition GET_STRING__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getString(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
+    // Real core/pure/tds/tds.pure:83 (getNumber qualified property, the
+    // getString idiom — the tds outlier tests' read spelling).
+    public static final NativeFunctionDefinition GET_NUMBER__TDS_ROW_1__STRING_1 = signature("native function meta::pure::tds::getNumber(row:meta::pure::tds::TDSRow[1], colName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Number[1];");
 
     // real tds.pure declares tdsContains over TabularDataSet[1]; our TDS
     // carrier is Relation (same divergence as project<K> above) — the

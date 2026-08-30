@@ -526,7 +526,11 @@ class NativeFunctionTest {
         // 209: +RowIdentifier, TableRowIdentifiers,
         //     TemporalMilestoningDates, TestDataGenResult (TDG lane S2 —
         //     verbatim testDataGeneration.pure:38-70)
-        assertEquals(209, Pure.allNativeClasses().size(),
+        // 211: +RouterExtension, EnumerationMapping (wall-deepening
+        //     slice, FULL_RESIDUE_CENSUS §5 — registrations that move
+        //     'unknown function' masks to honest downstream walls;
+        //     verbatim router_extension.pure:22 / mapping.pure:40)
+        assertEquals(211, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -563,6 +567,12 @@ class NativeFunctionTest {
 
     private static final java.util.Map<String, List<String>> RUNTIME_SURFACE_PROPERTIES =
             java.util.Map.ofEntries(
+                    // wall-deepening slice (FULL_RESIDUE_CENSUS §5): the
+                    // router-facing extension hooks — ONLY the demanded
+                    // property (real router_extension.pure:22-29)
+                    java.util.Map.entry(
+                    "meta::pure::router::extension::RouterExtension",
+                    List.of("connectionEquality")),
                     java.util.Map.entry(
                     "meta::core::runtime::ConnectionStore", List.of("connection", "element")),
                     java.util.Map.entry(
@@ -964,7 +974,12 @@ class NativeFunctionTest {
                     "meta::pure::tds::TDSRow", List.of("parent", "values"),
                     // aggregationAware.pure:36-39
                     "meta::pure::mapping::aggregationAware::AggregationAwareActivity",
-                    List.of("rewrittenQuery"));
+                    List.of("rewrittenQuery"),
+                    // wall-deepening slice: real platform_dsl_mapping/
+                    // grammar/mapping.pure:40-46 (enumValueMappings
+                    // omitted until demanded)
+                    "meta::pure::mapping::EnumerationMapping",
+                    List.of("name", "parent", "enumeration"));
 
     @Test
     void everyNativeClassIsMarkedNativeAndHasEmptyBodyOutsideTheDocumentedSurface() {
@@ -1207,7 +1222,10 @@ class NativeFunctionTest {
                 "meta::pure::router::clustering",
                 // V7 §8 leg 3: parseJSON's JSONElement (real engine
                 // package, core_functions_json)
-                "meta::json");
+                "meta::json",
+                // wall-deepening slice: the router extension hooks
+                // (real core/pure/router/extension)
+                "meta::pure::router::extension");
         for (ClassDefinition c : Pure.allNativeClasses()) {
             String fqn = c.qualifiedName();
             boolean ok = expected.stream().anyMatch(p -> fqn.startsWith(p + "::"));
