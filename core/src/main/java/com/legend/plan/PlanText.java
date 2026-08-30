@@ -485,25 +485,19 @@ public final class PlanText {
                         || em.enumName().equals(simple)
                         || em.enumName().endsWith("::" + simple))
                 .toList();
-        // LEGACY REACH-BACK (census row PHYS-1): which enum mapping a
-        // COLUMN uses lives on the raw EnumeratedColumn property mapping
-        // — the fact dies at Phase-E lambda-lift. Kill = carry per-column
-        // enum-mapping ids on the normalized artifact.
-        var raw = ctx.findLegacyMapping(mappingFqn).orElse(null);
-        if (candidates.size() > 1 && phys != null && raw != null) {
+        if (candidates.size() > 1 && phys != null) {
             var ids = candidates.stream()
                     .map(com.legend.model.EnumerationMapping::mappingId)
                     .collect(java.util.stream.Collectors.toSet());
-            for (var cm : raw.classMappings()) {
-                if (!(cm instanceof
-                        com.legend.model.ClassMapping.Relational r)) {
+            for (var cb : md.classBindings()) {
+                if (!(cb instanceof com.legend.model.MappingDefinition
+                                .ClassBinding.Relational rb)
+                        || !(rb.source() instanceof com.legend.model
+                                .MappingDefinition.RelationalSource.Table t)) {
                     continue;
                 }
-                for (var pm : r.propertyMappings()) {
-                    if (pm instanceof com.legend.model.PropertyMapping
-                                    .EnumeratedColumn ec
-                            && ec.enumMappingId() != null
-                            && ids.contains(ec.enumMappingId())
+                for (var ec : t.enumColumns()) {
+                    if (ids.contains(ec.enumMappingId())
                             && bareTable(ec.table())
                                     .equalsIgnoreCase(bareTable(phys[0]))
                             && ec.column().equalsIgnoreCase(phys[1])) {

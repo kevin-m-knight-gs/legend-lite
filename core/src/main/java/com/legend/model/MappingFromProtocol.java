@@ -105,10 +105,19 @@ public final class MappingFromProtocol {
             // reference to an ordinary user function.
             com.legend.protocol.Realization realization =
                     realizationOf(fn.function(), fn.bodyLambda());
-            bindings.add(new MappingDefinition.ClassBinding(fn.className(),
-                    "PURE".equals(fn.kind()) ? MappingDefinition.Kind.PURE
-                            : MappingDefinition.Kind.RELATIONAL,
-                    fn.id(), fn.extendsClassMappingId(), fn.root(), realization));
+            bindings.add("PURE".equals(fn.kind())
+                    ? new MappingDefinition.ClassBinding.Pure(fn.className(),
+                            fn.id(), fn.extendsClassMappingId(), fn.root(),
+                            realization, java.util.List.of())
+                    : new MappingDefinition.ClassBinding.Relational(fn.className(),
+                            fn.id(), fn.extendsClassMappingId(), fn.root(),
+                            realization, java.util.List.of(),
+                            // inline bodies are stamped at the Phase-E lift;
+                            // a function-REF binding's source is honestly
+                            // absent at this door (census: Door-1/protocol)
+                            new MappingDefinition.RelationalSource.Undeclared(
+                                    "protocol/clean-sheet binding — stamped at"
+                                            + " Phase-E lift when inline")));
         }
         List<EnumerationMapping> enums = new ArrayList<>();
         for (Protocol.PEnumerationMapping em : m.enumerationMappings()) {

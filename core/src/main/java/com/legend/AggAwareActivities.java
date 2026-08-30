@@ -92,22 +92,17 @@ final class AggAwareActivities {
      * {@code mappingFqn} (includes walked), else null. */
     private static @Nullable String aggAwareSetId(ModelContext ctx,
             String mappingFqn, String classFqn) {
-        LegacyMappingDefinition md = ctx.findLegacyMapping(mappingFqn)
-                .orElse(null);
+        var md = ctx.findMapping(mappingFqn).orElse(null);
         if (md == null) {
             return null;
         }
-        for (ClassMapping cm : md.classMappings()) {
-            if (cm instanceof ClassMapping.Relational r
-                    && r.aggregationAwareMain()
-                    && r.className().equals(classFqn)) {
-                return r.setId();
-            }
-        }
-        for (var inc : md.includes()) {
-            String hit = aggAwareSetId(ctx, inc.mappingPath(), classFqn);
-            if (hit != null) {
-                return hit;
+        for (var cb : md.classBindingsWithIncludes(ctx::findMapping)) {
+            if (cb.classFqn().equals(classFqn)
+                    && cb instanceof com.legend.model.MappingDefinition.ClassBinding.Relational rb
+                    && rb.source() instanceof com.legend.model.MappingDefinition
+                            .RelationalSource.Table t
+                    && t.aggregationAwareMain()) {
+                return cb.setId();
             }
         }
         return null;

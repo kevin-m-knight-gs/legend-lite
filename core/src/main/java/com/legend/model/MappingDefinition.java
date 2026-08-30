@@ -62,53 +62,26 @@ public record MappingDefinition(
                 ? java.util.Map.of() : java.util.Map.copyOf(routedTargetSets);
     }
 
-    /** Class-mapping kind tag. Both kinds realize {@code Class[*]}; the tag is a
-     * property of the binding relationship, not derivable from the function
-     * (MAPPING_CLEAN_SHEET.md §1). */
-    public enum Kind { RELATIONAL, PURE }
-
     /**
      * A class binding: structure only; the body is a {@link Realization}
      * (function ref or &mdash; B&rarr;E only &mdash; an inline expression).
-     *
-     * @param classFqn      the mapped class
-     * @param kind          {@code RELATIONAL} | {@code PURE}
-     * @param setId         explicit set identifier, or {@code null} for the default set
-     * @param extendsSetId  parent set id for {@code extends [parentId]}, or {@code null}
-     * @param root          {@code true} when marked root ({@code *})
-     * @param realization   how the binding is realized ({@link Realization.Ref} /
-     *                      {@link Realization.Inline})
+     * SEALED by binding kind &mdash; the kind is a property of the binding
+     * relationship, not derivable from the function (MAPPING_CLEAN_SHEET.md
+     * §1), and the variant IS the kind: a {@link Relational} binding
+     * carries its physical-source stamp as a NON-NULL component (the
+     * guarantee is compile-time &mdash; a door that forgets to stamp does
+     * not compile), a {@link Pure} (m2m) binding has no physical source by
+     * construction. NO convenience constructors on either variant: one
+     * silently dropped {@code primaryKeyColumns} (the AssocJoin disease) —
+     * every site spells every component.
      */
-    public record ClassBinding(
-            String classFqn,
-            Kind kind,
-            @com.legend.Nullable String setId,
-            @com.legend.Nullable String extendsSetId,
-            boolean root,
-            Realization realization,
-            List<String> primaryKeyColumns) {
-        public ClassBinding {
-            Objects.requireNonNull(classFqn, "classFqn");
-            Objects.requireNonNull(kind, "kind");
-            Objects.requireNonNull(realization, "realization");
-            primaryKeyColumns = primaryKeyColumns == null ? List.of()
-                    : List.copyOf(primaryKeyColumns);
-        }
-
-        /** Pre-~primaryKey compat: no declared object-identity columns. */
-        public ClassBinding(String classFqn, Kind kind, @com.legend.Nullable String setId,
-                            @com.legend.Nullable String extendsSetId, boolean root,
-                            Realization realization) {
-            this(classFqn, kind, setId, extendsSetId, root, realization,
-                    List.of());
-        }
-
-        /** Convenience: a function-ref binding (Door 1 / post-lift). */
-        public ClassBinding(String classFqn, Kind kind, @com.legend.Nullable String setId,
-                            @com.legend.Nullable String extendsSetId, boolean root,
-                            String functionFqn) {
-            this(classFqn, kind, setId, extendsSetId, root, new Realization.Ref(functionFqn));
-        }
+    public sealed interface ClassBinding permits ClassBinding.Relational, ClassBinding.Pure {
+        String classFqn();
+        @com.legend.Nullable String setId();
+        @com.legend.Nullable String extendsSetId();
+        boolean root();
+        Realization realization();
+        List<String> primaryKeyColumns();
 
         /**
          * The realizing function's FQN. Valid only when the realization is a
@@ -116,10 +89,166 @@ public record MappingDefinition(
          * normalizer lifts every {@link Realization.Inline}. Throws on an
          * unlifted inline binding (a phase-ordering bug, surfaced loudly).
          */
-        public String functionFqn() {
-            if (realization instanceof Realization.Ref r) return r.functionFqn();
+        default String functionFqn() {
+            if (realization() instanceof Realization.Ref r) return r.functionFqn();
             throw new IllegalStateException(
-                    "class binding for '" + classFqn + "' is an unlifted inline body");
+                    "class binding for '" + classFqn() + "' is an unlifted inline body");
+        }
+
+        /** A relational class binding; {@code source} is never null. */
+        record Relational(
+                String classFqn,
+                @com.legend.Nullable String setId,
+                @com.legend.Nullable String extendsSetId,
+                boolean root,
+                Realization realization,
+                List<String> primaryKeyColumns,
+                RelationalSource source) implements ClassBinding {
+            public Relational {
+                Objects.requireNonNull(classFqn, "classFqn");
+                Objects.requireNonNull(realization, "realization");
+                Objects.requireNonNull(source, "source");
+                primaryKeyColumns = primaryKeyColumns == null ? List.of()
+                        : List.copyOf(primaryKeyColumns);
+            }
+        }
+
+        /** A pure (m2m) class binding: no physical source exists. */
+        record Pure(
+                String classFqn,
+                @com.legend.Nullable String setId,
+                @com.legend.Nullable String extendsSetId,
+                boolean root,
+                Realization realization,
+                List<String> primaryKeyColumns) implements ClassBinding {
+            public Pure {
+                Objects.requireNonNull(classFqn, "classFqn");
+                Objects.requireNonNull(realization, "realization");
+                primaryKeyColumns = primaryKeyColumns == null ? List.of()
+                        : List.copyOf(primaryKeyColumns);
+            }
+        }
+    }
+
+    /**
+     * This mapping's class bindings PLUS its includes' (transitively,
+     * OWN-FIRST &mdash; a local binding shadows an included one at lookup,
+     * matching {@code ClassSources.findBinding}; cycle-safe; bare include
+     * paths resolve in the includer's package). A symbol-table walk for
+     * consumers that read binding METADATA verbatim &mdash; row semantics
+     * stay in the lifted functions.
+     */
+    public List<ClassBinding> classBindingsWithIncludes(
+            java.util.function.Function<String,
+                    java.util.Optional<MappingDefinition>> find) {
+        List<ClassBinding> out = new java.util.ArrayList<>(classBindings);
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        seen.add(qualifiedName);
+        collectIncludedBindings(this, find, out, seen);
+        return out;
+    }
+
+    private static void collectIncludedBindings(MappingDefinition md,
+            java.util.function.Function<String,
+                    java.util.Optional<MappingDefinition>> find,
+            List<ClassBinding> out, java.util.Set<String> seen) {
+        for (MappingInclude inc : md.includes()) {
+            String path = inc.mappingPath();
+            if (!path.contains("::") && md.qualifiedName().contains("::")) {
+                String inPkg = md.qualifiedName().substring(0,
+                        md.qualifiedName().lastIndexOf("::")) + "::" + path;
+                if (find.apply(inPkg).isPresent()) {
+                    path = inPkg;
+                }
+            }
+            if (!seen.add(path)) {
+                continue;
+            }
+            MappingDefinition included = find.apply(path).orElse(null);
+            if (included == null) {
+                continue;
+            }
+            out.addAll(included.classBindings());
+            collectIncludedBindings(included, find, out, seen);
+        }
+    }
+
+    /**
+     * Construction-time facts about a RELATIONAL binding's physical source
+     * &mdash; CACHED ANSWERS stamped at Phase E by the same resolution the
+     * function synthesis uses, so the derivation exists in exactly one
+     * place. THE RAZOR (docs/LEGACY_MAPPING_REACHBACK_CENSUS.md): the
+     * lifted function is the ONLY carrier of row semantics; a stamp is
+     * read VERBATIM (compared, printed, dispatched on) and never
+     * interpreted &mdash; a consumer that must combine stamps to decide
+     * what rows mean is doing an analysis and must walk the function
+     * instead. Stamps are never authored outside the Phase-E synthesis
+     * (lifted functions are immutable post-E: registration is append-only,
+     * every constructor/copy-helper caller is construction-time).
+     * Null on non-relational and protocol-sourced bindings.
+     *
+     * SEALED: {@link Table} (physical main source), {@link Json} (a
+     * JsonModelConnection-backed set &mdash; the source is a URL, not a
+     * table), {@link Undeclared} (the door could not derive a source:
+     * a pre-lift inline binding awaiting Phase E, a protocol
+     * function-ref binding, a clean-sheet root that is not a plain
+     * table access &mdash; ABSENCE IS SPELLED, never null, so consumers
+     * that need a Table must match and fall through explicitly).
+     */
+    public sealed interface RelationalSource
+            permits RelationalSource.Table, RelationalSource.Json,
+                    RelationalSource.Undeclared {
+
+        /**
+         * @param database              main source's database FQN
+         * @param table                 resolved main table (explicit
+         *                              {@code ~mainTable} or the
+         *                              engine-parity inference &mdash; the
+         *                              SAME call the synthesis makes)
+         * @param aggregationAwareMain  dispatch flag: this set is the
+         *                              AggregationAware main (same species
+         *                              as {@code root})
+         * @param enumColumns           per-column enum-mapping id spellings
+         *                              (serialization metadata; the decode
+         *                              SEMANTICS live in the function body)
+         */
+        record Table(
+                String database,
+                String table,
+                boolean aggregationAwareMain,
+                List<EnumColumn> enumColumns) implements RelationalSource {
+            public Table {
+                Objects.requireNonNull(database, "database");
+                Objects.requireNonNull(table, "table");
+                enumColumns = enumColumns == null ? List.of()
+                        : List.copyOf(enumColumns);
+            }
+        }
+
+        /** JsonModelConnection-backed set: the source is a URL. */
+        record Json(String url) implements RelationalSource {
+            public Json {
+                Objects.requireNonNull(url, "url");
+            }
+        }
+
+        /** The door could not derive a source; {@code why} names the door
+         * and reason (poison idiom &mdash; loud on inspection). */
+        record Undeclared(String why) implements RelationalSource {
+            public Undeclared {
+                Objects.requireNonNull(why, "why");
+            }
+        }
+    }
+
+    /** A column's declared enum-mapping id ({@code prop: EnumerationMapping
+     * synonym: T.COL}) &mdash; the id is a SPELLING read verbatim for
+     * plan-text parity, never a decode (that is in the function). */
+    public record EnumColumn(String table, String column, String enumMappingId) {
+        public EnumColumn {
+            Objects.requireNonNull(table, "table");
+            Objects.requireNonNull(column, "column");
+            Objects.requireNonNull(enumMappingId, "enumMappingId");
         }
     }
 

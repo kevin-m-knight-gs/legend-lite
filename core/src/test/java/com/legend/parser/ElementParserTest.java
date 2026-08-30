@@ -2013,7 +2013,7 @@ final class ElementParserTest {
         assertEquals(1, md.classBindings().size());
         var b = md.classBindings().get(0);
         assertEquals("acme::Person", b.classFqn());
-        assertEquals(com.legend.model.MappingDefinition.Kind.RELATIONAL, b.kind());
+        assertInstanceOf(com.legend.model.MappingDefinition.ClassBinding.Relational.class, b);
         assertTrue(b.root());
         assertNull(b.setId());
         assertNull(b.extendsSetId());
@@ -2028,7 +2028,7 @@ final class ElementParserTest {
               + ")");
         var b = md.classBindings().get(0);
         assertEquals("acme::StaffMember", b.classFqn());
-        assertEquals(com.legend.model.MappingDefinition.Kind.PURE, b.kind());
+        assertInstanceOf(com.legend.model.MappingDefinition.ClassBinding.Pure.class, b);
         assertFalse(b.root(), "no leading * => not root");
         assertEquals("acme::funcs::staffMapping", b.functionFqn());
     }

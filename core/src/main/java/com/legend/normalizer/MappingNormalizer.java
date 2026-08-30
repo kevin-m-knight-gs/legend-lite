@@ -302,14 +302,18 @@ public final class MappingNormalizer {
                         FunctionDefinition setFn =
                                 synthesizeClassMapping(md, cm, model, true);
                         lifted.add(setFn);
-                        classBindings.add(new MappingDefinition.ClassBinding(
-                                cm.className(),
-                                cm instanceof ClassMapping.Pure
-                                        ? MappingDefinition.Kind.PURE
-                                        : MappingDefinition.Kind.RELATIONAL,
-                                cm.setId(), cm.extendsSetId(), /*root*/ false,
-                                new Realization.Ref(setFn.qualifiedName()),
-                                declaredPrimaryKeyColumns(cm)));
+                        classBindings.add(cm instanceof ClassMapping.Relational rSrc
+                                ? new MappingDefinition.ClassBinding.Relational(
+                                        cm.className(), cm.setId(),
+                                        cm.extendsSetId(), /*root*/ false,
+                                        new Realization.Ref(setFn.qualifiedName()),
+                                        declaredPrimaryKeyColumns(cm),
+                                        relationalSourceOf(rSrc))
+                                : new MappingDefinition.ClassBinding.Pure(
+                                        cm.className(), cm.setId(),
+                                        cm.extendsSetId(), /*root*/ false,
+                                        new Realization.Ref(setFn.qualifiedName()),
+                                        declaredPrimaryKeyColumns(cm)));
                     } catch (NotImplementedException | ModelException e) {
                         // per-SET fault isolation, same trade as per-class
                         model.mappingPoisons.putIfAbsent(
@@ -340,14 +344,16 @@ public final class MappingNormalizer {
                 continue;
             }
             lifted.add(fn);
-            classBindings.add(new MappingDefinition.ClassBinding(
-                    cm.className(),
-                    cm instanceof ClassMapping.Pure
-                            ? MappingDefinition.Kind.PURE
-                            : MappingDefinition.Kind.RELATIONAL,
-                    cm.setId(), cm.extendsSetId(), cm.root(),
-                    new Realization.Ref(fn.qualifiedName()),
-                    declaredPrimaryKeyColumns(cm)));
+            classBindings.add(cm instanceof ClassMapping.Relational rSrc
+                    ? new MappingDefinition.ClassBinding.Relational(
+                            cm.className(), cm.setId(), cm.extendsSetId(),
+                            cm.root(), new Realization.Ref(fn.qualifiedName()),
+                            declaredPrimaryKeyColumns(cm),
+                            relationalSourceOf(rSrc))
+                    : new MappingDefinition.ClassBinding.Pure(
+                            cm.className(), cm.setId(), cm.extendsSetId(),
+                            cm.root(), new Realization.Ref(fn.qualifiedName()),
+                            declaredPrimaryKeyColumns(cm)));
         }
         // ENGINE ROUTER PARITY (include direction): union/inheritance route
         // classification happens in the QUERIED mapping's closure. A class
@@ -402,11 +408,12 @@ public final class MappingNormalizer {
                         continue;
                     }
                     lifted.add(fn);
-                    classBindings.add(new MappingDefinition.ClassBinding(
-                            rcm.className(), MappingDefinition.Kind.RELATIONAL,
+                    classBindings.add(new MappingDefinition.ClassBinding.Relational(
+                            rcm.className(),
                             rcm.setId(), rcm.extendsSetId(), rcm.root(),
                             new Realization.Ref(fn.qualifiedName()),
-                            declaredPrimaryKeyColumns(rcm)));
+                            declaredPrimaryKeyColumns(rcm),
+                            relationalSourceOf(rcm)));
                 }
             }
         }
@@ -479,8 +486,26 @@ public final class MappingNormalizer {
             if (cb.realization() instanceof Realization.Inline inl) {
                 String fnFqn = SynthFqn.mappingClass(md.qualifiedName(), cb.classFqn());
                 lifted.add(liftClassInline(md, cb, inl, fnFqn));
-                classBindings.add(new MappingDefinition.ClassBinding(
-                        cb.classFqn(), cb.kind(), cb.setId(), cb.extendsSetId(), cb.root(), fnFqn));
+                // spells EVERY component (the old convenience ctor here
+                // silently dropped primaryKeyColumns). A RELATIONAL
+                // inline binding's Undeclared placeholder is stamped
+                // HERE — the lift is Door 1's construction moment.
+                classBindings.add(switch (cb) {
+                    case MappingDefinition.ClassBinding.Relational rb ->
+                            new MappingDefinition.ClassBinding.Relational(
+                                    rb.classFqn(), rb.setId(), rb.extendsSetId(),
+                                    rb.root(), new Realization.Ref(fnFqn),
+                                    rb.primaryKeyColumns(),
+                                    rb.source() instanceof MappingDefinition
+                                            .RelationalSource.Undeclared
+                                            ? inlineRootSource(inl.body())
+                                            : rb.source());
+                    case MappingDefinition.ClassBinding.Pure pb ->
+                            new MappingDefinition.ClassBinding.Pure(
+                                    pb.classFqn(), pb.setId(), pb.extendsSetId(),
+                                    pb.root(), new Realization.Ref(fnFqn),
+                                    pb.primaryKeyColumns());
+                });
                 changed = true;
             } else {
                 classBindings.add(cb);
@@ -510,6 +535,36 @@ public final class MappingNormalizer {
      * and Pure differ only in what the body starts from, which the lift never
      * inspects.
      */
+    /** The DOOR-1 stamp: a clean-sheet inline binding's root table
+     * reference, recognized at LIFT (the binding's construction moment)
+     * by leftmost descent to the {@code #>{db.T}#} head the parser
+     * emitted structurally (AppliedFunction "tableReference"). The
+     * convergence tenet demands both doors produce the SAME binding
+     * table, so this mirrors the legacy {@code relationalSourceOf}.
+     * {@code Undeclared} when the root is not a plain table access
+     * (loud via the convergence suite if a witness ever needs more). */
+    private static MappingDefinition.RelationalSource
+            inlineRootSource(List<ValueSpecification> body) {
+        ValueSpecification v = body.size() == 1 ? body.get(0) : null;
+        while (v instanceof com.legend.protocol.spec.AppliedFunction af
+                && !"tableReference".equals(af.function())
+                && !af.parameters().isEmpty()) {
+            v = af.parameters().get(0);
+        }
+        if (v instanceof com.legend.protocol.spec.AppliedFunction tr
+                && "tableReference".equals(tr.function())
+                && tr.parameters().size() == 2
+                && tr.parameters().get(0)
+                        instanceof com.legend.protocol.spec.PackageableElementPtr db
+                && tr.parameters().get(1)
+                        instanceof com.legend.protocol.spec.CString t) {
+            return new MappingDefinition.RelationalSource.Table(
+                    db.fullPath(), t.value(), false, List.of());
+        }
+        return new MappingDefinition.RelationalSource.Undeclared(
+                "clean-sheet inline root is not a plain table access");
+    }
+
     private static FunctionDefinition liftClassInline(MappingDefinition md,
                                                      MappingDefinition.ClassBinding cb,
                                                      Realization.Inline inl,
@@ -1584,11 +1639,7 @@ public final class MappingNormalizer {
             return synthJsonSourceMapping(md, rcm, model);
         }
         if (rcm.mainTable() == null) {
-            // real engine INFERS the main table when ~mainTable is absent:
-            // the table of the first direct column binding (corpus mappings
-            // rarely spell ~mainTable). No column binding to infer from
-            // stays a loud wall.
-            LegacyMappingDefinition.TableReference inferred = inferMainTable(rcm);
+            LegacyMappingDefinition.TableReference inferred = resolvedMainTable(rcm);
             if (inferred == null) {
                 throw new NotImplementedException(
                         "Relational mapping without ~mainTable, sourceUrl, or an"
@@ -1610,6 +1661,54 @@ public final class MappingNormalizer {
             return synthViewBackedMapping(md, rcm, view, model);
         }
         return synthTableBackedMapping(md, rcm, model);
+    }
+
+    /**
+     * The RESOLVED main source of a relational set: explicit
+     * {@code ~mainTable}, or the engine-parity inference when absent
+     * (real engine: the table of the first direct column binding when
+     * all agree; corpus mappings rarely spell {@code ~mainTable}). Null
+     * for JSON-source sets and for sets with nothing to infer from (the
+     * synthesis walls loudly on the latter). THE one resolution &mdash;
+     * both the function synthesis and the {@code ClassBinding} stamp
+     * read this, so the derivation logic exists in exactly one place.
+     */
+    static LegacyMappingDefinition.@com.legend.Nullable TableReference
+            resolvedMainTable(ClassMapping.Relational rcm) {
+        if (rcm.sourceUrl() != null) {
+            return null;
+        }
+        return rcm.mainTable() != null ? rcm.mainTable() : inferMainTable(rcm);
+    }
+
+    /** The {@code ClassBinding} STAMP for a relational set — cached
+     * answers computed by the SAME resolution the function synthesis
+     * uses ({@link #resolvedMainTable}); consumers read them verbatim
+     * (the {@code RelationalSource} razor). TOTAL: JSON-source sets
+     * stamp {@code Json}; a set whose synthesis is about to wall stamps
+     * {@code Undeclared} (unreachable on a lifted binding — the wall
+     * poisons first). */
+    private static MappingDefinition.RelationalSource
+            relationalSourceOf(ClassMapping.Relational rcm) {
+        if (rcm.sourceUrl() != null) {
+            return new MappingDefinition.RelationalSource.Json(rcm.sourceUrl());
+        }
+        var main = resolvedMainTable(rcm);
+        if (main == null) {
+            return new MappingDefinition.RelationalSource.Undeclared(
+                    "legacy set without ~mainTable, sourceUrl, or an"
+                            + " inferable column binding (synthesis walls)");
+        }
+        List<MappingDefinition.EnumColumn> ecs = new ArrayList<>();
+        for (var pm : rcm.propertyMappings()) {
+            if (pm instanceof PropertyMapping.EnumeratedColumn ec
+                    && ec.enumMappingId() != null) {
+                ecs.add(new MappingDefinition.EnumColumn(
+                        ec.table(), ec.column(), ec.enumMappingId()));
+            }
+        }
+        return new MappingDefinition.RelationalSource.Table(main.database(),
+                main.table(), rcm.aggregationAwareMain(), ecs);
     }
 
     /**

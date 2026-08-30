@@ -133,7 +133,7 @@ class MappingNormalizerTest {
         assertEquals(2, md.classBindings().size(), "one binding per class mapping, in order");
         var personBinding = md.classBindings().get(0);
         assertEquals("model::Person", personBinding.classFqn());
-        assertEquals(com.legend.model.MappingDefinition.Kind.PURE, personBinding.kind());
+        assertInstanceOf(com.legend.model.MappingDefinition.ClassBinding.Pure.class, personBinding);
         assertTrue(personBinding.root(), "leading * marks the binding root");
         assertEquals("my::M$class$model::Person", personBinding.functionFqn(),
                 "binding references the lifted function by its exact FQN");
@@ -316,7 +316,7 @@ class MappingNormalizerTest {
         assertEquals(Multiplicity.Concrete.ZERO_MANY, fn.returnMultiplicity());
         // The kind tag stays PURE on the binding; the lift didn't inspect it.
         var b = canonicalMapping(normalized, "acme::M").classBindings().get(0);
-        assertEquals(MappingDefinition.Kind.PURE, b.kind());
+        assertInstanceOf(MappingDefinition.ClassBinding.Pure.class, b);
         assertEquals("acme::M$class$model::Person", b.functionFqn());
     }
 

@@ -277,7 +277,7 @@ public final class ClassSources {
         for (String memberId : memberSetIds) {
             MappingDefinition.ClassBinding mcb = findBinding(mdef, classFqn,
                     memberId, new LinkedHashSet<>());
-            if (mcb != null && mcb.kind() == MappingDefinition.Kind.PURE) {
+            if (mcb instanceof MappingDefinition.ClassBinding.Pure) {
                 pureArms.add(memberId);
             } else {
                 ordered.add(memberId);

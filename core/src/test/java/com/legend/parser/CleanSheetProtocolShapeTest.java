@@ -66,7 +66,7 @@ class CleanSheetProtocolShapeTest {
                 + ")");
         var b = md.classBindings().get(0);
         assertEquals("acme::Person", b.classFqn());
-        assertEquals(MappingDefinition.Kind.RELATIONAL, b.kind());
+        assertInstanceOf(MappingDefinition.ClassBinding.Relational.class, b);
         assertTrue(b.root());
         assertEquals("acme::funcs::personMapping", b.functionFqn());
     }
@@ -77,7 +77,7 @@ class CleanSheetProtocolShapeTest {
                 + "  acme::StaffMember: Pure { acme::funcs::staffMapping } "
                 + ")");
         var b = md.classBindings().get(0);
-        assertEquals(MappingDefinition.Kind.PURE, b.kind());
+        assertInstanceOf(MappingDefinition.ClassBinding.Pure.class, b);
         assertFalse(b.root(), "no leading * — not the root set");
         assertEquals("acme::funcs::staffMapping", b.functionFqn());
     }
@@ -123,8 +123,8 @@ class CleanSheetProtocolShapeTest {
         assertEquals("acme::Staff", md.classBindings().get(2).classFqn());
         assertTrue(md.classBindings().get(0).root());
         assertFalse(md.classBindings().get(1).root());
-        assertEquals(MappingDefinition.Kind.PURE,
-                md.classBindings().get(2).kind());
+        assertInstanceOf(MappingDefinition.ClassBinding.Pure.class,
+                md.classBindings().get(2));
     }
 
     /** The INLINE form — a body that is not a lone element pointer, so it

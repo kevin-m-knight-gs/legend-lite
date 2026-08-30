@@ -62,6 +62,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -1376,8 +1377,11 @@ class NameResolverTest {
         Set<String> fqns = Set.of("acme::Person", "acme::personMapping",
                 "acme::Person_Firm", "acme::personFirmMatch");
         ImportScope imp = new ImportScope.Builder().add("acme::*").build();
-        var classBinding = new MappingDefinition.ClassBinding(
-                "Person", MappingDefinition.Kind.RELATIONAL, "emp", "base", true, "personMapping");
+        var classBinding = new MappingDefinition.ClassBinding.Relational(
+                "Person", "emp", "base", true,
+                new com.legend.protocol.Realization.Ref("personMapping"),
+                List.of(),
+                new MappingDefinition.RelationalSource.Undeclared("test"));
         var assocBinding = new MappingDefinition.AssociationBinding(
                 "Person_Firm", "personFirmMatch");
         var md = new MappingDefinition("acme::M", List.of(),
@@ -1389,7 +1393,7 @@ class NameResolverTest {
         assertEquals("acme::personMapping", cb.functionFqn(), "function FQN resolved");
         assertEquals("emp", cb.setId(), "setId is a local id; never resolved");
         assertEquals("base", cb.extendsSetId(), "extendsSetId is a local id; never resolved");
-        assertEquals(MappingDefinition.Kind.RELATIONAL, cb.kind());
+        assertInstanceOf(MappingDefinition.ClassBinding.Relational.class, cb);
         assertTrue(cb.root());
         var ab = r.associationBindings().get(0);
         assertEquals("acme::Person_Firm", ab.associationFqn());
@@ -1403,9 +1407,10 @@ class NameResolverTest {
         Set<String> fqns = Set.of("acme::Person", "acme::personMapping");
         ImportScope imp = new ImportScope.Builder().add("acme::*").build();
         var md = new MappingDefinition("acme::M", List.of(),
-                List.of(new MappingDefinition.ClassBinding(
-                        "acme::Person", MappingDefinition.Kind.PURE, null, null, true,
-                        "acme::personMapping")),
+                List.of(new MappingDefinition.ClassBinding.Pure(
+                        "acme::Person", null, null, true,
+                        new com.legend.protocol.Realization.Ref("acme::personMapping"),
+                        List.of())),
                 List.of(), List.of(), null);
         assertSame(md, resolveOne(md, imp, fqns),
                 "already-FQN bindings round-trip without allocating a new record");
