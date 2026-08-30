@@ -100,3 +100,27 @@ receipt.
   receipt) — burns 1 (testDayOfMonth).
 - Slice D4: TDSNull row-string repro + fix or named residue — 1.
 - Slice D5: tie row → named ceiling with receipt — 1.
+
+## SQL-EXEC LANES — the register (2026-08-30 close)
+
+UNABLE-TO-EXEC = 45, EXACT-pinned since P0.5; every row named below
+(sweep attributions in the session logs). unverifiable = 5 (h2-exec),
+attributed alongside. "Burned" here means named + pinned + receipted;
+the two starred buckets are the genuinely burnable follow-up legs.
+
+| bucket | n | disposition |
+|---|---|---|
+| graph-keys mismatch (golden selects assoc/stitch aliases the frame does not carry: [lastName, zzfirmId] vs [lastName] etc.) | 12 | *BURNABLE LEG: a stitch-key rule (golden-only aliases that are association-key columns of the mapping = engine assembly bookkeeping, droppable like pk_/u_type) — referee surgery with mask-risk, needs its own witnesses |
+| enum-decoded columns (decode map underivable) | 7 | *BURNABLE LEG: per-test derivation reads (mappingFqnOf/decodeOf return null for these — frame-kind widening probed 2026-08-30, measured ZERO and reverted; the gap is mapping recovery, not frame kind) |
+| predicate-diverged | 6 | fragment-check predicates recorded as divergence by design (slice-3 2026-08-28 record) |
+| both-ours | 5 | both comparison sides are OUR sql (no engine golden to execute) — counted by construction |
+| tempTableForIn missing tables | 4 | goldens reference ENGINE-RUNTIME temp artifacts (TEMPTABLEFORIN_N) — unexecutable as standalone text BY CONSTRUCTION |
+| no-generator-noreplay | 4 | no SQL generator on the assert's route — named |
+| match-noreplay | 2 | text byte-matched, no replay needed — bookkeeping row |
+| forced-isolation VALUE frames | 2 | engine debug-mechanism pins (P2 adjudication, addendum §8) |
+| column arity | 2 | golden/frame arity differs by harness-added columns — layer difference |
+| row-cardinality skew | 1 | distinct rows agree, duplication differs — the set-vs-row counted class |
+
+h2-exec unverifiable 5: paginate-with-variables, groupBy date-period
+(the ledgered lift-gap leg), tempTable query-chaining x2,
+view-chains-with-business-date — each a named standing leg.
