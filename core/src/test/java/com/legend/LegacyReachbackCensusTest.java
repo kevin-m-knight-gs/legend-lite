@@ -1,0 +1,134 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend;
+
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.List;
+import java.util.stream.Stream;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * THE LEGACY REACH-BACK CENSUS GUARD (docs/LEGACY_MAPPING_REACHBACK_CENSUS.md,
+ * 2026-08-30): {@code findLegacyMapping} is the choke point through which
+ * post-compile code reaches back into the phase-B parse artifact. The
+ * 2026-08 program killed every query-time re-derivation reach-back
+ * (PHYS-1/AGG-1/VF-1 read stamps; enum tables ride the compiled artifact)
+ * and classified every survivor. This census pins the survivors EXACTLY,
+ * per file, occurrence-counted — a NEW reach-back (new file, or growth
+ * inside a registered file) fails loudly and routes the author to the
+ * census doc's razor before the artifact quietly forks again.
+ *
+ * <p>The register's categories (each row cites one):
+ * <ul>
+ *   <li><b>CONSTRUCTION</b> — Phase B&rarr;E code consumes the parse
+ *   artifact BY DESIGN (the normalizer package is its sole
+ *   post-resolution consumer).</li>
+ *   <li><b>SURFACE CONTRACT</b> — engine APIs SPEC'D on the authored
+ *   mapping: the Pure metamodel walk, and {@code scanRelations}
+ *   ("static form off the mapping" — the tree is arranged by the
+ *   MAPPING's join names, a vocabulary the lifted functions do not
+ *   carry; SCAN-1 reclassified with this receipt).</li>
+ *   <li><b>REGISTRY PLUMBING</b> — the interface declaration, its
+ *   implementations, and name-existence checks across both
+ *   registries.</li>
+ * </ul>
+ *
+ * <p>Occurrence counts (not just file names) so growth INSIDE a
+ * registered file is also a conscious registration — the JDBC census's
+ * recorded file-grain limit, closed here where it is cheap.
+ */
+class LegacyReachbackCensusTest {
+
+    private static final List<String> ROOTS = List.of(
+            "core/src/main", "pct/src/main", "nlq/src/main",
+            "parser-equivalence/src/main");
+
+    /** Coverage floor: production files scanned on 2026-08-30. Shrink
+     * needs a written justification (files deleted); growth is free. */
+    private static final int FILE_FLOOR = 250;
+
+    private static final Map<String, Integer> REGISTER = new TreeMap<>(Map.of(
+            // CONSTRUCTION (Phase E): the normalizer IS the legacy
+            // artifact's consumer — translation, union/association
+            // synthesis, include walks over the raw surface
+            "core/src/main/java/com/legend/normalizer/MappingNormalizer.java", 5,
+            "core/src/main/java/com/legend/normalizer/UnionSynthesis.java", 3,
+            "core/src/main/java/com/legend/normalizer/AssociationSynthesis.java", 1,
+            // SURFACE CONTRACT: the Pure metamodel API presents the
+            // AUTHORED mapping (includes + own lists; .pure navigation
+            // does its own traversal)
+            "core/src/main/java/com/legend/exec/MetamodelWalk.java", 3,
+            // SURFACE CONTRACT: engine scanRelations is "static form off
+            // the mapping" (#44, feature map §14.1) — join-NAME vocabulary
+            // exists only on the authored surface (SCAN-1 reclassified)
+            "core/src/main/java/com/legend/lineage/ScanRelations.java", 2,
+            // REGISTRY PLUMBING: declaration, O(1) impl, overlay
+            // existence checks across both registries
+            "core/src/main/java/com/legend/compiler/element/ModelContext.java", 1,
+            "core/src/main/java/com/legend/compiler/element/PureModelContext.java", 4,
+            "core/src/main/java/com/legend/compiler/ModelBuilder.java", 1));
+
+    @Test
+    void findLegacyMappingCallersArePinned() throws IOException {
+        Map<String, Integer> found = new TreeMap<>();
+        int scanned = 0;
+        for (String root : ROOTS) {
+            Path p = Path.of("..", root);
+            if (!Files.isDirectory(p)) {
+                continue;
+            }
+            try (Stream<Path> files = Files.walk(p)) {
+                for (Path f : files.filter(x -> x.toString().endsWith(".java"))
+                        .toList()) {
+                    scanned++;
+                    String src = stripComments(Files.readString(f));
+                    int n = count(src);
+                    if (n > 0) {
+                        found.put(f.normalize().toString()
+                                .replaceFirst("^\\.\\./", ""), n);
+                    }
+                }
+            }
+        }
+        assertTrue(scanned >= FILE_FLOOR,
+                "census coverage SHRANK: scanned " + scanned + " < floor "
+                        + FILE_FLOOR + " — a source root moved or the walk"
+                        + " lost a module");
+        assertEquals(REGISTER, found,
+                "findLegacyMapping reach-back census drifted"
+                        + " (docs/LEGACY_MAPPING_REACHBACK_CENSUS.md): GROWTH"
+                        + " means a NEW reach into the phase-B parse artifact"
+                        + " — the fact you need belongs ON the compiled"
+                        + " artifact (stamped at Phase E) or your consumer is"
+                        + " an analysis that walks the lifted functions; read"
+                        + " the census razor before registering. SHRINKAGE"
+                        + " means a reach-back died — ratchet the row down in"
+                        + " the same commit.");
+    }
+
+    private static int count(String src) {
+        int n = 0;
+        int i = 0;
+        while ((i = src.indexOf("findLegacyMapping", i)) >= 0) {
+            n++;
+            i += "findLegacyMapping".length();
+        }
+        return n;
+    }
+
+    /** Line + block comments removed (string-literal contents kept — the
+     * token cannot legitimately hide in one). */
+    private static String stripComments(String s) {
+        return s.replaceAll("(?s)/\\*.*?\\*/", "")
+                .replaceAll("//[^\n]*", "");
+    }
+}

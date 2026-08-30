@@ -79,7 +79,7 @@ normalize to functions — ONE compiler path. The reconciliation:
 | PHYS-1 | PlanText.enumMappingIdFor | KILLED: reads `ClassBinding.source().enumColumns()` (id spellings, verbatim) |
 | AGG-1 | AggAwareActivities.aggAwareSetId | KILLED: `classBindingsWithIncludes` + `source().aggregationAwareMain()` dispatch flag |
 | VF-1 | ViewFrames.frameNameOf | KILLED: stamp carries the Phase-E RESOLVED main source (scope-inference included — the same `resolvedMainTable` call the synthesis makes); the view-name check stays a DATABASE registry lookup |
-| SCAN-1 | ScanRelations lineage (2 sites) | OPEN — the one legitimate WALK conversion: lineage asks open-ended questions and must walk the lifted typed functions (one compiler path), not read stamps. Own leg. |
+| SCAN-1 | ScanRelations lineage (2 sites) | RECLASSIFIED (2026-08-30) as SURFACE CONTRACT — the kill classification was wrong, made from call-site shape before reading the contract. The receipt: ScanRelations implements the ENGINE's static scanRelations ("static form off the mapping", #44 / feature map §14.1) — the output tree is arranged by the MAPPING's join NAMES and per-property-mapping branches, a vocabulary the lifted functions do not carry (the lift inlines join conditions and discards the names). Walking lifted functions would re-implement the oracle's algorithm over a structure lacking the oracle's vocabulary (oracle-semantics-live-in-oracle-code). Same class as MetamodelWalk: engine analytics APIs spec'd on the authored artifact consume the authored artifact. Nothing execution-semantic flows from it into SQL. |
 
 Bonus fix riding the ctor change: `liftInlineBindings` rebuilt bindings
 through a convenience ctor that silently dropped `primaryKeyColumns`
@@ -128,3 +128,15 @@ unknown variant; both mapping doors have phase-separated types
 (`CleanSheetMappingDefinition` ↔ `LegacyMappingDefinition`); the
 compiled binding is `functionFqn` + stamp (no Realization union, no
 throw-guarded accessor — §7.4 became a type guarantee).
+
+## THE STANDING GUARD (2026-08-30)
+
+`LegacyReachbackCensusTest` (core test root, JDBC-census idiom,
+occurrence-counted per file — growth INSIDE a registered file is also a
+conscious registration): every production `findLegacyMapping` call site
+is pinned exactly, categorized CONSTRUCTION / SURFACE CONTRACT /
+REGISTRY PLUMBING. A new reach-back fails the chain with a message
+routing the author to this doc's razor. Current register: 8 files, 20
+occurrences (normalizer 9, MetamodelWalk 3, ScanRelations 2, registry
+plumbing 6). With SCAN-1 reclassified, the kill list is EMPTY — the
+program is closed and the guard keeps it closed.
