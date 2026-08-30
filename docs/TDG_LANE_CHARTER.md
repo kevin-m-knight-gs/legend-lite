@@ -63,6 +63,22 @@ in the harness at all:
    TestDataGenForm routing); the 117 decline pin burns toward 0 with a
    named residue for anything adjudicated otherwise.
 
+## HONESTY LABELS — what is receipts vs design intent
+
+The S1 sections below "S1 CORRECTED ARCHITECTURE" are RECEIPTS
+(researched in code or proven by the reverted attempt). The "Target
+architecture" numbered list above is DESIGN INTENT for S2/S3 — three
+of its claims are UNVERIFIED and are the opening research of those
+slices:
+- the engine's real `assertTestData/3` semantics (.pure body never
+  read; only our harness's checkTdgAssert javadoc consulted);
+- whether `TestDataGenerator.generate` materializes rows through the
+  database in the way the verdict-in-DB design assumes;
+- whether the sql-text referee machinery fits `.sqls` LIST asserts
+  (it is built around single sql-producer calls).
+Do NOT treat those three as settled when designing S2/S3 — census
+first, same as everything else.
+
 ## Slices (each gated, ratchets moved with attribution)
 
 - **S1 (smallest, proves the seam)**: the CSV-census form
@@ -145,12 +161,19 @@ same way it does for bridged TypedSort sources (it should — same arm);
 only if it does not, thread the key into the aggregation
 (string_agg(x ORDER BY key)).
 
-**Checker-fold argument shapes** (audit): the harness β-inlines lets
-today, so the call arrives with the lambda INLINE — but the fold must
-ALSO handle `$query` as a variable (S4 deletes harness special-casing).
-The checker already types `$query` as a function type, so it holds a
-binding environment — resolve the protocol lambda through THAT, never
-a statement-list tree search.
+**Checker-fold receipts (researched, no longer a guess)**: the hook is
+`Typer.applyCore(CoreFn fn, AppliedFunction af, Env env)` — the sealed
+special-form dispatch, which receives the PROTOCOL call directly; the
+`case DEACTIVATE ->` arm (~Typer:1239) is the compile-time-reflection
+precedent to copy, and the 34 `*Checker` classes
+(compiler/spec/*Checker.java) are the per-form checker idiom
+(Checkers.java validates against the registered signature parameter by
+parameter). For `$query` as a VARIABLE: the compiler already has
+source-level protocol let-inlining — `SourceSubst.inlineLets`
+(~Typer:2142, "pure lets are value bindings — β-substitution is
+exact") — reuse that mechanism; never a new tree search. (Today the
+harness also pre-inlines, so S1 may only ever see the inline shape —
+but the variable arm rides existing machinery either way.)
 
 **Chain status of the proven attempt** (audit): the first attempt was
 PROBE-green only (scoped corpus runs + JavaEvalLedgerTest) — the full
