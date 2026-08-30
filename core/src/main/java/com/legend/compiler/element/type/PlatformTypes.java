@@ -286,6 +286,13 @@ public final class PlatformTypes {
     public static final String GET_RELATIONAL_CSV_DATA =
             "meta::relational::testDataGeneration::getRelationalCSVDataFromQuery";
 
+    /** TDG lane S2: the RUNTIME data-extraction native — the checker
+     * captures the call's protocol (carrier), the ORCHESTRATOR executes
+     * the fetches through the database and splices the result as
+     * literals. */
+    public static final String GENERATE_TEST_DATA =
+            "meta::relational::testDataGeneration::generateTestData";
+
     /** The ASSERT FAMILY is platform-owned WHOLESALE (V7 tenet
      * correction 2026-08-28: asserts are verdicts ALWAYS —
      * AssertVerdicts/the K-arm IS the implementation; the real pure
@@ -325,6 +332,7 @@ public final class PlatformTypes {
                 || PLAN_TO_STRING_WITHOUT_FORMATTING.equals(fqn)
                 || CREATE_DB_CONFIG.equals(fqn)
                 || GET_RELATIONAL_CSV_DATA.equals(fqn)
+                || GENERATE_TEST_DATA.equals(fqn)
                 || EXECUTE.equals(fqn);
     }
 

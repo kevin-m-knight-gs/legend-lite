@@ -113,7 +113,11 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/exec/PctProbe.java",
             "core/src/main/java/com/legend/server/ConnectionResolver.java",
             "core/src/main/java/com/legend/server/QueryService.java",
-            "core/src/main/java/com/legend/testdatagen/TestDataGenerator.java"
+            "core/src/main/java/com/legend/testdatagen/TestDataGenerator.java",
+            // TdgNatives (TDG lane S2): pure ORCHESTRATION — threads the
+            // ambient connection through to TestDataGenerator's fetches
+            // (the database executes); no statements of its own
+            "core/src/main/java/com/legend/testdatagen/TdgNatives.java"
     ));
 
     private static final Set<String> TEST_REGISTER = new TreeSet<>(List.of(

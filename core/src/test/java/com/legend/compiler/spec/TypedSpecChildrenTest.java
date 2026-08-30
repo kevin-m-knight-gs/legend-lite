@@ -288,6 +288,11 @@ class TypedSpecChildrenTest {
             // the span component (TypedNativeCall.pos — Phase 4)
             return new com.legend.protocol.SourceInfo("test.pure", 1, 1, 1, 2);
         }
+        if (type == com.legend.protocol.spec.ValueSpecification.class) {
+            // TypedTestDataGen.params (TDG lane S2): captured PROTOCOL
+            // arguments — opaque payload, not typed children
+            return new com.legend.protocol.spec.CString("d", null, false);
+        }
         if (type == com.legend.protocol.spec.LambdaFunction.class) {
             // TypedCsvCensus.query (TDG lane S1): the carrier's captured
             // PROTOCOL lambda — opaque payload, not a typed child

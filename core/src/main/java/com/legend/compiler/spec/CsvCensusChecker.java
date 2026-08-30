@@ -98,4 +98,41 @@ public final class CsvCensusChecker {
         return new com.legend.compiler.spec.typed
                 .TypedNewInstance(DATA_FQN, dataProps, info);
     }
+
+    /** A STRING-collection literal (COMPILER-minted, invariant 7) —
+     * the setUpDataSQLs constant fold's result carrier. */
+    public static TypedSpec literalStrings(java.util.List<String> values,
+            ExprType info) {
+        ExprType str = new ExprType(Type.Primitive.STRING,
+                Multiplicity.Bounded.ONE);
+        java.util.List<TypedSpec> rows = new java.util.ArrayList<>(values.size());
+        for (String v : values) {
+            rows.add(new com.legend.compiler.spec.typed.TypedCString(v, str));
+        }
+        return new com.legend.compiler.spec.typed.TypedCollection(rows, info);
+    }
+
+    /** The {@code TypedTestDataGen} carrier's folded form (S2) —
+     * COMPILER-minted, same invariant-7 contract as {@link #literal}.
+     * {@code relationTree} is deliberately ABSENT: a read of it walls
+     * loudly until a witness demands the tree as a value. */
+    public static TypedSpec literalTestData(String dataCsvString,
+            java.util.List<String> sqls, ExprType info) {
+        ExprType str = new ExprType(Type.Primitive.STRING,
+                Multiplicity.Bounded.ONE);
+        java.util.List<TypedSpec> sqlRows = new java.util.ArrayList<>(sqls.size());
+        for (String sql : sqls) {
+            sqlRows.add(new com.legend.compiler.spec.typed
+                    .TypedCString(sql, str));
+        }
+        java.util.Map<String, TypedSpec> props = new java.util.LinkedHashMap<>();
+        props.put("dataCsvString", new com.legend.compiler.spec.typed
+                .TypedCString(dataCsvString, str));
+        props.put("sqls", new com.legend.compiler.spec.typed
+                .TypedCollection(sqlRows, new ExprType(Type.Primitive.STRING,
+                        Multiplicity.Bounded.ZERO_MANY)));
+        return new com.legend.compiler.spec.typed.TypedNewInstance(
+                "meta::relational::testDataGeneration::TestDataGenResult",
+                props, info);
+    }
 }

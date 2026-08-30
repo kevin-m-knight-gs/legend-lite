@@ -253,6 +253,15 @@ public final class Pure {
     public static final ClassDefinition EMBEDDED_DATA = nativeClass("native Class meta::pure::data::EmbeddedData extends meta::pure::metamodel::type::Any {}");
     public static final ClassDefinition RELATIONAL_CSV_TABLE = nativeClass("native Class meta::relational::metamodel::data::RelationalCSVTable { schema: meta::pure::metamodel::type::String[1]; table: meta::pure::metamodel::type::String[1]; values: meta::pure::metamodel::type::String[1]; }");
     public static final ClassDefinition RELATIONAL_CSV_DATA = nativeClass("native Class meta::relational::metamodel::data::RelationalCSVData extends meta::pure::data::EmbeddedData { tables: meta::relational::metamodel::data::RelationalCSVTable[*]; }");
+
+    // TDG lane S2 (docs/TDG_LANE_CHARTER.md): the generateTestData result
+    // family, verbatim testDataGeneration.pure:38-70 (metamodel-typed
+    // fields relaxed to Any per the executionPlan precedent; relationTree
+    // stays declared — reads of it wall until a witness demands more).
+    public static final ClassDefinition ROW_IDENTIFIER = nativeClass("native Class meta::relational::testDataGeneration::RowIdentifier { columnValuePairs: meta::pure::metamodel::type::Any[*]; }");
+    public static final ClassDefinition TABLE_ROW_IDENTIFIERS = nativeClass("native Class meta::relational::testDataGeneration::TableRowIdentifiers { table: meta::pure::metamodel::type::Any[1]; rowIdentifiers: meta::relational::testDataGeneration::RowIdentifier[*]; }");
+    public static final ClassDefinition TEMPORAL_MILESTONING_DATES = nativeClass("native Class meta::relational::testDataGeneration::TemporalMilestoningDates { businessDate: meta::pure::metamodel::type::Date[0..1]; processingDate: meta::pure::metamodel::type::Date[0..1]; snapshotDate: meta::pure::metamodel::type::Date[0..1]; }");
+    public static final ClassDefinition TEST_DATA_GEN_RESULT = nativeClass("native Class meta::relational::testDataGeneration::TestDataGenResult { dataCsvString: meta::pure::metamodel::type::String[1]; relationTree: meta::pure::metamodel::type::Any[1]; sqls: meta::pure::metamodel::type::String[*]; }");
     public static final ClassDefinition EXECUTION_OPTION_CONTEXT = nativeClass("native Class meta::pure::executionPlan::ExecutionOptionContext extends meta::pure::executionPlan::MultiExecutionContext { executionOptions: meta::pure::executionPlan::ExecutionOption[*]; }");
     // real extension.pure — the plug-in registry class; corpus function
     // SIGNATURES name it (extensions:Extension[*]) even where the value
@@ -1747,6 +1756,18 @@ public final class Pure {
     // census, no execution (TDG lane S1; query/mapping params relaxed
     // to the executionPlan precedent's metamodel spellings)
     public static final NativeFunctionDefinition GET_RELATIONAL_CSV_DATA__FN_1__ANY_1 = signature("native function meta::relational::testDataGeneration::getRelationalCSVDataFromQuery(query:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], mapping:meta::pure::metamodel::type::Any[1]):meta::relational::metamodel::data::RelationalCSVData[1];");
+    // real testDataGeneration.pure:104 (5-arg canonical; the CoreFn
+    // checker owns EVERY overload structurally — one registration serves
+    // FQN dispatch). S2: the RUNTIME data-extraction native — executes
+    // fetches through the database, folded at orchestration, never here.
+    public static final NativeFunctionDefinition GENERATE_TEST_DATA__5 = signature("native function meta::relational::testDataGeneration::generateTestData(func:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], rowIdentifiers:meta::relational::testDataGeneration::TableRowIdentifiers[*], extensions:meta::pure::metamodel::type::Any[*]):meta::relational::testDataGeneration::TestDataGenResult[1];");
+    // real testDataGeneration.pure:72/77/93/99 — the pure CONSTRUCTORS
+    // (typed for standalone lets; their values ride the generate call's
+    // captured protocol, so the lets stay lazy and never lower)
+    public static final NativeFunctionDefinition CREATE_TABLE_ROW_IDENTIFIERS__4 = signature("native function meta::relational::testDataGeneration::createTableRowIdentifiers(database:meta::pure::metamodel::type::Any[1], schema:meta::pure::metamodel::type::String[1], table:meta::pure::metamodel::type::String[1], identifiers:meta::relational::testDataGeneration::RowIdentifier[*]):meta::relational::testDataGeneration::TableRowIdentifiers[1];");
+    public static final NativeFunctionDefinition CREATE_TABLE_ROW_IDENTIFIERS__2 = signature("native function meta::relational::testDataGeneration::createTableRowIdentifiers(table:meta::pure::metamodel::type::Any[1], identifiers:meta::relational::testDataGeneration::RowIdentifier[*]):meta::relational::testDataGeneration::TableRowIdentifiers[1];");
+    public static final NativeFunctionDefinition CREATE_ROW_IDENTIFIER = signature("native function meta::relational::testDataGeneration::createRowIdentifier(columnNames:meta::pure::metamodel::type::String[*], columnValues:meta::pure::metamodel::type::Any[*]):meta::relational::testDataGeneration::RowIdentifier[1];");
+    public static final NativeFunctionDefinition CREATE_TEMPORAL_MILESTONING_DATES = signature("native function meta::relational::testDataGeneration::createTemporalMilestoningDates(businessDate:meta::pure::metamodel::type::Date[0..1], processingDate:meta::pure::metamodel::type::Date[0..1], snapshotDate:meta::pure::metamodel::type::Date[0..1]):meta::relational::testDataGeneration::TemporalMilestoningDates[1];");
     // pure-only plan shapes (no store): 2/3-arg spellings type; their
     // plan text is a PureExp node — a named wall at the K-arm until built
     // parameterized query lambdas (Allocation/Sequence plans): they

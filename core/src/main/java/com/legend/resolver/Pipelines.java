@@ -55,7 +55,7 @@ import java.util.regex.Pattern;
  * and the rewrite cannot drift. A mapping ~filter reading through a slot
  * stays loud (join-mediated mapping filters: later in H3).
  */
-final class Pipelines {
+public final class Pipelines {
 
     /** Rotate the given navigate steps to the BOTTOM of the step spine
      * (just above the base segment): a NAV-READ temporal date's chain
@@ -1541,14 +1541,19 @@ final class Pipelines {
      * store-resolve). Falls to the auto-map sugar read otherwise. */
     static @com.legend.Nullable TypedSpec literalOrAutoMapRead(
             TypedPropertyAccess pa) {
+        TypedSpec lit = instanceLiteralProp(pa);
+        return lit != null ? lit : autoMapRead(pa);
+    }
+
+    /** THE ONE literal-prop rule (both the resolver and the TDG fold
+     * walk read it — never a second copy). */
+    public static @com.legend.Nullable TypedSpec instanceLiteralProp(
+            TypedPropertyAccess pa) {
         if (pa.source() instanceof com.legend.compiler.spec.typed
                 .TypedNewInstance ni) {
-            TypedSpec v = ni.properties().get(pa.property());
-            if (v != null) {
-                return v;
-            }
+            return ni.properties().get(pa.property());
         }
-        return autoMapRead(pa);
+        return null;
     }
 
     static @com.legend.Nullable TypedSpec autoMapRead(TypedPropertyAccess pa) {

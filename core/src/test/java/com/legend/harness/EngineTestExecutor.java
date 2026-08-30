@@ -1964,6 +1964,11 @@ public final class EngineTestExecutor {
         // literals (CsvCensusChecker), so the let rides the ordinary
         // lazy path and its navigation lowers.
         if (TestDataGenForm.hasGenerate(rhs)) {
+            // S2: the binding FLOWS to the platform (the checker's carrier
+            // executes the extraction and splices literals — size and
+            // row-contract asserts route as REAL verdicts); the harness
+            // copy stays ONLY for the sqls-TEXT advisory (S3 converts it,
+            // S4 deletes this arm).
             try {
                 tdg.put(name.value(), TestDataGenForm.run(rhs, ctx,
                         imports, conn));
@@ -1971,7 +1976,7 @@ public final class EngineTestExecutor {
                 return new TdgLet(new Outcome.Unsupported(String.valueOf(
                         e.getMessage()).split("\\n")[0]), null, false);
             }
-            return new TdgLet(null, null, true);
+            return new TdgLet(null, rhs, false);
         }
         rhs = TestDataGenForm.inlineReads(rhs, tdg);
         if (rhs instanceof AppliedFunction ep
@@ -2039,6 +2044,16 @@ public final class EngineTestExecutor {
      * advisory (the golden-SQL doctrine), .sqls COUNTS verify. Returns
      * {@link #NOT_TDG_MARKER} when the assert doesn't touch a
      * generateTestData binding. */
+    /** {@code read} on the RAW arg first (S2: generate bindings ride the
+     * lets now, so substitution inlines the call and erases the Variable
+     * the reader keys on), falling back to the substituted form for
+     * lets-of-lets spellings. */
+    private static TestDataGenForm.@com.legend.Nullable Read readTdg(
+            ValueSpecification a, Map<String, ValueSpecification> lets) {
+        TestDataGenForm.Read r = TestDataGenForm.read(a);
+        return r != null ? r : TestDataGenForm.read(subst(a, lets));
+    }
+
     private static @com.legend.Nullable String checkTdgAssert(AppliedFunction af,
             List<ValueSpecification> args,
             Map<String, ValueSpecification> lets,
@@ -2050,39 +2065,24 @@ public final class EngineTestExecutor {
             throws java.sql.SQLException {
         switch (simpleName(af.function())) {
             case "assertTestData" -> {
-                if (args.size() != 3) {
-                    return UNSUPPORTED_MARKER;
-                }
-                TestDataGenForm.Read r = TestDataGenForm.read(
-                        subst(args.get(1), lets));
-                var bound = r == null ? null : tdg.get(r.var());
-                String expected = TestDataGenForm.foldString(
-                        subst(args.get(0), lets));
-                if (r == null || bound == null || expected == null
-                        || !"dataCsvString".equals(r.kind())
-                        || !(substitute(args.get(2), lets)
-                                instanceof com.legend.protocol.spec
-                                        .PackageableElementPtr dbp)) {
-                    return UNSUPPORTED_MARKER;
-                }
+                // S2: a USER function over platform-owned natives
+                // (setUpDataSQLs + assertSameElements) — the platform IS
+                // the implementation, so the host verdict is its own
+                // evaluation (failures surface through the DB error
+                // channel, the verdict-in-DB idiom)
                 try {
-                    return com.legend.testdatagen.TestDataGenerator
-                            .compareCsv(ctx, java.util.Objects.requireNonNull(
-                                    TestDataGenForm.qualify(
-                                            dbp.fullPath(), ctx, imports),
-                                    "unresolvable db reference"),
-                                    expected, java.util.Objects.requireNonNull(
-                                            bound.dataCsvString(),
-                                            "tdg binding without csv"),
-                                    conn);
-                } catch (com.legend.error.NotImplementedException e) {
+                    evalSpliced(subst(af, lets), execStmts, execVars, ctx,
+                            imports, runtimeFqn, conn);
+                    return null;
+                } catch (java.sql.SQLException fail) {
+                    return "assertTestData: " + firstLine(fail.getMessage());
+                } catch (com.legend.error.NotImplementedException wall) {
                     return UNSUPPORTED_MARKER;
                 }
             }
             case "assertSqlEquals" -> {
-                TestDataGenForm.Read r = TestDataGenForm.read(
-                        subst(args.size() == 2 ? args.get(1)
-                                : args.get(0), lets));
+                TestDataGenForm.Read r = readTdg(args.size() == 2
+                        ? args.get(1) : args.get(0), lets);
                 return r != null && tdg.containsKey(r.var())
                         ? ADVISORY_MARKER : UNSUPPORTED_MARKER;
             }
@@ -2090,28 +2090,20 @@ public final class EngineTestExecutor {
             }
         }
         if (!tdg.isEmpty() && !args.isEmpty()) {
-            TestDataGenForm.Read r0 = TestDataGenForm.read(
-                    subst(args.get(0), lets));
+            TestDataGenForm.Read r0 = readTdg(args.get(0), lets);
             if (r0 != null && tdg.containsKey(r0.var())
                     && "sqls".equals(r0.kind())) {
                 if (simpleName(af.function()).equals("assertSize")
                         && args.size() == 2) {
-                    Object n = evalScalar(args.get(1), lets, execStmts,
-                            execVars, execChains, ctx, imports,
-                            runtimeFqn, conn);
-                    long actual = tdg.get(r0.var()).sqls().size();
-                    return n instanceof Number num
-                            && num.longValue() == actual ? null
-                            : "assertSize(sqls): expected " + n + ", got "
-                                    + actual;
+                    return NOT_TDG_MARKER;   // S2: the COUNT routes
                 }
                 return ADVISORY_MARKER;   // SQL-text reads: engine H2 text
             }
             for (ValueSpecification a : args) {
-                TestDataGenForm.Read r = TestDataGenForm.read(
-                        subst(a, lets));
-                if (r != null && tdg.containsKey(r.var())) {
-                    return ADVISORY_MARKER;
+                TestDataGenForm.Read r = readTdg(a, lets);
+                if (r != null && tdg.containsKey(r.var())
+                        && "sqls".equals(r.kind())) {
+                    return ADVISORY_MARKER;   // text advisory (S3)
                 }
             }
         }
@@ -3327,9 +3319,44 @@ public final class EngineTestExecutor {
         // LETS are renders (the plan string is the contract) — separated
         // (user catch 2026-08-28: the old shared reason conflated them)
         if (!tdgVars.isEmpty() && referencesAny(af, tdgVars)) {
-            com.legend.exec.CanonicalDivergence.v7Declined(form,
-                    "assert-test-data-csv");
-            return;
+            // S2: only the sqls-TEXT reads stay declined (engine H2 text —
+            // S3's golden-SQL doctrine); size and row-contract asserts
+            // fall through and ROUTE
+            boolean sqlsRead = false;
+            for (ValueSpecification p : af.parameters()) {
+                TestDataGenForm.Read r = TestDataGenForm.read(p);
+                if (r != null && tdgVars.contains(r.var())
+                        && "sqls".equals(r.kind())) {
+                    sqlsRead = true;
+                    break;
+                }
+            }
+            String fn = simpleName(af.function());
+            // a binding the harness CONSUMED (handled=true — e.g. the
+            // seedDataString arm) is not in the lets: its asserts cannot
+            // route until that arm converts
+            boolean consumedRef = false;
+            for (ValueSpecification p : af.parameters()) {
+                TestDataGenForm.Read r = TestDataGenForm.read(p);
+                String var = r != null ? r.var()
+                        : p instanceof Variable bv ? bv.name() : null;
+                if (var != null && tdgVars.contains(var)
+                        && !lets.containsKey(var)) {
+                    consumedRef = true;
+                    break;
+                }
+            }
+            boolean routable = !consumedRef
+                    && (fn.equals("assertSize")   // counts route
+                    || !sqlsRead && (fn.equals("assertTestData")
+                            || fn.equals("assertEquals")
+                            || fn.equals("assertSameElements")
+                            || fn.equals("assertNotEmpty")));
+            if (!routable) {
+                com.legend.exec.CanonicalDivergence.v7Declined(form,
+                        "assert-test-data-csv");
+                return;
+            }
         }
         if (!planTextVars.isEmpty() && referencesAny(af, planTextVars)) {
             com.legend.exec.CanonicalDivergence.v7Declined(form,

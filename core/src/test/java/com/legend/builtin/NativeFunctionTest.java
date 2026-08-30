@@ -523,7 +523,10 @@ class NativeFunctionTest {
         //     lane S1 — the ###Data metamodel's relational shape, verbatim
         //     relationalTest.pure:17-27; ONE metamodel for TDG results and
         //     the future ###Data opening, docs/TDG_LANE_CHARTER.md)
-        assertEquals(205, Pure.allNativeClasses().size(),
+        // 209: +RowIdentifier, TableRowIdentifiers,
+        //     TemporalMilestoningDates, TestDataGenResult (TDG lane S2 —
+        //     verbatim testDataGeneration.pure:38-70)
+        assertEquals(209, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -937,7 +940,16 @@ class NativeFunctionTest {
             java.util.Map.of("meta::relational::metamodel::data::RelationalCSVTable",
                     List.of("schema", "table", "values"),
                     "meta::relational::metamodel::data::RelationalCSVData",
-                    List.of("tables"));
+                    List.of("tables"),
+                    // TDG lane S2 (testDataGeneration.pure:38-70)
+                    "meta::relational::testDataGeneration::RowIdentifier",
+                    List.of("columnValuePairs"),
+                    "meta::relational::testDataGeneration::TableRowIdentifiers",
+                    List.of("table", "rowIdentifiers"),
+                    "meta::relational::testDataGeneration::TemporalMilestoningDates",
+                    List.of("businessDate", "processingDate", "snapshotDate"),
+                    "meta::relational::testDataGeneration::TestDataGenResult",
+                    List.of("dataCsvString", "relationTree", "sqls"));
 
     private static final java.util.Map<String, List<String>> TDS_SURFACE_PROPERTIES =
             java.util.Map.of(
@@ -1170,6 +1182,8 @@ class NativeFunctionTest {
                 // TDG lane S1: the ###Data metamodel's relational shape
                 "meta::relational::metamodel::data",
                 "meta::pure::data",
+                // TDG lane S2: the generateTestData surface
+                "meta::relational::testDataGeneration",
                 // the plan surface (#47: ExecutionPlan)
                 "meta::pure::executionPlan",
                 // the checked-result surface (graphFetchChecked)

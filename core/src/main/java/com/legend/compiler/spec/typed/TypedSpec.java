@@ -18,6 +18,7 @@ public sealed interface TypedSpec permits
         TypedRawSqlRelation,
         TypedDeactivate,
         TypedCsvCensus,
+        TypedTestDataGen,
         TypedCInteger,
         TypedCString,
         TypedCBoolean,

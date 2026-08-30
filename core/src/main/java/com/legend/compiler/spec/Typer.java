@@ -1253,6 +1253,9 @@ final class Typer {
             // TDG lane S1: compile-time reflection (C1.6, the DEACTIVATE
             // sibling) — the census FOLDS to instance literals here
             case GET_RELATIONAL_CSV_DATA -> CsvCensusChecker.check(this, af, env);
+            // TDG lane S2: runtime data extraction — carrier here, the
+            // orchestrator executes the fetches and splices literals
+            case GENERATE_TEST_DATA -> GenerateTestDataChecker.check(this, af, env);
             // ^Class(...) desugars to new(PackageableElementPtr, NewInstance); the inner node
             // carries the payload. ^$var(...) (a Variable receiver) is COPY-
             // with-update — the class is the variable's static type. Other

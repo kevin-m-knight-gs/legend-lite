@@ -35,6 +35,8 @@ public enum CoreFn {
     DEACTIVATE("deactivate"),
     /** {@code getRelationalCSVDataFromQuery(query, mapping)} &mdash; TDG lane S1: compile-time reflection, folds to instance literals ({@code CsvCensusChecker}). */
     GET_RELATIONAL_CSV_DATA("getRelationalCSVDataFromQuery"),
+    /** {@code generateTestData(...)} &mdash; TDG lane S2: RUNTIME data extraction; the checker emits a protocol-capturing carrier ({@code GenerateTestDataChecker}). */
+    GENERATE_TEST_DATA("generateTestData"),
     /** {@code if(cond, |then, |else)} &mdash; thunk branches + branch-type join. */
     IF("if"),
     /** {@code ^Class(prop=value, &hellip;)} &mdash; instance construction ({@code new}). */

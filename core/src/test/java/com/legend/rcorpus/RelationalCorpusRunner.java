@@ -398,9 +398,15 @@ public class RelationalCorpusRunner {
             if (onlyFilters.isEmpty()) {
                 org.junit.jupiter.api.Assertions.assertAll(
                         // 1372 -> 1375 (§4AD batch 5, THE ROUTER FLIP):
-                        // +3 h2-lane passes from the lifted fan-out shapes
+                        // +3 h2-lane passes from the lifted fan-out shapes.
+                        // 1375 -> 1347 (TDG lane S2, JUSTIFIED): the ~28
+                        // converted tests' asserts now REACH H2's renderer
+                        // (list vocabulary absent there) — their old H2
+                        // "passes" were HARNESS-adjudicated compensation,
+                        // not platform verification; the walls below name
+                        // the real gap and the h2-lane leg owns burning it
                         () -> org.junit.jupiter.api.Assertions.assertTrue(
-                                p >= 1375, "h2 sweep pass fell: " + p
+                                p >= 1347, "h2 sweep pass fell: " + p
                                         + " < floor 1375 (SQL-IR slice 2"
                                         + " outputs-from-projections:"
                                         + " 1367 -> 1372 — the milestoning"
@@ -440,8 +446,11 @@ public class RelationalCorpusRunner {
                                 // has no list-lambda vocabulary: the
                                 // wall IS the honest H2 answer; DuckDB
                                 // primary passes them row-verified)
-                                u <= 949, "h2 capability walls grew: " + u
-                                        + " > 949 — a renderer gap widened"
+                                // 949 -> 983 (TDG lane S2): the same ~28
+                                // tests' asserts wall by NAME on H2 — the
+                                // advisory target's honest answer
+                                u <= 983, "h2 capability walls grew: " + u
+                                        + " > 983 — a renderer gap widened"
                                         + " silently"));
             }
             return;
@@ -799,10 +808,14 @@ public class RelationalCorpusRunner {
                                     "assert-sql-text-unable-to-exec"),
                     "lane guard: assert-sql-text-unable-to-exec moved —"
                             + " update the charter §8.0 scope table");
-            // 117 -> 111 (TDG lane S1, docs/TDG_LANE_CHARTER.md): the
-            // getRelationalCSVDataFromQuery census folds in the CHECKER
-            // — the 6 necessaryColumns asserts route and AGREE
-            org.junit.jupiter.api.Assertions.assertEquals(111,
+            // 117 -> 111 (TDG lane S1): the census folds in the CHECKER
+            // — the 6 necessaryColumns asserts route and AGREE.
+            // 111 -> 50 (TDG lane S2): the ROW CONTRACT routes — the
+            // generateTestData carrier executes the extraction, splices
+            // literals, assertTestData inlines over the folded
+            // setUpDataSQLs, verdicts in the DB (size 26 + testData 35
+            // agree); the 50 = S3's sqls-TEXT rows + 1 seedDataString
+            org.junit.jupiter.api.Assertions.assertEquals(50,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix("assert-test-data-csv"),
                     "lane guard: assert-test-data-csv moved — update the"
