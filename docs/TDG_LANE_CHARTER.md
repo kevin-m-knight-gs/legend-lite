@@ -132,10 +132,18 @@ by the database — NEVER a Java sort. DESIGN CAUTION (audit
 2026-08-30): order does NOT survive a subquery into an aggregation in
 SQL — sortBy feeding joinStrings must thread the key INTO the
 aggregation (string_agg(x ORDER BY key) or the platform's equivalent).
-The PCT suite very likely already exercises sort→joinStrings in the
-relation lane: FIND THAT PRECEDENT FIRST and route the literal
-collection through the existing machinery; build a new scalar arm only
-if no precedent exists.
+AUDIT UPDATE (verified in code): sortBy IS fully implemented —
+Sorts.sortBy (ORDER BY over the lowered key, fold/isolate handling,
+Lowerer.relation dispatch :589) and CollectionLanes.valueLane already
+whitelists TypedSortBy. The scalar switch (Lowerer ~:3095-3120) has an
+existing scalar↔relation BRIDGE arm admitting relation-op heads
+(TypedDistinct, TypedSort, ...) via relation(rel) + ScalarSubquery —
+TypedSortBy is simply MISSING from its admit-list(s). The fix is a few
+guard lines adding TypedSortBy beside TypedSort in that arm, reusing
+Sorts.sortBy verbatim. Verify sort-order survives into joinStrings the
+same way it does for bridged TypedSort sources (it should — same arm);
+only if it does not, thread the key into the aggregation
+(string_agg(x ORDER BY key)).
 
 **Checker-fold argument shapes** (audit): the harness β-inlines lets
 today, so the call arrives with the lambda INLINE — but the fold must
