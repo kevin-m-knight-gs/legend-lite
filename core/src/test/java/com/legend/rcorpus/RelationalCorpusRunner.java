@@ -718,6 +718,22 @@ public class RelationalCorpusRunner {
             // formerly-WALLED testInputNotIsolatedWhenPropertyPathIsToOne
             // now executes — its sql-text assert row-verifies (our
             // presence spelling vs the engine's hoisted-pred text).
+            // THE 9 DUAL-CHANNEL DISAGREEMENTS — CLOSED AS NAMED RESIDUE
+            // (docs/VERDICT_DISAGREEMENT_BURN_2026_08_30.md, receipts
+            // R1-R8): production equality is pure-faithful (Decimal
+            // scale-sensitive, temporal subsecond-string-exact); the
+            // harness referee matches the engine's decode-lenient
+            // observable — a DESIGNED split, not a defect. Classes:
+            // Decimal-scale x4 (testSimpleTypeMapping/Project),
+            // nine-digit temporal x2 (same tests' ts column), TDS-lane
+            // temporal x1 (testDayOfMonth), TDSNull row-string x1
+            // (testDeepUnionOperation...), sort-tie x1
+            // (testConcatenateWithJoin — the phantom class). EXACT pin:
+            // any movement is a semantic change needing adjudication.
+            org.junit.jupiter.api.Assertions.assertEquals(9,
+                    com.legend.exec.CanonicalDivergence.v7DisagreeCount(),
+                    "dual-channel disagreements moved off the NAMED 9 —"
+                            + " see VERDICT_DISAGREEMENT_BURN_2026_08_30");
             org.junit.jupiter.api.Assertions.assertEquals(1449,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
