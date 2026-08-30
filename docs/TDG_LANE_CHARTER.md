@@ -53,31 +53,47 @@ in the harness at all:
 2. **Result values are platform values**: `Result` surfaces as typed
    platform data (the CSV string, the sqls list, the row relation) so
    downstream asserts are ordinary value asserts.
-3. **assertTestData/3 = a routed verdict form** in AssertVerdicts — the
-   row contract compares IN THE DATABASE (verdict-in-DB doctrine),
-   never a Java text compare.
-4. **assertSqlEquals over `.sqls` joins the sql-text referee lane**
-   (golden-SQL doctrine: engine H2 text is advisory/exec-verified like
-   every other golden — the existing exec-passing machinery applies).
+3. **assertTestData/3 needs NO new verdict form** (homework 2026-08-30,
+   engine source read): `tests::assertTestData(s1,s2,db)` is a USER
+   test function whose body is
+   `assertSameElements(setUpDataSQLs(s1,db), setUpDataSQLs(s2,db))` —
+   and BOTH dependencies are already platform-owned
+   (SET_UP_DATA_SQLS native + the assert family). Routing it =
+   compiling the user function and evaluating its body; the row
+   contract is the engine's own CSV→setup-SQL→same-elements compare.
+   The one S2 question: our setUpDataSQLs must accept the GENERATED
+   csv envelope (both args ride the same native, so format agreement
+   is by construction if the envelope matches the shared CSV grammar).
+4. **assertSqlEquals is per-string, not a list problem** (homework):
+   `tests::assertSqlEquals(s1,s2)` =
+   `assertEquals(s1->sqlRemoveFormatting(), s2->sqlRemoveFormatting())`
+   — plain string asserts, one per generated sql. The REAL S3
+   challenge is golden-SQL doctrine on CONTENT: our generator's .sqls
+   text vs the engine's H2 spellings (the harness today count-verifies
+   and treats text as advisory — byte convergence or named
+   sql-text-outcome buckets is S3's actual work).
 5. **Harness #46 arms DELETE** (tdgLetArm TDG branches, checkTdgAssert,
    TestDataGenForm routing); the 117 decline pin burns toward 0 with a
    named residue for anything adjudicated otherwise.
 
 ## HONESTY LABELS — what is receipts vs design intent
 
-The S1 sections below "S1 CORRECTED ARCHITECTURE" are RECEIPTS
-(researched in code or proven by the reverted attempt). The "Target
-architecture" numbered list above is DESIGN INTENT for S2/S3 — three
-of its claims are UNVERIFIED and are the opening research of those
-slices:
-- the engine's real `assertTestData/3` semantics (.pure body never
-  read; only our harness's checkTdgAssert javadoc consulted);
-- whether `TestDataGenerator.generate` materializes rows through the
-  database in the way the verdict-in-DB design assumes;
-- whether the sql-text referee machinery fits `.sqls` LIST asserts
-  (it is built around single sql-producer calls).
-Do NOT treat those three as settled when designing S2/S3 — census
-first, same as everything else.
+ALL FORMER UNKNOWNS RESEARCHED (2026-08-30). Receipts now in the list
+above and here:
+- `TestDataGenerator.generate` DOES execute through the database
+  (temp-table fetches via the connection, csvEnvelope read-back, temps
+  dropped in finally) — Result(sqls = the fetch SQL it ran, csv).
+- S2 engine signatures (testDataGeneration.pure:72-118):
+  `generateTestData(func, mapping, runtime[, parameters],
+  rowIdentifiers[, hashStrings], extensions): TestDataGenResult[1]`
+  (3 overloads), `createTableRowIdentifiers` (2 overloads),
+  `createRowIdentifier(columnNames, columnValues): RowIdentifier[1]`.
+  S2 must register the prelude classes `TestDataGenResult`,
+  `TableRowIdentifiers`, `RowIdentifier` the same way S1 registers the
+  CSV-census classes (and per the ###Data rule: single representation).
+- `tests::assertTestData` / `tests::assertSqlEquals` are USER
+  functions in the corpus test source — routing them is user-call
+  compilation over already-owned natives, not new AssertVerdicts arms.
 
 ## Slices (each gated, ratchets moved with attribution)
 
