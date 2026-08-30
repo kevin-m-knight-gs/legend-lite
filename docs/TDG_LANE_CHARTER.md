@@ -149,3 +149,127 @@ ForMultiTables (2, sortBy), ForMilestoningTable (2, sortBy) — family
 probe: -Drcorpus.only=testDataGeneration -Drcorpus.test=
 testGenerateNecessaryTableColumns. Success = dual-channel agree=6, csv
 declines 117→111, family otherwise byte-stable, ledger + chain green.
+
+## ONE METAMODEL — the ###Data unification (do NOT build two things)
+
+The engine's `RelationalCSVData extends EmbeddedData`
+(relationalTest.pure:17) is not TDG-private — it IS the ###Data
+metamodel's relational shape. One class family, three consumers:
+
+1. **TDG census results** (S1) — `getRelationalCSVDataFromQuery`
+   returns it.
+2. **TDG generated data** (S2) — the row contract materializes through
+   it.
+3. **###Data elements and mapping testSuites data blocks** — TODAY:
+   `###Data` parses fully (byte-parity proven; `PDataElement` +
+   `PDataBody` on the wire) but enters the compile model as
+   `OpaqueElementDefinition` ("legend-lite's compile model has no
+   data-element concept" — ElementParser.dataElement); mapping
+   `testSuitesSource` is D-3 raw text.
+
+THE RULE: the prelude classes S1 registers (`EmbeddedData`,
+`RelationalCSVData`, `RelationalCSVTable`) are THE compile-model
+representation of relational embedded data — for all three consumers.
+When ###Data becomes a compile-model citizen (its own future leg),
+`dataElement()` stops producing Opaque and its relational body opens
+into instances of THESE classes — never a parallel data model. The
+protocol side is already shared (`PDataElement`/`PDataBody`); the TDG
+lane must not invent a second wire shape either.
+
+S2 DESIGN CONSTRAINT from this: the row-materialization path
+(RelationalCSVData → CREATE/INSERT seeds for the verdict-in-DB compare)
+must be built as a SHARED mechanism with two callers in mind — TDG
+results now, ###Data-seeded test setups later. One materializer, not
+two.
+
+## Appendix — the raw census (117 asserts, attributed 2026-08-30)
+
+By (test, form), count-prefixed; the alloy sub-family (6 plan-flavored
+asserts) is SEPARATE — already plan-let-partitioned and deferred with
+the plan-text lane per sign-off:
+
+```
+   6 [tdc] meta::relational::testDataGeneration::tests::testUnionToUnion :: assertSqlEquals/2
+   6 [tdc] meta::relational::testDataGeneration::tests::testUnion :: assertSqlEquals/2
+   4 [tdc] meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndUnion :: assertSqlEquals/2
+   4 [tdc] meta::relational::testDataGeneration::tests::testTableToTDSMultipleJoins :: assertSqlEquals/2
+   4 [tdc] meta::relational::testDataGeneration::tests::testInheritanceMultipleLevel :: assertSqlEquals/2
+   3 [tdc] meta::relational::testDataGeneration::tests::testSelfJoin :: assertSqlEquals/2
+   3 [tdc] meta::relational::testDataGeneration::tests::testInheritanceMultipleTableJoin :: assertSqlEquals/2
+   2 [tdc] meta::relational::testDataGeneration::tests::testTableToTdsWithJoinToSameTable :: assertSqlEquals/2
+   2 [tdc] meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndOLAPGroupBy :: assertSqlEquals/2
+   2 [tdc] meta::relational::testDataGeneration::tests::testTableToTdsWithConcatenate :: assertSqlEquals/2
+   2 [tdc] meta::relational::testDataGeneration::tests::testSimpleTwoTableMultipleStartRows :: assertSqlEquals/2
+   2 [tdc] meta::relational::testDataGeneration::tests::testSimpleTwoTable :: assertSqlEquals/2
+   2 [tdc] meta::relational::testDataGeneration::tests::testQualifier :: assertSqlEquals/2
+   2 [tdc] meta::relational::testDataGeneration::tests::testGenerateNecessaryTableColumnsForSingleTable :: assertEquals/2
+   2 [tdc] meta::relational::testDataGeneration::tests::testGenerateNecessaryTableColumnsForMultiTables :: assertEquals/2
+   2 [tdc] meta::relational::testDataGeneration::tests::testGenerateNecessaryTableColumnsForMilestoningTable :: assertEquals/2
+   2 [tdc] meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates :: assertTestData/3
+   2 [tdc] meta::relational::testDataGeneration::tests::TestDatGenForNestedViews :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testViewEmbeddedInChainedJoin :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testViewEmbeddedInChainedJoin :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testUnionViewOnView :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testUnionViewOnView :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevelsWithStringHashing :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevelsWithStringHashing :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevels :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevels :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testUnionToUnion :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testUnionToUnion :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testUnion :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testUnion :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testTableToTdsWithJoinToSameTable :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testTableToTdsWithJoinToSameTable :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndUnion :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndUnion :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndOLAPGroupBy :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndOLAPGroupBy :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testTableToTdsWithGroupBy :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testTableToTdsWithGroupBy :: assertSqlEquals/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testTableToTdsWithGroupBy :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testTableToTdsWithConcatenate :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testTableToTdsWithConcatenate :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testTableToTdsWithAppliedFunctions :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testTableToTdsWithAppliedFunctions :: assertSqlEquals/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testTableToTdsWithAppliedFunctions :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testTableToTDSSimple :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testTableToTDSSimple :: assertSqlEquals/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testTableToTDSSimple :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testTableToTDSMultipleJoins :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testTableToTDSMultipleJoins :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testSimpleViewRootToJoin :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testSimpleViewRootToJoin :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testSimpleViewRoot :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testSimpleViewRoot :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testSimpleTwoTableMultipleStartRows :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testSimpleTwoTableMultipleStartRows :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testSimpleTwoTable :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testSimpleTwoTable :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testSimpleTableToViewJoin :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testSimpleTableToViewJoin :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testSimpleSingleTableWithNoDataToInsert :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testSimpleSingleTableWithNoDataToInsert :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testSimpleSingleTableWithNoDataToInsert :: assertEquals/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testSimpleSingleTable :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testSimpleSingleTable :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testSimpleSingleTable :: assertEquals/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testSelfJoin :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testSelfJoin :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testQualifier :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testQualifier :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testQualifier :: assertEqualsH2Compatible/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testInheritanceMultipleTableJoin :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testInheritanceMultipleTableJoin :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testInheritanceMultipleLevel :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testInheritanceMultipleLevel :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testGenerateSeedDataWithQuotedColumns :: assertEquals/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testDataGenerationWithSnapshotMilestoning_WithMilestoningDates :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testDataGenerationWithSnapshotMilestoning :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testConstant :: assertTestData/3
+   1 [tdc] meta::relational::testDataGeneration::tests::testConstant :: assertSize/2
+   1 [tdc] meta::relational::testDataGeneration::tests::testConstant :: assertEquals/2
+```
