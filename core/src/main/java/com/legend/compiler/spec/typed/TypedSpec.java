@@ -17,6 +17,7 @@ import java.util.List;
 public sealed interface TypedSpec permits
         TypedRawSqlRelation,
         TypedDeactivate,
+        TypedCsvCensus,
         TypedCInteger,
         TypedCString,
         TypedCBoolean,

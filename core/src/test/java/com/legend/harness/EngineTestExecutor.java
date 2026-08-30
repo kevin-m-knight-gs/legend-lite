@@ -1959,16 +1959,10 @@ public final class EngineTestExecutor {
             }
             return new TdgLet(null, null, true);
         }
-        if (TestDataGenForm.hasCsvCensus(rhs)) {
-            try {
-                tdg.put(name.value(),
-                        TestDataGenForm.runCsvCensus(rhs, ctx, imports));
-            } catch (com.legend.error.NotImplementedException e) {
-                return new TdgLet(new Outcome.Unsupported(String.valueOf(
-                        e.getMessage()).split("\\n")[0]), null, false);
-            }
-            return new TdgLet(null, null, true);
-        }
+        // csvCensus (getRelationalCSVDataFromQuery) is a PLATFORM
+        // construct now (TDG lane S1): the CHECKER folds it to instance
+        // literals (CsvCensusChecker), so the let rides the ordinary
+        // lazy path and its navigation lowers.
         if (TestDataGenForm.hasGenerate(rhs)) {
             try {
                 tdg.put(name.value(), TestDataGenForm.run(rhs, ctx,

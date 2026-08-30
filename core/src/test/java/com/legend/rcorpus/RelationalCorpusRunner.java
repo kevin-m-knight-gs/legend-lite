@@ -434,8 +434,14 @@ public class RelationalCorpusRunner {
                         // REGISTERED h2 UNNEST-placement gap, not a
                         // widened gap; h2 floor +3 in the same commit)
                         () -> org.junit.jupiter.api.Assertions.assertTrue(
-                                u <= 947, "h2 capability walls grew: " + u
-                                        + " > 947 — a renderer gap widened"
+                                // 947 -> 949 (TDG lane S1, JUSTIFIED —
+                                // the 2 sortBy-over-census-literal rows
+                                // route through the platform now and H2
+                                // has no list-lambda vocabulary: the
+                                // wall IS the honest H2 answer; DuckDB
+                                // primary passes them row-verified)
+                                u <= 949, "h2 capability walls grew: " + u
+                                        + " > 949 — a renderer gap widened"
                                         + " silently"));
             }
             return;
@@ -793,7 +799,10 @@ public class RelationalCorpusRunner {
                                     "assert-sql-text-unable-to-exec"),
                     "lane guard: assert-sql-text-unable-to-exec moved —"
                             + " update the charter §8.0 scope table");
-            org.junit.jupiter.api.Assertions.assertEquals(117,
+            // 117 -> 111 (TDG lane S1, docs/TDG_LANE_CHARTER.md): the
+            // getRelationalCSVDataFromQuery census folds in the CHECKER
+            // — the 6 necessaryColumns asserts route and AGREE
+            org.junit.jupiter.api.Assertions.assertEquals(111,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix("assert-test-data-csv"),
                     "lane guard: assert-test-data-csv moved — update the"

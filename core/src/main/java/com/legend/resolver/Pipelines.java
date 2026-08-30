@@ -1534,6 +1534,23 @@ final class Pipelines {
      * path view) reads both spellings; this converter exists so the
      * RESOLUTION side has one canonical form, exactly as the language
      * defines it. (Path-view unification, closed by measurement.) */
+    /** Property read over a {@code ^Class(...)} INSTANCE LITERAL folds
+     * to its property value — compiler CONSTANT FOLDING on structural
+     * shapes (the eq-nodes idiom; TDG lane S1: checker-fold results are
+     * instance literals and their navigation must LOWER, never
+     * store-resolve). Falls to the auto-map sugar read otherwise. */
+    static @com.legend.Nullable TypedSpec literalOrAutoMapRead(
+            TypedPropertyAccess pa) {
+        if (pa.source() instanceof com.legend.compiler.spec.typed
+                .TypedNewInstance ni) {
+            TypedSpec v = ni.properties().get(pa.property());
+            if (v != null) {
+                return v;
+            }
+        }
+        return autoMapRead(pa);
+    }
+
     static @com.legend.Nullable TypedSpec autoMapRead(TypedPropertyAccess pa) {
         if (pa.info().type() instanceof Type.ClassType
                 || Type.schemaView(pa.info().type()) != null) {

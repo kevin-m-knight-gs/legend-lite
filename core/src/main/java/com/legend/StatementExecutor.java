@@ -113,7 +113,10 @@ final class StatementExecutor {
         java.util.Map<String, Boolean> effectMemo = new java.util.HashMap<>();
         java.util.Map<String, ExecFrame> execFrames = new java.util.LinkedHashMap<>();
         for (int i = 0; i < stmts.size(); i++) {
-            TypedSpec stmt = stmts.get(i);
+            // TDG lane S1: the checker's census CARRIER folds to instance
+            // literals HERE (orchestration owns testdatagen; the compiler
+            // cannot — layering), before resolve sees the statement
+            TypedSpec stmt = com.legend.testdatagen.TdgNatives.foldCensus(stmts.get(i), env.ctx());
             boolean last = i == stmts.size() - 1;
             if (stmt instanceof com.legend.compiler.spec.typed.TypedLet let && !last) {
                 // let tds = $r.values(->at(0)/->toOne()): over a RELATION-

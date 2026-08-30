@@ -64,6 +64,11 @@ class   CarrierPurityRatchetTest {
             // NULL and empty are both the EMPTY key collection, engine
             // equal([],[]) TRUE). Verdict-lane only, same F3/F10
             // migration note as the LIST_ row above.
+            // 135→141 (2026-08-30 TDG lane S1): ListEncodings.lowerSortBy
+            // — the sortBy SEMANTIC NODE's wire-shape rule (the stable
+            // {k,i,v} struct-sort, mirroring the pinned 3-arg native sort
+            // rule), same class as the map rule's row above: a semantic
+            // node's own carrier spellings, not new ad-hoc idioms.
             // 38→39 (2026-08-23 F10 slice 2): LiteralSpelling.
             // mixedNumericArray — the kind-faithful carrier REBUILDS a
             // mixed-numeric literal collection as spelling texts (the
@@ -156,7 +161,7 @@ class   CarrierPurityRatchetTest {
             // a structural READ of a carrier idiom, not a new
             // emission; absorbs when dedup moves behind its semantic
             // node with the rest of the family.
-            "SqlFn\\.LIST_", 135,
+            "SqlFn\\.LIST_", 141,
             "SqlFn\\.UNNEST", 12,
             // the collect-carrier reducer (R1 recognizes it for fusion;
             // burns with R3/R4 when sources/values migrate)

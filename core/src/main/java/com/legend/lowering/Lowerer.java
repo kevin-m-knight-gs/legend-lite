@@ -2788,6 +2788,9 @@ public final class Lowerer {
             // [1,2,3]->map(x|[$x,10*$x]) is the FLAT 6-element collection,
             // not 3 nested lists) — same TypedCollection-body policy as the
             // relation->map value-collection arm below.
+            case com.legend.compiler.spec.typed.TypedSortBy sb
+                    when !Type.relationValued(sb.source().info()) ->
+                    ListEncodings.lowerSortBy(this, sb, columns);
             case TypedMap m
                     when !Type.relationValued(m.source().info()) ->
                     // the wire-shape policy AND the [0..0]-empty arm live

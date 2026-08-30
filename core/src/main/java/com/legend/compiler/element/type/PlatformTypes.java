@@ -278,6 +278,14 @@ public final class PlatformTypes {
     public static final String ASSERT_ERROR =
             "meta::pure::functions::asserts::assertError";
 
+    /** TDG lane S1: the CSV-census native — a COMPILE-TIME reflection
+     * fact (model-space, no database) that FOLDS in the checker to
+     * instance literals; the production TestDataGenerator IS the
+     * implementation, the real pure body is the spec (verified by
+     * signature, never loaded). */
+    public static final String GET_RELATIONAL_CSV_DATA =
+            "meta::relational::testDataGeneration::getRelationalCSVDataFromQuery";
+
     /** The ASSERT FAMILY is platform-owned WHOLESALE (V7 tenet
      * correction 2026-08-28: asserts are verdicts ALWAYS —
      * AssertVerdicts/the K-arm IS the implementation; the real pure
@@ -316,6 +324,7 @@ public final class PlatformTypes {
                 || PLAN_TO_STRING.equals(fqn)
                 || PLAN_TO_STRING_WITHOUT_FORMATTING.equals(fqn)
                 || CREATE_DB_CONFIG.equals(fqn)
+                || GET_RELATIONAL_CSV_DATA.equals(fqn)
                 || EXECUTE.equals(fqn);
     }
 

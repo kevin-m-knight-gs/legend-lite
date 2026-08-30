@@ -42,6 +42,57 @@ final class ListEncodings {
      * tripped the ONE-STAMP/LIST-SHAPE invariant). The mapper's param
      * stamps as the source's element (§4bZ-U leg 2,
      * LambdaBinding.mapMapper). */
+    /** The scalar-channel {@code TypedSortBy} lowering (TDG lane S1):
+     * collection sortBy = the SAME stable {k,i,v} struct-sort encoding
+     * as the 3-arg native sort rule (Scalars: key first, index second
+     * so equal keys stay stable, unwrap {@code .v}), with the key
+     * lambda lowered under the map ELEMENT door. The database executes
+     * the sort — never host Java (charter anti-pattern 1). */
+    static SqlExpr lowerSortBy(Lowerer lw,
+            com.legend.compiler.spec.typed.TypedSortBy sb,
+            com.legend.lowering.Resolvers.ColumnResolver columns) {
+        var mult = sb.source().info().multiplicity();
+        if (mult instanceof com.legend.compiler.element.type.Multiplicity
+                .Bounded z && z.upper() != null && z.upper() <= 1) {
+            // sort over <=1 values IS the operand (the native rule's
+            // stamp-read identity)
+            return lw.scalar(sb.source(), columns);
+        }
+        if (sb.key().parameters().size() != 1) {
+            throw new com.legend.error.NotImplementedException(
+                    "collection sortBy expects a one-parameter key lambda");
+        }
+        SqlExpr src = lw.scalar(sb.source(), columns);
+        String param = sb.key().parameters().get(0);
+        SqlExpr keyBody = lw.scalar(Lowerer.last(sb.key()),
+                LambdaBinding.mapElemResolver(param, src, false,
+                        LambdaBinding.lambdaResolver(
+                                sb.key().parameters(), columns)));
+        SqlExpr range = SqlExpr.Call.of(SqlFn.RANGE_FN,
+                new SqlExpr.IntLit(1),
+                SqlExpr.Call.of(SqlFn.PLUS,
+                        SqlExpr.Call.of(SqlFn.LIST_LENGTH, src),
+                        new SqlExpr.IntLit(1)));
+        SqlExpr i = SqlExpr.Column.param("_sb_i", range);
+        SqlExpr valAt = SqlExpr.Call.of(SqlFn.LIST_GET, src, i);
+        SqlExpr keyExpr = Scalars.substituteRef(keyBody, param, valAt);
+        SqlExpr idxField = sb.ascending() ? i
+                : SqlExpr.Call.of(SqlFn.MINUS, new SqlExpr.IntLit(0), i);
+        SqlExpr pairs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, range,
+                new SqlExpr.Lambda(List.of("_sb_i"),
+                        new SqlExpr.StructLit(List.of(
+                                new SqlExpr.StructLit.Field("k", keyExpr),
+                                new SqlExpr.StructLit.Field("i", idxField),
+                                new SqlExpr.StructLit.Field("v", valAt)))));
+        SqlExpr sorted = new SqlExpr.Call(
+                sb.ascending() ? SqlFn.LIST_SORT : SqlFn.LIST_SORT_DESC,
+                List.of(pairs));
+        return SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, sorted,
+                new SqlExpr.Lambda(List.of("_sb_e"),
+                        new SqlExpr.StructGet(
+                                SqlExpr.Column.param("_sb_e", sorted), "v")));
+    }
+
     static SqlExpr lowerMap(Lowerer lw,
             com.legend.compiler.spec.typed.TypedMap m,
             com.legend.lowering.Resolvers.ColumnResolver columns) {

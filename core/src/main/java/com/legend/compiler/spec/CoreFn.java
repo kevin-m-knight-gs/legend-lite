@@ -33,6 +33,8 @@ public enum CoreFn {
     LET("letFunction"),
     /** {@code deactivate(e)} &mdash; the compile-time reflection carrier (leg 3b): folds to the expression's DECLARED type. */
     DEACTIVATE("deactivate"),
+    /** {@code getRelationalCSVDataFromQuery(query, mapping)} &mdash; TDG lane S1: compile-time reflection, folds to instance literals ({@code CsvCensusChecker}). */
+    GET_RELATIONAL_CSV_DATA("getRelationalCSVDataFromQuery"),
     /** {@code if(cond, |then, |else)} &mdash; thunk branches + branch-type join. */
     IF("if"),
     /** {@code ^Class(prop=value, &hellip;)} &mdash; instance construction ({@code new}). */

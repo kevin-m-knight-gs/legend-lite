@@ -474,7 +474,7 @@ public final class StoreResolver {
                             ctx.elementFqns());
             // BARE value read over a class chain = auto-map sugar (Pipelines)
             case TypedPropertyAccess vpa when anchored(vpa.source()) -> {
-                TypedSpec am = Pipelines.autoMapRead(vpa);
+                TypedSpec am = Pipelines.literalOrAutoMapRead(vpa);
                 if (am == null) {
                     throw new NotImplementedException("class query under"
                             + " TypedPropertyAccess is not resolvable yet"

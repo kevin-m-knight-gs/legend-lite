@@ -519,7 +519,11 @@ class NativeFunctionTest {
         //     leg 3b — deactivate's return class; genericType only)
         // 202: +meta::json::JSONElement (V7 §8 leg 3 — parseJSON's
         //     return class, verbatim core_functions_json/json.pure)
-        assertEquals(202, Pure.allNativeClasses().size(),
+        // 205: +EmbeddedData, RelationalCSVData, RelationalCSVTable (TDG
+        //     lane S1 — the ###Data metamodel's relational shape, verbatim
+        //     relationalTest.pure:17-27; ONE metamodel for TDG results and
+        //     the future ###Data opening, docs/TDG_LANE_CHARTER.md)
+        assertEquals(205, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -927,6 +931,14 @@ class NativeFunctionTest {
 
     /** task #78 step-1 TDS + aggregationAware surfaces (Map.of caps at 10
      * pairs — second map, same contract). */
+    /** The ###Data metamodel's relational shape (relationalTest.pure
+     * :17-27) — TDG lane S1, shared with the future ###Data opening. */
+    private static final java.util.Map<String, List<String>> DATA_SURFACE_PROPERTIES =
+            java.util.Map.of("meta::relational::metamodel::data::RelationalCSVTable",
+                    List.of("schema", "table", "values"),
+                    "meta::relational::metamodel::data::RelationalCSVData",
+                    List.of("tables"));
+
     private static final java.util.Map<String, List<String>> TDS_SURFACE_PROPERTIES =
             java.util.Map.of(
                     // real m3: name rides PackageableElement (the corpus
@@ -1000,6 +1012,13 @@ class NativeFunctionTest {
                         () -> c.qualifiedName() + " must match real legend-pure");
             } else if (STORE_MODEL_SURFACE_PROPERTIES.containsKey(c.qualifiedName())) {
                 assertEquals(STORE_MODEL_SURFACE_PROPERTIES.get(c.qualifiedName()),
+                        c.properties().stream().map(p -> p.name()).toList(),
+                        () -> c.qualifiedName() + " must match real legend-pure");
+            } else if (DATA_SURFACE_PROPERTIES.containsKey(c.qualifiedName())) {
+                // the ###Data metamodel's relational shape (TDG lane S1):
+                // properties as REAL legend-pure declares them —
+                // relationalTest.pure:17-27
+                assertEquals(DATA_SURFACE_PROPERTIES.get(c.qualifiedName()),
                         c.properties().stream().map(p -> p.name()).toList(),
                         () -> c.qualifiedName() + " must match real legend-pure");
             } else if (PLAN_SURFACE_PROPERTIES.containsKey(c.qualifiedName())) {
@@ -1148,6 +1167,9 @@ class NativeFunctionTest {
                 "meta::pure::extension",
                 "meta::pure::tds",
                 "meta::relational::metamodel::relation",
+                // TDG lane S1: the ###Data metamodel's relational shape
+                "meta::relational::metamodel::data",
+                "meta::pure::data",
                 // the plan surface (#47: ExecutionPlan)
                 "meta::pure::executionPlan",
                 // the checked-result surface (graphFetchChecked)

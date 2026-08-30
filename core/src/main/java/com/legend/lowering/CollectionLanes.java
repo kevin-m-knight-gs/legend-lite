@@ -133,6 +133,9 @@ final class CollectionLanes {
             case TypedSlice s -> valueLane(s.source());
             case TypedSort s -> valueLane(s.source());
             case TypedSortBy s -> valueLane(s.source());
+            // census carrier: folded to instance literals BEFORE lowering
+            // (StatementExecutor); its result is a VALUE — defensive true
+            case com.legend.compiler.spec.typed.TypedCsvCensus c -> true;
             case TypedDistinct d -> valueLane(d.source());
             case TypedDrop d -> valueLane(d.source());
             // take()/limit() — the DEEP_AUDIT catch: the whitelist had

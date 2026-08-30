@@ -244,6 +244,15 @@ public final class Pure {
     // family (taxonomy T2)
     public static final ClassDefinition MULTI_EXECUTION_CONTEXT = nativeClass("native Class meta::pure::executionPlan::MultiExecutionContext extends meta::pure::runtime::ExecutionContext { childExecutionContext: meta::pure::runtime::ExecutionContext[*]; }");
     public static final ClassDefinition EXECUTION_OPTION = nativeClass("native Class meta::pure::executionPlan::ExecutionOption extends meta::pure::metamodel::type::Any {}");
+
+    // TDG lane S1 (docs/TDG_LANE_CHARTER.md): the engine's relational
+    // CSV-census result classes (real spellings: relationalTest.pure
+    // :17-27 — RelationalCSVData extends EmbeddedData { tables };
+    // RelationalCSVTable { schema, table, values }). ONE metamodel,
+    // shared with the future ###Data opening (charter "ONE METAMODEL").
+    public static final ClassDefinition EMBEDDED_DATA = nativeClass("native Class meta::pure::data::EmbeddedData extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition RELATIONAL_CSV_TABLE = nativeClass("native Class meta::relational::metamodel::data::RelationalCSVTable { schema: meta::pure::metamodel::type::String[1]; table: meta::pure::metamodel::type::String[1]; values: meta::pure::metamodel::type::String[1]; }");
+    public static final ClassDefinition RELATIONAL_CSV_DATA = nativeClass("native Class meta::relational::metamodel::data::RelationalCSVData extends meta::pure::data::EmbeddedData { tables: meta::relational::metamodel::data::RelationalCSVTable[*]; }");
     public static final ClassDefinition EXECUTION_OPTION_CONTEXT = nativeClass("native Class meta::pure::executionPlan::ExecutionOptionContext extends meta::pure::executionPlan::MultiExecutionContext { executionOptions: meta::pure::executionPlan::ExecutionOption[*]; }");
     // real extension.pure — the plug-in registry class; corpus function
     // SIGNATURES name it (extensions:Extension[*]) even where the value
@@ -1734,6 +1743,10 @@ public final class Pure {
     public static final NativeFunctionDefinition PLAN_TO_STRING_WITHOUT_FORMATTING__ANY_1__ANY_MANY = signature("native function meta::pure::executionPlan::toString::planToStringWithoutFormatting(plan:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1];");
     // real executionPlan_execution.pure:67 — the node-tree flatten
     public static final NativeFunctionDefinition ALL_NODES__EXECUTION_NODE_1__ANY_MANY = signature("native function meta::pure::executionPlan::allNodes(node:meta::pure::executionPlan::ExecutionNode[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::executionPlan::ExecutionNode[*];");
+    // real testDataGeneration.pure:753 — the NECESSARY-columns CSV
+    // census, no execution (TDG lane S1; query/mapping params relaxed
+    // to the executionPlan precedent's metamodel spellings)
+    public static final NativeFunctionDefinition GET_RELATIONAL_CSV_DATA__FN_1__ANY_1 = signature("native function meta::relational::testDataGeneration::getRelationalCSVDataFromQuery(query:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], mapping:meta::pure::metamodel::type::Any[1]):meta::relational::metamodel::data::RelationalCSVData[1];");
     // pure-only plan shapes (no store): 2/3-arg spellings type; their
     // plan text is a PureExp node — a named wall at the K-arm until built
     // parameterized query lambdas (Allocation/Sequence plans): they
