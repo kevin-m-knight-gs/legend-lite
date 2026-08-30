@@ -317,7 +317,53 @@ final class SyntheticHeads {
         canon = c;
     }
 
+    /** §4AD P2: filter-position conjoin channel. Inside a TypedFilter
+     * predicate, a lifted filtered read parks BARE and its β-inlined
+     * qualifier predicate joins {@code pending}; the wrapper attaches
+     * pending conjuncts at the NEAREST boolean ancestor — the consuming
+     * comparison — reproducing the engine's per-disjunct
+     * (qual-pred AND cmp) grouping (testQualifierQueryWithOr cell)
+     * structurally, for every operator family. */
+    private record FilterCtx(List<TypedSpec> pending) {
+        FilterCtx() {
+            this(new java.util.ArrayList<>());
+        }
+    }
+
     private TypedSpec liftFilteredHeads(TypedSpec n, boolean enabled) {
+        return liftFilteredHeads(n, enabled, null);
+    }
+
+    private TypedSpec liftFilteredHeads(TypedSpec n, boolean enabled,
+            @com.legend.Nullable FilterCtx fc) {
+        TypedSpec r = liftArms(n, enabled, fc);
+        if (fc != null && !fc.pending().isEmpty()
+                && r.info().type() == Type.Primitive.BOOLEAN
+                && r.info().multiplicity()
+                        instanceof Multiplicity.Bounded mb1
+                && Integer.valueOf(1).equals(mb1.upper())
+                && Integer.valueOf(1).equals(mb1.lower())) {
+            for (int i = fc.pending().size() - 1; i >= 0; i--) {
+                r = andExpr(fc.pending().get(i), r);
+            }
+            fc.pending().clear();
+        }
+        return r;
+    }
+
+    /** {@code a && b} at EXPRESSION level (andMerge's lambda-less twin). */
+    private TypedSpec andExpr(TypedSpec a, TypedSpec b) {
+        var fns = ctx.findFunction("meta::pure::functions::boolean::and")
+                .stream().filter(f -> f.parameters().size() == 2).toList();
+        if (fns.size() != 1) {
+            throw new IllegalStateException("resolver bug: expected exactly"
+                    + " one 2-arg boolean::and, found " + fns.size());
+        }
+        return new TypedNativeCall(fns.get(0), List.of(a, b), b.info());
+    }
+
+    private TypedSpec liftArms(TypedSpec n, boolean enabled,
+            @com.legend.Nullable FilterCtx fc) {
         if (enabled) {
             n = canon.apply(n);
         }
@@ -335,7 +381,7 @@ final class SyntheticHeads {
                 && filterBehindToOne(tm.source()) instanceof TypedFilter
                 && tm.source().info().type() instanceof Type.ClassType) {
             return liftFilteredHeads(new TypedPropertyAccess(
-                    tm.source(), mb.property(), tm.info()), enabled);
+                    tm.source(), mb.property(), tm.info()), enabled, fc);
         }
         // sortBy over a FILTERED navigation (ordered sub-aggregation
         // source: filter(nav)->sortBy(key).leaf->joinStrings(...)): the
@@ -371,20 +417,13 @@ final class SyntheticHeads {
         if (enabled) {
             TypedSpec folded = foldWrappedSpelling(n);
             if (folded != null) {
-                return liftFilteredHeads(folded, enabled);
+                return liftFilteredHeads(folded, enabled, fc);
             }
         }
         TypedSpec betaLeaf = enabled ? liftMapWrappedFilterLeaf(n) : null;
         if (betaLeaf != null) {
             return betaLeaf;
         }
-        // §4AD batches 5+7: every filtered-nav read takes the fan-out
-        // route, ALL positions and multiplicities (charter decisions
-        // 1-2; batch-0 placement table). Batch-1's pred-count,
-        // milestoned, and filter-position exclusions are ALL deleted —
-        // the walk has no position gates left; a filter-position
-        // consumption compares over the fanned row in WHERE, duplicates
-        // kept (decision 2, ratified).
         if (enabled
                 && n instanceof TypedPropertyAccess pa
                 && filterBehindToOne(pa.source()) instanceof TypedFilter f
@@ -392,26 +431,7 @@ final class SyntheticHeads {
                 && f.info().type()
                         instanceof Type.ClassType
                 && isLiftableNav(f.source())) {
-            TypedSpec head = liftFilteredHeads(f.source(), true);
-            TypedSpec renamed;
-            String synth;
-            // CLOSED predicates park on the target pipeline; a predicate
-            // reading the OUTER row parks CORRELATED — applied at the join
-            // CONDITION where both rows are in scope. EQUAL preds on the
-            // same head REUSE one identity (parkFiltered).
-            if (head instanceof com.legend.compiler.spec.typed
-                    .TypedMilestonedAccess ma) {
-                synth = parkFiltered(ma.property(), f.predicate());
-                renamed = new TypedMilestonedAccess(
-                        ma.source(), synth, ma.dates(), ma.sweep(), ma.info());
-            } else {
-                var hp = (TypedPropertyAccess) head;
-                synth = parkFiltered(hp.property(), f.predicate());
-                renamed = new TypedPropertyAccess(
-                        hp.source(), synth, hp.info());
-            }
-            return new TypedPropertyAccess(
-                    renamed, pa.property(), pa.info());
+            return liftFilteredReadArm(pa, f, fc);
         }
         // COMPUTED-mapper aggregation source (#69) —
         // map(filter(nav), λe.<computed>) where the mapper body is NOT a
@@ -471,10 +491,27 @@ final class SyntheticHeads {
                                                             .contains(c.fn()))))
                                     .toList(),
                             p.info());
-            case TypedFilter f -> new TypedFilter(
-                    liftFilteredHeads(f.source(), enabled),
-                    (TypedLambda) liftFilteredHeads(f.predicate(), enabled),
-                    f.info());
+            case TypedFilter f -> {
+                // each predicate STATEMENT gets its own conjoin scope;
+                // the statement root is Boolean[1], so the wrapper
+                // attaches any conjunct the walk left pending
+                FilterCtx pfc = new FilterCtx();
+                TypedLambda p0 = f.predicate();
+                TypedLambda p2 = new TypedLambda(p0.parameters(),
+                        p0.body().stream()
+                                .map(b -> liftFilteredHeads(b, enabled, pfc))
+                                .toList(),
+                        p0.info());
+                if (!pfc.pending().isEmpty()) {
+                    throw new IllegalStateException("resolver bug: "
+                            + pfc.pending().size() + " filter-position"
+                            + " conjunct(s) never attached to a boolean"
+                            + " consumption");
+                }
+                yield new TypedFilter(
+                        liftFilteredHeads(f.source(), enabled),
+                        p2, f.info());
+            }
             case TypedSortBy sb -> new TypedSortBy(
                     liftFilteredHeads(sb.source(), enabled),
                     (TypedLambda) liftFilteredHeads(sb.key(), enabled),
@@ -494,8 +531,24 @@ final class SyntheticHeads {
             case TypedLambda l -> new TypedLambda(l.parameters(),
                     l.body().stream().map(b -> liftFilteredHeads(b, enabled))
                             .toList(), l.info());
+            // AGGREGATION arguments suspend the filter-conjoin channel
+            // (aggregated reads ride the GROUPED route — pred-in-
+            // subselect is the measured cell; a conjunct would widen
+            // the boolean leaf across agg heads: the validation
+            // milestoning-aggregation trio walled on exactly that).
+            // NEGATION suspends it too: the to-many negation arm
+            // transcribes the engine's null-compensation for equal/in
+            // — not(and(guard, cmp)) is outside its vocabulary
+            // (validateComplexValidation6 walled). Negated-consumption
+            // pad behavior stays the batch-7 residue (ledgered).
             case TypedNativeCall c ->
-                    c.withChildren(c.args().stream().map(a -> liftFilteredHeads(a, enabled))
+                    c.withChildren(c.args().stream()
+                            .map(a -> liftFilteredHeads(a, enabled,
+                                    CorrelatedSubselects.isAggregate(c)
+                                            || "meta::pure::functions::boolean::not"
+                                                    .equals(c.callee()
+                                                            .qualifiedName())
+                                            ? null : fc))
                                     .toList());
             case TypedPropertyAccess pa ->
                     new TypedPropertyAccess(
@@ -515,18 +568,19 @@ final class SyntheticHeads {
                             m.info());
             case TypedIf i ->
                     new TypedIf(
-                            liftFilteredHeads(i.condition(), enabled),
-                            liftFilteredHeads(i.thenBranch(), enabled),
-                            i.elseBranch().map(e -> liftFilteredHeads(e, enabled)),
+                            liftFilteredHeads(i.condition(), enabled, fc),
+                            liftFilteredHeads(i.thenBranch(), enabled, fc),
+                            i.elseBranch().map(e ->
+                                    liftFilteredHeads(e, enabled, fc)),
                             i.info());
             case TypedCollection c ->
                     new TypedCollection(
                             c.elements().stream().map(e ->
-                                    liftFilteredHeads(e, enabled)).toList(),
+                                    liftFilteredHeads(e, enabled, fc)).toList(),
                             c.info());
             case TypedCast c ->
                     new TypedCast(
-                            liftFilteredHeads(c.source(), enabled),
+                            liftFilteredHeads(c.source(), enabled, fc),
                             c.target(), c.info(), c.wire());
             case TypedGroupBy gb ->
                     new TypedGroupBy(
@@ -562,6 +616,58 @@ final class SyntheticHeads {
      * exists-over-filter and correlated shapes owned by other routes (the
      * reverted -22 regression). Null when the arm does not apply.
      */
+    /** THE filtered-read arm (§4AD batches 5+7 + P2): every
+     * filtered-nav read takes the fan-out route, ALL positions and
+     * multiplicities (charter decisions 1-2; batch-0 placement table —
+     * no position gates). CLOSED predicates park on the target
+     * pipeline; a predicate reading the OUTER row parks CORRELATED
+     * (applied at the join condition); EQUAL preds on one head REUSE
+     * one identity (parkFiltered). §4AD P2 — FILTER position: the
+     * IN-TARGET park stays (the engine's own emission for these
+     * shapes is pred-in-ON — nestedFilterFunctionExpressionWithOr-
+     * Condition golden — and its fan counts are the measured rows),
+     * PLUS the inlined qualifier pred conjoins the consuming
+     * comparison via the pending channel: REDUNDANT over matched
+     * rows, the PAD GUARD over unmatched ones — a pad row's NULL
+     * reads could otherwise satisfy a null-safe comparison the
+     * qual-pred should have guarded (both engine forms drop that
+     * row — ValueMapPlacementTest.filterPositionGroupsQualPredWithCmp). */
+    private TypedSpec liftFilteredReadArm(TypedPropertyAccess pa,
+            TypedFilter f, @com.legend.Nullable FilterCtx fc) {
+        if (fc != null && f.predicate().body().size() == 1) {
+            TypedSpec headF = liftFilteredHeads(f.source(), true, fc);
+            TypedSpec renamedF;
+            if (headF instanceof TypedMilestonedAccess maF) {
+                renamedF = new TypedMilestonedAccess(maF.source(),
+                        parkFiltered(maF.property(), f.predicate()),
+                        maF.dates(), maF.sweep(), maF.info());
+            } else {
+                var hpF = (TypedPropertyAccess) headF;
+                renamedF = new TypedPropertyAccess(hpF.source(),
+                        parkFiltered(hpF.property(), f.predicate()),
+                        hpF.info());
+            }
+            fc.pending().add(Substitution.inlineParam(
+                    f.predicate().body().get(0),
+                    f.predicate().parameters().get(0), renamedF));
+            return new TypedPropertyAccess(renamedF, pa.property(),
+                    pa.info());
+        }
+        TypedSpec head = liftFilteredHeads(f.source(), true);
+        TypedSpec renamed;
+        if (head instanceof com.legend.compiler.spec.typed
+                .TypedMilestonedAccess ma) {
+            renamed = new TypedMilestonedAccess(ma.source(),
+                    parkFiltered(ma.property(), f.predicate()),
+                    ma.dates(), ma.sweep(), ma.info());
+        } else {
+            var hp = (TypedPropertyAccess) head;
+            renamed = new TypedPropertyAccess(hp.source(),
+                    parkFiltered(hp.property(), f.predicate()), hp.info());
+        }
+        return new TypedPropertyAccess(renamed, pa.property(), pa.info());
+    }
+
     private @com.legend.Nullable TypedSpec liftAggBareFilter(
             TypedNativeCall agg, boolean enabled) {
         if (agg.args().isEmpty()

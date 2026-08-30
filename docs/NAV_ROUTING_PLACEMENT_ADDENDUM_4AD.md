@@ -1,8 +1,9 @@
 # §4AD Placement Addendum — corrective design and landing record
 
-**Status: EXECUTED through P1 (user signed off 2026-08-29; landing
-records in §8 — P0 bisect, P0.5 corrected unpark, P1 placement fix
-with two witness-forced design corrections). P2 remains open.**
+**Status: EXECUTED IN FULL (user signed off 2026-08-29; landing
+records in §8 — P0 bisect, P0.5 corrected unpark, P1 placement fix,
+P2 filter-position pad guard; every design correction was
+witness-forced and is recorded).**
 Parent: NAV_ROUTING_DESIGN_4AD_SLICE1.md; spec source:
 NAV_ROUTING_BATCH0_4AD.md §0b placement-bit table (measured, named
 witnesses per cell). §§1-7 are preserved AS DESIGNED for the
@@ -61,7 +62,7 @@ Placement enum, one value per measured cell:
 | ROW_PRESERVING | projection/TDS column thread | pred stays in the join target (subselect WHERE ≡ ON — measured row-equivalent); missing nav ⇒ NULL cell (TDSNull) | testDerivedWithFiltering (+TwoProperties) — ALREADY CONFORMANT, no change |
 | ROW_DROPPING | map VALUE position | ~~bare join + pred in top WHERE~~ **CORRECTED AT IMPLEMENTATION (§8 P1): pred stays IN-TARGET, join emitted INNER.** The hoist was refuted by the R4 witness: a null-safe pred is TRUE over the LEFT pad row (phantom mints); with INNER the pad row never exists. Row-identical to the engine's LEFT+WHERE on every measured cell; correct on the null-safe cell where the engine's own hoist phantoms | testQualifierWithOperation |
 | ROW_DROPPING, multi-occurrence | value, multi-occurrence | per-occurrence join copies (unchanged); ALL parked preds ANDed in the ONE top WHERE | testTwoQualifiersWithOperation |
-| CONSUMPTION_CONJOINED | FILTER position | pred ANDs the consuming comparison IN PLACE, so each occurrence's (qualifier-pred AND consumption-pred) group combines under the filter's OWN operator (OR in the witness) | testQualifierQueryWithOr — currently green by equality-luck; becomes structural |
+| CONSUMPTION_CONJOINED | FILTER position | ~~bare join + pred grouped in WHERE~~ **CORRECTED AT IMPLEMENTATION (§8 P2): the IN-TARGET park STAYS (the engine's own emission for these shapes is pred-in-ON, and its bundled fan counts are the measured rows — bare joins OVER-fanned three nested-OR goldens), PLUS the inlined qualifier pred conjoins the consuming comparison as a redundant-on-matched-rows PAD GUARD.** Suspended under AGGREGATION args (grouped route owns placement) and under NEGATION (the to-many negation arm's compensation vocabulary is equal/in — negated-pad stays ledgered residue) | testQualifierQueryWithOr + ValueMapPlacementTest.filterPositionGroupsQualPredWithCmp |
 
 Notes:
 - CONSUMPTION_CONJOINED is not top-level AND: under an OR filter,
@@ -391,3 +392,35 @@ value chains through mid hops (mid pads could still mint under
 null-skipping — no corpus witness; mid-INNER extension when one
 appears); forced FILTER-position null-skipping consumption
 (engine-shared residue).
+
+**P2 EXECUTED 2026-08-29: FILTER-POSITION PAD GUARD (builds on the
+P1 record above).** The designed bare+grouped-WHERE
+form was BUILT AND REFUTED BY REFEREES in one afternoon — the honest
+sequence, each caught by a witness or the corpus, all corrections
+sweep-green at the end:
+(1) BARE joins over-fanned: three nested-OR goldens
+(nestedFilterFunctionExpressionWithOrCondition et al.) assert 3 rows
+and their goldens show the ENGINE emits pred-in-ON for these shapes —
+its fan counts are shape-dependent (ON-form bundles, flat-form fans);
+the batch-7 in-target fan IS the measured count. CORRECTED: in-target
+park KEPT; the conjoined inlined qualifier pred rides ONLY as a PAD
+GUARD (redundant over matched rows; both engine forms drop the pad
+row — the flat form by WHERE grouping, the ON form by its
+is-not-null pierce guard). The R4 witness converts ([] not
+[Beta, Gamma]); fan counts everywhere = batch-7 = engine.
+(2) AGGREGATION args suspend the conjoin (grouped route owns
+placement; the conjunct widened boolean leaves across agg heads —
+validation milestoning-aggregation trio walled, recovered).
+(3) NEGATION suspends the conjoin (the to-many negation arm
+transcribes engine null-compensation for equal/in only —
+not(and(...)) walled validateComplexValidation6, recovered;
+negated-consumption pad behavior = ledgered residue).
+MECHANISM: FilterCtx pending-conjunct channel through the lift; the
+wrapper attaches at the NEAREST boolean ancestor (per-disjunct
+grouping under OR falls out structurally); andExpr via the one 2-arg
+boolean::and. Text cost: 2 byte-matched asserts became row-verified
+rescues (ceiling 861 -> 863, 0 diverged, measured). Witnesses 6/6;
+validation 23/23; full sweep green, zero regressions. OPEN residue
+(ledger): null-safe QUALIFIER preds (guard itself null-safe over
+pad), negated and aggregated consumptions' pad corners — all
+engine-shared, none corpus-witnessed.

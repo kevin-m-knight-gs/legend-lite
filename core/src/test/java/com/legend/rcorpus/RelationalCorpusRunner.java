@@ -1024,9 +1024,18 @@ public class RelationalCorpusRunner {
                     // formerly-unverifiable value-frame passes now
                     // carry the ROW-VERIFIED rescue flag —
                     // verification gained, not text decayed.
+                    // 861 -> 863 (§4AD P2): the filter-position PAD
+                    // GUARD (the conjoined qualifier pred) is SEMANTIC
+                    // text — 2 byte-matched asserts became
+                    // row-verified rescues (0 diverged; measured
+                    // matched 466->464, rescued 929->931; ATTRIBUTED:
+                    // filterFunctionExpressionWithConditionOnLeftAnd-
+                    // RightTable + ...WithAndConditionOnRootAndRight-
+                    // Table — engine spells the pred ONCE in the ON,
+                    // ours ALSO guards the WHERE).
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            softRescued <= 861, "text-rescued passes grew: "
-                                    + softRescued + " > 861"),
+                            softRescued <= 863, "text-rescued passes grew: "
+                                    + softRescued + " > 863"),
                     // contract-program wire ratchets (RE-PINNED at the
                     // 2026-08-24 label flip: 181->114->56 and 130->13 —
                     // adopted HUGEINT labels, registered carriages, then

@@ -163,6 +163,42 @@ class ValueMapPlacementTest {
     }
 
     @Test
+    @DisplayName("FILTER position, null-safe cmp: qual-pred groups with cmp (engine cell)")
+    void filterPositionGroupsQualPredWithCmp() throws SQLException {
+        // §4AD P2 R4 witness. Engine form (testQualifierQueryWithOr
+        // cell): BARE fanned join, (qual-pred AND cmp) grouped in the
+        // WHERE — a parent with NO matching child fails the group
+        // (qual-pred is false on the pad row). The in-target form
+        // wrongly PASSES it: the pad row's NULL nick pair satisfies a
+        // null-safe cmp when the qual-pred no longer guards the group.
+        String sql = sqlOf("m::Org.all()->filter(o|"
+                + "$o.children->filter(c|$c.name == 'Beta')->toOne().nick"
+                + " == $o.children->filter(c|$c.name == 'Beta')->toOne().nick2)"
+                + "->map(o|$o.name)->from(m::M, m::RT)");
+        // Alpha's Beta child: 'b' vs 'x' -> false. Beta/Gamma:
+        // childless -> qual-pred false on the pad -> fail. Engine: [].
+        assertEquals(List.of(), exec(sql), sql);
+    }
+
+    @Test
+    @DisplayName("FILTER position, OR disjuncts: a missing occurrence must not kill the row")
+    void filterPositionOrKeepsRowSurvival() throws SQLException {
+        // regression pin: filter-position joins stay LEFT (INNER would
+        // wrongly drop parents failing occurrence 1 even when
+        // occurrence 2's disjunct holds), and the fan is the IN-TARGET
+        // (engine ON-form) count — the engine emits pred-in-ON for this
+        // toOne-pierced comparison family
+        // (filterFunctionExpressionWithConditionOnRightTableOrExpression
+        // golden: ON (root.ID = FIRMID and LASTNAME = ...)), so each
+        // occurrence fans MATCHED children only: one surviving row.
+        String sql = sqlOf("m::Org.all()->filter(o|"
+                + "$o.children->filter(c|$c.name == 'NoSuch')->toOne().name == 'X'"
+                + " || $o.children->filter(c|$c.name == 'Gamma')->toOne().name == 'Gamma')"
+                + "->map(o|$o.name)->from(m::M, m::RT)");
+        assertEquals(List.of("Alpha"), exec(sql), sql);
+    }
+
+    @Test
     @DisplayName("injected conjunct keeps the filter-position equality rule (double-NULL)")
     void doubleNullConjunctRuleParity() throws SQLException {
         // risk-6 pin (addendum §6): the hoisted predicate lowers under

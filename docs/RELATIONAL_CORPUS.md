@@ -64,7 +64,7 @@ shared source registered by several families cannot double-count. Run with
 | tds/tests | 266 | 253 | 3 | 4 | 6 | 2 | 2 | 0 | 90 |
 | testDataGeneration/tests | 68 | 63 | 0 | 2 | 3 | 0 | 17 | 24 | 0 |
 | tests | 39 | 33 | 2 | 0 | 4 | 0 | 0 | 0 | 0 |
-| tests/advanced | 68 | 66 | 1 | 1 | 0 | 3 | 3 | 0 | 52 |
+| tests/advanced | 68 | 66 | 1 | 1 | 0 | 3 | 3 | 0 | 54 |
 | tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping | 10 | 9 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2353** | 59 | 74 | 89 | 30 | 49 | 27 | 861 |
+| **total** | 2575 | **2353** | 59 | 74 | 89 | 30 | 49 | 27 | 863 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2353 PASS = 1419 clean + 934 carrying softness (sqldiff 30, advisory 49, 0-asserts 27, text-rescued 861; flags overlap — the union is 934).
+SOFT-PASS RECONCILIATION (F2.1): 2353 PASS = 1417 clean + 936 carrying softness (sqldiff 30, advisory 49, 0-asserts 27, text-rescued 863; flags overlap — the union is 936).
 
 ### mapping walls (dropped at assembly)
 
@@ -1273,7 +1273,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2353 PASS = 1419 clean + 934 carrying softness 
 - SHAPE testErrorDueToNoSeedForRoot [testDataGeneration/tests]: testDataGen plan: no row identifiers for root 'Person' [surfaced via assert form 'assertEquals/2']
 - ERROR testInheritanceMultipleLevel [testDataGeneration/tests]: multi-hop navigation vehicles#f1.stc_meta__relational__tests__model__inheritance__Bicycle___person.name through an embedded/slot head is not supported yet [assocs=[vehicles#f0, vehicles#f1]; head subNavs=[]; head binding=ABSENT]
 - ERROR testUnionToUnion [testDataGeneration/tests]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'employees' (the demand scan and the rewrite disagreed)
-- FAIL testRelationalMapperTwoDBs [tests]: assertEquals: expected select "root".NAME as "name", "synonymtable_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join snDB.productSchemaNewDB.synonymTableNew as "synonymtable_0" on ("synonymtable_0".PRODID = "root".ID and "synonymtable_0".TYPE = 'CUSIP' and "synonymtable_0".ID <> 1) where "synonymtable_0".NAME = 'CUSIP1', got select "root".NAME as "name", "synonymtablenew_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join (select * from snDB.productSchemaNewDB.synonymTableNew as "root" where "root".ID is distinct from 1 and "root".TYPE = 'CUSIP') as "synonymtablenew_0" on ("synonymtablenew_0".PRODID = "root".ID) where "synonymtablenew_0".NAME = 'CUSIP1'
+- FAIL testRelationalMapperTwoDBs [tests]: assertEquals: expected select "root".NAME as "name", "synonymtable_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join snDB.productSchemaNewDB.synonymTableNew as "synonymtable_0" on ("synonymtable_0".PRODID = "root".ID and "synonymtable_0".TYPE = 'CUSIP' and "synonymtable_0".ID <> 1) where "synonymtable_0".NAME = 'CUSIP1', got select "root".NAME as "name", "synonymtablenew_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join (select * from snDB.productSchemaNewDB.synonymTableNew as "root" where "root".ID is distinct from 1 and "root".TYPE = 'CUSIP') as "synonymtablenew_0" on ("synonymtablenew_0".PRODID = "root".ID) where "synonymtablenew_0".TYPE = 'CUSIP' and "synonymtablenew_0".NAME = 'CUSIP1'
 - FAIL testRelationalMapperWithJoin [tests]: assertEquals: expected select "addresstable_0".NAME as "address" from snDBDefault.default.firmTableNew as "root" left outer join snDBDefault.default.personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID and "persontable_0".LASTNAME = 'Smith') left outer join snDBDefault.default.addressTable as "addresstable_0" on ("addresstable_0".ID = "persontable_0".ADDRESSID), got select "persontable_0"."address_NAME" as "address" from snDBDefault.default.firmTableNew as "root" left outer join (select "root".*, "addresstable_0".NAME as "address_NAME" from snDBDefault.default.personTable as "root" left outer join snDBDefault.default.addressTable as "addresstable_0" on ("addresstable_0".ID = "root".ADDRESSID) where "root".LASTNAME = 'Smith') as "persontable_0" on ("root".ID = "persontable_0".FIRMID)
 - SHAPE testExecuteInDbToTDS [tests]: no execute(|...) call [calls meta::relational::metamodel::execute] — wall: let-bound setup: NormalizeRequired function 'meta::relational::metamodel::execute::resultSetToTDS' has non-let intermediate statements — cannot inline
 - SHAPE testResultToJsonStream [tests]: no execute(|...) call — wall: class 'meta::pure::tds::TDSColumn' has no property 'type'
