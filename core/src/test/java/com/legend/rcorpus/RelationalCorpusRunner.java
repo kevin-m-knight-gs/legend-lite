@@ -765,7 +765,12 @@ public class RelationalCorpusRunner {
             // execute and row-verify (the synthesized
             // tempTableForIn_<var>/<n> tables replay the engine's
             // runtime artifacts from derivable values).
-            org.junit.jupiter.api.Assertions.assertEquals(1475,
+            // 1475 -> 1495 (TDG 49er replay): 20 generateTestData sqls
+            // rows verify by execution-equivalence (golden fetch on the
+            // H2 mirror vs ours on DuckDB, multiset row compare under
+            // the shared canon) — same rows that left the unable-to-exec
+            // lane (70 -> 50 above).
+            org.junit.jupiter.api.Assertions.assertEquals(1495,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-with-exec-passing"),
@@ -811,7 +816,12 @@ public class RelationalCorpusRunner {
             // and only the GOLDEN replay declined (48 diff-noreplay ::
             // no-root-exec-variable + 1 no-generator). Burnable by the
             // same replay machinery as the rest of this bucket.
-            org.junit.jupiter.api.Assertions.assertEquals(70,
+            // 70 -> 50 (the 49er REPLAY landed): 20 TDG sqls rows are
+            // now FULLY VERIFIED by execution-equivalence (golden on the
+            // H2 mirror, ours on DuckDB, rows equal — exec-passing);
+            // the 29 remaining ride NAMED causes (26 chained-fetch temp
+            // tables, 2 projection-demand divergences, 1 no-generator)
+            org.junit.jupiter.api.Assertions.assertEquals(50,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-unable-to-exec"),
@@ -1130,9 +1140,14 @@ public class RelationalCorpusRunner {
                     // by exec-passing 1,467 -> 1,475 + unable-to-exec
                     // 27 -> 21 in the same commit): 4 tempTable tests'
                     // passes now carry the ROW-VERIFIED rescue.
+                    // 881 -> 896 (TDG 49er replay, JUSTIFIED by
+                    // exec-passing 1,475 -> 1,495 + unable-to-exec
+                    // 70 -> 50 in the same commit): 15 generateTestData
+                    // tests' passes now carry the ROW-VERIFIED rescue
+                    // (the other 5 of the 20 byte-match and need none).
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            softRescued <= 881, "text-rescued passes grew: "
-                                    + softRescued + " > 881"),
+                            softRescued <= 896, "text-rescued passes grew: "
+                                    + softRescued + " > 896"),
                     // contract-program wire ratchets (RE-PINNED at the
                     // 2026-08-24 label flip: 181->114->56 and 130->13 —
                     // adopted HUGEINT labels, registered carriages, then

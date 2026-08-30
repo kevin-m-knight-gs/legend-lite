@@ -1209,6 +1209,59 @@ public final class EngineTestExecutor {
      * equal = execution-equivalent, SQL divergence stays visible in the
      * census); when neither verifies, the TEXT DIFF is the failure —
      * never a silent advisory skip. */
+    /** The TDG sqls-text verify (the 49er replay): golden and OURS are
+     * both FETCH texts. Byte match or row-equivalent replay = VERIFIED
+     * (exec-pass; a divergent-text row match is the RESCUE, counted);
+     * row divergence = exec-diverged (REAL); an unreplayable side keeps
+     * the counted diff-noreplay with its cause. */
+    private static @com.legend.Nullable String tdgSqlTextVerify(
+            List<ValueSpecification> args,
+            Map<String, ValueSpecification> lets,
+            List<ValueSpecification> execStmts,
+            java.util.Set<String> execVars,
+            Map<String, ValueSpecification> execChains, ModelContext ctx,
+            ImportScope imports, String runtimeFqn, Connection conn)
+            throws java.sql.SQLException {
+        String golden = null;
+        ValueSpecification actual = null;
+        for (ValueSpecification a : args) {
+            String sfold = TestDataGenForm.foldString(subst(a, lets));
+            if (sfold != null && golden == null) {
+                golden = sfold;
+            } else {
+                actual = a;
+            }
+        }
+        String ours = evalSideText(actual, lets, execStmts, execVars,
+                execChains, ctx, imports, runtimeFqn, conn);
+        if (golden == null || ours == null) {
+            // no two texts to referee — the generic path owns it
+            return sqlTextVerify(args, lets, execStmts, execVars,
+                    execChains, ctx, imports, runtimeFqn, conn);
+        }
+        boolean match = golden.equals(ours);
+        try {
+            String rows = H2Verify.tdgSqlReplay(
+                    com.legend.sql.dialect.RawSqlBoundary.recording(),
+                    golden, conn, ours);
+            if (rows == null) {
+                if (!match) {
+                    H2Verify.M1_RESCUED.increment();
+                    H2Verify.verdict("rescued");
+                }
+                sqlTextOutcome("exec-pass");
+                return null;
+            }
+            sqlTextOutcome("exec-diverged");
+            return "h2-exec: " + rows;
+        } catch (H2Verify.Unverifiable u) {
+            sqlTextOutcome((match ? "match-noreplay" : "diff-noreplay")
+                    + " :: " + u.getMessage());
+            return match ? null
+                    : "sql-text: expected " + golden + ", got " + ours;
+        }
+    }
+
     private static @com.legend.Nullable String sqlTextVerify(List<ValueSpecification> args,
             Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts,
@@ -2073,10 +2126,10 @@ public final class EngineTestExecutor {
                 if (r == null || !tdg.containsKey(r.var())) {
                     return UNSUPPORTED_MARKER;
                 }
-                // S3: our generated .sqls text rides the SAME golden-SQL
-                // referee as every other sql-producer assert — byte
-                // compare, H2 exec-verify on divergence, outcome-bucketed
-                return sqlTextVerify(args, lets, execStmts, execVars,
+                // S3 + 49er replay: byte compare, then BOTH fetch texts
+                // execute (golden on the H2 mirror, ours on DuckDB) and
+                // rows referee — outcome-bucketed
+                return tdgSqlTextVerify(args, lets, execStmts, execVars,
                         execChains, ctx, imports, runtimeFqn, conn);
             }
             default -> {
@@ -2090,17 +2143,17 @@ public final class EngineTestExecutor {
                         && args.size() == 2) {
                     return NOT_TDG_MARKER;   // S2: the COUNT routes
                 }
-                // S3: the golden-SQL referee (byte compare + H2
-                // exec-verify), never a blanket advisory
-                return sqlTextVerify(args, lets, execStmts, execVars,
+                // S3 + 49er replay (see tdgSqlTextVerify)
+                return tdgSqlTextVerify(args, lets, execStmts, execVars,
                         execChains, ctx, imports, runtimeFqn, conn);
             }
             for (ValueSpecification a : args) {
                 TestDataGenForm.Read r = readTdg(a, lets);
                 if (r != null && tdg.containsKey(r.var())
                         && "sqls".equals(r.kind())) {
-                    return sqlTextVerify(args, lets, execStmts, execVars,
-                            execChains, ctx, imports, runtimeFqn, conn);
+                    return tdgSqlTextVerify(args, lets, execStmts,
+                            execVars, execChains, ctx, imports,
+                            runtimeFqn, conn);
                 }
             }
         }
@@ -2918,7 +2971,12 @@ public final class EngineTestExecutor {
                     .SQL_REMOVE_FORMATTING_FQN,
             com.legend.compiler.element.type.PlatformTypes.TO_SQL_STRING,
             com.legend.compiler.element.type.PlatformTypes
-                    .TO_SQL_STRING_PRETTY);
+                    .TO_SQL_STRING_PRETTY,
+            // TDG 49er: .sqls reads ARE produced SQL — outcome-bucketed
+            // classification (a replay RESCUE must not dual-eval into a
+            // text-equality disagreement)
+            com.legend.compiler.element.type.PlatformTypes
+                    .GENERATE_TEST_DATA);
 
     /** SQL-text ASSERT FORMS by exact FQN (testAssert.pure:18,
      * sqlQueryToString/h2, testDataGeneration/tests). The old
@@ -3286,7 +3344,7 @@ public final class EngineTestExecutor {
         // no outcome recorded, hostFailure is a real verdict) flows to
         // the ordinary dual channel below — both channels judged it.
         if (af.parameters().stream()
-                .anyMatch(p -> containsSqlProducer(p, ctx))) {
+                .anyMatch(p -> containsSqlProducer(subst(p, lets), ctx))) {
             if (outcome != null || hostFailure == UNSUPPORTED_MARKER
                     || hostFailure == ADVISORY_MARKER) {
                 com.legend.exec.CanonicalDivergence.v7Declined(form,

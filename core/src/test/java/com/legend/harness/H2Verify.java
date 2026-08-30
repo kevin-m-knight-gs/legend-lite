@@ -311,23 +311,7 @@ public final class H2Verify {
                 throw new Unverifiable(mirror.poison, null);
             }
             try (Statement st = mirror.conn.createStatement()) {
-                List<String> ledger = seeds == null ? List.of() : seeds;
-                while (mirror.applied < ledger.size()) {
-                    String seed = ledger.get(mirror.applied);
-                    for (String one : seed.split(";\\s*\n|;\\s*$")) {
-                        if (one.isBlank()) {
-                            continue;
-                        }
-                        try {
-                            st.execute(one);
-                        } catch (SQLException e) {
-                            mirror.poison = "seed replay: "
-                                    + e.getMessage();
-                            throw new Unverifiable(mirror.poison, e);
-                        }
-                    }
-                    mirror.applied++;
-                }
+                applyPendingSeeds(mirror, st, seeds);
                 return compareFrame(st, goldenSql, ours, enumDecode,
                         graphEnumProp);
             } catch (SQLException e) {
@@ -958,6 +942,178 @@ public final class H2Verify {
     /** One normalization for BOTH sides: JDBC drivers disagree on exact
      * numeric/temporal classes; the database-level VALUE is the
      * contract. */
+    /** The mirror's incremental seed replay, factored (verify + the TDG
+     * replay share it — never a twin). */
+    private static void applyPendingSeeds(MirrorState mirror, Statement st,
+            java.util.@com.legend.Nullable List<String> seeds) {
+        List<String> ledger = seeds == null ? List.of() : seeds;
+        while (mirror.applied < ledger.size()) {
+            String seed = ledger.get(mirror.applied);
+            for (String one : seed.split(";\\s*\n|;\\s*$")) {
+                if (one.isBlank()) {
+                    continue;
+                }
+                try {
+                    st.execute(one);
+                } catch (SQLException e) {
+                    mirror.poison = "seed replay: " + e.getMessage();
+                    throw new Unverifiable(mirror.poison, e);
+                }
+            }
+            mirror.applied++;
+        }
+    }
+
+    /** TDG 49er replay (docs/TDG_LANE_CHARTER.md residue): BOTH sides
+     * are FETCH texts — the GOLDEN rides the ordinary family-mirror H2
+     * route (pending seeds applied), OURS runs on the ambient DuckDB;
+     * rows compare ORDER-INSENSITIVELY under the shared cell canon
+     * (two-sided comparison policy: neither side's incidental row order
+     * is contract — the fetches carry no ORDER BY). null = VERIFIED
+     * match; text = REAL divergence; {@link Unverifiable} = the
+     * caller's counted decline. */
+    public static @com.legend.Nullable String tdgSqlReplay(
+            java.util.@com.legend.Nullable List<String> seeds,
+            String goldenSql, Connection duck, String ourSql) {
+        if (!READY) {
+            throw new Unverifiable("h2 driver not on classpath", null);
+        }
+        // ORDER-INSENSITIVE compare is GATED on a compile-time fact
+        // (harness discipline C2.3): generator fetches carry no ORDER BY
+        // on either side — an ordered text names its own decline
+        if (goldenSql.toLowerCase().contains("order by")
+                || ourSql.toLowerCase().contains("order by")) {
+            throw new Unverifiable("ordered fetch — multiset compare"
+                    + " not applicable", null);
+        }
+        // CHAINED fetches join the generator's tdg_N_* temp tables —
+        // dropped in its finally, unreplayable standalone (sequence
+        // replay = unmodeled residue, named)
+        if (ourSql.contains("tdg_") || goldenSql.contains("tdg_")) {
+            throw new Unverifiable("chained fetch — generator temp"
+                    + " tables not replayable", null);
+        }
+        List<String> ourRows;
+        // a DUPLICATE connection (the DuckWorkspaces idiom): the ambient
+        // connection may hold an open streaming result mid-walk. The
+        // duplicate starts OUTSIDE the test's workspace catalog — point
+        // it back (getCatalog is metadata, safe mid-stream).
+        try (Connection dup = duck.unwrap(
+                        org.duckdb.DuckDBConnection.class).duplicate();
+                Statement st = dup.createStatement()) {
+            String ws = duck.getCatalog();
+            if (ws != null && !ws.isBlank()) {
+                st.execute("USE " + ws);
+            }
+            ourRows = rawRows(st, ourSql);
+        } catch (SQLException e) {
+            throw new Unverifiable("our-side replay: " + e.getMessage(), e);
+        }
+        List<String> golden;
+        MirrorState mirror = MIRROR;
+        if (mirror != null && !mirror.suspended) {
+            if (mirror.poison != null) {
+                throw new Unverifiable(mirror.poison, null);
+            }
+            try (Statement st = mirror.conn.createStatement()) {
+                applyPendingSeeds(mirror, st, seeds);
+                golden = rawRows(st, goldenSql);
+            } catch (SQLException e) {
+                throw new Unverifiable("golden replay: "
+                        + e.getMessage(), e);
+            }
+        } else {
+            // PRIVATE-session test (mirror suspended/absent): the fresh
+            // full-history replay, same route as freshVerify
+            int id = COUNTER.getAndIncrement();
+            try (Connection h2 = DriverManager.getConnection(
+                    "jdbc:h2:mem:tdgreplay" + id + SETTINGS, "sa", "");
+                    Statement st = h2.createStatement()) {
+                for (String alias : H2ExtensionFunctions.aliases()) {
+                    st.execute(alias);
+                }
+                for (String seed : seeds == null ? List.<String>of()
+                        : seeds) {
+                    for (String one : seed.split(";\\s*\n|;\\s*$")) {
+                        if (!one.isBlank()) {
+                            st.execute(one);
+                        }
+                    }
+                }
+                golden = rawRows(st, goldenSql);
+            } catch (SQLException e) {
+                throw new Unverifiable("golden fresh replay: "
+                        + e.getMessage(), e);
+            }
+        }
+        String gCols = golden.get(0);
+        String oCols = ourRows.get(0);
+        if (!gCols.equals(oCols)) {
+            // DIFFERENT projections for the same step — a DEMAND
+            // divergence, not a row divergence: named residue
+            throw new Unverifiable("projection differs: golden "
+                    + gCols + " vs ours " + oCols, null);
+        }
+        List<String> g = new java.util.ArrayList<>(golden);
+        List<String> o = new java.util.ArrayList<>(ourRows);
+        java.util.Collections.sort(g);
+        java.util.Collections.sort(o);
+        return g.equals(o) ? null
+                : "tdg-replay: golden rows " + (golden.size() - 1)
+                        + " vs ours " + (ourRows.size() - 1)
+                        + " — first diff at " + firstDiff(g, o);
+    }
+
+    /** Rows as NAME-SORTED {@code col=val|...} strings plus one
+     * {@code <cols>} header row — column ORDER is not a fetch contract,
+     * column IDENTITY is (a projection mismatch compares as unequal
+     * header rows, never a garbled cell compare). */
+    private static List<String> rawRows(Statement st, String sql)
+            throws SQLException {
+        List<String> out = new java.util.ArrayList<>();
+        try (ResultSet rs = st.executeQuery(sql)) {
+            var md = rs.getMetaData();
+            int n = md.getColumnCount();
+            String[] names = new String[n];
+            Integer[] order = new Integer[n];
+            for (int i = 0; i < n; i++) {
+                names[i] = md.getColumnLabel(i + 1).toLowerCase();
+                order[i] = i;
+            }
+            java.util.Arrays.sort(order,
+                    java.util.Comparator.comparing(i -> names[i]));
+            StringBuilder hdr = new StringBuilder("<cols>");
+            for (int k = 0; k < n; k++) {
+                hdr.append('|').append(names[order[k]]);
+            }
+            out.add(hdr.toString());
+            while (rs.next()) {
+                StringBuilder row = new StringBuilder();
+                for (int k = 0; k < n; k++) {
+                    int i = order[k];
+                    if (k > 0) {
+                        row.append('|');
+                    }
+                    row.append(names[i]).append('=')
+                            .append(norm(rs.getObject(i + 1)));
+                }
+                out.add(row.toString());
+            }
+        }
+        return out;
+    }
+
+    private static String firstDiff(List<String> g, List<String> o) {
+        int n = Math.min(g.size(), o.size());
+        for (int i = 0; i < n; i++) {
+            if (!g.get(i).equals(o.get(i))) {
+                return "[" + g.get(i) + "] vs [" + o.get(i) + "]";
+            }
+        }
+        return g.size() > n ? "golden extra [" + g.get(n) + "]"
+                : o.size() > n ? "ours extra [" + o.get(n) + "]" : "?";
+    }
+
     private static String norm(Object v) {
         if (v == null) {
             return "<null>";

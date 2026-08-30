@@ -71,7 +71,12 @@ class HarnessDisciplineTest {
             // the same order-insensitive row-multiset verdict the
             // tabular pair implements — two-sided by design, the §4AB
             // label-mapped twin of the positional oracle
-            Map.entry("H2Verify.java", 4),
+            // 4 -> 7 (TDG 49er replay): tdgSqlReplay's TWO-SIDED
+            // multiset compare (both row lists sort under the shared
+            // canon) + rawRows' column-NAME normalization — comparison
+            // policy gated on the compile-time no-ORDER-BY fact (an
+            // ordered fetch declines by name before any reorder)
+            Map.entry("H2Verify.java", 7),
             Map.entry("JsonAssertCanon.java", 1),
             Map.entry("LineageForm.java", 1),
             Map.entry("Runner.java", 2),
