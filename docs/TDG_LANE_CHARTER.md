@@ -254,6 +254,96 @@ must be built as a SHARED mechanism with two callers in mind — TDG
 results now, ###Data-seeded test setups later. One materializer, not
 two.
 
+## S5 — TDG fetch SQL onto the SQL IR (the text-parity leg; charted 2026-08-30, AWAITS EXECUTION)
+
+State after the 49er replay (6799cd91): unable-to-exec 50 globally, the
+TDG family's 29 residue = 26 chained-fetch + 2 projection-demand +
+1 no-generator. This section is the burn design for the 26+2, written
+after the "just rename the temps" theory was REFUTED by measurement.
+
+### Homework receipts (all verified against sources 2026-08-30)
+
+1. **Temp tables are the ENGINE's spec, not our hack.** The chained-hop
+   golden TEXT contains the temp:
+   `from testDataGen_Temp_Person as "testdatagen_temp_person_0" inner
+   join Bicycle as "bicycle_0" on (…)` (testDataGeneration.pure,
+   testSimpleTwoTable). Naming: chained-fetch arm =
+   `'testDataGen_Temp_' + $root.name` — PARENT table, NO index
+   (testDataGeneration.pure:439/523); the `_<id>`-suffixed variants
+   (:391/:401/:413) are the nested-VIEW path only. Ours:
+   `"tdg_" + temps.size() + "_" + table` (TestDataGenerator.java:656).
+
+2. **A temp-name respell buys NOTHING on the text channel.** Measured
+   anatomy of our recorded texts vs goldens (probe: testSimpleTwoTable —
+   hop-0 rows verify only via replay-RESCUE, not byte match):
+   - engine: leading `\n`, `select top 20 \n\t`, newline/tab clause
+     joints (`sqlQueryToStringPretty`, testDataGeneration.pure:409),
+     BARE column names (`"root".ID`), aliases `"root"` /
+     `"bicycle_0"` (lowercase+_0) / `"testdatagen_temp_person_0"`
+     (lowercased temp+_0);
+   - ours: single line, QUOTED columns (`"root"."ID"`), ` limit 20`
+     suffix, child alias = raw table name (`"Bicycle"`, `t_` prefix on
+     self-join), parent-temp alias = unquoted `main`
+     (TestDataGenerator.java fetchRoot ~271, fetchChild ~361-370).
+
+3. **The recorded texts are HAND-SPELLED string concatenation** at four
+   sites: root fetch (sqls.add :278), view-root idSql (:346), chained
+   child join (:372), view fetch (:398). This is the tenet breach —
+   every other golden-SQL assert in the tree renders the ONE SQL IR
+   through the EngineStyleH2 dialect ("no side-band conversion",
+   EngineTestExecutor sqlTextVerify doctrine) and byte-matches; TDG
+   spells its own SQL and therefore CANNOT match.
+
+4. **EngineStyleH2 has NO pretty mode today** — the exec-text lane is
+   byte-pinned on the engine's FLAT `sqlQueryToString`; TDG goldens use
+   the PRETTY layout. Pretty = a formatting mode of the same renderer
+   (clause-joint newlines/tabs), new but sibling work.
+
+5. **The 2 projection-demand rows are NOT text/replay defects**: for
+   concatenate shapes the engine's fetch demands `(id, legalName)`
+   where ours demands `(firstName, id)` — a generator column-demand
+   divergence (fetchCols vs engine generateRelationColumnMap over
+   union/concatenate mappings). Data still row-verifies (assertTestData
+   agrees); only the demanded column set skews.
+
+### The design (one compiler, two renderings)
+
+Rebuild the four recorded fetch shapes as SqlSelect IR in
+TestDataGenerator; EXECUTE the DuckDb rendering (unchanged semantics),
+RECORD the EngineStyleH2-pretty rendering — the exact idiom the
+golden-SQL lane already uses, extended with:
+- pretty formatting mode on EngineStyleH2 (byte-converge against the
+  ~45 assertSqlEquals goldens; iterate with the census, name residue);
+- engine alias minting for these shapes: root=`"root"`, child =
+  lowercase(table)+`_0`, parent-temp = lowercase(tempName)+`_0`;
+- temp naming aligned: chained arm `testDataGen_Temp_<RootTable>`
+  (create/drop discipline per hop group — engine reuses the name per
+  root, so scope the temp's life to the child group or keep our
+  counter INTERNALLY while recording the engine name — NO: recorded
+  name and executed name must be THE SAME name, one artifact; align
+  the executed temp name and its lifetime to the engine's).
+
+End state: byte-equal texts make assertSqlEquals a PLAIN text verdict
+(in-DB, no replay, no rescue) — the 26 leave the unable lane natively;
+tdgSqlReplay remains as the referee for genuinely divergent spellings.
+The 2 projection rows burn by aligning fetchCols' demand for
+concatenate/union mappings with the engine's generateRelationColumnMap
+(read the engine fn first; it is the spec). The 1 no-generator row is
+the honest floor.
+
+Internal plumbing (materialize/dedup/EXCEPT diffing) is NOT recorded
+artifact and may stay string-built; migrate opportunistically, never
+as a blocker.
+
+### Anti-patterns already caught in this design's history
+
+- "Rename the temps and the texts converge" — refuted by measurement
+  (item 2). Text parity requires the renderer, not a respell.
+- Building replay machinery (sequence replay materializing temps on
+  both sides) to verify texts the generator could simply RECORD in the
+  golden spelling — referee where emission is the fix
+  (conform-by-emission doctrine).
+
 ## Appendix — the raw census (117 asserts, attributed 2026-08-30)
 
 By (test, form), count-prefixed; the alloy sub-family (6 plan-flavored
