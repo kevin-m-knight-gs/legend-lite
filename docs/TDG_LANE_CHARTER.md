@@ -65,8 +65,11 @@ in the harness at all:
 
 ## Slices (each gated, ratchets moved with attribution)
 
-- **S1 (smallest, proves the seam)**: `necessaryColumns` +
-  CSV-census forms → K-natives + routed assertEquals. ~10 asserts.
+- **S1 (smallest, proves the seam)**: the CSV-census form
+  (getRelationalCSVDataFromQuery) → checker fold + routed assertEquals.
+  EXACTLY 6 asserts (3 tests × 2 — see witnesses); the other 4
+  assertEquals rows in the census are generate/seedDataString-family
+  and belong to S2.
 - **S2 (the row contract)**: generate/seedDataString natives +
   assertTestData/3 + assertSize/2 routed verdicts. ~62 asserts.
 - **S3 (text lane)**: assertSqlEquals/2 + H2Compatible → sql-text
@@ -124,8 +127,30 @@ the fold ran in the wrong phase.
 
 **The one REAL platform gap**: TypedSortBy has no scalar-lowering arm.
 Two of the three tests sort the literal collection
-(`->sortBy(t | $t.schema + $t.table)`). The fix is ORDER BY in the
-value lane — the database executes the sort. NEVER a Java sort.
+(`->sortBy(t | $t.schema + $t.table)`). The fix is ORDER BY executed
+by the database — NEVER a Java sort. DESIGN CAUTION (audit
+2026-08-30): order does NOT survive a subquery into an aggregation in
+SQL — sortBy feeding joinStrings must thread the key INTO the
+aggregation (string_agg(x ORDER BY key) or the platform's equivalent).
+The PCT suite very likely already exercises sort→joinStrings in the
+relation lane: FIND THAT PRECEDENT FIRST and route the literal
+collection through the existing machinery; build a new scalar arm only
+if no precedent exists.
+
+**Checker-fold argument shapes** (audit): the harness β-inlines lets
+today, so the call arrives with the lambda INLINE — but the fold must
+ALSO handle `$query` as a variable (S4 deletes harness special-casing).
+The checker already types `$query` as a function type, so it holds a
+binding environment — resolve the protocol lambda through THAT, never
+a statement-list tree search.
+
+**Chain status of the proven attempt** (audit): the first attempt was
+PROBE-green only (scoped corpus runs + JavaEvalLedgerTest) — the full
+chain never ran on it. Expect governance pins to want conscious
+registration on re-land: PlatformTypesDriftTest (FQN constants vs
+prelude declarations move together), the natives-partition census, and
+any prelude-class count pins. Treat their failures as registration
+work, not regressions.
 
 ## ANTI-PATTERNS CAUGHT AND REVERTED (do not re-derive)
 
