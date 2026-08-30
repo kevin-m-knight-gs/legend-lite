@@ -123,9 +123,14 @@ the user re-ruling; the pin exists to make movement loud.
 ## LANE 3 — sql-text unable-to-exec = 50 (pin ~line 824)
 
 29 TDG (26 chained-fetch + 2 projection-demand + 1 no-generator) +
-21 prior named (by-design 6 predicate-diverged, both-ours 5,
-forced-isolation 2, column-arity 2, no-generator/H2C 2, adjudicated
-rest — the register carries per-row attribution).
+21 prior named (predicate-diverged 6, both-ours 5, forced-isolation 2,
+column-arity 2, no-generator/H2C 2, adjudicated rest — the register
+carries per-row attribution). AUDIT CORRECTION: the 6
+predicate-diverged rows are NOT by-design — they are the queued
+**emission-anatomy leg** (6 predicate-diverged + 1 skew, from the
+pre-49er census): our emitted predicate spelling diverges from the
+engine's in a way the replay can't referee; burn by aligning the
+emission, not by adjudicating.
 
 **The TDG 26+2 burn = charter §S5 (docs/TDG_LANE_CHARTER.md,
 DESIGN COMPLETE, awaits execution).** Everything known is in that
@@ -190,6 +195,66 @@ generator records engine spelling).
   match-/diff-noreplay :: cause. GENERATE_TEST_DATA is in
   SQL_PRODUCER_FQNS and the producer scan SUBSTITUTES lets — without
   that, rescued rows dual-eval and show up as disagreements.
+
+### Units caution (audit-corrected 2026-08-30)
+
+`exec-passing` counts ASSERT rows; the rescue counters (`softRescued`,
+`M1_RESCUED`-derived test flags) count passing TESTS with
+`rescued() > 0`. The two do NOT subtract: "20 exec-passing, ratchet
++15" does NOT mean 5 asserts byte-matched — the byte-match count was
+never measured, and any byte matches that do exist may be
+SELF-matches (H2Compatible pairs / goldens folded from our own
+generated text), not proof that any ENGINE golden matches our
+spelling. The S5 charter's "texts diverge wholesale" measurement
+stands.
+
+## GOVERNANCE ROUNDS WHEN ADDING NATIVES/CARRIERS
+(the recommended leg WILL add natives — every TDG slice hit all of
+these; budget a governance round per chain)
+
+- **Native catalog golden** `src/test/resources/native-catalog.txt`:
+  regen by writing a temporary test that calls
+  `NativeFunctionTest.renderCanonical` to dump the catalog, copy it
+  over the golden, DELETE the temp test. Class-count pin in
+  NativeFunctionTest (209 at handoff), DATA_SURFACE_PROPERTIES, and
+  the package whitelist all move when Pure.java gains classes.
+- **Pure.java signatures**: verify against the REAL
+  legend-pure/legend-engine .pure sources in the reference checkouts
+  — and sweep for dropped DEFAULTS on class properties (a real past
+  bug). Property types are FULL-FQN.
+- **Checkers** validate against the REGISTERED native signature via
+  checkGeneric; new CoreFn entries + Typer.applyCore arms +
+  PlatformTypes membership (isPlatformOwnedFunction).
+- **Typed carriers**: TypedSpec permits clause + children()/
+  withChildren + TypedSpecChildrenTest dummy rules (LambdaFunction /
+  ValueSpecification dummies — `new CString("d", null, false)` idiom).
+  Carriers are minted ONLY by compiler factories (ArchitectureTest
+  invariant 7).
+- **StatementExecutor** has a LINE BUDGET (2520) — fold hooks must
+  compress to one line delegating to the orchestrator class.
+- **JavaEvalLedgerTest** (file line pins + funnel registers),
+  **CarrierPurityRatchetTest** (SqlFn.LIST_ pre-dialect count; pin
+  moves use the semantic-node wire-shape-rule precedent),
+  **JdbcSurfaceCensusTest**, **ErrorShapeGuardrailTest** (no broad
+  catches — name NotImplementedException|TypeInferenceException),
+  **HarnessDisciplineTest** (sort-site register per file).
+- **Shared machinery to reuse, never re-implement**:
+  `SourceSubst.substitute` = THE β-substitution (SubstitutionParityTest
+  pins harness parity); `Pipelines.instanceLiteralProp` = THE
+  literal-prop rule; `TdgNatives.classifyArg` = the ONE arg
+  classifier. Walkers enter lambdas through `lambda.body()`, never
+  the lambda node.
+
+## OTHER NAMED RESIDUE (owners on record)
+
+- SourceSubst variable-arg call-site relocation — BLOCKED on
+  harness-splice deletion; the checker walls name it.
+- h2 list-vocab walls (~28, from TDG S1 sortBy rows reaching the
+  renderer without list-lambda vocabulary) — h2-lane leg, honest
+  advisory walls today.
+- alloy plan-let 6 — plan-text lane (charter not yet written).
+- Emission-anatomy leg — the 6 predicate-diverged + 1 skew above.
+- 2 pre-existing family ERRORs (inheritance multi-hop, union prune).
 
 ## PINS THAT MOVE TOGETHER (the trap that cost two chain runs)
 

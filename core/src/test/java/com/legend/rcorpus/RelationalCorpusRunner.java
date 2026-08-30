@@ -1143,8 +1143,11 @@ public class RelationalCorpusRunner {
                     // 881 -> 896 (TDG 49er replay, JUSTIFIED by
                     // exec-passing 1,475 -> 1,495 + unable-to-exec
                     // 70 -> 50 in the same commit): 15 generateTestData
-                    // tests' passes now carry the ROW-VERIFIED rescue
-                    // (the other 5 of the 20 byte-match and need none).
+                    // TESTS' passes now carry the ROW-VERIFIED rescue.
+                    // UNITS CAUTION (audit-corrected): this counter is
+                    // per-TEST (rescued() > 0); exec-passing is
+                    // per-ASSERT — they do not subtract, and how many
+                    // of the 20 asserts byte-matched is unmeasured.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             softRescued <= 896, "text-rescued passes grew: "
                                     + softRescued + " > 896"),

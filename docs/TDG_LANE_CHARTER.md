@@ -335,6 +335,29 @@ Internal plumbing (materialize/dedup/EXCEPT diffing) is NOT recorded
 artifact and may stay string-built; migrate opportunistically, never
 as a blocker.
 
+### Open receipts still to fetch before/while executing (audit round)
+
+- **Self-join child alias**: ours is `t_<table>`; the engine's
+  spelling for a child aliasing its own parent table is UNREAD —
+  fetch it from a self-join golden (or the engine's alias-counter
+  behavior: `_1` suffix?) before minting.
+- **Milestoning predicate spelling**: several goldens carry temporal
+  WHERE clauses; the IR path must reproduce the engine's exact
+  spelling (date literal forms, `and` joints, clause order) — treat
+  as part of the pretty-convergence census, not an afterthought.
+- **Temp materialization mechanics differ**: the engine
+  `createTempTable(name, columns…)` then INSERTs the already-fetched
+  ROWS (testDataGeneration.pure:440-444); ours is
+  `CREATE TEMPORARY TABLE <name> AS <sql>` (TestDataGenerator
+  materialize:658). Equivalent content; only matters if replay or
+  lifetime alignment ever needs the engine's exact DDL. Recorded
+  .sqls contain neither side's DDL — text parity is unaffected.
+- **Byte-match caveat (units)**: the 49er's "5 byte-matched asserts"
+  was an arithmetic over-claim (per-test vs per-assert counters — see
+  the handoff's units caution); do NOT read any existing byte match
+  as evidence an engine golden already matches our spelling. The
+  measured wholesale-divergence finding above stands.
+
 ### Anti-patterns already caught in this design's history
 
 - "Rename the temps and the texts converge" — refuted by measurement
