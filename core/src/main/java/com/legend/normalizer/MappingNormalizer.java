@@ -444,12 +444,15 @@ public final class MappingNormalizer {
             }
         }
         // includes survive the rewrite unchanged — one shared MappingInclude type.
+        // Enumeration mappings are FLATTENED here (own + includes',
+        // transitively): the fact rides the compiled artifact, so no
+        // post-compile consumer re-derives it from the legacy surface.
         return new MappingDefinition(
                 md.qualifiedName(),
                 md.includes(),
                 classBindings,
                 assocBindings,
-                md.enumerationMappings(),
+                md.enumerationMappingsWithIncludes(model::findLegacyMapping),
                 md.testSuitesSource(),
                 SetDispatch.routedTargetSets(md, model));
     }

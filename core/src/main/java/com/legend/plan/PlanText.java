@@ -442,16 +442,17 @@ public final class PlanText {
         return sb.toString();
     }
 
-    /** The mapping's ENUMERATION-MAPPING for an enum FQN — includes'
-     * transitively, own first (exact match first, simple-name second —
-     * parsed mappings may hold either spelling), or null. */
+    /** The mapping's ENUMERATION-MAPPING for an enum FQN — read off the
+     * NORMALIZED artifact, whose list is already include-flattened at
+     * Phase E (exact match first, simple-name second — parsed mappings
+     * may hold either spelling), or null. */
     public static com.legend.model.@com.legend.Nullable EnumerationMapping enumMappingOf(
             ModelContext ctx, String mappingFqn, String enumFqn) {
-        var md = ctx.findLegacyMapping(mappingFqn).orElse(null);
+        var md = ctx.findMapping(mappingFqn).orElse(null);
         if (md == null) {
             return null;
         }
-        var ems = md.enumerationMappingsWithIncludes(ctx::findLegacyMapping);
+        var ems = md.enumerationMappings();
         String simple = enumFqn.substring(enumFqn.lastIndexOf(':') + 1);
         for (var em : ems) {
             if (em.enumName().equals(enumFqn)) {
@@ -474,22 +475,26 @@ public final class PlanText {
      * first-declared. */
     private static @com.legend.Nullable String enumMappingIdFor(ModelContext ctx,
             String mappingFqn, String enumFqn, String @com.legend.Nullable [] phys) {
-        var md = ctx.findLegacyMapping(mappingFqn).orElse(null);
+        var md = ctx.findMapping(mappingFqn).orElse(null);
         if (md == null) {
             return null;
         }
         String simple = enumFqn.substring(enumFqn.lastIndexOf(':') + 1);
-        var candidates = md
-                .enumerationMappingsWithIncludes(ctx::findLegacyMapping).stream()
+        var candidates = md.enumerationMappings().stream()
                 .filter(em -> em.enumName().equals(enumFqn)
                         || em.enumName().equals(simple)
                         || em.enumName().endsWith("::" + simple))
                 .toList();
-        if (candidates.size() > 1 && phys != null) {
+        // LEGACY REACH-BACK (census row PHYS-1): which enum mapping a
+        // COLUMN uses lives on the raw EnumeratedColumn property mapping
+        // — the fact dies at Phase-E lambda-lift. Kill = carry per-column
+        // enum-mapping ids on the normalized artifact.
+        var raw = ctx.findLegacyMapping(mappingFqn).orElse(null);
+        if (candidates.size() > 1 && phys != null && raw != null) {
             var ids = candidates.stream()
                     .map(com.legend.model.EnumerationMapping::mappingId)
                     .collect(java.util.stream.Collectors.toSet());
-            for (var cm : md.classMappings()) {
+            for (var cm : raw.classMappings()) {
                 if (!(cm instanceof
                         com.legend.model.ClassMapping.Relational r)) {
                     continue;
