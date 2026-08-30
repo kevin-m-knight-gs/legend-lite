@@ -145,6 +145,19 @@ public final class H2Verify {
     /** The test currently executing — set by the corpus runner so a
      *  decline names its test (correctness lane C1: 154 anonymous
      *  declines were unactionable). */
+    /** The running test forces an engine ISOLATION STRATEGY via
+     * ^RelationalDebugContext(forcedIsolation=...) — a debug-mechanism
+     * pin, not user semantics (batch-0 ruling: the chooser is
+     * non-binding mechanism). The engine's strategies are ROW-DIVERGENT
+     * in VALUE position (forced::testQualifierWithOperation golden
+     * keeps 4 rows incl. NULL-minted values; the default golden keeps
+     * 1), so a forced VALUE-frame golden pins a strategy our one
+     * default-mode compiler deliberately does not choose — its row
+     * compare DECLINES (counted). Row-preserving positions keep their
+     * referee: strategies agree there, and a divergence would be real. */
+    public static final ThreadLocal<Boolean> FORCED_MECHANISM =
+            ThreadLocal.withInitial(() -> Boolean.FALSE);
+
     public static final ThreadLocal<String> CURRENT_TEST =
             ThreadLocal.withInitial(() -> "<unattributed>");
 
@@ -476,6 +489,15 @@ public final class H2Verify {
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp)
             throws SQLException {
+        if (FORCED_MECHANISM.get()
+                && !(ours instanceof ExecutionResult.Tabular)
+                && !(ours instanceof ExecutionResult.Graph)) {
+            // see FORCED_MECHANISM: value-frame strategies are
+            // row-divergent by the engine's own goldens
+            throw new Unverifiable(
+                    "forced-isolation golden over a VALUE frame"
+                    + " (engine debug-mechanism pin)", null);
+        }
         return ours instanceof ExecutionResult.Graph g
                 ? goldenGraphCompare(st, goldenSql, g, graphEnumProp)
                 : goldenRowsCompare(st, goldenSql, ours, enumDecode);

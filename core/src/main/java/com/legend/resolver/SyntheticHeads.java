@@ -205,18 +205,41 @@ final class SyntheticHeads {
      * Fork golden's 3 joins for 5 columns). Structural record equality;
      * alpha-variant spellings stay separate (safe over-fragmentation). */
     private String parkFiltered(String prop, TypedLambda pred) {
+        return parkFiltered(prop, pred, false);
+    }
+
+    /** {@code valuePosition}: the head joins ROW-DROPPING (INNER — §4AD
+     * P1 placement bit). Identity FORKS by placement class: a value
+     * occurrence never shares a projection occurrence's join copy (one
+     * join cannot be both INNER and LEFT); equal (prop, pred, placement)
+     * still share one identity. */
+    private String parkFiltered(String prop, TypedLambda pred,
+            boolean valuePosition) {
         boolean closed = predClosedOverParam(pred);
         java.util.Map<String, TypedLambda> pool = closed ? preds : corrPreds;
         TypedSpec canon = alphaCanonicalBody(pred);
         for (var e : pool.entrySet()) {
             if (realHead(e.getKey()).equals(prop)
-                    && alphaCanonicalBody(e.getValue()).equals(canon)) {
+                    && alphaCanonicalBody(e.getValue()).equals(canon)
+                    && innerValueHeads.contains(e.getKey()) == valuePosition) {
                 return e.getKey();
             }
         }
         String synth = mintFilteredName(prop);
         pool.put(synth, pred);
+        if (valuePosition) {
+            innerValueHeads.add(synth);
+        }
         return synth;
+    }
+
+    /** Heads whose join is ROW-DROPPING (INNER): value-position lifts.
+     * Consumed at the AssocJoin construction sites (the join-kind fact
+     * rides the AssocJoin, emission reads it — never re-derived). */
+    private final Set<String> innerValueHeads = new java.util.LinkedHashSet<>();
+
+    boolean isInnerValueHead(String head) {
+        return innerValueHeads.contains(head);
     }
 
     /** The predicate body with its binder renamed to a canonical name —
@@ -585,63 +608,78 @@ final class SyntheticHeads {
     TypedMap liftValueMapFilter(
             TypedMap m) {
         TypedLambda mapper = m.mapper();
-        if (mapper.body().size() != 1
-                || !(mapper.body().get(0)
-                        instanceof TypedPropertyAccess pa)
-                || !(pa.source() instanceof TypedFilter f)
-                || f.predicate().parameters().size() != 1
-                || f.predicate().body().size() != 1
-                || !(f.info().type()
-                        instanceof Type.ClassType)
-                || !isLiftableNav(f.source())
-                || (pa.info().multiplicity()
-                        instanceof com.legend.compiler.element.type
-                                .Multiplicity.Bounded b
-                        && Integer.valueOf(1).equals(b.upper()))) {
+        if (mapper.parameters().size() != 1) {
             return m;
         }
-        TypedSpec renamed;
-        String synth;
-        if (f.source() instanceof com.legend.compiler.spec.typed
-                .TypedMilestonedAccess ma) {
-            // dated heads keep PER-CALL identity — the join carries the
-            // date stamp, so cross-date sharing would be wrong rows
-            synth = mintFilteredName(ma.property());
-            renamed = new TypedMilestonedAccess(
-                    ma.source(), synth, ma.dates(), ma.sweep(), ma.info());
-        } else {
-            var hp = (TypedPropertyAccess) f.source();
-            // audit 23 (#75): values-position joins carry NO in-target
-            // predicate (it parks in the outer WHERE) — same-head values
-            // lifts are join-IDENTICAL and share one identity
-            // (merge-by-identity, engine leanness)
-            synth = valuesHeadMemo.computeIfAbsent(hp.property(),
-                    this::mintFilteredName);
-            renamed = new TypedPropertyAccess(
-                    hp.source(), synth, hp.info());
+        // §4AD P1 (placement addendum §6): COMPUTED mapper bodies walk
+        // too — the old single-plain-read guard was the defect boundary
+        // (computed bodies fell through to the PROJECT route and
+        // inherited its row-PRESERVING placement; null-skipping
+        // operators then minted phantom values —
+        // testQualifierWithOperation). Value heads park their predicate
+        // IN-TARGET like every position (one mechanism) and differ ONLY
+        // by join kind: INNER, the row-dropping placement bit. INNER
+        // beats the engine's LEFT+top-WHERE hoist on the unmeasured
+        // null-safe-pred cell (a hoisted null-safe pred is TRUE over
+        // the LEFT pad row and mints phantoms —
+        // ValueMapPlacementTest.doubleNullConjunctRuleParity caught it);
+        // with INNER the pad row never exists. Row-identical to the
+        // engine's emission on every measured cell.
+        boolean[] lifted = {false};
+        List<TypedSpec> body2 = new java.util.ArrayList<>(mapper.body().size());
+        for (TypedSpec b : mapper.body()) {
+            body2.add(liftValueRead(b, mapper, lifted));
         }
-        TypedLambda mapper2 = new TypedLambda(mapper.parameters(),
-                List.of(new com.legend.compiler.spec.typed
-                        .TypedPropertyAccess(renamed, pa.property(), pa.info())),
+        if (!lifted[0]) {
+            return m;
+        }
+        TypedLambda mapper2 = new TypedLambda(mapper.parameters(), body2,
                 mapper.info());
-        TypedSpec inlined = Substitution.inlineParam(f.predicate().body().get(0),
-                f.predicate().parameters().get(0), renamed);
-        var srcParam = mapper.functionType().params().get(0);
-        TypedLambda filterLam = new TypedLambda(mapper.parameters(),
-                List.of(inlined),
-                new ExprType(
-                        new Type.FunctionType(
-                                List.of(srcParam),
-                                new Type.Param(
-                                        com.legend.compiler.element.type
-                                                .Type.Primitive.BOOLEAN,
-                                        com.legend.compiler.element.type
-                                                .Multiplicity.Bounded.ONE)),
-                        Multiplicity.Bounded.ONE));
         valuesLambdas.add(mapper2);
-        return new TypedMap(
-                new TypedFilter(m.source(), filterLam, m.source().info()),
-                mapper2, m.info());
+        return new TypedMap(m.source(), mapper2, m.info());
+    }
+
+    /** One VALUE-position filtered read — {@code $p.prop->filter(pred)
+     * .leaf} anywhere in the mapper body (computed bodies recurse;
+     * NESTED lambdas keep their own routes — their binders are not the
+     * mapper's row). toOne/first/head conformance wrappers are
+     * SQL-erased (charter decision 1, same policy as the projection arm
+     * and liftConcatStreams) — this arm IS the task-#72 retirement path
+     * for value position. Multi-occurrence: equal preds share one
+     * identity, different preds fork copies (engine golden
+     * testTwoQualifiersWithOperation: persontable_0 vs persontable_2);
+     * every occurrence's INNER join must match — the measured
+     * ALL-preds-AND-one-WHERE row behavior, by composition. */
+    private TypedSpec liftValueRead(TypedSpec n, TypedLambda mapper,
+            boolean[] lifted) {
+        if (n instanceof TypedLambda) {
+            return n;
+        }
+        if (n instanceof TypedPropertyAccess pa
+                && filterBehindToOne(pa.source()) instanceof TypedFilter f
+                && f.predicate().parameters().size() == 1
+                && f.predicate().body().size() == 1
+                && f.info().type() instanceof Type.ClassType
+                && isLiftableNav(f.source())
+                && mapper.parameters().get(0).equals(bottomVarOf(f.source()))) {
+            TypedSpec renamed;
+            if (f.source() instanceof com.legend.compiler.spec.typed
+                    .TypedMilestonedAccess ma) {
+                renamed = new TypedMilestonedAccess(
+                        ma.source(),
+                        parkFiltered(ma.property(), f.predicate(), true),
+                        ma.dates(), ma.sweep(), ma.info());
+            } else {
+                var hp = (TypedPropertyAccess) f.source();
+                renamed = new TypedPropertyAccess(
+                        hp.source(),
+                        parkFiltered(hp.property(), f.predicate(), true),
+                        hp.info());
+            }
+            lifted[0] = true;
+            return new TypedPropertyAccess(renamed, pa.property(), pa.info());
+        }
+        return rebuildChildren(n, c -> liftValueRead(c, mapper, lifted));
     }
 
     /**
@@ -1203,11 +1241,6 @@ final class SyntheticHeads {
      * lambda would silently take the TDS lift and emit a NULL row where
      * pure flattening drops it. Registration and consumption sit in THIS
      * class within one liftFilteredHeads walk; keep it that way. */
-    /** Values-position head identities by REAL property (see
-     * liftValueMapFilter: no in-target pred, joins identical). */
-    private final java.util.Map<String, String> valuesHeadMemo =
-            new java.util.LinkedHashMap<>();
-
     private final Set<TypedLambda> valuesLambdas =
             Collections.newSetFromMap(new IdentityHashMap<>());
     /** A lifted head's (and a drilled synthetic MID component's) predicate

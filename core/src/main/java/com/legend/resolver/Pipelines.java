@@ -342,6 +342,55 @@ final class Pipelines {
         return materialize(pipeline, demanded, Set.of(), classFqn, null);
     }
 
+    /** §4AD P1 placement bit on the SLOT channel: joins materialized
+     * for VALUE-position heads flip LEFT -> INNER (row-dropping — the
+     * AssocJoin channel carries the same fact as
+     * {@code AssocJoin.rowDropping}). A lone '#' synthetic CLAIMS the
+     * plain slot under its REAL property name (slot-claim ordering), so
+     * aliases translate through navHeadByAlias before the fact lookup.
+     * Spine walk only; join targets' internals are their own frames. */
+    static Materialized innerizeValueSlots(Materialized m,
+            Map<String, String> navHeadByAlias, SyntheticHeads synthetics) {
+        Set<String> innerPrefixes = new LinkedHashSet<>();
+        for (var pe : m.slotPrefixes().entrySet()) {
+            if (synthetics.isInnerValueHead(
+                    navHeadByAlias.getOrDefault(pe.getKey(), pe.getKey()))) {
+                innerPrefixes.add(pe.getValue());
+            }
+        }
+        if (innerPrefixes.isEmpty()) {
+            return m;
+        }
+        return new Materialized(
+                innerizeValueJoins(m.pipeline(), innerPrefixes),
+                m.slotPrefixes(), m.stripped());
+    }
+
+    private static TypedSpec innerizeValueJoins(TypedSpec pipe,
+            Set<String> innerPrefixes) {
+        if (pipe instanceof TypedJoin j) {
+            TypedSpec l = innerizeValueJoins(j.left(), innerPrefixes);
+            boolean flip = j.prefix().map(innerPrefixes::contains)
+                    .orElse(false);
+            if (!flip && l == j.left()) {
+                return pipe;
+            }
+            return new TypedJoin(l, j.right(),
+                    flip ? new TypedEnumValue(JOIN_KIND_FQN, "INNER",
+                            new ExprType(new Type.EnumType(JOIN_KIND_FQN),
+                                    Multiplicity.Bounded.ONE))
+                          : j.kind(),
+                    j.condition(), j.prefix(), j.frameName(), j.info(),
+                    j.userCondition());
+        }
+        if (pipe instanceof TypedFilter f) {
+            TypedSpec s = innerizeValueJoins(f.source(), innerPrefixes);
+            return s == f.source() ? pipe
+                    : new TypedFilter(s, f.predicate(), f.info(), f.stamp());
+        }
+        return pipe;
+    }
+
     static Materialized materialize(TypedSpec pipeline, Set<String> demanded,
                                     Set<String> demandedNavs, String classFqn,
                                     @com.legend.Nullable TargetResolver targets) {

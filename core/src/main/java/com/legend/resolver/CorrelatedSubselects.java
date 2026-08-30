@@ -168,7 +168,7 @@ final class CorrelatedSubselects {
         }
         Type.RelationType midJoinedRow = new Type.RelationType(colsM);
         TypedSpec widened = new TypedJoin(withJoins, midAj.targetPipeline(),
-                StoreResolver.leftKind(),
+                AssociationJoins.leftKind(),
                 java.util.Objects.requireNonNull(midAj.condition(),
                         "mid-hop association condition"),
                 Optional.of(midPrefix), frameName,
@@ -237,7 +237,7 @@ final class CorrelatedSubselects {
         var jInfo = new ExprType(Type.relation(corrJoinedRow),
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         TypedSpec joinedSub = new TypedJoin(pc.mat().pipeline(),
-                aj.targetPipeline(), StoreResolver.leftKind(), java.util.Objects.requireNonNull(aj.condition()),
+                aj.targetPipeline(), AssociationJoins.leftKind(), java.util.Objects.requireNonNull(aj.condition()),
                 Optional.of(corrTp), null, jInfo,
                 false /* resolver-synth */);
         String corrRowVar = "_cj";
@@ -320,7 +320,7 @@ final class CorrelatedSubselects {
                 com.legend.compiler.element.type.Multiplicity
                         .Bounded.ONE);
         TypedSpec joinedSub = new TypedJoin(pc.mat().pipeline(),
-                aj.targetPipeline(), StoreResolver.leftKind(), java.util.Objects.requireNonNull(aj.condition()),
+                aj.targetPipeline(), AssociationJoins.leftKind(), java.util.Objects.requireNonNull(aj.condition()),
                 Optional.of(corrTp), null, jInfo,
                 false /* resolver-synth */);
         // audit 23: same _cj freshness bump as corrAggSubSource
@@ -804,7 +804,7 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
         }
         Type.RelationType jRow = new Type.RelationType(jCols);
         TypedSpec joined = new TypedJoin(pMat.pipeline(), aj.targetPipeline(),
-                StoreResolver.leftKind(), cond, Optional.of(corrTp), null,
+                AssociationJoins.leftKind(), cond, Optional.of(corrTp), null,
                 new ExprType(Type.relation(jRow),
                         com.legend.compiler.element.type.Multiplicity
                                 .Bounded.ONE),
@@ -1200,7 +1200,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
                         c.type(), c.multiplicity()));
             }
             Type.RelationType widened = new Type.RelationType(cols);
-            pipe = new TypedJoin(pipe, aj2.targetPipeline(), StoreResolver.leftKind(),
+            pipe = new TypedJoin(pipe, aj2.targetPipeline(), AssociationJoins.leftKind(),
                     java.util.Objects.requireNonNull(aj2.condition()), Optional.of(aj2.prefix()), null,
                     new ExprType(Type.relation(widened),
                             com.legend.compiler.element.type.Multiplicity.Bounded.ONE),
@@ -1276,7 +1276,11 @@ private static boolean referencesVar(TypedSpec n, String var) {
                                 Pipelines.slotAliases(sub.pipeline())));
                         byChain.put(chainKey, new AssociationJoins.AssocJoin(
                                 composed, sub, sub.pipeline(),
-                                sub.rowType(), null, Map.of()));
+                                sub.rowType(), null, Map.of(), Map.of(),
+                                null, null,
+                                // mid-hop sub-join: row-preserving (deep
+                                // VALUE chains = open cell, addendum §7)
+                                false));
                         parent = sub;
                         parentPrefix = composed;
                         parentRow = null;   // deeper composition: fold route
@@ -1311,7 +1315,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
                             c.type(), c.multiplicity()));
                 }
                 pipe = new TypedJoin(pipe, aj3.targetPipeline(),
-                        StoreResolver.leftKind(), cond3,
+                        AssociationJoins.leftKind(), cond3,
                         Optional.of(chainPrefix), null,
                         new ExprType(Type.relation(new Type.RelationType(cols3)),
                                 com.legend.compiler.element.type.Multiplicity
@@ -1321,7 +1325,10 @@ private static boolean referencesVar(TypedSpec n, String var) {
                         new AssociationJoins.AssocJoin(chainPrefix,
                                 aj3.target(), aj3.targetPipeline(),
                                 aj3.targetRow(), cond3,
-                                aj3.targetSlotPrefixes());
+                                aj3.targetSlotPrefixes(), Map.of(),
+                                null, null,
+                                // chained mid material: row-preserving
+                                false);
                 byChain.put(chainKey, stored);
                 nestedAssocs.put(chainKey, new Substitution.AssocSub(
                         chainPrefix, aj3.target().rowVar(),
@@ -1538,7 +1545,7 @@ record CompositeChain(TypedSpec pipeline,
                                     new Type.Param(optRow, one)),
                             new Type.Param(Type.Primitive.BOOLEAN, one)), one));
             composite = new TypedJoin(composite, slotTarget,
-                    StoreResolver.leftKind(), joinCond, Optional.of(pfx), null,
+                    AssociationJoins.leftKind(), joinCond, Optional.of(pfx), null,
                     new ExprType(Type.relation(newRow), one),
                 false /* resolver-synth */);
             compRow = newRow;

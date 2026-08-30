@@ -64,7 +64,7 @@ shared source registered by several families cannot double-count. Run with
 | tds/tests | 266 | 253 | 3 | 4 | 6 | 2 | 2 | 0 | 90 |
 | testDataGeneration/tests | 68 | 63 | 0 | 2 | 3 | 0 | 17 | 24 | 0 |
 | tests | 39 | 33 | 2 | 0 | 4 | 0 | 0 | 0 | 0 |
-| tests/advanced | 68 | 64 | 3 | 1 | 0 | 1 | 1 | 0 | 52 |
+| tests/advanced | 68 | 66 | 1 | 1 | 0 | 3 | 3 | 0 | 52 |
 | tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping | 10 | 9 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2351** | 61 | 74 | 89 | 28 | 47 | 27 | 861 |
+| **total** | 2575 | **2353** | 59 | 74 | 89 | 30 | 49 | 27 | 861 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2351 PASS = 1419 clean + 932 carrying softness (sqldiff 28, advisory 47, 0-asserts 27, text-rescued 861; flags overlap — the union is 932).
+SOFT-PASS RECONCILIATION (F2.1): 2353 PASS = 1419 clean + 934 carrying softness (sqldiff 30, advisory 49, 0-asserts 27, text-rescued 861; flags overlap — the union is 934).
 
 ### mapping walls (dropped at assembly)
 
@@ -1281,8 +1281,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2351 PASS = 1419 clean + 932 carrying softness 
 - SHAPE testTranslateDbType [tests]: no execute(|...) call [calls meta::relational::metamodel::datatype] — wall: unknown class 'meta::relational::metamodel::datatype::Varchar' in ^meta::relational::metamodel::datatype::Varchar(…)
 - FAIL isolationTest [tests/advanced]: assertEquals: expected firmname,employeeProductName,testCol\nFirm X,Peter Smith,NICDev\nFirm X,David Scott,\nFirm A,John Hill,\nFirm B, ,\nFirm C, ,\n, got firmname,employeeProductName,testCol\nFirm X,Peter Smith,NICEngegement\nFirm A,John Hill,\nFirm X,Peter Smith,NICEngegement\nFirm X,David Scott,\nFirm X,Peter Smith,NICDev\nFirm X,Peter Smith,NICDev\nFirm C, ,\nFirm B, ,\n
 - ERROR relationalResultSourcingOfListExecutionPlan [tests/advanced]: UNNEST reached a dialect without an unnest placement
-- FAIL testQualifierWithOperation [tests/advanced]: h2-advisory divergence: golden SQL on H2 gave 1 row(s), our pipeline gave 4 row(s); golden-only [], ours-only [Test, Test, Test]
-- FAIL testTwoQualifiersWithOperation [tests/advanced]: h2-advisory divergence: golden SQL on H2 gave 1 row(s), our pipeline gave 4 row(s); golden-only [], ours-only [, , ]
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: unknown function 'toJSON' — no function of this name in the native or user catalog (unported platform function, or a misspelling)
 - ERROR testProjectThroughAssociation [tests/injection]: filtered-navigation read 'name' reached substitution unlifted — the router owns this shape (batches 5+7); the lift pre-pass must rewrite it [userVar=b]
 - ERROR testProjectThroughAssociationAutoMap [tests/injection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]

@@ -1265,6 +1265,13 @@ public final class Runner {
 
     private Outcome run0(ParsedTest t) {
         com.legend.harness.H2Verify.CURRENT_TEST.set(t.fqn());
+        // forced-isolation tests: value-frame row compare declines
+        // (H2Verify.FORCED_MECHANISM) — the golden pins an engine
+        // debug-mechanism strategy, not default-mode semantics
+        FnDef selfFd = fnIndex.get(t.fqn() + "/0");
+        com.legend.harness.H2Verify.FORCED_MECHANISM.set(selfFd != null
+                && selfFd.body().stream()
+                        .anyMatch(Runner::containsDebugArityExecute));
         com.legend.lowering.StampCensus.CONTEXT.set(t.fqn());
         com.legend.exec.CanonicalDivergence.CONTEXT_SOURCE =
                 com.legend.lowering.StampCensus.CONTEXT::get;

@@ -38,6 +38,25 @@ final class AssociationJoins {
         return synthetics;
     }
 
+    /** Join-kind vocabulary (one owner — §4AD placement bit consumers). */
+    static com.legend.compiler.spec.typed.TypedEnumValue leftKind() {
+        String fqn = "meta::pure::functions::relation::JoinKind";
+        return new com.legend.compiler.spec.typed.TypedEnumValue(fqn, "LEFT",
+                new ExprType(new Type.EnumType(fqn),
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+    }
+
+    /** INNER — the flatten's null-row guard by construction: the engine
+     * spells LEFT and its READER skips null-pk rows; the row sets are
+     * identical (deliberate documented emission divergence). Also the
+     * §4AD P1 value-position placement bit (row-dropping). */
+    static com.legend.compiler.spec.typed.TypedEnumValue innerKind() {
+        String fqn = "meta::pure::functions::relation::JoinKind";
+        return new com.legend.compiler.spec.typed.TypedEnumValue(fqn, "INNER",
+                new ExprType(new Type.EnumType(fqn),
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+    }
+
     /** The #69 exploding-reroute trigger for a nav-slot chain: the
      * head's OWN correlated pred (mid==1), or a TAIL seg's — a sub-hop
      * pred applies in the exploding sub's WHERE (the tail-pred loop)
@@ -240,7 +259,7 @@ final class AssociationJoins {
         return new AssocJoin(prefixFor(head, cs), t, tPipe0,
                 Type.requireRelationSchema(tPipe0.info().type()), cond0,
                 tMat.slotPrefixes(), tSubNavs, null,
-                onFormOf(tPipe0, cond0));
+                onFormOf(tPipe0, cond0), synthetics.isInnerValueHead(head));
     }
 
     /** The ONE navigate-slot alias an embedded ctor's leaves read through,
@@ -354,7 +373,8 @@ final class AssociationJoins {
                 stepCond, tPipe0);
         return new AssocJoin(prefixFor(head, cs), t, tPipe0,
                 Type.requireRelationSchema(tPipe0.info().type()), cond0,
-                Map.of(), Map.of(), null, onFormOf(tPipe0, cond0));
+                Map.of(), Map.of(), null, onFormOf(tPipe0, cond0),
+                synthetics.isInnerValueHead(head));
     }
 
     /** {@code $row.alias.col} reads become {@code $tv.col}; any OTHER
@@ -738,6 +758,9 @@ final class AssociationJoins {
     record OnForm(TypedSpec pipeline, TypedLambda condition) {
     }
 
+    /** {@code rowDropping}: the §4AD placement bit as a CONSTRUCTION-
+     * TIME fact — value-position heads join INNER (fold sites read it,
+     * never re-derive). */
     record AssocJoin(String prefix, ClassSource target,
                              TypedSpec targetPipeline,
                              Type.RelationType targetRow,
@@ -745,36 +768,22 @@ final class AssociationJoins {
                              Map<String, String> targetSlotPrefixes,
                              Map<String, Substitution.SubNav> targetSubNavs,
                              @com.legend.Nullable TypedLambda corrSubPred,
-                             @com.legend.Nullable OnForm onForm) {
-
-        AssocJoin(String prefix, ClassSource target, TypedSpec targetPipeline,
-                  Type.RelationType targetRow,
-                  @com.legend.Nullable TypedLambda condition,
-                  Map<String, String> targetSlotPrefixes) {
-            this(prefix, target, targetPipeline, targetRow, condition,
-                    targetSlotPrefixes, Map.of(), null, null);
-        }
-
-        AssocJoin(String prefix, ClassSource target, TypedSpec targetPipeline,
-                  Type.RelationType targetRow,
-                  @com.legend.Nullable TypedLambda condition,
-                  Map<String, String> targetSlotPrefixes,
-                  Map<String, Substitution.SubNav> targetSubNavs) {
-            this(prefix, target, targetPipeline, targetRow, condition,
-                    targetSlotPrefixes, targetSubNavs, null, null);
-        }
+                             @com.legend.Nullable OnForm onForm,
+                             boolean rowDropping) {
 
         AssocJoin withCondition(TypedLambda cond) {
             // a rewritten condition invalidates the ON form (its window
             // was composed against the ORIGINAL condition body)
             return new AssocJoin(prefix, target, targetPipeline, targetRow,
-                    cond, targetSlotPrefixes, targetSubNavs, corrSubPred, null);
+                    cond, targetSlotPrefixes, targetSubNavs, corrSubPred,
+                    null, rowDropping);
         }
 
         AssocJoin withTargetPipeline(TypedSpec pipe) {
             return new AssocJoin(prefix, target, pipe,
                     Type.requireRelationSchema(pipe.info().type()), condition,
-                    targetSlotPrefixes, targetSubNavs, corrSubPred, null);
+                    targetSlotPrefixes, targetSubNavs, corrSubPred, null,
+                    rowDropping);
         }
     }
 
@@ -1078,7 +1087,7 @@ final class AssociationJoins {
             }
             basePipe = new com.legend.compiler.spec.typed.TypedJoin(
                     basePipe, aj2.targetPipeline(),
-                    StoreResolver.leftKind(), java.util.Objects.requireNonNull(aj2.condition()),
+                    leftKind(), java.util.Objects.requireNonNull(aj2.condition()),
                     java.util.Optional.of(pfx), null,
                     new ExprType(Type.relation(new Type.RelationType(wcols)),
                             com.legend.compiler.element.type.Multiplicity
@@ -1162,7 +1171,8 @@ final class AssociationJoins {
         return new AssocJoin(prefixFor(head, cs), target, tPipe,
                 Type.requireRelationSchema(tPipe.info().type()),
                 withOuterDatedWindow(temporal, cs, target, chainKey, oriented, tPipe),
-                tMat.slotPrefixes(), tailSubNavs, corrSub, null);
+                tMat.slotPrefixes(), tailSubNavs, corrSub, null,
+                synthetics.isInnerValueHead(head));
     }
 
     /** The compiled association predicate's material: the raw condition,
@@ -1852,7 +1862,7 @@ final class AssociationJoins {
                 prefixByProp, new Type.RelationType(lookupCols));
         return new AssocJoin(aj.prefix(), aj.target(), aj.targetPipeline(),
                 aj.targetRow(), cond2, aj.targetSlotPrefixes(),
-                aj.targetSubNavs(), aj.corrSubPred(), null);
+                aj.targetSubNavs(), aj.corrSubPred(), null, aj.rowDropping());
     }
 
     /** Nested-association reads in an association condition:

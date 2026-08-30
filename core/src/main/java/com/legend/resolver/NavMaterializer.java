@@ -110,12 +110,14 @@ final class NavMaterializer {
         TemporalContext hopCtx =
                 temporal.contextAt(chainPrefix, targetClassFqn, inherited);
         // A target ~filter rides INSIDE the joined pipeline (filtered
-        // subselect = the engine's filter-in-ON emission — real golden
-        // testFilterAfterFilter: left join firmTable on (ID = FIRMID and
-        // LEGALNAME = 'Firm X')). Row-equivalent to the engine's saved-
-        // filter WHERE conjunction for value comparisons (NULL read
-        // fails the comparison) and MATCHES isolation semantics for
-        // isEmpty (filtered-out target reads as empty). The toOne()-
+        // subselect): the engine's own MEASURED emission — golden
+        // testFilterAfterFilter: left join firmTable on (ID = FIRMID
+        // and LEGALNAME = 'Firm X') (filter-in-ON) — and it MATCHES
+        // isolation semantics for isEmpty (filtered-out target reads
+        // as empty). NOTE (P-batches): WHERE-vs-ON equivalence PROSE
+        // is banned — the placements are row-equal ONLY for
+        // null-rejecting comparisons (placement addendum §8); this arm
+        // stands on its golden receipt, not an argument. The toOne()-
         // pierced strict read (engine hoists the filter to the outer
         // WHERE, dropping filter-failing rows) keeps its loud wall at
         // the substitution site (task #72).
@@ -582,7 +584,7 @@ final class NavMaterializer {
                     ? aj.onForm().condition()
                     : java.util.Objects.requireNonNull(aj.condition(), "aj.condition()");
             pipe = new com.legend.compiler.spec.typed.TypedJoin(pipe,
-                    ajPipe, StoreResolver.leftKind(),
+                    ajPipe, AssociationJoins.leftKind(),
                     ajCond, java.util.Optional.of(aj.prefix()), null,
                     new com.legend.compiler.element.type.ExprType(
                             com.legend.compiler.element.type.Type.relation(
@@ -648,7 +650,7 @@ final class NavMaterializer {
                         xPrefix + c.name(), c.type(), c.multiplicity()));
             }
             pipe = new com.legend.compiler.spec.typed.TypedJoin(pipe,
-                    xPipe, StoreResolver.leftKind(),
+                    xPipe, AssociationJoins.leftKind(),
                     step.predicate(), java.util.Optional.of(xPrefix), null,
                     new com.legend.compiler.element.type.ExprType(
                             com.legend.compiler.element.type.Type.relation(
@@ -742,7 +744,7 @@ final class NavMaterializer {
                         prefix2 + c.name(), c.type(), c.multiplicity()));
             }
             pipe = new com.legend.compiler.spec.typed.TypedJoin(pipe, sub2,
-                    StoreResolver.leftKind(), firstJoin.condition(),
+                    AssociationJoins.leftKind(), firstJoin.condition(),
                     java.util.Optional.of(prefix2), null,
                     new com.legend.compiler.element.type.ExprType(
                             com.legend.compiler.element.type.Type.relation(

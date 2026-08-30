@@ -159,6 +159,12 @@ class JdbcSurfaceCensusTest {
             // missing-required rejection pin e2e VALUE semantics — the
             // executed result IS the assertion (the BurnLaneTest form)
             "core/src/test/java/com/legend/lowering/Part1SemanticsTest.java",
+            // §4AD P1 placement witnesses (2026-08-29): value-position
+            // ROW SEMANTICS execute IN the database — the R4
+            // distinguishing witnesses (phantom-mint refutation,
+            // multi-occurrence fork/share, double-NULL null-safe
+            // parity) assert EXECUTED rows, tenet #1 conformant
+            "core/src/test/java/com/legend/resolver/ValueMapPlacementTest.java",
             // D100 witnesses (2026-08-26): connection-cache isolation —
             // the resolver's per-(model, definition) key IS the feature
             // under test; the SQLException surface is the assertion

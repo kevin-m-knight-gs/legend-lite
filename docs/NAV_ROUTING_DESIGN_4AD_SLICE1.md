@@ -538,6 +538,28 @@ nested-material leg), CORRELATED-pred reads (the engine's own
 projection-thread chooser is correlated there — retires with the
 #69 ON-composition leg).
 
+**PLACEMENT CORRECTION RECORD (2026-08-29, referee-caught — the
+P-batches; full record NAV_ROUTING_PLACEMENT_ADDENDUM_4AD §8).**
+This batch's VALUE-POSITION emission carried a SHORTCUT: the parked
+pred stayed in-target on a LEFT join (row-PRESERVING) against the
+batch-0 measured value cell (row-DROPPING), justified by prose
+row-equivalence that is FALSE for null-skipping consumptions —
+surviving NULL rows minted phantom values (testQualifierWithOperation
+golden 1 row vs our 4), caught when P0.5 unparked the value-frame
+oracle. CORRECTED BY P1: value-position heads keep the pred
+in-target and join INNER (placement = a construction-time JOIN-KIND
+fact: AssocJoin.rowDropping + SyntheticHeads.innerValueHeads) —
+row-identical to the engine's LEFT+top-WHERE on every measured cell
+and CORRECT on the null-safe-pred cell where the hoist itself
+phantoms. §7's "row-equivalence of the placements" claim is hereby
+NARROWED: the engine's placements are row-equivalent only for
+null-rejecting predicates — the engine's own forced-mode goldens
+document its strategies as row-DIVERGENT in value position. The
+computed-mapper fall-through (this record's actual defect boundary:
+liftValueMapFilter's single-plain-read guard) is deleted; equivalence
+PROSE justifying emission against a measured cell is the
+stop-condition per [[spec-cells-bind-emission]].
+
 After this document, NOTHING in §4AD is deferred-without-a-plan:
 - Batches 2-8 cover value position, capability bugs, the router,
   the correlated reducers, filter position/dedup, and the oracle

@@ -185,7 +185,7 @@ final class ChainedExists {
                                 new Type.Param(midRow, one)),
                         new Type.Param(Type.Primitive.BOOLEAN, one)), one));
         TypedSpec composite = new TypedJoin(leafPipe, midPipe,
-                StoreResolver.leftKind(), joinCond, Optional.of(pfx), null,
+                AssociationJoins.leftKind(), joinCond, Optional.of(pfx), null,
                 new ExprType(Type.relation(compRow), one),
                 false /* resolver-synth */);
         // oriented (parent, chain-row) condition: the MID-hop condition

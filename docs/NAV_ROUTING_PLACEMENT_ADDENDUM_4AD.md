@@ -1,11 +1,13 @@
-# §4AD Placement Addendum — corrective design (AWAITING USER SIGN-OFF)
+# §4AD Placement Addendum — corrective design and landing record
 
-**Status: DESIGN ONLY. No implementation until user sign-off.**
+**Status: EXECUTED through P1 (user signed off 2026-08-29; landing
+records in §8 — P0 bisect, P0.5 corrected unpark, P1 placement fix
+with two witness-forced design corrections). P2 remains open.**
 Parent: NAV_ROUTING_DESIGN_4AD_SLICE1.md; spec source:
 NAV_ROUTING_BATCH0_4AD.md §0b placement-bit table (measured, named
-witnesses per cell). Working tree at this writing: batch 7 landed
-(ded552cf, pushed, chain green); batch 8 UNCOMMITTED (H2Verify unpark +
-runner pins) and BLOCKED on this addendum.
+witnesses per cell). §§1-7 are preserved AS DESIGNED for the
+epistemic record; where implementation corrected the design, the §8
+records and inline CORRECTED markers govern.
 
 ---
 
@@ -57,7 +59,7 @@ Placement enum, one value per measured cell:
 | stamp | cell (batch-0 table) | emission | witness |
 |---|---|---|---|
 | ROW_PRESERVING | projection/TDS column thread | pred stays in the join target (subselect WHERE ≡ ON — measured row-equivalent); missing nav ⇒ NULL cell (TDSNull) | testDerivedWithFiltering (+TwoProperties) — ALREADY CONFORMANT, no change |
-| ROW_DROPPING | map VALUE position | join emitted BARE (association join only); pred conjoined WHOLLY into the enclosing frame's top WHERE — the engine's moveFiltersOnTop shape (audit ruling: no split-pred hedge; simpler and text-closer) | testQualifierWithOperation |
+| ROW_DROPPING | map VALUE position | ~~bare join + pred in top WHERE~~ **CORRECTED AT IMPLEMENTATION (§8 P1): pred stays IN-TARGET, join emitted INNER.** The hoist was refuted by the R4 witness: a null-safe pred is TRUE over the LEFT pad row (phantom mints); with INNER the pad row never exists. Row-identical to the engine's LEFT+WHERE on every measured cell; correct on the null-safe cell where the engine's own hoist phantoms | testQualifierWithOperation |
 | ROW_DROPPING, multi-occurrence | value, multi-occurrence | per-occurrence join copies (unchanged); ALL parked preds ANDed in the ONE top WHERE | testTwoQualifiersWithOperation |
 | CONSUMPTION_CONJOINED | FILTER position | pred ANDs the consuming comparison IN PLACE, so each occurrence's (qualifier-pred AND consumption-pred) group combines under the filter's OWN operator (OR in the witness) | testQualifierQueryWithOr — currently green by equality-luck; becomes structural |
 
@@ -340,3 +342,52 @@ byte-stable except the named advanced row; remaining movement is
 byte-match -> row-verified reclassification. The referee is now
 ACTIVE ON MAIN with the defect visible — R2 satisfied; P4 collapses
 into this record (pins already at measured).
+
+**P1 EXECUTED 2026-08-29: THE PLACEMENT FIX — named defects BURNED
+(advanced 64 -> 66, corpus 2,351 -> 2,353, full sweep green, zero
+regressions).** Two design corrections happened DURING implementation,
+both forced by witnesses — the process working as redesigned:
+
+1. **WHERE-hoist SUPERSEDED by pred-in-target + INNER.** The §6 plan
+   (bare join + hoisted top-WHERE pred) was implemented and REFUTED by
+   its own R4 witness (ValueMapPlacementTest.doubleNullConjunctRule-
+   Parity): a null-safe pred (`nick == nick2`, both nullable →
+   IS NOT DISTINCT FROM) is TRUE over the LEFT pad row — hoisting
+   phantoms exactly like batch 5, from the other side. The row-robust
+   emission for the row-dropping cell: predicate IN-TARGET (unchanged
+   from every other position — ONE park mechanism) + INNER join (pad
+   rows never exist; no predicate family can mint). Row-identical to
+   the engine's LEFT+WHERE on all measured cells. The placement bit
+   collapsed to a JOIN-KIND fact.
+2. **Forced-isolation adjudication.** The engine's forced-mode
+   goldens (^RelationalDebugContext(forcedIsolation=...)) pin its
+   strategies and PROVE them row-DIVERGENT in value position (forced
+   golden keeps 4 rows incl. minted values; default keeps 1). The
+   knob is debug mechanism, not semantics (batch-0 ruling); our one
+   default-mode compiler declines forced VALUE-frame row compares as
+   a COUNTED reason (H2Verify.FORCED_MECHANISM, set per test by the
+   runner's existing forced-idiom detector). Row-preserving positions
+   keep their referee.
+
+LANDED SHAPE: liftValueMapFilter generalized to COMPUTED mapper
+bodies (the defect boundary — computed bodies fell through to the
+project route); toOne/first/head conformance wrappers SQL-erased at
+the value arm (= the task-#72 retirement path for value position;
+re-measure queued); parkFiltered memo forks by placement class;
+innerValueHeads = the construction-time fact, consumed at AssocJoin
+construction (new canonical-ctor field `rowDropping` — the defaulting
+convenience ctors were DELETED after one silently bit at the
+extra-identity site, ctor-trace-caught) and at the slot channel
+(Pipelines.innerizeValueSlots — a lone '#' head CLAIMS the plain slot
+under its real property name, so aliases translate via
+navHeadByAlias). Witnesses: ValueMapPlacementTest 4/4 (R4
+distinguishing, multi-occurrence fork/share, double-NULL parity);
+corpus testQualifierWithOperation + testTwoQualifiersWithOperation =
+VERIFIED AGREEMENTS; forced pair = counted declines. Guardrail: kind
+vocabulary moved to AssociationJoins (StoreResolver back under
+3500). OPEN CELLS added to the §7 ledger: OR-of-navs AS A VALUE
+(conjunction semantics under INNER — unmeasured, disclosed); DEEP
+value chains through mid hops (mid pads could still mint under
+null-skipping — no corpus witness; mid-INNER extension when one
+appears); forced FILTER-position null-skipping consumption
+(engine-shared residue).

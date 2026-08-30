@@ -842,7 +842,7 @@ public final class StoreResolver {
         ExprType rowInfo = new ExprType(row,
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         TypedSpec joined = new TypedJoin(left, aj.targetPipeline(),
-                rowPreserving ? leftKind() : innerKind(), java.util.Objects.requireNonNull(aj.condition()),
+                rowPreserving ? AssociationJoins.leftKind() : AssociationJoins.innerKind(), java.util.Objects.requireNonNull(aj.condition()),
                 Optional.of(aj.prefix()),
                 // a VIEW-backed target joins as a frame NAMED BY THE VIEW
                 // (legalentity_view_0, never the physical table's group)
@@ -1779,6 +1779,8 @@ public final class StoreResolver {
                         : Pipelines.materialize(
                                 sources.get(cs.mappingFqn(), targetClass).pipeline(),
                                 Set.of(), targetClass).pipeline());
+        // §4AD P1 placement bit, slot channel (Pipelines owns the rule)
+        m = Pipelines.innerizeValueSlots(m, navHeadByAlias, synthetics);
         Map<String, String> navPrefixToClass = new LinkedHashMap<>();
         Map<String, String> navPrefixToChain = new LinkedHashMap<>();
         Map<String, String> midPrefixToChain = new LinkedHashMap<>();
@@ -1959,7 +1961,10 @@ public final class StoreResolver {
                         aj.prefix() + c.name(), c.type(), c.multiplicity()));
             }
             withJoins = new TypedJoin(withJoins,
-                    joinTarget, leftKind(), java.util.Objects.requireNonNull(joinCond, "joinCond"),
+                    joinTarget,
+                    // §4AD P1 placement bit (INNER = row-dropping)
+                    aj.rowDropping() ? AssociationJoins.innerKind() : AssociationJoins.leftKind(),
+                    java.util.Objects.requireNonNull(joinCond, "joinCond"),
                     Optional.of(aj.prefix()),
                     ViewFrames.frameNameOf(ctx, aj.target()),
                     new ExprType(
@@ -2076,7 +2081,7 @@ public final class StoreResolver {
                             Type.requireRelationSchema(withJoins.info().type()), subRow,
                             splitKeys);
             withJoins = new TypedJoin(withJoins,
-                    sub, leftKind(), java.util.Objects.requireNonNull(backCond, "backCond"),
+                    sub, AssociationJoins.leftKind(), java.util.Objects.requireNonNull(backCond, "backCond"),
                     Optional.of(prefix), null,
                     new ExprType(
                             Type.relation(new Type.RelationType(cols)),
@@ -2295,6 +2300,63 @@ public final class StoreResolver {
     /** PHASE — association demand (heads that are NOT bindings): one
      * LEFT join per hop chained by prefix, plus SECOND head identities
      * on shared physical slots (2a-x). */
+    /** One EXTRA head identity on a shared physical slot (2a-x): an
+     * extra prefixed join from the SAME nav material — dotted
+     * chainPrefix keys its own temporal spec, a lifted predicate parks
+     * inside the target (BARE synthetic component — a dotted chain key
+     * must strip to it or the pred silently drops), a composited step
+     * bundles ITS OWN mid copy (OccurrenceBundling.extraPrefix rule),
+     * and outer-dated windows bind to the identity's OWN join
+     * (twoDatesOneChain). */
+    private void registerExtraIdentity(ClassSource cs, String headKey,
+            String alias, Map<String, com.legend.compiler.spec.typed
+                    .TypedNavigate> navSteps,
+            Map<String, List<List<String>>> extraNavTails,
+            Set<String> compositedNavs,
+            List<AssociationJoins.AssocJoin> assocJoins,
+            Map<String, AssociationJoins.AssocJoin> joinsByChain,
+            Map<String, Substitution.AssocSub> assocs) {
+        var nav = java.util.Objects.requireNonNull(navSteps.get(alias));
+        String targetClass = ((TypedGetAll) nav.target()).classFqn();
+        ClassSource target = sources.get(cs.mappingFqn(), targetClass);
+        NavMaterializer.NavMat mat = navMaterializer.navTargetMaterialized(
+                temporal, cs.mappingFqn(), targetClass,
+                extraNavTails.getOrDefault(headKey, List.of()),
+                headKey, TemporalContext.NONE);
+        // the slot route's root stamp comes from the outer join-walk;
+        // an extra join never passes it — stamp here (assoc emission)
+        TypedSpec tPipe = temporal.temporalTargetPipe(cs, target, headKey,
+                temporal.applyJoinTemporalFilters(mat.pipeline(), target,
+                        Map.of()));
+        String exPredKey = headKey.substring(headKey.lastIndexOf('.') + 1);
+        requireNoCorrelatedPred(exPredKey, "navigate-step chain");
+        tPipe = synthetics.applyToPipe(exPredKey, tPipe, (p, pred) ->
+                CorrelatedSubselects.predFilteredPipe(p, target,
+                        mat.slotPrefixes(), mat.subNavs(), pred,
+                        cs.mappingFqn()));
+        var exc = OccurrenceBundling.extraComposite(cs, corrSubs,
+                compositedNavs.contains(alias), nav, tPipe, headKey, alias);
+        tPipe = exc.pipe();
+        AssociationJoins.AssocJoin aj = new AssociationJoins.AssocJoin(
+                OccurrenceBundling.extraPrefix(headKey, alias, cs),
+                target, tPipe,
+                Type.requireRelationSchema(tPipe.info().type()),
+                AssociationJoins.withOuterDatedWindow(temporal, cs, target,
+                        headKey, exc.cond(), tPipe),
+                mat.slotPrefixes(), Map.of(), null, null,
+                // the placement bit keys the BARE synthetic component
+                synthetics.isInnerValueHead(exPredKey));
+        assocJoins.add(aj);
+        joinsByChain.put(headKey, aj);
+        assocs.put(headKey, new Substitution.AssocSub(aj.prefix(),
+                target.rowVar(), target.bindings(), target.classFqn(),
+                Pipelines.slotAliases(target.pipeline()),
+                mat.slotPrefixes(), null, null,
+                temporal.milestoneColumnsOf(target.pipeline(),
+                        target.classFqn()),
+                mat.subNavs()));
+    }
+
     private AssocPlan registerAssociationJoins(ClassSource cs,
             Set<List<String>> paths, Context context,
             Map<String, TypedNavigate> navSteps,
@@ -2432,7 +2494,8 @@ public final class StoreResolver {
                             cond.info());
                     aj = new AssociationJoins.AssocJoin(chainPrefix, aj.target(), aj.targetPipeline(),
                             aj.targetRow(), cond, aj.targetSlotPrefixes(),
-                            aj.targetSubNavs(), aj.corrSubPred(), null);
+                            aj.targetSubNavs(), aj.corrSubPred(), null,
+                            aj.rowDropping());
                 }
                 assocJoins.add(aj);
                 joinsByChain.put(chainKey, aj);
@@ -2449,59 +2512,12 @@ public final class StoreResolver {
             }
         }
 
-        // 2a-x. SECOND head identities on one physical slot: an extra
-        // prefixed join per identity from the SAME nav material — dotted
-        // chainPrefix keys its own temporal spec, a lifted predicate
-        // parks inside the target.
+        // 2a-x. SECOND head identities on one physical slot (extracted
+        // at the numbered seam — guardrail split).
         for (var extra : extraNavHeads.entrySet()) {
-            String headKey = extra.getKey();
-            String alias = extra.getValue();
-            var nav = java.util.Objects.requireNonNull(
-                    navSteps.get(alias));
-            String targetClass = ((TypedGetAll)
-                    nav.target()).classFqn();
-            ClassSource target = sources.get(cs.mappingFqn(), targetClass);
-            NavMaterializer.NavMat mat = navMaterializer.navTargetMaterialized(temporal, cs.mappingFqn(),
-                    targetClass,
-                    extraNavTails.getOrDefault(headKey, List.of()),
-                    headKey, TemporalContext.NONE);
-            // the slot route's root stamp comes from the outer join-walk;
-            // an extra join never passes it — stamp here (assoc emission)
-            TypedSpec tPipe = temporal.temporalTargetPipe(cs, target, headKey,
-                    temporal.applyJoinTemporalFilters(mat.pipeline(), target,
-                            Map.of()));
-            // preds park under the BARE synthetic component — a dotted
-            // chain key must strip to it or the identity's pred silently
-            // drops (unfiltered join = wrong values)
-            String exPredKey = headKey.substring(headKey.lastIndexOf('.') + 1);
-            requireNoCorrelatedPred(exPredKey, "navigate-step chain");
-            tPipe = synthetics.applyToPipe(exPredKey, tPipe, (p, pred) ->
-                    CorrelatedSubselects.predFilteredPipe(p, target, mat.slotPrefixes(),
-                            mat.subNavs(), pred, cs.mappingFqn()));
-            // batch 5: a composited step's extra identity bundles ITS
-            // OWN mid copy; prefix rule = OccurrenceBundling.extraPrefix
-            var exc = OccurrenceBundling.extraComposite(cs, corrSubs,
-                    compositedNavs.contains(alias), nav, tPipe, headKey,
-                    alias);
-            tPipe = exc.pipe();
-            TypedLambda exCond = exc.cond();
-            AssociationJoins.AssocJoin aj = new AssociationJoins.AssocJoin(
-                    OccurrenceBundling.extraPrefix(headKey, alias, cs),
-                    target, tPipe,
-                    Type.requireRelationSchema(tPipe.info().type()),
-                    AssociationJoins.withOuterDatedWindow(temporal, cs, target,
-                            headKey, exCond, tPipe),
-                    mat.slotPrefixes());
-            assocJoins.add(aj);
-            // the identity's OWN join — outer-dated windows must bind to
-            // it, never fall back to the first identity's (twoDatesOneChain)
-            joinsByChain.put(headKey, aj);
-            assocs.put(headKey, new Substitution.AssocSub(aj.prefix(),
-                    target.rowVar(), target.bindings(), target.classFqn(),
-                    Pipelines.slotAliases(target.pipeline()),
-                    mat.slotPrefixes(), null, null,
-                    temporal.milestoneColumnsOf(target.pipeline(), target.classFqn()),
-                    mat.subNavs()));
+            registerExtraIdentity(cs, extra.getKey(), extra.getValue(),
+                    navSteps, extraNavTails, compositedNavs, assocJoins,
+                    joinsByChain, assocs);
         }
 
         // 2a-c. #69 CORRELATED-slot reroute: heads whose correlated pred
@@ -2532,7 +2548,8 @@ public final class StoreResolver {
                     AssociationJoins.withOuterDatedWindow(temporal, cs, target,
                             headKey, nav.predicate(), tPipe),
                     mat.slotPrefixes(), mat.subNavs(),
-                    synthetics.correlatedPred(headKey), null);
+                    synthetics.correlatedPred(headKey), null,
+                    synthetics.isInnerValueHead(headKey));
             assocJoins.add(aj);
             joinsByChain.put(headKey, aj);
             assocs.put(headKey, new Substitution.AssocSub(aj.prefix(),
@@ -3219,25 +3236,6 @@ public final class StoreResolver {
      * group by parent-side equi keys; uncorrelated heads group the plain
      * target. Temporal context (M3): root dates/strategy flow to
      * SAME-STRATEGY targets through temporal parents only. */
-    static TypedEnumValue leftKind() {
-        String fqn = "meta::pure::functions::relation::JoinKind";
-        return new TypedEnumValue(fqn, "LEFT",
-                new ExprType(
-                        new Type.EnumType(fqn),
-                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-    }
-
-    /** INNER — the flatten's null-row guard by construction: the engine
-     * spells LEFT and its READER skips null-pk rows; the row sets are
-     * identical (deliberate documented emission divergence). */
-    static TypedEnumValue innerKind() {
-        String fqn = "meta::pure::functions::relation::JoinKind";
-        return new TypedEnumValue(fqn, "INNER",
-                new ExprType(
-                        new Type.EnumType(fqn),
-                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-    }
-
     /**
      * Association-join materials for {@code $parent.head}: the mapping's
      * AssociationBinding predicate fn carries the condition (H1's

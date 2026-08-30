@@ -209,7 +209,7 @@ final class FlattenOps {
             String composed = j.prefix().map(p -> acc + p).orElse(null);
             if (composed != null && composed.equals(prefix)) {
                 return new com.legend.compiler.spec.typed.TypedJoin(
-                        j.left(), j.right(), StoreResolver.innerKind(),
+                        j.left(), j.right(), AssociationJoins.innerKind(),
                         j.condition(), j.prefix(), j.frameName(), j.info(),
                 false /* resolver-synth */);
             }
