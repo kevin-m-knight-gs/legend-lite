@@ -14,6 +14,7 @@ import com.legend.model.AssociationDefinition;
 import com.legend.model.AssociationMapping;
 import com.legend.model.AssociationPropertyMapping;
 import com.legend.model.ClassDefinition;
+import com.legend.model.CleanSheetMappingDefinition;
 import com.legend.model.ClassMapping;
 import com.legend.model.ComparisonOp;
 import com.legend.model.DatabaseDefinition;
@@ -183,13 +184,15 @@ public final class MappingNormalizer {
                     wallSink.putIfAbsent(e.element(),
                             String.valueOf(e.getMessage()).split("\n")[0]);
                 }
-            } else if (el instanceof MappingDefinition canonical) {
-                // Clean-sheet (Door 1/3) mapping: function-ref bindings pass
-                // through; inline expression bindings (Door 3) are lambda-lifted
-                // here (CLEAN_SHEET_INVERSION §5.3), so no Inline survives Phase E.
+            } else if (el instanceof CleanSheetMappingDefinition canonical) {
+                // Clean-sheet (Door 1/3) mapping: the pre-E surface tree is
+                // translated to the compiled binding table here — inline
+                // bodies lambda-lift, ref bindings keep the user's FQN, and
+                // EVERY relational binding stamps its source
+                // (CLEAN_SHEET_INVERSION §5.3; census 2026-08-30).
                 try {
                     out.add(withElement(canonical.qualifiedName(),
-                            () -> liftInlineBindings(canonical, model, lifted)));
+                            () -> cleanSheetToCanonical(canonical, model, lifted)));
                 } catch (ModelException e) {
                     if (wallSink == null || e.element() == null) {
                         throw e;
@@ -306,13 +309,13 @@ public final class MappingNormalizer {
                                 ? new MappingDefinition.ClassBinding.Relational(
                                         cm.className(), cm.setId(),
                                         cm.extendsSetId(), /*root*/ false,
-                                        new Realization.Ref(setFn.qualifiedName()),
+                                        setFn.qualifiedName(),
                                         declaredPrimaryKeyColumns(cm),
                                         relationalSourceOf(rSrc))
                                 : new MappingDefinition.ClassBinding.Pure(
                                         cm.className(), cm.setId(),
                                         cm.extendsSetId(), /*root*/ false,
-                                        new Realization.Ref(setFn.qualifiedName()),
+                                        setFn.qualifiedName(),
                                         declaredPrimaryKeyColumns(cm)));
                     } catch (NotImplementedException | ModelException e) {
                         // per-SET fault isolation, same trade as per-class
@@ -347,12 +350,12 @@ public final class MappingNormalizer {
             classBindings.add(cm instanceof ClassMapping.Relational rSrc
                     ? new MappingDefinition.ClassBinding.Relational(
                             cm.className(), cm.setId(), cm.extendsSetId(),
-                            cm.root(), new Realization.Ref(fn.qualifiedName()),
+                            cm.root(), fn.qualifiedName(),
                             declaredPrimaryKeyColumns(cm),
                             relationalSourceOf(rSrc))
                     : new MappingDefinition.ClassBinding.Pure(
                             cm.className(), cm.setId(), cm.extendsSetId(),
-                            cm.root(), new Realization.Ref(fn.qualifiedName()),
+                            cm.root(), fn.qualifiedName(),
                             declaredPrimaryKeyColumns(cm)));
         }
         // ENGINE ROUTER PARITY (include direction): union/inheritance route
@@ -411,7 +414,7 @@ public final class MappingNormalizer {
                     classBindings.add(new MappingDefinition.ClassBinding.Relational(
                             rcm.className(),
                             rcm.setId(), rcm.extendsSetId(), rcm.root(),
-                            new Realization.Ref(fn.qualifiedName()),
+                            fn.qualifiedName(),
                             declaredPrimaryKeyColumns(rcm),
                             relationalSourceOf(rcm)));
                 }
@@ -469,64 +472,90 @@ public final class MappingNormalizer {
     // ====================================================================
 
     /**
-     * Lambda-lift every inline binding ({@link Realization.Inline})
-     * in a clean-sheet mapping into an ordinary top-level function (appended to
-     * {@code lifted}) and rewrite the binding to a function ref. Function-ref
-     * bindings pass through untouched. Post-condition: no {@code Inline}
-     * survives (CLEAN_SHEET_INVERSION §5.3 / §7.4). Reference-equality preserved
-     * when the mapping has no inline bindings.
+     * The clean-sheet door's Phase-E translation: every binding of the
+     * pre-E surface ({@link CleanSheetMappingDefinition}) becomes a
+     * COMPILED binding. Inline bodies lambda-lift into ordinary top-level
+     * functions (appended to {@code lifted}) and stamp their source from
+     * the lifted body's root; function-REF bindings keep the user's FQN
+     * and stamp from the REFERENCED function's body (available here —
+     * functions register at resolution time). Post-condition: the
+     * compiled artifact carries function FQNs and STAMPED sources only
+     * (CLEAN_SHEET_INVERSION §5.3 / §7.4; no Inline, no Undeclared).
+     * Underivable sources THROW (door symmetry with the legacy
+     * main-table wall), riding the per-element wall sink in tolerant
+     * builds.
      */
-    private static MappingDefinition liftInlineBindings(MappingDefinition md,
-                                                       ModelBuilder model,
-                                                       List<FunctionDefinition> lifted) {
-        boolean changed = false;
+    private static MappingDefinition cleanSheetToCanonical(
+            CleanSheetMappingDefinition md,
+            ModelBuilder model,
+            List<FunctionDefinition> lifted) {
         List<MappingDefinition.ClassBinding> classBindings =
                 new ArrayList<>(md.classBindings().size());
-        for (MappingDefinition.ClassBinding cb : md.classBindings()) {
+        for (CleanSheetMappingDefinition.ClassBinding cb : md.classBindings()) {
+            String fnFqn;
+            List<ValueSpecification> srcBody = null;
             if (cb.realization() instanceof Realization.Inline inl) {
-                String fnFqn = SynthFqn.mappingClass(md.qualifiedName(), cb.classFqn());
+                fnFqn = SynthFqn.mappingClass(md.qualifiedName(), cb.classFqn());
                 lifted.add(liftClassInline(md, cb, inl, fnFqn));
-                // spells EVERY component (the old convenience ctor here
-                // silently dropped primaryKeyColumns). A RELATIONAL
-                // inline binding's Undeclared placeholder is stamped
-                // HERE — the lift is Door 1's construction moment.
-                classBindings.add(switch (cb) {
-                    case MappingDefinition.ClassBinding.Relational rb ->
-                            new MappingDefinition.ClassBinding.Relational(
-                                    rb.classFqn(), rb.setId(), rb.extendsSetId(),
-                                    rb.root(), new Realization.Ref(fnFqn),
-                                    rb.primaryKeyColumns(),
-                                    rb.source() instanceof MappingDefinition
-                                            .RelationalSource.Undeclared
-                                            ? inlineRootSource(inl.body())
-                                            : rb.source());
-                    case MappingDefinition.ClassBinding.Pure pb ->
-                            new MappingDefinition.ClassBinding.Pure(
-                                    pb.classFqn(), pb.setId(), pb.extendsSetId(),
-                                    pb.root(), new Realization.Ref(fnFqn),
-                                    pb.primaryKeyColumns());
-                });
-                changed = true;
+                srcBody = inl.body();
             } else {
-                classBindings.add(cb);
+                fnFqn = ((Realization.Ref) cb.realization()).functionFqn();
+            }
+            if (cb.kind() == CleanSheetMappingDefinition.Kind.RELATIONAL) {
+                // ref bindings stamp from the REFERENCED function's body
+                // (functions register at resolution time) — construction-
+                // time derivation, fetched only for the relational kind
+                java.util.Set<String> seen = new java.util.HashSet<>();
+                if (srcBody == null) {
+                    srcBody = refBody(fnFqn, md.qualifiedName(),
+                            cb.classFqn(), model);
+                    seen.add(fnFqn);
+                }
+                classBindings.add(new MappingDefinition.ClassBinding.Relational(
+                        cb.classFqn(), cb.setId(), cb.extendsSetId(),
+                        cb.root(), fnFqn, cb.primaryKeyColumns(),
+                        inlineRootSource(srcBody, model, md.qualifiedName(),
+                                cb.classFqn(), seen)));
+            } else {
+                classBindings.add(new MappingDefinition.ClassBinding.Pure(
+                        cb.classFqn(), cb.setId(), cb.extendsSetId(),
+                        cb.root(), fnFqn, cb.primaryKeyColumns()));
             }
         }
         List<MappingDefinition.AssociationBinding> assocBindings =
                 new ArrayList<>(md.associationBindings().size());
-        for (MappingDefinition.AssociationBinding ab : md.associationBindings()) {
+        for (CleanSheetMappingDefinition.AssociationBinding ab : md.associationBindings()) {
             if (ab.realization() instanceof Realization.Inline inl) {
                 String fnFqn = SynthFqn.mappingAssoc(md.qualifiedName(), ab.associationFqn());
                 lifted.add(liftAssocInline(md, ab, inl, fnFqn, model));
                 assocBindings.add(new MappingDefinition.AssociationBinding(
                         ab.associationFqn(), fnFqn));
-                changed = true;
             } else {
-                assocBindings.add(ab);
+                assocBindings.add(new MappingDefinition.AssociationBinding(
+                        ab.associationFqn(),
+                        ((Realization.Ref) ab.realization()).functionFqn()));
             }
         }
-        if (!changed) return md;
         return new MappingDefinition(md.qualifiedName(), md.includes(),
                 classBindings, assocBindings, md.enumerationMappings(), md.testSuitesSource());
+    }
+
+    /** A function-REF binding's realizing body, fetched for the stamp —
+     * construction-time derivation from the referenced function (never a
+     * consumption-time walk). Loud when the function is unknown or
+     * body-less. */
+    private static List<ValueSpecification> refBody(String fnFqn,
+            String mappingFqn, String classFqn, ModelBuilder model) {
+        var fns = model.findFunction(fnFqn);
+        for (var f : fns) {
+            if (f instanceof FunctionDefinition fd) {
+                return fd.body();
+            }
+        }
+        throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                "clean-sheet binding for '" + classFqn + "' references '"
+                        + fnFqn + "' which is not a user function with a body;"
+                        + " mapping=" + mappingFqn);
     }
 
     /**
@@ -541,14 +570,36 @@ public final class MappingNormalizer {
      * emitted structurally (AppliedFunction "tableReference"). The
      * convergence tenet demands both doors produce the SAME binding
      * table, so this mirrors the legacy {@code relationalSourceOf}.
-     * {@code Undeclared} when the root is not a plain table access
-     * (loud via the convergence suite if a witness ever needs more). */
+     * FOLLOWS user-function chains: a root that is a call to a
+     * registered user function recurses into that function's body
+     * (cycle-guarded) — a mapping may share its source through
+     * arbitrarily chained functions and still stamp the Table the
+     * chain bottoms out at. A chain that never reaches a store access
+     * THROWS (user ruling 2026-08-30: no unknown variant; declare the
+     * binding Pure or root it at a store access), riding the
+     * per-element wall sink in tolerant builds. */
     private static MappingDefinition.RelationalSource
-            inlineRootSource(List<ValueSpecification> body) {
+            inlineRootSource(List<ValueSpecification> body, ModelBuilder model,
+                    String mappingFqn, String classFqn,
+                    java.util.Set<String> seen) {
         ValueSpecification v = body.size() == 1 ? body.get(0) : null;
-        while (v instanceof com.legend.protocol.spec.AppliedFunction af
-                && !"tableReference".equals(af.function())
-                && !af.parameters().isEmpty()) {
+        while (v instanceof com.legend.protocol.spec.AppliedFunction af) {
+            if ("tableReference".equals(af.function())) {
+                break;
+            }
+            List<ValueSpecification> chained = userFunctionBody(af.function(), model);
+            if (chained != null) {
+                if (!seen.add(af.function())) {
+                    throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                            "clean-sheet relational binding for '" + classFqn
+                                    + "' has a CYCLIC source-function chain at '"
+                                    + af.function() + "'; mapping=" + mappingFqn);
+                }
+                return inlineRootSource(chained, model, mappingFqn, classFqn, seen);
+            }
+            if (af.parameters().isEmpty()) {
+                break;
+            }
             v = af.parameters().get(0);
         }
         if (v instanceof com.legend.protocol.spec.AppliedFunction tr
@@ -561,12 +612,29 @@ public final class MappingNormalizer {
             return new MappingDefinition.RelationalSource.Table(
                     db.fullPath(), t.value(), false, List.of());
         }
-        return new MappingDefinition.RelationalSource.Undeclared(
-                "clean-sheet inline root is not a plain table access");
+        throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                "clean-sheet relational binding for '" + classFqn
+                        + "' has no derivable physical source (the body's root"
+                        + " is neither a store access nor a user-function"
+                        + " chain reaching one); declare the binding Pure or"
+                        + " root it at #>{db.TABLE}#; mapping=" + mappingFqn);
     }
 
-    private static FunctionDefinition liftClassInline(MappingDefinition md,
-                                                     MappingDefinition.ClassBinding cb,
+    /** The registered user function's body for a call root, else null
+     * (natives/combinators like {@code map} resolve to nothing here —
+     * user functions arrive FQN'd from name resolution). */
+    private static @com.legend.Nullable List<ValueSpecification> userFunctionBody(
+            String calleeFqn, ModelBuilder model) {
+        for (var f : model.findFunction(calleeFqn)) {
+            if (f instanceof FunctionDefinition fd) {
+                return fd.body();
+            }
+        }
+        return null;
+    }
+
+    private static FunctionDefinition liftClassInline(CleanSheetMappingDefinition md,
+                                                     CleanSheetMappingDefinition.ClassBinding cb,
                                                      Realization.Inline inl,
                                                      String fnFqn) {
         return new FunctionDefinition(
@@ -586,8 +654,8 @@ public final class MappingNormalizer {
      * come from the association's two ends (looked up in the model), matching
      * the legacy predicate signature.
      */
-    private static FunctionDefinition liftAssocInline(MappingDefinition md,
-                                                     MappingDefinition.AssociationBinding ab,
+    private static FunctionDefinition liftAssocInline(CleanSheetMappingDefinition md,
+                                                     CleanSheetMappingDefinition.AssociationBinding ab,
                                                      Realization.Inline inl,
                                                      String fnFqn,
                                                      ModelBuilder model) {
@@ -1695,9 +1763,11 @@ public final class MappingNormalizer {
         }
         var main = resolvedMainTable(rcm);
         if (main == null) {
-            return new MappingDefinition.RelationalSource.Undeclared(
-                    "legacy set without ~mainTable, sourceUrl, or an"
-                            + " inferable column binding (synthesis walls)");
+            // unreachable on a lifted binding: synthRelational THROWS on
+            // exactly this condition before the binding is constructed
+            throw new IllegalStateException(
+                    "stamping a set whose synthesis must have walled: "
+                            + rcm.className());
         }
         List<MappingDefinition.EnumColumn> ecs = new ArrayList<>();
         for (var pm : rcm.propertyMappings()) {

@@ -53,10 +53,11 @@ class CleanSheetProtocolShapeTest {
                 com.legend.testing.Platform.mapping(ts, at, 1));
     }
 
-    private static MappingDefinition cleanSheet(String source) {
-        return assertInstanceOf(MappingDefinition.class, mapping(source),
-                () -> "a function-form body must yield the CANONICAL"
-                        + " MappingDefinition, not the legacy surface tree");
+    private static com.legend.model.CleanSheetMappingDefinition cleanSheet(String source) {
+        return assertInstanceOf(com.legend.model.CleanSheetMappingDefinition.class,
+                mapping(source),
+                () -> "a function-form body must yield the clean-sheet"
+                        + " surface tree, not the legacy one");
     }
 
     @Test
@@ -66,9 +67,9 @@ class CleanSheetProtocolShapeTest {
                 + ")");
         var b = md.classBindings().get(0);
         assertEquals("acme::Person", b.classFqn());
-        assertInstanceOf(MappingDefinition.ClassBinding.Relational.class, b);
+        assertEquals(com.legend.model.CleanSheetMappingDefinition.Kind.RELATIONAL, b.kind());
         assertTrue(b.root());
-        assertEquals("acme::funcs::personMapping", b.functionFqn());
+        assertEquals("acme::funcs::personMapping", ((com.legend.protocol.Realization.Ref) b.realization()).functionFqn());
     }
 
     @Test
@@ -77,9 +78,9 @@ class CleanSheetProtocolShapeTest {
                 + "  acme::StaffMember: Pure { acme::funcs::staffMapping } "
                 + ")");
         var b = md.classBindings().get(0);
-        assertInstanceOf(MappingDefinition.ClassBinding.Pure.class, b);
+        assertEquals(com.legend.model.CleanSheetMappingDefinition.Kind.PURE, b.kind());
         assertFalse(b.root(), "no leading * — not the root set");
-        assertEquals("acme::funcs::staffMapping", b.functionFqn());
+        assertEquals("acme::funcs::staffMapping", ((com.legend.protocol.Realization.Ref) b.realization()).functionFqn());
     }
 
     @Test
@@ -107,7 +108,7 @@ class CleanSheetProtocolShapeTest {
         assertEquals(1, md.associationBindings().size());
         var ab = md.associationBindings().get(0);
         assertEquals("acme::Person_Firm", ab.associationFqn());
-        assertEquals("acme::funcs::personFirmMatch", ab.predicateFunctionFqn());
+        assertEquals("acme::funcs::personFirmMatch", ((com.legend.protocol.Realization.Ref) ab.realization()).functionFqn());
     }
 
     @Test
@@ -123,8 +124,8 @@ class CleanSheetProtocolShapeTest {
         assertEquals("acme::Staff", md.classBindings().get(2).classFqn());
         assertTrue(md.classBindings().get(0).root());
         assertFalse(md.classBindings().get(1).root());
-        assertInstanceOf(MappingDefinition.ClassBinding.Pure.class,
-                md.classBindings().get(2));
+        assertEquals(com.legend.model.CleanSheetMappingDefinition.Kind.PURE,
+                md.classBindings().get(2).kind());
     }
 
     /** The INLINE form — a body that is not a lone element pointer, so it

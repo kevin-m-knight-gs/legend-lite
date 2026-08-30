@@ -1998,8 +1998,8 @@ final class ElementParserTest {
     // FIRST tests that feed clean-sheet syntax to the parser, not legacy DSL.
     // ===============================================================
 
-    private static com.legend.model.MappingDefinition canonicalMapping(String src) {
-        return (com.legend.model.MappingDefinition)
+    private static com.legend.model.CleanSheetMappingDefinition canonicalMapping(String src) {
+        return (com.legend.model.CleanSheetMappingDefinition)
                 com.legend.testing.Platform.model(src).elements().get(0);
     }
 
@@ -2013,11 +2013,11 @@ final class ElementParserTest {
         assertEquals(1, md.classBindings().size());
         var b = md.classBindings().get(0);
         assertEquals("acme::Person", b.classFqn());
-        assertInstanceOf(com.legend.model.MappingDefinition.ClassBinding.Relational.class, b);
+        assertEquals(com.legend.model.CleanSheetMappingDefinition.Kind.RELATIONAL, b.kind());
         assertTrue(b.root());
         assertNull(b.setId());
         assertNull(b.extendsSetId());
-        assertEquals("acme::funcs::personMapping", b.functionFqn());
+        assertEquals("acme::funcs::personMapping", ((com.legend.protocol.Realization.Ref) b.realization()).functionFqn());
     }
 
     @Test
@@ -2028,9 +2028,9 @@ final class ElementParserTest {
               + ")");
         var b = md.classBindings().get(0);
         assertEquals("acme::StaffMember", b.classFqn());
-        assertInstanceOf(com.legend.model.MappingDefinition.ClassBinding.Pure.class, b);
+        assertEquals(com.legend.model.CleanSheetMappingDefinition.Kind.PURE, b.kind());
         assertFalse(b.root(), "no leading * => not root");
-        assertEquals("acme::funcs::staffMapping", b.functionFqn());
+        assertEquals("acme::funcs::staffMapping", ((com.legend.protocol.Realization.Ref) b.realization()).functionFqn());
     }
 
     @Test
@@ -2042,7 +2042,7 @@ final class ElementParserTest {
         var b = md.classBindings().get(0);
         assertEquals("emp", b.setId());
         assertEquals("base", b.extendsSetId());
-        assertEquals("acme::funcs::employeeMapping", b.functionFqn());
+        assertEquals("acme::funcs::employeeMapping", ((com.legend.protocol.Realization.Ref) b.realization()).functionFqn());
     }
 
     @Test
@@ -2057,7 +2057,7 @@ final class ElementParserTest {
         assertEquals(1, md.associationBindings().size());
         var ab = md.associationBindings().get(0);
         assertEquals("acme::Person_Firm", ab.associationFqn());
-        assertEquals("acme::funcs::personFirmMatch", ab.predicateFunctionFqn());
+        assertEquals("acme::funcs::personFirmMatch", ((com.legend.protocol.Realization.Ref) ab.realization()).functionFqn());
     }
 
     @Test
@@ -2069,7 +2069,7 @@ final class ElementParserTest {
               + ")");
         assertEquals(java.util.List.of("acme::Person", "acme::Firm"),
                 md.classBindings().stream()
-                        .map(com.legend.model.MappingDefinition.ClassBinding::classFqn)
+                        .map(com.legend.model.CleanSheetMappingDefinition.ClassBinding::classFqn)
                         .toList());
         assertTrue(md.classBindings().get(0).root());
         assertFalse(md.classBindings().get(1).root());

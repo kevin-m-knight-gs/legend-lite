@@ -93,7 +93,7 @@ class OwnCorpusConformanceTest {
         try {
             for (var e : Surfaces.platform(text)
                     .elements()) {
-                if (e instanceof com.legend.model.MappingDefinition) {
+                if (e instanceof com.legend.model.CleanSheetMappingDefinition) {
                     return "LITE-DESIGN-mapping-as-function";
                 }
             }

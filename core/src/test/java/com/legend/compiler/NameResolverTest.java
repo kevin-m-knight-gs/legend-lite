@@ -1377,27 +1377,29 @@ class NameResolverTest {
         Set<String> fqns = Set.of("acme::Person", "acme::personMapping",
                 "acme::Person_Firm", "acme::personFirmMatch");
         ImportScope imp = new ImportScope.Builder().add("acme::*").build();
-        var classBinding = new MappingDefinition.ClassBinding.Relational(
-                "Person", "emp", "base", true,
+        var classBinding = new com.legend.model.CleanSheetMappingDefinition.ClassBinding(
+                "Person", com.legend.model.CleanSheetMappingDefinition.Kind.RELATIONAL,
+                "emp", "base", true,
                 new com.legend.protocol.Realization.Ref("personMapping"),
-                List.of(),
-                new MappingDefinition.RelationalSource.Undeclared("test"));
-        var assocBinding = new MappingDefinition.AssociationBinding(
-                "Person_Firm", "personFirmMatch");
-        var md = new MappingDefinition("acme::M", List.of(),
+                List.of());
+        var assocBinding = new com.legend.model.CleanSheetMappingDefinition.AssociationBinding(
+                "Person_Firm", new com.legend.protocol.Realization.Ref("personFirmMatch"));
+        var md = new com.legend.model.CleanSheetMappingDefinition("acme::M", List.of(),
                 List.of(classBinding), List.of(assocBinding), List.of(), null);
 
-        var r = (MappingDefinition) resolveOne(md, imp, fqns);
+        var r = (com.legend.model.CleanSheetMappingDefinition) resolveOne(md, imp, fqns);
         var cb = r.classBindings().get(0);
         assertEquals("acme::Person", cb.classFqn(), "class FQN resolved via wildcard import");
-        assertEquals("acme::personMapping", cb.functionFqn(), "function FQN resolved");
+        assertEquals("acme::personMapping",
+                ((com.legend.protocol.Realization.Ref) cb.realization()).functionFqn(),
+                "function FQN resolved");
         assertEquals("emp", cb.setId(), "setId is a local id; never resolved");
         assertEquals("base", cb.extendsSetId(), "extendsSetId is a local id; never resolved");
-        assertInstanceOf(MappingDefinition.ClassBinding.Relational.class, cb);
         assertTrue(cb.root());
         var ab = r.associationBindings().get(0);
         assertEquals("acme::Person_Firm", ab.associationFqn());
-        assertEquals("acme::personFirmMatch", ab.predicateFunctionFqn());
+        assertEquals("acme::personFirmMatch",
+                ((com.legend.protocol.Realization.Ref) ab.realization()).functionFqn());
     }
 
     @Test
@@ -1406,9 +1408,11 @@ class NameResolverTest {
         // already fully qualified resolves to the identical instance.
         Set<String> fqns = Set.of("acme::Person", "acme::personMapping");
         ImportScope imp = new ImportScope.Builder().add("acme::*").build();
-        var md = new MappingDefinition("acme::M", List.of(),
-                List.of(new MappingDefinition.ClassBinding.Pure(
-                        "acme::Person", null, null, true,
+        var md = new com.legend.model.CleanSheetMappingDefinition("acme::M", List.of(),
+                List.of(new com.legend.model.CleanSheetMappingDefinition.ClassBinding(
+                        "acme::Person",
+                        com.legend.model.CleanSheetMappingDefinition.Kind.PURE,
+                        null, null, true,
                         new com.legend.protocol.Realization.Ref("acme::personMapping"),
                         List.of())),
                 List.of(), List.of(), null);

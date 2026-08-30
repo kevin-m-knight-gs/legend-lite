@@ -63,37 +63,27 @@ public record MappingDefinition(
     }
 
     /**
-     * A class binding: structure only; the body is a {@link Realization}
-     * (function ref or &mdash; B&rarr;E only &mdash; an inline expression).
-     * SEALED by binding kind &mdash; the kind is a property of the binding
-     * relationship, not derivable from the function (MAPPING_CLEAN_SHEET.md
-     * §1), and the variant IS the kind: a {@link Relational} binding
-     * carries its physical-source stamp as a NON-NULL component (the
-     * guarantee is compile-time &mdash; a door that forgets to stamp does
-     * not compile), a {@link Pure} (m2m) binding has no physical source by
-     * construction. NO convenience constructors on either variant: one
-     * silently dropped {@code primaryKeyColumns} (the AssocJoin disease) —
-     * every site spells every component.
+     * A COMPILED class binding: the realizing function's FQN plus binding
+     * metadata &mdash; no {@link Realization} union and no throw-guarded
+     * accessor, because the pre-lift shapes live in
+     * {@link CleanSheetMappingDefinition} (phase types, not in-band
+     * markers). SEALED by binding kind &mdash; the kind is a property of
+     * the binding relationship, not derivable from the function
+     * (MAPPING_CLEAN_SHEET.md §1), and the variant IS the kind: a
+     * {@link Relational} binding carries its physical-source stamp as a
+     * NON-NULL component (a door that forgets to stamp does not compile),
+     * a {@link Pure} (m2m) binding has no physical source by construction.
+     * NO convenience constructors: one silently dropped
+     * {@code primaryKeyColumns} (the AssocJoin disease) — every site
+     * spells every component.
      */
     public sealed interface ClassBinding permits ClassBinding.Relational, ClassBinding.Pure {
         String classFqn();
         @com.legend.Nullable String setId();
         @com.legend.Nullable String extendsSetId();
         boolean root();
-        Realization realization();
+        String functionFqn();
         List<String> primaryKeyColumns();
-
-        /**
-         * The realizing function's FQN. Valid only when the realization is a
-         * {@link Realization.Ref} &mdash; always true after Phase E, since the
-         * normalizer lifts every {@link Realization.Inline}. Throws on an
-         * unlifted inline binding (a phase-ordering bug, surfaced loudly).
-         */
-        default String functionFqn() {
-            if (realization() instanceof Realization.Ref r) return r.functionFqn();
-            throw new IllegalStateException(
-                    "class binding for '" + classFqn() + "' is an unlifted inline body");
-        }
 
         /** A relational class binding; {@code source} is never null. */
         record Relational(
@@ -101,12 +91,12 @@ public record MappingDefinition(
                 @com.legend.Nullable String setId,
                 @com.legend.Nullable String extendsSetId,
                 boolean root,
-                Realization realization,
+                String functionFqn,
                 List<String> primaryKeyColumns,
                 RelationalSource source) implements ClassBinding {
             public Relational {
                 Objects.requireNonNull(classFqn, "classFqn");
-                Objects.requireNonNull(realization, "realization");
+                Objects.requireNonNull(functionFqn, "functionFqn");
                 Objects.requireNonNull(source, "source");
                 primaryKeyColumns = primaryKeyColumns == null ? List.of()
                         : List.copyOf(primaryKeyColumns);
@@ -119,11 +109,11 @@ public record MappingDefinition(
                 @com.legend.Nullable String setId,
                 @com.legend.Nullable String extendsSetId,
                 boolean root,
-                Realization realization,
+                String functionFqn,
                 List<String> primaryKeyColumns) implements ClassBinding {
             public Pure {
                 Objects.requireNonNull(classFqn, "classFqn");
-                Objects.requireNonNull(realization, "realization");
+                Objects.requireNonNull(functionFqn, "functionFqn");
                 primaryKeyColumns = primaryKeyColumns == null ? List.of()
                         : List.copyOf(primaryKeyColumns);
             }
@@ -187,17 +177,19 @@ public record MappingDefinition(
      * every constructor/copy-helper caller is construction-time).
      * Null on non-relational and protocol-sourced bindings.
      *
-     * SEALED: {@link Table} (physical main source), {@link Json} (a
-     * JsonModelConnection-backed set &mdash; the source is a URL, not a
-     * table), {@link Undeclared} (the door could not derive a source:
-     * a pre-lift inline binding awaiting Phase E, a protocol
-     * function-ref binding, a clean-sheet root that is not a plain
-     * table access &mdash; ABSENCE IS SPELLED, never null, so consumers
-     * that need a Table must match and fall through explicitly).
+     * SEALED AND TOTAL: {@link Table} (physical main source) or
+     * {@link Json} (a JsonModelConnection-backed set &mdash; the source
+     * is a URL). There is NO unknown variant (user ruling 2026-08-30):
+     * the pre-lift placeholder lives on the phase type
+     * ({@link CleanSheetMappingDefinition}); a clean-sheet binding that
+     * shares its source through chained user functions derives the
+     * Table the chain bottoms out at (the stamper FOLLOWS the chain at
+     * Phase E, cycle-guarded); everything else &mdash; unknown ref
+     * target, a root that never reaches a store access &mdash; THROWS,
+     * riding the per-element wall sink in tolerant builds.
      */
     public sealed interface RelationalSource
-            permits RelationalSource.Table, RelationalSource.Json,
-                    RelationalSource.Undeclared {
+            permits RelationalSource.Table, RelationalSource.Json {
 
         /**
          * @param database              main source's database FQN
@@ -232,13 +224,6 @@ public record MappingDefinition(
             }
         }
 
-        /** The door could not derive a source; {@code why} names the door
-         * and reason (poison idiom &mdash; loud on inspection). */
-        record Undeclared(String why) implements RelationalSource {
-            public Undeclared {
-                Objects.requireNonNull(why, "why");
-            }
-        }
     }
 
     /** A column's declared enum-mapping id ({@code prop: EnumerationMapping
@@ -260,22 +245,10 @@ public record MappingDefinition(
      * @param associationFqn the mapped association
      * @param realization    how the predicate is realized
      */
-    public record AssociationBinding(String associationFqn, Realization realization) {
+    public record AssociationBinding(String associationFqn, String predicateFunctionFqn) {
         public AssociationBinding {
             Objects.requireNonNull(associationFqn, "associationFqn");
-            Objects.requireNonNull(realization, "realization");
-        }
-
-        /** Convenience: a function-ref predicate binding (Door 1 / post-lift). */
-        public AssociationBinding(String associationFqn, String predicateFunctionFqn) {
-            this(associationFqn, new Realization.Ref(predicateFunctionFqn));
-        }
-
-        /** The predicate function's FQN. Valid only post-lift (see {@link ClassBinding#functionFqn()}). */
-        public String predicateFunctionFqn() {
-            if (realization instanceof Realization.Ref r) return r.functionFqn();
-            throw new IllegalStateException(
-                    "association binding for '" + associationFqn + "' is an unlifted inline body");
+            Objects.requireNonNull(predicateFunctionFqn, "predicateFunctionFqn");
         }
     }
 }

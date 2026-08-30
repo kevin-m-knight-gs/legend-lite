@@ -26,6 +26,7 @@ import com.legend.model.FilterPointer;
 import com.legend.model.FunctionDefinition;
 import com.legend.model.JoinChainElement;
 import com.legend.model.LegacyMappingDefinition;
+import com.legend.model.CleanSheetMappingDefinition;
 import com.legend.model.MappingDefinition;
 import com.legend.protocol.Realization;
 import com.legend.model.MappingInclude;
@@ -388,7 +389,10 @@ public final class NameResolver {
             // The canonical (binding-table) MappingDefinition is produced
             // directly by Door 1 (clean-sheet text), so it reaches the resolver
             // and its binding FQNs must be resolved like any other element's.
-            case MappingDefinition md -> resolveCanonicalMapping(md, scope);
+            case CleanSheetMappingDefinition md -> resolveCanonicalMapping(md, scope);
+            // a COMPILED mapping never re-resolves (post-E artifacts carry
+            // resolved FQNs only; resolution runs on parsed surfaces)
+            case MappingDefinition md -> md;
         };
     }
 
@@ -763,12 +767,12 @@ public final class NameResolver {
      * (set ids are local; kind/root are flags) and pass through unchanged.
      * Reference-equality preserved when nothing resolved.
      */
-    private static MappingDefinition resolveCanonicalMapping(
-            MappingDefinition md, Scope scope) {
+    private static CleanSheetMappingDefinition resolveCanonicalMapping(
+            CleanSheetMappingDefinition md, Scope scope) {
         List<MappingInclude> includes = resolveMappingIncludes(md.includes(), scope);
-        List<MappingDefinition.ClassBinding> classBindings =
+        List<CleanSheetMappingDefinition.ClassBinding> classBindings =
                 resolveList(md.classBindings(), NameResolver::resolveClassBinding, scope);
-        List<MappingDefinition.AssociationBinding> assocBindings =
+        List<CleanSheetMappingDefinition.AssociationBinding> assocBindings =
                 resolveList(md.associationBindings(), NameResolver::resolveAssociationBinding, scope);
         List<EnumerationMapping> enumMappings = resolveEnumerationMappings(
                 md.enumerationMappings(), scope);
@@ -777,33 +781,26 @@ public final class NameResolver {
                 && enumMappings == md.enumerationMappings()) {
             return md;
         }
-        return new MappingDefinition(md.qualifiedName(), includes, classBindings,
+        return new CleanSheetMappingDefinition(md.qualifiedName(), includes, classBindings,
                 assocBindings, enumMappings, md.testSuitesSource());
     }
 
-    private static MappingDefinition.ClassBinding resolveClassBinding(
-            MappingDefinition.ClassBinding b, Scope scope) {
+    private static CleanSheetMappingDefinition.ClassBinding resolveClassBinding(
+            CleanSheetMappingDefinition.ClassBinding b, Scope scope) {
         String classFqn = resolveName(b.classFqn(), scope);
         Realization realization = resolveRealization(b.realization(), scope);
         if (classFqn.equals(b.classFqn()) && realization == b.realization()) return b;
-        return switch (b) {
-            case MappingDefinition.ClassBinding.Relational rb ->
-                    new MappingDefinition.ClassBinding.Relational(
-                            classFqn, rb.setId(), rb.extendsSetId(), rb.root(),
-                            realization, rb.primaryKeyColumns(), rb.source());
-            case MappingDefinition.ClassBinding.Pure pb ->
-                    new MappingDefinition.ClassBinding.Pure(
-                            classFqn, pb.setId(), pb.extendsSetId(), pb.root(),
-                            realization, pb.primaryKeyColumns());
-        };
+        return new CleanSheetMappingDefinition.ClassBinding(
+                classFqn, b.kind(), b.setId(), b.extendsSetId(), b.root(),
+                realization, b.primaryKeyColumns());
     }
 
-    private static MappingDefinition.AssociationBinding resolveAssociationBinding(
-            MappingDefinition.AssociationBinding b, Scope scope) {
+    private static CleanSheetMappingDefinition.AssociationBinding resolveAssociationBinding(
+            CleanSheetMappingDefinition.AssociationBinding b, Scope scope) {
         String assocFqn = resolveName(b.associationFqn(), scope);
         Realization realization = resolveRealization(b.realization(), scope);
         if (assocFqn.equals(b.associationFqn()) && realization == b.realization()) return b;
-        return new MappingDefinition.AssociationBinding(assocFqn, realization);
+        return new CleanSheetMappingDefinition.AssociationBinding(assocFqn, realization);
     }
 
     /**

@@ -93,3 +93,38 @@ mappings do not flatten today (no corpus witness; the legacy→canonical seam
 covers the entire engine corpus). If clean-sheet includes gain a witness,
 the same flatten belongs in `resolveCanonicalMapping`/Phase-E for the
 canonical path.
+
+## UNDECLARED ERADICATION (2026-08-30, user-ratified — phase types over in-band markers)
+
+`RelationalSource.Undeclared` is DELETED. It conflated three things,
+each now handled honestly:
+
+1. **The pre-lift placeholder** → `CleanSheetMappingDefinition`, Door
+   1/3's own B→E surface type (the `LegacyMappingDefinition` precedent
+   applied to the clean-sheet door — the asymmetry was the bug). The
+   compiled `MappingDefinition.ClassBinding` now carries a plain
+   `functionFqn` STRING and a stamped source: no `Realization` union in
+   the artifact, no throw-guarded `functionFqn()` accessor — the §7.4
+   "no Inline survives Phase E" guard became a TYPE guarantee.
+2. **Source shared through user functions** → the stamper FOLLOWS the
+   chain: a body root that calls a registered user function recurses
+   into that function's body (cycle-guarded) and stamps the Table the
+   chain bottoms out at. "Mappings that call user functions" derive
+   like everything else — construction-time, at Phase E. (A transient
+   `Derived` variant existed for one commit-cycle as a stop-at-one-hop
+   compromise; the user killed it: if one hop is legitimate
+   derivation, so is the fixpoint.)
+3. **Actual errors** → THROW: a ref binding naming an unknown/body-less
+   function, a cyclic source chain, a root that never reaches a store
+   access ("declare the binding Pure or root it at #>{db.TABLE}#"),
+   and the legacy stamp arm whose synthesis must already have walled
+   (`IllegalStateException`, invariant). All ride the per-element wall
+   sink in tolerant builds. The two fixtures that motivated the
+   compromise (`Relational { model::Person.all() }`) were semantically
+   nonsense and are now honest table-rooted bodies.
+
+End state: `RelationalSource = Table | Json`, sealed, total, no
+unknown variant; both mapping doors have phase-separated types
+(`CleanSheetMappingDefinition` ↔ `LegacyMappingDefinition`); the
+compiled binding is `functionFqn` + stamp (no Realization union, no
+throw-guarded accessor — §7.4 became a type guarantee).

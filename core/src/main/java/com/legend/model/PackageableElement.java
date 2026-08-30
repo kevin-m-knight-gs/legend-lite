@@ -25,6 +25,7 @@ package com.legend.model;
  */
 public sealed interface PackageableElement
         permits ClassDefinition,
+                CleanSheetMappingDefinition,
                 AssociationDefinition,
                 EnumDefinition,
                 ProfileDefinition,

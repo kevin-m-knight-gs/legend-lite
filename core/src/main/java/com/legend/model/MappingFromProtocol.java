@@ -95,44 +95,40 @@ public final class MappingFromProtocol {
         return hasCleanSheet ? toCleanSheetDefinition(m) : toMappingDefinition(m);
     }
 
-    private static MappingDefinition toCleanSheetDefinition(Protocol.PMapping m) {
-        List<MappingDefinition.ClassBinding> bindings = new ArrayList<>();
+    private static CleanSheetMappingDefinition toCleanSheetDefinition(Protocol.PMapping m) {
+        List<CleanSheetMappingDefinition.ClassBinding> bindings = new ArrayList<>();
         for (Protocol.PClassMapping cm : m.classMappings()) {
             Protocol.PClassMappingFunction fn = (Protocol.PClassMappingFunction) cm;
             // Ref vs Inline is decided by the WIRE's mutually-exclusive
             // pair, exactly as ElementParser.realizationOf decides it from
             // the parsed body — a lone packageable-element pointer is a
-            // reference to an ordinary user function.
-            com.legend.protocol.Realization realization =
-                    realizationOf(fn.function(), fn.bodyLambda());
-            bindings.add("PURE".equals(fn.kind())
-                    ? new MappingDefinition.ClassBinding.Pure(fn.className(),
-                            fn.id(), fn.extendsClassMappingId(), fn.root(),
-                            realization, java.util.List.of())
-                    : new MappingDefinition.ClassBinding.Relational(fn.className(),
-                            fn.id(), fn.extendsClassMappingId(), fn.root(),
-                            realization, java.util.List.of(),
-                            // inline bodies are stamped at the Phase-E lift;
-                            // a function-REF binding's source is honestly
-                            // absent at this door (census: Door-1/protocol)
-                            new MappingDefinition.RelationalSource.Undeclared(
-                                    "protocol/clean-sheet binding — stamped at"
-                                            + " Phase-E lift when inline")));
+            // reference to an ordinary user function. Sources are NOT
+            // stamped here: the stamp is born at the Phase-E lift, after
+            // name resolution (CleanSheetMappingDefinition is the pre-E
+            // surface — no placeholder needed).
+            bindings.add(new CleanSheetMappingDefinition.ClassBinding(
+                    fn.className(),
+                    "PURE".equals(fn.kind())
+                            ? CleanSheetMappingDefinition.Kind.PURE
+                            : CleanSheetMappingDefinition.Kind.RELATIONAL,
+                    fn.id(), fn.extendsClassMappingId(), fn.root(),
+                    realizationOf(fn.function(), fn.bodyLambda()),
+                    java.util.List.of()));
         }
         List<EnumerationMapping> enums = new ArrayList<>();
         for (Protocol.PEnumerationMapping em : m.enumerationMappings()) {
             enums.add(enumerationMapping(em));
         }
-        List<MappingDefinition.AssociationBinding> assocBindings = new ArrayList<>();
+        List<CleanSheetMappingDefinition.AssociationBinding> assocBindings = new ArrayList<>();
         for (Protocol.PAssociationMapping am : m.associationMappings()) {
             Protocol.PFunctionAssociationMapping fa =
                     (Protocol.PFunctionAssociationMapping) am;
-            assocBindings.add(new MappingDefinition.AssociationBinding(
+            assocBindings.add(new CleanSheetMappingDefinition.AssociationBinding(
                     fa.association().path(), realizationOf(fa.function(),
                             fa.bodyLambda())));
         }
         List<MappingInclude> includes = includesOf(m);
-        return new MappingDefinition(m.qualifiedName(), includes, bindings,
+        return new CleanSheetMappingDefinition(m.qualifiedName(), includes, bindings,
                 assocBindings, enums, m.testSuitesSource());
     }
 

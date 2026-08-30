@@ -242,8 +242,12 @@ class MappingNormalizerTest {
         // the binding to a function ref.
         ParsedModel parsed = com.legend.testing.Own.model(
                 "Class model::Person { name: String[1]; } "
+                        + "\n###Relational\nDatabase acme::DB "
+                        + "( Table T_PERSON (NAME VARCHAR(50)) ) "
                         + "\n###Mapping\nMapping acme::M ( "
-                        + "  *model::Person: Relational { model::Person.all() } "
+                        + "  *model::Person: Relational { #>{acme::DB.T_PERSON}#"
+                        + " -> map(r | ^model::Person(name ="
+                        + " $r.NAME->meta::legend::lite::trustOne())) } "
                         + ")");
         NormalizedModel normalized = normalizeViaPipeline(parsed);
 
@@ -262,9 +266,9 @@ class MappingNormalizerTest {
         // The binding now points at the lifted function (no Inline survives).
         var md = canonicalMapping(normalized, "acme::M");
         var b = md.classBindings().get(0);
-        assertInstanceOf(Realization.Ref.class, b.realization(),
-                "no inline realization survives Phase E");
-        assertEquals("acme::M$class$model::Person", b.functionFqn());
+        assertEquals("acme::M$class$model::Person", b.functionFqn(),
+                "no inline realization survives Phase E — the compiled"
+                        + " binding carries the lifted function's FQN");
     }
 
     @Test
@@ -297,8 +301,8 @@ class MappingNormalizerTest {
         assertEquals(SynthHat.ASSOC, fn.synthesizedFrom().hat());
 
         var md = canonicalMapping(normalized, "acme::M");
-        assertInstanceOf(Realization.Ref.class,
-                md.associationBindings().get(0).realization());
+        assertEquals("acme::M$assoc$model::Person_Firm",
+                md.associationBindings().get(0).predicateFunctionFqn());
     }
 
     @Test
@@ -325,19 +329,26 @@ class MappingNormalizerTest {
     void noInlineRealizationSurvivesPhaseE() {
         ParsedModel parsed = com.legend.testing.Own.model(
                 "Class model::Person { name: String[1]; } "
+                        + "\n###Relational\nDatabase acme::DB "
+                        + "( Table T_PERSON (NAME VARCHAR(50)) ) "
                         + "\n###Mapping\nMapping acme::M ( "
-                        + "  *model::Person: Relational { model::Person.all() } "
+                        + "  *model::Person: Relational { #>{acme::DB.T_PERSON}#"
+                        + " -> map(r | ^model::Person(name ="
+                        + " $r.NAME->meta::legend::lite::trustOne())) } "
                         + ")");
         NormalizedModel normalized = normalizeViaPipeline(parsed);
+        // §7.4 is now a TYPE guarantee: compiled bindings carry function
+        // FQNs only (no Realization union exists post-E). Assert the FQNs
+        // resolve to lifted/user functions.
         for (PackageableElement el : normalized.elements()) {
             if (el instanceof MappingDefinition cmd) {
                 for (var b : cmd.classBindings()) {
-                    assertInstanceOf(Realization.Ref.class, b.realization(),
-                            "class binding must be a Ref post-E");
+                    assertFalse(b.functionFqn().isEmpty(),
+                            "class binding carries a function FQN post-E");
                 }
                 for (var b : cmd.associationBindings()) {
-                    assertInstanceOf(Realization.Ref.class, b.realization(),
-                            "association binding must be a Ref post-E");
+                    assertFalse(b.predicateFunctionFqn().isEmpty(),
+                            "association binding carries a predicate FQN post-E");
                 }
             }
         }

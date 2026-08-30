@@ -295,6 +295,15 @@ public final class ModelBuilder {
             switch (el) {
                 case LegacyMappingDefinition md -> mb.ingestLegacyMapping(md);
                 case MappingDefinition md -> mb.ingestCanonicalMapping(md);
+                // pre-E clean-sheet surface (a PARSED-model build only —
+                // never appears in a NormalizedModel): feed the
+                // mapped-class set so isMappedClass() holds during
+                // resolution/Phase E, same as the compiled arm above
+                case com.legend.model.CleanSheetMappingDefinition cs -> {
+                    for (var cb : cs.classBindings()) {
+                        mb.mappedClassIds.add(mb.intern(cb.classFqn()));
+                    }
+                }
                 case ServiceDefinition sd -> putAtId(mb.services, mb.intern(sd.qualifiedName()), sd);
                 case ConnectionDefinition cd -> putAtId(mb.connections, mb.intern(cd.qualifiedName()), cd);
                 case com.legend.model.ModelConnectionDefinition mc ->

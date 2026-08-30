@@ -216,15 +216,9 @@ final class ObjectRefs {
                 continue;
             }
             List<ValueSpecification> body = null;
-            if (cb.realization() instanceof com.legend.protocol
-                    .Realization.Inline in) {
-                body = in.body();
-            } else if (cb.realization() instanceof com.legend.protocol
-                    .Realization.Ref rf) {
-                var fns = ctx.findFunction(rf.functionFqn());
-                if (!fns.isEmpty() && fns.get(0).body().isPresent()) {
-                    body = fns.get(0).body().get();
-                }
+            var fns = ctx.findFunction(cb.functionFqn());
+            if (!fns.isEmpty() && fns.get(0).body().isPresent()) {
+                body = fns.get(0).body().get();
             }
             if (body == null) {
                 return null;

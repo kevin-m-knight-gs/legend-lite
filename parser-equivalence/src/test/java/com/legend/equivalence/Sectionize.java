@@ -25,6 +25,7 @@ final class Sectionize {
         return switch (e) {
             case com.legend.model.DatabaseDefinition d -> "Relational";
             case com.legend.model.MappingDefinition m -> "Mapping";
+            case com.legend.model.CleanSheetMappingDefinition m -> "Mapping";
             case com.legend.model.LegacyMappingDefinition m -> "Mapping";
             case com.legend.model.RuntimeDefinition r -> "Runtime";
             case com.legend.model.ConnectionDefinition c -> "Connection";
