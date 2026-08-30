@@ -85,3 +85,67 @@ in the harness at all:
    with the plan-text lane?
 3. Milestoning-dates variants ride S2 or split if the temporal seam
    resists?
+
+## S1 CORRECTED ARCHITECTURE (2026-08-30 — after a reverted first attempt)
+
+A first S1 implementation was built, PROVEN END-TO-END (all 3
+necessaryColumns tests routed with dual-channel agree=6, zero declines),
+then REVERTED — because two of its mechanisms were wrong even though
+the numbers were green. The corrected design, with the receipts:
+
+**The fold belongs in the CHECKER, not the executor.** The census is a
+COMPILE-TIME REFLECTION fact (model-space: query AST + mapping →
+table/column demand; no database — TENET_CHARTER C1.6, the
+deactivate/.genericType precedent). The checker, on typing the native's
+call, holds the PROTOCOL query argument natively — validate the
+registered signature, run TestDataGenerator.necessaryColumns, emit the
+instance-literal tree (^RelationalCSVData(tables=[^RelationalCSVTable
+(schema, table, values)…])) right there. This deletes, relative to the
+reverted attempt: the executor prepass, the protoStmts side-channel
+through executeStatements, and the protocol tree-search
+(findCall/letValue archaeology) — all three seams existed only because
+the fold ran in the wrong phase.
+
+**What stays from the proven attempt** (re-land verbatim):
+- Pure.java: EMBEDDED_DATA + RELATIONAL_CSV_TABLE (property types
+  spelled with FULL FQNs — bare `String` does not resolve in
+  nativeClass) + RELATIONAL_CSV_DATA classes; the
+  getRelationalCSVDataFromQuery signature (executionPlan-precedent
+  param relaxation).
+- PlatformTypes: GET_RELATIONAL_CSV_DATA + isPlatformOwnedFunction
+  membership.
+- Pipelines.literalOrAutoMapRead: property-access-over-instance-literal
+  folds to the property value — compiler CONSTANT FOLDING (the
+  structural-shapes idiom), hooked by the zero-net-line swap in
+  StoreResolver's auto-map arm (StoreResolver is at 3498/3500 — the
+  logic must live in Pipelines).
+- Harness: delete tdgLetArm's hasCsvCensus branch (cut over hard).
+- Runner pin: assert-test-data-csv 117 → 111 with attribution.
+
+**The one REAL platform gap**: TypedSortBy has no scalar-lowering arm.
+Two of the three tests sort the literal collection
+(`->sortBy(t | $t.schema + $t.table)`). The fix is ORDER BY in the
+value lane — the database executes the sort. NEVER a Java sort.
+
+## ANTI-PATTERNS CAUGHT AND REVERTED (do not re-derive)
+
+1. **Shadow interpreter**: a foldLiteral/inlineVar/constString cluster
+   in production Java that applied lambda params, evaluated string
+   `+`, and sorted — Pure semantics in host Java. The eval ledger did
+   NOT catch it (new file, name-pinned ledger — a known census-grain
+   hole). If a wall says "lowering not implemented for X", the fix is
+   the lowering arm, never a Java evaluator.
+2. **Wrong-phase fold**: executor-seam interception + typed→protocol
+   side-channel, built from harness instinct. Compile-time facts fold
+   in the compiler phase that holds the inputs naturally.
+3. **Probe hygiene**: two false claims in one slice from grep patterns
+   ("FAIL " missed ERROR rows; "error:" missed maven's second format).
+   Verdict greps must match the runner's full outcome vocabulary.
+
+## S1 witnesses (exact)
+
+testGenerateNecessaryTableColumnsForSingleTable (2 asserts, no sort),
+ForMultiTables (2, sortBy), ForMilestoningTable (2, sortBy) — family
+probe: -Drcorpus.only=testDataGeneration -Drcorpus.test=
+testGenerateNecessaryTableColumns. Success = dual-channel agree=6, csv
+declines 117→111, family otherwise byte-stable, ledger + chain green.
