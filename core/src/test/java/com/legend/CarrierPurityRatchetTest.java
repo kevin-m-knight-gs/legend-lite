@@ -97,7 +97,12 @@ class   CarrierPurityRatchetTest {
             // projection array (emission by static kind, the doctrine's
             // transform — not an inversion rebuild). Both absorb with
             // the collection semantic node.
-            "new SqlExpr\\.ArrayLit\\(", 41,
+            // 41→42 (disagree-9 burn 2026-08-31): staticTemporalText
+            // REBUILDS an existing literal array with its elements'
+            // written spellings (fidelity rewrite of an emission that
+            // already existed — the mixedNumericArray class above);
+            // absorbs with the collection semantic node.
+            "new SqlExpr\\.ArrayLit\\(", 42,
             "new SqlExpr\\.OrderedListAgg\\(", 1,
             // 136→137 (2026-08-19): ListEncodings.map's LIST_GET — the
             // map SEMANTIC NODE's wire-shape rule (a to-one result
@@ -161,8 +166,17 @@ class   CarrierPurityRatchetTest {
             // a structural READ of a carrier idiom, not a new
             // emission; absorbs when dedup moves behind its semantic
             // node with the rest of the family.
-            "SqlFn\\.LIST_", 141,
-            "SqlFn\\.UNNEST", 12,
+            // 141→142 (disagree-9 burn 2026-08-31): staticTemporalText's
+            // LIST_FILTER see-through — the same structural READ as its
+            // UNNEST twin below, not a new emission.
+            "SqlFn\\.LIST_", 142,
+            // 12→13 (disagree-9 burn 2026-08-31): staticTemporalText
+            // SEE-THROUGH pattern-MATCHES the existing literal-list
+            // egress (UNNEST/LIST_FILTER wrappers) to restore written
+            // temporal fidelity — a structural READ of a carrier
+            // idiom, not a new emission (the dedup-see-through
+            // precedent above); absorbs with the family.
+            "SqlFn\\.UNNEST", 13,
             // the collect-carrier reducer (R1 recognizes it for fusion;
             // burns with R3/R4 when sources/values migrate)
             "new SqlAgg\\.Reducer\\(\"LIST\"", 0);

@@ -100,9 +100,13 @@ final class ValueCollections {
         List<SqlExpr> cells = new ArrayList<>();
         boolean allSpell = true;
         for (Type.Column c : rt.columns()) {
+            // WIRE columns by construction — DateTime cells spell the
+            // engine's value-read decode (NINE subsecond digits,
+            // disagree-9 burn); written-literal spellings never pass
+            // through this caller
             SqlExpr s = MixedEncoding.spellByKind(c.type(),
                     SqlExpr.Column.of(sub, rel.outputs(), c.name()),
-                    com.legend.sql.DateFmt.ISO_LOCAL);
+                    com.legend.sql.DateFmt.ISO_NANO);
             if (s == null) {
                 allSpell = false;
                 break;

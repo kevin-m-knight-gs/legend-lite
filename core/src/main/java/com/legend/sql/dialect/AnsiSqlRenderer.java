@@ -796,7 +796,8 @@ public class AnsiSqlRenderer implements SqlDialect {
         // The temporal-text marker cast is a LABEL device (§4bZ-V B3):
         // the value is already the precision-faithful text — the cast
         // exists to carry the fact and NEVER renders, on any dialect
-        if (c.target() == com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT) {
+        if (c.target() == com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT
+                || c.target() == com.legend.sql.SqlType.Scalar.DECIMAL_TEXT) {
             return expr(c.value(), 0);
         }
         return "CAST(" + expr(c.value(), 0) + " AS "
@@ -989,6 +990,7 @@ public class AnsiSqlRenderer implements SqlDialect {
                     case MIN2 -> "%M";
                     case SEC2 -> "%S";
                     case SUBSEC_MICRO -> "%f";
+                    case SUBSEC_NANO -> "%n";
                     case SUBSEC_MIN -> "%g";
                     case MONTH_ABBREV -> "%b";
                     case MONTH_NAME -> "%B";

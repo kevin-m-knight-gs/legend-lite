@@ -19,6 +19,10 @@ public sealed interface DateFmt {
         YEAR4, MONTH2, DAY2, HOUR2, MIN2, SEC2,
         /** Six-digit fractional seconds (DuckDB {@code %f}). */
         SUBSEC_MICRO,
+        /** Nine-digit fractional seconds (DuckDB {@code %n}) — the
+         * engine's WIRE-DECODE convention for value-read temporals
+         * (fromSQLTimestamp {@code %09d}, disagree-9 burn). */
+        SUBSEC_NANO,
         /** Minimal fractional seconds — trailing zeros trimmed to
          * engine convention (DuckDB {@code %g}). */
         SUBSEC_MIN,
@@ -68,6 +72,11 @@ public sealed interface DateFmt {
     static final List<DateFmt> ISO_DOT = concat(ISO_LOCAL, new Text("."));
 
     static final List<DateFmt> ISO_MICRO = concat(ISO_LOCAL, new Text("."), Part.SUBSEC_MICRO);
+
+    /** The VALUE-READ wire spelling (disagree-9 burn): a wire temporal
+     * cell read into the pure value domain carries NINE subsecond
+     * digits — the engine's own decode ({@code %09d}). */
+    static final List<DateFmt> ISO_NANO = concat(ISO_LOCAL, new Text("."), Part.SUBSEC_NANO);
 
     /** Pure's DateTime print form: minimal subseconds, fixed +0000. */
     static final List<DateFmt> ISO_PURE_UTC = concat(ISO_LOCAL, new Text("."),

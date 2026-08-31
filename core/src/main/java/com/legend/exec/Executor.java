@@ -698,6 +698,15 @@ public final class Executor {
                             java.time.ZoneOffset.UTC).toLocalDateTime());
             case String s when isTemporalType(type) ->
                     PureDateLiteral.parse(s.trim().replace(' ', 'T'));
+            // the wire-decoded decimal carrier (DECIMAL_TEXT, the B3
+            // pattern's twin): the label IS the decode instruction —
+            // the cell holds the value-lane canonical D-suffixed
+            // spelling, decoded to its exact BigDecimal
+            case String s when type
+                    == com.legend.sql.SqlType.Scalar.DECIMAL_TEXT ->
+                    new java.math.BigDecimal(
+                            s.endsWith("D") || s.endsWith("d")
+                                    ? s.substring(0, s.length() - 1) : s);
             case null, default -> v;
         };
     }

@@ -398,6 +398,9 @@ public class H2 extends AnsiSqlRenderer {
                     case MIN2 -> "mm";
                     case SEC2 -> "ss";
                     case SUBSEC_MICRO -> "SSSSSS";
+                    /* nine-digit fractional seconds (the value-read
+                     * wire decode, disagree-9 burn) — java.time nanos */
+                    case SUBSEC_NANO -> "nnnnnnnnn";
                     // DuckDB %g trims trailing zeros — java.time has no
                     // trim token; the shape stays loud until witnessed.
                     case SUBSEC_MIN -> throw new DialectCapability(

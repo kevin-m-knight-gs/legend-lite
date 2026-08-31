@@ -736,14 +736,22 @@ final class Fold {
     static SqlSelect collectionRootEgress(SqlSelect rel,
             com.legend.compiler.element.type.Type.RelationType rt,
             boolean many, java.util.function.Supplier<String> alias) {
-        if (rt.columns().size() != 1 || !many) {
-            return rel;
+        boolean mapChannel = rt.columns().size() == 1
+                && rt.columns().get(0).name()
+                        .startsWith(SqlSelect.SYNTH_MAP_COL);
+        if (rt.columns().size() == 1 && many) {
+            var col = rt.columns().get(0);
+            if (mapChannel && optionalScalarCell(col.multiplicity())) {
+                rel = cellPresentFiltered(rel, col.name(), alias.get());
+            }
         }
-        var col = rt.columns().get(0);
-        return col.name().startsWith(SqlSelect.SYNTH_MAP_COL)
-                && optionalScalarCell(col.multiplicity())
-                ? cellPresentFiltered(rel, col.name(), alias.get())
-                : rel;
+        // the map-binder channel (single synthetic u_map__ column) IS a
+        // VALUE COLLECTION (ResultShape's own rule) — the value lane
+        // wearing a RelationType, so its wire cells conform. OUTERMOST
+        // (after any filter wrap): the conformed carrier label must be
+        // the FINAL output label or the wire census reads a label/wire
+        // divergence. True TABULAR roots stay the raw lane.
+        return mapChannel ? conformValueEgress(rel) : rel;
     }
 
     /** {@code SELECT UNNEST(a.col) AS out FROM (src) a} — the ONE
@@ -1070,16 +1078,50 @@ final class Fold {
      * -> bare day, Timestamp -> full instant): setup DDL can diverge
      * from the store declaration, so the dispatch must be runtime
      * ({@code typeof}). NULL propagates (CONCAT would swallow it). */
+    /** VALUE-LANE wire-cell egress conformance (disagree-9 burn): the
+     * finished value-shaped root's cells conform to the engine's own
+     * decode for this lane — TIMESTAMP cells at nine subsecond digits
+     * (TEMPORAL_TEXT), column-rooted DECIMAL cells scale-canonical
+     * (DECIMAL_TEXT) — see {@link LiteralSpelling#wireValueEgress}.
+     * Applied ONLY at value roots (scalar / value-collection):
+     * TDS/relation roots are the raw lane and keep driver spellings,
+     * and the conformance changes the VALUE both production verdict
+     * channels observe, so the host lattice and the byte canon stay
+     * in agreement. */
+    static SqlSelect conformValueEgress(SqlSelect s) {
+        java.util.List<SqlSelect.Projection> out = null;
+        for (int i = 0; i < s.projections().size(); i++) {
+            SqlSelect.Projection p = s.projections().get(i);
+            com.legend.sql.OutputCol col = p.out();
+            if (col == null) {
+                continue;
+            }
+            SqlExpr.Cast conformed = LiteralSpelling.wireValueEgress(
+                    p.expr(), col.type());
+            if (conformed == null) {
+                continue;
+            }
+            if (out == null) {
+                out = new java.util.ArrayList<>(s.projections());
+            }
+            out.set(i, new SqlSelect.Projection(conformed, p.outputName(),
+                    new com.legend.sql.OutputCol(col.name(),
+                            conformed.target(), col.nullable(),
+                            col.tolerated(), col.origin())));
+        }
+        return out == null ? s : s.withProjections(out);
+    }
+
     static SqlExpr jsonDateWrap(SqlExpr e,
             com.legend.compiler.element.type.Type t) {
         if (t != com.legend.compiler.element.type.Type.Primitive.DATE_TIME
                 && t != com.legend.compiler.element.type.Type.Primitive.DATE) {
             return e;
         }
-        SqlExpr iso = SqlExpr.Call.of(SqlFn.CONCAT,
-                SqlExpr.Call.of(SqlFn.STRFTIME, e,
-                        new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_MICRO)),
-                new SqlExpr.StringLit("000"));
+        // ONE nine-digit spelling owner (disagree-9 audit): ISO_NANO —
+        // the same convention the value-egress conformance emits
+        SqlExpr iso = SqlExpr.Call.of(SqlFn.STRFTIME, e,
+                new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_NANO));
         List<SqlExpr.Case.When> arms = new java.util.ArrayList<>();
         arms.add(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, e), new SqlExpr.NullLit()));

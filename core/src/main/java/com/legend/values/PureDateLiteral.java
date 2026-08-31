@@ -318,6 +318,26 @@ public sealed interface PureDateLiteral
         @Override public String toString() { return toEngineString() + "+0000"; }
     }
 
+    /** This temporal at NINE subsecond digits — the engine's
+     * wire-decode convention (fromSQLTimestamp {@code %09d}): a value
+     * READ off a DB temporal cell carries exactly nine digits
+     * (disagree-9 burn; the SQL-side twin is the value-egress
+     * TEMPORAL_TEXT spelling). Second-or-finer precisions convert;
+     * coarser forms (dates, partials) are not wire-cell shapes and
+     * return themselves. */
+    default PureDateLiteral atNineSubseconds() {
+        return switch (this) {
+            case DateWithSecond s -> new DateWithSubsecond(s.year(),
+                    s.month(), s.day(), s.hour(), s.minute(), s.second(),
+                    "000000000");
+            case DateWithSubsecond s when s.subsecond().length() < 9 ->
+                    new DateWithSubsecond(s.year(), s.month(), s.day(),
+                            s.hour(), s.minute(), s.second(),
+                            (s.subsecond() + "00000000").substring(0, 9));
+            default -> this;
+        };
+    }
+
     record DateWithSubsecond(int year, int month, int day,
                              int hour, int minute, int second,
                              String subsecond) implements PureDateLiteral {

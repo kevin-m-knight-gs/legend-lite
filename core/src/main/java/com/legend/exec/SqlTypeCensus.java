@@ -549,10 +549,11 @@ public final class SqlTypeCensus {
      * (metaToType + admissible — ONE relation, read from both sides). */
     private static boolean delivers(SqlType label, String meta) {
         // the kind-faithful carriers: spelling TEXT is their physical
-        // form on every backend (F10 proper + §4bZ-V B3 — the
-        // registered pairs)
+        // form on every backend (F10 proper + §4bZ-V B3 + the
+        // disagree-9 burn's DECIMAL_TEXT — the registered pairs)
         if ((label == SqlType.Scalar.LITERAL
-                || label == SqlType.Scalar.TEMPORAL_TEXT)
+                || label == SqlType.Scalar.TEMPORAL_TEXT
+                || label == SqlType.Scalar.DECIMAL_TEXT)
                 && meta.equals("VARCHAR")) {
             return true;
         }

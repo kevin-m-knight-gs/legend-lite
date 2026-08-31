@@ -1032,8 +1032,12 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 "test::TestRuntime", connection);
                 Object value = result.rows().get(0).get(0);
                 // one-carrier rule (D-arc 2026-08-21): timestamp cells
-                // arrive as THE wire temporal, PureDateLiteral
-                assertEquals(com.legend.values.PureDateLiteral.parse("2024-01-31T00:00:00"), value);
+                // arrive as THE wire temporal, PureDateLiteral.
+                // COMPUTED temporals keep PURE-defined precision (the
+                // PCT G6 receipt, disagree-9 burn: the nine-digit
+                // decode is a STORE-READ fact, never a computed one)
+                assertEquals(com.legend.values.PureDateLiteral.parse(
+                                "2024-01-31T00:00:00"), value);
                 // Verify nanosecond precision is preserved (TIMESTAMP_NS)
                 assertInstanceOf(com.legend.values.PureDateLiteral.class, value);
                 assertEquals(0, ((com.legend.values.PureDateLiteral) value).toInstantFloor().getNano(),
@@ -1058,7 +1062,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                                 getCompletePureModelWithRuntime(),
                                 "|%2024-01-31T00:32:34+0000->timeBucket(2, meta::pure::functions::date::DurationUnit.WEEKS)",
                                 "test::TestRuntime", connection);
-                assertEquals(com.legend.values.PureDateLiteral.parse("2024-01-29T00:00:00"),
+                assertEquals(com.legend.values.PureDateLiteral.parse(
+                                "2024-01-29T00:00:00"),
                                 result.rows().get(0).get(0));
         }
 

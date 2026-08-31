@@ -129,6 +129,174 @@ public final class LiteralSpelling {
         return leaf;   // Integer bare, Float with its point, Boolean bare
     }
 
+    /**
+     * VALUE-LANE WIRE-CELL EGRESS CONFORMANCE (disagree-9 burn,
+     * user-adjudicated 2026-08-31; receipts VERDICT_DISAGREEMENT_BURN
+     * R3/R5/R8): where a DB-computed cell egresses into the pure VALUE
+     * domain, the engine's own decode governs the observable —
+     * <ul>
+     *   <li>TIMESTAMP cells decode at NINE subsecond digits (the
+     *       engine's fromSQLTimestamp {@code %09d} — BOTH its
+     *       transform paths), spelled here as the precision-faithful
+     *       TEMPORAL_TEXT carrier so the byte canon preserves it and
+     *       the executor parses it (no new decode arm);</li>
+     *   <li>DECIMAL cells decode SCALE-CANONICAL (the store lane
+     *       erases wire scale before pure equality ever runs), spelled
+     *       as the D-suffixed DECIMAL_TEXT carrier.</li>
+     * </ul>
+     * LITERAL-rooted expressions are NOT wire cells — written
+     * precision/scale is pure-observable and their own carriers
+     * (TEMPORAL_TEXT via RootLiterals, DecimalLit scale) already hold
+     * it; they pass through untouched. TDS cells never reach this
+     * (the raw lane keeps driver spellings — R6). Returns null when no
+     * conformance applies (caller keeps the cell as built).
+     */
+    static SqlExpr.@com.legend.Nullable Cast wireValueEgress(SqlExpr e,
+            SqlType declared) {
+        // the DECLARED egress label (the pure type's SQL mapping) keys
+        // the decode — the engine transformer's own key (R8 dispatches
+        // by pure property type); a tree-typed expr that KNOWS it is a
+        // TEXT CARRIER (literal round-trips, variant/identity text,
+        // JSON) overrides and skips — but a MODEL-vs-PHYSICAL temporal
+        // skew (store declares DATE, DDL made TIMESTAMP — the
+        // jsonDateWrap class) must NOT skip: the runtime typeof
+        // dispatch below owns it
+        if (e.type() instanceof com.legend.sql.TypeFact.Typed t
+                && (t.type() == SqlType.Scalar.VARCHAR
+                        || t.type() == SqlType.Scalar.TEMPORAL_TEXT
+                        || t.type() == SqlType.Scalar.DECIMAL_TEXT
+                        || t.type() == SqlType.Scalar.LITERAL
+                        || t.type() == SqlType.Scalar.JSON)) {
+            return null;
+        }
+        if (declared == SqlType.Scalar.TIMESTAMP) {
+            // COLUMN-ROOTED cells only (PCT receipt, G6: pure-COMPUTED
+            // temporals — parseDate, date natives — keep PURE-defined
+            // precision; the nine-digit decode is a STORE-READ fact).
+            // The engine decode keys on the RESULTSET type
+            // (ResultSetValueHandlers): a physically-DATE cell decodes
+            // date-only, everything else at NINE subsecond digits —
+            // runtime typeof dispatch (the jsonDateWrap idiom; setup
+            // DDL can diverge from the store declaration). NULL
+            // propagates by its own arm.
+            if (columnRooted(e)) {
+                SqlExpr nine = SqlExpr.Call.of(SqlFn.STRFTIME, e,
+                        new SqlExpr.FormatLit(
+                                com.legend.sql.DateFmt.ISO_NANO));
+                return new SqlExpr.Cast(new SqlExpr.Case(List.of(
+                        new SqlExpr.Case.When(
+                                SqlExpr.Call.of(SqlFn.IS_NULL, e),
+                                new SqlExpr.NullLit()),
+                        new SqlExpr.Case.When(
+                                SqlExpr.Call.of(SqlFn.EQUAL,
+                                        SqlExpr.Call.of(SqlFn.TYPEOF, e),
+                                        new SqlExpr.StringLit("DATE")),
+                                SqlExpr.Call.of(SqlFn.STRFTIME, e,
+                                        new SqlExpr.FormatLit(
+                                                com.legend.sql.DateFmt
+                                                        .DATE)))),
+                        nine),
+                        SqlType.Scalar.TEMPORAL_TEXT);
+            }
+            // WRITTEN temporal literals (bare or collections) spell
+            // STATICALLY — the TIMESTAMP round-trip truncates written
+            // digits (the same fidelity rule as the scalar RootLiterals
+            // swap and the mixed-element static spelling; the
+            // businessDate-population receipt pins the written form)
+            SqlExpr lit = staticTemporalText(e);
+            return lit == null ? null
+                    : new SqlExpr.Cast(lit, SqlType.Scalar.TEMPORAL_TEXT);
+        }
+        if (declared instanceof SqlType.Decimal) {
+            // COLUMN-ROOTED cells only: the erasure is a STORE-READ
+            // decode (R3) — COMPUTED decimals keep their arithmetic
+            // scale (PCT testDecimalTimes pins 19.905D*17774D =
+            // 353791.470, scale 3) and WRITTEN literals their written
+            // scale. (Computed-over-column values erase in the
+            // interpreted lane too — propagated erasure — but no
+            // witness demands it at this egress yet; widen with one.)
+            if (!columnRooted(e)) {
+                return null;
+            }
+            SqlExpr text = new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR);
+            // strip FRACTIONAL trailing zeros only (a dotless spelling
+            // has no wire scale to erase), then a bare trailing dot
+            SqlExpr stripped = new SqlExpr.Case(List.of(
+                    new SqlExpr.Case.When(
+                            SqlExpr.Call.of(SqlFn.GREATER,
+                                    SqlExpr.Call.of(SqlFn.STRPOS, text,
+                                            new SqlExpr.StringLit(".")),
+                                    new SqlExpr.IntLit(0)),
+                            SqlExpr.Call.of(SqlFn.RTRIM,
+                                    SqlExpr.Call.of(SqlFn.RTRIM, text,
+                                            new SqlExpr.StringLit("0")),
+                                    new SqlExpr.StringLit(".")))),
+                    text);
+            // NULL-preserving by hand: DuckDB concat treats NULL as ''
+            // (a NULL cell must egress NULL, not a bare 'D')
+            return new SqlExpr.Cast(new SqlExpr.Case(List.of(
+                    new SqlExpr.Case.When(
+                            SqlExpr.Call.of(SqlFn.IS_NULL, e),
+                            new SqlExpr.NullLit())),
+                    SqlExpr.Call.of(SqlFn.CONCAT, stripped,
+                            new SqlExpr.StringLit("D"))),
+                    SqlType.Scalar.DECIMAL_TEXT);
+        }
+        return null;
+    }
+
+    /** A column-rooted egress expression (possibly cast-wrapped): a
+     * STORE-READ cell — the class the engine's ResultSet decode
+     * applies to. */
+    private static boolean columnRooted(SqlExpr e) {
+        SqlExpr n = e;
+        while (n instanceof SqlExpr.Cast c) {
+            n = c.value();
+        }
+        return n instanceof SqlExpr.Column;
+    }
+
+    /** WRITTEN temporal literals at value egress — a bare
+     * {@code TIMESTAMP '...'} or an
+     * {@code UNNEST(list_filter([TIMESTAMP '...', ...], λ))} collection
+     * — rebuilt with each literal's OWN TEXT (the compile-time
+     * spelling; a TIMESTAMP value round-trip truncates written digits
+     * past the DB's micro storage). Null = not that shape. */
+    private static @com.legend.Nullable SqlExpr staticTemporalText(SqlExpr e) {
+        // BARE TimestampLits stay on the TIMESTAMP path: converting
+        // them here severed the Any-pair literal channel (8 chB-std
+        // declines) and bypassed the executor's BC-safe fetch — the
+        // POPULATED-date written-form spelling is the population
+        // seam's own slice (VERDICT burn §FINAL residue class 3).
+        if (e instanceof SqlExpr.Call c
+                && (c.fn() == SqlFn.UNNEST || c.fn() == SqlFn.LIST_FILTER)
+                && !c.args().isEmpty()) {
+            SqlExpr inner = staticTemporalText(c.args().get(0));
+            if (inner == null) {
+                return null;
+            }
+            List<SqlExpr> args = new java.util.ArrayList<>(c.args());
+            args.set(0, inner);
+            return new SqlExpr.Call(c.fn(), args);
+        }
+        if (e instanceof SqlExpr.CompactList cl) {
+            SqlExpr inner = staticTemporalText(cl.list());
+            return inner == null ? null : new SqlExpr.CompactList(inner);
+        }
+        if (e instanceof SqlExpr.ArrayLit a && !a.elements().isEmpty()
+                && a.elements().stream()
+                        .allMatch(x -> x instanceof SqlExpr.TimestampLit t
+                                && !t.iso().startsWith("-"))) {
+            List<SqlExpr> out = new java.util.ArrayList<>();
+            for (SqlExpr x : a.elements()) {
+                out.add(new SqlExpr.StringLit(((SqlExpr.TimestampLit) x)
+                        .iso().replace(' ', 'T')));
+            }
+            return new SqlExpr.ArrayLit(out);
+        }
+        return null;
+    }
+
     /** Decimal: SCALE-PRESERVING (X2, VERDICT_RULE_AUDIT — engine
      * Decimal equality is getValue().equals, scale-sensitive; the old
      * scale-normalized canon followed the deleted compareTo grant).

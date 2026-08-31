@@ -31,7 +31,20 @@ public sealed interface SqlType {
          * promise. Constructed ONLY by the temporal emitters (a
          * marker {@code Cast} that never renders — a label device);
          * decode is pure-type-driven date parsing, unchanged. */
-        TEMPORAL_TEXT
+        TEMPORAL_TEXT,
+        /** The WIRE-DECODED DECIMAL CARRIER (disagree-9 burn, the B3
+         * pattern's decimal twin): a store DECIMAL cell egressing into
+         * the pure VALUE lane, carried as its canonical-scale
+         * D-suffixed spelling ('1.234D') — the engine's own decode for
+         * that lane erases wire scale before pure equality ever runs
+         * (VERDICT_DISAGREEMENT_BURN R3/R8), so the value-lane
+         * observable is the scale-minimal decimal. Physical form is
+         * VARCHAR; the LABEL is the decode instruction (String →
+         * BigDecimal at the executor's one-carrier seam). Constructed
+         * ONLY by {@code LiteralSpelling#wireValueEgress} (a marker
+         * {@code Cast} that never renders). TDS cells never carry this
+         * — the raw lane keeps column scale (R6's twin convention). */
+        DECIMAL_TEXT
     }
 
     record Decimal(int precision, int scale) implements SqlType {

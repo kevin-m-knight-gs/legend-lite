@@ -147,8 +147,10 @@ final class MixedEncoding {
             return true;
         }
         if (t == Type.Primitive.DATE_TIME) {
-            ids.add(LiteralSpelling.dateTimeLiteral(x,
-                    new SqlExpr.FormatLit(dateTimeFormatOf(e))));
+            SqlExpr lit = staticSubsecondSpelling(e);
+            ids.add(lit != null ? lit
+                    : LiteralSpelling.dateTimeLiteral(x,
+                            new SqlExpr.FormatLit(dateTimeFormatOf(e))));
             vals.add(x);
             return true;
         }
@@ -175,8 +177,26 @@ final class MixedEncoding {
      * collection. A previously-boxed element unwraps first. */
     static @com.legend.Nullable SqlExpr elementLiteral(TypedSpec e,
             SqlExpr x) {
+        if (e.info().type() == Type.Primitive.DATE_TIME) {
+            SqlExpr lit = staticSubsecondSpelling(e);
+            if (lit != null) {
+                return lit;
+            }
+        }
         return spellByKind(e.info().type(), unwrapVariant(x),
                 dateTimeFormatOf(e));
+    }
+
+    /** A SUBSECOND-written DateTime literal spells STATICALLY — its
+     * pure spelling is a compile-time constant, and the strftime
+     * round-trip truncated written digits past six (%f is the DB's
+     * micro ceiling; the engine keeps the written NINE — disagree-9
+     * burn, testDayOfMonth receipt). Null = not that shape. */
+    private static @com.legend.Nullable SqlExpr staticSubsecondSpelling(
+            TypedSpec e) {
+        return e instanceof TypedCDate cd && cd.value()
+                instanceof PureDateLiteral.DateWithSubsecond
+                ? new SqlExpr.StringLit("%" + cd.value()) : null;
     }
 
     /** The per-KIND spelling core — shared by the element encoder above

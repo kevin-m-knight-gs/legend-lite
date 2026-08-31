@@ -1,4 +1,90 @@
-# VERDICT DISAGREEMENT BURN — the 9 rows CLOSED AS NAMED RESIDUE (2026-08-30)
+# VERDICT DISAGREEMENT BURN — 9 → 1 (FINAL ADJUDICATION 2026-08-31)
+
+## §FINAL — user-ordered adjudication (2026-08-31): every row to a
+## verdict; 8 PLATFORM FIXES + 1 recorded divergence
+
+The "designed split" disposition below was OVERTURNED for 8 of the 9:
+the receipts themselves (R3/R5/R8) show the ENGINE DECODES wire values
+BEFORE its strict equality runs — scale erased, subseconds stamped
+nine-digit. We had ported the strict equality without the decode. The
+canonicalization layer was correct to refuse to hide this (it is a
+VALUE difference, not a spelling difference); the missing piece was
+the decode itself, per READ LANE:
+
+1. **Value-lane wire-cell egress conformance** (burns the dataType 6):
+   where a DB cell egresses into the pure VALUE domain, it decodes as
+   the engine decodes — DECIMAL scale-canonical, TIMESTAMP at nine
+   subsecond digits with the physical-type typeof dispatch (the
+   jsonDateWrap idiom; engine ResultSetValueHandlers keys on the
+   RESULTSET type). One SQL-side owner
+   (`LiteralSpelling.wireValueEgress`, applied at the Lowerer's value
+   roots + the grid canon) + one host twin
+   (`AssertVerdicts.valueRead`) so BOTH production verdict channels
+   see the same value — the earlier canon-only attempt fired the
+   dual-verdict alarm precisely because it changed one channel. TDS
+   raw renders (CSV/row strings) keep driver spellings — R6's lane.
+2. **Literal fidelity** (burns testDayOfMonth; unmasked + burned
+   testDateWithSeconds, milestoning projections, latestDate/datetime
+   population rows): nine-digit-WRITTEN DateTime literals were being
+   truncated to six by strftime %f round-trips (MixedEncoding) — the
+   engine sources spell NINE, and several tests "passed" only because
+   both sides truncated identically. Subsecond-written literals now
+   spell STATICALLY; value-egress conformance covers the
+   TIMESTAMP-carried remainder (sub-micro written digits remain the
+   documented DuckDB micro-storage floor).
+3. **Scan-order key completion** (burns testDeepUnionOperation...):
+   the deterministic scan-order key (ScanOrder, user design
+   2026-08-29) applied at statement ROOTS only; the production
+   verdict compiles the asserted relation as a SUBQUERY and missed
+   it. StableScanOrder now stabilizes FROM-subselect inners (NOT
+   union branches — `ORDER BY` inside a union arm is a parser error,
+   caught by the gate on the first attempt).
+
+**The residue — THREE NAMED CLASSES, pinned as a ceiling (≤5, shrink-
+only; the order class is RUN-NONDETERMINISTIC — measured: a union
+row flickered in/out across byte-identical sweeps, so an exact count
+would be a flaky gate):**
+
+1. **ORDER-THROUGH-FRAMES** (testConcatenateWithJoin stable; union
+   rows flicker-capable): row order through subselect/union frames is
+   a DuckDB-execution incident where the golden pins H2's. The
+   concatenate witness: tie order under a lastName-only sort is H2's
+   hash-join iteration (rhs-major — engine J,J,J,J,O,O,O,O vs our
+   O,O,J,J,O,O,J,J); the row-order key cannot address interior rowids
+   through frames without threading ordinal columns (CHARTED LEG),
+   and H2's tiebreak order itself is a join-strategy incident —
+   reproducing it is the audit-19 overfit class. Row MULTISETS
+   verified equal in every witness.
+2. **TEMPORAL-CARRIER-THROUGH-OPS** (datetime::testQuery, stable):
+   sort()'s comparable cast round-trips a nine-digit value through
+   TIMESTAMP and loses precision — the F10
+   carrier-through-element-preserving-ops rule needs its temporal
+   application (CHARTED LEG). EXPOSED, not caused, by the
+   literal-fidelity fix: it previously false-passed by both sides
+   truncating identically.
+3. **POPULATED-DATE WRITTEN FORM** (the two milestoning population
+   rows, stable): the engine projects the populated business date as
+   its WRITTEN string constant (%2015-10-16T00:00:01.000 receipt);
+   ours round-trips the parameter through TIMESTAMP and drops written
+   subseconds. A bare-literal egress special-case was BUILT AND
+   REVERTED (it severed the Any-pair literal channel — 8 chB-std
+   declines — and bypassed the BC-safe fetch); the fix belongs at the
+   population SUBSTITUTION seam, charted with class 2's carrier
+   slice. Same false-pass exposure class as 2.
+
+FOLLOW-UP CHARTERED (the user's Java-interpretation challenge): the
+TDSRow.values host-twin decode (AssertVerdicts.valueRead, +13 ledger
+lines) retires when the values-read lowers through the SQL value lane
+(the u_map channel) — the host then receives DB-decoded values via
+the ordinary label-driven unwrap, zero Java value transforms.
+
+Scoreboard after: agree 3476±1, disagree ≤3 (was 9), corpus
+2338/2575 unchanged, exec-passing 1526 unchanged, PCT G6 green
+(essential 316 floor held, standard 204/204).
+
+---
+
+# (historical) the 9 rows CLOSED AS NAMED RESIDUE (2026-08-30)
 
 Standing: charter §4N adjudicated these as WIRE-FIDELITY findings.
 This document carries the engine-source receipt set, the ATTEMPTED

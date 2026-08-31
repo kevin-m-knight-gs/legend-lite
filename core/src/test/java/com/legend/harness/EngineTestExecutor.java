@@ -1229,8 +1229,9 @@ public final class EngineTestExecutor {
         for (ValueSpecification a : args) {
             String sfold = TestDataGenForm.foldString(subst(a, lets));
             if (sfold == null && a instanceof AppliedFunction srf
-                    && simpleName(srf.function())
-                            .equals("sqlRemoveFormatting")
+                    && resolvesTo(srf, ctx, java.util.Set.of(
+                            com.legend.compiler.spec.ResultEnvelopeSplice
+                                    .SQL_REMOVE_FORMATTING_FQN))
                     && srf.parameters().size() == 1
                     && TestDataGenForm.foldString(
                             subst(srf.parameters().get(0), lets)) != null) {
@@ -3525,6 +3526,9 @@ public final class EngineTestExecutor {
             com.legend.exec.CanonicalDivergence.v7Verdict(form, hostPass,
                     true, "");
         } catch (java.sql.SQLException prodFail) {
+            if (System.getenv("LL_TMP_DEBUG") != null) {
+                System.err.println("[v7-prod-fail] " + prodFail.getMessage());
+            }
             com.legend.exec.CanonicalDivergence.v7Verdict(form, hostPass,
                     false, firstLine(prodFail.getMessage()));
         } catch (com.legend.error.NotImplementedException wall) {

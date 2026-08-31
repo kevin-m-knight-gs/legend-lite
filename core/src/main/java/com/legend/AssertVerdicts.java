@@ -1884,9 +1884,31 @@ final class AssertVerdicts {
     private static List<Object> cells(ExecutionResult.Tabular t) {
         List<Object> out = new java.util.ArrayList<>();
         for (com.legend.exec.Row r : t.rows()) {
-            out.addAll(r.values());
+            for (Object v : r.values()) {
+                out.add(valueRead(v));
+            }
         }
         return out;
+    }
+
+    /** The TDSRow.values READ decode (disagree-9 burn, host twin of
+     * {@link com.legend.lowering.LiteralSpelling#wireValueEgress} —
+     * the two channels must judge the SAME value): reading a raw TDS
+     * cell into the pure VALUE domain applies the engine's own
+     * transform conventions — wire temporals at NINE subsecond digits
+     * (the value-type conversion owns the rule), wire decimals
+     * scale-canonical (R3/R8). The raw TDS lane itself (CSV/row-string
+     * renders) keeps driver spellings — this rides only the READ. */
+    private static @com.legend.Nullable Object valueRead(
+            @com.legend.Nullable Object v) {
+        if (v instanceof com.legend.values.PureDateLiteral d) {
+            return d.atNineSubseconds();
+        }
+        if (v instanceof java.math.BigDecimal bd) {
+            java.math.BigDecimal c = bd.stripTrailingZeros();
+            return c.scale() < 0 ? c.setScale(0) : c;
+        }
+        return v;
     }
 
     /** Failure-message sketch of a frame (columns + row count — the

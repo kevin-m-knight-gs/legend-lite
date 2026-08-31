@@ -823,11 +823,19 @@ THE REMAINING BURN, ranked by design-leverage:
    missing engine root sort in the no-join tableToTDS concatenate arm
    — fixed; 1 no-generator row via the sqlRemoveFormatting golden
    fold). exec-passing 1497 → 1526, unable 50 → 21, family unable 0.
-2. **disagree-9** — THE REAL MISMATCHES (host=pass prod=fail actual
-   divergences). FROZEN by the original handoff ruling; burning
-   everything means UNFREEZING these — they are the only rows where
-   the platform may be WRONG, i.e. the highest-value correctness
-   work. Needs an explicit user go.
+2. **disagree-9** — ADJUDICATED 2026-08-31 (user go; record:
+   VERDICT_DISAGREEMENT_BURN §FINAL): 7 of 9 PLATFORM FIXES — the
+   engine's STORE-READ decode (scale-canonical decimals, nine-digit
+   temporals; column-rooted ONLY: PCT pins computed values at
+   pure-defined precision) at value-lane egress with a host twin; a
+   literal-truncation bug (written subsecond digits died in strftime
+   round-trips — several false-passes exposed); the scan-order key
+   completed to subselect inners; %latest/businessDate populations as
+   WRITTEN text (the engine's own string-constant form). Residue ≤3
+   (CEILING, order class run-nondeterministic): order-through-frames
+   (ordinal-threading leg) + temporal-carrier-through-sort (F10
+   temporal application). Java-eviction follow-up: valueRead retires
+   when values-reads lower through the u_map value lane.
 3. **ERROR/FAIL test-level buckets** (139 error / 59 fail): the §10i
    bucket census names the fuel — "execution activities are not
    recorded" 13, unknown types 11, host channel 9, postprocessor

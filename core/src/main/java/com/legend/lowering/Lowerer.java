@@ -290,8 +290,9 @@ public final class Lowerer {
                 && !Type.isRelation(ml.functionType().result().type())) {
             boolean collectionMapper = ValueCollections.isCollectionMapper(ml);
             Multiplicity colMult = ml.functionType().result().multiplicity();
-            SqlSelect proj = relation(ValueCollections.valueColumnProject(
-                    m.source(), ml, spec.info().type(), colMult));
+            SqlSelect proj = Fold.conformValueEgress(
+                    relation(ValueCollections.valueColumnProject(
+                            m.source(), ml, spec.info().type(), colMult)));
             // SCALAR-STAMPED cells (C1) are one element per row ALREADY —
             // the explode is identity, and UNNEST(scalar) does not bind.
             boolean scalarCells = ml.body().get(ml.body().size() - 1)
@@ -311,7 +312,7 @@ public final class Lowerer {
             return Fold.unnestColumn(new SqlSource.Subselect(proj, sub, null),
                     sub, "value", "value", sqlTypeOf(spec.info().type()));
         }
-        return scalarRoot(spec);
+        return Fold.conformValueEgress(scalarRoot(spec));
     }
 
     /**
@@ -2404,13 +2405,13 @@ public final class Lowerer {
             // dates (year / year-month) compare as STRINGS in SQL (master's
             // pinned semantics) — represented as string literals here.
             case TypedCDate d -> MatchFold.dateLit(d.value());
-            // %latest in VALUE position (generated milestoning-date reads:
-            // the engine's k_businessDate golden projects the LatestDate
-            // constant '9999-12-31T00:00:00.0000+0000') — the FIXED engine
-            // sentinel, not the table's INFINITY_DATE (which governs only
-            // the milestoning PREDICATE, TemporalFrame's arm)
+            // %latest in VALUE position: the engine projects the
+            // sentinel AS A STRING — written four-digit text (VERDICT
+            // burn §FINAL); the PREDICATE keeps TemporalFrame's arm.
             case com.legend.compiler.spec.typed.TypedCLatestDate ignored ->
-                    new SqlExpr.TimestampLit("9999-12-31 00:00:00.0000");
+                    new SqlExpr.Cast(new SqlExpr.StringLit(
+                            "9999-12-31T00:00:00.0000"),
+                            com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT);
             // The EMPTY collection [] (Nil[0]) in scalar position IS SQL
             // NULL — a [0] value has no cell representation other than null
             // (the mapping enum decode chain's tail: CASE ... ELSE NULL).

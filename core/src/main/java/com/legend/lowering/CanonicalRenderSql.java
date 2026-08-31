@@ -343,7 +343,16 @@ public final class CanonicalRenderSql {
                         "tds-canon: enum cell has no literal channel");
             }
             SqlExpr ref = SqlExpr.Column.of(null, col);
-            SqlExpr lit = LiteralSpelling.literal(ref, kind);
+            // the VALUES-read decode, byte twin (disagree-9 burn): the
+            // row canon judges TDS cells AS PURE VALUES, so a wire
+            // TIMESTAMP/DECIMAL cell conforms to the engine's own
+            // decode (nine-digit subseconds / canonical scale) before
+            // its literal spelling — the host twin is AssertVerdicts
+            // valueRead; the two channels must judge the SAME value
+            SqlExpr.Cast wire = LiteralSpelling.wireValueEgress(ref,
+                    col.type());
+            SqlExpr lit = LiteralSpelling.literal(
+                    wire != null ? wire : ref, kind);
             if (lit == null) {
                 return TdsWrap.decline(plan,
                         "tds-canon: unclaimed cell kind "
