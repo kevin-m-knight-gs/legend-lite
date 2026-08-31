@@ -1688,6 +1688,12 @@ public final class EngineTestExecutor {
             return null;
         }
         java.util.List<String> out = new ArrayList<>();
+        // drop-first (§9a cursor fix) — extras re-execute on the LIVE
+        // family mirror every verify; BOTH synthesizer paths must be
+        // re-runnable (the numbered path missing this was the 2-row
+        // exec-passing residue under the provisioning experiment:
+        // 'Table "TEMPTABLEFORIN_4" already exists')
+        out.add("DROP TABLE IF EXISTS tempTableForIn_" + var);
         out.add("CREATE LOCAL TEMPORARY TABLE tempTableForIn_" + var
                 + " (ColumnForStoringInCollection " + colType + ")");
         for (String l : lits) {

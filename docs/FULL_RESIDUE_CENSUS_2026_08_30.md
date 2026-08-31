@@ -349,3 +349,68 @@ assert rows' verification strength still depends on a
 guessing-layer statement; drill them when the deletion lands (the
 flag is an experiment instrument, re-derivable from this doc, and
 was REVERTED, not shipped).
+
+## 10. SLICE-1 DELETION INVENTORY + THE FULL HARNESS-REMOVAL ROADMAP
+## (homework, measured line ranges — the design doc for the deletion leg)
+
+§9b's zero-residue proof (now zero at the ASSERT level too — the
+2-row delta was the numbered tempTableForIn synthesizer path
+missing drop-first; fixed, PKG sweep passes ALL pins) de-risks the
+following deletions in Runner.java (2,725 lines today):
+
+### 10a. Delete outright (proven by the experiment)
+| what | lines | notes |
+|---|---|---|
+| `moduleDdl` + `DdlUnit` | 1755–1810 (56) | the model-derived DDL guessing layer |
+| `ddlScopeDbs` + `currentDdlDbs` | 1688–1732 (45) + field | consumers: moduleDdl (dies with it) and `moduleColumnKinds` :1952 (the fixture-skew census's scope — re-scope that instrument to EXECUTED DDL or its own walk; never delete the instrument silently) |
+| crossRefs layer in `replaySeeds0` | ~35 of 148 | + `familyCrossDone`, `preflightResolvable` 2339–2389 (51) |
+| `executeMappingRefs` | 862–1020 (159) | the name-scan — WITH the two replacement jobs in 10b |
+| `tryRunNoExecute` + demand-pull retry + the SHAPE gate | 1126–1204 (79) + run0 branches | tests just run; walls carry the compiler's reason |
+| `collectCalledFqns`, `qualify` (scan-only uses), the withMapping discovery arm, seed-trace debug | ~40 | |
+
+Total ≈ **450–500 lines** plus run0 simplification (178-line method
+loses its guess branches). Everything KEPT: authored-setup
+execution (package-chain, outermost-first), the inline-CSV seam,
+family sessions + seed ledger, the mirror (now transcript-faithful),
+all census instruments.
+
+### 10b. The two replacement jobs (the real design content of slice 1)
+1. **Overlay mappings** (`rtMappings` — the runtime overlay that
+   drives class-query dispatch) is the scan's last real output.
+   Replacement: read the mapping refs off the TYPED body against
+   the BASE global context (proven overlay-independent — the
+   overlay is consumed only by the resolver), at one seam. This is
+   discovery-from-typed-surfaces scoped to API data only — NOT
+   provisioning. (The deeper engine-shape alternative — per-call
+   contexts built from call-site args — is Phase C material.)
+2. **Session-conflict routing**: `ddlConflictsWithSession`
+   (2098–2115) iterates moduleDdl and must be re-based. Census
+   first: count today's conflict-routed tests; then either re-base
+   on EXECUTED live shapes (familyLiveShapes) or adopt the engine's
+   grouping semantics outright (package-grouped tests + drop/create
+   setups make clobber safe by construction; inline-CSV keeps its
+   private-session rule).
+
+### 10c. The full harness-removal program (updated for today's facts)
+- **Phase A** — this slice (10a+10b).
+- **Phase B** — burn the remaining lanes to zero with the dual
+  channel refereeing throughout (the ratified anti-drift order):
+  plan-text lane (~160 plan-bearing declines + the 23 plan rows in
+  text-only), TDG §S5 (+28), emission-anatomy (+7),
+  host-unsupported capability gaps (24), h2-vocabulary (10+65),
+  metamodel quarantine 142 (user-gated). Each lane completion
+  DELETES its harness classification/adjudication arm — burn = 
+  deletion fuel, never bucket movement.
+- **Phase C** — single-channel cutover AT ZERO: EngineTestExecutor's
+  host evaluation dies wholesale (measured biggest members: compare
+  151, Eval 76, purifiedSetup 56, goldenEqualScalar 50, clgArm 45,
+  etaExpandWrapper 44, enumDriverLoop 42, driverPairLoop 33, the
+  subst/splice family) — every assert is a platform verdict, the v7
+  dual-channel census retires because one channel cannot disagree
+  with itself.
+- **Phase D** — referee endgame: H2Verify remains the ONE declared
+  external referee (or converges per the h2-session leg);
+  ObjectRefs dies with the host lattice; Runner reduces to the four
+  honest verbs — discover (stereotype walk), provision (authored
+  setups + CSV seam), run (platform), score/report (+ census
+  instruments). Harness rows in the Java-eval ledger: ZERO.
