@@ -258,6 +258,15 @@ final class JsonSourceFrame {
                     fr.runtime().get().fullPath(),
                     fr.chainMappings(), fr.jsonSources());
         }
+        if (!fr.chainMappings().isEmpty() || !fr.jsonSources().isEmpty()) {
+            // INSTANCE-runtime from() (no mapping ref, no runtime ref)
+            // still carries the chain channel — dropping it sent
+            // query-side withChainedMappings chains to the ambient
+            // candidate list (slice-1 job 1)
+            return new StoreResolver.Context(outer.explicitMapping(),
+                    outer.runtimeFqn(),
+                    fr.chainMappings(), fr.jsonSources());
+        }
         return outer;
     }
 }

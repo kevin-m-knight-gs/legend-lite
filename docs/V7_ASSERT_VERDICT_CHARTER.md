@@ -1089,6 +1089,22 @@ sub-reasons, landed WITH that lane's fix — classification rides the
 fix, never precedes it again. True non-plan decline residue: 40
 (TypedMap 10, host-unsupported 26, JSONArray 2, trailing-JSON 2).
 
+**§4AF UPDATE (2026-08-31, SLICE 1 LANDED — census §10h/§10h-addendum,
+all 8 gates green):** job-1 threading fixes (5, main tree) killed the
+runtime-candidate fallback estate-wide (90 firings → 0); the Runner
+lost its guessing layers (−704 lines: name-scan, try-run/SHAPE gate,
+module DDL, conflict router, crossRefs, preflight + setup-universe
+module); per-package workspaces are the ONLY topology (G4 63s, was
+~255s). Lane numbers: exec-passing **1497** / text-only 44 / unable 50
+/ csv 0 / declined 181 / **metamodel-quarantined 107 witness rows +
+20 wall tests** (CHANNEL MOVE, same partition: with the try-run lane
+deleted, the toPostgresModel family fails at the TEST level before
+per-assert adjudication; counted through the same vocabulary via
+CanonicalDivergence.noteWall; h2 floor 1347→1329 and walls 983→993
+carry the same family's host-adjudicated h2 "passes" — worktree
+receipt in §10h-addendum; DuckDB family baseline sqlDialectTranslation
+21→1 pass / 20 error, same move).
+
 Plain reading: an "assert execution" is one assert statement judged
 once during a full corpus sweep. Of **5,241** total:
 

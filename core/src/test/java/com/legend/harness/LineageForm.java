@@ -96,11 +96,22 @@ final class LineageForm {
                 || mappingRef == null || expected == null || !formatOk) {
             return null;
         }
+        if (!mappingRef.contains("::")) {
+            // bare mapping name under an import wildcard: qualify the
+            // SAME way the query's own element refs qualify (the call
+            // site names the mapping; resolution must see its FQN)
+            for (String pkg : imports.wildcards()) {
+                if (ctx.elementFqns().contains(pkg + "::" + mappingRef)) {
+                    mappingRef = pkg + "::" + mappingRef;
+                    break;
+                }
+            }
+        }
         try {
             ValueSpecification resolved = NameResolver.resolveQuery(
                     query, imports, ctx.elementFqns());
             com.legend.sql.SqlQuery plan = Compiler.lowerResolved(
-                    resolved, ctx, runtimeFqn, false);
+                    resolved, ctx, runtimeFqn, false, mappingRef);
             List<String> got = ScanColumns.strings(plan);
             if (System.getenv("LL_LINEAGE_DEBUG") != null) {
                 System.err.println("[scanColumns-sql] "

@@ -414,3 +414,195 @@ all census instruments.
   honest verbs — discover (stereotype walk), provision (authored
   setups + CSV seam), run (platform), score/report (+ census
   instruments). Harness rows in the Java-eval ledger: ZERO.
+
+### 10d. JOB-1 HOMEWORK VERDICT (measured, 2026-08-30)
+
+The call-site mapping ALREADY flows engine-style: ExecuteChainAssembly
+validates execute()'s mapping argument and SYNTHESIZES it onto the
+query as a TypedFrom node (chain(), :231); ClassSources.dispatch is
+explicit-mapping-FIRST — the ambient overlay's mapping list is
+consumed ONLY in the no-explicit-mapping fallback
+(findRuntime(runtimeFqn).mappings(), exactly-one-binder).
+
+FALLBACK CENSUS (one instrumented sweep, reverted): **90 firings,
+19 distinct tests, all via rcorpus::Rt** — extend-family
+propertyMappings tests (model::A..K), inheritance subTypeFilter
+tests (RoadVehicle/Vehicle), scanColumns::testSubType. Slice-1 job 1
+is therefore: read those 19 (why does their class query reach
+dispatch without explicit context — note the ENGINE answers subtype
+dispatch from the ONE explicit mapping via its routing strategy, so
+runtime-fallback here may be a compensation), convert them to
+explicit context, then DELETE the fallback branch + the overlay's
+mapping list + the scan that feeds it. Bounded, attributed, no
+unknowns.
+
+### 10e. WHY THE ENGINE HAS NO JOB 2 (receipts in §9/§10 reads)
+
+Job 2 guards a CONTRACT the engine deliberately does not have. In
+the engine, a test's world is DEFINED as "what my own package's
+setup just built": setups are destructive (drop+create), wired
+immediately before their package's tests, so same-named
+different-shape tables never coexist — order IS the semantics, and
+a sequentially-programmed suite needs no conflict detection. The
+price they pay: no per-package isolation/reproducibility on the
+shared DB (their one isolation grant is the inline-CSV fresh
+database). We kept per-test reproducibility (scoped runs must
+mirror the sweep) and a replay referee (bounded family ledgers) —
+contracts need a guard, hence our router. Post-deletion the router
+re-bases per the §10b census (live shapes vs full ordering
+semantics; we already re-run package setups within family sessions,
+so the gap to the engine model is small).
+
+### 10f. JOB-2 ROUTER CENSUS (measured, 2026-08-30) — the answer to
+### "do same-family tests carry same-named tables with different shapes"
+
+One instrumented sweep (reverted): the conflict router fired for
+**2,380 distinct tests — ~92% of the runnable corpus — routing them
+ALL to private sessions**, and 2,379 of the 2,380 events are ONE
+table name: `persontable` (1,836 LIVE-CLOBBER + 543 MODULE-SHAPE;
+1 automobiletable; 0 reached the inline-CSV check — the conflict
+short-circuits first). So: YES, same-named different-shape tables
+are real within family scope — the corpus deliberately defines many
+personTable variants — but the "conflict" is measured against
+MODULE-DECLARED shapes, i.e. the guessing layer being deleted
+manufactures almost all of it. CONSEQUENCES: (1) the family-session
+sharing lever (#112) is effectively DISABLED for ~92% of tests
+today — per-test seeding is why seed.replay dominates G4 (~88s);
+the deletion leg is a correctness AND speed win; (2) the engine
+faces the same persontable multiplicity and never notices — each
+package's setup rebuilds it just-in-time (ordering semantics we
+already run inside family sessions). JOB-2 VERDICT: adopt the
+engine model — delete module-shape conflict checking with the
+module-DDL layer, keep the inline-CSV private rule, read the single
+automobiletable live-clobber witness at implementation before
+deciding whether any live-shape guard survives.
+
+### 10g. SHARING-SAFETY DIFFERENTIAL (measured, 2026-08-31) —
+### per-package workspaces are SAFE; the four-layer proof
+
+Question: today every mutating/conflicting test gets a private fresh
+workspace; per-package workspaces (§10f design) share one DuckDB per
+test package. Does any test OBSERVE different data under sharing?
+
+Method (all temp instruments, reverted after the measure):
+1. **Mutation census** (`LL_MUT_CENSUS`, body-level walk over each
+   test fn for executeInDb/dropAndCreate*/createTablesAndFillDb/
+   loadCsv/loadValues calls): **59 mutating tests in 7 packages**.
+   53 are `testDataGeneration` (createTablesAndFillDb — self-seeding
+   by design); the rest: ddl natives (3), loadCsv (2, own tables),
+   graphFetch isolation (2), filter::in temp-table (1), map (1).
+   The engine runs ALL of these in its ONE suite-wide shared H2 —
+   per-package sharing is strictly tighter than the spec's topology.
+2. **Flag + full-sweep verdict parity** (`LL_PKG_WS`: session restart
+   at package boundary, unconditional sharing except inline-CSV,
+   package-chain provisioning only — no moduleDdl, no crossRefs):
+   scoreboard IDENTICAL to baseline on every lane pin
+   (agree=3383 disagree=9 exec-passing=1497 text-only=44 unable=50
+   csv=0 declined=181 quarantined=142) and the decline-witness SET is
+   byte-identical. Only deltas: side-row histogram (side-channel
+   queries shift with provisioning) and fixture-skew census 473→459
+   columns (it keys off the deleted moduleDdl bookkeeping — §10a
+   already requires re-scoping it, never blinding it silently).
+3. **Result-digest differential** (`LL_RESULT_DIGEST`: per-test
+   rolling digest of every SELECT/WITH result, row-multiset-hashed).
+   2351 vs 2346 digest rows; 264 differ, decomposed:
+   - **257 rows: read-COUNT shift only** — demand-pull/try-run probe
+     SELECTs that private routing issues and sharing never does.
+     Provisioning accounting, not observed data.
+   - **5 tests read-silent under sharing** — decline/plan-lane tests
+     (e.g. testSupportStreamFlag* TypedMap wall) whose only baseline
+     reads were probe queries. Verdicts identical.
+   - **7 rows same-count, different digest** — the only candidates:
+     * 3 fetchDbMetaData tests: they SELECT information_schema —
+       topology-observing by definition; engine's shared suite DB
+       observes MORE; asserts pass under both topologies.
+     * 4 union aggregation tests: same SQL hash returns the same two
+       digest VALUES in swapped call order.
+4. **Witness attribution — flap test**: the same baseline command run
+   twice flaps exactly those union tests to exactly the "divergent"
+   values (unordered string-concat aggregation; row-order
+   nondeterminism inside list_aggregate). NOT a sharing effect.
+
+VERDICT: zero sharing-caused observation changes. Per-package
+workspaces land with slice 1 as the only topology (flag removed);
+the fetchDbMetaData family is the one topology-observing package to
+keep an eye on when the topology changes again.
+
+### 10h. SLICE-1 LANDING RECORD (2026-08-31) — job 1 threading fixes,
+### per-package cutover, guessing-layer deletions
+
+**Job-1 fixes (main tree, all conform-by-threading — the call site's
+own mapping reaches every consumption path):**
+1. `StoreResolver.spineContext` — the synthetic-heads canonicalizer
+   and the `genericType().rawType` reflection arm captured the ENTRY
+   context; both now fold in-chain `from()` contexts down the source
+   spine (the stale capture was the extend/inheritance fallback
+   cluster, 21 of the 29 firings).
+2. `Compiler.lowerResolved` gained an explicit-mapping overload;
+   `LineageForm` threads the scanColumns call's own mapping (bare
+   names qualify through the import scope) — 7 firings.
+3. `StoreResolver.routedContext` — the generic walk resolves
+   `execute()`/`executionPlan()` arguments under the CALL'S routing
+   context (mapping arg + runtime arg's chain mappings, helper calls
+   inlined once).
+4. `JsonSourceFrame.fromContext` — an instance-runtime `from()` (no
+   mapping ref, no runtime ref) DROPPED `fr.chainMappings()`;
+   `ClassSources.dispatch` gained the null-explicit chain arm
+   (query-side withChainedMappings dispatch) — the last 2 firings
+   (m2m2r testProp2/4).
+5. `ClassSources.dispatch`: the ambient runtime-candidates block is
+   DELETED — a class query with no mapping context is a loud wall.
+   Fallback census: 90 firings/19 tests before, ZERO after, all
+   pins intact.
+
+**Runner deletions (−704 lines net):** executeMappingRefs name-scan,
+TryRun/tryRunNoExecute/unknownTypePull/demand-pull retry,
+SHAPE gate (tests just run; walls carry the compiler's reason),
+dominantNamespace, moduleDdl+DdlUnit, ddlScopeDbs+currentDdlDbs,
+ddlConflictsWithSession router, familyDdlShapes, crossRefs layer +
+familyCrossDone, preflightResolvable + the separate setup-universe
+module (setups run in THE global context), seed-trace debug, the
+rtMappings overlay scan (`globalContext()` = ONE memoized overlay,
+empty mapping list). Per-package workspaces are the ONLY topology
+(flag removed). Fixture-skew census RE-SCOPED to every database in
+the global model (measurement only, never blinded).
+
+**Two reconciliations the referee caught (both landed):**
+- 15 filter::in tests went exec-passing → unable: the now-running
+  H2Test's raw SELECT probes rode the family seed ledger and failed
+  H2 replay for siblings. Fix: the inherited history is STATE only
+  (the #67 contract's own words — "seeds and mutations"); reads are
+  filtered at the ledger handoff. exec-passing=1497 restored.
+- metamodel-quarantined 142 → 107+20 walls: the toPostgresModel
+  family (20 tests, 35 witness rows) now fails at the TEST level
+  (same texts, thrown before per-assert adjudication).
+  `CanonicalDivergence.noteWall` counts them through the SAME
+  vocabulary; the partition's test set is unchanged. Pins moved
+  107 (witness rows) + 20 (wall tests).
+
+Sweep wall-clock: ~62s (was ~156s) — the §10f prediction (~6× fewer
+seeding runs) realized.
+
+### 10h-addendum: gate-chain reconciliation receipts (2026-08-31)
+
+- **G1 (947 errors, fixed)**: the dispatch wall was over-broad — a
+  MODEL-DECLARED runtime's mapping list (unit fixtures'
+  test::TestRuntime) is real engine API and dispatch by it is
+  restored verbatim; what stays deleted is the HARNESS feed
+  (rcorpus::Rt's overlay list is EMPTY now, so a corpus query with
+  no threaded mapping walls loudly on zero candidates).
+- **Guardrails (4, all fixed as designed)**: temp trace env flags
+  deleted; spineContext/routedContext/contextKey extracted to
+  resolver/RoutingContext.java (StoreResolver back under the
+  3,500-line ceiling); QUARANTINED_WALL_TESTS registered
+  (measurement-only static).
+- **G4 fixture-skew ceiling 473 → 782**: the census re-scope's wider
+  honest denominator (whole-model declared side), same instrument.
+- **G5 h2 floor 1347 → 1329, walls 983 → 993**: the h2 lane's 20
+  toPostgresModel passes were HOST-adjudicated via the deleted
+  try-run lane (never platform verification) — 10 now wall on
+  registered renderer gaps, 10 error at lowering. Worktree receipt:
+  HEAD full h2 sweep = 1349 vs this tree 1329; the delta is EXACTLY
+  the quarantine family. (The stale h2-base.log tdg=62 reference was
+  Aug-29 code; HEAD itself measures tdg=29 — no tdg movement in this
+  slice.)

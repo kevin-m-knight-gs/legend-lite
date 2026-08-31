@@ -134,7 +134,6 @@ public final class Runner {
     private final Map<String, com.legend.compiler.element.ModelContext> overlayMemo =
             new LinkedHashMap<>();
     /** Databases whose DDL the CURRENT test's session replays. */
-    private java.util.Set<String> currentDdlDbs = java.util.Set.of();
     private final java.util.Set<String> reportedModuleWalls = new java.util.HashSet<>();
 
     public Runner(List<String> sharedSources, List<String> seedSources) {
@@ -144,7 +143,6 @@ public final class Runner {
         }
         // shared files join the setup UNIVERSE too (relationalSetUp.pure
         // defines createTablesAndFillDb — cross-family setups call it)
-        setupUniverse.addAll(sharedSources);
         // PHASE E: shared-file DATA seeds by EXECUTING the shared files'
         // functions through the platform, in definition order — the same
         // statement sequence the literal extraction produced. Functions
@@ -248,7 +246,6 @@ public final class Runner {
      * other's models; one file alone does not). */
     public void addBeforePackages(String source, String familyKey) {
         collectSetups(source);
-        setupUniverse.add(source);
         if (familyKey != null) {
             sourceFamily.putIfAbsent(source, familyKey);
             familySources.computeIfAbsent(familyKey,
@@ -259,46 +256,12 @@ public final class Runner {
     private final Map<String, String> sourceFamily = new LinkedHashMap<>();
     private final Map<String, List<String>> familySources = new LinkedHashMap<>();
 
-    /** Every scanned source, for the cross-family setup FALLBACK module. */
-    private final java.util.LinkedHashSet<String> setupUniverse =
-            new java.util.LinkedHashSet<>();
 
     /** FQN -> defining SOURCE for every parsed corpus element: module
      * assembly pulls the defining file when a test references a mapping
      * outside its family (graphFetch trees over the embedded family's
      * model — audit-17 bucket cluster). */
     private final Map<String, String> elementSource = new LinkedHashMap<>();
-    private com.legend.compiler.element.ModelContext setupUniverseCtx;
-    private int setupUniverseSize = -1;
-
-    /** The whole-corpus TOLERANT module: setup functions reach across
-     * family files (projection::setUp calls join's createTablesAndFillDb)
-     * — the per-test module deliberately excludes foreign families, so a
-     * setup that fails there retries here. Rebuilt only when new sources
-     * arrived; duplicate FQNs are first-wins (module semantics). */
-    private com.legend.compiler.element.ModelContext setupUniverseContext() {
-        if (setupUniverseCtx == null || setupUniverseSize != setupUniverse.size()) {
-            List<com.legend.Compiler.ModelSource> sources = new ArrayList<>();
-            int i = 0;
-            for (String src : setupUniverse) {
-                // known parse walls (#50) stay out — one unparseable file
-                // must not dark the whole setup universe
-                try {
-                    corpusParse(src);
-                } catch (RuntimeException unparseable) {
-                    continue;
-                }
-                sources.add(new com.legend.Compiler.ModelSource(
-                        "setup-" + (i++) + ".pure", src));
-            }
-            setupUniverseCtx = com.legend.Compiler.buildModule(
-                    com.legend.Compiler.parseSources(sources, null,
-                            com.legend.parser.Dialect.LEGEND_PLATFORM)
-                            .model()).context();
-            setupUniverseSize = setupUniverse.size();
-        }
-        return setupUniverseCtx;
-    }
 
     /** Parse a source and collect zero-arg function ASTs + BeforePackage
      * stereotyped functions (Phase D discovery — no regex). */
@@ -859,165 +822,7 @@ public final class Runner {
         return false;
     }
 
-    private List<String> executeMappingRefs(
-            List<com.legend.protocol.spec.ValueSpecification> body, ParsedTest t) {
-        List<String> out = new ArrayList<>();
-        // LET-BOUND mapping refs (the corpus's dominant graphFetch idiom:
-        // `let mapping = X; ... execute($q, $mapping, ...)`) resolve through
-        // this binding table — EngineTestExecutor substitutes them at run time, so
-        // the DISCOVERY gate must see through them too (bucket analysis:
-        // 133/150 graphFetch execute calls were walled by this alone).
-        Map<String, com.legend.protocol.spec.ValueSpecification> lets =
-                new LinkedHashMap<>();
-        // executionPlan only counts as an execute shape when the body
-        // READS the plan text — the printer's servable contract; plan
-        // handles walked via other properties stay walled until built
-        boolean planRead = body.stream().anyMatch(v ->
-                containsCallNamed(v, "planToString")
-                        || containsCallNamed(v,
-                                "planToStringWithoutFormatting")
-                        || containsPropertyNamed(v, "rootExecutionNode"));
-        java.util.ArrayDeque<com.legend.protocol.spec.ValueSpecification> work =
-                new java.util.ArrayDeque<>(body);
-        while (!work.isEmpty()) {
-            com.legend.protocol.spec.ValueSpecification v = work.poll();
-            if (v instanceof com.legend.protocol.spec.AppliedFunction af) {
-                if (af.function().equals("letFunction")
-                        && af.parameters().size() == 2
-                        && af.parameters().get(0)
-                                instanceof com.legend.protocol.spec.CString ln) {
-                    com.legend.protocol.spec.ValueSpecification rhs =
-                            af.parameters().get(1);
-                    // a β-expansion prologue rebinding (let mapping =
-                    // $mapping) must not shadow the POINTER the caller
-                    // bound — chase Variable RHS through current lets
-                    if (rhs instanceof com.legend.protocol.spec.Variable rv
-                            && lets.containsKey(rv.name())) {
-                        rhs = lets.get(rv.name());
-                    }
-                    lets.put(ln.value(), rhs);
-                }
-                String simple = af.function()
-                        .substring(af.function().lastIndexOf(':') + 1);
-                boolean executeShape = (simple.equals("execute")
-                                || simple.equals("toSQLString")
-                                // validate(func, MAPPING, runtime, ...) —
-                                // #45: desugars to execute at EngineTestExecutor
-                                || simple.equals("validate")
-                                // scanColumns(tree, MAPPING) /
-                                // scanRelations(q, MAPPING, ...) — #44:
-                                // the lineage forms route at EngineTestExecutor
-                                || simple.equals("scanColumns")
-                                || simple.equals("scanRelations")
-                                // generateTestData(q, MAPPING, runtime,
-                                // ids, ...) — #46: TestDataGenForm routes
-                                // at EngineTestExecutor
-                                || simple.equals("generateTestData")
-                                || simple.equals("planTestDataGeneration")
-                                || simple.equals(
-                                        "getRelationalCSVDataFromQuery")
-                                || simple.equals("generateSeedDataString")
-                                // executionPlan(q, MAPPING, rt, ext) —
-                                // #47: the plan-text K-native routes at
-                                // the platform
-                                || simple.equals("executionPlan") && planRead)
-                        && af.parameters().size() >= 2;
-                boolean fromShape = (simple.equals("from")
-                        // withMapping(src, MAPPING) — the from() sibling
-                        // routing marker (mappingExtension.pure:386);
-                        // param 1 IS the mapping the module must compile
-                        // (witnesses testFromWithMapping{,AndIntermediate
-                        // FuncCall}; the FromChecker strip slots it)
-                        || simple.equals("withMapping"))
-                        && af.parameters().size() >= 2;
-                if (executeShape || fromShape) {
-                    // validate's EXTENDED overloads put the mapping after
-                    // the col/postTDS args — take the FIRST pointer arg
-                    java.util.List<com.legend.protocol.spec.ValueSpecification>
-                            cands = simple.equals("validate")
-                                    ? af.parameters()
-                                    : java.util.List.of(af.parameters().get(1));
-                    for (com.legend.protocol.spec.ValueSpecification arg : cands) {
-                        if (arg instanceof com.legend.protocol.spec.Variable var
-                                && lets.containsKey(var.name())) {
-                            arg = lets.get(var.name());
-                        }
-                        if (arg instanceof com.legend.protocol.spec.PackageableElementPtr ptr) {
-                            String ref = qualify(ptr.fullPath(), t);
-                            if (ref.matches("[\\w:]+") && !out.contains(ref)) {
-                                out.add(ref);
-                            }
-                            break;
-                        }
-                    }
-                }
-                // DOCUMENT-ORDER descent (addFirst, reversed): a nested
-                // call must deref lets AS OF ITS STATEMENT — the BFS
-                // variant let a later β-expanded helper's `let mapping =
-                // $mapping` rebinding shadow the real pointer before the
-                // call's params were ever visited (#46 discovery bug)
-                for (int i = af.parameters().size() - 1; i >= 0; i--) {
-                    work.addFirst(af.parameters().get(i));
-                }
-            } else if (v instanceof com.legend.protocol.spec.AppliedProperty ap) {
-                work.addFirst(ap.receiver());
-            } else if (v instanceof com.legend.protocol.spec.LambdaFunction lf) {
-                for (int i = lf.body().size() - 1; i >= 0; i--) {
-                    work.addFirst(lf.body().get(i));
-                }
-            } else if (v instanceof com.legend.protocol.spec.PureCollection pc) {
-                for (int i = pc.values().size() - 1; i >= 0; i--) {
-                    work.addFirst(pc.values().get(i));
-                }
-            } else if (v instanceof com.legend.protocol.spec.NewInstance ni) {
-                var kes = ni.properties().stream()
-                        .map(com.legend.protocol.spec.NewInstance.KeyBinding::expression)
-                        .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
-                for (int i = kes.size() - 1; i >= 0; i--) {
-                    work.addFirst(kes.get(i).value());
-                }
-            }
-        }
-        // ALLOY-WRAPPER bodies (mayExecuteAlloyTest — the server thunk
-        // never runs here, engine no-server CI parity): nothing above
-        // matched a call shape, but the module is still defined by the
-        // test's let-bound element pointers (mapping/db) — pull those so
-        // the setup statements can run (#46 _Alloy subfamily).
-        boolean fallback = out.isEmpty() && body.stream().anyMatch(v ->
-                containsCallNamed(v, "mayExecuteAlloyTest")
-                        || containsCallNamed(v, "pkOfFunc"));
-        if (fallback) {
-            java.util.List<com.legend.protocol.spec.ValueSpecification> ptrs =
-                    new ArrayList<>(lets.values());
-            java.util.ArrayDeque<com.legend.protocol.spec.ValueSpecification>
-                    w2 = new java.util.ArrayDeque<>(body);
-            while (!w2.isEmpty()) {
-                var v = w2.poll();
-                if (v instanceof com.legend.protocol.spec.PackageableElementPtr) {
-                    ptrs.add(v);
-                } else if (v instanceof com.legend.protocol.spec.AppliedFunction f2) {
-                    w2.addAll(f2.parameters());
-                } else if (v instanceof com.legend.protocol.spec.PureCollection c2) {
-                    w2.addAll(c2.values());
-                }
-            }
-            for (com.legend.protocol.spec.ValueSpecification v : ptrs) {
-                if (v instanceof com.legend.protocol.spec.PackageableElementPtr p2) {
-                    String path = p2.fullPath();
-                    // fn-ref spellings carry the __<sig>_ mangle
-                    int mangle = path.indexOf("__");
-                    if (mangle > 0) {
-                        path = path.substring(0, mangle);
-                    }
-                    String ref = qualify(path, t);
-                    if (ref.matches("[\\w:]+") && !out.contains(ref)) {
-                        out.add(ref);
-                    }
-                }
-            }
-        }
-        return out;
-    }
+
     private static boolean containsCallNamed(
             com.legend.protocol.spec.ValueSpecification n, String name) {
         if (n instanceof com.legend.protocol.spec.AppliedFunction af) {
@@ -1120,143 +925,6 @@ public final class Runner {
      * {@code wall} carries the pipeline's ACTUAL diagnosis so the
      * functional-bucket SHAPE row is not diagnosis-free (taxonomy X2:
      * 81 rows — 20% of all failures — had no diagnosis attached). */
-    private record TryRun(@com.legend.Nullable Outcome verdict,
-            @com.legend.Nullable String wall) { }
-
-    private TryRun tryRunNoExecute(ParsedTest t,
-            List<com.legend.protocol.spec.ValueSpecification> body) {
-        body = expandHelperCalls(body, t, 0, true);
-        java.util.Set<String> called = new java.util.LinkedHashSet<>();
-        java.util.Set<String> elements = new java.util.LinkedHashSet<>();
-        for (com.legend.protocol.spec.ValueSpecification stmt : body) {
-            collectCalledFqns(stmt, called, elements);
-        }
-        // DEMAND-PULL retry (single-FILE vehicle — the transitive-closure
-        // probe regressed 1219->1200 and stays reverted): an 'unknown
-        // type/class X' typing failure whose simple name has EXACTLY ONE
-        // defining element pulls that element's file and retries, max 3
-        // hops (metamodel files chain).
-        List<String> fileOnly = new ArrayList<>();
-        List<String> moduleRefs = new ArrayList<>();
-        for (java.util.Set<String> refs : java.util.List.of(called,
-                elements)) {
-            for (String ref : refs) {
-                if (ref.contains("::") && elementSource.containsKey(ref)) {
-                    moduleRefs.add(ref);
-                } else if (!ref.contains("::")) {
-                    // BARE refs (called functions AND element values)
-                    // qualify through the test's imports and pull their
-                    // single defining file — the execute path's rule
-                    // (getTable under import meta::relational::functions
-                    // ::toDDL::*, productMappingWithFilter under the
-                    // qualifier wildcard)
-                    String q = qualify(ref, t);
-                    if (q.contains("::") && elementSource.containsKey(q)
-                            && !fileOnly.contains(q)) {
-                        fileOnly.add(q);
-                    }
-                }
-            }
-        }
-        for (int attempt = 0; ; attempt++) {
-        try {
-            com.legend.compiler.element.ModelContext ctx =
-                    moduleContextFor(moduleRefs, fileOnly);
-            try (Connection conn = openSession()) {
-                List<String> ledger = new ArrayList<>();
-                com.legend.harness.EngineTestExecutor.Outcome o =
-                        com.legend.harness.EngineTestExecutor.run(ctx, body,
-                                importScopeOf(t), "rcorpus::Rt", conn,
-                                false, ledger);
-                if (System.getenv("LL_TMP_DEBUG") != null
-                        && !ledger.isEmpty()) {
-                    System.err.println("[try-run-ledger] " + t.fqn() + ": "
-                            + ledger);
-                }
-                Outcome scored = score(t.fqn(), o, 0);
-                if (System.getenv("LL_TMP_DEBUG") != null) {
-                    System.err.println("[try-run] " + t.fqn() + " -> "
-                            + scored.status() + ": " + scored.detail());
-                }
-                // only REAL verdicts stand — vocabulary gaps and hollow
-                // shapes keep the functional-bucket SHAPE, but their
-                // COMPUTED diagnosis rides along (X2)
-                if (scored.status() == Status.PASS
-                        || scored.status() == Status.FAIL) {
-                    return new TryRun(scored, null);
-                }
-                return new TryRun(null, scored.detail());
-            }
-        } catch (Exception e) {
-            String pull = attempt < 3 ? unknownTypePull(e, t) : null;
-            if (pull != null && !fileOnly.contains(pull)) {
-                fileOnly.add(pull);
-                continue;
-            }
-            if (System.getenv("LL_TMP_DEBUG") != null) {
-                System.err.println("[try-run] " + t.fqn() + " threw "
-                        + e);
-                e.printStackTrace();
-            }
-            return new TryRun(null, exceptionText(e));
-        }
-        }
-    }
-
-    /** The FQN to demand-pull for an 'unknown type/class/function X'
-     * failure — only when X's simple name has EXACTLY ONE defining
-     * element, or exactly one of the candidates sits under the test's
-     * import wildcards (getTable: toDDL vs testDataGeneration — the
-     * file's own imports name the winner). A residual ambiguity would
-     * poison resolution; it stays a wall. */
-    private String unknownTypePull(Exception e, ParsedTest t) {
-        String msg = String.valueOf(e.getMessage());
-        java.util.regex.Matcher m = java.util.regex.Pattern
-                .compile("[Uu]nknown (?:type|class|function)[:]? '([\\w:]+)'")
-                .matcher(msg);
-        if (!m.find()) {
-            return null;
-        }
-        String name = m.group(1);
-        if (name.contains("::")) {
-            return elementSource.containsKey(name) ? name : null;
-        }
-        List<String> candidates = new ArrayList<>();
-        for (String fqn : elementSource.keySet()) {
-            int cut = fqn.lastIndexOf("::");
-            if (cut > 0 && fqn.substring(cut + 2).equals(name)) {
-                candidates.add(fqn);
-            }
-        }
-        if (candidates.size() == 1) {
-            return candidates.get(0);
-        }
-        String q = qualify(name, t);
-        return candidates.contains(q) ? q : null;
-    }
-
-    /** The most-called function NAMESPACE of a no-execute body — the
-     * functional identity of the feature the test exercises. */
-    private static String dominantNamespace(
-            List<com.legend.protocol.spec.ValueSpecification> body) {
-        java.util.Set<String> called = new java.util.LinkedHashSet<>();
-        java.util.Set<String> elements = new java.util.LinkedHashSet<>();
-        for (com.legend.protocol.spec.ValueSpecification stmt : body) {
-            collectCalledFqns(stmt, called, elements);
-        }
-        java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
-        for (String fqn : called) {
-            int cut = fqn.lastIndexOf("::");
-            if (cut < 0) {
-                continue;
-            }
-            counts.merge(fqn.substring(0, cut), 1, Integer::sum);
-        }
-        return counts.entrySet().stream()
-                .max(java.util.Map.Entry.comparingByValue())
-                .map(java.util.Map.Entry::getKey).orElse(null);
-    }
-
     /** Run one PARSED test through the pipeline. */
     public Outcome run(ParsedTest t) {
         // TEMPORARY (2026-08-15 wall accounting): total per-test wall
@@ -1296,7 +964,22 @@ public final class Runner {
         } finally {
             if (lastRunShared) {
                 familySeedLedger.clear();
-                familySeedLedger.addAll(recording);
+                for (String stmt : recording) {
+                    // the inherited history is STATE only ("seeds and
+                    // mutations", the #67 contract) — a test's read
+                    // probes (H2Test's raw SELECT diagnostics) are its
+                    // own surface, and replaying them against the H2
+                    // mirror would fail siblings on dialect gaps the
+                    // shared STATE never has
+                    String head = stmt.stripLeading();
+                    head = head.substring(0, Math.min(7, head.length()))
+                            .toUpperCase(java.util.Locale.ROOT);
+                    if (!head.startsWith("SELECT") && !head.startsWith("WITH")
+                            && !head.startsWith("SHOW")
+                            && !head.startsWith("EXPLAIN")) {
+                        familySeedLedger.add(stmt);
+                    }
+                }
             }
             if (System.getenv("LL_LEDGER_DUMP") != null
                     && t.fqn().contains(System.getenv("LL_LEDGER_DUMP"))) {
@@ -1324,69 +1007,16 @@ public final class Runner {
         // with raw bodies regressed ONLY the assert-in-helper shape.
         List<com.legend.protocol.spec.ValueSpecification> body =
                 expandHelperCalls(t.fn().body(), t, 0);
-        List<String> mappingRefs = executeMappingRefs(body, t);
-        if (mappingRefs.isEmpty()) {
-            // VACUOUS PLACEHOLDER: the engine's own suite contains tests
-            // whose entire body is the literal `true` (testFailures.pure
-            // failMoveFilterOnTop/BuildCorrelatedSubQuery — placeholders
-            // for strategies the engine itself documents as failing).
-            // The engine runs them as vacuous passes; scoring them SHAPE
-            // would misfile engine semantics as a vocabulary gap.
-            if (body.size() == 1
-                    && body.get(0) instanceof com.legend.protocol.spec
-                            .CBoolean cb && cb.value()) {
-                return new Outcome(t.fqn(), Status.PASS,
-                        "vacuous placeholder (engine body = true)");
-            }
-            // TRY-RUN-THEN-SHAPE: a no-execute body may still be fully
-            // runnable through the pipeline (metamodel navigation +
-            // host-evaluated natives — the typeInference family). Attempt
-            // it; anything the platform cannot run falls back to the
-            // FUNCTIONAL-bucket SHAPE (the denominator stays honest about
-            // WHAT is not built yet).
-            TryRun attempted = tryRunNoExecute(t, body);
-            if (attempted.verdict() != null) {
-                return attempted.verdict();
-            }
-            String ns = dominantNamespace(body);
-            return new Outcome(t.fqn(), Status.SHAPE, "no execute(|...)"
-                    + " call" + (ns == null ? "" : " [calls " + ns + "]")
-                    + (attempted.wall() == null ? ""
-                            : " — wall: " + attempted.wall()));
-        }
-        // QUALIFIED function/element references in the body pull their
-        // defining families too (execute(..., other::family::runtime(),
-        // ...) — the engine compiles ONE module; per-family modules must
-        // close over what the test names). Same rule as the mapping pull.
-        java.util.Set<String> called = new java.util.LinkedHashSet<>();
-        java.util.Set<String> elements = new java.util.LinkedHashSet<>();
-        for (com.legend.protocol.spec.ValueSpecification stmt : body) {
-            collectCalledFqns(stmt, called, elements);
-        }
-        List<String> moduleRefs = new ArrayList<>(mappingRefs);
-        // BARE element refs (^RelationalDebugContext(...) under an import
-        // wildcard) qualify through the test's imports before the pull
-        // check — collected pre-resolution they fail contains("::") and
-        // their defining file never pulls, so the class resolves by NAME
-        // but is unknown in the MODULE (the probe-pass/sweep-fail cluster).
-        // Bare-resolved refs pull the SINGLE DEFINING FILE only (the
-        // narrower vehicle from the reverted transitive-closure probe —
-        // whole foreign families poison resolution).
-        List<String> fileOnlyRefs = new ArrayList<>();
-        for (String ref : called) {
-            if (ref.contains("::") && elementSource.containsKey(ref)) {
-                moduleRefs.add(ref);
-            }
-        }
-        for (String ref : elements) {
-            if (ref.contains("::") && elementSource.containsKey(ref)) {
-                moduleRefs.add(ref);
-            } else if (!ref.contains("::")) {
-                String q = qualify(ref, t);
-                if (q.contains("::") && elementSource.containsKey(q)) {
-                    fileOnlyRefs.add(q);
-                }
-            }
+        // VACUOUS PLACEHOLDER: the engine's own suite contains tests
+        // whose entire body is the literal `true` (testFailures.pure
+        // failMoveFilterOnTop/BuildCorrelatedSubQuery — placeholders
+        // for strategies the engine itself documents as failing).
+        // The engine runs them as vacuous passes.
+        if (body.size() == 1
+                && body.get(0) instanceof com.legend.protocol.spec
+                        .CBoolean cb && cb.value()) {
+            return new Outcome(t.fqn(), Status.PASS,
+                    "vacuous placeholder (engine body = true)");
         }
         try {
             // G4-vs-G5 wall attribution (user-ordered timing program):
@@ -1395,16 +1025,24 @@ public final class Runner {
             // / DB execution / mirror — the unattributed remainder is
             // compile+lower+assert.
             long tCtx0 = System.nanoTime();
-            com.legend.compiler.element.ModelContext ctx =
-                    moduleContextFor(moduleRefs, fileOnlyRefs);
+            com.legend.compiler.element.ModelContext ctx = globalContext();
             com.legend.exec.TimingLedger.add("ctx.module",
                     System.nanoTime() - tCtx0);
-            // the FAMILY session when one is open AND this test's DDL
-            // scope agrees with the session's established shapes; a
-            // conflicting test gets a PRIVATE session (old per-test
-            // semantics) — a clobber would orphan the shared state
+            // PER-PACKAGE WORKSPACES (census §10f/§10g: the engine's
+            // grouping semantics, one isolation grant tighter): fresh
+            // workspace + mirror at each package boundary, unconditional
+            // sharing within the package — package-chain setups rebuild
+            // shared tables just-in-time, so clobber is safe by
+            // construction (the §10g differential: verdicts and observed
+            // reads identical, the old shape router deleted).
+            if (familyConn != null) {
+                int cutW = t.fqn().lastIndexOf("::");
+                String pkgW = cutW > 0 ? t.fqn().substring(0, cutW) : t.fqn();
+                if (!pkgW.equals(currentSetupPkg)) {
+                    beginFamilySession();   // fresh workspace + mirror
+                }
+            }
             boolean shared = familyConn != null
-                    && !ddlConflictsWithSession(ctx)
                     // inline testDataSetupCsv = the test's OWN data over
                     // the shared tables (DELETE+INSERT) — engine runs it
                     // on a FRESH test database; a private session is that
@@ -1418,7 +1056,6 @@ public final class Runner {
                 String pkg = cut > 0 ? t.fqn().substring(0, cut) : t.fqn();
                 if (!pkg.equals(currentSetupPkg)) {
                     familySetupsDone.clear();
-                    familyCrossDone.clear();
                     currentSetupPkg = pkg;
                 }
             }
@@ -1430,7 +1067,7 @@ public final class Runner {
             }
             try {
                 long tSeed0 = System.nanoTime();
-                List<String> failedSeeds = replaySeeds(t.fqn(), moduleRefs,
+                List<String> failedSeeds = replaySeeds(t.fqn(),
                         ctx, conn, shared);
                 com.legend.exec.TimingLedger.add("seed.replay",
                         System.nanoTime() - tSeed0);
@@ -1485,6 +1122,8 @@ public final class Runner {
                         exceptionText(java.util.Objects.requireNonNull(
                                 capabilityWall(e))));
             }
+            com.legend.exec.CanonicalDivergence.noteWall(t.fqn(),
+                    String.valueOf(e.getMessage()));
             return new Outcome(t.fqn(), Status.ERROR,
                     exceptionText(e));
         }
@@ -1559,56 +1198,29 @@ public final class Runner {
 
 
 
-    private com.legend.compiler.element.ModelContext moduleContextFor(
-            List<String> mappingRefs) {
-        return moduleContextFor(mappingRefs, List.of());
-    }
-
-    private com.legend.compiler.element.ModelContext moduleContextFor(
-            List<String> mappingRefs, List<String> fileOnlyRefs) {
-        // TEMPORARY (2026-08-15 wall accounting): per-test context/overlay
+    /** THE one execution context (slice-1 job 1): the global compile
+     * plus ONE overlay — the harness runtime {@code rcorpus::Rt} with an
+     * EMPTY mapping list (every class dispatch threads the call site's
+     * own mapping now; the ambient candidate list is deleted) and the
+     * global database->connection bindings. Memoized once. */
+    private com.legend.compiler.element.ModelContext globalContext() {
         long ct0 = System.nanoTime();
         try {
-            return moduleContextFor0(mappingRefs, fileOnlyRefs);
+            com.legend.Compiler.BuiltModule built = globalModule();
+            com.legend.compiler.element.PureModelContext base =
+                    (com.legend.compiler.element.PureModelContext)
+                            built.context();
+            return overlayMemo.computeIfAbsent("", k ->
+                    base.withExecutionOverlay(
+                            new com.legend.model.RuntimeDefinition(
+                                    "rcorpus::Rt",
+                                    List.of(),
+                                    allDbBindings, List.of()),
+                            rcorpusConn));
         } finally {
             com.legend.exec.TimingLedger.add("ctx.overlay",
                     System.nanoTime() - ct0);
         }
-    }
-
-    private com.legend.compiler.element.ModelContext moduleContextFor0(
-            List<String> mappingRefs, List<String> fileOnlyRefs) {
-        com.legend.Compiler.BuiltModule built = globalModule();
-        // DDL SCOPE stays MODULE-SHAPED under the global compile: the
-        // session replays only the old per-module source set's tables
-        // (shared + parent family + family + file + the refs' defining
-        // families) — a global DDL would create every family's tables
-        // in every test session
-        currentDdlDbs = ddlScopeDbs(mappingRefs, fileOnlyRefs);
-        // per-test EXECUTION OVERLAY (PHASE_K §4): the runtime's mappings
-        // list drives class-query dispatch, so it is per-test API data —
-        // an allocation over the ONE compiled context, never a recompile.
-        // The incoming refs are the module-pull grab-bag (mappings +
-        // called fn/element fqns + runtimes) — the runtime declares only
-        // the ACTUAL mappings among them (the old model-text runtime
-        // tolerated the rest; the typed overlay validates eagerly).
-        com.legend.compiler.element.PureModelContext base =
-                (com.legend.compiler.element.PureModelContext) built.context();
-        List<String> rtMappings = new ArrayList<>();
-        for (String ref : new java.util.LinkedHashSet<>(mappingRefs)) {
-            if (base.findMapping(ref).isPresent()
-                    || base.findLegacyMapping(ref).isPresent()) {
-                rtMappings.add(ref);
-            }
-        }
-        String key = String.join(",", rtMappings);
-        return overlayMemo.computeIfAbsent(key, k ->
-                base.withExecutionOverlay(
-                        new com.legend.model.RuntimeDefinition(
-                                "rcorpus::Rt",
-                                List.copyOf(rtMappings),
-                                allDbBindings, List.of()),
-                        rcorpusConn));
     }
 
     /** THE global corpus compile (NAME_RESOLUTION_BUG.md §8): every
@@ -1685,52 +1297,6 @@ public final class Runner {
     /** The CURRENT test's DDL scope: databases whose defining source sat
      * in the old per-module assembly (by TEXT identity, the same inputs
      * the retired module compile used). */
-    private java.util.Set<String> ddlScopeDbs(List<String> mappingRefs,
-            List<String> fileOnlyRefs) {
-        java.util.Set<String> texts = new java.util.HashSet<>();
-        for (com.legend.Compiler.ModelSource sh : sharedRaw) {
-            texts.add(sh.text());
-        }
-        String parent = familyParent.get(currentFamilyKey);
-        if (parent != null && familyRaw.containsKey(parent)) {
-            for (com.legend.Compiler.ModelSource src : familyRaw.get(parent)) {
-                texts.add(src.text());
-            }
-        }
-        for (com.legend.Compiler.ModelSource src
-                : familyRaw.getOrDefault(currentFamilyKey, List.of())) {
-            texts.add(src.text());
-        }
-        com.legend.Compiler.ModelSource file = fileRaw.get(currentFileKey);
-        if (file != null) {
-            texts.add(file.text());
-        }
-        for (String ref : mappingRefs) {
-            String defining = elementSource.get(ref);
-            if (defining == null) {
-                continue;
-            }
-            String fam = sourceFamily.get(defining);
-            texts.addAll(fam != null
-                    ? familySources.getOrDefault(fam, List.of(defining))
-                    : List.of(defining));
-        }
-        for (String ref : fileOnlyRefs) {
-            String defining = elementSource.get(ref);
-            if (defining != null) {
-                texts.add(defining);
-            }
-        }
-        java.util.Set<String> dbs = new java.util.LinkedHashSet<>();
-        for (java.util.Map.Entry<String, String> e : elementSource.entrySet()) {
-            if (allDbBindings.containsKey(e.getKey())
-                    && texts.contains(e.getValue())) {
-                dbs.add(e.getKey());
-            }
-        }
-        return dbs;
-    }
-
     private void wallOnce(String wall) {
         if (reportedModuleWalls.add(wall)) {
             walls.add(wall);
@@ -1749,71 +1315,6 @@ public final class Runner {
      * the H2-flavored create (shape identity + the mirror's replay
      * stream), and the DuckDB-target create (F7.4: spelled from the
      * TYPE, never text-rewritten). */
-    record DdlUnit(String key, String dropSql, String createSql,
-            String duckSql) {}
-
-    private List<DdlUnit> moduleDdl(
-            com.legend.compiler.element.ModelContext ctx) {
-        List<DdlUnit> out = new ArrayList<>();
-        java.util.Set<String> seenTables = new java.util.HashSet<>();
-        java.util.Set<String> seenSchemas = new java.util.HashSet<>();
-        for (String fqn : ctx.elementFqns()) {
-            // GLOBAL-COMPILE scope guard: the one context holds every
-            // corpus database — the session creates only the old
-            // per-module source set's tables (ddlScopeDbs)
-            if (!currentDdlDbs.contains(fqn)) {
-                continue;
-            }
-            var dbOpt = ctx.findDatabase(fqn);
-            if (dbOpt.isEmpty()) {
-                continue;
-            }
-            var db = dbOpt.get();
-            for (var td : db.tables()) {
-                if (seenTables.add(td.name().toLowerCase())) {
-                    out.add(new DdlUnit(td.name().toLowerCase(),
-                            "DROP TABLE IF EXISTS " + td.name(),
-                            com.legend.exec.Ddl.createTable(td, null),
-                            com.legend.exec.Ddl.createTable(td, null,
-                                    true)));
-                }
-            }
-            for (var schema : db.schemas()) {
-                boolean defaultSchema = schema.name().isEmpty()
-                        || "default".equals(schema.name());
-                if (!defaultSchema && seenSchemas.add(schema.name())) {
-                    out.add(new DdlUnit("schema:" + schema.name(), "",
-                            "CREATE SCHEMA IF NOT EXISTS " + schema.name(),
-                            "CREATE SCHEMA IF NOT EXISTS "
-                                    + schema.name()));
-                }
-                for (var td : schema.tables()) {
-                    // default-schema tables share the FLAT key — the same
-                    // physical table declared both ways must create ONCE
-                    String key = defaultSchema ? td.name().toLowerCase()
-                            : (schema.name() + "." + td.name()).toLowerCase();
-                    if (seenTables.add(key)) {
-                        String qual = defaultSchema ? td.name()
-                                : schema.name() + "." + td.name();
-                        out.add(new DdlUnit(key,
-                                "DROP TABLE IF EXISTS " + qual,
-                                com.legend.exec.Ddl.createTable(td,
-                                        defaultSchema ? null : schema.name()),
-                                com.legend.exec.Ddl.createTable(td,
-                                        defaultSchema ? null : schema.name(),
-                                        true)));
-                    }
-                }
-            }
-        }
-        return out;
-    }
-
-    private List<String> replaySeeds(String fqn,
-            com.legend.compiler.element.ModelContext ctx, Connection conn) {
-        return replaySeeds(fqn, List.of(), ctx, conn, false);
-    }
-
     /** Wall-clock spent in seed replay across the run — the per-family
      * seeding leg's before/after instrument (task #112). */
     public static final java.util.concurrent.atomic.AtomicLong SEED_NANOS =
@@ -1941,17 +1442,36 @@ public final class Runner {
         }
     }
 
+    /** The executed-DDL type token's pure kind — the fixture side of
+     * the skew comparison (mirrors RelationalKinds.pureKindOf for the
+     * token spellings the corpus setup streams actually use); null =
+     * unmodeled token, skipped (never guessed). */
+    private static @com.legend.Nullable String fixtureKind(String token) {
+        return switch (token) {
+            case "INT", "INTEGER", "BIGINT", "SMALLINT", "TINYINT"
+                    -> "Integer";
+            case "VARCHAR", "CHAR", "CHARACTER", "NVARCHAR", "CLOB",
+                    "TEXT", "STRING" -> "String";
+            case "FLOAT", "DOUBLE", "REAL" -> "Float";
+            case "DECIMAL", "NUMERIC" -> "Decimal";
+            case "BIT", "BOOLEAN" -> "Boolean";
+            case "TIMESTAMP", "DATETIME", "SMALLDATETIME" -> "DateTime";
+            case "DATE" -> "StrictDate";
+            default -> null;
+        };
+    }
+
+
     /** Lowercase table name -> (lowercase column -> declared pure kind)
-     * for the current DDL scope's databases — the module side of the
-     * skew comparison (mirrors {@link #moduleDdl}'s iteration). */
+     * over EVERY database in the global model — the declared side of the
+     * skew comparison. RE-SCOPED with the module-DDL deletion (census
+     * §10a: the instrument survives, its scope is now the whole corpus —
+     * measurement only, nothing is created from this walk). */
     private java.util.Map<String, java.util.Map<String, String>>
             moduleColumnKinds(com.legend.compiler.element.ModelContext ctx) {
         java.util.Map<String, java.util.Map<String, String>> out =
                 new java.util.HashMap<>();
         for (String fqn : ctx.elementFqns()) {
-            if (!currentDdlDbs.contains(fqn)) {
-                continue;
-            }
             var dbOpt = ctx.findDatabase(fqn);
             if (dbOpt.isEmpty()) {
                 continue;
@@ -2037,32 +1557,7 @@ public final class Runner {
         }
     }
 
-    /** The executed-DDL type token's pure kind — the fixture side of
-     * the skew comparison (mirrors RelationalKinds.pureKindOf for the
-     * token spellings the corpus setup streams actually use); null =
-     * unmodeled token, skipped (never guessed). */
-    private static @com.legend.Nullable String fixtureKind(String token) {
-        return switch (token) {
-            case "INT", "INTEGER", "BIGINT", "SMALLINT", "TINYINT"
-                    -> "Integer";
-            case "VARCHAR", "CHAR", "CHARACTER", "NVARCHAR", "CLOB",
-                    "TEXT", "STRING" -> "String";
-            case "FLOAT", "DOUBLE", "REAL" -> "Float";
-            case "DECIMAL", "NUMERIC" -> "Decimal";
-            case "BIT", "BOOLEAN" -> "Boolean";
-            case "TIMESTAMP", "DATETIME", "SMALLDATETIME" -> "DateTime";
-            case "DATE" -> "StrictDate";
-            default -> null;
-        };
-    }
-
-    private final java.util.Map<String, String> familyDdlShapes =
-            new java.util.HashMap<>();
     private final java.util.Set<String> familySetupsDone = new java.util.HashSet<>();
-    /** CROSS-channel session dedup — SEPARATE from the own-family set:
-     * the corpus ordering contract is cross-first / own-LAST (own wins),
-     * so a cross replay must never suppress the own-family replay. */
-    private final java.util.Set<String> familyCrossDone = new java.util.HashSet<>();
     /** The package whose setups the session last replayed — the engine
      * runs BeforePackage functions per PACKAGE, so a package transition
      * re-arms the whole setup set (drop+create+fill re-establishes the
@@ -2095,25 +1590,6 @@ public final class Runner {
 
     /** True when any table this test's scope declares already exists in
      * the family session under a DIFFERENT shape. */
-    private boolean ddlConflictsWithSession(
-            com.legend.compiler.element.ModelContext ctx) {
-        for (DdlUnit unit : moduleDdl(ctx)) {
-            String prev = familyDdlShapes.get(unit.key());
-            if (prev != null && !prev.equals(unit.createSql())) {
-                return true;
-            }
-            // setup-stream clobber (t5 root cause): the session's LIVE
-            // shape for this module table was rewritten by a setup fn —
-            // shapes diverged even though module DDL never conflicted
-            String live = familyLiveShapes.get(unit.key());
-            if (live != null && familyDdlShapes.containsKey(unit.key())
-                    && !live.equals(familyDdlShapes.get(unit.key()))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     public void beginFamilySession() throws java.sql.SQLException {
         endFamilySession();
         // -Drcorpus.perTestSessions bypasses family sessions (A/B lever:
@@ -2156,10 +1632,8 @@ public final class Runner {
             }
             familyConn = null;
         }
-        familyDdlShapes.clear();
         familyLiveShapes.clear();
         familySetupsDone.clear();
-        familyCrossDone.clear();
         familySeedLedger.clear();
         currentSetupPkg = null;
     }
@@ -2170,114 +1644,28 @@ public final class Runner {
         return shared && !familySetupsDone.add(fnFqn);
     }
 
-    private List<String> replaySeeds(String fqn, List<String> crossRefs,
+    private List<String> replaySeeds(String fqn,
             com.legend.compiler.element.ModelContext ctx, Connection conn,
             boolean shared) {
         long t0 = System.nanoTime();
         try {
-            return replaySeeds0(fqn, crossRefs, ctx, conn, shared);
+            return replaySeeds0(fqn, ctx, conn, shared);
         } finally {
             SEED_NANOS.addAndGet(System.nanoTime() - t0);
             SEED_CALLS.incrementAndGet();
         }
     }
 
-    private List<String> replaySeeds0(String fqn, List<String> crossRefs,
+    private List<String> replaySeeds0(String fqn,
             com.legend.compiler.element.ModelContext ctx, Connection conn,
             boolean shared) {
-        // MODULE-DERIVED DDL (audit 19d B6 / task #55): every table of
-        // every database the test's module compiled, spelled by Ddl.java
-        // from the PARSED store — the regex extraction (tableDefsAll/
-        // seedColumnTypes/pickBySeed, the last surviving shadow parser)
-        // is retired. Same-named tables dedup first-wins (module order),
-        // the same arbitration the module's element dedup already applies.
-        long ddlT0 = System.nanoTime();
-        List<DdlUnit> allSeeds = moduleDdl(ctx);
+        // PACKAGE-CHAIN provisioning ONLY (census §10e/§10g): a test's
+        // world is what its own package chain's authored setups build —
+        // engine semantics. The module-derived DDL guessing layer and
+        // the cross-family demand layer are deleted; the ONE remaining
+        // declaration seam is inline-CSV creation (CsvSeed's model-typed
+        // create branch, §9a).
         List<String> failedSeeds = new ArrayList<>();
-        for (DdlUnit unit : allSeeds) {
-            // FAMILY session (#112): same table key + same shape = done.
-            // A conflicting shape never reaches here — the conflict check
-            // routed the test to a private session.
-            if (shared) {
-                String prev = familyDdlShapes.get(unit.key());
-                if (unit.createSql().equals(prev)) {
-                    continue;
-                }
-                familyDdlShapes.put(unit.key(), unit.createSql());
-            }
-            // F7.4: each unit IS one statement, pre-spelled for both
-            // targets from the model — no boundary translation, no
-            // statement splitting on the model-derived path. The H2
-            // advisory mirror records the H2 flavor, after the session
-            // executed (the recording mirrors executed reality).
-            String stmt = H2_BACKEND ? unit.createSql() : unit.duckSql();
-            // prepare(): DuckDB JDBC masks Statement.execute errors
-            try (var st = conn.prepareStatement(stmt)) {
-                st.execute();
-                if (!H2_BACKEND) {
-                    var mirror = com.legend.sql.dialect.RawSqlBoundary.recording();
-                    if (mirror != null) {
-                        mirror.add(unit.createSql());
-                    }
-                }
-            } catch (Exception e) {
-                // F7.1: the ONE tolerated failure is the NAMED gap
-                // — a same-named table from another database's DDL
-                // already lives in the family session (6 on the h2
-                // sweep, 0 on DuckDB). Everything else THROWS.
-                if (!String.valueOf(e.getMessage())
-                        .contains("already exists")) {
-                    throw new IllegalStateException(
-                            "module DDL failed (F7.1 fail-loud): "
-                            + stmt.strip().split("\n")[0], e);
-                }
-                String head = stmt.strip().split("\n")[0];
-                failedSeeds.add(head + " => "
-                        + String.valueOf(e.getMessage()).split("\n")[0]);
-            }
-        }
-        DDL_NANOS.addAndGet(System.nanoTime() - ddlT0);
-        // shared-file zero-arg units first (the legacy dataSeeds position),
-        // then this test's BeforePackage fns — each a real call through the
-        // platform; parameterized shared fns run when a body CALLS them
-        // CROSS-FAMILY runtime data (testProject: injection::testRuntime
-        // named from tests/advanced — the tables exist via module DDL but
-        // sit EMPTY). NARROW by design (probe-and-revert #13: v1 clobbered
-        // shared tables, v2's broad prefix match broke setup order
-        // estate-wide): only refs whose DEFINING FAMILY differs from the
-        // current family; only the LONGEST BeforePackage prefix of each
-        // ref; a SEPARATE dedup set so the own-family loops below keep
-        // their exact order; failures go to a scratch list — a foreign
-        // setup must never poison the test's own seed scoring. Cross runs
-        // FIRST so shared-named tables re-seed own-last (own wins).
-        java.util.Set<String> crossExecuted = new java.util.HashSet<>();
-        List<String> crossScratch = new ArrayList<>();
-        for (String ref : crossRefs) {
-            String defining = elementSource.get(ref);
-            String fam = defining == null ? null : sourceFamily.get(defining);
-            if (fam == null || fam.equals(currentFamilyKey)) {
-                continue;
-            }
-            String[] best = null;
-            for (String[] bp : beforePackagesParsed) {
-                if (ref.startsWith(bp[0] + "::")
-                        && (best == null || bp[0].length() > best[0].length())) {
-                    best = bp;
-                }
-            }
-            if (best != null && setupFnAsts.containsKey(best[1])
-                    && isEffectfulSetup(best[1]) && crossExecuted.add(best[1])
-                    && !(shared && !familyCrossDone.add(best[1]))) {
-                int before = crossScratch.size();
-                callSetup(best[1], ctx, conn, crossScratch);
-                // a setup only COUNTS as run when it replayed clean —
-                // one that failed (its tables' DDL not in scope yet)
-                // re-runs on the next test that names it (#112)
-                if (crossScratch.size() > before) {
-                    familyCrossDone.remove(best[1]);
-                }
-            }
-        }
         java.util.Set<String> executed = new java.util.HashSet<>();
         for (SetupUnit unit : sharedSetupUnits) {
             if (unit.zeroArg() && isEffectfulSetup(unit.fqn())
@@ -2303,21 +1691,6 @@ public final class Runner {
             }
         }
         matching.sort(java.util.Comparator.comparingInt(bp -> bp[0].length()));
-        if (System.getenv("LEGEND_LITE_SEED_TRACE") != null) {
-            System.err.println("[seed-trace] test=" + fqn + " matching="
-                    + matching.stream().map(bp -> bp[1]).toList()
-                    + " effectful(fromMapping::setUp)="
-                    + isEffectfulSetup(
-                            "meta::relational::tests::fromMapping::setUp")
-                    + " known=" + setupFnAsts.containsKey(
-                            "meta::relational::tests::fromMapping::setUp")
-                    + " knownQ=" + setupFnAsts.containsKey(
-                            "meta::relational::tests::query::setUp")
-                    + " effQ=" + isEffectfulSetup(
-                            "meta::relational::tests::query::setUp")
-                    + " body=" + setupFnAsts.get(
-                            "meta::relational::tests::fromMapping::setUp"));
-        }
         for (String[] bp : matching) {
             if (executed.add(bp[1]) && !setupAlreadyRun(shared, bp[1])) {
                 int before = failedSeeds.size();
@@ -2328,63 +1701,6 @@ public final class Runner {
             }
         }
         return failedSeeds;
-    }
-
-    /** Can the per-test module resolve this setup and every QUALIFIED
-     * function name its transitive body calls? (Bare names resolve via
-     * imports and are assumed local; the observed cross-family reach is
-     * FQN-shaped.) A miss means the setup must run in the universe module
-     * — decided BEFORE execution, so nothing ever partially runs twice. */
-    private boolean preflightResolvable(String setupFqn,
-            com.legend.compiler.element.ModelContext ctx) {
-        if (safeFindFunction(ctx, setupFqn).isEmpty()) {
-            return false;
-        }
-        java.util.Set<String> seen = new java.util.HashSet<>();
-        java.util.ArrayDeque<String> work = new java.util.ArrayDeque<>();
-        work.add(setupFqn);
-        while (!work.isEmpty()) {
-            String fqn = work.poll();
-            if (!seen.add(fqn)) {
-                continue;
-            }
-            List<com.legend.protocol.spec.ValueSpecification> body =
-                    setupFnAsts.get(fqn);
-            if (body == null) {
-                continue;
-            }
-            java.util.Set<String> called = new java.util.HashSet<>();
-            java.util.Set<String> elements = new java.util.HashSet<>();
-            for (com.legend.protocol.spec.ValueSpecification stmt : body) {
-                collectCalledFqns(stmt, called, elements);
-            }
-            for (String c : called) {
-                if (!c.contains("::")) {
-                    continue;
-                }
-                if (safeFindFunction(ctx, c).isEmpty()) {
-                    return false;
-                }
-                work.add(c);
-            }
-            // qualified ELEMENT references (^ConnectionStore(element=
-            // some::family::myDB)): the engine compiles the whole project,
-            // so a setup naming a foreign family's store resolves there —
-            // when the per-test module can't see it, the run belongs in
-            // the setup universe (same rule as unresolvable calls)
-            for (String p : elements) {
-                if (!p.contains("::")) {
-                    continue;
-                }
-                if (!ctx.isExecutionContextElement(p)
-                        && ctx.findClass(p).isEmpty()
-                        && ctx.findEnum(p).isEmpty()
-                        && safeFindFunction(ctx, p).isEmpty()) {
-                    return false;
-                }
-            }
-        }
-        return true;
     }
 
     private static List<com.legend.compiler.element.TypedFunction> safeFindFunction(
@@ -2518,15 +1834,12 @@ public final class Runner {
                 com.legend.compiler.NameResolver.resolveQuery(
                         new com.legend.protocol.spec.AppliedFunction(
                                 setupFqn, List.of()));
-        // PREFLIGHT, not retry (audit 17): the universe path re-running a
-        // PARTIALLY-executed setup doubles non-drop-guarded inserts, so the
-        // module choice is made BEFORE anything executes — if the per-test
-        // module cannot resolve the setup or any QUALIFIED call in its
-        // transitive body, the whole run happens in the setup universe.
-        com.legend.compiler.element.ModelContext target =
-                preflightResolvable(setupFqn, ctx) ? ctx : setupUniverseContext();
         try {
-            com.legend.Compiler.executeResolved(call, target, "rcorpus::Rt",
+            // setups run in THE global context (engine semantics: one
+            // compiled universe; setups are self-sufficient by
+            // composition) — the per-test-module preflight and the
+            // separate setup-universe module died with the module layer
+            com.legend.Compiler.executeResolved(call, ctx, "rcorpus::Rt",
                     conn);
         } catch (Exception e) {
             failedSeeds.add("setup " + setupFqn + "() => "

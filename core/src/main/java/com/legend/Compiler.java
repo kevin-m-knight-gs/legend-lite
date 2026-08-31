@@ -663,13 +663,25 @@ public final class Compiler {
     public static com.legend.sql.SqlQuery lowerResolved(
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
             String runtimeFqn, boolean relationalRootForm) {
+        return lowerResolved(resolved, ctx, runtimeFqn, relationalRootForm,
+                null);
+    }
+
+    /** {@code explicitMappingFqn}: class fetches resolve against THIS
+     * mapping — the caller's API surface named one (scanColumns(tree, m):
+     * lineage lowering must dispatch under the call's own mapping, never
+     * the ambient runtime candidates). */
+    public static com.legend.sql.SqlQuery lowerResolved(
+            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
+            String runtimeFqn, boolean relationalRootForm,
+            @com.legend.Nullable String explicitMappingFqn) {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
         body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(body);
         boolean temporalRoot = com.legend.compiler.element.Temporal
                 .anyTemporalGetAll(body, ctx);
         body = new com.legend.resolver.StoreResolver(ctx, specs)
-                .resolve(body, runtimeFqn);
+                .resolve(body, runtimeFqn, explicitMappingFqn);
         if (relationalRootForm) {
             body = com.legend.resolver.RelationalRootForm.apply(body, ctx);
         }

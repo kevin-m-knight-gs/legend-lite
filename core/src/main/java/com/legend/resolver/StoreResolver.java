@@ -452,6 +452,13 @@ public final class StoreResolver {
                     when anchored(m.source())
                     && Type.relationValued(m.source().info()) ->
                     structural(m, context);
+            // execute()/executionPlan() args resolve under the CALL'S
+            // OWN routing context (RoutingContext, slice-1 job 1)
+            case TypedNativeCall nc
+                    when RoutingContext.routedEntryMapping(nc) != null ->
+                    structural(Pipelines.classEmptinessRewrite(nc,
+                            this::objectSpace),
+                            RoutingContext.routedContext(nc, context, specs));
             // scalar/relation NATIVES over chains bottoming at a getAll:
             // args resolve structurally; CLASS-typed emptiness rewrites
             // FIRST (constant-project relation -> lowerer EXISTS; map §2).
@@ -470,7 +477,10 @@ public final class StoreResolver {
             case TypedPropertyAccess vpa   // genericType().rawType (M3)
                     when GenericTypeReflection.matches(vpa) ->
                     GenericTypeReflection.resolve(vpa, x -> resolveNode(x, context),
-                            f -> sources.get(dispatch(context, f), f).pipeline(),
+                            f -> sources.get(dispatch(RoutingContext
+                                    .spineContext(vpa, context,
+                                            this::fromContext), f), f)
+                                    .pipeline(),
                             ctx.elementFqns());
             // BARE value read over a class chain = auto-map sugar (Pipelines)
             case TypedPropertyAccess vpa when anchored(vpa.source()) -> {
@@ -2580,7 +2590,8 @@ public final class StoreResolver {
         // PRE-REWRITE (before the demand scan, ledger design): filtered
         // navigations consumed as bare collections lift into SYNTHETIC
         // 2-hop heads whose join target carries the predicate.
-        final Context canonCtx = context;
+        final Context canonCtx = RoutingContext
+                .spineContext(top, context, this::fromContext);
         synthetics.setCanonicalizer(nn -> corrSubs.subTypeNavCastCanon(nn,
                 fqn -> dispatch(canonCtx, fqn),
                 java.util.Objects.requireNonNull(isNotEmptyCallee(), "isNotEmptyCallee()")));
@@ -2732,7 +2743,7 @@ public final class StoreResolver {
         ClassSource cs = sources.get(dispatch(fctx, g.classFqn()), g.classFqn(),
                 (t9, ex9) -> sources.dispatch(fctx.explicitMapping(),
                         fctx.runtimeFqn(), fctx.chainMappings(), t9, ex9),
-                contextKey(fctx));
+                RoutingContext.contextKey(fctx));
 
         Map<String, Substitution.AssocSub> flattenAssocs = new LinkedHashMap<>();
         // Re-root DEEPEST-FIRST: each flatten joins its hop target onto the
@@ -3420,7 +3431,7 @@ public final class StoreResolver {
                                         context.explicitMapping(),
                                         context.runtimeFqn(),
                                         context.chainMappings(), t9, ex9),
-                                contextKey(context)));
+                                RoutingContext.contextKey(context)));
         return new Substitution(new Substitution.Target(
                 new Substitution.RowScope(userLambda.parameters().get(0),
                         freshRowVar, cs.classFqn(), cs.mappingFqn(),
@@ -3476,19 +3487,6 @@ public final class StoreResolver {
      * (XStore §1) seeded into ClassSources' unmapped-class route. */
     private Context fromContext(TypedFrom fr, Context outer) {
         return JsonSourceFrame.fromContext(fr, outer, sources, letBindings);
-    }
-
-    /** Per-class dispatch: the runtime candidate that BINDS the class wins
-     * (chain-aware — ClassSources owns the binding logic). */
-    /** The memo key of a context-dependent resolution (audit 23: runtime
-     * + chain mappings participate — a mixed read poisoned the cache
-     * across an in-chain from()). */
-    private static String contextKey(Context c) {
-        return (c.explicitMapping() == null ? "" : c.explicitMapping())
-                + '\u0000'
-                + (c.runtimeFqn() == null ? "" : c.runtimeFqn())
-                + (c.chainMappings().isEmpty() ? ""
-                        : '\u0000' + String.join(",", c.chainMappings()));
     }
 
     private String dispatch(Context context, String classFqn) {

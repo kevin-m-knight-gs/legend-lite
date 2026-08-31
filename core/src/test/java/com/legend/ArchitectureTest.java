@@ -870,6 +870,11 @@ final class ArchitectureTest {
                 // doctrine but bounded by the sweep's own decline count
                 // (~420); measurement only, never verdict-affecting
                 "com.legend.exec.CanonicalDivergence.V7_DECLINE_WITNESSES",
+                // slice-1 quarantine channel move (census §10h): the
+                // wall-surfaced quarantine tests, vocabulary-matched —
+                // bounded by the partition's own size (20 today);
+                // measurement only, never verdict-affecting
+                "com.legend.exec.CanonicalDivergence.QUARANTINED_WALL_TESTS",
                 // TYPED-IR Slice 1: the label-lie census's classified
                 // counters (declared-vs-computed pair -> count);
                 // measurement only, never verdict-affecting — the

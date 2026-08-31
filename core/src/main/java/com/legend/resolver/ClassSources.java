@@ -1302,6 +1302,34 @@ public final class ClassSources {
                         + "' (no runtime candidate set)", classFqn);
             }
         }
+        // NO explicit mapping but a CHAIN channel (query-side
+        // withChainedMappings->from(rt), or a ModelChainConnection-only
+        // runtime): the chain mappings ARE the dispatch candidates —
+        // engine semantics, same exactly-one rule as the explicit arm
+        // (slice-1 job 1: this arm existed only behind an explicit
+        // mapping, so runtime-only chains fell to the ambient
+        // candidate list).
+        if (explicitMapping == null && !chainMappings.isEmpty()) {
+            List<String> chainBinders = chainMappings.stream()
+                    .distinct()
+                    .filter(m -> !m.equals(exclude) && binds(m, classFqn))
+                    .toList();
+            if (chainBinders.size() == 1) {
+                return chainBinders.get(0);
+            }
+            throw new MappingResolutionException("class '" + classFqn
+                    + "' chain dispatch over " + chainMappings + " has "
+                    + chainBinders.size() + " binders — needs exactly one",
+                    classFqn);
+        }
+        // NO explicit mapping, NO chain: dispatch by the DECLARED
+        // runtime's mapping list — a model-declared Runtime naming its
+        // mappings is real engine API (the unit fixtures' test::
+        // TestRuntime). The HARNESS compensation is gone regardless:
+        // the corpus overlay runtime (rcorpus::Rt) now declares an
+        // EMPTY mapping list (slice-1 job 1 — every corpus consumer
+        // threads the call site's own mapping), so a corpus query
+        // landing here walls loudly on zero candidates.
         com.legend.model.RuntimeDefinition rt = ctx.findRuntime(runtimeFqn).orElseThrow(() ->
                 new MappingResolutionException("unknown runtime '"
                         + runtimeFqn + "'", runtimeFqn));

@@ -427,6 +427,24 @@ public final class CanonicalDivergence {
         return false;
     }
 
+    /** SLICE-1 channel move (charter §4AF): with the harness's try-run
+     * lane deleted, quarantine-family failures surface as TEST-LEVEL
+     * walls (the same failure texts, thrown before per-assert
+     * adjudication). The partition follows its tests: the runner reports
+     * each ERROR wall here, vocabulary-matched by the SAME list. */
+    private static final java.util.Set<String> QUARANTINED_WALL_TESTS =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    public static void noteWall(String test, String reason) {
+        if (quarantined(reason)) {
+            QUARANTINED_WALL_TESTS.add(test);
+        }
+    }
+
+    public static long v7QuarantinedWallCount() {
+        return QUARANTINED_WALL_TESTS.size();
+    }
+
     /** Slice Q reader: declines in the metamodel quarantine partition. */
     public static long v7QuarantinedCount() {
         return V7_DECLINES.entrySet().stream()
@@ -499,6 +517,7 @@ public final class CanonicalDivergence {
                 + " | declined=" + (v7DeclinedCount()
                         - execPass - textOnly - noExec - csv - quarantinedN)
                 + " | metamodel-quarantined=" + quarantinedN
+                + "+walls=" + v7QuarantinedWallCount()
                 + " | side-rows" + (hist.isEmpty() ? " none" : hist);
     }
 

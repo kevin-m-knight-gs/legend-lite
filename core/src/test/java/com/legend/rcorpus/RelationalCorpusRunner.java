@@ -405,9 +405,19 @@ public class RelationalCorpusRunner {
                         // "passes" were HARNESS-adjudicated compensation,
                         // not platform verification; the walls below name
                         // the real gap and the h2-lane leg owns burning it
+                        // 1347 -> 1329 (slice-1 §10h, JUSTIFIED — the
+                        // same pattern as TDG lane S2): the try-run
+                        // host-evaluation lane is DELETED, so the 20
+                        // quarantined toPostgresModel tests lose their
+                        // h2-lane HARNESS-adjudicated passes (host
+                        // channel, never platform verification) — 10
+                        // wall on the renderer, 10 error at lowering;
+                        // worktree receipt: HEAD full h2 sweep = 1349,
+                        // this tree = 1329, delta EXACTLY the family
                         () -> org.junit.jupiter.api.Assertions.assertTrue(
-                                p >= 1347, "h2 sweep pass fell: " + p
-                                        + " < floor 1375 (SQL-IR slice 2"
+                                p >= 1329, "h2 sweep pass fell: " + p
+                                        + " < floor 1329 (slice-1 §10h;"
+                                        + " prior floor note: SQL-IR slice 2"
                                         + " outputs-from-projections:"
                                         + " 1367 -> 1372 — the milestoning"
                                         + " union-wrap residue healed +"
@@ -449,8 +459,13 @@ public class RelationalCorpusRunner {
                                 // 949 -> 983 (TDG lane S2): the same ~28
                                 // tests' asserts wall by NAME on H2 — the
                                 // advisory target's honest answer
-                                u <= 983, "h2 capability walls grew: " + u
-                                        + " > 983 — a renderer gap widened"
+                                // 983 -> 993 (slice-1 §10h, JUSTIFIED):
+                                // 10 quarantined toPostgresModel tests
+                                // reach the REGISTERED renderer gaps now
+                                // that the host-eval lane is deleted —
+                                // known gaps read, not widened
+                                u <= 993, "h2 capability walls grew: " + u
+                                        + " > 993 — a renderer gap widened"
                                         + " silently"));
             }
             return;
@@ -857,10 +872,22 @@ public class RelationalCorpusRunner {
             // growth = a new metamodel decline (adjudicate before
             // accepting); shrink = the deferred program landed something
             // (move the pin with its receipts).
-            org.junit.jupiter.api.Assertions.assertEquals(142,
+            // SLICE-1 CHANNEL MOVE (charter §4AF, census §10h): with the
+            // try-run lane deleted, the toPostgresModel conversion family
+            // (20 tests) fails at the TEST level — same failure texts,
+            // thrown before per-assert adjudication — so its 35 witness
+            // rows left the decline channel (142 -> 107) and the 20
+            // tests are counted through the SAME vocabulary on the wall
+            // channel. The partition's TEST SET is unchanged.
+            org.junit.jupiter.api.Assertions.assertEquals(107,
                     com.legend.exec.CanonicalDivergence.v7QuarantinedCount(),
-                    "metamodel quarantine moved off the census's 142 — see"
-                            + " FULL_RESIDUE_CENSUS_2026_08_30.md §4a");
+                    "metamodel quarantine (witness rows) moved off 107 —"
+                            + " see FULL_RESIDUE_CENSUS_2026_08_30.md §10h");
+            org.junit.jupiter.api.Assertions.assertEquals(20,
+                    com.legend.exec.CanonicalDivergence
+                            .v7QuarantinedWallCount(),
+                    "metamodel quarantine (wall tests) moved off 20 —"
+                            + " see FULL_RESIDUE_CENSUS_2026_08_30.md §10h");
             // 117 -> 111 (TDG lane S1): the census folds in the CHECKER
             // — the 6 necessaryColumns asserts route and AGREE.
             // 111 -> 50 (TDG lane S2): the ROW CONTRACT routes (size 26 +
@@ -1394,16 +1421,20 @@ public class RelationalCorpusRunner {
                     // census PROMOTED to a pinned ceiling — 469
                     // measured, +4 from the two recorded undercount
                     // fixes (schema-qualified creates, constraint-word
-                    // columns) = 473. Engine test-data debt
+                    // columns) = 473. RE-BASED 473 -> 782 with the
+                    // slice-1 census re-scope (§10h): the declared side
+                    // now walks EVERY database in the global model
+                    // (module-DDL scope deleted) — same instrument,
+                    // wider honest denominator. Engine test-data debt
                     // (docs/UPSTREAM_DEFECTS.md U19); growth = a new
                     // contradicting fixture, shrink = upstream fixes —
                     // ratchet down.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             Runner.FIXTURE_SKEW.values().stream()
                                     .mapToLong(java.util.Set::size)
-                                    .sum() <= 473,
+                                    .sum() <= 782,
                             "fixture-skew columns grew past the pinned"
-                                    + " ceiling 473 — a new declaration-"
+                                    + " ceiling 782 — a new declaration-"
                                     + "contradicting CREATE in the setup"
                                     + " streams"),
                     // [1]-OVER-NULLABLE census (typed-IR queue item 2,
