@@ -244,81 +244,38 @@ final class StatementExecutor {
             // property (executionPlan.pure:67): every relational node
             // carries relationalPlanSupportFunctions(connection), deduped
             // plan-wide (executionPlan_generation.pure:215)
+            // CATALOG DISPATCH at the statement's value position (§4AG
+            // — ladder migration #22, zero function-name if-checks):
+            // CONTEXT_OWNER rows run their registered ARM (assertError:
+            // f's body runs in the database under the arm's catch);
+            // HANDLE rows run their registered FORCE (execute: the eager
+            // frame run IS the value); everything the plan reader can
+            // answer ($plan navigation — the engine's own plan API,
+            // evaluated over the PLAN NODE MODEL) returns its value.
             if (preRoot instanceof com.legend.compiler.spec.typed
-                            .TypedPropertyAccess ppa
-                    && ppa.property().equals("processingTemplateFunctions")
-                    && foldPairProjection(ppa.source())
-                            instanceof com.legend.compiler.spec.typed
-                                    .TypedNativeCall pep
-                    && com.legend.compiler.element.type.PlatformTypes
-                            .EXECUTION_PLAN.equals(
-                                    pep.callee().qualifiedName())) {
-                java.util.List<Object> supportFns = new java.util.ArrayList<>(
-                        com.legend.plan.PlanSupportFunctions
-                                .relationalPlanSupportFunctions(
-                                        pep.args().size() > 2
-                                                ? ConnectionFlags.timeZoneOf(
-                                                        pep.args().get(2))
-                                                : null));
-                // enum-typed plan parameters ADD their dynamic enum-map
-                // freemarker function (deduped plan-wide)
-                if (pep.args().get(0) instanceof com.legend.compiler.spec
-                                .typed.TypedLambda plam
-                        && pep.args().get(1) instanceof com.legend.compiler
-                                .spec.typed.TypedPackageableRef pmr
-                        && com.legend.compiler.element.type.PlatformTypes
-                                .functionTypeOf(plam.info().type())
-                                instanceof com.legend.compiler
-                                .element.type.Type.FunctionType pft) {
-                    java.util.Set<String> seenFns =
-                            new java.util.LinkedHashSet<>();
-                    for (var prm : pft.params()) {
-                        if (!(prm.type() instanceof com.legend.compiler
-                                .element.type.Type.EnumType et)) {
-                            continue;
-                        }
-                        String fn = com.legend.plan.PlanText.enumMapFnOf(
-                                env.ctx(), pmr.fullPath(), et.fqn());
-                        var em = com.legend.plan.PlanText.enumMappingOf(
-                                env.ctx(), pmr.fullPath(), et.fqn());
-                        if (fn != null && em != null && seenFns.add(fn)) {
-                            supportFns.add(com.legend.plan
-                                    .PlanSupportFunctions
-                                    .enumMapTemplateFunction(fn, em));
-                        }
-                    }
+                            .TypedNativeCall cat) {
+                var kind = com.legend.compiler.element.type.PlatformTypes
+                        .IMPLEMENTATION_KIND.get(
+                                cat.callee().qualifiedName());
+                if (kind == com.legend.compiler.element.type.PlatformTypes
+                        .NativeImpl.CONTEXT_OWNER) {
+                    result = AssertErrorNative.run(cat, letPrefix, specs,
+                            env, frames);
+                    continue;
                 }
-                result = new ExecutionResult.Collection(supportFns,
-                        com.legend.compiler.element.type.Type
-                                .Primitive.STRING);
-                continue;
+                if (kind == com.legend.compiler.element.type.PlatformTypes
+                        .NativeImpl.HANDLE
+                        && com.legend.compiler.element.type.PlatformTypes
+                                .handleForcesAtValuePosition(
+                                        cat.callee().qualifiedName())) {
+                    result = buildFrame(cat, letPrefix, true, specs, env)
+                            .result();
+                    continue;
+                }
             }
-            // PLAN-HANDLE WALKS ($plan.rootExecutionNode->allNodes(...)
-            // ->filter(instanceOf(X))->cast(@X).sqlQuery — the engine's
-            // own plan API): evaluate over the PLAN NODE MODEL
             Object walked = planWalk(preRoot, specs, env);
             if (walked != null) {
                 result = walkResult(walked, preRoot.info().type());
-                continue;
-            }
-            // assertError(f, msg[, line, col]) — the PCT.platformOnly
-            // native's K-arm: f's body runs in the database through this
-            // same pipeline; the orchestrator catches the database error
-            // and adjudicates (AssertErrorNative owns the contract)
-            if (preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall aec
-                    && com.legend.compiler.element.type.PlatformTypes
-                            .ASSERT_ERROR.equals(aec.callee().qualifiedName())) {
-                result = AssertErrorNative.run(aec, letPrefix, specs, env,
-                        frames);
-                continue;
-            }
-            // execute() in RESULT position: the eager frame run IS the value
-            // (the Result envelope is typing-only — the chain's rows are what
-            // a reader observes).
-            if (preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall xc
-                    && com.legend.compiler.element.type.PlatformTypes
-                            .isExecuteFqn(xc.callee().qualifiedName())) {
-                result = buildFrame(xc, letPrefix, true, specs, env).result();
                 continue;
             }
             body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
@@ -1144,6 +1101,53 @@ final class StatementExecutor {
      * to the ordinary pipeline and its own walls. */
     static @com.legend.Nullable Object planWalk(TypedSpec n,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
+        if (n instanceof com.legend.compiler.spec.typed
+                        .TypedPropertyAccess ppa
+                && ppa.property().equals("processingTemplateFunctions")
+                && foldPairProjection(ppa.source())
+                        instanceof com.legend.compiler.spec.typed
+                                .TypedNativeCall pep
+                && com.legend.compiler.element.type.PlatformTypes
+                        .EXECUTION_PLAN.equals(
+                                pep.callee().qualifiedName())) {
+            // plan-handle vocabulary (was a statement-root arm; ladder
+            // migration #22): the plan's freemarker support functions +
+            // enum-typed parameters' dynamic enum-map functions
+            java.util.List<Object> supportFns = new java.util.ArrayList<>(
+                    com.legend.plan.PlanSupportFunctions
+                            .relationalPlanSupportFunctions(
+                                    pep.args().size() > 2
+                                            ? ConnectionFlags.timeZoneOf(
+                                                    pep.args().get(2))
+                                            : null));
+            if (pep.args().get(0) instanceof com.legend.compiler.spec
+                            .typed.TypedLambda plam
+                    && pep.args().get(1) instanceof com.legend.compiler
+                            .spec.typed.TypedPackageableRef pmr
+                    && com.legend.compiler.element.type.PlatformTypes
+                            .functionTypeOf(plam.info().type())
+                            instanceof com.legend.compiler
+                            .element.type.Type.FunctionType pft) {
+                java.util.Set<String> seenFns =
+                        new java.util.LinkedHashSet<>();
+                for (var prm : pft.params()) {
+                    if (!(prm.type() instanceof com.legend.compiler
+                            .element.type.Type.EnumType et)) {
+                        continue;
+                    }
+                    String fn = com.legend.plan.PlanText.enumMapFnOf(
+                            env.ctx(), pmr.fullPath(), et.fqn());
+                    var em = com.legend.plan.PlanText.enumMappingOf(
+                            env.ctx(), pmr.fullPath(), et.fqn());
+                    if (fn != null && em != null && seenFns.add(fn)) {
+                        supportFns.add(com.legend.plan
+                                .PlanSupportFunctions
+                                .enumMapTemplateFunction(fn, em));
+                    }
+                }
+            }
+            return supportFns;
+        }
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall ep
                 && com.legend.compiler.element.type.PlatformTypes
                         .EXECUTION_PLAN.equals(ep.callee().qualifiedName())) {

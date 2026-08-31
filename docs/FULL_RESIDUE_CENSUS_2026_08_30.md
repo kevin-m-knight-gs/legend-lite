@@ -758,3 +758,28 @@ TEXTBOOK-GAP LEDGER for the catalog leg (user-held standard):
 3. catalog coverage — arms remaining: processingTemplateFunctions,
    assertError, setUpDataSQLs, execute (HANDLE convergence),
    planWalk (BLOCKED on plan-nodes-as-rows).
+
+### 10m. STATEMENT LADDER FULLY CONVERTED (2026-08-31, user push:
+### "finish moving all the functions and deleting all the ifs")
+
+The statement loop's dispatch is now ENTIRELY catalog-driven — zero
+function-name if-checks: CONTEXT_OWNER rows run their arm
+(assertError), HANDLE rows that force-at-value-position run their
+force (execute's eager frame — the fact lives in the CATALOG:
+handleForcesAtValuePosition), everything else the plan reader can
+answer returns its value (planWalk = the registered HANDLE navigator;
+the processingTemplateFunctions statement-root arm FOLDED INTO it as
+plan-model vocabulary). Scoreboard byte-identical at every step.
+
+The "why nervous" answer on the record: two conflations, both
+dissolved by the user's question — (1) migrating a function's
+DISPATCH does not require replacing its EVALUATION (planWalk's host
+walk stays quarantine-era machinery, found via lookup now); (2)
+assertError's bar was about staging inside its arguments (already
+closed by CONTEXT_OWNER), not about its if-to-lookup conversion.
+
+REMAINING (#22): the 22 interior name-equality sites inside routine
+implementations — census owed: "routine reading its own arguments'
+structure" (legitimate) vs hidden dispatch (migrate); plus the deep
+convergences (execute frames ↔ HANDLE lazy lets; plan reader
+replacement when plan-nodes-as-rows lands).

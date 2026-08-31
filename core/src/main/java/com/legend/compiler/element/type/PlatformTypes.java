@@ -468,4 +468,12 @@ public final class PlatformTypes {
                     EXECUTE, NativeImpl.HANDLE,
                     ASSERT_ERROR, NativeImpl.CONTEXT_OWNER);
 
+    /** Which HANDLE forces EAGERLY when consumed at a statement's value
+     * position: execute's frame run IS the value; plan handles stay
+     * symbolic (navigated by the plan reader). A catalog FACT — the
+     * executor consults it, never a name literal. */
+    public static boolean handleForcesAtValuePosition(String fqn) {
+        return EXECUTE.equals(fqn);
+    }
+
 }
