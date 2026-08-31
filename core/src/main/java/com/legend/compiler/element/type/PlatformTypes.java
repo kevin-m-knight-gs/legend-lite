@@ -243,43 +243,6 @@ public final class PlatformTypes {
         return EXECUTE.equals(fqn);
     }
 
-    /**
-     * HOW a registered native is implemented — the catalog FACT the
-     * executor dispatches by (exact FQN lookup, never statement
-     * silhouettes). Absent = the default: an SQL rule (the Lowerer
-     * translates; the database executes — filter, startsWith, ...).
-     */
-    public enum NativeImpl {
-        /** The platform computes a VALUE in Java at orchestration time
-         * (compiler-output surfaces: plan text, SQL text). The result
-         * enters the surrounding statement as a bound literal; the
-         * database still judges every comparison over it. */
-        JAVA_ROUTINE,
-        /** Produces an OPAQUE orchestration value consumed later
-         * (execute's result frame, executionPlan's plan handle) —
-         * resolution does not enter it; consumers force it. */
-        HANDLE
-    }
-
-    /** The labeled subset (catalog leg, charter §4AG): every entry here
-     * must ALSO be a registered signature; the executor's dispatch table
-     * must cover exactly the JAVA_ROUTINE rows (governance-pinned). The
-     * remaining silhouette arms migrate here one by one — end state is
-     * ZERO function-name checks in the executor (task: full ladder
-     * migration). */
-    public static final java.util.Map<String, NativeImpl> IMPLEMENTATION_KIND =
-            java.util.Map.of(
-                    PLAN_TO_STRING, NativeImpl.JAVA_ROUTINE,
-                    PLAN_TO_STRING_WITHOUT_FORMATTING, NativeImpl.JAVA_ROUTINE,
-                    // ladder migration #22 arm 1: BOTH prior forms — the
-                    // statement-root arm AND the envelope-splice fold
-                    // (an ad-hoc position-independent copy) — are
-                    // deleted; this row is the one fact that replaces them
-                    TO_SQL_STRING, NativeImpl.JAVA_ROUTINE,
-                    TO_SQL_STRING_PRETTY, NativeImpl.JAVA_ROUTINE,
-                    EXECUTION_PLAN, NativeImpl.HANDLE,
-                    PREVAL, NativeImpl.HANDLE,
-                    EXECUTE, NativeImpl.HANDLE);
 
     /**
      * PLATFORM-OWNED function FQNs: legend-lite's native IS the definition
@@ -458,4 +421,51 @@ public final class PlatformTypes {
     public static boolean isFunctionCarrier(Type t) {
         return t instanceof Type.GenericType g && g.rawFqn().equals(FUNCTION);
     }
+
+    /**
+     * HOW a registered native is implemented — the catalog FACT the
+     * executor dispatches by (exact FQN lookup, never statement
+     * silhouettes). Absent = the default: an SQL rule (the Lowerer
+     * translates; the database executes — filter, startsWith, ...).
+     */
+    public enum NativeImpl {
+        /** The platform computes a VALUE in Java at orchestration time
+         * (compiler-output surfaces: plan text, SQL text). The result
+         * enters the surrounding statement as a bound literal; the
+         * database still judges every comparison over it. */
+        JAVA_ROUTINE,
+        /** Produces an OPAQUE orchestration value consumed later
+         * (execute's result frame, executionPlan's plan handle) —
+         * resolution does not enter it; consumers force it. */
+        HANDLE,
+        /** Establishes its OWN evaluation context for its arguments
+         * (assertError's catch): staging must not enter them — the
+         * function's own arm evaluates them under that context (user
+         * catch 2026-08-31: pre-staging a walling call inside
+         * assertError's lambda would escape the catch the engine
+         * applies; witness test pins the contract). */
+        CONTEXT_OWNER
+    }
+
+    /** The labeled subset (catalog leg, charter §4AG): every entry here
+     * must ALSO be a registered signature; the executor's dispatch table
+     * must cover exactly the JAVA_ROUTINE rows (governance-pinned). The
+     * remaining silhouette arms migrate here one by one — end state is
+     * ZERO function-name checks in the executor (task: full ladder
+     * migration). */
+    public static final java.util.Map<String, NativeImpl> IMPLEMENTATION_KIND =
+            java.util.Map.of(
+                    PLAN_TO_STRING, NativeImpl.JAVA_ROUTINE,
+                    PLAN_TO_STRING_WITHOUT_FORMATTING, NativeImpl.JAVA_ROUTINE,
+                    // ladder migration #22 arm 1: BOTH prior forms — the
+                    // statement-root arm AND the envelope-splice fold
+                    // (an ad-hoc position-independent copy) — are
+                    // deleted; this row is the one fact that replaces them
+                    TO_SQL_STRING, NativeImpl.JAVA_ROUTINE,
+                    TO_SQL_STRING_PRETTY, NativeImpl.JAVA_ROUTINE,
+                    EXECUTION_PLAN, NativeImpl.HANDLE,
+                    PREVAL, NativeImpl.HANDLE,
+                    EXECUTE, NativeImpl.HANDLE,
+                    ASSERT_ERROR, NativeImpl.CONTEXT_OWNER);
+
 }

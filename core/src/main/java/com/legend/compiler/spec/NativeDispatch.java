@@ -50,6 +50,15 @@ public final class NativeDispatch {
         // that establish their own evaluation context (assertError's
         // catch): those migrate ONLY together with a real staged
         // environment (lambda boundary + parameter scope).
+        if (stmt instanceof TypedNativeCall co
+                && PlatformTypes.IMPLEMENTATION_KIND.get(
+                        co.callee().qualifiedName())
+                        == PlatformTypes.NativeImpl.CONTEXT_OWNER) {
+            // the call OWNS its arguments' evaluation context
+            // (assertError's catch): staging does not enter them — the
+            // arm's own evaluation stages them INSIDE that context
+            return stmt;
+        }
         TypedSpec n = stmt.mapChildren(
                 c -> stage(c, letPrefix, routines));
         if (!(n instanceof TypedNativeCall nc)) {
