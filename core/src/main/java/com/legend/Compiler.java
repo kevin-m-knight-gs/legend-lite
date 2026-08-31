@@ -648,6 +648,61 @@ public final class Compiler {
     }
 
     /**
+     * COMPILED-STATE effect query over a resolved statement body: does
+     * executing it WRITE (DDL/executeInDb, transitively through compiled
+     * user-function bodies — owner: {@link StatementExecutor}'s effect
+     * scan over {@code PlatformTypes}' exact-FQN catalog)? TDG
+     * generators count as effectful here: their carrier materializes
+     * temp tables. The flip probe's re-run safety fact — derived from
+     * the program, never from harness heuristics.
+     */
+    public static boolean hasStatementEffects(
+            com.legend.protocol.spec.ValueSpecification resolved,
+            ModelContext ctx) {
+        SpecCompiler specs = new SpecCompiler(ctx);
+        java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
+        java.util.Map<String, Boolean> memo = new java.util.HashMap<>();
+        for (TypedSpec s : body) {
+            if (StatementExecutor.containsEffect(s, specs, memo)
+                    || containsTdgGenerator(s)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsTdgGenerator(TypedSpec n) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                && (com.legend.compiler.element.type.PlatformTypes
+                        .GENERATE_TEST_DATA.equals(
+                                nc.callee().qualifiedName())
+                    || com.legend.compiler.element.type.PlatformTypes
+                        .GENERATE_SEED_DATA_STRING.equals(
+                                nc.callee().qualifiedName()))) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (containsTdgGenerator(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Listener overload — the runner's scoring seam: observes each
+     * statement-root assert verdict; the platform keeps the judgment. */
+    public static com.legend.exec.@com.legend.Nullable ExecutionResult executeResolved(
+            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
+            @com.legend.Nullable String runtimeFqn,
+            java.sql.Connection connection,
+            com.legend.exec.@com.legend.Nullable AssertListener assertListener)
+            throws java.sql.SQLException {
+        return StatementExecutor.execute(resolved, ctx,
+                runtimeFqn, dialectOf(ctx, runtimeFqn, connection), connection,
+                assertListener);
+    }
+
+    /**
      * Phases G&frac12;&rarr;I for an already NAME-RESOLVED query AST — the
      * SQL PLAN without execution (the {@code toSQLString} surface: the
      * caller renders with a dialect of its choosing and compares text).

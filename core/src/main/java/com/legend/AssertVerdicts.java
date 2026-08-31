@@ -61,6 +61,40 @@ final class AssertVerdicts {
             java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> rawHook)
             throws java.sql.SQLException {
+        com.legend.exec.AssertListener l = env.assertListener();
+        if (l == null) {
+            return adjudicate(bare, letPrefix, specs, env, rawHook);
+        }
+        // the listener observes the arm's OWN outcomes only: a non-null
+        // verdict = pass; a raise out of an owned adjudication = fail
+        // (side-evaluation errors fail the same test either way — the
+        // detail says which). Judgment itself is untouched.
+        try {
+            ExecutionResult v = adjudicate(bare, letPrefix, specs, env,
+                    rawHook);
+            if (v != null) {
+                l.verdict(listenerName(bare), true, null);
+            }
+            return v;
+        } catch (java.sql.SQLException e) {
+            l.verdict(listenerName(bare), false, e.getMessage());
+            throw e;
+        }
+    }
+
+    private static String listenerName(TypedSpec bare) {
+        String fqn = calleeFqn(bare);
+        return fqn != null ? fqn
+                : bare instanceof com.legend.compiler.spec.typed.TypedMap
+                        ? "quantified-assert" : bare.getClass().getSimpleName();
+    }
+
+    private static @com.legend.Nullable ExecutionResult adjudicate(TypedSpec bare,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env,
+            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+                    java.util.Set<String>, TypedSpec> rawHook)
+            throws java.sql.SQLException {
         SpliceHook hook = rawHook == null ? null : rawHook::apply;
         if (bare instanceof com.legend.compiler.spec.typed.TypedMap qm) {
             return quantified(qm, letPrefix, specs, env, hook);

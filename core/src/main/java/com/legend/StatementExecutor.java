@@ -34,9 +34,27 @@ final class StatementExecutor {
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection)
             throws java.sql.SQLException {
+        return execute(resolved, ctx, runtimeFqn, dialect, connection, null);
+    }
+
+    /** Listener overload: {@code assertListener} observes every
+     * statement-root assert verdict (the runner's scoring seam —
+     * judging stays here, in one place). */
+    static @com.legend.Nullable ExecutionResult execute(
+            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
+            @com.legend.Nullable String runtimeFqn,
+            com.legend.sql.dialect.SqlDialect dialect,
+            java.sql.Connection connection,
+            com.legend.exec.@com.legend.Nullable AssertListener assertListener)
+            throws java.sql.SQLException {
         SpecCompiler specs = new SpecCompiler(ctx);
-        ExecEnv env = new ExecEnv(ctx, runtimeFqn, dialect, connection,
+        ExecEnv env0 = new ExecEnv(ctx, runtimeFqn, dialect, connection,
                 com.legend.validation.DriverPkOption.get());
+        ExecEnv env = assertListener == null ? env0
+                : new ExecEnv(env0.ctx(), env0.runtimeFqn(), env0.dialect(),
+                        env0.connection(), env0.addDriverTablePk(),
+                        env0.queryLets(), env0.tableReplace(),
+                        env0.instanceIds(), assertListener);
         return executeStatements(specs.typeQueryBody(resolved),
                 new java.util.ArrayList<>(), specs, env,
                 new java.util.ArrayDeque<>());
@@ -56,7 +74,19 @@ final class StatementExecutor {
             boolean addDriverTablePk,
             java.util.Map<String, TypedSpec> queryLets,
             java.util.Map<String, String> tableReplace,
-            com.legend.exec.InstanceIds instanceIds) {
+            com.legend.exec.InstanceIds instanceIds,
+            com.legend.exec.@com.legend.Nullable AssertListener assertListener) {
+        ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
+                com.legend.sql.dialect.SqlDialect dialect,
+                java.sql.Connection connection,
+                boolean addDriverTablePk,
+                java.util.Map<String, TypedSpec> queryLets,
+                java.util.Map<String, String> tableReplace,
+                com.legend.exec.InstanceIds instanceIds) {
+            this(ctx, runtimeFqn, dialect, connection, addDriverTablePk,
+                    queryLets, tableReplace, instanceIds, null);
+        }
+
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
@@ -327,7 +357,7 @@ final class StatementExecutor {
                 : new ExecEnv(env.ctx(), env.runtimeFqn(), env.dialect(),
                         env.connection(),
                         env.addDriverTablePk(), env.queryLets(), union,
-                        env.instanceIds());
+                        env.instanceIds(), env.assertListener());
     }
 
     /**
@@ -1902,7 +1932,7 @@ final class StatementExecutor {
                 env = new ExecEnv(env.ctx(), env.runtimeFqn(), env.dialect(),
                         env.connection(),
                         env.addDriverTablePk(), env.queryLets(), tr,
-                        env.instanceIds());
+                        env.instanceIds(), env.assertListener());
             }
         }
         var assembled = com.legend.compiler.spec.ExecuteChainAssembly

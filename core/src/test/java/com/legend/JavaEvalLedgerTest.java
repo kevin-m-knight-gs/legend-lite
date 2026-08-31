@@ -360,7 +360,16 @@ class JavaEvalLedgerTest {
             // both-rendered dispatch (comparison-policy routing, the
             // header's permanent-allowed class), while disagree
             // burned 9 -> 0.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1408),
+            // 1408 -> 1436 (harness-deletion item 1, slice 2): the
+            // ASSERT-VERDICT LISTENER wrapper — tryAdjudicate reports
+            // each owned verdict (pass, or the raised detail) to an
+            // observer the runner supplies. OBSERVATION, zero
+            // evaluation: judgment stays in adjudicate()/PureAsserts
+            // untouched; the seam exists so the harness's THIRD assert
+            // implementation (checkAssert's walk) can DELETE — the
+            // whole-test flip scores from these events instead of
+            // re-implementing assert semantics.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1436),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -436,7 +445,12 @@ class JavaEvalLedgerTest {
             // arms + one raw-string-literal dispatch. Table + accessors,
             // zero evaluation logic added; the growth is the price of
             // registry-equals-catalog enforcement.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2541),
+            // 2541 -> 2566 (harness-deletion item 1, slice 2): ExecEnv
+            // carries the AssertListener + the execute() listener
+            // overload. Plumbing for the runner's scoring seam — no
+            // evaluation, no routing change; run-scoped fact rides the
+            // env (never a static sink).
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2566),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
@@ -635,6 +649,14 @@ class JavaEvalLedgerTest {
                     // CanonicalDivergence (probes consume a finished
                     // plan and count; nothing here produces a result).
                     "SqlTypeCensus.java",
+                    // HARNESS-DELETION item 1 slice 2 (2026-08-31): the
+                    // assert-verdict OBSERVER interface — one callback
+                    // the runner supplies to score (count/attribute)
+                    // verdicts the platform judges. Pure notification:
+                    // no JDBC, no evaluation, no verdict logic — it
+                    // exists so the harness's own assert orchestration
+                    // can delete at the whole-test cutover.
+                    "AssertListener.java",
                     "package-info.java");
 
     /** The other two funnel packages (documented-debts 2026-08-18,

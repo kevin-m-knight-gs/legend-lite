@@ -247,6 +247,13 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/exec/StructValueTest.java",
             "core/src/test/java/com/legend/harness/AssertLoopForm.java",
             "core/src/test/java/com/legend/harness/EngineTestExecutor.java",
+            // FLIP PROBE (harness-deletion item 1 slice 2): the dual-run
+            // agreement instrument — passes the family session's
+            // Connection THROUGH to Compiler.executeResolved (the one
+            // platform seam); no JDBC calls of its own; effect-gated so
+            // it only re-runs bodies the compiler proves read-only.
+            // Migration scaffolding: dies at the whole-test cutover.
+            "core/src/test/java/com/legend/harness/FlipProbe.java",
             "core/src/test/java/com/legend/harness/EngineTestExecutorTest.java",
             // (ExecCallFinder RETIRED from the register 2026-08-28 —
             // sideSqlText's evaluation path deleted with the slice-3

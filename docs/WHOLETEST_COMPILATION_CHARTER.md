@@ -68,3 +68,41 @@ across statement boundaries) collapses an estimated 250+ of 349.
   point (preamble-owned lineage arms) — they join the flip at slice 2.
 - The probe swallows everything; measurement must never move a verdict
   (sweep stayed exit-0 with the flag on).
+
+## Slice 2 LANDED (2026-08-31): the verdict seam + the dual-run instrument
+
+- **Platform seam** (permanent): `AssertListener` (exec funnel register,
+  tenet argument in JavaEvalLedgerTest) — `AssertVerdicts.tryAdjudicate`
+  reports each owned verdict to an observer the runner supplies via
+  `Compiler.executeResolved(..., listener)`; judgment untouched, rides
+  ExecEnv (run-scoped, never a static sink).
+- **Instrument** (scaffolding, dies at cutover): `FlipProbe`
+  (`-Dll.wholetest.flip`) re-runs each test's whole raw statement list
+  through the platform AFTER the legacy walk and compares. Every fact
+  from compiled state: re-run safety = `Compiler.hasStatementEffects`
+  (the platform's transitive effect scan; effectful bodies excluded —
+  they join only at single-execution cutover). Census isolation: the
+  probe's duplicate executions are muted from ALL pinned counters
+  (SqlTypeCensus.probeSuspend + CanonicalDivergence.muteAll — the
+  §4.1 idiom, extended). Unflagged sweep byte-identical.
+
+### Execution-reality census (`target/wholetest-flip-census.txt`)
+
+| count | bucket | reading |
+|---|---|---|
+| **687** | agree-pass | the day-one flippable cohort — full per-assert agreement |
+| 38 | agree-fail | both paths fail |
+| 65 | cohort-excluded: effectful | re-run unsafe; flip at cutover only |
+| 33 | out-of-scope | legacy Unsupported |
+| ~110 | DISAGREE (legacy pass / platform fail) | **dominated by POLICY LOCATION, not wrong verdicts**: golden-SQL-text asserts the walk soft-passes via its advisory/text-rescue policy while the platform judges strictly. Flip design: the rescue policy moves ABOVE the platform verdict, into the scorer consuming listener events — platform stays spec-exact. Sub-taxonomy: ~90 sql-text asserts, 13 grid-canon renders, plus the binder-freshening fidelity item (platform renders `x` as `_i0` in query-to-text asserts) |
+| 327 | wall-exec: no scalar lowering for overload | execution gaps typing never showed — |
+| 217 | wall-exec: user call left uninlined | — these REORDER the burn: the |
+| 120 | wall-exec: TypedMap class query | typing tail (bind-once ~250) is no |
+| ~490 | wall-type (census §baseline tail) | longer automatically first |
+
+### Slice 3 (next): score-from-platform for the agree-pass cohort
+
+Flip scoring for the 687 behind a per-test census pin (shrink-only on
+the fallback count), with the walk's soft-pass policies (advisory
+golden-SQL, text-rescue) re-homed into the listener-event scorer.
+Then burn lanes strictly by measured bucket size.

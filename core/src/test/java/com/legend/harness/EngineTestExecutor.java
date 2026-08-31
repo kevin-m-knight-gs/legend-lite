@@ -516,6 +516,17 @@ public final class EngineTestExecutor {
             String runtimeFqn, Connection conn, boolean emptinessUnverifiable,
             java.util.List<String> seedFailures)
             throws java.sql.SQLException {
+        Outcome walked = runWalk(ctx, statements, imports, runtimeFqn,
+                conn, emptinessUnverifiable, seedFailures);
+        FlipProbe.probe(walked, ctx, statements, imports, runtimeFqn, conn);
+        return walked;
+    }
+
+    private static @com.legend.Nullable Outcome runWalk(ModelContext ctx,
+            java.util.List<ValueSpecification> statements, ImportScope imports,
+            String runtimeFqn, Connection conn, boolean emptinessUnverifiable,
+            java.util.List<String> seedFailures)
+            throws java.sql.SQLException {
         ElqSplice.ELQ_PARAMS.get().clear();   // per-test param-let names
         Preamble pre = preamble(ctx, statements, imports, runtimeFqn);
         WholeTestCensus.probe(ctx, pre.lineage() != null ? statements
