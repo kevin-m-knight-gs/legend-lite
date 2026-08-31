@@ -418,7 +418,14 @@ class JavaEvalLedgerTest {
             // corpus-authored statement out of the mirror's ledger
             // (root cause of the 9-test experiment residue). RECORDING,
             // zero evaluation.
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2524),
+            // 2524 -> 2541 (§10m ladder completion): the EFFECT-arm
+            // REGISTRY (method-reference map + loud-miss + the two
+            // governance accessors NativeRegistryGovernanceTest pins
+            // against the catalog) replacing SIX scattered silhouette
+            // arms + one raw-string-literal dispatch. Table + accessors,
+            // zero evaluation logic added; the growth is the price of
+            // registry-equals-catalog enforcement.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2541),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

@@ -438,6 +438,12 @@ public final class PlatformTypes {
          * (execute's result frame, executionPlan's plan handle) —
          * resolution does not enter it; consumers force it. */
         HANDLE,
+        /** An EFFECTFUL Java routine at the execution boundary
+         * (executeInDb's raw SQL, DDL natives, seed forms, print's
+         * no-op): runs via its registered arm when evaluation reaches
+         * the call — NEVER staged (effects happen at execution time,
+         * in statement order, against the session). */
+        EFFECT,
         /** Establishes its OWN evaluation context for its arguments
          * (assertError's catch): staging must not enter them — the
          * function's own arm evaluates them under that context (user
@@ -453,20 +459,34 @@ public final class PlatformTypes {
      * remaining silhouette arms migrate here one by one — end state is
      * ZERO function-name checks in the executor (task: full ladder
      * migration). */
+    /** The engine's runtime connection lookup — an orchestration value
+     * our session model answers with null (was a RAW STRING LITERAL at
+     * its dispatch site; ladder census §10m). */
+    public static final String CONNECTION_BY_ELEMENT =
+            "meta::core::runtime::connectionByElement";
+
     public static final java.util.Map<String, NativeImpl> IMPLEMENTATION_KIND =
-            java.util.Map.of(
-                    PLAN_TO_STRING, NativeImpl.JAVA_ROUTINE,
-                    PLAN_TO_STRING_WITHOUT_FORMATTING, NativeImpl.JAVA_ROUTINE,
-                    // ladder migration #22 arm 1: BOTH prior forms — the
-                    // statement-root arm AND the envelope-splice fold
-                    // (an ad-hoc position-independent copy) — are
-                    // deleted; this row is the one fact that replaces them
-                    TO_SQL_STRING, NativeImpl.JAVA_ROUTINE,
-                    TO_SQL_STRING_PRETTY, NativeImpl.JAVA_ROUTINE,
-                    EXECUTION_PLAN, NativeImpl.HANDLE,
-                    PREVAL, NativeImpl.HANDLE,
-                    EXECUTE, NativeImpl.HANDLE,
-                    ASSERT_ERROR, NativeImpl.CONTEXT_OWNER);
+            java.util.Map.ofEntries(
+                    java.util.Map.entry(PLAN_TO_STRING, NativeImpl.JAVA_ROUTINE),
+                    java.util.Map.entry(PLAN_TO_STRING_WITHOUT_FORMATTING, NativeImpl.JAVA_ROUTINE),
+                    // ladder migration #22: each row replaces a deleted
+                    // silhouette arm (statement ladder §10m; the
+                    // toSQLString rows also replaced the ad-hoc
+                    // envelope-splice fold)
+                    java.util.Map.entry(TO_SQL_STRING, NativeImpl.JAVA_ROUTINE),
+                    java.util.Map.entry(TO_SQL_STRING_PRETTY, NativeImpl.JAVA_ROUTINE),
+                    java.util.Map.entry(EXECUTION_PLAN, NativeImpl.HANDLE),
+                    java.util.Map.entry(PREVAL, NativeImpl.HANDLE),
+                    java.util.Map.entry(EXECUTE, NativeImpl.HANDLE),
+                    java.util.Map.entry(ASSERT_ERROR, NativeImpl.CONTEXT_OWNER),
+                    java.util.Map.entry(EXECUTE_IN_DB, NativeImpl.EFFECT),
+                    java.util.Map.entry(DROP_AND_CREATE_TABLE_IN_DB, NativeImpl.EFFECT),
+                    java.util.Map.entry(DROP_AND_CREATE_SCHEMA_IN_DB, NativeImpl.EFFECT),
+                    java.util.Map.entry(SET_UP_DATA_SQLS, NativeImpl.EFFECT),
+                    java.util.Map.entry(SET_UP_DATA_SQLS_V2, NativeImpl.EFFECT),
+                    java.util.Map.entry(PRINT, NativeImpl.EFFECT),
+                    java.util.Map.entry(PRINTLN, NativeImpl.EFFECT),
+                    java.util.Map.entry(CONNECTION_BY_ELEMENT, NativeImpl.EFFECT));
 
     /** Which HANDLE forces EAGERLY when consumed at a statement's value
      * position: execute's frame run IS the value; plan handles stay
@@ -474,6 +494,14 @@ public final class PlatformTypes {
      * executor consults it, never a name literal. */
     public static boolean handleForcesAtValuePosition(String fqn) {
         return EXECUTE.equals(fqn);
+    }
+
+    /** The RAW-SQL boundary fact: executeInDb statements carry
+     * corpus-authored SQL whose recording rides the replay channel
+     * verbatim (the transcript-fidelity contract) — a catalog fact,
+     * never an executor name literal. */
+    public static boolean isRawSqlBoundary(String fqn) {
+        return EXECUTE_IN_DB.equals(fqn);
     }
 
 }

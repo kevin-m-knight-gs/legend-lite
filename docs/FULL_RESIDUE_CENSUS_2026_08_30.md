@@ -783,3 +783,27 @@ implementations — census owed: "routine reading its own arguments'
 structure" (legitimate) vs hidden dispatch (migrate); plus the deep
 convergences (execute frames ↔ HANDLE lazy lets; plan reader
 replacement when plan-nodes-as-rows lands).
+
+### 10n. EFFECT LADDER + REGISTRY FORM LANDED (2026-08-31, user-graded
+### against LINQ/Spark)
+
+The census's second hidden ladder (executeTyped's root dispatch: six
+name-keyed effect arms + one raw string literal) is converted: EFFECT
+catalog rows (executeInDb, dropAndCreate{Table,Schema}InDb,
+setUpDataSQLs{,V2}, print, println, connectionByElement) dispatch via
+ONE method-reference map with a LOUD miss; connectionByElement's raw
+literal became a catalog constant; the rootSetup recording policy
+reads a catalog predicate (isRawSqlBoundary). GOVERNANCE:
+NativeRegistryGovernanceTest pins registry == catalog in BOTH
+directions for EFFECT and JAVA_ROUTINE kinds — neither list can drift
+without a failing test.
+
+The LINQ/Spark grading, on the record: membership-as-fact +
+position-blind dispatch + registry-with-loud-miss = LINQ's dictionary
+form, done. Spark's bind-once form (the node carries its
+implementation out of resolution; no string consulted at runtime) is
+the recorded END STATE, converging with the execute-frames work.
+Remaining name-checks classified: compiler-phase RULE checks are the
+SQL-rule implementations themselves (correct by design); the two
+family-arms left are TdgNatives (catalog rows + the OWED user-ruled
+rename) and AssertVerdicts (rides Phase C's assert machinery).

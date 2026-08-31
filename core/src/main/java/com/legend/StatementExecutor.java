@@ -503,7 +503,7 @@ final class StatementExecutor {
         boolean rootSetup = bare
                 instanceof com.legend.compiler.spec.typed.TypedNativeCall rnc
                 && com.legend.compiler.element.type.PlatformTypes
-                        .EXECUTE_IN_DB.equals(rnc.callee().qualifiedName());
+                        .isRawSqlBoundary(rnc.callee().qualifiedName());
         if (rootSetup) {
             return null;
         }
@@ -2118,6 +2118,71 @@ final class StatementExecutor {
     }
 
 
+    /** The EFFECT rows' registered arms — a REAL registry (LINQ's
+     * dictionary, user push 2026-08-31: "or just moving the ifs into a
+     * table?"): one map, method references, LOUD on a catalogued row
+     * with no arm. {@link #registeredEffectKeys} feeds the governance
+     * test pinning registry == catalog. */
+    @FunctionalInterface
+    private interface EffectRoutine {
+        ExecutionResult run(java.util.List<TypedSpec> body,
+                com.legend.compiler.spec.typed.TypedNativeCall nc,
+                ExecEnv env) throws java.sql.SQLException;
+    }
+
+    private static final java.util.Map<String, EffectRoutine> EFFECT_ARMS =
+            java.util.Map.of(
+                    com.legend.compiler.element.type.PlatformTypes
+                            .EXECUTE_IN_DB,
+                    StatementExecutor::executeInDb,
+                    com.legend.compiler.element.type.PlatformTypes
+                            .DROP_AND_CREATE_TABLE_IN_DB,
+                    StatementExecutor::dropAndCreateTableInDb,
+                    com.legend.compiler.element.type.PlatformTypes
+                            .DROP_AND_CREATE_SCHEMA_IN_DB,
+                    StatementExecutor::dropAndCreateSchemaInDb,
+                    com.legend.compiler.element.type.PlatformTypes
+                            .SET_UP_DATA_SQLS,
+                    SeedSqlForms::assertForm,
+                    com.legend.compiler.element.type.PlatformTypes
+                            .SET_UP_DATA_SQLS_V2,
+                    SeedSqlForms::assertForm,
+                    com.legend.compiler.element.type.PlatformTypes.PRINT,
+                    (body, nc, env) -> new ExecutionResult.Scalar(null,
+                            com.legend.compiler.element.type.Type
+                                    .Primitive.STRING),
+                    com.legend.compiler.element.type.PlatformTypes.PRINTLN,
+                    // debug output: a NO-OP — the argument is NEVER
+                    // evaluated (it may be an unlowerable diagnostic);
+                    // engine parity is the statement's inertness
+                    (body, nc, env) -> new ExecutionResult.Scalar(null,
+                            com.legend.compiler.element.type.Type
+                                    .Primitive.STRING),
+                    com.legend.compiler.element.type.PlatformTypes
+                            .CONNECTION_BY_ELEMENT,
+                    (body, nc, env) -> new ExecutionResult.Scalar(null,
+                            nc.info().type()));
+
+    /** Governance surface: the registry's keys — pinned equal to the
+     * catalog's EFFECT rows by NativeDispatchTest. */
+    public static java.util.Set<String> registeredEffectKeys() {
+        return EFFECT_ARMS.keySet();
+    }
+
+    /** Governance surface: the staged-routine keys — pinned equal to
+     * the catalog's JAVA_ROUTINE rows by NativeDispatchTest. */
+    public static java.util.Set<String> registeredRoutineKeys() {
+        return java.util.Set.of(
+                com.legend.compiler.element.type.PlatformTypes
+                        .PLAN_TO_STRING,
+                com.legend.compiler.element.type.PlatformTypes
+                        .PLAN_TO_STRING_WITHOUT_FORMATTING,
+                com.legend.compiler.element.type.PlatformTypes
+                        .TO_SQL_STRING,
+                com.legend.compiler.element.type.PlatformTypes
+                        .TO_SQL_STRING_PRETTY);
+    }
+
     /** The member name of a typed enum-shaped read (DatabaseType.H2). */
     /** Engine stream-input rule (storeContract.pure:221 supportsStream +
      * executionPlan_generation.pure findParamsSupportedForStreamInput): a
@@ -2562,12 +2627,21 @@ final class StatementExecutor {
         }
         runRuntimeSetups(runtimeSetups, root, env);
         seedMetamodelStore(body, env);
-        // K-NATIVE dispatch: executeInDb never lowers — it IS the phase-K
-        // boundary (raw SQL over the ambient JDBC connection).
+        // CATALOG DISPATCH (EFFECT rows, ladder census §10m): the
+        // effectful K-natives run their registered arm when evaluation
+        // reaches the call — one lookup, no name literals.
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && com.legend.compiler.element.type.PlatformTypes.EXECUTE_IN_DB
-                        .equals(nc.callee().qualifiedName())) {
-            return executeInDb(body, nc, env);
+                && com.legend.compiler.element.type.PlatformTypes
+                        .IMPLEMENTATION_KIND.get(nc.callee().qualifiedName())
+                        == com.legend.compiler.element.type.PlatformTypes
+                                .NativeImpl.EFFECT) {
+            EffectRoutine arm = EFFECT_ARMS.get(nc.callee().qualifiedName());
+            if (arm == null) {
+                throw new com.legend.error.NotImplementedException(
+                        "catalog says '" + nc.callee().qualifiedName()
+                        + "' is EFFECT but no arm is registered");
+            }
+            return arm.run(body, nc, env);
         }
         // ORCHESTRATION-VALUE channel: store navigation resolves against
         // the compiled model (grid reads are typed relations now —
@@ -2575,11 +2649,6 @@ final class StatementExecutor {
         if (com.legend.exec.StoreNav.owns(root, java.util.Map.of())) {
             ExecutionResult hosted = hostEvalAtSeam(root, java.util.Map.of(), env);
             if (hosted != null) { return hosted; }
-        }
-        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall dc
-                && com.legend.compiler.element.type.PlatformTypes.DROP_AND_CREATE_TABLE_IN_DB
-                        .equals(dc.callee().qualifiedName())) {
-            return dropAndCreateTableInDb(body, dc, env);
         }
         // DDL STRING generators (toDDL deprecated forms): evaluated HERE —
         // the engine walks its Database metamodel, we render from the
@@ -2619,39 +2688,6 @@ final class StatementExecutor {
             return new ExecutionResult.Collection(strs,
                     com.legend.compiler.element.type.Type.Primitive.STRING);
         }
-        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall pn
-                && (com.legend.compiler.element.type.PlatformTypes.PRINT
-                        .equals(pn.callee().qualifiedName())
-                        || com.legend.compiler.element.type.PlatformTypes.PRINTLN
-                                .equals(pn.callee().qualifiedName()))) {
-            // debug output: a NO-OP — the argument is NEVER evaluated (it
-            // may introspect a ResultSet, which never materializes host-
-            // side). Divergence from the engine (which prints) is deliberate
-            // harness behavior. A REAL effect nested inside the argument
-            // would be dropped — that must never be silent (audit 17): it
-            // feeds the failure ledger (arming the emptiness guard), or
-            // throws when no ledger is listening.
-            if (containsEffectfulNode(pn.args())) {
-                // F7.1 fail-loud: no sink to report to — the dropped
-                // effect is always an error
-                throw new IllegalStateException("print/println argument"
-                        + " contains an executeInDb-family call; the print"
-                        + " arm never evaluates arguments, so the effect"
-                        + " would be dropped");
-            }
-            return new ExecutionResult.Scalar(null, pn.info().type());
-        }
-        // The engine's CSV-seed SQL generator: strings from the parsed
-        // store's column types (CsvSeed) — dbConfig is never evaluated.
-        // The corpus's own setupTestData body maps the result through
-        // executeInDb, which the TypedMap arm below sequences.
-        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall gen
-                && (com.legend.compiler.element.type.PlatformTypes.SET_UP_DATA_SQLS_V2
-                        .equals(gen.callee().qualifiedName())
-                    || com.legend.compiler.element.type.PlatformTypes.SET_UP_DATA_SQLS
-                        .equals(gen.callee().qualifiedName()))) {
-            return SeedSqlForms.assertForm(body, gen, env);
-        }
         // map over an EFFECTFUL lambda ($sqls->map(sql|executeInDb(...))):
         // the source collection evaluates through the pipeline; each
         // element executes the lambda body with the parameter bound (the
@@ -2688,11 +2724,6 @@ final class StatementExecutor {
                 last = executeTyped(one, env);
             }
             return last;
-        }
-        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall sc
-                && com.legend.compiler.element.type.PlatformTypes.DROP_AND_CREATE_SCHEMA_IN_DB
-                        .equals(sc.callee().qualifiedName())) {
-            return dropAndCreateSchemaInDb(body, sc, env);
         }
         // V11: a canon-riding side SKIPS the literal fold — the fold is
         // a value-fetch optimization, but a requested canon is computed
@@ -2740,21 +2771,11 @@ final class StatementExecutor {
      * Null = not a handle (the caller continues). */
     private static @com.legend.Nullable ExecutionResult orchestrationHandleArm(
             TypedSpec root, ExecEnv env) {
-        // CONNECTION/RUNTIME values are ORCHESTRATION HANDLES (the
-        // executeInDb convention below: connections are harness-ambient,
-        // never host object graphs). A setup returning ^Runtime(...) or
-        // binding connectionByElement(...) must not force them through
-        // the SQL pipeline. Effects nested in ctor args would be dropped
-        // — loud, never silent.
-        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall cbe
-                && "meta::core::runtime::connectionByElement"
-                        .equals(cbe.callee().qualifiedName())) {
-            return new ExecutionResult.Scalar(null, cbe.info().type());
-        }
         if (root instanceof com.legend.compiler.spec.typed.TypedCast castC
                 && castC.source()
                         instanceof com.legend.compiler.spec.typed.TypedNativeCall cbe2
-                && "meta::core::runtime::connectionByElement"
+                && com.legend.compiler.element.type.PlatformTypes
+                        .CONNECTION_BY_ELEMENT
                         .equals(cbe2.callee().qualifiedName())) {
             return new ExecutionResult.Scalar(null, castC.info().type());
         }
