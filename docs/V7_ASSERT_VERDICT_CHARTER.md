@@ -987,6 +987,73 @@ untouched until its turn; NO new per-FQN pure entry points
 anywhere ([[one-router-one-evaluator]] — the standing architecture
 ruling survives the deferral); walls stay loud.
 
+## 4AF. THE BURN PROGRAM (user go 2026-08-30: "start burning
+## everything down") — slices, each gated, pins with attribution
+
+Inputs: FULL_RESIDUE_CENSUS (rows + §6 order, §7 deepened walls),
+the quarantine ruling, the wall-deepening landing (0845eeba).
+
+**Slice Q — the quarantine partition (first, so `declined` becomes
+the honest ACTIVE number).** A REGISTERED quarantine reason
+vocabulary (the CanonDeclines register pattern — exact refusal
+spellings the PRODUCTION system itself emits, never test-name
+matching): the 7 no-scalar reflection FQNs' overload refusals,
+the FunctionDefinition.expressionSequence property refusal, the
+InstanceValue unknown-type refusal, the routerExtensions auto-map
+refusal, the SQLNull-layout refusal, and the ONE-STAMP refusal
+(census receipt: ALL 17 witnesses inside toPostgresModel chains;
+the per-row decline witnesses keep repromotion observable — an
+outside witness shows in the census immediately). v7Summary prints
+`metamodel-quarantined=N` split OUT of `declined`; N EXACT-pinned;
+scoreboard + census updated same commit. Partition, never test
+exclusion.
+
+**Slice B1 — plan-producer classification (the census's biggest
+single unmasking).** PLAN-PRODUCING chains can never lower — a
+plan is not a DB value — so an assert whose args pull
+executionPlan / planToString / planToStringWithoutFormatting
+(exact FQNs, resolution-backed — the SQL_PRODUCER_FQNS seam)
+classifies into the sql-text partition BEFORE the dual-eval probe,
+with a plan sub-reason. SQL-CONTENT predicates (sql() reads over
+frames) keep the dual-eval path (slice-3 rule unchanged). Expected
+movement measured-then-pinned: the getAll-76's executionPlan bulk
++ relationalExtensions 8 leave `declined` for text-only/plan rows;
+TypedMap-65 rows that are plan-bearing may move too (measure,
+attribute every row; h2-lane ownership transfers only with
+receipts). declined shrinks, text-only grows, charter §8.0 scope
+table + pins same commit. The BARE-2 sub-reason gap (census §3)
+fixes here too (the plan path sets its outcome).
+
+**FIRST BURN ROW LANDED — the withMapping fix (2026-08-30, rode
+this batch):** `->withMapping(M)[->cast]->from(runtime)` now slots M
+as THE from-mapping (FromChecker strip beside the
+withChainedMappings idiom; real spec mappingExtension.pure:386) and
+the runner's mapping DISCOVERY learned the spelling (withMapping's
+param 1 is a mapping ref — without it the module compiled unseeded
+and the try-run wall said "table does not exist", masking the real
+gap). RECEIPTS: testFromWithMapping +
+testFromWithMappingAndIntermediateFuncCall SHAPE → PASS; corpus
+2,356 → 2,358; agree 3,381 → 3,383; exec-passing 1,495 → 1,497
+(golden SQL executed + row-verified); h2 advisory registry 67 → 69
+(the two tests' sql() side rows join their siblings'
+TypedUserCall[mapping::sql] vocabulary class — verification gained,
+advisory gap merely gained its members). Zero regressions in every
+other family. POLISH ROW noted: the try-run lane's wall for a store
+query with no discovered mapping should say so, not "table does not
+exist".
+
+**Then, in census-§6 order, each its own gated slice:**
+B2 getAll RESIDUE (rows still declined after B1 = the true
+resolver leg: parameterized non-plan shapes — legacyNullUnsafe,
+m2m2r, singles; census the survivors first); B3 host-unsupported
+registration gaps (~12 mechanical: plan-node/metamodel property
+rows + JSONArray json-node family from §7); B4 small ports/bugs
+(col() overload gap, withMapping lowering, resolver defects 2,
+trailing-JSON 2); B5 plan walls 7 + mapping walls 4 (family
+census first); B6 sql-exec lane (TDG §S5 26+2, then
+emission-anatomy 7). Frozen: quarantine (rides Slice Q), h2-lane
+walls, disagree-9.
+
 ## 8. PLAN OF ATTACK — the batch-2 remainder → cutover (handoff,
 ## 2026-08-28)
 
@@ -1005,6 +1072,22 @@ mvn -pl core test -Dtest=RelationalCorpusRunner \
 
 ## 8.0 SCOPE TABLE — the ratified denominator (2026-08-28, user
 ## sign-off; measured from the baseline full sweep at 9958c040)
+
+**§4AF UPDATE (2026-08-30, Slice Q landed; B1 built, measured and
+REVERTED):** live lane numbers: exec-passing 1,495 / text-only 44 /
+unable-to-exec 50 / csv 0 / **metamodel-quarantined 142** (Slice Q,
+exact-pinned, the deferred metamodel-as-data program's rows) /
+declined 181. B1 (plan-producer classification) was reverted on a
+user catch — its flat `plan-producer` sub-reason flattened 141
+reason-diverse rows into one coarse label, WORSE bucketing than the
+walls it replaced. Its MEASUREMENT is permanent knowledge
+(FULL_RESIDUE_CENSUS §8): of the 181 active declines, 141 are
+PLAN-BEARING asserts (all 76 getAll walls, the 8
+relationalExtensions, 55 of the TypedMap-65, the 2 in-plan resolver
+messages) whose burn belongs to the plan-text LANE with per-shape
+sub-reasons, landed WITH that lane's fix — classification rides the
+fix, never precedes it again. True non-plan decline residue: 40
+(TypedMap 10, host-unsupported 26, JSONArray 2, trailing-JSON 2).
 
 Plain reading: an "assert execution" is one assert statement judged
 once during a full corpus sweep. Of **5,241** total:

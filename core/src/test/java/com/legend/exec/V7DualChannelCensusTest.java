@@ -38,7 +38,8 @@ class V7DualChannelCensusTest {
             assertTrue(CanonicalDivergence.v7Summary().startsWith(
                     "dual-channel agree=2 disagree=2 | sql-text:"
                             + " exec-passing=1 text-only=0 UNABLE-TO-EXEC=1"
-                            + " | test-data-csv=0 | declined=0"),
+                            + " | test-data-csv=0 | declined=0"
+                            + " | metamodel-quarantined=0"),
                     CanonicalDivergence.v7Summary());
             var report = CanonicalDivergence.v7Report();
             assertTrue(report.contains(

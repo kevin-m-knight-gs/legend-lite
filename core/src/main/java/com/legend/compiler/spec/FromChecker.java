@@ -103,10 +103,44 @@ final class FromChecker {
             collectMappingRefs(wc.args().get(1), chainMappings);
             src = wc.args().get(0);
         }
+        // withMapping (real mappingExtension.pure:386 — the from()
+        // sibling routing marker): source->withMapping(M)[->cast(@..)]
+        // ->from(runtime) IS from(source[->cast], M, runtime) — identity
+        // on the stream, M slots as THE mapping, the marker strips (the
+        // withChainedMappings idiom above; witnesses
+        // testFromWithMapping{,AndIntermediateFuncCall}). An explicit
+        // from-mapping wins over the marker (no silent override).
+        TypedPackageableRef[] wmRef = new TypedPackageableRef[1];
+        src = stripWithMapping(src, wmRef);
+        if (wmRef[0] != null && mapping.isEmpty()) {
+            mapping = Optional.of(wmRef[0]);
+        }
         return new TypedFrom(src, mapping, runtime,
                 List.copyOf(chainMappings),
                 java.util.Map.copyOf(jsonSources), List.copyOf(sqlSetups),
                 connectionName, a.out());
+    }
+
+    /** Strip a {@code withMapping(M)} marker off the from-source spine,
+     * seeing through casts (the intermediate-call witness); the found
+     * mapping ref lands in {@code found[0]}. Any other shape passes
+     * through untouched — unrecognized spellings stay loud downstream. */
+    private static TypedSpec stripWithMapping(TypedSpec n,
+            TypedPackageableRef[] found) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall wm
+                && "meta::pure::mapping::withMapping"
+                        .equals(wm.callee().qualifiedName())
+                && wm.args().size() == 2
+                && wm.args().get(1) instanceof TypedPackageableRef mref) {
+            found[0] = mref;
+            return wm.args().get(0);
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedCast c) {
+            TypedSpec inner = stripWithMapping(c.source(), found);
+            return inner == c.source() ? n
+                    : c.withChildren(List.of(inner));
+        }
+        return n;
     }
 
     private static void collectMappingRefs(TypedSpec n,

@@ -192,3 +192,43 @@ walk. Honest dropped-base-element walls. Named future fix:
 register the MFT collection model as library sources (the
 m2m-test-library precedent in the runner) — its own slice, since it
 changes the corpus denominator.
+
+## 8. SLICE Q LANDED; B1 MEASURED AND REVERTED (same day)
+
+**Slice Q (quarantine partition):** `metamodel-quarantined=142`
+split out of `declined`, EXACT-pinned, vocabulary = the production
+system's own refusal spellings (CanonicalDivergence
+METAMODEL_QUARANTINE; the 2 expressionSequence rows that decline
+under the bare host-unsupported marker stay in that bucket — their
+quarantine ownership is documentary, §4a).
+
+**Slice B1 — BUILT, MEASURED, then REVERTED (user catch: the flat
+`plan-producer` sub-reason flattened 141 reason-diverse rows into
+ONE coarse label — worse bucketing than the walls it replaced; a
+lane's classification lands WITH that lane's fix, never before).
+The MEASUREMENT is permanent knowledge:**
+
+- With plan-bearing asserts claimed for the text partition:
+  declined 181 → 40; text-only 44 → 185; agree/disagree/
+  exec-passing/unable/csv/quarantine BYTE-IDENTICAL.
+- The 141 plan-bearing decline rows: getAll walls **76** (ALL of
+  them — the §4c "one resolver leg" is measured EMPTY: every
+  getAll decline is a plan-bearing assert), relationalExtensions
+  **8**, TypedMap plan-bearing **55**, in-plan resolver-defect
+  messages **2** (testMultiExpressionWithPlatformAndFromFunction,
+  m2m2r testProp4).
+- **The TRUE non-plan decline residue = 40**: TypedMap 10
+  (h2-lane), host-unsupported 26 (per-row causes §4c), JSONArray 2,
+  trailing-JSON 2.
+- These numbers live here as MEASUREMENT; the shipped census still
+  counts the 141 under their original wall reasons until the
+  plan-text lane's fix lands with proper per-shape sub-reasons.
+
+**HONESTY NOTE (user challenge on the record: "are we actually
+fixing anything?"):** Q, B1, and the registration slice are
+ACCOUNTING — zero rows became verified. The verification-gaining
+work list from here: the plan-text lane (~160 plan rows now
+honestly bucketed, LANE-4 charter owed), TDG §S5 (26+2), the
+emission-anatomy 7, host-unsupported capability gaps, and the
+small ports (col() overload, withMapping lowering, JSON node
+family). "Burned" = agree/exec-passing went UP.

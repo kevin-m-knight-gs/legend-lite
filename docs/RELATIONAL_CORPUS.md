@@ -38,7 +38,7 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 39 |
 | executionPlan/tests | 108 | 74 | 13 | 3 | 18 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 243 | 4 | 7 | 5 | 2 | 3 | 1 | 110 |
+| functions/tests | 259 | 245 | 4 | 7 | 3 | 2 | 3 | 1 | 110 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 147 | 3 | 5 | 0 | 1 | 1 | 0 | 72 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 1 | 3 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2356** | 59 | 71 | 89 | 24 | 26 | 27 | 896 |
+| **total** | 2575 | **2358** | 59 | 71 | 87 | 24 | 26 | 27 | 896 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2356 PASS = 1419 clean + 937 carrying softness (sqldiff 24, advisory 26, 0-asserts 27, text-rescued 896; flags overlap — the union is 937).
+SOFT-PASS RECONCILIATION (F2.1): 2358 PASS = 1421 clean + 937 carrying softness (sqldiff 24, advisory 26, 0-asserts 27, text-rescued 896; flags overlap — the union is 937).
 
 ### mapping walls (dropped at assembly)
 
@@ -1161,8 +1161,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2356 PASS = 1419 clean + 937 carrying softness 
 - FAIL testTwoMappingsOneRuntimeWithoutExternalMapping [executionPlan/tests]: assertEquals: expected Relational\n(\n  type = TDS[(legalName, String, VARCHAR(200), ""), (legalNameSimple, String, VARCHAR(200), ""), (legalNameALT, String, VARCHAR(200), "")]\n  resultColumns = [("legalName", VARCHAR(200)), ("legalNameSimple", VARCHAR(200)), ("legalNameALT", VARCHAR(200))]\n  sql = select "persontable_0"."legalName" as "legalName", "persontable_0"."legalNameSimple" as "legalNameSimple", "persontable_0"."legalNameALT" as "legalNameALT" from (select "persontable_1"."legalName" as "legalName", "persontable_1"."legalNameSimple" as "legalNameSimple", "persontable_3"."legalNameALT" as "legalNameALT" from (select "otherfirmtable_0".LEGALNAME as "legalName", "otherfirmtable_0".LEGALNAME as "legalNameSimple" from personTable as "root" left outer join otherFirmTable as "otherfirmtable_0" on ("root".FIRMID = "otherfirmtable_0".ID)) as "persontable_1" inner join (select "firmtable_0".LEGALNAME as "legalName", "firmtable_0".LEGALNAME as "legalNameALT" from personTable as "root" left outer join firmTable as "firmtable_0" on ("firmtable_0".ID = "root".FIRMID)) as "persontable_3" on ("persontable_1"."legalName" = "persontable_3"."legalName")) as "persontable_0"\n  connection = TestDatabaseConnection(type = "H2")\n)\n, got Relational\n(\n  type = TDS[(legalName, String, VARCHAR(200), ""), (legalNameSimple, String, VARCHAR(200), ""), (legalNameALT, String, VARCHAR(200), "")]\n  resultColumns = [("legalName", VARCHAR(200)), ("legalNameSimple", VARCHAR(200)), ("legalNameALT", VARCHAR(200))]\n  sql = select "persontable_0"."legalName" as "legalName", "persontable_0"."legalNameSimple" as "legalNameSimple", "persontable_2"."legalNameALT" as "legalNameALT" from (select "otherfirmtable_0".LEGALNAME as "legalName", "otherfirmtable_0".LEGALNAME as "legalNameSimple" from personTable as "root" left outer join otherFirmTable as "otherfirmtable_0" on ("root".FIRMID = "otherfirmtable_0".ID)) as "persontable_0" inner join (select "persontable_3"."legalName" as "__jk_legalName", "persontable_3"."legalNameALT" as "legalNameALT" from (select "firmtable_0".LEGALNAME as "legalName", "firmtable_0".LEGALNAME as "legalNameALT" from personTable as "root" left outer join firmTable as "firmtable_0" on ("firmtable_0".ID = "root".FIRMID)) as "persontable_3") as "persontable_2" on ("persontable_0"."legalName" = "persontable_2"."__jk_legalName")\n  connection = TestDatabaseConnection(type = "H2")\n)\n
 - SHAPE testViewToTDS [executionPlan/tests]: plan wall: in function 'meta::pure::tds::viewToTDS': class 'meta::relational::mapping::TableTDS' has no property 'store' [surfaced via assert form 'assertEquals/2']
 - ERROR withPlatform [executionPlan/tests]: collection reduction 'STRING_AGG' reached a dialect without a list encoding
-- SHAPE testFromWithMapping [functions/tests]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: lowering not yet implemented for TypedNativeCall ('meta::pure::mapping::withMapping' in relation position)
-- SHAPE testFromWithMappingAndIntermediateFuncCall [functions/tests]: no execute(|...) call [calls meta::external::store::relational::tests] — wall: lowering not yet implemented for TypedNativeCall ('meta::pure::mapping::withMapping' in relation position)
 - FAIL testGroupByWithJoinDB2 [functions/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", "personTable_d#4_d_m1".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "root".LEGALNAME,"personTable_d#4_d_m1".FIRSTNAME, got select "root".LEGALNAME as "legalName", "persontable_0".FIRSTNAME as "employeesFirstName", sum(1) as "sum" from firmTable as "root" left outer join personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID) group by "root".LEGALNAME,"persontable_0".FIRSTNAME
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation [col='OE' ref='subAccount_oe']

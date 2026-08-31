@@ -598,7 +598,17 @@ public class RelationalCorpusRunner {
                     // decline surfaced (its Table-not-found row
                     // previously pre-empted the H2-vocabulary side
                     // wall) — recategorization, not lost verification.
-                    "sql-text side", 67);
+                    // 67 -> 69 (withMapping fix 2026-08-30): the two
+                    // testFromWithMapping* tests now EXECUTE (SHAPE ->
+                    // PASS, +2 corpus, exec-passing +2) and surface
+                    // their sql() advisory-side rows in the SAME
+                    // TypedUserCall[mapping::sql] H2-vocabulary class
+                    // their passing siblings already occupy —
+                    // verification GAINED on the primary lane, the
+                    // advisory oracle gap merely gained its two
+                    // members. JUSTIFIED by exec-passing +2 in the
+                    // same commit.
+                    "sql-text side", 69);
             registry.forEach((needle, expected) -> {
                 long got = com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS
                         .entrySet().stream()
@@ -770,7 +780,12 @@ public class RelationalCorpusRunner {
             // H2 mirror vs ours on DuckDB, multiset row compare under
             // the shared canon) — same rows that left the unable-to-exec
             // lane (70 -> 50 above).
-            org.junit.jupiter.api.Assertions.assertEquals(1495,
+            // 1495 -> 1497 (withMapping fix 2026-08-30, §4AF): the two
+            // testFromWithMapping* tests flip SHAPE -> PASS (+2 corpus,
+            // agree +2) and their golden-SQL asserts EXECUTE and
+            // row-verify — verification gained, first real burn row of
+            // the §4AF program.
+            org.junit.jupiter.api.Assertions.assertEquals(1497,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-with-exec-passing"),
@@ -778,6 +793,11 @@ public class RelationalCorpusRunner {
                             + " update the charter §8.0 scope table");
             // (TDG S3 rows are unable-to-exec, NOT text-only — user
             // catch: our fetch SQL EXECUTED and its data row-verified)
+            // (B1 plan-producer classification was BUILT, MEASURED and
+            // REVERTED same day — user catch: the flat sub-reason
+            // flattened 141 reason-diverse rows into one coarse label.
+            // The MEASUREMENT stands in FULL_RESIDUE_CENSUS §8: every
+            // getAll decline is a plan-bearing assert, the 44 stays.)
             org.junit.jupiter.api.Assertions.assertEquals(44,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix("assert-sql-text-only"),
@@ -827,6 +847,20 @@ public class RelationalCorpusRunner {
                                     "assert-sql-text-unable-to-exec"),
                     "lane guard: assert-sql-text-unable-to-exec moved —"
                             + " update the charter §8.0 scope table");
+            // SLICE Q (charter §4AF, user quarantine ruling 2026-08-30):
+            // the METAMODEL QUARANTINE partition — reflection/conversion/
+            // function-body-as-data declines, deferred to the
+            // metamodel-as-data program (PROGRAM_MAP). 142 = the census
+            // §4a's 144 minus the 2 expressionSequence rows that decline
+            // under the bare host-unsupported marker (their quarantine
+            // ownership is documentary; the census names them). EXACT:
+            // growth = a new metamodel decline (adjudicate before
+            // accepting); shrink = the deferred program landed something
+            // (move the pin with its receipts).
+            org.junit.jupiter.api.Assertions.assertEquals(142,
+                    com.legend.exec.CanonicalDivergence.v7QuarantinedCount(),
+                    "metamodel quarantine moved off the census's 142 — see"
+                            + " FULL_RESIDUE_CENSUS_2026_08_30.md §4a");
             // 117 -> 111 (TDG lane S1): the census folds in the CHECKER
             // — the 6 necessaryColumns asserts route and AGREE.
             // 111 -> 50 (TDG lane S2): the ROW CONTRACT routes (size 26 +

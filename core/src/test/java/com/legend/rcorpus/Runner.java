@@ -922,7 +922,13 @@ public final class Runner {
                                 // the platform
                                 || simple.equals("executionPlan") && planRead)
                         && af.parameters().size() >= 2;
-                boolean fromShape = simple.equals("from")
+                boolean fromShape = (simple.equals("from")
+                        // withMapping(src, MAPPING) — the from() sibling
+                        // routing marker (mappingExtension.pure:386);
+                        // param 1 IS the mapping the module must compile
+                        // (witnesses testFromWithMapping{,AndIntermediate
+                        // FuncCall}; the FromChecker strip slots it)
+                        || simple.equals("withMapping"))
                         && af.parameters().size() >= 2;
                 if (executeShape || fromShape) {
                     // validate's EXTENDED overloads put the mapping after

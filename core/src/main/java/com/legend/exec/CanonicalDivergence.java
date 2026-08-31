@@ -382,6 +382,58 @@ public final class CanonicalDivergence {
         return V7_DECLINES.values().stream().mapToLong(AtomicLong::get).sum();
     }
 
+    /** THE METAMODEL QUARANTINE VOCABULARY (user ruling 2026-08-30,
+     * charter §4AF Slice Q; row-level receipts in
+     * FULL_RESIDUE_CENSUS_2026_08_30.md §4a): decline reasons that are
+     * METAMODEL-ONLY — reflection over the authored artifact, function
+     * bodies as data, protocol-node conversion, extension-lambda eval.
+     * A PARTITION of the census, never a test exclusion: the entries
+     * are the PRODUCTION system's own exact refusal spellings (the
+     * CanonDeclines register discipline — never test names), the
+     * per-row decline witnesses keep every quarantined row attributed,
+     * and the count is EXACT-pinned so any movement is loud. Two
+     * receipt-scoped entries (the stamp invariant and the bare-lambda
+     * wall are generic spellings): ALL their measured witnesses live
+     * inside quarantine-family tests (toPostgresModel / tesIsToOne);
+     * an outside witness appears in the census immediately and
+     * repromotes the row to the active burn. */
+    private static final List<String> METAMODEL_QUARANTINE = List.of(
+            // mapping/store reflection — the no-scalar overload refusals
+            "resolved overload 'meta::pure::mapping::classMappingById'",
+            "resolved overload 'meta::pure::mapping::rootClassMappingByClass'",
+            "resolved overload 'meta::pure::mapping::_classMappingByClass'",
+            "resolved overload 'meta::relational::metamodel::view'",
+            "resolved overload 'meta::relational::functions::typeInference::inferRelationalType'",
+            // toPostgresModel conversion family (newState + the stamp
+            // invariant's 17 in-family witnesses + the SQLNull layout)
+            "resolved overload 'meta::relational::functions::toPostgresModel::newState'",
+            "MULTIPLICITY-STAMP INVARIANT VIOLATED",
+            "^meta::relational::metamodel::SQLNull(…) has no canonical layout",
+            // function bodies as data (pkOfFunc + the tesIsToOne
+            // deactivate/InstanceValue reflection tests)
+            "has no property 'expressionSequence'",
+            "unknown type 'InstanceValue'",
+            "a non-let intermediate statement in a bare lambda literal",
+            // extension-lambda eval (the wall-deepened routerExtensions
+            // auto-map refusal)
+            "'meta::pure::extension::routerExtensions'");
+
+    private static boolean quarantined(String key) {
+        for (String q : METAMODEL_QUARANTINE) {
+            if (key.contains(q)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Slice Q reader: declines in the metamodel quarantine partition. */
+    public static long v7QuarantinedCount() {
+        return V7_DECLINES.entrySet().stream()
+                .filter(e -> quarantined(e.getKey()))
+                .mapToLong(e -> e.getValue().get()).sum();
+    }
+
     /** V7 §8.0 leg 0 — the lane-classification guard's reader: total
      * declines carrying one classification reason (the "form ::
      * reason" key tail), summed across forms. */
@@ -436,13 +488,17 @@ public final class CanonicalDivergence {
         long noExec = v7DeclinedByReasonPrefix(
                 "assert-sql-text-unable-to-exec");
         long csv = v7DeclinedByReasonPrefix("assert-test-data-csv");
+        // Slice Q (charter §4AF): the metamodel quarantine splits OUT
+        // of `declined` — declined = the ACTIVE burn backlog only
+        long quarantinedN = v7QuarantinedCount();
         return "dual-channel agree=" + agree + " disagree=" + disagree
                 + " | sql-text: exec-passing=" + execPass
                 + " text-only=" + textOnly
                 + " UNABLE-TO-EXEC=" + noExec
                 + " | test-data-csv=" + csv
                 + " | declined=" + (v7DeclinedCount()
-                        - execPass - textOnly - noExec - csv)
+                        - execPass - textOnly - noExec - csv - quarantinedN)
+                + " | metamodel-quarantined=" + quarantinedN
                 + " | side-rows" + (hist.isEmpty() ? " none" : hist);
     }
 
