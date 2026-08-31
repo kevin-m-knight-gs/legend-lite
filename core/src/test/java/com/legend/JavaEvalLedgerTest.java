@@ -638,12 +638,12 @@ class JavaEvalLedgerTest {
                             "LegendHttpServer.java", "OutputFormat.java",
                             "PureLspServer.java", "QueryService.java"),
                     "core/src/main/java/com/legend/testdatagen",
-                    // TdgNatives (TDG lane S1): the ORCHESTRATION-time fold
+                    // TestDataGenerationNatives (TDG lane S1): the ORCHESTRATION-time fold
                     // of the checker's census CARRIER — computes the census
                     // (this layer owns it) and calls DOWN to the compiler's
                     // literal factory; no evaluation, no JDBC of its own
                     java.util.Set.of("TestDataGenerator.java",
-                            "TdgNatives.java"));
+                            "TestDataGenerationNatives.java"));
 
     @Test
     void theFunnelPackagesAreClosedRegisters() throws IOException {

@@ -20,9 +20,9 @@ a single orchestration):
 
 | # | door | what it claims |
 |---|---|---|
-| 1 | `TdgNatives.foldCensus` (per-statement pre-fold) | test-data-gen carriers → instance literals (model-space census + generator execution) |
+| 1 | `TestDataGenerationNatives.foldCensus` (per-statement pre-fold) | test-data-gen carriers → instance literals (model-space census + generator execution) |
 | 2 | let handling (alias frames, eager execute frames, effect walls) | binding orchestration |
-| 3 | effectful user calls / `TdgNatives.needsBodyRoute` | body inlining route |
+| 3 | effectful user calls / `TestDataGenerationNatives.needsBodyRoute` | body inlining route |
 | 4 | `AssertVerdicts.tryAdjudicate` | statement-root asserts → verdict-in-DB (sides lower; comparison layer judges) |
 | 5 | `hostChannel` → `StoreNav.owns` → `hostEvalAtSeam` | store-nav shapes evaluated at the seam |
 | 6 | `processingTemplateFunctions` arm | plan support functions (host list) |
@@ -51,7 +51,7 @@ one-router program un-defers.
 | normalizer/MappingNormalizer | (compiler; not on this ledger) | compile-time AUTHORED-fact normalization: setIdOf defaulting, extends links, view-backed mainTable resolution. Deliberately does NOT precompute inheritance-walk facts ("the parent's ~mainTable is not auto-copied", :761) | compiler-owned construction |
 | compiler/spec/NormalizeFolds | 100 raw | the ONE sanctioned constant-fold owner (typing + inlining seams): literal-if prune (inlined provenance only — engine parity keeps user ifs in SQL), size-from-multiplicity, int eq/equal, bool and/or | spec-sound folds, engine-parity gated |
 | resolver/Pipelines.instanceLiteralProp | (one rule inside Pipelines) | property access over an instance LITERAL folds to its value — THE literal-prop rule (TDG lane consumer) | single rule, single owner |
-| testdatagen/TdgNatives + TestDataGenerator | funnel-registered (373 raw + generator) | orchestration-time FOLD of test-data-gen carriers; census + generator execution; splices compiler-minted literals | the named instance of the bespoke-entry-point pattern; RENAME to spelled-out vocabulary owed at migration (user ruling) |
+| testdatagen/TestDataGenerationNatives + TestDataGenerator | funnel-registered (373 raw + generator) | orchestration-time FOLD of test-data-gen carriers; census + generator execution; splices compiler-minted literals | the named instance of the bespoke-entry-point pattern; RENAME to spelled-out vocabulary owed at migration (user ruling) |
 | plan/PlanText | 750 | engine-parity plan TEXT composition (envelope, temp-table emitters, PureExp let-allocation) | text spelling, single owner |
 | AggAwareActivities | 227 | aggregation-aware activity replication | recognition |
 | exec/StoreNav | 199 | store-nav chain recognition (owns() gate for hostChannel) + chainBottom walker | recognition/gate |
@@ -117,7 +117,7 @@ E1 adapter contract (ingress splicing, scalar bridge, H4 remap).
   design must place those derivations explicitly.
 - The one-router migration work-list is §1's table, in order of
   evaluation weight: MetamodelWalk (1307) > harness channel >
-  TdgNatives > hostChannel/StoreNav > planWalk driver.
+  TestDataGenerationNatives > hostChannel/StoreNav > planWalk driver.
 - The ledger discipline (shrink-only, justification bumps) already
   points every component here at eviction; this census adds the
   DIRECTION each should evict TOWARD when its program un-defers.

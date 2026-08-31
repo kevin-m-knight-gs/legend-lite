@@ -23,14 +23,14 @@ import java.util.List;
  * implementation does (compiler must not depend upward — the carrier
  * pattern exists exactly for this layering).
  */
-public final class TdgNatives {
+public final class TestDataGenerationNatives {
 
     private static final String DATA_FQN =
             "meta::relational::metamodel::data::RelationalCSVData";
     private static final String TABLE_FQN =
             "meta::relational::metamodel::data::RelationalCSVTable";
 
-    private TdgNatives() {
+    private TestDataGenerationNatives() {
     }
 
     /** Replace every TDG carrier under {@code stmt} with its folded
@@ -97,10 +97,8 @@ public final class TdgNatives {
             }
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && (com.legend.compiler.element.type.PlatformTypes
-                        .SET_UP_DATA_SQLS.equals(nc.callee().qualifiedName())
-                    || com.legend.compiler.element.type.PlatformTypes
-                        .SET_UP_DATA_SQLS_V2.equals(nc.callee().qualifiedName()))
+                && com.legend.compiler.element.type.PlatformTypes
+                        .isSeedSqlForm(nc.callee().qualifiedName())
                 && nc.args().size() == 2
                 && deref(nc.args().get(0), letPrefix)
                         instanceof com.legend.compiler.spec.typed
@@ -147,10 +145,8 @@ public final class TdgNatives {
 
     private static boolean containsSetUpDataSqls(TypedSpec n) {
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && (com.legend.compiler.element.type.PlatformTypes
-                        .SET_UP_DATA_SQLS.equals(nc.callee().qualifiedName())
-                    || com.legend.compiler.element.type.PlatformTypes
-                        .SET_UP_DATA_SQLS_V2.equals(nc.callee().qualifiedName()))) {
+                && com.legend.compiler.element.type.PlatformTypes
+                        .isSeedSqlForm(nc.callee().qualifiedName())) {
             return true;
         }
         for (TypedSpec k : n.children()) {

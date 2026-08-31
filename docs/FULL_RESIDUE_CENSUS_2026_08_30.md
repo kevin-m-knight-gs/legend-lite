@@ -805,5 +805,5 @@ implementation out of resolution; no string consulted at runtime) is
 the recorded END STATE, converging with the execute-frames work.
 Remaining name-checks classified: compiler-phase RULE checks are the
 SQL-rule implementations themselves (correct by design); the two
-family-arms left are TdgNatives (catalog rows + the OWED user-ruled
+family-arms left are TestDataGenerationNatives (catalog rows + the OWED user-ruled
 rename) and AssertVerdicts (rides Phase C's assert machinery).

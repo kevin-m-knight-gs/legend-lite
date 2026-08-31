@@ -35,7 +35,7 @@ aggregated.
 - TDG lane 117→0 COMPLETE (charter docs/TDG_LANE_CHARTER.md; S1
   29bff101, S2 19f27072, S3 07374d08+789d9cf4, S4 26a53c14): carrier
   pattern (checker captures protocol → TypedCsvCensus/TypedTestDataGen →
-  StatementExecutor folds via TdgNatives → compiler-minted instance
+  StatementExecutor folds via TestDataGenerationNatives → compiler-minted instance
   literals), harness compensation machinery deleted, csv bucket
   ZERO-FROZEN, zero disagreements throughout.
 - TDG 49er replay LANDED (6799cd91 + scoreboard 9b6f82a9): 20 of 49
@@ -83,7 +83,7 @@ the user re-ruling; the pin exists to make movement loud.
    NOT violate "database executes" because they ask about the model,
    not about data. TEMPLATE = the TDG carrier: a checker validates the
    native against the registered signature and emits a typed carrier;
-   the orchestrator (StatementExecutor fold, TdgNatives precedent)
+   the orchestrator (StatementExecutor fold, TestDataGenerationNatives precedent)
    answers from the compiled model and splices INSTANCE LITERALS;
    downstream asserts then execute in-DB as normal. Compiler-minted
    factories only (ArchitectureTest invariant 7). Prelude classes for
@@ -241,7 +241,7 @@ these; budget a governance round per chain)
 - **Shared machinery to reuse, never re-implement**:
   `SourceSubst.substitute` = THE β-substitution (SubstitutionParityTest
   pins harness parity); `Pipelines.instanceLiteralProp` = THE
-  literal-prop rule; `TdgNatives.classifyArg` = the ONE arg
+  literal-prop rule; `TestDataGenerationNatives.classifyArg` = the ONE arg
   classifier. Walkers enter lambdas through `lambda.body()`, never
   the lambda node.
 
@@ -299,7 +299,7 @@ with the landing (it carries sqldiff/advisory/rescued columns).
    (finishes the TDG story; pretty-printer byte-convergence is
    iterative). Recommendation on record: (a) first — S5's pretty
    printer is a grind best done fresh, and (a) reuses the pattern
-   just built while its precedent (TdgNatives/CsvCensusChecker) is
+   just built while its precedent (TestDataGenerationNatives/CsvCensusChecker) is
    the newest code in the tree.
 3. Census-first on whichever: print the witness rows, read the
    engine .pure spec for the natives involved, write the slice plan

@@ -444,6 +444,13 @@ public final class PlatformTypes {
          * the call — NEVER staged (effects happen at execution time,
          * in statement order, against the session). */
         EFFECT,
+        /** Bound ONCE at type-check: the checker replaces the call
+         * with a CARRIER node that knows its implementation
+         * (TypedCsvCensus folds from the model; TypedTestDataGen
+         * executes through the database) — the bind-once end-state
+         * form, already achieved for this family; no runtime lookup
+         * ever happens. */
+        CARRIER,
         /** Establishes its OWN evaluation context for its arguments
          * (assertError's catch): staging must not enter them — the
          * function's own arm evaluates them under that context (user
@@ -486,7 +493,9 @@ public final class PlatformTypes {
                     java.util.Map.entry(SET_UP_DATA_SQLS_V2, NativeImpl.EFFECT),
                     java.util.Map.entry(PRINT, NativeImpl.EFFECT),
                     java.util.Map.entry(PRINTLN, NativeImpl.EFFECT),
-                    java.util.Map.entry(CONNECTION_BY_ELEMENT, NativeImpl.EFFECT));
+                    java.util.Map.entry(CONNECTION_BY_ELEMENT, NativeImpl.EFFECT),
+                    java.util.Map.entry(GET_RELATIONAL_CSV_DATA, NativeImpl.CARRIER),
+                    java.util.Map.entry(GENERATE_TEST_DATA, NativeImpl.CARRIER));
 
     /** Which HANDLE forces EAGERLY when consumed at a statement's value
      * position: execute's frame run IS the value; plan handles stay
@@ -502,6 +511,14 @@ public final class PlatformTypes {
      * never an executor name literal. */
     public static boolean isRawSqlBoundary(String fqn) {
         return EXECUTE_IN_DB.equals(fqn);
+    }
+
+    /** The seed-SQL form family (both spellings) — consumers routing
+     * AROUND these (the TDG carrier fold must not classify their
+     * arguments) read this fact, never name pairs. */
+    public static boolean isSeedSqlForm(String fqn) {
+        return SET_UP_DATA_SQLS.equals(fqn)
+                || SET_UP_DATA_SQLS_V2.equals(fqn);
     }
 
 }

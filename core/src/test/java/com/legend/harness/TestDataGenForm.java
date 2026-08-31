@@ -78,7 +78,7 @@ final class TestDataGenForm {
         TestDataGenerator.MilestoningDates[] dates =
                 new TestDataGenerator.MilestoningDates[1];
         for (int i = 3; i < ps.size(); i++) {
-            com.legend.testdatagen.TdgNatives.classifyArg(
+            com.legend.testdatagen.TestDataGenerationNatives.classifyArg(
                     ps.get(i), rowIds, dates, new boolean[1]);
         }
         String mappingFqn = java.util.Objects.requireNonNull(

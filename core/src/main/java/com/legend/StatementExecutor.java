@@ -116,7 +116,7 @@ final class StatementExecutor {
             // TDG lane S1: the checker's census CARRIER folds to instance
             // literals HERE (orchestration owns testdatagen; the compiler
             // cannot — layering), before resolve sees the statement
-            TypedSpec stmt = com.legend.testdatagen.TdgNatives.foldCensus(stmts.get(i), env.ctx(), env.connection(), letPrefix);
+            TypedSpec stmt = com.legend.testdatagen.TestDataGenerationNatives.foldCensus(stmts.get(i), env.ctx(), env.connection(), letPrefix);
             boolean last = i == stmts.size() - 1;
             if (stmt instanceof com.legend.compiler.spec.typed.TypedLet let && !last) {
                 // let tds = $r.values(->at(0)/->toOne()): over a RELATION-
@@ -197,7 +197,7 @@ final class StatementExecutor {
             // ASSERTS therefore route to body inlining and get host
             // verdicts, not byte verdicts — register row, V7 territory.
             if (bare instanceof com.legend.compiler.spec.typed.TypedUserCall call
-                    && (containsEffect(call, specs, effectMemo) || com.legend.testdatagen.TdgNatives.needsBodyRoute(call, specs))) {
+                    && (containsEffect(call, specs, effectMemo) || com.legend.testdatagen.TestDataGenerationNatives.needsBodyRoute(call, specs))) {
                 result = executeCallStatement(call, letPrefix, specs, env, frames);
                 continue;
             }

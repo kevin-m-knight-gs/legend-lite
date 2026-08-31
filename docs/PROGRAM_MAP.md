@@ -250,7 +250,7 @@ classification work); TypedMap 65 (h2-lane owned).
 **The architecture ruling that stands over this program
 ([[one-router-one-evaluator]] memory, ratified in session):** ONE
 entry point for ALL pure code; no bespoke per-FQN entry points ever
-again (the TdgNatives fold is named an instance of the wrong
+again (the TestDataGenerationNatives fold is named an instance of the wrong
 pattern and owes a spelled-out rename when it migrates); no pure
 source carried by the platform. Two candidate resolutions were
 explored and neither is ratified:
