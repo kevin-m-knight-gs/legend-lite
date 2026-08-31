@@ -696,8 +696,33 @@ public final class StoreResolver {
             spliced = FlattenOps.spliceBelow(bsc.pipeline(),
                     bsp.spliceOps(), bsc.sub());
         }
+        // HOISTED filters read the SOURCE row too ($p.extraInformation ==
+        // $p.firm.legalName): their source-side slot-backed heads demand
+        // the source's own join slots — without this the slot strips and
+        // the hoisted rewrite walls (witness testUnionToUnionJoinSequence
+        // WithMultipleChildrenInUnionSourceTree; engine: the slot table
+        // left-joins off the root beside the hop's union OR-join)
+        Set<String> srcSlots = Pipelines.slotAliases(src.pipeline());
+        Set<String> srcSlotDemand = new LinkedHashSet<>();
+        for (TypedSpec hop0 : bsp.hoisted()) {
+            if (!(hop0 instanceof TypedFilter hf)) {
+                continue;   // applyHoisted walls non-filter kinds loudly
+            }
+            Set<String> hh = new LinkedHashSet<>();
+            InnerDemand.collectParamPathHeads(hf.predicate(),
+                    hf.predicate().parameters().get(0), hh);
+            for (String h : hh) {
+                TypedSpec hb = src.bindings().get(SyntheticHeads.realHead(h));
+                if (hb != null) {
+                    CorrelatedSubselects.collectAliasReads(hb, src.rowVar(),
+                            srcSlots, srcSlotDemand);
+                }
+            }
+        }
         Pipelines.Materialized m = Pipelines.materialize(
-                spliced, java.util.Set.of(), java.util.Set.of(alias),
+                spliced,
+                Pipelines.closeOverConditions(spliced, srcSlotDemand),
+                java.util.Set.of(alias),
                 src.classFqn(),
                 (a, tc) -> {
                     Pipelines.Materialized im = Pipelines.materialize(

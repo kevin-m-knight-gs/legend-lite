@@ -92,16 +92,16 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/selfJoin | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
 | tests/mapping/sqlFunction | 74 | 73 | 0 | 1 | 0 | 0 | 0 | 0 | 23 |
 | tests/mapping/tree | 12 | 11 | 1 | 0 | 0 | 0 | 0 | 0 | 8 |
-| tests/mapping/union | 127 | 122 | 2 | 2 | 1 | 4 | 4 | 0 | 70 |
+| tests/mapping/union | 127 | 123 | 2 | 1 | 1 | 4 | 4 | 0 | 71 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/query | 87 | 81 | 2 | 4 | 0 | 1 | 2 | 0 | 42 |
 | transform/fromPure/tests | 57 | 44 | 9 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2341** | 59 | 136 | 39 | 13 | 15 | 27 | 899 |
+| **total** | 2575 | **2342** | 59 | 135 | 39 | 13 | 15 | 27 | 900 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2341 PASS = 1403 clean + 938 carrying softness (sqldiff 13, advisory 15, 0-asserts 27, text-rescued 899; flags overlap — the union is 938).
+SOFT-PASS RECONCILIATION (F2.1): 2342 PASS = 1403 clean + 939 carrying softness (sqldiff 13, advisory 15, 0-asserts 27, text-rescued 900; flags overlap — the union is 939).
 
 ### mapping walls (dropped at assembly)
 
@@ -1326,7 +1326,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2341 PASS = 1403 clean + 938 carrying softness 
 - FAIL testBiTemporalUnionJoin_milestoningColumnInOnClause [tests/mapping/union]: assert did not hold (false)
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: plan wall: plan: alias 't2' not resolvable to a table (Subselect) [surfaced via assert form 'assertEquals/2']
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: multiplicity [*] is not compatible with [1]
-- ERROR testUnionToUnionJoinSequenceWithMultipleChildrenInUnionSourceTree [tests/mapping/union]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'PersonSet1PersonAdditional' (the demand scan and the rewrite disagreed)
 - FAIL testUnionTwoRelationMappings_ManyColumnProject [tests/mapping/union/relation]: assertEquals: expected #TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Anand,null\n   Roberts,null,Roberts,null,Roberts,null,Roberts,null,Roberts,null,Roberts,null\n   Scott,null,Scott,null,Scott,null,Scott,null,Scott,null,Scott,null\n   Taylor,null,Taylor,null,Taylor,null,Taylor,null,Taylor,null,Taylor,null\n   Wright,null,Wright,null,Wright,null,Wright,null,Wright,null,Wright,null\n#, got #TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,,Anand,,Anand,,Anand,,Anand,,Anand,\n   Roberts,,Roberts,,Roberts,,Roberts,,Roberts,,Roberts,\n   Scott,,Scott,,Scott,,Scott,,Scott,,Scott,\n   Taylor,,Taylor,,Taylor,,Taylor,,Taylor,,Taylor,\n   Wright,,Wright,,Wright,,Wright,,Wright,,Wright,\n#
 - FAIL testUnionTwoRelationMappings_ManyColumnProjectGeneratesSingleUnion [tests/mapping/union/relation]: assertEquals: expected #TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,null,Anand,null,Anand,null,Anand,null,Anand,null,Anand,null\n   Roberts,null,Roberts,null,Roberts,null,Roberts,null,Roberts,null,Roberts,null\n   Scott,null,Scott,null,Scott,null,Scott,null,Scott,null,Scott,null\n   Taylor,null,Taylor,null,Taylor,null,Taylor,null,Taylor,null,Taylor,null\n   Wright,null,Wright,null,Wright,null,Wright,null,Wright,null,Wright,null\n#, got #TDS\n   c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n   Anand,,Anand,,Anand,,Anand,,Anand,,Anand,\n   Roberts,,Roberts,,Roberts,,Roberts,,Roberts,,Roberts,\n   Scott,,Scott,,Scott,,Scott,,Scott,,Scott,\n   Taylor,,Taylor,,Taylor,,Taylor,,Taylor,,Taylor,\n   Wright,,Wright,,Wright,,Wright,,Wright,,Wright,\n#
 - ERROR testPushDownProjectWithParameter [tests/query]: unknown type 'JSONObject' in @JSONObject

@@ -291,3 +291,16 @@ out of exists-owns-filter-paths (engine receipt: no employees_* on the
 Firm row). Witness #4 (slot-chain) remains — separate design, engine
 contract already asserted in its own test (assertSameSQL, testUnion
 .pure:240).
+
+## 10. WITNESS #4 LANDING (same session, second batch)
+
+Slot-chain witness burned (corpus 2341→2342, ERROR 136→135, gates
+green): `flattenNavSlot` materialized the SOURCE pipeline with EMPTY
+slot demand, so a HOISTED hop-colliding filter's source-side reads
+($p.extraInformation through join slot PersonSet1PersonAdditional)
+hit a stripped slot. Fix: hoisted filters' source-slot-backed heads
+demand the source's own join slots before materialization (engine
+receipt: the slot table left-joins off the root beside the hop's
+union OR-join, testUnion.pure:240 assertSameSQL — row-verifies as
+text-rescued 899→900, exec-passing 1526→1527). resolver-bug-4 census
+row: ALL FOUR WITNESSES BURNED.

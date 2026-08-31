@@ -844,7 +844,12 @@ public class RelationalCorpusRunner {
             // testQualifier H2Compatible hop-0 (golden extraction sees
             // through sqlRemoveFormatting('literal'), evaluated AS
             // WRITTEN through the platform).
-            org.junit.jupiter.api.Assertions.assertEquals(1526,
+            // 1526 -> 1527 (2026-08-31 resolver-bug-4 witness #4,
+            // testUnionToUnionJoinSequenceWithMultipleChildrenInUnion-
+            // SourceTree): the hoisted-filter source-slot demand fix
+            // makes the test execute; its assertSameSQL golden
+            // exec-passes.
+            org.junit.jupiter.api.Assertions.assertEquals(1527,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-with-exec-passing"),
@@ -1278,9 +1283,13 @@ public class RelationalCorpusRunner {
                     // its assertSqlEquals rows-verify against our
                     // differently-spelled union SQL (the standard rescue
                     // lane for engine-SQL-text asserts).
+                    // 899 -> 900 (same burn, witness #4 slot-chain):
+                    // testUnionToUnionJoinSequenceWithMultipleChildrenIn-
+                    // UnionSourceTree's assertSameSQL likewise
+                    // row-verifies.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            softRescued <= 899, "text-rescued passes grew: "
-                                    + softRescued + " > 899"),
+                            softRescued <= 900, "text-rescued passes grew: "
+                                    + softRescued + " > 900"),
                     // contract-program wire ratchets (RE-PINNED at the
                     // 2026-08-24 label flip: 181->114->56 and 130->13 —
                     // adopted HUGEINT labels, registered carriages, then
