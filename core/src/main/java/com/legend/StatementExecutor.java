@@ -3019,9 +3019,17 @@ final class StatementExecutor {
     /** The K-native {@code dropAndCreateSchemaInDb}: the engine DROPS +
      * creates; here create-if-missing — the DDL seeds already own tables
      * in the schema, and the setup's own dropAndCreateTableInDb calls
-     * recreate what it manages. Recorded on the METADATA channel only —
-     * the H2Verify row-replay stream stays exactly the corpus's own
-     * statements. */
+     * recreate what it manages. Recorded on BOTH channels
+     * (FULL_RESIDUE_CENSUS §9a root cause, 2026-08-30): the old
+     * metadata-only recording WITHHELD a corpus-authored, executed
+     * statement from the H2 row-replay ledger — violating the
+     * recording's own mirror-executed-reality invariant. The mirror
+     * only stayed alive because the module-DDL layer's recorded creates
+     * happened to provide the schemas; without them one suppressed
+     * create per family POISONED the family mirror and failed every
+     * later advisory-dependent test (9 across 2 families, measured).
+     * `Create schema if not exists` is valid H2 and idempotent — the
+     * replay is safe on both fresh and live mirrors. */
     static ExecutionResult dropAndCreateSchemaInDb(
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall sc, ExecEnv env)
@@ -3029,6 +3037,10 @@ final class StatementExecutor {
         String schemaDdl = "Create schema if not exists "
                 + evalStringArg(body, sc.args().get(0), env);
         Executor.executeRaw(env.connection(), schemaDdl);
+        var rec = com.legend.sql.dialect.RawSqlBoundary.recording();
+        if (rec != null) {
+            rec.add(schemaDdl);
+        }
         com.legend.sql.dialect.RawSqlBoundary.recordMeta(schemaDdl);
         return new ExecutionResult.Scalar(true, sc.info().type());
     }

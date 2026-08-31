@@ -271,6 +271,16 @@ public final class H2Verify {
             ExecutionResult ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp) {
+        return verify(seeds, null, goldenSql, ours, enumDecode, graphEnumProp);
+    }
+
+    public static @com.legend.Nullable String verify(
+            java.util.@com.legend.Nullable List<String> seeds,
+            java.util.@com.legend.Nullable List<String> extraSeeds,
+            String goldenSql,
+            ExecutionResult ours,
+            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
+            java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp) {
         if (!READY) {
             throw new Unverifiable("h2 driver not on classpath", null);
         }
@@ -312,6 +322,17 @@ public final class H2Verify {
             }
             try (Statement st = mirror.conn.createStatement()) {
                 applyPendingSeeds(mirror, st, seeds);
+                // per-verify extras OUTSIDE the cursor (§9a): failures
+                // decline THIS verify only — never poison the mirror
+                for (String x : extraSeeds == null ? List.<String>of()
+                        : extraSeeds) {
+                    try {
+                        st.execute(x);
+                    } catch (SQLException e) {
+                        throw new Unverifiable("seed replay: "
+                                + e.getMessage(), e);
+                    }
+                }
                 return compareFrame(st, goldenSql, ours, enumDecode,
                         graphEnumProp);
             } catch (SQLException e) {
@@ -319,7 +340,13 @@ public final class H2Verify {
                         + e.getMessage(), e);
             }
         }
-        return freshVerify(seeds, goldenSql, ours, enumDecode,
+        java.util.List<String> all = seeds;
+        if (extraSeeds != null && !extraSeeds.isEmpty()) {
+            all = new java.util.ArrayList<>(seeds == null
+                    ? List.of() : seeds);
+            all.addAll(extraSeeds);
+        }
+        return freshVerify(all, goldenSql, ours, enumDecode,
                 graphEnumProp);
     }
 
@@ -425,12 +452,33 @@ public final class H2Verify {
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp)
             throws SQLException {
+        return verifyAuto(session, seeds, null, goldenSql, ours, enumDecode,
+                graphEnumProp);
+    }
+
+    /** {@code extraSeeds} (§9a cursor fix, 2026-08-30): PER-VERIFY
+     * synthesized statements (tempTableForIn derivations) that must
+     * NEVER advance the family mirror's incremental cursor — the old
+     * caller appended them to a LOCAL copy of the ledger, so
+     * {@code mirror.applied} counted entries the shared ledger does not
+     * contain and every later verify in the family replayed MISALIGNED
+     * (statements skipped; a synthesized INSERT replayed without its
+     * CREATE). Extras execute AFTER the cursor-applied ledger, every
+     * verify, re-runnable by construction (the synthesizer emits
+     * drop-if-exists first). */
+    public static @com.legend.Nullable String verifyAuto(Connection session,
+            java.util.@com.legend.Nullable List<String> seeds,
+            java.util.@com.legend.Nullable List<String> extraSeeds,
+            String goldenSql, ExecutionResult ours,
+            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
+            java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp)
+            throws SQLException {
         long t0 = System.nanoTime();
         try {
             return "H2".equals(session.getMetaData().getDatabaseProductName())
                     ? verifyOnSession(session, goldenSql, ours, enumDecode,
                             graphEnumProp)
-                    : verify(seeds, goldenSql, ours, enumDecode,
+                    : verify(seeds, extraSeeds, goldenSql, ours, enumDecode,
                             graphEnumProp);
         } finally {
             MIRROR_NANOS.addAndGet(System.nanoTime() - t0);

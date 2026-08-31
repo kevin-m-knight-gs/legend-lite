@@ -412,7 +412,13 @@ class JavaEvalLedgerTest {
             // the splice through the SAME toSqlString K-arm (a render
             // reuse, no evaluation added; burned 94 backlog rows whose
             // asserts were walled behind statement-root-only dispatch)
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2520),
+            // 2520 -> 2524 (§9a transcript-fidelity fix): the schema
+            // K-arm records its executed statement on the MAIN replay
+            // channel too — the metadata-only recording was editing a
+            // corpus-authored statement out of the mirror's ledger
+            // (root cause of the 9-test experiment residue). RECORDING,
+            // zero evaluation.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2524),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

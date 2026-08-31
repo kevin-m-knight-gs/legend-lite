@@ -707,10 +707,10 @@ public final class EngineTestExecutor {
                 // the query that names this runtime sees it) — the
                 // execute-binding path collects via evalStatements, this
                 // arm covers the executeLegendQuery/from() shapes
-                List<ValueSpecification> csvs = new ArrayList<>();
+                List<ValueSpecification[]> csvs = new ArrayList<>();
                 collectInlineCsv(rhs, csvs);
-                for (ValueSpecification csvExpr : csvs) {
-                    seedInlineCsv(csvExpr, ctx, conn);
+                for (ValueSpecification[] csvExpr : csvs) {
+                    seedInlineCsv(csvExpr, imports, ctx, conn);
                 }
                 lets.put(name.value(),
                         subst(purifiedSetup(rhs, ctx), lets));   // F3.2a
@@ -1498,18 +1498,14 @@ public final class EngineTestExecutor {
             // the routing lives with the oracle (H2Verify.verifyAuto)
             java.util.List<String> seeds =
                     com.legend.sql.dialect.RawSqlBoundary.recording();
+            java.util.List<String> extra = null;
             if (golden.toLowerCase().contains("temptableforin_")) {
-                java.util.List<String> extra = tempTableSeeds(golden,
+                extra = tempTableSeeds(golden,
                         actual, lets, execStmts, execVars, execChains, ctx,
                         imports, runtimeFqn, conn);
-                if (extra != null) {
-                    var all = new java.util.ArrayList<>(seeds);
-                    all.addAll(extra);
-                    seeds = all;
-                }
             }
             return H2Verify.verifyAuto(conn,
-                    seeds, golden,
+                    seeds, extra, golden,
                     rows.result(), H2Verify.enumDecodeFor(rows.result(),
                             actual, lets, execStmts, ctx, imports), enumProp);
         } catch (java.sql.SQLException | RuntimeException e) {
@@ -1613,6 +1609,10 @@ public final class EngineTestExecutor {
                 return null;   // witnessed shapes only: ints or strings
             }
             java.util.List<String> out = new ArrayList<>();
+            // drop-first (§9a cursor fix): extras re-execute on the LIVE
+            // family mirror on every verify — creation must be
+            // re-runnable
+            out.add("DROP TABLE IF EXISTS tempTableForIn_" + var);
             out.add("CREATE LOCAL TEMPORARY TABLE tempTableForIn_" + var
                     + " (ColumnForStoringInCollection "
                     + (allStr ? "VARCHAR(1024)" : "BIGINT") + ")");
@@ -3433,10 +3433,10 @@ public final class EngineTestExecutor {
             ModelContext ctx, ImportScope imports, String runtimeFqn,
             Connection conn) throws java.sql.SQLException {
         for (ValueSpecification s : stmts) {
-            List<ValueSpecification> csvs = new ArrayList<>();
+            List<ValueSpecification[]> csvs = new ArrayList<>();
             collectInlineCsv(s, csvs);
-            for (ValueSpecification csvExpr : csvs) {
-                seedInlineCsv(csvExpr, ctx, conn);
+            for (ValueSpecification[] csvExpr : csvs) {
+                seedInlineCsv(csvExpr, imports, ctx, conn);
             }
         }
         LambdaFunction wrapped = new LambdaFunction(List.of(),
@@ -3454,33 +3454,79 @@ public final class EngineTestExecutor {
      * FRESH DuckDB connection (Runner opens jdbc:duckdb: per test), so
      * DELETE+INSERT over the family-DDL tables is exactly the override. */
     private static void collectInlineCsv(ValueSpecification v,
-            List<ValueSpecification> sink) {
+            List<ValueSpecification[]> sink) {
+        collectInlineCsv(v, sink, null);
+    }
+
+    /** Collects {csvExpr, enclosing ConnectionStore's element ref} pairs
+     * — the CSV's DATABASE rides the SIBLING property of the very node
+     * that carries it (^ConnectionStore(element=DB, connection=^...(
+     * testDataSetupCsv=...))). FULL_RESIDUE_CENSUS §9a: without the db,
+     * CsvSeed cannot find the declared table shapes and degrades every
+     * block to a bare DELETE — the lane's creation half existed but was
+     * unwired. */
+    private static void collectInlineCsv(ValueSpecification v,
+            List<ValueSpecification[]> sink,
+            @com.legend.Nullable ValueSpecification dbRef) {
         switch (v) {
             case NewInstance ni -> {
+                ValueSpecification db = dbRef;
+                KeyExpression el = ni.first("element");
+                if (el != null && el.value() instanceof
+                        com.legend.protocol.spec.PackageableElementPtr) {
+                    db = el.value();
+                }
                 KeyExpression k = ni.first("testDataSetupCsv");
                 if (k != null) {
-                    sink.add(k.value());
+                    sink.add(new ValueSpecification[]{k.value(), db});
                 }
+                ValueSpecification fdb = db;
                 ni.properties().stream().map(com.legend.protocol.spec.NewInstance.KeyBinding::expression).toList().forEach(x ->
-                        collectInlineCsv(x.value(), sink));
+                        collectInlineCsv(x.value(), sink, fdb));
             }
             case AppliedFunction af ->
-                    af.parameters().forEach(x -> collectInlineCsv(x, sink));
-            case AppliedProperty ap -> collectInlineCsv(ap.receiver(), sink);
+                    af.parameters().forEach(x -> collectInlineCsv(x, sink, dbRef));
+            case AppliedProperty ap -> collectInlineCsv(ap.receiver(), sink, dbRef);
             case PureCollection pc ->
-                    pc.values().forEach(x -> collectInlineCsv(x, sink));
+                    pc.values().forEach(x -> collectInlineCsv(x, sink, dbRef));
             case LambdaFunction lf ->
-                    lf.body().forEach(x -> collectInlineCsv(x, sink));
-            default -> v.children().forEach(x -> collectInlineCsv(x, sink));
+                    lf.body().forEach(x -> collectInlineCsv(x, sink, dbRef));
+            default -> v.children().forEach(x -> collectInlineCsv(x, sink, dbRef));
         }
     }
 
-    private static void seedInlineCsv(ValueSpecification csvExpr,
-            ModelContext ctx, Connection conn) throws java.sql.SQLException {
-        String csv = foldStringLiteral(csvExpr);
-        for (String sql : com.legend.exec.CsvSeed.sqls(csv, null, ctx)) {
+    private static void seedInlineCsv(ValueSpecification[] csvAndDb,
+            ImportScope imports, ModelContext ctx, Connection conn)
+            throws java.sql.SQLException {
+        String csv = foldStringLiteral(csvAndDb[0]);
+        // resolve the paired store ref by exact candidates (the raw
+        // spelling, then each import wildcard's qualification) — never
+        // a suffix scan
+        String dbFqn = null;
+        if (csvAndDb[1] instanceof
+                com.legend.protocol.spec.PackageableElementPtr ptr) {
+            java.util.List<String> cands = new ArrayList<>();
+            cands.add(ptr.fullPath());
+            for (String w : imports.wildcards()) {
+                cands.add(w + "::" + ptr.fullPath());
+            }
+            for (String c : cands) {
+                if (ctx.findDatabase(c).isPresent()) {
+                    dbFqn = c;
+                    break;
+                }
+            }
+        }
+        for (String sql : com.legend.exec.CsvSeed.sqls(csv, dbFqn, ctx)) {
             try (var st = conn.createStatement()) {
                 st.execute(sql);
+                // transcript fidelity (the mirror-executed-reality
+                // invariant, §9a): the mirror replays what the session
+                // ran — these statements are H2-valid as spelled
+                var rec = com.legend.sql.dialect.RawSqlBoundary.recording();
+                if (rec != null) {
+                    rec.add(sql);
+                }
             }
         }
     }

@@ -62,6 +62,15 @@ public final class CsvSeed {
                 ? java.util.Optional.<Type.RelationType>empty()
                 : ctx.findTable(dbFqn, table);
         if (tableType.isPresent()) {
+            // schema-qualified CSV tables need their schema first (the
+            // inline-CSV lane's creation half, FULL_RESIDUE_CENSUS §9a:
+            // the engine's own lane creates model-derived tables on a
+            // fresh database; TEST_SCHEMA.PEOPLE has no authored setup).
+            // IF NOT EXISTS: idempotent on both engines and on mirrors
+            // that already carry the schema.
+            if (!"default".equals(schema)) {
+                out.add("CREATE SCHEMA IF NOT EXISTS " + schema);
+            }
             // DROP-then-CREATE, never CREATE OR REPLACE: H2 (2.1.214, the
             // engine's own target) has no OR REPLACE for tables — this was
             // the recorded root cause of ~39 'Table already exists' H2

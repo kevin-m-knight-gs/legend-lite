@@ -232,3 +232,120 @@ honestly bucketed, LANE-4 charter owed), TDG §S5 (26+2), the
 emission-anatomy 7, host-unsupported capability gaps, and the
 small ports (col() overload, withMapping lowering, JSON node
 family). "Burned" = agree/exec-passing went UP.
+
+## 9. PROVISIONING MEASUREMENT (engine-rule residue, 2026-08-30)
+
+QUESTION (user): the engine provisions its shared DB purely via
+package-chain BeforePackage setups (self-sufficient by authorship —
+fromMapping::setUp calls query::setUp, receipts in testFrom.pure).
+If that rule alone provisioned our corpus, the residue should be
+ZERO — anything else would mean hidden compensation somewhere.
+
+METHOD: env-guarded experiment patch (reverted after): disable the
+two SCAN-driven provisioning layers (module-declared DDL +
+cross-family setup pulls), keep shared zero-arg setups + the test's
+own package-chain BeforePackage functions. One full sweep.
+
+RESULT: corpus 2,358 → 2,348 — **residue = 10 tests**. FIRST-PASS
+attribution below was then REPLACED by a test-by-test verification
+(user: no guessing, no sampling) — see the corrected table after it.
+
+- **9 are OUR extra verification, not engine compensation**:
+  calendarAggregations ×4 (testDifferentCalendar/EndDates,
+  testDynaEndDate/Input — calendar tables) + query-family ×5
+  (testConcatenateWithPost/PreFilteredGroupBy,
+  testFilterBeforeAndAfterGroupBy/Project, testLimitFilterInSequence)
+  all fail as `sql-text` diffs — i.e. their ADVISORY row-check could
+  not run (tables missing) and the golden-SQL diff became the
+  verdict per the scoring rule. In the ENGINE these are text-only
+  compares that never touch a table — the engine rule never needed
+  to provision them. The demand is created by OUR advisory
+  row-verification lane (a verification the engine does not do).
+- **1 execution dependency to adjudicate**: testSpecialUnion_m2m2r
+  (graphFetch/union) ERRORs on a missing catalog/table — either an
+  engine order-freeloader (shared world provided it by suite order)
+  or a setup-semantics difference on our side; single-test read
+  owed at the leg.
+
+### §9a TEST-BY-TEST VERIFICATION (all 10, receipts read)
+
+The first-pass story ("9 = missing calendar/query tables") was
+WRONG in its mechanism — the per-test reading found the truth is
+narrower: TWO mechanisms, both schema-existence-only, no foreign
+data anywhere, no engine freeloading anywhere.
+
+| tests | verified mechanism | need |
+|---|---|---|
+| calendarAggregations ×4 (testDifferentCalendar, testDifferentEndDates, testDynaEndDate, testDynaInput) | their own setUp DOES create LegendCalendarSchema + both calendar tables on the DuckDB side (testCalendarFunctions.pure:102, dropAndCreateSchemaInDb + dropAndCreateTableInDb) — execution was fine. What died was the H2 ADVISORY MIRROR: `seed replay: Schema "LEGENDCALENDARSCHEMA" not found` — at baseline the module-DDL layer's recorded creates gave the mirror its schemas. With the advisory row-check dead, these 4 tests' STANDING dialect text divergences (our `NULL` casing + `group by "root".hireType` vs golden `group by "hireType"` — present at baseline too, advisory-tolerated) became the verdict | H2-mirror SCHEMA existence only |
+| testConcatenateWithPostFilteredGroupBy, testConcatenateWithPreFilteredGroupBy, testFilterBeforeAndAfterGroupBy, testFilterBeforeAndAfterProject, testLimitFilterInSequence | identical mechanism: mirror `seed replay: Schema "CONCATENATE" not found`; same standing-divergence-surfaces-as-verdict scoring | H2-mirror SCHEMA existence only |
+| testSpecialUnion_m2m2r | inline `testDataSetupCsv` (TEST_SCHEMA.PEOPLE/PEOPLE2/FIRMS, testUnionRootLevel_relational.pure:697) — the harness's inline-CSV lane DELETE+INSERTs over tables it expects to exist; baseline existence came from module DDL. The ENGINE'S OWN inline-CSV lane creates model-derived tables on a fresh test database — so providing them is engine-PARITY, not compensation | model-derived schema+tables for the inline-CSV lane |
+
+CORRECTED DESIGN CONSEQUENCE: the lazy hook shrinks to two
+model-derived DDL provisions at known seams — (1) the H2 mirror's
+replay creates schemas/tables for the stores in scope (referee
+lane, our extra verification); (2) the inline-CSV lane creates its
+model-derived tables (engine-parity). No demand-walker, no foreign
+data, no dependency management, no setup inference. SIDE FINDING
+for the dialect ledger: the 8 sql-text tests carry standing
+NULL-casing / group-by-alias divergences that only the advisory
+lane's tolerance hides.
+
+VERDICT: the engine does NOT do extra compensation — its rule is
+genuinely self-sufficient for its own verification model. Our
+richer verification (advisory row-checks over golden SQL) is what
+demands extra tables. ARCHITECTURE CONFIRMED WITH RECEIPTS:
+provisioning = the engine rule (package-chain setups) + a LAZY
+store-triggered hook at the one execution-setup seam (the
+metamodel-store seed precedent, generalized) covering the referee
+lane's demands and the 1 residual — replacing both scan-driven
+layers. No demand-walker needed: the resolver knows the stores
+before SQL runs.
+
+## 9b. ROOT-CAUSE DRILL COMPLETE (user-driven, "no guessing"):
+## residue 10 → 0 — THREE REAL BUGS, ZERO new provisioning machinery
+
+The user's challenge ("engine H2 syntax failing on our H2 means
+something is wrong on our side") was CORRECT three times over. All
+three defects share one invariant violation — the advisory mirror
+is a REPLAY, so the recording must be a faithful transcript of what
+the session executed — and all three were masked by the module-DDL
+guessing layer:
+
+1. **Suppressed schema creates** (StatementExecutor
+   dropAndCreateSchemaInDb K-arm): executed `Create schema if not
+   exists` on the session but recorded it METADATA-ONLY, editing a
+   corpus-authored statement out of the replay ledger. One
+   suppressed create per family POISONED the family mirror; the
+   poison replayed to every later advisory-dependent test (the
+   calendar 4 + filter-combo 2 healed on this fix alone). FIXED:
+   record on both channels.
+2. **Unwired inline-CSV creation half** (seedInlineCsv →
+   CsvSeed.sqls(csv, null, ctx)): the model-derived DROP+CREATE
+   branch EXISTED in CsvSeed but the call site passed dbFqn=null,
+   degrading every block to bare DELETE. FIXED: the CSV pairs with
+   its ConnectionStore's element ref (exact-candidate import
+   resolution, never suffix), CsvSeed emits CREATE SCHEMA IF NOT
+   EXISTS for qualified tables, and the statements are RECORDED
+   (transcript fidelity). Heals testSpecialUnion_m2m2r; serves all
+   84 inline-CSV usages uniformly; engine-parity (their lane
+   creates model-derived tables on a fresh DB).
+3. **Mirror cursor aliasing** (H2Verify.applyPendingSeeds +
+   the tempTableForIn extras): per-verify synthesized statements
+   were appended to a LOCAL copy of the ledger, so mirror.applied
+   counted entries the shared ledger does not contain — every later
+   verify in the family replayed MISALIGNED (a synthesized INSERT
+   without its CREATE). FIXED: extras thread separately
+   (verifyAuto/verify extraSeeds), execute AFTER the cursor-applied
+   ledger on every verify, drop-first for re-runnability; a failing
+   extra declines its own verify instead of poisoning the mirror.
+
+MEASURED END STATE: baseline byte-stable (all pins, scoreboard
+identical, BASE_EXIT=0); package-chain-only provisioning now passes
+**2,358/2,575 — EXACT pass parity with baseline, residue ZERO**.
+The surviving declaration-driven seam is ONE: the inline-CSV lane
+creating its declared tables. NAMED RESIDUE for the deletion leg:
+under the experiment flag, exec-passing is 1,495 vs 1,497 — two
+assert rows' verification strength still depends on a
+guessing-layer statement; drill them when the deletion lands (the
+flag is an experiment instrument, re-derivable from this doc, and
+was REVERTED, not shipped).
