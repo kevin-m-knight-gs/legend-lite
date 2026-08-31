@@ -354,9 +354,12 @@ class JavaEvalLedgerTest {
             // DAY, user challenge honored): valueRead DELETED — the
             // decode rides the FETCH (wrapTdsCanon conforms the grid
             // plan on the GRID_FETCH lane; the executor's label-driven
-            // unwrap hands BOTH channels the decoded value). Shrink
-            // banked below the pre-burn 1405: net Java-eval REDUCTION
-            // while disagree burned 9 -> 0.
+            // unwrap hands BOTH channels the decoded value). Honest
+            // net vs the 1405 day-start: +3 — the EVALUATION (+13
+            // decode) is fully deleted; the +3 is renderedArm's
+            // both-rendered dispatch (comparison-policy routing, the
+            // header's permanent-allowed class), while disagree
+            // burned 9 -> 0.
             Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1408),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement

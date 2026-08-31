@@ -95,8 +95,11 @@ cleanups in the same batch: orphaned `ScanOrder.totalTiebreak` +
 `PureDateLiteral.atNineSubseconds` deleted; the written-temporal
 spelling has one owner (`LiteralSpelling.writtenTemporalText`, the
 MixedEncoding arm delegates). JavaEvalLedger AssertVerdicts pin
-BANKED DOWN 1418 → 1408 — below the pre-burn 1405+13: the burn
-finished with NET LESS host evaluation than it started.
+BANKED DOWN 1418 → 1408. HONEST NET vs the day's start (1405): +3
+code lines — NOT a reduction. The +13 of actual EVALUATION (the
+decode) is fully deleted; the residual +3 is renderedArm's
+both-rendered dispatch (comparison-policy routing, the ledger
+header's permanent-allowed class, net of same-file compressions).
 
 ---
 
