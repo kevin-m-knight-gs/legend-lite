@@ -722,3 +722,39 @@ NEXT SLICES OF THIS LANE (named, counted):
    execute (HANDLE kind converges) — each arm DELETED at migration;
    planWalk arm BLOCKED on plan-nodes-as-rows (metamodel-as-data
    leg 1), never silently skipped.
+
+### 10k-addendum: plan-text rows-upgrade MEASURED EMPTY (2026-08-31)
+
+Test-by-test verdict on the 17 plan-literal + 6 plan-let rows: ALL are
+byte-matching PASSES counted text-only (the label records the routing
+— literal text compare, no rows verified — not a failure). Zero
+mismatching plan-text tests exist today, so the mismatch rows-referee
+has no witnesses; building it now would be machinery without fuel.
+NAMED BOUNDARY: parameterized plans ('${bd}' FreeMarker params) can
+NEVER row-verify without invented parameter values — fake
+verification; they stay text-verified by design. The rows-upgrade
+re-opens WHEN a mismatching plan-text witness appears (the census
+will show it as a FAIL in a plan family).
+
+
+### 10l. LADDER MIGRATION ARM 1 LANDED (2026-08-31): toSQLString
+
+toSQLString/toSQLStringPretty = one catalog row + one routine; the
+statement-root arm, the ad-hoc position-independent envelope-splice
+fold, and the orphaned renderSqlText plumbing are DELETED. Scoreboard
+byte-identical (pure mechanism swap, net deletion). Staging's
+lambda-descent RESOLVED with a census (3 in-lambda firings
+estate-wide, all constant-hoistable because inlining substitutes loop
+parameters first; non-hoistable shapes fail LOUDLY): the boundary
+experiment's 2 moved rows belong to testAdjustDateTranslationInMappingAndQuery
++ testSortQuotes — mystery closed with names.
+
+TEXTBOOK-GAP LEDGER for the catalog leg (user-held standard):
+1. results bind as LITERALS not parameters — UNJUSTIFIED shortcut,
+   now a NAMED task-#22 item (benign today: literals enter a typed
+   tree, not SQL text; parameters are the mature form).
+2. staged ENVIRONMENT (lambda scope) — gated on facts: barred
+   consumers (assertError-class) may not migrate without it.
+3. catalog coverage — arms remaining: processingTemplateFunctions,
+   assertError, setUpDataSQLs, execute (HANDLE convergence),
+   planWalk (BLOCKED on plan-nodes-as-rows).

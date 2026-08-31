@@ -271,6 +271,12 @@ public final class PlatformTypes {
             java.util.Map.of(
                     PLAN_TO_STRING, NativeImpl.JAVA_ROUTINE,
                     PLAN_TO_STRING_WITHOUT_FORMATTING, NativeImpl.JAVA_ROUTINE,
+                    // ladder migration #22 arm 1: BOTH prior forms — the
+                    // statement-root arm AND the envelope-splice fold
+                    // (an ad-hoc position-independent copy) — are
+                    // deleted; this row is the one fact that replaces them
+                    TO_SQL_STRING, NativeImpl.JAVA_ROUTINE,
+                    TO_SQL_STRING_PRETTY, NativeImpl.JAVA_ROUTINE,
                     EXECUTION_PLAN, NativeImpl.HANDLE,
                     PREVAL, NativeImpl.HANDLE,
                     EXECUTE, NativeImpl.HANDLE);

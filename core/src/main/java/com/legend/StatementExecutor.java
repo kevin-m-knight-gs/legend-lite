@@ -232,10 +232,6 @@ final class StatementExecutor {
             body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
                     .stage(b, stageEnv, nativeRoutines(specs, env)));
 
-            // toSQLString dispatches PRE-H: its query lambda resolves
-            // against the EXPLICIT mapping argument, never the ambient
-            // runtime's (audit 19d B3 — the K-native replacing the
-            // harness's name-interception)
             TypedSpec preRoot = body.get(body.size() - 1);
             if (preRoot instanceof com.legend.compiler.spec.typed.TypedLet pl) {
                 preRoot = pl.value();
@@ -244,15 +240,6 @@ final class StatementExecutor {
                 preRoot = pf.source();
             }
             preRoot = foldPairProjection(preRoot);
-            if (preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall tsc
-                    && (com.legend.compiler.element.type.PlatformTypes.TO_SQL_STRING
-                            .equals(tsc.callee().qualifiedName())
-                        || com.legend.compiler.element.type.PlatformTypes
-                                .TO_SQL_STRING_PRETTY
-                                .equals(tsc.callee().qualifiedName()))) {
-                result = toSqlString(tsc, specs, env);
-                continue;
-            }
             // $plan.processingTemplateFunctions — the ExecutionPlan class
             // property (executionPlan.pure:67): every relational node
             // carries relationalPlanSupportFunctions(connection), deduped
@@ -594,13 +581,24 @@ final class StatementExecutor {
                             java.util.Objects.requireNonNull(r,
                                     "plan text")).value());
                 };
+        com.legend.compiler.spec.NativeDispatch.Routine sqlText =
+                (call, letPrefix) -> {
+                    ExecutionResult r = toSqlString(call, specs, env);
+                    return String.valueOf(((ExecutionResult.Scalar)
+                            java.util.Objects.requireNonNull(r,
+                                    "sql text")).value());
+                };
         return java.util.Map.of(
                 com.legend.compiler.element.type.PlatformTypes
                         .PLAN_TO_STRING, text,
                 com.legend.compiler.element.type.PlatformTypes
                         .PLAN_TO_STRING_WITHOUT_FORMATTING,
                 (call, letPrefix) -> text.value(call, letPrefix)
-                        .replace("\n", "").replace(" ", ""));
+                        .replace("\n", "").replace(" ", ""),
+                com.legend.compiler.element.type.PlatformTypes
+                        .TO_SQL_STRING, sqlText,
+                com.legend.compiler.element.type.PlatformTypes
+                        .TO_SQL_STRING_PRETTY, sqlText);
     }
 
     private static @com.legend.Nullable ExecutionResult planToString(
@@ -2112,13 +2110,6 @@ final class StatementExecutor {
                 return post == es.plan() ? es.sql() : renderer.render(post);
             }
 
-            @Override
-            public @com.legend.Nullable String renderSqlText(
-                    com.legend.compiler.spec.typed.TypedNativeCall call) {
-                ExecutionResult r = toSqlString(call, specs, env);
-                return r instanceof ExecutionResult.Scalar sc
-                        && sc.value() instanceof String s ? s : null;
-            }
         });
     }
 

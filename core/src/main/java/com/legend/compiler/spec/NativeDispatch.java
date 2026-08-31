@@ -37,6 +37,19 @@ public final class NativeDispatch {
     public static TypedSpec stage(TypedSpec stmt,
             java.util.List<TypedSpec> letPrefix,
             java.util.Map<String, Routine> routines) {
+
+        // LAMBDA BODIES: staging descends into them, which is
+        // CONSTANT HOISTING and semantics-preserving here — measured
+        // 2026-08-31 (LL_STAGE_TRACE census): exactly 3 in-lambda
+        // firings estate-wide (testAdjustDateTranslationInMappingAndQuery
+        // x2, testSortQuotes x1), all evaluable because inlining
+        // substitutes the loop parameter over a literal collection
+        // BEFORE staging; a call reading an UNsubstituted parameter
+        // fails LOUDLY in its routine (non-literal args rejected) —
+        // never silently wrong. THE OBLIGATION stands for consumers
+        // that establish their own evaluation context (assertError's
+        // catch): those migrate ONLY together with a real staged
+        // environment (lambda boundary + parameter scope).
         TypedSpec n = stmt.mapChildren(
                 c -> stage(c, letPrefix, routines));
         if (!(n instanceof TypedNativeCall nc)) {
