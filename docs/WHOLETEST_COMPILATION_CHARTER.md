@@ -90,15 +90,19 @@ across statement boundaries) collapses an estimated 250+ of 349.
 
 | count | bucket | reading |
 |---|---|---|
-| **687** | agree-pass | the day-one flippable cohort — full per-assert agreement |
-| 38 | agree-fail | both paths fail |
+(EXACT totals, corrected 2026-08-31 second measure — the first table's
+"~110 DISAGREE" summed only the visible top rows; probed=2,438 of the
+2,575 runnable this sweep)
+
+| count | bucket | reading |
+|---|---|---|
+| **687** | agree-pass | the day-one flippable cohort — full per-assert agreement, count-skew ZERO (every multi-assert test's platform event count matched the walk's verified count exactly) |
+| 38 | agree-fail | both paths fail — 725 total agreement |
 | 65 | cohort-excluded: effectful | re-run unsafe; flip at cutover only |
 | 33 | out-of-scope | legacy Unsupported |
-| ~110 | DISAGREE (legacy pass / platform fail) | **dominated by POLICY LOCATION, not wrong verdicts**: golden-SQL-text asserts the walk soft-passes via its advisory/text-rescue policy while the platform judges strictly. Flip design: the rescue policy moves ABOVE the platform verdict, into the scorer consuming listener events — platform stays spec-exact. Sub-taxonomy: ~90 sql-text asserts, 13 grid-canon renders, plus the binder-freshening fidelity item (platform renders `x` as `_i0` in query-to-text asserts) |
-| 327 | wall-exec: no scalar lowering for overload | execution gaps typing never showed — |
-| 217 | wall-exec: user call left uninlined | — these REORDER the burn: the |
-| 120 | wall-exec: TypedMap class query | typing tail (bind-once ~250) is no |
-| ~490 | wall-type (census §baseline tail) | longer automatically first |
+| **362** | DISAGREE (legacy pass / platform fail) | 334 golden-TEXT asserts (engine SQL / plan "Sequence" / rewritten-query text) + 13 grid-canon + 5 plain + 10 misc — **~95% POLICY LOCATION, not wrong verdicts**: the walk soft-passes text goldens via its advisory/text-rescue policy while the platform judges strictly. Flip design: the rescue policy moves ABOVE the platform verdict, into the scorer consuming listener events — platform stays spec-exact. Fidelity sub-item: binder freshening (`x` → `_i0`) in query-to-text renders |
+| 825 | wall-exec (no scalar lowering 327, uninlined user call 217, TypedMap 120, …) | execution gaps typing never showed — these REORDER the burn |
+| 428 | wall-type (the baseline census tail) | bind-once ~250 no longer automatically first |
 
 ### Slice 3 (next): score-from-platform for the agree-pass cohort
 
