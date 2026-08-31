@@ -606,3 +606,54 @@ seeding runs) realized.
   the quarantine family. (The stale h2-base.log tdg=62 reference was
   Aug-29 code; HEAD itself measures tdg=29 — no tdg movement in this
   slice.)
+
+### 10i. POST-SLICE ANSWERS + DEAD-CODE BATCH (2026-08-31)
+
+**SHAPE→ERROR census (the ~48 recomposed rows, measured from the
+green-gate sweep diff; toPostgresModel excluded).** Top buckets, each
+a Phase-B lane item with a real compiler reason:
+"execution activities are not recorded" 13 · "Unknown type" 11 ·
+"host channel" 9 · postprocessor hook shape 8 · resolver-bug tagged 4
+· unbound-variable 5 · assert-in-helper unknown-function rows (the
+try-run-only assertExpansion flag's former surface) · long tail of
+1-2s (from()-arg TypedUserCall, nested exists-nav, class-query
+vocabulary, acos/asin domain errors, preeval/XStore model gaps).
+CAVEAT: the raw unique-line diff shows 119 rows because some
+PRE-EXISTING errors also reworded; the scoreboard bucket math
+(SHAPE 87→39, ERROR 71→139) pins the true recomposition at ~48+20.
+
+**35-vanished verification CLOSED**: zero non-toPostgresModel decline
+witnesses vanished — the channel move is exactly that family.
+
+**testDataGeneration h2 62→29 EXPLAINED**: the drop is the TDG lane
+S2 landing (already receipted in the floor comment "1375→1347 …
+~28 converted tests' asserts now REACH H2's renderer"), NOT this
+slice — 33 fell ≈ the S2 walls growth (+34, 949→983); the Aug-29
+h2-base.log predates S2.
+
+**Union flappers (DEFERRED, now recorded)**: 4 union aggregation
+tests (§10g) return the same result multiset with run-to-run
+ORDER differences inside unordered string-concat aggregation
+(list_aggregate without an inner ORDER BY). Verdicts stable today;
+a future golden/text referee could flap. Owed: pin aggregation
+order per engine semantics — correctness-lane item.
+
+**Instrument defects (recorded, not yet fixed):**
+1. The family-ledger read filter is a statement-TEXT prefix
+   classifier — a CTE-prefixed mutation (WITH … INSERT) would be
+   filtered as a read and silently vanish from the mirror's state.
+   Corpus carries none (pins green). Owed: classify by the parsed
+   statement kind at the recording seam.
+2. The re-scoped fixture-skew census keys by lowercase TABLE NAME
+   only — with every database in scope, same-named tables across
+   databases (persontable monoculture) collide first-wins, so part
+   of the 473→782 growth is cross-database FALSE pairing. Owed:
+   key by (database, table) or compare per-execution against the
+   owning db. The 782 ceiling is a noisy upper bound until then.
+
+**Dead-code batch (this commit)**: safeFindFunction,
+collectCalledFqns (self-recursive orphan), familyLiveShapes +
+noteExecutedDdl (write-only after the router deletion), sourceFamily
+(write-only after crossRefs), containsAssertCall + the constant-false
+assertExpansion flag (try-run-only; collapsing it is behavior-neutral
+— the landed pins already reflect false). Runner 2,725 → 1,950 lines.

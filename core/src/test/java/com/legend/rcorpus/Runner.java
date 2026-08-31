@@ -247,13 +247,11 @@ public final class Runner {
     public void addBeforePackages(String source, String familyKey) {
         collectSetups(source);
         if (familyKey != null) {
-            sourceFamily.putIfAbsent(source, familyKey);
             familySources.computeIfAbsent(familyKey,
                     k -> new ArrayList<>()).add(source);
         }
     }
 
-    private final Map<String, String> sourceFamily = new LinkedHashMap<>();
     private final Map<String, List<String>> familySources = new LinkedHashMap<>();
 
 
@@ -583,12 +581,6 @@ public final class Runner {
     private List<com.legend.protocol.spec.ValueSpecification> expandHelperCalls(
             List<com.legend.protocol.spec.ValueSpecification> stmts,
             ParsedTest t, int depth) {
-        return expandHelperCalls(stmts, t, depth, false);
-    }
-
-    private List<com.legend.protocol.spec.ValueSpecification> expandHelperCalls(
-            List<com.legend.protocol.spec.ValueSpecification> stmts,
-            ParsedTest t, int depth, boolean assertExpansion) {
         if (depth >= 3) {
             return stmts;
         }
@@ -611,15 +603,12 @@ public final class Runner {
                         ? af.function() : qualify(af.function(), t);
                 FnDef fd = fnIndex.get(fqn + "/" + af.parameters().size());
                 if (fd != null && !fd.body().isEmpty()
-                        && (containsExecuteShapeDeep(fd.body(), t, 0)
-                                || (assertExpansion
-                                        && containsAssertCall(fd.body())))) {
-                    // assert-carrying helpers expand ONLY on the try-run
-                    // path (no-execute bodies — assertConversion et al.);
-                    // mainstream families keep the execute-shape gate
-                    // (the widened gate regressed 600+ tests: helper
-                    // bodies carrying sqlRemoveFormatting spliced into
-                    // typed positions)
+                        && containsExecuteShapeDeep(fd.body(), t, 0)) {
+                    // execute-shape gate only (the old widened
+                    // assert-helper gate regressed 600+ tests; the
+                    // try-run-only assertExpansion flag died with that
+                    // lane — assert-in-helper no-execute bodies wall
+                    // honestly as unknown-function now, Phase-B fuel)
                     callee = fd;
                     call = af;
                 }
@@ -697,8 +686,7 @@ public final class Runner {
                                 call.parameters().get(i))));
             }
             List<com.legend.protocol.spec.ValueSpecification> expanded =
-                    expandHelperCalls(callee.body(), t, depth + 1,
-                            assertExpansion);
+                    expandHelperCalls(callee.body(), t, depth + 1);
             if (letName != null && !expanded.isEmpty()) {
                 com.legend.protocol.spec.ValueSpecification last =
                         expanded.remove(expanded.size() - 1);
@@ -903,20 +891,6 @@ public final class Runner {
         return name;
     }
 
-    /** Whether any statement is an assert* call (top level only). */
-    private static boolean containsAssertCall(
-            List<com.legend.protocol.spec.ValueSpecification> body) {
-        for (com.legend.protocol.spec.ValueSpecification st : body) {
-            if (st instanceof com.legend.protocol.spec.AppliedFunction af) {
-                String fn = af.function();
-                String simple = fn.substring(fn.lastIndexOf(':') + 1);
-                if (simple.startsWith("assert")) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
 
     /** A no-execute body attempted through the FULL pipeline: PASS/FAIL
      * outcomes are real; Unsupported/errors return null so the caller
@@ -1096,7 +1070,6 @@ public final class Runner {
                     // live-shape census (t5 root cause): everything this
                     // test executed — module DDL AND setup-fn streams —
                     // updates the session's live table shapes
-                    noteExecutedDdl(recording);
                 } else {
                     conn.close();
                 }
@@ -1331,37 +1304,6 @@ public final class Runner {
      * across a family's tests exactly like the engine's shared server
      * carries it across a package's tests; per-test order is unchanged. */
     private @com.legend.Nullable Connection familyConn;
-    /** SETUP-STREAM table shapes (t5 root cause, goal #18): cross-family
-     * setup functions drop+recreate same-named tables with DIFFERENT
-     * shapes through executeInDb — invisible to the MODULE-derived
-     * conflict router, so the shared session's live table silently
-     * diverged from the module shape the next test compiled against
-     * (FirmSet1 (id,name,NICKNAME) clobbered to (ID,LegalName); the
-     * query then read a dropped column, surfaced by DuckDB 1.5 as a
-     * bogus 'table t5 not found'). Track every CREATE TABLE the session
-     * EXECUTES; the conflict router consults this map too, so a
-     * clobbered-shape test routes to a private session. */
-    private final java.util.Map<String, String> familyLiveShapes =
-            new java.util.HashMap<>();
-
-    void noteExecutedDdl(java.util.List<String> stmts) {
-        for (String raw : stmts) {
-            String t = raw.strip();
-            String lower = t.toLowerCase(java.util.Locale.ROOT);
-            if (lower.startsWith("create table")) {
-                int open = t.indexOf('(');
-                if (open > 12) {
-                    String name = t.substring(12, open).strip()
-                            .toLowerCase(java.util.Locale.ROOT);
-                    familyLiveShapes.put(name, t);
-                }
-            } else if (lower.startsWith("drop table")) {
-                String name = lower.replace("drop table if exists", "")
-                        .replace("drop table", "").replace(";", "").strip();
-                familyLiveShapes.remove(name);
-            }
-        }
-    }
 
     /** FIXTURE-SKEW CENSUS (charter §4bZ): the engine's own setup
      * streams create tables whose column KINDS contradict the
@@ -1632,7 +1574,6 @@ public final class Runner {
             }
             familyConn = null;
         }
-        familyLiveShapes.clear();
         familySetupsDone.clear();
         familySeedLedger.clear();
         currentSetupPkg = null;
@@ -1703,42 +1644,7 @@ public final class Runner {
         return failedSeeds;
     }
 
-    private static List<com.legend.compiler.element.TypedFunction> safeFindFunction(
-            com.legend.compiler.element.ModelContext ctx, String fqn) {
-        try {
-            return ctx.findFunction(fqn);
-        } catch (RuntimeException brokenOverloads) {
-            return List.of();
-        }
-    }
 
-    /** QUALIFIED call names + element-pointer paths in a statement tree
-     * (bare names skipped by the consumers). Walks constructor arguments
-     * too — the propertyLevel setups name foreign stores inside
-     * {@code ^ConnectionStore(element=...)}. */
-    private static void collectCalledFqns(
-            com.legend.protocol.spec.ValueSpecification v, java.util.Set<String> out,
-            java.util.Set<String> elements) {
-        if (v instanceof com.legend.protocol.spec.AppliedFunction af) {
-            if (af.function().contains("::")) {
-                out.add(af.function());
-            }
-            af.parameters().forEach(x -> collectCalledFqns(x, out, elements));
-        } else if (v instanceof com.legend.protocol.spec.AppliedProperty ap) {
-            collectCalledFqns(ap.receiver(), out, elements);
-        } else if (v instanceof com.legend.protocol.spec.LambdaFunction lf) {
-            lf.body().forEach(x -> collectCalledFqns(x, out, elements));
-        } else if (v instanceof com.legend.protocol.spec.PureCollection pc) {
-            pc.values().forEach(x -> collectCalledFqns(x, out, elements));
-        } else if (v instanceof com.legend.protocol.spec.NewInstance ni) {
-            ni.properties().forEach(kb ->
-                    collectCalledFqns(kb.expression().value(), out, elements));
-        } else if (v instanceof com.legend.protocol.spec.NewInstanceCast nic) {
-            collectCalledFqns(nic.src(), out, elements);
-        } else if (v instanceof com.legend.protocol.spec.PackageableElementPtr ptr) {
-            elements.add(ptr.fullPath());
-        }
-    }
 
     /** Does this setup function (transitively, over the parsed setup-fn
      * universe) reach a K-native seeding call? Shared files also define
