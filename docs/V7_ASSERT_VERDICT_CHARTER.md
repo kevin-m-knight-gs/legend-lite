@@ -1042,6 +1042,14 @@ other family. POLISH ROW noted: the try-run lane's wall for a store
 query with no discovered mapping should say so, not "table does not
 exist".
 
+**B6 FIRST HALF LANDED (2026-08-31):** TDG chained-fetch live-session
+refereeing — the whole TDG unable residue (29, incl. the "26+2")
+executes and row-verifies; exec-passing 1497 → 1526, unable 50 → 21.
+Full landing record: TDG charter §S5-L (platform Fetch transcript +
+ancestor-golden mirror synthesis + the concatenate root-sort platform
+fix + the sqlRemoveFormatting golden fold). Emission-anatomy byte
+parity remains §S5's future leg.
+
 **Then, in census-§6 order, each its own gated slice:**
 B2 getAll RESIDUE (rows still declined after B1 = the true
 resolver leg: parameterized non-plan shapes — legacyNullUnsafe,
@@ -1095,7 +1103,9 @@ runtime-candidate fallback estate-wide (90 firings → 0); the Runner
 lost its guessing layers (−704 lines: name-scan, try-run/SHAPE gate,
 module DDL, conflict router, crossRefs, preflight + setup-universe
 module); per-package workspaces are the ONLY topology (G4 63s, was
-~255s). Lane numbers: exec-passing **1497** / text-only 44 / unable 50
+~255s). Lane numbers: exec-passing **1526** / text-only 44 / unable 21
+(2026-08-31 chained-fetch live-session refereeing — census §10o leg 1,
+TDG charter §S5 landing record: the TDG 29 all row-verify)
 / csv 0 / declined 181 / **metamodel-quarantined 107 witness rows +
 20 wall tests** (CHANNEL MOVE, same partition: with the try-run lane
 deleted, the toPostgresModel family fails at the TEST level before

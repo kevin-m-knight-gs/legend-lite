@@ -46,6 +46,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * (V7 §8 leg 1: the grid canon's per-ROW text reads through the SAME
  * harvestCanon choke point as the scalar candidates — user ruling
  * 2026-08-28: consolidate, never sprawl; the count stays 13.)
+ * (2026-08-31 chained-fetch live-session refereeing, TDG charter
+ * §S5-L: TestDataGenerator.captureRows' ONE getObject carries each
+ * fetch's live-session rows into Result.fetches — pure carriage
+ * (C1.2's allowed class) of the ENGINE'S OWN return shape
+ * (generateTestData pairs every SQL with its ResultSet). The count
+ * STAYS 13: the createRowIdentifiers sample loop's own getObject
+ * consolidated onto the same captureRows choke point — consolidate,
+ * never sprawl.)
  */
 class TenetRatchetTest {
 

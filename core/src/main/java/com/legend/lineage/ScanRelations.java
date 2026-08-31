@@ -286,6 +286,13 @@ public final class ScanRelations {
         // keeps the whole table too (engine: sort materializes the full
         // row stream — testTableToTdsWithSort pins all columns despite a
         // later project).
+        if (out.size() > 1) {
+            // engine reOrderAndMergeRelationTree sorts EVERY top-level
+            // child (join-less key = relation name) — the join arms above
+            // already sort; a no-join concatenate's roots must too
+            // (testTableToTdsWithConcatenate pins firmTable < personTable)
+            out.sort(java.util.Comparator.comparing(nd -> nd.table));
+        }
         if (containsCall(n, "sort")
                 || (!containsCall(n, "project") && !containsCall(n, "restrict")
                         && !containsCall(n, "groupBy")

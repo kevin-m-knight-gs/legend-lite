@@ -800,7 +800,20 @@ public class RelationalCorpusRunner {
             // agree +2) and their golden-SQL asserts EXECUTE and
             // row-verify — verification gained, first real burn row of
             // the §4AF program.
-            org.junit.jupiter.api.Assertions.assertEquals(1497,
+            // 1497 -> 1526 (TDG chained-fetch live-session refereeing,
+            // census §10o leg 1 / TDG charter §S5 landing): the whole TDG
+            // unable residue (29) executes and row-verifies — 26 chained
+            // hops (OUR side = the generator's live-session per-fetch
+            // transcript, engine-parity Result.fetches; GOLDEN side = the
+            // mirror with ancestor testDataGen_Temp_* tables synthesized
+            // from the test's own earlier goldens, root-first), 2
+            // concatenate rows (REAL platform bug fixed: the no-join
+            // tableToTDS concatenate arm missed the engine's
+            // reOrderAndMergeRelationTree root sort), and the
+            // testQualifier H2Compatible hop-0 (golden extraction sees
+            // through sqlRemoveFormatting('literal'), evaluated AS
+            // WRITTEN through the platform).
+            org.junit.jupiter.api.Assertions.assertEquals(1526,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-with-exec-passing"),
@@ -856,7 +869,13 @@ public class RelationalCorpusRunner {
             // H2 mirror, ours on DuckDB, rows equal — exec-passing);
             // the 29 remaining ride NAMED causes (26 chained-fetch temp
             // tables, 2 projection-demand divergences, 1 no-generator)
-            org.junit.jupiter.api.Assertions.assertEquals(50,
+            // 50 -> 21 (chained-fetch live-session refereeing, §10o leg
+            // 1): the TDG 29 all execute and row-verify (see the
+            // exec-passing 1526 note); the remainder is the relational
+            // register's own named residue (the closing-arc roster in
+            // VERDICT_DISAGREEMENT_BURN_2026_08_30.md; per-reason census
+            // in the sweep log).
+            org.junit.jupiter.api.Assertions.assertEquals(21,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-unable-to-exec"),
@@ -1215,8 +1234,16 @@ public class RelationalCorpusRunner {
                     // per-TEST (rescued() > 0); exec-passing is
                     // per-ASSERT — they do not subtract, and how many
                     // of the 20 asserts byte-matched is unmeasured.
+                    // 896 -> 898 (chained-fetch live-session refereeing,
+                    // JUSTIFIED by exec-passing 1,497 -> 1,526 +
+                    // unable-to-exec 50 -> 21 in the same commit): 2
+                    // more TESTS' passes carry the ROW-VERIFIED rescue
+                    // (testTableToTdsWithConcatenate — root-sort
+                    // platform fix — and testQualifier's H2Compatible
+                    // hop 0; the 24 chained asserts sit in tests already
+                    // counted rescued).
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            softRescued <= 896, "text-rescued passes grew: "
+                            softRescued <= 898, "text-rescued passes grew: "
                                     + softRescued + " > 896"),
                     // contract-program wire ratchets (RE-PINNED at the
                     // 2026-08-24 label flip: 181->114->56 and 130->13 —

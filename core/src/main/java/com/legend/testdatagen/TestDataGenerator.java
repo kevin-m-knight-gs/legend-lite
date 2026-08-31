@@ -68,10 +68,29 @@ public final class TestDataGenerator {
     }
 
     public record Result(List<String> sqls, @com.legend.Nullable String dataCsvString,
-            @com.legend.Nullable List<String[]> tables) {
+            @com.legend.Nullable List<String[]> tables,
+            @com.legend.Nullable List<Fetch> fetches) {
         public Result(List<String> sqls, String dataCsvString) {
-            this(sqls, dataCsvString, null);
+            this(sqls, dataCsvString, null, null);
         }
+
+        public Result(List<String> sqls, @com.legend.Nullable String dataCsvString,
+                @com.legend.Nullable List<String[]> tables) {
+            this(sqls, dataCsvString, tables, null);
+        }
+    }
+
+    /** Per-fetch transcript entry, aligned 1:1 with {@link Result#sqls}
+     * — the engine's own return shape (generateTestData pairs every SQL
+     * with its ResultSet). {@code rows} are the fetch's LIVE-SESSION
+     * results, read from the materialized temp before it drops; {@code
+     * parentIndex} is the sqls index of the fetch whose rows seeded this
+     * fetch's parent temp (-1 for roots/id-fetches/view fetches);
+     * {@code table} is the fetched relation's name — the engine spells
+     * a chained hop's parent temp {@code 'testDataGen_Temp_' +
+     * table(parentIndex)}. */
+    public record Fetch(int parentIndex, String table, List<String> columns,
+            List<List<Object>> rows) {
     }
 
     /** The engine's getRelationalCSVDataFromQuery: the NECESSARY column
@@ -184,6 +203,9 @@ public final class TestDataGenerator {
             collectColMap(ctx, r, colMap, null);
         }
         List<String> sqls = new ArrayList<>();
+        // the per-fetch transcript, 1:1 with sqls (engine parity: the
+        // engine returns every fetch's ResultSet beside its SQL)
+        List<Fetch> fetches = new ArrayList<>();
         // tableKey (schema\ntable) -> fetch temps, in first-fetch order
         Map<String, Fetched> fetched = new LinkedHashMap<>();
         // per-call temp-name counter (temps drop in finally, so names
@@ -191,11 +213,12 @@ public final class TestDataGenerator {
         List<String> temps = new ArrayList<>();
         try (Statement st = conn.createStatement()) {
             for (ScanRelations.Rel r : roots) {
-                fetchRoot(ctx, r, rowIds, st, sqls, fetched, temps, colMap,
-                        dates);
+                fetchRoot(ctx, r, rowIds, st, sqls, fetches, fetched,
+                        temps, colMap, dates);
             }
             String csv = csvEnvelope(st, fetched, hashStrings);
-            return new Result(List.copyOf(sqls), csv);
+            return new Result(List.copyOf(sqls), csv, null,
+                    List.copyOf(fetches));
         } finally {
             dropTemps(conn, temps);
         }
@@ -238,6 +261,7 @@ public final class TestDataGenerator {
 
     private static void fetchRoot(ModelContext ctx, ScanRelations.Rel rel,
             List<TableRowIds> rowIds, Statement st, List<String> sqls,
+            List<Fetch> fetches,
             Map<String, Fetched> fetched, List<String> temps,
             Map<String, List<String>> colMap, @com.legend.Nullable MilestoningDates dates)
             throws SQLException {
@@ -275,14 +299,17 @@ public final class TestDataGenerator {
                 + " as \"root\" where " + (mf == null ? where
                         : "(" + where + ") and " + mf) + " limit 20";
         String temp = materialize(st, sql, tbl, temps);
+        int idx = sqls.size();
         sqls.add(sql);
+        fetches.add(new Fetch(-1, tbl, cols, tempRows(st, temp)));
         record(fetched, loc.schema(), tbl, cols, temp);
         for (ScanRelations.Rel child : rel.children()) {
-            fetchChild(ctx, rel, temp, child, st, sqls, fetched, temps,
-                    colMap, rowIds, dates);
+            fetchChild(ctx, rel, temp, idx, child, st, sqls, fetches,
+                    fetched, temps, colMap, rowIds, dates);
         }
         if (viewName != null) {
-            emitViewFetches(ctx, viewDb, viewName, st, sqls, fetched);
+            emitViewFetches(ctx, viewDb, viewName, st, sqls, fetches,
+                    fetched);
         }
     }
 
@@ -310,8 +337,10 @@ public final class TestDataGenerator {
     }
 
     private static void fetchChild(ModelContext ctx, ScanRelations.Rel parent,
-            String parentTemp, ScanRelations.Rel child, Statement st,
-            List<String> sqls, Map<String, Fetched> fetched,
+            String parentTemp, int parentIdx, ScanRelations.Rel child,
+            Statement st,
+            List<String> sqls, List<Fetch> fetches,
+            Map<String, Fetched> fetched,
             List<String> temps, Map<String, List<String>> colMap,
             List<TableRowIds> rowIds, @com.legend.Nullable MilestoningDates dates)
             throws SQLException {
@@ -343,14 +372,17 @@ public final class TestDataGenerator {
                         + " as \"root\" where " + (mfr == null ? w
                                 : "(" + w + ") and " + mfr) + " limit 20";
                 String idTemp = materialize(st, idSql, ct, temps);
+                int idIdx = sqls.size();
                 sqls.add(idSql);
+                fetches.add(new Fetch(-1, ct, cols, tempRows(st, idTemp)));
                 record(fetched, loc.schema(), ct, cols, idTemp);
                 for (ScanRelations.Rel sub : child.children()) {
-                    fetchChild(ctx, child, idTemp, sub, st, sqls, fetched,
-                            temps, colMap, rowIds, dates);
+                    fetchChild(ctx, child, idTemp, idIdx, sub, st, sqls,
+                            fetches, fetched, temps, colMap, rowIds, dates);
                 }
                 if (viewName != null) {
-                    emitViewFetches(ctx, viewDb, viewName, st, sqls, fetched);
+                    emitViewFetches(ctx, viewDb, viewName, st, sqls,
+                            fetches, fetched);
                 }
                 return;
             }
@@ -369,14 +401,17 @@ public final class TestDataGenerator {
                 + " on " + cond
                 + (mf == null ? "" : " where " + mf) + " limit 20";
         String temp = materialize(st, sql, child.table(), temps);
+        int idx = sqls.size();
         sqls.add(sql);
+        fetches.add(new Fetch(parentIdx, ct, cols, tempRows(st, temp)));
         record(fetched, loc.schema(), child.table(), cols, temp);
         for (ScanRelations.Rel sub : child.children()) {
-            fetchChild(ctx, child, temp, sub, st, sqls, fetched, temps,
-                    colMap, rowIds, dates);
+            fetchChild(ctx, child, temp, idx, sub, st, sqls, fetches,
+                    fetched, temps, colMap, rowIds, dates);
         }
         if (viewName != null) {
-            emitViewFetches(ctx, viewDb, viewName, st, sqls, fetched);
+            emitViewFetches(ctx, viewDb, viewName, st, sqls, fetches,
+                    fetched);
         }
     }
 
@@ -389,14 +424,52 @@ public final class TestDataGenerator {
      * adds no CSV block; the SQL and its execution are the contract. */
     private static void emitViewFetches(ModelContext ctx, String db,
             String viewName, Statement st, List<String> sqls,
+            List<Fetch> fetches,
             Map<String, Fetched> fetched) throws SQLException {
         List<String> chain = ScanRelations
                 .viewExpansion(ctx, db, viewName).viewChain();
         for (int i = chain.size() - 1; i >= 0; i--) {
             String sql = viewFetchSql(ctx, db, chain.get(i), fetched);
-            st.execute(sql);
             sqls.add(sql);
+            List<String> viewCols = new ArrayList<>();
+            List<List<Object>> viewRows = captureRows(st, sql, viewCols);
+            fetches.add(new Fetch(-1, chain.get(i), viewCols, viewRows));
         }
+    }
+
+    /** The ONE whole-relation read spelling (csvEnvelope's union arms
+     * and the transcript capture share it — single owner). */
+    private static String selectAll(String rel) {
+        return "select * from " + rel;
+    }
+
+    /** The materialized temp's LIVE contents — the fetch's transcript
+     * rows (engine parity: generateTestData pairs each SQL with its
+     * ResultSet). */
+    private static List<List<Object>> tempRows(Statement st, String temp)
+            throws SQLException {
+        return captureRows(st, selectAll(temp), null);
+    }
+
+    private static List<List<Object>> captureRows(Statement st, String sql,
+            @com.legend.Nullable List<String> colsOut) throws SQLException {
+        List<List<Object>> rows = new ArrayList<>();
+        try (java.sql.ResultSet rs = st.executeQuery(sql)) {
+            int n = rs.getMetaData().getColumnCount();
+            if (colsOut != null) {
+                for (int i = 1; i <= n; i++) {
+                    colsOut.add(rs.getMetaData().getColumnLabel(i));
+                }
+            }
+            while (rs.next()) {
+                List<Object> row = new ArrayList<>(n);
+                for (int i = 1; i <= n; i++) {
+                    row.add(rs.getObject(i));
+                }
+                rows.add(row);
+            }
+        }
+        return rows;
     }
 
     /** The view's SELECT over the group's temps: plain columns off the
@@ -1037,7 +1110,7 @@ public final class TestDataGenerator {
             }
             // dedup ACROSS fetches of one table = DB-side UNION
             String union = String.join(" union ", f.temps().stream()
-                    .map(t -> "select * from " + t).toList());
+                    .map(TestDataGenerator::selectAll).toList());
             if (f.temps().size() == 1) {
                 union = "select distinct * from " + f.temps().get(0);
             }
@@ -1413,21 +1486,18 @@ public final class TestDataGenerator {
                         .append(r.db()).append(", '").append(loc.schema())
                         .append("', '").append(r.table()).append("', [\n");
                 List<String> rows = new ArrayList<>();
-                try (ResultSet rs = st.executeQuery(sql)) {
-                    int n = cols.size();
-                    while (rs.next()) {
-                        List<String> vals = new ArrayList<>();
-                        for (int i = 1; i <= n; i++) {
-                            vals.add(pureRepr(rs.getObject(i)));
-                        }
-                        rows.add("       meta::relational::"
-                                + "testDataGeneration::createRowIdentifier(["
-                                + spelled.stream().map(c2 -> "'" + c2 + "'")
-                                        .collect(java.util.stream.Collectors
-                                                .joining(","))
-                                + "], ["
-                                + String.join(",", vals) + "])");
+                for (List<Object> raw : captureRows(st, sql, null)) {
+                    List<String> vals = new ArrayList<>();
+                    for (Object v : raw) {
+                        vals.add(pureRepr(v));
                     }
+                    rows.add("       meta::relational::"
+                            + "testDataGeneration::createRowIdentifier(["
+                            + spelled.stream().map(c2 -> "'" + c2 + "'")
+                                    .collect(java.util.stream.Collectors
+                                            .joining(","))
+                            + "], ["
+                            + String.join(",", vals) + "])");
                 }
                 out.append(String.join(",\n", rows)).append("\n  ])\n");
             }

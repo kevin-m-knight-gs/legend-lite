@@ -254,6 +254,62 @@ must be built as a SHARED mechanism with two callers in mind — TDG
 results now, ###Data-seeded test setups later. One materializer, not
 two.
 
+## S5-L — LIVE-SESSION REFEREEING LANDING RECORD (2026-08-31, census
+## §10o leg 1 — the ROW-VERIFICATION half; §S5's emission half below
+## remains the future byte-parity leg)
+
+The whole TDG unable residue (29 asserts) now EXECUTES and
+ROW-VERIFIES; family UNABLE-TO-EXEC = 0. Global lanes: exec-passing
+1497 → 1526, unable 50 → 21. Mechanism, in tenet order:
+
+1. **Platform (engine conformance):** `TestDataGenerator.Result` gains
+   `fetches` — per-fetch `(parentIndex, table, columns, rows)` aligned
+   1:1 with `sqls`, rows read from the materialized temp in the LIVE
+   session before the drop. This is the engine's own return shape
+   (`generateTestData` pairs every SQL with its ResultSet —
+   testDataGeneration.pure:292/420); our Result was the diminished
+   carrier. Temp lifecycle unchanged: the engine drops each temp right
+   after its child fetch (:474), and so do we.
+2. **Referee, OUR side:** a chained assert's rows come from the
+   transcript (a referee-time run through the ONE platform entry —
+   `TestDataGenForm.transcript` → `TestDataGenerationNatives
+   .classifyArg` → `TestDataGenerator.generate`; per-statement
+   re-evaluation is the carrier's own chartered model, and byte-equal
+   sqls texts are the determinism receipt, enforced per assert).
+3. **Referee, GOLDEN side:** ancestor `testDataGen_Temp_*` tables
+   synthesize on the H2 mirror FROM THE TEST'S OWN EARLIER GOLDENS,
+   root-first (`H2Verify.tdgChainedReplay`): the engine fills each
+   temp with the parent fetch's rows, i.e. exactly the parent golden's
+   result — so the synthesis is golden-side-only, independent of our
+   side. Self-join name reuse handled by stage-swap; temps always
+   dropped (shared mirror). Parentage rides `Result.fetches` — never
+   parsed out of golden text (the hop-3-references-root case in
+   testInheritanceMultipleLevel breaks any latest-earlier-golden
+   heuristic).
+4. **Ancestor goldens cache** per (let var, sqls index) as asserts
+   stream in test order (engine tests assert index-ascending); a
+   missing ancestor is a NAMED decline.
+5. **PLATFORM BUG FIXED (the old "2 projection-demand rows" were
+   misdiagnosed):** the referee showed both sides of an ORDER swap —
+   ours [personTable, firmTable] vs engine [firmTable, personTable].
+   The engine sorts EVERY top-level relation-tree child
+   (reOrderAndMergeRelationTree, scanRelations.pure:336: join-less key
+   = relation name); our no-join tableToTDS concatenate arm missed the
+   sort that both join arms already had (ScanRelations
+   .tableToTdsRoots). Fixed at the scan.
+6. **testQualifier hop-0 (the "1 no-generator" row):** the
+   H2Compatible pair spells goldens `sqlRemoveFormatting('literal')`
+   — golden extraction now evaluates that shape AS WRITTEN through
+   the platform (the String overload is ordinary string code), which
+   both verifies hop 0 and feeds the ancestor cache for hops 1-2.
+
+Anti-pattern note honored: §S5 rejected two-sided sequence-replay
+machinery. This referee replays NOTHING on our side (transcript rows
+are the live session's own artifacts) and on the golden side executes
+only engine goldens against engine-seeded state — verification the
+emission leg can never provide (rows), while byte parity stays the
+emission leg's job below.
+
 ## S5 — TDG fetch SQL onto the SQL IR (the text-parity leg; charted 2026-08-30, AWAITS EXECUTION)
 
 State after the 49er replay (6799cd91): unable-to-exec 50 globally, the

@@ -816,11 +816,13 @@ agree=3469 disagree=9 | exec-passing=1497 text-only=44 unable=50 |
 declined=30 | quarantined=172+20 walls | corpus 2338/2575 pass.
 
 THE REMAINING BURN, ranked by design-leverage:
-1. **chained-fetch 26 (unable-to-exec)** — LIVE-SESSION REFEREEING:
-   the golden references tempTableForIn_* tables that existed in the
-   live DuckDB session at assert time; referee ours against the LIVE
-   session instead of a fresh replay (ratified direction,
-   transcript-fidelity family). Biggest single-design pool left.
+1. **chained-fetch 26 (unable-to-exec)** — EXECUTED 2026-08-31 (TDG
+   charter §S5-L landing record): the whole TDG 29 row-verifies
+   (26 chained via live-session transcript + ancestor-golden mirror
+   synthesis; 2 "projection-demand" rows were a REAL platform bug —
+   missing engine root sort in the no-join tableToTDS concatenate arm
+   — fixed; 1 no-generator row via the sqlRemoveFormatting golden
+   fold). exec-passing 1497 → 1526, unable 50 → 21, family unable 0.
 2. **disagree-9** — THE REAL MISMATCHES (host=pass prod=fail actual
    divergences). FROZEN by the original handoff ruling; burning
    everything means UNFREEZING these — they are the only rows where

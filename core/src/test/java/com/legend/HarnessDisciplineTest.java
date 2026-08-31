@@ -76,6 +76,11 @@ class HarnessDisciplineTest {
             // canon) + rawRows' column-NAME normalization — comparison
             // policy gated on the compile-time no-ORDER-BY fact (an
             // ordered fetch declines by name before any reorder)
+            // (chained-fetch live-session refereeing, §S5-L: the
+            // transcript side renders through the SAME name-order
+            // policy as rawRows — nameOrder() is now the one owner,
+            // so the count STAYS 7; two-sided by construction, same
+            // no-ORDER-BY compile-time gate upstream)
             Map.entry("H2Verify.java", 7),
             Map.entry("JsonAssertCanon.java", 1),
             Map.entry("LineageForm.java", 1),

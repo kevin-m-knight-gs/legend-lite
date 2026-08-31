@@ -536,6 +536,8 @@ public final class EngineTestExecutor {
         // bindings, inert plan-text lets)
         Map<String, com.legend.testdatagen.TestDataGenerator.Result> tdg =
                 new LinkedHashMap<>();
+        TDG_GOLDENS.get().clear();
+        TDG_TRANSCRIPTS.get().clear();
         Map<String, AppliedFunction> planLets = new LinkedHashMap<>();
         java.util.Set<String> planText = new java.util.HashSet<>();
         int verified = 0;
@@ -1226,6 +1228,30 @@ public final class EngineTestExecutor {
         ValueSpecification actual = null;
         for (ValueSpecification a : args) {
             String sfold = TestDataGenForm.foldString(subst(a, lets));
+            if (sfold == null && a instanceof AppliedFunction srf
+                    && simpleName(srf.function())
+                            .equals("sqlRemoveFormatting")
+                    && srf.parameters().size() == 1
+                    && TestDataGenForm.foldString(
+                            subst(srf.parameters().get(0), lets)) != null) {
+                // the H2Compatible pair spells its goldens
+                // sqlRemoveFormatting('literal') (testQualifier hop 0) —
+                // the String overload is ordinary string code: evaluate
+                // AS WRITTEN through the platform for the flattened
+                // golden spelling (one owner of the flatten semantics)
+                try {
+                    if (evalScalar(subst(a, lets), lets, execStmts,
+                            execVars, execChains, ctx, imports, runtimeFqn,
+                            conn) instanceof String s0) {
+                        sfold = s0;
+                    }
+                } catch (RuntimeException | java.sql.SQLException e) {
+                    H2Verify.decline("golden sqlRemoveFormatting fold: "
+                            + (e.getMessage() == null
+                                    ? e.getClass().getSimpleName()
+                                    : e.getMessage()));
+                }
+            }
             if (sfold != null && golden == null) {
                 golden = sfold;
             } else {
@@ -1239,11 +1265,24 @@ public final class EngineTestExecutor {
             return sqlTextVerify(args, lets, execStmts, execVars,
                     execChains, ctx, imports, runtimeFqn, conn);
         }
+        // the (var, index) address of the actual side — the same at(i)
+        // the test uses; cache the golden for DESCENDANT hops (a chained
+        // hop's parent temp content IS the parent's golden result)
+        TestDataGenForm.Read aread = actual == null ? null
+                : readTdg(actual, lets);
+        if (aread != null && "sqls".equals(aread.kind())
+                && aread.index() >= 0) {
+            TDG_GOLDENS.get().computeIfAbsent(aread.var(),
+                    k -> new LinkedHashMap<>()).put(aread.index(), golden);
+        }
         boolean match = golden.equals(ours);
         try {
-            String rows = H2Verify.tdgSqlReplay(
-                    com.legend.sql.dialect.RawSqlBoundary.recording(),
-                    golden, conn, ours);
+            String rows = ours.contains("tdg_")
+                    ? tdgChainedVerify(aread, golden, ours, actual, lets,
+                            ctx, imports, conn)
+                    : H2Verify.tdgSqlReplay(
+                            com.legend.sql.dialect.RawSqlBoundary.recording(),
+                            golden, conn, ours);
             if (rows == null) {
                 if (!match) {
                     H2Verify.M1_RESCUED.increment();
@@ -1260,6 +1299,110 @@ public final class EngineTestExecutor {
             return match ? null
                     : "sql-text: expected " + golden + ", got " + ours;
         }
+    }
+
+    /** Per-test TDG referee state (live-session refereeing, census §10o
+     * leg 1), cleared at {@code run()} entry — the SQL_TEXT_OUTCOME
+     * channel idiom. Goldens key by (let var, sqls index): a chained
+     * hop's engine parent temp holds exactly its parent GOLDEN's rows,
+     * so ancestor goldens cached from the test's own earlier asserts
+     * (engine tests assert in index order) drive the mirror synthesis.
+     * The transcript memo holds ONE referee-time platform generator run
+     * per binding (the carrier's chartered per-statement re-evaluation
+     * model; byte-equal sqls texts are the determinism receipt). */
+    private static final ThreadLocal<Map<String, Map<Integer, String>>>
+            TDG_GOLDENS = ThreadLocal.withInitial(LinkedHashMap::new);
+
+    private static final ThreadLocal<Map<String,
+            com.legend.testdatagen.TestDataGenerator.Result>>
+            TDG_TRANSCRIPTS = ThreadLocal.withInitial(LinkedHashMap::new);
+
+    /** The CHAINED-fetch verify: our recorded text references the
+     * generator's {@code tdg_*} temps — session artifacts that dropped
+     * with the generator's own finally (the engine drops its temps the
+     * same way). OUR side referees by the LIVE-SESSION transcript (the
+     * per-fetch rows the generator captured from the materialized temp
+     * before dropping it); the GOLDEN side executes on the mirror with
+     * its ancestor {@code testDataGen_Temp_*} tables synthesized from
+     * the test's own earlier goldens. Every decline is a NAMED
+     * {@link H2Verify.Unverifiable}. */
+    private static @com.legend.Nullable String tdgChainedVerify(
+            TestDataGenForm.@com.legend.Nullable Read aread, String golden,
+            String ours, @com.legend.Nullable ValueSpecification actual,
+            Map<String, ValueSpecification> lets, ModelContext ctx,
+            ImportScope imports, Connection conn) {
+        if (aread == null || !"sqls".equals(aread.kind())
+                || aread.index() < 0) {
+            throw new H2Verify.Unverifiable(
+                    "chained fetch — sqls index unreadable", null);
+        }
+        com.legend.testdatagen.TestDataGenerator.Result r =
+                TDG_TRANSCRIPTS.get().get(aread.var());
+        if (r == null) {
+            try {
+                r = TestDataGenForm.transcript(subst(
+                        java.util.Objects.requireNonNull(actual), lets),
+                        ctx, imports, conn);
+            } catch (com.legend.error.NotImplementedException
+                    | java.sql.SQLException e) {
+                throw new H2Verify.Unverifiable("chained fetch —"
+                        + " transcript run: "
+                        + firstLine(String.valueOf(e.getMessage())), e);
+            }
+            if (r == null) {
+                throw new H2Verify.Unverifiable("chained fetch — no"
+                        + " generateTestData call on the assert side", null);
+            }
+            TDG_TRANSCRIPTS.get().put(aread.var(), r);
+        }
+        List<com.legend.testdatagen.TestDataGenerator.Fetch> fetches =
+                r.fetches();
+        if (fetches == null || aread.index() >= fetches.size()) {
+            throw new H2Verify.Unverifiable(
+                    "chained fetch — transcript index out of range", null);
+        }
+        if (!r.sqls().get(aread.index()).equals(ours)) {
+            throw new H2Verify.Unverifiable("chained fetch — transcript"
+                    + " text mismatch (determinism receipt failed)", null);
+        }
+        com.legend.testdatagen.TestDataGenerator.Fetch f =
+                fetches.get(aread.index());
+        if (f.parentIndex() < 0) {
+            throw new H2Verify.Unverifiable("chained fetch — view fetch"
+                    + " over temps (no single-parent chain)", null);
+        }
+        List<Integer> chain = new ArrayList<>();
+        for (int j = f.parentIndex(); j >= 0;
+                j = fetches.get(j).parentIndex()) {
+            chain.add(0, j);
+        }
+        Map<Integer, String> goldens = TDG_GOLDENS.get()
+                .getOrDefault(aread.var(), Map.of());
+        List<String[]> ancestors = new ArrayList<>();
+        for (int j : chain) {
+            String gj = goldens.get(j);
+            if (gj == null) {
+                throw new H2Verify.Unverifiable("chained fetch — ancestor"
+                        + " golden (index " + j + ") not asserted before"
+                        + " this hop", null);
+            }
+            ancestors.add(new String[]{
+                    "testDataGen_Temp_" + fetches.get(j).table(), gj});
+        }
+        // receipt: this hop's golden must reference the temp the
+        // transcript derives for its DIRECT parent — a mismatch means
+        // the parentage model and the engine's spelling disagree
+        String parentTemp = "testDataGen_Temp_"
+                + fetches.get(f.parentIndex()).table();
+        if (!golden.toLowerCase().contains(parentTemp.toLowerCase())) {
+            throw new H2Verify.Unverifiable("chained fetch — golden does"
+                    + " not reference derived parent temp " + parentTemp,
+                    null);
+        }
+        return H2Verify.tdgChainedReplay(
+                com.legend.sql.dialect.RawSqlBoundary.recording(),
+                ancestors, golden,
+                H2Verify.transcriptRows(f.columns(), f.rows()));
     }
 
     private static @com.legend.Nullable String sqlTextVerify(List<ValueSpecification> args,

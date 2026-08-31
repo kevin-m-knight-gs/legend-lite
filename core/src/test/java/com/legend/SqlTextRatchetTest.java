@@ -76,6 +76,10 @@ class SqlTextRatchetTest {
         REGISTER.put("plan/PlanText.java", 2);
         // 17 -> 16 (documented-debts 2026-08-18): the LL_TMP_DEBUG
         // COUNT(*) round-trip died
+        // (chained-fetch live-session refereeing, §S5-L: the transcript
+        // capture's whole-relation read consolidated with csvEnvelope's
+        // union arm onto ONE selectAll() spelling — the count STAYS 16;
+        // internal plumbing, not recorded artifact)
         REGISTER.put("testdatagen/TestDataGenerator.java", 16);
     }
 

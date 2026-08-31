@@ -127,15 +127,22 @@ final class TestDataGenForm {
 
     /** A read over a bound testData let: {@code $td.sqls},
      * {@code $td.dataCsvString}, through {@code ->toOne()/->at(i)/
-     * ->size()}. */
-    record Read(String var, String kind) {
+     * ->size()}. {@code index} is the {@code ->at(i)} literal when the
+     * read carries one (-1 otherwise) — the same index the test's own
+     * assert uses to address the fetch transcript. */
+    record Read(String var, String kind, int index) {
+        Read(String var, String kind) {
+            this(var, kind, -1);
+        }
     }
 
     static @com.legend.Nullable Read read(ValueSpecification v) {
         String kind = null;
+        int index = -1;
         while (true) {
             if (v instanceof Variable var) {
-                return kind == null ? null : new Read(var.name(), kind);
+                return kind == null ? null
+                        : new Read(var.name(), kind, index);
             }
             if (v instanceof AppliedProperty ap) {
                 if (ap.property().equals("sqls")
@@ -150,11 +157,59 @@ final class TestDataGenForm {
                     && List.of("toOne", "at", "size", "makeString",
                             "sqlRemoveFormatting")
                             .contains(simple(af.function()))) {
+                if (simple(af.function()).equals("at")
+                        && af.parameters().size() == 2
+                        && af.parameters().get(1) instanceof CInteger ci) {
+                    index = ci.value().intValue();
+                }
                 v = af.parameters().get(0);
                 continue;
             }
             return null;
         }
+    }
+
+    /** The REFEREE-time transcript run (chained-fetch refereeing): the
+     * substituted assert argument carries the test's own
+     * generateTestData call — classify its arguments through the ONE
+     * platform classifier and run the ONE platform generator, returning
+     * the {@link TestDataGenerator.Result} WITH its per-fetch
+     * live-session rows. Per-statement re-evaluation is the platform
+     * carrier's own chartered execution model (deterministic reads over
+     * static test seeds — TestDataGenerationNatives.foldCensus), so
+     * this run's transcript is the same transcript the carrier's run
+     * produced; the caller pins that receipt by comparing sqls texts
+     * byte-exactly. Returns null when no generateTestData call is
+     * present. */
+    static TestDataGenerator.@com.legend.Nullable Result transcript(
+            ValueSpecification subArg, ModelContext ctx,
+            ImportScope imports, java.sql.Connection conn)
+            throws SQLException {
+        AppliedFunction call = findCall(subArg, "generateTestData");
+        if (call == null) {
+            return null;
+        }
+        List<ValueSpecification> ps = call.parameters();
+        if (ps.size() < 4 || !(ps.get(0) instanceof LambdaFunction query)
+                || !(ps.get(1) instanceof PackageableElementPtr mp)) {
+            throw new NotImplementedException(
+                    "testDataGen transcript: unrecognized call shape");
+        }
+        List<TestDataGenerator.TableRowIds> rowIds = new ArrayList<>();
+        TestDataGenerator.MilestoningDates[] dates =
+                new TestDataGenerator.MilestoningDates[1];
+        boolean[] hash = new boolean[1];
+        for (int i = 3; i < ps.size(); i++) {
+            com.legend.testdatagen.TestDataGenerationNatives.classifyArg(
+                    ps.get(i), rowIds, dates, hash);
+        }
+        String mappingFqn = java.util.Objects.requireNonNull(
+                qualify(mp.fullPath(), ctx, imports),
+                "unresolvable mapping reference");
+        LambdaFunction resolved = (LambdaFunction) NameResolver
+                .resolveQuery(query, imports, ctx.elementFqns());
+        return TestDataGenerator.generate(ctx, resolved, mappingFqn,
+                rowIds, dates[0], hash[0], conn);
     }
 
     /** Replace {@code $td.dataCsvString} / {@code $td.sqls} reads with

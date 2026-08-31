@@ -1094,6 +1094,13 @@ public final class H2Verify {
                         + e.getMessage(), e);
             }
         }
+        return multisetCompare(golden, ourRows);
+    }
+
+    /** The shared TDG row referee tail: header (projection) equality,
+     * then ORDER-INSENSITIVE row equality under the cell canon. */
+    private static @com.legend.Nullable String multisetCompare(
+            List<String> golden, List<String> ourRows) {
         String gCols = golden.get(0);
         String oCols = ourRows.get(0);
         if (!gCols.equals(oCols)) {
@@ -1112,6 +1119,151 @@ public final class H2Verify {
                         + " — first diff at " + firstDiff(g, o);
     }
 
+    /** A chained fetch's LIVE-SESSION transcript rows (the generator's
+     * per-fetch capture) rendered in the {@link #rawRows} shape — same
+     * header row, same name-sorted columns, same cell canon — so both
+     * referee sides speak one spelling. */
+    public static List<String> transcriptRows(List<String> cols,
+            List<List<Object>> rows) {
+        int n = cols.size();
+        String[] names = new String[n];
+        for (int i = 0; i < n; i++) {
+            names[i] = cols.get(i).toLowerCase();
+        }
+        Integer[] order = nameOrder(names);
+        List<String> out = new java.util.ArrayList<>(rows.size() + 1);
+        StringBuilder hdr = new StringBuilder("<cols>");
+        for (int k = 0; k < n; k++) {
+            hdr.append('|').append(names[order[k]]);
+        }
+        out.add(hdr.toString());
+        for (List<Object> row : rows) {
+            StringBuilder sb = new StringBuilder();
+            for (int k = 0; k < n; k++) {
+                int i = order[k];
+                if (k > 0) {
+                    sb.append('|');
+                }
+                sb.append(names[i]).append('=').append(norm(row.get(i)));
+            }
+            out.add(sb.toString());
+        }
+        return out;
+    }
+
+    /** The CHAINED-fetch golden replay (live-session refereeing, census
+     * §10o leg 1): a chained golden references its parent's
+     * {@code testDataGen_Temp_*} table — an ENGINE-session artifact the
+     * mirror does not hold. The engine's own mechanics (testDataGeneration
+     * .pure chained arm) fill that temp with the PARENT fetch's rows,
+     * i.e. the parent GOLDEN's result — so the synthesis materializes
+     * each ancestor temp on the mirror FROM ITS OWN GOLDEN, root-first,
+     * then executes this hop's golden and referees against our
+     * live-session transcript rows. Golden-side only — fully
+     * independent of our side. {@code ancestors} = {tempName, goldenSql}
+     * pairs root-first. */
+    public static @com.legend.Nullable String tdgChainedReplay(
+            java.util.@com.legend.Nullable List<String> seeds,
+            List<String[]> ancestors, String goldenSql,
+            List<String> oursRows) {
+        if (!READY) {
+            throw new Unverifiable("h2 driver not on classpath", null);
+        }
+        List<String> golden;
+        MirrorState mirror = MIRROR;
+        if (mirror != null && !mirror.suspended) {
+            if (mirror.poison != null) {
+                throw new Unverifiable(mirror.poison, null);
+            }
+            try (Statement st = mirror.conn.createStatement()) {
+                applyPendingSeeds(mirror, st, seeds);
+                golden = goldenWithTemps(st, ancestors, goldenSql);
+            } catch (SQLException e) {
+                throw new Unverifiable("golden replay: "
+                        + e.getMessage(), e);
+            }
+        } else {
+            // PRIVATE-session test: fresh full-history replay
+            int id = COUNTER.getAndIncrement();
+            try (Connection h2 = DriverManager.getConnection(
+                    "jdbc:h2:mem:tdgreplay" + id + SETTINGS, "sa", "");
+                    Statement st = h2.createStatement()) {
+                for (String alias : H2ExtensionFunctions.aliases()) {
+                    st.execute(alias);
+                }
+                for (String seed : seeds == null ? List.<String>of()
+                        : seeds) {
+                    for (String one : seed.split(";\\s*\n|;\\s*$")) {
+                        if (!one.isBlank()) {
+                            st.execute(one);
+                        }
+                    }
+                }
+                golden = goldenWithTemps(st, ancestors, goldenSql);
+            } catch (SQLException e) {
+                throw new Unverifiable("golden fresh replay: "
+                        + e.getMessage(), e);
+            }
+        }
+        return multisetCompare(golden, oursRows);
+    }
+
+    /** Materialize the ancestor temps (root-first; a self-join chain
+     * reuses the engine's per-root temp NAME, so a repeat materializes
+     * through a stage swap — the stage reads the OLD temp before it
+     * drops, exactly the engine's sequential create/insert/drop
+     * discipline), execute the hop's golden, and ALWAYS drop what was
+     * created — the family mirror is shared state. */
+    private static List<String> goldenWithTemps(Statement st,
+            List<String[]> ancestors, String goldenSql)
+            throws SQLException {
+        java.util.LinkedHashSet<String> created =
+                new java.util.LinkedHashSet<>();
+        try {
+            for (String[] a : ancestors) {
+                String name = a[0];
+                String sql = a[1];
+                if (created.contains(name)) {
+                    st.execute("create table TDG_TEMP_STAGE as " + sql);
+                    st.execute("drop table " + name);
+                    st.execute("alter table TDG_TEMP_STAGE rename to "
+                            + name);
+                } else {
+                    st.execute("drop table if exists " + name);
+                    st.execute("create table " + name + " as " + sql);
+                    created.add(name);
+                }
+            }
+            return rawRows(st, goldenSql);
+        } finally {
+            for (String name : created) {
+                try {
+                    st.execute("drop table if exists " + name);
+                } catch (SQLException ignored) {
+                    // cleanup best-effort; the next use drops-if-exists
+                }
+            }
+            try {
+                st.execute("drop table if exists TDG_TEMP_STAGE");
+            } catch (SQLException ignored) {
+                // same
+            }
+        }
+    }
+
+    /** The ONE column-ordering policy for the TDG row referee (rawRows
+     * and transcriptRows both render through it — two-sided by
+     * construction): indices sorted by lowercased column NAME. */
+    private static Integer[] nameOrder(String[] names) {
+        Integer[] order = new Integer[names.length];
+        for (int i = 0; i < names.length; i++) {
+            order[i] = i;
+        }
+        java.util.Arrays.sort(order,
+                java.util.Comparator.comparing(i -> names[i]));
+        return order;
+    }
+
     /** Rows as NAME-SORTED {@code col=val|...} strings plus one
      * {@code <cols>} header row — column ORDER is not a fetch contract,
      * column IDENTITY is (a projection mismatch compares as unequal
@@ -1123,13 +1275,10 @@ public final class H2Verify {
             var md = rs.getMetaData();
             int n = md.getColumnCount();
             String[] names = new String[n];
-            Integer[] order = new Integer[n];
             for (int i = 0; i < n; i++) {
                 names[i] = md.getColumnLabel(i + 1).toLowerCase();
-                order[i] = i;
             }
-            java.util.Arrays.sort(order,
-                    java.util.Comparator.comparing(i -> names[i]));
+            Integer[] order = nameOrder(names);
             StringBuilder hdr = new StringBuilder("<cols>");
             for (int k = 0; k < n; k++) {
                 hdr.append('|').append(names[order[k]]);
