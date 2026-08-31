@@ -1009,7 +1009,14 @@ final class AssertVerdicts {
             throws java.sql.SQLException {
         String eForm = renderForm(args.get(0), letPrefix);
         String aForm = renderForm(args.get(1), letPrefix);
-        if ((eForm == null) == (aForm == null)) {
+        // BOTH-RENDERED same-form pairs qualify too (two renders of one
+        // unsorted query — pure guarantees the row MULTISET; each
+        // render freezes its own execution's incident order, so a byte
+        // compare was a coin flip: union testProjectThroughAsso's
+        // toCSV-vs-toCSV flicker). Mismatched forms fall through.
+        if ((eForm == null && aForm == null)
+                || (eForm != null && aForm != null
+                        && !eForm.equals(aForm))) {
             return null;
         }
         String form = aForm != null ? aForm
@@ -1019,7 +1026,10 @@ final class AssertVerdicts {
         List<Object> av = side(args.get(1), letPrefix, specs, env, hook);
         if (ev.size() == 1 && ev.get(0) instanceof String et
                 && av.size() == 1 && av.get(0) instanceof String at) {
+            // a BOTH-rendered pair always judges as a multiset (even
+            // sorted queries legally tie-flip between two executions)
             boolean sorted = orderedForm
+                    && (eForm == null ^ aForm == null)
                     && orderView(rendered, letPrefix) == OrderView.SORTED;
             boolean held = com.legend.exec.TdsCompare.renderedText(
                     aForm != null ? et : at, aForm != null ? at : et,
@@ -1883,11 +1893,8 @@ final class AssertVerdicts {
     /** Row-major cell stream of a tabular frame (the cell-zip input). */
     private static List<Object> cells(ExecutionResult.Tabular t) {
         List<Object> out = new java.util.ArrayList<>();
-        for (com.legend.exec.Row r : t.rows()) {
-            for (Object v : r.values()) {
-                out.add(valueRead(v));
-            }
-        }
+        t.rows().forEach(r ->
+                r.values().forEach(v -> out.add(valueRead(v))));
         return out;
     }
 
@@ -1904,11 +1911,11 @@ final class AssertVerdicts {
         if (v instanceof com.legend.values.PureDateLiteral d) {
             return d.atNineSubseconds();
         }
-        if (v instanceof java.math.BigDecimal bd) {
-            java.math.BigDecimal c = bd.stripTrailingZeros();
-            return c.scale() < 0 ? c.setScale(0) : c;
+        if (!(v instanceof java.math.BigDecimal bd)) {
+            return v;
         }
-        return v;
+        java.math.BigDecimal c = bd.stripTrailingZeros();
+        return c.scale() < 0 ? c.setScale(0) : c;
     }
 
     /** Failure-message sketch of a frame (columns + row count — the

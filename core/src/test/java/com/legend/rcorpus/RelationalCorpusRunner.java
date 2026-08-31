@@ -786,42 +786,30 @@ public class RelationalCorpusRunner {
             //   statement ROOTS; production compiles the asserted
             //   relation as a SUBQUERY and missed it. StableScanOrder
             //   now stabilizes FROM-subselect inners too.
-            // The residue is TWO NAMED CLASSES (ceiling, not exact — the
-            // order class is run-nondeterministic, measured 2026-08-31:
-            // testProjectThroughAsso flickered in/out across identical
-            // sweeps):
-            // 1. ORDER-THROUGH-FRAMES (testConcatenateWithJoin stable +
-            //    flicker-capable union rows): row order through
-            //    subselect/union frames is DuckDB-execution-incident
-            //    where the golden pins H2's; the row-order key cannot
-            //    reach interior rowids without threading ordinals
-            //    through frames (charted leg), and H2's tiebreak order
-            //    (rhs-major hash iteration) is the overfit class
-            //    (audit 19 F1-F7). Row MULTISETS verified equal.
-            // 2. TEMPORAL-CARRIER-THROUGH-OPS (datetime::testQuery,
-            //    stable): sort()'s comparable cast round-trips a
-            //    nine-digit graph value through TIMESTAMP and loses
-            //    precision — the F10 carrier-through-element-preserving-
-            //    ops rule needs its temporal application (charted leg).
-            //    EXPOSED (not caused) by the literal-fidelity fix: it
-            //    previously passed by BOTH sides truncating.
-            // 3. POPULATED-DATE WRITTEN FORM (the two milestoning
-            //    population rows, stable): the engine projects the
-            //    populated business date as its WRITTEN string constant;
-            //    ours round-trips through TIMESTAMP and drops written
-            //    subseconds. The fix belongs at the population
-            //    SUBSTITUTION seam (an egress special-case severed the
-            //    Any-pair literal channel — reverted); charted with
-            //    leg 2's carrier slice.
-            // SHRINK-ONLY: the charted legs burn these; growth = a
-            // new divergence class needing adjudication.
-            org.junit.jupiter.api.Assertions.assertTrue(
-                    com.legend.exec.CanonicalDivergence.v7DisagreeCount() <= 5,
-                    "dual-channel disagreements grew past the NAMED"
-                            + " residue ceiling (5) — see"
-                            + " VERDICT_DISAGREEMENT_BURN_2026_08_30: "
-                            + com.legend.exec.CanonicalDivergence
-                                    .v7DisagreeCount());
+            // ALL NINE BURNED — DISAGREE = 0 EXACT (leg 3, same day; 3
+            // consecutive byte-identical sweeps). The final three:
+            // - populated milestoning dates spell their WRITTEN text on
+            //   the map-channel value lanes (literalTextOk — the
+            //   engine's population constant is a string; the scalar
+            //   Any-pair root keeps its TIMESTAMP carrier, the earlier
+            //   blanket form severed its literal channel);
+            // - order-sensitive aggregation over a sorted/scanned input
+            //   aggregates in H2's own order under ENGINE-COMPAT
+            //   (StableScanOrder: user sort keys first, then base-scan
+            //   rowids probe-major, ordinals threaded through plain
+            //   frames and union legs; the platform itself stays
+            //   order-honest — user ruling: replay determinism is
+            //   flag-gated, never language semantics);
+            // - two renders of UNSORTED queries compare as line
+            //   MULTISETS (renderedArm's both-rendered arm — pure
+            //   guarantees the row multiset; the toCSV-vs-toCSV pair
+            //   flickered run-to-run under the byte compare).
+            // EXACT ZERO: any disagreement is a platform bug or a new
+            // divergence class — adjudicate, never re-pin upward.
+            org.junit.jupiter.api.Assertions.assertEquals(0,
+                    com.legend.exec.CanonicalDivergence.v7DisagreeCount(),
+                    "dual-channel disagreement appeared (pinned ZERO) —"
+                            + " see VERDICT_DISAGREEMENT_BURN_2026_08_30");
             // 1449 -> 1459 (sql-exec burn 2026-08-30, the STITCH-KEY
             // rule): 10 graph-keys declines now EXECUTE and row-verify
             // (golden-only assembly aliases drop, counted on the

@@ -153,6 +153,11 @@ public final class LiteralSpelling {
      */
     static SqlExpr.@com.legend.Nullable Cast wireValueEgress(SqlExpr e,
             SqlType declared) {
+        return wireValueEgress(e, declared, false);
+    }
+
+    static SqlExpr.@com.legend.Nullable Cast wireValueEgress(SqlExpr e,
+            SqlType declared, boolean literalTextOk) {
         // the DECLARED egress label (the pure type's SQL mapping) keys
         // the decode — the engine transformer's own key (R8 dispatches
         // by pure property type); a tree-typed expr that KNOWS it is a
@@ -198,12 +203,15 @@ public final class LiteralSpelling {
                         nine),
                         SqlType.Scalar.TEMPORAL_TEXT);
             }
-            // WRITTEN temporal literals (bare or collections) spell
-            // STATICALLY — the TIMESTAMP round-trip truncates written
-            // digits (the same fidelity rule as the scalar RootLiterals
-            // swap and the mixed-element static spelling; the
-            // businessDate-population receipt pins the written form)
-            SqlExpr lit = staticTemporalText(e);
+            // WRITTEN temporal literals spell STATICALLY — the
+            // TIMESTAMP round-trip truncates written digits (the same
+            // fidelity rule as the scalar RootLiterals swap and the
+            // mixed-element static spelling). Collections always;
+            // BARE literals only on the map-channel lanes
+            // (literalTextOk — the businessDate-population receipt
+            // pins the written form THERE; scalar Any-pair roots keep
+            // their TIMESTAMP carrier).
+            SqlExpr lit = staticTemporalText(e, literalTextOk);
             return lit == null ? null
                     : new SqlExpr.Cast(lit, SqlType.Scalar.TEMPORAL_TEXT);
         }
@@ -262,16 +270,19 @@ public final class LiteralSpelling {
      * — rebuilt with each literal's OWN TEXT (the compile-time
      * spelling; a TIMESTAMP value round-trip truncates written digits
      * past the DB's micro storage). Null = not that shape. */
-    private static @com.legend.Nullable SqlExpr staticTemporalText(SqlExpr e) {
-        // BARE TimestampLits stay on the TIMESTAMP path: converting
-        // them here severed the Any-pair literal channel (8 chB-std
-        // declines) and bypassed the executor's BC-safe fetch — the
-        // POPULATED-date written-form spelling is the population
-        // seam's own slice (VERDICT burn §FINAL residue class 3).
+    private static @com.legend.Nullable SqlExpr staticTemporalText(SqlExpr e,
+            boolean bareOk) {
+        // NEGATIVE (BC) years stay on the TIMESTAMP path everywhere —
+        // the executor's BC-safe fetch owns them; the engine-string
+        // parse takes no leading minus (testAdjustByMinutesBigNumber)
+        if (bareOk && e instanceof SqlExpr.TimestampLit ts
+                && !ts.iso().startsWith("-")) {
+            return new SqlExpr.StringLit(ts.iso().replace(' ', 'T'));
+        }
         if (e instanceof SqlExpr.Call c
                 && (c.fn() == SqlFn.UNNEST || c.fn() == SqlFn.LIST_FILTER)
                 && !c.args().isEmpty()) {
-            SqlExpr inner = staticTemporalText(c.args().get(0));
+            SqlExpr inner = staticTemporalText(c.args().get(0), false);
             if (inner == null) {
                 return null;
             }
@@ -280,7 +291,7 @@ public final class LiteralSpelling {
             return new SqlExpr.Call(c.fn(), args);
         }
         if (e instanceof SqlExpr.CompactList cl) {
-            SqlExpr inner = staticTemporalText(cl.list());
+            SqlExpr inner = staticTemporalText(cl.list(), false);
             return inner == null ? null : new SqlExpr.CompactList(inner);
         }
         if (e instanceof SqlExpr.ArrayLit a && !a.elements().isEmpty()

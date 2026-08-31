@@ -62,6 +62,41 @@ public final class ScanOrder {
                 new SqlExpr.RowOrder(base.alias()), true, null, null)));
     }
 
+    /** TRAILING total-order tiebreak for a user-ordered select
+     * (ENGINE-COMPAT ONLY — {@code StableScanOrder} applies it, never
+     * the always-on assert boundary: sort ties are order-incidental,
+     * and the engine's sorted goldens are totally ordered —
+     * testConcatenateWithJoin receipt): every output column not
+     * already keyed, ascending. DISTINCT/GROUP BY/aggregate shapes are
+     * left alone (set semantics), as are keys the user spelled. */
+    public static SqlQuery totalTiebreak(SqlSelect s) {
+        if (s.distinct() || !s.groupBy().isEmpty() || s.qualify() != null
+                || s.outputs().isEmpty()) {
+            return s;
+        }
+        java.util.Set<String> keyed = new java.util.HashSet<>();
+        for (SqlSelect.SortKey k : s.orderBy()) {
+            if (k.outputName() != null) {
+                keyed.add(k.outputName());
+            }
+            if (k.expr() instanceof SqlExpr.Column c) {
+                keyed.add(c.name());
+            }
+        }
+        List<SqlSelect.SortKey> keys = null;
+        for (com.legend.sql.OutputCol c : s.outputs()) {
+            if (keyed.contains(c.name())) {
+                continue;
+            }
+            if (keys == null) {
+                keys = new java.util.ArrayList<>(s.orderBy());
+            }
+            keys.add(new SqlSelect.SortKey(
+                    SqlExpr.Column.of(null, c), true, null, null));
+        }
+        return keys == null ? s : s.withOrderBy(keys);
+    }
+
     /** The driving base-table scan IF the select is order-stabilizable
      * (see class doc); null otherwise. */
     private static SqlSource.@com.legend.Nullable Table orderableBase(SqlSelect s) {

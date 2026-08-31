@@ -222,7 +222,6 @@ public final class Lowerer {
         return this;
     }
 
-
     public Lowerer bindPlanParam(String name, boolean stringTyped) {
         letBindings.put(name, new SqlExpr.PlanParam(name, stringTyped));
         return this;
@@ -292,7 +291,8 @@ public final class Lowerer {
             Multiplicity colMult = ml.functionType().result().multiplicity();
             SqlSelect proj = Fold.conformValueEgress(
                     relation(ValueCollections.valueColumnProject(
-                            m.source(), ml, spec.info().type(), colMult)));
+                            m.source(), ml, spec.info().type(), colMult)),
+                    true);
             // SCALAR-STAMPED cells (C1) are one element per row ALREADY —
             // the explode is identity, and UNNEST(scalar) does not bind.
             boolean scalarCells = ml.body().get(ml.body().size() - 1)
@@ -452,7 +452,6 @@ public final class Lowerer {
     String nextAlias() {
         return "t" + aliasCounter++;
     }
-
 
     // ==================================================================
     // Relation ops
@@ -1301,6 +1300,9 @@ public final class Lowerer {
             aggOrder = List.of(new SqlSelect.SortKey(
                     new SqlExpr.RowOrder(vc.table()), true, null, null));
         }
+        // (Sorted-input aggregation order is ENGINE-COMPAT ONLY —
+        // StableScanOrder owns replay determinism; user ruling
+        // 2026-08-31: the platform stays order-honest.)
         // joinStrings(prefix, sep, suffix): STRING_AGG takes only the
         // separator — prefix/suffix concatenate AROUND the aggregate.
         if (fn == SqlAgg.Fn.STRING_AGG && extra.size() == 3) {
@@ -1813,8 +1815,6 @@ public final class Lowerer {
         return base.withProjections(ps);
     }
 
-
-
     /** TDS literal → VALUES; empty → one all-NULL row gated by WHERE 1=0 (schema, zero rows). */
     private SqlSelect tdsLiteral(TypedTds tds) {
         Type.RelationType schema = Type.requireRelationSchema(tds.info().type());
@@ -2047,7 +2047,6 @@ public final class Lowerer {
         return out.withProjections(ps);
     }
 
-
     /**
      * Star + plain-column renames, nothing else — the shape a prefixed join
      * produces. Such a select adds no row semantics; it can host further
@@ -2220,8 +2219,6 @@ public final class Lowerer {
         return new Over(parts, keys, over.frame().map(Windows::sqlFrame).orElse(null));
     }
 
-
-
     /**
      * Whether a write destination reaches a PHYSICAL store table. A
      * TDS-accessor destination normalizes to the literal relation itself
@@ -2240,7 +2237,6 @@ public final class Lowerer {
         }
         return false;
     }
-
 
     /**
      * A window column's body, classified AT LOWERING (the deliberate Phase-G
@@ -2405,8 +2401,7 @@ public final class Lowerer {
             // dates (year / year-month) compare as STRINGS in SQL (master's
             // pinned semantics) — represented as string literals here.
             case TypedCDate d -> MatchFold.dateLit(d.value());
-            // %latest in VALUE position: the engine projects the
-            // sentinel AS A STRING — written four-digit text (VERDICT
+            // %latest VALUE = the engine's STRING sentinel (VERDICT
             // burn §FINAL); the PREDICATE keeps TemporalFrame's arm.
             case com.legend.compiler.spec.typed.TypedCLatestDate ignored ->
                     new SqlExpr.Cast(new SqlExpr.StringLit(
@@ -3153,7 +3148,6 @@ public final class Lowerer {
                     + spec.getClass().getSimpleName());
         };
     }
-
 
     /** A resolver for positions where no row scope exists (literal evaluation). */
     private ColumnResolver noScope() {

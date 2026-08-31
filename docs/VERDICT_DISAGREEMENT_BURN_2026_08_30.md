@@ -40,7 +40,45 @@ the decode itself, per READ LANE:
    union branches — `ORDER BY` inside a union arm is a parser error,
    caught by the gate on the first attempt).
 
-**The residue — THREE NAMED CLASSES, pinned as a ceiling (≤5, shrink-
+## LEG 3 (same day): ALL NINE BURNED — DISAGREE PINNED AT EXACT ZERO
+
+The three residue classes below were BURNED, not documented (user
+directive: never call named residue "done"):
+
+1. **Populated-date written form**: the map-channel value lanes
+   (u_map / grid canon) spell written-subsecond TIMESTAMP literals
+   statically ({@code literalTextOk} — the engine's population
+   constant IS a string); the scalar Any-pair root keeps its
+   TIMESTAMP carrier (the blanket form had severed the literal
+   channel — 8 chB-std declines, measured and scoped).
+2. **Order-through-frames**: ENGINE-COMPAT ONLY (user ruling: tie
+   order is undefined in the language; the platform stays
+   order-honest). StableScanOrder gives an order-sensitive
+   STRING_AGG/LIST collect H2's own aggregation order — user sort
+   keys first, then base-scan rowids probe-major, ordinals threaded
+   through plain subselect frames and UNION ALL legs as hidden
+   projections. Gates: no DISTINCT/GROUP BY/LIMIT frames, no
+   implicit-star replacement (both bitten and fixed), aggregate
+   roots excluded. Burned groupByAfterASort + testConcatenateWithJoin
+   + testDeepUnion + tds::testDoubleSort*.
+3. **Two-renders compare** (union::testProjectThroughAsso, the
+   flicker row): assertEquals(toCSV(), toCSV()) of two UNSORTED
+   executions — renderedArm now owns the BOTH-rendered same-form
+   pair and judges by the existing line-MULTISET policy (pure
+   guarantees the row multiset; a byte compare of two incident
+   orders was a coin flip). A root-level union ORDER BY was BUILT
+   AND REVERTED first (broke aggregate/graph roots — assert-boundary
+   comparison policy was the right layer, per the user's call).
+
+datetime::testQuery's sort() burn rode the same aggregation-order
+rule (the sorted-stream collect). 3 consecutive byte-identical green
+sweeps: agree 3478, disagree 0, corpus 2338/2575. Disagree is pinned
+EXACT ZERO — any appearance is a platform bug or a new divergence
+class; adjudicate, never re-pin upward.
+
+---
+
+**(historical) The residue — THREE NAMED CLASSES, pinned as a ceiling (≤5, shrink-
 only; the order class is RUN-NONDETERMINISTIC — measured: a union
 row flickered in/out across byte-identical sweeps, so an exact count
 would be a flaky gate):**
