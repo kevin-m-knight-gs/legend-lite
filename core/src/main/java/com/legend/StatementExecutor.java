@@ -225,12 +225,13 @@ final class StatementExecutor {
             single.add(stmt);
             var stmtInliner = new com.legend.compiler.spec.UserCallInliner(specs,
                     spliceHook(execFrames, letPrefix, specs, env));
-            java.util.List<TypedSpec> body =
-                    stmtInliner.inlineBody(single);                       // Phase G½
+            java.util.List<TypedSpec> body = new java.util.ArrayList<>(
+                    stmtInliner.inlineBody(single));                      // Phase G½
             env.queryLets().putAll(stmtInliner.queryLets());
-            body = new java.util.ArrayList<>(body);
-            final java.util.List<TypedSpec> planEnv2 = body;
-            body.replaceAll(b -> planTextRewrite(b, planEnv2, specs, env));
+            final java.util.List<TypedSpec> stageEnv = body;
+            body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
+                    .stage(b, stageEnv, nativeRoutines(specs, env)));
+
             // toSQLString dispatches PRE-H: its query lambda resolves
             // against the EXPLICIT mapping argument, never the ambient
             // runtime's (audit 19d B3 — the K-native replacing the
@@ -250,54 +251,6 @@ final class StatementExecutor {
                                 .TO_SQL_STRING_PRETTY
                                 .equals(tsc.callee().qualifiedName()))) {
                 result = toSqlString(tsc, specs, env);
-                continue;
-            }
-            // planToString(executionPlan(q, m, rt, ...), ext) — the plan
-            // surface (#47): LITERAL engine plan text (toSQLString
-            // doctrine) over the same engine-style SQL pipeline
-            if (preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall pln
-                    && com.legend.compiler.element.type.PlatformTypes
-                            .PLAN_TO_STRING.equals(pln.callee().qualifiedName())) {
-                result = planToString(pln, specs, env);
-                continue;
-            }
-            // replace(...) over the plan TEXT (the datetime helpers'
-            // ->replace('\n',' ') presentation) — the text is an
-            // orchestration artifact; the string op applies host-side
-            if (preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall rp
-                    && rp.callee().qualifiedName().equals(
-                            "meta::pure::functions::string::replace")
-                    && rp.args().size() == 3
-                    && rp.args().get(0)
-                            instanceof com.legend.compiler.spec.typed.TypedNativeCall rpi
-                    && com.legend.compiler.element.type.PlatformTypes
-                            .PLAN_TO_STRING.equals(rpi.callee().qualifiedName())
-                    && rp.args().get(1)
-                            instanceof com.legend.compiler.spec.typed.TypedCString rf
-                    && rp.args().get(2)
-                            instanceof com.legend.compiler.spec.typed.TypedCString rt2) {
-                ExecutionResult r1 = planToString(rpi, specs, env);
-                result = new ExecutionResult.Scalar(
-                        String.valueOf(((ExecutionResult.Scalar)
-                                java.util.Objects.requireNonNull(r1, "r1")).value())
-                                .replace(rf.value(), rt2.value()),
-                        com.legend.compiler.element.type.Type
-                                .Primitive.STRING);
-                continue;
-            }
-            // planToStringWithoutFormatting = planToString minus newlines
-            // and spaces (executionPlan_print.pure:27)
-            if (preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall pwf
-                    && com.legend.compiler.element.type.PlatformTypes
-                            .PLAN_TO_STRING_WITHOUT_FORMATTING
-                            .equals(pwf.callee().qualifiedName())) {
-                ExecutionResult r0 = planToString(pwf, specs, env);
-                result = new ExecutionResult.Scalar(
-                        String.valueOf(((ExecutionResult.Scalar)
-                                java.util.Objects.requireNonNull(r0, "r0")).value())
-                                .replace("\n", "").replace(" ", ""),
-                        com.legend.compiler.element.type.Type
-                                .Primitive.STRING);
                 continue;
             }
             // $plan.processingTemplateFunctions — the ExecutionPlan class
@@ -626,53 +579,28 @@ final class StatementExecutor {
     /** {@code planToString(executionPlan(func, MAPPING, runtime, ...),
      * ext)}: the SINGLE-RELATIONAL literal plan text (#47 pilot —
      * com.legend.plan.PlanText owns the format). */
-    /** Plan-text consumption in ANY expression position (getAll-76
-     * lane, §6.1): {@code planToString[WithoutFormatting](p, ext)} whose
-     * plan value chases (through the let prefix) to an
-     * {@code executionPlan()}/{@code preval()} call rewrites to its
-     * computed TEXT LITERAL before resolution — the plan handle is
-     * opaque to the store resolver, so the text splices where the
-     * expression stands. Shapes the plan lane cannot print yet stay
-     * UNCHANGED (the walls keep their current classification — the
-     * rewrite only ever adds passes). */
-    private static TypedSpec planTextRewrite(TypedSpec n,
-            java.util.List<TypedSpec> letPrefix,
+    /** The executor's routine table for catalog-dispatched natives
+     * (NativeDispatch): exactly the catalog's JAVA_ROUTINE rows. The
+     * rules and literal minting live in the COMPILER (NativeDispatch,
+     * Invariant 7); this supplies plan compilation only. */
+    private static java.util.Map<String, com.legend.compiler.spec
+            .NativeDispatch.Routine> nativeRoutines(
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
-        n = n.mapChildren(c -> planTextRewrite(c, letPrefix, specs, env));
-        if (!(n instanceof com.legend.compiler.spec.typed.TypedNativeCall pc)) {
-            return n;
-        }
-        String f = pc.callee().qualifiedName();
-        boolean plain = com.legend.compiler.element.type.PlatformTypes
-                .PLAN_TO_STRING.equals(f);
-        boolean bare = com.legend.compiler.element.type.PlatformTypes
-                .PLAN_TO_STRING_WITHOUT_FORMATTING.equals(f);
-        if (!plain && !bare) {
-            return n;
-        }
-        TypedSpec p = com.legend.compiler.spec.ExecuteChainAssembly
-                .letBound(pc.args().get(0), letPrefix);
-        if (!(p instanceof com.legend.compiler.spec.typed.TypedNativeCall ep)
-                || !(com.legend.compiler.element.type.PlatformTypes
-                        .EXECUTION_PLAN.equals(ep.callee().qualifiedName())
-                        || com.legend.compiler.element.type.PlatformTypes
-                                .PREVAL.equals(ep.callee().qualifiedName()))) {
-            return n;
-        }
-        try {
-            ExecutionResult r = planToString(pc, letPrefix, specs, env);
-            if (!(r instanceof ExecutionResult.Scalar sc)) {
-                return n;
-            }
-            String text = String.valueOf(sc.value());
-            if (bare) {
-                text = text.replace("\n", "").replace(" ", "");
-            }
-            return new com.legend.compiler.spec.typed.TypedCString(text,
-                    pc.info());
-        } catch (RuntimeException keepWall) {
-            return n;
-        }
+        com.legend.compiler.spec.NativeDispatch.Routine text =
+                (call, letPrefix) -> {
+                    ExecutionResult r = planToString(call, letPrefix,
+                            specs, env);
+                    return String.valueOf(((ExecutionResult.Scalar)
+                            java.util.Objects.requireNonNull(r,
+                                    "plan text")).value());
+                };
+        return java.util.Map.of(
+                com.legend.compiler.element.type.PlatformTypes
+                        .PLAN_TO_STRING, text,
+                com.legend.compiler.element.type.PlatformTypes
+                        .PLAN_TO_STRING_WITHOUT_FORMATTING,
+                (call, letPrefix) -> text.value(call, letPrefix)
+                        .replace("\n", "").replace(" ", ""));
     }
 
     private static @com.legend.Nullable ExecutionResult planToString(
@@ -2571,11 +2499,12 @@ final class StatementExecutor {
         var inliner = hook == null
                 ? new com.legend.compiler.spec.UserCallInliner(specs)
                 : new com.legend.compiler.spec.UserCallInliner(specs, hook);
-        java.util.List<TypedSpec> body = inliner.inlineBody(single);
+        java.util.List<TypedSpec> body = new java.util.ArrayList<>(
+                inliner.inlineBody(single));
         env.queryLets().putAll(inliner.queryLets());
-        body = new java.util.ArrayList<>(body);
-        final java.util.List<TypedSpec> planEnv = body;
-        body.replaceAll(b -> planTextRewrite(b, planEnv, specs, env));
+        final java.util.List<TypedSpec> stageEnv = body;
+        body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
+                .stage(b, stageEnv, nativeRoutines(specs, env)));
         body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
                 .withLetBindings(env.queryLets())
                 .resolve(body, env.runtimeFqn());

@@ -153,10 +153,9 @@ public final class StoreResolver {
             @com.legend.Nullable String driverRuntimeFqn,
             @com.legend.Nullable String explicitMappingFqn,
             List<String> chainMappings) {
-        // LAZY: runtime consulted only when a class fetch needs a mapping
-        // (a pure relation query must not — date-literal regression).
-        // the RUNTIME rides ALONGSIDE an explicit mapping (self-sourced
-        // M2M upstream dispatch needs the candidate set)
+        // LAZY: runtime consulted only when a class fetch needs a
+        // mapping; the runtime rides ALONGSIDE an explicit mapping
+        // (self-sourced M2M upstream needs the candidate set)
         Context context = explicitMappingFqn != null
                 ? new Context(explicitMappingFqn, driverRuntimeFqn,
                         chainMappings)
@@ -279,8 +278,7 @@ public final class StoreResolver {
         if (n instanceof TypedFrom from) {
             Context inner = fromContext(from, context);
             // in-query CLASS SUBQUERIES under lambdas lift FIRST
-            // (SubQueryLift): the sub-chain resolves under THIS
-            // from()'s context into a [0..1] scalar-subquery relation
+            // (SubQueryLift) under THIS from()'s context
             TypedSpec liftedSrc = SubQueryLift.lift(from.source(),
                     inner, ctx, specs, letBindings);
             return new TypedFrom(resolveNode(liftedSrc, inner),
@@ -452,17 +450,14 @@ public final class StoreResolver {
                     when anchored(m.source())
                     && Type.relationValued(m.source().info()) ->
                     structural(m, context);
-            // executionPlan()/preval(): the plan HANDLE is opaque —
-            // the plan lane compiles its lambda at consumption under
-            // the call's own mapping (getAll-76 lane, §6.1); resolving
-            // it here stranded every no-from() plan query
+            // executionPlan()/preval() is an OPAQUE plan handle: the
+            // plan lane compiles its lambda at consumption (§6.1)
             case TypedNativeCall pn
                     when com.legend.compiler.element.type.PlatformTypes
                             .EXECUTION_PLAN.equals(pn.callee().qualifiedName())
                     || com.legend.compiler.element.type.PlatformTypes
                             .PREVAL.equals(pn.callee().qualifiedName()) -> pn;
             // execute() args resolve under the CALL'S OWN routing
-            // context (RoutingContext, slice-1 job 1)
             case TypedNativeCall nc
                     when RoutingContext.routedEntryMapping(nc) != null ->
                     structural(Pipelines.classEmptinessRewrite(nc,

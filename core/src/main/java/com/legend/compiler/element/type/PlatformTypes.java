@@ -244,6 +244,38 @@ public final class PlatformTypes {
     }
 
     /**
+     * HOW a registered native is implemented — the catalog FACT the
+     * executor dispatches by (exact FQN lookup, never statement
+     * silhouettes). Absent = the default: an SQL rule (the Lowerer
+     * translates; the database executes — filter, startsWith, ...).
+     */
+    public enum NativeImpl {
+        /** The platform computes a VALUE in Java at orchestration time
+         * (compiler-output surfaces: plan text, SQL text). The result
+         * enters the surrounding statement as a bound literal; the
+         * database still judges every comparison over it. */
+        JAVA_ROUTINE,
+        /** Produces an OPAQUE orchestration value consumed later
+         * (execute's result frame, executionPlan's plan handle) —
+         * resolution does not enter it; consumers force it. */
+        HANDLE
+    }
+
+    /** The labeled subset (catalog leg, charter §4AG): every entry here
+     * must ALSO be a registered signature; the executor's dispatch table
+     * must cover exactly the JAVA_ROUTINE rows (governance-pinned). The
+     * remaining silhouette arms migrate here one by one — end state is
+     * ZERO function-name checks in the executor (task: full ladder
+     * migration). */
+    public static final java.util.Map<String, NativeImpl> IMPLEMENTATION_KIND =
+            java.util.Map.of(
+                    PLAN_TO_STRING, NativeImpl.JAVA_ROUTINE,
+                    PLAN_TO_STRING_WITHOUT_FORMATTING, NativeImpl.JAVA_ROUTINE,
+                    EXECUTION_PLAN, NativeImpl.HANDLE,
+                    PREVAL, NativeImpl.HANDLE,
+                    EXECUTE, NativeImpl.HANDLE);
+
+    /**
      * PLATFORM-OWNED function FQNs: legend-lite's native IS the definition
      * — user re-definitions (the real engine's toDDL.pure bodies walk the
      * Database METAMODEL, M3 reflection this platform doesn't model) are

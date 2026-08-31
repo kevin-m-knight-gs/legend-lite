@@ -1,0 +1,58 @@
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.compiler.spec;
+
+import com.legend.compiler.element.type.PlatformTypes;
+import com.legend.compiler.spec.typed.TypedCString;
+import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedSpec;
+
+/**
+ * Catalog-driven staging of Java-implemented natives (charter §4AG):
+ * a call whose catalog entry says {@link PlatformTypes.NativeImpl
+ * #JAVA_ROUTINE} evaluates WHERE IT STANDS — exact-FQN lookup,
+ * position-blind, no statement silhouettes — and its value re-enters
+ * the statement as a typed literal minted HERE (Invariant 7: typed
+ * nodes are compiler work). {@code HANDLE}-kind calls stay symbolic;
+ * their consumers force them. A routine that cannot serve a shape
+ * throws its declared wall and NOTHING here catches it — the failure
+ * is charged, loudly, to whichever channel demanded the value.
+ */
+public final class NativeDispatch {
+
+    private NativeDispatch() {
+    }
+
+    /** The executor's half: compute the routine's value for a call.
+     * String-valued today (the compiler-output surfaces); widens with
+     * the ladder migration. Throws the routine's declared wall. */
+    @FunctionalInterface
+    public interface Routine {
+        String value(TypedNativeCall call,
+                java.util.List<TypedSpec> letPrefix);
+    }
+
+    /** Stage one statement: every JAVA_ROUTINE call in it (bottom-up)
+     * is replaced by its computed literal. */
+    public static TypedSpec stage(TypedSpec stmt,
+            java.util.List<TypedSpec> letPrefix,
+            java.util.Map<String, Routine> routines) {
+        TypedSpec n = stmt.mapChildren(
+                c -> stage(c, letPrefix, routines));
+        if (!(n instanceof TypedNativeCall nc)) {
+            return n;
+        }
+        String fqn = nc.callee().qualifiedName();
+        if (PlatformTypes.IMPLEMENTATION_KIND.get(fqn)
+                != PlatformTypes.NativeImpl.JAVA_ROUTINE) {
+            return n;
+        }
+        Routine r = routines.get(fqn);
+        if (r == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "catalog says '" + fqn + "' is JAVA_ROUTINE but the"
+                    + " executor registered no routine for it");
+        }
+        return new TypedCString(r.value(nc, letPrefix), nc.info());
+    }
+}

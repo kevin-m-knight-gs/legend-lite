@@ -416,7 +416,16 @@ public final class CanonicalDivergence {
             "a non-let intermediate statement in a bare lambda literal",
             // extension-lambda eval (the wall-deepened routerExtensions
             // auto-map refusal)
-            "'meta::pure::extension::routerExtensions'");
+            "'meta::pure::extension::routerExtensions'",
+            // PLAN-NODE MODEL WALKS (adjudicated 2026-08-31, §4AE growth
+            // rule): allNodes/executionNodes/cast/supportsStream asserts
+            // evaluate the tests' filter lambdas over plan-node objects
+            // — pure code with no store demand, the same class as
+            // pkOfFunc's function-bodies-as-data (a burn attempt via the
+            // planWalk side door was REVERTED: it grew the parallel
+            // evaluator the one-router ruling forbids). The family waits
+            // for the metamodel-as-data program with the rest.
+            "class query under TypedMap is not resolvable yet");
 
     private static boolean quarantined(String key) {
         for (String q : METAMODEL_QUARANTINE) {

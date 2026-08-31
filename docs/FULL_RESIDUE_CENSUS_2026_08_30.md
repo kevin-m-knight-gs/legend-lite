@@ -657,3 +657,68 @@ noteExecutedDdl (write-only after the router deletion), sourceFamily
 (write-only after crossRefs), containsAssertCall + the constant-false
 assertExpansion flag (try-run-only; collapsing it is behavior-neutral
 — the landed pins already reflect false). Runner 2,725 → 1,950 lines.
+
+### 10j. PHASE-B COURSE CORRECTION (2026-08-31, user catch:
+### "what hackery have we been doing")
+
+The user challenged the burn mechanics; the audit found three grades:
+1. **Clean (kept)**: opaque plan handle + escapee skip + planToString
+   let-chase — sanctioned #47 machinery; the +86 agree (lane 1) is
+   platform SQL emission compared as verdicts.
+2. **Wart (fixed)**: the plan-text rewrite's `catch (RuntimeException)`
+   was a rescue arm — NARROWED to the declared wall type
+   (NotImplementedException); bugs stay loud.
+3. **Hackery (REVERTED)**: the TypedMap-65 burn extended
+   planWalk/MetamodelSteps — one of the five host-evaluator side
+   doors — with a variable-chase, a name-based vocabulary gate, and a
+   walk-literalizer whose multiplicity stamps were hand-beaten until
+   guards passed. It measured agree +35 AND tripped the typed-IR
+   int-null-empty census (the referee flagged the leak
+   independently). All reverted.
+
+ADJUDICATION: the TypedMap-65 family (plan-node walks — allNodes /
+executionNodes->at->cast / .supportsStream, incl. tdsUnion-6,
+modelJoins-4, relationalMapper-10 — verified per family) evaluates
+test lambdas over plan-node objects with no store demand: the SAME
+class as pkOfFunc. It joins the metamodel quarantine per the §4AE
+growth rule (pin 107 → 172 witness rows) and waits for the
+metamodel-as-data program.
+
+Post-correction scoreboard: agree=3469 disagree=9 exec-passing=1497
+text-only=44 unable=50 declined=**30** quarantined=172+20 walls.
+Active declines remaining: host-unsupported 25 + ~5 stragglers.
+
+### 10k. CATALOG DISPATCH LANDED (2026-08-31, user-ratified plan §4AG)
+
+The user's question — "what's the difference between execute and
+filter?" — was the design: NONE should exist. The catalog
+(PlatformTypes.IMPLEMENTATION_KIND) now states HOW each native is
+implemented: absent = SQL rule (the default — Lowerer translates,
+database executes); JAVA_ROUTINE = the platform computes a value at
+orchestration time (plan text); HANDLE = opaque orchestration value
+(execute's frame, executionPlan's plan). The executor dispatches by
+EXACT-FQN lookup (compiler-layer NativeDispatch.stage — Invariant 7
+minting, position-blind, both channels), and the three planToString
+statement-silhouette arms are DELETED (−48 lines; executor back under
+its 2524 ledger pin). NO catch anywhere: an unprintable plan's
+declared wall propagates to whichever channel demanded the value and
+classifies there (the harness's plan-assert seam, a pre-existing
+declared boundary).
+
+Scoreboard identical to the §10j corrected state — agree=3469,
+declined=30, quarantine 172+20, all sql-text pins byte-stable — the
++86 delivered through the honest mechanism.
+
+NEXT SLICES OF THIS LANE (named, counted):
+1. Rows-upgrade for plan-text mismatches: planTextAssert byte-compare
+   stands; on mismatch, extract SQL STRUCTURALLY from the printer
+   (never parse our own output) + the existing golden extraction,
+   replay by rows (h2Upgrade pattern). Rows in scope today:
+   plan-literal 17 (text-only) + plan-let 6 + the plan-wall subset of
+   declined-30.
+2. FULL ladder migration (task #22, user directive — no half-done
+   work): toSQLString/Pretty (incl. the splice-hook second arm),
+   processingTemplateFunctions arm, assertError, setUpDataSQLs,
+   execute (HANDLE kind converges) — each arm DELETED at migration;
+   planWalk arm BLOCKED on plan-nodes-as-rows (metamodel-as-data
+   leg 1), never silently skipped.

@@ -879,10 +879,16 @@ public class RelationalCorpusRunner {
             // rows left the decline channel (142 -> 107) and the 20
             // tests are counted through the SAME vocabulary on the wall
             // channel. The partition's TEST SET is unchanged.
-            org.junit.jupiter.api.Assertions.assertEquals(107,
+            // 107 -> 172 (2026-08-31, §4AE growth rule, ADJUDICATED):
+            // the TypedMap-65 family is PLAN-NODE MODEL WALKS — the
+            // tests' filter lambdas evaluated over plan-node objects,
+            // pure code with no store demand (pkOfFunc's class). A burn
+            // attempt via the planWalk side door was REVERTED (it grew
+            // the parallel evaluator the one-router ruling forbids).
+            org.junit.jupiter.api.Assertions.assertEquals(172,
                     com.legend.exec.CanonicalDivergence.v7QuarantinedCount(),
-                    "metamodel quarantine (witness rows) moved off 107 —"
-                            + " see FULL_RESIDUE_CENSUS_2026_08_30.md §10h");
+                    "metamodel quarantine (witness rows) moved off 172 —"
+                            + " see FULL_RESIDUE_CENSUS_2026_08_30.md §10j");
             org.junit.jupiter.api.Assertions.assertEquals(20,
                     com.legend.exec.CanonicalDivergence
                             .v7QuarantinedWallCount(),
