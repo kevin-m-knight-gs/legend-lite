@@ -19,6 +19,18 @@ final class StoreEscapees {
     }
 
     private static void check(TypedSpec n, String path) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                && (com.legend.compiler.element.type.PlatformTypes
+                        .EXECUTION_PLAN.equals(nc.callee().qualifiedName())
+                        || com.legend.compiler.element.type.PlatformTypes
+                                .PREVAL.equals(nc.callee().qualifiedName()))) {
+            // the PLAN HANDLE is opaque (#47): its query lambda is
+            // compiled by the PLAN LANE at consumption (planToString /
+            // plan walks) under the call's own mapping and plan
+            // parameters — Phase-H resolution neither descends into it
+            // nor demands a bound chain here (getAll-76 lane, §6.1)
+            return;
+        }
         if (n instanceof TypedGetAll ga) {
             throw new com.legend.error.NotImplementedException(
                     "store resolution left getAll(" + ga.classFqn()

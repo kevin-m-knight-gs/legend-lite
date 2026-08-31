@@ -452,8 +452,17 @@ public final class StoreResolver {
                     when anchored(m.source())
                     && Type.relationValued(m.source().info()) ->
                     structural(m, context);
-            // execute()/executionPlan() args resolve under the CALL'S
-            // OWN routing context (RoutingContext, slice-1 job 1)
+            // executionPlan()/preval(): the plan HANDLE is opaque —
+            // the plan lane compiles its lambda at consumption under
+            // the call's own mapping (getAll-76 lane, §6.1); resolving
+            // it here stranded every no-from() plan query
+            case TypedNativeCall pn
+                    when com.legend.compiler.element.type.PlatformTypes
+                            .EXECUTION_PLAN.equals(pn.callee().qualifiedName())
+                    || com.legend.compiler.element.type.PlatformTypes
+                            .PREVAL.equals(pn.callee().qualifiedName()) -> pn;
+            // execute() args resolve under the CALL'S OWN routing
+            // context (RoutingContext, slice-1 job 1)
             case TypedNativeCall nc
                     when RoutingContext.routedEntryMapping(nc) != null ->
                     structural(Pipelines.classEmptinessRewrite(nc,

@@ -36,9 +36,7 @@ final class RoutingContext {
             TypedPackageableRef routedEntryMapping(TypedNativeCall nc) {
         String f = nc.callee().qualifiedName();
         boolean routed = com.legend.compiler.element.type.PlatformTypes
-                .isExecuteFqn(f)
-                || com.legend.compiler.element.type.PlatformTypes
-                        .EXECUTION_PLAN.equals(f);
+                .isExecuteFqn(f);
         return routed && nc.args().size() >= 2
                 && nc.args().get(1) instanceof com.legend.compiler.spec
                         .typed.TypedPackageableRef mr ? mr : null;

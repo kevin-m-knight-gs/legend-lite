@@ -1105,6 +1105,24 @@ carry the same family's host-adjudicated h2 "passes" — worktree
 receipt in §10h-addendum; DuckDB family baseline sqlDialectTranslation
 21→1 pass / 20 error, same move).
 
+**§4AF UPDATE (2026-08-31, PHASE-B LANE 1 CLOSED — getAll-76):**
+user go: "Let's burn it all down to zero." The lane's ONE design leg:
+the executionPlan/preval call is an OPAQUE PLAN HANDLE — Phase-H
+store resolution neither descends into it nor demands a bound chain
+(StoreEscapees skips the subtree; the plan lane compiles the lambda
+at consumption under the call's own mapping and plan parameters), and
+plan-text consumption works in ANY expression position
+(StatementExecutor.planTextRewrite: planToString/
+planToStringWithoutFormatting chase let-bound plan handles and splice
+their computed text as literals; shapes the plan lane cannot print
+KEEP their current classification — the rewrite is monotone). ONE
+process bug caught by the referee mid-slice (immutable inlineBody
+list under replaceAll — executionPlan family 74→0→74). Estate:
+**agree 3383→3469 (+86), declined 181→95 (−86)**, every other lane
+pin byte-identical, `store resolution left getAll` = 0 estate-wide.
+Remaining declines: TypedMap-65, host-unsupported 26, plan-literal
+17, plan-let 6 (+ sql-text sub-lanes unchanged).
+
 Plain reading: an "assert execution" is one assert statement judged
 once during a full corpus sweep. Of **5,241** total:
 

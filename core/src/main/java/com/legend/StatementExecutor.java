@@ -228,6 +228,9 @@ final class StatementExecutor {
             java.util.List<TypedSpec> body =
                     stmtInliner.inlineBody(single);                       // Phase G½
             env.queryLets().putAll(stmtInliner.queryLets());
+            body = new java.util.ArrayList<>(body);
+            final java.util.List<TypedSpec> planEnv2 = body;
+            body.replaceAll(b -> planTextRewrite(b, planEnv2, specs, env));
             // toSQLString dispatches PRE-H: its query lambda resolves
             // against the EXPLICIT mapping argument, never the ambient
             // runtime's (audit 19d B3 — the K-native replacing the
@@ -623,10 +626,71 @@ final class StatementExecutor {
     /** {@code planToString(executionPlan(func, MAPPING, runtime, ...),
      * ext)}: the SINGLE-RELATIONAL literal plan text (#47 pilot —
      * com.legend.plan.PlanText owns the format). */
+    /** Plan-text consumption in ANY expression position (getAll-76
+     * lane, §6.1): {@code planToString[WithoutFormatting](p, ext)} whose
+     * plan value chases (through the let prefix) to an
+     * {@code executionPlan()}/{@code preval()} call rewrites to its
+     * computed TEXT LITERAL before resolution — the plan handle is
+     * opaque to the store resolver, so the text splices where the
+     * expression stands. Shapes the plan lane cannot print yet stay
+     * UNCHANGED (the walls keep their current classification — the
+     * rewrite only ever adds passes). */
+    private static TypedSpec planTextRewrite(TypedSpec n,
+            java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
+        n = n.mapChildren(c -> planTextRewrite(c, letPrefix, specs, env));
+        if (!(n instanceof com.legend.compiler.spec.typed.TypedNativeCall pc)) {
+            return n;
+        }
+        String f = pc.callee().qualifiedName();
+        boolean plain = com.legend.compiler.element.type.PlatformTypes
+                .PLAN_TO_STRING.equals(f);
+        boolean bare = com.legend.compiler.element.type.PlatformTypes
+                .PLAN_TO_STRING_WITHOUT_FORMATTING.equals(f);
+        if (!plain && !bare) {
+            return n;
+        }
+        TypedSpec p = com.legend.compiler.spec.ExecuteChainAssembly
+                .letBound(pc.args().get(0), letPrefix);
+        if (!(p instanceof com.legend.compiler.spec.typed.TypedNativeCall ep)
+                || !(com.legend.compiler.element.type.PlatformTypes
+                        .EXECUTION_PLAN.equals(ep.callee().qualifiedName())
+                        || com.legend.compiler.element.type.PlatformTypes
+                                .PREVAL.equals(ep.callee().qualifiedName()))) {
+            return n;
+        }
+        try {
+            ExecutionResult r = planToString(pc, letPrefix, specs, env);
+            if (!(r instanceof ExecutionResult.Scalar sc)) {
+                return n;
+            }
+            String text = String.valueOf(sc.value());
+            if (bare) {
+                text = text.replace("\n", "").replace(" ", "");
+            }
+            return new com.legend.compiler.spec.typed.TypedCString(text,
+                    pc.info());
+        } catch (RuntimeException keepWall) {
+            return n;
+        }
+    }
+
     private static @com.legend.Nullable ExecutionResult planToString(
             com.legend.compiler.spec.typed.TypedNativeCall call,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
-        if (!(call.args().get(0)
+        return planToString(call, java.util.List.of(), specs, env);
+    }
+
+    private static @com.legend.Nullable ExecutionResult planToString(
+            com.legend.compiler.spec.typed.TypedNativeCall call,
+            java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
+        // the plan value chases through the LET PREFIX (getAll-76 lane:
+        // `let plan = executionPlan(...)` then `$plan->planToString(...)`
+        // inside an assert — the handle is a symbolic binding)
+        TypedSpec a0 = com.legend.compiler.spec.ExecuteChainAssembly
+                .letBound(call.args().get(0), letPrefix);
+        if (!(a0
                 instanceof com.legend.compiler.spec.typed.TypedNativeCall ep)
                 || !com.legend.compiler.element.type.PlatformTypes
                         .EXECUTION_PLAN.equals(ep.callee().qualifiedName())) {
@@ -2509,6 +2573,9 @@ final class StatementExecutor {
                 : new com.legend.compiler.spec.UserCallInliner(specs, hook);
         java.util.List<TypedSpec> body = inliner.inlineBody(single);
         env.queryLets().putAll(inliner.queryLets());
+        body = new java.util.ArrayList<>(body);
+        final java.util.List<TypedSpec> planEnv = body;
+        body.replaceAll(b -> planTextRewrite(b, planEnv, specs, env));
         body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
                 .withLetBindings(env.queryLets())
                 .resolve(body, env.runtimeFqn());
