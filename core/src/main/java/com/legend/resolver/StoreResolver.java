@@ -2139,130 +2139,15 @@ public final class StoreResolver {
                 continue;
             }
             if (cs.bindings().containsKey(SyntheticHeads.realHead(head))) {
-                // A NAVIGATE-SLOT head (class-typed Join PM): the nav step
-                // carries the target extent + oriented (s, t) predicate.
-                var nav = Pipelines.navSteps(cs.pipeline()).get(SyntheticHeads.realHead(head));
-                if (nav == null || !(nav.target()
-                        instanceof TypedGetAll tg)
-                        // eager material only when the target class IS
-                        // mapped here (M2M nav targets live upstream —
-                        // must not throw for a rewrite that may never fire)
-                        || !sources.binds(cs.mappingFqn(), tg.classFqn())) {
-                    continue;
-                }
-                ClassSource t = sources.getForNav(cs.mappingFqn(),
-                        tg.classFqn(), head);
-                Set<String> tSlots0 = Pipelines.slotAliases(t.pipeline());
-                Set<String> tDemand0 = new LinkedHashSet<>();
-                Set<String> innerLeaves = new LinkedHashSet<>(
-                        InnerDemand.leaves(ops, head));
-                for (TypedLambda liftedPred0 : synthetics.allPreds(head)) {
-                    for (TypedSpec b : liftedPred0.body()) {
-                        InnerDemand.collectParamPathHeads(b,
-                                liftedPred0.parameters().get(0), innerLeaves);
-                    }
-                }
-                for (String leaf : innerLeaves) {
-                    TypedSpec lb = t.bindings().get(leaf);
-                    if (lb != null) {
-                        CorrelatedSubselects.collectAliasReads(lb, t.rowVar(), tSlots0, tDemand0);
-                    }
-                }
-                tDemand0 = Pipelines.closeOverConditions(t.pipeline(), tDemand0);
-                // #69: a CORRELATED pred's TARGET-side reads may hop the
-                // target's OWN class-typed navigate steps ($e.address.name
-                // over the navigated rows) — demand those steps, let the
-                // materialization join them, and build depth-1 SubNavs for
-                // the composition's pass-1 dispatch. Deeper hops stay loud
-                // (empty children).
-                TypedLambda corrNav0 = synthetics.correlatedPred(head);
-                Map<String, String> predNavAliases = new LinkedHashMap<>();
-                Set<String> tNavDemand = InnerDemand.navStepDemand(t,
-                        Pipelines.navSteps(t.pipeline()).keySet(), corrNav0,
-                        synthetics.allPreds(head),
-                        InnerDemand.leafChains(ops, head), predNavAliases);
-                Pipelines.Materialized tMat0 = tNavDemand.isEmpty()
-                        ? Pipelines.materialize(
-                                t.pipeline(), tDemand0, t.classFqn())
-                        : Pipelines.materialize(
-                                t.pipeline(), tDemand0, tNavDemand, t.classFqn(),
-                                (al2, tc2) -> Pipelines.materialize(
-                                        sources.get(cs.mappingFqn(), tc2)
-                                                .pipeline(),
-                                        java.util.Set.of(), tc2).pipeline());
-                Map<String, Substitution.SubNav> tSubNavs = new LinkedHashMap<>();
-                for (var pne : predNavAliases.entrySet()) {
-                    String pfx = tMat0.slotPrefixes().get(pne.getValue());
-                    var stepT = java.util.Objects.requireNonNull(
-                            Pipelines.navSteps(t.pipeline())
-                                    .get(pne.getValue())).target();
-                    if (pfx == null || !(stepT instanceof TypedGetAll stg)) {
-                        continue;
-                    }
-                    ClassSource sub = sources.get(cs.mappingFqn(), stg.classFqn());
-                    tSubNavs.put(pne.getKey(), new Substitution.SubNav(
-                            pfx, sub.rowVar(), sub.bindings()));
-                }
-                // UNION target: member threads carry the key columns the
-                // navigate predicate binds on (mirrors the assoc route)
-                TypedSpec tPipe0 = tMat0.pipeline();
-                if (nav.predicate().parameters().size() == 2) {
-                    Set<String> tgtReads = new LinkedHashSet<>();
-                    for (TypedSpec b : nav.predicate().body()) {
-                        Pipelines.collectVarReads(b,
-                                nav.predicate().parameters().get(1), tgtReads);
-                    }
-                    tPipe0 = Pipelines.widenConcatenateForKeys(tPipe0, tgtReads);
-                }
-                TypedSpec tTemporal = temporal.temporalTargetPipe(cs, t, head,
-                        temporal.applyJoinTemporalFilters(tPipe0, t, Map.of()));
-                final ClassSource ft = t;
-                // a CORRELATED lifted pred composes into the nav step's own
-                // (parent, target) condition — both rows in scope, the same
-                // composition as the association route
-                TypedLambda navCond = nav.predicate();
-                TypedLambda corrNav = corrNav0;
-                if (corrNav != null) {
-                    navCond = assocMaterial.andCorrelatedIntoCondition(
-                            navCond, corrNav, cs, t, tMat0.slotPrefixes(),
-                            parentAssocs, tSubNavs);
-                }
-                final Map<String, Substitution.SubNav> ftSubNavs = tSubNavs;
-                tTemporal = synthetics.applyToPipe(head, tTemporal,
-                        (p, pred) -> CorrelatedSubselects.predFilteredPipe(p, ft,
-                                tMat0.slotPrefixes(), ftSubNavs,
-                                pred, cs.mappingFqn()));
-                Pipelines.Materialized tMat = new Pipelines.Materialized(
-                        tTemporal, tMat0.slotPrefixes(), tMat0.stripped());
-                boolean navToMany = !(ctx.findProperty(cs.classFqn(), SyntheticHeads.realHead(head))
-                        .map(pr -> pr.multiplicity())
-                        .filter(mm -> mm instanceof com.legend.compiler.element.type
-                                .Multiplicity.Bounded bb
-                                && Integer.valueOf(1).equals(bb.upper()))
-                        .isPresent());
-                // #70 COMPOSITE chain-backed target: a navigate condition
-                // reading a SIBLING JOINSLOT pulls the slot table INTO the
-                // target pipeline, correlated outward by hop-1's condition
-                // (see CorrelatedSubselects.compositeChainTarget).
-                TypedSpec chainPipe = tMat.pipeline();
-                if (corrNav == null && navCond.parameters().size() == 2) {
-                    CorrelatedSubselects.CompositeChain cc =
-                            corrSubs.compositeChainTarget(
-                                    cs, navCond, chainPipe);
-                    if (cc != null) {
-                        chainPipe = cc.pipeline();
-                        navCond = cc.orientedCond();
-                    }
-                }
-                NestedScope navNs = nestedScope(t, ops, head, context,
-                        chainPipe);
-                existsSubs.put(head, new Substitution.ExistsSub(navNs.pipeline(),
-                        navCond, t.rowVar(), t.bindings(),
-                        navNs.row(),
-                        t.classFqn(), Pipelines.slotAliases(t.pipeline()),
-                        tMat0.slotPrefixes(), navToMany)
-                        .withInnerRegs(navNs.regs())
-                        .withSubNavs(tSubNavs));
+                // NAVIGATE-SLOT head (class-typed Join PM), incl. the
+                // embedded-union dotted form — the whole arm lives in
+                // NavExistsMaterial; a non-serveable head no-ops (loud
+                // downstream, same as before the extraction)
+                NavExistsMaterial.register(existsSubs, ctx, sources,
+                        synthetics, temporal, assocMaterial, corrSubs,
+                        cs, head, path, filterTwoHop, ops, parentAssocs,
+                        (t2, key2, pipe2) -> nestedScope(t2, ops, key2,
+                                context, pipe2));
                 continue;
             }
             var assocOpt = ctx.findAssociationOf(cs.classFqn(), SyntheticHeads.realHead(head));

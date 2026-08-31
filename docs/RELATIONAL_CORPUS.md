@@ -62,7 +62,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tds/relation | 2 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | tds/tests | 266 | 253 | 3 | 9 | 1 | 1 | 1 | 0 | 91 |
-| testDataGeneration/tests | 68 | 63 | 0 | 2 | 3 | 0 | 0 | 24 | 17 |
+| testDataGeneration/tests | 68 | 64 | 0 | 1 | 3 | 0 | 0 | 24 | 18 |
 | tests | 39 | 33 | 2 | 3 | 1 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 66 | 1 | 1 | 0 | 3 | 3 | 0 | 54 |
 | tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
@@ -92,16 +92,16 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/selfJoin | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
 | tests/mapping/sqlFunction | 74 | 73 | 0 | 1 | 0 | 0 | 0 | 0 | 23 |
 | tests/mapping/tree | 12 | 11 | 1 | 0 | 0 | 0 | 0 | 0 | 8 |
-| tests/mapping/union | 127 | 120 | 2 | 4 | 1 | 4 | 4 | 0 | 70 |
+| tests/mapping/union | 127 | 122 | 2 | 2 | 1 | 4 | 4 | 0 | 70 |
 | tests/mapping/union/relation | 17 | 15 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/platformOperations | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/query | 87 | 81 | 2 | 4 | 0 | 1 | 2 | 0 | 42 |
 | transform/fromPure/tests | 57 | 44 | 9 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2338** | 59 | 139 | 39 | 13 | 15 | 27 | 898 |
+| **total** | 2575 | **2341** | 59 | 136 | 39 | 13 | 15 | 27 | 899 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2338 PASS = 1401 clean + 937 carrying softness (sqldiff 13, advisory 15, 0-asserts 27, text-rescued 898; flags overlap — the union is 937).
+SOFT-PASS RECONCILIATION (F2.1): 2341 PASS = 1403 clean + 938 carrying softness (sqldiff 13, advisory 15, 0-asserts 27, text-rescued 899; flags overlap — the union is 938).
 
 ### mapping walls (dropped at assembly)
 
@@ -1087,7 +1087,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2338 PASS = 1401 clean + 937 carrying softness 
 - 8x Unknown type: 'SQLQuery' is not a known primitive, class, or enum
 - 7x sqlQueryPostProcessorsConnectionAware hook shape is not a replaceTables lambda — post-processor recognizer pending for: TypedLambda[parameters=[s], body=[TypedNewInstance[classFqn=meta::pure::mapping::Result, properties={values=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=select, type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]], returnType=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], returnMultiplicity=Bounded[lower=1, upper=1], body=Optional.empty, isNative=true, definition=NativeFunctionDefinition[qualifiedName=meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs, typeParameters=[], multiplicityParameters=[], parameters=[ParameterDefinition[name=select, type=NameRef[name=meta::relational::metamodel::relation::SelectSQLQuery, pos=SourceInfo[sourceId=, startLine=1, startColumn=96, endLine=1, endColumn=148]], multiplicity=[1]]], returnType=NameRef[name=meta::relational::metamodel::relation::SelectSQLQuery, pos=SourceInfo[sourceId=, startLine=1, startColumn=154, endLine=1, endColumn=206]], returnMultiplicity=[1], stereotypes=[], taggedValues=[]]], args=[TypedVariable[name=s, info=ExprType[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]], pos=SourceInfo[sourceId=, startLine=139, startColumn=121, endLine=139, endColumn=143]]}, info=ExprType[type=GenericType[rawFqn=meta::pure::mapping::Result, arguments=[ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery]], multArguments=[]], multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=GenericType[rawFqn=meta::pure::metamodel::function::LambdaFunction, arguments=[FunctionType[params=[Param[type=ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery], multiplicity=Bounded[lower=1, upper=1]]], result=Param[type=GenericType[rawFqn=meta::pure::mapping::Result, arguments=[ClassType[fqn=meta::relational::metamodel::relation::SelectSQLQuery]], multArguments=[]], multiplicity=Bounded[lower=1, upper=1]]]], multArguments=[]], multiplicity=Bounded[lower=1, upper=1]]]
 - 3x unbound variable '$_nr2'
-- 3x resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'employees' (the demand scan and the rewrite disagreed)
 - 2x unbound variable '$collection'
 - 2x unknown class 'meta::relational::metamodel::datatype::Integer' in ^meta::relational::metamodel::datatype::Integer(…)
 - 2x from() argument 1 must be a mapping or runtime reference, got TypedUserCall
@@ -1111,6 +1110,7 @@ SOFT-PASS RECONCILIATION (F2.1): 2338 PASS = 1401 clean + 937 carrying softness 
 - 1x in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relational::metamodel::execute::loadCsvToDbTable' accepts 4 argument(s)
 - 1x extend/project columns [a, b, c] reference names unresolvable even after isolation [col='c' ref='aggregate 'meta::pure::functions::collection::count' in scalar position (aggregation machinery owns it)']
 - 1x project expects ~[…] column specifications
+- 1x in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionScope, got (id:Integer[1], fnId:Integer[0..1]) (value: AppliedFunction[function=meta::legend::lite::trustOne, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null, pos=null], property=publicFnJoin, pos=null]], candidateFqns=[], pos=null, propertyCall=false, grouped=false, infix=false])
 
 ### per-test outcomes (non-passing)
 
@@ -1288,7 +1288,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2338 PASS = 1401 clean + 937 carrying softness 
 - SHAPE testAlloyTestDatGenWithQuotedColumnsForViews [testDataGeneration/tests]: testDataGen: view-backed relation 'AltID_View' — view slice pending [surfaced via assert form 'assertEquals/2']
 - SHAPE testErrorDueToNoSeedForRoot [testDataGeneration/tests]: testDataGen plan: no row identifiers for root 'Person' [surfaced via assert form 'assertEquals/2']
 - ERROR testInheritanceMultipleLevel [testDataGeneration/tests]: multi-hop navigation vehicles#f1.stc_meta__relational__tests__model__inheritance__Bicycle___person.name through an embedded/slot head is not supported yet [assocs=[vehicles#f0, vehicles#f1]; head subNavs=[]; head binding=ABSENT]
-- ERROR testUnionToUnion [testDataGeneration/tests]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'employees' (the demand scan and the rewrite disagreed)
 - FAIL testRelationalMapperTwoDBs [tests]: assertEquals: expected select "root".NAME as "name", "synonymtable_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join snDB.productSchemaNewDB.synonymTableNew as "synonymtable_0" on ("synonymtable_0".PRODID = "root".ID and "synonymtable_0".TYPE = 'CUSIP' and "synonymtable_0".ID <> 1) where "synonymtable_0".NAME = 'CUSIP1', got select "root".NAME as "name", "synonymtablenew_0".NAME as "cusip" from snDB.productSchemaNewDBINC.productTableNewINC as "root" left outer join (select * from snDB.productSchemaNewDB.synonymTableNew as "root" where "root".ID is distinct from 1 and "root".TYPE = 'CUSIP') as "synonymtablenew_0" on ("synonymtablenew_0".PRODID = "root".ID) where "synonymtablenew_0".TYPE = 'CUSIP' and "synonymtablenew_0".NAME = 'CUSIP1'
 - FAIL testRelationalMapperWithJoin [tests]: assertEquals: expected select "addresstable_0".NAME as "address" from snDBDefault.default.firmTableNew as "root" left outer join snDBDefault.default.personTable as "persontable_0" on ("root".ID = "persontable_0".FIRMID and "persontable_0".LASTNAME = 'Smith') left outer join snDBDefault.default.addressTable as "addresstable_0" on ("addresstable_0".ID = "persontable_0".ADDRESSID), got select "persontable_0"."address_NAME" as "address" from snDBDefault.default.firmTableNew as "root" left outer join (select "root".*, "addresstable_0".NAME as "address_NAME" from snDBDefault.default.personTable as "root" left outer join snDBDefault.default.addressTable as "addresstable_0" on ("addresstable_0".ID = "root".ADDRESSID) where "root".LASTNAME = 'Smith') as "persontable_0" on ("root".ID = "persontable_0".FIRMID)
 - SHAPE testExecuteInDbToTDS [tests]: let-bound setup: NormalizeRequired function 'meta::relational::metamodel::execute::resultSetToTDS' has non-let intermediate statements — cannot inline
@@ -1325,8 +1324,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2338 PASS = 1401 clean + 937 carrying softness 
 - FAIL testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: assertEquals: expected [11, Alex, OrgName3, OrgName2], got [11, Alex, OrgName3, null]
 - FAIL testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting [tests/mapping/union]: assert did not hold (false)
 - FAIL testBiTemporalUnionJoin_milestoningColumnInOnClause [tests/mapping/union]: assert did not hold (false)
-- ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'employees' (the demand scan and the rewrite disagreed)
-- ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'employees' (the demand scan and the rewrite disagreed)
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: plan wall: plan: alias 't2' not resolvable to a table (Subselect) [surfaced via assert form 'assertEquals/2']
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: multiplicity [*] is not compatible with [1]
 - ERROR testUnionToUnionJoinSequenceWithMultipleChildrenInUnionSourceTree [tests/mapping/union]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'PersonSet1PersonAdditional' (the demand scan and the rewrite disagreed)

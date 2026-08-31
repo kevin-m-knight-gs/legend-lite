@@ -270,3 +270,24 @@ relying (scoreboard = `docs/RELATIONAL_CORPUS.md`, sweep =
   be a semantic gate — prove redundancy before consolidating;
   public orphans escape the dead-PRIVATE-method guard (grep callers
   after every revert).
+
+## 9. LANDING RECORD (2026-08-31, second session)
+
+Landed as ONE designed slice (~230 lines, no Pipelines/Substitution
+changes): M1 scan consolidation (lift target from the DECLARED owner —
+dissolves §4 suspect 1 by construction), M2 embedded descent, M3
+navSubs recomposition, M4 nav-arm exists registration keyed by the
+dotted consumer path with **outerNavSteps** addressing (union-frame),
+gated to UNION pipelines. Witnesses #1/#2/#3 PASS (corpus 2338→2341,
+#2/#3 clean, #1 text-rescued 898→899); consumption rides the EXISTING
+dotted arm (Substitution ~948) — D9 was never needed. §5's bad
+condition: proven (creation-site tag) to be the nav-arm consuming a
+MEMBER-THREAD navigate via deep last-wins navSteps — not the assoc
+route. §4's regression: the embedded-head gate firing on NON-union
+frames (inside B5 itself, why the toggle matrix never found it);
+containsConcatenate gate fixes it. Drill, needs-wrapper, recursive
+resolver, unconditional closure: all UNNECESSARY — single-serving falls
+out of exists-owns-filter-paths (engine receipt: no employees_* on the
+Firm row). Witness #4 (slot-chain) remains — separate design, engine
+contract already asserted in its own test (assertSameSQL, testUnion
+.pure:240).

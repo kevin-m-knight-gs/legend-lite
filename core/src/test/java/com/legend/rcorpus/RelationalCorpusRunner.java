@@ -1273,9 +1273,14 @@ public class RelationalCorpusRunner {
                     // platform fix — and testQualifier's H2Compatible
                     // hop 0; the 24 chained asserts sit in tests already
                     // counted rescued).
+                    // 898 -> 899 (2026-08-31 embedded-union nav lift):
+                    // testDataGeneration testUnionToUnion ERROR -> PASS;
+                    // its assertSqlEquals rows-verify against our
+                    // differently-spelled union SQL (the standard rescue
+                    // lane for engine-SQL-text asserts).
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            softRescued <= 898, "text-rescued passes grew: "
-                                    + softRescued + " > 896"),
+                            softRescued <= 899, "text-rescued passes grew: "
+                                    + softRescued + " > 899"),
                     // contract-program wire ratchets (RE-PINNED at the
                     // 2026-08-24 label flip: 181->114->56 and 130->13 —
                     // adopted HUGEINT labels, registered carriages, then

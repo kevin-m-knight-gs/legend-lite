@@ -1256,6 +1256,17 @@ final class UnionSynthesis {
                             : List.of(union, slot, lf.targetRows(), lf.condition(),
                                     lf.pairedCondition()));
         }
+        return recomposeUnionRoot(className, union, common, lifts, embTops,
+                emb, model);
+    }
+
+    /** The union root's recomposed ctor over the finished union pipeline:
+     * plain reads for common scalar props and lifted navs, rebuilt
+     * embedded ctors for the distributed/nav-served embedded tops. */
+    private static ValueSpecification recomposeUnionRoot(String className,
+            @com.legend.Nullable ValueSpecification union, List<String> common,
+            List<NavLift> lifts, LinkedHashSet<String> embTops, EmbDist emb,
+            ModelBuilder model) {
         Variable row = new Variable("u_row");
         Map<String, KeyExpression> ctor = new LinkedHashMap<>();
         for (String prop : common) {
@@ -1268,7 +1279,8 @@ final class UnionSynthesis {
         }
         for (String top : embTops) {
             ctor.put(top, new KeyExpression(
-                    rebuildEmbCtor(top, embSubs, embInner, row, model),
+                    rebuildEmbCtor(top, emb.subs(), emb.inner(),
+                            emb.navSubs(), row, model),
                     false, false));
         }
         return new AppliedFunction("map", List.of(union,
@@ -1369,8 +1381,13 @@ final class UnionSynthesis {
      * for the root recomposition, and top props in appearance order. A
      * top prop with ANY unprojectable leaf (join-slot sub-read) poisons
      * WHOLE — conservative, never a silently-wrong projection. */
+    /** {@code navSubs}: class-typed SAME-NAME one-hop reads under each
+     * ctor path — never member thread columns (a class collection has no
+     * scalar projection); they recompose as plain union-level reads the
+     * nav lift serves. Mirrors every prune {@code subs} takes. */
     private record EmbDist(Map<String, LinkedHashSet<String>> subs,
-            Map<String, String> inner, LinkedHashSet<String> tops) {
+            Map<String, String> inner, LinkedHashSet<String> tops,
+            Map<String, LinkedHashSet<String>> navSubs) {
     }
 
     private static EmbDist collectEmbeddedDistribution(
@@ -1379,6 +1396,7 @@ final class UnionSynthesis {
         Map<String, LinkedHashSet<String>> embSubs = new LinkedHashMap<>();
         Map<String, String> embInner = new LinkedHashMap<>();
         Map<String, LinkedHashSet<String>> pathClasses = new LinkedHashMap<>();
+        Map<String, LinkedHashSet<String>> navSubs = new LinkedHashMap<>();
         Set<String> poisoned = new LinkedHashSet<>();
         for (MappingNormalizer.RelationalParts pp : parts) {
             for (var fe : pp.fields().entrySet()) {
@@ -1395,7 +1413,7 @@ final class UnionSynthesis {
                 if (ni != null) {
                     collectEmbLeaves(fe.getKey(), fe.getKey(), ni,
                             pp.rowBind().name(), embSubs, embInner, poisoned,
-                            pathClasses);
+                            pathClasses, navSubs, model);
                 }
             }
         }
@@ -1432,6 +1450,14 @@ final class UnionSynthesis {
                     embSubs.remove(path);
                 }
             }
+            LinkedHashSet<String> nv = navSubs.get(path);
+            if (nv != null) {
+                nv.removeIf(leaf -> MappingNormalizer
+                        .findPropertyTypeDeep(decl0, leaf, model) == null);
+                if (nv.isEmpty()) {
+                    navSubs.remove(path);
+                }
+            }
             // NESTED ctor subtrees under a prop the declared class does
             // not carry (Airline's planes under VehicleOwner) prune too —
             // the recompose loop would re-enter them as ctor fields
@@ -1442,18 +1468,24 @@ final class UnionSynthesis {
                             model) == null;
             embInner.keySet().removeIf(off);
             embSubs.keySet().removeIf(off);
+            navSubs.keySet().removeIf(off);
         }
         for (String bad : poisoned) {
             embSubs.keySet().removeIf(k -> k.equals(bad)
                     || k.startsWith(bad + "."));
             embInner.keySet().removeIf(k -> k.equals(bad)
                     || k.startsWith(bad + "."));
+            navSubs.keySet().removeIf(k -> k.equals(bad)
+                    || k.startsWith(bad + "."));
         }
         LinkedHashSet<String> tops = new LinkedHashSet<>();
         for (String k : embSubs.keySet()) {
             tops.add(k.contains(".") ? k.substring(0, k.indexOf('.')) : k);
         }
-        return new EmbDist(embSubs, embInner, tops);
+        for (String k : navSubs.keySet()) {
+            tops.add(k.contains(".") ? k.substring(0, k.indexOf('.')) : k);
+        }
+        return new EmbDist(embSubs, embInner, tops, navSubs);
     }
 
     /** One member thread's embedded sub-columns (schema-contract handling
@@ -1502,7 +1534,8 @@ final class UnionSynthesis {
             NewInstance ni, String rowVar,
             Map<String, LinkedHashSet<String>> embSubs,
             Map<String, String> embInner, Set<String> poisoned,
-            Map<String, LinkedHashSet<String>> pathClasses) {
+            Map<String, LinkedHashSet<String>> pathClasses,
+            Map<String, LinkedHashSet<String>> navSubs, ModelBuilder model) {
         embInner.putIfAbsent(pathKey, ni.className());
         pathClasses.computeIfAbsent(pathKey, k -> new LinkedHashSet<>())
                 .add(ni.className());
@@ -1510,8 +1543,32 @@ final class UnionSynthesis {
             NewInstance sub = ctorOf(pe.expression().value());
             if (sub != null) {
                 collectEmbLeaves(top, pathKey + "." + pe.key(), sub,
-                        rowVar, embSubs, embInner, poisoned, pathClasses);
-            } else if (isThreadProjectable(pe.expression().value(), rowVar)) {
+                        rowVar, embSubs, embInner, poisoned, pathClasses,
+                        navSubs, model);
+                continue;
+            }
+            // CLASS-TYPED sub (an embedded ctor field holding a nav
+            // read, $row.employees): NEVER a member thread column — a
+            // class collection has no scalar projection. It recomposes
+            // as a plain UNION-LEVEL read served by the nav lift
+            // (scanJoinPms' embedded descent — one navigation
+            // mechanism, no member-level twin).
+            TypeExpression st = MappingNormalizer.findPropertyTypeDeep(
+                    MissProbe.knownMiss(model.findClass(ni.className())),
+                    pe.key(), model);
+            boolean sameNameRead = pe.expression().value()
+                    instanceof AppliedProperty ap0
+                    && ap0.receiver()
+                            instanceof com.legend.protocol.spec.Variable rv0
+                    && rv0.name().equals(rowVar)
+                    && ap0.property().equals(pe.key());
+            if (sameNameRead && st instanceof TypeExpression.NameRef snr
+                    && model.findClass(snr.name()).isPresent()) {
+                navSubs.computeIfAbsent(pathKey,
+                        k -> new LinkedHashSet<>()).add(pe.key());
+                continue;
+            }
+            if (isThreadProjectable(pe.expression().value(), rowVar)) {
                 embSubs.computeIfAbsent(pathKey, k -> new LinkedHashSet<>())
                         .add(pe.key());
             } else {
@@ -1541,16 +1598,25 @@ final class UnionSynthesis {
     /** Recompose the union root's embedded ctor from projected columns. */
     private static ValueSpecification rebuildEmbCtor(String path,
             Map<String, LinkedHashSet<String>> embSubs,
-            Map<String, String> embInner, Variable row, ModelBuilder model) {
+            Map<String, String> embInner,
+            Map<String, LinkedHashSet<String>> navSubs, Variable row,
+            ModelBuilder model) {
         Map<String, KeyExpression> fields = new LinkedHashMap<>();
         for (String sub : embSubs.getOrDefault(path, new LinkedHashSet<>())) {
             fields.put(sub, new KeyExpression(
                     new AppliedProperty(row, embCol(path, sub)), false, false));
         }
+        // class-typed subs recompose as PLAIN union-level reads — the
+        // lifted navigation serves them (collectEmbLeaves' nav arm)
+        for (String sub : navSubs.getOrDefault(path, new LinkedHashSet<>())) {
+            fields.put(sub, new KeyExpression(
+                    new AppliedProperty(row, sub), false, false));
+        }
         for (String k : embInner.keySet()) {
             if (k.startsWith(path + ".") && k.indexOf('.', path.length() + 1) < 0) {
                 fields.put(k.substring(path.length() + 1), new KeyExpression(
-                        rebuildEmbCtor(k, embSubs, embInner, row, model),
+                        rebuildEmbCtor(k, embSubs, embInner, navSubs, row,
+                                model),
                         false, false));
             }
         }
@@ -1930,43 +1996,100 @@ final class UnionSynthesis {
         return true;
     }
 
+    /** One member's Join-PM scan: each class-typed Join records
+     * (ordinal, join) under its property name. {@code declaredOwner}
+     * walks the UNION-DECLARED chain: a property the declared chain
+     * does not carry (subtype-only PMs — Street.coordinate under an
+     * Address union) is NOT lifted; it stays member-local for the stc
+     * subtype dispatch. The lift TARGET derives from the DECLARED
+     * owner's property type — the same fact the lift loop used to
+     * re-derive from the union class — recorded once at scan. */
+    private static void scanJoinPms(List<PropertyMapping> pms,
+            @com.legend.Nullable ClassDefinition owner,
+            @com.legend.Nullable ClassDefinition declaredOwner, int ordinal,
+            Map<String, List<int[]>> found,
+            Map<String, List<PropertyMapping.Join>> joins,
+            Map<String, String> targetByProp, ModelBuilder model) {
+        for (PropertyMapping pm : pms) {
+            if (pm instanceof PropertyMapping.Embedded e) {
+                // EMBEDDED descent: a class-typed Join inside an embedded
+                // ctor is a union-level navigation like any other (the
+                // recomposed ctor keeps the $row.<sub> read this lift
+                // serves — the embedded-union witnesses' formerly-
+                // unservable read). Both owner chains step through the
+                // embedded property's type.
+                TypeExpression et = owner == null ? null
+                        : MappingNormalizer.findPropertyTypeDeep(owner,
+                                e.propertyName(), model);
+                ClassDefinition subOwner = et instanceof TypeExpression.NameRef nr
+                        ? model.findClass(nr.name()).orElse(null) : null;
+                TypeExpression edt = declaredOwner == null ? null
+                        : MappingNormalizer.findPropertyTypeDeep(declaredOwner,
+                                e.propertyName(), model);
+                ClassDefinition subDeclared = edt instanceof TypeExpression.NameRef enr
+                        ? model.findClass(enr.name()).orElse(null) : null;
+                scanJoinPms(e.propertyMappings(), subOwner, subDeclared,
+                        ordinal, found, joins, targetByProp, model);
+                continue;
+            }
+            if (!(pm instanceof PropertyMapping.Join j)) {
+                continue;
+            }
+            TypeExpression pt = owner == null ? null
+                    : MappingNormalizer.findPropertyTypeDeep(owner,
+                            pm.propertyName(), model);
+            if (!(pt instanceof TypeExpression.NameRef pnr)
+                    || model.findClass(pnr.name()).isEmpty()) {
+                continue;   // scalar join-terminal shapes stay member-local
+            }
+            TypeExpression dt = declaredOwner == null ? null
+                    : MappingNormalizer.findPropertyTypeDeep(declaredOwner,
+                            pm.propertyName(), model);
+            if (!(dt instanceof TypeExpression.NameRef dnr)) {
+                continue;   // subtype-only: stc dispatch owns it
+            }
+            // one alias, one target: a name colliding across DIFFERENT
+            // declared scopes (top-level vs embedded) would OR unrelated
+            // navigations under one lift — loud
+            String prior = targetByProp.putIfAbsent(pm.propertyName(),
+                    dnr.name());
+            if (prior != null && !prior.equals(dnr.name())) {
+                throw new IllegalStateException(
+                        "union nav lift name collision: property '"
+                        + pm.propertyName() + "' navigates to '" + prior
+                        + "' and '" + dnr.name() + "' across members");
+            }
+            found.computeIfAbsent(pm.propertyName(), k -> new ArrayList<>())
+                    .add(new int[]{ordinal});
+            joins.computeIfAbsent(pm.propertyName(), k -> new ArrayList<>())
+                    .add(j);
+        }
+    }
+
     static List<NavLift> collectNavLifts(LegacyMappingDefinition md,
             String className, List<ClassMapping> members,
             ModelBuilder model) {
         // property -> per-member entries, member order
         Map<String, List<int[]>> found = new LinkedHashMap<>();
         Map<String, List<PropertyMapping.Join>> joins = new LinkedHashMap<>();
+        Map<String, String> targetByProp = new LinkedHashMap<>();
+        ClassDefinition declared = model.findClass(className).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#14 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + className));
         for (int i = 0; i < members.size(); i++) {
             if (!(members.get(i) instanceof ClassMapping.Relational mr)) {
                 continue;   // Relation(~func) members carry no Join PMs
             }
             ClassDefinition memberOwner = model.findClass(mr.className()).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#13 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + mr.className()));
-            for (PropertyMapping pm : mr.propertyMappings()) {
-                if (!(pm instanceof PropertyMapping.Join j)) {
-                    continue;
-                }
-                TypeExpression pt = memberOwner == null ? null
-                        : MappingNormalizer.findPropertyTypeDeep(memberOwner, pm.propertyName(), model);
-                if (!(pt instanceof TypeExpression.NameRef pnr)
-                        || model.findClass(pnr.name()).isEmpty()) {
-                    continue;   // scalar join-terminal shapes stay member-local
-                }
-                found.computeIfAbsent(pm.propertyName(), k -> new ArrayList<>())
-                        .add(new int[]{i});
-                joins.computeIfAbsent(pm.propertyName(), k -> new ArrayList<>())
-                        .add(j);
-            }
+            scanJoinPms(mr.propertyMappings(), memberOwner, declared, i,
+                    found, joins, targetByProp, model);
         }
         List<NavLift> lifts = new ArrayList<>();
         for (String prop : found.keySet()) {
-            ClassDefinition owner = model.findClass(className).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at UnionSynthesis#14 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + className));
-            TypeExpression pt = owner == null ? null
-                    : MappingNormalizer.findPropertyTypeDeep(owner, prop, model);
-            if (!(pt instanceof TypeExpression.NameRef pnr)
-                    || !model.isMappedClass(pnr.name())) {
+            String targetClassFqn = java.util.Objects.requireNonNull(
+                    targetByProp.get(prop),
+                    "scan recorded a Join PM without its target class");
+            if (!model.isMappedClass(targetClassFqn)) {
                 continue;
             }
-            String targetClassFqn = pnr.name();
             // BITEMPORAL UNGATE (Leg 2): the per-dimension stampers
             // (milestonedPipeByStrategy walks only tables CARRYING each
             // dimension) are capability-aware by construction after the
