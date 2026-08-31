@@ -349,17 +349,15 @@ class JavaEvalLedgerTest {
             // 1394 -> 1405 (leg 2/3): the JSON side reader — a GRAPH
             // result's DB-built envelope IS the String[1] document
             // (leg 2 typed it so); decode routing, zero evaluation.
-            // 1405 -> 1418 (disagree-9 burn 2026-08-31): valueRead —
-            // the TDSRow.values READ decode, HOST TWIN of the SQL-side
-            // wireValueEgress (the dual-verdict design requires the
-            // parallel referee to judge INDEPENDENTLY, so the engine's
-            // wire-decode conventions exist once per channel; the
-            // temporal rule itself lives on PureDateLiteral
-            // .atNineSubseconds — carrier code, not evaluation — and
-            // this is its 3-line application plus the decimal
-            // scale-canon). Burned disagree 9 -> 1 with the corpus
-            // byte-stable; retires with the dual channel at Phase C.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1418),
+            // 1405 -> 1418 (disagree-9 burn): valueRead, the host-twin
+            // wire decode. 1418 -> 1408 (Java-eval retirement, SAME
+            // DAY, user challenge honored): valueRead DELETED — the
+            // decode rides the FETCH (wrapTdsCanon conforms the grid
+            // plan on the GRID_FETCH lane; the executor's label-driven
+            // unwrap hands BOTH channels the decoded value). Shrink
+            // banked below the pre-burn 1405: net Java-eval REDUCTION
+            // while disagree burned 9 -> 0.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1408),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

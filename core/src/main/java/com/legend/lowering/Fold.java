@@ -751,7 +751,8 @@ final class Fold {
         // (after any filter wrap): the conformed carrier label must be
         // the FINAL output label or the wire census reads a label/wire
         // divergence. True TABULAR roots stay the raw lane.
-        return mapChannel ? conformValueEgress(rel, true) : rel;
+        return mapChannel ? conformValueEgress(rel,
+                LiteralSpelling.ValueLane.MAP_CHANNEL) : rel;
     }
 
     /** {@code SELECT UNNEST(a.col) AS out FROM (src) a} — the ONE
@@ -1088,17 +1089,9 @@ final class Fold {
      * and the conformance changes the VALUE both production verdict
      * channels observe, so the host lattice and the byte canon stay
      * in agreement. */
-    static SqlSelect conformValueEgress(SqlSelect s) {
-        return conformValueEgress(s, false);
-    }
-
-    /** {@code literalTextOk}: the MAP-CHANNEL hooks (class-property /
-     * value-collection reads — the lane where the engine populates
-     * milestoning dates as their WRITTEN string constants) also spell
-     * written-subsecond TIMESTAMP literals statically; the SCALAR-root
-     * hook must NOT (an Any-pair side losing its TIMESTAMP carrier
-     * severs the literal-channel machinery — measured, reverted). */
-    static SqlSelect conformValueEgress(SqlSelect s, boolean literalTextOk) {
+    /** Per-lane scope: {@link LiteralSpelling.ValueLane}. */
+    static SqlSelect conformValueEgress(SqlSelect s,
+            LiteralSpelling.ValueLane lane) {
         java.util.List<SqlSelect.Projection> out = null;
         for (int i = 0; i < s.projections().size(); i++) {
             SqlSelect.Projection p = s.projections().get(i);
@@ -1107,7 +1100,7 @@ final class Fold {
                 continue;
             }
             SqlExpr.Cast conformed = LiteralSpelling.wireValueEgress(
-                    p.expr(), col.type(), literalTextOk);
+                    p.expr(), col.type(), lane);
             if (conformed == null) {
                 continue;
             }

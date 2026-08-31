@@ -151,13 +151,27 @@ public final class LiteralSpelling {
      * (the raw lane keeps driver spellings — R6). Returns null when no
      * conformance applies (caller keeps the cell as built).
      */
-    static SqlExpr.@com.legend.Nullable Cast wireValueEgress(SqlExpr e,
-            SqlType declared) {
-        return wireValueEgress(e, declared, false);
-    }
+    /** The READ LANE the conformance serves — each pins its own
+     * receipts (all measured, 2026-08-31):
+     * <ul>
+     *   <li>{@code SCALAR_ROOT}: column-rooted cells only — PCT pins
+     *       pure-COMPUTED scalars (timeBucket, arithmetic) at
+     *       PURE-defined precision, and a bare literal must keep its
+     *       TIMESTAMP carrier (the Any-pair literal channel);</li>
+     *   <li>{@code MAP_CHANNEL}: as SCALAR_ROOT plus WRITTEN temporal
+     *       literals spell their static text (the milestoning
+     *       population constants ARE strings in the engine);</li>
+     *   <li>{@code GRID_FETCH}: EVERY temporal cell — a grid under a
+     *       values-read is one ResultSet read per column, computed
+     *       cells included (engine ResultSetValueHandlers keys on the
+     *       RESULTSET type; witnesses parseDate/adjustDate re-opened
+     *       when the deleted host twin's blanket decode was replaced
+     *       by the column-rooted form).</li>
+     * </ul> */
+    enum ValueLane { SCALAR_ROOT, MAP_CHANNEL, GRID_FETCH }
 
     static SqlExpr.@com.legend.Nullable Cast wireValueEgress(SqlExpr e,
-            SqlType declared, boolean literalTextOk) {
+            SqlType declared, ValueLane lane) {
         // the DECLARED egress label (the pure type's SQL mapping) keys
         // the decode — the engine transformer's own key (R8 dispatches
         // by pure property type); a tree-typed expr that KNOWS it is a
@@ -175,16 +189,13 @@ public final class LiteralSpelling {
             return null;
         }
         if (declared == SqlType.Scalar.TIMESTAMP) {
-            // COLUMN-ROOTED cells only (PCT receipt, G6: pure-COMPUTED
-            // temporals — parseDate, date natives — keep PURE-defined
-            // precision; the nine-digit decode is a STORE-READ fact).
-            // The engine decode keys on the RESULTSET type
-            // (ResultSetValueHandlers): a physically-DATE cell decodes
-            // date-only, everything else at NINE subsecond digits —
-            // runtime typeof dispatch (the jsonDateWrap idiom; setup
-            // DDL can diverge from the store declaration). NULL
-            // propagates by its own arm.
-            if (columnRooted(e)) {
+            // scope per lane (see ValueLane); the decode itself: a
+            // physically-DATE cell decodes date-only, everything else
+            // at NINE subsecond digits — runtime typeof dispatch (the
+            // jsonDateWrap idiom; setup DDL can diverge from the store
+            // declaration). NULL propagates by its own arm.
+            if (columnRooted(e) || (lane == ValueLane.GRID_FETCH
+                    && staticTemporalText(e, true) == null)) {
                 SqlExpr nine = SqlExpr.Call.of(SqlFn.STRFTIME, e,
                         new SqlExpr.FormatLit(
                                 com.legend.sql.DateFmt.ISO_NANO));
@@ -206,12 +217,12 @@ public final class LiteralSpelling {
             // WRITTEN temporal literals spell STATICALLY — the
             // TIMESTAMP round-trip truncates written digits (the same
             // fidelity rule as the scalar RootLiterals swap and the
-            // mixed-element static spelling). Collections always;
-            // BARE literals only on the map-channel lanes
-            // (literalTextOk — the businessDate-population receipt
-            // pins the written form THERE; scalar Any-pair roots keep
-            // their TIMESTAMP carrier).
-            SqlExpr lit = staticTemporalText(e, literalTextOk);
+            // mixed-element static spelling). Collections always; BARE
+            // literals only off the scalar root (the population
+            // receipt pins the written form on the value lanes; the
+            // scalar Any-pair root keeps its TIMESTAMP carrier).
+            SqlExpr lit = staticTemporalText(e,
+                    lane != ValueLane.SCALAR_ROOT);
             return lit == null ? null
                     : new SqlExpr.Cast(lit, SqlType.Scalar.TEMPORAL_TEXT);
         }
@@ -264,12 +275,21 @@ public final class LiteralSpelling {
         return n instanceof SqlExpr.Column;
     }
 
+    /** THE written-temporal static spelling (one owner — the typed-spec
+     * arm {@code MixedEncoding#staticSubsecondSpelling} delegates its
+     * text here): a subsecond-written temporal spells its compile-time
+     * text because a TIMESTAMP round-trip truncates written digits past
+     * the DB's micro storage. */
+    static String writtenTemporalText(
+            com.legend.values.PureDateLiteral d) {
+        return d.toEngineString().replace(' ', 'T');
+    }
+
     /** WRITTEN temporal literals at value egress — a bare
      * {@code TIMESTAMP '...'} or an
      * {@code UNNEST(list_filter([TIMESTAMP '...', ...], λ))} collection
-     * — rebuilt with each literal's OWN TEXT (the compile-time
-     * spelling; a TIMESTAMP value round-trip truncates written digits
-     * past the DB's micro storage). Null = not that shape. */
+     * — rebuilt with each literal's OWN TEXT (see
+     * {@link #writtenTemporalText}). Null = not that shape. */
     private static @com.legend.Nullable SqlExpr staticTemporalText(SqlExpr e,
             boolean bareOk) {
         // NEGATIVE (BC) years stay on the TIMESTAMP path everywhere —

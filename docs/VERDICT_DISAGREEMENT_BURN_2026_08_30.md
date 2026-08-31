@@ -76,6 +76,28 @@ sweeps: agree 3478, disagree 0, corpus 2338/2575. Disagree is pinned
 EXACT ZERO — any appearance is a platform bug or a new divergence
 class; adjudicate, never re-pin upward.
 
+## JAVA-EVAL RETIREMENT (same day, closing the user's challenge)
+
+The host-twin decode (`AssertVerdicts.valueRead`) is DELETED: the
+engine's value-read decode now rides the FETCH — `wrapTdsCanon`
+conforms the grid plan in SQL and the executor's label-driven unwrap
+(TEMPORAL_TEXT parse / DECIMAL_TEXT BigDecimal) hands BOTH verdict
+channels the already-decoded value. The deletion EXPOSED a real lane
+fact the blanket host decode had papered over — a grid values-read is
+one ResultSet read PER COLUMN, computed cells included (witnesses
+parseDate/adjustDate re-opened under the column-rooted-only form) —
+now modeled as the `LiteralSpelling.ValueLane` enum:
+SCALAR_ROOT (column-rooted only; PCT pins computed scalars at
+pure-defined precision, bare literals keep the TIMESTAMP carrier) /
+MAP_CHANNEL (+ written-literal static text — the population receipt)
+/ GRID_FETCH (every temporal cell — the ResultSet fact). Audit
+cleanups in the same batch: orphaned `ScanOrder.totalTiebreak` +
+`PureDateLiteral.atNineSubseconds` deleted; the written-temporal
+spelling has one owner (`LiteralSpelling.writtenTemporalText`, the
+MixedEncoding arm delegates). JavaEvalLedger AssertVerdicts pin
+BANKED DOWN 1418 → 1408 — below the pre-burn 1405+13: the burn
+finished with NET LESS host evaluation than it started.
+
 ---
 
 **(historical) The residue — THREE NAMED CLASSES, pinned as a ceiling (≤5, shrink-

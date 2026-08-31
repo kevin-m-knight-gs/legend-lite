@@ -187,16 +187,17 @@ final class MixedEncoding {
                 dateTimeFormatOf(e));
     }
 
-    /** A SUBSECOND-written DateTime literal spells STATICALLY — its
-     * pure spelling is a compile-time constant, and the strftime
-     * round-trip truncated written digits past six (%f is the DB's
-     * micro ceiling; the engine keeps the written NINE — disagree-9
-     * burn, testDayOfMonth receipt). Null = not that shape. */
+    /** A SUBSECOND-written DateTime literal spells STATICALLY (the
+     * one spelling owner is {@link LiteralSpelling#writtenTemporalText}
+     * — disagree-9 burn, testDayOfMonth receipt). Null = not that
+     * shape. */
     private static @com.legend.Nullable SqlExpr staticSubsecondSpelling(
             TypedSpec e) {
         return e instanceof TypedCDate cd && cd.value()
-                instanceof PureDateLiteral.DateWithSubsecond
-                ? new SqlExpr.StringLit("%" + cd.value()) : null;
+                instanceof PureDateLiteral.DateWithSubsecond d
+                ? new SqlExpr.StringLit("%"
+                        + LiteralSpelling.writtenTemporalText(d) + "+0000")
+                : null;
     }
 
     /** The per-KIND spelling core — shared by the element encoder above

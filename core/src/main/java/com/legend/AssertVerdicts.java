@@ -1891,31 +1891,17 @@ final class AssertVerdicts {
     }
 
     /** Row-major cell stream of a tabular frame (the cell-zip input). */
+    /** Raw cell flatten — cells arrive ALREADY DECODED (the engine's
+     * value-read conventions ride the FETCH: wrapTdsCanon conforms the
+     * plan in SQL and the executor's label-driven unwrap delivers; the
+     * former host-twin decode, valueRead, is deleted — Java-eviction
+     * close of the disagree-9 burn). */
     private static List<Object> cells(ExecutionResult.Tabular t) {
         List<Object> out = new java.util.ArrayList<>();
-        t.rows().forEach(r ->
-                r.values().forEach(v -> out.add(valueRead(v))));
+        for (com.legend.exec.Row r : t.rows()) {
+            out.addAll(r.values());
+        }
         return out;
-    }
-
-    /** The TDSRow.values READ decode (disagree-9 burn, host twin of
-     * {@link com.legend.lowering.LiteralSpelling#wireValueEgress} —
-     * the two channels must judge the SAME value): reading a raw TDS
-     * cell into the pure VALUE domain applies the engine's own
-     * transform conventions — wire temporals at NINE subsecond digits
-     * (the value-type conversion owns the rule), wire decimals
-     * scale-canonical (R3/R8). The raw TDS lane itself (CSV/row-string
-     * renders) keeps driver spellings — this rides only the READ. */
-    private static @com.legend.Nullable Object valueRead(
-            @com.legend.Nullable Object v) {
-        if (v instanceof com.legend.values.PureDateLiteral d) {
-            return d.atNineSubseconds();
-        }
-        if (!(v instanceof java.math.BigDecimal bd)) {
-            return v;
-        }
-        java.math.BigDecimal c = bd.stripTrailingZeros();
-        return c.scale() < 0 ? c.setScale(0) : c;
     }
 
     /** Failure-message sketch of a frame (columns + row count — the

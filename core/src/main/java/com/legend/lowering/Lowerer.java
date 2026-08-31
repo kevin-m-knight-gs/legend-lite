@@ -292,7 +292,7 @@ public final class Lowerer {
             SqlSelect proj = Fold.conformValueEgress(
                     relation(ValueCollections.valueColumnProject(
                             m.source(), ml, spec.info().type(), colMult)),
-                    true);
+                    LiteralSpelling.ValueLane.MAP_CHANNEL);
             // SCALAR-STAMPED cells (C1) are one element per row ALREADY —
             // the explode is identity, and UNNEST(scalar) does not bind.
             boolean scalarCells = ml.body().get(ml.body().size() - 1)
@@ -312,7 +312,8 @@ public final class Lowerer {
             return Fold.unnestColumn(new SqlSource.Subselect(proj, sub, null),
                     sub, "value", "value", sqlTypeOf(spec.info().type()));
         }
-        return Fold.conformValueEgress(scalarRoot(spec));
+        return Fold.conformValueEgress(scalarRoot(spec),
+                LiteralSpelling.ValueLane.SCALAR_ROOT);
     }
 
     /**
