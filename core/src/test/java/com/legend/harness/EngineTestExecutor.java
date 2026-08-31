@@ -518,6 +518,9 @@ public final class EngineTestExecutor {
             throws java.sql.SQLException {
         ElqSplice.ELQ_PARAMS.get().clear();   // per-test param-let names
         Preamble pre = preamble(ctx, statements, imports, runtimeFqn);
+        WholeTestCensus.probe(ctx, pre.lineage() != null ? statements
+                : pre.statements(), imports,
+                com.legend.exec.CanonicalDivergence.CONTEXT_SOURCE.get());
         if (pre.lineage() != null) {
             return pre.lineage();
         }
