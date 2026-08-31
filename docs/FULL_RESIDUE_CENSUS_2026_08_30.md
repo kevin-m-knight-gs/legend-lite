@@ -807,3 +807,49 @@ Remaining name-checks classified: compiler-phase RULE checks are the
 SQL-rule implementations themselves (correct by design); the two
 family-arms left are TestDataGenerationNatives (catalog rows + the OWED user-ruled
 rename) and AssertVerdicts (rides Phase C's assert machinery).
+
+### 10o. NEXT-SESSION STATE + THE REMAINING BURN MAP (2026-08-31,
+### written for cold start — read this section first)
+
+SCOREBOARD (all pins green through bd2a82bb, 8 green chains today):
+agree=3469 disagree=9 | exec-passing=1497 text-only=44 unable=50 |
+declined=30 | quarantined=172+20 walls | corpus 2338/2575 pass.
+
+THE REMAINING BURN, ranked by design-leverage:
+1. **chained-fetch 26 (unable-to-exec)** — LIVE-SESSION REFEREEING:
+   the golden references tempTableForIn_* tables that existed in the
+   live DuckDB session at assert time; referee ours against the LIVE
+   session instead of a fresh replay (ratified direction,
+   transcript-fidelity family). Biggest single-design pool left.
+2. **disagree-9** — THE REAL MISMATCHES (host=pass prod=fail actual
+   divergences). FROZEN by the original handoff ruling; burning
+   everything means UNFREEZING these — they are the only rows where
+   the platform may be WRONG, i.e. the highest-value correctness
+   work. Needs an explicit user go.
+3. **ERROR/FAIL test-level buckets** (139 error / 59 fail): the §10i
+   bucket census names the fuel — "execution activities are not
+   recorded" 13, unknown types 11, host channel 9, postprocessor
+   hook 8, resolver-bug 4, assert-in-helper rows, long tail. Lanes
+   are assert-level; the corpus PASS RATE burns through these.
+4. **declined-30 decomposition (measured 2026-08-31)**: 2-3 rows are
+   QUARANTINE-CLASS misfiled under host-unsupported
+   (testPreprocessFunctionOnRuntime = expressionSequence;
+   testRoutingContextBuilderFunctions = Extension reflection) — move
+   to the partition with §4AE adjudication; 1-2 assert-form
+   registrations (assertIs/2); the rest = ~20 ONE-TEST features
+   (window `over` in plan lane, multi-node sequence plans, subselect
+   alias in union plans, TableTDS property, M2M substitution...) —
+   grind territory, rank LAST per design-legs-over-grind.
+5. **text-only 44 / no-generator / no-root-exec** — frame-identity
+   threading (smaller).
+6. **h2 lane** (floor 1329, walls 993) — h2-session-convergence leg.
+THEN: **quarantine 172+20** via the metamodel-as-data program, FIRST
+LEG = plan-nodes-as-rows (our own closed artifact; un-quarantines the
+TypedMap-65 walks through the front door). THEN Phase C
+(single-channel cutover at zero — EngineTestExecutor's 3,769 lines
+die) and Phase D (Runner = discover/provision/run/score).
+
+STANDING DEBTS: #23 literals→parameters; #24 staged environment
+(assertError-class migration gate); bind-once/CARRIER end state for
+remaining orchestration natives (converges with execute frames in
+Phase C); AssertVerdicts family rows (rides Phase C).

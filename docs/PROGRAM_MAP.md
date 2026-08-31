@@ -320,3 +320,19 @@ tractable under the store frame (ordinary mapped navigation over
 facts the compiler demonstrably has). inferRelationalType +
 pkOfFunc + newState (66 rows) — NOT honestly tractable under any
 design discussed so far.
+
+
+## METAMODEL AS DATA — leg 1 chosen (2026-08-31): PLAN-NODES-AS-ROWS
+The plan node model is legend-lite's OWN closed artifact (no engine
+metamodel baggage) — the cheapest proving ground for
+metamodel-in-the-database. Acceptance test: the quarantined
+TypedMap-65 plan-walk tests' filter lambdas lower to SQL over
+plan-node rows. Quarantine partition at 172 witness rows + 20 wall
+tests (pins in RelationalCorpusRunner; vocabulary in
+CanonicalDivergence.METAMODEL_QUARANTINE).
+
+## SQL-TEXT LANE — next design slices (2026-08-31)
+1. LIVE-SESSION REFEREEING (chained-fetch 26): referee our side
+   against the live DuckDB session where generator temp tables exist.
+2. FRAME-IDENTITY THREADING (no-root-exec / no-generator rows): tie
+   asserted SQL to the executing frame's session identity.
