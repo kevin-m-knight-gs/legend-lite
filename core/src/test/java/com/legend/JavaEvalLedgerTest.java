@@ -450,7 +450,11 @@ class JavaEvalLedgerTest {
             // overload. Plumbing for the runner's scoring seam — no
             // evaluation, no routing change; run-scoped fact rides the
             // env (never a static sink).
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2566),
+            // 2566 -> 2571 (SQLTEXT charter §2, slice 1 2026-09-01):
+            // ExecEnv carries the SqlReplayOracle beside the listener
+            // (same seam, same nullable carriage, same env-not-static
+            // discipline). Registration plumbing only — no evaluation.
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2571),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
@@ -657,6 +661,16 @@ class JavaEvalLedgerTest {
                     // exists so the harness's own assert orchestration
                     // can delete at the whole-test cutover.
                     "AssertListener.java",
+                    // SQLTEXT charter §2 (slice 1, 2026-09-01): the
+                    // replay-oracle SPI — one interface the harness
+                    // implements (its H2 mirror) and registers on
+                    // ExecEnv beside the listener; production
+                    // registers nothing and a SQL-text assert walls
+                    // loudly. Pure seam: no JDBC of its own, no
+                    // evaluation, no verdict logic — rows come from
+                    // the ORACLE database, judgment stays in the
+                    // verdict layer.
+                    "SqlReplayOracle.java",
                     "package-info.java");
 
     /** The other two funnel packages (documented-debts 2026-08-18,

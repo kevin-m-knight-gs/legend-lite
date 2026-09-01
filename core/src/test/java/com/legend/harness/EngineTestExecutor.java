@@ -1300,7 +1300,7 @@ public final class EngineTestExecutor {
             String rows = ours.contains("tdg_")
                     ? tdgChainedVerify(aread, golden, ours, actual, lets,
                             ctx, imports, conn)
-                    : H2Verify.tdgSqlReplay(
+                    : ReplayOracle.tdgSqlReplay(
                             com.legend.sql.dialect.RawSqlBoundary.recording(),
                             golden, conn, ours);
             if (rows == null) {
@@ -1419,7 +1419,7 @@ public final class EngineTestExecutor {
                     + " not reference derived parent temp " + parentTemp,
                     null);
         }
-        return H2Verify.tdgChainedReplay(
+        return ReplayOracle.tdgChainedReplay(
                 com.legend.sql.dialect.RawSqlBoundary.recording(),
                 ancestors, golden,
                 H2Verify.transcriptRows(f.columns(), f.rows()));
@@ -1658,7 +1658,7 @@ public final class EngineTestExecutor {
                 return dec == null ? java.util.Map.of() : dec;
             };
             // session-direct on an H2 backend, seed-replay elsewhere —
-            // the routing lives with the oracle (H2Verify.verifyAuto)
+            // the routing lives with the oracle (ReplayOracle.verifyAuto)
             java.util.List<String> seeds =
                     com.legend.sql.dialect.RawSqlBoundary.recording();
             java.util.List<String> extra = null;
@@ -1674,7 +1674,7 @@ public final class EngineTestExecutor {
             // multiplicity) — computed here, where the chain lives
             H2Verify.EXTENT_SUBSET.set(extentSubset(execChains.get(var)));
             try {
-                return H2Verify.verifyAuto(conn,
+                return ReplayOracle.verifyAuto(conn,
                         seeds, extra, golden,
                         rows.result(), H2Verify.enumDecodeFor(rows.result(),
                                 actual, lets, execStmts, ctx, imports), enumProp);

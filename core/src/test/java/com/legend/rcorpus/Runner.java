@@ -1024,7 +1024,7 @@ public final class Runner {
             lastRunShared = shared;
             // a PRIVATE test's recording is its own history, not the
             // family ledger — its golden checks use the fresh-replay path
-            com.legend.harness.H2Verify.mirrorSuspend(!shared);
+            com.legend.harness.ReplayOracle.mirrorSuspend(!shared);
             if (shared) {
                 int cut = t.fqn().lastIndexOf("::");
                 String pkg = cut > 0 ? t.fqn().substring(0, cut) : t.fqn();
@@ -1065,7 +1065,7 @@ public final class Runner {
                 return score(t.fqn(), o, (int) (com.legend.harness.H2Verify
                         .M1_RESCUED.sum() - rescued0));
             } finally {
-                com.legend.harness.H2Verify.mirrorSuspend(false);
+                com.legend.harness.ReplayOracle.mirrorSuspend(false);
                 if (shared) {
                     // live-shape census (t5 root cause): everything this
                     // test executed — module DDL AND setup-fn streams —
@@ -1549,14 +1549,14 @@ public final class Runner {
             mirrorConn = DriverManager.getConnection(
                     "jdbc:h2:mem:famMirror" + SESSION_IDS.getAndIncrement()
                             + com.legend.exec.H2Settings.SETTINGS, "sa", "");
-            com.legend.harness.H2Verify.mirrorBegin(mirrorConn);
+            com.legend.harness.ReplayOracle.mirrorBegin(mirrorConn);
         }
     }
 
     private @com.legend.Nullable Connection mirrorConn;
 
     public void endFamilySession() {
-        com.legend.harness.H2Verify.mirrorEnd();
+        com.legend.harness.ReplayOracle.mirrorEnd();
         if (mirrorConn != null) {
             try {
                 mirrorConn.close();

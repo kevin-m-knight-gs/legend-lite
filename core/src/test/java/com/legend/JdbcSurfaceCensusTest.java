@@ -111,6 +111,12 @@ class JdbcSurfaceCensusTest {
             // the CanonicalDivergence pattern with a java.sql import
             "core/src/main/java/com/legend/exec/SqlTypeCensus.java",
             "core/src/main/java/com/legend/exec/PctProbe.java",
+            // SQLTEXT charter §2: the replay-oracle SPI — a pure
+            // interface (AssertListener precedent) whose SIGNATURE
+            // names java.sql types (SQLException, the OracleRows cell
+            // shape); it opens no connection and executes nothing —
+            // the harness implementation does, on the testing side
+            "core/src/main/java/com/legend/exec/SqlReplayOracle.java",
             "core/src/main/java/com/legend/server/ConnectionResolver.java",
             "core/src/main/java/com/legend/server/QueryService.java",
             "core/src/main/java/com/legend/testdatagen/TestDataGenerator.java",
@@ -265,6 +271,13 @@ class JdbcSurfaceCensusTest {
             // sideSqlText's evaluation path deleted with the slice-3
             // equality half; the finder is pure tree navigation now)
             "core/src/test/java/com/legend/harness/H2Verify.java",
+            // SQLTEXT charter §8 slice 1: THE ORACLE SERVICE — the one
+            // owner of the family-mirror session, seed-ledger replay
+            // and fresh-replay fallback (extracted from the four
+            // duplicated H2Verify arms). Testing-side by design: the
+            // reference database IS its job; the platform reaches it
+            // only through the SqlReplayOracle SPI on ExecEnv.
+            "core/src/test/java/com/legend/harness/ReplayOracle.java",
             "core/src/test/java/com/legend/harness/PlanAsserts.java",
             "core/src/test/java/com/legend/harness/RuntimeIfForm.java",
             "core/src/test/java/com/legend/harness/TdsEquivalence.java",

@@ -223,8 +223,11 @@ public final class WholeTestFlip {
         }
         List<Boolean> events = new ArrayList<>();
         try {
+            // the oracle registers beside the listener (SQLTEXT charter
+            // §2) — the flipped env carries it for the verdict arms
             Compiler.executeResolved(resolved, ctx, runtimeFqn, conn,
-                    (name, pass, detail) -> events.add(pass));
+                    (name, pass, detail) -> events.add(pass),
+                    ReplayOracle.INSTANCE);
         } catch (com.legend.error.NotImplementedException e) {
             return fallback("wall-exec: " + bucketOf(e.getMessage()), test);
         } catch (java.sql.SQLException e) {

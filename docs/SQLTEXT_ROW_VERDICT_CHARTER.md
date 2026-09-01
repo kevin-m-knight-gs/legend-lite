@@ -187,10 +187,18 @@ flip, pinned like any census.
 
 0. **Dedup adjudication** (§6.1) — CLOSED 2026-09-01, no bug; skew
    arm burned, pk-collapse landed (pins moved with it).
-1. Oracle service extraction: one named harness service owning
-   mirror+ledger+verify (today statics across Runner/H2Verify/
-   RawSqlBoundary); platform SPI on ExecEnv; no behavior change,
-   census byte-stable.
+1. Oracle service extraction — LANDED 2026-09-01, census
+   byte-identical: harness/ReplayOracle owns mirror lifecycle +
+   ledger application + the verify entry points (the 4x duplicated
+   mirror-or-fresh session acquisition folded into ONE onOracle with
+   failure spellings preserved as named Session policies — decline
+   reasons are census keys); H2Verify keeps comparison policy only.
+   Platform SPI exec/SqlReplayOracle (rows for a SQL text; the plan
+   entry joins with slice 4, derived from the replayer's real
+   consumption) rides ExecEnv beside AssertListener; the flip path
+   and FlipProbe register ReplayOracle.INSTANCE; production carries
+   null. Conscious registrations: JDBC census (both files), exec
+   funnel register, StatementExecutor eval-ledger 2566→2571.
 2. Order-sensitivity fix (§7) with the measured blast radius.
 3. Verdict arms for the sqlstring family incl. dual-derivation (§4);
    text census wired; flip the lane's simple shapes.

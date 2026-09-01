@@ -133,8 +133,11 @@ final class FlipProbe {
         com.legend.exec.SqlTypeCensus.probeSuspend(true);
         com.legend.exec.CanonicalDivergence.muteAll(true);
         try {
+            // the oracle registers beside the listener (SQLTEXT charter
+            // §2): the env carries it for the verdict arms; production
+            // envs carry null and a SQL assert walls loudly there
             Compiler.executeResolved(resolved, ctx, runtimeFqn, conn,
-                    listener);
+                    listener, ReplayOracle.INSTANCE);
         } catch (com.legend.error.NotImplementedException e) {
             return "wall-exec: " + bucketOf(e.getMessage());
         } catch (java.sql.SQLException e) {

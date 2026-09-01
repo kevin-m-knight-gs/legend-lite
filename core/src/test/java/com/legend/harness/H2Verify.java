@@ -46,8 +46,6 @@ public final class H2Verify {
     }
 
     private static final boolean READY = detect();
-    private static final java.util.concurrent.atomic.AtomicInteger COUNTER =
-            new java.util.concurrent.atomic.AtomicInteger();
 
     private static boolean detect() {
         try {
@@ -218,191 +216,6 @@ public final class H2Verify {
      * readers stable. */
     public static final String SETTINGS = com.legend.exec.H2Settings.SETTINGS;
 
-    /**
-     * Replay {@code seeds} on a fresh H2, run {@code goldenSql}, compare
-     * its rows with {@code ours} as ORDER-INSENSITIVE multisets of
-     * normalized cells. Returns null when the row sets match, else a
-     * divergence message; throws {@link Unverifiable} when H2 cannot
-     * evaluate the inputs at all.
-     */
-    // =================================================================
-    // INCREMENTAL FAMILY MIRROR (task #112 follow-up): the corpus runner
-    // keeps ONE live H2 per family session and this verifier applies
-    // only the ledger statements not yet mirrored — the fresh-replay
-    // path re-ran the family's WHOLE history per verification (O(n^2)).
-    // A statement H2 rejects POISONS the mirror for the rest of the
-    // family: under fresh replay every later test re-hit the same
-    // statement in its ledger prefix, so the decline set is identical.
-    // =================================================================
-    private static final class MirrorState {
-        final Connection conn;
-        int applied;
-        @com.legend.Nullable String poison;
-        boolean suspended;
-
-        MirrorState(Connection conn) {
-            this.conn = conn;
-        }
-    }
-
-    private static @com.legend.Nullable MirrorState MIRROR;
-
-    /** Install the family session's live mirror (runner-owned). */
-    public static void mirrorBegin(Connection h2) {
-        // F6.7: the engine's H2 extension functions register on the
-        // MIRROR too — only the fresh-replay branch installed them, and
-        // Runner makes the incremental mirror the DEFAULT path for
-        // DuckDB sweeps, so golden SQL calling legend_h2_extension_*
-        // declined verification on the path that actually runs (the C1
-        // fix this class exists for was not in effect).
-        try (Statement st = h2.createStatement()) {
-            for (String alias : H2ExtensionFunctions.aliases()) {
-                st.execute(alias);
-            }
-        } catch (SQLException e) {
-            throw new IllegalStateException(
-                    "h2 mirror extension registration failed", e);
-        }
-        MIRROR = new MirrorState(h2);
-    }
-
-    /** Detach the mirror (the runner closes the connection). */
-    public static void mirrorEnd() {
-        MIRROR = null;
-    }
-
-    /** A PRIVATE-session test's recording is not the family ledger —
-     * its verification must use the fresh-replay path. */
-    public static void mirrorSuspend(boolean suspended) {
-        if (MIRROR != null) {
-            MIRROR.suspended = suspended;
-        }
-    }
-
-    public static @com.legend.Nullable String verify(
-            java.util.@com.legend.Nullable List<String> seeds, String goldenSql,
-            ExecutionResult ours,
-            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
-            java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp) {
-        return verify(seeds, null, goldenSql, ours, enumDecode, graphEnumProp);
-    }
-
-    public static @com.legend.Nullable String verify(
-            java.util.@com.legend.Nullable List<String> seeds,
-            java.util.@com.legend.Nullable List<String> extraSeeds,
-            String goldenSql,
-            ExecutionResult ours,
-            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
-            java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp) {
-        if (!READY) {
-            throw new Unverifiable("h2 driver not on classpath", null);
-        }
-        // TABULAR frames compare cell-for-cell positionally; a GRAPH
-        // frame compares by LABEL (the database built the instance
-        // array — goldenGraphCompare). Collection/Scalar frames UNPARKED
-        // (§4AD P0.5, NAV_ROUTING_PLACEMENT_ADDENDUM_4AD): positional-
-        // ready 1-column frames; golden rows flatten at the VALUE
-        // OBSERVABLE (goldenRowsCompare). The phantom-row gap the old
-        // park hid (golden 1 row vs our 4 — testQualifierWithOperation)
-        // is the batch-5 PLACEMENT DEFECT: a NAMED-DEFECT ceiling in the
-        // corpus runner until P1 burns it — never a park, never a
-        // re-adjudication.
-        if (!(ours instanceof ExecutionResult.Graph)) {
-            // ENUM-typed frames compare through the SAME decode the frame
-            // ran: some queries select the RAW source code (the engine
-            // decodes post-SQL) while the frame carries decoded names — the
-            // caller supplies the per-column source->name map (c46, the
-            // enum-decode replay rung; c42 witnesses in the ledger). A
-            // column with NO derivable map keeps the counted decline.
-            for (int i = 0; i < ours.columns().size(); i++) {
-                if (ours.columns().get(i).pureType()
-                        instanceof com.legend.compiler.element.type.Type.EnumType
-                        && !enumDecode.containsKey(i)) {
-                    throw new Unverifiable(
-                            "enum-decoded column (post-transform rows)", null);
-                }
-            }
-        }
-        // ONE session, the engine's own (batch C landed): the
-        // "Duplicate column name" sniff-retry died with the second
-        // session — there is no other semantics to fall back to.
-        MirrorState mirror = MIRROR;
-        if (mirror != null && !mirror.suspended) {
-            // INCREMENTAL path: apply only the ledger entries not yet
-            // mirrored, then compare on the LIVE family mirror
-            if (mirror.poison != null) {
-                throw new Unverifiable(mirror.poison, null);
-            }
-            try (Statement st = mirror.conn.createStatement()) {
-                applyPendingSeeds(mirror, st, seeds);
-                // per-verify extras OUTSIDE the cursor (§9a): failures
-                // decline THIS verify only — never poison the mirror
-                for (String x : extraSeeds == null ? List.<String>of()
-                        : extraSeeds) {
-                    try {
-                        st.execute(x);
-                    } catch (SQLException e) {
-                        throw new Unverifiable("seed replay: "
-                                + e.getMessage(), e);
-                    }
-                }
-                return compareFrame(st, goldenSql, ours, enumDecode,
-                        graphEnumProp);
-            } catch (SQLException e) {
-                throw new Unverifiable("h2 connection: "
-                        + e.getMessage(), e);
-            }
-        }
-        java.util.List<String> all = seeds;
-        if (extraSeeds != null && !extraSeeds.isEmpty()) {
-            all = new java.util.ArrayList<>(seeds == null
-                    ? List.of() : seeds);
-            all.addAll(extraSeeds);
-        }
-        return freshVerify(all, goldenSql, ours, enumDecode,
-                graphEnumProp);
-    }
-
-    /** Fresh-replay verification on a NEW in-memory H2 (the ONE
-     * session): extensions + recorded seeds + golden compare. */
-    private static @com.legend.Nullable String freshVerify(
-            java.util.@com.legend.Nullable List<String> seeds,
-            String goldenSql, ExecutionResult ours,
-            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
-            java.util.function.Function<String,
-                    java.util.Map<String, String>> graphEnumProp) {
-        int id = COUNTER.getAndIncrement();
-        try (Connection h2 = DriverManager.getConnection(
-                "jdbc:h2:mem:advisory" + id + SETTINGS, "sa", "")) {
-            try (Statement st = h2.createStatement()) {
-                // the engine's H2 extension functions, lite-implemented —
-                // golden SQL calling legend_h2_extension_* declined
-                // verification before (C1)
-                for (String alias : H2ExtensionFunctions.aliases()) {
-                    st.execute(alias);
-                }
-                for (String seed : seeds == null ? List.<String>of()
-                        : seeds) {
-                    for (String one : seed.split(";\\s*\n|;\\s*$")) {
-                        if (one.isBlank()) {
-                            continue;
-                        }
-                        try {
-                            st.execute(one);
-                        } catch (SQLException e) {
-                            throw new Unverifiable("seed replay: "
-                                    + e.getMessage(), e);
-                        }
-                    }
-                }
-                return compareFrame(st, goldenSql, ours, enumDecode,
-                        graphEnumProp);
-            }
-        } catch (SQLException e) {
-            throw new Unverifiable("h2 connection: " + e.getMessage(), e);
-        }
-    }
-
     /** The JSON carrier has NO temporal types — a Date-family element
      * arrives as its ISO text. The DECLARED pure type drives the
      * decode back (never value sniffing on non-temporal roots): ISO
@@ -443,11 +256,6 @@ public final class H2Verify {
         return out;
     }
 
-    /** Route by the session backend: an H2 session verifies DIRECTLY
-     * (the database already holds every table the test built —
-     * model-driven DDL included, which the seed-replay oracle can miss
-     * as "Table not found"); anything else replays the recorded seeds
-     * into the fresh oracle. */
     /** Wall-clock spent in mirror verification (the DuckDB sweep's
      * advisory second target) — perf instrument, printed by the runner. */
     /** Wall-clock of the WHOLE golden-SQL channel on the DuckDB sweep
@@ -459,77 +267,33 @@ public final class H2Verify {
     public static final java.util.concurrent.atomic.AtomicLong MIRROR_NANOS =
             new java.util.concurrent.atomic.AtomicLong();
 
-    public static @com.legend.Nullable String verifyAuto(Connection session,
-            java.util.@com.legend.Nullable List<String> seeds,
-            String goldenSql, ExecutionResult ours,
-            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
-            java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp)
-            throws SQLException {
-        return verifyAuto(session, seeds, null, goldenSql, ours, enumDecode,
-                graphEnumProp);
-    }
 
-    /** {@code extraSeeds} (§9a cursor fix, 2026-08-30): PER-VERIFY
-     * synthesized statements (tempTableForIn derivations) that must
-     * NEVER advance the family mirror's incremental cursor — the old
-     * caller appended them to a LOCAL copy of the ledger, so
-     * {@code mirror.applied} counted entries the shared ledger does not
-     * contain and every later verify in the family replayed MISALIGNED
-     * (statements skipped; a synthesized INSERT replayed without its
-     * CREATE). Extras execute AFTER the cursor-applied ledger, every
-     * verify, re-runnable by construction (the synthesizer emits
-     * drop-if-exists first). */
-    public static @com.legend.Nullable String verifyAuto(Connection session,
-            java.util.@com.legend.Nullable List<String> seeds,
-            java.util.@com.legend.Nullable List<String> extraSeeds,
-            String goldenSql, ExecutionResult ours,
-            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
-            java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp)
-            throws SQLException {
-        long t0 = System.nanoTime();
-        try {
-            return "H2".equals(session.getMetaData().getDatabaseProductName())
-                    ? verifyOnSession(session, goldenSql, ours, enumDecode,
-                            graphEnumProp)
-                    : verify(seeds, extraSeeds, goldenSql, ours, enumDecode,
-                            graphEnumProp);
-        } finally {
-            MIRROR_NANOS.addAndGet(System.nanoTime() - t0);
+    /** ENUM-typed frames compare through the SAME decode the frame
+     * ran: some queries select the RAW source code (the engine decodes
+     * post-SQL) while the frame carries decoded names — the caller
+     * supplies the per-column source->name map (c46, the enum-decode
+     * replay rung). A column with NO derivable map keeps the counted
+     * decline. Shared precheck of the {@link ReplayOracle} verify
+     * entry points (Graph frames decode per-key instead). */
+    static void enumPrecheck(ExecutionResult ours,
+            java.util.Map<Integer, java.util.Map<String, String>> enumDecode) {
+        if (ours instanceof ExecutionResult.Graph) {
+            return;
         }
-    }
-
-    /**
-     * The SESSION-direct golden verify (parity workstream 1): the
-     * golden SELECT runs read-only on the session connection and
-     * compares against our rows exactly like the replay path.
-     */
-    public static @com.legend.Nullable String verifyOnSession(
-            Connection session, String goldenSql, ExecutionResult ours,
-            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
-            java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp) {
-        // Collection/Scalar UNPARKED — see the verify() gate note
-        if (!(ours instanceof ExecutionResult.Graph)) {
-            for (int i = 0; i < ours.columns().size(); i++) {
-                if (ours.columns().get(i).pureType()
-                        instanceof com.legend.compiler.element.type.Type.EnumType
-                        && !enumDecode.containsKey(i)) {
-                    throw new Unverifiable(
-                            "enum-decoded column (post-transform rows)", null);
-                }
+        for (int i = 0; i < ours.columns().size(); i++) {
+            if (ours.columns().get(i).pureType()
+                    instanceof com.legend.compiler.element.type.Type.EnumType
+                    && !enumDecode.containsKey(i)) {
+                throw new Unverifiable(
+                        "enum-decoded column (post-transform rows)", null);
             }
-        }
-        try (Statement st = session.createStatement()) {
-            return compareFrame(st, goldenSql, ours, enumDecode,
-                    graphEnumProp);
-        } catch (SQLException e) {
-            throw new Unverifiable("session golden execution: "
-                    + e.getMessage(), e);
         }
     }
 
     /** Kind dispatch for the golden compare: flat frames positionally,
-     * the Graph frame by label. */
-    private static @com.legend.Nullable String compareFrame(Statement st,
+     * the Graph frame by label ({@link ReplayOracle}-called — the
+     * comparison policy seam). */
+    static @com.legend.Nullable String compareFrame(Statement st,
             String goldenSql, ExecutionResult ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp)
@@ -1040,116 +804,10 @@ public final class H2Verify {
     /** One normalization for BOTH sides: JDBC drivers disagree on exact
      * numeric/temporal classes; the database-level VALUE is the
      * contract. */
-    /** The mirror's incremental seed replay, factored (verify + the TDG
-     * replay share it — never a twin). */
-    private static void applyPendingSeeds(MirrorState mirror, Statement st,
-            java.util.@com.legend.Nullable List<String> seeds) {
-        List<String> ledger = seeds == null ? List.of() : seeds;
-        while (mirror.applied < ledger.size()) {
-            String seed = ledger.get(mirror.applied);
-            for (String one : seed.split(";\\s*\n|;\\s*$")) {
-                if (one.isBlank()) {
-                    continue;
-                }
-                try {
-                    st.execute(one);
-                } catch (SQLException e) {
-                    mirror.poison = "seed replay: " + e.getMessage();
-                    throw new Unverifiable(mirror.poison, e);
-                }
-            }
-            mirror.applied++;
-        }
-    }
-
-    /** TDG 49er replay (docs/TDG_LANE_CHARTER.md residue): BOTH sides
-     * are FETCH texts — the GOLDEN rides the ordinary family-mirror H2
-     * route (pending seeds applied), OURS runs on the ambient DuckDB;
-     * rows compare ORDER-INSENSITIVELY under the shared cell canon
-     * (two-sided comparison policy: neither side's incidental row order
-     * is contract — the fetches carry no ORDER BY). null = VERIFIED
-     * match; text = REAL divergence; {@link Unverifiable} = the
-     * caller's counted decline. */
-    public static @com.legend.Nullable String tdgSqlReplay(
-            java.util.@com.legend.Nullable List<String> seeds,
-            String goldenSql, Connection duck, String ourSql) {
-        if (!READY) {
-            throw new Unverifiable("h2 driver not on classpath", null);
-        }
-        // ORDER-INSENSITIVE compare is GATED on a compile-time fact
-        // (harness discipline C2.3): generator fetches carry no ORDER BY
-        // on either side — an ordered text names its own decline
-        if (goldenSql.toLowerCase().contains("order by")
-                || ourSql.toLowerCase().contains("order by")) {
-            throw new Unverifiable("ordered fetch — multiset compare"
-                    + " not applicable", null);
-        }
-        // CHAINED fetches join the generator's tdg_N_* temp tables —
-        // dropped in its finally, unreplayable standalone (sequence
-        // replay = unmodeled residue, named)
-        if (ourSql.contains("tdg_") || goldenSql.contains("tdg_")) {
-            throw new Unverifiable("chained fetch — generator temp"
-                    + " tables not replayable", null);
-        }
-        List<String> ourRows;
-        // a DUPLICATE connection (the DuckWorkspaces idiom): the ambient
-        // connection may hold an open streaming result mid-walk. The
-        // duplicate starts OUTSIDE the test's workspace catalog — point
-        // it back (getCatalog is metadata, safe mid-stream).
-        try (Connection dup = duck.unwrap(
-                        org.duckdb.DuckDBConnection.class).duplicate();
-                Statement st = dup.createStatement()) {
-            String ws = duck.getCatalog();
-            if (ws != null && !ws.isBlank()) {
-                st.execute("USE " + ws);
-            }
-            ourRows = rawRows(st, ourSql);
-        } catch (SQLException e) {
-            throw new Unverifiable("our-side replay: " + e.getMessage(), e);
-        }
-        List<String> golden;
-        MirrorState mirror = MIRROR;
-        if (mirror != null && !mirror.suspended) {
-            if (mirror.poison != null) {
-                throw new Unverifiable(mirror.poison, null);
-            }
-            try (Statement st = mirror.conn.createStatement()) {
-                applyPendingSeeds(mirror, st, seeds);
-                golden = rawRows(st, goldenSql);
-            } catch (SQLException e) {
-                throw new Unverifiable("golden replay: "
-                        + e.getMessage(), e);
-            }
-        } else {
-            // PRIVATE-session test (mirror suspended/absent): the fresh
-            // full-history replay, same route as freshVerify
-            int id = COUNTER.getAndIncrement();
-            try (Connection h2 = DriverManager.getConnection(
-                    "jdbc:h2:mem:tdgreplay" + id + SETTINGS, "sa", "");
-                    Statement st = h2.createStatement()) {
-                for (String alias : H2ExtensionFunctions.aliases()) {
-                    st.execute(alias);
-                }
-                for (String seed : seeds == null ? List.<String>of()
-                        : seeds) {
-                    for (String one : seed.split(";\\s*\n|;\\s*$")) {
-                        if (!one.isBlank()) {
-                            st.execute(one);
-                        }
-                    }
-                }
-                golden = rawRows(st, goldenSql);
-            } catch (SQLException e) {
-                throw new Unverifiable("golden fresh replay: "
-                        + e.getMessage(), e);
-            }
-        }
-        return multisetCompare(golden, ourRows);
-    }
 
     /** The shared TDG row referee tail: header (projection) equality,
      * then ORDER-INSENSITIVE row equality under the cell canon. */
-    private static @com.legend.Nullable String multisetCompare(
+    static @com.legend.Nullable String multisetCompare(
             List<String> golden, List<String> ourRows) {
         String gCols = golden.get(0);
         String oCols = ourRows.get(0);
@@ -1201,105 +859,6 @@ public final class H2Verify {
         return out;
     }
 
-    /** The CHAINED-fetch golden replay (live-session refereeing, census
-     * §10o leg 1): a chained golden references its parent's
-     * {@code testDataGen_Temp_*} table — an ENGINE-session artifact the
-     * mirror does not hold. The engine's own mechanics (testDataGeneration
-     * .pure chained arm) fill that temp with the PARENT fetch's rows,
-     * i.e. the parent GOLDEN's result — so the synthesis materializes
-     * each ancestor temp on the mirror FROM ITS OWN GOLDEN, root-first,
-     * then executes this hop's golden and referees against our
-     * live-session transcript rows. Golden-side only — fully
-     * independent of our side. {@code ancestors} = {tempName, goldenSql}
-     * pairs root-first. */
-    public static @com.legend.Nullable String tdgChainedReplay(
-            java.util.@com.legend.Nullable List<String> seeds,
-            List<String[]> ancestors, String goldenSql,
-            List<String> oursRows) {
-        if (!READY) {
-            throw new Unverifiable("h2 driver not on classpath", null);
-        }
-        List<String> golden;
-        MirrorState mirror = MIRROR;
-        if (mirror != null && !mirror.suspended) {
-            if (mirror.poison != null) {
-                throw new Unverifiable(mirror.poison, null);
-            }
-            try (Statement st = mirror.conn.createStatement()) {
-                applyPendingSeeds(mirror, st, seeds);
-                golden = goldenWithTemps(st, ancestors, goldenSql);
-            } catch (SQLException e) {
-                throw new Unverifiable("golden replay: "
-                        + e.getMessage(), e);
-            }
-        } else {
-            // PRIVATE-session test: fresh full-history replay
-            int id = COUNTER.getAndIncrement();
-            try (Connection h2 = DriverManager.getConnection(
-                    "jdbc:h2:mem:tdgreplay" + id + SETTINGS, "sa", "");
-                    Statement st = h2.createStatement()) {
-                for (String alias : H2ExtensionFunctions.aliases()) {
-                    st.execute(alias);
-                }
-                for (String seed : seeds == null ? List.<String>of()
-                        : seeds) {
-                    for (String one : seed.split(";\\s*\n|;\\s*$")) {
-                        if (!one.isBlank()) {
-                            st.execute(one);
-                        }
-                    }
-                }
-                golden = goldenWithTemps(st, ancestors, goldenSql);
-            } catch (SQLException e) {
-                throw new Unverifiable("golden fresh replay: "
-                        + e.getMessage(), e);
-            }
-        }
-        return multisetCompare(golden, oursRows);
-    }
-
-    /** Materialize the ancestor temps (root-first; a self-join chain
-     * reuses the engine's per-root temp NAME, so a repeat materializes
-     * through a stage swap — the stage reads the OLD temp before it
-     * drops, exactly the engine's sequential create/insert/drop
-     * discipline), execute the hop's golden, and ALWAYS drop what was
-     * created — the family mirror is shared state. */
-    private static List<String> goldenWithTemps(Statement st,
-            List<String[]> ancestors, String goldenSql)
-            throws SQLException {
-        java.util.LinkedHashSet<String> created =
-                new java.util.LinkedHashSet<>();
-        try {
-            for (String[] a : ancestors) {
-                String name = a[0];
-                String sql = a[1];
-                if (created.contains(name)) {
-                    st.execute("create table TDG_TEMP_STAGE as " + sql);
-                    st.execute("drop table " + name);
-                    st.execute("alter table TDG_TEMP_STAGE rename to "
-                            + name);
-                } else {
-                    st.execute("drop table if exists " + name);
-                    st.execute("create table " + name + " as " + sql);
-                    created.add(name);
-                }
-            }
-            return rawRows(st, goldenSql);
-        } finally {
-            for (String name : created) {
-                try {
-                    st.execute("drop table if exists " + name);
-                } catch (SQLException ignored) {
-                    // cleanup best-effort; the next use drops-if-exists
-                }
-            }
-            try {
-                st.execute("drop table if exists TDG_TEMP_STAGE");
-            } catch (SQLException ignored) {
-                // same
-            }
-        }
-    }
 
     /** The ONE column-ordering policy for the TDG row referee (rawRows
      * and transcriptRows both render through it — two-sided by
@@ -1318,7 +877,7 @@ public final class H2Verify {
      * {@code <cols>} header row — column ORDER is not a fetch contract,
      * column IDENTITY is (a projection mismatch compares as unequal
      * header rows, never a garbled cell compare). */
-    private static List<String> rawRows(Statement st, String sql)
+    static List<String> rawRows(Statement st, String sql)
             throws SQLException {
         List<String> out = new java.util.ArrayList<>();
         try (ResultSet rs = st.executeQuery(sql)) {

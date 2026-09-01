@@ -697,9 +697,23 @@ public final class Compiler {
             java.sql.Connection connection,
             com.legend.exec.@com.legend.Nullable AssertListener assertListener)
             throws java.sql.SQLException {
+        return executeResolved(resolved, ctx, runtimeFqn, connection,
+                assertListener, null);
+    }
+
+    /** Registration overload (SQLTEXT charter §2): the harness supplies
+     * its {@link com.legend.exec.SqlReplayOracle} beside the listener;
+     * the env carries both. Production never calls this arity. */
+    public static com.legend.exec.@com.legend.Nullable ExecutionResult executeResolved(
+            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
+            @com.legend.Nullable String runtimeFqn,
+            java.sql.Connection connection,
+            com.legend.exec.@com.legend.Nullable AssertListener assertListener,
+            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle)
+            throws java.sql.SQLException {
         return StatementExecutor.execute(resolved, ctx,
                 runtimeFqn, dialectOf(ctx, runtimeFqn, connection), connection,
-                assertListener);
+                assertListener, replayOracle);
     }
 
     /**

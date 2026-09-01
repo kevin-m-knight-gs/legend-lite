@@ -1,0 +1,465 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.harness;
+
+import com.legend.exec.ExecutionResult;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.List;
+
+/**
+ * THE REPLAY ORACLE (SQLTEXT_ROW_VERDICT_CHARTER §8 slice 1): the ONE
+ * named harness service owning the oracle SESSION machinery — the
+ * family-mirror lifecycle, the seed-ledger application (incremental
+ * cursor + poison), the fresh-replay fallback — and the verify
+ * entry points that orchestrate golden-SQL row verification over it.
+ * Before this class the machinery was statics spread across
+ * Runner/H2Verify with the mirror-or-fresh session acquisition
+ * duplicated four times. {@link H2Verify} keeps COMPARISON POLICY
+ * only (the §6 normalization inventory, the census instruments).
+ *
+ * <p>Also the harness's implementation of the platform SPI
+ * {@link com.legend.exec.SqlReplayOracle} ({@code INSTANCE}),
+ * registered per run beside the AssertListener; the platform's
+ * verdict arms (charter §8 slice 3) read it off ExecEnv.
+ */
+public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
+
+    /** The registered SPI implementation (run-wide, like the mirror). */
+    public static final ReplayOracle INSTANCE = new ReplayOracle();
+
+    private ReplayOracle() {
+    }
+
+    private static final java.util.concurrent.atomic.AtomicInteger COUNTER =
+            new java.util.concurrent.atomic.AtomicInteger();
+
+    // =================================================================
+    // INCREMENTAL FAMILY MIRROR (task #112 follow-up): the corpus runner
+    // keeps ONE live H2 per family session and verification applies
+    // only the ledger statements not yet mirrored — the fresh-replay
+    // path re-ran the family's WHOLE history per verification (O(n^2)).
+    // A statement H2 rejects POISONS the mirror for the rest of the
+    // family: under fresh replay every later test re-hit the same
+    // statement in its ledger prefix, so the decline set is identical.
+    // =================================================================
+    private static final class MirrorState {
+        final Connection conn;
+        int applied;
+        @com.legend.Nullable String poison;
+        boolean suspended;
+
+        MirrorState(Connection conn) {
+            this.conn = conn;
+        }
+    }
+
+    private static @com.legend.Nullable MirrorState MIRROR;
+
+    /** Install the family session's live mirror (runner-owned). */
+    public static void mirrorBegin(Connection h2) {
+        // F6.7: the engine's H2 extension functions register on the
+        // MIRROR too — only the fresh-replay branch installed them, and
+        // Runner makes the incremental mirror the DEFAULT path for
+        // DuckDB sweeps, so golden SQL calling legend_h2_extension_*
+        // declined verification on the path that actually runs (the C1
+        // fix H2Verify exists for was not in effect).
+        try (Statement st = h2.createStatement()) {
+            for (String alias : H2ExtensionFunctions.aliases()) {
+                st.execute(alias);
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException(
+                    "h2 mirror extension registration failed", e);
+        }
+        MIRROR = new MirrorState(h2);
+    }
+
+    /** Detach the mirror (the runner closes the connection). */
+    public static void mirrorEnd() {
+        MIRROR = null;
+    }
+
+    /** A PRIVATE-session test's recording is not the family ledger —
+     * its verification must use the fresh-replay path. */
+    public static void mirrorSuspend(boolean suspended) {
+        if (MIRROR != null) {
+            MIRROR.suspended = suspended;
+        }
+    }
+
+    /** Work to run on a seeded oracle {@link Statement}. */
+    interface Work<T> {
+        T run(Statement st) throws SQLException;
+    }
+
+    /** A session policy: the fresh in-memory database name and the
+     * FAILURE SPELLINGS — decline reasons are census keys, preserved
+     * verbatim from the four pre-extraction sites. A null
+     * {@code seedFailPrefix} lets a fresh-path seed failure ride the
+     * outer {@code freshFailPrefix} catch (the TDG spelling). */
+    record Session(String freshDbName,
+            @com.legend.Nullable String seedFailPrefix,
+            String mirrorFailPrefix, String freshFailPrefix) {
+    }
+
+    static final Session VERIFY_SESSION = new Session(
+            "advisory", "seed replay: ", "h2 connection: ",
+            "h2 connection: ");
+
+    static final Session TDG_SESSION = new Session(
+            "tdgreplay", null, "golden replay: ", "golden fresh replay: ");
+
+    /**
+     * THE ONE oracle-session acquisition (previously duplicated across
+     * verify/freshVerify/tdgSqlReplay/tdgChainedReplay): a live family
+     * mirror (not suspended) gets the INCREMENTAL ledger replay and
+     * poison discipline; otherwise a fresh in-memory H2 replays the
+     * full recorded history (extensions + seeds). {@code work} runs on
+     * the seeded statement either way.
+     */
+    static <T> T onOracle(java.util.@com.legend.Nullable List<String> seeds,
+            Session session, Work<T> work) {
+        MirrorState mirror = MIRROR;
+        if (mirror != null && !mirror.suspended) {
+            if (mirror.poison != null) {
+                throw new H2Verify.Unverifiable(mirror.poison, null);
+            }
+            try (Statement st = mirror.conn.createStatement()) {
+                applyPendingSeeds(mirror, st, seeds);
+                return work.run(st);
+            } catch (SQLException e) {
+                throw new H2Verify.Unverifiable(session.mirrorFailPrefix()
+                        + e.getMessage(), e);
+            }
+        }
+        int id = COUNTER.getAndIncrement();
+        try (Connection h2 = DriverManager.getConnection(
+                "jdbc:h2:mem:" + session.freshDbName() + id
+                        + H2Verify.SETTINGS, "sa", "");
+                Statement st = h2.createStatement()) {
+            for (String alias : H2ExtensionFunctions.aliases()) {
+                st.execute(alias);
+            }
+            for (String seed : seeds == null ? List.<String>of() : seeds) {
+                for (String one : seed.split(";\\s*\n|;\\s*$")) {
+                    if (one.isBlank()) {
+                        continue;
+                    }
+                    if (session.seedFailPrefix() == null) {
+                        st.execute(one);
+                    } else {
+                        try {
+                            st.execute(one);
+                        } catch (SQLException e) {
+                            throw new H2Verify.Unverifiable(
+                                    session.seedFailPrefix()
+                                            + e.getMessage(), e);
+                        }
+                    }
+                }
+            }
+            return work.run(st);
+        } catch (SQLException e) {
+            throw new H2Verify.Unverifiable(session.freshFailPrefix()
+                    + e.getMessage(), e);
+        }
+    }
+
+    /** The mirror's incremental seed replay (verify + the TDG replay
+     * share it — never a twin). */
+    private static void applyPendingSeeds(MirrorState mirror, Statement st,
+            java.util.@com.legend.Nullable List<String> seeds) {
+        List<String> ledger = seeds == null ? List.of() : seeds;
+        while (mirror.applied < ledger.size()) {
+            String seed = ledger.get(mirror.applied);
+            for (String one : seed.split(";\\s*\n|;\\s*$")) {
+                if (one.isBlank()) {
+                    continue;
+                }
+                try {
+                    st.execute(one);
+                } catch (SQLException e) {
+                    mirror.poison = "seed replay: " + e.getMessage();
+                    throw new H2Verify.Unverifiable(mirror.poison, e);
+                }
+            }
+            mirror.applied++;
+        }
+    }
+
+    // =================================================================
+    // VERIFY ENTRY POINTS (moved from H2Verify; comparison policy —
+    // compareFrame and the §6 inventory — stays there)
+    // =================================================================
+
+    public static @com.legend.Nullable String verify(
+            java.util.@com.legend.Nullable List<String> seeds, String goldenSql,
+            ExecutionResult ours,
+            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
+            java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp) {
+        return verify(seeds, null, goldenSql, ours, enumDecode, graphEnumProp);
+    }
+
+    public static @com.legend.Nullable String verify(
+            java.util.@com.legend.Nullable List<String> seeds,
+            java.util.@com.legend.Nullable List<String> extraSeeds,
+            String goldenSql,
+            ExecutionResult ours,
+            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
+            java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp) {
+        if (!H2Verify.ready()) {
+            throw new H2Verify.Unverifiable("h2 driver not on classpath",
+                    null);
+        }
+        H2Verify.enumPrecheck(ours, enumDecode);
+        MirrorState mirror = MIRROR;
+        if (mirror != null && !mirror.suspended) {
+            // INCREMENTAL path: extras run OUTSIDE the cursor (§9a) —
+            // failures decline THIS verify only, never poison the mirror
+            return onOracle(seeds, VERIFY_SESSION, st -> {
+                for (String x : extraSeeds == null ? List.<String>of()
+                        : extraSeeds) {
+                    try {
+                        st.execute(x);
+                    } catch (SQLException e) {
+                        throw new H2Verify.Unverifiable("seed replay: "
+                                + e.getMessage(), e);
+                    }
+                }
+                return H2Verify.compareFrame(st, goldenSql, ours, enumDecode,
+                        graphEnumProp);
+            });
+        }
+        // FRESH path: per-verify extras append to the replayed history
+        java.util.List<String> all = seeds;
+        if (extraSeeds != null && !extraSeeds.isEmpty()) {
+            all = new java.util.ArrayList<>(seeds == null
+                    ? List.of() : seeds);
+            all.addAll(extraSeeds);
+        }
+        java.util.List<String> allSeeds = all;
+        return onOracle(allSeeds, VERIFY_SESSION,
+                st -> H2Verify.compareFrame(st, goldenSql, ours, enumDecode,
+                        graphEnumProp));
+    }
+
+    /** Route by the session backend: an H2 session verifies DIRECTLY
+     * (the database already holds every table the test built —
+     * model-driven DDL included, which the seed-replay oracle can miss
+     * as "Table not found"); anything else replays the recorded seeds
+     * into the oracle. {@code extraSeeds} (§9a cursor fix, 2026-08-30):
+     * PER-VERIFY synthesized statements (tempTableForIn derivations)
+     * that must NEVER advance the family mirror's incremental cursor. */
+    public static @com.legend.Nullable String verifyAuto(Connection session,
+            java.util.@com.legend.Nullable List<String> seeds,
+            String goldenSql, ExecutionResult ours,
+            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
+            java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp)
+            throws SQLException {
+        return verifyAuto(session, seeds, null, goldenSql, ours, enumDecode,
+                graphEnumProp);
+    }
+
+    public static @com.legend.Nullable String verifyAuto(Connection session,
+            java.util.@com.legend.Nullable List<String> seeds,
+            java.util.@com.legend.Nullable List<String> extraSeeds,
+            String goldenSql, ExecutionResult ours,
+            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
+            java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp)
+            throws SQLException {
+        long t0 = System.nanoTime();
+        try {
+            return "H2".equals(session.getMetaData().getDatabaseProductName())
+                    ? verifyOnSession(session, goldenSql, ours, enumDecode,
+                            graphEnumProp)
+                    : verify(seeds, extraSeeds, goldenSql, ours, enumDecode,
+                            graphEnumProp);
+        } finally {
+            H2Verify.MIRROR_NANOS.addAndGet(System.nanoTime() - t0);
+        }
+    }
+
+    /**
+     * The SESSION-direct golden verify (parity workstream 1): the
+     * golden SELECT runs read-only on the session connection and
+     * compares against our rows exactly like the replay path.
+     */
+    public static @com.legend.Nullable String verifyOnSession(
+            Connection session, String goldenSql, ExecutionResult ours,
+            java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
+            java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp) {
+        H2Verify.enumPrecheck(ours, enumDecode);
+        try (Statement st = session.createStatement()) {
+            return H2Verify.compareFrame(st, goldenSql, ours, enumDecode,
+                    graphEnumProp);
+        } catch (SQLException e) {
+            throw new H2Verify.Unverifiable("session golden execution: "
+                    + e.getMessage(), e);
+        }
+    }
+
+    /** TDG 49er replay (docs/TDG_LANE_CHARTER.md residue): BOTH sides
+     * are FETCH texts — the GOLDEN rides the ordinary family-mirror H2
+     * route (pending seeds applied), OURS runs on the ambient DuckDB;
+     * rows compare ORDER-INSENSITIVELY under the shared cell canon
+     * (two-sided comparison policy: neither side's incidental row order
+     * is contract — the fetches carry no ORDER BY). null = VERIFIED
+     * match; text = REAL divergence; Unverifiable = the caller's
+     * counted decline. */
+    public static @com.legend.Nullable String tdgSqlReplay(
+            java.util.@com.legend.Nullable List<String> seeds,
+            String goldenSql, Connection duck, String ourSql) {
+        if (!H2Verify.ready()) {
+            throw new H2Verify.Unverifiable("h2 driver not on classpath",
+                    null);
+        }
+        // ORDER-INSENSITIVE compare is GATED on a compile-time fact
+        // (harness discipline C2.3): generator fetches carry no ORDER BY
+        // on either side — an ordered text names its own decline
+        if (goldenSql.toLowerCase().contains("order by")
+                || ourSql.toLowerCase().contains("order by")) {
+            throw new H2Verify.Unverifiable("ordered fetch — multiset"
+                    + " compare not applicable", null);
+        }
+        // CHAINED fetches join the generator's tdg_N_* temp tables —
+        // dropped in its finally, unreplayable standalone (sequence
+        // replay = unmodeled residue, named)
+        if (ourSql.contains("tdg_") || goldenSql.contains("tdg_")) {
+            throw new H2Verify.Unverifiable("chained fetch — generator"
+                    + " temp tables not replayable", null);
+        }
+        List<String> ourRows;
+        // a DUPLICATE connection (the DuckWorkspaces idiom): the ambient
+        // connection may hold an open streaming result mid-walk. The
+        // duplicate starts OUTSIDE the test's workspace catalog — point
+        // it back (getCatalog is metadata, safe mid-stream).
+        try (Connection dup = duck.unwrap(
+                        org.duckdb.DuckDBConnection.class).duplicate();
+                Statement st = dup.createStatement()) {
+            String ws = duck.getCatalog();
+            if (ws != null && !ws.isBlank()) {
+                st.execute("USE " + ws);
+            }
+            ourRows = H2Verify.rawRows(st, ourSql);
+        } catch (SQLException e) {
+            throw new H2Verify.Unverifiable("our-side replay: "
+                    + e.getMessage(), e);
+        }
+        List<String> golden = onOracle(seeds, TDG_SESSION,
+                st -> H2Verify.rawRows(st, goldenSql));
+        return H2Verify.multisetCompare(golden, ourRows);
+    }
+
+    /** The CHAINED-fetch golden replay (live-session refereeing, census
+     * §10o leg 1): a chained golden references its parent's
+     * {@code testDataGen_Temp_*} table — an ENGINE-session artifact the
+     * mirror does not hold. The engine's own mechanics (testDataGeneration
+     * .pure chained arm) fill that temp with the PARENT fetch's rows,
+     * i.e. the parent GOLDEN's result — so the synthesis materializes
+     * each ancestor temp on the mirror FROM ITS OWN GOLDEN, root-first,
+     * then executes this hop's golden and referees against our
+     * live-session transcript rows. Golden-side only — fully
+     * independent of our side. {@code ancestors} = {tempName, goldenSql}
+     * pairs root-first. */
+    public static @com.legend.Nullable String tdgChainedReplay(
+            java.util.@com.legend.Nullable List<String> seeds,
+            List<String[]> ancestors, String goldenSql,
+            List<String> oursRows) {
+        if (!H2Verify.ready()) {
+            throw new H2Verify.Unverifiable("h2 driver not on classpath",
+                    null);
+        }
+        List<String> golden = onOracle(seeds, TDG_SESSION,
+                st -> goldenWithTemps(st, ancestors, goldenSql));
+        return H2Verify.multisetCompare(golden, oursRows);
+    }
+
+    /** Materialize the ancestor temps (root-first; a self-join chain
+     * reuses the engine's per-root temp NAME, so a repeat materializes
+     * through a stage swap — the stage reads the OLD temp before it
+     * drops, exactly the engine's sequential create/insert/drop
+     * discipline), execute the hop's golden, and ALWAYS drop what was
+     * created — the family mirror is shared state. */
+    private static List<String> goldenWithTemps(Statement st,
+            List<String[]> ancestors, String goldenSql)
+            throws SQLException {
+        java.util.LinkedHashSet<String> created =
+                new java.util.LinkedHashSet<>();
+        try {
+            for (String[] a : ancestors) {
+                String name = a[0];
+                String sql = a[1];
+                if (created.contains(name)) {
+                    st.execute("create table TDG_TEMP_STAGE as " + sql);
+                    st.execute("drop table " + name);
+                    st.execute("alter table TDG_TEMP_STAGE rename to "
+                            + name);
+                } else {
+                    st.execute("drop table if exists " + name);
+                    st.execute("create table " + name + " as " + sql);
+                    created.add(name);
+                }
+            }
+            return H2Verify.rawRows(st, goldenSql);
+        } finally {
+            for (String name : created) {
+                try {
+                    st.execute("drop table if exists " + name);
+                } catch (SQLException ignored) {
+                    // cleanup best-effort; the next use drops-if-exists
+                }
+            }
+            try {
+                st.execute("drop table if exists TDG_TEMP_STAGE");
+            } catch (SQLException ignored) {
+                // same
+            }
+        }
+    }
+
+    // =================================================================
+    // THE PLATFORM SPI (SQLTEXT charter §2)
+    // =================================================================
+
+    /** Rows for a SQL text on the seeded oracle (the recorded ledger
+     * applies exactly as the verify paths apply it). Raw
+     * {@code getObject} cells — comparison policy normalizes, never
+     * the oracle. Consumed by the platform's verdict arms (charter §8
+     * slice 3); any failure surfaces as the oracle declining. */
+    @Override
+    public com.legend.exec.SqlReplayOracle.OracleRows rows(String sql)
+            throws SQLException {
+        return onOracle(com.legend.sql.dialect.RawSqlBoundary.recording(),
+                VERIFY_SESSION, st -> {
+                    try (java.sql.ResultSet rs = st.executeQuery(sql)) {
+                        var md = rs.getMetaData();
+                        int n = md.getColumnCount();
+                        java.util.List<String> labels =
+                                new java.util.ArrayList<>(n);
+                        java.util.List<Integer> types =
+                                new java.util.ArrayList<>(n);
+                        for (int i = 1; i <= n; i++) {
+                            labels.add(md.getColumnLabel(i));
+                            types.add(md.getColumnType(i));
+                        }
+                        java.util.List<java.util.List<Object>> rows =
+                                new java.util.ArrayList<>();
+                        while (rs.next()) {
+                            java.util.List<Object> row =
+                                    new java.util.ArrayList<>(n);
+                            for (int i = 1; i <= n; i++) {
+                                row.add(rs.getObject(i));
+                            }
+                            rows.add(row);
+                        }
+                        return new com.legend.exec.SqlReplayOracle
+                                .OracleRows(labels, types, rows);
+                    }
+                });
+    }
+}

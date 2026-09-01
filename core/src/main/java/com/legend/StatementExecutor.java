@@ -34,27 +34,32 @@ final class StatementExecutor {
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection)
             throws java.sql.SQLException {
-        return execute(resolved, ctx, runtimeFqn, dialect, connection, null);
+        return execute(resolved, ctx, runtimeFqn, dialect, connection, null,
+                null);
     }
 
     /** Listener overload: {@code assertListener} observes every
      * statement-root assert verdict (the runner's scoring seam —
-     * judging stays here, in one place). */
+     * judging stays here, in one place); {@code replayOracle} is the
+     * registered SQL-replay oracle (SQLTEXT charter §2 — same
+     * registration seam, same nullable carriage; production passes
+     * neither). */
     static @com.legend.Nullable ExecutionResult execute(
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
             @com.legend.Nullable String runtimeFqn,
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection,
-            com.legend.exec.@com.legend.Nullable AssertListener assertListener)
+            com.legend.exec.@com.legend.Nullable AssertListener assertListener,
+            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle)
             throws java.sql.SQLException {
         SpecCompiler specs = new SpecCompiler(ctx);
         ExecEnv env0 = new ExecEnv(ctx, runtimeFqn, dialect, connection,
                 com.legend.validation.DriverPkOption.get());
-        ExecEnv env = assertListener == null ? env0
+        ExecEnv env = assertListener == null && replayOracle == null ? env0
                 : new ExecEnv(env0.ctx(), env0.runtimeFqn(), env0.dialect(),
                         env0.connection(), env0.addDriverTablePk(),
                         env0.queryLets(), env0.tableReplace(),
-                        env0.instanceIds(), assertListener);
+                        env0.instanceIds(), assertListener, replayOracle);
         return executeStatements(specs.typeQueryBody(resolved),
                 new java.util.ArrayList<>(), specs, env,
                 new java.util.ArrayDeque<>());
@@ -75,7 +80,8 @@ final class StatementExecutor {
             java.util.Map<String, TypedSpec> queryLets,
             java.util.Map<String, String> tableReplace,
             com.legend.exec.InstanceIds instanceIds,
-            com.legend.exec.@com.legend.Nullable AssertListener assertListener) {
+            com.legend.exec.@com.legend.Nullable AssertListener assertListener,
+            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle) {
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
@@ -84,7 +90,7 @@ final class StatementExecutor {
                 java.util.Map<String, String> tableReplace,
                 com.legend.exec.InstanceIds instanceIds) {
             this(ctx, runtimeFqn, dialect, connection, addDriverTablePk,
-                    queryLets, tableReplace, instanceIds, null);
+                    queryLets, tableReplace, instanceIds, null, null);
         }
 
         ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
@@ -357,7 +363,8 @@ final class StatementExecutor {
                 : new ExecEnv(env.ctx(), env.runtimeFqn(), env.dialect(),
                         env.connection(),
                         env.addDriverTablePk(), env.queryLets(), union,
-                        env.instanceIds(), env.assertListener());
+                        env.instanceIds(), env.assertListener(),
+                        env.replayOracle());
     }
 
     /**
@@ -1932,7 +1939,8 @@ final class StatementExecutor {
                 env = new ExecEnv(env.ctx(), env.runtimeFqn(), env.dialect(),
                         env.connection(),
                         env.addDriverTablePk(), env.queryLets(), tr,
-                        env.instanceIds(), env.assertListener());
+                        env.instanceIds(), env.assertListener(),
+                        env.replayOracle());
             }
         }
         var assembled = com.legend.compiler.spec.ExecuteChainAssembly
