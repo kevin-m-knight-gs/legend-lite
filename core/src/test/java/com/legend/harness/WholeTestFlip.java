@@ -292,8 +292,17 @@ public final class WholeTestFlip {
                 // platform hit a data-layer error): the REAL-divergence
                 // burn list — walk re-scores (safe: the transaction
                 // rolled the attempt back), row counted
+                if (System.getenv("LL_TMP_DEBUG") != null) {
+                    System.err.println("[flip-fail-debug] " + test + " :: "
+                            + e.getMessage());
+                }
                 reason = "platform-fail: " + bucketOf(e.getMessage());
             } catch (RuntimeException e) {
+                if (System.getenv("LL_TMP_DEBUG") != null) {
+                    System.err.println("[flip-fail-debug] " + test + " :: "
+                            + e.getClass().getSimpleName() + ": "
+                            + e.getMessage());
+                }
                 reason = "wall-exec: " + e.getClass().getSimpleName()
                         + ": " + bucketOf(e.getMessage());
             }
