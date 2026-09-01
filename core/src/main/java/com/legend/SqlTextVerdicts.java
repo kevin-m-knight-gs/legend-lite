@@ -117,8 +117,8 @@ final class SqlTextVerdicts {
         return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
                 com.legend.compiler.spec.VerdictQueries.fromWrapped(
                         lam.body().get(0), mapping),
-                mapping.fullPath(), rootClassFqn(lam), letPrefix, specs,
-                env, hook);
+                null, mapping.fullPath(), rootClassFqn(lam), letPrefix,
+                specs, env, hook);
     }
 
     /** SQLTEXT charter §8.3b — the ROOT arm for
@@ -144,8 +144,14 @@ final class SqlTextVerdicts {
         TypedSpec resultArg = root.args().get(1);
         if (resultArg.info().type()
                 == com.legend.compiler.element.type.Type.Primitive.STRING) {
-            // the assertSameSQL(String, String) overload is ordinary
-            // string comparison — not this arm's shape
+            // §5: a String actual NAVIGATING a generated plan is the
+            // plan-text shape; a plain String pair stays the ordinary
+            // string-comparison overload
+            ExecutionResult pv = tryArmPlanText("assertSameSQL",
+                    goldenSide, resultArg, letPrefix, specs, env, hook);
+            if (pv != null) {
+                return pv;
+            }
             return null;
         }
         TypedSpec strip = com.legend.compiler.spec.VerdictQueries
@@ -182,7 +188,7 @@ final class SqlTextVerdicts {
         return rowsLegAndVerdict("assertSameSQL", golden, ours, textEqual,
                 oracle, com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
-                null, null, letPrefix, specs, env, hook);
+                null, null, null, letPrefix, specs, env, hook);
     }
 
     /** SQLTEXT charter §8.3d — the DUAL-GOLDEN arm:
@@ -215,7 +221,12 @@ final class SqlTextVerdicts {
             com.legend.compiler.spec.typed.TypedUserCall read =
                     findSqlRead(actualSide, letPrefix);
             if (read == null) {
-                return null;
+                // §5: the plan-text spelling (a plan-node .sqlQuery
+                // navigation) — the upgraded golden replays (same
+                // reasoning as the frame arm below)
+                return tryArmPlanText("assertEqualsH2Compatible",
+                        goldenSide, actualSide, letPrefix, specs, env,
+                        hook);
             }
             oursExpr = actualSide;
             resultArg = read.args().get(0);
@@ -256,7 +267,7 @@ final class SqlTextVerdicts {
         return rowsLegAndVerdict("assertEqualsH2Compatible", golden, ours,
                 textEqual, oracle, com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
-                null, null, letPrefix, specs, env, hook);
+                null, null, null, letPrefix, specs, env, hook);
     }
 
     /** SQLTEXT charter §8.3c — the EXEC-SQL-READ arm (the ~700-test
@@ -283,6 +294,19 @@ final class SqlTextVerdicts {
         com.legend.compiler.spec.typed.TypedUserCall r1 =
                 findSqlRead(args.get(1), letPrefix);
         if ((r0 == null) == (r1 == null)) {
+            if (r0 == null) {
+                // §5: plain assertEquals over a plan-node SQL read
+                TypedNativeCall q0 = findPlanProducer(args.get(0),
+                        letPrefix);
+                TypedNativeCall q1 = findPlanProducer(args.get(1),
+                        letPrefix);
+                if ((q0 == null) != (q1 == null)) {
+                    return tryArmPlanText(name,
+                            q0 != null ? args.get(1) : args.get(0),
+                            q0 != null ? args.get(0) : args.get(1),
+                            letPrefix, specs, env, hook);
+                }
+            }
             return null;
         }
         TypedSpec producerSide = r0 != null ? args.get(0) : args.get(1);
@@ -309,7 +333,7 @@ final class SqlTextVerdicts {
         return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
                 com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
-                null, null, letPrefix, specs, env, hook);
+                null, null, null, letPrefix, specs, env, hook);
     }
 
     /** The exec-sql-read producer node: a {@code sql($res)} /
@@ -360,6 +384,124 @@ final class SqlTextVerdicts {
         return null;
     }
 
+    /** SQLTEXT charter §5 (slice 4) — the PLAN-TEXT arm: the assert's
+     * actual side navigates a generated PLAN to a SQL text with
+     * <code>${'$'}{param}</code> template holes (executionPlanTest.pure
+     * spelling: {@code $plan.rootExecutionNode...sqlQuery}). The plan
+     * itself is PLATFORM text (the K-native channel renders it — the
+     * eval-ledger's engine-parity class); this arm judges it on ROWS:
+     * REFEREE BINDINGS (VerdictQueries.refereeBindings — fixed scalar
+     * values per parameter type, the charter's referee-chosen policy)
+     * bind the plan lambda's parameters as minted lets; OUR ROWS =
+     * the lambda body wrapped in from(mapping), evaluated with those
+     * lets; GOLDEN ROWS = the golden text with every hole filled with
+     * the SAME value's SQL spelling, replayed via the oracle. The
+     * TEXT census compares the RAW golden (holes intact) as always.
+     * Unbindable parameters and residual (freemarker-operation) holes
+     * WALL counted — the measure-first residue. */
+    private static @com.legend.Nullable ExecutionResult tryArmPlanText(
+            String name, TypedSpec goldenSide, TypedSpec actualSide,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env,
+            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
+        TypedNativeCall producer = findPlanProducer(actualSide, letPrefix);
+        if (producer == null || producer.args().isEmpty()) {
+            return null;
+        }
+        TypedSpec lamArg = producer.args().get(0);
+        if (lamArg instanceof com.legend.compiler.spec.typed
+                .TypedVariable lv) {
+            for (TypedSpec pfx : letPrefix) {
+                if (pfx instanceof com.legend.compiler.spec.typed
+                        .TypedLet tl && tl.name().equals(lv.name())) {
+                    lamArg = tl.value();
+                }
+            }
+        }
+        if (!(lamArg instanceof TypedLambda lam)
+                || lam.body().isEmpty()
+                || producer.args().size() < 2
+                || !(producer.args().get(1)
+                        instanceof TypedPackageableRef mapping)) {
+            return null;
+        }
+        String golden = scalarString(StatementExecutor.evalValue(
+                goldenSide, letPrefix, specs, env, null, false, hook));
+        String ours = scalarString(StatementExecutor.evalValue(
+                actualSide, letPrefix, specs, env, null, false, hook));
+        if (golden == null || ours == null) {
+            return null;
+        }
+        SqlTextEmission.armFired();
+        boolean textEqual = golden.equals(ours);
+        SqlReplayOracle oracle = env.replayOracle();
+        if (oracle == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "sql-text assert verdict needs a replay oracle and"
+                            + " none is registered on this env (correct"
+                            + " outside tests: there are no goldens)");
+        }
+        com.legend.compiler.spec.VerdictQueries.PlanBindings bindings =
+                com.legend.compiler.spec.VerdictQueries
+                        .refereeBindings(lam);
+        if (bindings == null) {
+            SqlTextEmission.textVerdict(
+                    "plan-param-unbindable (non-scalar)");
+            return textEqual ? ok()
+                    : fail(name + " (plan-text, params unbindable —"
+                            + " text is the contract): expected " + golden
+                            + ", got " + ours);
+        }
+        String filled = golden;
+        for (var e : bindings.spellings().entrySet()) {
+            filled = filled.replace("${" + e.getKey() + "}", e.getValue());
+        }
+        if (filled.contains("${")) {
+            SqlTextEmission.textVerdict("plan-hole-not-simple (freemarker"
+                    + " operation)");
+            return textEqual ? ok()
+                    : fail(name + " (plan-text, operation hole — text is"
+                            + " the contract): expected " + golden
+                            + ", got " + ours);
+        }
+        List<TypedSpec> bound = new java.util.ArrayList<>(letPrefix);
+        bound.addAll(bindings.lets());
+        return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
+                com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                        lam.body().get(lam.body().size() - 1), mapping),
+                filled, mapping.fullPath(), rootClassFqn(lam), bound,
+                specs, env, hook);
+    }
+
+    /** The executionPlan producer node in an argument tree — exact
+     * platform FQN, LET-AWARE like the other finders. */
+    private static @com.legend.Nullable TypedNativeCall findPlanProducer(
+            TypedSpec t, List<TypedSpec> letPrefix) {
+        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
+        work.add(t);
+        java.util.Set<String> seenVars = new java.util.HashSet<>();
+        while (!work.isEmpty()) {
+            TypedSpec cur = work.poll();
+            if (cur instanceof TypedNativeCall nc
+                    && nc.callee().qualifiedName().equals(
+                            com.legend.compiler.element.type.PlatformTypes
+                                    .EXECUTION_PLAN)) {
+                return nc;
+            }
+            if (cur instanceof com.legend.compiler.spec.typed
+                    .TypedVariable tv && seenVars.add(tv.name())) {
+                for (TypedSpec p : letPrefix) {
+                    if (p instanceof com.legend.compiler.spec.typed
+                            .TypedLet tl && tl.name().equals(tv.name())) {
+                        work.add(tl.value());
+                    }
+                }
+            }
+            work.addAll(cur.children());
+        }
+        return null;
+    }
+
     /** The SHARED rows leg + verdict policy (§3.5c-§3.7): evaluate
      * {@code rowsRead} through the one router (REFEREE-CLASS
      * execution — wire-census suspended, save/restore), replay the
@@ -370,6 +512,7 @@ final class SqlTextVerdicts {
     private static ExecutionResult rowsLegAndVerdict(String name,
             String golden, String ours, boolean textEqual,
             SqlReplayOracle oracle, TypedSpec rowsRead,
+            @com.legend.Nullable String replaySqlOrNull,
             @com.legend.Nullable String mappingFqn,
             @com.legend.Nullable String classFqn,
             List<TypedSpec> letPrefix, SpecCompiler specs,
@@ -401,7 +544,8 @@ final class SqlTextVerdicts {
                             + " expected " + golden + ", got " + ours);
         }
         SqlReplayOracle.RowVerdict rv = oracle.verify(env.connection(),
-                golden, rows, mappingFqn, classFqn, env.ctx());
+                replaySqlOrNull != null ? replaySqlOrNull : golden,
+                rows, mappingFqn, classFqn, env.ctx());
         return switch (rv.outcome()) {
             case MATCH -> {
                 // rows are the verdict (§0); text is a census number

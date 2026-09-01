@@ -71,12 +71,14 @@ public final class SqlTextShapes {
         boolean anySql = shapes.containsKey("tosqlstring-simple")
                 || shapes.containsKey("assertsamesql-simple")
                 || shapes.containsKey("execsqlread-simple")
-                || shapes.containsKey("h2compat-simple");
+                || shapes.containsKey("h2compat-simple")
+                || shapes.containsKey("plantext-simple");
         return anySql && shapes.keySet().stream().allMatch(k ->
                 k.equals("tosqlstring-simple")
                         || k.equals("assertsamesql-simple")
                         || k.equals("execsqlread-simple")
                         || k.equals("h2compat-simple")
+                        || k.equals("plantext-simple")
                         || k.equals("plain"));
     }
 
@@ -165,6 +167,16 @@ public final class SqlTextShapes {
                         || EngineTestExecutor.containsExecute(rs);
                 if (frameArg) {
                     return "h2compat-simple";
+                }
+            }
+            // §5: a plan-producer actual is the plan-text cohort —
+            // admission optimism, the arm WALLS counted on unbindable
+            // params / operation holes (the 3d precedent)
+            for (ValueSpecification pp : af.parameters()) {
+                if (containsFqn(pp, lets, ctx,
+                        com.legend.compiler.element.type.PlatformTypes
+                                .EXECUTION_PLAN)) {
+                    return "plantext-simple";
                 }
             }
             return "assert-form";

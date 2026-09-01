@@ -504,7 +504,15 @@ class JavaEvalLedgerTest {
             // underivable SQL shapes WALL counted instead of falling
             // through to a generic TEXT verdict (the charter's one
             // forbidden outcome) — guard growth, zero evaluation.
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 354),
+            // 354 -> 474 (charter §5 first cut): the plan-text arm
+            // (tryArmPlanText + findPlanProducer) — referee bindings
+            // are MINTED LETS (VerdictQueries.refereeBindings), the
+            // rows leg is the lambda through the one router with those
+            // lets, the golden replays hole-filled through the oracle.
+            // Detection + sequencing + judgment; the vocabulary ban
+            // binds every line; unbindable/operation-hole shapes WALL
+            // counted.
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 474),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

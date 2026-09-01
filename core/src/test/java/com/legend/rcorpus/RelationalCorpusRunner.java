@@ -1034,10 +1034,16 @@ public class RelationalCorpusRunner {
             // single biggest migration of the program.
             // 1147/1426 -> 948/1625 (charter §8.3d): +199
             // dual-golden flips (both actual spellings owned).
-            org.junit.jupiter.api.Assertions.assertEquals(948L,
+            // 948/1625 -> 945/1628 (charter §5 first cut): the
+            // plan-text arm — 3 .sqlQuery-navigation tests flip
+            // (referee-bound holes, filled-golden replay); whole-plan
+            // planToString compares with freemarker-operation holes
+            // demote COUNTED (the full-program replayer's future
+            // work), walk keeps scoring them.
+            org.junit.jupiter.api.Assertions.assertEquals(945L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1625L,
+            org.junit.jupiter.api.Assertions.assertEquals(1628L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1052,7 +1058,10 @@ public class RelationalCorpusRunner {
             // joined the tosqlstring-simple flip cohort — its verdict
             // now comes from the platform arm (rows), so the walk's
             // text-only classification loses the row.
-            org.junit.jupiter.api.Assertions.assertEquals(43,
+            // 43 -> 40 (§5 first cut): 3 plan-literal text-only
+            // asserts joined the plan-text flip cohort — rows verdicts
+            // via referee-bound filled-golden replay.
+            org.junit.jupiter.api.Assertions.assertEquals(40,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix("assert-sql-text-only"),
                     "lane guard: assert-sql-text-only moved — update the"
