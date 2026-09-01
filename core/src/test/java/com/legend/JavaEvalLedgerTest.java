@@ -369,7 +369,12 @@ class JavaEvalLedgerTest {
             // implementation (checkAssert's walk) can DELETE — the
             // whole-test flip scores from these events instead of
             // re-implementing assert semantics.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1436),
+            // 1436 -> 1472 (2026-09-01, scan-tree referee): the
+            // assertEquals SCAN-TREE arm + helpers — REFEREE code (both
+            // sides evaluate in the ordinary channels; the arm only
+            // applies the breadcrumb-strip compare policy, walk parity
+            // with LineageRelationsForm), not pure evaluation.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1472),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -450,7 +455,11 @@ class JavaEvalLedgerTest {
             // overload. Plumbing for the runner's scoring seam — no
             // evaluation, no routing change; run-scoped fact rides the
             // env (never a static sink).
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2566),
+            // 2566 -> 2572 (2026-09-01, plan-chain staging):
+            // planWalkDecline — a DELEGATING wrapper giving the staging
+            // closure decline semantics (no new evaluation; the walk
+            // vocabulary is untouched).
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2572),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
@@ -503,9 +512,12 @@ class JavaEvalLedgerTest {
         // private REWRITE RULE; the Java-side derivation it asks for
         // (AggAwareActivities.rewrittenQuery) stays executor-side behind
         // the Frames SPI and stays on this ledger's radar.
+        // 40 -> 41 (2026-09-01, PERMANENT — plan-chain staging):
+        // planWalkDecline's one delegating planWalk( call — the staging
+        // closure's decline wrapper, not a new walk site.
         EVICT_NAMES.put("core/src/main/java/com/legend/StatementExecutor.java",
                 new Object[]{"(planWalk|walkProp|walkFilter|walkResult|planModel|planConnOf|constructNode|constructOp|nodeValue|typeRefSimple|activityEnvelopeRead|connectionStoreElementOf)\\(",
-                        40});
+                        41});
         // E4.d batch 1 LANDED (2026-08-17, user-ratified "engine-exact
         // text is a lower TARGET"): the second DDL speller is DEAD —
         // dropTableStatementText/createTableStatementText/engineSpell

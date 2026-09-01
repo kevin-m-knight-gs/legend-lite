@@ -90,7 +90,15 @@ class ErrorShapeGuardrailTest {
             // its two siblings — a caught failure becomes a counted
             // decline, never a rescue (witness testRepeatStringNoString:
             // the BLOB wire under a STRING stamp).
-            Map.entry("StatementExecutor.java", 3),
+            // 3 -> 4 (2026-09-01, plan-chain staging): planWalkDecline —
+            // the staging closure's DECLINE semantics: a thrown refusal
+            // from a deep walk arm (open-variable predicates under
+            // walkFilter) means "the walk does not own this shape"; the
+            // chain keeps its ordinary path and THAT path's own loud
+            // walls fire — never a silent rescue (the NativeDispatch
+            // chain-arm contract; statement-ROOT walks keep the raw
+            // throw).
+            Map.entry("StatementExecutor.java", 4),
             // contract program (2026-08-23): the wire census's
             // INSTRUMENT-ISOLATION catch — measurement must never throw
             // into execution (the Dual.alias lesson); an unreadable
