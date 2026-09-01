@@ -554,24 +554,10 @@ final class Scalars {
                     new SqlExpr.StringLit("quarter"),
                     dateArg(n.args().get(0), args.get(0)))));
         }
-        // Truncations: DATE_TRUNC with the part literal. The zero-arg
-        // This* heads truncate TODAY() (real pure composes
-        // today()->firstDayOf*, dateExtension.pure — same by emission).
-        for (var e : Map.ofEntries(
-                Map.entry("firstDayOfMonth", "month"), Map.entry("firstDayOfYear", "year"),
-                Map.entry("firstDayOfWeek", "week"), Map.entry("firstDayOfQuarter", "quarter"),
-                Map.entry("firstHourOfDay", "day"), Map.entry("firstMinuteOfHour", "hour"),
-                Map.entry("firstSecondOfMinute", "minute"), Map.entry("firstMillisecondOfSecond", "second"),
-                Map.entry("firstDayOfThisYear", "year"), Map.entry("firstDayOfThisQuarter", "quarter"),
-                Map.entry("firstDayOfThisMonth", "month")).entrySet()) {
-            for (String f : Pure.nativeKeysAt(e.getKey())) {
-                RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.DATE_TRUNC, List.of(
-                        new SqlExpr.StringLit(e.getValue()),
-                        n.args().isEmpty()
-                                ? new SqlExpr.Call(SqlFn.TODAY, List.of())
-                                : dateArg(n.args().get(0), args.get(0)))));
-            }
-        }
+        // Truncations moved to DateShifts (the 3500-line split
+        // seam) — day-grained heads carry the Date-cast carrier
+        // fix there.
+        DateShifts.registerTruncationRules(RULES);
         // adjust(d, n, unit) / timeBucket(d, n, unit): the DurationUnit enum
         // literal selects DuckDB's interval-constructor function.
         // typeAsDeclared: type-only assertion — the VALUE passes through
@@ -613,11 +599,9 @@ final class Scalars {
                         sh.getValue()));
             }
         }
-        for (String f : Pure.nativeKeysAt("firstDayOfWeek")) {
-            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.DATE_TRUNC,
-                    new SqlExpr.StringLit("week"),
-                    dateArg(n.args().get(0), args.get(0))));
-        }        // adjust + its TEMPORAL channel twin live with the date-shift
+        // (the old duplicate firstDayOfWeek registration is GONE — the
+        // truncation table above owns it, WITH the Date cast)
+        // adjust + its TEMPORAL channel twin live with the date-shift
         // machinery (DateShifts) — the 3500-line split seam.
         DateShifts.registerAdjustRules(RULES);
         // datePart of a PARTIAL literal is the IDENTITY (a year has no finer

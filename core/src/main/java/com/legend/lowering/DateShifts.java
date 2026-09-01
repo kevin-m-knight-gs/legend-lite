@@ -104,6 +104,39 @@ static String intervalFn(String unitName) {
      * lowering with its interval calls retagged to the TEMPORAL spelling
      * fn (engine legacy mapToDBUnitType prints dateadd units UPPERCASE;
      * the new sqlDialectTranslation defaults print lowercase). */
+    /** The truncation heads (moved from Scalars at the 3500-line
+     * split seam). */
+    static void registerTruncationRules(
+            java.util.Map<String, Scalars.Rule> rules) {
+        // Truncations: DATE_TRUNC with the part literal — SEMANTICS
+        // ONLY (single-compiler tenet, user ruling 2026-09-01): the
+        // day-grained heads' Date result type is honored by the
+        // EXECUTION DIALECTS (AnsiSqlRenderer's DATE_TRUNC arm casts
+        // where that backend's date_trunc returns TIMESTAMP; the
+        // engine-TEXT renderers own their verbatim spellings) — no
+        // channel conditionals here. The zero-arg This* heads
+        // truncate TODAY() (real pure composes today()->firstDayOf*,
+        // dateExtension.pure — same by emission).
+        for (var e : java.util.Map.ofEntries(
+                java.util.Map.entry("firstDayOfMonth", "month"), java.util.Map.entry("firstDayOfYear", "year"),
+                java.util.Map.entry("firstDayOfWeek", "week"), java.util.Map.entry("firstDayOfQuarter", "quarter"),
+                java.util.Map.entry("firstHourOfDay", "day"), java.util.Map.entry("firstMinuteOfHour", "hour"),
+                java.util.Map.entry("firstSecondOfMinute", "minute"), java.util.Map.entry("firstMillisecondOfSecond", "second"),
+                java.util.Map.entry("firstDayOfThisYear", "year"), java.util.Map.entry("firstDayOfThisQuarter", "quarter"),
+                java.util.Map.entry("firstDayOfThisMonth", "month")).entrySet()) {
+            for (String f : com.legend.builtin.Pure.nativeKeysAt(e.getKey())) {
+                rules.put(f, (n, args) -> {
+                    SqlExpr trunc = new SqlExpr.Call(SqlFn.DATE_TRUNC, List.of(
+                            new SqlExpr.StringLit(e.getValue()),
+                            n.args().isEmpty()
+                                    ? new SqlExpr.Call(SqlFn.TODAY, List.of())
+                                    : Scalars.dateArg(n.args().get(0), args.get(0))));
+                    return trunc;
+                });
+            }
+        }
+    }
+
     static void registerAdjustRules(java.util.Map<String, Scalars.Rule> rules) {
         for (String f : com.legend.builtin.Pure.nativeKeysAt("adjust")) {
             rules.put(f, (n, args) -> {

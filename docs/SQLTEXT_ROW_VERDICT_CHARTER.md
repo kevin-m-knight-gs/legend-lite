@@ -268,16 +268,26 @@ legitimate forever.
    DESIGNED divergence — probe re-buckets arm-fired asserts to their
    own counted census (`sqltext-arm :: host=X rows=Y`), disagree
    stays EXACT ZERO.
-   **3a's SURFACED PRE-EXISTING DEFECTS (the arm's first catch — rows
-   never checked before; NAMED BURN LIST, next mechanisms):**
-   - firstDayOfWeek WEEK-START bug: our DuckDB lowering yields
-     Monday-start (2014-12-01) where the engine's golden rows say
-     Sunday-start (2014-11-30) — a REAL wrong answer.
-   - firstDayOf* DATE-CARRIER gap: our pipeline returns midnight
-     DATETIMEs where the engine returns DATEs (date_trunc's return
-     type — needs the cast to DATE at lowering).
-   Both visible as `sqltext-arm :: host=pass rows=fail` census rows
-   until burned.
+   **3a's SURFACED DEFECTS — BOTH RESOLVED same day:**
+   - firstDayOf* DATE-CARRIER gap: BURNED, DIALECT-OWNED (user
+     ruling: the lowering states pure's semantics only —
+     firstDayOf*(Date):Date; whether a cast is needed to honor it is
+     each backend's idiom). AnsiSqlRenderer's DATE_TRUNC arm casts
+     day-grained truncations to DATE (this backend's date_trunc
+     returns TIMESTAMP); DATE_TRUNC left the Spellings data map
+     (CODED register) so the arm owns it; EngineStyleH2 keeps its own
+     verbatim double-cast spelling — NO channel conditional anywhere
+     (the first cut's EngineTextBoundary gate inside a lowering rule
+     was the placement smell, caught by the user). The three affected
+     arm rows flipped to rows=pass.
+   - firstDayOfWeek "week-start bug": ADJUDICATED NOT OURS — pure's
+     own definition is mostRecentDayOfWeek(Monday) (dateExtension
+     .pure:204) and the engine's own DuckDB extension emits the
+     explicit Monday formula; only engine-on-H2's date_trunc('week')
+     yields Sunday. Our Monday answer matches the language spec; the
+     golden's Sunday rows are an H2 artifact (the fan-out's sibling).
+     Stays the ONE counted `sqltext-arm rows=fail` census row, this
+     record as its receipt.
    NEXT: 3b assert-form cohort (~750), 3c exec-sql-read (~700).
 4. Plan replayer (§5) + plan-text flips; branch-forcing.
 5. Inventory upgrades as their own commits: #3 ULP probe/upgrade,

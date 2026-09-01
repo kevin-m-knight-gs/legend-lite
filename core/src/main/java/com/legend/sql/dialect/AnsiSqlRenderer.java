@@ -672,6 +672,21 @@ public class AnsiSqlRenderer implements SqlDialect {
             case TODAY -> "current_date";
             case NOW -> "now()";
             case DATE_TRUNC_DAY -> "CAST(" + expr(a.get(0), 0) + " AS DATE)";
+            // DAY-GRAINED truncation delivers a DATE (§8.3a carrier
+            // burn, dialect-owned per the single-compiler tenet: the
+            // SEMANTIC fact is pure's firstDayOf*(Date):Date; whether
+            // a cast is needed to honor it is THIS backend's idiom —
+            // this engine's date_trunc returns TIMESTAMP. The
+            // engine-TEXT channel never sees this arm: EngineStyleH2
+            // owns its own verbatim DATE_TRUNC spelling, golden text
+            // spells whatever each engine dialect spells.)
+            case DATE_TRUNC -> a.get(0) instanceof SqlExpr.StringLit part
+                    && switch (part.value()) {
+                        case "month", "year", "week", "quarter" -> true;
+                        default -> false;
+                    }
+                    ? "CAST(" + fn("date_trunc", a) + " AS DATE)"
+                    : fn("date_trunc", a);
             // make_timestamp wants DOUBLE seconds.
             case MAKE_TIMESTAMP -> a.size() == 6
                     ? "make_timestamp(" + a.subList(0, 5).stream()

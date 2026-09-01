@@ -20,6 +20,12 @@ class SpellingsTest {
 
     /** Fns rendered by CODE (infix, shape logic, composites, idiom points). */
     private static final Set<SqlFn> CODED = Set.of(
+            // day-grained truncation delivers a DATE (§8.3a carrier
+            // burn, dialect-owned): the base arm casts where this
+            // backend's date_trunc returns TIMESTAMP; engine-text
+            // renderers spell their engines verbatim — an idiom
+            // point, not a data row
+            SqlFn.DATE_TRUNC,
             // interleaved joinStrings unit — function-form concat in the
             // base renderer, infix chain in DB2; never flatten-spliced
             SqlFn.CONCAT_JOIN,

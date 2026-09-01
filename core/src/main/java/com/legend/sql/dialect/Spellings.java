@@ -59,7 +59,9 @@ public record Spellings(Map<SqlFn, String> fnNames) {
         m.put(SqlFn.COSH, "cosh");
         m.put(SqlFn.COT, "cot");
         m.put(SqlFn.DATE_DIFF, "date_diff");
-        m.put(SqlFn.DATE_TRUNC, "date_trunc");
+        // (DATE_TRUNC left the data map 2026-09-01: day-grained
+        // truncations deliver a DATE — AnsiSqlRenderer's own arm
+        // casts per-backend; a data row would bypass it)
         m.put(SqlFn.DAYNAME, "dayname");
         m.put(SqlFn.DEGREES, "degrees");
         m.put(SqlFn.ENDS_WITH, "ends_with");
