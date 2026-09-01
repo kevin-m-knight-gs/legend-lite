@@ -376,7 +376,9 @@ class JavaEvalLedgerTest {
             // 1441 -> 1450 (charter §8.3d): the dual-golden root
             // dispatch hook (9 lines — exact-FQN match + hand-off to
             // the arm, the assertSameSQL hook's sibling).
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1450),
+            // 1450 -> 1459 (TDG scoring flip): the assertSqlEquals
+            // root dispatch hook (exact-FQN match + hand-off).
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1459),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -512,7 +514,12 @@ class JavaEvalLedgerTest {
             // Detection + sequencing + judgment; the vocabulary ban
             // binds every line; unbindable/operation-hole shapes WALL
             // counted.
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 474),
+            // 474 -> 585 (TDG scoring flip): tryArmTdgSql /
+            // tryArmTdgRoot + hasTdgProducer — the fetch-text verdict
+            // rides the SPI (verifyFetchTexts); both sides execute in
+            // their databases, this file sequences and judges. Same
+            // class, same vocabulary ban.
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 585),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

@@ -152,7 +152,9 @@ final class SqlTextVerdicts {
             if (pv != null) {
                 return pv;
             }
-            return null;
+            // TDG flip: the generator fetch-text spelling
+            return tryArmTdgSql("assertSameSQL", goldenSide, resultArg,
+                    letPrefix, specs, env, hook);
         }
         TypedSpec strip = com.legend.compiler.spec.VerdictQueries
                 .sqlStripRead(resultArg, env.ctx());
@@ -224,7 +226,16 @@ final class SqlTextVerdicts {
                 // §5: the plan-text spelling (a plan-node .sqlQuery
                 // navigation) — the upgraded golden replays (same
                 // reasoning as the frame arm below)
-                return tryArmPlanText("assertEqualsH2Compatible",
+                ExecutionResult pv = tryArmPlanText(
+                        "assertEqualsH2Compatible", goldenSide,
+                        actualSide, letPrefix, specs, env, hook);
+                if (pv != null) {
+                    return pv;
+                }
+                // TDG flip: the generator fetch-text spelling
+                // ($tdg.sqls->at(n)->sqlRemoveFormatting()) — the
+                // fetch-text verdict, upgraded golden
+                return tryArmTdgSql("assertEqualsH2Compatible",
                         goldenSide, actualSide, letPrefix, specs, env,
                         hook);
             }
@@ -304,6 +315,18 @@ final class SqlTextVerdicts {
                     return tryArmPlanText(name,
                             q0 != null ? args.get(1) : args.get(0),
                             q0 != null ? args.get(0) : args.get(1),
+                            letPrefix, specs, env, hook);
+                }
+                // TDG flip: the plain-assertEquals spelling of the
+                // generator fetch-text compare — the SAME verdict as
+                // the assertSqlEquals root (a text compare of
+                // generated SQL must never judge as text)
+                boolean t0 = hasTdgProducer(args.get(0), letPrefix);
+                boolean t1 = hasTdgProducer(args.get(1), letPrefix);
+                if (t0 != t1) {
+                    return tryArmTdgSql(name,
+                            t0 ? args.get(1) : args.get(0),
+                            t0 ? args.get(0) : args.get(1),
                             letPrefix, specs, env, hook);
                 }
             }
@@ -500,6 +523,119 @@ final class SqlTextVerdicts {
             work.addAll(cur.children());
         }
         return null;
+    }
+
+    /** The assertSqlEquals ROOT entry (the TDG family's own assert
+     * function — a USER function reaching the verdict layer
+     * PRE-inline, the assertSameSQL discipline): 2 args, the TDG side
+     * identifies by its producer. Null = not the TDG shape. */
+    static @com.legend.Nullable ExecutionResult tryArmTdgRoot(
+            com.legend.compiler.spec.typed.TypedUserCall root,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env,
+            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
+        if (root.args().size() != 2) {
+            return null;
+        }
+        boolean t0 = hasTdgProducer(root.args().get(0), letPrefix);
+        boolean t1 = hasTdgProducer(root.args().get(1), letPrefix);
+        if (t0 == t1) {
+            return null;
+        }
+        return tryArmTdgSql("assertSqlEquals",
+                t0 ? root.args().get(1) : root.args().get(0),
+                t0 ? root.args().get(0) : root.args().get(1),
+                letPrefix, specs, env, hook);
+    }
+
+    /** TDG SCORING FLIP (charter burn map): the fetch-text verdict
+     * for {@code assertSqlEquals(golden, $tdg.sqls->at(n))} and the
+     * plain-assertEquals spelling of the same compare. BOTH sides are
+     * generator fetch texts; the SPI executes ours on this session,
+     * replays the golden on the oracle, and multiset-compares — the
+     * walk's tdgSqlReplay semantics behind the oracle interface. A
+     * decline (ordered fetch, chained temp tables) keeps TEXT as the
+     * contract, counted. Null = not the TDG shape. */
+    private static @com.legend.Nullable ExecutionResult tryArmTdgSql(
+            String name, TypedSpec goldenSide, TypedSpec actualSide,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env,
+            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
+        if (!hasTdgProducer(actualSide, letPrefix)) {
+            return null;
+        }
+        String golden = scalarString(StatementExecutor.evalValue(
+                goldenSide, letPrefix, specs, env, null, false, hook));
+        String ours = scalarString(StatementExecutor.evalValue(
+                actualSide, letPrefix, specs, env, null, false, hook));
+        if (golden == null || ours == null) {
+            return null;
+        }
+        SqlTextEmission.armFired();
+        boolean textEqual = golden.equals(ours);
+        SqlReplayOracle oracle = env.replayOracle();
+        if (oracle == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "sql-text assert verdict needs a replay oracle and"
+                            + " none is registered on this env (correct"
+                            + " outside tests: there are no goldens)");
+        }
+        SqlReplayOracle.RowVerdict rv = oracle.verifyFetchTexts(
+                env.connection(), golden, ours);
+        return switch (rv.outcome()) {
+            case MATCH -> {
+                if (textEqual) {
+                    SqlTextEmission.textMatched();
+                } else {
+                    SqlTextEmission.textDiverged();
+                }
+                yield ok();
+            }
+            case DIVERGED -> fail(name + " (tdg fetch-text ROW verdict"
+                    + " — golden rows vs ours diverged, whatever the"
+                    + " text said): " + rv.detail());
+            case DECLINED -> {
+                SqlTextEmission.textVerdict("tdg-declined: "
+                        + rv.detail());
+                yield textEqual ? ok()
+                        : fail(name + " (tdg fetch-text, declined: "
+                                + rv.detail() + "): expected " + golden
+                                + ", got " + ours);
+            }
+        };
+    }
+
+    /** A generateTestData producer under {@code t} — the typed carrier
+     * node or the exact platform FQN, LET-AWARE. */
+    private static boolean hasTdgProducer(TypedSpec t,
+            List<TypedSpec> letPrefix) {
+        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
+        work.add(t);
+        java.util.Set<String> seenVars = new java.util.HashSet<>();
+        while (!work.isEmpty()) {
+            TypedSpec cur = work.poll();
+            if (cur instanceof com.legend.compiler.spec.typed
+                    .TypedTestDataGen) {
+                return true;
+            }
+            if (cur instanceof TypedNativeCall nc
+                    && nc.callee().qualifiedName().equals(
+                            com.legend.compiler.element.type.PlatformTypes
+                                    .GENERATE_TEST_DATA)) {
+                return true;
+            }
+            if (cur instanceof com.legend.compiler.spec.typed
+                    .TypedVariable tv && seenVars.add(tv.name())) {
+                for (TypedSpec p : letPrefix) {
+                    if (p instanceof com.legend.compiler.spec.typed
+                            .TypedLet tl && tl.name().equals(tv.name())) {
+                        work.add(tl.value());
+                    }
+                }
+            }
+            work.addAll(cur.children());
+        }
+        return false;
     }
 
     /** The SHARED rows leg + verdict policy (§3.5c-§3.7): evaluate

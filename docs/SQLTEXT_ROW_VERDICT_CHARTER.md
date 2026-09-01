@@ -427,6 +427,24 @@ legitimate forever.
    natives; 43 join-condition-whole-variable; 21 lineage; misc) +
    ~15 platform-fail singletons. Endgame: fallbacks 0-or-named = the
    walk's scoring machinery deletes.
+   **TDG SCORING FLIP, FIRST SLICE — LANDED 2026-09-01.** The
+   fetch-text verdict joined the SPI (verifyFetchTexts: ours executes
+   on the calling session's DuckDB, the golden replays on the mirror,
+   multiset compare — the walk's tdgSqlReplay semantics behind the
+   oracle interface; ordered/chained texts DECLINE with their walk
+   names). Arms: assertSqlEquals ROOT + the plain-assertEquals
+   spelling + the H2Compatible/assertSameSQL TDG routes (a text
+   compare of generated SQL can never judge as text). CLASSIFIER FIX
+   with receipts: the census's actual-side pick took the LAST
+   non-foldable parameter, so assertSize($tdg.sqls, 3) read the
+   literal 3 as its actual and whole TDG bodies misclassified
+   other-producer — the sql-tainted parameter is the actual now.
+   Movement: ratchet 943/1630; text-policy 118 -> 65 — the TDG
+   cohort's remainder re-bucketed to its TRUE walls, named:
+   execute/3-spelling reached through corpus helper bodies
+   (setUpDataSQLs chain) and Any-property reads
+   (createTableRowIdentifiers' .first) — compiler-gap legs, not
+   policy. Canon exact 21 held; paired sweeps byte-identical.
 4. Plan replayer (§5) + plan-text flips; branch-forcing.
 5. Inventory upgrades as their own commits: #3 ULP probe/upgrade,
    #4 TIMESTAMP_NS leg, #11 projection, #1 sentinel.

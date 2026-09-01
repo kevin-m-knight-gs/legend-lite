@@ -118,6 +118,16 @@ final class AssertVerdicts {
                 return sv;
             }
         }
+        // TDG scoring flip — the assertSqlEquals root (same discipline)
+        if (fqn.equals("meta::relational::testDataGeneration::tests"
+                + "::assertSqlEquals")
+                && bare instanceof TypedUserCall troot) {
+            ExecutionResult tv = SqlTextVerdicts.tryArmTdgRoot(troot,
+                    letPrefix, specs, env, hook);
+            if (tv != null) {
+                return tv;
+            }
+        }
         // §8.3d — the dual-golden sibling (same root-arm discipline)
         if (fqn.equals("meta::relational::functions::sqlQueryToString"
                 + "::h2::assertEqualsH2Compatible")

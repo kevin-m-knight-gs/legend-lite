@@ -29,6 +29,17 @@ public interface SqlReplayOracle {
      */
     OracleRows rows(String sql) throws java.sql.SQLException;
 
+    /** THE TDG FETCH-TEXT VERDICT (charter burn map, TDG scoring
+     * flip): BOTH sides are generator fetch TEXTS — ours executes on
+     * the calling session's own database, the golden replays on the
+     * oracle, rows compare under the referee's multiset policy (the
+     * generator's fetches carry no ORDER BY by construction; an
+     * ordered or chained text DECLINES with its named reason). The
+     * platform arm consumes the outcome; seeds and session policy
+     * live with the implementation (testing side). */
+    RowVerdict verifyFetchTexts(java.sql.Connection session,
+            String goldenSql, String ourSql);
+
     /** One materialized oracle result: {@code labels}/{@code
      * jdbcTypes} aligned by column, {@code rows} of raw cells. */
     record OracleRows(java.util.List<String> labels,

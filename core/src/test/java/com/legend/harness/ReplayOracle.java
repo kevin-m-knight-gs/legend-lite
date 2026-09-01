@@ -493,6 +493,39 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
         }
     }
 
+    /** The TDG fetch-text verdict (SPI): the walk's tdgSqlReplay
+     * semantics behind the oracle interface — ours on the session's
+     * DuckDB, golden on the mirror, multiset compare; the walk's
+     * compile-time declines (ordered fetch, chained temp tables)
+     * surface as DECLINED with their own names. Seeds = the recorded
+     * raw-SQL history (testing-side policy, exactly the walk's). */
+    @Override
+    public com.legend.exec.SqlReplayOracle.RowVerdict verifyFetchTexts(
+            java.sql.Connection session, String goldenSql, String ourSql) {
+        try {
+            String d = tdgSqlReplay(
+                    com.legend.sql.dialect.RawSqlBoundary.recording(),
+                    goldenSql, session, ourSql);
+            return d == null
+                    ? com.legend.exec.SqlReplayOracle.RowVerdict.match()
+                    : com.legend.exec.SqlReplayOracle.RowVerdict
+                            .diverged(d);
+        } catch (H2Verify.Unverifiable u) {
+            if (!com.legend.exec.SqlTextEmission.probeSuspended()) {
+                H2Verify.decline("verdict-arm-tdg: " + u.getMessage());
+            }
+            return com.legend.exec.SqlReplayOracle.RowVerdict
+                    .declined(String.valueOf(u.getMessage()));
+        } catch (RuntimeException e) {
+            if (!com.legend.exec.SqlTextEmission.probeSuspended()) {
+                H2Verify.decline("verdict-arm-tdg: "
+                        + String.valueOf(e.getMessage()).replace('\n', ' '));
+            }
+            return com.legend.exec.SqlReplayOracle.RowVerdict
+                    .declined(String.valueOf(e.getMessage()));
+        }
+    }
+
     /** Rows for a SQL text on the seeded oracle (the recorded ledger
      * applies exactly as the verify paths apply it). Raw
      * {@code getObject} cells — comparison policy normalizes, never

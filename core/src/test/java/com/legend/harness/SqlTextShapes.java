@@ -72,13 +72,20 @@ public final class SqlTextShapes {
                 || shapes.containsKey("assertsamesql-simple")
                 || shapes.containsKey("execsqlread-simple")
                 || shapes.containsKey("h2compat-simple")
-                || shapes.containsKey("plantext-simple");
+                || shapes.containsKey("plantext-simple")
+                || shapes.containsKey("tdgsqls-simple")
+                // a body whose ONLY sql assert is a generator read
+                // (assertSize/assertTestData over .sqls/.dataCsvString)
+                // — post-fold those evaluate as ordinary values
+                || shapes.containsKey("tdg-sqls");
         return anySql && shapes.keySet().stream().allMatch(k ->
                 k.equals("tosqlstring-simple")
                         || k.equals("assertsamesql-simple")
                         || k.equals("execsqlread-simple")
                         || k.equals("h2compat-simple")
                         || k.equals("plantext-simple")
+                        || k.equals("tdgsqls-simple")
+                        || k.equals("tdg-sqls")
                         || k.equals("plain"));
     }
 
@@ -147,7 +154,12 @@ public final class SqlTextShapes {
                         af.parameters().get(1), lets);
                 boolean frameArg = rs instanceof
                         com.legend.protocol.spec.Variable
-                        || EngineTestExecutor.containsExecute(rs);
+                        || EngineTestExecutor.containsExecute(rs)
+                        // TDG flip: a generator side routes to the
+                        // fetch-text verdict — same arm family
+                        || containsFqn(rs, lets, ctx,
+                                com.legend.compiler.element.type
+                                        .PlatformTypes.GENERATE_TEST_DATA);
                 if (frameArg) {
                     return "assertsamesql-simple";
                 }
@@ -164,10 +176,28 @@ public final class SqlTextShapes {
                         af.parameters().get(2), lets);
                 boolean frameArg = rs instanceof
                         com.legend.protocol.spec.Variable
-                        || EngineTestExecutor.containsExecute(rs);
+                        || EngineTestExecutor.containsExecute(rs)
+                        || containsFqn(rs, lets, ctx,
+                                com.legend.compiler.element.type
+                                        .PlatformTypes.GENERATE_TEST_DATA);
                 if (frameArg) {
                     return "h2compat-simple";
                 }
+            }
+            // TDG flip: assertSqlEquals with a generateTestData side
+            // — the fetch-text arm's cohort (SPI verifyFetchTexts;
+            // declines counted)
+            if (EngineTestExecutor.resolvesTo(af, ctx, java.util.Set.of(
+                    "meta::relational::testDataGeneration::tests"
+                            + "::assertSqlEquals"))
+                    && af.parameters().size() == 2
+                    && (containsFqn(af.parameters().get(0), lets, ctx,
+                            com.legend.compiler.element.type.PlatformTypes
+                                    .GENERATE_TEST_DATA)
+                        || containsFqn(af.parameters().get(1), lets, ctx,
+                            com.legend.compiler.element.type.PlatformTypes
+                                    .GENERATE_TEST_DATA))) {
+                return "tdgsqls-simple";
             }
             // §5: a plan-producer actual is the plan-text cohort —
             // admission optimism, the arm WALLS counted on unbindable
@@ -202,6 +232,16 @@ public final class SqlTextShapes {
                 golden = true;
             } else {
                 actual = p;
+            }
+        }
+        // the ACTUAL side is the sql-tainted one — last-non-foldable
+        // mispicked plain literals (assertSize($tdg.sqls, 3) read 3 as
+        // the actual and the body misclassified other-producer)
+        for (ValueSpecification p : af.parameters()) {
+            if (EngineTestExecutor.containsSqlProducer(p, ctx)
+                    || referencesTaintedLet(p, lets, ctx)) {
+                actual = p;
+                break;
             }
         }
         AppliedFunction producer = ExecCallFinder.findTerminal(actual, lets,
@@ -242,6 +282,12 @@ public final class SqlTextShapes {
                 return "execsqlread-simple";
             }
             return "exec-sql-read";
+        }
+        if (System.getenv("LL_TMP_DEBUG") != null) {
+            System.err.println("[shape-debug] other-producer fn="
+                    + af.function() + " actual="
+                    + String.valueOf(actual).substring(0,
+                            Math.min(120, String.valueOf(actual).length())));
         }
         return "other-producer";
     }

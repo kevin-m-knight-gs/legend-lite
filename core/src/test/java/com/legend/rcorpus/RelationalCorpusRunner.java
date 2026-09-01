@@ -1040,10 +1040,17 @@ public class RelationalCorpusRunner {
             // planToString compares with freemarker-operation holes
             // demote COUNTED (the full-program replayer's future
             // work), walk keeps scoring them.
-            org.junit.jupiter.api.Assertions.assertEquals(945L,
+            // 945/1628 -> 943/1630 (TDG scoring flip, first slice):
+            // the fetch-text arm (SPI verifyFetchTexts) + the
+            // classifier's actual-side fix (assertSize's literal arg
+            // had been mispicked); the TDG cohort's remaining tests
+            // re-bucketed to their TRUE walls (execute/3 spelling,
+            // Any-property reads) — named compiler gaps now, not
+            // text policy (text-policy 118 -> 65).
+            org.junit.jupiter.api.Assertions.assertEquals(943L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1628L,
+            org.junit.jupiter.api.Assertions.assertEquals(1630L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

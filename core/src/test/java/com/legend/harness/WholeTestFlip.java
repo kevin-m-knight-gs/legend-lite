@@ -241,6 +241,10 @@ public final class WholeTestFlip {
                 }
             }
         } catch (RuntimeException e) {
+            if (System.getenv("LL_TMP_DEBUG") != null) {
+                System.err.println("[flip-wall-debug] " + test + " :: "
+                        + e.getMessage());
+            }
             return fallback("wall-type: " + bucketOf(e.getMessage()), test);
         }
         List<Boolean> events = new ArrayList<>();
