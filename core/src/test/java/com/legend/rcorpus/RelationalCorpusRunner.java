@@ -1093,10 +1093,19 @@ public class RelationalCorpusRunner {
             // 25 effectful, 3 generateTestData unclassified-Variable,
             // 3 planTestDataGeneration Pair-arg typing. No dynamic
             // Any-property checker exists or is wanted.
-            org.junit.jupiter.api.Assertions.assertEquals(878L,
+            // 878/1695 -> 876/1697 (TDG let-adoption): the 31
+            // "unclassified argument Variable" walls burned to ZERO —
+            // resolveStructuralArgs adopts the TDG data-constructor
+            // shapes DEEP (tdgCtorShape; inner args may be let-bound
+            // too). +2 flips; the rest re-bucketed TRUE: 15 scalar-
+            // lowering (the known 51-row lane), 10 plan-execute
+            // values-binding (the chartered referee-binding cut), 3
+            // REAL platform divergences (testConstant cohort — the
+            // burn list), 1 store-resolution.
+            org.junit.jupiter.api.Assertions.assertEquals(876L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1695L,
+            org.junit.jupiter.api.Assertions.assertEquals(1697L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

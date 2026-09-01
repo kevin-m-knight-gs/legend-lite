@@ -67,9 +67,16 @@ public final class SourceSubst {
         List<ValueSpecification> out = new java.util.ArrayList<>(params.size());
         for (ValueSpecification p : params) {
             ValueSpecification r = env.resolveAlias(p);
-            if (r instanceof LambdaFunction && !aliases.isEmpty()) {
+            if ((r instanceof LambdaFunction || r != p && tdgCtorShape(r))
+                    && !aliases.isEmpty()) {
+                // lambdas close over remaining aliases; TDG
+                // data-constructor shapes adopt DEEP for the same
+                // reason — their inner args may be let-bound too
+                // (let ids = createRowIdentifier(...); let tri =
+                // createTableRowIdentifiers($db, ..., $ids); ...)
                 r = substitute(r, aliases);
             } else if (r != p && !(r instanceof LambdaFunction
+                    || tdgCtorShape(r)
                     || r instanceof com.legend.protocol.spec
                             .PackageableElementPtr)) {
                 // adopt only the shapes these checkers consume
@@ -80,6 +87,27 @@ public final class SourceSubst {
             out.add(r);
         }
         return out;
+    }
+
+    /** The TDG data-constructor vocabulary — exactly the calls (and
+     * collections of them) {@code TestDataGenerationNatives.classifyArg}
+     * consumes structurally; the effectful cutover surfaced 31 walls
+     * where these reached generateTestData through lets. Simple-name
+     * matching mirrors the classifier's own vocabulary (one spelling,
+     * no twin). */
+    private static boolean tdgCtorShape(ValueSpecification v) {
+        if (v instanceof com.legend.protocol.spec.PureCollection pc) {
+            return !pc.values().isEmpty()
+                    && pc.values().stream().allMatch(SourceSubst::tdgCtorShape);
+        }
+        if (v instanceof AppliedFunction af) {
+            String f = af.function();
+            String simple = f.substring(f.lastIndexOf(':') + 1);
+            return simple.equals("createTableRowIdentifiers")
+                    || simple.equals("createRowIdentifier")
+                    || simple.equals("createTemporalMilestoningDates");
+        }
+        return false;
     }
 
     /** The ONE let-shape recognizer (protocol encoding, not user

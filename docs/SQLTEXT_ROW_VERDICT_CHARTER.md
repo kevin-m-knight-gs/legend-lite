@@ -424,11 +424,19 @@ legitimate forever.
    ~420 compiler walls (~200 metamodel-query classes -> the
    metamodel-as-relations leg; 51 scalar lowerings + ~60 unported
    natives; 43 join-condition-whole-variable; 21 lineage; misc) +
-   31 generateTestData unclassified-Variable (TDG arm classifier:
-   rowIdentifiers/dates through let variables — chase let-aware like
-   the verdict arms) + ~15 platform-fail singletons. The effectful
-   bucket is GONE (transactional cutover, record below). Endgame:
-   fallbacks 0-or-named = the walk's scoring machinery deletes.
+   ~15 platform-fail singletons. The effectful bucket is GONE
+   (transactional cutover, record below); the 31 generateTestData
+   unclassified-Variable rows BURNED TO ZERO (TDG let-adoption
+   2026-09-01, ratchet 876/1697: resolveStructuralArgs adopts the TDG
+   data-constructor shapes DEEP — SourceSubst.tdgCtorShape — since
+   inner args can be let-bound too; +2 flips, remainder re-bucketed
+   TRUE: 15 scalar-lowering [the known lane, now 66], 10 plan-execute
+   values-binding [the chartered referee-binding cut — now a named
+   10-test leg], 3 REAL platform divergences [testConstant,
+   testSimpleSingleTableWithNoDataToInsert + 1 — verdict-level
+   assert failures, the genuine burn list], 1 store-resolution).
+   Endgame: fallbacks 0-or-named = the walk's scoring machinery
+   deletes.
    **THE EFFECTFUL CUTOVER — LANDED 2026-09-01 (ratchet 878/1695,
    the gate deleted).** The static verb classification (effectKind's
    verb scan + collectExecInDb, ~90 harness lines — a statement-shape
