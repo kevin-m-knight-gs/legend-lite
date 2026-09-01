@@ -157,3 +157,22 @@ coarse — a per-assert gate is the refinement that recovers most of the
 3. default-on with attributed re-pins + the shrink-only fallback pin;
 4. burn platform-fail rows (TDSNull membership first), then walls by
    size; walk arms delete per emptied bucket.
+
+## Pre-default-on item 1 LANDED + item 2 ATTRIBUTED (2026-08-31)
+
+- **Blind StructLit FIXED**: `SqlExpr.StructGet.of` — field extraction
+  folds through a LITERAL struct at construction (the extraction
+  scaffolding `VariantShapes.pairToLub` built over just-constructed
+  pair literals erased the type: a pair holding `^TDSNull()` lowers
+  its second to `NullLit[Bottom]`, `structLitType` goes UNKNOWN
+  without a declared slot, and blindness propagated through StructGet
+  to the projection root). Flip sweep now `untyped=0`; normal lane
+  byte-identical, all pins intact.
+- **Counter attribution (item 2), with witnesses**:
+  `tolerated-carried` 27→36 is +9 `VARCHAR←VARCHAR` equal-pair slots
+  (witness `testSimpleDistinct` `id := id`) — the guard's own
+  doctrine class ("grows with query shape only"); whole-body plans
+  carry extra pass-through projections. `int-null-empty` 64 vs
+  ceiling 63 — one more proven-all-NULL column, same shape-driven
+  ceiling. Both re-pin WITH the default-on batch, not before.
+- Remaining before default-on: item 3 (per-assert text gating).

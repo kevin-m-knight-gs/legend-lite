@@ -647,6 +647,24 @@ public sealed interface SqlExpr
     /** Field extraction from a composite value ({@code struct_extract(x, 'f')} in DuckDB). */
     record StructGet(SqlExpr source, String field,
             TypeFact type) implements SqlExpr {
+
+        /** Construction-time fold: reading a named field off a LITERAL
+         * struct is that field's value — extraction scaffolding over a
+         * just-built literal erases (and with it the blind-typing hole:
+         * a literal pair holding an untyped NULL member made the whole
+         * struct — and every extraction from it — UNKNOWN; the folded
+         * value keeps its own honest fact). A missing field keeps the
+         * StructGet: loud downstream, never a silent null. */
+        public static SqlExpr of(SqlExpr source, String field) {
+            if (source instanceof StructLit sl) {
+                for (StructLit.Field f : sl.fields()) {
+                    if (f.name().equals(field)) {
+                        return f.value();
+                    }
+                }
+            }
+            return new StructGet(source, field);
+        }
         public StructGet {
             type = SqlTyping.structGetType(source, field);
         }

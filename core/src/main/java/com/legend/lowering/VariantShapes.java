@@ -61,7 +61,7 @@ final class VariantShapes {
         String[] names = {"first", "second"};
         List<SqlExpr.StructLit.Field> fields = new ArrayList<>(2);
         for (int i = 0; i < 2; i++) {
-            SqlExpr f = new SqlExpr.StructGet(pair, names[i]);
+            SqlExpr f = SqlExpr.StructGet.of(pair, names[i]);
             Type lubArg = lub.arguments().get(i);
             Type ownArg = own instanceof Type.GenericType og && og.arguments().size() == 2
                     ? og.arguments().get(i) : null;
