@@ -239,8 +239,19 @@ public final class PlatformTypes {
      * was an invented FQN (audit R8) and is deleted. */
     public static final String EXECUTE = "meta::pure::router::execute";
 
+    /** The engine's PLAN-EXECUTE entry — real pure's
+     * meta::pure::executionPlan::execute(plan, parametersValues,
+     * extensions) (executionPlan_execution.pure:20). The platform
+     * NORMALIZES it to the ordinary execute frame by peeling the plan
+     * argument to its executionPlan(...) build (same positional arg
+     * shape: query, mapping, runtime, extensions) — one execution
+     * semantics, the one router; plan TEXT is engine-text
+     * (EngineStyleH2) and never executes on the session connection. */
+    public static final String EXECUTION_PLAN_EXECUTE =
+            "meta::pure::executionPlan::execute";
+
     public static boolean isExecuteFqn(String fqn) {
-        return EXECUTE.equals(fqn);
+        return EXECUTE.equals(fqn) || EXECUTION_PLAN_EXECUTE.equals(fqn);
     }
 
 
@@ -337,7 +348,8 @@ public final class PlatformTypes {
                 || GET_RELATIONAL_CSV_DATA.equals(fqn)
                 || GENERATE_TEST_DATA.equals(fqn)
                 || GENERATE_SEED_DATA_STRING.equals(fqn)
-                || EXECUTE.equals(fqn);
+                || EXECUTE.equals(fqn)
+                || EXECUTION_PLAN_EXECUTE.equals(fqn);
     }
 
     /** Debug output — K-dispatched as a NO-OP, arguments never evaluated. */
@@ -380,6 +392,7 @@ public final class PlatformTypes {
                 || PLAN_TO_STRING.equals(fqn)
                 || PLAN_TO_STRING_WITHOUT_FORMATTING.equals(fqn)
                 || EXECUTE.equals(fqn)
+                || EXECUTION_PLAN_EXECUTE.equals(fqn)
                 || PRINT.equals(fqn) || PRINTLN.equals(fqn);
     }
 

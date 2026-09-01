@@ -108,7 +108,15 @@ public final class Env {
      * returns unchanged. */
     public com.legend.protocol.spec.ValueSpecification resolveAlias(
             com.legend.protocol.spec.ValueSpecification v) {
+        // cycle guard: a helper parameter named like its caller's let
+        // (loadAndTestExecution's runtime <- $runtime) self-aliases —
+        // stepping stops at the first revisited name (the alias is
+        // then the variable itself; plan-execute hang, 2026-09-01)
+        java.util.Set<String> seen = new java.util.HashSet<>();
         while (v instanceof com.legend.protocol.spec.Variable var) {
+            if (!seen.add(var.name())) {
+                return v;
+            }
             com.legend.protocol.spec.ValueSpecification next =
                     exprAliases.get(var.name());
             if (next == null) {

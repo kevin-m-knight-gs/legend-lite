@@ -1903,6 +1903,39 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedNativeCall ec,
             java.util.List<TypedSpec> letPrefix, boolean eager,
             SpecCompiler specs, ExecEnv env) {
+        // PLAN-EXECUTE normalization (burn map: unlocks the TDG wall
+        // cohort + the §5 program-replayer class): executionPlan::
+        // execute(plan, values, ext) peels the plan argument to its
+        // executionPlan(...) BUILD — the same positional shape (query,
+        // mapping, runtime, extensions), so the ordinary frame
+        // machinery serves it whole. Plan TEXT is engine-text and
+        // never executes here (single-compiler tenet). Non-traceable
+        // plans and non-empty parametersValues WALL counted
+        // (values-binding is the §5 referee-binding cut, later).
+        if (com.legend.compiler.element.type.PlatformTypes
+                .EXECUTION_PLAN_EXECUTE.equals(
+                        ec.callee().qualifiedName())) {
+            TypedSpec plan = com.legend.compiler.spec.ExecuteChainAssembly
+                    .letBound(ec.args().get(0), letPrefix);
+            if (!(plan instanceof com.legend.compiler.spec.typed
+                            .TypedNativeCall pb
+                    && com.legend.compiler.element.type.PlatformTypes
+                            .EXECUTION_PLAN.equals(
+                                    pb.callee().qualifiedName()))) {
+                throw new com.legend.error.NotImplementedException(
+                        "plan-execute: plan argument does not trace to"
+                                + " an executionPlan(...) build");
+            }
+            if (ec.args().size() > 1
+                    && !(ec.args().get(1) instanceof com.legend.compiler
+                            .spec.typed.TypedCollection pv
+                            && pv.elements().isEmpty())) {
+                throw new com.legend.error.NotImplementedException(
+                        "plan-execute: parametersValues binding pending"
+                                + " (the referee-binding cut)");
+            }
+            ec = pb;
+        }
         var prepared = com.legend.compiler.spec.ExecuteChainAssembly
                 .prepare(ec, letPrefix, specs);
         // the RUNTIME ARGUMENT's effectful user calls (the corpus's

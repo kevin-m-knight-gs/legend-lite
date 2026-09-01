@@ -1712,6 +1712,13 @@ public final class Pure {
     // same-shape test compares Result<T|m> by equality against
     // mapping::execute's return (a 'y' spelling broke bare-'execute'
     // calls whose imports cover both FQNs).
+    // REAL engine signature executionPlan_execution.pure:20 —
+    // execute(plan:ExecutionPlan[1], parametersValues:Any[*],
+    // extensions:Extension[*]):Result<Any|*>[1]; Any for the unmodeled
+    // metamodel classes (the GENERATE_TEST_DATA idiom). The platform
+    // normalizes to the ordinary execute frame (PlatformTypes
+    // .EXECUTION_PLAN_EXECUTE).
+    public static final NativeFunctionDefinition EXECUTION_PLAN_EXECUTE__ANY_1__ANY_MANY__ANY_MANY = signature("native function meta::pure::executionPlan::execute(plan:meta::pure::metamodel::type::Any[1], parametersValues:meta::pure::metamodel::type::Any[*], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<meta::pure::metamodel::type::Any|*>[1];");
     public static final NativeFunctionDefinition ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::pure::router::execute<T|m>(f:meta::pure::metamodel::function::FunctionDefinition<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<T|m>[1];");
     public static final NativeFunctionDefinition ROUTER_EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY__ANY_1 = signature("native function meta::pure::router::execute<T|m>(f:meta::pure::metamodel::function::FunctionDefinition<{->T[m]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::metamodel::type::Any[1]):meta::pure::mapping::Result<T|m>[1];");
 
