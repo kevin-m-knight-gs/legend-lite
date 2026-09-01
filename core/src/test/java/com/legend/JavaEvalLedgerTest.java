@@ -484,7 +484,14 @@ class JavaEvalLedgerTest {
             // use. Navigation, minted-read sequencing and judgment
             // only — zero evaluation (the judgment-vocabulary pin
             // covers this file mechanically).
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 210),
+            // 210 -> 293 (charter §8.3c): the exec-sql-read arm —
+            // tryArmExecRead + the let-aware findSqlRead walk (exact
+            // splice FQNs, first-statement forms only). Same tenet
+            // argument as the file's header: navigation + sequencing +
+            // judgment; both texts, our rows and the golden replay all
+            // compute in the database. The judgment-only vocabulary
+            // ban (verdictFilesJudgeOnly) still binds every line.
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 293),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

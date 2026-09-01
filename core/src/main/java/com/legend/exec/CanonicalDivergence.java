@@ -54,10 +54,23 @@ public final class CanonicalDivergence {
      * kind class (pure's cross-kind numeric equality). */
     public static void probeEqual(String family, List<Object> e,
             List<Object> a, boolean held) {
+        probeEqual(family, e, a, held, false);
+    }
+
+    /** {@code unordered}: the caller's COMPILE-TIME order view of the
+     * fetch (OrderView.INCIDENTAL — no ORDER BY, arrival order
+     * undefined on both backends). The byte channel then compares
+     * sorted renders on BOTH sides — the same declared multiset policy
+     * the host verdict applies under the same fact (§8.3c: five
+     * value-list rows read as VALUE divergences until the payload
+     * showed positional drift the host had already lawfully
+     * disregarded). */
+    public static void probeEqual(String family, List<Object> e,
+            List<Object> a, boolean held, boolean unordered) {
         if (MUTED.get()) {
             return;
         }
-        record(family, held, byteEqual(e, a, false));
+        record(family, held, byteEqual(e, a, unordered));
     }
 
     /** Census an {@code assertSameElements} verdict: the byte channel's
@@ -172,7 +185,10 @@ public final class CanonicalDivergence {
             er.sort(String::compareTo);
             ar.sort(String::compareTo);
         }
-        return er.equals(ar) ? "EQUAL" : "DIFFER";
+        // the census diagnoses itself: a bare DIFFER cost a full
+        // filtered-rerun per row during the §8.3b wobble hunt
+        return er.equals(ar) ? "EQUAL"
+                : "DIFFER" + TdsCompare.firstCanonDiff(er, ar);
     }
 
     /** The byte-channel comparison key: kindClass + canonical text

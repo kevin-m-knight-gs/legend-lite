@@ -735,7 +735,11 @@ public class RelationalCorpusRunner {
                         + r.detail()));
         com.legend.exec.CanonicalDivergence.disagreeSamples().forEach(r ->
                 System.out.println("[canon-disagree] " + r.family() + " "
-                        + r.detail()));
+                        // canon keys embed kind text — the NUL
+                        // poisons grep/console (this hid the payload
+                        // twice); every row prints as ONE clean line
+                        + r.detail().replace("\n", "\\n")
+                                .replace('\u0000', '#')));
         com.legend.exec.CanonicalDivergence.samples().forEach(r ->
                 System.out.println("[canon] " + r.family() + " " + r.detail()));
         System.out.println("[v7] "
@@ -756,8 +760,13 @@ public class RelationalCorpusRunner {
                     // the platform arm's row verdicts (emission census
                     // 111 matched + 237 diverged) — walk-lane shrink BY
                     // MIGRATION, never lost verification.
-                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 373,
-                    "M1 h2-exec verified fell below the 455 floor: "
+                    // 373 -> 134 (charter §8.3c, the 541-test
+                    // exec-sql-read migration): same lane move at 1.75x
+                    // the scale — flipped tests verify via the oracle
+                    // SPI (sql-verdict agree=1712, disagree=0) instead
+                    // of the walk's M1 channel.
+                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 134,
+                    "M1 h2-exec verified fell below the 134 floor: "
                     + com.legend.harness.H2Verify.M1_VERIFIED.sum());
             // V7 §8.0 leg 0 — the LANE-CLASSIFICATION GUARD (charter
             // scope table, user-ratified 2026-08-28): the sql-text/TDG
@@ -927,7 +936,10 @@ public class RelationalCorpusRunner {
                     + " fallbacks="
                     + com.legend.harness.WholeTestFlip.fallbackCount()
                     + " exec-passing=" + execPassing);
-            org.junit.jupiter.api.Assertions.assertEquals(1208, execPassing,
+            org.junit.jupiter.api.Assertions.assertEquals(597, execPassing,
+                    // 1208 -> 597 (charter §8.3c): the 541 flipped
+                    // exec-sql-read tests' asserts left this lane for
+                    // the platform arm (SqlTextVerdicts.tryArmExecRead)
                     "lane guard: assert-sql-text-with-exec-passing moved —"
                             + " update the charter §8.0 scope table");
             // THE WHOLE-TEST MIGRATION RATCHET (harness-deletion item 1,
@@ -1013,10 +1025,13 @@ public class RelationalCorpusRunner {
             // make any real move loud and self-attributing; the
             // migration direction is enforced by attribution (every
             // move lands with its burn in the same commit).
-            org.junit.jupiter.api.Assertions.assertEquals(1688L,
+            // 1688/885 -> 1147/1426 (charter §8.3c): the
+            // execsqlread-simple cohort — 541 tests in one flip, the
+            // single biggest migration of the program.
+            org.junit.jupiter.api.Assertions.assertEquals(1147L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(885L,
+            org.junit.jupiter.api.Assertions.assertEquals(1426L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1163,8 +1178,12 @@ public class RelationalCorpusRunner {
                     // (777: the one-test admission wobble moves a
                     // rescued verify with it — the same envelope class
                     // as the exec-passing lane pin)
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 777,
-                    "M1 h2-exec rescued fell below the 777 floor: "
+                    // 777 -> 405 (charter §8.3c, the 541-test
+                    // exec-sql-read migration): the same lane move as
+                    // M1_VERIFIED 373 -> 134 — rescued verifies now
+                    // ride the oracle SPI's row verdicts.
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 405,
+                    "M1 h2-exec rescued fell below the 405 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,
@@ -1621,9 +1640,15 @@ public class RelationalCorpusRunner {
                     // testSimpleDistinct id := id) — this guard's own
                     // "grows with query shape only" class; whole-body
                     // plans carry extra pass-through projections.
+                    // 40 -> 46 (charter §8.3c): the 541-flip's
+                    // whole-body plans carry more pass-through
+                    // projections — the same equal-pair plumbing class
+                    // as the flip-default-on move; quality gates
+                    // (mismatch, diverge, null-breach, unknown) all 0
+                    // in the same sweep.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .toleratedTransportedCount() <= 40,
+                                    .toleratedTransportedCount() <= 46,
                             "tolerance-transport slots grew: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
@@ -1805,7 +1830,7 @@ public class RelationalCorpusRunner {
                     // Shrink-only; a bump means a byte-exact verdict
                     // regressed to leniency.
                     () -> org.junit.jupiter.api.Assertions.assertEquals(
-                            23, com.legend.exec.CanonicalDivergence
+                            21, com.legend.exec.CanonicalDivergence
                             // 27 -> 29 (§8.3b): +2 members of the
                             // SAME cross-engine float-print class
                             // (0.5131...013 vs ...014 grid cells) from
@@ -1831,10 +1856,21 @@ public class RelationalCorpusRunner {
                             // cross-engine float class + 2
                             // assertEquals. Pinned EXACT: any move,
                             // either direction, demands attribution.
+                            // 23 -> 21 (§8.3c): probeEqual gained the
+                            // SAME compile-time gate (OrderView
+                            // .INCIDENTAL -> two-sided sorted compare)
+                            // after 3c's flips surfaced 9 value-list
+                            // rows whose payloads (e<11.0> a<25.0>)
+                            // were positional drift the host had
+                            // lawfully disregarded — and the payloads
+                            // exonerated the 2 OLD assertEquals rows
+                            // as the same class. The roster is now
+                            // PURE calendarAggregations float-print
+                            // (all 21 rows named, sub-ULP arithmetic).
                                     .disagreeCount(),
                             "canonical-byte divergence moved: "
                                     + com.legend.exec.CanonicalDivergence
-                                            .summary() + " (exact pin 23)"),
+                                            .summary() + " (exact pin 21)"),
                     // V1 (OPEN_REGISTER): the DUAL-VERDICT alarm — the
                     // DB byte verdict and the host referee may NEVER
                     // disagree silently; any disagreement fails the

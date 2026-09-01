@@ -255,7 +255,7 @@ final class AssertVerdicts {
                 // R1a divergence instrument (CANONICAL_FORM_SPEC §0):
                 // host lattice vs host byte channel, measurement only
                 com.legend.exec.CanonicalDivergence.probeEqual(
-                        name, e, a, equal);
+                        name, e, a, equal, incidental);
                 // R2a/V11 — THE BYTE VERDICT OF RECORD for scalar-kind
                 // sides: the canon rode the SIDE QUERY ITSELF (one
                 // execution, wrapWithCanon); Java compares two

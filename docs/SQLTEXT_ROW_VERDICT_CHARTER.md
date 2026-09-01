@@ -327,6 +327,45 @@ legitimate forever.
    wobble" never reproduced on a frozen tree across 6 identical
    rosters — it straddled mid-cascade harness edits). Every envelope
    pin reverted to exact.
+   **3c LANDED 2026-09-01 (the execsqlread-simple cohort — 541 tests,
+   the single biggest flip of the program).** Arm tryArmExecRead: the
+   test's OWN sql($res)/sqlRemoveFormatting($res) read (let-aware,
+   exact splice FQNs, FIRST-STATEMENT forms only — sql($res, n>0)
+   names the n-th activity and pairing it against result rows would
+   judge the wrong statement, so those stay counted) chases to the
+   frame; OUR TEXT = the actual side evaluated as written; OUR ROWS =
+   valuesRead(frame); the SHARED rows-leg tail judges. Admission
+   MIRRORS arm preconditions (2-arg assertEquals, foldable golden,
+   1-arg read over an executed frame). Movement, all attributed
+   in-pin: ratchet 1688/885 -> EXACT 1147/1426 (text-policy 1067 ->
+   386); exec-passing lane 597; M1 floors 373->134 verified,
+   777->405 rescued — CONSERVATION receipts: walk-lane row-verifies
+   1150->539 (-611), arm row-verifies 348->957 (+609), the 5
+   platform-fails demoted with counted reasons; emission 346 matched
+   / 611 diverged / 37 text-verdict (16 DB2 + 2 Composite foreign
+   dialect permanent, 12 enum-decoded post-transform, 2
+   forced-isolation, singletons with receipts). Quality gates held in
+   the same sweep: sql-verdict disagree=0, M1 diverged=0, corpus
+   byte-stable 2348.
+   **ADJUDICATION (the 9 "value divergences" that were not):** 3c's
+   flips surfaced 9 canon byte-channel value-list rows (e<11.0>
+   a<25.0>, e<Anthony> a<Peter>) that read as VALUE bugs until the
+   diagnosis payload landed (byteEqual now appends firstCanonDiff;
+   the canon key's NUL separator had been silently breaking grep and
+   truncating every console print — escaped in the roster). All 9
+   were positional drift on OrderView.INCIDENTAL chains the host had
+   lawfully disregarded; probeEqual gained the SAME compile-time
+   gate as probeGridText (two-sided sorted compare, gated on the
+   caller's static order view) — and the payloads exonerated the 2
+   OLD assertEquals pinned rows as the same class. Canon disagree
+   EXACT 21: pure calendarAggregations float-print, every row named.
+   Paired sweeps byte-identical (rosters and counts; only the
+   diagnostic rescue counter varies, by definition).
+   NEXT: the text-policy remainder (386) = 3b dual-golden
+   (assertEqualsH2Compatible) + computed goldens + mixed bodies + 3c
+   declined forms (multi-statement reads, non-literal goldens); then
+   the compiler-wall buckets (~600: HN vocabulary, scalar-lowering
+   overloads, unported natives) as named feature legs.
 4. Plan replayer (§5) + plan-text flips; branch-forcing.
 5. Inventory upgrades as their own commits: #3 ULP probe/upgrade,
    #4 TIMESTAMP_NS leg, #11 projection, #1 sentinel.

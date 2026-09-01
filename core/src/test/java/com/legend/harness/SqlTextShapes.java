@@ -69,10 +69,12 @@ public final class SqlTextShapes {
             ModelContext ctx) {
         TreeMap<String, Integer> shapes = classify(statements, ctx);
         boolean anySql = shapes.containsKey("tosqlstring-simple")
-                || shapes.containsKey("assertsamesql-simple");
+                || shapes.containsKey("assertsamesql-simple")
+                || shapes.containsKey("execsqlread-simple");
         return anySql && shapes.keySet().stream().allMatch(k ->
                 k.equals("tosqlstring-simple")
                         || k.equals("assertsamesql-simple")
+                        || k.equals("execsqlread-simple")
                         || k.equals("plain"));
     }
 
@@ -190,6 +192,22 @@ public final class SqlTextShapes {
                 || containsFqn(actual, lets, ctx,
                         com.legend.compiler.spec.ResultEnvelopeSplice
                                 .SQL_REMOVE_FORMATTING_FQN)) {
+            // §8.3c split: the SIMPLE exec-sql-read shape is the
+            // platform arm's cohort (SqlTextVerdicts.tryArmExecRead) —
+            // the admission MIRRORS the arm's preconditions exactly so
+            // nothing flips that the arm will not own: 2-arg
+            // assertEquals, foldable golden, and the read call in its
+            // FIRST-STATEMENT form (1 argument — sql($res, n>0) names
+            // the n-th activity and stays a fallback shape) over an
+            // executed frame (Variable-or-containsExecute, the
+            // assertsamesql-simple precedent).
+            if (golden && af.parameters().size() == 2
+                    && EngineTestExecutor.resolvesTo(af, ctx,
+                            java.util.Set.of(
+                            "meta::pure::functions::asserts::assertEquals"))
+                    && simpleReadCall(actual, lets, ctx)) {
+                return "execsqlread-simple";
+            }
             return "exec-sql-read";
         }
         return "other-producer";
@@ -205,6 +223,43 @@ public final class SqlTextShapes {
                             ctx)) {
                 return true;
             }
+        }
+        return false;
+    }
+
+    /** The exec-sql-read call in its ARM-OWNED form: a
+     * {@code sql}/{@code sqlRemoveFormatting} call (exact splice FQNs)
+     * with EXACTLY one parameter that is an executed frame
+     * (Variable-or-containsExecute). Walks the substituted tree. */
+    private static boolean simpleReadCall(
+            @com.legend.Nullable ValueSpecification v,
+            java.util.Map<String, ValueSpecification> lets,
+            ModelContext ctx) {
+        if (v == null) {
+            return false;
+        }
+        ValueSpecification s = EngineTestExecutor.substitute(v, lets);
+        if (s instanceof AppliedFunction af) {
+            if (EngineTestExecutor.resolvesTo(af, ctx, java.util.Set.of(
+                    com.legend.compiler.spec.ResultEnvelopeSplice.SQL_FQN,
+                    com.legend.compiler.spec.ResultEnvelopeSplice
+                            .SQL_REMOVE_FORMATTING_FQN))) {
+                if (af.parameters().size() != 1) {
+                    return false;
+                }
+                ValueSpecification arg = EngineTestExecutor.substitute(
+                        af.parameters().get(0), lets);
+                return arg instanceof com.legend.protocol.spec.Variable
+                        || EngineTestExecutor.containsExecute(arg);
+            }
+            for (ValueSpecification p : af.parameters()) {
+                if (simpleReadCall(p, lets, ctx)) {
+                    return true;
+                }
+            }
+        }
+        if (s instanceof com.legend.protocol.spec.AppliedProperty ap) {
+            return simpleReadCall(ap.receiver(), lets, ctx);
         }
         return false;
     }

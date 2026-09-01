@@ -59,7 +59,13 @@ final class SqlTextVerdicts {
         TypedNativeCall p0 = findProducer(args.get(0), letPrefix);
         TypedNativeCall p1 = findProducer(args.get(1), letPrefix);
         if ((p0 == null) == (p1 == null)) {
-            // zero or two producers: not the golden-vs-render shape
+            if (p0 == null) {
+                // no toSQLString producer anywhere: the exec-sql-read
+                // spelling (§8.3c) is the remaining owned shape
+                return tryArmExecRead(name, args, letPrefix, specs, env,
+                        hook);
+            }
+            // two producers: not the golden-vs-render shape
             return null;
         }
         TypedSpec producerSide = p0 != null ? args.get(0) : args.get(1);
@@ -167,6 +173,107 @@ final class SqlTextVerdicts {
                 oracle, com.legend.compiler.spec.VerdictQueries
                         .valuesRead(resultArg),
                 null, null, letPrefix, specs, env, hook);
+    }
+
+    /** SQLTEXT charter §8.3c — the EXEC-SQL-READ arm (the ~700-test
+     * cohort): {@code assertEquals(golden, sqlRemoveFormatting($res))}
+     * where the test's OWN code reads the SQL out of an executed
+     * Result. Detection is the same typed-node + exact-FQN discipline
+     * (§3.4): a let-aware walk finds the {@code sql}/{@code
+     * sqlRemoveFormatting} USER call whose first argument is
+     * Result-typed (the String overload is ordinary string code and
+     * never matches). ONLY the first-statement forms are owned —
+     * {@code sql($res, n)} with n&gt;0 names the n-th activity's SQL,
+     * and pairing that golden against the frame's RESULT rows would
+     * judge the wrong statement, so those shapes return null and stay
+     * counted on their current path. OUR TEXT = the whole actual side
+     * evaluated as written (any wrapping string code runs in the DB);
+     * OUR ROWS = the frame's values (the splice's typed chain); golden
+     * rows + verdict via the SHARED tail. */
+    private static @com.legend.Nullable ExecutionResult tryArmExecRead(
+            String name, List<TypedSpec> args, List<TypedSpec> letPrefix,
+            SpecCompiler specs, StatementExecutor.ExecEnv env,
+            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
+        com.legend.compiler.spec.typed.TypedUserCall r0 =
+                findSqlRead(args.get(0), letPrefix);
+        com.legend.compiler.spec.typed.TypedUserCall r1 =
+                findSqlRead(args.get(1), letPrefix);
+        if ((r0 == null) == (r1 == null)) {
+            return null;
+        }
+        TypedSpec producerSide = r0 != null ? args.get(0) : args.get(1);
+        TypedSpec goldenSide = r0 != null ? args.get(1) : args.get(0);
+        com.legend.compiler.spec.typed.TypedUserCall read =
+                r0 != null ? r0 : r1;
+        TypedSpec resultArg = read.args().get(0);
+        String golden = scalarString(StatementExecutor.evalValue(
+                goldenSide, letPrefix, specs, env, null, false, hook));
+        String ours = scalarString(StatementExecutor.evalValue(
+                producerSide, letPrefix, specs, env, null, false, hook));
+        if (golden == null || ours == null) {
+            return null;
+        }
+        SqlTextEmission.armFired();
+        boolean textEqual = golden.equals(ours);
+        SqlReplayOracle oracle = env.replayOracle();
+        if (oracle == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "sql-text assert verdict needs a replay oracle and"
+                            + " none is registered on this env (correct"
+                            + " outside tests: there are no goldens)");
+        }
+        return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
+                com.legend.compiler.spec.VerdictQueries
+                        .valuesRead(resultArg),
+                null, null, letPrefix, specs, env, hook);
+    }
+
+    /** The exec-sql-read producer node: a {@code sql($res)} /
+     * {@code sqlRemoveFormatting($res)} USER call (exact splice FQNs)
+     * over a Result-typed receiver, first-statement form only
+     * (1 argument, or 2 with a literal 0). LET-AWARE like
+     * {@link #findProducer}. */
+    private static @com.legend.Nullable
+            com.legend.compiler.spec.typed.TypedUserCall findSqlRead(
+            TypedSpec t, List<TypedSpec> letPrefix) {
+        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
+        work.add(t);
+        java.util.Set<String> seenVars = new java.util.HashSet<>();
+        while (!work.isEmpty()) {
+            TypedSpec cur = work.poll();
+            if (cur instanceof com.legend.compiler.spec.typed
+                    .TypedUserCall uc) {
+                String fqn = uc.callee().qualifiedName();
+                if ((fqn.equals(com.legend.compiler.spec
+                                .ResultEnvelopeSplice.SQL_FQN)
+                        || fqn.equals(com.legend.compiler.spec
+                                .ResultEnvelopeSplice
+                                .SQL_REMOVE_FORMATTING_FQN))
+                        && !uc.args().isEmpty()
+                        && uc.args().get(0).info().type()
+                                != com.legend.compiler.element.type.Type
+                                        .Primitive.STRING
+                        && (uc.args().size() == 1
+                                || uc.args().size() == 2
+                                        && uc.args().get(1) instanceof
+                                        com.legend.compiler.spec.typed
+                                        .TypedCInteger k
+                                        && k.value().longValue() == 0)) {
+                    return uc;
+                }
+            }
+            if (cur instanceof com.legend.compiler.spec.typed
+                    .TypedVariable tv && seenVars.add(tv.name())) {
+                for (TypedSpec p : letPrefix) {
+                    if (p instanceof com.legend.compiler.spec.typed
+                            .TypedLet tl && tl.name().equals(tv.name())) {
+                        work.add(tl.value());
+                    }
+                }
+            }
+            work.addAll(cur.children());
+        }
+        return null;
     }
 
     /** The SHARED rows leg + verdict policy (§3.5c-§3.7): evaluate
