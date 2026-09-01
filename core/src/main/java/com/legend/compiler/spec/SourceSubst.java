@@ -53,6 +53,35 @@ public final class SourceSubst {
                 List.of(substitute(lam.body().get(lam.body().size() - 1), env)));
     }
 
+    /** bind-once (family E): the view an INLINE call site would present,
+     * for checkers that consume their arguments STRUCTURALLY (the
+     * test-data-generation and CSV-census folds): each argument resolves
+     * through the env's let-alias channel, and a resolved lambda CLOSES
+     * over the remaining in-scope aliases (its body may reference outer
+     * lets — trees, refs). Referentially transparent, same soundness as
+     * {@link Env#withLet}; evaluation semantics untouched (the consumers
+     * fold at check time and never re-evaluate the binding). */
+    static List<ValueSpecification> resolveStructuralArgs(
+            List<ValueSpecification> params, Env env) {
+        Map<String, ValueSpecification> aliases = env.aliases();
+        List<ValueSpecification> out = new java.util.ArrayList<>(params.size());
+        for (ValueSpecification p : params) {
+            ValueSpecification r = env.resolveAlias(p);
+            if (r instanceof LambdaFunction && !aliases.isEmpty()) {
+                r = substitute(r, aliases);
+            } else if (r != p && !(r instanceof LambdaFunction
+                    || r instanceof com.legend.protocol.spec
+                            .PackageableElementPtr)) {
+                // adopt only the shapes these checkers consume
+                // structurally; anything else keeps its variable (and
+                // the walk's existing channels)
+                r = p;
+            }
+            out.add(r);
+        }
+        return out;
+    }
+
     /** The ONE let-shape recognizer (protocol encoding, not user
      * vocabulary): {@code letFunction(<name>, <value>)} — shared by the
      * fold and the lambda-local shadow-stop so the spelling lives once. */

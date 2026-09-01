@@ -76,6 +76,35 @@ public final class Env {
         return Optional.ofNullable(exprAliases.get(name));
     }
 
+    /** Resolve {@code v} through the let-alias channel TRANSITIVELY: while
+     * it is a variable whose name carries a let-bound syntactic alias, step
+     * to that alias ({@code let m2 = $m1} chains). Sound for the same
+     * reason as {@link #withLet}: pure lets are single-assignment and
+     * referentially transparent, and shadowing binders already dropped
+     * their alias in {@link #with} — the engine resolves the same way at
+     * use sites (inScopeVars). Anything that is not an aliased variable
+     * returns unchanged. */
+    public com.legend.protocol.spec.ValueSpecification resolveAlias(
+            com.legend.protocol.spec.ValueSpecification v) {
+        while (v instanceof com.legend.protocol.spec.Variable var) {
+            com.legend.protocol.spec.ValueSpecification next =
+                    exprAliases.get(var.name());
+            if (next == null) {
+                return v;
+            }
+            v = next;
+        }
+        return v;
+    }
+
+    /** The whole let-alias channel (name &rarr; raw rhs), for consumers
+     * that must CLOSE a captured expression over its free let references
+     * (the test-data-generation checkers substitute into their query
+     * lambda &mdash; the walls' named {@code SourceSubst} mechanism). */
+    public Map<String, com.legend.protocol.spec.ValueSpecification> aliases() {
+        return java.util.Collections.unmodifiableMap(exprAliases);
+    }
+
     /** GENERATED-SOURCE escape for the ^new missing-required
      * validation — real pure's NewValidator carries the same escape
      * ({@code isNewValidationExceptionSource}): mapping-SYNTHESIZED

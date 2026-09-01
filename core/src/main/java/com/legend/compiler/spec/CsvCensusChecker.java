@@ -44,20 +44,19 @@ public final class CsvCensusChecker {
         // signature validation rides the generic path (the registered
         // catalog native at this FQN — validate-against-registered-
         // signature); the fold below replaces the emitted call
-        t.checkGeneric(af, env);
-        if (af.parameters().size() != 2
-                || !(af.parameters().get(0) instanceof LambdaFunction qLam)
-                || !(af.parameters().get(1) instanceof PackageableElementPtr mp)) {
-            // TODAY every call site arrives β-inlined (the harness
-            // substitutes lets before splicing); a let-bound argument
-            // is un-witnessed until S4 deletes that substitution — the
-            // wall names the mechanism that arm will reuse.
+        // bind-once (family E): let-bound arguments resolve through the
+        // alias channel to the inline view (SourceSubst — the mechanism
+        // this wall had named as S4 work).
+        java.util.List<com.legend.protocol.spec.ValueSpecification> args =
+                SourceSubst.resolveStructuralArgs(af.parameters(), env);
+        t.checkGeneric(af.withParameters(args), env);
+        if (args.size() != 2
+                || !(args.get(0) instanceof LambdaFunction qLam)
+                || !(args.get(1) instanceof PackageableElementPtr mp)) {
             throw new TypeInferenceException(
                     "getRelationalCSVDataFromQuery folds at CHECK time and"
                             + " needs its query lambda and mapping reference"
-                            + " INLINE at the call site (a let-bound"
-                            + " argument's resolution is S4 work —"
-                            + " SourceSubst.inlineLets is the mechanism)");
+                            + " INLINE at the call site");
         }
         // CARRIER, not computation (the deactivate pattern): the census
         // implementation lives ABOVE the compiler (testdatagen -> lineage

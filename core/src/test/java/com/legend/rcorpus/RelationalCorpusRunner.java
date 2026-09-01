@@ -864,10 +864,15 @@ public class RelationalCorpusRunner {
             // fallbacks=0 (charter: WHOLETEST_COMPILATION_CHARTER.md).
             // 2156/417 -> 2155/418 (TDSNull membership burn: a
             // ^TDSNull()-typed contains needle is an IS NULL scan).
+            // 2155/418 -> 2151/422 (bind-once slice 1, families D+E:
+            // let-bound mapping/runtime/class refs resolve through the
+            // Env alias channel at from()/getAll(); TDG/CSV-census args
+            // resolve via SourceSubst.resolveStructuralArgs — refs and
+            // lambdas only, computed refs keep their variable).
             org.junit.jupiter.api.Assertions.assertTrue(
-                    com.legend.harness.WholeTestFlip.fallbackCount() <= 2155
+                    com.legend.harness.WholeTestFlip.fallbackCount() <= 2151
                             && com.legend.harness.WholeTestFlip
-                                    .flippedCount() >= 418,
+                                    .flippedCount() >= 422,
                     "whole-test migration ratchet moved backwards: flipped="
                             + com.legend.harness.WholeTestFlip.flippedCount()
                             + " fallbacks="

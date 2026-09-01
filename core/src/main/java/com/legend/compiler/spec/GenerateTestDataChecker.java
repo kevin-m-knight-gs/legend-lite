@@ -11,6 +11,9 @@ import com.legend.compiler.spec.typed.TypedTestDataGen;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.PackageableElementPtr;
+import com.legend.protocol.spec.ValueSpecification;
+
+import java.util.List;
 
 /**
  * {@code generateTestData(func, mapping, runtime, ...)} — TDG lane S2.
@@ -30,32 +33,35 @@ public final class GenerateTestDataChecker {
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
-        if (af.parameters().size() < 4
-                || !(af.parameters().get(0) instanceof LambdaFunction)
-                || !(af.parameters().get(1) instanceof PackageableElementPtr)) {
-            // the harness β-inlines lets today; a let-bound argument is
-            // un-witnessed until S4 (SourceSubst.inlineLets is the
-            // mechanism that arm will reuse)
+        // bind-once (family E): a let-bound query lambda / mapping ref
+        // resolves through the alias channel to the same view an inline
+        // call presents (SourceSubst — the mechanism this wall named).
+        List<ValueSpecification> args =
+                SourceSubst.resolveStructuralArgs(af.parameters(), env);
+        if (args.size() < 4
+                || !(args.get(0) instanceof LambdaFunction)
+                || !(args.get(1) instanceof PackageableElementPtr)) {
             throw new TypeInferenceException(
                     "generateTestData needs its query lambda and mapping"
-                            + " reference INLINE at the call site (>=4 args;"
-                            + " let-bound arguments are S4 work)");
+                            + " reference INLINE at the call site (>=4 args)");
         }
-        return new TypedTestDataGen(af.parameters(), "generate",
+        return new TypedTestDataGen(args, "generate",
                 new ExprType(new Type.ClassType(RESULT_FQN),
                         Multiplicity.Bounded.ONE));
     }
 
     /** {@code generateSeedDataString(...)} — same carrier, String[1]. */
     static TypedSpec checkSeed(Typer t, AppliedFunction af, Env env) {
-        if (af.parameters().size() < 2
-                || !(af.parameters().get(0) instanceof LambdaFunction)
-                || !(af.parameters().get(1) instanceof PackageableElementPtr)) {
+        List<ValueSpecification> args =
+                SourceSubst.resolveStructuralArgs(af.parameters(), env);
+        if (args.size() < 2
+                || !(args.get(0) instanceof LambdaFunction)
+                || !(args.get(1) instanceof PackageableElementPtr)) {
             throw new TypeInferenceException(
                     "generateSeedDataString needs its query lambda and"
                             + " mapping reference INLINE at the call site");
         }
-        return new TypedTestDataGen(af.parameters(), "seedString",
+        return new TypedTestDataGen(args, "seedString",
                 new ExprType(Type.Primitive.STRING,
                         Multiplicity.Bounded.ONE));
     }

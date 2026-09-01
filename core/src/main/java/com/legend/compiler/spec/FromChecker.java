@@ -24,6 +24,31 @@ final class FromChecker {
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
+        // bind-once (family D): from()'s non-source arguments are METADATA
+        // references consumed by NODE KIND, and a let-bound ref reaches
+        // here as a variable whose node identity is lost. Resolve the
+        // let-alias channel first so the reference node survives typing
+        // (engine parallel: use-site inScopeVars resolution). ADOPT only
+        // a reference — a let whose rhs is a helper CALL (instance-built
+        // runtimes/mappings) keeps its variable so the walk's own splice
+        // channels behave exactly as before.
+        if (af.parameters().size() > 1) {
+            List<com.legend.protocol.spec.ValueSpecification> ps =
+                    new ArrayList<>(af.parameters());
+            boolean changed = false;
+            for (int i = 1; i < ps.size(); i++) {
+                com.legend.protocol.spec.ValueSpecification r =
+                        env.resolveAlias(ps.get(i));
+                if (r != ps.get(i) && r instanceof com.legend.protocol.spec
+                        .PackageableElementPtr) {
+                    ps.set(i, r);
+                    changed = true;
+                }
+            }
+            if (changed) {
+                af = af.withParameters(ps);
+            }
+        }
         Application a = t.checkGeneric(af, env);
         List<TypedPackageableRef> refs = new ArrayList<>(a.args().size() - 1);
         List<String> chainMappings = new ArrayList<>();
