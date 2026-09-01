@@ -39,6 +39,15 @@ public enum CoreFn {
     GENERATE_TEST_DATA("generateTestData"),
     /** {@code generateSeedDataString(...)} &mdash; TDG lane S3 tail: runtime seed-text extraction, same carrier. */
     GENERATE_SEED_DATA_STRING("generateSeedDataString"),
+    /** {@code mayExecuteAlloyTest(serverThunk, |fallback)} &mdash; the engine
+     * test-harness BRANCH native (core_functions_unclassified/test.pure:15):
+     * no Alloy server exists on this platform, so the call IS its fallback
+     * thunk &mdash; the branch the engine's own serverless CI takes
+     * ({@code MayExecuteChecker}; walk parity: {@code alloyFallback}). */
+    MAY_EXECUTE_ALLOY_TEST("mayExecuteAlloyTest"),
+    /** {@code mayExecuteLegendTest(serverThunk, |fallback)} &mdash; the same
+     * branch native for a live Legend server (test.pure:18). */
+    MAY_EXECUTE_LEGEND_TEST("mayExecuteLegendTest"),
     /** {@code if(cond, |then, |else)} &mdash; thunk branches + branch-type join. */
     IF("if"),
     /** {@code ^Class(prop=value, &hellip;)} &mdash; instance construction ({@code new}). */

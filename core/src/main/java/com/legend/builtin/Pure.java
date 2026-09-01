@@ -1809,6 +1809,14 @@ public final class Pure {
     // (RUNTIME: fetches through the database; carrier-folded)
     public static final NativeFunctionDefinition GENERATE_SEED_DATA_STRING = signature("native function meta::relational::testDataGeneration::generateSeedDataString(func:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], exeCtx:meta::pure::metamodel::type::Any[1], parameters:meta::pure::metamodel::type::Any[*], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition CREATE_TEMPORAL_MILESTONING_DATES = signature("native function meta::relational::testDataGeneration::createTemporalMilestoningDates(businessDate:meta::pure::metamodel::type::Date[0..1], processingDate:meta::pure::metamodel::type::Date[0..1], snapshotDate:meta::pure::metamodel::type::Date[0..1]):meta::relational::testDataGeneration::TemporalMilestoningDates[1];");
+    // real core_functions_unclassified/test.pure:15-19 — the test-harness
+    // BRANCH natives: f1 runs against a live Alloy/Legend server, f2 is
+    // the no-server branch. This platform has no server, so the checker
+    // folds the call to its fallback thunk (MayExecuteChecker — the same
+    // branch the engine's serverless CI takes; walk parity:
+    // EngineTestExecutor.alloyFallback).
+    public static final NativeFunctionDefinition MAY_EXECUTE_ALLOY_TEST = signature("native function meta::alloy::test::mayExecuteAlloyTest<X|k>(f1:meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::String[1], meta::pure::metamodel::type::String[1], meta::pure::metamodel::type::String[1], meta::pure::metamodel::type::Integer[1]->X[k]}>[1], f2:meta::pure::metamodel::function::Function<{->X[k]}>[1]):X[k];");
+    public static final NativeFunctionDefinition MAY_EXECUTE_LEGEND_TEST = signature("native function meta::legend::test::mayExecuteLegendTest<X|k>(f1:meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::String[1], meta::pure::metamodel::type::String[1], meta::pure::metamodel::type::String[1], meta::pure::metamodel::type::String[1], meta::pure::metamodel::type::Integer[1]->X[k]}>[1], f2:meta::pure::metamodel::function::Function<{->X[k]}>[1]):X[k];");
     // pure-only plan shapes (no store): 2/3-arg spellings type; their
     // plan text is a PureExp node — a named wall at the K-arm until built
     // parameterized query lambdas (Allocation/Sequence plans): they

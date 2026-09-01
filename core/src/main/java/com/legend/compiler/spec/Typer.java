@@ -263,9 +263,11 @@ final class Typer {
                                     ln.value(), val, val.info()));
                             continue;
                         }
-                        throw new TypeInferenceException("a non-let intermediate"
-                                + " statement in a bare lambda literal is not"
-                                + " supported");
+                        // bind-once family B tail: a non-let intermediate
+                        // is an EXPRESSION STATEMENT (value discarded —
+                        // real pure body semantics); it types in the same
+                        // scope and rides the body like a let's value.
+                        stmts.add(synth(lf.body().get(si), scope));
                     }
                     TypedSpec body = synth(lf.body().get(lf.body().size() - 1), scope);
                     stmts.add(body);
@@ -1270,6 +1272,8 @@ final class Typer {
             // TDG lane S2: runtime data extraction — carrier here, the
             // orchestrator executes the fetches and splices literals
             case GENERATE_TEST_DATA -> GenerateTestDataChecker.check(this, af, env);
+            case MAY_EXECUTE_ALLOY_TEST, MAY_EXECUTE_LEGEND_TEST ->
+                    MayExecuteChecker.check(this, af, env);
             case GENERATE_SEED_DATA_STRING ->
                     GenerateTestDataChecker.checkSeed(this, af, env);
             // ^Class(...) desugars to new(PackageableElementPtr, NewInstance); the inner node
