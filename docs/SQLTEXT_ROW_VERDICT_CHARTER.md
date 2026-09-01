@@ -445,6 +445,23 @@ legitimate forever.
    (setUpDataSQLs chain) and Any-property reads
    (createTableRowIdentifiers' .first) — compiler-gap legs, not
    policy. Canon exact 21 held; paired sweeps byte-identical.
+   **PLAN-EXECUTE NATIVE LANDED 2026-09-01 (8c531339, two walls
+   peeled).** meta::pure::executionPlan::execute(plan, values, ext)
+   joined the catalog (REAL signature executionPlan_execution.pure:20;
+   golden-line diff in native-catalog.txt) and NORMALIZES in
+   StatementExecutor.buildFrame: the plan argument peels let-aware to
+   its executionPlan(...) build — same positional shape as
+   router::execute — so the ordinary frame machinery serves it whole;
+   plan TEXT is engine-text (EngineStyleH2) and NEVER executes on the
+   session connection (single-compiler tenet). Non-traceable plans and
+   non-empty parametersValues wall counted (values-binding = the
+   referee-binding cut, future). TWO REAL PLATFORM BUGS flushed by the
+   attempt: Env.resolveAlias had no cycle guard (a helper parameter
+   named like its caller's let — loadAndTestExecution's runtime <-
+   $runtime — self-aliased and hung the sweep; jstack receipts,
+   guarded) and the execute/3 wall (30 tests) peeled to its NEXT named
+   walls: Any-property dynamic reads (+28, now 46 total — the next
+   checker leg) and effectful (+4). Zero net flips; honest movement.
 4. Plan replayer (§5) + plan-text flips; branch-forcing.
 5. Inventory upgrades as their own commits: #3 ULP probe/upgrade,
    #4 TIMESTAMP_NS leg, #11 projection, #1 sentinel.
