@@ -20,6 +20,8 @@ public record TypedScanRelations(
         com.legend.protocol.spec.LambdaFunction query,
         String mappingFqn,
         boolean runtimeVariant,
+        boolean asString,
+        boolean showLabels,
         ExprType info) implements TypedSpec {
 
     @Override

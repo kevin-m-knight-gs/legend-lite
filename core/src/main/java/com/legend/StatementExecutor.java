@@ -147,6 +147,9 @@ final class StatementExecutor {
             // literals HERE (orchestration owns testdatagen; the compiler
             // cannot — layering), before resolve sees the statement
             TypedSpec stmt = com.legend.testdatagen.TestDataGenerationNatives.foldCensus(stmts.get(i), env.ctx(), env.connection(), letPrefix);
+            // lineage lane: string-flavored scan carriers fold to their
+            // engine-exact tree text (same layering as the census fold)
+            stmt = com.legend.lineage.ScanRelations.foldTreeText(stmt, env.ctx());
             boolean last = i == stmts.size() - 1;
             if (stmt instanceof com.legend.compiler.spec.typed.TypedLet let && !last) {
                 // let tds = $r.values(->at(0)/->toOne()): over a RELATION-

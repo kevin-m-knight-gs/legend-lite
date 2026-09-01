@@ -49,6 +49,7 @@ final class ScanRelationsChecker {
             LambdaFunction closed = env.aliases().isEmpty() ? ql
                     : (LambdaFunction) SourceSubst.substitute(ql, env.aliases());
             return new TypedScanRelations(closed, mp.fullPath(), n == 4,
+                    false, false,
                     ExprType.one(new Type.ClassType(RELATION_TREE_FQN)));
         }
         throw new TypeInferenceException("scanRelations needs its query"
@@ -71,18 +72,12 @@ final class ScanRelationsChecker {
                 && af.parameters().get(1)
                         instanceof com.legend.protocol.spec.CBoolean b
                 && !b.value());
-        String s;
-        try {
-            s = com.legend.lineage.ScanRelations.treeString(t.model(),
-                    carrier.query(), carrier.mappingFqn(),
-                    carrier.runtimeVariant(), showLabels);
-        } catch (com.legend.error.NotImplementedException e) {
-            // the scanner's own vocabulary walls stay walls — re-thrown
-            // in the typing channel so the census counts them by reason
-            throw new TypeInferenceException("scanRelations: "
-                    + String.valueOf(e.getMessage()).split("\\n")[0]);
-        }
-        return new com.legend.compiler.spec.typed.TypedCString(s,
+        // STRING-flavored carrier: the compiler slice must not call
+        // lineage (invariant 4 — the CsvCensus layering); the
+        // orchestration-time fold (ScanRelations.foldTreeText, wired at
+        // StatementExecutor's census-fold site) computes the text.
+        return new TypedScanRelations(carrier.query(), carrier.mappingFqn(),
+                carrier.runtimeVariant(), true, showLabels,
                 ExprType.one(Type.Primitive.STRING));
     }
 

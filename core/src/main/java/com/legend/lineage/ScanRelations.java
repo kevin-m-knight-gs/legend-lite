@@ -97,6 +97,43 @@ public final class ScanRelations {
         return treeString(ctx, query, mappingFqn, false, true);
     }
 
+    /** The orchestration-time FOLD for string-flavored
+     * {@link com.legend.compiler.spec.typed.TypedScanRelations} carriers
+     * (the {@code foldCensus} sibling — the compiler slice must not call
+     * lineage, so the checker parks the scan protocol and this walker,
+     * wired at StatementExecutor's census-fold site, computes the
+     * engine-exact tree text). Scanner-vocabulary gaps throw
+     * {@code NotImplementedException} — the executor's wall channel. */
+    public static com.legend.compiler.spec.typed.TypedSpec foldTreeText(
+            com.legend.compiler.spec.typed.TypedSpec stmt, ModelContext ctx) {
+        if (stmt instanceof com.legend.compiler.spec.typed
+                .TypedScanRelations sc && sc.asString()) {
+            // COMPILER-minted literal via the census factory (invariant
+            // 7: typed nodes are minted only by compiler layers — the
+            // folder calls back down, the seedString precedent), [1]
+            // string unwrapped from the collection carrier
+            return com.legend.compiler.spec.CsvCensusChecker
+                    .literalStrings(java.util.List.of(
+                            treeString(ctx, sc.query(), sc.mappingFqn(),
+                                    sc.runtimeVariant(), sc.showLabels())),
+                            sc.info())
+                    .children().get(0);
+        }
+        List<com.legend.compiler.spec.typed.TypedSpec> kids = stmt.children();
+        if (kids.isEmpty()) {
+            return stmt;
+        }
+        List<com.legend.compiler.spec.typed.TypedSpec> out =
+                new ArrayList<>(kids.size());
+        boolean changed = false;
+        for (com.legend.compiler.spec.typed.TypedSpec k : kids) {
+            com.legend.compiler.spec.typed.TypedSpec r = foldTreeText(k, ctx);
+            changed |= r != k;
+            out.add(r);
+        }
+        return changed ? stmt.withChildren(out) : stmt;
+    }
+
     /** {@code runtimeVariant}: the RUNTIME (4-arg) scan — an undemanded
      * root prints its EXTENT (`(t) Person []`), union-mapped navigation
      * forks per MEMBER SET (union keys + member PK demand), and
