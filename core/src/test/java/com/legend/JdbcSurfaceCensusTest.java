@@ -256,12 +256,12 @@ class JdbcSurfaceCensusTest {
             // Migration scaffolding: dies at the whole-test cutover.
             "core/src/test/java/com/legend/harness/FlipProbe.java",
             // SCORING FLIP (slice 3): the migration dispatch itself —
-            // Connection passed THROUGH to the one platform seam, plus
-            // the TRANSACTION boundary of the effectful cutover
-            // (setAutoCommit/commit/rollback around the attempt: commit
-            // on flip, rollback so the walk's fallback re-run starts
-            // pristine — atomicity replaced the static verb gate); at
-            // cutover this becomes the runner's only execution route
+            // Connection passed THROUGH to the one platform seam; the
+            // effectful cutover's atomic-attempt protocol (begin/
+            // commit/rollbackAttempt — txn + ledger mark + mirror
+            // repair as ONE owned invariant) lives in ReplayOracle and
+            // this file only DRIVES it (SQLException handling at the
+            // call site); at cutover the call site moves to the runner
             // and the walk's JDBC surfaces above delete.
             "core/src/test/java/com/legend/harness/WholeTestFlip.java",
             "core/src/test/java/com/legend/harness/EngineTestExecutorTest.java",

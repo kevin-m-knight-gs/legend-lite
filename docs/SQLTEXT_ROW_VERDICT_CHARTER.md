@@ -468,6 +468,16 @@ legitimate forever.
    (measuring sweep: detaches 0, rollback-failures 0; rollbacks
    fired and state-restored — the 28 mid-body TDG walls left corpus
    totals byte-stable).
+   PLACEMENT (user probe "right place if it survives?"): the
+   protocol is ONE owned invariant — ReplayOracle.beginAttempt/
+   commitAttempt/rollbackAttempt (txn + ledger mark + mirror repair;
+   the service that already owns family-session world state);
+   WholeTestFlip only DRIVES it. Txn policy stays CALLER-side by
+   design — the platform executes on the connection state it is
+   handed, never owns transaction semantics. At cutover the call
+   site moves to the runner; the protocol survives in place as
+   family-session failure hygiene (a failed body must not leak
+   partial writes into later tests' shared session).
    **THE "ANY-PROPERTY CHECKER" LEG — DISSOLVED BY CENSUS 2026-09-01
    (ratchet 928/1645).** Measure-first killed the design: all 46
    walls were ONE shape ($cv.first in createTableRowIdentifiers,

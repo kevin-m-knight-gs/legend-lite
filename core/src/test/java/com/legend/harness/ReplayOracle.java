@@ -92,18 +92,51 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
         }
     }
 
-    /** Transactional-flip rollback repair (WholeTestFlip): a mid-body
-     * verify may have advanced the mirror cursor past the rolled-back
-     * ledger mark — the mirror then holds state the session no longer
-     * has (H2 cannot roll it back), so it DETACHES and the family's
-     * remaining verifies ride the fresh-replay path over the truncated
-     * ledger: correct, slower, failure-path only. The runner still owns
-     * and closes the connection. Returns true when a detach happened
-     * (the caller censuses it). */
-    public static boolean mirrorDetachIfAhead(int sqlLedgerMark) {
+    // =================================================================
+    // THE ATOMIC-ATTEMPT PROTOCOL (effectful cutover): one owner for
+    // "execute an effect-bearing body against the family-session WORLD
+    // — session connection + seed ledger + mirror — atomically". The
+    // txn is CALLER policy on a connection the harness owns (the
+    // platform stays policy-free: it executes on the connection state
+    // it is handed). Today's caller is WholeTestFlip; at cutover the
+    // call site moves to the runner and these verbs move with it —
+    // the protocol survives as failure hygiene for the shared family
+    // session either way.
+    // =================================================================
+
+    /** Open the attempt: transaction on, world position marked. */
+    public static com.legend.sql.dialect.RawSqlBoundary.LedgerMark
+            beginAttempt(Connection conn) throws SQLException {
+        conn.setAutoCommit(false);
+        return com.legend.sql.dialect.RawSqlBoundary.mark();
+    }
+
+    /** Commit the attempt: the world advances (ledger entries stand,
+     * mirror cursor position stays honest — it applied real state). */
+    public static void commitAttempt(Connection conn) throws SQLException {
+        conn.commit();
+        conn.setAutoCommit(true);
+    }
+
+    /** Roll the WORLD back to the mark — the one invariant of the
+     * failure path: session transaction rolled back, ledger truncated
+     * to the mark (unrecordLast, range edition), and a mirror whose
+     * cursor ran ahead mid-body DETACHED (H2 cannot roll back; the
+     * family's remaining verifies ride the fresh-replay path over the
+     * truncated ledger — correct, slower, failure-path only; the
+     * runner still owns and closes the connection). Returns true when
+     * a detach happened (the caller censuses it). Throws when the
+     * session rollback itself fails — world state unknown, the caller
+     * must stay LOUD. */
+    public static boolean rollbackAttempt(Connection conn,
+            com.legend.sql.dialect.RawSqlBoundary.LedgerMark mark)
+            throws SQLException {
+        conn.rollback();
+        conn.setAutoCommit(true);
+        com.legend.sql.dialect.RawSqlBoundary.truncateTo(mark);
         MirrorState mirror = MIRROR;
-        if (mirror != null && sqlLedgerMark >= 0
-                && mirror.applied > sqlLedgerMark) {
+        if (mirror != null && mark.sql() >= 0
+                && mirror.applied > mark.sql()) {
             MIRROR = null;
             return true;
         }

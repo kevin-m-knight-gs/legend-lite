@@ -263,12 +263,11 @@ public final class WholeTestFlip {
             return fallback("wall-type: " + bucketOf(e.getMessage()), test);
         }
         List<Boolean> events = new ArrayList<>();
-        com.legend.sql.dialect.RawSqlBoundary.LedgerMark mark =
-                com.legend.sql.dialect.RawSqlBoundary.mark();
+        com.legend.sql.dialect.RawSqlBoundary.LedgerMark mark = null;
         boolean txn = false;
         if (effectful) {
             try {
-                conn.setAutoCommit(false);
+                mark = ReplayOracle.beginAttempt(conn);
                 txn = true;
             } catch (java.sql.SQLException e) {
                 return fallback("flip-txn: begin failed: "
@@ -307,8 +306,7 @@ public final class WholeTestFlip {
             }
             if (reason == null && txn) {
                 try {
-                    conn.commit();
-                    conn.setAutoCommit(true);
+                    ReplayOracle.commitAttempt(conn);
                     txn = false;
                 } catch (java.sql.SQLException e) {
                     reason = "flip-txn: commit failed: "
@@ -325,14 +323,14 @@ public final class WholeTestFlip {
                     List.of(), List.of());
         } finally {
             if (txn) {
-                // failure exit: restore pristine session state so the
-                // walk's re-run is a FIRST run
+                // failure exit: restore the family-session WORLD to the
+                // mark (ReplayOracle owns the protocol) so the walk's
+                // re-run is a FIRST run
                 try {
-                    conn.rollback();
-                    conn.setAutoCommit(true);
+                    boolean detached = ReplayOracle.rollbackAttempt(conn,
+                            java.util.Objects.requireNonNull(mark, "mark"));
                     ROLLBACKS.incrementAndGet();
-                    com.legend.sql.dialect.RawSqlBoundary.truncateTo(mark);
-                    if (ReplayOracle.mirrorDetachIfAhead(mark.sql())) {
+                    if (detached) {
                         MIRROR_DETACHES.incrementAndGet();
                     }
                 } catch (java.sql.SQLException e) {
