@@ -187,3 +187,115 @@ toSQLString overload coverage per test; runtime pairing for render
 tests whose module runtime may not bind the producer's mapping;
 parameter-value harvesting coverage for plan replay; LL_ORD_COUNT
 blast radius; ULP-1 float survivor set.
+
+---
+
+## APPENDIX A — the worked example (the ratified walkthrough, verbatim)
+
+```
+let query = {|Person.all()->filter(p | $p.firm.legalName == 'X')};
+let sql   = toSQLString($query, simpleRelationalMapping, DatabaseType.H2, ext);
+assertEquals('select "root".NAME as "name" from personTable as "root" ...', $sql);
+```
+After whole-body compile + let substitution, the assert's typed
+argument tree literally contains
+`assertEquals('select…', toSQLString({|Person.all()->filter(…)},
+simpleRelationalMapping, H2, ext))` — the producer node's children
+ARE the query lambda / mapping ref / dialect. The verdict arm reads
+them off the node; OUR ROWS come from executing that lambda through
+the ordinary pipeline with the mapping from the producer and the
+runtime from ExecEnv (runtime pairing = §10 measure-first item).
+
+## APPENDIX B — the plan-text example (real corpus shape)
+
+```
+Sequence(
+  FunctionParametersValidationNode(y: String[1])
+  Allocation( name=z, value = $y->split(',') )
+  FreeMarkerConditional(
+    if collectionSize(z) > 50:
+       CreateAndPopulateTempTable(tempTableForIn_z) … select from temp table …
+    else: inline the literals )
+  Relational( sql = select "root".LEGALNAME … where LEGALNAME in (${inFilterClause_z}) ))
+```
+`${…}` holes fill at runtime from parameter values the test never
+supplies. Replayer building blocks that already exist:
+PlanSupportFunctions.relationalPlanSupportFunctions (freemarker
+support fns + enum-map template functions, used by plan emission) and
+the TDG temp-table machinery.
+
+## APPENDIX C — homework receipts (all verified 2026-09-01)
+
+**The oracle machinery (test-side today):**
+- Seed recording: `sql/dialect/RawSqlBoundary.java` — RECORDER
+  thread-local installed per test (Runner.java:934); every corpus
+  statement is H2-flavored BY DEFINITION and records verbatim;
+  `unrecordLast()` keeps the ledger matching executed reality;
+  META_RECORDER is a SEPARATE metadata-only channel (PK constraints,
+  schema creates DuckDB skips) consumed ONLY by fetchDb* metadata
+  replay — kept out of the row-replay stream on purpose.
+- Mirror: ONE live in-memory H2 per family session
+  (Runner.java:~1552, `jdbc:h2:mem:famMirror<N>` + H2Settings),
+  INCREMENTAL (applies only unmirrored ledger entries — the fresh
+  full-history replay per verify was O(n²)); a rejected statement
+  POISONS the family (identical decline set to fresh-replay);
+  `mirrorSuspend` for private-session tests; engine H2 extension
+  functions registered on the mirror too (F6.7 — they were
+  fresh-path-only once and the default path declined).
+- Session settings: `exec/H2Settings.SETTINGS` =
+  `;NON_KEYWORDS=ANY,…,OVER;MODE=LEGACY` — engine's 2.1.214 server
+  verbatim; the old DATABASE_TO_UPPER leniency is dead.
+- Compare: `H2Verify.goldenRowsCompare` (:757-841; unconditional
+  sort at :826-827 — the §7 fix target), `goldenGraphCompare`
+  (:566-750), `norm` (:1314-1394), `coerceTemporal` (:405),
+  `carrierList` (:115), `bookkeepingAlias` (:552),
+  `divergenceOrSkew` (:843). TDG replay variants exist too:
+  `tdgSqlReplay` (:1023) / `tdgChainedReplay` (:1165).
+- Instruments: per-test verdict roster → target/h2-verdicts.txt
+  every sweep; UNVERIFIABLE_CENSUS per-reason (declared-gap registry
+  asserts growth); GOLDEN_NANOS/MIRROR_NANOS wall-clock.
+
+**Lane classification:** `EngineTestExecutor.v7DualChannel`
+(:3440-3505) — SQL_TEXT_OUTCOME thread-local set by the verify exits;
+buckets: exec-passing / text-only (…" nothing executed anywhere") /
+unable-to-exec::<sub>. "Our side ran" detection = execVars refs +
+containsExecute + TDG `.sqls` reads (S3 user catch: a TDG sqls read
+means our side EXECUTED). Text-only composition measured: plan-literal
+17 + plan-let 6 + match-noreplay 3 + no-generator-noreplay 9 +
+no-root-exec-variable 7 + bare 2.
+
+**NanoProbe (2026-09-01, duckdb_jdbc 1.5.0.0):** `TIMESTAMP_NS`
+column: getObject → `2015-08-26 15:22:23.123456789`,
+getTimestamp().getNanos() = 123456789; plain `TIMESTAMP` truncates to
+`.123456`. Receipt for inventory row 4.
+
+**Dedup skew witnesses seen this session (slice 0 starts here, then
+censuses properly):** testQualifierQueryWithOr ("row-cardinality skew
+(distinct rows agree)"; the in-file example: 7× Firm X where the
+engine builds one object per joined row and the test's
+assertSize(values->at(0),1) pins nothing);
+advanced::forced::structure::testQualifierWithOperation /
+testTwoQualifiersWithOperation decline as "forced-isolation golden
+over a VALUE frame" (adjacent, engine debug-mechanism pin). Engine
+receipt: RelationalResult.java has zero distinct/dedup/pk sites
+(verified 2026-08-28).
+
+## APPENDIX D — operational wiring the slices MUST touch
+
+- **The flip-side gate**: WholeTestFlip's per-assert TEXT-TAINT
+  prescan (:~140-165) routes any test whose assert reads a
+  sql-producer (taint flows let-to-let) to `fallback("text-policy")`
+  BEFORE anything runs. Migrating the lane = replacing this gate with
+  the verdict arms; flips retire it incrementally.
+- **Exact pins that WILL trip on every lane slice** (move them WITH
+  the burn + update V7 charter §8.0 in the same commit — the
+  lane-guard doctrine): RelationalCorpusRunner exec-passing
+  assertEquals(1527) at ~:852, text-only assertEquals(44) at ~:893,
+  unable-to-exec assertEquals(21) at ~:935; M1_VERIFIED floor ≥455;
+  h2-verdicts roster; the migration ratchet (2040/533 at this
+  charter's writing).
+- **Both-ours compares** (two of OUR renders vs each other): execute
+  both queries, compare rows to each other — self-consistency.
+- **Foreign-dialect residue**: the H2 member of each AllDBs family
+  still row-verifies; the non-H2 renders are the permanent named
+  text census.
