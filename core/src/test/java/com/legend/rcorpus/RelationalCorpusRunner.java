@@ -566,6 +566,25 @@ public class RelationalCorpusRunner {
         } catch (java.io.IOException ignore) {
             // best-effort diagnostic (histogram precedent)
         }
+        // SQLTEXT slice 3a: the emission census (charter §0 — text is
+        // a census number, never a verdict; §8.6 turns the diff count
+        // into the shrink-only emission ratchet)
+        System.out.println("[rcorpus] sqltext-emission: text-matched "
+                + com.legend.exec.SqlTextEmission.TEXT_MATCHED.sum()
+                + ", text-diverged "
+                + com.legend.exec.SqlTextEmission.TEXT_DIVERGED.sum()
+                + ", text-verdict "
+                + com.legend.exec.SqlTextEmission.TEXT_VERDICT.values()
+                        .stream().mapToLong(
+                                java.util.concurrent.atomic.LongAdder::sum)
+                        .sum());
+        com.legend.exec.SqlTextEmission.TEXT_VERDICT.entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue().sum(),
+                        a.getValue().sum()))
+                .limit(20)
+                .forEach(e -> System.out.println(
+                        "[rcorpus] sqltext-text-verdict " + e.getValue().sum()
+                                + "x " + e.getKey()));
         // step 13 registry feed: the per-reason unverifiable census
         com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS.entrySet().stream()
                 .sorted((a, b) -> Long.compare(b.getValue().sum(),
@@ -949,10 +968,24 @@ public class RelationalCorpusRunner {
             // re-run-safety routing — no evaluation anywhere). The
             // one-time flipped-count decrease is this recorded ruling,
             // never a silent regression.
+            // 2040/533 -> 1997/576 (SQLTEXT charter slice 3a,
+            // 2026-09-01): the tosqlstring-simple cohort flips — 43-44
+            // tests whose every sql assert is the
+            // assertEquals(golden, toSQLString({|q}, mapping, dialect))
+            // shape now score from the platform's SqlTextVerdicts arm
+            // (rows are the verdict; text is the emission census:
+            // 18 matched + 7 diverged + 19 text-verdict residue).
+            // Corpus +5 (2343 -> 2348: transform/fromPure +4,
+            // tds/tests +1 — old text-strict failures whose ROWS agree).
+            // Pinned at the CONSERVATIVE envelope: consecutive sweeps
+            // measured 1996/577 then 1997/576 — ONE test's admission
+            // wobbles run-to-run (suspect: run-varying seed-softening
+            // upstream of the gate). Finding it is 3b homework; the
+            // ratchet still enforces the 44-test direction.
             org.junit.jupiter.api.Assertions.assertTrue(
-                    com.legend.harness.WholeTestFlip.fallbackCount() <= 2040
+                    com.legend.harness.WholeTestFlip.fallbackCount() <= 1997
                             && com.legend.harness.WholeTestFlip
-                                    .flippedCount() >= 533,
+                                    .flippedCount() >= 576,
                     "whole-test migration ratchet moved backwards: flipped="
                             + com.legend.harness.WholeTestFlip.flippedCount()
                             + " fallbacks="
@@ -964,7 +997,11 @@ public class RelationalCorpusRunner {
             // flattened 141 reason-diverse rows into one coarse label.
             // The MEASUREMENT stands in FULL_RESIDUE_CENSUS §8: every
             // getAll decline is a plan-bearing assert, the 44 stays.)
-            org.junit.jupiter.api.Assertions.assertEquals(44,
+            // 44 -> 43 (SQLTEXT slice 3a): one text-only assert's test
+            // joined the tosqlstring-simple flip cohort — its verdict
+            // now comes from the platform arm (rows), so the walk's
+            // text-only classification loses the row.
+            org.junit.jupiter.api.Assertions.assertEquals(43,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix("assert-sql-text-only"),
                     "lane guard: assert-sql-text-only moved — update the"

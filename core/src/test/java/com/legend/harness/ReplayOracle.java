@@ -426,6 +426,73 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     // THE PLATFORM SPI (SQLTEXT charter §2)
     // =================================================================
 
+    /** The row verdict (charter §3.5d-6): golden replay + the §6/§7
+     * comparison policy, outcomes as DATA. The enum decode derives
+     * from the ARM-supplied mapping/class facts (the producer's own
+     * children — never AST re-discovery here). Declines COUNT through
+     * the one funnel ({@link H2Verify#decline}). */
+    @Override
+    public com.legend.exec.SqlReplayOracle.RowVerdict verify(
+            java.sql.Connection session, String goldenSql,
+            ExecutionResult ours,
+            @com.legend.Nullable String mappingFqn,
+            @com.legend.Nullable String rootClassFqn,
+            com.legend.compiler.element.ModelContext ctx) {
+        java.util.Map<Integer, java.util.Map<String, String>> enumDecode =
+                new java.util.LinkedHashMap<>();
+        if (mappingFqn != null
+                && !(ours instanceof ExecutionResult.Graph)) {
+            for (int i = 0; i < ours.columns().size(); i++) {
+                if (ours.columns().get(i).pureType()
+                        instanceof com.legend.compiler.element.type.Type
+                                .EnumType et) {
+                    var dec = H2Verify.decodeOf(ctx, mappingFqn, et.fqn());
+                    if (dec != null) {
+                        enumDecode.put(i, dec);
+                    }
+                }
+            }
+        }
+        java.util.function.Function<String,
+                java.util.Map<String, String>> enumProp = key -> {
+            if (mappingFqn == null || rootClassFqn == null) {
+                return null;
+            }
+            var prop = ctx.findProperty(rootClassFqn, key);
+            if (prop.isEmpty() || !(prop.get().type()
+                    instanceof com.legend.compiler.element.type.Type
+                            .EnumType et)) {
+                return null;
+            }
+            var dec = H2Verify.decodeOf(ctx, mappingFqn, et.fqn());
+            return dec == null ? java.util.Map.of() : dec;
+        };
+        try {
+            String r = verifyAuto(session,
+                    com.legend.sql.dialect.RawSqlBoundary.recording(),
+                    goldenSql, ours, enumDecode, enumProp);
+            return r == null
+                    ? com.legend.exec.SqlReplayOracle.RowVerdict.match()
+                    : com.legend.exec.SqlReplayOracle.RowVerdict
+                            .diverged(r);
+        } catch (H2Verify.Unverifiable u) {
+            // probe isolation: the dual-channel's duplicate firings must
+            // not double-feed the pinned unverifiable census
+            if (!com.legend.exec.SqlTextEmission.probeSuspended()) {
+                H2Verify.decline("verdict-arm: " + u.getMessage());
+            }
+            return com.legend.exec.SqlReplayOracle.RowVerdict
+                    .declined(String.valueOf(u.getMessage()));
+        } catch (java.sql.SQLException | RuntimeException e) {
+            if (!com.legend.exec.SqlTextEmission.probeSuspended()) {
+                H2Verify.decline("verdict-arm: "
+                        + String.valueOf(e.getMessage()).replace('\n', ' '));
+            }
+            return com.legend.exec.SqlReplayOracle.RowVerdict
+                    .declined(String.valueOf(e.getMessage()));
+        }
+    }
+
     /** Rows for a SQL text on the seeded oracle (the recorded ledger
      * applies exactly as the verify paths apply it). Raw
      * {@code getObject} cells — comparison policy normalizes, never

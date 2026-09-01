@@ -61,8 +61,36 @@ public final class SqlTextShapes {
                     com.legend.compiler.element.type.PlatformTypes
                             .TO_SQL_STRING_PRETTY);
 
+    /** Slice-3a admission: TRUE when every sql-involved assert in the
+     * body is the tosqlstring-simple shape (and one exists) — the
+     * platform's SqlTextVerdicts arm owns exactly that cohort, so the
+     * flip gate lets the test through instead of falling back. */
+    public static boolean allSimple(List<ValueSpecification> statements,
+            ModelContext ctx) {
+        TreeMap<String, Integer> shapes = classify(statements, ctx);
+        return shapes.containsKey("tosqlstring-simple")
+                && shapes.keySet().stream().allMatch(k ->
+                        k.equals("tosqlstring-simple") || k.equals("plain"));
+    }
+
     /** Classify one text-policy test body and record it. */
     public static void record(String test,
+            List<ValueSpecification> statements, ModelContext ctx) {
+        TreeMap<String, Integer> shapes = classify(statements, ctx);
+        StringBuilder combo = new StringBuilder();
+        for (var e : shapes.entrySet()) {
+            if (combo.length() > 0) {
+                combo.append('+');
+            }
+            combo.append(e.getKey()).append('x').append(e.getValue());
+        }
+        String key = combo.length() == 0 ? "no-asserts" : combo.toString();
+        CENSUS.computeIfAbsent(key,
+                k -> new java.util.concurrent.atomic.LongAdder()).increment();
+        ROSTER.add(key + " " + test);
+    }
+
+    private static TreeMap<String, Integer> classify(
             List<ValueSpecification> statements, ModelContext ctx) {
         java.util.Map<String, ValueSpecification> lets =
                 new java.util.LinkedHashMap<>();
@@ -84,17 +112,7 @@ public final class SqlTextShapes {
             shapes.merge(assertShape(af, lets, statements, ctx), 1,
                     Integer::sum);
         }
-        StringBuilder combo = new StringBuilder();
-        for (var e : shapes.entrySet()) {
-            if (combo.length() > 0) {
-                combo.append('+');
-            }
-            combo.append(e.getKey()).append('x').append(e.getValue());
-        }
-        String key = combo.length() == 0 ? "no-asserts" : combo.toString();
-        CENSUS.computeIfAbsent(key,
-                k -> new java.util.concurrent.atomic.LongAdder()).increment();
-        ROSTER.add(key + " " + test);
+        return shapes;
     }
 
     private static String assertShape(AppliedFunction af,

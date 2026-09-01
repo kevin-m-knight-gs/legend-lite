@@ -35,4 +35,44 @@ public interface SqlReplayOracle {
             java.util.List<Integer> jdbcTypes,
             java.util.List<java.util.List<@com.legend.Nullable Object>> rows) {
     }
+
+    /**
+     * THE ROW VERDICT (charter §3.5d-6): replay {@code goldenSql} on
+     * the seeded oracle and compare its rows against {@code ours}
+     * under the oracle's OWN comparison policy (the §6 normalization
+     * inventory + the §7 order rule live with the referee — charter
+     * §2 puts comparison policy on the testing side; the platform arm
+     * consumes the OUTCOME and owns the assert's judgment).
+     * {@code session} is the executing connection (an H2 session
+     * verifies directly); {@code mappingFqn}/{@code rootClassFqn}
+     * drive the enum source-code→name decode where the query selects
+     * raw codes. Never throws for a comparison problem — every
+     * non-answer is a DECLINED outcome with its counted reason.
+     */
+    RowVerdict verify(java.sql.Connection session, String goldenSql,
+            ExecutionResult ours,
+            @com.legend.Nullable String mappingFqn,
+            @com.legend.Nullable String rootClassFqn,
+            com.legend.compiler.element.ModelContext ctx);
+
+    /** MATCH = rows agree (the verdict of record); DIVERGED = rows
+     * differ ({@code detail} says how — a REAL failure whatever the
+     * text said); DECLINED = the oracle could not answer
+     * ({@code detail} = the counted reason; the caller's §4 policy
+     * applies — e.g. text stays the contract). */
+    record RowVerdict(Outcome outcome, @com.legend.Nullable String detail) {
+        public enum Outcome { MATCH, DIVERGED, DECLINED }
+
+        public static RowVerdict match() {
+            return new RowVerdict(Outcome.MATCH, null);
+        }
+
+        public static RowVerdict diverged(String detail) {
+            return new RowVerdict(Outcome.DIVERGED, detail);
+        }
+
+        public static RowVerdict declined(String reason) {
+            return new RowVerdict(Outcome.DECLINED, reason);
+        }
+    }
 }

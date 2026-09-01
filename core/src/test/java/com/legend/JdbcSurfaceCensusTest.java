@@ -87,6 +87,12 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/AssertVerdicts.java",
             "core/src/main/java/com/legend/Compiler.java",
             "core/src/main/java/com/legend/SeedSqlForms.java",
+            // SQLTEXT slice 3a: the sql-text verdict arm — touches
+            // java.sql ONLY to raise SQLException verdicts (the
+            // AssertVerdicts fail() idiom) and to pass the env's
+            // connection through to the SqlReplayOracle SPI; it opens
+            // no connection and executes nothing itself
+            "core/src/main/java/com/legend/SqlTextVerdicts.java",
             "core/src/main/java/com/legend/StatementExecutor.java",
             "core/src/main/java/com/legend/exec/DynamicPivot.java",
             // Phase 1c: the LIMIT-0 schema probe (schema, never values;

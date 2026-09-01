@@ -103,8 +103,10 @@ class HarnessDisciplineTest {
             // census dump's two sorts — count-descending histogram +
             // name-sorted roster for a DIFFABLE census file (the
             // h2-verdicts display-ordering class; no comparison flows
-            // through them)
-            Map.entry("RelationalCorpusRunner.java", 17),
+            // through them). 17 -> 18 (slice 3a): the emission
+            // census's count-descending text-verdict print — same
+            // display-only class.
+            Map.entry("RelationalCorpusRunner.java", 18),
             // PX.1: TreeSet as a deterministic-iteration REGISTRY
             // (workspace names), not a result reorder
             Map.entry("DuckWorkspaces.java", 1),

@@ -369,7 +369,11 @@ class JavaEvalLedgerTest {
             // implementation (checkAssert's walk) can DELETE — the
             // whole-test flip scores from these events instead of
             // re-implementing assert semantics.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1436),
+            // 1436 -> 1441 (SQLTEXT slice 3a, 2026-09-01): the
+            // five-line dispatch hook handing the sql-text shape to
+            // SqlTextVerdicts (its own ledger row below) — routing
+            // only, no evaluation, no judgment change for other arms.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1441),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -455,6 +459,24 @@ class JavaEvalLedgerTest {
             // (same seam, same nullable carriage, same env-not-static
             // discipline). Registration plumbing only — no evaluation.
             Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2571),
+            // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
+            // verdict arm — detection (typed-node + exact FQN),
+            // four-artifact sequencing through evalValue and the
+            // oracle SPI, outcome judgment + the emission census.
+            // Zero evaluation: every text and every row computes in
+            // the database; the §4 residue arms judge TEXT equality of
+            // two DB-computed strings (Clause 2c judgment).
+            // 145 -> 156 (same slice): the LET-AWARE producer chase
+            // (the platform keeps lets as lets; measured — 44 flipped
+            // tests all missed the arm until it landed), the arm-fired
+            // probe marker, and the rows-null decline path; the
+            // TypedFrom mint moved OUT to VerdictQueries (Invariant 7).
+            // Navigation and outcome routing only — zero evaluation.
+            // 156 -> 161: the OUR-ROWS leg is REFEREE-CLASS execution —
+            // wire-census suspension with save/restore so the arm's
+            // derivation plans never move the primary lane's shrink-only
+            // ceilings (and an outer probe's suspension survives).
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 161),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
@@ -671,6 +693,42 @@ class JavaEvalLedgerTest {
                     // the ORACLE database, judgment stays in the
                     // verdict layer.
                     "SqlReplayOracle.java",
+                    // SQLTEXT slice 3 (2026-09-01): the text-emission
+                    // CENSUS — pure counters (LongAdders) the sql-text
+                    // verdict arms feed and the runner prints. Under
+                    // the row-verdict charter text match/diff is a
+                    // census number, never a verdict: nothing here can
+                    // affect one (the CanonicalDivergence pattern); no
+                    // JDBC, no evaluation.
+                    "SqlTextEmission.java",
+                    "package-info.java");
+
+    /** THE ORCHESTRATION ROOT, closed (user directive 2026-09-01,
+     * SQLTEXT slice 3): the top-level package holds the executor and
+     * the verdict arms — exactly where host evaluation likes to creep
+     * back in — yet only its NAMED files carried line pins, so a NEW
+     * file here grew the host surface with no gate ever seeing it (the
+     * scan-boundary hole the new-assert-file question exposed). Every
+     * file now registers at birth with its tenet argument, same as the
+     * funnel packages; the line ledger above still ratchets the named
+     * evaluators. */
+    private static final java.util.Set<String> ROOT_CLASSES =
+            java.util.Set.of(
+                    "AggAwareActivities.java", "AssertErrorNative.java",
+                    "AssertVerdicts.java", "Compiler.java",
+                    "ConnectionFlags.java", "ConnectionLets.java",
+                    "CrossStoreGuard.java", "LiteralFold.java",
+                    "MetamodelSteps.java", "NonNull.java", "Nullable.java",
+                    "PlanAllocations.java", "PlanEnvelope.java",
+                    "SeedSqlForms.java",
+                    // SQLTEXT charter slice 3a (2026-09-01): the
+                    // sql-text verdict arm — typed-tree navigation +
+                    // outcome judgment ONLY (Clause 2c); both texts,
+                    // our rows and the golden replay all compute in
+                    // the database through evalValue and the
+                    // SqlReplayOracle SPI. Line-pinned below like its
+                    // sibling AssertVerdicts.
+                    "SqlTextVerdicts.java", "StatementExecutor.java",
                     "package-info.java");
 
     /** The other two funnel packages (documented-debts 2026-08-18,
@@ -678,6 +736,7 @@ class JavaEvalLedgerTest {
      * per F1.3, so their class lists close the same way exec's does. */
     private static final java.util.Map<String, java.util.Set<String>>
             FUNNEL_PACKAGE_REGISTERS = java.util.Map.of(
+                    "core/src/main/java/com/legend", ROOT_CLASSES,
                     "core/src/main/java/com/legend/exec", EXEC_CLASSES,
                     "core/src/main/java/com/legend/server",
                     java.util.Set.of("ConnectionResolver.java",

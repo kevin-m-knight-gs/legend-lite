@@ -664,6 +664,14 @@ public final class SqlTypeCensus {
         PROBE_SUSPENDED.set(on);
     }
 
+    /** Current suspension state — nested referee executions (the
+     * sql-text arm's OUR-ROWS derivation under a dual-channel probe)
+     * save-and-restore instead of blind-clearing an outer probe's
+     * suspension. */
+    public static boolean probeSuspended() {
+        return PROBE_SUSPENDED.get();
+    }
+
     public static void probe(SqlQuery plan) {
         if (PROBE_SUSPENDED.get()) {
             return;

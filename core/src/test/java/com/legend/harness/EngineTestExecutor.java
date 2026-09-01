@@ -3560,14 +3560,34 @@ public final class EngineTestExecutor {
         // V7 table stay live — they are the probe's own instruments
         com.legend.exec.SqlTypeCensus.probeSuspend(true);
         com.legend.exec.CanonicalDivergence.r1Suspend(true);
+        com.legend.exec.SqlTextEmission.probeSuspend(true);
+        com.legend.exec.SqlTextEmission.consumeArmFired();
         try {
             evalSpliced(subst(af, lets), execStmts, execVars, ctx,
                     imports, runtimeFqn, conn);
+            // SQLTEXT slice 3a: the arm's ROW verdict vs the walk's
+            // TEXT verdict is DESIGNED divergence — its own counted
+            // census, never the pinned disagree channel
+            if (com.legend.exec.SqlTextEmission.consumeArmFired()) {
+                com.legend.exec.CanonicalDivergence.v7Declined(form,
+                        "sqltext-arm :: host="
+                                + (hostPass ? "pass" : "fail")
+                                + " rows=pass");
+                return;
+            }
             com.legend.exec.CanonicalDivergence.v7Verdict(form, hostPass,
                     true, "");
         } catch (java.sql.SQLException prodFail) {
             if (System.getenv("LL_TMP_DEBUG") != null) {
                 System.err.println("[v7-prod-fail] " + prodFail.getMessage());
+            }
+            if (com.legend.exec.SqlTextEmission.consumeArmFired()) {
+                com.legend.exec.CanonicalDivergence.v7Declined(form,
+                        "sqltext-arm :: host="
+                                + (hostPass ? "pass" : "fail")
+                                + " rows=fail: "
+                                + firstLine(prodFail.getMessage()));
+                return;
             }
             com.legend.exec.CanonicalDivergence.v7Verdict(form, hostPass,
                     false, firstLine(prodFail.getMessage()));
@@ -3585,6 +3605,7 @@ public final class EngineTestExecutor {
         } finally {
             com.legend.exec.SqlTypeCensus.probeSuspend(false);
             com.legend.exec.CanonicalDivergence.r1Suspend(false);
+            com.legend.exec.SqlTextEmission.probeSuspend(false);
         }
     }
 
@@ -3617,7 +3638,10 @@ public final class EngineTestExecutor {
         LambdaFunction wrapped = new LambdaFunction(List.of(), stmts);
         ValueSpecification resolved = NameResolver.resolveQuery(wrapped, imports,
                 ctx.elementFqns());
-        return Compiler.executeResolved(resolved, ctx, runtimeFqn, conn);
+        // the harness IS the test context: every evaluation env carries
+        // the replay oracle (SQLTEXT charter §2 registration)
+        return Compiler.executeResolved(resolved, ctx, runtimeFqn, conn,
+                null, ReplayOracle.INSTANCE);
     }
 
     /** Evaluate the forwarded statement list AS-IS (a trailing let IS its

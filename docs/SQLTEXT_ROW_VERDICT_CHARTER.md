@@ -247,6 +247,38 @@ legitimate forever.
    verdict; corpus 2342→2343, lane pins byte-stable).
 3. Verdict arms for the sqlstring family incl. dual-derivation (§4);
    text census wired; flip the lane's simple shapes.
+   **3a LANDED 2026-09-01 (the tosqlstring-simple cohort).** Platform
+   arm SqlTextVerdicts (com.legend, ledgered + registered in all
+   three guardrails; the top-level package became a CLOSED register
+   the same day — user directive — so a new file here now fails the
+   gate at birth until registered): detection = typed-node + exact
+   FQN with LET-AWARE chasing (the platform keeps lets as lets; §3.2's
+   substitution is walk-side only — measured the hard way: 44 tests
+   flipped and the arm missed all of them until the chase landed).
+   Four artifacts per §3.5; OUR ROWS = the producer's lambda wrapped
+   in from(mapping) through evalValue (the one router); GOLDEN ROWS +
+   §6/§7 compare via the SPI RowVerdict entry (harness ReplayOracle
+   implements; declines COUNT through the one funnel, probe-isolated).
+   Flip: 44 tests (ratchet 2040/533 → 1996/577), corpus +5
+   (2343→2348: transform/fromPure +4, tds +1 — old text-strict
+   failures whose rows agree). Emission census live: 18 text-matched /
+   7 text-diverged / 19 text-verdict (15 DB2 + 2 Composite foreign
+   dialect = the permanent §4 residue; 1 split-part replay gap; 1
+   catalog$schema store shape). Dual-channel: walk-text vs arm-rows is
+   DESIGNED divergence — probe re-buckets arm-fired asserts to their
+   own counted census (`sqltext-arm :: host=X rows=Y`), disagree
+   stays EXACT ZERO.
+   **3a's SURFACED PRE-EXISTING DEFECTS (the arm's first catch — rows
+   never checked before; NAMED BURN LIST, next mechanisms):**
+   - firstDayOfWeek WEEK-START bug: our DuckDB lowering yields
+     Monday-start (2014-12-01) where the engine's golden rows say
+     Sunday-start (2014-11-30) — a REAL wrong answer.
+   - firstDayOf* DATE-CARRIER gap: our pipeline returns midnight
+     DATETIMEs where the engine returns DATEs (date_trunc's return
+     type — needs the cast to DATE at lowering).
+   Both visible as `sqltext-arm :: host=pass rows=fail` census rows
+   until burned.
+   NEXT: 3b assert-form cohort (~750), 3c exec-sql-read (~700).
 4. Plan replayer (§5) + plan-text flips; branch-forcing.
 5. Inventory upgrades as their own commits: #3 ULP probe/upgrade,
    #4 TIMESTAMP_NS leg, #11 projection, #1 sentinel.

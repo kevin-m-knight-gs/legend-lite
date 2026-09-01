@@ -132,6 +132,7 @@ final class FlipProbe {
         // sweep-pinned plan/wire censuses
         com.legend.exec.SqlTypeCensus.probeSuspend(true);
         com.legend.exec.CanonicalDivergence.muteAll(true);
+        com.legend.exec.SqlTextEmission.probeSuspend(true);
         try {
             // the oracle registers beside the listener (SQLTEXT charter
             // §2): the env carries it for the verdict arms; production
@@ -148,6 +149,7 @@ final class FlipProbe {
         } finally {
             com.legend.exec.SqlTypeCensus.probeSuspend(false);
             com.legend.exec.CanonicalDivergence.muteAll(false);
+            com.legend.exec.SqlTextEmission.probeSuspend(false);
         }
         boolean legacyPassed = ran.failures().isEmpty();
         boolean platformPassed = raised == null

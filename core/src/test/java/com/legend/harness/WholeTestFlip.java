@@ -160,9 +160,16 @@ public final class WholeTestFlip {
                         EngineTestExecutor.SQL_ASSERT_FORM_FQNS)
                         || EngineTestExecutor.containsSqlProducer(s, ctx)
                         || EngineTestExecutor.referencesAny(s, tainted)) {
-                    // SQLTEXT slice-3 step 0: the shape census — which
-                    // derivation the verdict arms need per assert
-                    // (target/sqltext-shape-census.txt)
+                    // SQLTEXT slice 3a: bodies whose every sql assert
+                    // is the tosqlstring-simple shape flip — the
+                    // platform's SqlTextVerdicts arm judges them on
+                    // rows (the flip's env carries the oracle). All
+                    // other shapes keep the text-policy fallback and
+                    // the shape census records them
+                    // (target/sqltext-shape-census.txt).
+                    if (SqlTextShapes.allSimple(statements, ctx)) {
+                        break;
+                    }
                     SqlTextShapes.record(test, statements, ctx);
                     return fallback("text-policy", test);
                 }

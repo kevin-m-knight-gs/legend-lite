@@ -52,6 +52,13 @@ class ErrorShapeGuardrailTest {
             // equality half: sides evaluate for REAL via evalSideText,
             // whose counted-decline catch moved to EngineTestExecutor)
             Map.entry("FunctionCompiler.java", 1),
+            // SQLTEXT slice 3a (reviewed): the OUR-ROWS leg's designed
+            // total catch — ANY failure executing the producer's query
+            // (resolution, lowering, execution) becomes a COUNTED
+            // text-verdict decline (charter §3.7: counted, visible,
+            // never silent) and TEXT stays the contract; the verdict
+            // is never swallowed, it degrades to the §4 policy
+            Map.entry("SqlTextVerdicts.java", 1),
             // D5 (reviewed): the generic checked-exception carrier —
             // getOrOpen tunnels the caller's E through compute's
             // unchecked boundary; catch(RuntimeException) rethrows

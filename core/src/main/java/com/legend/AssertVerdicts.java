@@ -153,6 +153,15 @@ final class AssertVerdicts {
                     return null;
                 }
                 boolean wantEqual = name.equals("assertEquals");
+                // SQLTEXT charter slice 3a — the SQL-TEXT arm: a
+                // toSQLString producer in an argument tree judges on
+                // ROWS (SqlTextVerdicts; text is a census number).
+                // Shapes outside the exact cohort return null here.
+                ExecutionResult sv = SqlTextVerdicts.tryArm(name,
+                        wantEqual, args, letPrefix, specs, env, hook);
+                if (sv != null) {
+                    return sv;
+                }
                 // D3 — the RENDERED-TEXT arm: exactly one side is a
                 // DB-rendered grid text (toCSV/toString/replace/join
                 // spellings), the peer a string value. The DATABASE

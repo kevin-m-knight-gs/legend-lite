@@ -27,6 +27,18 @@ public final class VerdictQueries {
     private VerdictQueries() {
     }
 
+    /** The SQL-TEXT arm's OUR-ROWS query (SQLTEXT charter §3.5c —
+     * Appendix A): the producer's own query lambda body wrapped in
+     * {@code from(<the producer's mapping>)}, runtime left to the
+     * executing env. SqlTextVerdicts fetches and judges; the mint is
+     * compiler emission (Invariant 7). */
+    public static TypedSpec fromWrapped(TypedSpec query,
+            com.legend.compiler.spec.typed.TypedPackageableRef mapping) {
+        return new com.legend.compiler.spec.typed.TypedFrom(query,
+                java.util.Optional.of(mapping), java.util.Optional.empty(),
+                query.info());
+    }
+
     /** The predicate VECTOR for a quantified assert
      * ({@code source->map(binder|assert(pred, msg))}): same source, same
      * binder, the assert's CONDITION as the mapper body — one boolean

@@ -705,12 +705,18 @@ final class ArchitectureTest {
                     // the assert K-arms (Clause 2c): argument values
                     // compute in the database, verdicts adjudicate here —
                     // the same orchestration charter as StatementExecutor
-                    + "|AssertErrorNative|AssertVerdicts)(\\$.*)?")
+                    // (SqlTextVerdicts joined 2026-09-01, SQLTEXT slice
+                    // 3a: same charter — SQLException verdicts + the
+                    // env's connection passed through to the oracle SPI;
+                    // opens nothing, executes nothing itself)
+                    + "|AssertErrorNative|AssertVerdicts"
+                    + "|SqlTextVerdicts)(\\$.*)?")
             .should().dependOnClassesThat()
             .resideInAPackage("java.sql..")
             .as("F1.3b: root's java.sql surface is pinned to"
                     + " {Compiler, StatementExecutor, SeedSqlForms,"
-                    + " AssertErrorNative, AssertVerdicts} —"
+                    + " AssertErrorNative, AssertVerdicts,"
+                    + " SqlTextVerdicts} —"
                     + " shrink-only; the split is backlogged")
             .check(CORE_PROD_CLASSES);
     }
@@ -875,6 +881,12 @@ final class ArchitectureTest {
                 // bounded by the partition's own size (20 today);
                 // measurement only, never verdict-affecting
                 "com.legend.exec.CanonicalDivergence.QUARANTINED_WALL_TESTS",
+                // SQLTEXT slice 3a: the text-emission census's
+                // per-reason text-verdict tally (foreign dialects,
+                // replay declines) — bounded by decline-reason
+                // cardinality; measurement only, never
+                // verdict-affecting (the CanonicalDivergence pattern)
+                "com.legend.exec.SqlTextEmission.TEXT_VERDICT",
                 // TYPED-IR Slice 1: the label-lie census's classified
                 // counters (declared-vs-computed pair -> count);
                 // measurement only, never verdict-affecting — the
