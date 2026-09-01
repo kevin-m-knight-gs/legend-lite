@@ -53,6 +53,13 @@ public final class WholeTestFlip {
     private static final Map<String, String> WITNESSES =
             new ConcurrentHashMap<>();
     private static final AtomicLong FLIPPED = new AtomicLong();
+    /** Failure-path instruments for the transactional flip attempt:
+     * mirror detaches (cursor ran ahead of a rolled-back attempt) and
+     * rollback failures (session state unknown — investigate any
+     * sweep showing one). */
+    private static final AtomicLong MIRROR_DETACHES = new AtomicLong();
+    private static final AtomicLong ROLLBACKS = new AtomicLong();
+    private static final AtomicLong ROLLBACK_FAILURES = new AtomicLong();
     /** Flipped-test ROSTER (diffable attribution): a ±1 run-to-run
      * wobble in the ratchet was unattributable — the fallback file
      * names only fallbacks. Dumped beside it at shutdown. */
@@ -77,7 +84,14 @@ public final class WholeTestFlip {
                             .mapToLong(AtomicLong::get).sum();
                     sb.append("whole-test scoring flip (flipped=")
                             .append(FLIPPED.get()).append(" fallbacks=")
-                            .append(fallbacks).append(")\n");
+                            .append(fallbacks)
+                            .append(" rollbacks=")
+                            .append(ROLLBACKS.get())
+                            .append(" mirror-detaches=")
+                            .append(MIRROR_DETACHES.get())
+                            .append(" rollback-failures=")
+                            .append(ROLLBACK_FAILURES.get())
+                            .append(")\n");
                     // insertion order (post-process with sort -rn): the
                     // harness sort-site guard reserves ordering for
                     // comparison policy, never report format
@@ -224,22 +238,23 @@ public final class WholeTestFlip {
         } catch (RuntimeException e) {
             return fallback("wall-resolve: " + bucketOf(e.getMessage()), test);
         }
-        // EFFECT ROUTING (effectful cutover, 2026-09-01): effects split
-        // by RE-RUN SAFETY. dropAndCreate*/TDG bodies are STATE-
-        // CONVERGENT (drop-then-create DDL + temp-table
-        // materialization: a walk re-run after any partial platform
-        // execution lands the same end state), so they flip with
-        // ordinary fallback semantics. executeInDb runs ARBITRARY
-        // SQL — a re-run could double a bare write — so those bodies
-        // keep the gate (fallback BEFORE execution, never after).
+        // EFFECT ATOMICITY (effectful cutover, 2026-09-01 — the charter
+        // burn-map item; replaced the static verb classification): every
+        // effect-bearing body executes inside a TRANSACTION on the
+        // session connection — commit only after the verdict stream
+        // passes, rollback on ANY failure exit so the walk's fallback
+        // re-run starts from pristine state. Re-run safety is a property
+        // of the MECHANISM now, not of the SQL text, so computed-SQL
+        // bodies (TDG loadAndTestExecution, the modelJoin setups — the
+        // old 82-test "effectful" bucket) flip like everything else.
+        // Ledger discipline: statements recorded during a rolled-back
+        // attempt truncate with it (unrecordLast, range edition); a
+        // mirror whose cursor ran ahead mid-body DETACHES to the
+        // fresh-replay path (ReplayOracle.mirrorDetachIfAhead —
+        // failure-path only).
+        boolean effectful;
         try {
-            switch (effectKind(resolved, ctx)) {
-                case IRREVERSIBLE -> {
-                    return fallback("effectful", test);
-                }
-                case NONE, RERUNNABLE -> {
-                }
-            }
+            effectful = Compiler.hasStatementEffects(resolved, ctx);
         } catch (RuntimeException e) {
             if (System.getenv("LL_TMP_DEBUG") != null) {
                 System.err.println("[flip-wall-debug] " + test + " :: "
@@ -248,133 +263,88 @@ public final class WholeTestFlip {
             return fallback("wall-type: " + bucketOf(e.getMessage()), test);
         }
         List<Boolean> events = new ArrayList<>();
+        com.legend.sql.dialect.RawSqlBoundary.LedgerMark mark =
+                com.legend.sql.dialect.RawSqlBoundary.mark();
+        boolean txn = false;
+        if (effectful) {
+            try {
+                conn.setAutoCommit(false);
+                txn = true;
+            } catch (java.sql.SQLException e) {
+                return fallback("flip-txn: begin failed: "
+                        + bucketOf(e.getMessage()), test);
+            }
+        }
+        String reason = null;
         try {
-            // the oracle registers beside the listener (SQLTEXT charter
-            // §2) — the flipped env carries it for the verdict arms
-            Compiler.executeResolved(resolved, ctx, runtimeFqn, conn,
-                    (name, pass, detail) -> events.add(pass),
-                    ReplayOracle.INSTANCE);
-        } catch (com.legend.error.NotImplementedException e) {
-            return fallback("wall-exec: " + bucketOf(e.getMessage()), test);
-        } catch (com.legend.error.DataError
-                | com.legend.error.AssertFailed e) {
-            // the seam: platform failures are AssertFailed/DataError now
-            // the walk passes what the platform fails (or the platform
-            // hit a data-layer error): the REAL-divergence burn list —
-            // walk re-scores (safe: effects are state-convergent), row
-            // counted
-            return fallback("platform-fail: " + bucketOf(e.getMessage()),
-                    test);
-        } catch (RuntimeException e) {
-            return fallback("wall-exec: " + e.getClass().getSimpleName()
-                    + ": " + bucketOf(e.getMessage()), test);
-        }
-        long passes = events.stream().filter(Boolean::booleanValue).count();
-        if (passes != events.size()
-                || events.isEmpty() && asserts > 0) {
-            return fallback("platform-fail: verdict stream "
-                    + passes + "/" + events.size(), test);
-        }
-        FLIPPED.incrementAndGet();
-        FLIPPED_TESTS.add(test);
-        return new EngineTestExecutor.Outcome.Ran((int) passes, 0,
-                asserts > 0 ? statements.size() : executable,
-                List.of(), List.of());
-    }
-
-    private enum EffectKind { NONE, RERUNNABLE, IRREVERSIBLE }
-
-    /** Re-run-safety classification, judged at BODY level: the walk
-     * re-runs the WHOLE body, so convergence is a property of the
-     * ordered effect stream, not of one call. The dropAndCreate DDL
-     * natives and TDG generators are
-     * convergent by construction; executeInDb literals classify by
-     * verb — read-only statements are free, DROP is free, and
-     * CREATE/INSERT are legal once a DROP occurred earlier in the body
-     * (the corpus's drop-led setup idiom: a re-run re-drops before it
-     * re-creates and re-seeds, landing the same end state). Any other
-     * verb, or NON-literal SQL, is IRREVERSIBLE and keeps the gate. */
-    private static EffectKind effectKind(ValueSpecification resolved,
-            com.legend.compiler.element.ModelContext ctx) {
-        if (!Compiler.hasStatementEffects(resolved, ctx)) {
-            return EffectKind.NONE;
-        }
-        com.legend.compiler.spec.SpecCompiler specs =
-                new com.legend.compiler.spec.SpecCompiler(ctx);
-        List<String> sqls = new ArrayList<>();
-        java.util.Set<String> visiting = new java.util.HashSet<>();
-        for (com.legend.compiler.spec.typed.TypedSpec s
-                : specs.typeQueryBody(resolved)) {
-            if (!collectExecInDb(s, specs, visiting, sqls)) {
-                return EffectKind.IRREVERSIBLE;   // non-literal SQL
+            try {
+                // the oracle registers beside the listener (SQLTEXT
+                // charter §2) — the flipped env carries it for the
+                // verdict arms
+                Compiler.executeResolved(resolved, ctx, runtimeFqn, conn,
+                        (name, pass, detail) -> events.add(pass),
+                        ReplayOracle.INSTANCE);
+            } catch (com.legend.error.NotImplementedException e) {
+                reason = "wall-exec: " + bucketOf(e.getMessage());
+            } catch (com.legend.error.DataError
+                    | com.legend.error.AssertFailed e) {
+                // the seam: platform failures are AssertFailed/DataError
+                // now the walk passes what the platform fails (or the
+                // platform hit a data-layer error): the REAL-divergence
+                // burn list — walk re-scores (safe: the transaction
+                // rolled the attempt back), row counted
+                reason = "platform-fail: " + bucketOf(e.getMessage());
+            } catch (RuntimeException e) {
+                reason = "wall-exec: " + e.getClass().getSimpleName()
+                        + ": " + bucketOf(e.getMessage());
             }
-        }
-        boolean dropped = false;
-        for (String sql : sqls) {
-            for (String st : sql.split(";")) {
-                String t = st.strip();
-                if (t.isEmpty()) {
-                    continue;
-                }
-                String verb = t.split("\\s+", 2)[0].toUpperCase(
-                        java.util.Locale.ROOT);
-                switch (verb) {
-                    case "SELECT", "SHOW", "WITH", "VALUES", "CALL" -> {
-                    }
-                    case "DROP" -> dropped = true;
-                    case "CREATE", "INSERT" -> {
-                        if (!dropped) {
-                            return EffectKind.IRREVERSIBLE;
-                        }
-                    }
-                    default -> {
-                        return EffectKind.IRREVERSIBLE;
-                    }
-                }
+            long passes = events.stream()
+                    .filter(Boolean::booleanValue).count();
+            if (reason == null && (passes != events.size()
+                    || events.isEmpty() && asserts > 0)) {
+                reason = "platform-fail: verdict stream "
+                        + passes + "/" + events.size();
             }
-        }
-        return EffectKind.RERUNNABLE;
-    }
-
-    /** Append every executeInDb SQL literal under {@code n} (in body
-     * order, through compiled user-function bodies); false when any
-     * executeInDb argument is not a literal string. */
-    private static boolean collectExecInDb(
-            com.legend.compiler.spec.typed.TypedSpec n,
-            com.legend.compiler.spec.SpecCompiler specs,
-            java.util.Set<String> visiting, List<String> out) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && com.legend.compiler.element.type.PlatformTypes
-                        .EXECUTE_IN_DB.equals(nc.callee().qualifiedName())) {
-            if (nc.args().isEmpty() || !(nc.args().get(0)
-                    instanceof com.legend.compiler.spec.typed
-                            .TypedCString sql)) {
-                return false;
-            }
-            out.add(sql.value());
-            return true;
-        }
-        if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
-            String key = uc.callee().signatureKey();
-            if (visiting.add(key)) {   // cycles collect once
+            if (reason == null && txn) {
                 try {
-                    for (com.legend.compiler.spec.typed.TypedSpec stmt
-                            : specs.compile(uc.callee()).body()) {
-                        if (!collectExecInDb(stmt, specs, visiting, out)) {
-                            return false;
-                        }
+                    conn.commit();
+                    conn.setAutoCommit(true);
+                    txn = false;
+                } catch (java.sql.SQLException e) {
+                    reason = "flip-txn: commit failed: "
+                            + bucketOf(e.getMessage());
+                }
+            }
+            if (reason != null) {
+                return fallback(reason, test);
+            }
+            FLIPPED.incrementAndGet();
+            FLIPPED_TESTS.add(test);
+            return new EngineTestExecutor.Outcome.Ran((int) passes, 0,
+                    asserts > 0 ? statements.size() : executable,
+                    List.of(), List.of());
+        } finally {
+            if (txn) {
+                // failure exit: restore pristine session state so the
+                // walk's re-run is a FIRST run
+                try {
+                    conn.rollback();
+                    conn.setAutoCommit(true);
+                    ROLLBACKS.incrementAndGet();
+                    com.legend.sql.dialect.RawSqlBoundary.truncateTo(mark);
+                    if (ReplayOracle.mirrorDetachIfAhead(mark.sql())) {
+                        MIRROR_DETACHES.incrementAndGet();
                     }
-                } finally {
-                    visiting.remove(key);
+                } catch (java.sql.SQLException e) {
+                    // session state unknown — the walk still runs; keep
+                    // this LOUD (stderr always, plus the census header
+                    // counter) so a sweep with one of these is suspect
+                    ROLLBACK_FAILURES.incrementAndGet();
+                    System.err.println("[flip-txn] ROLLBACK FAILED for "
+                            + test + ": " + e.getMessage());
                 }
             }
         }
-        for (com.legend.compiler.spec.typed.TypedSpec c : n.children()) {
-            if (!collectExecInDb(c, specs, visiting, out)) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private static EngineTestExecutor.@com.legend.Nullable Outcome fallback(

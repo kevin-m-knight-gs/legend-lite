@@ -419,16 +419,55 @@ legitimate forever.
    temp-table conditional BOTH WAYS) + unbindable params. Canon exact
    21 held; paired sweeps byte-identical.
    REMAINING TO ZERO (the burn map, measured 2026-09-01, updated
-   after the catalog-spelling burn): ~110 text-policy (~25
-   plan-program + 36 TDG scoring-flip + ~50 named residue) + 82
-   effectful (flip-gate redesign — flipped execution is primary now,
-   the double-run conservatism is obsolete; 57 -> 82 when the TDG
-   Any-property wall peeled to it) + ~420 compiler walls (~200
-   metamodel-query classes -> the metamodel-as-relations leg; 51
-   scalar lowerings + ~60 unported natives; 43
-   join-condition-whole-variable; 21 lineage; misc) + ~15
-   platform-fail singletons. Endgame: fallbacks 0-or-named = the
-   walk's scoring machinery deletes.
+   after the effectful cutover — 878 fallbacks): ~110 text-policy
+   (~25 plan-program + 36 TDG scoring-flip + ~50 named residue) +
+   ~420 compiler walls (~200 metamodel-query classes -> the
+   metamodel-as-relations leg; 51 scalar lowerings + ~60 unported
+   natives; 43 join-condition-whole-variable; 21 lineage; misc) +
+   31 generateTestData unclassified-Variable (TDG arm classifier:
+   rowIdentifiers/dates through let variables — chase let-aware like
+   the verdict arms) + ~15 platform-fail singletons. The effectful
+   bucket is GONE (transactional cutover, record below). Endgame:
+   fallbacks 0-or-named = the walk's scoring machinery deletes.
+   **THE EFFECTFUL CUTOVER — LANDED 2026-09-01 (ratchet 878/1695,
+   the gate deleted).** The static verb classification (effectKind's
+   verb scan + collectExecInDb, ~90 harness lines — a statement-shape
+   recognizer, the class this program deletes) is REPLACED by the
+   database's own atomicity: every effect-bearing body executes
+   inside a TRANSACTION on the session connection — commit only
+   after the verdict stream passes; on any failure exit rollback +
+   ledger truncate-to-mark (RawSqlBoundary.LedgerMark — unrecordLast,
+   range edition) + mirror-detach-if-ahead (a mid-body verify can
+   advance the mirror cursor past the rolled-back mark; H2 cannot
+   roll back, so the family's remaining verifies ride fresh-replay —
+   failure-path only). Census (82 -> 0): +50 flips (42 modelJoin +
+   8 TDG/misc); 28 generateTestData unclassified-Variable + named
+   singletons re-bucketed TRUE; 4 wall-type rows re-spelled
+   wall-exec (the gate's eager typeQueryBody is gone — same
+   failures, surfaced at execution). CONSERVATION (audited after a
+   first WRONG receipt — the emission census is the TEXT channel and
+   `sql-verdict` in the canon line is the dual-verdict alarm, neither
+   proves row verification): the 44 migrated sql-asserts row-verify
+   via the arm rows leg calling the SAME machinery
+   (ReplayOracle.verify -> H2Verify.compareFrame) through the SPI;
+   receipt = the text-verdict decline census byte-identical (102 =
+   102) and the 3e rule that a declined rows leg cannot flip; each
+   test's data is also platform-judged by its own value asserts.
+   Corpus total 2349 STABLE, clean passes 2101 -> 2143 (the 42
+   text-rescued flags cleared — the chartered §0 accounting, as in
+   3b-3d). Rescue ceiling ratcheted 901 -> 165 (measured); M1 floors
+   85/246 -> 83/204; exec-passing 389 -> 345 (emission census +44).
+   TXN-VISIBILITY note: tdgSqlReplay's our-side read runs on the
+   SESSION connection when it carries an open transaction (a
+   duplicate is a separate snapshot — the attempt's writes are
+   invisible there); outside a transaction the duplicate stays (an
+   ambient read would break the walk's open streaming result). Two
+   correctness constraints, keyed on the connection's own state; the
+   duplicate branch dies with the walk. Instruments: rollbacks /
+   mirror-detaches / rollback-failures in the flip census header
+   (measuring sweep: detaches 0, rollback-failures 0; rollbacks
+   fired and state-restored — the 28 mid-body TDG walls left corpus
+   totals byte-stable).
    **THE "ANY-PROPERTY CHECKER" LEG — DISSOLVED BY CENSUS 2026-09-01
    (ratchet 928/1645).** Measure-first killed the design: all 46
    walls were ONE shape ($cv.first in createTableRowIdentifiers,

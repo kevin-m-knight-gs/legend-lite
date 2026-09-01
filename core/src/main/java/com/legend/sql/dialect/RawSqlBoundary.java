@@ -66,6 +66,35 @@ public final class RawSqlBoundary {
         }
     }
 
+    /** Ledger position for a transactional execution attempt (the
+     * unrecordLast doctrine, RANGE edition): statements recorded during
+     * a rolled-back attempt leave the ledger with the rollback, so the
+     * recording keeps matching executed (committed) reality. */
+    public record LedgerMark(int sql, int meta) {
+    }
+
+    public static LedgerMark mark() {
+        List<String> sink = RECORDER.get();
+        List<String> meta = META_RECORDER.get();
+        return new LedgerMark(sink == null ? -1 : sink.size(),
+                meta == null ? -1 : meta.size());
+    }
+
+    public static void truncateTo(LedgerMark m) {
+        List<String> sink = RECORDER.get();
+        if (sink != null && m.sql() >= 0) {
+            while (sink.size() > m.sql()) {
+                sink.remove(sink.size() - 1);
+            }
+        }
+        List<String> meta = META_RECORDER.get();
+        if (meta != null && m.meta() >= 0) {
+            while (meta.size() > m.meta()) {
+                meta.remove(meta.size() - 1);
+            }
+        }
+    }
+
     /** METADATA-ONLY side channel: engine DDL semantics DuckDB
      * deliberately skips (PRIMARY KEY constraints, schema creates) that
      * ONLY the fetchDb* metadata replay consumes. Kept OUT of the main

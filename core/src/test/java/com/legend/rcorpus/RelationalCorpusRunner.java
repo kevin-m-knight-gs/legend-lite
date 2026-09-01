@@ -767,8 +767,21 @@ public class RelationalCorpusRunner {
                     // of the walk's M1 channel.
                     // 134 -> 85 (charter §8.3d, +199 dual-golden
                     // flips): same oracle-SPI lane move.
-                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 85,
-                    "M1 h2-exec verified fell below the 85 floor: "
+                    // 85 -> 83 (effectful cutover, +50 flips): the
+                    // transactional flip attempt replaced the static
+                    // verb gate — the 44 flipped sql-asserts row-verify
+                    // via the arm rows leg, which calls the SAME
+                    // machinery (ReplayOracle.verify ->
+                    // H2Verify.compareFrame) through the SPI. RECEIPT
+                    // (audited): the text-verdict decline census is
+                    // byte-identical across the flip (102 = 102) — none
+                    // of the 44 became a text verdict or a decline, and
+                    // since 3e a declined rows leg cannot flip, so
+                    // rows=pass is the only path these took. Their data
+                    // is ALSO platform-judged by each test's own value
+                    // asserts (expected-TDS vs actual rows).
+                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 83,
+                    "M1 h2-exec verified fell below the 83 floor: "
                     + com.legend.harness.H2Verify.M1_VERIFIED.sum());
             // V7 §8.0 leg 0 — the LANE-CLASSIFICATION GUARD (charter
             // scope table, user-ratified 2026-08-28): the sql-text/TDG
@@ -938,12 +951,16 @@ public class RelationalCorpusRunner {
                     + " fallbacks="
                     + com.legend.harness.WholeTestFlip.fallbackCount()
                     + " exec-passing=" + execPassing);
-            org.junit.jupiter.api.Assertions.assertEquals(389, execPassing,
+            org.junit.jupiter.api.Assertions.assertEquals(345, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
                     // 597 -> 389 (§8.3d): the dual-golden cohort's
                     // asserts likewise
+                    // 389 -> 345 (effectful cutover): the transactional
+                    // flip attempt let the old "effectful" bucket's
+                    // bodies flip — 44 exec-passing asserts left the
+                    // walk lane for the arm channel (emission +44).
                     "lane guard: assert-sql-text-with-exec-passing moved —"
                             + " update the charter §8.0 scope table");
             // THE WHOLE-TEST MIGRATION RATCHET (harness-deletion item 1,
@@ -1040,6 +1057,23 @@ public class RelationalCorpusRunner {
             // planToString compares with freemarker-operation holes
             // demote COUNTED (the full-program replayer's future
             // work), walk keeps scoring them.
+            // 928/1645 -> 878/1695 (EFFECTFUL CUTOVER — the burn-map
+            // item, gate deleted): every effect-bearing body now
+            // executes inside a TRANSACTION on the session connection
+            // (commit only after the verdict stream passes; rollback +
+            // ledger truncate + mirror-detach-if-ahead on any failure
+            // exit, so the walk's fallback re-run starts pristine).
+            // The static verb classification (effectKind verbs +
+            // collectExecInDb, ~90 harness lines) DELETED — re-run
+            // safety is a mechanism property now, not a SQL-text scan,
+            // so computed-SQL bodies flip: +50 (42 modelJoin whose
+            // text-rescue softness CLEARED + 8 TDG/misc). The 82
+            // "effectful" rows re-bucketed to TRUE walls: 28
+            // generateTestData unclassified-Variable + named
+            // singletons; 4 wall-type rows re-spelled wall-exec (the
+            // gate's eager typeQueryBody is gone — same failures,
+            // surfaced at execution). mirror-detaches=0,
+            // rollback-failures=0 on the measuring sweep.
             // 945/1628 -> 943/1630 (TDG scoring flip, first slice):
             // the fetch-text arm (SPI verifyFetchTexts) + the
             // classifier's actual-side fix (assertSize's literal arg
@@ -1059,10 +1093,10 @@ public class RelationalCorpusRunner {
             // 25 effectful, 3 generateTestData unclassified-Variable,
             // 3 planTestDataGeneration Pair-arg typing. No dynamic
             // Any-property checker exists or is wanted.
-            org.junit.jupiter.api.Assertions.assertEquals(928L,
+            org.junit.jupiter.api.Assertions.assertEquals(878L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1645L,
+            org.junit.jupiter.api.Assertions.assertEquals(1695L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1217,7 +1251,12 @@ public class RelationalCorpusRunner {
                     // M1_VERIFIED 373 -> 134 — rescued verifies now
                     // ride the oracle SPI's row verdicts.
                     // 405 -> 246 (§8.3d): the dual-golden lane move.
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 246,
+                    // 246 -> 204 (effectful cutover): the same lane
+                    // move as M1_VERIFIED 85 -> 83 — the 42 modelJoin
+                    // text-rescued passes now verify via the arm
+                    // channel and their rescue flags CLEARED (corpus
+                    // clean passes 2101 -> 2143, total 2349 stable).
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 204,
                     "M1 h2-exec rescued fell below the 246 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
@@ -1552,9 +1591,15 @@ public class RelationalCorpusRunner {
                     // now ROW-VERIFIES via the EXTENT_SUBSET pk-collapse
                     // — its pass trades the sqldiff (13 -> 12) and
                     // advisory (15 -> 14) softness for the rescue flag.
+                    // 901 -> 165 EARNED SHRINK (effectful cutover +
+                    // the 3b-3d flip slices behind it): flipped tests'
+                    // sql asserts judge on ROWS at the arm — text
+                    // divergence is emission census there, never a
+                    // softness flag; the rescue flag now marks only
+                    // walk-scored tests. Ceiling ratcheted to measured.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            softRescued <= 901, "text-rescued passes grew: "
-                                    + softRescued + " > 901"),
+                            softRescued <= 165, "text-rescued passes grew: "
+                                    + softRescued + " > 165"),
                     // contract-program wire ratchets (RE-PINNED at the
                     // 2026-08-24 label flip: 181->114->56 and 130->13 —
                     // adopted HUGEINT labels, registered carriages, then
@@ -1928,7 +1973,7 @@ public class RelationalCorpusRunner {
                                             .sqlDisagreeSamples()));
             System.out.println("[rcorpus] soft ceilings: sqldiff " + softDiff
                     + "/258, adv " + softAdv + "/304, 0-asserts " + softZero
-                    + "/30, rescued " + softRescued + "/614");
+                    + "/30, rescued " + softRescued + "/165");
         }
         org.junit.jupiter.api.Assertions.assertTrue(regressions.isEmpty(),
                 "CORPUS REGRESSION vs committed docs/RELATIONAL_CORPUS.md: "

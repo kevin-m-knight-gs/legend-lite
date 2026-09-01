@@ -92,6 +92,24 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
         }
     }
 
+    /** Transactional-flip rollback repair (WholeTestFlip): a mid-body
+     * verify may have advanced the mirror cursor past the rolled-back
+     * ledger mark — the mirror then holds state the session no longer
+     * has (H2 cannot roll it back), so it DETACHES and the family's
+     * remaining verifies ride the fresh-replay path over the truncated
+     * ledger: correct, slower, failure-path only. The runner still owns
+     * and closes the connection. Returns true when a detach happened
+     * (the caller censuses it). */
+    public static boolean mirrorDetachIfAhead(int sqlLedgerMark) {
+        MirrorState mirror = MIRROR;
+        if (mirror != null && sqlLedgerMark >= 0
+                && mirror.applied > sqlLedgerMark) {
+            MIRROR = null;
+            return true;
+        }
+        return false;
+    }
+
     /** Work to run on a seeded oracle {@link Statement}. */
     interface Work<T> {
         T run(Statement st) throws SQLException;
@@ -338,14 +356,28 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
         // connection may hold an open streaming result mid-walk. The
         // duplicate starts OUTSIDE the test's workspace catalog — point
         // it back (getCatalog is metadata, safe mid-stream).
-        try (Connection dup = duck.unwrap(
-                        org.duckdb.DuckDBConnection.class).duplicate();
-                Statement st = dup.createStatement()) {
-            String ws = duck.getCatalog();
-            if (ws != null && !ws.isBlank()) {
-                st.execute("USE " + ws);
+        // TXN-AWARE (transactional flip attempt): a duplicate is a
+        // SEPARATE snapshot-isolated transaction context — the attempt's
+        // uncommitted writes are invisible there. When the session
+        // carries an open transaction (autoCommit off = a flip attempt;
+        // the walk never does this) the read runs on the session
+        // connection itself, inside its own transaction.
+        try {
+            if (!duck.getAutoCommit()) {
+                try (Statement st = duck.createStatement()) {
+                    ourRows = H2Verify.rawRows(st, ourSql);
+                }
+            } else {
+                try (Connection dup = duck.unwrap(
+                                org.duckdb.DuckDBConnection.class).duplicate();
+                        Statement st = dup.createStatement()) {
+                    String ws = duck.getCatalog();
+                    if (ws != null && !ws.isBlank()) {
+                        st.execute("USE " + ws);
+                    }
+                    ourRows = H2Verify.rawRows(st, ourSql);
+                }
             }
-            ourRows = H2Verify.rawRows(st, ourSql);
         } catch (SQLException e) {
             throw new H2Verify.Unverifiable("our-side replay: "
                     + e.getMessage(), e);

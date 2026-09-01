@@ -84,7 +84,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
 | tests/mapping/join | 28 | 27 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/merge | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/mapping/modelJoin | 48 | 45 | 0 | 3 | 0 | 0 | 0 | 0 | 42 |
+| tests/mapping/modelJoin | 48 | 45 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/multigrain | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/relation | 109 | 104 | 4 | 1 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 48 | 5 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2349** | 53 | 135 | 38 | 12 | 14 | 30 | 207 |
+| **total** | 2575 | **2349** | 53 | 135 | 38 | 12 | 14 | 30 | 165 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2349 PASS = 2101 clean + 248 carrying softness (sqldiff 12, advisory 14, 0-asserts 30, text-rescued 207; flags overlap — the union is 248).
+SOFT-PASS RECONCILIATION (F2.1): 2349 PASS = 2143 clean + 206 carrying softness (sqldiff 12, advisory 14, 0-asserts 30, text-rescued 165; flags overlap — the union is 206).
 
 ### mapping walls (dropped at assembly)
 
