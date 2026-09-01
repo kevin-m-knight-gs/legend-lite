@@ -99,7 +99,12 @@ class HarnessDisciplineTest {
             Map.entry("JsonAssertCanon.java", 1),
             Map.entry("LineageForm.java", 1),
             Map.entry("Runner.java", 2),
-            Map.entry("RelationalCorpusRunner.java", 15),
+            // 15 -> 17 (SQLTEXT slice-3 step 0, 2026-09-01): the shape
+            // census dump's two sorts — count-descending histogram +
+            // name-sorted roster for a DIFFABLE census file (the
+            // h2-verdicts display-ordering class; no comparison flows
+            // through them)
+            Map.entry("RelationalCorpusRunner.java", 17),
             // PX.1: TreeSet as a deterministic-iteration REGISTRY
             // (workspace names), not a result reorder
             Map.entry("DuckWorkspaces.java", 1),
@@ -149,7 +154,13 @@ class HarnessDisciplineTest {
             // cm().distinct() (a mapping fact), not a stream reorder —
             // counted because the spelling matches; the honest fix is
             // reading the register, not renaming the accessor
-            Map.entry("MetamodelWalk.java", 3));
+            Map.entry("MetamodelWalk.java", 3),
+            // SQLTEXT slice-3 step 0 (2026-09-01): the shape census's
+            // TreeMap is a deterministic-iteration REGISTRY (stable
+            // shape-combination keys for the diffable census file, the
+            // DuckWorkspaces precedent) — no comparison flows through
+            // it
+            Map.entry("SqlTextShapes.java", 1));
 
     /** Extremum spellings joined 2026-08-18 (Tier-2 audit; the
      * original audit's probe 12 — {@code Collections.max} in the

@@ -160,6 +160,10 @@ public final class WholeTestFlip {
                         EngineTestExecutor.SQL_ASSERT_FORM_FQNS)
                         || EngineTestExecutor.containsSqlProducer(s, ctx)
                         || EngineTestExecutor.referencesAny(s, tainted)) {
+                    // SQLTEXT slice-3 step 0: the shape census — which
+                    // derivation the verdict arms need per assert
+                    // (target/sqltext-shape-census.txt)
+                    SqlTextShapes.record(test, statements, ctx);
                     return fallback("text-policy", test);
                 }
             }

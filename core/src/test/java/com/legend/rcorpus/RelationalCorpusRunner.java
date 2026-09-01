@@ -543,6 +543,29 @@ public class RelationalCorpusRunner {
         } catch (java.io.IOException ignore) {
             // best-effort diagnostic (histogram precedent)
         }
+        // SQLTEXT slice-3 step 0: the text-policy SHAPE census — the
+        // flip population ledger (histogram + per-test roster, the
+        // h2-verdicts idiom: unconditional, diffable)
+        try {
+            java.nio.file.Files.writeString(
+                    java.nio.file.Path.of("target",
+                            "sqltext-shape-census.txt"),
+                    com.legend.harness.SqlTextShapes.CENSUS.entrySet()
+                            .stream()
+                            .sorted((a, b) -> Long.compare(
+                                    b.getValue().sum(), a.getValue().sum()))
+                            .map(e -> e.getValue().sum() + "x " + e.getKey())
+                            .collect(java.util.stream.Collectors
+                                    .joining("\n"))
+                    + "\n\n"
+                    + com.legend.harness.SqlTextShapes.ROSTER.stream()
+                            .sorted()
+                            .collect(java.util.stream.Collectors
+                                    .joining("\n"))
+                    + "\n");
+        } catch (java.io.IOException ignore) {
+            // best-effort diagnostic (histogram precedent)
+        }
         // step 13 registry feed: the per-reason unverifiable census
         com.legend.harness.H2Verify.UNVERIFIABLE_CENSUS.entrySet().stream()
                 .sorted((a, b) -> Long.compare(b.getValue().sum(),
