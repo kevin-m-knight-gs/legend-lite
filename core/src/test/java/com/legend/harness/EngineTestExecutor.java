@@ -1671,8 +1671,17 @@ public final class EngineTestExecutor {
             // the graph compare's golden-side fan-out collapse is gated
             // on the STATIC extent-subset fact of the exec-bound query
             // chain (the §7 order-policy doctrine applied to
-            // multiplicity) — computed here, where the chain lives
-            H2Verify.EXTENT_SUBSET.set(extentSubset(execChains.get(var)));
+            // multiplicity) — computed here, where the chain lives.
+            // §7 proper: the STATIC order fact rides beside it — the
+            // walk's own endsInSort judgment of the same chain gates
+            // the oracle's in-order vs multiset compare.
+            ValueSpecification qchain = execChains.get(var);
+            H2Verify.EXTENT_SUBSET.set(extentSubset(qchain));
+            boolean orderedQ = qchain != null
+                    && endsInSort(orderView(qchain, execChains));
+            H2Verify.ORDERED_QUERY.set(orderedQ);
+            H2Verify.SORT_KEYS.set(orderedQ
+                    ? sortKeyCols(orderView(qchain, execChains)) : null);
             try {
                 return ReplayOracle.verifyAuto(conn,
                         seeds, extra, golden,
@@ -1680,6 +1689,8 @@ public final class EngineTestExecutor {
                                 actual, lets, execStmts, ctx, imports), enumProp);
             } finally {
                 H2Verify.EXTENT_SUBSET.remove();
+                H2Verify.ORDERED_QUERY.remove();
+                H2Verify.SORT_KEYS.remove();
             }
         } catch (java.sql.SQLException | RuntimeException e) {
             // audit (TENET V2.1): this decline was visible ONLY under
@@ -3941,6 +3952,101 @@ public final class EngineTestExecutor {
                     !af.parameters().isEmpty() && endsInSort(af.parameters().get(0));
             default -> false;
         };
+    }
+
+    /** The EFFECTIVE sort keys of an ordered chain — the column/property
+     * names of the sort nearest the tail (the engine's own semantics:
+     * {@code sortBy(a)->sortBy(b)} emits {@code order by b} ALONE —
+     * testSortByLambdaMultiple's golden is the receipt), reached through
+     * the same order-preserving tails {@link #endsInSort} walks. Null =
+     * underivable (a computed sort expression) — the ordered compare
+     * then DECLINES, counted, never guessed. Ties are the point: rows
+     * equal on these keys have no defined relative order on either
+     * backend, so the §7 in-order compare groups them (key sequence
+     * positional, full rows multiset WITHIN a tie run). */
+    static java.util.@com.legend.Nullable List<String> sortKeyCols(
+            @com.legend.Nullable ValueSpecification v) {
+        if (!(v instanceof AppliedFunction af)) {
+            return null;
+        }
+        String fn = simpleName(af.function());
+        if (fn.equals("sort") || fn.equals("sortBy")) {
+            if (af.parameters().size() < 2) {
+                return null;
+            }
+            java.util.List<String> keys = new java.util.ArrayList<>();
+            if (!collectSortKeys(af.parameters().get(1), keys)) {
+                return null;
+            }
+            return keys.isEmpty() ? null : keys;
+        }
+        return switch (fn) {
+            case "map", "limit", "take", "drop", "slice", "rows", "toOne",
+                    "at", "makeString", "toCSV", "toString", "from",
+                    "filter", "select", "rename", "renameColumns",
+                    "restrict", "project", "distinct" ->
+                    af.parameters().isEmpty() ? null
+                            : sortKeyCols(af.parameters().get(0));
+            default -> null;
+        };
+    }
+
+    /** One sort-key argument → its column/property names; false =
+     * a shape this walk cannot name (computed key). */
+    private static boolean collectSortKeys(ValueSpecification a,
+            java.util.List<String> out) {
+        switch (a) {
+            case CString s -> out.add(s.value());
+            case com.legend.protocol.spec.ColSpec cs -> out.add(cs.name());
+            case com.legend.protocol.spec.ColSpecArray ca -> {
+                for (var c : ca.colSpecs()) {
+                    out.add(c.name());
+                }
+            }
+            case com.legend.protocol.spec.PureCollection pc -> {
+                for (ValueSpecification e : pc.values()) {
+                    if (!collectSortKeys(e, out)) {
+                        return false;
+                    }
+                }
+            }
+            case LambdaFunction lf -> {
+                // sortBy(p | $p.prop): a DIRECT property read names its
+                // key; anything computed is underivable
+                if (lf.body().size() == 1
+                        && lf.body().get(0) instanceof AppliedProperty ap
+                        && ap.receiver() instanceof Variable) {
+                    out.add(ap.property());
+                } else {
+                    return false;
+                }
+            }
+            case com.legend.protocol.spec.PathLiteral pl -> {
+                // sortBy(#/Person/lastName#): a single-segment property
+                // path names its key (testSortSimple)
+                if (pl.segments().size() == 1) {
+                    out.add(pl.segments().get(0).name());
+                } else {
+                    return false;
+                }
+            }
+            case AppliedFunction sf -> {
+                // ascending(~col)/descending(~col) wrappers, and the
+                // func-spec spelling sortBy(func) — direction is
+                // irrelevant to TIE detection, only the key name matters
+                String sfn = simpleName(sf.function());
+                if ((sfn.equals("ascending") || sfn.equals("descending")
+                        || sfn.equals("asc") || sfn.equals("desc"))
+                        && sf.parameters().size() == 1) {
+                    return collectSortKeys(sf.parameters().get(0), out);
+                }
+                return false;
+            }
+            default -> {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** TRUE when an exec-bound query chain is a SUB-COLLECTION of a

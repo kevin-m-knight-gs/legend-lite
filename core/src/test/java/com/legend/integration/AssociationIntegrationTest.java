@@ -585,7 +585,10 @@ class AssociationIntegrationTest {
             var r = exec(fullModel(), "test::Person.all()->project(~[firm:x|$x.firm.legalName, name:x|$x.name])->sort(~firm->ascending())");
             assertEquals(4, r.rowCount());
             var firms = colStr(r, 0);
-            // Acme (Alice, Bob), Globex (Charlie), NULL (Diana) — sorted ASC NULLS LAST
+            // Acme (Alice, Bob), Globex (Charlie), NULL (Diana) — the
+            // relation-API sort is the PURE lane (pureNullOrder stamp):
+            // null-largest, ASC NULLS LAST (§7 landing record's two-spec
+            // split; the ENGINE lane's bare keys place nulls-low)
             assertEquals("Acme", firms.get(0));
             assertEquals("Acme", firms.get(1));
             assertEquals("Globex", firms.get(2));
@@ -1245,7 +1248,9 @@ class AssociationIntegrationTest {
                 "test::Person.all()->project(~[name:x|$x.name, city:x|$x.addresses.city])->sort(~city->ascending())");
             assertEquals(5, r.rowCount());
             var cities = colStr(r, 1);
-            // ASC NULLS LAST: Chicago, LA, NYC, NULL, NULL
+            // PURE-lane sort (pureNullOrder stamp): null-largest, ASC
+            // NULLS LAST — Chicago, LA, NYC, NULL, NULL (§7 two-spec
+            // split)
             assertEquals("Chicago", cities.get(0));
             assertEquals("LA", cities.get(1));
             assertEquals("NYC", cities.get(2));
@@ -1288,11 +1293,15 @@ class AssociationIntegrationTest {
             var r = exec(fullModel(),
                 "test::Person.all()->filter({p|$p.addresses.city != ''})->project(~[firm:p|$p.firm.legalName, name:p|$p.name])->groupBy(~firm, ~cnt:x|$x.name:y|$y->count())->sort(~firm->ascending())");
             assertEquals(3, r.rowCount());
+            // PURE-lane sort (pureNullOrder stamp): null-largest, ASC
+            // NULLS LAST — Acme, Globex, NULL group last (§7 two-spec
+            // split)
             assertEquals("Acme", colStr(r, 0).get(0));
             // Alice contributes one row PER qualifying address (2) + Bob (1)
             assertEquals(Integer.valueOf(3), colInt(r, 1).get(0));
             assertEquals("Globex", colStr(r, 0).get(1));
             assertEquals(Integer.valueOf(1), colInt(r, 1).get(1));
+            assertNull(colStr(r, 0).get(2));
             assertEquals(Integer.valueOf(1), colInt(r, 1).get(2));
         }
 

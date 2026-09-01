@@ -216,6 +216,22 @@ public class AnsiSqlRenderer implements SqlDialect {
         if (k.nullOrder() != null) {
             s += k.nullOrder() == SqlSelect.SortKey.NullOrder.NULLS_FIRST
                     ? " NULLS FIRST" : " NULLS LAST";
+        } else {
+            // BARE key = engine relational sort semantics (§7 slice-2
+            // burn, 2026-09-01): the engine spells no NULLS clause and
+            // rides its H2 backend's NULLS-LOW default — ASC nulls
+            // first, DESC nulls last (receipts: testPropertyProjection-
+            // QueryWithInnerJoinEmbeddedMappingTable's own assert pins
+            // ['null','1 the street','5 Park Ave'] ascending; the
+            // LL_ORD_COUNT blast radius found exactly 2 ordered-query
+            // leniency passes, both ASC-null placement). Execution
+            // dialects pin it EXPLICITLY (DuckDB's default is the
+            // opposite on ASC); the engine-TEXT channel suppresses all
+            // NULLS spelling (EngineStyleH2.sortKey — goldens never
+            // spell one). Pure-semantics sorts (null-is-largest, PCT
+            // testRange witnesses) arrive STAMPED and take the branch
+            // above.
+            s += k.ascending() ? " NULLS FIRST" : " NULLS LAST";
         }
         return s;
     }

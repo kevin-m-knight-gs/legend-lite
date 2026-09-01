@@ -1271,7 +1271,9 @@ class RelationalMappingIntegrationTest {
                 "#>{store::DB.T_PERSON}#->navigate(~n1: #>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->extend(~deptName: __r|$__r.n1.NAME)->sort(~deptName->ascending())->select(~[NAME, deptName])->from(test::RT)");
             assertEquals(4, r.rowCount());
             var depts = colStr(r, 1);
-            // DuckDB: NULLS LAST for ASC → Engineering, Research, Sales, NULL
+            // PURE-lane sort (colspec API, pureNullOrder stamp):
+            // null-largest, ASC NULLS LAST — Engineering, Research,
+            // Sales, NULL (§7 two-spec split)
             assertEquals("Engineering", depts.get(0));
             assertEquals("Research", depts.get(1));
             assertEquals("Sales", depts.get(2));
@@ -1304,7 +1306,9 @@ class RelationalMappingIntegrationTest {
         void testTraverseGroupBy() throws SQLException {
             var r = exec(traverseModel(),
                 "#>{store::DB.T_PERSON}#->navigate(~n1: #>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->navigate(~n2: #>{store::DB.T_ORG}#, {prev,hop|$prev.n1.ORG_ID == $hop.ID})->extend(~orgName: __r|$__r.n2.NAME)->groupBy(~orgName, ~cnt:x|$x.NAME:y|$y->count())->sort(~orgName->ascending())->from(test::RT)");
-            // DuckDB ASC NULLS LAST: Acme Corp=2, Globex=1, NULL=1
+            // PURE-lane sort (colspec API, pureNullOrder stamp):
+            // null-largest, ASC NULLS LAST — Acme Corp=2, Globex=1,
+            // NULL=1 (§7 two-spec split)
             assertEquals(3, r.rowCount());
             var orgs = colStr(r, 0);
             var counts = colInt(r, 1);
@@ -1312,6 +1316,8 @@ class RelationalMappingIntegrationTest {
             assertEquals(Integer.valueOf(2), counts.get(0));
             assertEquals("Globex", orgs.get(1));
             assertEquals(Integer.valueOf(1), counts.get(1));
+            assertNull(orgs.get(2));
+            assertEquals(Integer.valueOf(1), counts.get(2));
         }
 
         // --- Traverse + select (project only traversed columns) ---

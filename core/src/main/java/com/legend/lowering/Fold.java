@@ -368,24 +368,30 @@ final class Fold {
         return !s.distinct() && s.limit() == null && s.offset() == null && s.groupBy().isEmpty();
     }
 
-    /** Top-level ORDER BY null placement (C1.2, REVERTED): the engine
-     * emits NO NULLS clause on ANY target (extensionDefaults.pure
-     * processOrderBy — the DuckDB extension overrides only the WINDOW
-     * convention, ASC NULLS LAST / DESC NULLS FIRST), so placement is
-     * the connected database's default. The earlier global ASC->FIRST
-     * pin forced H2's null-smallest onto DuckDB, bought zero corpus
-     * tests (the two DIFF goldens it targeted were row-count
-     * mismatches) and broke five engine sort/groupBy pins. A dialect
-     * that needs explicit placement for cross-target row parity says
-     * so in ITS sortKey (H2 does). */
+    /** PURE-semantics null placement for a sort key (the
+     * pureNullOrder-gated stamp, Sorts). THE TWO-SPEC SPLIT (§7
+     * slice-2, SQLTEXT charter landing record): upstream Legend itself
+     * diverges — pure-language sorts are NULL-LARGEST (PCT receipts)
+     * while the engine's relational sort emits NO NULLS clause and
+     * rides its H2 backend's NULLS-LOW default (the corpus goldens'
+     * own asserts pin nulls first ascending). Our emission carries
+     * each spec explicitly: pure sorts stamp here (null-largest, both
+     * directions); engine TDS sorts stay BARE and the execution
+     * dialects' bare-key rendering pins the engine placement
+     * (AnsiSqlRenderer.sortKey — nulls-low). The old C1.2 story
+     * ("connected target places nulls") conflated the two specs. */
     static SqlSelect.SortKey.@com.legend.Nullable NullOrder sortNulls(boolean ascending) {
-        // PURE null ordering: null is LARGEST — ASC nulls last (DuckDB's
-        // default, no clause emitted), DESC nulls FIRST (DuckDB defaults
-        // LAST both ways — probed 2026-08-19; witness
-        // testRange_..._WithOrderByDESC, whose comparison sort placed
-        // nulls last). The window ORDER emission already carries the
-        // same rule (Lowerer's over() keys).
-        return ascending ? null : SqlSelect.SortKey.NullOrder.NULLS_FIRST;
+        // PURE null ordering: null is LARGEST — ASC nulls last, DESC
+        // nulls first (witness testRange_..._WithOrderByDESC). BOTH
+        // directions stamp EXPLICITLY (§7 slice-2, 2026-09-01): the ASC
+        // leg used to ride DuckDB's un-clause default, which happened to
+        // coincide — but bare keys now belong to the ENGINE-relational
+        // sort semantics (nulls-low, the dialect's bare-key emission),
+        // so a pure-semantics sort must carry its whole placement
+        // itself. The window ORDER emission already carries the same
+        // rule (Lowerer's over() keys).
+        return ascending ? SqlSelect.SortKey.NullOrder.NULLS_LAST
+                : SqlSelect.SortKey.NullOrder.NULLS_FIRST;
     }
 
     /** A ≤1-ROW PROOF for a select (C2-i, STAMP_DISCIPLINE_PROGRAM): an

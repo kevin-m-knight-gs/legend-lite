@@ -38,7 +38,7 @@ shared source registered by several families cannot double-count. Run with
 | autogeneration/tests | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | calendarAggregation/tests | 92 | 92 | 0 | 0 | 0 | 0 | 0 | 0 | 39 |
 | executionPlan/tests | 108 | 74 | 13 | 4 | 17 | 0 | 0 | 1 | 0 |
-| functions/tests | 259 | 245 | 4 | 7 | 3 | 2 | 3 | 1 | 110 |
+| functions/tests | 259 | 246 | 3 | 7 | 3 | 2 | 3 | 1 | 110 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | functions/tests/projection | 155 | 147 | 3 | 5 | 0 | 1 | 1 | 0 | 72 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 44 | 9 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2342** | 59 | 135 | 39 | 12 | 14 | 29 | 901 |
+| **total** | 2575 | **2343** | 58 | 135 | 39 | 12 | 14 | 29 | 901 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2342 PASS = 1401 clean + 941 carrying softness (sqldiff 12, advisory 14, 0-asserts 29, text-rescued 901; flags overlap — the union is 941).
+SOFT-PASS RECONCILIATION (F2.1): 2343 PASS = 1402 clean + 941 carrying softness (sqldiff 12, advisory 14, 0-asserts 29, text-rescued 901; flags overlap — the union is 941).
 
 ### mapping walls (dropped at assembly)
 
@@ -1171,7 +1171,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2342 PASS = 1401 clean + 941 carrying softness 
 - FAIL testIsEmptyOnCollection [functions/tests]: assertEquals: expected Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"where(${collectionSize(input![])})=0connection=TestDatabaseConnection(type="H2")))), got Sequence(type=TDS[(name,String,VARCHAR(200),"")](FunctionParametersValidationNode(functionParameters=[input:String[*]])Relational(type=TDS[(name,String,VARCHAR(200),"")]resultColumns=[("name",VARCHAR(200))]sql=select"root".LEGALNAMEas"name"fromfirmTableas"root"wherecoalesce(len('${input?replace("'","''")}'),0)=0connection=TestDatabaseConnection(type="H2"))))
 - ERROR testAll [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 1: SELECT UNNEST(list_filter([list_concat((SELECT CAST(CASE WHEN COUNT(*) = 1 THEN 
 - ERROR testSQLComments [functions/tests]: execution activities are not recorded
-- FAIL testSortByLambdaAndGraphFetchDeep [functions/tests]: assertJsonStringsEqual: FIRST DIFF at $[0].address expected null, got {name=Hoboken} | expected [{address=null}, {address={name=Hoboken}}, {address={name=Hong Kong}}, {address={name=New York}}, {address={name=New York}}, {address={name=New York}}, {addr..., got [{address={name=Hoboken}}, {address={name=Hong Kong}}, {address={name=New York}}, {address={name=New York}}, {address={name=New York}}, {address={name=New Yo...
 - ERROR testSortByLambdaDeepOptional [functions/tests]: zip over inputs that are not two scalar projections of the SAME class chain has no relational shape
 - SHAPE testFilterLimitInSequenceForTableAccessor [functions/tests]: plan wall: planToString: no getAll root (multi-node plans pending) [surfaced via assert form 'assertEquals/2']
 - SHAPE testLimitFilterInSequenceForTableAccessor [functions/tests]: plan wall: planToString: no getAll root (multi-node plans pending) [surfaced via assert form 'assertEquals/2']

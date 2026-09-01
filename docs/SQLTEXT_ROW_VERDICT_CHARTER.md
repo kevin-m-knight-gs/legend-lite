@@ -171,7 +171,7 @@ moved with the burn: exec-passing 1527→1528, unable-to-exec 21→20,
 text-rescued ceiling 900→901 (the witness's pass trades sqldiff 13→12
 + advisory 15→14 softness for the row-verified rescue flag).
 
-## 7. Order-sensitivity rule (ratified)
+## 7. Order-sensitivity rule (ratified; LANDED 2026-09-01)
 
 Compare IN ORDER exactly when the compared query is ordered — decided
 statically from OUR TYPED QUERY (the pipeline ends in
@@ -180,6 +180,49 @@ Unordered queries compare as multisets. Migration: run LL_ORD_COUNT
 over a full sweep first; every pass that depended on order-leniency
 under an ordered query is a pre-existing defect to burn before the
 flip, pinned like any census.
+
+**LANDING RECORD (slice 2, 2026-09-01).** Blast radius measured:
+of ~404 order-leniency events per sweep, 104 were h2-oracle; the
+static classification (walk endsInSort threaded as
+H2Verify.ORDERED_QUERY, the EXTENT_SUBSET twin) found exactly **2
+under ordered queries — both the SAME defect: ASC null placement.**
+The engine's relational sort rides its H2 backend's NULLS-LOW default
+(receipt: testPropertyProjectionQueryWithInnerJoinEmbeddedMappingTable
+asserts ['null','1 the street','5 Park Ave'] ascending) while our
+platform had pinned DuckDB's NULLS-LAST and made H2 conform to IT
+(5d0e1ccf — a self-consistency pin between our two executions, never
+an engine-semantics adjudication). BURNED by emission — the THREE-LAYER null-placement design:
+(1) PURE-lane sorts (TypedSort.pureNullOrder=true — the colspec
+relation API + value-collection sorts, the PCT surface) stamp
+null-largest EXPLICITLY in lowering, now BOTH directions
+(Fold.sortNulls ASC→NULLS LAST joined the existing DESC→NULLS FIRST;
+the ASC leg had ridden DuckDB's un-clause default, which coincided —
+PCT 1115 + ChannelB Relation 355 are the referees); (2) ENGINE-lane
+sorts (legacy TDS string-key shapes, pureNullOrder=false) stay bare
+in the IR and the EXECUTION dialects render bare keys with the
+engine's observed placement (ASC NULLS FIRST / DESC NULLS LAST —
+AnsiSqlRenderer.sortKey; the H2 conform-to-DuckDB override died);
+(3) the engine-TEXT channel spells NO NULLS clause ever (goldens
+never do). Executed SQL always carries explicit placement; no
+backend default ever decides an answer. Corpus +1:
+query::sort::testSortByLambdaAndGraphFetchDeep FAIL→PASS (the defect
+class, clean pass).
+
+**TIES (the flip's one design completion).** sortBy(a)->sortBy(b)
+emits `order by b` ALONE (engine last-sort-wins;
+testSortByLambdaMultiple's golden) and two Johns tie on firstName —
+both backends order the tie arbitrarily, both correct. The in-order
+verdict therefore runs with TIE GROUPS: sort-key columns derive
+STATICALLY from the typed chain (EngineTestExecutor.sortKeyCols —
+sort('col')/ColSpecs, sortBy(p|$p.prop), #/Path/prop#; computed
+expressions underivable); key SEQUENCES compare positionally, full
+rows as multisets WITHIN each equal-key run. Ordered rows whose keys
+are underivable or not in the compared output (sort-then-rename,
+non-projected keys) KEEP the multiset verdict, counted under
+LL_ORD_COUNT as `ordered-keys-unmappable` (measured: 7/sweep — the
+named residual burn); verification is never traded for a decline.
+Unordered leniency measured 105/sweep — incidental backend order,
+legitimate forever.
 
 ## 8. Slices (each: sweep between mechanisms, ratchet WITH the burn,
 ## one gate chain per batch, push green; regressions → 2-bisection
@@ -199,7 +242,9 @@ flip, pinned like any census.
    and FlipProbe register ReplayOracle.INSTANCE; production carries
    null. Conscious registrations: JDBC census (both files), exec
    funnel register, StatementExecutor eval-ledger 2566→2571.
-2. Order-sensitivity fix (§7) with the measured blast radius.
+2. Order-sensitivity fix (§7) — LANDED 2026-09-01, see the §7
+   landing record (nulls-low emission burn + tie-grouped in-order
+   verdict; corpus 2342→2343, lane pins byte-stable).
 3. Verdict arms for the sqlstring family incl. dual-derivation (§4);
    text census wired; flip the lane's simple shapes.
 4. Plan replayer (§5) + plan-text flips; branch-forcing.

@@ -179,9 +179,10 @@ class LowerRelationTest {
         String flat = sqlOf("#>{test::DB.T_PERSON}#->select(~FIRM)->distinct()"
                 + "->sort(~FIRM->ascending())");
         assertEquals(1, count(flat, "SELECT"), "distinct before sort is flat: " + flat);
-        // engine parity (C1.2 reverted): top-level ORDER BY emits NO NULLS
-        // clause — the connected target's default places nulls, and DuckDB
-        // trails them ascending
+        // PURE-lane sort (colspec API, pureNullOrder stamp — §7 two-spec
+        // split, 2026-09-01): null-largest, ASC NULLS LAST spelled
+        // explicitly; the ENGINE lane's bare keys render nulls-low at
+        // the execution dialect instead
         assertEquals(List.of("ACME", "Widget", "null"), exec(flat), "deduped AND sorted values");
 
         // Full-row dedup COMMUTES with sort — G desugars distinct() to all

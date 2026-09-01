@@ -362,21 +362,12 @@ public class H2 extends AnsiSqlRenderer {
         return "_ROWID_";
     }
 
-    /** DEFAULT NULL placement diverges: H2 sorts null SMALLEST (NULLS
-     * FIRST ascending), the reference target NULLS LAST in BOTH
-     * directions (DuckDB default_null_order — witnessed: sorted chains
-     * led with TDSNull on H2, and DESC-sorted tds/groupBy chains led
-     * with the null group when this pinned the WINDOW convention's
-     * DESC-FIRST instead). A key with no explicit placement pins the
-     * reference default: NULLS LAST, ascending or not. */
-    @Override
-    protected String sortKey(com.legend.sql.SqlSelect.SortKey k) {
-        String s = super.sortKey(k);
-        if (k.nullOrder() == null) {
-            s += " NULLS LAST";
-        }
-        return s;
-    }
+    // (The NULLS-LAST bare-key override is GONE — §7 slice-2 burn,
+    // 2026-09-01: it conformed H2 to DuckDB's default for
+    // self-consistency between our two executions, which inverted the
+    // ENGINE's nulls-low ASC semantics on both. The base renderer now
+    // pins engine placement explicitly on every bare key, so both
+    // executions agree AND match the engine's own asserts.)
 
     /** FORMATDATETIME wants java.time patterns, not %-codes (probed
      * 2.1.214 byte-equal to DuckDB strftime on iso-micro, date, month/

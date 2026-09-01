@@ -169,6 +169,29 @@ public final class H2Verify {
     public static final ThreadLocal<Boolean> EXTENT_SUBSET =
             ThreadLocal.withInitial(() -> Boolean.FALSE);
 
+    /** The verified query chain ENDS IN SORT — the walk's own static
+     * order fact (EngineTestExecutor.endsInSort via the order-policy
+     * view), computed at the verify site exactly like
+     * {@link #EXTENT_SUBSET}. Charter §7: ordered queries compare IN
+     * ORDER, unordered as multisets — this flag is the oracle
+     * compare's gate (and, under LL_ORD_COUNT, the blast-radius
+     * instrument's classification). */
+    public static final ThreadLocal<Boolean> ORDERED_QUERY =
+            ThreadLocal.withInitial(() -> Boolean.FALSE);
+
+    /** The ordered chain's EFFECTIVE sort-key column/property names
+     * (EngineTestExecutor.sortKeyCols — the sort nearest the tail, the
+     * engine's own last-sort-wins semantics), null when underivable.
+     * The §7 in-order compare needs them for TIES: rows equal on the
+     * sort keys have no defined relative order on either backend
+     * (testSortByLambdaMultiple: two Johns under {@code order by
+     * FIRSTNAME asc} — H2 and DuckDB both correct, orders differ), so
+     * the compare checks the key SEQUENCE positionally and the full
+     * rows as multisets WITHIN each tie run. Ordered + null keys =
+     * counted decline. */
+    public static final ThreadLocal<java.util.@com.legend.Nullable List<String>> SORT_KEYS =
+            new ThreadLocal<>();
+
     public static final ThreadLocal<String> CURRENT_TEST =
             ThreadLocal.withInitial(() -> "<unattributed>");
 
@@ -483,22 +506,34 @@ public final class H2Verify {
             }
             // both sides tuple over the SAME sorted key order
             List<String> sorted = new ArrayList<>(keys);
+            // §7: the sort-key indexes address the shared tuple order
+            // (ordered queries only; underivable/absent keys decline)
+            int[] keyIdx = ORDERED_QUERY.get()
+                    ? sortKeyIndexes(sorted) : null;
+            List<String> theirKeys = new ArrayList<>();
+            List<String> mineKeys = new ArrayList<>();
             java.util.Map<String, Integer> byLabel = new java.util.HashMap<>();
             for (int j = 0; j < dataLabels.size(); j++) {
                 byLabel.put(dataLabels.get(j), dataIdx[j]);
             }
             while (rs.next()) {
                 StringBuilder row = new StringBuilder();
+                String[] cells = new String[sorted.size()];
+                int ci = 0;
                 for (String k : sorted) {
                     if (row.length() > 0) {
                         row.append('|');
                     }
                     String cell = norm(rs.getObject(byLabel.get(k)));
                     var dec = keyDecode.get(k);
-                    row.append(dec == null ? cell
-                            : dec.getOrDefault(cell, cell));
+                    cells[ci] = dec == null ? cell
+                            : dec.getOrDefault(cell, cell);
+                    row.append(cells[ci++]);
                 }
                 theirs.add(row.toString());
+                if (keyIdx != null) {
+                    theirKeys.add(keyTuple(cells, keyIdx));
+                }
                 StringBuilder full = new StringBuilder();
                 for (int i = 1; i <= n; i++) {
                     if (i > 1) {
@@ -511,6 +546,8 @@ public final class H2Verify {
             List<String> mine = new ArrayList<>();
             for (java.util.Map<String, Object> obj : objs) {
                 StringBuilder row = new StringBuilder();
+                String[] cells = new String[sorted.size()];
+                int ci = 0;
                 for (String k : sorted) {
                     if (row.length() > 0) {
                         row.append('|');
@@ -528,15 +565,13 @@ public final class H2Verify {
                             // unexpected spelling: compare raw, loudly
                         }
                     }
-                    row.append(norm(v));
+                    cells[ci] = norm(v);
+                    row.append(cells[ci++]);
                 }
                 mine.add(row.toString());
-            }
-            List<String> sortedTheirs = new ArrayList<>(theirs);
-            Collections.sort(sortedTheirs);
-            Collections.sort(mine);
-            if (sortedTheirs.equals(mine)) {
-                return null;
+                if (keyIdx != null) {
+                    mineKeys.add(keyTuple(cells, keyIdx));
+                }
             }
             // Row-13 adjudication (SQLTEXT charter §6.1, landed
             // 2026-09-01): on an EXTENT-SUBSET query (pure guarantees
@@ -548,16 +583,52 @@ public final class H2Verify {
             // 7x (1,'Firm X') where pure answers once; its own asserts
             // pin nothing, assertSize(values->at(0),1) sizes a single
             // element). Collapse GOLDEN-side only, then the SAME
-            // strict multiset compare — an over-duplicating pipeline
-            // on OUR side still diverges loudly.
+            // strict compare — an over-duplicating pipeline on OUR
+            // side still diverges loudly. The collapse preserves
+            // first-occurrence order, so it composes with the §7
+            // ordered path below.
+            List<String> collapsed = null;
+            List<String> collapsedKeys = null;
             if (EXTENT_SUBSET.get() && hasPk) {
                 java.util.Set<String> seenFull = new java.util.HashSet<>();
-                List<String> collapsed = new ArrayList<>();
+                collapsed = new ArrayList<>();
+                collapsedKeys = keyIdx == null ? null : new ArrayList<>();
                 for (int i = 0; i < theirs.size(); i++) {
                     if (seenFull.add(fullRows.get(i))) {
                         collapsed.add(theirs.get(i));
+                        if (collapsedKeys != null) {
+                            collapsedKeys.add(theirKeys.get(i));
+                        }
                     }
                 }
+            }
+            // §7 RATIFIED (flip landed 2026-09-01): ordered instance
+            // queries compare IN ORDER, ties grouped (orderedVerdict).
+            // Unordered — and ordered rows without usable tie
+            // boundaries (keyIdx null, counted) — keep the multiset
+            // compare.
+            if (ORDERED_QUERY.get() && keyIdx != null) {
+                if (orderedVerdict(theirs, mine, theirKeys,
+                        mineKeys) == null) {
+                    return null;
+                }
+                if (collapsed != null && orderedVerdict(collapsed, mine,
+                        collapsedKeys, mineKeys) == null) {
+                    verdict("golden-fanout-collapsed");
+                    return null;
+                }
+                return divergence(theirs, mine);
+            }
+            if (ORDERED_QUERY.get()) {
+                ordFallback();
+            }
+            List<String> sortedTheirs = new ArrayList<>(theirs);
+            Collections.sort(sortedTheirs);
+            Collections.sort(mine);
+            if (sortedTheirs.equals(mine)) {
+                return null;
+            }
+            if (collapsed != null) {
                 Collections.sort(collapsed);
                 if (collapsed.equals(mine)) {
                     verdict("golden-fanout-collapsed");
@@ -593,12 +664,24 @@ public final class H2Verify {
                 // 1), so a lane that wrongly KEEPS a null still fails.
                 boolean valueFrame =
                         !(tab instanceof ExecutionResult.Tabular);
+                // §7: an ORDERED query resolves its sort-key column
+                // INDEXES against the frame schema up front (positional
+                // arity with the golden is asserted below, so the same
+                // indexes address both sides). Underivable keys or a
+                // key the compared output does not carry = counted
+                // decline — never a guessed tie policy.
+                int[] keyIdx = ORDERED_QUERY.get()
+                        ? sortKeyIndexes(tab.columns().stream()
+                                .map(c -> c.name()).toList())
+                        : null;
+                List<String> theirKeys = new ArrayList<>();
                 try (ResultSet rs = st.executeQuery(goldenSql)) {
                     int n = rs.getMetaData().getColumnCount();
                     theirsCols[0] = n;
                     while (rs.next()) {
                         StringBuilder row = new StringBuilder();
                         boolean allNull = true;
+                        String[] cells = new String[n];
                         for (int i = 1; i <= n; i++) {
                             if (i > 1) {
                                 row.append('|');
@@ -610,13 +693,17 @@ public final class H2Verify {
                             // transform the compared frame ran (0-based
                             // frame column = 1-based JDBC index - 1)
                             var dec = enumDecode.get(i - 1);
-                            row.append(dec == null ? cell
-                                    : dec.getOrDefault(cell, cell));
+                            cells[i - 1] = dec == null ? cell
+                                    : dec.getOrDefault(cell, cell);
+                            row.append(cells[i - 1]);
                         }
                         if (valueFrame && n == 1 && allNull) {
                             continue;
                         }
                         theirs.add(row.toString());
+                        if (keyIdx != null) {
+                            theirKeys.add(keyTuple(cells, keyIdx));
+                        }
                     }
                 } catch (SQLException e) {
                     throw new Unverifiable("golden execution: "
@@ -631,33 +718,145 @@ public final class H2Verify {
                             + tab.columns().size(), null);
                 }
                 List<String> mine = new ArrayList<>();
+                List<String> mineKeys = new ArrayList<>();
                 for (Row r : tab.rows()) {
                     StringBuilder row = new StringBuilder();
+                    String[] cells = new String[r.values().size()];
                     for (int i = 0; i < r.values().size(); i++) {
                         if (i > 0) {
                             row.append('|');
                         }
-                        row.append(norm(r.values().get(i)));
+                        cells[i] = norm(r.values().get(i));
+                        row.append(cells[i]);
                     }
                     mine.add(row.toString());
+                    if (keyIdx != null) {
+                        mineKeys.add(keyTuple(cells, keyIdx));
+                    }
+                }
+                // §7 RATIFIED (flip landed 2026-09-01, blast radius
+                // measured first: 2 ordered-query leniency passes, both
+                // the ASC-nulls placement defect, burned by the
+                // nulls-low emission fix in the same slice): an ORDERED
+                // query's row order is CONTRACT — compare IN ORDER,
+                // ties grouped (orderedVerdict). Unordered queries —
+                // and ordered rows without usable tie boundaries
+                // (keyIdx null, counted residue) — keep the multiset
+                // compare (the 103 measured unordered leniency passes
+                // are incidental backend order, legitimate forever).
+                if (ORDERED_QUERY.get() && keyIdx != null) {
+                    return orderedVerdict(theirs, mine, theirKeys,
+                            mineKeys);
+                }
+                if (ORDERED_QUERY.get()) {
+                    ordFallback();
                 }
                 List<String> theirsRaw = new ArrayList<>(theirs);
                 List<String> mineRaw = new ArrayList<>(mine);
                 Collections.sort(theirs);
                 Collections.sort(mine);
                 if (theirs.equals(mine)) {
-                    // F2.4: the oracle discards row order BY DESIGN but
-                    // never counted it — emit under the same instrument
-                    // so census numbers stop being floors (strict
+                    // F2.4: the oracle discards row order for UNORDERED
+                    // queries by §7 — still counted under the
+                    // instrument so census numbers stay honest (strict
                     // recheck = pre-sort order)
                     if (System.getenv("LL_ORD_COUNT") != null
                             && !theirsRaw.equals(mineRaw)) {
                         System.err.println(
-                                "[ord] h2-oracle order-leniency pass");
+                                "[ord] h2-oracle order-leniency pass"
+                                + " unordered");
                     }
                     return null;
                 }
                 return divergence(theirs, mine);
+    }
+
+    /** Resolve the {@link #SORT_KEYS} names to indexes in
+     * {@code columnNames} (exact match first, case-insensitive
+     * fallback — TDS labels vs mapped-property spellings). NULL = the
+     * §7 strict path has no tie boundaries here — underivable keys
+     * (computed sort expressions) or keys the compared output does not
+     * carry (sort-then-rename, non-projected keys). The compare then
+     * KEEPS the multiset verdict for this row set — verification is
+     * preserved, the residual order-leniency stays COUNTED under
+     * LL_ORD_COUNT with its own tag (a named burn candidate), never a
+     * decline that loses a working row verdict. */
+    private static int @com.legend.Nullable [] sortKeyIndexes(
+            List<String> columnNames) {
+        List<String> keys = SORT_KEYS.get();
+        if (keys == null) {
+            return null;
+        }
+        int[] idx = new int[keys.size()];
+        for (int k = 0; k < keys.size(); k++) {
+            int at = columnNames.indexOf(keys.get(k));
+            if (at < 0) {
+                for (int i = 0; i < columnNames.size(); i++) {
+                    if (columnNames.get(i).equalsIgnoreCase(keys.get(k))) {
+                        at = i;
+                        break;
+                    }
+                }
+            }
+            if (at < 0) {
+                return null;
+            }
+            idx[k] = at;
+        }
+        return idx;
+    }
+
+    /** The counted §7 residue: an ORDERED query whose strict compare
+     * had no usable tie boundaries rode the multiset verdict. */
+    private static void ordFallback() {
+        if (System.getenv("LL_ORD_COUNT") != null) {
+            System.err.println(
+                    "[ord] h2-oracle ordered-keys-unmappable multiset"
+                            + " fallback");
+        }
+    }
+
+    private static String keyTuple(String[] cells, int[] keyIdx) {
+        StringBuilder k = new StringBuilder();
+        for (int i : keyIdx) {
+            if (k.length() > 0) {
+                k.append('|');
+            }
+            k.append(cells[i]);
+        }
+        return k.toString();
+    }
+
+    /** The §7 IN-ORDER verdict with TIE GROUPS: both sides' sort-key
+     * sequences must agree POSITIONALLY (order is contract); full rows
+     * compare as multisets WITHIN each maximal run of equal
+     * consecutive keys (rows tied on the sort key have no defined
+     * relative order on either backend —
+     * testSortByLambdaMultiple's two Johns). */
+    private static @com.legend.Nullable String orderedVerdict(
+            List<String> theirs, List<String> mine,
+            List<String> theirKeys, List<String> mineKeys) {
+        if (theirs.size() != mine.size()
+                || !theirKeys.equals(mineKeys)) {
+            return divergence(theirs, mine);
+        }
+        int i = 0;
+        while (i < theirs.size()) {
+            int j = i + 1;
+            while (j < theirKeys.size()
+                    && theirKeys.get(j).equals(theirKeys.get(i))) {
+                j++;
+            }
+            List<String> a = new ArrayList<>(theirs.subList(i, j));
+            List<String> b = new ArrayList<>(mine.subList(i, j));
+            Collections.sort(a);
+            Collections.sort(b);
+            if (!a.equals(b)) {
+                return divergence(theirs, mine);
+            }
+            i = j;
+        }
+        return null;
     }
 
     /** The one divergence tail (both compare paths). The old

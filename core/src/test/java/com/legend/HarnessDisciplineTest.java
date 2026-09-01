@@ -89,7 +89,13 @@ class HarnessDisciplineTest {
             // by construction), gated on the COMPILE-TIME
             // extent-subset fact of the typed query chain
             // (EngineTestExecutor.extentSubset -> EXTENT_SUBSET).
-            Map.entry("H2Verify.java", 8),
+            // 8 -> 10 (§7 flip, same charter): orderedVerdict's TIE
+            // GROUPS — within each run of equal sort-key rows BOTH
+            // sides sort before comparing (two-sided by construction;
+            // rows tied on the key have no defined relative order on
+            // either backend), gated on the COMPILE-TIME sort-key
+            // derivation (EngineTestExecutor.sortKeyCols -> SORT_KEYS).
+            Map.entry("H2Verify.java", 10),
             Map.entry("JsonAssertCanon.java", 1),
             Map.entry("LineageForm.java", 1),
             Map.entry("Runner.java", 2),
