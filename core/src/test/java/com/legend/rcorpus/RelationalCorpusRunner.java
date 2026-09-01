@@ -910,10 +910,18 @@ public class RelationalCorpusRunner {
             // store/mapping element refs and constructed metamodel
             // instances — planWalk's OTHER existing roots — stage the
             // same way; typeInference-family metamodel reads evaluate).
+            // 1974/599 -> 1953/620 (platform-fail burn, the scan-tree
+            // referee: engine tree goldens embed pureToSqlQuery's alias
+            // breadcrumbs our IR cannot reproduce; the strip policy
+            // moved to its one owner (ScanRelations.stripAliasBreadcrumbs
+            // — the walk's LineageRelationsForm now delegates) and the
+            // assertEquals SCAN-TREE arm judges both sides through it.
+            // The tree-text fold moved LATE (staging sites) so the
+            // verdict arm sees its carrier).
             org.junit.jupiter.api.Assertions.assertTrue(
-                    com.legend.harness.WholeTestFlip.fallbackCount() <= 1974
+                    com.legend.harness.WholeTestFlip.fallbackCount() <= 1953
                             && com.legend.harness.WholeTestFlip
-                                    .flippedCount() >= 599,
+                                    .flippedCount() >= 620,
                     "whole-test migration ratchet moved backwards: flipped="
                             + com.legend.harness.WholeTestFlip.flippedCount()
                             + " fallbacks="

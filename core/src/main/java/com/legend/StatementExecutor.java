@@ -146,9 +146,9 @@ final class StatementExecutor {
             // TDG lane S1: the checker's census CARRIER folds to instance
             // literals HERE (orchestration owns testdatagen; the compiler
             // cannot — layering), before resolve sees the statement
-            // (composed with the lineage tree-text fold — string-flavored
-            // scan carriers become their engine-exact text, same layering)
-            TypedSpec stmt = com.legend.lineage.ScanRelations.foldTreeText(com.legend.testdatagen.TestDataGenerationNatives.foldCensus(stmts.get(i), env.ctx(), env.connection(), letPrefix), env.ctx());
+            // (the lineage tree-text fold moved to the STAGING sites —
+            // late, so the scan-tree VERDICT arm sees its carrier)
+            TypedSpec stmt = com.legend.testdatagen.TestDataGenerationNatives.foldCensus(stmts.get(i), env.ctx(), env.connection(), letPrefix);
             boolean last = i == stmts.size() - 1;
             if (stmt instanceof com.legend.compiler.spec.typed.TypedLet let && !last) {
                 // let tds = $r.values(->at(0)/->toOne()): over a RELATION-
@@ -261,9 +261,7 @@ final class StatementExecutor {
                     stmtInliner.inlineBody(single));                      // Phase G½
             env.queryLets().putAll(stmtInliner.queryLets());
             final java.util.List<TypedSpec> stageEnv = body;
-            body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
-                    .stage(b, stageEnv, nativeRoutines(specs, env),
-                            pc -> planWalkDecline(pc, specs, env)));
+            body.replaceAll(b -> com.legend.lineage.ScanRelations.foldTreeText(com.legend.compiler.spec.NativeDispatch.stage(b, stageEnv, nativeRoutines(specs, env), pc -> planWalkDecline(pc, specs, env)), env.ctx()));
 
             TypedSpec preRoot = body.get(body.size() - 1);
             if (preRoot instanceof com.legend.compiler.spec.typed.TypedLet pl) {
@@ -2610,9 +2608,7 @@ final class StatementExecutor {
                 inliner.inlineBody(single));
         env.queryLets().putAll(inliner.queryLets());
         final java.util.List<TypedSpec> stageEnv = body;
-        body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
-                .stage(b, stageEnv, nativeRoutines(specs, env),
-                        pc -> planWalkDecline(pc, specs, env)));
+        body.replaceAll(b -> com.legend.lineage.ScanRelations.foldTreeText(com.legend.compiler.spec.NativeDispatch.stage(b, stageEnv, nativeRoutines(specs, env), pc -> planWalkDecline(pc, specs, env)), env.ctx()));
         body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
                 .withLetBindings(env.queryLets())
                 .resolve(body, env.runtimeFqn());
