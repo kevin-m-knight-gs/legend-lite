@@ -400,6 +400,33 @@ legitimate forever.
    ~24 other-producer + ~20 multi-statement/mixed residue (named,
    counted). The sql-text EXECUTED-FRAME migration is COMPLETE:
    every assert over an executed frame's SQL judges on rows.
+   **§5 FIRST CUT LANDED 2026-09-01 (the plan-text arm — the
+   single-statement class, pushed 69c7dec3).** tryArmPlanText: the
+   actual side navigates a generated plan to a SQL text with template
+   holes; REFEREE BINDINGS (VerdictQueries.refereeBindings — fixed
+   scalar values per parameter type: String 'A', Integer 22, Float
+   1.0, Boolean true, Date 2015-10-16, DateTime 2015-10-16 00:00:00)
+   bind the plan lambda's parameters as MINTED LETS (parameters
+   resolve exactly like test-body lets — no substitution walk); OUR
+   ROWS = the lambda body in from(mapping) with those lets; GOLDEN
+   ROWS = the golden with every hole filled with the SAME value's
+   spelling, replayed via the oracle (rowsLegAndVerdict gained the
+   replaySql channel — the census still compares the RAW golden).
+   Movement: +3 flips (ratchet 945/1628), text-only lane 43 -> 40.
+   COUNTED residue, the cut's named boundary: whole-plan planToString
+   compares with FREEMARKER-OPERATION holes (7 demoted — the full
+   program replayer: run allocations, force the >50-element
+   temp-table conditional BOTH WAYS) + unbindable params. Canon exact
+   21 held; paired sweeps byte-identical.
+   REMAINING TO ZERO (the burn map, measured 2026-09-01): ~110
+   text-policy (~25 plan-program + 36 TDG scoring-flip + ~50 named
+   residue) + 53 effectful (flip-gate redesign — flipped execution is
+   primary now, the double-run conservatism is obsolete) + ~460
+   compiler walls (~200 metamodel-query classes -> the
+   metamodel-as-relations leg; 51 scalar lowerings + ~60 unported
+   natives; 43 join-condition-whole-variable; 21 lineage; misc) +
+   ~15 platform-fail singletons. Endgame: fallbacks 0-or-named = the
+   walk's scoring machinery deletes.
 4. Plan replayer (§5) + plan-text flips; branch-forcing.
 5. Inventory upgrades as their own commits: #3 ULP probe/upgrade,
    #4 TIMESTAMP_NS leg, #11 projection, #1 sentinel.
