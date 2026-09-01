@@ -906,10 +906,14 @@ public class RelationalCorpusRunner {
             // keeps its ordinary path and that path's walls
             // (planWalkDecline). TypedMap-42 burns to zero: 32 flips +
             // 10 attributed next walls).
+            // 1995/578 -> 1974/599 (walk roots widened: chains rooted at
+            // store/mapping element refs and constructed metamodel
+            // instances — planWalk's OTHER existing roots — stage the
+            // same way; typeInference-family metamodel reads evaluate).
             org.junit.jupiter.api.Assertions.assertTrue(
-                    com.legend.harness.WholeTestFlip.fallbackCount() <= 1995
+                    com.legend.harness.WholeTestFlip.fallbackCount() <= 1974
                             && com.legend.harness.WholeTestFlip
-                                    .flippedCount() >= 578,
+                                    .flippedCount() >= 599,
                     "whole-test migration ratchet moved backwards: flipped="
                             + com.legend.harness.WholeTestFlip.flippedCount()
                             + " fallbacks="
@@ -1005,7 +1009,10 @@ public class RelationalCorpusRunner {
             // attempt); the chartered NativeDispatch staging seam
             // (§4AG) consumes planWalk's existing results as literals
             // where the chains stand. Quarantine shrink = burndown.
-            org.junit.jupiter.api.Assertions.assertEquals(116,
+            // 116 -> 89 (walk roots widened to store/mapping refs +
+            // constructed metamodel instances — the roots the walk
+            // already owned; 27 more quarantined reads evaluate).
+            org.junit.jupiter.api.Assertions.assertEquals(89,
                     com.legend.exec.CanonicalDivergence.v7QuarantinedCount(),
                     "metamodel quarantine (witness rows) moved off 172 —"
                             + " see FULL_RESIDUE_CENSUS_2026_08_30.md §10j");

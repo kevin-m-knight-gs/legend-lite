@@ -107,11 +107,14 @@ public final class NativeDispatch {
         return new TypedCString(r.value(nc, letPrefix), nc.info());
     }
 
-    /** A SCALAR/scalar-collection-typed chain (not the handle itself)
-     * whose source spine bottoms at the opaque plan handle — the shapes
-     * the plan-chain arm may evaluate in place. */
+    /** A SCALAR/scalar-collection-typed chain (not the root itself)
+     * whose source spine bottoms at a WALK-SPACE root — the opaque plan
+     * handle, a store/mapping element reference, or a constructed
+     * metamodel instance (exactly the roots the executor's walk owns;
+     * the walk declines everything else and the chain keeps its
+     * ordinary path). */
     private static boolean scalarChainOverPlanHandle(TypedSpec n) {
-        if (!scalarish(n.info().type()) || planHandle(n)) {
+        if (!scalarish(n.info().type()) || walkRoot(n)) {
             return false;
         }
         TypedSpec cur = n;
@@ -132,19 +135,23 @@ public final class NativeDispatch {
             if (src == null) {
                 return false;
             }
-            if (planHandle(src)) {
+            if (walkRoot(src)) {
                 return true;
             }
             cur = src;
         }
     }
 
-    private static boolean planHandle(TypedSpec n) {
+    private static boolean walkRoot(TypedSpec n) {
         return n instanceof TypedNativeCall nc
                 && (PlatformTypes.EXECUTION_PLAN
                         .equals(nc.callee().qualifiedName())
                     || PlatformTypes.PREVAL
-                        .equals(nc.callee().qualifiedName()));
+                        .equals(nc.callee().qualifiedName()))
+                || n instanceof com.legend.compiler.spec.typed
+                        .TypedPackageableRef
+                || n instanceof com.legend.compiler.spec.typed
+                        .TypedNewInstance;
     }
 
     private static boolean scalarish(
