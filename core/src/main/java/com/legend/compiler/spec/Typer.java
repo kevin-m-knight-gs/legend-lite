@@ -180,7 +180,14 @@ final class Typer {
             case CLatestDate ignored -> new TypedCLatestDate(ExprType.one(Type.Primitive.LATEST_DATE));
             case TypeAnnotation ta -> typeRef(ta);
             case Variable v -> new TypedVariable(v.name(), env.lookup(v.name()).orElseThrow(
-                    () -> new TypeInferenceException("unbound variable '$" + v.name() + "'")));
+                    () -> new TypeInferenceException(env.exprAlias(v.name()).isPresent()
+                            // a PARKED deferred binding (bind-once): usable
+                            // only where a consuming checker types it
+                            ? "deferred let binding '$" + v.name() + "' has no"
+                                    + " type outside a consuming call position"
+                                    + " (tree/colspec bindings resolve at"
+                                    + " their call sites)"
+                            : "unbound variable '$" + v.name() + "'")));
             case AppliedFunction af -> applyFunction(af, env);
             case AppliedProperty ap -> accessProperty(ap, env);
             case PureCollection coll -> collection(coll, env);
@@ -242,6 +249,13 @@ final class Typer {
                                 && lset.function().equals("letFunction")
                                 && lset.parameters().size() == 2
                                 && lset.parameters().get(0) instanceof CString ln) {
+                            // bind-once (family A): deferred-kind rhs
+                            // parks (same rule as the statement folds)
+                            if (deferredLetRhs(lset.parameters().get(1))) {
+                                scope = scope.withDeferred(ln.value(),
+                                        lset.parameters().get(1));
+                                continue;
+                            }
                             TypedSpec val = synth(lset.parameters().get(1), scope);
                             scope = scope.withLet(ln.value(), val.info(),
                                     lset.parameters().get(1));
@@ -3308,6 +3322,22 @@ final class Typer {
         return p.atLeast(PureDateLiteral.Precision.HOUR) ? Type.Primitive.DATE_TIME
                 : p == PureDateLiteral.Precision.DAY ? Type.Primitive.STRICT_DATE
                 : Type.Primitive.DATE;
+    }
+
+    /** The CLOSED deferred-kind list (bind-once, family A): a let rhs
+     * whose meaning is decided at the USE site, not the binding site —
+     * it has no type in isolation, so the binding PARKS the raw syntax
+     * ({@link Env#withDeferred}) instead of dying here. Exactly the
+     * kinds whose standalone synth walls: a graph-fetch tree literal
+     * and a mapped/aggregate column spec. (The engine needs no parking:
+     * its trees are first-class {@code RootGraphFetchTree} values, and
+     * it REJECTS the other shapes at the binding — parking mirrors its
+     * use-site inScopeVars resolution at the checker layer.) */
+    static boolean deferredLetRhs(ValueSpecification v) {
+        return v instanceof com.legend.protocol.spec.GraphFetchLiteral
+                || v instanceof ColSpec cs && cs.function1() != null
+                || v instanceof ColSpecArray arr && arr.colSpecs().stream()
+                        .anyMatch(c -> c.function1() != null);
     }
 
     /** A bare {@code ~col}: a first-class {@code ColSpec<(col:?)>[1]} value (see {@link TypedColSpec}). */

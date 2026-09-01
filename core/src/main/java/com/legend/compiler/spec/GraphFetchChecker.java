@@ -80,8 +80,12 @@ final class GraphFetchChecker {
      * {@code FuncColSpec} &mdash; so validation walks the class model directly.)
      */
     private static Checked checkTree(Typer t, AppliedFunction af, Env env, String fn) {
+        // bind-once (family A): a let-bound tree parked by the statement
+        // folds resolves through the alias channel — each use site gets
+        // its own independent resolution (engine parallel: per-use
+        // copyGenericType / use-site inScopeVars).
         ValueSpecification second = af.parameters().size() < 2 ? null
-                : unwrapCompiledTree(af.parameters().get(1));
+                : unwrapCompiledTree(env.resolveAlias(af.parameters().get(1)));
         if (!(second instanceof ColSpecArray tree)) {
             throw new TypeInferenceException(fn + " expects (classCollection, #{Class{…}}#)");
         }

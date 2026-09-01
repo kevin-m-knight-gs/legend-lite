@@ -149,6 +149,19 @@ public final class SpecCompiler {
         List<TypedSpec> typed = new ArrayList<>(body.size());
         int last = body.size() - 1;
         for (int i = 0; i < body.size(); i++) {
+            // bind-once (family A): deferred-kind let rhs parks (same
+            // rule as the query fold below — never the last statement)
+            com.legend.protocol.spec.CString dn;
+            if (i < last
+                    && (dn = SourceSubst.letName(body.get(i))) != null
+                    && Typer.deferredLetRhs(
+                            ((com.legend.protocol.spec.AppliedFunction) body.get(i))
+                                    .parameters().get(1))) {
+                scope = scope.withDeferred(dn.value(),
+                        ((com.legend.protocol.spec.AppliedFunction) body.get(i))
+                                .parameters().get(1));
+                continue;
+            }
             TypedSpec stmt = typeBody(body.get(i), scope, Expected.infer());
             if (i == last) {
                 // The return-position conformance names the CONTRACT: the
@@ -203,7 +216,24 @@ public final class SpecCompiler {
                 && lf.parameters().isEmpty()) {
             Env scope = Env.empty();
             List<TypedSpec> body = new ArrayList<>();
-            for (ValueSpecification stmt : lf.body()) {
+            int lastStmt = lf.body().size() - 1;
+            for (int si = 0; si < lf.body().size(); si++) {
+                ValueSpecification stmt = lf.body().get(si);
+                // bind-once (family A): a let whose rhs is a DEFERRED
+                // kind parks the raw syntax instead of dying typing it;
+                // consuming checkers resolve through the alias channel.
+                // Never the last statement — the query's value stays loud.
+                com.legend.protocol.spec.CString dn;
+                if (si < lastStmt
+                        && (dn = SourceSubst.letName(stmt)) != null
+                        && Typer.deferredLetRhs(
+                                ((com.legend.protocol.spec.AppliedFunction) stmt)
+                                        .parameters().get(1))) {
+                    scope = scope.withDeferred(dn.value(),
+                            ((com.legend.protocol.spec.AppliedFunction) stmt)
+                                    .parameters().get(1));
+                    continue;
+                }
                 TypedSpec typed = typer.typeBody(stmt, scope, Expected.infer());
                 body.add(typed);
                 if (typed instanceof TypedLet let) {

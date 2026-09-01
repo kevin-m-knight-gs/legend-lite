@@ -869,10 +869,16 @@ public class RelationalCorpusRunner {
             // Env alias channel at from()/getAll(); TDG/CSV-census args
             // resolve via SourceSubst.resolveStructuralArgs — refs and
             // lambdas only, computed refs keep their variable).
+            // 2151/422 -> 2054/519 (bind-once slice 2, family A: a let
+            // whose rhs is a DEFERRED kind — graph-fetch tree literal,
+            // mapped/agg colspec — PARKS the raw syntax in the Env alias
+            // channel instead of dying; graphFetch/serialize resolve
+            // through the alias at their call sites, each use its own
+            // independent resolution).
             org.junit.jupiter.api.Assertions.assertTrue(
-                    com.legend.harness.WholeTestFlip.fallbackCount() <= 2151
+                    com.legend.harness.WholeTestFlip.fallbackCount() <= 2054
                             && com.legend.harness.WholeTestFlip
-                                    .flippedCount() >= 422,
+                                    .flippedCount() >= 519,
                     "whole-test migration ratchet moved backwards: flipped="
                             + com.legend.harness.WholeTestFlip.flippedCount()
                             + " fallbacks="

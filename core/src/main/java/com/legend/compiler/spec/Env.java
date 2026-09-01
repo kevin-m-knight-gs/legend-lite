@@ -76,6 +76,28 @@ public final class Env {
         return Optional.ofNullable(exprAliases.get(name));
     }
 
+    /** A DEFERRED let binding (bind-once, family A): the rhs is an
+     * expression with no type outside a consuming call (a graph-fetch
+     * tree, a mapped column spec), so the binding parks the RAW syntax
+     * under the name — alias channel only, NO type entry. A consuming
+     * checker resolves it via {@link #resolveAlias}; any other use fails
+     * variable lookup loudly (the typer names the parked binding). The
+     * rhs is static checker-structure, never evaluated, so statement
+     * order is untouched. Any same-name var binding is dropped so a
+     * stale type can never answer for the deferred name. */
+    public Env withDeferred(String name,
+            com.legend.protocol.spec.ValueSpecification expr) {
+        Map<String, ExprType> next = vars;
+        if (vars.containsKey(name)) {
+            next = new LinkedHashMap<>(vars);
+            next.remove(name);
+        }
+        Map<String, com.legend.protocol.spec.ValueSpecification> nextAliases =
+                new LinkedHashMap<>(exprAliases);
+        nextAliases.put(name, expr);
+        return new Env(next, nextAliases, lenientNew);
+    }
+
     /** Resolve {@code v} through the let-alias channel TRANSITIVELY: while
      * it is a variable whose name carries a let-bound syntactic alias, step
      * to that alias ({@code let m2 = $m1} chains). Sound for the same
