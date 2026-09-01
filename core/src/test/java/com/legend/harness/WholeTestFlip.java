@@ -202,9 +202,21 @@ public final class WholeTestFlip {
         } catch (RuntimeException e) {
             return fallback("wall-resolve: " + bucketOf(e.getMessage()), test);
         }
+        // EFFECT ROUTING (effectful cutover, 2026-09-01): effects split
+        // by RE-RUN SAFETY. dropAndCreate*/TDG bodies are STATE-
+        // CONVERGENT (drop-then-create DDL + temp-table
+        // materialization: a walk re-run after any partial platform
+        // execution lands the same end state), so they flip with
+        // ordinary fallback semantics. executeInDb runs ARBITRARY
+        // SQL — a re-run could double a bare write — so those bodies
+        // keep the gate (fallback BEFORE execution, never after).
         try {
-            if (Compiler.hasStatementEffects(resolved, ctx)) {
-                return fallback("effectful", test);
+            switch (effectKind(resolved, ctx)) {
+                case IRREVERSIBLE -> {
+                    return fallback("effectful", test);
+                }
+                case NONE, RERUNNABLE -> {
+                }
             }
         } catch (RuntimeException e) {
             return fallback("wall-type: " + bucketOf(e.getMessage()), test);
@@ -218,7 +230,8 @@ public final class WholeTestFlip {
         } catch (java.sql.SQLException e) {
             // the walk passes what the platform fails (or the platform
             // hit a data-layer error): the REAL-divergence burn list —
-            // walk re-scores (safe: effect gate held), row counted
+            // walk re-scores (safe: effects are state-convergent), row
+            // counted
             return fallback("platform-fail: " + bucketOf(e.getMessage()),
                     test);
         } catch (RuntimeException e) {
@@ -235,6 +248,101 @@ public final class WholeTestFlip {
         return new EngineTestExecutor.Outcome.Ran((int) passes, 0,
                 asserts > 0 ? statements.size() : executable,
                 List.of(), List.of());
+    }
+
+    private enum EffectKind { NONE, RERUNNABLE, IRREVERSIBLE }
+
+    /** Re-run-safety classification, judged at BODY level: the walk
+     * re-runs the WHOLE body, so convergence is a property of the
+     * ordered effect stream, not of one call. The dropAndCreate DDL
+     * natives and TDG generators are
+     * convergent by construction; executeInDb literals classify by
+     * verb — read-only statements are free, DROP is free, and
+     * CREATE/INSERT are legal once a DROP occurred earlier in the body
+     * (the corpus's drop-led setup idiom: a re-run re-drops before it
+     * re-creates and re-seeds, landing the same end state). Any other
+     * verb, or NON-literal SQL, is IRREVERSIBLE and keeps the gate. */
+    private static EffectKind effectKind(ValueSpecification resolved,
+            com.legend.compiler.element.ModelContext ctx) {
+        if (!Compiler.hasStatementEffects(resolved, ctx)) {
+            return EffectKind.NONE;
+        }
+        com.legend.compiler.spec.SpecCompiler specs =
+                new com.legend.compiler.spec.SpecCompiler(ctx);
+        List<String> sqls = new ArrayList<>();
+        java.util.Set<String> visiting = new java.util.HashSet<>();
+        for (com.legend.compiler.spec.typed.TypedSpec s
+                : specs.typeQueryBody(resolved)) {
+            if (!collectExecInDb(s, specs, visiting, sqls)) {
+                return EffectKind.IRREVERSIBLE;   // non-literal SQL
+            }
+        }
+        boolean dropped = false;
+        for (String sql : sqls) {
+            for (String st : sql.split(";")) {
+                String t = st.strip();
+                if (t.isEmpty()) {
+                    continue;
+                }
+                String verb = t.split("\\s+", 2)[0].toUpperCase(
+                        java.util.Locale.ROOT);
+                switch (verb) {
+                    case "SELECT", "SHOW", "WITH", "VALUES", "CALL" -> {
+                    }
+                    case "DROP" -> dropped = true;
+                    case "CREATE", "INSERT" -> {
+                        if (!dropped) {
+                            return EffectKind.IRREVERSIBLE;
+                        }
+                    }
+                    default -> {
+                        return EffectKind.IRREVERSIBLE;
+                    }
+                }
+            }
+        }
+        return EffectKind.RERUNNABLE;
+    }
+
+    /** Append every executeInDb SQL literal under {@code n} (in body
+     * order, through compiled user-function bodies); false when any
+     * executeInDb argument is not a literal string. */
+    private static boolean collectExecInDb(
+            com.legend.compiler.spec.typed.TypedSpec n,
+            com.legend.compiler.spec.SpecCompiler specs,
+            java.util.Set<String> visiting, List<String> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                && com.legend.compiler.element.type.PlatformTypes
+                        .EXECUTE_IN_DB.equals(nc.callee().qualifiedName())) {
+            if (nc.args().isEmpty() || !(nc.args().get(0)
+                    instanceof com.legend.compiler.spec.typed
+                            .TypedCString sql)) {
+                return false;
+            }
+            out.add(sql.value());
+            return true;
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
+            String key = uc.callee().signatureKey();
+            if (visiting.add(key)) {   // cycles collect once
+                try {
+                    for (com.legend.compiler.spec.typed.TypedSpec stmt
+                            : specs.compile(uc.callee()).body()) {
+                        if (!collectExecInDb(stmt, specs, visiting, out)) {
+                            return false;
+                        }
+                    }
+                } finally {
+                    visiting.remove(key);
+                }
+            }
+        }
+        for (com.legend.compiler.spec.typed.TypedSpec c : n.children()) {
+            if (!collectExecInDb(c, specs, visiting, out)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static EngineTestExecutor.@com.legend.Nullable Outcome fallback(

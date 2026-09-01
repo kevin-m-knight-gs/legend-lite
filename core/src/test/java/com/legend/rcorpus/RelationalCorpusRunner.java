@@ -918,10 +918,18 @@ public class RelationalCorpusRunner {
             // assertEquals SCAN-TREE arm judges both sides through it.
             // The tree-text fold moved LATE (staging sites) so the
             // verdict arm sees its carrier).
+            // 1953/620 -> 1941/632 (effectful cutover: effects judged by
+            // RE-RUN SAFETY at body level — dropAndCreate DDL and TDG
+            // generators are convergent by construction; executeInDb
+            // literals classify by verb with CREATE/INSERT legal after a
+            // body-order DROP (the corpus drop-led setup idiom). The
+            // effectful gate now holds only genuinely irreversible SQL:
+            // 47 -> 9; 12 tests flip, the rest land honest walls the
+            // walk re-scores safely).
             org.junit.jupiter.api.Assertions.assertTrue(
-                    com.legend.harness.WholeTestFlip.fallbackCount() <= 1953
+                    com.legend.harness.WholeTestFlip.fallbackCount() <= 1941
                             && com.legend.harness.WholeTestFlip
-                                    .flippedCount() >= 620,
+                                    .flippedCount() >= 632,
                     "whole-test migration ratchet moved backwards: flipped="
                             + com.legend.harness.WholeTestFlip.flippedCount()
                             + " fallbacks="
