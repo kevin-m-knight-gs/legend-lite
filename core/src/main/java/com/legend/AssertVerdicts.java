@@ -153,32 +153,6 @@ final class AssertVerdicts {
                     return null;
                 }
                 boolean wantEqual = name.equals("assertEquals");
-                // D3 — the SCAN-TREE arm (plan-chain staging,
-                // 2026-09-01): a side carries a scanRelations tree-text
-                // carrier. Engine goldens embed pureToSqlQuery's alias
-                // BREADCRUMBS (processing counters our IR cannot
-                // reproduce), so both sides judge under the one strip
-                // policy (ScanRelations.stripAliasBreadcrumbs — the
-                // walk's LineageRelationsForm compare, same owner).
-                if (containsScanText(args.get(0))
-                        || containsScanText(args.get(1))) {
-                    String s0 = scalarString(StatementExecutor.evalValue(
-                            args.get(0), letPrefix, specs, env, null,
-                            false, hook));
-                    String s1 = scalarString(StatementExecutor.evalValue(
-                            args.get(1), letPrefix, specs, env, null,
-                            false, hook));
-                    if (s0 != null && s1 != null) {
-                        boolean eq = com.legend.lineage.ScanRelations
-                                .stripAliasBreadcrumbs(s0).equals(
-                                        com.legend.lineage.ScanRelations
-                                                .stripAliasBreadcrumbs(s1));
-                        return eq == wantEqual ? ok()
-                                : fail("scanRelations: expected\n" + s0
-                                        + "\ngot\n" + s1);
-                    }
-                    return null;   // a shape this arm does not own
-                }
                 // D3 — the RENDERED-TEXT arm: exactly one side is a
                 // DB-rendered grid text (toCSV/toString/replace/join
                 // spellings), the peer a string value. The DATABASE
@@ -1970,28 +1944,6 @@ final class AssertVerdicts {
     private static String summarize(ExecutionResult.Tabular t) {
         return t.columns().stream().map(com.legend.exec.Column::name)
                 .toList() + " (" + t.rows().size() + " rows)";
-    }
-
-    /** A scanRelations tree-text carrier anywhere beneath {@code n}
-     * (pre-staging typed spec — the scan-tree arm's gate). */
-    private static boolean containsScanText(TypedSpec n) {
-        if (n instanceof com.legend.compiler.spec.typed
-                .TypedScanRelations sc && sc.asString()) {
-            return true;
-        }
-        for (TypedSpec c : n.children()) {
-            if (containsScanText(c)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** The side's single string value, null for any other shape. */
-    private static @com.legend.Nullable String scalarString(
-            com.legend.exec.@com.legend.Nullable ExecutionResult r) {
-        return r instanceof com.legend.exec.ExecutionResult.Scalar s
-                && s.value() instanceof String str ? str : null;
     }
 
     private static ExecutionResult ok() {

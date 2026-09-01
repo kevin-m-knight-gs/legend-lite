@@ -32,34 +32,11 @@ public final class NativeDispatch {
                 java.util.List<TypedSpec> letPrefix);
     }
 
-    /** The executor's plan-object walker ({@code planWalk}) as a staging
-     * hook: given a chain whose spine bottoms at an opaque PLAN HANDLE,
-     * return its walked host value — or null when the walk does not own
-     * the shape (the chain then keeps its ordinary path and walls). */
-    @FunctionalInterface
-    public interface ChainWalk {
-        @com.legend.Nullable Object walk(TypedSpec chain);
-    }
-
     /** Stage one statement: every JAVA_ROUTINE call in it (bottom-up)
      * is replaced by its computed literal. */
     public static TypedSpec stage(TypedSpec stmt,
             java.util.List<TypedSpec> letPrefix,
             java.util.Map<String, Routine> routines) {
-        return stage(stmt, letPrefix, routines, null);
-    }
-
-    /** Staging with the PLAN-CHAIN arm (wall-exec burn, 2026-09-01):
-     * a SCALAR-typed chain over a plan handle ({@code
-     * $plan.rootExecutionNode->allNodes(..)->filter(..)->cast(@X).prop})
-     * evaluates through the executor's walk where it stands and re-enters
-     * as a literal minted HERE — the planToString rule generalized from
-     * one whole-call spelling to every walk-ownable chain. Chains the
-     * walk declines keep their ordinary path (and its walls). */
-    public static TypedSpec stage(TypedSpec stmt,
-            java.util.List<TypedSpec> letPrefix,
-            java.util.Map<String, Routine> routines,
-            @com.legend.Nullable ChainWalk chainWalk) {
 
         // LAMBDA BODIES: staging descends into them, which is
         // CONSTANT HOISTING and semantics-preserving here — measured
@@ -83,13 +60,7 @@ public final class NativeDispatch {
             return stmt;
         }
         TypedSpec n = stmt.mapChildren(
-                c -> stage(c, letPrefix, routines, chainWalk));
-        if (chainWalk != null && scalarChainOverPlanHandle(n)) {
-            TypedSpec lit = mintWalked(chainWalk.walk(n), n.info());
-            if (lit != null) {
-                return lit;
-            }
-        }
+                c -> stage(c, letPrefix, routines));
         if (!(n instanceof TypedNativeCall nc)) {
             return n;
         }
@@ -107,85 +78,4 @@ public final class NativeDispatch {
         return new TypedCString(r.value(nc, letPrefix), nc.info());
     }
 
-    /** A SCALAR/scalar-collection-typed chain (not the root itself)
-     * whose source spine bottoms at a WALK-SPACE root — the opaque plan
-     * handle, a store/mapping element reference, or a constructed
-     * metamodel instance (exactly the roots the executor's walk owns;
-     * the walk declines everything else and the chain keeps its
-     * ordinary path). */
-    private static boolean scalarChainOverPlanHandle(TypedSpec n) {
-        if (!scalarish(n.info().type()) || walkRoot(n)) {
-            return false;
-        }
-        TypedSpec cur = n;
-        while (true) {
-            TypedSpec src = switch (cur) {
-                case com.legend.compiler.spec.typed.TypedPropertyAccess pa ->
-                        pa.source();
-                case com.legend.compiler.spec.typed.TypedCast tc ->
-                        tc.source();
-                case com.legend.compiler.spec.typed.TypedFilter tf ->
-                        tf.source();
-                case com.legend.compiler.spec.typed.TypedMap tm ->
-                        tm.source();
-                case TypedNativeCall c when !c.args().isEmpty() ->
-                        c.args().get(0);
-                default -> null;
-            };
-            if (src == null) {
-                return false;
-            }
-            if (walkRoot(src)) {
-                return true;
-            }
-            cur = src;
-        }
-    }
-
-    private static boolean walkRoot(TypedSpec n) {
-        return n instanceof TypedNativeCall nc
-                && (PlatformTypes.EXECUTION_PLAN
-                        .equals(nc.callee().qualifiedName())
-                    || PlatformTypes.PREVAL
-                        .equals(nc.callee().qualifiedName()))
-                || n instanceof com.legend.compiler.spec.typed
-                        .TypedPackageableRef
-                || n instanceof com.legend.compiler.spec.typed
-                        .TypedNewInstance;
-    }
-
-    private static boolean scalarish(
-            com.legend.compiler.element.type.Type t) {
-        return t == com.legend.compiler.element.type.Type.Primitive.STRING
-                || t == com.legend.compiler.element.type.Type.Primitive.INTEGER
-                || t == com.legend.compiler.element.type.Type.Primitive.BOOLEAN;
-    }
-
-    /** Mint the walked host value as a typed literal; null when the walk
-     * declined the shape or produced a value with no literal form. */
-    private static @com.legend.Nullable TypedSpec mintWalked(
-            @com.legend.Nullable Object v,
-            com.legend.compiler.element.type.ExprType info) {
-        Object val = v instanceof java.util.List<?> l && l.size() == 1
-                ? l.get(0) : v;
-        return switch (val) {
-            case String s -> new TypedCString(s, info);
-            case Boolean b ->
-                    new com.legend.compiler.spec.typed.TypedCBoolean(b, info);
-            case Integer i ->
-                    new com.legend.compiler.spec.typed.TypedCInteger(i, info);
-            case Long l ->
-                    new com.legend.compiler.spec.typed.TypedCInteger(l, info);
-            case java.util.List<?> l
-                    when l.stream().allMatch(e -> e instanceof String) ->
-                    new com.legend.compiler.spec.typed.TypedCollection(
-                            l.stream().<TypedSpec>map(e -> new TypedCString(
-                                    (String) e, com.legend.compiler.element
-                                            .type.ExprType.one(
-                                            com.legend.compiler.element.type
-                                                    .Type.Primitive.STRING)))
-                                    .toList(), info);
-            case null, default -> null;
-        };
-    }
 }

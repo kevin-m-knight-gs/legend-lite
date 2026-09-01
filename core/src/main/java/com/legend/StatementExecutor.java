@@ -146,8 +146,6 @@ final class StatementExecutor {
             // TDG lane S1: the checker's census CARRIER folds to instance
             // literals HERE (orchestration owns testdatagen; the compiler
             // cannot — layering), before resolve sees the statement
-            // (the lineage tree-text fold moved to the STAGING sites —
-            // late, so the scan-tree VERDICT arm sees its carrier)
             TypedSpec stmt = com.legend.testdatagen.TestDataGenerationNatives.foldCensus(stmts.get(i), env.ctx(), env.connection(), letPrefix);
             boolean last = i == stmts.size() - 1;
             if (stmt instanceof com.legend.compiler.spec.typed.TypedLet let && !last) {
@@ -261,7 +259,8 @@ final class StatementExecutor {
                     stmtInliner.inlineBody(single));                      // Phase G½
             env.queryLets().putAll(stmtInliner.queryLets());
             final java.util.List<TypedSpec> stageEnv = body;
-            body.replaceAll(b -> com.legend.lineage.ScanRelations.foldTreeText(com.legend.compiler.spec.NativeDispatch.stage(b, stageEnv, nativeRoutines(specs, env), pc -> planWalkDecline(pc, specs, env)), env.ctx()));
+            body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
+                    .stage(b, stageEnv, nativeRoutines(specs, env)));
 
             TypedSpec preRoot = body.get(body.size() - 1);
             if (preRoot instanceof com.legend.compiler.spec.typed.TypedLet pl) {
@@ -1130,20 +1129,6 @@ final class StatementExecutor {
      * executionPlan call; the value is the walked result (node, list,
      * param, scalar). Unknown steps return null — the chain falls back
      * to the ordinary pipeline and its own walls. */
-    /** The plan-chain STAGING closure: a walk refusal — null OR a thrown
-     * refusal from a deep walk arm (open-variable predicates under
-     * walkFilter) — is a DECLINE; the chain keeps its ordinary path and
-     * that path's own loud walls (the NativeDispatch chain-arm contract).
-     * Statement-ROOT walks keep {@link #planWalk}'s raw throw. */
-    static @com.legend.Nullable Object planWalkDecline(TypedSpec n,
-            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
-        try {
-            return planWalk(n, specs, env);
-        } catch (RuntimeException e) {
-            return null;
-        }
-    }
-
     static @com.legend.Nullable Object planWalk(TypedSpec n,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         if (n instanceof com.legend.compiler.spec.typed
@@ -2608,7 +2593,8 @@ final class StatementExecutor {
                 inliner.inlineBody(single));
         env.queryLets().putAll(inliner.queryLets());
         final java.util.List<TypedSpec> stageEnv = body;
-        body.replaceAll(b -> com.legend.lineage.ScanRelations.foldTreeText(com.legend.compiler.spec.NativeDispatch.stage(b, stageEnv, nativeRoutines(specs, env), pc -> planWalkDecline(pc, specs, env)), env.ctx()));
+        body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
+                .stage(b, stageEnv, nativeRoutines(specs, env)));
         body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
                 .withLetBindings(env.queryLets())
                 .resolve(body, env.runtimeFqn());

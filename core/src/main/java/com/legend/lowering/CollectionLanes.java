@@ -137,9 +137,6 @@ final class CollectionLanes {
             // (StatementExecutor); its result is a VALUE — defensive true
             case com.legend.compiler.spec.typed.TypedCsvCensus c -> true;
             case com.legend.compiler.spec.typed.TypedTestDataGen g -> true;
-            // lineage scan carrier: folded by relationTreeAsString's
-            // checker BEFORE lowering; a stray is a VALUE-lane object
-            case com.legend.compiler.spec.typed.TypedScanRelations s -> true;
             case TypedDistinct d -> valueLane(d.source());
             case TypedDrop d -> valueLane(d.source());
             // take()/limit() — the DEEP_AUDIT catch: the whitelist had

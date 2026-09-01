@@ -1817,16 +1817,6 @@ public final class Pure {
     // EngineTestExecutor.alloyFallback).
     public static final NativeFunctionDefinition MAY_EXECUTE_ALLOY_TEST = signature("native function meta::alloy::test::mayExecuteAlloyTest<X|k>(f1:meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::String[1], meta::pure::metamodel::type::String[1], meta::pure::metamodel::type::String[1], meta::pure::metamodel::type::Integer[1]->X[k]}>[1], f2:meta::pure::metamodel::function::Function<{->X[k]}>[1]):X[k];");
     public static final NativeFunctionDefinition MAY_EXECUTE_LEGEND_TEST = signature("native function meta::legend::test::mayExecuteLegendTest<X|k>(f1:meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::String[1], meta::pure::metamodel::type::String[1], meta::pure::metamodel::type::String[1], meta::pure::metamodel::type::String[1], meta::pure::metamodel::type::Integer[1]->X[k]}>[1], f2:meta::pure::metamodel::function::Function<{->X[k]}>[1]):X[k];");
-    // real scanRelations.pure (STATIC 3-arg / RUNTIME 4-arg — the corpus
-    // spellings; the CoreFn checker owns every overload structurally) and
-    // relationTreeAsString 1/2-arg — lineage lane, platform-owned: the
-    // native com.legend.lineage.ScanRelations is the implementation, the
-    // pure bodies are the SPEC (they metaprogram over FunctionDefinition,
-    // the quarantined vocabulary).
-    public static final NativeFunctionDefinition SCAN_RELATIONS__3 = signature("native function meta::pure::lineage::scanRelations::scanRelations(f:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], m:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Any[1];");
-    public static final NativeFunctionDefinition SCAN_RELATIONS__4 = signature("native function meta::pure::lineage::scanRelations::scanRelations(f:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], m:meta::pure::metamodel::type::Any[1], r:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Any[1];");
-    public static final NativeFunctionDefinition RELATION_TREE_AS_STRING__1 = signature("native function meta::pure::lineage::scanRelations::relationTreeAsString(t:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[1];");
-    public static final NativeFunctionDefinition RELATION_TREE_AS_STRING__2 = signature("native function meta::pure::lineage::scanRelations::relationTreeAsString(t:meta::pure::metamodel::type::Any[1], withJoin:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::String[1];");
     // pure-only plan shapes (no store): 2/3-arg spellings type; their
     // plan text is a PureExp node — a named wall at the K-arm until built
     // parameterized query lambdas (Allocation/Sequence plans): they

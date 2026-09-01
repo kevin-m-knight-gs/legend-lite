@@ -895,41 +895,34 @@ public class RelationalCorpusRunner {
             // chains 6, residue 2) are the RATIFIED metamodel-as-data
             // quarantine — LineageForm's own B3-route doc records why a
             // form bridge beats hollow platform vocabulary there).
-            // 2027/546 -> 1995/578 (wall-exec burn, plan-chain staging:
-            // NativeDispatch's plan-chain arm evaluates SCALAR-typed
-            // chains over the opaque plan handle through the executor's
-            // walk where they stand — the planToString rule generalized
-            // to every walk-ownable chain, wired at BOTH staging sites
-            // (statement loop + evalValue, the assert-side pipeline). A
-            // walk refusal — null or a THROWN refusal (open-variable
-            // predicates under walkFilter) — is a DECLINE: the chain
-            // keeps its ordinary path and that path's walls
-            // (planWalkDecline). TypedMap-42 burns to zero: 32 flips +
-            // 10 attributed next walls).
-            // 1995/578 -> 1974/599 (walk roots widened: chains rooted at
-            // store/mapping element refs and constructed metamodel
-            // instances — planWalk's OTHER existing roots — stage the
-            // same way; typeInference-family metamodel reads evaluate).
-            // 1974/599 -> 1953/620 (platform-fail burn, the scan-tree
-            // referee: engine tree goldens embed pureToSqlQuery's alias
-            // breadcrumbs our IR cannot reproduce; the strip policy
-            // moved to its one owner (ScanRelations.stripAliasBreadcrumbs
-            // — the walk's LineageRelationsForm now delegates) and the
-            // assertEquals SCAN-TREE arm judges both sides through it.
-            // The tree-text fold moved LATE (staging sites) so the
-            // verdict arm sees its carrier).
-            // 1953/620 -> 1941/632 (effectful cutover: effects judged by
-            // RE-RUN SAFETY at body level — dropAndCreate DDL and TDG
-            // generators are convergent by construction; executeInDb
-            // literals classify by verb with CREATE/INSERT legal after a
-            // body-order DROP (the corpus drop-led setup idiom). The
-            // effectful gate now holds only genuinely irreversible SQL:
-            // 47 -> 9; 12 tests flip, the rest land honest walls the
-            // walk re-scores safely).
+            // 2027/546 -> 2040/533 NET (2026-09-01, USER RULING — the
+            // metamodel revert): THREE mechanisms were reverted after
+            // shipping. (1) plan-chain staging (+53: planWalk results
+            // consumed as staged literals) — consuming the Java
+            // metamodel walk in the verdict path INSTITUTIONALIZES an
+            // eviction-listed evaluator; the quarantine covers
+            // CONSUMPTION, not just vocabulary growth. (2+3) the
+            // scanRelations platform-owning + scan-tree referee (+46:
+            // bind-once slice 4a) — same judgment one level up: the
+            // lineage Java analyzer is ITSELF a parallel implementation
+            // (of the engine's scanRelations analysis AND of the
+            // resolver's own join-demand), hardcoded to one call shape;
+            // promoting it to platform blessed a duplicate. RATIFIED
+            // END-STATE for the whole family: metamodel/lineage/plan
+            // facts belong IN THE DATABASE as relations (the
+            // Class.all() route — adjacency-list trees, recursive CTEs,
+            // metamodel classes mapped onto metamodel tables), computed
+            // as a resolver side-output; pure-over-metamodel then
+            // lowers to SQL like everything else. Until that program
+            // lands, these tests stay walk-scored fallbacks. What
+            // STANDS from the batch: the effectful cutover (+12,
+            // re-run-safety routing — no evaluation anywhere). The
+            // one-time flipped-count decrease is this recorded ruling,
+            // never a silent regression.
             org.junit.jupiter.api.Assertions.assertTrue(
-                    com.legend.harness.WholeTestFlip.fallbackCount() <= 1941
+                    com.legend.harness.WholeTestFlip.fallbackCount() <= 2040
                             && com.legend.harness.WholeTestFlip
-                                    .flippedCount() >= 632,
+                                    .flippedCount() >= 533,
                     "whole-test migration ratchet moved backwards: flipped="
                             + com.legend.harness.WholeTestFlip.flippedCount()
                             + " fallbacks="
@@ -1019,16 +1012,16 @@ public class RelationalCorpusRunner {
             // pure code with no store demand (pkOfFunc's class). A burn
             // attempt via the planWalk side door was REVERTED (it grew
             // the parallel evaluator the one-router ruling forbids).
-            // 172 -> 116 (2026-09-01, plan-chain staging): 56 of those
-            // quarantined plan-node reads now EVALUATE — no new walk
-            // vocabulary (planWalk untouched, unlike the reverted
-            // attempt); the chartered NativeDispatch staging seam
-            // (§4AG) consumes planWalk's existing results as literals
-            // where the chains stand. Quarantine shrink = burndown.
-            // 116 -> 89 (walk roots widened to store/mapping refs +
-            // constructed metamodel instances — the roots the walk
-            // already owned; 27 more quarantined reads evaluate).
-            org.junit.jupiter.api.Assertions.assertEquals(89,
+            // A SECOND burn attempt (2026-09-01, plan-chain staging:
+            // planWalk results consumed as staged literals, 172->89) was
+            // ALSO REVERTED by user ruling: the quarantine covers
+            // CONSUMPTION of the Java metamodel walk, not just growing
+            // its arms — "no new vocabulary" through a chartered seam is
+            // still institutionalizing an eviction-listed evaluator in
+            // the verdict path. The deferred program keeps this list;
+            // any future burn must come from the program's own design,
+            // not a routing of walk output.
+            org.junit.jupiter.api.Assertions.assertEquals(172,
                     com.legend.exec.CanonicalDivergence.v7QuarantinedCount(),
                     "metamodel quarantine (witness rows) moved off 172 —"
                             + " see FULL_RESIDUE_CENSUS_2026_08_30.md §10j");
@@ -1536,12 +1529,9 @@ public class RelationalCorpusRunner {
                     // 63 -> 64 (whole-test flip default-on): one more
                     // proven-all-NULL result column — this ceiling's own
                     // query-shape class.
-                    // 64 -> 65 (plan-chain staging: 21 more tests
-                    // execute end-to-end; one carries a proven-all-NULL
-                    // result column — the ceiling's query-shape class).
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .wireIntOrNullEmptyCount() <= 65,
+                                    .wireIntOrNullEmptyCount() <= 64,
                             "proven-empty int-or-null columns grew: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
