@@ -884,10 +884,21 @@ public class RelationalCorpusRunner {
             // 25 correctly reclassified into the parked effectful lane,
             // 4 non-let thunk intermediates now type as expression
             // statements).
+            // 2052/521 -> 2027/546 (bind-once slice 4a, lineage lane:
+            // scanRelations/relationTreeAsString platform-owned — the
+            // native com.legend.lineage.ScanRelations is the
+            // implementation (walk parity: LineageRelationsForm verifies
+            // the same native); the scan call captures a carrier, the
+            // tree-string consumer FOLDS it at check time. 46 of the 97
+            // FunctionDefinition-metaprogram rows burn; the remaining 51
+            // (pkOfFunc reflection chains 43, scanColumns reflection
+            // chains 6, residue 2) are the RATIFIED metamodel-as-data
+            // quarantine — LineageForm's own B3-route doc records why a
+            // form bridge beats hollow platform vocabulary there).
             org.junit.jupiter.api.Assertions.assertTrue(
-                    com.legend.harness.WholeTestFlip.fallbackCount() <= 2052
+                    com.legend.harness.WholeTestFlip.fallbackCount() <= 2027
                             && com.legend.harness.WholeTestFlip
-                                    .flippedCount() >= 521,
+                                    .flippedCount() >= 546,
                     "whole-test migration ratchet moved backwards: flipped="
                             + com.legend.harness.WholeTestFlip.flippedCount()
                             + " fallbacks="

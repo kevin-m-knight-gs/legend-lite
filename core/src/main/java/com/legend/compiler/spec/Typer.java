@@ -1274,6 +1274,9 @@ final class Typer {
             case GENERATE_TEST_DATA -> GenerateTestDataChecker.check(this, af, env);
             case MAY_EXECUTE_ALLOY_TEST, MAY_EXECUTE_LEGEND_TEST ->
                     MayExecuteChecker.check(this, af, env);
+            case SCAN_RELATIONS -> ScanRelationsChecker.scan(this, af, env);
+            case RELATION_TREE_AS_STRING ->
+                    ScanRelationsChecker.treeString(this, af, env);
             case GENERATE_SEED_DATA_STRING ->
                     GenerateTestDataChecker.checkSeed(this, af, env);
             // ^Class(...) desugars to new(PackageableElementPtr, NewInstance); the inner node

@@ -48,6 +48,14 @@ public enum CoreFn {
     /** {@code mayExecuteLegendTest(serverThunk, |fallback)} &mdash; the same
      * branch native for a live Legend server (test.pure:18). */
     MAY_EXECUTE_LEGEND_TEST("mayExecuteLegendTest"),
+    /** {@code scanRelations(query, mapping[, runtime], ext)} &mdash; the
+     * lineage scan CARRIER (compile-time model reflection; platform-owned,
+     * the native {@code com.legend.lineage.ScanRelations} is the
+     * implementation &mdash; {@code ScanRelationsChecker}). */
+    SCAN_RELATIONS("scanRelations"),
+    /** {@code relationTreeAsString(tree[, withJoin])} &mdash; folds the scan
+     * carrier to the engine-exact tree text at CHECK time. */
+    RELATION_TREE_AS_STRING("relationTreeAsString"),
     /** {@code if(cond, |then, |else)} &mdash; thunk branches + branch-type join. */
     IF("if"),
     /** {@code ^Class(prop=value, &hellip;)} &mdash; instance construction ({@code new}). */

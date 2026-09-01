@@ -318,8 +318,21 @@ public final class PlatformTypes {
                     "meta::pure::functions::asserts::assertEqWithinTolerance",
                     "meta::pure::functions::asserts::assertJsonStringsEqual");
 
+    /** Lineage lane: the scan pair is platform-owned — the native
+     * com.legend.lineage.ScanRelations IS the implementation; the engine
+     * pure bodies metaprogram over FunctionDefinition (the quarantined
+     * metamodel vocabulary) and are the SPEC, never compiled
+     * (ScanRelationsChecker; walk parity: LineageRelationsForm verifies
+     * the same native). */
+    public static final String SCAN_RELATIONS =
+            "meta::pure::lineage::scanRelations::scanRelations";
+    public static final String RELATION_TREE_AS_STRING =
+            "meta::pure::lineage::scanRelations::relationTreeAsString";
+
     public static boolean isPlatformOwnedFunction(String fqn) {
         return DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
+                || SCAN_RELATIONS.equals(fqn)
+                || RELATION_TREE_AS_STRING.equals(fqn)
                 || TO_REPRESENTATION.equals(fqn)
                 || ASSERT_ERROR.equals(fqn)
                 || ASSERT_INSTANCE_OF.equals(fqn)
