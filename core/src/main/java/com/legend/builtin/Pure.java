@@ -258,7 +258,13 @@ public final class Pure {
     // family, verbatim testDataGeneration.pure:38-70 (metamodel-typed
     // fields relaxed to Any per the executionPlan precedent; relationTree
     // stays declared — reads of it wall until a witness demands more).
-    public static final ClassDefinition ROW_IDENTIFIER = nativeClass("native Class meta::relational::testDataGeneration::RowIdentifier { columnValuePairs: meta::pure::metamodel::type::Any[*]; }");
+    // columnValuePairs carries its REAL spelling Pair<String,Any>[*]
+    // (testDataGeneration.pure:46): the widened Any[*] shadowed the
+    // corpus's own declaration (classDef is native-first) and walled
+    // every $cv.first read in createTableRowIdentifiers' body — Pair is
+    // a platform collection class, not a metamodel fact, so the real
+    // spelling costs nothing.
+    public static final ClassDefinition ROW_IDENTIFIER = nativeClass("native Class meta::relational::testDataGeneration::RowIdentifier { columnValuePairs: meta::pure::functions::collection::Pair<meta::pure::metamodel::type::String, meta::pure::metamodel::type::Any>[*]; }");
     public static final ClassDefinition TABLE_ROW_IDENTIFIERS = nativeClass("native Class meta::relational::testDataGeneration::TableRowIdentifiers { table: meta::pure::metamodel::type::Any[1]; rowIdentifiers: meta::relational::testDataGeneration::RowIdentifier[*]; }");
     public static final ClassDefinition TEMPORAL_MILESTONING_DATES = nativeClass("native Class meta::relational::testDataGeneration::TemporalMilestoningDates { businessDate: meta::pure::metamodel::type::Date[0..1]; processingDate: meta::pure::metamodel::type::Date[0..1]; snapshotDate: meta::pure::metamodel::type::Date[0..1]; }");
     public static final ClassDefinition TEST_DATA_GEN_RESULT = nativeClass("native Class meta::relational::testDataGeneration::TestDataGenResult { dataCsvString: meta::pure::metamodel::type::String[1]; relationTree: meta::pure::metamodel::type::Any[1]; sqls: meta::pure::metamodel::type::String[*]; }");
@@ -437,16 +443,19 @@ public final class Pure {
     // empty-mapping sentinel ^Mapping(name = '') (testFrom.pure:30).
     public static final ClassDefinition MAPPING_METACLASS = nativeClass("native Class meta::pure::mapping::Mapping extends meta::pure::metamodel::ModelElement { name: meta::pure::metamodel::type::String[0..1]; }");
     /** Real platform_store_relational/grammar/relational.pure:92 (extends NamedRelation — ModelElement analog; column surface omitted until demanded). */
-    // schema is a parent back-REFERENCE (never struct state — a
-    // Schema-typed prop would cycle the value layout Table<->Schema);
-    // declared Any per the class-reference convention
+    // schema carries its REAL type Schema[1] (relational.pure:94): the
+    // old Any[0..1] widening walled every $t.schema.name read
+    // (getQualifiedTableName, the TDG cohort). The Table<->Schema
+    // layout cycle the widening feared is guarded now (LayoutTypes
+    // walk-guard rides a revisited class as JSON; EqualityKeys keys
+    // cycle to unclaimable).
     // Real relational.pure:45/:50 — the store-relation hierarchy Table
     // sits under (Relation's real second parent SetRelation flattens per
     // the single-inheritance idiom; Relation's columns stay off — Table
     // declares its own typed columns). NamedRelation carries name.
     public static final ClassDefinition REL_RELATION_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::Relation extends meta::relational::metamodel::RelationalOperationElement {}");
     public static final ClassDefinition NAMED_RELATION_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::NamedRelation extends meta::relational::metamodel::relation::Relation { name: meta::pure::metamodel::type::String[1]; }");
-    public static final ClassDefinition TABLE_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::Table extends meta::relational::metamodel::relation::NamedRelation { columns: meta::relational::metamodel::Column[*]; schema: meta::pure::metamodel::type::Any[0..1]; }");
+    public static final ClassDefinition TABLE_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::Table extends meta::relational::metamodel::relation::NamedRelation { columns: meta::relational::metamodel::Column[*]; schema: meta::relational::metamodel::Schema[1]; }");
     // The generated-SQL metamodel root the POST-PROCESSOR hooks receive
     // (relationalRuntime.pure:40-42) — opaque here: legend-lite applies
     // recognized post-processors over its OWN SQL IR
@@ -518,7 +527,7 @@ public final class Pure {
     /** Real core/pure/tds/tds.pure:76-80 (getString/isNull qualified properties omitted until demanded — the ResultSet Row precedent). */
     public static final ClassDefinition TDS_ROW = nativeClass("native Class meta::pure::tds::TDSRow extends meta::pure::metamodel::type::Any { parent: meta::pure::tds::TabularDataSet[0..1]; values: meta::pure::metamodel::type::Any[*]; }");
     /** Real platform_store_relational/grammar/relational.pure (Schema on Database; table lookups land on it). */
-    public static final ClassDefinition SCHEMA_METACLASS = nativeClass("native Class meta::relational::metamodel::Schema extends meta::pure::metamodel::ModelElement { tables: meta::relational::metamodel::relation::Table[*]; views: meta::relational::metamodel::relation::View[*]; name: meta::pure::metamodel::type::String[0..1]; database: meta::relational::metamodel::Database[1]; }");
+    public static final ClassDefinition SCHEMA_METACLASS = nativeClass("native Class meta::relational::metamodel::Schema extends meta::pure::metamodel::ModelElement { tables: meta::relational::metamodel::relation::Table[*]; views: meta::relational::metamodel::relation::View[*]; name: meta::pure::metamodel::type::String[1]; database: meta::relational::metamodel::Database[1]; }");
     /** Real core/store/aggregationAware/aggregationAware.pure:36-39. */
     public static final ClassDefinition AGGREGATION_AWARE_ACTIVITY = nativeClass("native Class meta::pure::mapping::aggregationAware::AggregationAwareActivity extends meta::pure::mapping::Activity { rewrittenQuery: meta::pure::metamodel::type::String[1]; }");
     // real platform_store_relational/functions.pure:128 — the relational

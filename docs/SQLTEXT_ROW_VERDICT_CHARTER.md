@@ -418,15 +418,43 @@ legitimate forever.
    program replayer: run allocations, force the >50-element
    temp-table conditional BOTH WAYS) + unbindable params. Canon exact
    21 held; paired sweeps byte-identical.
-   REMAINING TO ZERO (the burn map, measured 2026-09-01): ~110
-   text-policy (~25 plan-program + 36 TDG scoring-flip + ~50 named
-   residue) + 53 effectful (flip-gate redesign — flipped execution is
-   primary now, the double-run conservatism is obsolete) + ~460
-   compiler walls (~200 metamodel-query classes -> the
-   metamodel-as-relations leg; 51 scalar lowerings + ~60 unported
-   natives; 43 join-condition-whole-variable; 21 lineage; misc) +
-   ~15 platform-fail singletons. Endgame: fallbacks 0-or-named = the
+   REMAINING TO ZERO (the burn map, measured 2026-09-01, updated
+   after the catalog-spelling burn): ~110 text-policy (~25
+   plan-program + 36 TDG scoring-flip + ~50 named residue) + 82
+   effectful (flip-gate redesign — flipped execution is primary now,
+   the double-run conservatism is obsolete; 57 -> 82 when the TDG
+   Any-property wall peeled to it) + ~420 compiler walls (~200
+   metamodel-query classes -> the metamodel-as-relations leg; 51
+   scalar lowerings + ~60 unported natives; 43
+   join-condition-whole-variable; 21 lineage; misc) + ~15
+   platform-fail singletons. Endgame: fallbacks 0-or-named = the
    walk's scoring machinery deletes.
+   **THE "ANY-PROPERTY CHECKER" LEG — DISSOLVED BY CENSUS 2026-09-01
+   (ratchet 928/1645).** Measure-first killed the design: all 46
+   walls were ONE shape ($cv.first in createTableRowIdentifiers,
+   receiver typed Any), and the Any came from OUR OWN CATALOG — three
+   widened native spellings shadowing the corpus's real declarations
+   (classDef is native-first): RowIdentifier.columnValuePairs Any[*]
+   -> Pair<String,Any>[*] (testDataGeneration.pure:46), Table.schema
+   Any[0..1] -> Schema[1] (relational.pure:94; the layout-cycle fear
+   behind the widening is obsolete — LayoutTypes walk-guard rides a
+   revisited class as JSON), Schema.name String[0..1] -> String[1]
+   (relational.pure:38). The engine never "type-checks dynamically"
+   here; its declarations are precise, ours were weak — the
+   [[verify-signatures-against-real-legend-pure]] doctrine, class
+   edition. NO dynamic Any-property checker exists or is wanted
+   (that would have been conform-by-weakening). Movement, attributed
+   in-pin: 15 alloy-TDG flips; corpus 2348 -> 2349
+   (testAlloyTestDatGenForNestedViews, assert-free body, counted
+   under the 0-asserts ceiling 29 -> 30); the other 31 re-bucketed
+   to TRUE walls — 25 effectful, 3 generateTestData
+   unclassified-Variable (milestoning dates through a let), 3
+   planTestDataGeneration Pair-arg typing. Lane pins byte-stable
+   (exec-passing 389, text-only 40, unable 20, M1 85/246); canon
+   disagree EXACT 21 held; sql-verdict disagree 0 held; text-policy
+   65 unchanged (these were wall-type, never text policy). The 9
+   debugPrint host-channel ERRORs kept their outcome; their census
+   message gained a [root=...] payload (histogram re-aggregated).
    **TDG SCORING FLIP, FIRST SLICE — LANDED 2026-09-01.** The
    fetch-text verdict joined the SPI (verifyFetchTexts: ours executes
    on the calling session's DuckDB, the golden replays on the mirror,

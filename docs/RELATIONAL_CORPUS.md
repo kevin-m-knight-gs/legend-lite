@@ -62,7 +62,7 @@ shared source registered by several families cannot double-count. Run with
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tds/relation | 2 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | tds/tests | 266 | 254 | 2 | 9 | 1 | 1 | 1 | 2 | 10 |
-| testDataGeneration/tests | 68 | 64 | 0 | 1 | 3 | 0 | 0 | 24 | 18 |
+| testDataGeneration/tests | 68 | 65 | 0 | 1 | 2 | 0 | 0 | 25 | 18 |
 | tests | 39 | 33 | 2 | 3 | 1 | 0 | 0 | 0 | 0 |
 | tests/advanced | 68 | 66 | 1 | 1 | 0 | 2 | 2 | 0 | 7 |
 | tests/datatype | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 48 | 5 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2348** | 53 | 135 | 39 | 12 | 14 | 29 | 207 |
+| **total** | 2575 | **2349** | 53 | 135 | 38 | 12 | 14 | 30 | 207 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2348 PASS = 2101 clean + 247 carrying softness (sqldiff 12, advisory 14, 0-asserts 29, text-rescued 207; flags overlap — the union is 247).
+SOFT-PASS RECONCILIATION (F2.1): 2349 PASS = 2101 clean + 248 carrying softness (sqldiff 12, advisory 14, 0-asserts 30, text-rescued 207; flags overlap — the union is 248).
 
 ### mapping walls (dropped at assembly)
 
@@ -1282,7 +1282,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2348 PASS = 2101 clean + 247 carrying softness 
 - FAIL testParseDate [tds/tests]: assert did not hold (false)
 - ERROR testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: unbound variable '$_nr2'
 - SHAPE testExecutionPlanGeneration [tds/tests]: plan wall: no overload of 'meta::pure::functions::relation::over' structurally matches the argument types (ExprType[type=GenericType[rawFqn=meta::pure::metamodel::relation::ColSpec, arguments=[RelationType[columns=[Column[name=firstName, type=TypeVar[name=?], multiplicity=Bounded[lower=1, upper=1]],
-- SHAPE testAlloyTestDatGenForNestedViews [testDataGeneration/tests]: no verifying assertions
 - SHAPE testAlloyTestDatGenWithQuotedColumnsForViews [testDataGeneration/tests]: testDataGen: view-backed relation 'AltID_View' — view slice pending [surfaced via assert form 'assertEquals/2']
 - SHAPE testErrorDueToNoSeedForRoot [testDataGeneration/tests]: testDataGen plan: no row identifiers for root 'Person' [surfaced via assert form 'assertEquals/2']
 - ERROR testInheritanceMultipleLevel [testDataGeneration/tests]: multi-hop navigation vehicles#f1.stc_meta__relational__tests__model__inheritance__Bicycle___person.name through an embedded/slot head is not supported yet [assocs=[vehicles#f0, vehicles#f1]; head subNavs=[]; head binding=ABSENT]

@@ -1047,10 +1047,22 @@ public class RelationalCorpusRunner {
             // re-bucketed to their TRUE walls (execute/3 spelling,
             // Any-property reads) — named compiler gaps now, not
             // text policy (text-policy 118 -> 65).
-            org.junit.jupiter.api.Assertions.assertEquals(943L,
+            // 943/1630 -> 928/1645 (the "Any-property" wall was OUR
+            // OWN catalog: three widened native spellings corrected to
+            // the REAL pure declarations — RowIdentifier
+            // .columnValuePairs Pair<String,Any>[*], Table.schema
+            // Schema[1], Schema.name String[1]; classDef is
+            // native-first, so the widenings shadowed the corpus's own
+            // classes and walled every $cv.first / $t.schema.name read
+            // (46 tests, one census shape). Movement: 15 alloy-TDG
+            // flips (corpus +1), remainder re-bucketed to TRUE walls —
+            // 25 effectful, 3 generateTestData unclassified-Variable,
+            // 3 planTestDataGeneration Pair-arg typing. No dynamic
+            // Any-property checker exists or is wanted.
+            org.junit.jupiter.api.Assertions.assertEquals(928L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1630L,
+            org.junit.jupiter.api.Assertions.assertEquals(1645L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1441,9 +1453,16 @@ public class RelationalCorpusRunner {
                     // parity alloyFallback) — the two flipped tdsJoin
                     // alloy tests pass VACUOUSLY exactly as the engine's
                     // serverless CI passes them; no assert was demoted.
+                    // 29 -> 30 (TDG catalog-spelling burn, JUSTIFIED):
+                    // testAlloyTestDatGenForNestedViews is an ASSERT-FREE
+                    // alloy body; the walk SHAPE-failed it ("no verifying
+                    // assertions" — harness policy), the flip now runs
+                    // the whole body on the platform and it completes —
+                    // the engine's own semantics for assert-free tests.
+                    // Counted here, never a silent promotion.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            softZero <= 29, "0-assert passes grew: "
-                                    + softZero + " > 29"),
+                            softZero <= 30, "0-assert passes grew: "
+                                    + softZero + " > 30"),
                     // 613 -> 614 (2026-08-23, relation wall burn): a
                     // PREVIOUSLY-FAILING test (modelJoin testChainedTwoHops)
                     // now PASSES — the aggregate-ORDER-BY hoist kept its
@@ -1909,7 +1928,7 @@ public class RelationalCorpusRunner {
                                             .sqlDisagreeSamples()));
             System.out.println("[rcorpus] soft ceilings: sqldiff " + softDiff
                     + "/258, adv " + softAdv + "/304, 0-asserts " + softZero
-                    + "/29, rescued " + softRescued + "/614");
+                    + "/30, rescued " + softRescued + "/614");
         }
         org.junit.jupiter.api.Assertions.assertTrue(regressions.isEmpty(),
                 "CORPUS REGRESSION vs committed docs/RELATIONAL_CORPUS.md: "
