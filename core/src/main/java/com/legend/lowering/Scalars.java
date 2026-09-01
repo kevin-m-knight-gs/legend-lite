@@ -2053,6 +2053,16 @@ final class Scalars {
                 }
                 Type elem = n.args().get(0).info().type();
                 Type val = n.args().get(1).info().type();
+                // a ^TDSNull()-TYPED needle (TDSNull is DATA): membership
+                // of the null cell is an IS NULL scan — the ctor lowers
+                // to the SQL NULL literal, and list containment of NULL
+                // is never true under three-valued equality (resolver-bug
+                // burn follow-on: the right-outer-join goldens assert
+                // contains(^TDSNull()) over the null-fanned key column)
+                if (val instanceof Type.ClassType nc0
+                        && PlatformTypes.TDS_NULL_FQN.equals(nc0.fqn())) {
+                    return CollectionLanes.nullMembership(args.get(0));
+                }
                 // the TDSNull sentinel (^TDSNull() travels as the literal
                 // string 'TDSNull' on the wire) probes for a NULL cell —
                 // against a NON-string element list the string could never
@@ -2060,14 +2070,7 @@ final class Scalars {
                 if (args.get(1) instanceof SqlExpr.StringLit snl
                         && "TDSNull".equals(snl.value())
                         && elem != Type.Primitive.STRING) {
-                    return new SqlExpr.Call(SqlFn.GREATER, List.of(
-                            SqlExpr.Call.of(SqlFn.LIST_LENGTH,
-                                    SqlExpr.Call.of(SqlFn.LIST_FILTER, args.get(0),
-                                            new SqlExpr.Lambda(List.of("_nv"),
-                                                    SqlExpr.Call.of(SqlFn.IS_NULL,
-                                                            SqlExpr.Column.param(
-                                                                    "_nv", args.get(0)))))),
-                            new SqlExpr.IntLit(0)));
+                    return CollectionLanes.nullMembership(args.get(0));
                 }
                 if (elem == Type.Primitive.STRING && isToOne(n.args().get(0))) {
                     // pure [0..1] overload body inlines HERE (engine
@@ -2511,6 +2514,7 @@ final class Scalars {
     }
 
     /** {@code i + 1} — constant-folded for literals (the common case). */
+
     private static SqlExpr plusOne(SqlExpr e) {
         return e instanceof SqlExpr.IntLit i
                 ? new SqlExpr.IntLit(i.value() + 1)

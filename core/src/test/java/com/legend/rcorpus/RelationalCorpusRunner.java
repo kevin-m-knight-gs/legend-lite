@@ -862,10 +862,12 @@ public class RelationalCorpusRunner {
             // Fallbacks only SHRINK (each burn moves tests to the
             // platform); flipped only GROWS. The walk deletes at
             // fallbacks=0 (charter: WHOLETEST_COMPILATION_CHARTER.md).
+            // 2156/417 -> 2155/418 (TDSNull membership burn: a
+            // ^TDSNull()-typed contains needle is an IS NULL scan).
             org.junit.jupiter.api.Assertions.assertTrue(
-                    com.legend.harness.WholeTestFlip.fallbackCount() <= 2156
+                    com.legend.harness.WholeTestFlip.fallbackCount() <= 2155
                             && com.legend.harness.WholeTestFlip
-                                    .flippedCount() >= 417,
+                                    .flippedCount() >= 418,
                     "whole-test migration ratchet moved backwards: flipped="
                             + com.legend.harness.WholeTestFlip.flippedCount()
                             + " fallbacks="

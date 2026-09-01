@@ -270,4 +270,22 @@ final class CollectionLanes {
                                         .Multiplicity.Bounded bb
                         && bb.upper() != null && bb.upper() <= 1);
     }
+
+    /** NULL-cell membership: the list has at least one NULL element
+     * (list_contains(NULL) is never true under three-valued equality —
+     * both the ^TDSNull() needle and its wire sentinel route here). */
+    static com.legend.sql.SqlExpr nullMembership(com.legend.sql.SqlExpr list) {
+        return new com.legend.sql.SqlExpr.Call(com.legend.sql.SqlFn.GREATER,
+                java.util.List.of(
+                com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_LENGTH,
+                        com.legend.sql.SqlExpr.Call.of(
+                                com.legend.sql.SqlFn.LIST_FILTER, list,
+                                new com.legend.sql.SqlExpr.Lambda(
+                                        java.util.List.of("_nv"),
+                                        com.legend.sql.SqlExpr.Call.of(
+                                                com.legend.sql.SqlFn.IS_NULL,
+                                                com.legend.sql.SqlExpr.Column
+                                                        .param("_nv", list))))),
+                new com.legend.sql.SqlExpr.IntLit(0)));
+    }
 }
