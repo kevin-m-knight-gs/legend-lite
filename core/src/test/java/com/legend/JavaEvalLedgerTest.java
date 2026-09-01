@@ -751,6 +751,70 @@ class JavaEvalLedgerTest {
                     java.util.Set.of("TestDataGenerator.java",
                             "TestDataGenerationNatives.java"));
 
+    /** THE JUDGMENT-ONLY VOCABULARY PIN (user directive 2026-09-01):
+     * verdict-arm files may JUDGE database-produced results — equals,
+     * boolean logic, dispatch, type classification (instanceof), calls
+     * into the chartered judgment owners and the evaluation router —
+     * but may not COMPUTE values. The classic eviction-era creep
+     * ("the expected side is just 2+3, compute it here") arrives
+     * through a small, enumerable API surface: value construction,
+     * parsing, numeric/temporal arithmetic. That surface is BANNED AT
+     * ZERO with no register to append to — the only fix for a hit is
+     * routing the computation to the database. (Known hole, accepted:
+     * bare primitive arithmetic is invisible to a call scan; real
+     * evaluation reaches for these APIs within a line or two.
+     * {@code .add(} is excluded from the arithmetic set — List.add —
+     * and covered instead by the construction/parse bans: arithmetic
+     * needs a number you cannot mint.) */
+    private static final java.util.List<String> VERDICT_FILES =
+            java.util.List.of(
+                    "core/src/main/java/com/legend/AssertVerdicts.java",
+                    "core/src/main/java/com/legend/SqlTextVerdicts.java",
+                    "core/src/main/java/com/legend/AssertErrorNative.java");
+
+    private static final java.util.List<java.util.regex.Pattern>
+            EVAL_VOCABULARY = java.util.stream.Stream.of(
+                    "Math\\.",
+                    "new\\s+(java\\.math\\.)?Big(Decimal|Integer)",
+                    "Big(Decimal|Integer)\\.valueOf",
+                    "\\.parse(Int|Long|Double|Float)\\(",
+                    "(Integer|Long|Double|Float|Short|Byte)\\.valueOf\\(",
+                    "(LocalDate|LocalDateTime|LocalTime|Instant|Duration"
+                            + "|Period)\\.(now|of|parse|from)\\(",
+                    "\\.plus(Days|Months|Years|Hours|Minutes|Seconds"
+                            + "|Nanos)\\(",
+                    "\\.minus(Days|Months|Years|Hours|Minutes|Seconds"
+                            + "|Nanos)\\(",
+                    "\\.(multiply|divide|subtract|pow|negate|remainder)\\(")
+            .map(java.util.regex.Pattern::compile).toList();
+
+    @Test
+    void verdictFilesJudgeOnly() throws IOException {
+        StringBuilder drift = new StringBuilder();
+        for (String f : VERDICT_FILES) {
+            Path p = Path.of("..", f);
+            String src = Files.readString(p)
+                    .replaceAll("(?s)/\\*.*?\\*/", "")
+                    .replaceAll("//.*", "");
+            String[] lines = src.split("\n", -1);
+            for (int i = 0; i < lines.length; i++) {
+                for (var pat : EVAL_VOCABULARY) {
+                    if (pat.matcher(lines[i]).find()) {
+                        drift.append("\n  ").append(f).append(":")
+                                .append(i + 1).append(" matches banned"
+                                        + " evaluation vocabulary '")
+                                .append(pat.pattern()).append("': ")
+                                .append(lines[i].strip());
+                    }
+                }
+            }
+        }
+        assertTrue(drift.length() == 0,
+                "verdict files JUDGE, never COMPUTE (banned at zero, no"
+                        + " register — route the computation to the"
+                        + " database):" + drift);
+    }
+
     @Test
     void theFunnelPackagesAreClosedRegisters() throws IOException {
         StringBuilder drift = new StringBuilder();
