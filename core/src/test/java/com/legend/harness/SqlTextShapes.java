@@ -68,9 +68,12 @@ public final class SqlTextShapes {
     public static boolean allSimple(List<ValueSpecification> statements,
             ModelContext ctx) {
         TreeMap<String, Integer> shapes = classify(statements, ctx);
-        return shapes.containsKey("tosqlstring-simple")
-                && shapes.keySet().stream().allMatch(k ->
-                        k.equals("tosqlstring-simple") || k.equals("plain"));
+        boolean anySql = shapes.containsKey("tosqlstring-simple")
+                || shapes.containsKey("assertsamesql-simple");
+        return anySql && shapes.keySet().stream().allMatch(k ->
+                k.equals("tosqlstring-simple")
+                        || k.equals("assertsamesql-simple")
+                        || k.equals("plain"));
     }
 
     /** Classify one text-policy test body and record it. */
@@ -120,6 +123,27 @@ public final class SqlTextShapes {
             List<ValueSpecification> statements, ModelContext ctx) {
         if (EngineTestExecutor.resolvesTo(af, ctx,
                 EngineTestExecutor.SQL_ASSERT_FORM_FQNS)) {
+            // 3b split: the SIMPLE assertSameSQL(goldenLit, $execVar)
+            // shape is the platform arm's cohort (SqlTextVerdicts
+            // .tryArmSameSql — the root arm); H2Compatible,
+            // assertSqlEquals and computed-golden spellings stay
+            // fallback shapes for now
+            if (EngineTestExecutor.resolvesTo(af, ctx, java.util.Set.of(
+                    "meta::relational::functions::asserts::assertSameSQL"))
+                    && af.parameters().size() == 2) {
+                ValueSpecification g = af.parameters().get(0);
+                ValueSpecification r = af.parameters().get(1);
+                boolean goldenLit = TestDataGenForm.foldString(
+                        EngineTestExecutor.substitute(g, lets)) != null;
+                ValueSpecification rs =
+                        EngineTestExecutor.substitute(r, lets);
+                boolean frameArg = rs instanceof
+                        com.legend.protocol.spec.Variable
+                        || EngineTestExecutor.containsExecute(rs);
+                if (goldenLit && frameArg) {
+                    return "assertsamesql-simple";
+                }
+            }
             return "assert-form";
         }
         boolean sql = false;

@@ -132,7 +132,8 @@ class CanonicalFormTest {
         CanonicalDivergence.probeEqual("assertEquals",
                 List.of((Object) 1L), List.of((Object) 2L), false);
         assertEquals("agree=4 disagree=0 residue=0 | sql-verdict"
-                + " agree=0 disagree=0 declined=0 ulp-policy=0",
+                + " agree=0 disagree=0 declined=0 ulp-policy=0"
+                + " row-order-canon=0",
                 CanonicalDivergence.summary());
         CanonicalDivergence.reset();
     }

@@ -79,13 +79,24 @@ public final class CanonicalDivergence {
      * leniencies (row multiset, bounded float tolerance) do work the
      * byte channel would refuse. */
     public static void probeGridText(String expected, String actual,
-            boolean held) {
+            boolean held, boolean sorted, String form) {
         if (MUTED.get()) {
             return;
         }
         if (expected.equals(actual)) {
             record("gridText", held, "EQUAL");
             return;
+        }
+        // The CSVJOIN family spells the whole grid on ONE line (rows
+        // joined by the form's separator), which hid row-order drift
+        // from the line-based classifier as cell-diff@line0. Normalize
+        // rows to lines FIRST so one classifier judges every form —
+        // applied to both sides identically, so the multiset check
+        // below stays two-sided.
+        if (form.startsWith("CSVJOIN:")) {
+            String sep = form.substring("CSVJOIN:".length());
+            expected = expected.replace(sep, "\n");
+            actual = actual.replace(sep, "\n");
         }
         // name the first difference so the census classifies WHICH
         // leniency did the work (row order vs cell spelling)
@@ -108,8 +119,28 @@ public final class CanonicalDivergence {
                     : "cell-diff@line" + i + " e<" + trunc(el[i]) + "> a<"
                             + trunc(al[i]) + ">";
         }
+        // Row order on an UNORDERED chain is undefined on BOTH backends
+        // (no ORDER BY — the SQL spec fixes no arrival order, and the
+        // engine golden's order is its own accident): the byte answer
+        // is content equality under the same two-sided multiset policy
+        // the host verdict already applies, gated on the SAME
+        // compile-time sortedness fact the caller passes. A sorted
+        // chain in the wrong order stays a REAL disagreement. Counted
+        // never silent: the rescue is its own printed census (it is
+        // arrival-order-dependent BY DEFINITION, so it is a diagnostic
+        // count, never a pinnable one — pin disagree instead, which
+        // this policy makes exact).
+        if (!sorted && why.startsWith("row-order-only")) {
+            ROW_ORDER_CANON.incrementAndGet();
+            record("gridText", held, "EQUAL");
+            return;
+        }
         record("gridText", held, "DIFFER:" + why);
     }
+
+    /** Unordered-chain grid compares whose content matched only under
+     * the declared row-multiset policy (see probeGridText). */
+    private static final AtomicLong ROW_ORDER_CANON = new AtomicLong();
 
     private static String trunc(String s) {
         return s.length() > 60 ? s.substring(0, 60) + "…" : s;
@@ -210,8 +241,9 @@ public final class CanonicalDivergence {
             AGREE.incrementAndGet();
         } else {
             DISAGREE.incrementAndGet();
-            sample(new Row(family, held, "lattice=" + held
-                    + " byte=" + byteAns.replaceFirst("^DIFFER", "false")));
+            DISAGREE_SAMPLES.add(new Row(family, held, "lattice=" + held
+                    + " byte=" + byteAns.replaceFirst("^DIFFER", "false")
+                    + " [" + CONTEXT_SOURCE.get() + "]"));
         }
     }
 
@@ -242,6 +274,18 @@ public final class CanonicalDivergence {
         return List.copyOf(SQL_DISAGREE_SAMPLES);
     }
 
+    /** The BYTE channel's disagree rows get the same reserved buffer:
+     * the pinned-census witnesses must never lose attribution to
+     * decline-row crowding of the shared 200-cap (the 2026-08-28
+     * lesson, re-learned 2026-09-01 hunting a ±1 count wobble whose
+     * rows were exactly the ones past the cap). */
+    private static final ConcurrentLinkedQueue<Row> DISAGREE_SAMPLES =
+            new ConcurrentLinkedQueue<>();
+
+    public static List<Row> disagreeSamples() {
+        return List.copyOf(DISAGREE_SAMPLES);
+    }
+
     /** {@code detail} carries the two canon texts + fine kinds so a
      * disagreement names its own diagnosis in the census. */
     public static void probeSqlVerdict(String family, boolean hostHeld,
@@ -253,9 +297,13 @@ public final class CanonicalDivergence {
             SQL_AGREE.incrementAndGet();
         } else {
             SQL_DISAGREE.incrementAndGet();
+            // ATTRIBUTION (charter §8.3b adjudication need): an alarm
+            // witness without its test name was unactionable — the
+            // running test rides CONTEXT_SOURCE
             Row r = new Row(family, hostHeld,
                     "sql-verdict host=" + hostHeld + " sql=" + sqlHeld
-                            + " " + detail);
+                            + " " + detail + " [" + CONTEXT_SOURCE.get()
+                            + "]");
             if (SQL_DISAGREE_SAMPLES.size() < 50) {
                 SQL_DISAGREE_SAMPLES.add(r);
             }
@@ -617,7 +665,8 @@ public final class CanonicalDivergence {
                 + " | sql-verdict agree=" + SQL_AGREE.get()
                 + " disagree=" + SQL_DISAGREE.get()
                 + " declined=" + SQL_DECLINED.get()
-                + " ulp-policy=" + SQL_ULP_POLICY.get();
+                + " ulp-policy=" + SQL_ULP_POLICY.get()
+                + " row-order-canon=" + ROW_ORDER_CANON.get();
     }
 
     public static long disagreeCount() {
@@ -641,8 +690,10 @@ public final class CanonicalDivergence {
         SQL_DECLINED.set(0);
         SQL_ULP_POLICY.set(0);
         SQL_TDSNULL_POLICY.set(0);
+        ROW_ORDER_CANON.set(0);
         SAMPLES.clear();
         SQL_DISAGREE_SAMPLES.clear();
+        DISAGREE_SAMPLES.clear();
         V7_FORMS.clear();
         V7_DECLINES.clear();
         V7_SAMPLES.clear();

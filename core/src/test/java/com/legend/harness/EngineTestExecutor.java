@@ -306,7 +306,7 @@ public final class EngineTestExecutor {
     // (the values/at/toOne/size splice rules live in StatementExecutor).
 
     /** Does the expression (transitively) contain an {@code execute()} call? */
-    private static boolean containsExecute(ValueSpecification v) {
+    static boolean containsExecute(ValueSpecification v) {
         if (v instanceof AppliedFunction af && isExecuteCall(af)) {
             return true;
         }

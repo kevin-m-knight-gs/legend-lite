@@ -132,6 +132,14 @@ public final class TdsCompare {
                 CanonicalDivergence.sqlDeclined("tds-side: null-canon-cell");
                 return null;
             }
+            if (r[0].contains(com.legend.lowering.CanonicalRenderSql
+                    .TREE_MARKER)) {
+                // F10's own contract, applied here too: a marker can
+                // never be compared — DECLINE on sight, the host judges
+                CanonicalDivergence.sqlDeclined(
+                        "tds-side: unclaimable tree cell (marker)");
+                return null;
+            }
             out.add(r[0]);
         }
         return out;
@@ -206,6 +214,20 @@ public final class TdsCompare {
             }
             if (isExpected && "'TDSNull'".equals(c)) {
                 c = "TDSNull";
+            }
+            if (c.contains(com.legend.lowering.CanonicalRenderSql
+                    .TREE_MARKER)) {
+                // F10's decline-on-sight, missing on THIS path until
+                // the §8.3b migration surfaced it (charter receipt:
+                // testConcatenateClassJoin — an expected ^TDSNull()
+                // instance rides the Any/JSON carrier as an object and
+                // canons to the marker; comparing it against the
+                // grid's bare TDSNull sentinel fabricated the ONE
+                // sql-verdict disagreement). A marker is never
+                // comparable — counted decline, the host judges.
+                CanonicalDivergence.sqlDeclined(
+                        "tds-peer: unclaimable tree element (marker)");
+                return null;
             }
             if (c.contains(com.legend.lowering.CanonicalRenderSql
                     .TDS_CELL_SEP)) {
@@ -389,8 +411,11 @@ public final class TdsCompare {
             String form, boolean sorted) {
         boolean held = renderedTextVerdict(expected, actual, form, sorted);
         // R1b divergence instrument — measurement only, cannot affect
-        // the verdict (CANONICAL_FORM_SPEC §0)
-        CanonicalDivergence.probeGridText(expected, actual, held);
+        // the verdict (CANONICAL_FORM_SPEC §0); the chain's sortedness
+        // rides along so the byte channel judges unordered grids under
+        // the same declared row-multiset policy as the verdict
+        CanonicalDivergence.probeGridText(expected, actual, held, sorted,
+                form);
         return held;
     }
 

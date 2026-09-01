@@ -104,6 +104,20 @@ final class AssertVerdicts {
         if (fqn == null) {
             return null;
         }
+        // SQLTEXT charter §8.3b — the assertSameSQL ROOT arm: the
+        // statement root arrives PRE-inline, so SqlTextVerdicts owns
+        // the whole golden-vs-executed-frame shape (rows judge, text
+        // is the emission census). Null = not the simple shape — the
+        // generic path (inline + fold) keeps it exactly as today.
+        if (fqn.equals(
+                "meta::relational::functions::asserts::assertSameSQL")
+                && bare instanceof TypedUserCall sroot) {
+            ExecutionResult sv = SqlTextVerdicts.tryArmSameSql(sroot,
+                    letPrefix, specs, env, hook);
+            if (sv != null) {
+                return sv;
+            }
+        }
         // THE GRID VERDICT (Clause 2c — TdsCompare's chartered route;
         // witness: the relation suite's 79 assertTdsEquivalent rows):
         // both relations execute IN THE DATABASE, the cell-zip

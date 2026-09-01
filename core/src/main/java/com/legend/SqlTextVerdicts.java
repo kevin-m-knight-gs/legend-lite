@@ -107,20 +107,89 @@ final class SqlTextVerdicts {
                             + golden + ", got " + ours);
         }
         // OUR ROWS (§3.5c): the referee executes the producer's own
-        // query — mapping from the producer, runtime from the env.
-        // REFEREE-CLASS execution (the probe-isolation doctrine): the
-        // test never ran this query, the ARM does, purely to referee —
-        // its plans must not move the wire census's primary-lane
-        // ceilings (save/restore: under a dual-channel probe the outer
-        // suspension must survive this frame).
+        // query — mapping from the producer, runtime from the env
+        return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
+                com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                        lam.body().get(0), mapping),
+                mapping.fullPath(), rootClassFqn(lam), letPrefix, specs,
+                env, hook);
+    }
+
+    /** SQLTEXT charter §8.3b — the ROOT arm for
+     * {@code assertSameSQL(golden, $result)} (the ~750-test
+     * assert-form cohort): the statement root reaches the verdict
+     * layer PRE-inline, so the arm owns the whole shape. OUR TEXT =
+     * the minted {@code sqlRemoveFormatting($result)} (the envelope
+     * splice folds it to the frame's EXECUTED SQL); OUR ROWS = the
+     * minted {@code $result.values} (the splice swaps in the frame's
+     * typed chain); golden rows + §6/§7 compare via the oracle SPI.
+     * Same verdict policy as the toSQLString arm. Null = not the
+     * simple shape (the String-overload spelling, extra args) — the
+     * current path keeps it. */
+    static @com.legend.Nullable ExecutionResult tryArmSameSql(
+            com.legend.compiler.spec.typed.TypedUserCall root,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env,
+            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
+        if (root.args().size() != 2) {
+            return null;
+        }
+        TypedSpec goldenSide = root.args().get(0);
+        TypedSpec resultArg = root.args().get(1);
+        if (resultArg.info().type()
+                == com.legend.compiler.element.type.Type.Primitive.STRING) {
+            // the assertSameSQL(String, String) overload is ordinary
+            // string comparison — not this arm's shape
+            return null;
+        }
+        TypedSpec strip = com.legend.compiler.spec.VerdictQueries
+                .sqlStripRead(resultArg, env.ctx());
+        if (strip == null) {
+            return null;
+        }
+        String golden = scalarString(StatementExecutor.evalValue(
+                goldenSide, letPrefix, specs, env, null, false, hook));
+        String ours = scalarString(StatementExecutor.evalValue(
+                strip, letPrefix, specs, env, null, false, hook));
+        if (golden == null || ours == null) {
+            return null;
+        }
+        SqlTextEmission.armFired();
+        boolean textEqual = golden.equals(ours);
+        SqlReplayOracle oracle = env.replayOracle();
+        if (oracle == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "sql-text assert verdict needs a replay oracle and"
+                            + " none is registered on this env (correct"
+                            + " outside tests: there are no goldens)");
+        }
+        return rowsLegAndVerdict("assertSameSQL", golden, ours, textEqual,
+                oracle, com.legend.compiler.spec.VerdictQueries
+                        .valuesRead(resultArg),
+                null, null, letPrefix, specs, env, hook);
+    }
+
+    /** The SHARED rows leg + verdict policy (§3.5c-§3.7): evaluate
+     * {@code rowsRead} through the one router (REFEREE-CLASS
+     * execution — wire-census suspended, save/restore), replay the
+     * golden via the oracle, judge. Rows match → pass (text →
+     * emission census); rows diverge → FAIL whatever the text said;
+     * rows leg underivable or oracle declined → TEXT is the contract,
+     * counted. */
+    private static ExecutionResult rowsLegAndVerdict(String name,
+            String golden, String ours, boolean textEqual,
+            SqlReplayOracle oracle, TypedSpec rowsRead,
+            @com.legend.Nullable String mappingFqn,
+            @com.legend.Nullable String classFqn,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env,
+            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
         ExecutionResult rows;
         boolean priorSuspend = com.legend.exec.SqlTypeCensus
                 .probeSuspended();
         try {
             com.legend.exec.SqlTypeCensus.probeSuspend(true);
-            rows = StatementExecutor.evalValue(
-                    com.legend.compiler.spec.VerdictQueries.fromWrapped(
-                            lam.body().get(0), mapping),
+            rows = StatementExecutor.evalValue(rowsRead,
                     letPrefix, specs, env, null, false, hook);
         } catch (RuntimeException e) {
             // the rows leg is underivable — counted, text stays the
@@ -141,8 +210,7 @@ final class SqlTextVerdicts {
                             + " expected " + golden + ", got " + ours);
         }
         SqlReplayOracle.RowVerdict rv = oracle.verify(env.connection(),
-                golden, rows, mapping.fullPath(), rootClassFqn(lam),
-                env.ctx());
+                golden, rows, mappingFqn, classFqn, env.ctx());
         return switch (rv.outcome()) {
             case MATCH -> {
                 // rows are the verdict (§0); text is a census number

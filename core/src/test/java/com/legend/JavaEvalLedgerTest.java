@@ -476,7 +476,15 @@ class JavaEvalLedgerTest {
             // wire-census suspension with save/restore so the arm's
             // derivation plans never move the primary lane's shrink-only
             // ceilings (and an outer probe's suspension survives).
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 161),
+            // 161 -> 210 (charter §8.3b, the ~750-test assert-form
+            // cohort): the assertSameSQL ROOT arm — the statement root
+            // arrives pre-inline, OUR TEXT/ROWS are VerdictQueries
+            // mints answered by the envelope splice, the rows leg +
+            // verdict policy extracted to ONE shared tail both arms
+            // use. Navigation, minted-read sequencing and judgment
+            // only — zero evaluation (the judgment-vocabulary pin
+            // covers this file mechanically).
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 210),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result
@@ -490,7 +498,15 @@ class JavaEvalLedgerTest {
             // sides, never produces a result — the header's
             // permanent-allowed class); the paired AssertVerdicts row
             // SHRANK 1525 -> 1401 in the same slice.
-            Map.entry("core/src/main/java/com/legend/exec/TdsCompare.java", 431));
+            // 431 -> 444 (charter §8.3b): TREE_MARKER decline-on-sight
+            // at both TDS canon doors (markers are never comparable —
+            // the F10 contract enforced where the cell is claimed) +
+            // threading the chain's sortedness/form into the byte
+            // channel's grid probe (the wobble burn — unordered grids
+            // judge under the verdict's own declared row-multiset
+            // policy). All comparison-layer judgment: consumes two
+            // produced sides, never produces a result.
+            Map.entry("core/src/main/java/com/legend/exec/TdsCompare.java", 444));
     // Phase 1c: DbMetaData MOVED OUT of the evaluator surface — its
     // content was always pure catalog-SQL composition (zero JDBC), now
     // compiler/spec/CatalogGrids (the Typer's fetchDb retype needs the

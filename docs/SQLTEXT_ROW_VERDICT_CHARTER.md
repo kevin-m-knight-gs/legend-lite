@@ -289,6 +289,44 @@ legitimate forever.
      Stays the ONE counted `sqltext-arm rows=fail` census row, this
      record as its receipt.
    NEXT: 3b assert-form cohort (~750), 3c exec-sql-read (~700).
+   **3b LANDED 2026-09-01 (the assertsamesql-simple cohort — the
+   big migration, +308 tests in one flip).** Root arm tryArmSameSql:
+   `assertSameSQL` reaches the verdict layer PRE-inline as the
+   statement root; OUR TEXT/ROWS minted by VerdictQueries (the
+   Result-overload sqlRemoveFormatting selects on param type;
+   valuesRead splices the frame chain via ResultEnvelopeSplice —
+   invariant-7 clean, no TypedFrom born in the verdict layer).
+   Admission: `assertsamesql-simple` (2-arg, foldString golden,
+   Variable-or-containsExecute actual) joined allSimple; message-arg
+   variants fold tolerantly (first foldable = golden). Movement, all
+   attributed in-pin: ratchet 1996/577 → EXACT 1688/885; exec-passing
+   lane 1528 → EXACT 1208; clean passes 1401 → 1627; text-rescued
+   901 → 681; corpus byte-stable 2348. Emission census: 111 matched /
+   237 diverged / 28 text-verdict. Remaining assert-form (~440) is
+   DESIGN-gated, not compile-gated: H2Compatible dual-golden,
+   assertSqlEquals TDG, computed goldens, mixed bodies — next chunks.
+   **THE WOBBLE BURN (user directive: fix, don't envelope).** The
+   run-to-run ±1 on the canon census was row-ORDER drift, not float
+   arithmetic: unordered chains (no ORDER BY) have undefined arrival
+   order, and the byte channel compared grid text order-strictly.
+   Receipts: 72-statement SQL dump byte-identical across JVMs for
+   testProjectThroughAsso (compiler deterministic; the order moves in
+   the DB, legitimately). Fix: probeGridText now takes the SAME
+   compile-time sortedness fact the verdict already uses — unordered
+   grids judge as two-sided row multisets (sorted chains in wrong
+   order stay REAL disagrees); CSVJOIN one-line grids normalize rows
+   to lines first (that spelling had been hiding order drift as
+   cell-diff@line0 — 3 stable rows were misclassified all along).
+   Attribution needed a reserved DISAGREE_SAMPLES witness buffer: the
+   wobbling rows sat past the shared 200-cap behind decline rows
+   (the SQL_DISAGREE_SAMPLES lesson re-learned). Result: paired
+   sweeps BYTE-IDENTICAL — canon disagree EXACT 23 (the 21-row
+   cross-engine float class + 2 assertEquals), rescue census printed
+   (row-order-canon=17, arrival-order-dependent by definition so
+   diagnostic-only), ratchet/lane pins EXACT (the earlier "admission
+   wobble" never reproduced on a frozen tree across 6 identical
+   rosters — it straddled mid-cascade harness edits). Every envelope
+   pin reverted to exact.
 4. Plan replayer (§5) + plan-text flips; branch-forcing.
 5. Inventory upgrades as their own commits: #3 ULP probe/upgrade,
    #4 TIMESTAMP_NS leg, #11 projection, #1 sentinel.

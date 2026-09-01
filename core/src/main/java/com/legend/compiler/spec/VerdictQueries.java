@@ -39,6 +39,38 @@ public final class VerdictQueries {
                 query.info());
     }
 
+    /** assertSameSQL's OUR-TEXT read (charter §8.3b): the
+     * {@code sqlRemoveFormatting($result)} call over the assert's own
+     * Result argument — the envelope splice folds it to the frame's
+     * EXECUTED SQL text (ResultEnvelopeSplice.sqlProducerCall). Null
+     * when the model does not know the Result overload (the arm then
+     * leaves the shape on its current path). */
+    public static @com.legend.Nullable TypedSpec sqlStripRead(
+            TypedSpec resultArg,
+            com.legend.compiler.element.ModelContext ctx) {
+        for (var f : ctx.findFunction(
+                ResultEnvelopeSplice.SQL_REMOVE_FORMATTING_FQN)) {
+            if (f.parameters().size() == 1
+                    && f.parameters().get(0).type()
+                            != Type.Primitive.STRING) {
+                return new com.legend.compiler.spec.typed.TypedUserCall(f,
+                        List.of(resultArg),
+                        new ExprType(Type.Primitive.STRING,
+                                Multiplicity.Bounded.ONE));
+            }
+        }
+        return null;
+    }
+
+    /** assertSameSQL's OUR-ROWS read (§8.3b): {@code $result.values} —
+     * the envelope splice swaps it for the frame's typed chain
+     * (ResultEnvelopeSplice.valuesRead), which carries the REAL
+     * result type; the minted info is a pre-splice placeholder. */
+    public static TypedSpec valuesRead(TypedSpec resultArg) {
+        return new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                resultArg, "values", resultArg.info());
+    }
+
     /** The predicate VECTOR for a quantified assert
      * ({@code source->map(binder|assert(pred, msg))}): same source, same
      * binder, the assert's CONDITION as the mapper body — one boolean

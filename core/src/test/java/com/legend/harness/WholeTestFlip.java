@@ -53,6 +53,11 @@ public final class WholeTestFlip {
     private static final Map<String, String> WITNESSES =
             new ConcurrentHashMap<>();
     private static final AtomicLong FLIPPED = new AtomicLong();
+    /** Flipped-test ROSTER (diffable attribution): a ±1 run-to-run
+     * wobble in the ratchet was unattributable — the fallback file
+     * names only fallbacks. Dumped beside it at shutdown. */
+    private static final java.util.concurrent.ConcurrentLinkedQueue<String>
+            FLIPPED_TESTS = new java.util.concurrent.ConcurrentLinkedQueue<>();
 
     /** Runner-pin accessors (the shrink-only migration ratchet). */
     public static long flippedCount() {
@@ -85,6 +90,12 @@ public final class WholeTestFlip {
                             java.nio.file.Path.of(
                                     "target/wholetest-flip-fallbacks.txt"),
                             sb.toString());
+                    java.nio.file.Files.writeString(
+                            java.nio.file.Path.of(
+                                    "target/wholetest-flipped.txt"),
+                            FLIPPED_TESTS.stream().sorted()
+                                    .collect(java.util.stream.Collectors
+                                            .joining("\n")) + "\n");
                 } catch (Throwable ignored) {
                     // census write best-effort at shutdown
                 }
@@ -261,6 +272,7 @@ public final class WholeTestFlip {
                     + passes + "/" + events.size(), test);
         }
         FLIPPED.incrementAndGet();
+        FLIPPED_TESTS.add(test);
         return new EngineTestExecutor.Outcome.Ran((int) passes, 0,
                 asserts > 0 ? statements.size() : executable,
                 List.of(), List.of());

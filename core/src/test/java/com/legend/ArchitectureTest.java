@@ -869,6 +869,13 @@ final class ArchitectureTest {
                 // 50) — the alarm row must never lose its witness to
                 // shared-sample crowding; measurement only
                 "com.legend.exec.CanonicalDivergence.SQL_DISAGREE_SAMPLES",
+                // §8.3b wobble burn: the BYTE channel's pinned-census
+                // witnesses get the same reserved buffer — a ±1 count
+                // wobble was unattributable because its rows sat past
+                // the shared 200-cap (decline-row crowding, the
+                // SQL_DISAGREE_SAMPLES lesson re-learned); bounded by
+                // the exact-pinned disagree count (23); measurement only
+                "com.legend.exec.CanonicalDivergence.DISAGREE_SAMPLES",
                 "com.legend.exec.CanonicalDivergence.V7_FORMS",
                 "com.legend.exec.CanonicalDivergence.V7_DECLINES",
                 "com.legend.exec.CanonicalDivergence.V7_SAMPLES",

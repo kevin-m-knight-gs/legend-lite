@@ -162,7 +162,11 @@ class HarnessDisciplineTest {
             // shape-combination keys for the diffable census file, the
             // DuckWorkspaces precedent) — no comparison flows through
             // it
-            Map.entry("SqlTextShapes.java", 1));
+            Map.entry("SqlTextShapes.java", 1),
+            // §8.3b wobbler attribution: the flipped-test roster dump
+            // sorts test names for a DIFFABLE file (display ordering,
+            // the h2-verdicts class; no comparison flows through it)
+            Map.entry("WholeTestFlip.java", 1));
 
     /** Extremum spellings joined 2026-08-18 (Tier-2 audit; the
      * original audit's probe 12 — {@code Collections.max} in the
