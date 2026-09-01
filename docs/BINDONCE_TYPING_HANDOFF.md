@@ -46,6 +46,33 @@ feature" often has a half-built owner):
    where a `TypedLet`'s value is (or isn't) visible to later
    statements' call typing.
 
+## 2.5 The design shape (settled in conversation 2026-08-31 — verify
+## §3's receipts against it, don't re-derive from scratch)
+
+WHY these lets differ from the ones already handled — it's a PHASE
+fact: the witness errors are TypeInferenceExceptions thrown while
+typing the BINDING STATEMENT ITSELF. The checker works bottom-up; to
+produce a TypedLet it must type the rhs first, and a colspec/bare
+lambda/mapping ref has no type in isolation — so typing dies at the
+`let`, and the existing machinery (queryLets/UserCallInliner), which
+only ever sees successfully TYPED statements, never runs. The
+existing lets that work are (a) ordinary values, where the variable's
+TYPE is all a later statement needs, and (b) query-position lets the
+inliner relocates AFTER typing succeeded.
+
+The walk got away with these shapes via `EngineTestExecutor.subst()`
+— raw AST splice of let values into consumers BEFORE typing (the
+harness's third-implementation trick this program deletes). BIND-ONCE
+is that trick at the right layer: the TYPER, on a let whose rhs is a
+deferred kind, PARKS the raw expression under the variable's name
+instead of failing, and resolves it at the consuming call site where
+the signature supplies the context. Evaluation semantics untouched:
+the rhs still evaluates exactly once, in statement order — only
+checker visibility changes. The genuinely new code is the
+defer-instead-of-fail decision for a CLOSED list of expression kinds;
+parking/consuming plumbing should reuse the inliner/queryLets owners
+(homework §3.2 maps them first).
+
 ## 3. HOMEWORK (answer ALL with receipts before coding)
 
 1. How does the ENGINE type these shapes? (Its compiler resolves
