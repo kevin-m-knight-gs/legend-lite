@@ -895,10 +895,21 @@ public class RelationalCorpusRunner {
             // chains 6, residue 2) are the RATIFIED metamodel-as-data
             // quarantine — LineageForm's own B3-route doc records why a
             // form bridge beats hollow platform vocabulary there).
+            // 2027/546 -> 1995/578 (wall-exec burn, plan-chain staging:
+            // NativeDispatch's plan-chain arm evaluates SCALAR-typed
+            // chains over the opaque plan handle through the executor's
+            // walk where they stand — the planToString rule generalized
+            // to every walk-ownable chain, wired at BOTH staging sites
+            // (statement loop + evalValue, the assert-side pipeline). A
+            // walk refusal — null or a THROWN refusal (open-variable
+            // predicates under walkFilter) — is a DECLINE: the chain
+            // keeps its ordinary path and that path's walls
+            // (planWalkDecline). TypedMap-42 burns to zero: 32 flips +
+            // 10 attributed next walls).
             org.junit.jupiter.api.Assertions.assertTrue(
-                    com.legend.harness.WholeTestFlip.fallbackCount() <= 2027
+                    com.legend.harness.WholeTestFlip.fallbackCount() <= 1995
                             && com.legend.harness.WholeTestFlip
-                                    .flippedCount() >= 546,
+                                    .flippedCount() >= 578,
                     "whole-test migration ratchet moved backwards: flipped="
                             + com.legend.harness.WholeTestFlip.flippedCount()
                             + " fallbacks="
@@ -988,7 +999,13 @@ public class RelationalCorpusRunner {
             // pure code with no store demand (pkOfFunc's class). A burn
             // attempt via the planWalk side door was REVERTED (it grew
             // the parallel evaluator the one-router ruling forbids).
-            org.junit.jupiter.api.Assertions.assertEquals(172,
+            // 172 -> 116 (2026-09-01, plan-chain staging): 56 of those
+            // quarantined plan-node reads now EVALUATE — no new walk
+            // vocabulary (planWalk untouched, unlike the reverted
+            // attempt); the chartered NativeDispatch staging seam
+            // (§4AG) consumes planWalk's existing results as literals
+            // where the chains stand. Quarantine shrink = burndown.
+            org.junit.jupiter.api.Assertions.assertEquals(116,
                     com.legend.exec.CanonicalDivergence.v7QuarantinedCount(),
                     "metamodel quarantine (witness rows) moved off 172 —"
                             + " see FULL_RESIDUE_CENSUS_2026_08_30.md §10j");
@@ -1496,9 +1513,12 @@ public class RelationalCorpusRunner {
                     // 63 -> 64 (whole-test flip default-on): one more
                     // proven-all-NULL result column — this ceiling's own
                     // query-shape class.
+                    // 64 -> 65 (plan-chain staging: 21 more tests
+                    // execute end-to-end; one carries a proven-all-NULL
+                    // result column — the ceiling's query-shape class).
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .wireIntOrNullEmptyCount() <= 64,
+                                    .wireIntOrNullEmptyCount() <= 65,
                             "proven-empty int-or-null columns grew: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),

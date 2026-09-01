@@ -1133,6 +1133,25 @@ pin byte-identical, `store resolution left getAll` = 0 estate-wide.
 Remaining declines: TypedMap-65, host-unsupported 26, plan-literal
 17, plan-let 6 (+ sql-text sub-lanes unchanged).
 
+**§4AF UPDATE (2026-09-01, PLAN-CHAIN STAGING — wall-exec burn):**
+NativeDispatch grew the plan-chain arm: a SCALAR-typed chain over the
+opaque plan handle (`$plan.rootExecutionNode->allNodes(..)->filter(..)
+->cast(@X).prop`) evaluates through the executor's planWalk where it
+stands and re-enters as a compiler-minted literal — the planToString
+rule generalized from one whole-call spelling to every walk-ownable
+chain, wired at BOTH staging sites (the statement loop and evalValue,
+the assert-side pipeline). A walk refusal — null OR a thrown refusal
+(open-variable predicates under walkFilter) — is a DECLINE: the chain
+keeps its ordinary path and that path's walls (planWalkDecline; the
+throwing first cut regressed 4 open-variable executionPlan tests,
+caught by the scoreboard guard and fixed same-slice). Lane counts
+byte-stable (text-only 44 unchanged); metamodel quarantine 172→116
+(56 quarantined plan-node reads now evaluate through the chartered
+staging seam — no new walk vocabulary, unlike the reverted side-door
+attempt). Flip census: TypedMap-42 burns to zero — 32 tests flip, 10
+land on attributed next walls (stamp-invariant, mapping-resolution,
+plan-walk vocabulary, plan-text platform-fails).
+
 Plain reading: an "assert execution" is one assert statement judged
 once during a full corpus sweep. Of **5,241** total:
 
