@@ -110,3 +110,50 @@ Flip scoring for the 687 behind a per-test census pin (shrink-only on
 the fallback count), with the walk's soft-pass policies (advisory
 golden-SQL, text-rescue) re-homed into the listener-event scorer.
 Then burn lanes strictly by measured bucket size.
+
+## Slice 3 LANDED (2026-08-31): the scoring flip, flag-gated
+
+User ruling: the text-golden policy is NOT ported (the rescue is the
+H2 replay oracle — walk-embedded, scheduled to die with item 4's
+emission byte-parity; porting it = scaffolding on condemned
+scaffolding). Text tests stay walk-routed under a NAMED census bucket;
+"do this later if we need it" (i.e., if item 4 stalls).
+
+`WholeTestFlip` (`-Dll.wholetest.flip.score`): a test whose body is
+statically clean (no golden-text asserts, ≥1 assert, no writes, seeds
+healthy) executes ONCE through the platform and scores from the
+listener's verdicts; anything else — including a platform assert-fail
+— falls back to the walk with a counted reason
+(`target/wholetest-flip-fallbacks.txt`). Flagged sweep: **417 flipped**,
+fallbacks led by text-policy 1,545 (the BODY-level producer gate is
+coarse — a per-assert gate is the refinement that recovers most of the
+687-cohort remainder), assert-free 73, then the wall lanes.
+
+### Attribution items gating default-on (from the flagged sweep)
+
+1. **REAL typing gap (untyped=1, pin 0)**: `testSelfJoinPropertyMapping`
+   plan carries `UNNEST(CompactList(ArrayLit(blind=StructLit)))` — a
+   struct literal loses its type stamp only on the whole-body path.
+2. `tolerated-carried` 27 → 36 — attribute per-plan redistribution vs
+   new seam kinds.
+3. The proven-empty int-or-null guard's counter moved with the plan
+   population (18,722 vs 27,255 — the flip removes the walk's duplicate
+   evaluations); re-derive the pin's basis.
+
+### Real-divergence burn list (from slice 2's instrument, gates the
+### trust-platform-failures step)
+
+- **TDSNull membership** (5): `contains(^TDSNull())` must test IS-NULL
+  (witness `testJoinBySingleColumnNameRightOuter` — platform returns
+  false on a right-outer null cell).
+- **Grid-canon refusals** (13): the platform's own dual channels
+  disagree on these bodies (witness `testConcatenateClassJoin`).
+- Plan-text/query-text goldens (~9 of the 28) reclassified into
+  text-policy (incl. the binder-freshening `x`→`_i0` fidelity item).
+
+### Next
+
+1. Burn the three attribution items; 2. per-assert text gating;
+3. default-on with attributed re-pins + the shrink-only fallback pin;
+4. burn platform-fail rows (TDSNull membership first), then walls by
+   size; walk arms delete per emptied bucket.

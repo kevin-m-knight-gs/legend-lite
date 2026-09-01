@@ -516,6 +516,11 @@ public final class EngineTestExecutor {
             String runtimeFqn, Connection conn, boolean emptinessUnverifiable,
             java.util.List<String> seedFailures)
             throws java.sql.SQLException {
+        Outcome flipped = WholeTestFlip.tryFlip(ctx, statements, imports,
+                runtimeFqn, conn, emptinessUnverifiable, seedFailures);
+        if (flipped != null) {
+            return flipped;
+        }
         Outcome walked = runWalk(ctx, statements, imports, runtimeFqn,
                 conn, emptinessUnverifiable, seedFailures);
         FlipProbe.probe(walked, ctx, statements, imports, runtimeFqn, conn);
@@ -3215,7 +3220,7 @@ public final class EngineTestExecutor {
     /** Whether the expression tree contains a call resolving to the
      * sql-producer register — the CONTENT half of the sql-text
      * partition, by resolution, never by name shape. */
-    private static boolean containsSqlProducer(ValueSpecification v,
+    static boolean containsSqlProducer(ValueSpecification v,
             @com.legend.Nullable ModelContext ctx) {
         if (v instanceof AppliedFunction af) {
             if (resolvesTo(af, ctx, SQL_PRODUCER_FQNS)) {

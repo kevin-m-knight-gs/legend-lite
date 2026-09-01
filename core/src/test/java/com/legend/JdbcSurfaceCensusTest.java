@@ -254,6 +254,12 @@ class JdbcSurfaceCensusTest {
             // it only re-runs bodies the compiler proves read-only.
             // Migration scaffolding: dies at the whole-test cutover.
             "core/src/test/java/com/legend/harness/FlipProbe.java",
+            // SCORING FLIP (slice 3): the migration dispatch itself —
+            // same shape as FlipProbe (Connection passed THROUGH to the
+            // one platform seam, zero JDBC of its own); at cutover this
+            // becomes the runner's only execution route and the walk's
+            // JDBC surfaces above delete.
+            "core/src/test/java/com/legend/harness/WholeTestFlip.java",
             "core/src/test/java/com/legend/harness/EngineTestExecutorTest.java",
             // (ExecCallFinder RETIRED from the register 2026-08-28 —
             // sideSqlText's evaluation path deleted with the slice-3

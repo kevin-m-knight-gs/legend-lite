@@ -1,0 +1,200 @@
+package com.legend.harness;
+
+import com.legend.Compiler;
+import com.legend.compiler.NameResolver;
+import com.legend.compiler.element.ModelContext;
+import com.legend.model.ImportScope;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.ValueSpecification;
+
+import java.sql.Connection;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+
+/**
+ * HARNESS-DELETION item 1, slice 3 — the SCORING FLIP
+ * ({@code -Dll.wholetest.flip.score}; the migration itself, not an
+ * instrument): a test whose whole body the platform can run scores
+ * from the platform's assert verdicts (the {@code AssertListener}
+ * events); everything else falls back to the legacy walk with a
+ * COUNTED reason. The fallback census is the program's burn-down
+ * surface (charter: WHOLETEST_COMPILATION_CHARTER.md).
+ *
+ * <p>Walk-routes, each a named census bucket:
+ * <ul>
+ * <li>{@code text-policy} — the body carries golden-TEXT asserts
+ *     (SQL/plan text producers or the sql-assert forms): their
+ *     advisory/rescue policy lives in the walk and DIES with emission
+ *     byte-parity (blueprint item 4) — never ported, per user ruling
+ *     2026-08-31 ("do this later if we need it").</li>
+ * <li>{@code effectful} — the body writes; single-execution semantics
+ *     only, joins at cutover confidence.</li>
+ * <li>{@code assert-free} — the walk's executed-statement detail
+ *     string is the scoreboard row; joins with a detail-parity leg.</li>
+ * <li>{@code seed-softened} — the walk owns seed-failure softening.</li>
+ * <li>{@code wall-*}/{@code platform-fail} — platform can't run or
+ *     fails the body the walk passes (re-running the walk is safe:
+ *     the effect gate proved the body read-only). platform-fail rows
+ *     are the REAL-divergence burn list (TDSNull membership,
+ *     grid-canon renders — see charter slice 3 notes).</li>
+ * </ul>
+ */
+final class WholeTestFlip {
+
+    private WholeTestFlip() {
+    }
+
+    private static final Map<String, AtomicLong> BUCKETS =
+            new ConcurrentHashMap<>();
+    private static final Map<String, String> WITNESSES =
+            new ConcurrentHashMap<>();
+    private static final AtomicLong FLIPPED = new AtomicLong();
+
+    static {
+        if (enabled()) {
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                try {
+                    StringBuilder sb = new StringBuilder();
+                    long fallbacks = BUCKETS.values().stream()
+                            .mapToLong(AtomicLong::get).sum();
+                    sb.append("whole-test scoring flip (flipped=")
+                            .append(FLIPPED.get()).append(" fallbacks=")
+                            .append(fallbacks).append(")\n");
+                    // insertion order (post-process with sort -rn): the
+                    // harness sort-site guard reserves ordering for
+                    // comparison policy, never report format
+                    BUCKETS.forEach((k, v) -> sb.append(String.format(
+                            "%6d  %s%n", v.get(), k))
+                            .append("        e.g. ")
+                            .append(WITNESSES.getOrDefault(k, "?"))
+                            .append('\n'));
+                    java.nio.file.Files.writeString(
+                            java.nio.file.Path.of(
+                                    "target/wholetest-flip-fallbacks.txt"),
+                            sb.toString());
+                } catch (Throwable ignored) {
+                    // census write best-effort at shutdown
+                }
+            }));
+        }
+    }
+
+    private static boolean enabled() {
+        return System.getProperty("ll.wholetest.flip.score") != null;
+    }
+
+    /** Non-null = the platform ran and scored the whole test; null =
+     * the walk owns it (reason censused). Never throws: any surprise
+     * is a fallback row, and the walk's verdict stands. */
+    static EngineTestExecutor.@com.legend.Nullable Outcome tryFlip(
+            ModelContext ctx, List<ValueSpecification> statements,
+            ImportScope imports, String runtimeFqn, Connection conn,
+            boolean emptinessUnverifiable,
+            @com.legend.Nullable List<String> seedFailures) {
+        if (!enabled()) {
+            return null;
+        }
+        String test = com.legend.exec.CanonicalDivergence.CONTEXT_SOURCE.get();
+        try {
+            return tryFlipInner(ctx, statements, imports, runtimeFqn, conn,
+                    emptinessUnverifiable, seedFailures, test);
+        } catch (Throwable t) {
+            fallback("flip-error: " + t.getClass().getSimpleName(),
+                    test + " :: " + t.getMessage());
+            return null;
+        }
+    }
+
+    private static EngineTestExecutor.@com.legend.Nullable Outcome tryFlipInner(
+            ModelContext ctx, List<ValueSpecification> statements,
+            ImportScope imports, String runtimeFqn, Connection conn,
+            boolean emptinessUnverifiable,
+            @com.legend.Nullable List<String> seedFailures, String test) {
+        if (emptinessUnverifiable
+                || seedFailures != null && !seedFailures.isEmpty()) {
+            return fallback("seed-softened", test);
+        }
+        int asserts = 0;
+        for (ValueSpecification s : statements) {
+            if (s instanceof AppliedFunction af) {
+                if (EngineTestExecutor.resolvesTo(af, ctx,
+                        EngineTestExecutor.SQL_ASSERT_FORM_FQNS)
+                        || EngineTestExecutor.containsSqlProducer(s, ctx)) {
+                    return fallback("text-policy", test);
+                }
+                if (EngineTestExecutor.resolvesTo(af, ctx,
+                        EngineTestExecutor.ASSERT_FORM_FQNS)) {
+                    asserts++;
+                }
+            } else if (EngineTestExecutor.containsSqlProducer(s, ctx)) {
+                return fallback("text-policy", test);
+            }
+        }
+        if (asserts == 0) {
+            return fallback("assert-free", test);
+        }
+        ValueSpecification resolved;
+        try {
+            resolved = NameResolver.resolveQuery(
+                    new LambdaFunction(List.of(), List.copyOf(statements)),
+                    imports, ctx.elementFqns());
+        } catch (RuntimeException e) {
+            return fallback("wall-resolve: " + bucketOf(e.getMessage()), test);
+        }
+        try {
+            if (Compiler.hasStatementEffects(resolved, ctx)) {
+                return fallback("effectful", test);
+            }
+        } catch (RuntimeException e) {
+            return fallback("wall-type: " + bucketOf(e.getMessage()), test);
+        }
+        List<Boolean> events = new ArrayList<>();
+        try {
+            Compiler.executeResolved(resolved, ctx, runtimeFqn, conn,
+                    (name, pass, detail) -> events.add(pass));
+        } catch (com.legend.error.NotImplementedException e) {
+            return fallback("wall-exec: " + bucketOf(e.getMessage()), test);
+        } catch (java.sql.SQLException e) {
+            // the walk passes what the platform fails (or the platform
+            // hit a data-layer error): the REAL-divergence burn list —
+            // walk re-scores (safe: effect gate held), row counted
+            return fallback("platform-fail: " + bucketOf(e.getMessage()),
+                    test);
+        } catch (RuntimeException e) {
+            return fallback("wall-exec: " + e.getClass().getSimpleName()
+                    + ": " + bucketOf(e.getMessage()), test);
+        }
+        long passes = events.stream().filter(Boolean::booleanValue).count();
+        if (passes != events.size() || events.isEmpty()) {
+            return fallback("platform-fail: verdict stream "
+                    + passes + "/" + events.size(), test);
+        }
+        FLIPPED.incrementAndGet();
+        return new EngineTestExecutor.Outcome.Ran((int) passes, 0,
+                statements.size(), List.of(), List.of());
+    }
+
+    private static EngineTestExecutor.@com.legend.Nullable Outcome fallback(
+            String bucket, String witness) {
+        BUCKETS.computeIfAbsent(bucket, k -> new AtomicLong())
+                .incrementAndGet();
+        WITNESSES.putIfAbsent(bucket, witness);
+        return null;
+    }
+
+    private static String bucketOf(@com.legend.Nullable String m) {
+        String s = String.valueOf(m);
+        for (String line : s.split("\n")) {
+            if (!line.isBlank()) {
+                s = line;
+                break;
+            }
+        }
+        return (s.length() > 120 ? s.substring(0, 120) : s)
+                .replaceAll("'[^']*'", "'_'").replaceAll("\\d+", "N");
+    }
+}
