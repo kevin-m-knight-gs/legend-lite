@@ -59,8 +59,7 @@ final class AssertVerdicts {
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
             java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
-                    java.util.Set<String>, TypedSpec> rawHook)
-            throws java.sql.SQLException {
+                    java.util.Set<String>, TypedSpec> rawHook) {
         com.legend.exec.AssertListener l = env.assertListener();
         if (l == null) {
             return adjudicate(bare, letPrefix, specs, env, rawHook);
@@ -76,7 +75,10 @@ final class AssertVerdicts {
                 l.verdict(listenerName(bare), true, null);
             }
             return v;
-        } catch (java.sql.SQLException e) {
+        } catch (com.legend.error.AssertFailed
+                | com.legend.error.DataError e) {
+            // the seam: a FALSE verdict or a side-evaluation data error
+            // fails the same test either way — the detail says which
             l.verdict(listenerName(bare), false, e.getMessage());
             throw e;
         }
@@ -93,8 +95,7 @@ final class AssertVerdicts {
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
             java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
-                    java.util.Set<String>, TypedSpec> rawHook)
-            throws java.sql.SQLException {
+                    java.util.Set<String>, TypedSpec> rawHook) {
         SpliceHook hook = rawHook == null ? null : rawHook::apply;
         if (bare instanceof com.legend.compiler.spec.typed.TypedMap qm) {
             return quantified(qm, letPrefix, specs, env, hook);
@@ -529,7 +530,7 @@ final class AssertVerdicts {
      * {@code is}'s missing SQL rule — a wire carries values, never
      * reference identity (the eq/equalNonPrimitive irreducible ruling). */
     private static @com.legend.Nullable ExecutionResult isVerdict(
-            TypedSpec left, TypedSpec right) throws java.sql.SQLException {
+            TypedSpec left, TypedSpec right) {
         String lt = typeIdentityOf(left);
         String rt = typeIdentityOf(right);
         if (lt != null && rt != null) {
@@ -649,8 +650,7 @@ final class AssertVerdicts {
             com.legend.compiler.spec.typed.TypedMap qm,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            @com.legend.Nullable SpliceHook hook)
-            throws java.sql.SQLException {
+            @com.legend.Nullable SpliceHook hook) {
         var lam = qm.mapper();
         if (lam.body().size() != 1) {
             return null;
@@ -710,7 +710,7 @@ final class AssertVerdicts {
             boolean hostHeld, @com.legend.Nullable Boolean byteHeld,
             String detail,
             java.util.function.Supplier<@com.legend.Nullable String> hostMessage,
-            String byteMessage) throws java.sql.SQLException {
+            String byteMessage) {
         if (byteHeld != null) {
             com.legend.exec.CanonicalDivergence.probeSqlVerdict(family,
                     hostHeld, byteHeld, detail);
@@ -748,7 +748,7 @@ final class AssertVerdicts {
     private static ExecutionResult tdsRowValuesVerdict(String name,
             boolean wantEqual, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SideFetch ef, SideFetch af,
-            boolean incidental) throws java.sql.SQLException {
+            boolean incidental) {
         List<Object> e = ef.values();
         List<Object> a = af.values();
         // audit 22b F2: raw cells (a bare .rows view) never equal a
@@ -835,7 +835,7 @@ final class AssertVerdicts {
      * sorting separates an expected 'TDSNull' from its NULL cell),
      * cell-level canon multiset as the byte channel. */
     private static ExecutionResult tdsRowValuesSameElements(SideFetch ef,
-            SideFetch af) throws java.sql.SQLException {
+            SideFetch af) {
         List<Object> e = ef.values();
         List<Object> a = af.values();
         boolean hostHeld = e.size() == a.size()
@@ -1048,8 +1048,7 @@ final class AssertVerdicts {
             String name, boolean wantEqual, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            @com.legend.Nullable SpliceHook hook, boolean orderedForm)
-            throws java.sql.SQLException {
+            @com.legend.Nullable SpliceHook hook, boolean orderedForm) {
         String eForm = renderForm(args.get(0), letPrefix);
         String aForm = renderForm(args.get(1), letPrefix);
         // BOTH-RENDERED same-form pairs qualify too (two renders of one
@@ -1787,8 +1786,7 @@ final class AssertVerdicts {
     private static SideFetch sideCanon(TypedSpec arg,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env, boolean canonicalOrder,
-            @com.legend.Nullable SpliceHook hook)
-            throws java.sql.SQLException {
+            @com.legend.Nullable SpliceHook hook) {
         var rider = new com.legend.exec.CanonRider(canonicalOrder);
         ExecutionResult r = StatementExecutor.evalValue(arg, letPrefix,
                 specs, env, rider, false, hook);
@@ -1802,8 +1800,7 @@ final class AssertVerdicts {
 
     private static List<Object> side(TypedSpec arg, List<TypedSpec> letPrefix,
             SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable SpliceHook hook)
-            throws java.sql.SQLException {
+            @com.legend.Nullable SpliceHook hook) {
         return decodeSide(StatementExecutor.evalValue(arg, letPrefix,
                 specs, env, null, false, hook));
     }
@@ -1816,8 +1813,7 @@ final class AssertVerdicts {
     private static @com.legend.Nullable String jsonSideText(TypedSpec arg,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            @com.legend.Nullable SpliceHook hook)
-            throws java.sql.SQLException {
+            @com.legend.Nullable SpliceHook hook) {
         ExecutionResult r = StatementExecutor.evalValue(arg, letPrefix,
                 specs, env, null, false, hook);
         if (r instanceof ExecutionResult.Graph g) {
@@ -1833,8 +1829,7 @@ final class AssertVerdicts {
      * blind to the field). */
     private static List<Object> identitySide(TypedSpec arg,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env, @com.legend.Nullable SpliceHook hook)
-            throws java.sql.SQLException {
+            StatementExecutor.ExecEnv env, @com.legend.Nullable SpliceHook hook) {
         return decodeSide(StatementExecutor.evalValue(arg, letPrefix,
                 specs, env, null, true, hook));
     }
@@ -1926,8 +1921,7 @@ final class AssertVerdicts {
      * null = the value did not execute to a relation (fall through). */
     private static ExecutionResult.@com.legend.Nullable Tabular tabular(
             TypedSpec arg, List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env, @com.legend.Nullable SpliceHook hook)
-            throws java.sql.SQLException {
+            StatementExecutor.ExecEnv env, @com.legend.Nullable SpliceHook hook) {
         ExecutionResult r = StatementExecutor.evalValue(arg,
                 letPrefix, specs, env, null, false, hook);
         return r instanceof ExecutionResult.Tabular t ? t : null;
@@ -1960,8 +1954,8 @@ final class AssertVerdicts {
                 com.legend.compiler.element.type.Type.Primitive.BOOLEAN);
     }
 
-    private static ExecutionResult fail(String message)
-            throws java.sql.SQLException {
-        throw new java.sql.SQLException(message);
+    private static ExecutionResult fail(String message) {
+        // the seam: verdicts speak the platform vocabulary
+        throw new com.legend.error.AssertFailed(message);
     }
 }

@@ -381,7 +381,7 @@ public final class Compiler {
      */
     public static void executeStreaming(String model, String query,
             @com.legend.Nullable String runtimeFqn, java.sql.Connection connection,
-            java.io.Writer out) throws java.sql.SQLException, java.io.IOException {
+            java.io.Writer out) throws java.io.IOException {
         Lowered l = lowerQuery(model, query, runtimeFqn, true);
         com.legend.sql.dialect.SqlDialect dialect =
                 dialectOf(l.ctx(), runtimeFqn, connection);
@@ -416,7 +416,7 @@ public final class Compiler {
             String query, @com.legend.Nullable String runtimeFqn,
             java.sql.Connection connection,
             com.legend.lowering.WireRender.Format format, java.io.Writer out)
-            throws java.sql.SQLException, java.io.IOException {
+            throws java.io.IOException {
         Lowered l = lowerQuery(model, query, runtimeFqn, false);
         com.legend.sql.dialect.SqlDialect dialect =
                 dialectOf(l.ctx(), runtimeFqn, connection);
@@ -477,8 +477,8 @@ public final class Compiler {
      */
     static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,
             @com.legend.Nullable String runtimeFqn,
-            java.sql.Connection connection) throws java.sql.SQLException {
-        String product = connection.getMetaData().getDatabaseProductName();
+            java.sql.Connection connection) {
+        String product = metadata(connection, true);
         if (!"H2".equals(product)) {
             // B6: session setup rides the connection-dialect resolution —
             // the ONE seam every connection-bearing entry passes through;
@@ -512,7 +512,7 @@ public final class Compiler {
         // 2.3+ has typed-JSON navigation ((j)."f", 1-based [i]) — the
         // modern profile spells it natively; the 2.1 engine-parity
         // target keeps the walls.
-        String ver = connection.getMetaData().getDatabaseProductVersion();
+        String ver = metadata(connection, false);
         var h2d = ver.startsWith("2.1") || ver.startsWith("2.2")
                 ? new com.legend.sql.dialect.H2()
                 : new com.legend.sql.dialect.H2Modern();
@@ -520,6 +520,20 @@ public final class Compiler {
             com.legend.exec.Executor.executeRaw(connection, s);
         }
         return h2d;
+    }
+
+    /** The driver's ONE metadata read (dialect resolution), seam-
+     * translated: java.sql stops here like at every other boundary. */
+    private static String metadata(java.sql.Connection connection,
+            boolean product) {
+        try {
+            return product
+                    ? connection.getMetaData().getDatabaseProductName()
+                    : connection.getMetaData().getDatabaseProductVersion();
+        } catch (java.sql.SQLException e) {
+            throw new com.legend.error.DataError(
+                    String.valueOf(e.getMessage()), e);
+        }
     }
 
     static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,
@@ -591,7 +605,7 @@ public final class Compiler {
      */
     public static com.legend.exec.@com.legend.Nullable ExecutionResult execute(
             String model, String query,
-            java.sql.Connection connection) throws java.sql.SQLException {
+            java.sql.Connection connection) {
         return execute(model, query, null, connection);
     }
 
@@ -605,7 +619,7 @@ public final class Compiler {
     public static com.legend.exec.@com.legend.Nullable ExecutionResult execute(
             String model, String query,
             @com.legend.Nullable String runtimeFqn,
-            java.sql.Connection connection) throws java.sql.SQLException {
+            java.sql.Connection connection) {
         return execute(model, query, null, runtimeFqn, connection);
     }
 
@@ -620,7 +634,7 @@ public final class Compiler {
             String model, String query,
             com.legend.model.@com.legend.Nullable ImportScope imports,
             @com.legend.Nullable String runtimeFqn,
-            java.sql.Connection connection) throws java.sql.SQLException {
+            java.sql.Connection connection) {
         ModelContext ctx = compileModel(model);
         return executeResolved(
                 imports == null
@@ -641,8 +655,7 @@ public final class Compiler {
     public static com.legend.exec.@com.legend.Nullable ExecutionResult executeResolved(
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
             @com.legend.Nullable String runtimeFqn,
-            java.sql.Connection connection)
-            throws java.sql.SQLException {
+            java.sql.Connection connection) {
         return StatementExecutor.execute(resolved, ctx,
                 runtimeFqn, dialectOf(ctx, runtimeFqn, connection), connection);
     }
@@ -695,8 +708,7 @@ public final class Compiler {
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
             @com.legend.Nullable String runtimeFqn,
             java.sql.Connection connection,
-            com.legend.exec.@com.legend.Nullable AssertListener assertListener)
-            throws java.sql.SQLException {
+            com.legend.exec.@com.legend.Nullable AssertListener assertListener) {
         return executeResolved(resolved, ctx, runtimeFqn, connection,
                 assertListener, null);
     }
@@ -709,8 +721,7 @@ public final class Compiler {
             @com.legend.Nullable String runtimeFqn,
             java.sql.Connection connection,
             com.legend.exec.@com.legend.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle)
-            throws java.sql.SQLException {
+            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle) {
         return StatementExecutor.execute(resolved, ctx,
                 runtimeFqn, dialectOf(ctx, runtimeFqn, connection), connection,
                 assertListener, replayOracle);

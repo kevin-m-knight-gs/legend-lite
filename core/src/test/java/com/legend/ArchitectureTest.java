@@ -701,23 +701,24 @@ final class ArchitectureTest {
             // nested classes (StatementExecutor$ExecEnv, ...) ride with
             // their owner — the pin is per top-level class
             .and().haveNameNotMatching("com\\.legend\\.(Compiler"
-                    + "|StatementExecutor|SeedSqlForms"
-                    // the assert K-arms (Clause 2c): argument values
-                    // compute in the database, verdicts adjudicate here —
-                    // the same orchestration charter as StatementExecutor
-                    // (SqlTextVerdicts joined 2026-09-01, SQLTEXT slice
-                    // 3a: same charter — SQLException verdicts + the
-                    // env's connection passed through to the oracle SPI;
-                    // opens nothing, executes nothing itself)
-                    + "|AssertErrorNative|AssertVerdicts"
-                    + "|SqlTextVerdicts)(\\$.*)?")
+                    + "|StatementExecutor"
+                    // THE EXCEPTION SEAM (user directive 2026-09-01):
+                    // SQLException stops at the executor boundary —
+                    // verdicts throw AssertFailed, data errors arrive
+                    // as DataError. SHRUNK here: SqlTextVerdicts,
+                    // AssertErrorNative and SeedSqlForms left the pin
+                    // (zero java.sql). AssertVerdicts remains for
+                    // CARRIER-TYPE classification only (instanceof
+                    // java.sql.Array/Timestamp/Date on fetched values
+                    // — the flatten's move behind the exec seam is the
+                    // named next shrink).
+                    + "|AssertVerdicts)(\\$.*)?")
             .should().dependOnClassesThat()
             .resideInAPackage("java.sql..")
             .as("F1.3b: root's java.sql surface is pinned to"
-                    + " {Compiler, StatementExecutor, SeedSqlForms,"
-                    + " AssertErrorNative, AssertVerdicts,"
-                    + " SqlTextVerdicts} —"
-                    + " shrink-only; the split is backlogged")
+                    + " {Compiler, StatementExecutor, AssertVerdicts} —"
+                    + " shrink-only (the exception seam landed"
+                    + " 2026-09-01; carrier types are the residue)")
             .check(CORE_PROD_CLASSES);
     }
 

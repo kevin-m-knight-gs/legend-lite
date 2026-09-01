@@ -5,6 +5,7 @@ import com.legend.sql.Json;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.element.type.ExprType;
+import com.legend.error.DataError;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlQuery;
 import com.legend.values.PureDateLiteral;
@@ -43,11 +44,17 @@ public final class Executor {
     public static final java.util.concurrent.atomic.AtomicLong RAW_CALLS =
             new java.util.concurrent.atomic.AtomicLong();
 
-    public static void executeRaw(Connection connection, String statement)
-            throws SQLException {
+    public static void executeRaw(Connection connection, String statement) {
         long t0 = System.nanoTime();
         try (Statement st = connection.createStatement()) {
             st.execute(statement);
+        } catch (SQLException e) {
+            // THE SEAM (user directive 2026-09-01): java.sql stops at
+            // the executor boundary — platform vocabulary above
+            // cause = the UNWRAPPED exception (Positioned when the raise
+            // was ours) — assertError's position adjudication reads it
+            java.sql.SQLException un = RaisedErrors.unwrapped(e);
+            throw new DataError(String.valueOf(un.getMessage()), un);
         } finally {
             RAW_NANOS.addAndGet(System.nanoTime() - t0);
             RAW_CALLS.incrementAndGet();
@@ -56,8 +63,7 @@ public final class Executor {
 
     public static ExecutionResult execute(String sql, SqlQuery plan, ExprType rootType,
                                           Connection connection,
-                                          com.legend.sql.dialect.SqlDialect dialect)
-            throws SQLException {
+                                          com.legend.sql.dialect.SqlDialect dialect) {
         return execute(sql, plan, rootType, ResultShape.of(rootType), connection, dialect);
     }
 
@@ -69,8 +75,7 @@ public final class Executor {
      */
     public static ExecutionResult execute(String sql, SqlQuery plan, ExprType rootType,
                                           ResultShape shape, Connection connection,
-                                          com.legend.sql.dialect.SqlDialect dialect)
-            throws SQLException {
+                                          com.legend.sql.dialect.SqlDialect dialect) {
         return execute(sql, plan, rootType, shape, connection, dialect, null);
     }
 
@@ -81,8 +86,7 @@ public final class Executor {
     public static ExecutionResult execute(String sql, SqlQuery plan, ExprType rootType,
                                           ResultShape shape, Connection connection,
                                           com.legend.sql.dialect.SqlDialect dialect,
-                                          @com.legend.Nullable CanonRider rider)
-            throws SQLException {
+                                          @com.legend.Nullable CanonRider rider) {
         // TYPED-IR Slice 1: the label-lie census — every executed plan's
         // declared labels vs the bottom-up judgment (measurement only)
         SqlTypeCensus.probe(plan);
@@ -95,10 +99,15 @@ public final class Executor {
             return execute0(sql, plan, rootType, shape, connection, dialect,
                     rider);
         } catch (SQLException e) {
-            // B7 (RaisedErrors): a message WE raised in SQL surfaces
-            // clean of the driver's transport envelope — HERE, once,
-            // for every consumer; native errors pass through whole
-            throw RaisedErrors.unwrapped(e);
+            // B7 (RaisedErrors) + THE SEAM: a message WE raised in SQL
+            // surfaces clean of the driver's transport envelope — HERE,
+            // once, for every consumer — and java.sql STOPS HERE
+            // (platform vocabulary above the boundary; the original
+            // SQLException rides as cause)
+            // cause = the UNWRAPPED exception (Positioned when the raise
+            // was ours) — assertError's position adjudication reads it
+            java.sql.SQLException un = RaisedErrors.unwrapped(e);
+            throw new DataError(String.valueOf(un.getMessage()), un);
         } finally {
             com.legend.exec.TimingLedger.add("query.exec",
                     System.nanoTime() - qt0);
@@ -188,8 +197,7 @@ public final class Executor {
      * E5 (JAVA_EVICTION_PLAN): ONE plan-rendered text value (the wire
      * column) — pure byte transport, the database composed the text.
      */
-    public static String wireText(String sql, Connection connection)
-            throws SQLException {
+    public static String wireText(String sql, Connection connection) {
         dumpSql(sql);
         try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
              ResultSet rs = st.executeQuery()) {
@@ -199,6 +207,11 @@ public final class Executor {
             }
             String s = rs.getString(1);
             return s == null ? "" : s;
+        } catch (SQLException e) {
+            // cause = the UNWRAPPED exception (Positioned when the raise
+            // was ours) — assertError's position adjudication reads it
+            java.sql.SQLException un = RaisedErrors.unwrapped(e);
+            throw new DataError(String.valueOf(un.getMessage()), un);
         }
     }
 
@@ -209,7 +222,7 @@ public final class Executor {
      * buffers release bytes as rows arrive. {@code out} is never closed.
      */
     public static void streamWireRows(String sql, Connection connection,
-            java.io.Writer out) throws SQLException, java.io.IOException {
+            java.io.Writer out) throws java.io.IOException {
         dumpSql(sql);
         try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
              ResultSet rs = st.executeQuery()) {
@@ -226,6 +239,11 @@ public final class Executor {
             }
             out.write(']');
             out.flush();
+        } catch (SQLException e) {
+            // cause = the UNWRAPPED exception (Positioned when the raise
+            // was ours) — assertError's position adjudication reads it
+            java.sql.SQLException un = RaisedErrors.unwrapped(e);
+            throw new DataError(String.valueOf(un.getMessage()), un);
         }
     }
 
@@ -234,7 +252,7 @@ public final class Executor {
      * JSON written verbatim inside an enclosing array. */
     public static void streamGraph(String sql, Connection connection,
             com.legend.sql.dialect.SqlDialect dialect, java.io.Writer out)
-            throws SQLException, java.io.IOException {
+            throws java.io.IOException {
         dumpSql(sql);
         try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
              ResultSet rs = st.executeQuery()) {
@@ -255,6 +273,11 @@ public final class Executor {
             }
             out.write(']');
             out.flush();
+        } catch (SQLException e) {
+            // cause = the UNWRAPPED exception (Positioned when the raise
+            // was ours) — assertError's position adjudication reads it
+            java.sql.SQLException un = RaisedErrors.unwrapped(e);
+            throw new DataError(String.valueOf(un.getMessage()), un);
         }
     }
 

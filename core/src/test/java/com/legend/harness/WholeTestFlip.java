@@ -241,7 +241,9 @@ public final class WholeTestFlip {
                     ReplayOracle.INSTANCE);
         } catch (com.legend.error.NotImplementedException e) {
             return fallback("wall-exec: " + bucketOf(e.getMessage()), test);
-        } catch (java.sql.SQLException e) {
+        } catch (com.legend.error.DataError
+                | com.legend.error.AssertFailed e) {
+            // the seam: platform failures are AssertFailed/DataError now
             // the walk passes what the platform fails (or the platform
             // hit a data-layer error): the REAL-divergence burn list —
             // walk re-scores (safe: effects are state-convergent), row

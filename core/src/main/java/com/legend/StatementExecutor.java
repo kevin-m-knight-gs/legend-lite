@@ -32,8 +32,7 @@ final class StatementExecutor {
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
             @com.legend.Nullable String runtimeFqn,
             com.legend.sql.dialect.SqlDialect dialect,
-            java.sql.Connection connection)
-            throws java.sql.SQLException {
+            java.sql.Connection connection) {
         return execute(resolved, ctx, runtimeFqn, dialect, connection, null,
                 null);
     }
@@ -50,8 +49,7 @@ final class StatementExecutor {
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection,
             com.legend.exec.@com.legend.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle)
-            throws java.sql.SQLException {
+            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle) {
         SpecCompiler specs = new SpecCompiler(ctx);
         ExecEnv env0 = new ExecEnv(ctx, runtimeFqn, dialect, connection,
                 com.legend.validation.DriverPkOption.get());
@@ -143,8 +141,7 @@ final class StatementExecutor {
      */
     static @com.legend.Nullable ExecutionResult executeStatements(
             java.util.List<TypedSpec> stmts, java.util.List<TypedSpec> letPrefix,
-            SpecCompiler specs, ExecEnv env, java.util.Deque<String> frames)
-            throws java.sql.SQLException {
+            SpecCompiler specs, ExecEnv env, java.util.Deque<String> frames) {
         ExecutionResult result = null;
         java.util.Map<String, Boolean> effectMemo = new java.util.HashMap<>();
         java.util.Map<String, ExecFrame> execFrames = new java.util.LinkedHashMap<>();
@@ -506,8 +503,7 @@ final class StatementExecutor {
      * name — the interpreter that executed engine compiler source is
      * DELETED. */
     private static @com.legend.Nullable ExecutionResult hostEvalAtSeam(TypedSpec root,
-            java.util.Map<String, TypedSpec> lets, ExecEnv env)
-            throws java.sql.SQLException {
+            java.util.Map<String, TypedSpec> lets, ExecEnv env) {
         // (Phase 1c grid endgame: ResultNav is DELETED — grid chains are
         // typed relations the ordinary pipeline serves; the seam is
         // StoreNav's model-fact channel alone)
@@ -535,8 +531,7 @@ final class StatementExecutor {
      * Null = not host-routed. */
     private static @com.legend.Nullable ExecutionResult hostChannel(TypedSpec bare,
             java.util.List<TypedSpec> letPrefix,
-            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env)
-            throws java.sql.SQLException {
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         boolean rootSetup = bare
                 instanceof com.legend.compiler.spec.typed.TypedNativeCall rnc
                 && com.legend.compiler.element.type.PlatformTypes
@@ -1907,7 +1902,7 @@ final class StatementExecutor {
     private static ExecFrame buildFrame(
             com.legend.compiler.spec.typed.TypedNativeCall ec,
             java.util.List<TypedSpec> letPrefix, boolean eager,
-            SpecCompiler specs, ExecEnv env) throws java.sql.SQLException {
+            SpecCompiler specs, ExecEnv env) {
         var prepared = com.legend.compiler.spec.ExecuteChainAssembly
                 .prepare(ec, letPrefix, specs);
         // the RUNTIME ARGUMENT's effectful user calls (the corpus's
@@ -1974,7 +1969,7 @@ final class StatementExecutor {
      * stay unevaluated orchestration handles. */
     private static void runRuntimeArgEffects(TypedSpec n,
             java.util.List<TypedSpec> letPrefix, SpecCompiler specs,
-            ExecEnv env) throws java.sql.SQLException {
+            ExecEnv env) {
         if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
             if (containsEffect(uc, specs, new java.util.HashMap<>())) {
                 executeCallStatement(uc, letPrefix, specs, env,
@@ -2104,13 +2099,9 @@ final class StatementExecutor {
             public com.legend.compiler.spec.ResultEnvelopeSplice.View
                     inlineExecute(com.legend.compiler.spec.typed
                             .TypedNativeCall ec, boolean eager) {
-                try {
-                    ExecFrame f = buildFrame(ec, letPrefix, eager, specs, env);
-                    return new com.legend.compiler.spec.ResultEnvelopeSplice
-                            .View(f.chain(), f.relationRooted());
-                } catch (java.sql.SQLException e) {
-                    throw new IllegalStateException(e);
-                }
+                ExecFrame f = buildFrame(ec, letPrefix, eager, specs, env);
+                return new com.legend.compiler.spec.ResultEnvelopeSplice
+                        .View(f.chain(), f.relationRooted());
             }
 
             @Override
@@ -2165,7 +2156,7 @@ final class StatementExecutor {
     private interface EffectRoutine {
         ExecutionResult run(java.util.List<TypedSpec> body,
                 com.legend.compiler.spec.typed.TypedNativeCall nc,
-                ExecEnv env) throws java.sql.SQLException;
+                ExecEnv env);
     }
 
     private static final java.util.Map<String, EffectRoutine> EFFECT_ARMS =
@@ -2321,7 +2312,7 @@ final class StatementExecutor {
     static @com.legend.Nullable ExecutionResult executeCallStatement(
             com.legend.compiler.spec.typed.TypedUserCall call,
             java.util.List<TypedSpec> letPrefix, SpecCompiler specs, ExecEnv env,
-            java.util.Deque<String> frames) throws java.sql.SQLException {
+            java.util.Deque<String> frames) {
         String key = call.callee().signatureKey();
         if (frames.contains(key)) {
             throw new IllegalStateException("recursive effectful call: "
@@ -2420,7 +2411,7 @@ final class StatementExecutor {
      * top-level from() setups; nested from() (a graph query whose
      * serialize wraps the from) contribute via the walk. */
     private static void runRuntimeSetups(java.util.List<String> fromChain,
-            TypedSpec root, ExecEnv env) throws java.sql.SQLException {
+            TypedSpec root, ExecEnv env) {
         java.util.List<String> setups = new java.util.ArrayList<>(fromChain);
         java.util.ArrayDeque<TypedSpec> walk = new java.util.ArrayDeque<>();
         walk.add(root);
@@ -2435,7 +2426,7 @@ final class StatementExecutor {
             for (String stmt : com.legend.sql.RawSql.splitStatements(blob)) {
                 try {
                     Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
-                } catch (java.sql.SQLException e) {
+                } catch (com.legend.error.DataError e) {
                     if (!env.dialect().rawH2IsNative()) {
                         com.legend.sql.dialect.RawSqlBoundary.unrecordLast();
                     }
@@ -2453,7 +2444,7 @@ final class StatementExecutor {
      * a body that never reads the store pays one tree walk and nothing
      * else. */
     private static void seedMetamodelStore(java.util.List<TypedSpec> body,
-            ExecEnv env) throws java.sql.SQLException {
+            ExecEnv env) {
         if (body.stream().noneMatch(StatementExecutor::readsSystemStore)) {
             return;
         }
@@ -2495,8 +2486,7 @@ final class StatementExecutor {
     private static com.legend.sql.SqlQuery lowerAndPrepare(
             java.util.List<TypedSpec> body, ExecEnv env, ModelContext ctx,
             com.legend.sql.dialect.SqlDialect dialect,
-            java.sql.Connection connection, boolean identity)
-            throws java.sql.SQLException {
+            java.sql.Connection connection, boolean identity) {
         // F13: identity-bearing layouts (keyless classes gain the __id
         // field, minted per construction site) ride ONLY the verdict-
         // side lane (canon rider) — golden-SQL text lanes and corpus
@@ -2532,27 +2522,20 @@ final class StatementExecutor {
             class ProbeFailed extends RuntimeException {
                 ProbeFailed(java.sql.SQLException c) { super(c); }
             }
-            try {
-                plan = com.legend.lowering.Render.resolveAllDeferredTds(
-                        plan, lowerer.deferredTds(), inner -> {
-                            try {
-                                return com.legend.exec.PctProbe.probe(
-                                        inner, fDialect, fConn);
-                            } catch (java.sql.SQLException ex) {
-                                throw new ProbeFailed(ex);
-                            }
-                        }, com.legend.exec.Executor::pureOfSqlType);
-            } catch (ProbeFailed pf) {
-                throw (java.sql.SQLException) pf.getCause();
-            }
+            // the seam: PctProbe raises DataError (unchecked) itself —
+            // the ProbeFailed checked-exception tunnel is gone
+            plan = com.legend.lowering.Render.resolveAllDeferredTds(
+                    plan, lowerer.deferredTds(),
+                    inner -> com.legend.exec.PctProbe.probe(
+                            inner, fDialect, fConn),
+                    com.legend.exec.Executor::pureOfSqlType);
         }
         return plan;
     }
 
     static @com.legend.Nullable ExecutionResult evalValue(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
-            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env)
-            throws java.sql.SQLException {
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         return evalValue(value, letPrefix, specs, env, null, false);
     }
 
@@ -2561,8 +2544,7 @@ final class StatementExecutor {
     static @com.legend.Nullable ExecutionResult evalValue(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            com.legend.exec.@com.legend.Nullable CanonRider rider)
-            throws java.sql.SQLException {
+            com.legend.exec.@com.legend.Nullable CanonRider rider) {
         return evalValue(value, letPrefix, specs, env, rider, false);
     }
 
@@ -2574,8 +2556,7 @@ final class StatementExecutor {
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
             com.legend.exec.@com.legend.Nullable CanonRider rider,
-            boolean identity)
-            throws java.sql.SQLException {
+            boolean identity) {
         return evalValue(value, letPrefix, specs, env, rider, identity, null);
     }
 
@@ -2590,8 +2571,7 @@ final class StatementExecutor {
             com.legend.exec.@com.legend.Nullable CanonRider rider,
             boolean identity,
             java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
-                    java.util.Set<String>, TypedSpec> hook)
-            throws java.sql.SQLException {
+                    java.util.Set<String>, TypedSpec> hook) {
         java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
         single.add(value);
         var inliner = hook == null
@@ -2617,15 +2597,13 @@ final class StatementExecutor {
     }
 
     static ExecutionResult executeTyped(
-            java.util.List<TypedSpec> body, ExecEnv env)
-            throws java.sql.SQLException {
+            java.util.List<TypedSpec> body, ExecEnv env) {
         return executeTyped(body, env, null, false);
     }
 
     static ExecutionResult executeTyped(
             java.util.List<TypedSpec> body, ExecEnv env,
-            com.legend.exec.@com.legend.Nullable CanonRider rider)
-            throws java.sql.SQLException {
+            com.legend.exec.@com.legend.Nullable CanonRider rider) {
         return executeTyped(body, env, rider, false);
     }
 
@@ -2638,8 +2616,7 @@ final class StatementExecutor {
     static ExecutionResult executeTyped(
             java.util.List<TypedSpec> body, ExecEnv env,
             com.legend.exec.@com.legend.Nullable CanonRider rider,
-            boolean identityLane)
-            throws java.sql.SQLException {
+            boolean identityLane) {
         ModelContext ctx = env.ctx();
         String runtimeFqn = env.runtimeFqn();
         java.sql.Connection connection = env.connection();
@@ -2864,8 +2841,7 @@ final class StatementExecutor {
             TypedSpec root,
             com.legend.compiler.element.type.@com.legend.Nullable ExprType declaredInfo,
             com.legend.exec.@com.legend.Nullable CanonRider rider,
-            @com.legend.Nullable ExecutionResult folded, ExecEnv env)
-            throws java.sql.SQLException {
+            @com.legend.Nullable ExecutionResult folded, ExecEnv env) {
         com.legend.compiler.element.type.ExprType shapeInfo =
                 declaredInfo != null ? declaredInfo : root.info();
         com.legend.sql.SqlQuery bare = plan;
@@ -2908,8 +2884,9 @@ final class StatementExecutor {
         try {
             return Executor.execute(dialect.render(plan), plan, shapeInfo,
                     shape, env.connection(), dialect, rider);
-        } catch (java.sql.SQLException | RuntimeException e) {
-            // THE DECLINE TUNNEL, V11 form (prepCanon/runCanon caught
+        } catch (RuntimeException e) {
+            // THE DECLINE TUNNEL, V11 form (DataError included — the
+            // seam made the boundary translation a RuntimeException) (prepCanon/runCanon caught
             // exactly this class — a caught failure becomes the DESIGNED
             // decline sentinel, counted, never a rescue): a canon column
             // must never poison the value fetch. Witness: the
@@ -2948,7 +2925,7 @@ final class StatementExecutor {
                                 shapeInfo, shape, env.connection(), dialect,
                                 rider);
                     }
-                } catch (java.sql.SQLException | RuntimeException e15) {
+                } catch (RuntimeException e15) {
                     rider.rows().clear();
                     rider.decline("canon-exec: "
                             + String.valueOf(e15.getMessage())
@@ -2963,7 +2940,7 @@ final class StatementExecutor {
                 }
                 return Executor.execute(dialect.render(bare), bare,
                         shapeInfo, shape, env.connection(), dialect, null);
-            } catch (java.sql.SQLException | RuntimeException e2) {
+            } catch (RuntimeException e2) {
                 // the BARE side itself cannot execute: an unSQLable
                 // literal (NUL-bearing string — DuckDB VARCHAR is
                 // NUL-free). The literal fold answers, canon declines.
@@ -2981,7 +2958,7 @@ final class StatementExecutor {
      * String execution — the wire text is the plan's projection. */
     private static ExecutionResult executePctTds(com.legend.sql.SqlQuery plan,
             TypedSpec root, com.legend.sql.dialect.SqlDialect dialect,
-            java.sql.Connection connection) throws java.sql.SQLException {
+            java.sql.Connection connection) {
         com.legend.sql.PlanProbe probe =
                 com.legend.lowering.PctTdsWrap.pivots(plan).isEmpty() ? null
                         : com.legend.exec.PctProbe.probe(plan, dialect,
@@ -3043,8 +3020,7 @@ final class StatementExecutor {
 
     static ExecutionResult executeInDb(
             java.util.List<TypedSpec> body,
-            com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env)
-            throws java.sql.SQLException {
+            com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
         String raw = evalStringArg(body, call.args().get(0), env);
         // split FIRST: adaptation is per-statement (its recognizers anchor
         // at statement start). Corpus-authored raw H2 goes through THE
@@ -3052,7 +3028,7 @@ final class StatementExecutor {
         for (String stmt : com.legend.sql.RawSql.splitStatements(raw)) {
             try {
                 Executor.executeRaw(env.connection(), adaptRaw(stmt, env));
-            } catch (java.sql.SQLException e) {
+            } catch (com.legend.error.DataError e) {
                 // the recording must mirror EXECUTED reality — a failed
                 // statement leaves the H2-replay ledger (task #112)
                 if (!env.dialect().rawH2IsNative()) {
@@ -3082,8 +3058,7 @@ final class StatementExecutor {
      * replay is safe on both fresh and live mirrors. */
     static ExecutionResult dropAndCreateSchemaInDb(
             java.util.List<TypedSpec> body,
-            com.legend.compiler.spec.typed.TypedNativeCall sc, ExecEnv env)
-            throws java.sql.SQLException {
+            com.legend.compiler.spec.typed.TypedNativeCall sc, ExecEnv env) {
         String schemaDdl = "Create schema if not exists "
                 + evalStringArg(body, sc.args().get(0), env);
         Executor.executeRaw(env.connection(), schemaDdl);
@@ -3104,8 +3079,7 @@ final class StatementExecutor {
      */
     static ExecutionResult dropAndCreateTableInDb(
             java.util.List<TypedSpec> body,
-            com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env)
-            throws java.sql.SQLException {
+            com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
         ModelContext ctx = env.ctx();
         java.sql.Connection connection = env.connection();
         if (!(call.args().get(0)
@@ -3223,7 +3197,7 @@ final class StatementExecutor {
      * others — crucially connection chains — are dropped, never evaluated.
      */
     static String evalStringArg(java.util.List<TypedSpec> body, TypedSpec arg,
-            ExecEnv env) throws java.sql.SQLException {
+            ExecEnv env) {
         java.util.Set<String> needed = new java.util.HashSet<>();
         collectVariableRefs(arg, needed);
         java.util.List<TypedSpec> kept = new java.util.ArrayList<>();

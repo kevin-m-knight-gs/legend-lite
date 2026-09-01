@@ -52,8 +52,7 @@ final class SqlTextVerdicts {
             boolean wantEqual, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            AssertVerdicts.@com.legend.Nullable SpliceHook hook)
-            throws java.sql.SQLException {
+            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
         if (!wantEqual || args.size() < 2) {
             return null;
         }
@@ -123,9 +122,10 @@ final class SqlTextVerdicts {
                     com.legend.compiler.spec.VerdictQueries.fromWrapped(
                             lam.body().get(0), mapping),
                     letPrefix, specs, env, null, false, hook);
-        } catch (RuntimeException | java.sql.SQLException e) {
+        } catch (RuntimeException e) {
             // the rows leg is underivable — counted, text stays the
-            // contract (§3.7: a counted decline, visible, never silent)
+            // contract (§3.7: a counted decline, visible, never silent;
+            // DataError joined RuntimeException at the seam)
             SqlTextEmission.textVerdict("our-rows-underivable: "
                     + String.valueOf(e.getMessage()).replace('\n', ' '));
             return textEqual ? ok()
@@ -227,8 +227,8 @@ final class SqlTextVerdicts {
                 com.legend.compiler.element.type.Type.Primitive.BOOLEAN);
     }
 
-    private static ExecutionResult fail(String message)
-            throws java.sql.SQLException {
-        throw new java.sql.SQLException(message);
+    private static ExecutionResult fail(String message) {
+        // the seam: verdicts speak the platform vocabulary
+        throw new com.legend.error.AssertFailed(message);
     }
 }

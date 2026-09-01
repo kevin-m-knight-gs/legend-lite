@@ -32,7 +32,7 @@ final class SeedSqlForms {
      *  db keeps the CsvSeed execution form (nothing asserts its text). */
     static ExecutionResult assertForm(java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall gen,
-            StatementExecutor.ExecEnv env) throws java.sql.SQLException {
+            StatementExecutor.ExecEnv env) {
         java.util.List<java.util.List<String>> records =
                 recordsArg(gen.args().get(0));
         if (records != null) {
@@ -99,7 +99,7 @@ final class SeedSqlForms {
     static ExecutionResult.@com.legend.Nullable Collection mappedExecutionForm(
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedMap tm,
-            StatementExecutor.ExecEnv env) throws java.sql.SQLException {
+            StatementExecutor.ExecEnv env) {
         if (!(tm.source() instanceof com.legend.compiler.spec.typed.TypedNativeCall sg)
                 || !isSetUpDataSqls(sg)) {
             return null;

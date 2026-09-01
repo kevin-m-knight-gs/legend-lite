@@ -1,0 +1,24 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.error;
+
+/**
+ * THE DATABASE-ERROR TRANSLATION (the exception seam, user directive
+ * 2026-09-01): a real {@code java.sql.SQLException} raised by the
+ * executing database, translated to the platform vocabulary AT THE
+ * EXECUTOR BOUNDARY — the one seam that understands JDBC. Everything
+ * above the boundary (orchestration, verdict arms, the harness)
+ * classifies failures by PLATFORM types only; {@code java.sql} stops
+ * appearing in their signatures, which is what lets the JDBC registers
+ * genuinely shrink to the executor seam. The original
+ * {@code SQLException} rides as the cause; {@code getMessage()} is the
+ * database's own text (the raised-message provenance discipline —
+ * RaisedErrors — is unchanged and runs before translation).
+ */
+public final class DataError extends RuntimeException {
+
+    public DataError(String message, Throwable cause) {
+        super(message, cause);
+    }
+}

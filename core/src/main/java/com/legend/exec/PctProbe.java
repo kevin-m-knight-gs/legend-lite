@@ -28,8 +28,7 @@ public final class PctProbe {
     }
 
     public static PlanProbe probe(SqlQuery plan,
-            com.legend.sql.dialect.SqlDialect dialect, Connection conn)
-            throws SQLException {
+            com.legend.sql.dialect.SqlDialect dialect, Connection conn) {
         SqlSelect probe = SqlSelect.starOf(new SqlSource.Subselect(plan,
                 "_pct_probe", null)).withLimit(0L);
         try (var st = conn.prepareStatement(dialect.render(probe));
@@ -48,6 +47,10 @@ public final class PctProbe {
                 typeNames.put(md.getColumnName(i), tn);
             }
             return new PlanProbe(outs, typeNames);
+        } catch (java.sql.SQLException e) {
+            // the seam: java.sql stops at this probe's boundary
+            throw new com.legend.error.DataError(
+                    String.valueOf(e.getMessage()), e);
         }
     }
 }

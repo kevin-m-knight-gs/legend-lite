@@ -119,7 +119,8 @@ class ResolveDeepEmptinessProbeTest {
         Object r;
         try {
             r = Compiler.execute(MODEL, query, "e::RT", conn);
-        } catch (SQLException e) {
+        } catch (com.legend.error.DataError e) {
+            // the seam: database failures arrive as DataError now
             System.out.println("[class-frame-read-FULL-ERR] " + e.getMessage());
             throw e;
         }

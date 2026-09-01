@@ -72,7 +72,8 @@ class AssertVerdictsTest {
                 "{|assertEquals([], [1,2]->filter(x|$x > 5))}")).value());
         assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
                 "{|assertEquals([1,2], [1,2])}")).value());
-        SQLException e = assertThrows(SQLException.class, () -> run(
+        com.legend.error.AssertFailed e = assertThrows(
+                com.legend.error.AssertFailed.class, () -> run(
                 "{|assertEquals('a', ['a','b']->last())}"));
         assertTrue(e.getMessage().contains("expected: 'a'"),
                 e.getMessage());
@@ -83,7 +84,8 @@ class AssertVerdictsTest {
     void nativeAssertVerdict() throws Exception {
         assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
                 "{|assert((1 + 1) == 2)}")).value());
-        SQLException e = assertThrows(SQLException.class, () -> run(
+        com.legend.error.AssertFailed e = assertThrows(
+                com.legend.error.AssertFailed.class, () -> run(
                 "{|assert((1 + 1) == 3)}"));
         assertEquals("Assert failed", e.getMessage());
     }
@@ -95,7 +97,8 @@ class AssertVerdictsTest {
                 "{|assertInstanceOf(1 + 1, Integer)}")).value());
         assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
                 "{|assertInstanceOf(1.5, Number)}")).value());
-        SQLException e = assertThrows(SQLException.class, () -> run(
+        com.legend.error.AssertFailed e = assertThrows(
+                com.legend.error.AssertFailed.class, () -> run(
                 "{|assertInstanceOf('x', Integer)}"));
         assertTrue(e.getMessage().contains(
                 "to be an instance of Integer, actual: String"),
@@ -109,7 +112,8 @@ class AssertVerdictsTest {
                 "{|assertTdsEquivalent(#TDS\n"
                 + "  id, v\n  1, 2.00\n  2, 3.001\n#, #TDS\n"
                 + "  id, v\n  1, 2.0\n  2, 3.0\n#, 0.01)}")).value());
-        SQLException e = assertThrows(SQLException.class, () -> run(
+        com.legend.error.AssertFailed e = assertThrows(
+                com.legend.error.AssertFailed.class, () -> run(
                 "{|assertTdsEquivalent(#TDS\n  id\n  1\n#, #TDS\n"
                 + "  id\n  2\n#, 0.01)}"));
         assertTrue(e.getMessage().contains("assertTdsEquivalent"),
@@ -146,7 +150,8 @@ class AssertVerdictsTest {
         assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
                 "{|[1,2,3]->map(i|assert(['1','2','3']->contains($i->toString()),"
                 + " 'element missing'))}")).value());
-        SQLException e = assertThrows(SQLException.class, () -> run(
+        com.legend.error.AssertFailed e = assertThrows(
+                com.legend.error.AssertFailed.class, () -> run(
                 "{|[1,2,9]->map(i|assert(['1','2','3']->contains($i->toString()),"
                 + " 'element missing'))}"));
         assertEquals("element missing", e.getMessage());

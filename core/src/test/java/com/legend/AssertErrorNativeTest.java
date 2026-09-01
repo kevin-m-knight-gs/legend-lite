@@ -57,7 +57,8 @@ class AssertErrorNativeTest {
     @Test
     @DisplayName("message mismatch fails with assertError.pure:24's exact spelling")
     void messageMismatch() {
-        SQLException e = assertThrows(SQLException.class, () -> run(
+        com.legend.error.AssertFailed e = assertThrows(
+                com.legend.error.AssertFailed.class, () -> run(
                 "{|assertError(|[1,2]->at(3), 'wrong expectation')}"));
         assertEquals("Execution error message mismatch.\n"
                 + "The actual message was \"The system is trying to get an"
@@ -69,7 +70,8 @@ class AssertErrorNativeTest {
     @Test
     @DisplayName("no error is itself the failure (interpreted AssertError.java)")
     void noErrorThrown() {
-        SQLException e = assertThrows(SQLException.class, () -> run(
+        com.legend.error.AssertFailed e = assertThrows(
+                com.legend.error.AssertFailed.class, () -> run(
                 "{|assertError(|1 + 2, 'anything')}"));
         assertEquals("No error was thrown", e.getMessage());
     }
@@ -91,7 +93,8 @@ class AssertErrorNativeTest {
     @Test
     @DisplayName("line mismatch fails with assertError.pure:25's exact spelling")
     void lineMismatchSpelling() {
-        SQLException e = assertThrows(SQLException.class, () -> run(
+        com.legend.error.AssertFailed e = assertThrows(
+                com.legend.error.AssertFailed.class, () -> run(
                 "{|assertError(|[1,2]->at(3),"
                 + "'The system is trying to get an element at offset 3"
                 + " where the collection is of size 2', 42, [])}"));
@@ -102,7 +105,8 @@ class AssertErrorNativeTest {
     @Test
     @DisplayName("column mismatch fails with assertError.pure:26's exact spelling")
     void columnMismatchSpelling() {
-        SQLException e = assertThrows(SQLException.class, () -> run(
+        com.legend.error.AssertFailed e = assertThrows(
+                com.legend.error.AssertFailed.class, () -> run(
                 "{|assertError(|[1,2]->at(3),"
                 + "'The system is trying to get an element at offset 3"
                 + " where the collection is of size 2', 1, 5)}"));
@@ -134,7 +138,8 @@ class AssertErrorNativeTest {
         run("{|assertError(|date(2015, 2, 29), 'Invalid day: 2015-2-29')}");
         run("{|assertError(|date(2016, 12, 31, 24), 'Invalid hour: 24')}");
         // leap-year Feb 29 is LEGAL — no error is the assert failure
-        SQLException e = assertThrows(SQLException.class, () -> run(
+        com.legend.error.AssertFailed e = assertThrows(
+                com.legend.error.AssertFailed.class, () -> run(
                 "{|assertError(|date(2016, 2, 29), 'anything')}"));
         assertEquals("No error was thrown", e.getMessage());
     }

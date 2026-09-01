@@ -41,7 +41,7 @@ public final class TestDataGenerationNatives {
      * re-evaluation is sound). */
     public static TypedSpec foldCensus(TypedSpec stmt, ModelContext ctx,
             java.sql.Connection conn,
-            List<TypedSpec> letPrefix) throws java.sql.SQLException {
+            List<TypedSpec> letPrefix) {
         if (stmt instanceof TypedCsvCensus cc) {
             return literal(cc, ctx);
         }
@@ -50,12 +50,7 @@ public final class TestDataGenerationNatives {
             if ("seedString".equals(g.flavor())) {
                 return com.legend.compiler.spec.CsvCensusChecker
                         .literalStrings(List.of(
-                                TestDataGenerator.seedDataString(ctx,
-                                        (LambdaFunction) g.params().get(0),
-                                        ((com.legend.protocol.spec
-                                                .PackageableElementPtr)
-                                                g.params().get(1)).fullPath(),
-                                        conn)),
+                                seedStringOrDataError(ctx, g, conn)),
                                 g.info())
                         // a [1] string, not a collection — unwrap
                         .children().get(0);
@@ -180,8 +175,7 @@ public final class TestDataGenerationNatives {
      * advisory; S4 deletes that copy.) */
     private static TestDataGenerator.Result runGenerate(
             com.legend.compiler.spec.typed.TypedTestDataGen g,
-            ModelContext ctx, java.sql.Connection conn)
-            throws java.sql.SQLException {
+            ModelContext ctx, java.sql.Connection conn) {
         List<ValueSpecification> ps = g.params();
         LambdaFunction query = (LambdaFunction) ps.get(0);
         String mappingFqn = ((com.legend.protocol.spec
@@ -193,8 +187,14 @@ public final class TestDataGenerationNatives {
         for (int i = 3; i < ps.size(); i++) {
             classifyArg(ps.get(i), rowIds, dates, hash);
         }
-        return TestDataGenerator.generate(ctx, query, mappingFqn, rowIds,
-                dates[0], hash[0], conn);
+        try {
+            return TestDataGenerator.generate(ctx, query, mappingFqn,
+                    rowIds, dates[0], hash[0], conn);
+        } catch (java.sql.SQLException e) {
+            // the seam: the TDG funnel's java.sql stops at this door
+            throw new com.legend.error.DataError(
+                    String.valueOf(e.getMessage()), e);
+        }
     }
 
     /** Package-visible for the harness's DEFERRED plan-text arm (the
@@ -365,5 +365,20 @@ public final class TestDataGenerationNatives {
                 TestDataGenerator.necessaryColumns(
                         ctx, cc.query(), cc.mappingFqn()),
                 cc.info());
+    }
+    private static String seedStringOrDataError(
+            com.legend.compiler.element.ModelContext ctx,
+            com.legend.compiler.spec.typed.TypedTestDataGen g,
+            java.sql.Connection conn) {
+        try {
+            return TestDataGenerator.seedDataString(ctx,
+                    (LambdaFunction) g.params().get(0),
+                    ((com.legend.protocol.spec.PackageableElementPtr)
+                            g.params().get(1)).fullPath(), conn);
+        } catch (java.sql.SQLException e) {
+            // the seam: the TDG funnel's java.sql stops at this door
+            throw new com.legend.error.DataError(
+                    String.valueOf(e.getMessage()), e);
+        }
     }
 }

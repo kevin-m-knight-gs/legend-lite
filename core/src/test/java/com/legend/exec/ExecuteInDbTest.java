@@ -197,7 +197,7 @@ class ExecuteInDbTest {
     @Test
     @DisplayName("executeInDb: a broken statement fails loudly, never silently")
     void brokenStatementFailsLoudly() {
-        assertThrows(java.sql.SQLException.class, () -> Compiler.execute("", CONN_LET
+        assertThrows(com.legend.error.DataError.class, () -> Compiler.execute("", CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'Insert into noSuchTable (id) values (1);', $c, 0, 1000);}", conn));
     }

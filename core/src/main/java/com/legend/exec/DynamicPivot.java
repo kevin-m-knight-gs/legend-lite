@@ -39,36 +39,27 @@ public final class DynamicPivot {
 
     public static SqlQuery staticize(SqlQuery plan,
             com.legend.sql.dialect.SqlDialect dialect,
-            Connection connection) throws SQLException {
+            Connection connection) {
         if (!dialect.needsStaticPivot()) {
             return plan;
         }
-        try {
-            return new SqlRewriter() {
+        return new SqlRewriter() {
                 @Override
                 protected SqlSource source(SqlSource s) {
                     if (!(s instanceof SqlSource.Pivot p) || !p.in().isEmpty()
                             || p.on().size() != 1) {
                         return s;
                     }
-                    try {
-                        return new SqlSource.Pivot(p.source(), p.on(),
-                                discover(p, dialect, connection), p.usings(),
-                                p.alias(), p.outputs());
-                    } catch (SQLException e) {
-                        throw new Wrapped(e);
-                    }
+                    return new SqlSource.Pivot(p.source(), p.on(),
+                            discover(p, dialect, connection), p.usings(),
+                            p.alias(), p.outputs());
                 }
-            }.rewrite(plan);
-        } catch (Wrapped w) {
-            throw w.cause;
-        }
+        }.rewrite(plan);
     }
 
     /** The key's distinct non-null values, ascending, as literals. */
     private static List<SqlExpr> discover(SqlSource.Pivot p,
-            com.legend.sql.dialect.SqlDialect dialect, Connection connection)
-            throws SQLException {
+            com.legend.sql.dialect.SqlDialect dialect, Connection connection) {
         SqlExpr key = p.on().get(0);
         SqlSelect q = SqlSelect.starOf(p.source())
                 .withProjections(List.of(
@@ -118,6 +109,10 @@ public final class DynamicPivot {
                             + " has no typed literal arm");
                 });
             }
+        } catch (SQLException e) {
+            // the seam: java.sql stops at this discover boundary
+            throw new com.legend.error.DataError(
+                    String.valueOf(e.getMessage()), e);
         }
         return in;
     }
@@ -153,11 +148,4 @@ public final class DynamicPivot {
         return sb.append(v);
     }
 
-    private static final class Wrapped extends RuntimeException {
-        final SQLException cause;
-
-        Wrapped(SQLException cause) {
-            this.cause = cause;
-        }
-    }
 }

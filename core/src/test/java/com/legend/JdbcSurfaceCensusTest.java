@@ -77,22 +77,11 @@ class JdbcSurfaceCensusTest {
     private static final int FILE_FLOOR = 778;
 
     private static final Set<String> MAIN_REGISTER = new TreeSet<>(List.of(
-            // Phase 4: the assertError K-arm — catches the DATABASE-raised
-            // error (the inner body still executes in the database) and
-            // adjudicates with the pure spec's failure spellings
-            "core/src/main/java/com/legend/AssertErrorNative.java",
             // Clause 2c: the assert-family verdict arm — argument values
             // compute in the database; the SQLException surface carries
             // the verdict to the runner
             "core/src/main/java/com/legend/AssertVerdicts.java",
             "core/src/main/java/com/legend/Compiler.java",
-            "core/src/main/java/com/legend/SeedSqlForms.java",
-            // SQLTEXT slice 3a: the sql-text verdict arm — touches
-            // java.sql ONLY to raise SQLException verdicts (the
-            // AssertVerdicts fail() idiom) and to pass the env's
-            // connection through to the SqlReplayOracle SPI; it opens
-            // no connection and executes nothing itself
-            "core/src/main/java/com/legend/SqlTextVerdicts.java",
             "core/src/main/java/com/legend/StatementExecutor.java",
             "core/src/main/java/com/legend/exec/DynamicPivot.java",
             // Phase 1c: the LIMIT-0 schema probe (schema, never values;

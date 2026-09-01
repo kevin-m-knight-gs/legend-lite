@@ -141,7 +141,9 @@ final class FlipProbe {
                     listener, ReplayOracle.INSTANCE);
         } catch (com.legend.error.NotImplementedException e) {
             return "wall-exec: " + bucketOf(e.getMessage());
-        } catch (java.sql.SQLException e) {
+        } catch (com.legend.error.DataError
+                | com.legend.error.AssertFailed e) {
+            // the seam: platform failures are AssertFailed/DataError now
             raised = String.valueOf(e.getMessage());
         } catch (RuntimeException e) {
             return "wall-exec: " + e.getClass().getSimpleName() + ": "

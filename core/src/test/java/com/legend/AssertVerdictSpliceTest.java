@@ -160,7 +160,8 @@ class AssertVerdictSpliceTest {
     @Test
     @DisplayName("polarity: a failing spliced assert still fails")
     void splicedAssertKeepsPolarity() {
-        SQLException e = assertThrows(SQLException.class, () -> run(
+        com.legend.error.AssertFailed e = assertThrows(
+                com.legend.error.AssertFailed.class, () -> run(
                 "{|let result = execute(|e::Person.all()"
                 + "->filter(p|$p.age > 0), e::M, e::RT, []);"
                 + " assertEquals(['zz'],"
@@ -180,7 +181,8 @@ class AssertVerdictSpliceTest {
                 + " assertEquals([40, 30], $result.values.age);}")).value();
         assertEquals(Boolean.TRUE, v);
         // a SORTED chain pins the order — the reversed golden FAILS
-        SQLException e = assertThrows(SQLException.class, () -> run(
+        com.legend.error.AssertFailed e = assertThrows(
+                com.legend.error.AssertFailed.class, () -> run(
                 "{|let result = execute(|e::Person.all(), e::M, e::RT, []);"
                 + " assertEquals([40, 30], $result.values.age->sort());}"));
         assertTrue(String.valueOf(e.getMessage()).contains("40"),
@@ -196,7 +198,8 @@ class AssertVerdictSpliceTest {
                 + " e::Person.all()->project([p|$p.age], ['age'])"
                 + "->sort('age')->from(e::M, e::RT));}")).value();
         assertEquals(Boolean.TRUE, v);
-        SQLException e = assertThrows(SQLException.class, () -> run(
+        com.legend.error.AssertFailed e = assertThrows(
+                com.legend.error.AssertFailed.class, () -> run(
                 "{|assertEquals(#TDS\n  age\n  30\n  41\n#,"
                 + " e::Person.all()->project([p|$p.age], ['age'])"
                 + "->sort('age')->from(e::M, e::RT));}"));
@@ -222,7 +225,8 @@ class AssertVerdictSpliceTest {
                 "{|let result = execute(|e::Person.all(), e::M, e::RT, []);"
                 + " assertContains($result.values.age, 30);}")).value();
         assertEquals(Boolean.TRUE, member);
-        SQLException miss = assertThrows(SQLException.class, () -> run(
+        com.legend.error.AssertFailed miss = assertThrows(
+                com.legend.error.AssertFailed.class, () -> run(
                 "{|let result = execute(|e::Person.all(), e::M, e::RT, []);"
                 + " assertContains($result.values.age, 99);}"));
         assertTrue(String.valueOf(miss.getMessage()).contains("99"),
@@ -247,7 +251,8 @@ class AssertVerdictSpliceTest {
         assertEquals(Boolean.TRUE, swapped);
         // cross-row CELL shuffle: same loose cells, broken row
         // cohesion — must FAIL (audit 9)
-        SQLException e = assertThrows(SQLException.class, () -> run(prefix
+        com.legend.error.AssertFailed e = assertThrows(
+                com.legend.error.AssertFailed.class, () -> run(prefix
                 + " assertEquals(['p1', 40, 'p2', 30],"
                 + " $result.values.rows.values);}"));
         assertTrue(String.valueOf(e.getMessage()).contains("TDSRow.values"),
@@ -278,7 +283,8 @@ class AssertVerdictSpliceTest {
                 + " assertSameElements(['p1', 40, 'p2', 30],"
                 + " $result.values.rows.values);}")).value();
         assertEquals(Boolean.TRUE, v);
-        SQLException miss = assertThrows(SQLException.class, () -> run(
+        com.legend.error.AssertFailed miss = assertThrows(
+                com.legend.error.AssertFailed.class, () -> run(
                 "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.name, p|$p.age], ['name','age']),"
                 + " e::M, e::RT, []);"
@@ -317,7 +323,8 @@ class AssertVerdictSpliceTest {
                 + "'[{\"name\":\"p1\"},{\"name\":\"p2\"}]',"
                 + " $result.values);}")).value();
         assertEquals(Boolean.TRUE, v);
-        SQLException miss = assertThrows(SQLException.class, () -> run(
+        com.legend.error.AssertFailed miss = assertThrows(
+                com.legend.error.AssertFailed.class, () -> run(
                 "{|let result = execute(|e::Person.all()"
                 + "->graphFetch(#{e::Person{name}}#)"
                 + "->serialize(#{e::Person{name}}#), e::M, e::RT, []);"

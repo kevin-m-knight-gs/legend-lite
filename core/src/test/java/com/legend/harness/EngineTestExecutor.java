@@ -696,7 +696,9 @@ public final class EngineTestExecutor {
                                         execStmts, execVars, execChains, ctx,
                                         imports, runtimeFqn, conn));
                                 return r == null ? "" : r;   // non-List = miss
-                            } catch (java.sql.SQLException se) {
+                            } catch (java.sql.SQLException
+                                    | com.legend.error.DataError
+                                    | com.legend.error.AssertFailed se) {
                                 throw new IllegalStateException(se);
                             }
                         };
@@ -826,8 +828,10 @@ public final class EngineTestExecutor {
                             ctx, runtimeFqn, conn);
                     executed++;
                     continue;
-                } catch (java.sql.SQLException sql) {
-                    throw sql;
+                    // (the seam: platform failures are AssertFailed/
+                    // DataError — RuntimeExceptions that propagate to
+                    // the runner's scorer exactly as the old rethrown
+                    // SQLException did; the vacuous catch is gone)
                 } catch (com.legend.error.NotImplementedException e) {
                     // a VOCABULARY gap — honestly SHAPE; any OTHER
                     // RuntimeException is a real pipeline defect and must
@@ -2304,7 +2308,11 @@ public final class EngineTestExecutor {
                     evalSpliced(subst(af, lets), execStmts, execVars, ctx,
                             imports, runtimeFqn, conn);
                     return null;
-                } catch (java.sql.SQLException fail) {
+                } catch (java.sql.SQLException
+                        | com.legend.error.DataError
+                        | com.legend.error.AssertFailed fail) {
+                    // the seam: platform failures arrive as AssertFailed/
+                    // DataError now — same verdict classification
                     return "assertTestData: " + firstLine(fail.getMessage());
                 } catch (com.legend.error.NotImplementedException wall) {
                     return UNSUPPORTED_MARKER;
@@ -3577,7 +3585,11 @@ public final class EngineTestExecutor {
             }
             com.legend.exec.CanonicalDivergence.v7Verdict(form, hostPass,
                     true, "");
-        } catch (java.sql.SQLException prodFail) {
+        } catch (java.sql.SQLException
+                | com.legend.error.DataError
+                | com.legend.error.AssertFailed prodFail) {
+            // the seam: the platform's fail channel is AssertFailed/
+            // DataError now — identical prod-side classification
             if (System.getenv("LL_TMP_DEBUG") != null) {
                 System.err.println("[v7-prod-fail] " + prodFail.getMessage());
             }

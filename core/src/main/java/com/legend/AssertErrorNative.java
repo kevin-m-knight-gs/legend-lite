@@ -41,7 +41,7 @@ final class AssertErrorNative {
 
     static ExecutionResult run(TypedNativeCall ae, List<TypedSpec> letPrefix,
             SpecCompiler specs, StatementExecutor.ExecEnv env,
-            java.util.Deque<String> frames) throws java.sql.SQLException {
+            java.util.Deque<String> frames) {
         if (!(ae.args().get(0) instanceof TypedLambda f)
                 || !f.parameters().isEmpty()) {
             throw new com.legend.error.NotImplementedException(
@@ -56,13 +56,17 @@ final class AssertErrorNative {
         String expected = exp.value();
         Long expectedLine = optionalInt(ae, 2);
         Long expectedColumn = optionalInt(ae, 3);
-        java.sql.SQLException caught = null;
+        // the seam: the database's error arrives as DataError whose
+        // CAUSE is the unwrapped (Positioned when the raise was ours)
+        String caughtMessage = null;
+        Throwable caughtCause = null;
         try {
             StatementExecutor.executeStatements(f.body(),
                     new ArrayList<>(letPrefix), specs, env,
                     new java.util.ArrayDeque<>(frames));
-        } catch (java.sql.SQLException e) {
-            caught = e;
+        } catch (com.legend.error.DataError e) {
+            caughtMessage = String.valueOf(e.getMessage());
+            caughtCause = e.getCause();
         } catch (com.legend.error.ModelException e) {
             // A DEFERRED-BODY guard (the lowering's dynamic validations,
             // e.g. timeBucket's duration-unit check): interpreted pure
@@ -72,12 +76,12 @@ final class AssertErrorNative {
             // testTimeBucketSeconds/Minutes/Hours, which the engine's
             // relational executor passes the same way). Every other
             // exception kind stays LOUD — walls are never adjudicated.
-            caught = new java.sql.SQLException(e.getMessage());
+            caughtMessage = String.valueOf(e.getMessage());
         }
-        if (caught == null) {
+        if (caughtMessage == null) {
             // interpreted AssertError.java: PureAssertFail("No error was
             // thrown") — a FAIL, not an orchestration error
-            throw new java.sql.SQLException("No error was thrown");
+            throw new com.legend.error.AssertFailed("No error was thrown");
         }
         // B7 (RaisedErrors): messages arrive ALREADY clean — the
         // Executor funnel unwraps the transport envelope from
@@ -85,11 +89,11 @@ final class AssertErrorNative {
         // error keeps its class and envelope, and a mismatch against
         // pure's expectation is then an HONEST failure, never a strip
         // coincidence. The old broad prefix regex is deleted.
-        String actual = String.valueOf(caught.getMessage());
+        String actual = caughtMessage;
         if (!actual.equals(expected)) {
             // assertError.pure:24 — the /4 body's assertEquals format,
             // verbatim
-            throw new java.sql.SQLException(
+            throw new com.legend.error.AssertFailed(
                     "Execution error message mismatch.\nThe actual message"
                     + " was \"" + actual + "\"\nwhere the expected"
                     + " message was:\"" + expected + "\"");
@@ -104,21 +108,21 @@ final class AssertErrorNative {
         // interpreted si.line->toOne() on empty raises too, and a quiet
         // pass here would launder a native error's missing provenance.
         if (expectedLine != null || expectedColumn != null) {
-            if (!(caught instanceof com.legend.exec.RaisedErrors.Positioned p)) {
-                throw new java.sql.SQLException(
+            if (!(caughtCause instanceof com.legend.exec.RaisedErrors.Positioned p)) {
+                throw new com.legend.error.AssertFailed(
                         "assertError line/column: the caught error carries"
                         + " no source position (a native database error, or"
                         + " a raise emission without provenance)");
             }
             if (expectedLine != null && p.line() != expectedLine) {
                 // assertError.pure:25 — the /4 body's format, verbatim
-                throw new java.sql.SQLException(
+                throw new com.legend.error.AssertFailed(
                         "Execution error line mismatch. Actual: " + p.line()
                         + " where expected: " + expectedLine);
             }
             if (expectedColumn != null && p.column() != expectedColumn) {
                 // assertError.pure:26 — the /4 body's format, verbatim
-                throw new java.sql.SQLException(
+                throw new com.legend.error.AssertFailed(
                         "Execution error column mismatch. Actual: "
                         + p.column() + " where expected: " + expectedColumn);
             }
