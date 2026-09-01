@@ -1152,6 +1152,21 @@ attempt). Flip census: TypedMap-42 burns to zero — 32 tests flip, 10
 land on attributed next walls (stamp-invariant, mapping-resolution,
 plan-walk vocabulary, plan-text platform-fails).
 
+**§4AF UPDATE (2026-09-01, ROW-13 ADJUDICATION BURN — SQLTEXT charter
+§6.1 slice 0):** the "row-cardinality skew (distinct rows agree)"
+decline was adjudicated (no lowering bug — our SQL carries zero
+DISTINCT; the engine's default emission fans unfiltered join legs,
+7x the same pk-stamped instance for testQualifierQueryWithOr, unpinned
+by its own asserts) and the arm DELETED. Instance frames verdict via
+the graph compare's EXTENT_SUBSET golden-side pk-collapse
+(direction-safe: our side never collapses); value/tabular duplication
+differences now diverge loudly (pure preserves duplicates there).
+Lane numbers: exec-passing **1527 → 1528**, unable-to-exec **21 → 20**
+(diff-noreplay loses its skew row), text-only 44 unchanged; verdict
+roster gains golden-fanout-collapsed x1; soft-pass flags move WITH the
+test (text-rescued 900 → 901, sqldiff 13 → 12, advisory 15 → 14 — the
+same one pass re-attributed).
+
 Plain reading: an "assert execution" is one assert statement judged
 once during a full corpus sweep. Of **5,241** total:
 

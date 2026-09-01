@@ -120,7 +120,7 @@ plan PRINT joins the text census like any emission.
 | 10 | unconditional row sort | **HACK → FIX**: order-sensitivity decided STATICALLY from our typed query (pipeline ends in sort?) — ordered compares in order, unordered as multisets. Measure blast radius first via the existing LL_ORD_COUNT counter |
 | 11 | column-arity mismatch → decline | DECLINE-OK but REDUCIBLE: the extra columns are OURS (driver PKs/order keys) with provenance — project them away instead of declining |
 | 12 | golden-side all-NULL single-col row drop (value frames) | REAL, USER-RATIFIED as the observable-boundary policy (engine's own asserts are the receipts) |
-| 13 | duplication skew → decline | **ADJUDICATE — PRIORITY, user: "scary/masking bug"**: see §6.1 |
+| 13 | duplication skew → decline | **ADJUDICATED + BURNED 2026-09-01** (§6.1): no lowering bug — decline arm DELETED; instance frames verdict via the EXTENT_SUBSET golden-side pk-collapse, value/tabular duplication differences diverge loudly |
 | 14 | graph compare by label, sorted-key tupling | REAL |
 | 15 | bookkeeping-column exclusion (pk_N, u_type, from_z/thru_z/in_z/out_z, k_businessDate/k_processingDate) | REAL but pattern-based: engine's own generated spellings; keep list PINNED shrink-only |
 | 16 | graph nesting/key-skew → decline | REAL |
@@ -129,20 +129,47 @@ plan PRINT joins the text census like any emission.
 | 19 | (breadcrumb strip) | GONE — reverted with the metamodel ruling |
 | 20 | session settings + extension fns + seed ledger | REAL — this IS the oracle |
 
-### 6.1 The dedup adjudication (slice 0 — before any lane work)
+### 6.1 The dedup adjudication (slice 0 — CLOSED 2026-09-01)
 
-The engine's execute path builds ONE OBJECT PER ROW — join fan-out
-duplicates instances, no pk dedup anywhere (RelationalResult.java,
-verified 2026-08-28). OUR filter lowering dedups. Every "identical
-distinct sets, different duplication" replay result is currently a
-counted decline — which may be PARKING A REAL LOWERING BUG: on join
-fan-out our answers may have the wrong multiplicities versus pure
-semantics. Homework: census the skew declines' witnesses; for each,
-determine what real pure returns (the engine test's own asserts are
-receipts); locate where our lowering introduces DISTINCT/dedup and
-whether any is semantics-changing rather than an equivalent rewrite.
-If the bug is real it outranks everything else in this charter —
-wrong answers beat missing migrations.
+**VERDICT: no lowering bug.** Homework receipts (full sweep census +
+seed hand-count + SQL dump + pure spec):
+- Census: EXACTLY ONE skew decline corpus-wide
+  (testQualifierQueryWithOr); the pass side is skew-free by
+  construction (the compare is a sorted-list MULTISET compare —
+  duplicates count — so every row-verified pass already matched
+  duplication exactly).
+- The premise "our filter lowering dedups" was IMPRECISE: our SQL for
+  the witness contains ZERO DISTINCT (LEGEND_LITE_DUMP_SQL receipt).
+  The 1-vs-7 difference is join SHAPE — we emit the engine's OWN
+  forced BuildCorrelatedSubQuery pred-in-leg subselect form
+  (testForcedStructure.pure:60 golden, byte-similar); the engine
+  default leaves fan legs UNFILTERED with preds in WHERE, so the
+  disjunction lets the other leg roam: 4+4-1 = 7x (1,'Firm X'),
+  hand-counted from relationalSetUp.pure:1264-1270 seeds.
+- Real pure: filter is SUBSET semantics (filter.pure PCT receipts) and
+  Class.all() yields each instance once → 1x Firm X = OUR answer. The
+  engine's own asserts pin nothing (assertSize(values->at(0),1) sizes
+  one element), and the engine disagrees WITH ITSELF across isolation
+  strategies (default 1 row vs forced 4 rows on the sibling tests).
+- Dedup-site census (9 sites): all user-commanded semantics
+  (distinct/removeDuplicates/uniqueValueOnly), the row-preserving
+  ExistsJoinForm DISTINCT-keys EXISTS rewrite, pivot header
+  discovery, or compile-time name dedup. filter() lowers to
+  WHERE/HAVING/QUALIFY only.
+
+**THE FIX (landed with this record):** the skew decline arm is
+DELETED. Instance frames (graph compare) resolve duplication skew via
+a GOLDEN-SIDE-ONLY collapse of full-row duplicates (pk identity
+included), gated on the STATIC extent-subset fact of our typed query
+chain (getAll root through subset-preserving ops — the §7 doctrine
+applied to multiplicity; EngineTestExecutor.extentSubset →
+H2Verify.EXTENT_SUBSET). Direction-safe: OUR side never collapses, so
+an over-duplicating pipeline still diverges. Value/tabular frames get
+NO tolerance — pure preserves duplicates there, a count difference is
+a REAL divergence. Verdict roster: golden-fanout-collapsed. Pins
+moved with the burn: exec-passing 1527→1528, unable-to-exec 21→20,
+text-rescued ceiling 900→901 (the witness's pass trades sqldiff 13→12
++ advisory 15→14 softness for the row-verified rescue flag).
 
 ## 7. Order-sensitivity rule (ratified)
 
@@ -158,7 +185,8 @@ flip, pinned like any census.
 ## one gate chain per batch, push green; regressions → 2-bisection
 ## stop rule)
 
-0. **Dedup adjudication** (§6.1) — answers first.
+0. **Dedup adjudication** (§6.1) — CLOSED 2026-09-01, no bug; skew
+   arm burned, pk-collapse landed (pins moved with it).
 1. Oracle service extraction: one named harness service owning
    mirror+ledger+verify (today statics across Runner/H2Verify/
    RawSqlBoundary); platform SPI on ExecEnv; no behavior change,

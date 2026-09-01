@@ -849,7 +849,14 @@ public class RelationalCorpusRunner {
             // SourceTree): the hoisted-filter source-slot demand fix
             // makes the test execute; its assertSameSQL golden
             // exec-passes.
-            org.junit.jupiter.api.Assertions.assertEquals(1527,
+            // 1527 -> 1528 (row-13 adjudication burn, SQLTEXT charter
+            // §6.1 2026-09-01): the skew decline was masking NO bug —
+            // testQualifierQueryWithOr's golden fans out 7x the same
+            // pk-stamped instance (engine one-object-per-row algebra,
+            // its asserts pin nothing); the graph compare's
+            // EXTENT_SUBSET pk-collapse renders the real row verdict
+            // and the test exec-passes.
+            org.junit.jupiter.api.Assertions.assertEquals(1528,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-with-exec-passing"),
@@ -983,7 +990,13 @@ public class RelationalCorpusRunner {
             // register's own named residue (the closing-arc roster in
             // VERDICT_DISAGREEMENT_BURN_2026_08_30.md; per-reason census
             // in the sweep log).
-            org.junit.jupiter.api.Assertions.assertEquals(21,
+            // 21 -> 20 (row-13 adjudication burn 2026-09-01): the one
+            // row-cardinality-skew decline row-verifies via the
+            // EXTENT_SUBSET pk-collapse (see the exec-passing 1528
+            // note); the skew decline reason is DELETED — value/tabular
+            // duplication differences now diverge loudly (pure
+            // preserves duplicates there).
+            org.junit.jupiter.api.Assertions.assertEquals(20,
                     com.legend.exec.CanonicalDivergence
                             .v7DeclinedByReasonPrefix(
                                     "assert-sql-text-unable-to-exec"),
@@ -1374,9 +1387,16 @@ public class RelationalCorpusRunner {
                     // testUnionToUnionJoinSequenceWithMultipleChildrenIn-
                     // UnionSourceTree's assertSameSQL likewise
                     // row-verifies.
+                    // 900 -> 901 (row-13 adjudication burn 2026-09-01,
+                    // JUSTIFIED by exec-passing 1527 -> 1528 +
+                    // unable-to-exec 21 -> 20 in the same commit):
+                    // testQualifierQueryWithOr's text-divergent assert
+                    // now ROW-VERIFIES via the EXTENT_SUBSET pk-collapse
+                    // — its pass trades the sqldiff (13 -> 12) and
+                    // advisory (15 -> 14) softness for the rescue flag.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
-                            softRescued <= 900, "text-rescued passes grew: "
-                                    + softRescued + " > 900"),
+                            softRescued <= 901, "text-rescued passes grew: "
+                                    + softRescued + " > 901"),
                     // contract-program wire ratchets (RE-PINNED at the
                     // 2026-08-24 label flip: 181->114->56 and 130->13 —
                     // adopted HUGEINT labels, registered carriages, then

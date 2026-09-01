@@ -81,7 +81,15 @@ class HarnessDisciplineTest {
             // policy as rawRows — nameOrder() is now the one owner,
             // so the count STAYS 7; two-sided by construction, same
             // no-ORDER-BY compile-time gate upstream)
-            Map.entry("H2Verify.java", 7),
+            // 7 -> 8 (row-13 adjudication burn 2026-09-01, SQLTEXT
+            // charter §6.1): the graph compare's golden-side
+            // pk-collapse re-sorts the COLLAPSED golden list into the
+            // same order-insensitive row-multiset verdict (the frame
+            // side is already sorted at the main compare — two-sided
+            // by construction), gated on the COMPILE-TIME
+            // extent-subset fact of the typed query chain
+            // (EngineTestExecutor.extentSubset -> EXTENT_SUBSET).
+            Map.entry("H2Verify.java", 8),
             Map.entry("JsonAssertCanon.java", 1),
             Map.entry("LineageForm.java", 1),
             Map.entry("Runner.java", 2),

@@ -158,6 +158,19 @@ public final class H2Verify {
     public static final ThreadLocal<Boolean> FORCED_MECHANISM =
             ThreadLocal.withInitial(() -> Boolean.FALSE);
 
+    /** The verified query chain is a SUB-COLLECTION of a class extent
+     * (getAll root through subset-preserving ops — computed STATICALLY
+     * by EngineTestExecutor.extentSubset at the verify site, the §7
+     * order-policy doctrine applied to multiplicity). Pure semantics
+     * then guarantees each instance at most once, so the graph
+     * compare may collapse golden-side full-row duplicates (pk
+     * included) as the engine's join fan-out re-manufacturing the
+     * same object — row-13 adjudication, SQLTEXT charter §6.1,
+     * 2026-09-01. OUR side never collapses: an over-duplicating
+     * pipeline still diverges loudly. */
+    public static final ThreadLocal<Boolean> EXTENT_SUBSET =
+            ThreadLocal.withInitial(() -> Boolean.FALSE);
+
     public static final ThreadLocal<String> CURRENT_TEST =
             ThreadLocal.withInitial(() -> "<unattributed>");
 
@@ -619,6 +632,13 @@ public final class H2Verify {
             }
         }
         List<String> theirs = new ArrayList<>();
+        // full golden rows (EVERY column, pk identity included),
+        // parallel to {@code theirs} — the row-13 collapse's key: two
+        // rows identical INCLUDING their pk are the same instance
+        // assembled twice by join fan-out; same pk with ANY differing
+        // cell keeps both rows and stays a loud divergence
+        List<String> fullRows = new ArrayList<>();
+        boolean hasPk = false;
         List<String> dataLabels = new ArrayList<>();
         java.util.Set<String> temporal = new java.util.HashSet<>();
         try (ResultSet rs = st.executeQuery(goldenSql)) {
@@ -629,6 +649,7 @@ public final class H2Verify {
             for (int i = 1; i <= n; i++) {
                 String label = md.getColumnLabel(i);
                 if (bookkeepingAlias(label)) {
+                    hasPk |= label.matches("pk_\\d+(_\\d+)*");
                     continue;
                 }
                 dataLabels.add(label);
@@ -714,6 +735,14 @@ public final class H2Verify {
                             : dec.getOrDefault(cell, cell));
                 }
                 theirs.add(row.toString());
+                StringBuilder full = new StringBuilder();
+                for (int i = 1; i <= n; i++) {
+                    if (i > 1) {
+                        full.append('|');
+                    }
+                    full.append(norm(rs.getObject(i)));
+                }
+                fullRows.add(full.toString());
             }
             List<String> mine = new ArrayList<>();
             for (java.util.Map<String, Object> obj : objs) {
@@ -739,12 +768,39 @@ public final class H2Verify {
                 }
                 mine.add(row.toString());
             }
-            Collections.sort(theirs);
+            List<String> sortedTheirs = new ArrayList<>(theirs);
+            Collections.sort(sortedTheirs);
             Collections.sort(mine);
-            if (theirs.equals(mine)) {
+            if (sortedTheirs.equals(mine)) {
                 return null;
             }
-            return divergenceOrSkew(theirs, mine);
+            // Row-13 adjudication (SQLTEXT charter §6.1, landed
+            // 2026-09-01): on an EXTENT-SUBSET query (pure guarantees
+            // each instance at most once) whose golden carries the
+            // engine's pk identity stamp, golden rows identical across
+            // EVERY column (pk included) are one instance
+            // re-manufactured per joined row (engine default emission
+            // leaves fan legs unfiltered — testQualifierQueryWithOr:
+            // 7x (1,'Firm X') where pure answers once; its own asserts
+            // pin nothing, assertSize(values->at(0),1) sizes a single
+            // element). Collapse GOLDEN-side only, then the SAME
+            // strict multiset compare — an over-duplicating pipeline
+            // on OUR side still diverges loudly.
+            if (EXTENT_SUBSET.get() && hasPk) {
+                java.util.Set<String> seenFull = new java.util.HashSet<>();
+                List<String> collapsed = new ArrayList<>();
+                for (int i = 0; i < theirs.size(); i++) {
+                    if (seenFull.add(fullRows.get(i))) {
+                        collapsed.add(theirs.get(i));
+                    }
+                }
+                Collections.sort(collapsed);
+                if (collapsed.equals(mine)) {
+                    verdict("golden-fanout-collapsed");
+                    return null;
+                }
+            }
+            return divergence(sortedTheirs, mine);
         } catch (SQLException e) {
             throw new Unverifiable("golden execution: "
                     + e.getMessage(), e);
@@ -837,28 +893,22 @@ public final class H2Verify {
                     }
                     return null;
                 }
-                return divergenceOrSkew(theirs, mine);
+                return divergence(theirs, mine);
     }
 
-    /** The one divergence tail (both compare paths): identical DISTINCT
-     * row sets differing only in duplication mark OUR set-shaped
-     * compilation against the engine's row algebra — the engine's
-     * execute path builds ONE OBJECT PER ROW, no pk dedup anywhere
-     * (RelationalResult.java, verified 2026-08-28: zero
-     * distinct/dedup/pk sites), so join fan-out duplicates instances
-     * (7 Firm X for testQualifierQueryWithOr — its
-     * assertSize(values->at(0),1) sizes a single element and pins
-     * nothing) while our filter lowering dedups. Same engine-vs-our
-     * semantic gap as the parked Collection/Scalar lane; COUNTED
-     * decline until that adjudication, never a verdict either way. A
-     * difference in row VALUES stays the hard divergence. */
-    private static String divergenceOrSkew(List<String> theirs,
+    /** The one divergence tail (both compare paths). The old
+     * "row-cardinality skew" decline that lived here was ADJUDICATED
+     * and burned (SQLTEXT charter §6.1, 2026-09-01): our lowering
+     * introduces zero uncommanded dedup — the engine's extra rows are
+     * its one-object-per-row algebra (RelationalResult.java, zero
+     * distinct/dedup/pk sites) fanning out over unfiltered join legs,
+     * unpinned by its own asserts. Instance frames now resolve it via
+     * the graph compare's EXTENT_SUBSET pk-collapse (a real row
+     * verdict); everywhere else — value/tabular frames, where pure
+     * semantics PRESERVES duplicates — a duplication difference is a
+     * REAL divergence and fails loudly. */
+    private static String divergence(List<String> theirs,
             List<String> mine) {
-        if (new java.util.HashSet<>(theirs)
-                .equals(new java.util.HashSet<>(mine))) {
-            throw new Unverifiable(
-                    "row-cardinality skew (distinct rows agree)", null);
-        }
         return "h2-advisory divergence: golden SQL on H2 gave "
                 + theirs.size() + " row(s), our pipeline gave "
                 + mine.size() + " row(s); " + diffRows(theirs, mine);

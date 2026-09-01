@@ -1667,10 +1667,20 @@ public final class EngineTestExecutor {
                         actual, lets, execStmts, execVars, execChains, ctx,
                         imports, runtimeFqn, conn);
             }
-            return H2Verify.verifyAuto(conn,
-                    seeds, extra, golden,
-                    rows.result(), H2Verify.enumDecodeFor(rows.result(),
-                            actual, lets, execStmts, ctx, imports), enumProp);
+            // row-13 adjudication (SQLTEXT charter §6.1, 2026-09-01):
+            // the graph compare's golden-side fan-out collapse is gated
+            // on the STATIC extent-subset fact of the exec-bound query
+            // chain (the §7 order-policy doctrine applied to
+            // multiplicity) — computed here, where the chain lives
+            H2Verify.EXTENT_SUBSET.set(extentSubset(execChains.get(var)));
+            try {
+                return H2Verify.verifyAuto(conn,
+                        seeds, extra, golden,
+                        rows.result(), H2Verify.enumDecodeFor(rows.result(),
+                                actual, lets, execStmts, ctx, imports), enumProp);
+            } finally {
+                H2Verify.EXTENT_SUBSET.remove();
+            }
         } catch (java.sql.SQLException | RuntimeException e) {
             // audit (TENET V2.1): this decline was visible ONLY under
             // LL_H2_DEBUG — a row-verification opportunity silently fell
@@ -3929,6 +3939,38 @@ public final class EngineTestExecutor {
                     "filter", "select", "rename", "renameColumns", "restrict",
                     "project", "distinct" ->
                     !af.parameters().isEmpty() && endsInSort(af.parameters().get(0));
+            default -> false;
+        };
+    }
+
+    /** TRUE when an exec-bound query chain is a SUB-COLLECTION of a
+     * class extent: a {@code getAll} root reached through
+     * subset-preserving operations only. Pure's {@code filter} keeps a
+     * subset of its source (filter.pure: "filters out the ones where
+     * the applied function returns false") and {@code Class.all()}
+     * yields each instance once, so such a chain CANNOT contain the
+     * same instance twice — a golden-side full-row duplicate is then
+     * the engine re-manufacturing one object per joined row
+     * (RelationalResult builds one instance per row, zero dedup
+     * sites), the receipt {@link H2Verify#EXTENT_SUBSET}'s collapse
+     * rule requires. Anything else (map, navigation reads, unions) may
+     * duplicate legitimately in pure and gets NO collapse. The static
+     * decision mirrors {@link #endsInSort} (the order-policy twin —
+     * SQLTEXT charter §7 doctrine: decided from OUR query, never from
+     * SQL text). */
+    private static boolean extentSubset(@com.legend.Nullable ValueSpecification v) {
+        if (!(v instanceof AppliedFunction af)) {
+            return false;
+        }
+        String fn = simpleName(af.function());
+        if (fn.equals("getAll") || fn.equals("getAllVersions")) {
+            return true;
+        }
+        return switch (fn) {
+            case "filter", "sort", "sortBy", "limit", "take", "drop",
+                    "slice", "first", "last", "toOne", "from" ->
+                    !af.parameters().isEmpty()
+                            && extentSubset(af.parameters().get(0));
             default -> false;
         };
     }
