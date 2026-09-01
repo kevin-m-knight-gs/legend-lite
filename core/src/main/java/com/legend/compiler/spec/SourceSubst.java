@@ -92,22 +92,23 @@ public final class SourceSubst {
     /** The TDG data-constructor vocabulary — exactly the calls (and
      * collections of them) {@code TestDataGenerationNatives.classifyArg}
      * consumes structurally; the effectful cutover surfaced 31 walls
-     * where these reached generateTestData through lets. Simple-name
-     * matching mirrors the classifier's own vocabulary (one spelling,
-     * no twin). */
+     * where these reached generateTestData through lets. EXACT-FQN
+     * identification (the standing doctrine — a user function merely
+     * NAMED createRowIdentifier in another package must not adopt);
+     * the resolver has run by check time, so these arrive fully
+     * qualified. */
+    private static final java.util.Set<String> TDG_CTOR_FQNS = java.util.Set.of(
+            "meta::relational::testDataGeneration::createTableRowIdentifiers",
+            "meta::relational::testDataGeneration::createRowIdentifier",
+            "meta::relational::testDataGeneration::createTemporalMilestoningDates");
+
     private static boolean tdgCtorShape(ValueSpecification v) {
         if (v instanceof com.legend.protocol.spec.PureCollection pc) {
             return !pc.values().isEmpty()
                     && pc.values().stream().allMatch(SourceSubst::tdgCtorShape);
         }
-        if (v instanceof AppliedFunction af) {
-            String f = af.function();
-            String simple = f.substring(f.lastIndexOf(':') + 1);
-            return simple.equals("createTableRowIdentifiers")
-                    || simple.equals("createRowIdentifier")
-                    || simple.equals("createTemporalMilestoningDates");
-        }
-        return false;
+        return v instanceof AppliedFunction af
+                && TDG_CTOR_FQNS.contains(af.function());
     }
 
     /** The ONE let-shape recognizer (protocol encoding, not user
