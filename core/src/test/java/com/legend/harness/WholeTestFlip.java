@@ -164,8 +164,35 @@ public final class WholeTestFlip {
                 }
             }
         }
+        int executable = 0;
+        boolean printMaterial = false;
         if (asserts == 0) {
-            return fallback("assert-free", test);
+            // ASSERT-FREE bodies: running to completion IS the contract
+            // (engine parity). Countable work = non-let, non-print
+            // expression statements — the platform's print is a NO-OP
+            // whose argument never evaluates, so a print-driven body
+            // (plan-print tests) must stay on the walk, which evaluates
+            // the print material as the test's whole contract; and a
+            // lets-only body stays SHAPE ('no verifying assertions')
+            // exactly as the walk scores it.
+            for (ValueSpecification s : statements) {
+                if (!(s instanceof AppliedFunction af2)
+                        || af2.function().equals("letFunction")) {
+                    continue;
+                }
+                if (EngineTestExecutor.resolvesTo(af2, ctx,
+                        EngineTestExecutor.PRINT_FQNS)) {
+                    printMaterial = true;
+                    continue;
+                }
+                executable++;
+            }
+            if (printMaterial) {
+                return fallback("assert-free-print", test);
+            }
+            if (executable == 0) {
+                return fallback("assert-free-inert", test);
+            }
         }
         ValueSpecification resolved;
         try {
@@ -199,13 +226,15 @@ public final class WholeTestFlip {
                     + ": " + bucketOf(e.getMessage()), test);
         }
         long passes = events.stream().filter(Boolean::booleanValue).count();
-        if (passes != events.size() || events.isEmpty()) {
+        if (passes != events.size()
+                || events.isEmpty() && asserts > 0) {
             return fallback("platform-fail: verdict stream "
                     + passes + "/" + events.size(), test);
         }
         FLIPPED.incrementAndGet();
         return new EngineTestExecutor.Outcome.Ran((int) passes, 0,
-                statements.size(), List.of(), List.of());
+                asserts > 0 ? statements.size() : executable,
+                List.of(), List.of());
     }
 
     private static EngineTestExecutor.@com.legend.Nullable Outcome fallback(
