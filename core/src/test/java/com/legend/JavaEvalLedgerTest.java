@@ -500,7 +500,11 @@ class JavaEvalLedgerTest {
             // oracle; both actual spellings owned via the existing
             // findSqlRead chase). Same class: detection + sequencing +
             // judgment; the vocabulary ban binds every line.
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 344),
+            // 344 -> 354 (§8.3e hardening): recognized-but-
+            // underivable SQL shapes WALL counted instead of falling
+            // through to a generic TEXT verdict (the charter's one
+            // forbidden outcome) — guard growth, zero evaluation.
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 354),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

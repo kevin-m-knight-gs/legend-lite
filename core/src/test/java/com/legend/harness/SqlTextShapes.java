@@ -135,16 +135,18 @@ public final class SqlTextShapes {
             if (EngineTestExecutor.resolvesTo(af, ctx, java.util.Set.of(
                     "meta::relational::functions::asserts::assertSameSQL"))
                     && af.parameters().size() == 2) {
-                ValueSpecification g = af.parameters().get(0);
-                ValueSpecification r = af.parameters().get(1);
-                boolean goldenLit = TestDataGenForm.foldString(
-                        EngineTestExecutor.substitute(g, lets)) != null;
-                ValueSpecification rs =
-                        EngineTestExecutor.substitute(r, lets);
+                // §8.3e: the foldable-golden requirement DROPPED — the
+                // arm EVALUATES the golden side (computed goldens run
+                // as ordinary string code); admission needs only the
+                // executed-frame actual. The arm now WALLS counted on
+                // recognized-but-underivable shapes, so a widened
+                // admission cannot leak a sql assert to a text verdict.
+                ValueSpecification rs = EngineTestExecutor.substitute(
+                        af.parameters().get(1), lets);
                 boolean frameArg = rs instanceof
                         com.legend.protocol.spec.Variable
                         || EngineTestExecutor.containsExecute(rs);
-                if (goldenLit && frameArg) {
+                if (frameArg) {
                     return "assertsamesql-simple";
                 }
             }
@@ -155,16 +157,13 @@ public final class SqlTextShapes {
                     "meta::relational::functions::sqlQueryToString::h2"
                             + "::assertEqualsH2Compatible"))
                     && af.parameters().size() == 3) {
-                boolean g0 = TestDataGenForm.foldString(EngineTestExecutor
-                        .substitute(af.parameters().get(0), lets)) != null;
-                boolean g1 = TestDataGenForm.foldString(EngineTestExecutor
-                        .substitute(af.parameters().get(1), lets)) != null;
+                // §8.3e: same widening — the arm evaluates goldens
                 ValueSpecification rs = EngineTestExecutor.substitute(
                         af.parameters().get(2), lets);
                 boolean frameArg = rs instanceof
                         com.legend.protocol.spec.Variable
                         || EngineTestExecutor.containsExecute(rs);
-                if (g0 && g1 && frameArg) {
+                if (frameArg) {
                     return "h2compat-simple";
                 }
             }

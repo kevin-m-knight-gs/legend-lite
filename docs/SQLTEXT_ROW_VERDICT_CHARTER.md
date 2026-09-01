@@ -385,6 +385,21 @@ legitimate forever.
    Residual walls surfaced by flip attempts, counted where they
    belong: 43 join-condition-whole-variable + 6 HN-vocabulary
    (compiler gaps, feature-leg lanes), 1 store-resolution residue.
+   **3e LANDED 2026-09-01 (conformance hardening, zero census
+   movement).** The root arms now WALL COUNTED on
+   recognized-but-underivable SQL shapes (a Result-typed actual on a
+   sql-assert form whose leg cannot derive) instead of falling
+   through to the generic path's TEXT verdict — the charter's one
+   forbidden outcome is now mechanically unreachable. Admission
+   dropped the foldable-golden requirement (the arms EVALUATE
+   goldens; computed goldens are ordinary string code). Net flips:
+   ZERO — the remaining 118 text-policy adjudicated by ROSTER as:
+   ~35 executionPlan PLAN-TEXT tests (the §5 plan-replayer cohort,
+   slice 4 BY DESIGN — no executed frame exists), the TDG
+   assertSqlEquals family (TDG-refereed, excluded by design),
+   ~24 other-producer + ~20 multi-statement/mixed residue (named,
+   counted). The sql-text EXECUTED-FRAME migration is COMPLETE:
+   every assert over an executed frame's SQL judges on rows.
 4. Plan replayer (§5) + plan-text flips; branch-forcing.
 5. Inventory upgrades as their own commits: #3 ULP probe/upgrade,
    #4 TIMESTAMP_NS leg, #11 projection, #1 sentinel.

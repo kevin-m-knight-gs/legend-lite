@@ -150,15 +150,25 @@ final class SqlTextVerdicts {
         }
         TypedSpec strip = com.legend.compiler.spec.VerdictQueries
                 .sqlStripRead(resultArg, env.ctx());
+        // §8.3e hardening: from here the SQL shape is RECOGNIZED (a
+        // Result-typed actual on the sql-assert form) — an underivable
+        // leg WALLS counted instead of falling through to the generic
+        // path, which would judge a sql assert by TEXT (the charter's
+        // one forbidden outcome). Same for the golden/ours evaluation.
         if (strip == null) {
-            return null;
+            throw new com.legend.error.NotImplementedException(
+                    "sql-text assertSameSQL: Result actual is not a"
+                            + " mintable frame read");
         }
         String golden = scalarString(StatementExecutor.evalValue(
                 goldenSide, letPrefix, specs, env, null, false, hook));
         String ours = scalarString(StatementExecutor.evalValue(
                 strip, letPrefix, specs, env, null, false, hook));
         if (golden == null || ours == null) {
-            return null;
+            throw new com.legend.error.NotImplementedException(
+                    "sql-text assertSameSQL: " + (golden == null
+                            ? "golden side" : "actual side")
+                            + " did not evaluate to a string");
         }
         SqlTextEmission.armFired();
         boolean textEqual = golden.equals(ours);
@@ -212,8 +222,14 @@ final class SqlTextVerdicts {
         } else {
             TypedSpec strip = com.legend.compiler.spec.VerdictQueries
                     .sqlStripRead(actualSide, env.ctx());
+            // §8.3e hardening: Result-typed actual = the SQL shape is
+            // recognized — underivable legs WALL counted (a null
+            // fallthrough would inline getH2Versions' store read and
+            // wall anyway, but with an unattributable reason)
             if (strip == null) {
-                return null;
+                throw new com.legend.error.NotImplementedException(
+                        "sql-text assertEqualsH2Compatible: Result"
+                                + " actual is not a mintable frame read");
             }
             oursExpr = strip;
             resultArg = actualSide;
@@ -223,7 +239,10 @@ final class SqlTextVerdicts {
         String ours = scalarString(StatementExecutor.evalValue(
                 oursExpr, letPrefix, specs, env, null, false, hook));
         if (golden == null || ours == null) {
-            return null;
+            throw new com.legend.error.NotImplementedException(
+                    "sql-text assertEqualsH2Compatible: " + (golden == null
+                            ? "golden side" : "actual side")
+                            + " did not evaluate to a string");
         }
         SqlTextEmission.armFired();
         boolean textEqual = golden.equals(ours);
