@@ -325,7 +325,7 @@ public final class EngineTestExecutor {
     /** Does the expression read any of the given variables? (No shadow
      * tracking — execute bindings are never usefully shadowed, and
      * over-forwarding a statement prefix is safe.) */
-    private static boolean referencesAny(ValueSpecification v,
+    static boolean referencesAny(ValueSpecification v,
             java.util.Set<String> names) {
         return switch (v) {
             case Variable var -> names.contains(var.name());

@@ -176,3 +176,32 @@ coarse — a per-assert gate is the refinement that recovers most of the
   ceiling 63 — one more proven-all-NULL column, same shape-driven
   ceiling. Both re-pin WITH the default-on batch, not before.
 - Remaining before default-on: item 3 (per-assert text gating).
+
+## DEFAULT-ON (2026-08-31): the whole-test flip is the primary lane
+
+417 tests score from the platform's assert verdicts on every sweep;
+2,156 fallbacks each carry a counted reason, pinned as THE MIGRATION
+RATCHET (fallbacks shrink-only <= 2,156, flipped grows-only >= 417;
+runner lane guards). Scoreboard byte-identical through the flip; text
+lanes (1527/44/21), dual-channel disagree=0 and sql-verdict disagree=0
+all unmoved; the two shape-driven ceilings re-pinned with witnesses
+(transport 27->36 VARCHAR equal-pairs, int-null 63->64).
+
+Findings that settled the gate items:
+- Item 3 (per-assert text gating) MEASURED AT ZERO GAIN: on this
+  corpus, text producers are always consumed by asserts — kept for
+  precision, but 417 is the honest day-one cohort. The 687-417 gap is
+  strict-passing text asserts (whose walk outcomes carry text-lane
+  softness the flip must not erase), assert-free 73, seeds.
+- The grid-canon 13 do NOT block default-on (measured, after a wrong
+  alarm both ways): their refusal rows feed the R1 ceiling census
+  (25 <= 27) and ulp-policy — never the exact-zero pins. Their class
+  is FLOAT-NOISE (host lattice ULP-tolerant vs byte-exact canon,
+  e.g. 6.84 vs 6.840000000000002) — the V8/X6 2-ULP program's
+  territory; they sit in platform-fail fallback rows until it lands.
+
+Burn lanes, by measured size: text-policy 1,545 (owned by item 4
+byte-parity; report if it stalls — user ruling), wall-type ~430,
+wall-exec ~330 (no-scalar-lowering + uninlined + TypedMap),
+assert-free 73, effectful 65, platform-fail (TDSNull membership 5 +
+grid-canon 13 + tail), seed-softened. Each burn ratchets the pin.

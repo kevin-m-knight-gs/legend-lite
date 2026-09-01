@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *     grid-canon renders — see charter slice 3 notes).</li>
  * </ul>
  */
-final class WholeTestFlip {
+public final class WholeTestFlip {
 
     private WholeTestFlip() {
     }
@@ -53,6 +53,15 @@ final class WholeTestFlip {
     private static final Map<String, String> WITNESSES =
             new ConcurrentHashMap<>();
     private static final AtomicLong FLIPPED = new AtomicLong();
+
+    /** Runner-pin accessors (the shrink-only migration ratchet). */
+    public static long flippedCount() {
+        return FLIPPED.get();
+    }
+
+    public static long fallbackCount() {
+        return BUCKETS.values().stream().mapToLong(AtomicLong::get).sum();
+    }
 
     static {
         if (enabled()) {
@@ -84,7 +93,11 @@ final class WholeTestFlip {
     }
 
     private static boolean enabled() {
-        return System.getProperty("ll.wholetest.flip.score") != null;
+        // DEFAULT-ON (2026-08-31, after the gate items burned/attributed:
+        // untyped=0, counter moves witnessed as the guards' own
+        // shape-driven doctrine classes, text/dual-channel pins
+        // byte-identical under the flagged sweep). Opt-out for A/B.
+        return System.getProperty("ll.wholetest.flip.score.off") == null;
     }
 
     /** Non-null = the platform ran and scored the whole test; null =
@@ -118,20 +131,37 @@ final class WholeTestFlip {
                 || seedFailures != null && !seedFailures.isEmpty()) {
             return fallback("seed-softened", test);
         }
+        // PER-ASSERT text gating (item 3): only asserts that JUDGE text
+        // route the test to the walk's rescue policy — matching the
+        // walk's own recognizer (a golden-SQL read anywhere in the
+        // ASSERT's expression, incl. through a let-bound producer:
+        // taint flows let-to-let in statement order). A producer that
+        // feeds prints or nothing does not exclude the test.
         int asserts = 0;
+        java.util.Set<String> tainted = new java.util.LinkedHashSet<>();
         for (ValueSpecification s : statements) {
-            if (s instanceof AppliedFunction af) {
+            if (s instanceof AppliedFunction let
+                    && let.function().equals("letFunction")
+                    && let.parameters().size() == 2
+                    && let.parameters().get(0)
+                            instanceof com.legend.protocol.spec.CString ln) {
+                ValueSpecification rhs = let.parameters().get(1);
+                if (EngineTestExecutor.containsSqlProducer(rhs, ctx)
+                        || EngineTestExecutor.referencesAny(rhs, tainted)) {
+                    tainted.add(ln.value());
+                }
+                continue;
+            }
+            if (s instanceof AppliedFunction af
+                    && EngineTestExecutor.resolvesTo(af, ctx,
+                            EngineTestExecutor.ASSERT_FORM_FQNS)) {
+                asserts++;
                 if (EngineTestExecutor.resolvesTo(af, ctx,
                         EngineTestExecutor.SQL_ASSERT_FORM_FQNS)
-                        || EngineTestExecutor.containsSqlProducer(s, ctx)) {
+                        || EngineTestExecutor.containsSqlProducer(s, ctx)
+                        || EngineTestExecutor.referencesAny(s, tainted)) {
                     return fallback("text-policy", test);
                 }
-                if (EngineTestExecutor.resolvesTo(af, ctx,
-                        EngineTestExecutor.ASSERT_FORM_FQNS)) {
-                    asserts++;
-                }
-            } else if (EngineTestExecutor.containsSqlProducer(s, ctx)) {
-                return fallback("text-policy", test);
             }
         }
         if (asserts == 0) {

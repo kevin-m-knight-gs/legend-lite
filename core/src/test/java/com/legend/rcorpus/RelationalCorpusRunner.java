@@ -855,6 +855,21 @@ public class RelationalCorpusRunner {
                                     "assert-sql-text-with-exec-passing"),
                     "lane guard: assert-sql-text-with-exec-passing moved —"
                             + " update the charter §8.0 scope table");
+            // THE WHOLE-TEST MIGRATION RATCHET (harness-deletion item 1,
+            // default-on 2026-08-31): flipped tests score from the
+            // platform's assert verdicts; every fallback carries a
+            // counted reason (target/wholetest-flip-fallbacks.txt).
+            // Fallbacks only SHRINK (each burn moves tests to the
+            // platform); flipped only GROWS. The walk deletes at
+            // fallbacks=0 (charter: WHOLETEST_COMPILATION_CHARTER.md).
+            org.junit.jupiter.api.Assertions.assertTrue(
+                    com.legend.harness.WholeTestFlip.fallbackCount() <= 2156
+                            && com.legend.harness.WholeTestFlip
+                                    .flippedCount() >= 417,
+                    "whole-test migration ratchet moved backwards: flipped="
+                            + com.legend.harness.WholeTestFlip.flippedCount()
+                            + " fallbacks="
+                            + com.legend.harness.WholeTestFlip.fallbackCount());
             // (TDG S3 rows are unable-to-exec, NOT text-only — user
             // catch: our fetch SQL EXECUTED and its data row-verified)
             // (B1 plan-producer classification was BUILT, MEASURED and
@@ -1409,9 +1424,14 @@ public class RelationalCorpusRunner {
                     // nullability across the union node, so the six
                     // slots land here (equal-pair plumbing) and their
                     // wire rows move diverge -> tolerated.
+                    // 27 -> 36 (whole-test flip default-on): the +9 are
+                    // VARCHAR<-VARCHAR equal-pair slots (witness
+                    // testSimpleDistinct id := id) — this guard's own
+                    // "grows with query shape only" class; whole-body
+                    // plans carry extra pass-through projections.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .toleratedTransportedCount() <= 27,
+                                    .toleratedTransportedCount() <= 36,
                             "tolerance-transport slots grew: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
@@ -1434,9 +1454,12 @@ public class RelationalCorpusRunner {
                     // in diverge (EQUALITY-0 above) instead. Ceiling —
                     // grows only with all-NULL result columns (query
                     // shape), ratchet down as shapes burn.
+                    // 63 -> 64 (whole-test flip default-on): one more
+                    // proven-all-NULL result column — this ceiling's own
+                    // query-shape class.
                     () -> org.junit.jupiter.api.Assertions.assertTrue(
                             com.legend.exec.SqlTypeCensus
-                                    .wireIntOrNullEmptyCount() <= 63,
+                                    .wireIntOrNullEmptyCount() <= 64,
                             "proven-empty int-or-null columns grew: "
                                     + com.legend.exec.SqlTypeCensus
                                             .summary()),
