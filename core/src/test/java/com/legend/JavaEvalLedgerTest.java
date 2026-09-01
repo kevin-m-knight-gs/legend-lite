@@ -373,7 +373,10 @@ class JavaEvalLedgerTest {
             // five-line dispatch hook handing the sql-text shape to
             // SqlTextVerdicts (its own ledger row below) — routing
             // only, no evaluation, no judgment change for other arms.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1441),
+            // 1441 -> 1450 (charter §8.3d): the dual-golden root
+            // dispatch hook (9 lines — exact-FQN match + hand-off to
+            // the arm, the assertSameSQL hook's sibling).
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1450),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -491,7 +494,13 @@ class JavaEvalLedgerTest {
             // judgment; both texts, our rows and the golden replay all
             // compute in the database. The judgment-only vocabulary
             // ban (verdictFilesJudgeOnly) still binds every line.
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 293),
+            // 293 -> 344 (charter §8.3d): the dual-golden arm
+            // (tryArmH2Compat — replays the UPGRADED golden, the same
+            // choice the engine's own version dispatch makes on our
+            // oracle; both actual spellings owned via the existing
+            // findSqlRead chase). Same class: detection + sequencing +
+            // judgment; the vocabulary ban binds every line.
+            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 344),
             // NEW (same audit): the structural tree walker — replaces the
             // harness's private copy; verification CONSUMES two produced
             // sides, never produces a result

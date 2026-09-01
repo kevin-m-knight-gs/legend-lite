@@ -118,6 +118,16 @@ final class AssertVerdicts {
                 return sv;
             }
         }
+        // §8.3d — the dual-golden sibling (same root-arm discipline)
+        if (fqn.equals("meta::relational::functions::sqlQueryToString"
+                + "::h2::assertEqualsH2Compatible")
+                && bare instanceof TypedUserCall hroot) {
+            ExecutionResult hv = SqlTextVerdicts.tryArmH2Compat(hroot,
+                    letPrefix, specs, env, hook);
+            if (hv != null) {
+                return hv;
+            }
+        }
         // THE GRID VERDICT (Clause 2c — TdsCompare's chartered route;
         // witness: the relation suite's 79 assertTdsEquivalent rows):
         // both relations execute IN THE DATABASE, the cell-zip

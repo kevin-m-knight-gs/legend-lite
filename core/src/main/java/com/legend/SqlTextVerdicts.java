@@ -175,6 +175,71 @@ final class SqlTextVerdicts {
                 null, null, letPrefix, specs, env, hook);
     }
 
+    /** SQLTEXT charter §8.3d — the DUAL-GOLDEN arm:
+     * {@code assertEqualsH2Compatible(legacy, upgraded, $result)}
+     * (h2Extension.pure:29 — the engine's own body picks ONE golden by
+     * H2 version: legacy on 1.4.200, upgraded otherwise). Our oracle
+     * session IS the upgraded H2 (the W10 4.138.2 pin), so the arm
+     * replays the UPGRADED golden — the same choice the engine's own
+     * dispatch makes on this oracle; the legacy golden is engine
+     * H2-1.4.200 residue with no reference database on our stack
+     * (inventory row 17). Rows judge; text vs the upgraded golden is
+     * the census. Null = not the simple shape. */
+    static @com.legend.Nullable ExecutionResult tryArmH2Compat(
+            com.legend.compiler.spec.typed.TypedUserCall root,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            StatementExecutor.ExecEnv env,
+            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
+        if (root.args().size() != 3) {
+            return null;
+        }
+        TypedSpec goldenSide = root.args().get(1);
+        TypedSpec actualSide = root.args().get(2);
+        // Two corpus spellings: a bare Result (the minted strip reads
+        // it) or the test's OWN sqlRemoveFormatting($result) String —
+        // the exec-sql-read chase finds the frame behind the read.
+        TypedSpec oursExpr;
+        TypedSpec resultArg;
+        if (actualSide.info().type()
+                == com.legend.compiler.element.type.Type.Primitive.STRING) {
+            com.legend.compiler.spec.typed.TypedUserCall read =
+                    findSqlRead(actualSide, letPrefix);
+            if (read == null) {
+                return null;
+            }
+            oursExpr = actualSide;
+            resultArg = read.args().get(0);
+        } else {
+            TypedSpec strip = com.legend.compiler.spec.VerdictQueries
+                    .sqlStripRead(actualSide, env.ctx());
+            if (strip == null) {
+                return null;
+            }
+            oursExpr = strip;
+            resultArg = actualSide;
+        }
+        String golden = scalarString(StatementExecutor.evalValue(
+                goldenSide, letPrefix, specs, env, null, false, hook));
+        String ours = scalarString(StatementExecutor.evalValue(
+                oursExpr, letPrefix, specs, env, null, false, hook));
+        if (golden == null || ours == null) {
+            return null;
+        }
+        SqlTextEmission.armFired();
+        boolean textEqual = golden.equals(ours);
+        SqlReplayOracle oracle = env.replayOracle();
+        if (oracle == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "sql-text assert verdict needs a replay oracle and"
+                            + " none is registered on this env (correct"
+                            + " outside tests: there are no goldens)");
+        }
+        return rowsLegAndVerdict("assertEqualsH2Compatible", golden, ours,
+                textEqual, oracle, com.legend.compiler.spec.VerdictQueries
+                        .valuesRead(resultArg),
+                null, null, letPrefix, specs, env, hook);
+    }
+
     /** SQLTEXT charter §8.3c — the EXEC-SQL-READ arm (the ~700-test
      * cohort): {@code assertEquals(golden, sqlRemoveFormatting($res))}
      * where the test's OWN code reads the SQL out of an executed

@@ -70,11 +70,13 @@ public final class SqlTextShapes {
         TreeMap<String, Integer> shapes = classify(statements, ctx);
         boolean anySql = shapes.containsKey("tosqlstring-simple")
                 || shapes.containsKey("assertsamesql-simple")
-                || shapes.containsKey("execsqlread-simple");
+                || shapes.containsKey("execsqlread-simple")
+                || shapes.containsKey("h2compat-simple");
         return anySql && shapes.keySet().stream().allMatch(k ->
                 k.equals("tosqlstring-simple")
                         || k.equals("assertsamesql-simple")
                         || k.equals("execsqlread-simple")
+                        || k.equals("h2compat-simple")
                         || k.equals("plain"));
     }
 
@@ -144,6 +146,26 @@ public final class SqlTextShapes {
                         || EngineTestExecutor.containsExecute(rs);
                 if (goldenLit && frameArg) {
                     return "assertsamesql-simple";
+                }
+            }
+            // §8.3d split: the dual-golden SIMPLE shape — 3 args, BOTH
+            // goldens fold to literals, actual is an executed frame.
+            // Computed-golden spellings stay assert-form (next chunk).
+            if (EngineTestExecutor.resolvesTo(af, ctx, java.util.Set.of(
+                    "meta::relational::functions::sqlQueryToString::h2"
+                            + "::assertEqualsH2Compatible"))
+                    && af.parameters().size() == 3) {
+                boolean g0 = TestDataGenForm.foldString(EngineTestExecutor
+                        .substitute(af.parameters().get(0), lets)) != null;
+                boolean g1 = TestDataGenForm.foldString(EngineTestExecutor
+                        .substitute(af.parameters().get(1), lets)) != null;
+                ValueSpecification rs = EngineTestExecutor.substitute(
+                        af.parameters().get(2), lets);
+                boolean frameArg = rs instanceof
+                        com.legend.protocol.spec.Variable
+                        || EngineTestExecutor.containsExecute(rs);
+                if (g0 && g1 && frameArg) {
+                    return "h2compat-simple";
                 }
             }
             return "assert-form";

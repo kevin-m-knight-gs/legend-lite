@@ -765,8 +765,10 @@ public class RelationalCorpusRunner {
                     // the scale — flipped tests verify via the oracle
                     // SPI (sql-verdict agree=1712, disagree=0) instead
                     // of the walk's M1 channel.
-                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 134,
-                    "M1 h2-exec verified fell below the 134 floor: "
+                    // 134 -> 85 (charter §8.3d, +199 dual-golden
+                    // flips): same oracle-SPI lane move.
+                    com.legend.harness.H2Verify.M1_VERIFIED.sum() >= 85,
+                    "M1 h2-exec verified fell below the 85 floor: "
                     + com.legend.harness.H2Verify.M1_VERIFIED.sum());
             // V7 §8.0 leg 0 — the LANE-CLASSIFICATION GUARD (charter
             // scope table, user-ratified 2026-08-28): the sql-text/TDG
@@ -936,10 +938,12 @@ public class RelationalCorpusRunner {
                     + " fallbacks="
                     + com.legend.harness.WholeTestFlip.fallbackCount()
                     + " exec-passing=" + execPassing);
-            org.junit.jupiter.api.Assertions.assertEquals(597, execPassing,
+            org.junit.jupiter.api.Assertions.assertEquals(389, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
+                    // 597 -> 389 (§8.3d): the dual-golden cohort's
+                    // asserts likewise
                     "lane guard: assert-sql-text-with-exec-passing moved —"
                             + " update the charter §8.0 scope table");
             // THE WHOLE-TEST MIGRATION RATCHET (harness-deletion item 1,
@@ -1028,10 +1032,12 @@ public class RelationalCorpusRunner {
             // 1688/885 -> 1147/1426 (charter §8.3c): the
             // execsqlread-simple cohort — 541 tests in one flip, the
             // single biggest migration of the program.
-            org.junit.jupiter.api.Assertions.assertEquals(1147L,
+            // 1147/1426 -> 948/1625 (charter §8.3d): +199
+            // dual-golden flips (both actual spellings owned).
+            org.junit.jupiter.api.Assertions.assertEquals(948L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1426L,
+            org.junit.jupiter.api.Assertions.assertEquals(1625L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -1182,8 +1188,9 @@ public class RelationalCorpusRunner {
                     // exec-sql-read migration): the same lane move as
                     // M1_VERIFIED 373 -> 134 — rescued verifies now
                     // ride the oracle SPI's row verdicts.
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 405,
-                    "M1 h2-exec rescued fell below the 405 floor: "
+                    // 405 -> 246 (§8.3d): the dual-golden lane move.
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 246,
+                    "M1 h2-exec rescued fell below the 246 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,

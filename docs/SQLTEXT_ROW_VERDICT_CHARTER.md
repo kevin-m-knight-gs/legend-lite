@@ -366,6 +366,25 @@ legitimate forever.
    declined forms (multi-statement reads, non-literal goldens); then
    the compiler-wall buckets (~600: HN vocabulary, scalar-lowering
    overloads, unported natives) as named feature legs.
+   **3d LANDED 2026-09-01 (the h2compat-simple cohort — the
+   dual-golden family, +199 flips, ratchet EXACT 948/1625).** Arm
+   tryArmH2Compat: the engine's own body (h2Extension.pure:29) picks
+   ONE golden by H2 version — legacy on 1.4.200, upgraded otherwise;
+   our oracle IS the upgraded H2 (W10 4.138.2 pin), so the arm
+   replays the UPGRADED golden, the same choice the engine's own
+   dispatch makes on this oracle. Both actual spellings owned: bare
+   Result (minted strip) and the test's own
+   sqlRemoveFormatting($result) String (the findSqlRead chase) — the
+   first cut missed the String spelling and 200 admitted tests walled
+   on "store resolution left user call uninlined" (the platform
+   cannot inline getH2Versions' store read; counted, then owned).
+   Lane moves attributed in-pin: exec-passing 597 -> 389, M1 floors
+   134 -> 85 / 405 -> 246. Canon disagree UNCHANGED at EXACT 21 —
+   zero new divergences from the whole cohort; sql-verdict disagree=0
+   held; paired sweeps byte-identical. text-policy 386 -> 118.
+   Residual walls surfaced by flip attempts, counted where they
+   belong: 43 join-condition-whole-variable + 6 HN-vocabulary
+   (compiler gaps, feature-leg lanes), 1 store-resolution residue.
 4. Plan replayer (§5) + plan-text flips; branch-forcing.
 5. Inventory upgrades as their own commits: #3 ULP probe/upgrade,
    #4 TIMESTAMP_NS leg, #11 projection, #1 sentinel.
