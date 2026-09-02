@@ -3288,7 +3288,7 @@ public final class StoreResolver {
             return new NestedScope(new Substitution.Registries(Map.of(),
                     Set.of(), Map.of(), Map.of(), Map.of(), isNotEmptyCallee(),
                     equalCallee(), List.of(), inCallee(), boolCallee("and"),
-                    boolCallee("or")), targetPipe, row);
+                    boolCallee("or"), failCallee()), targetPipe, row);
         }
         return new NestedScope(
                 new Substitution.Registries(nestedAssocs, Set.of(), nested,
@@ -3358,7 +3358,8 @@ public final class StoreResolver {
                         aggReads, inQueryReads, isNotEmptyCallee(), equalCallee(),
                         RelationalRootForm.primaryKeyColumns(cs.classFqn(),
                                 m.pipeline(), cs.mappingFqn(), ctx),
-                        inCallee(), boolCallee("and"), boolCallee("or")),
+                        inCallee(), boolCallee("and"), boolCallee("or"),
+                        failCallee()),
                 new Substitution.TemporalView(temporal.root().legacyDates(),
                         temporal.headTemporalDates(), temporal.root(),
                         temporal.forEachDateColumn()),
@@ -3367,6 +3368,16 @@ public final class StoreResolver {
 
     private com.legend.compiler.element.TypedFunction boolCallee(String n2) {
         return ctx.findFunction("meta::pure::functions::boolean::" + n2).get(0);
+    }
+
+    /** The 1-arg fail overload — the RAISE arm of run-time branch choice
+     * over a discriminated row (a match no arm accepts, a cast the row's
+     * run-time type does not satisfy: pure raises, so does the SQL). */
+    private com.legend.compiler.element.TypedFunction failCallee() {
+        return ctx.findFunction("meta::pure::functions::asserts::fail")
+                .stream().filter(f -> f.parameters().size() == 1)
+                .findFirst().orElseThrow(() -> new IllegalStateException(
+                        "resolver bug: no fail(String) registration"));
     }
 
     /** The 2-arg in overload — the objectReferenceIn pk membership. */

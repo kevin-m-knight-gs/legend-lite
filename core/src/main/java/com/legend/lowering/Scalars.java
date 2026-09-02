@@ -218,6 +218,22 @@ final class Scalars {
                                     new SqlExpr.BoolLit(false)))
                     : new SqlExpr.Call(SqlFn.OR, args));
         }
+        // fail([message]) RAISES (real pure: assert(false, message)) — the
+        // per-row raise arm of run-time branch choice over a discriminated
+        // row (Substitution.raise) and any user-spelled fail in a query.
+        // A raise standing in a VALUE position (Substitution.raise types
+        // the call as the position) casts to that carrier — the CASE
+        // keeps its type by construction, not by a dialect's inference.
+        for (String f : Pure.nativeKeysAt("fail")) {
+            RULES.put(f, (n, args) -> {
+                SqlExpr raised = PureSql.raise(args.isEmpty()
+                        ? new SqlExpr.StringLit("fail") : args.get(0), n.pos());
+                return n.info().type() instanceof Type.Primitive p
+                        && p != Type.Primitive.BOOLEAN
+                        ? new SqlExpr.Cast(raised, PureSql.type(p))
+                        : raised;
+            });
+        }
         // not(equal)/not(in) carry the engine's NULL ARMS (dbExtension.pure
         // processNotEqual/processNotIn): pure `x != v` MATCHES null x (eq
         // over empty is false) — bare SQL <> silently drops null rows

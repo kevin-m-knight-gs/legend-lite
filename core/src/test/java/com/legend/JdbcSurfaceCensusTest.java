@@ -374,6 +374,10 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/resolver/ResolveUnionMultiHopProbeTest.java",
             "core/src/test/java/com/legend/resolver/ResolveUnionOuterDateProbeTest.java",
             "core/src/test/java/com/legend/resolver/ResolveUnionTest.java",
+            // run-time branch choice on the row's type column (metamodel
+            // step 2): rows are the verdict for match/instanceOf/cast
+            // over a user inheritance mapping — the SQL must execute
+            "core/src/test/java/com/legend/resolver/RuntimeTypeDispatchTest.java",
             "core/src/test/java/com/legend/sql/DuckDbValidityTest.java",
             "core/src/test/java/com/legend/sql/dialect/CarrierDifferentialTest.java",
             // GrammarFunctions_PCT REMOVED 2026-08-23 (F13b(a)): its only

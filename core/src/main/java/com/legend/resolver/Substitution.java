@@ -85,7 +85,23 @@ final class Substitution {
                       List<String> pkColumns,
                       @com.legend.Nullable TypedFunction inCallee,
                       @com.legend.Nullable TypedFunction andCallee,
-                      @com.legend.Nullable TypedFunction orCallee) {
+                      @com.legend.Nullable TypedFunction orCallee,
+                      @com.legend.Nullable TypedFunction failCallee) {
+
+        Registries(Map<String, AssocSub> assocs, Set<String> assocEnds,
+                   Map<String, ExistsSub> existsSubs,
+                   Map<TypedSpec, AggRead> aggReads,
+                   Map<TypedSpec, InQueryRead> inQueryReads,
+                   @com.legend.Nullable TypedFunction isNotEmptyCallee,
+                   @com.legend.Nullable TypedFunction equalCallee,
+                   List<String> pkColumns,
+                   @com.legend.Nullable TypedFunction inCallee,
+                   @com.legend.Nullable TypedFunction andCallee,
+                   @com.legend.Nullable TypedFunction orCallee) {
+            this(assocs, assocEnds, existsSubs, aggReads, inQueryReads,
+                    isNotEmptyCallee, equalCallee, pkColumns, inCallee,
+                    andCallee, orCallee, null);
+        }
 
         Registries(Map<String, AssocSub> assocs, Set<String> assocEnds,
                    Map<String, ExistsSub> existsSubs,
@@ -871,6 +887,10 @@ final class Substitution {
      * the walk continues (their original fall-through). Order within
      * is load-bearing. */
     private @com.legend.Nullable TypedSpec rewriteCallArms(TypedSpec n) {
+        TypedSpec typeDispatch = typeDispatchArms(n);
+        if (typeDispatch != null) {
+            return typeDispatch;
+        }
         if (n instanceof TypedNativeCall call && !call.args().isEmpty()) {
             List<String> headPath = pathOf(call.args().get(0), target.userVar());
             // exists over an EMBEDDED (same-row) head whose predicate reads
@@ -1685,7 +1705,9 @@ final class Substitution {
                         r.andCallee() != null ? r.andCallee()
                                 : target.regs().andCallee(),
                         r.orCallee() != null ? r.orCallee()
-                                : target.regs().orCallee());
+                                : target.regs().orCallee(),
+                        r.failCallee() != null ? r.failCallee()
+                                : target.regs().failCallee());
     }
 
     private com.legend.compiler.element.TypedFunction eqCallee() {
@@ -1941,6 +1963,212 @@ final class Substitution {
                                         ? shape.substring(0, 220) + "…" : shape));
             }
         };
+    }
+
+    // ------------------------------------------------------------------
+    // RUN-TIME BRANCH CHOICE ON THE ROW'S TYPE COLUMN (metamodel program
+    // step 2, 2026-09-02). A union/inheritance row carries, per subtype
+    // the mapping can name, thread-local columns (ClassMapping
+    // .subTypeColumn) and — when membership is PARTIAL — a witness
+    // column ($member: TRUE in conforming threads, NULL elsewhere). That
+    // witness IS the row's type column for that subtype, so the three
+    // pure type-dispatch forms over the instance variable lower to SQL
+    // without a host call frame:
+    //   $p->instanceOf(Sub)            → isNotEmpty(witness(Sub))
+    //   $p->match([s:Sub[1]|v, …])     → if(witness(Sub1), v1, if(…, raise))
+    //   $p->cast(@Sub).prop            → if(witness(Sub), stc read, raise)
+    // TOTAL membership (no witness on the row) means every row conforms:
+    // instanceOf is true, the arm is the catch-all, the cast is a plain
+    // read. A subtype the row carries no columns for stays LOUD — never a
+    // guessed boolean. Value arms only: an arm returning rows (a union of
+    // per-kind extents) is a later step. Pure raises when no arm accepts
+    // the value / the cast fails — so does the SQL (fail → ERROR).
+    // ------------------------------------------------------------------
+
+    static final String INSTANCE_OF_FQN = "meta::pure::functions::meta::instanceOf";
+    private static final String ANY_FQN = "meta::pure::metamodel::type::Any";
+
+    /** The three dispatch forms over the instance variable; null when
+     * {@code n} is none of them (the walk continues). */
+    private @com.legend.Nullable TypedSpec typeDispatchArms(TypedSpec n) {
+        return switch (n) {
+            // $p->cast(@Sub).prop
+            case TypedPropertyAccess pa
+                    when pa.source() instanceof TypedCast hc
+                    && hc.source() instanceof TypedVariable hv
+                    && hv.name().equals(target.userVar())
+                    && hc.target() instanceof Type.ClassType hct ->
+                    castLeafRead(hct.fqn(), hc.source(), pa);
+            // $p->match([s:Sub[1]|…, …]) — value arms
+            case com.legend.compiler.spec.typed.TypedMatchRuntime mr
+                    when mr.input() instanceof TypedVariable mv
+                    && mv.name().equals(target.userVar()) ->
+                    discriminatedMatch(mr);
+            // $p->instanceOf(Sub)
+            case TypedNativeCall c
+                    when c.callee().qualifiedName().equals(INSTANCE_OF_FQN)
+                    && c.args().size() == 2
+                    && c.args().get(0) instanceof TypedVariable iv
+                    && iv.name().equals(target.userVar()) ->
+                    instanceOfHead(c);
+            default -> null;
+        };
+    }
+
+    /** The class a type-valued argument names: {@code @X} (TypedTypeRef)
+     * or a bare class reference (TypedPackageableRef); null otherwise. */
+    static @com.legend.Nullable String typeTargetFqn(TypedSpec typeArg) {
+        return switch (typeArg) {
+            case com.legend.compiler.spec.typed.TypedTypeRef tr ->
+                    tr.target() instanceof Type.ClassType c ? c.fqn() : null;
+            case com.legend.compiler.spec.typed.TypedPackageableRef pr ->
+                    pr.fullPath();
+            default -> null;
+        };
+    }
+
+    /** The row's subtype binding table for {@code fqn}, or a loud wall. */
+    private AssocSub subtypeTable(String fqn, String form) {
+        AssocSub sub = target.assocs().get(SUBTYPE_KEY + fqn);
+        if (sub == null) {
+            throw new NotImplementedException(form + " over a row of "
+                    + target.classFqn() + ": the row carries no columns of '"
+                    + fqn + "' (not a mapped subtype on this row) — the"
+                    + " run-time type is undecidable here");
+        }
+        return sub;
+    }
+
+    /** Whether every row conforms to {@code fqn} (no membership witness). */
+    private static boolean totalMembership(AssocSub sub) {
+        return !sub.targetBindings().containsKey(
+                com.legend.model.ClassMapping.memberWitness());
+    }
+
+    /** {@code isNotEmpty(witness(fqn))} — the row's type test. */
+    private TypedSpec witnessTest(String fqn) {
+        return new TypedNativeCall(neCallee(),
+                List.of(assocLeaf(SUBTYPE_KEY + fqn,
+                        com.legend.model.ClassMapping.memberWitness())),
+                new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE));
+    }
+
+    /** {@code fail(message)} standing in a VALUE position: pure raises
+     * here and so does the SQL. The node carries the position's type
+     * ({@code as}) — a raise has no value of its own, and the scalar
+     * rule casts the ERROR call to that carrier so the CASE keeps its
+     * type on every dialect. */
+    private TypedSpec raise(String message, ExprType as) {
+        TypedFunction fail = target.regs().failCallee();
+        if (fail == null) {
+            throw new NotImplementedException("run-time type dispatch in a"
+                    + " scope without a fail callee (nested registries)");
+        }
+        return new TypedNativeCall(fail, List.of(new TypedCString(
+                message, new ExprType(Type.Primitive.STRING,
+                        Multiplicity.Bounded.ONE))), as);
+    }
+
+    private TypedSpec instanceOfHead(TypedNativeCall c) {
+        String fqn = typeTargetFqn(c.args().get(1));
+        if (fqn == null) {
+            throw new NotImplementedException("instanceOf with a non-literal"
+                    + " type argument over a mapped row");
+        }
+        if (fqn.equals(ANY_FQN) || fqn.equals(target.classFqn())) {
+            return new TypedCBoolean(true, c.info());
+        }
+        AssocSub sub = subtypeTable(fqn, "instanceOf(" + fqn + ")");
+        return totalMembership(sub)
+                ? new TypedCBoolean(true, c.info())
+                : witnessTest(fqn);
+    }
+
+    private TypedSpec castLeafRead(String fqn, TypedSpec head,
+            TypedPropertyAccess pa) {
+        if (fqn.equals(ANY_FQN) || fqn.equals(target.classFqn())) {
+            // identity cast: the plain read
+            return rewrite(new TypedPropertyAccess(head, pa.property(),
+                    pa.info()));
+        }
+        AssocSub sub = subtypeTable(fqn, "cast(@" + fqn + ")");
+        TypedSpec leaf = assocLeaf(SUBTYPE_KEY + fqn, pa.property());
+        if (totalMembership(sub)) {
+            return leaf;
+        }
+        return new TypedIf(witnessTest(fqn), leaf,
+                Optional.of(raise("Cast exception: " + target.classFqn()
+                        + " cannot be cast to " + fqn, pa.info())),
+                pa.info());
+    }
+
+    private TypedSpec discriminatedMatch(
+            com.legend.compiler.spec.typed.TypedMatchRuntime mr) {
+        if (mr.extra().isPresent()) {
+            throw new NotImplementedException("match with an extra argument"
+                    + " over a mapped row is not supported yet");
+        }
+        List<TypedSpec> conds = new ArrayList<>();
+        List<TypedSpec> bodies = new ArrayList<>();
+        TypedSpec elseArm = null;
+        for (var arm : mr.arms()) {
+            if (arm.body().info().type() instanceof Type.ClassType
+                    || Type.isRelation(arm.body().info().type())) {
+                throw new NotImplementedException("match arm '" + arm.typeFqn()
+                        + "' over a mapped row returns rows — only VALUE arms"
+                        + " lower today (a union of per-kind extents is a"
+                        + " later step)");
+            }
+            if (arm.typeFqn().equals(ANY_FQN)
+                    || arm.typeFqn().equals(target.classFqn())) {
+                // catch-all: the parameter IS the instance
+                elseArm = rewrite(inlineParam(arm.body(), arm.param(),
+                        mr.input()));
+                break;
+            }
+            AssocSub sub = subtypeTable(arm.typeFqn(),
+                    "match arm '" + arm.typeFqn() + "'");
+            TypedSpec body = rewrite(armParamReads(arm.body(), arm.param(),
+                    arm.typeFqn()));
+            if (totalMembership(sub)) {
+                elseArm = body;   // every row conforms: unconditional arm
+                break;
+            }
+            conds.add(witnessTest(arm.typeFqn()));
+            bodies.add(body);
+        }
+        if (elseArm == null) {
+            elseArm = raise("Match failure: no arm of ["
+                    + mr.arms().stream().map(a -> a.typeFqn())
+                            .collect(java.util.stream.Collectors.joining(", "))
+                    + "] accepts the row's run-time type", mr.info());
+        }
+        TypedSpec out = elseArm;
+        for (int i = conds.size() - 1; i >= 0; i--) {
+            out = new TypedIf(conds.get(i), bodies.get(i), Optional.of(out),
+                    mr.info());
+        }
+        return out;
+    }
+
+    /** An arm body with {@code $param.prop} reads served off the subtype's
+     * binding table (the narrowed row); any other use of the parameter —
+     * a navigation through it, the bare value — stays loud. */
+    private TypedSpec armParamReads(TypedSpec n, String param, String fqn) {
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v
+                && v.name().equals(param)) {
+            return assocLeaf(SUBTYPE_KEY + fqn, pa.property());
+        }
+        if (n instanceof TypedVariable v && v.name().equals(param)) {
+            throw new NotImplementedException("match arm parameter '$" + param
+                    + "' (" + fqn + ") used other than as a direct property"
+                    + " read (navigation / whole value) is not supported yet");
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(param)) {
+            return n;   // shadowed
+        }
+        return n.mapChildren(k -> armParamReads(k, param, fqn));
     }
 
     /** Leaf read through a filter on the INSTANCE itself (engine golden

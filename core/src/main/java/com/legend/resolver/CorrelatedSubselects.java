@@ -1818,7 +1818,13 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         }
     }
 
-    /** Class targets of subType calls over a variable, anywhere in the chain. */
+    /** Class targets of subType calls over a variable, anywhere in the
+     * chain — plus the RUN-TIME BRANCH CHOICE shapes over a variable
+     * (match arms, instanceOf targets, cast targets), which the
+     * substitution serves off the same subtype binding tables
+     * (Substitution.discriminatedMatch / instanceOfHead / castLeafRead).
+     * Over-collection is harmless: registration only lands where the row
+     * carries the subtype's columns. */
     private static void collectSubTypeFqns(TypedSpec n, Set<String> out) {
         if (n instanceof TypedNativeCall nc
                 && nc.callee().qualifiedName()
@@ -1827,6 +1833,27 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                 && nc.args().get(0) instanceof TypedVariable
                 && nc.info().type() instanceof Type.ClassType ct) {
             out.add(ct.fqn());
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedMatchRuntime mr
+                && mr.input() instanceof TypedVariable) {
+            for (var arm : mr.arms()) {
+                out.add(arm.typeFqn());
+            }
+        }
+        if (n instanceof TypedNativeCall io
+                && io.callee().qualifiedName()
+                        .equals(Substitution.INSTANCE_OF_FQN)
+                && io.args().size() == 2
+                && io.args().get(0) instanceof TypedVariable) {
+            String t = Substitution.typeTargetFqn(io.args().get(1));
+            if (t != null) {
+                out.add(t);
+            }
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedCast tc
+                && tc.source() instanceof TypedVariable
+                && tc.target() instanceof Type.ClassType cct) {
+            out.add(cct.fqn());
         }
         for (TypedSpec c : n.children()) {
             collectSubTypeFqns(c, out);

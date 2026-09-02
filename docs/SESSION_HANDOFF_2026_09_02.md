@@ -347,6 +347,28 @@ tests/mapping/inheritance or extends uses `->match` — grep confirmed), plus
 the metamodel navigations themselves (`mainTable` = match Table/View). Row-
 returning arms (UNION of arms) are step 4's problem, not this one's.
 
+**Step 2 LANDED (2026-09-02).** Placement differs from the sketch above,
+on evidence: the dispatch happens in the RESOLVER's class-lambda
+substitution (`Substitution.typeDispatchArms`), not the Lowerer — the
+union/inheritance row already carries the discriminator as the
+`$member` membership witness (`ClassMapping.memberWitness`, NULL in
+non-conforming threads) and per-subtype `stc_` columns registered under
+`SUBTYPE_KEY`; `MatchFold`/`instanceOfFold` never see a head-variable
+dispatch any more. Forms: `$p->instanceOf(Sub)` → `isNotEmpty(witness)`;
+`$p->match([s:Sub[1]|v,…])` → nested `if` over witnesses, catch-all arm
+(`Any` / the input's class / a TOTAL-membership subtype) as the ELSE,
+otherwise ELSE = `fail('Match failure …')`; `$p->cast(@Sub).prop` →
+`if(witness, stc read, fail('Cast exception …'))`. `fail` gained its
+scalar lowering (`ERROR(...)`, cast to the position's carrier — no
+dialect inference). A subtype the row carries no columns for is LOUD.
+Witness: `RuntimeTypeDispatchTest` (8 cases, rows are the verdict, an
+ordinary user inheritance mapping). Corpus: byte-identical rosters,
+848/1725 unchanged (no corpus test dispatches on a union row).
+`collectSubTypeFqns` now also demands match-arm / instanceOf / cast
+targets. Residue named: row-returning arms (step 4), navigation through
+an arm parameter (`$c.mechanic.name`), a match `extra` argument,
+supertype arms other than `Any`/the input's class.
+
 **Step 3 — prototype 1, testMainTableForB1 (one session).** Witness:
 `tests/mapping/extend/testExtendsForMainTable.pure` (`B1Mapping->classMappingById('b1')->cast(@RootRelationalInstanceSetImplementation)->map(x|$x->mainTable())` equals the super mapping's). Pieces:
 - Seed tables, grown from `SystemMetamodel.java` (its `SOURCE` is the Pure
