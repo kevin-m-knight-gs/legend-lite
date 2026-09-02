@@ -754,8 +754,34 @@ public final class Pipelines {
                 yield new TypedDistinct(src,
                         List.of(), new ExprType(Type.relation(row), Multiplicity.Bounded.ONE));
             }
+            // a resolver-synth JOIN above the slots (a nested scope's
+            // association material joined onto the row-defining pipe): the
+            // LEFT side carries the slots; the right is a self-contained
+            // target pipeline. Condition reads of converted slots re-point
+            // like a join slot's; the schema keeps the join's own right
+            // columns after the walked left row.
+            case TypedJoin j when containsSlot(j.left())
+                    || !navSteps(j.left()).isEmpty() ->
+                    walkJoinAboveSlots(j, demanded, demandedNavs, targets,
+                            prefixes, stripped, classFqn);
+            // ROW-SET wrappers a below-op splice leaves above the slots
+            // (first()/take → limit, drop, slice): the source materializes
+            // beneath them unchanged — they read no column
+            case TypedLimit l -> new TypedLimit(
+                    walk(l.source(), demanded, demandedNavs, targets,
+                            prefixes, stripped, classFqn), l.count(), l.info());
+            case com.legend.compiler.spec.typed.TypedDrop d -> walkRowSetWrapper(
+                    d, demanded, demandedNavs, targets, prefixes, stripped, classFqn);
+            case com.legend.compiler.spec.typed.TypedSlice sl -> walkRowSetWrapper(
+                    sl, demanded, demandedNavs, targets, prefixes, stripped, classFqn);
+            // a sort key reads the row like a filter predicate: converted
+            // slot reads re-point to their prefixed columns, stripped
+            // ones stay the loud wall
+            case com.legend.compiler.spec.typed.TypedSortBy sb ->
+                    walkSortBy(sb, demanded, demandedNavs, targets, prefixes,
+                            stripped, classFqn);
             default -> {
-                if (containsSlot(n)) {
+                if (containsSlot(n) || !navSteps(n).isEmpty()) {
                     throw new NotImplementedException("mapping pipeline for '"
                             + classFqn + "' has " + n.getClass().getSimpleName()
                             + " above join slot(s); H3-pending");
@@ -763,6 +789,89 @@ public final class Pipelines {
                 yield n;
             }
         };
+    }
+
+    /** drop/slice above the slots: the source materializes beneath. */
+    private static TypedSpec walkRowSetWrapper(TypedSpec n, Set<String> demanded,
+            Set<String> demandedNavs, @com.legend.Nullable TargetResolver targets,
+            Map<String, String> prefixes, Set<String> stripped, String classFqn) {
+        return switch (n) {
+            case com.legend.compiler.spec.typed.TypedDrop d -> new com.legend
+                    .compiler.spec.typed.TypedDrop(
+                    walk(d.source(), demanded, demandedNavs, targets,
+                            prefixes, stripped, classFqn), d.count(), d.info());
+            case com.legend.compiler.spec.typed.TypedSlice sl -> new com.legend
+                    .compiler.spec.typed.TypedSlice(
+                    walk(sl.source(), demanded, demandedNavs, targets,
+                            prefixes, stripped, classFqn), sl.start(), sl.stop(),
+                    sl.info());
+            default -> throw new IllegalStateException("not a row-set wrapper: "
+                    + n.getClass().getSimpleName());
+        };
+    }
+
+    /** A resolver-synth JOIN above the slots (a nested scope's
+     * association material joined onto the row-defining pipe): the LEFT
+     * side carries the slots; the right is a self-contained target
+     * pipeline. Condition reads of converted slots re-point like a join
+     * slot's; the schema keeps the join's own right columns after the
+     * walked left row. */
+    private static TypedSpec walkJoinAboveSlots(TypedJoin j, Set<String> demanded,
+            Set<String> demandedNavs, @com.legend.Nullable TargetResolver targets,
+            Map<String, String> prefixes, Set<String> stripped, String classFqn) {
+        int oldLeft = Type.requireRelationSchema(j.left().info().type())
+                .columns().size();
+        TypedSpec left = walk(j.left(), demanded, demandedNavs, targets,
+                prefixes, stripped, classFqn);
+        TypedLambda condLam = j.condition();
+        String leftParam = condLam.parameters().get(0);
+        TypedLambda cond = new TypedLambda(condLam.parameters(),
+                condLam.body().stream().map(b -> rewriteRowReads(
+                        b, leftParam, prefixes, stripped,
+                        UnaryOperator.identity())).toList(),
+                condLam.info());
+        List<Type.Column> old = Type.requireRelationSchema(j.info().type())
+                .columns();
+        List<Type.Column> cols = new ArrayList<>(
+                Type.requireRelationSchema(left.info().type()).columns());
+        cols.addAll(old.subList(oldLeft, old.size()));
+        return new TypedJoin(left, j.right(), j.kind(), cond, j.prefix(),
+                j.frameName(),
+                new ExprType(Type.relation(new Type.RelationType(cols)),
+                        Multiplicity.Bounded.ONE),
+                false /* resolver-synth */);
+    }
+
+    /** A sort key reads the row like a filter predicate: converted slot
+     * reads re-point to their prefixed columns, stripped ones stay the
+     * loud wall. */
+    private static TypedSpec walkSortBy(com.legend.compiler.spec.typed.TypedSortBy sb,
+            Set<String> demanded, Set<String> demandedNavs,
+            @com.legend.Nullable TargetResolver targets,
+            Map<String, String> prefixes, Set<String> stripped, String classFqn) {
+        TypedSpec src = walk(sb.source(), demanded, demandedNavs,
+                targets, prefixes, stripped, classFqn);
+        String rv = sb.key().parameters().get(0);
+        boolean readsStripped = false;
+        boolean readsConverted = false;
+        for (TypedSpec b : sb.key().body()) {
+            readsStripped |= referencesAliasOn(b, rv, stripped);
+            readsConverted |= referencesAliasOn(b, rv, prefixes.keySet());
+        }
+        if (readsStripped) {
+            throw new NotImplementedException("sort key over '"
+                    + classFqn + "' reads through a stripped join slot");
+        }
+        TypedLambda key = sb.key();
+        if (readsConverted) {
+            key = new TypedLambda(key.parameters(),
+                    key.body().stream().map(b -> rewriteRowReads(
+                            b, rv, prefixes, stripped,
+                            UnaryOperator.identity())).toList(),
+                    key.info());
+        }
+        return new com.legend.compiler.spec.typed.TypedSortBy(src, key, sb.ascending(), sb.keyAlias(),
+                src.info());
     }
 
     /**

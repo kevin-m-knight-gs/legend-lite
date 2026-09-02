@@ -381,6 +381,10 @@ class JdbcSurfaceCensusTest {
             // step 2): rows are the verdict for match/instanceOf/cast
             // over a user inheritance mapping — the SQL must execute
             "core/src/test/java/com/legend/resolver/RuntimeTypeDispatchTest.java",
+            // navigation-depth leg (2026-09-02): 3-4 hop chains through
+            // associations, slots and inheritance execute e2e — the ROWS
+            // the database returns are the verdict (tenet #1)
+            "core/src/test/java/com/legend/resolver/NavigationDepthTest.java",
             "core/src/test/java/com/legend/sql/DuckDbValidityTest.java",
             "core/src/test/java/com/legend/sql/dialect/CarrierDifferentialTest.java",
             // GrammarFunctions_PCT REMOVED 2026-08-23 (F13b(a)): its only

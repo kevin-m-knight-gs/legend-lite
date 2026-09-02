@@ -33,8 +33,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * key; {@code elementToPath} on rows and references; association ends
  * declared on a superclass mapped on a subclass's set.
  *
- * <p>The named residue (the witness {@code testMainTableForB1} itself):
- * see {@link #witnessResidueIsNamed}.
+ * <p>The witness {@code testMainTableForB1} itself lands in
+ * {@link #witnessMainTableForB1} (the navigation-depth leg, 2026-09-02).
  */
 @DisplayName("Metamodel store: the mapping metamodel as relations")
 class MetamodelMappingStoreTest {
@@ -150,18 +150,18 @@ class MetamodelMappingStoreTest {
     }
 
     @Test
-    @DisplayName("RESIDUE (named): the witness testMainTableForB1 composes four navigation hops — the third hop after two association hops is not resolvable yet")
-    void witnessResidueIsNamed() {
+    @DisplayName("THE WITNESS testMainTableForB1: two mappings' main tables compared as rows in the database")
+    void witnessMainTableForB1() throws SQLException {
         String witness = "{| let mainTable = ext::B1Mapping->" + BY_ID
                 + "('b1')->cast(@" + ROOT_SET + ")->map(x|$x->" + MAIN_TABLE + "());"
                 + " let superMappingMainTable = ext::AMapping->" + BY_ID
                 + "('a')->cast(@" + ROOT_SET + ")->map(x|$x->" + MAIN_TABLE + "());"
                 + " assertEquals($superMappingMainTable, $mainTable); }";
-        RuntimeException e = assertThrows(RuntimeException.class,
-                () -> run(witness));
-        assertTrue(e.getMessage().contains("not supported yet")
-                        || e.getMessage().contains("is not mapped in mapping"),
-                "the residue must stay LOUD and named: " + e.getMessage());
+        var r = run(witness);
+        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) r).value());
+        // the main-table instances themselves, as rows
+        assertEquals(List.of("ABC"), values("ext::C1Mapping->" + BY_ID
+                + "('c1')->cast(@" + ROOT_SET + ")->map(x|$x->" + MAIN_TABLE + "()).name"));
     }
 
     @Test

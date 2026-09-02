@@ -146,7 +146,7 @@ public final class SystemMetamodel {
 
             function meta::lite::metamodel::classMappingById(_this:meta::pure::mapping::Mapping[1], id:String[1]):meta::pure::mapping::SetImplementation[0..1]
             {
-                meta::relational::mapping::RootRelationalInstanceSetImplementation.all()->filter(cm|$cm.id == $id && $cm.visibilityOf.viewer->exists(v|$v->elementToPath() == $_this->elementToPath()))->first()
+                $_this.visibility.visible.classMappings->filter(cm|$cm.id == $id)->first()
             }
 
             function meta::lite::metamodel::mainTable(_this:meta::relational::metamodel::RelationalMappingSpecification[1]):meta::relational::metamodel::relation::Table[1]

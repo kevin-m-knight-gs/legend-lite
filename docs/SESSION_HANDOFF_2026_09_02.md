@@ -497,6 +497,61 @@ platform code, zero test-specific Java; witness
    the 6 extends tests until the platform flips them — the rename above
    deletes them.
 
+**Navigation-depth leg — LANDED (batch 4, 2026-09-02).** Residue items 1
+and 2 above are closed; 3, 4, 5, 6 remain (see the list below).
+- **Mechanisms (resolver only, no dialect coupling, no test hooks)**:
+  nav TAILS ride through `flattenSource`'s association branch (the whole
+  remaining hop chain + each hop's consumed paths; provenance registered
+  as `AssocSub`/`SubNav` trees relative to the materialization's ROOT
+  target row — ONE prefix convention, `NavMaterializer.composeSubNavPrefixes`
+  / `StoreResolver.rebaseSubNavs`); `Substitution.rewriteMultiHop` gained
+  the chain-key + SubNav descent read (`chainKeySubNavRead`);
+  `ClassSource.composedPrefix` re-points a chained condition after a
+  filtered association hop; `AssociationJoins` materializes deeper tails
+  recursively through `NavMaterializer`; DOTTED emptiness registers
+  inside nested scopes exactly as at the root (`DottedExists`, extracted;
+  the path collector `EmptinessPaths` takes the terminal's lambdas at
+  the root and nothing else in a nested scope — no nullable mode flag);
+  `Pipelines.walk` (join-slot materializer) gained arms for limit / drop
+  / slice / sortBy / a resolver-synth join above the slots and its
+  default arm is LOUD on a leftover navigate (it used to pass a `first()`
+  wrapper through silently, leaving the slot unmaterialized);
+  `FlattenOps.innerizeOrNull` descends projection / limit / distinct
+  wrappers to find the nested navigate join; `AssociationSynthesis`
+  injects routed PMs only when the binding path is impossible (an
+  inheritance-mapped target end keeps its binding under a filter).
+- **classMappingById is the NATURAL body now**:
+  `$_this.visibility.visible.classMappings->filter(cm|$cm.id == $id)->first()`
+  (the elementToPath reshape is gone; `elementToPath` stays as a native
+  with its own pin). `MetamodelMappingStoreTest.witnessMainTableForB1`
+  asserts the witness verdict TRUE and the main tables as rows.
+- **Pinned**: `NavigationDepthTest` (4 cases / 22 shapes on an ordinary
+  user model: 3–4 hops, ops between hops, nested-predicate depth 2,
+  inheritance-mapped association ends) — registered in the JDBC census.
+- **DuckDB driver re-pinned 1.5.0.0 → 1.4.4.0 (root pom)**: 1.5.0
+  returns ZERO rows for `SELECT .. FROM (.. WHERE .. LIMIT 1) t WHERE
+  t.c IS NOT NULL` over a join chain — reproduced in five lines, fails
+  with the optimizer disabled too, correct on 1.4.4; upstream
+  duckdb/duckdb#21160 ("duckdb 1.5: Issues around LIMIT", open). The SQL
+  is the ordinary `first()` lowering and is legal everywhere; the corpus
+  is indifferent to the driver (identical rosters). Revisit at 1.5.1.
+- **Receipts**: ratchet 848/1725 → **847/1726** (+1:
+  `testNestedExistsWithExistsInAbstractProperty`, wall-exec "predicate
+  references column '_'" → platform pass); H2 verdict roster
+  byte-identical to the c20859da baseline; paired same-tree sweeps
+  byte-identical on all four rosters; quarantine 172/20 unchanged;
+  extends 23/23 unchanged; dual-channel 613 agree / 0 disagree;
+  exec-passing 345 unchanged; full core suite green (4378). Java-eval
+  ledger rows unchanged (the walk still scores the extends witnesses
+  under the real names — next batch).
+
+**Residue after the depth leg** (items 3–6 of the list above, unchanged):
+views as main tables; `parent` from the union side; assert failure
+MESSAGE rendering over instances; the real-name switch that deletes the
+`classMappingById`/`mainTable` walk arms and flips the four
+`testMainTableFor*` witnesses (`superMapping`, `allSuperSetImplementations`,
+`resolvePrimaryKey` stay walk arms until they get bodies).
+
 **Step 4 — prototype 2, testDynaAndOrInference** (homework §9 item 2), then
 plan-nodes-as-rows, then the tree half — each decided on its own receipt.
 

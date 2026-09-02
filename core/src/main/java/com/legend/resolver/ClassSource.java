@@ -44,7 +44,8 @@ public record ClassSource(
         Map<String, TypedSpec> bindings,
         Type.RelationType rowType,
         @com.legend.Nullable String sourceClass,
-        Map<String, String> deferredWalls) {
+        Map<String, String> deferredWalls,
+        String composedPrefix) {
 
     public ClassSource {
         bindings = Collections.unmodifiableMap(new LinkedHashMap<>(bindings));
@@ -56,9 +57,28 @@ public record ClassSource(
             @com.legend.Nullable String setId, TypedSpec pipeline,
             String rowVar, Map<String, TypedSpec> bindings,
             Type.RelationType rowType,
+            @com.legend.Nullable String sourceClass,
+            Map<String, String> deferredWalls) {
+        this(mappingFqn, classFqn, setId, pipeline, rowVar, bindings,
+                rowType, sourceClass, deferredWalls, "");
+    }
+
+    public ClassSource(String mappingFqn, String classFqn,
+            @com.legend.Nullable String setId, TypedSpec pipeline,
+            String rowVar, Map<String, TypedSpec> bindings,
+            Type.RelationType rowType,
             @com.legend.Nullable String sourceClass) {
         this(mappingFqn, classFqn, setId, pipeline, rowVar, bindings,
                 rowType, sourceClass, Map.of());
+    }
+
+    /** A FLATTENED (re-rooted) source: this class's own physical columns
+     * ride the composed row under {@code prefix} — a chained association
+     * hop's column-space condition re-points its parent reads through it
+     * (the depth leg, 2026-09-02). Empty on a root source. */
+    public ClassSource withComposedPrefix(String prefix) {
+        return new ClassSource(mappingFqn, classFqn, setId, pipeline, rowVar,
+                bindings, rowType, sourceClass, deferredWalls, prefix);
     }
 
     /** A binding whose M2M composition walled PER KEY (ledger cluster

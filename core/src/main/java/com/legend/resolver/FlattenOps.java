@@ -173,6 +173,32 @@ final class FlattenOps {
         return heads;
     }
 
+    /** The FULL consumed paths of the ops/top above a hop (heads are
+     * {@link #downstreamHeads}): a hop materializing its target's
+     * navigate slots as tails needs the whole path so a slot-of-slot
+     * read composes (the depth leg, 2026-09-02). */
+    static java.util.Set<List<String>> downstreamPaths(List<TypedSpec> ops,
+            @com.legend.Nullable TypedSpec top) {
+        java.util.Set<List<String>> paths = new java.util.LinkedHashSet<>();
+        collectLambdaPaths(ops == null ? List.of() : ops, paths);
+        if (top != null) {
+            collectLambdaPaths(List.of(top), paths);
+        }
+        return paths;
+    }
+
+    private static void collectLambdaPaths(List<TypedSpec> nodes,
+            java.util.Set<List<String>> out) {
+        for (TypedSpec n : nodes) {
+            if (n instanceof TypedLambda lam && !lam.parameters().isEmpty()) {
+                for (TypedSpec b : lam.body()) {
+                    StoreResolver.consumedPaths(b, lam.parameters().get(0), out);
+                }
+            }
+            collectLambdaPaths(n.children(), out);
+        }
+    }
+
     private static void collectLambdaHeads(List<TypedSpec> nodes,
             java.util.Set<String> out) {
         for (TypedSpec n : nodes) {
@@ -235,6 +261,24 @@ final class FlattenOps {
             TypedSpec src = innerizeOrNull(f.source(), prefix, acc);
             return src == null ? null
                     : new TypedFilter(src, f.predicate(), f.info());
+        }
+        // SOURCE-preserving wrappers a materialized nav target may sit
+        // under (the projection subselect a nested slot materializes as,
+        // a below-op limit/distinct): the join lives beneath them
+        if (pipe instanceof com.legend.compiler.spec.typed.TypedProject p) {
+            TypedSpec src = innerizeOrNull(p.source(), prefix, acc);
+            return src == null ? null : new com.legend.compiler.spec.typed
+                    .TypedProject(src, p.columns(), p.info(), p.wireForm());
+        }
+        if (pipe instanceof com.legend.compiler.spec.typed.TypedLimit l) {
+            TypedSpec src = innerizeOrNull(l.source(), prefix, acc);
+            return src == null ? null : new com.legend.compiler.spec.typed
+                    .TypedLimit(src, l.count(), l.info());
+        }
+        if (pipe instanceof com.legend.compiler.spec.typed.TypedDistinct d) {
+            TypedSpec src = innerizeOrNull(d.source(), prefix, acc);
+            return src == null ? null : new com.legend.compiler.spec.typed
+                    .TypedDistinct(src, d.columns(), d.info());
         }
         return null;
     }

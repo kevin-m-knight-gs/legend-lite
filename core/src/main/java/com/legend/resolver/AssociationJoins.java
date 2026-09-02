@@ -871,6 +871,16 @@ final class AssociationJoins {
         return java.util.Optional.empty();
     }
 
+    /** The recursive nav materializer (set once by the resolver after
+     * construction — it needs THIS instance): a tail continuing through a
+     * target's navigate slot materializes that slot's target too, at any
+     * depth (the depth leg, 2026-09-02). */
+    private @com.legend.Nullable NavMaterializer navMaterializer;
+
+    void setNavMaterializer(NavMaterializer nm) {
+        this.navMaterializer = nm;
+    }
+
     /** The class an ASSOCIATION end named {@code prop} on {@code classFqn}
      * navigates to, if an association realizes it (the assoc-sub probe —
      * union V3). */
@@ -949,7 +959,7 @@ final class AssociationJoins {
     /** The class a hop lands on: a declared class-typed property, or an
      * association end (the walk's own dispatch — findProperty alone
      * misses association-declared ends). */
-    private @com.legend.Nullable String hopTargetClass(String clsFqn, String prop) {
+    @com.legend.Nullable String hopTargetClass(String clsFqn, String prop) {
         if (clsFqn == null) {
             return null;
         }
@@ -1031,6 +1041,9 @@ final class AssociationJoins {
         var tNavSteps3 = Pipelines.navSteps(target.pipeline());
         Set<String> tNavDemand3 = new LinkedHashSet<>();
         Map<String, String> tailNavAliases = new java.util.LinkedHashMap<>();
+        // the tails PAST each demanded nav slot: materialized recursively
+        // (NavMaterializer) so a leaf N hops deep rides composed prefixes
+        Map<String, List<List<String>>> subTailsByAlias = new java.util.LinkedHashMap<>();
         for (List<String> tail : navTails) {
             String seg0 = tail.get(0);
             TypedSpec b3 = target.bindings().get(SyntheticHeads.realHead(seg0));
@@ -1040,6 +1053,10 @@ final class AssociationJoins {
             if (al3 != null) {
                 tNavDemand3.add(al3);
                 tailNavAliases.put(seg0, al3);
+                if (tail.size() > 1) {
+                    subTailsByAlias.computeIfAbsent(al3, k -> new java.util.ArrayList<>())
+                            .add(tail.subList(1, tail.size()));
+                }
             }
         }
         // EARLY predicate scan (before materialization): the association
@@ -1056,15 +1073,29 @@ final class AssociationJoins {
                 tNavDemand3, nestedAssocReads);
         targetDemand = Pipelines.closeOverConditions(
                 target.pipeline(), targetDemand);
+        Map<String, NavMaterializer.NavMat> tailMats = new java.util.LinkedHashMap<>();
+        final String chainKey0 = chainKey;
         Pipelines.Materialized tMat0 = tNavDemand3.isEmpty()
                 ? Pipelines.materialize(
                         target.pipeline(), targetDemand, target.classFqn())
                 : Pipelines.materialize(
                         target.pipeline(), targetDemand, tNavDemand3,
                         target.classFqn(),
-                        (aln, tcn) -> Pipelines.materialize(
-                                sources.get(cs.mappingFqn(), tcn).pipeline(),
-                                java.util.Set.of(), tcn).pipeline());
+                        (aln, tcn) -> {
+                            List<List<String>> deeper = subTailsByAlias.get(aln);
+                            if (deeper != null && navMaterializer != null) {
+                                NavMaterializer.NavMat nm = navMaterializer
+                                        .navTargetMaterialized(temporal,
+                                                cs.mappingFqn(), tcn, deeper,
+                                                chainKey0 + "." + aln,
+                                                TemporalContext.NONE);
+                                tailMats.put(aln, nm);
+                                return nm.pipeline();
+                            }
+                            return Pipelines.materialize(
+                                    sources.get(cs.mappingFqn(), tcn).pipeline(),
+                                    java.util.Set.of(), tcn).pipeline();
+                        });
         TypedSpec basePipe = temporal.temporalTargetPipe(cs, target, chainKey,
                 temporal.applyJoinTemporalFilters(tMat0.pipeline(), target,
                         Map.of()));
@@ -1165,8 +1196,31 @@ final class AssociationJoins {
                 continue;
             }
             ClassSource sub3 = sources.get(cs.mappingFqn(), stg3.classFqn());
+            NavMaterializer.NavMat deeper = tailMats.get(tne.getValue());
+            Map<String, TypedSpec> subBindings = sub3.bindings();
+            if (deeper != null && !deeper.slotPrefixes().isEmpty()) {
+                // the sub-target's own slot-backed leaves flatten onto its
+                // materialized row (its nav slots ride the SubNav children)
+                Map<String, String> slotOnly3 = new java.util.LinkedHashMap<>(
+                        deeper.slotPrefixes());
+                slotOnly3.keySet().removeAll(deeper.subNavs().keySet());
+                Map<String, TypedSpec> rebound = new java.util.LinkedHashMap<>();
+                for (var be : sub3.bindings().entrySet()) {
+                    TypedSpec bv = be.getValue();
+                    if (!slotOnly3.isEmpty()
+                            && !(Pipelines.unwrapToOne(bv) instanceof com.legend.compiler.spec.typed.TypedNewInstance)) {
+                        bv = Pipelines.rewriteRowReads(bv, sub3.rowVar(),
+                                slotOnly3, Set.of(),
+                                java.util.function.UnaryOperator.identity());
+                    }
+                    rebound.put(be.getKey(), bv);
+                }
+                subBindings = rebound;
+            }
             tailSubNavs.put(tne.getKey(), new Substitution.SubNav(
-                    pfx3, sub3.rowVar(), sub3.bindings()));
+                    pfx3, sub3.rowVar(), subBindings,
+                    deeper == null ? Map.of()
+                            : NavMaterializer.composeSubNavPrefixes(pfx3, deeper.subNavs())));
         }
         return new AssocJoin(prefixFor(head, cs), target, tPipe,
                 Type.requireRelationSchema(tPipe.info().type()),

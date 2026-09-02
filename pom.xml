@@ -28,7 +28,12 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         
         <!-- Dependency versions (engine only) -->
-        <duckdb.version>1.5.0.0</duckdb.version>
+        <!-- 1.4.4.0, not 1.5.0.0: DuckDB 1.5.0 returns ZERO rows for
+             `SELECT .. FROM (.. WHERE .. LIMIT 1) t WHERE t.c IS NOT NULL`
+             over a join chain (also with the optimizer disabled; open
+             upstream report duckdb/duckdb#21160 "Issues around LIMIT").
+             Witness: NavigationDepthTest first()-then-association. -->
+        <duckdb.version>1.4.4.0</duckdb.version>
         <sqlite.version>3.47.1.0</sqlite.version>
         <junit.version>5.11.3</junit.version>
         <archunit.version>1.3.0</archunit.version>

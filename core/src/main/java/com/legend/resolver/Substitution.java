@@ -1323,6 +1323,10 @@ final class Substitution {
             if (target.assocs().containsKey(chainKey)) {
                 return assocLeaf(chainKey, path.get(path.size() - 1));
             }
+            TypedSpec subNavRead = chainKeySubNavRead(path, chainKey, n);
+            if (subNavRead != null) {
+                return subNavRead;
+            }
             // MULTI-HOP through NESTED EMBEDDED ctors ($p.firm.address.name
             // over a denormalized mapping): walk the ^Inner(...) chain to
             // the leaf expression — parent-alias reads all the way down
@@ -1411,6 +1415,70 @@ final class Substitution {
                     + (target.bindings().get(path.get(0)) == null ? "ABSENT"
                             : target.bindings().get(path.get(0))
                                     .getClass().getSimpleName()) + "]");
+    }
+
+    /** The CHAIN KEY + SUB-NAV TAIL read of {@link #rewriteMultiHop}
+     * ($a.links.rs.c.name): null when no registered chain prefix carries
+     * the tail as a SubNav descent. */
+    private @com.legend.Nullable TypedSpec chainKeySubNavRead(List<String> path,
+            String chainKey, TypedSpec n) {
+        // CHAIN KEY + SUB-NAV TAIL ($a.links.rs.c.name — the demand scan
+        // registered the association hops up to 'links.rs' and the
+        // target's own navigate slot 'c' rides that hop's SubNav): the
+        // LONGEST registered chain prefix, then the sub-nav descent —
+        // the same read the head+SubNav walk above emits (depth leg,
+        // 2026-09-02)
+        for (int len = path.size() - 2; len >= 2; len--) {
+            String ck = String.join(".", path.subList(0, len));
+            AssocSub ac = target.assocs().get(ck);
+            if (ac == null) {
+                continue;
+            }
+            SubNav sub = ac.subNavs().get(path.get(len));
+            // a SubNav tree's prefixes are COMPOSED relative to the
+            // AssocSub's target row at every depth (NavMaterializer
+            // convention): the deepest prefix is the whole path
+            int hop = len + 1;
+            while (sub != null && hop + 1 < path.size()
+                    && sub.children().containsKey(path.get(hop))) {
+                sub = java.util.Objects.requireNonNull(
+                        sub.children().get(path.get(hop)));
+                hop++;
+            }
+            if (sub == null || hop + 1 != path.size()) {
+                continue;
+            }
+            String acc = sub.prefix();
+            String leaf = path.get(path.size() - 1);
+            TypedSpec leafBinding = sub.bindings().get(leaf);
+            if (leafBinding == null) {
+                throw new MappingResolutionException("property '"
+                        + SyntheticHeads.realHead(leaf)
+                        + "' of nested navigation '" + chainKey
+                        + "' is not mapped in mapping '"
+                        + target.mappingFqn() + "'", target.classFqn());
+            }
+            TypedSpec innerC = leafBinding;
+            if (innerC instanceof TypedNativeCall cc
+                    && cc.args().size() == 1
+                    && com.legend.builtin.Pure.isToOneCall(cc.callee().qualifiedName())) {
+                innerC = cc.args().get(0);
+            }
+            String rvC = ac.readVar() != null ? ac.readVar() : target.freshRowVar();
+            Type.RelationType rrC = ac.readRowType() != null
+                    ? ac.readRowType() : target.rowType();
+            if (innerC instanceof TypedPropertyAccess paC
+                    && paC.source() instanceof TypedVariable vC
+                    && vC.name().equals(sub.rowVar())) {
+                return milestoneColumnRead(acc + paC.property(),
+                        rvC, rrC, ac.readVar() != null ? "" : ac.prefix(), n);
+            }
+            String fpC = (ac.readVar() != null ? "" : ac.prefix()) + acc;
+            return Pipelines.prefixColumns(leafBinding, sub.rowVar(), fpC,
+                    v -> new TypedVariable(rvC, new ExprType(rrC,
+                            Multiplicity.Bounded.ONE)));
+        }
+        return null;
     }
 
     /** A 1-HOP head read: bindings, generated temporal dates, honest

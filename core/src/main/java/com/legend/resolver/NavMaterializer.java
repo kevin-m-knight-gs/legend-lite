@@ -783,7 +783,7 @@ final class NavMaterializer {
     /** Re-root a child's SUB-navigation tree onto the parent row: every
      * prefix (relative to the child's row) gains the child's own join
      * prefix, recursively — composition is mechanical (b_ + c_ + pk). */
-    private static Map<String, Substitution.SubNav> composeSubNavPrefixes(
+    static Map<String, Substitution.SubNav> composeSubNavPrefixes(
             String p, Map<String, Substitution.SubNav> kids) {
         if (kids.isEmpty()) {
             return kids;

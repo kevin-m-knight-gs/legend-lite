@@ -1156,10 +1156,24 @@ public class RelationalCorpusRunner {
             // the arm replays on the mirror, the attempt then fails on
             // the text contract, rollback detaches the ahead-running
             // mirror — failure-path hygiene by design.
-            org.junit.jupiter.api.Assertions.assertEquals(848L,
+            // 848/1725 -> 847/1726 (navigation-depth leg, 2026-09-02):
+            // DOTTED emptiness ($x.a.b->exists(...)) now registers inside
+            // NESTED scopes exactly as at the root (DottedExists — a
+            // scope is a scope), the materializer walks limit/sort/join
+            // wrappers above navigate slots, and nav tails ride through
+            // the association branch of flattenSource. +1 flip:
+            // testNestedExistsWithExistsInAbstractProperty (was wall-exec
+            // "exists/forAll predicate references column '_'"). H2
+            // verdict roster byte-identical, exec-passing unchanged,
+            // paired sweeps byte-identical on all four rosters;
+            // quarantine 172/20 and extends 23/23 unchanged. DuckDB
+            // driver re-pinned 1.5.0.0 -> 1.4.4.0 in the same batch
+            // (upstream LIMIT-in-derived-table defect, root pom): the
+            // corpus is INDIFFERENT to it (same rosters).
+            org.junit.jupiter.api.Assertions.assertEquals(847L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1725L,
+            org.junit.jupiter.api.Assertions.assertEquals(1726L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

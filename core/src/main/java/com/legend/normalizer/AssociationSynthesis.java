@@ -128,9 +128,6 @@ final class AssociationSynthesis {
                 boolean inheritanceTgt = !unionTgt
                         && UnionSynthesis.inheritanceForClass(md, model, target)
                                 != null;
-                if (!unionTgt && !inheritanceTgt) {
-                    continue;
-                }
                 // an INHERITANCE-op target has NO set of its own class —
                 // the predicate path cannot anchor it (no ~mainTable);
                 // pair groups into it ALWAYS take the routed-PM injection
@@ -140,9 +137,20 @@ final class AssociationSynthesis {
                 // SUBCLASS sets: VehicleOwner union(airline,per1)) —
                 // those groups force the routed-PM injection too.
                 String owner0 = associationOwnerClass(ad, apm.propertyName());
+                // the SAME anchor rule synthesizeAssociationMapping applies
+                // (a class mapped only as an embedded block anchors on its
+                // owner's table — hasMainTable alone misjudged those and
+                // regressed 30 inheritance tests when tried, 2026-09-02)
                 boolean bindingPossible = owner0 != null
-                        && MappingNormalizer.hasMainTable(md, owner0, model)
-                        && MappingNormalizer.hasMainTable(md, target, model);
+                        && anchorTableOf(md, owner0, model) != null
+                        && anchorTableOf(md, target, model) != null;
+                if (!unionTgt && !inheritanceTgt && bindingPossible) {
+                    continue;   // plain pair: the predicate path
+                }
+                // an end whose class cannot ANCHOR a predicate (an Operation-
+                // mapped root with no set of its own — SetImplementation,
+                // an abstract base) would leave the association silently
+                // unbound: its entries inject as routed PMs on their sets
                 routedUnionGroups.merge(apm.sourceSetId() + "\u0000"
                         + apm.propertyName(),
                         inheritanceTgt || join.joins().size() > 1
