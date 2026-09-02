@@ -545,7 +545,7 @@ and 2 above are closed; 3, 4, 5, 6 remain (see the list below).
   ledger rows unchanged (the walk still scores the extends witnesses
   under the real names — next batch).
 
-**Batch 5 — the REAL-NAME switch — LANDED (2026-09-02).** Residue item 6
+**Batch 5 — the REAL-NAME switch — LANDED (579b1171, 2026-09-02).** Residue item 6
 above is closed; 3, 4, 5 remain (plus the two named below).
 - **Pure bodies under the real names** (SystemMetamodel):
   `meta::pure::mapping::classMappingById`, `meta::relational::metamodel::
