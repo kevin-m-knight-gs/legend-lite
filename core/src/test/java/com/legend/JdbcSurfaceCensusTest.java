@@ -373,6 +373,9 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/resolver/ResolveUnionJtcProbeTest.java",
             "core/src/test/java/com/legend/resolver/ResolveUnionMultiHopProbeTest.java",
             "core/src/test/java/com/legend/resolver/ResolveUnionOuterDateProbeTest.java",
+            // metamodel-as-relations step 3: the mapping metamodel as
+            // rows — every verdict is a query the database answers
+            "core/src/test/java/com/legend/integration/MetamodelMappingStoreTest.java",
             "core/src/test/java/com/legend/resolver/ResolveUnionTest.java",
             // run-time branch choice on the row's type column (metamodel
             // step 2): rows are the verdict for match/instanceOf/cast

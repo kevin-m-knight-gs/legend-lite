@@ -778,6 +778,14 @@ class JavaEvalLedgerTest {
                     "ConnectionFlags.java", "ConnectionLets.java",
                     "CrossStoreGuard.java", "LiteralFold.java",
                     "MetamodelSteps.java", "NonNull.java", "Nullable.java",
+                    // metamodel-as-relations step 3 (2026-09-02): the
+                    // system store's SEED derivations — compile-time
+                    // facts (mappings, class mappings, include closure,
+                    // tables) rendered as ROWS for the database to
+                    // evaluate over; no value is computed here that a
+                    // verdict reads (tenet #1: Java orchestrates, the
+                    // database executes)
+                    "MetamodelSeeds.java",
                     "PlanAllocations.java", "PlanEnvelope.java",
                     "SeedSqlForms.java",
                     // SQLTEXT charter slice 3a (2026-09-01): the

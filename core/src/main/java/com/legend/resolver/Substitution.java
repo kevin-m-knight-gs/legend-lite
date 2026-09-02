@@ -1986,6 +1986,26 @@ final class Substitution {
     // ------------------------------------------------------------------
 
     static final String INSTANCE_OF_FQN = "meta::pure::functions::meta::instanceOf";
+    static final String ELEMENT_TO_PATH_FQN = "meta::pure::functions::meta::elementToPath";
+
+    /** The row's ONE primary-key pseudo-binding, rewritten into this scope. */
+    private TypedSpec elementPath(TypedNativeCall c) {
+        String key = null;
+        int n = 0;
+        for (String k : target.bindings().keySet()) {
+            if (com.legend.model.ClassMapping.isPrimaryKeyBinding(k)) {
+                key = k;
+                n++;
+            }
+        }
+        if (key == null || n != 1) {
+            throw new NotImplementedException("elementToPath over a row of "
+                    + target.classFqn() + ": the row keys on " + n
+                    + " column(s) — one FQN key column is required");
+        }
+        return java.util.Objects.requireNonNull(rewriteHeadProp(key, c),
+                "primary-key pseudo-binding read");
+    }
     private static final String ANY_FQN = "meta::pure::metamodel::type::Any";
 
     /** The three dispatch forms over the instance variable; null when
@@ -2004,6 +2024,21 @@ final class Substitution {
                     when mr.input() instanceof TypedVariable mv
                     && mv.name().equals(target.userVar()) ->
                     discriminatedMatch(mr);
+            // $p->elementToPath(): an element's identity IS its row's key
+            // (D2) — the primary-key pseudo-binding read; over a
+            // REFERENCE it is the path literal
+            case TypedNativeCall c
+                    when c.callee().qualifiedName().equals(ELEMENT_TO_PATH_FQN)
+                    && c.args().size() == 1
+                    && c.args().get(0) instanceof
+                            com.legend.compiler.spec.typed.TypedPackageableRef epr ->
+                    new TypedCString(epr.fullPath(), c.info());
+            case TypedNativeCall c
+                    when c.callee().qualifiedName().equals(ELEMENT_TO_PATH_FQN)
+                    && c.args().size() == 1
+                    && c.args().get(0) instanceof TypedVariable ev
+                    && ev.name().equals(target.userVar()) ->
+                    elementPath(c);
             // $p->instanceOf(Sub)
             case TypedNativeCall c
                     when c.callee().qualifiedName().equals(INSTANCE_OF_FQN)

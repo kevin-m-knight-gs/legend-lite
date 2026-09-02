@@ -444,9 +444,13 @@ public final class Ddl {
                     if (c > 0) {
                         ins.append(", ");
                     }
-                    ins.append('\'')
-                            .append(row.get(c).replace("'", "''"))
-                            .append('\'');
+                    String cell = row.get(c);
+                    if (cell == null) {
+                        ins.append("NULL");   // an absent optional fact
+                    } else {
+                        ins.append('\'').append(cell.replace("'", "''"))
+                                .append('\'');
+                    }
                 }
                 ins.append(')');
             }

@@ -218,12 +218,19 @@ final class Scalars {
                                     new SqlExpr.BoolLit(false)))
                     : new SqlExpr.Call(SqlFn.OR, args));
         }
-        // fail([message]) RAISES (real pure: assert(false, message)) — the
-        // per-row raise arm of run-time branch choice over a discriminated
-        // row (Substitution.raise) and any user-spelled fail in a query.
-        // A raise standing in a VALUE position (Substitution.raise types
-        // the call as the position) casts to that carrier — the CASE
-        // keeps its type by construction, not by a dialect's inference.
+        // elementToPath: a REFERENCE is its path literal (rows: resolver)
+        for (String f : Pure.nativeKeysAt("elementToPath")) {
+            RULES.put(f, (n, args) -> {
+                if (n.args().get(0) instanceof
+                        com.legend.compiler.spec.typed.TypedPackageableRef pr) {
+                    return new SqlExpr.StringLit(pr.fullPath());
+                }
+                throw new NotImplementedException("elementToPath over a "
+                        + n.args().get(0).getClass().getSimpleName());
+            });
+        }
+        // fail([message]) RAISES; in a VALUE position (Substitution.raise
+        // types the call as the position) it casts to that carrier
         for (String f : Pure.nativeKeysAt("fail")) {
             RULES.put(f, (n, args) -> {
                 SqlExpr raised = PureSql.raise(args.isEmpty()

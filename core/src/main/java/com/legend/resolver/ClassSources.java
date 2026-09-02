@@ -724,6 +724,22 @@ public final class ClassSources {
                         c.name(), new ExprType(c.type(), c.multiplicity())));
             }
         }
+        // PRIMARY-KEY pseudo-bindings (ClassMapping.primaryKeyBinding): the
+        // declared ~primaryKey columns the row carries, keyed by the D3
+        // contract name — the element-reference rule filters a metaclass
+        // extent on them (StoreResolver.elementRow); never a property.
+        for (String pkCol : binding.primaryKeyColumns()) {
+            for (Type.Column c : rowType.columns()) {
+                if (c.name().equals(pkCol)) {
+                    bindings.putIfAbsent(
+                            com.legend.model.ClassMapping.primaryKeyBinding(pkCol),
+                            new TypedPropertyAccess(
+                                    new TypedVariable(mapper.parameters().get(0),
+                                            ExprType.one(rowType)),
+                                    c.name(), new ExprType(c.type(), c.multiplicity())));
+                }
+            }
+        }
 
         // SAME-SOURCE SUBTYPE DISPATCH for nav targets (#71, extends
         // family): a subclass mapped over the SAME root table (F[f]

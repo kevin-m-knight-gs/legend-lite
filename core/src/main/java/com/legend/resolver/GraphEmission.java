@@ -83,8 +83,9 @@ final class GraphEmission {
             // properties of the class — the implicit envelope never
             // serializes them (they broke testAllForB when the #71
             // same-source synthesis joined the binding table)
-            if (com.legend.model.ClassMapping.isSubTypeColumn(e.getKey())) {
-                continue;
+            if (com.legend.model.ClassMapping.isSubTypeColumn(e.getKey())
+                    || com.legend.model.ClassMapping.isPrimaryKeyBinding(e.getKey())) {
+                continue;   // ...and so are the D3 key pseudo-bindings
             }
             TypedSpec inner = e.getValue();
             if (inner instanceof TypedNativeCall c

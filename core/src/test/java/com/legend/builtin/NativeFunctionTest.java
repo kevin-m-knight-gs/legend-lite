@@ -530,7 +530,9 @@ class NativeFunctionTest {
         //     slice, FULL_RESIDUE_CENSUS §5 — registrations that move
         //     'unknown function' masks to honest downstream walls;
         //     verbatim router_extension.pure:22 / mapping.pure:40)
-        assertEquals(211, Pure.allNativeClasses().size(),
+        // 211 -> 212 (metamodel-as-relations step 3, 2026-09-02):
+        // +PackageableElement (real m3; the elementToPath domain)
+        assertEquals(212, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -828,6 +830,12 @@ class NativeFunctionTest {
                     "meta::pure::mapping::SetImplementation",
                     List.of("root", "id", "parent",
                             "superSetImplementationId")),
+                    // real relationalMapping.pure RelationalMappingSpecification:
+                    // mainTableAlias — the metamodel store's mainTable()
+                    // witness (step 3, 2026-09-02); the rest grow by witness
+                    java.util.Map.entry(
+                    "meta::relational::metamodel::RelationalMappingSpecification",
+                    List.of("mainTableAlias")),
                     java.util.Map.entry(
                     "meta::pure::mapping::InstanceSetImplementation",
                     List.of("class")),
@@ -964,8 +972,10 @@ class NativeFunctionTest {
     private static final java.util.Map<String, List<String>> TDS_SURFACE_PROPERTIES =
             java.util.Map.of(
                     // real m3: name rides PackageableElement (the corpus
-                    // constructs the empty sentinel ^Mapping(name = ''))
-                    "meta::pure::mapping::Mapping", List.of("name"),
+                    // constructs the empty sentinel ^Mapping(name = ''));
+                    // classMappings (mapping.pure:26) — the metamodel
+                    // store's witness (step 3, 2026-09-02)
+                    "meta::pure::mapping::Mapping", List.of("name", "classMappings"),
                     // core/pure/tds/tds.pure:18-23
                     "meta::pure::tds::TabularDataSet", List.of("columns", "rows"),
                     // tds.pure:25-45

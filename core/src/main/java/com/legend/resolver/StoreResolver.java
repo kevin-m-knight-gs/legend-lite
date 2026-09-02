@@ -317,6 +317,11 @@ public final class StoreResolver {
      * with the source spliced for the param; the resulting hop chain
      * re-enters resolution. Everything else is a chain segment. */
     private TypedSpec objectNode(TypedSpec n, Context context) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedPackageableRef) {
+            // a BARE element reference is a value (an argument, a let);
+            // it anchors a chain only as the SOURCE of one (D3)
+            return n;
+        }
         return n instanceof TypedMap m
                 ? resolveNode(substituteParam(m.mapper(), m.source()), context)
                 : resolveChain(n, context);
@@ -1202,7 +1207,24 @@ public final class StoreResolver {
     /** Statically decide an if() condition, or null when genuinely runtime. */
 
     /** Anchor reachability, memoized per pass — see {@link Anchors}. */
-    private final Anchors anchors = new Anchors();
+    private final Anchors anchors = new Anchors(
+            pr -> trackedElementClass(pr) != null);
+    /** D3 element references + the chain-position cast rules (built on
+     * first use: ctx/sources are constructor-assigned). */
+    private @com.legend.Nullable ElementReferences elementsRef;
+
+    private ElementReferences elements() {
+        if (elementsRef == null) {
+            elementsRef = new ElementReferences(ctx, sources, this::dispatch,
+                    this::equalCallee);
+        }
+        return elementsRef;
+    }
+
+    private @com.legend.Nullable String trackedElementClass(
+            com.legend.compiler.spec.typed.TypedPackageableRef pr) {
+        return elements().trackedElementClass(pr);
+    }
 
     private boolean anchored(TypedSpec n) {
         return anchors.anchored(n);
@@ -1215,15 +1237,22 @@ public final class StoreResolver {
     /** Every {@code getAll} class FQN beneath {@code n} — D1's tracked-
      * classifier gate reads the FULL descent (a nested user-class fetch
      * under a metamodel chain must keep the wall). */
-    private static void collectGetAllClasses(TypedSpec n,
+    private void collectGetAllClasses(TypedSpec n,
             java.util.Set<String> out) {
         if (n instanceof com.legend.compiler.spec.typed.TypedGetAll g) {
             out.add(g.classFqn());
+        }
+        // an element REFERENCE of a tracked metaclass is a fetch of that
+        // metaclass (D3, collectOpChain) — it needs the same context
+        if (n instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr
+                && trackedElementClass(pr) != null) {
+            out.add(java.util.Objects.requireNonNull(trackedElementClass(pr)));
         }
         for (TypedSpec c : n.children()) {
             collectGetAllClasses(c, out);
         }
     }
+
 
     // =====================================================================
     // Object-space chain resolution (the H2 heart)
@@ -1238,8 +1267,13 @@ public final class StoreResolver {
             // wall stays (a forgotten ->from() must not return []).
             java.util.Set<String> fetched = new java.util.HashSet<>();
             collectGetAllClasses(top, fetched);
+            // "intrinsic" = bound in the SYSTEM mapping (the registry's
+            // extents are a subset: every seeded metaclass is mapped
+            // there, and so are the metaclasses reached by navigation —
+            // SetImplementation, Table — whose rows the seed derives)
             if (!fetched.isEmpty() && fetched.stream().allMatch(
-                    f -> ctx.classifierInstances(f) != null)) {
+                    f -> ctx.classifierInstances(f) != null || sources.binds(
+                            com.legend.builtin.SystemMetamodel.MAPPING_FQN, f))) {
                 context = Context.ofMapping(
                         com.legend.builtin.SystemMetamodel.MAPPING_FQN);
             } else {
@@ -2539,6 +2573,36 @@ public final class StoreResolver {
         List<String> flattenHops = new ArrayList<>();
         List<List<TypedSpec>> flatSegs = new ArrayList<>();
         while (!(cur instanceof TypedGetAll)) {
+            // D3 — ELEMENT REFERENCE = ROW (trackedElementClass doc): the
+            // chain re-roots at the metaclass extent; the key restriction
+            // applies on the materialized row (resolveObject).
+            if (cur instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr
+                    && trackedElementClass(pr) != null) {
+                cur = elements().elementRow(pr, java.util.Objects.requireNonNull(
+                        trackedElementClass(pr)), chainContext,
+                        () -> "_el" + (freshVarCounter++));
+                continue;
+            }
+            // ->cast(@Sub) in CHAIN position: a cast the mapping PROVES
+            // total (the target is the input's class, or every mapped
+            // member of the input's class conforms to the target) is a
+            // re-typing — the rows already are the target's; a partial-
+            // membership cast needs the witness filter (step 2 serves it
+            // on the instance variable; the chain form is not built).
+            if (cur instanceof TypedCast tc
+                    && tc.target() instanceof Type.ClassType tct
+                    && tc.source().info().type() instanceof Type.ClassType sct) {
+                if (!tct.fqn().equals(sct.fqn())
+                        && !elements().castTotalByRoute(chainContext, tc.source(), tct.fqn())
+                        && !elements().totalMembershipCast(chainContext, sct.fqn(), tct.fqn())) {
+                    throw new NotImplementedException("->cast(@" + tct.fqn()
+                            + ") over a chain of " + sct.fqn() + " whose mapped"
+                            + " members do not all conform (partial membership)"
+                            + " is not supported in chain position yet");
+                }
+                cur = tc.source();
+                continue;
+            }
             // Normalize collection natives with relation shapes BEFORE
             // collecting: first()/head() IS limit 1; class-space
             // sort(key, comparator) IS sortBy with a direction.

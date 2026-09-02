@@ -189,6 +189,9 @@ public final class Pure {
     public static final ClassDefinition VALUE_SPECIFICATION_META = nativeClass("native Class meta::pure::metamodel::valuespecification::ValueSpecification { genericType: meta::pure::metamodel::type::generics::GenericType[1]; }");
     /** Real M3's element root (meta::pure::metamodel::ModelElement) — corpus fixtures pass these around. */
     public static final ClassDefinition MODEL_ELEMENT = nativeClass("native Class meta::pure::metamodel::ModelElement extends meta::pure::metamodel::type::Any {}");
+    /** Real m3.pure PackageableElement (extends ModelElement, Referenceable; the
+     * package property grows by witness) — the elementToPath domain. */
+    public static final ClassDefinition PACKAGEABLE_ELEMENT = nativeClass("native Class meta::pure::metamodel::PackageableElement extends meta::pure::metamodel::ModelElement {}");
 
     // ---- Numeric tower ----
     public static final ClassDefinition NUMBER  = nativeClass("native Class meta::pure::metamodel::type::Number  extends meta::pure::metamodel::type::Any {}");
@@ -397,7 +400,10 @@ public final class Pure {
     // mapping.pure:52-58 — lite flattens that parent; class and parent
     // are REFERENCE values, declared Any/loose per the class-reference
     // convention)
-    public static final ClassDefinition SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::SetImplementation extends meta::pure::metamodel::type::Any { root: meta::pure::metamodel::type::Boolean[0..1]; id: meta::pure::metamodel::type::String[0..1]; parent: meta::pure::metamodel::type::Any[0..1]; superSetImplementationId: meta::pure::metamodel::type::String[0..1]; }");
+    // parent: Mapping[1] — real platform_dsl_mapping/grammar/mapping.pure
+    // (PropertyOwnerImplementation.parent), typed by the metamodel-store
+    // witness (class_mappings rows navigate to their mapping row).
+    public static final ClassDefinition SET_IMPLEMENTATION = nativeClass("native Class meta::pure::mapping::SetImplementation extends meta::pure::metamodel::type::Any { root: meta::pure::metamodel::type::Boolean[0..1]; id: meta::pure::metamodel::type::String[0..1]; parent: meta::pure::mapping::Mapping[1]; superSetImplementationId: meta::pure::metamodel::type::String[0..1]; }");
     // Real mapping.pure:68 — a SIBLING of SetImplementation under
     // PropertyOwnerImplementation (InstanceSetImplementation extends
     // both); with the parent flattened into SetImplementation the chain
@@ -417,7 +423,10 @@ public final class Pure {
     // relationalMapping.pure:26/46 — RootRelational keeps the real
     // TWO-parent shape so mainTable(RelationalMappingSpecification[1])
     // accepts the corpus's cast(@RootRelationalInstanceSetImplementation)
-    public static final ClassDefinition RELATIONAL_MAPPING_SPECIFICATION = nativeClass("native Class meta::relational::metamodel::RelationalMappingSpecification extends meta::pure::metamodel::type::Any {}");
+    // mainTableAlias: TableAlias[1] — real platform_store_relational/grammar/
+    // relationalMapping.pure (RelationalMappingSpecification), grown by the
+    // metamodel-store witness (mainTable() navigates it).
+    public static final ClassDefinition RELATIONAL_MAPPING_SPECIFICATION = nativeClass("native Class meta::relational::metamodel::RelationalMappingSpecification extends meta::pure::metamodel::type::Any { mainTableAlias: meta::relational::metamodel::TableAlias[1]; }");
     public static final ClassDefinition RELATIONAL_INSTANCE_SET_IMPL = nativeClass("native Class meta::relational::mapping::RelationalInstanceSetImplementation extends meta::pure::mapping::InstanceSetImplementation { primaryKey: meta::relational::metamodel::RelationalOperationElement[*]; }");
     public static final ClassDefinition ROOT_RELATIONAL_SET_IMPL = nativeClass("native Class meta::relational::mapping::RootRelationalInstanceSetImplementation extends meta::relational::mapping::RelationalInstanceSetImplementation, meta::relational::metamodel::RelationalMappingSpecification {}");
     public static final ClassDefinition PURE_PROPERTY_MAPPING = nativeClass("native Class meta::pure::mapping::PropertyMapping extends meta::pure::metamodel::type::Any {}");
@@ -441,7 +450,9 @@ public final class Pure {
     // name rides PackageableElement in real m3 (grammar/mapping.pure:26 —
     // Mapping extends PackageableElement); the corpus constructs the
     // empty-mapping sentinel ^Mapping(name = '') (testFrom.pure:30).
-    public static final ClassDefinition MAPPING_METACLASS = nativeClass("native Class meta::pure::mapping::Mapping extends meta::pure::metamodel::ModelElement { name: meta::pure::metamodel::type::String[0..1]; }");
+    // classMappings: SetImplementation[*] — real platform_dsl_mapping/grammar/
+    // mapping.pure:26, grown by the metamodel-store witness.
+    public static final ClassDefinition MAPPING_METACLASS = nativeClass("native Class meta::pure::mapping::Mapping extends meta::pure::metamodel::PackageableElement { name: meta::pure::metamodel::type::String[0..1]; classMappings: meta::pure::mapping::SetImplementation[*]; }");
     /** Real platform_store_relational/grammar/relational.pure:92 (extends NamedRelation — ModelElement analog; column surface omitted until demanded). */
     // schema carries its REAL type Schema[1] (relational.pure:94): the
     // old Any[0..1] widening walled every $t.schema.name read
@@ -1511,6 +1522,11 @@ public final class Pure {
     public static final NativeFunctionDefinition INDEX_OF__T_MANY__T_1 = signature("native function meta::pure::functions::collection::indexOf<T>(set:T[*], value:T[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition INIT__T_MANY = signature("native function meta::pure::functions::collection::init<T>(set:T[*]):T[*];");
     public static final NativeFunctionDefinition INSTANCE_OF__ANY_1__TYPE_1 = signature("native function meta::pure::functions::meta::instanceOf(instance:meta::pure::metamodel::type::Any[1], type:meta::pure::metamodel::type::Type[1]):meta::pure::metamodel::type::Boolean[1];");
+    // Real essential/meta/graph/elementToPath.pure:44 — a plain function
+    // there (wrapping the 3-arg native); the platform carries the 1-arg
+    // element-identity form as a native: over an element REFERENCE it is
+    // the path literal, over a metamodel ROW it is the row's key (D2).
+    public static final NativeFunctionDefinition ELEMENT_TO_PATH__PACKAGEABLEELEMENT_1 = signature("native function meta::pure::functions::meta::elementToPath(element:meta::pure::metamodel::PackageableElement[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition IN__ANY_1__ANY_MANY = signature("native function meta::pure::functions::collection::in(value:meta::pure::metamodel::type::Any[1], collection:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IN__ANY_0_1__ANY_MANY = signature("native function meta::pure::functions::collection::in(value:meta::pure::metamodel::type::Any[0..1], collection:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IS_AFTER_DAY__DATE_1__DATE_1 = signature("native function meta::pure::functions::date::isAfterDay(d1:meta::pure::metamodel::type::Date[1], d2:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Boolean[1];");
@@ -1620,6 +1636,10 @@ public final class Pure {
     // .pure:19, engine mappingExtension.pure:163, platform_store_
     // relational/functions.pure:277/:191 — ordinary pure there; typed
     // natives here, evaluated K-side over the compiled model)
+    // (metamodel-as-relations step 3: the platform's OWN implementation is
+    // a Pure body over the metamodel store, meta::lite::metamodel::
+    // classMappingById; this native stays until the corpus witnesses flip
+    // — the legacy walk still scores 6 extends tests through it)
     public static final NativeFunctionDefinition CLASS_MAPPING_BY_ID = signature("native function meta::pure::mapping::classMappingById(_this:meta::pure::mapping::Mapping[1], id:meta::pure::metamodel::type::String[1]):meta::pure::mapping::SetImplementation[0..1];");
     // Real platform_dsl_mapping/functions_Mapping.pure:19.
     public static final NativeFunctionDefinition ENUMERATION_MAPPING_BY_NAME = signature("native function meta::pure::mapping::enumerationMappingByName(_this:meta::pure::mapping::Mapping[1], name:meta::pure::metamodel::type::String[1]):meta::pure::mapping::EnumerationMapping<meta::pure::metamodel::type::Any>[0..1];");
@@ -1636,6 +1656,8 @@ public final class Pure {
     public static final NativeFunctionDefinition ROUTER_PRINTER_AS_STRING = signature("native function meta::pure::router::printer::asString(f:meta::pure::metamodel::function::Function<meta::pure::metamodel::type::Any>[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition SUPER_MAPPING = signature("native function meta::pure::mapping::superMapping(_this:meta::pure::mapping::PropertyMappingsImplementation[1]):meta::pure::mapping::PropertyMappingsImplementation[0..1];");
     public static final NativeFunctionDefinition ALL_SUPER_SET_IMPLEMENTATIONS = signature("native function meta::pure::mapping::allSuperSetImplementations(set:meta::pure::mapping::PropertyMappingsImplementation[1], m:meta::pure::mapping::Mapping[1]):meta::pure::mapping::PropertyMappingsImplementation[*];");
+    // (step 3: the platform's own implementation is meta::lite::metamodel::
+    // mainTable, a Pure body over the metamodel store — see above)
     public static final NativeFunctionDefinition MAIN_TABLE = signature("native function meta::relational::metamodel::mainTable(_this:meta::relational::metamodel::RelationalMappingSpecification[1]):meta::relational::metamodel::relation::Table[1];");
     public static final NativeFunctionDefinition RESOLVE_PRIMARY_KEY = signature("native function meta::relational::mapping::resolvePrimaryKey(_this:meta::relational::mapping::RootRelationalInstanceSetImplementation[1]):meta::relational::metamodel::RelationalOperationElement[*];");
     public static final NativeFunctionDefinition VIEW__SCHEMA_1__STRING_1 = signature("native function meta::relational::metamodel::view(_this:meta::relational::metamodel::Schema[1], name:meta::pure::metamodel::type::String[1]):meta::relational::metamodel::relation::View[0..1];");

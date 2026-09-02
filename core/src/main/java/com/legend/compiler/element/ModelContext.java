@@ -108,6 +108,24 @@ public interface ModelContext {
 
     /** Member set ids of a MIXED-KIND Operation union (a Pure member —
      * resolver-side arm synthesis, route b); {@code null} otherwise. */
+    /** The member CLASSES of a union Operation mapping of {@code classFqn}
+     * in {@code mappingFqn} (declared member set ids resolved to their
+     * classes); null when the class is not union-mapped there or a member
+     * set is not declared in that mapping — the chain-position cast rule
+     * (StoreResolver) reads the extent's real membership. */
+    default java.util.@com.legend.Nullable List<String> unionMemberClasses(
+            String mappingFqn, String classFqn) {
+        return null;
+    }
+
+    /** The class of the set a class-typed property mapping ROUTES to
+     * ({@code prop[setId]: @J} on {@code ownerClass}'s Relational set in
+     * {@code mappingFqn}); null when unrouted or unknown. */
+    default @com.legend.Nullable String routedTargetClass(String mappingFqn,
+            String ownerClass, String prop) {
+        return null;
+    }
+
     default java.util.@com.legend.Nullable List<String> mixedUnionMembers(String mappingFqn,
             String classFqn) {
         return null;

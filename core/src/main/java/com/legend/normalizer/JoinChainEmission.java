@@ -80,7 +80,8 @@ final class JoinChainEmission {
             }
             case PropertyMapping.Join j -> emitJoinChain(p, j.joins(), j.database(),
                     j.propertyName(), ownerClassFqn, mainDb, mainTable,
-                    rowBind, model, md, /*classTypedTerminus*/ true);
+                    rowBind, model, md, /*classTypedTerminus*/ true,
+                    j.targetSetId());
             case PropertyMapping.JoinTerminalColumn jtc -> emitJoinChain(p,
                     jtc.joins(), jtc.database(), /*propName*/ null, ownerClassFqn,
                     mainDb, mainTable, rowBind, model, md, /*classTypedTerminus*/ false);
@@ -93,7 +94,7 @@ final class JoinChainEmission {
                 // embedded block (bondClassification: @J inside
                 // Otherwise(...)) — without them the partial's ctor
                 // field reads a slot that was never minted
-                ClassDefinition oeOwner = model.findClass(ownerClassFqn)
+                ClassDefinition oeOwner = MappingNormalizer.classDef(model, ownerClassFqn)
                         .orElse(null);
                 TypeExpression oeType = oeOwner == null ? null
                         : MappingNormalizer.findPropertyTypeDeep(oeOwner,
@@ -123,7 +124,7 @@ final class JoinChainEmission {
                 // sub-PM join chains hoist into the TOP pipeline (the
                 // embedded instance shares the owner's row); the owner for
                 // class-typed detection is the EMBEDDED class
-                ClassDefinition owner = MissProbe.knownMiss(model.findClass(ownerClassFqn));
+                ClassDefinition owner = MissProbe.knownMiss(MappingNormalizer.classDef(model, ownerClassFqn));
                 TypeExpression propType = owner == null ? null
                         : MappingNormalizer.findPropertyTypeDeep(owner, emb.propertyName(), model);
                 if (propType instanceof TypeExpression.NameRef nr) {
@@ -163,7 +164,7 @@ final class JoinChainEmission {
                         break;
                     }
                 }
-                ClassDefinition owner = model.findClass(ownerClassFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at JoinChainEmission#2 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + ownerClassFqn));
+                ClassDefinition owner = MappingNormalizer.classDef(model, ownerClassFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at JoinChainEmission#2 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + ownerClassFqn));
                 TypeExpression propType = owner == null ? null
                         : MappingNormalizer.findPropertyTypeDeep(owner,
                                 ie.propertyName(), model);
@@ -214,7 +215,7 @@ final class JoinChainEmission {
                   + oe.fallback().getClass().getSimpleName()
                   + " not supported (Join only). Mapping=" + md.qualifiedName());
         }
-        ClassDefinition owner = model.findClass(ownerClassFqn).orElseThrow(() ->
+        ClassDefinition owner = MappingNormalizer.classDef(model, ownerClassFqn).orElseThrow(() ->
                 new ModelException(LegendCompileException.Phase.NORMALIZE,
                         "OtherwiseEmbedded PM '" + oe.propertyName()
                         + "': unknown owner class '" + ownerClassFqn
@@ -276,9 +277,44 @@ final class JoinChainEmission {
                                      String mainTable, Variable rowBind,
                                      ModelBuilder model, LegacyMappingDefinition md,
                                      boolean classTypedTerminus) {
+        emitJoinChain(p, hops, chainDb, propName, ownerClassFqn, mainDb, mainTable,
+                rowBind, model, md, classTypedTerminus, null);
+    }
+
+    /** {@code routedSetId}: the PM's {@code prop[setId]} route. When the
+     * property has exactly ONE route entry, the declared target class has
+     * NO Relational set of its own (an Operation-mapped hierarchy root
+     * such as the metamodel store's RelationalOperationElement) and the
+     * routed set's class is a strict subclass, the navigation lands on
+     * THAT class — the engine's one routed set IS the rows. Several
+     * entries ({@code vehicles[p, car]} + {@code vehicles[p, bike]}) keep
+     * the per-arm union dispatch. */
+    static void emitJoinChain(Pipeline p, List<JoinChainElement> hops,
+                                     @com.legend.Nullable String chainDb,
+                                     @com.legend.Nullable String propName,
+                                     @com.legend.Nullable String ownerClassFqn, String mainDb,
+                                     String mainTable, Variable rowBind,
+                                     ModelBuilder model, LegacyMappingDefinition md,
+                                     boolean classTypedTerminus,
+                                     @com.legend.Nullable String routedSetId) {
         String targetClassFqn = null;
         if (classTypedTerminus && propName != null) {
             targetClassFqn = classTypedTargetIfMapped(ownerClassFqn, propName, model);
+            List<UnionSynthesis.UnionRoute> routeEntries = propName == null
+                    ? null : p.unionRoutes.get(propName);
+            if (targetClassFqn != null && routedSetId != null
+                    && (routeEntries == null || routeEntries.size() == 1)
+                    && !MappingNormalizer.hasMainTable(md, targetClassFqn, model)
+                    && MappingNormalizer.findSetById(md, model, routedSetId)
+                            instanceof ClassMapping routed
+                    && !routed.className().equals(targetClassFqn)
+                    && UnionSynthesis.isSubclassOf(routed.className(),
+                            targetClassFqn, model)) {
+                targetClassFqn = routed.className();
+                // the navigation is no longer a union route: its target
+                // rows are the member's own extent, keys unsuffixed
+                p.unionRoutes.remove(propName);
+            }
         }
         hops = perArmHops(p, propName, targetClassFqn, hops);
         int lastIdx = hops.size() - 1;
@@ -658,7 +694,7 @@ final class JoinChainEmission {
     static @com.legend.Nullable String classTypedTargetIfMapped(
             @com.legend.Nullable String ownerClassFqn,
                                                   String propName, ModelBuilder model) {
-        ClassDefinition owner = MissProbe.knownMiss(model.findClass(ownerClassFqn));
+        ClassDefinition owner = MissProbe.knownMiss(MappingNormalizer.classDef(model, ownerClassFqn));
         if (owner == null) return null;
         TypeExpression propType = MappingNormalizer.findPropertyTypeDeep(owner, propName, model);
         if (!(propType instanceof TypeExpression.NameRef nr)) return null;

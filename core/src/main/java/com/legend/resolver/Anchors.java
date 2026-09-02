@@ -36,6 +36,17 @@ import com.legend.compiler.spec.typed.TypedSpec;
  */
 final class Anchors {
 
+    /** D3 (StoreResolver.trackedElementClass): a reference to a
+     * registry-tracked element is a store anchor — the metaclass extent
+     * restricted to the element's key. */
+    private final java.util.function.Predicate<
+            com.legend.compiler.spec.typed.TypedPackageableRef> elementRef;
+
+    Anchors(java.util.function.Predicate<
+            com.legend.compiler.spec.typed.TypedPackageableRef> elementRef) {
+        this.elementRef = elementRef;
+    }
+
     private final java.util.IdentityHashMap<TypedSpec, Boolean> memo =
             new java.util.IdentityHashMap<>();
 
@@ -50,6 +61,17 @@ final class Anchors {
             v = true;
         } else {
             for (TypedSpec c : n.children()) {
+                if (c instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr) {
+                    // an element reference anchors ONLY as the SOURCE of a
+                    // navigation (D3); as an argument (from(mapping, rt),
+                    // execute(f, mapping, rt), tableReference(db, …)) it
+                    // is a value
+                    if (elementRef.test(pr) && navigatesSource(n, c)) {
+                        v = true;
+                        break;
+                    }
+                    continue;
+                }
                 if (anchored(c)) {
                     v = true;
                     break;
@@ -80,10 +102,37 @@ final class Anchors {
         return v;
     }
 
+    /** Whether {@code c} sits in {@code n}'s SOURCE position — the object-
+     * spine shapes (the same node kinds {@link #objectSpine} walks). */
+    private static boolean navigatesSource(TypedSpec n, TypedSpec c) {
+        return switch (n) {
+            case TypedPropertyAccess pa -> pa.source() == c;
+            case TypedMap m -> m.source() == c;
+            case TypedFilter f -> f.source() == c;
+            case TypedFrom fr -> fr.source() == c;
+            case TypedLimit l -> l.source() == c;
+            case TypedDrop d -> d.source() == c;
+            case TypedSlice sl -> sl.source() == c;
+            case TypedSortBy sb -> sb.source() == c;
+            case com.legend.compiler.spec.typed.TypedCast tc -> tc.source() == c;
+            case TypedNativeCall nc -> !nc.args().isEmpty() && nc.args().get(0) == c
+                    && (StoreResolver.isFirstLike(nc) || StoreResolver.isStaticAt(nc)
+                            || StoreResolver.isClassToOne(nc)
+                            || Pipelines.isClassDistinct(nc)
+                            || StoreResolver.classSortOf(nc) != null
+                            || nc.callee().qualifiedName().equals(
+                                    Substitution.ELEMENT_TO_PATH_FQN));
+            default -> false;
+        };
+    }
+
     /** The object-space spine rules (formerly StoreResolver.isObjectSpace). */
     private boolean objectSpine(TypedSpec source) {
         return switch (source) {
             case TypedGetAll ignored -> true;
+            // an element REFERENCE of a tracked metaclass IS its row (D3)
+            case com.legend.compiler.spec.typed.TypedPackageableRef pr
+                    when elementRef.test(pr) -> true;
             // a CLASS-typed property HOP over an object-space chain IS
             // object space (the auto-map flatten re-roots at its target)
             case TypedPropertyAccess pa
@@ -95,6 +144,11 @@ final class Anchors {
                             .type() instanceof Type.ClassType ->
                     spaceOf(m.source()) == Space.OBJECT;
             case TypedFrom fr -> spaceOf(fr.source()) == Space.OBJECT;
+            // ->cast(@Sub) in chain position re-types the chain (the
+            // total-membership rule, StoreResolver.collectOpChain)
+            case com.legend.compiler.spec.typed.TypedCast c
+                    when c.target() instanceof Type.ClassType ->
+                    spaceOf(c.source()) == Space.OBJECT;
             case TypedFilter f -> spaceOf(f.source()) == Space.OBJECT;
             case TypedLimit l -> spaceOf(l.source()) == Space.OBJECT;
             case TypedDrop d -> spaceOf(d.source()) == Space.OBJECT;

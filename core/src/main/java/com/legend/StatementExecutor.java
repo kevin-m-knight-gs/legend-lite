@@ -2481,18 +2481,22 @@ final class StatementExecutor {
         if (body.stream().noneMatch(StatementExecutor::readsSystemStore)) {
             return;
         }
-        java.util.List<String> extent = env.ctx().classifierInstances(
-                com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS);
-        var def = env.ctx().findTableDefinition(
-                com.legend.builtin.SystemMetamodel.STORE_FQN,
-                "metamodel.classes").orElseThrow(() ->
+        // EVERY table of the system store seeds (the store's own DDL
+        // enumerates them; SystemMetamodel.seedRows owns each table's
+        // row derivation from the active context)
+        var store = env.ctx().findDatabase(
+                com.legend.builtin.SystemMetamodel.STORE_FQN).orElseThrow(() ->
                 new IllegalStateException("the system metamodel store is"
                         + " not in the model — injection regressed"));
-        for (String stmt : Ddl.metamodelSeed(def, "metamodel",
-                com.legend.builtin.SystemMetamodel.seedRows(
-                        extent == null ? java.util.List.of() : extent),
-                !env.dialect().rawH2IsNative())) {
-            Executor.executeRaw(env.connection(), stmt);
+        for (var schema : store.schemas()) {
+            for (var def : schema.tables()) {
+                for (String stmt : Ddl.metamodelSeed(def, schema.name(),
+                        MetamodelSeeds.rows(
+                                def.name(), env.ctx()),
+                        !env.dialect().rawH2IsNative())) {
+                    Executor.executeRaw(env.connection(), stmt);
+                }
+            }
         }
     }
 

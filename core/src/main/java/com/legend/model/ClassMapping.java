@@ -80,6 +80,22 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
     }
 
     /**
+     * Pseudo-prop of a PRIMARY-KEY column read on a class row: the
+     * resolver's element-reference rule (D3) filters a metaclass extent
+     * on it; never a real property name (the {@code $} prefix is not a
+     * Pure identifier). Registered as a binding beside the subtype
+     * pseudo-bindings (ClassSources) — the same contract shape.
+     */
+    static String primaryKeyBinding(String column) {
+        return "$pk:" + column;
+    }
+
+    /** Whether {@code key} is a primary-key pseudo-binding. */
+    static boolean isPrimaryKeyBinding(String key) {
+        return key.startsWith("$pk:");
+    }
+
+    /**
      * Pseudo-prop of the MEMBERSHIP WITNESS column (emitted only for cast
      * targets with PARTIAL membership; never a real property name).
      */

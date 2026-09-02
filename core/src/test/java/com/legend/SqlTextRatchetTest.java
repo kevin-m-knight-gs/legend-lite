@@ -44,8 +44,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class SqlTextRatchetTest {
 
+    // UNROLLED-LOOP form (no per-character alternation): the naive
+    // "(?:[^"\\]|\\.)*" recursed once per character and overflowed the
+    // stack on a multi-KB text block (the system metamodel source, step 3)
     private static final Pattern LITERAL =
-            Pattern.compile("\"(?:[^\"\\\\]|\\\\.)*\"");
+            Pattern.compile("\"[^\"\\\\]*(?:\\\\.[^\"\\\\]*)*\"");
 
     private static final Pattern SQL_SHAPE = Pattern.compile(
             "(?i)(\\bselect\\s+\\S.*\\s+from\\b"

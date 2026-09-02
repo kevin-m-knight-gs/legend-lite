@@ -399,6 +399,104 @@ supertype arms other than `Any`/the input's class.
 - Acceptance = the verdict lands with zero test-specific Java; then
   `testMainTableForB2..` and the 5 extends tests follow for free.
 
+**Step 3 LANDED as a PARTIAL prototype (2026-09-02) — mechanisms proven,
+the witness's verdict blocked on ONE named resolver gap.** Landed (all
+platform code, zero test-specific Java; witness
+`MetamodelMappingStoreTest`, 9 cases, rows are the verdict):
+- **Seeds** (`SystemMetamodel` schema + `MetamodelSeeds` rows, seeded per
+  execution like `classes`): `mappings`, `class_mappings` (one row per
+  RELATIONAL class mapping; the compiler's stamped, extends-resolved main
+  table — P4 receipt: `B[b1] extends [a] {}` carries `ABC`),
+  `mapping_includes_closure` (reflexive-transitive; a ROW ENTITY
+  `meta::lite::metamodel::MappingVisibility` with associations
+  `viewer`/`visibility` and `visible`/`visibleFrom` and `visibleSets`),
+  `table_aliases` (the set's main-table alias as its own relation, keyed
+  like the set — never a self-join), `tables`. Null seed cells render as
+  NULL (`Ddl.metamodelSeed`).
+- **Metaclasses mapped**: `Mapping[mapping]` (+ real m3 `classMappings`),
+  `SetImplementation` as an INHERITANCE op whose member is
+  `RootRelationalInstanceSetImplementation[rootRel]` (`id`,
+  `superSetImplementationId`, `parent`, `mainTableAlias`),
+  `TableAlias[alias]` (`name`, `relationalElement[tbl]`),
+  `RelationalOperationElement` as an inheritance op, `Table[tbl]`. Native
+  class growth, all real-m3 spellings: `PackageableElement` (new),
+  `Mapping extends PackageableElement` + `classMappings`,
+  `SetImplementation.parent: Mapping[1]`,
+  `RelationalMappingSpecification.mainTableAlias: TableAlias[1]`
+  (NativeFunctionTest surface pins moved; class count 211→212).
+- **Natives as Pure bodies** (the one router inlines them; the engine
+  bodies are the SPEC, ours read our rows): `meta::lite::metamodel::classMappingById` =
+  `Root.all()->filter(cm | $cm.id == $id && $cm.visibilityOf.viewer->exists(v | $v->elementToPath() == $_this->elementToPath()))->first()`;
+  `meta::lite::metamodel::mainTable` = `$_this.mainTableAlias.relationalElement->cast(@Table)`.
+  They carry LITE names for now: taking the real FQNs away from the
+  natives turned 6 extends tests that the LEGACY WALK scores through
+  those natives into walls (scoreboard `tests/mapping/extends` 23→17 —
+  the corpus-regression gate caught it, measured and reverted same
+  session). The switch-over is one rename, owed to the navigation-depth
+  leg that flips the witnesses. New native
+  `elementToPath(PackageableElement[1])` (real elementToPath.pure:44):
+  over a REFERENCE it is the path literal; over a metamodel ROW it is
+  the row's key (the D2 identity) — the `$pk:<col>` pseudo-binding
+  `ClassMapping.primaryKeyBinding`, registered beside the subtype
+  pseudo-bindings and never serialized.
+- **D3 — element reference = row** (`ElementReferences`, resolver): a
+  reference to a tracked, system-mapped element (`ext::B1Mapping`) is
+  its metaclass extent filtered on its key — an ordinary object-space
+  filter, so it rides every position a class filter rides; a BARE
+  reference (a `from()`/`execute()` argument) stays a value (`Anchors`:
+  a reference anchors only as the SOURCE of a navigation). D1 widened:
+  "intrinsic" = registry-tracked OR bound in the system mapping.
+- **Chain-position `->cast(@Sub)`** = re-typing when the mapping PROVES
+  totality: the hop is routed to one member set whose class conforms
+  (`ModelContext.routedTargetClass`), or the extent's members all
+  conform (`unionMemberClasses` / inheritance subclasses). Partial stays
+  loud by name. A single-entry routed navigation into an Operation-mapped
+  root with no set of its own now lands on the routed set's class
+  (`JoinChainEmission`); multi-entry routes keep per-arm dispatch (the
+  first cut of this re-targeted every entry and cost 30 inheritance
+  tests — measured and reverted same session).
+- **Normalizer**: every hierarchy-walk class lookup is native-first
+  (`MappingNormalizer.classDef`, primitives excluded); inheritance
+  members enumerate the native catalog too; a property-less union root
+  with subtype-dispatch columns is allowed; `isSubclassOf` has a cycle
+  guard (LeniencyD6/VarianceD4 caught the overflow the wider universe
+  exposed). `SqlTextRatchetTest`'s string-literal regex is unrolled (a
+  multi-KB text block overflowed the naive alternation).
+- **Receipts**: ratchet **848/1725 UNCHANGED**; paired sweeps
+  byte-identical on all four rosters; the only bucket movement vs batch
+  2 is one test (`testBuildFilterWithValueThatCanBeNullWithIn`) reaching
+  the new chain-cast wall by name instead of an earlier wall; quarantine
+  pins 172/20 UNCHANGED (the real-name natives keep their refusal
+  spelling); scoreboard unchanged (2350). Full core suite green. Java-eval
+  ledger rows unchanged (MetamodelWalk 1307 / MetamodelSteps 196).
+
+**Residue, named (the next resolver leg — "navigation depth"):**
+1. The witness itself: `B1Mapping->classMappingById('b1')->cast(@Root)->map(x|$x->mainTable())`
+   composes FOUR flatten hops; the nested-navigation machinery walls at
+   the third hop after two association hops
+   (`witnessResidueIsNamed` pins it: "navigation through class-typed
+   slot property ... not supported yet" / "is not mapped"). Two-level
+   navigation inside a nested predicate has the same limit. Fixing depth
+   is the right move (the user's call: fix, don't reshape) — it is a
+   resolver leg on `flattenSource`/`nestedAssocMaterials`, not a
+   metamodel design question.
+2. Under the lite names the corpus chain (probed) stops at the chain
+   cast: `->cast(@Table) over RelationalOperationElement ... partial
+   membership` — the flatten path reaches the cast without the route
+   fact (the same cast is total by route from a `Root.all()` head).
+3. Views as main tables: `table_aliases → tables` only (a `~mainTable`
+   view yields no row; engine `mainTable` recurses into the view).
+4. `SetImplementation.all().parent` from the UNION side (an end mapped
+   on the member set, read off the inheritance row) walls; `parent` is
+   read off `Root` rows fine.
+5. Assert failure MESSAGE rendering over instance values
+   (`toRepresentation for LinkedHashMap is not modeled`): the verdict is
+   right, the failure text is not printable yet.
+6. The Java-eval ledger did not grow (MetamodelWalk 1307 / MetamodelSteps
+   196 unchanged); their `classMappingById`/`mainTable` arms still score
+   the 6 extends tests until the platform flips them — the rename above
+   deletes them.
+
 **Step 4 — prototype 2, testDynaAndOrInference** (homework §9 item 2), then
 plan-nodes-as-rows, then the tree half — each decided on its own receipt.
 

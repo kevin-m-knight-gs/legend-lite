@@ -236,6 +236,62 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public java.util.@com.legend.Nullable List<String> unionMemberClasses(
+            String mappingFqn, String classFqn) {
+        var lm = model.findLegacyMapping(mappingFqn).orElse(null);
+        if (lm == null) {
+            return null;
+        }
+        for (com.legend.model.ClassMapping cm : lm.classMappings()) {
+            if (cm instanceof com.legend.model.ClassMapping.Union u
+                    && u.className().equals(classFqn)) {
+                java.util.List<String> out = new java.util.ArrayList<>();
+                for (String sid : u.memberSetIds()) {
+                    String memberClass = null;
+                    for (com.legend.model.ClassMapping m2 : lm.classMappings()) {
+                        if (sid.equals(m2.setId())) {
+                            memberClass = m2.className();
+                        }
+                    }
+                    if (memberClass == null) {
+                        return null;
+                    }
+                    out.add(memberClass);
+                }
+                return out;
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public @com.legend.Nullable String routedTargetClass(String mappingFqn,
+            String ownerClass, String prop) {
+        var lm = model.findLegacyMapping(mappingFqn).orElse(null);
+        if (lm == null) {
+            return null;
+        }
+        for (com.legend.model.ClassMapping cm : lm.classMappings()) {
+            if (!(cm instanceof com.legend.model.ClassMapping.Relational rcm)
+                    || !rcm.className().equals(ownerClass)) {
+                continue;
+            }
+            for (com.legend.model.PropertyMapping pm : rcm.propertyMappings()) {
+                if (pm instanceof com.legend.model.PropertyMapping.Join j
+                        && j.propertyName().equals(prop)
+                        && j.targetSetId() != null) {
+                    for (com.legend.model.ClassMapping m2 : lm.classMappings()) {
+                        if (j.targetSetId().equals(m2.setId())) {
+                            return m2.className();
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    @Override
     public java.util.@com.legend.Nullable List<String> mixedUnionMembers(String mappingFqn,
             String classFqn) {
         return model.mixedUnions.get(mappingFqn + "::" + classFqn);
@@ -420,6 +476,10 @@ public final class PureModelContext implements ModelContext {
         } else if (com.legend.builtin.Pure.MAPPING_METACLASS.qualifiedName()
                 .equals(classifierFqn)) {
             fqns = model.mappings().map(m -> m.qualifiedName());
+        } else if (com.legend.builtin.Pure.DATABASE_METACLASS.qualifiedName()
+                .equals(classifierFqn)) {
+            // the store extent (metamodel-store tables seed from it)
+            fqns = model.databases().map(d -> d.qualifiedName());
         } else {
             return null;
         }

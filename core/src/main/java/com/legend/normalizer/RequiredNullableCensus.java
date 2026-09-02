@@ -86,7 +86,7 @@ final class RequiredNullableCensus {
         // system mapping binds properties of a native metaclass; the
         // census must SEE the pairing, not file it under blindness
         ClassDefinition owner = MissProbe.knownMiss(
-                model.findClass(ownerClassFqn));
+                MappingNormalizer.classDef(model, ownerClassFqn));
         if (owner == null) {
             owner = com.legend.builtin.Pure.findNativeClass(ownerClassFqn)
                     .orElse(null);

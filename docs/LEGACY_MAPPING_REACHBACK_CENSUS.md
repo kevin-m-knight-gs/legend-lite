@@ -32,7 +32,7 @@ walk had. Consolidation candidate inside Phase E.)
 | site | use |
 |---|---|
 | MetamodelWalk (3) | the Pure metamodel API PRESENTS the authored mapping (engine metamodel = includes + own lists; .pure navigation does its own traversal). Legacy IS the spec here. |
-| PureModelContext (4) | registry plumbing (interface impl) + name-existence checks across both registries (eager runtime-ref validation, isExecutionContextElement) |
+| PureModelContext (6) | registry plumbing (interface impl) + name-existence checks across both registries (eager runtime-ref validation, isExecutionContextElement) + unionMemberClasses / routedTargetClass (metamodel step 3: a union op's declared members and a routed target set, the chain-position cast rule's facts) |
 | ModelContext (1) | interface declaration |
 | Tests: H2Verify mappingFqnOf (2), rcorpus Runner (1), integration ×3, ModelBuilderTest, NameResolutionContractTest, ElementParserTest | name-existence checks and parse/resolve-surface spec pins on the authored artifact |
 

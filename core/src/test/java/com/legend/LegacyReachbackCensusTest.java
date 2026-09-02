@@ -74,7 +74,12 @@ class LegacyReachbackCensusTest {
             // REGISTRY PLUMBING: declaration, O(1) impl, overlay
             // existence checks across both registries
             "core/src/main/java/com/legend/compiler/element/ModelContext.java", 1,
-            "core/src/main/java/com/legend/compiler/element/PureModelContext.java", 4,
+            // 4 -> 6 (metamodel-as-relations step 3): unionMemberClasses +
+            // routedTargetClass — the union op's DECLARED members and a
+            // property mapping's ROUTED target set, read ON the context
+            // (the chain-position cast rule's facts; the resolver never
+            // touches the parse artifact)
+            "core/src/main/java/com/legend/compiler/element/PureModelContext.java", 6,
             "core/src/main/java/com/legend/compiler/ModelBuilder.java", 1));
 
     @Test
