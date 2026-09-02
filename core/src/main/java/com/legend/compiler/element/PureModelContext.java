@@ -276,16 +276,27 @@ public final class PureModelContext implements ModelContext {
                     || !rcm.className().equals(ownerClass)) {
                 continue;
             }
+            // ONE class only when every route of the property lands on
+            // the same class: prop[car]/prop[bike] routes to two classes
+            // — no single route fact (the first route used to win, and a
+            // chain cast over the union target was wrongly judged total)
+            String routed = null;
             for (com.legend.model.PropertyMapping pm : rcm.propertyMappings()) {
                 if (pm instanceof com.legend.model.PropertyMapping.Join j
                         && j.propertyName().equals(prop)
                         && j.targetSetId() != null) {
                     for (com.legend.model.ClassMapping m2 : lm.classMappings()) {
                         if (j.targetSetId().equals(m2.setId())) {
-                            return m2.className();
+                            if (routed != null && !routed.equals(m2.className())) {
+                                return null;
+                            }
+                            routed = m2.className();
                         }
                     }
                 }
+            }
+            if (routed != null) {
+                return routed;
             }
         }
         return null;

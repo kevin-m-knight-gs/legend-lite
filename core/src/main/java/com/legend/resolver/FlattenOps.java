@@ -314,6 +314,49 @@ final class FlattenOps {
     }
 
 
+    /** The tails a flatten hop pre-joins inside its target: the chain
+     * of OUTER hops (nearest first) with each hop's downstream paths.
+     * A ROW-SET op between this hop's JOIN and a TO-MANY tail (first()/
+     * limit/drop/slice/distinct) must see the un-fanned rows: that tail
+     * is NOT pre-joined — the later hop joins afresh above the op. A
+     * to-one tail is row-preserving and rides. A to-one hop with ops
+     * below it joins BEFORE them (the join-first route), so its own
+     * segment counts too. */
+    static java.util.Set<List<String>> nextTails(int i, List<String> hops,
+            List<Boolean> many, List<List<TypedSpec>> segs,
+            List<TypedSpec> ops, @com.legend.Nullable TypedSpec top) {
+        java.util.Set<List<String>> out = new java.util.LinkedHashSet<>();
+        List<String> chain = new java.util.ArrayList<>();
+        boolean rowSetSeen = !many.get(i)
+                && segs.get(i).stream().anyMatch(FlattenOps::isRowSetOp);
+        for (int k = i - 1; k >= 0; k--) {
+            rowSetSeen |= segs.get(k).stream().anyMatch(FlattenOps::isRowSetOp);
+            if (many.get(k) && rowSetSeen) {
+                break;
+            }
+            chain.add(hops.get(k));
+            out.add(List.copyOf(chain));
+            for (List<String> pth : downstreamPaths(
+                    k == 0 ? ops : segs.get(k - 1), k == 0 ? top : null)) {
+                List<String> t2 = new java.util.ArrayList<>(chain);
+                t2.addAll(pth);
+                out.add(t2);
+            }
+        }
+        return out;
+    }
+
+    /** Whether the NEXT outer hop of hop {@code i} is to-many with a
+     * row-count op between (then it is not this hop's extra head: it
+     * must join ABOVE the op, not inside this hop's target). */
+    static boolean nextHopFans(int i, List<Boolean> many,
+            List<List<TypedSpec>> segs) {
+        return i > 0 && many.get(i - 1)
+                && ((!many.get(i)
+                        && segs.get(i).stream().anyMatch(FlattenOps::isRowSetOp))
+                    || segs.get(i - 1).stream().anyMatch(FlattenOps::isRowSetOp));
+    }
+
     /** A row-COUNT-sensitive op: limit / drop / slice / distinct. */
     static boolean isRowSetOp(TypedSpec op) {
         return op instanceof com.legend.compiler.spec.typed.TypedLimit

@@ -45,12 +45,24 @@ public record ClassSource(
         Type.RelationType rowType,
         @com.legend.Nullable String sourceClass,
         Map<String, String> deferredWalls,
-        String composedPrefix) {
+        String composedPrefix,
+        @com.legend.Nullable String castGate) {
 
     public ClassSource {
         bindings = Collections.unmodifiableMap(new LinkedHashMap<>(bindings));
         deferredWalls = Collections.unmodifiableMap(
                 new LinkedHashMap<>(deferredWalls));
+    }
+
+    /** Without a cast gate. */
+    public ClassSource(String mappingFqn, String classFqn,
+            @com.legend.Nullable String setId, TypedSpec pipeline,
+            String rowVar, Map<String, TypedSpec> bindings,
+            Type.RelationType rowType,
+            @com.legend.Nullable String sourceClass,
+            Map<String, String> deferredWalls, String composedPrefix) {
+        this(mappingFqn, classFqn, setId, pipeline, rowVar, bindings,
+                rowType, sourceClass, deferredWalls, composedPrefix, null);
     }
 
     public ClassSource(String mappingFqn, String classFqn,
@@ -61,6 +73,15 @@ public record ClassSource(
             Map<String, String> deferredWalls) {
         this(mappingFqn, classFqn, setId, pipeline, rowVar, bindings,
                 rowType, sourceClass, deferredWalls, "");
+    }
+
+    /** The chain was ->cast(@gate) over a PARTIAL-membership row: reads
+     * of the gate class's own properties route through the row's subtype
+     * columns, witness-gated (the value-position cast rule); rows that
+     * do not conform were made to RAISE by the chain's gate filter. */
+    public ClassSource withCastGate(@com.legend.Nullable String gate) {
+        return new ClassSource(mappingFqn, classFqn, setId, pipeline, rowVar,
+                bindings, rowType, sourceClass, deferredWalls, composedPrefix, gate);
     }
 
     public ClassSource(String mappingFqn, String classFqn,
@@ -78,7 +99,7 @@ public record ClassSource(
      * (the depth leg, 2026-09-02). Empty on a root source. */
     public ClassSource withComposedPrefix(String prefix) {
         return new ClassSource(mappingFqn, classFqn, setId, pipeline, rowVar,
-                bindings, rowType, sourceClass, deferredWalls, prefix);
+                bindings, rowType, sourceClass, deferredWalls, prefix, castGate);
     }
 
     /** A binding whose M2M composition walled PER KEY (ledger cluster

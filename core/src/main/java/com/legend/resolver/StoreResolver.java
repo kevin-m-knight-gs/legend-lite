@@ -103,6 +103,7 @@ public final class StoreResolver {
     private final CorrelatedSubselects corrSubs;
     private final DottedExists dottedExists;
     private final NavProvenance navProvenance;
+    private final ChainDispatch chainDispatch;
     /** THE per-resolution temporal frame (root context + chain specs +
      * stamping machinery) — set at op-chain collection, specs attached
      * after the demand scan; nested sibling resolutions overwrite at
@@ -126,6 +127,8 @@ public final class StoreResolver {
         this.corrSubs = new CorrelatedSubselects(sources, assocMaterial);
         this.dottedExists = new DottedExists(sources, assocMaterial, ctx, synthetics);
         this.navProvenance = new NavProvenance(sources, assocMaterial);
+        this.chainDispatch = new ChainDispatch(ctx, this::failCallee,
+                () -> freshVarCounter++);
         this.navMaterializer = new NavMaterializer(sources, assocMaterial,
                 synthetics, corrSubs);
         this.assocMaterial.setNavMaterializer(this.navMaterializer);
@@ -372,6 +375,24 @@ public final class StoreResolver {
                     classExtentCount(nc, context);
             // ->map(p|$p.scalarExpr) over instances = single-column
             // projection (map-terminal invariant)
+            // ->match([...]) in CHAIN position over an object-space chain:
+            // the per-row dispatch is the value-position match on a map
+            // parameter (batch 2) — the chain form IS map(v|$v->match(...))
+            case com.legend.compiler.spec.typed.TypedMatchRuntime mr
+                    when objectSpace(mr.input()) ->
+                    resolveNode(chainDispatch.chainMatchAsMap(mr,
+                            sourceClassType(mr.input())), context);
+            // ->map(o|$o.nav->match([...])) — a SCALAR map whose body is a
+            // match over a navigation off the parameter: the flatten IS
+            // the body with the source spliced for the parameter (the
+            // class-result map rule), which lands on the chain form above
+            case TypedMap m when objectSpace(m.source())
+                    && m.mapper().body().size() == 1
+                    && m.mapper().body().get(0)
+                            instanceof com.legend.compiler.spec.typed.TypedMatchRuntime mr0
+                    && ChainDispatch.navRootedAt(mr0.input(), m.mapper().parameters().get(0))
+                    && ChainDispatch.countVarReads(mr0, m.mapper().parameters().get(0)) == 1 ->
+                    resolveNode(substituteParam(m.mapper(), m.source()), context);
             case TypedMap m when objectSpace(m.source()) -> {
                 TypedMap m2 = synthetics.liftValueMapFilter(m);
                 yield resolvedScalarMapProject(m2.source(), m2.mapper(),
@@ -655,10 +676,22 @@ public final class StoreResolver {
         }
         Type rootClass = sourceClassType(src);
         TypedSpec read = new TypedVariable("p", ExprType.one(rootClass));
+        boolean toOnePath = true;
         for (TypedPropertyAccess hp : path) {
             read = new TypedPropertyAccess(read, hp.property(), hp.info());
+            toOnePath &= !hp.info().multiplicity().isMany();
         }
-        read = new TypedPropertyAccess(read, pa.property(), pa.info());
+        // the leaf read inside the lambda is PER ROW: over an all-to-one
+        // path its multiplicity is the property's own, not the chain's
+        // [*] (a witness-gated cast read stamps its carrier from it)
+        ExprType leafInfo = pa.info();
+        if (toOnePath && pa.info().multiplicity().isMany()
+                && read.info().type() instanceof Type.ClassType lc) {
+            leafInfo = ctx.findProperty(lc.fqn(), pa.property())
+                    .map(pr -> new ExprType(pa.info().type(), pr.multiplicity()))
+                    .orElse(pa.info());
+        }
+        read = new TypedPropertyAccess(read, pa.property(), leafInfo);
         TypedLambda fn = new TypedLambda(List.of("p"), List.of(read),
                 new ExprType(
                         new Type.FunctionType(
@@ -2484,6 +2517,7 @@ public final class StoreResolver {
         // (between hop i and the next-deeper hop, or down to the getAll)
         List<String> flattenHops = new ArrayList<>();
         List<Boolean> flattenHopMany = new ArrayList<>();   // to-many hop?
+        String castGate = null;   // ->cast(@T) over a partial-membership row
         List<List<TypedSpec>> flatSegs = new ArrayList<>();
         while (!(cur instanceof TypedGetAll)) {
             // D3 — ELEMENT REFERENCE = ROW (trackedElementClass doc): the
@@ -2508,10 +2542,15 @@ public final class StoreResolver {
                 if (!tct.fqn().equals(sct.fqn())
                         && !elements().castTotalByRoute(chainContext, tc.source(), tct.fqn())
                         && !elements().totalMembershipCast(chainContext, sct.fqn(), tct.fqn())) {
-                    throw new NotImplementedException("->cast(@" + tct.fqn()
-                            + ") over a chain of " + sct.fqn() + " whose mapped"
-                            + " members do not all conform (partial membership)"
-                            + " is not supported in chain position yet");
+                    // PARTIAL membership in CHAIN position (harness burn-
+                    // down leg 1): the chain keeps the union row, GATED —
+                    // a row that does not conform RAISES (pure: cast
+                    // exception; never a silent filter), and every read
+                    // of the target's own properties is the value-
+                    // position $p->cast(@T).prop read (ClassSource.
+                    // castGate → Substitution). One gate per chain.
+                    castGate = chainDispatch.gate(tc.source(), sct, tct, ops,
+                            flattenHops.isEmpty() && castGate == null);
                 }
                 cur = tc.source();
                 continue;
@@ -2649,39 +2688,9 @@ public final class StoreResolver {
             // ...and every hop ABOVE it in turn: the whole remaining hop
             // chain with each hop's downstream paths, so one association
             // hop materializes the slot chain the rest of the query walks
-            Set<List<String>> nextTails = new LinkedHashSet<>();
-            List<String> chain = new ArrayList<>();
-            // a ROW-SET op between this hop's JOIN and a TO-MANY tail
-            // (first()/limit/drop/slice/distinct) must see the un-fanned
-            // rows: that tail is NOT pre-joined below it — the later hop
-            // joins afresh above the op (the association branch). A to-
-            // one tail is row-preserving and rides. A to-one hop with
-            // ops below it joins BEFORE them (flattenSource's join-first
-            // route), so its own segment counts too.
-            boolean rowSetSeen = !flattenHopMany.get(i)
-                    && flatSegs.get(i).stream().anyMatch(FlattenOps::isRowSetOp);
-            for (int k = i - 1; k >= 0; k--) {
-                rowSetSeen |= flatSegs.get(k).stream().anyMatch(FlattenOps::isRowSetOp);
-                if (flattenHopMany.get(k) && rowSetSeen) {
-                    break;
-                }
-                chain.add(flattenHops.get(k));
-                nextTails.add(List.copyOf(chain));
-                for (List<String> pth : FlattenOps.downstreamPaths(
-                        k == 0 ? ops : flatSegs.get(k - 1),
-                        k == 0 ? top : null)) {
-                    List<String> t2 = new ArrayList<>(chain);
-                    t2.addAll(pth);
-                    nextTails.add(t2);
-                }
-            }
-            // the NEXT outer hop is this hop's extra head — unless it is
-            // to-many with a row-count op between (the tail rule above:
-            // it must join ABOVE the op, not inside this hop's target)
-            boolean nextHopFans = i > 0 && flattenHopMany.get(i - 1)
-                    && ((!flattenHopMany.get(i)
-                            && flatSegs.get(i).stream().anyMatch(FlattenOps::isRowSetOp))
-                        || flatSegs.get(i - 1).stream().anyMatch(FlattenOps::isRowSetOp));
+            Set<List<String>> nextTails = FlattenOps.nextTails(i, flattenHops,
+                    flattenHopMany, flatSegs, ops, top);
+            boolean nextHopFans = FlattenOps.nextHopFans(i, flattenHopMany, flatSegs);
             cs = flattenSource(cs, flattenHops.get(i), fctx,
                     i == 0 ? ops : flatSegs.get(i - 1),
                     i == 0 ? top : null,
@@ -2690,6 +2699,7 @@ public final class StoreResolver {
                     flattenAssocs, flatSegs.get(i),
                     top instanceof TypedProject || top instanceof TypedGroupBy);
         }
+        cs = castGate == null ? cs : cs.withCastGate(castGate);
         return new OpChain(top, tree, implicitSerialize, ops, g, context, cs,
                 flattenAssocs);
     }
@@ -3312,7 +3322,7 @@ public final class StoreResolver {
                         Type.requireRelationSchema(m.pipeline().info().type()),
                         m.stripped(), m.slotPrefixes(),
                         temporal.milestoneColumnsOf(cs.pipeline(),
-                                cs.classFqn())),
+                                cs.classFqn()), cs.castGate()),
                 new Substitution.Registries(assocs, assocEnds, existsSubs,
                         aggReads, inQueryReads, isNotEmptyCallee(), equalCallee(),
                         RelationalRootForm.primaryKeyColumns(cs.classFqn(),

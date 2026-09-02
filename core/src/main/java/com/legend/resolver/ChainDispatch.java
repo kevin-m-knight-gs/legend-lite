@@ -1,0 +1,138 @@
+package com.legend.resolver;
+
+import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.element.TypedFunction;
+import com.legend.compiler.element.type.ExprType;
+import com.legend.compiler.element.type.Multiplicity;
+import com.legend.compiler.element.type.Type;
+import com.legend.compiler.spec.typed.TypedCBoolean;
+import com.legend.compiler.spec.typed.TypedCString;
+import com.legend.compiler.spec.typed.TypedFilter;
+import com.legend.compiler.spec.typed.TypedIf;
+import com.legend.compiler.spec.typed.TypedLambda;
+import com.legend.compiler.spec.typed.TypedMap;
+import com.legend.compiler.spec.typed.TypedMatchRuntime;
+import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedPropertyAccess;
+import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.spec.typed.TypedTypeRef;
+import com.legend.compiler.spec.typed.TypedVariable;
+import com.legend.error.NotImplementedException;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.function.IntSupplier;
+import java.util.function.Supplier;
+
+/**
+ * Run-time type dispatch in CHAIN position (harness burn-down leg 1,
+ * 2026-09-02). Batch 2 built the three forms on an instance VARIABLE
+ * ({@code $p->cast(@Sub).prop}, {@code $p->match([...])},
+ * {@code $p->instanceOf(Sub)}) on the union row's membership witness.
+ * The chain forms reduce to them: {@code chain->cast(@Sub)} keeps the
+ * union row GATED &mdash; a filter whose predicate RAISES on a non-
+ * conforming row (pure: cast exception; never a silent filter) plus a
+ * cast gate on the class source so reads of the target's own properties
+ * are the witness-gated subtype reads; {@code chain->match([...])} IS
+ * {@code chain->map(v|$v->match([...]))}.
+ */
+final class ChainDispatch {
+
+    private final ModelContext ctx;
+    private final Supplier<TypedFunction> failCallee;
+    private final IntSupplier fresh;
+
+    ChainDispatch(ModelContext ctx, Supplier<TypedFunction> failCallee,
+            IntSupplier fresh) {
+        this.ctx = ctx;
+        this.failCallee = failCallee;
+        this.fresh = fresh;
+    }
+
+    /** The chain cast's gate: adds the raise filter to {@code ops} and
+     * returns the gate class. One gate per chain, above every flatten
+     * hop (the class source the gate rides is the chain's final one). */
+    String gate(TypedSpec source, Type.ClassType from, Type.ClassType to,
+            List<TypedSpec> ops, boolean allowed) {
+        if (!allowed) {
+            throw new NotImplementedException("->cast(@" + to.fqn()
+                    + ") over a chain of " + from.fqn() + " (partial"
+                    + " membership) below a flatten hop, or a second"
+                    + " cast on one chain, is not supported yet");
+        }
+        ops.add(castGateFilter(source, from, to));
+        return to.fqn();
+    }
+
+    /** {@code chain->match([...])} as {@code chain->map(v|$v->match([...]))}. */
+    TypedMap chainMatchAsMap(TypedMatchRuntime mr, Type rowClass) {
+        String v = "_mv" + fresh.getAsInt();
+        TypedVariable var = new TypedVariable(v, ExprType.one(rowClass));
+        ExprType one = new ExprType(mr.info().type(), Multiplicity.Bounded.ONE);
+        TypedSpec inner = new TypedMatchRuntime(var, mr.arms(), mr.extraParam(),
+                mr.extra(), one);
+        TypedLambda mapper = new TypedLambda(List.of(v), List.of(inner),
+                new ExprType(new Type.FunctionType(
+                        List.of(new Type.Param(rowClass, Multiplicity.Bounded.ONE)),
+                        new Type.Param(mr.info().type(), Multiplicity.Bounded.ONE)),
+                        Multiplicity.Bounded.ONE));
+        return new TypedMap(mr.input(), mapper, mr.info());
+    }
+
+    /** Whether {@code n} is a property-access chain rooted at {@code var}. */
+    static boolean navRootedAt(TypedSpec n, String var) {
+        TypedSpec cur = n;
+        while (cur instanceof TypedPropertyAccess pa) {
+            cur = pa.source();
+        }
+        return cur instanceof TypedVariable v && v.name().equals(var)
+                && n instanceof TypedPropertyAccess;
+    }
+
+    /** Occurrences of the variable {@code var} beneath {@code n}. */
+    static int countVarReads(TypedSpec n, String var) {
+        int c = n instanceof TypedVariable v && v.name().equals(var) ? 1 : 0;
+        for (TypedSpec k : n.children()) {
+            c += countVarReads(k, var);
+        }
+        return c;
+    }
+
+    /** The chain-position cast's GATE: {@code filter(v | if($v->instanceOf(T),
+     * |true, |fail('Cast exception')))} — a row-preserving filter whose
+     * predicate RAISES on a non-conforming row (the database evaluates
+     * the CASE per row; batch 2's fail lowering). */
+    private TypedFilter castGateFilter(TypedSpec source, Type.ClassType from,
+            Type.ClassType to) {
+        String v = "_cg" + fresh.getAsInt();
+        ExprType boolOne = new ExprType(Type.Primitive.BOOLEAN,
+                Multiplicity.Bounded.ONE);
+        TypedVariable var = new TypedVariable(v, ExprType.one(from));
+        TypedSpec test = new TypedNativeCall(instanceOfCallee(), List.of(var,
+                new TypedTypeRef(to, ExprType.one(to))),
+                boolOne);
+        TypedSpec raise = new TypedNativeCall(failCallee.get(), List.of(
+                new TypedCString("Cast exception: " + from.fqn() + " is not a "
+                        + to.fqn(), new ExprType(Type.Primitive.STRING,
+                        Multiplicity.Bounded.ONE))),
+                boolOne);
+        TypedSpec body = new TypedIf(test, new TypedCBoolean(true, boolOne),
+                Optional.of(raise), boolOne);
+        TypedLambda pred = new TypedLambda(List.of(v), List.of(body),
+                new ExprType(new Type.FunctionType(
+                        List.of(new Type.Param(from,
+                                Multiplicity.Bounded.ONE)),
+                        new Type.Param(Type.Primitive.BOOLEAN,
+                                Multiplicity.Bounded.ONE)),
+                        Multiplicity.Bounded.ONE));
+        return new TypedFilter(source, pred, source.info());
+    }
+
+    private TypedFunction instanceOfCallee() {
+        return ctx.findFunction(Substitution.INSTANCE_OF_FQN)
+                .stream().filter(f -> f.parameters().size() == 2)
+                .findFirst().orElseThrow(() -> new IllegalStateException(
+                        "resolver bug: no instanceOf(Any, Type) registration"));
+    }
+
+}

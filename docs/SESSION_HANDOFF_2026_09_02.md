@@ -639,7 +639,32 @@ each read on the witness with fail('Cast exception') for non-conforming
 rows (never a silent filter), reads of member properties through the
 SUBTYPE_KEY dispatch. Then the View rows land on top.
 
-**Residue after batch 6**: views as main tables (above); (new) the
+**Harness burn-down leg 1 — chain-position type dispatch — LANDED
+(2026-09-02; user ratified the FULL burn-down: every Java-scored test
+runs on the platform through the one compile path).** `chain->cast(@Sub)`
+over a partial-membership row keeps the union row GATED: `ChainDispatch`
+adds a filter whose predicate RAISES on a non-conforming row
+(`if($v->instanceOf(Sub), |true, |fail('Cast exception …'))` — pure's
+cast exception, never a silent filter) and stamps `ClassSource.castGate`
+so reads of the target's own properties are the value-position witness-
+gated subtype reads (`Substitution` RowScope.castGate → castLeafRead);
+`chain->match([...])` IS `chain->map(v|$v->match([...]))`;
+`->map(o|$o.nav->match([...]))` splices the source for the parameter (the
+class-result-map rule) onto the chain form. Two general fixes:
+`routedTargetClass` returns ONE class only when every route of a
+`prop[set1]`/`prop[set2]` property lands on it (the first route used to
+win and a cast over the union target was judged total); the peeled
+scalar read's leaf carries the property's own multiplicity over an all-
+to-one path (the chain's `[*]` tripped the carrier stamp of a gated
+read). Pinned: `ChainTypeDispatchTest` (raises + rows, incl. a two-route
+navigation). Corpus: ratchet unchanged 841/1732, paired sweeps byte-
+identical; the one chain-cast wall (`->cast(@RelationalActivity)` inside
+the inlined `validate` body) moved to its next wall (the plan/text
+family). Named: a partial cast BELOW a flatten hop, or a second cast on
+one chain, stays loud.
+
+**Residue after leg 1**: views as main tables (the View rows on top of
+this mechanism — next); (new) the
 composed-row prefix scheme `<slot>_<column>` can COLLIDE with a physical
 column of that spelling (two system-store columns were renamed around it:
 `pk_column`, `super_mapping_fqn`/`super_id` — a user model with column

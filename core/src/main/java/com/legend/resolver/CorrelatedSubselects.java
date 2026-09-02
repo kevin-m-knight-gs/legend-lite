@@ -1876,8 +1876,12 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                 out.add(t);
             }
         }
+        // a cast over the instance variable, OR in CHAIN position over
+        // the class chain itself (the chain's cast gate reads the same
+        // subtype table — harness burn-down leg 1)
         if (n instanceof com.legend.compiler.spec.typed.TypedCast tc
-                && tc.source() instanceof TypedVariable
+                && (tc.source() instanceof TypedVariable
+                        || tc.source().info().type() instanceof Type.ClassType)
                 && tc.target() instanceof Type.ClassType cct) {
             out.add(cct.fqn());
         }

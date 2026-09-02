@@ -70,7 +70,20 @@ final class Substitution {
                     Map<String, TypedSpec> bindings, Type.RelationType rowType,
                     Set<String> strippedSlots,
                     Map<String, String> slotPrefixes,
-                    Map<String, String> milestoneColumns) {}
+                    Map<String, String> milestoneColumns,
+                    @com.legend.Nullable String castGate) {
+        /** Without a cast gate (ClassSource.castGate). */
+        RowScope(String userVar, String freshRowVar, String classFqn,
+                 String mappingFqn, String sourceRowVar,
+                 Map<String, TypedSpec> bindings, Type.RelationType rowType,
+                 Set<String> strippedSlots,
+                 Map<String, String> slotPrefixes,
+                 Map<String, String> milestoneColumns) {
+            this(userVar, freshRowVar, classFqn, mappingFqn, sourceRowVar,
+                    bindings, rowType, strippedSlots, slotPrefixes,
+                    milestoneColumns, null);
+        }
+    }
 
     /** THE DEMAND-REGISTERED MATERIALS: association/navigate heads, the
      * honest-error end names, the exists materials, the aggregate reads
@@ -1550,6 +1563,13 @@ final class Substitution {
                             + target.userVar() + "." + prop + "' used other than"
                             + " as a navigation head (class-typed value /"
                             + " isEmpty / whole-instance) is not supported yet");
+                }
+                // the chain was ->cast(@gate) in CHAIN position: a read of
+                // the gate class's own property is the value-position
+                // $p->cast(@gate).prop read (witness-gated subtype column)
+                if (target.row().castGate() != null
+                        && n instanceof TypedPropertyAccess gpa) {
+                    return castLeafRead(target.row().castGate(), gpa.source(), gpa);
                 }
                 throw new MappingResolutionException("property '" + prop
                         + "' of class '" + target.classFqn()

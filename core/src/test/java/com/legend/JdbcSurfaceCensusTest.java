@@ -385,6 +385,10 @@ class JdbcSurfaceCensusTest {
             // associations, slots and inheritance execute e2e — the ROWS
             // the database returns are the verdict (tenet #1)
             "core/src/test/java/com/legend/resolver/NavigationDepthTest.java",
+            // harness burn-down leg 1 (2026-09-02): chain-position type
+            // dispatch — the database RAISES on a non-conforming cast;
+            // the raise and the rows are the verdict
+            "core/src/test/java/com/legend/resolver/ChainTypeDispatchTest.java",
             "core/src/test/java/com/legend/sql/DuckDbValidityTest.java",
             "core/src/test/java/com/legend/sql/dialect/CarrierDifferentialTest.java",
             // GrammarFunctions_PCT REMOVED 2026-08-23 (F13b(a)): its only
