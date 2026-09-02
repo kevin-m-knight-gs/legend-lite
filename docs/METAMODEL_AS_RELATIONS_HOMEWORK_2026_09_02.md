@@ -489,3 +489,53 @@ Then the verdict on E/G/I with the mechanisms in hand, not before.
 - It does not propose carrying any engine pure source; every engine body
   cited is the SPEC for a native whose implementation is a query over our
   own facts.
+
+## 11. Answers to the review questions (2026-09-02) — not glossed
+
+**355 vs 261.** Two instruments. 355 = a sum of fallback-census BUCKET rows
+(tests by FIRST wall; exact at 848). 261 = tests my per-test parse could
+name from `[flip-wall/fail-debug]` lines. The difference is the two HN
+buckets (65 plan-walk + 45 `mapping::sql`) whose wall prints no per-test
+line (22 of 110 surface via `[v7] decline-witness`); the rest were the
+~11 stamp rows filed under the multiplicity leg. First-wall filing means
+the family is neither a floor nor a ceiling for flips: tests filed
+elsewhere may need metamodel facts later, and metamodel-filed tests may
+carry later non-metamodel walls (E's TDS join lambdas, for one).
+
+**Dynamic models.** SystemMetamodel already seeds from the ACTIVE model
+context at execution setup (compile-once + per-test overlays), so V0 is
+not a static file. NOT designed and owed: the seed LIFECYCLE for users —
+when (session / query / model hash), where (per-connection temp schema vs
+shared), overlays as row deltas vs full re-seed, invalidation, cost at
+any scale (unmeasured). Identity stays FQN + model hash: one Pure graph
+holds one element per FQN, so versions are contexts, never rows.
+
+**Worries, explicitly.**
+1. TREE SHAPE: our `TypedSpec` is post-inference with OUR node kinds; the
+   H/J/A tests walk the ENGINE's m3 shape (`SimpleFunctionExpression`
+   with `func`/`parametersValues`/`propertyName`). The row projection
+   must present the m3 shape, or those tests diverge; pkInference's
+   286-line spec is written against m3 shapes. Undesigned.
+2. TEXT GOLDENS: group E (21) and the plan-print groups compare
+   engine-generated alias/plan TEXT; rows can exist and the verdict still
+   be text. Likely permanent named residue unless spelling is matched.
+3. Relation-valued `match` arms (Table row vs View path in `mainTable`)
+   need schema unification; only scalar arms were reasoned through.
+4. `reactivate` (rows → executable): probably a permanent wall (one chain).
+5. H2 LANE: node-table payloads are struct/JSON columns; the H2 execution
+   dialect walls on list encodings 863 times today — the tree half may
+   not run on H2 until Layer 4 is decided.
+6. JAVA GROWTH: the constructed-SQL-AST decoder and side-output emitters
+   are Java the evaluation ledger counts; the "emitting rows vs parallel
+   evaluator" line will be tested every batch.
+7. Group G (protocol Node structural equality) and the 45 `mapping::sql`
+   HN tests are unverified beyond bucket names.
+
+**Tractability verdict.** As a program: yes, split. The model-facts half
+(F 27, D 43, plan reads ~26, pkInference 43 via a PK side-output) ≈ 140
+tests rides three mechanisms — seed tables + natives-as-queries,
+match/cast over a discriminator, resolver side-output rows — and is a
+confident bet after prototypes 1-2. The tree-exposure half hinges on the
+m3-shape projection; the text-golden and protocol-equality groups may
+never flip through rows. Expectation: well over half the family lands
+and the rest is named with receipts. NOT tractable as "all 355 flip".
