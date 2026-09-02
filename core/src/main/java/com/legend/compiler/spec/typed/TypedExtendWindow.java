@@ -18,13 +18,40 @@ import java.util.List;
  * @param columns window-function columns (empty for the aggregate form)
  * @param aggs    windowed-aggregate columns (empty for the function form)
  * @param info    the result &mdash; {@code T+Z}/{@code T+R} resolved
+ * @param extentBoundary the window belongs to a CLASS EXTENT's pipeline
+ *                (a Relation {@code ~func} set): the extent is an evaluation
+ *                boundary &mdash; operators the query applies to the mapped
+ *                class (filters above all) never fold INTO this window's
+ *                select, so the window computes over the extent's own rows.
+ *                In plain relation composition the engine folds an ordinary
+ *                predicate to WHERE under a window (PCT
+ *                testExtendFilterOutNull: the window sees the FILTERED
+ *                rows); at the mapping seam it treats the mapped relation
+ *                as a non-mergeable view (corpus testMappingWithWindowColumn:
+ *                John ranks 2nd among ALL group members, the class filter
+ *                only drops rows). Stamped by the resolver
+ *                ({@code ClassSources}) when it extracts the extent pipeline;
+ *                honored by the lowerer (isolates the window select).
  */
 public record TypedExtendWindow(TypedSpec source, TypedOver window, List<TypedFuncCol> columns,
-                                List<TypedAggCol> aggs, ExprType info) implements TypedSpec {
+                                List<TypedAggCol> aggs, ExprType info,
+                                boolean extentBoundary) implements TypedSpec {
 
     public TypedExtendWindow {
         columns = List.copyOf(columns);
         aggs = List.copyOf(aggs);
+    }
+
+    /** The checker's constructor: a window in query position (no boundary). */
+    public TypedExtendWindow(TypedSpec source, TypedOver window, List<TypedFuncCol> columns,
+                             List<TypedAggCol> aggs, ExprType info) {
+        this(source, window, columns, aggs, info, false);
+    }
+
+    /** This window as a class-extent boundary (see {@link #extentBoundary}). */
+    public TypedExtendWindow withExtentBoundary() {
+        return extentBoundary ? this
+                : new TypedExtendWindow(source, window, columns, aggs, info, true);
     }
 
     @Override
@@ -55,6 +82,7 @@ public record TypedExtendWindow(TypedSpec source, TypedOver window, List<TypedFu
             TypedLambda r = (TypedLambda) kids.get(i++);
             as.add(new TypedAggCol(a.name(), m, r, a.orderKey(), a.orderAsc()));
         }
-        return new TypedExtendWindow(kids.get(0), (TypedOver) kids.get(1), cs, as, info);
+        return new TypedExtendWindow(kids.get(0), (TypedOver) kids.get(1), cs, as, info,
+                extentBoundary);
     }
 }

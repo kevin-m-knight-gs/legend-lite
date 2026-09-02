@@ -13,10 +13,26 @@ import java.util.List;
  * @param source the relation being extended
  * @param aggs   the aggregate columns
  * @param info   the result &mdash; {@code T+R} resolved
+ * @param extentBoundary the aggregate window belongs to a CLASS EXTENT's
+ *               pipeline &mdash; same contract as
+ *               {@link TypedExtendWindow#extentBoundary()}: a whole-relation
+ *               {@code SUM(x) OVER ()} over a mapped relation aggregates the
+ *               extent's own rows, never the query-filtered subset.
  */
-public record TypedExtendAgg(TypedSpec source, List<TypedAggCol> aggs, ExprType info) implements TypedSpec {
+public record TypedExtendAgg(TypedSpec source, List<TypedAggCol> aggs, ExprType info,
+                             boolean extentBoundary) implements TypedSpec {
     public TypedExtendAgg {
         aggs = List.copyOf(aggs);
+    }
+
+    /** The checker's constructor: an aggregate extend in query position. */
+    public TypedExtendAgg(TypedSpec source, List<TypedAggCol> aggs, ExprType info) {
+        this(source, aggs, info, false);
+    }
+
+    /** This extend as a class-extent boundary (see {@link #extentBoundary}). */
+    public TypedExtendAgg withExtentBoundary() {
+        return extentBoundary ? this : new TypedExtendAgg(source, aggs, info, true);
     }
 
     @Override
@@ -39,6 +55,6 @@ public record TypedExtendAgg(TypedSpec source, List<TypedAggCol> aggs, ExprType 
             as.add(new TypedAggCol(a.name(), (TypedLambda) kids.get(1 + 2 * i),
                     (TypedLambda) kids.get(2 + 2 * i), a.orderKey(), a.orderAsc()));
         }
-        return new TypedExtendAgg(kids.get(0), as, info);
+        return new TypedExtendAgg(kids.get(0), as, info, extentBoundary);
     }
 }

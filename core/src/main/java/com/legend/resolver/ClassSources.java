@@ -301,6 +301,31 @@ public final class ClassSources {
                         new ExprType(lFn, one)));
     }
 
+    /**
+     * THE MAPPING-SEAM WINDOW RULE: every window inside a class extent's
+     * pipeline (a Relation {@code ~func} set — the only mapping kind whose
+     * extent can carry one) is stamped as an extent boundary, so the
+     * lowerer isolates its select and the query's operators over the
+     * mapped class (its filter above all) land OUTSIDE it. The engine
+     * treats the mapped relation as a non-mergeable view (corpus
+     * testMappingWithWindowColumn: the rank counts every group member,
+     * the class filter {@code age > 25} only drops rows); in plain
+     * relation composition it folds the same predicate to WHERE under the
+     * window (PCT testExtendFilterOutNull) — the fold rules keep that, and
+     * this stamp is the resolver's decision the Fold contract names.
+     * Structural walk over the whole extent (lambdas included: a window
+     * nested in a correlated subquery of the extent is an extent fact too;
+     * isolation is always sound).
+     */
+    private static TypedSpec sealExtentWindows(TypedSpec n) {
+        TypedSpec rebuilt = n.mapChildren(ClassSources::sealExtentWindows);
+        return switch (rebuilt) {
+            case com.legend.compiler.spec.typed.TypedExtendWindow w -> w.withExtentBoundary();
+            case com.legend.compiler.spec.typed.TypedExtendAgg a -> a.withExtentBoundary();
+            default -> rebuilt;
+        };
+    }
+
     /** Deterministic key-column name for parent-member ordinal {@code ord}'s
      * child route on {@code prop} — shared by the extent arms and the
      * child-union arms. */
@@ -654,7 +679,7 @@ public final class ClassSources {
                     + mapperBody.getClass().getSimpleName());
         }
 
-        TypedSpec pipeline = map.source();
+        TypedSpec pipeline = sealExtentWindows(map.source());
         Type.RelationType rowType = Type.relationSchema(pipeline.info().type());
         if (rowType == null) {
             // A CLASS-typed pipeline is a MODEL-TO-MODEL mapping: the body is

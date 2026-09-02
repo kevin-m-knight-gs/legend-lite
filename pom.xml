@@ -89,6 +89,22 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
                     <version>3.5.2</version>
+                    <!-- THE ENGINE'S TEST CLOCK: legend-engine runs every
+                         test JVM under -Duser.timezone=GMT (its root pom's
+                         surefire.vm.params) and its goldens were minted
+                         there. Without the pin our H2 replay oracle read
+                         now() in the machine's LOCAL zone while DuckDB read
+                         it in UTC, so a now()-relative golden
+                         (testGenerateDateDiffExpressionForH2ForDifferenceIn
+                         Days) row-verified only while the two zones shared a
+                         calendar date — the migration ratchet moved by one
+                         test between 21:00 and midnight local (2026-09-01
+                         attribution: two same-tree HEAD sweeps at 877/1696
+                         against the pinned 876/1697). One clock, the
+                         engine's. -->
+                    <configuration>
+                        <argLine>-Duser.timezone=GMT</argLine>
+                    </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>

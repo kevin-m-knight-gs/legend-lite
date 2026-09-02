@@ -313,6 +313,11 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/integration/M2MIntegrationTest.java",
             "core/src/test/java/com/legend/integration/PivotCheckerTest.java",
             "core/src/test/java/com/legend/integration/RelationApiIntegrationTest.java",
+            // foundation probe 2026-09-01: the mapping-seam window rule
+            // (a Relation ~func extent's window is an evaluation
+            // boundary); test-side JDBC = fixture seeding on an in-memory
+            // DuckDB, execution through QueryService like its siblings
+            "core/src/test/java/com/legend/integration/RelationMappingWindowSeamTest.java",
             "core/src/test/java/com/legend/integration/RelationalMappingCompositionTest.java",
             "core/src/test/java/com/legend/integration/RelationalMappingIntegrationTest.java",
             "core/src/test/java/com/legend/integration/RenameCheckerTest.java",

@@ -286,7 +286,12 @@ final class Fold {
      * FILTERED rows). The opposite behavior is required only at the
      * MAPPING seam, where the engine treats the mapped relation as a
      * non-mergeable view — that isolation is the RESOLVER's decision
-     * (windowed ~func pipelines), never a fold rule. */
+     * (windowed ~func pipelines), never a fold rule: ClassSources stamps
+     * every window in a class extent's pipeline {@code extentBoundary}
+     * and Lowerer.extentBoundary isolates it (corpus
+     * testMappingWithWindowColumn was the witness — before the stamp the
+     * class filter folded INTO the ~func's window select and John
+     * ranked 1st instead of 2nd). */
     static boolean containsWindow(SqlExpr e) {
         return e instanceof SqlExpr.WindowCall
                 || e.children().stream().anyMatch(Fold::containsWindow);

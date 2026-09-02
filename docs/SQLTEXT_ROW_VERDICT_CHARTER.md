@@ -547,6 +547,44 @@ legitimate forever.
    guarded) and the execute/3 wall (30 tests) peeled to its NEXT named
    walls: Any-property dynamic reads (+28, now 46 total — the next
    checker leg) and effectful (+4). Zero net flips; honest movement.
+   **FOUNDATION PROBE LANDED 2026-09-01 (ratchet 876/1697 ->
+   871/1702, corpus 2349 -> 2350; the full record is
+   docs/PLATFORM_FAIL_ADJUDICATION_2026_09_01.md).** Every platform-fail
+   block of one debug sweep read against ENGINE SOURCE. Verdict: no
+   silent filter/null-out corruption anywhere. The null-vs-value trio
+   (testMixedMappingWithFilterInProject cohort) is the ENGINE's own
+   column-resolution defect pinned by its golden (its corpus carries a
+   `test.ToFix` sibling admitting "AGE column fails to resolve against
+   inner relation"); ours is the Pure answer — ADJUDICATED NOT OURS,
+   stays counted (the firstDayOfWeek class). Dup-rows = a join-chain
+   TERMINAL-binding divergence with a corpus-wide blast radius of ONE
+   mapping (165 chain refs censused) + the fan-out instance-carrier
+   class; empty-vs-null = our TDSNull encoding differing between the
+   instance-literal and row carriers; union padding = the engine's csv
+   carrier conflating '' with null. TWO BURNS: (1) the MAPPING-SEAM
+   WINDOW RULE — Fold.containsWindow's doc named the resolver's
+   "windowed ~func" isolation but nothing built it; ClassSources stamps
+   `extentBoundary` on every window in a class extent's pipeline and
+   the lowerer isolates it (plain relation composition keeps the
+   engine's WHERE-under-window fold, PCT testExtendFilterOutNull) —
+   testMappingWithWindowColumn flips. (2) ONE TEST CLOCK — the engine
+   pins -Duser.timezone=GMT for every test JVM; our H2 replay oracle
+   had been reading now() in the LOCAL zone against DuckDB's UTC, so
+   the five dateDiff(..., now()) goldens diverged by the zone offset
+   and the DAYS one only after 21:00 local — the ±1 evening wobble
+   that read HEAD at 877/1696 against its own pin. Root pom pins GMT.
+   Under GMT they still RACED at unit boundaries (two instants: the
+   oracle replays later than we executed), so H2Verify.compareFrame
+   declines BY NAME "datediff-to-now golden" (a datediff spelling the
+   instant, in the SELECT list — predicate uses and instant-invariant
+   projections keep their row verdict, both over-broad cuts measured
+   and rejected); §3.7 text contract + byte-identical spelling = +5
+   DETERMINISTIC flips, ROW-verdict diverged bucket 10 -> 5, emission
+   census 396/812/102 -> 392/812/110. Named residue added
+   to the burn map: join-chain terminal binding (1), instance-carrier
+   fan-out cardinality, TDSNull cross-carrier encoding, connection
+   timeZone at execution (2), inline MapperPostProcessor (1), identity
+   leak on multi-pk map (1).
 4. Plan replayer (§5) + plan-text flips; branch-forcing.
 5. Inventory upgrades as their own commits: #3 ULP probe/upgrade,
    #4 TIMESTAMP_NS leg, #11 projection, #1 sentinel.

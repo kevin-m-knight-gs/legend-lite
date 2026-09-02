@@ -2157,7 +2157,7 @@ public final class Lowerer {
     private SqlSelect extendWindow(TypedExtendWindow w) {
         SqlSelect src = relation(w.source());
         SqlSelect base = Fold.windowFolds(src) ? src : isolate(src);
-        return foldOrIsolate(base, "extend window", b -> {
+        SqlSelect out = foldOrIsolate(base, "extend window", b -> {
             Over over = lowerOver(b, w.window());
             List<OutputCol> contract = outputsOf(w.info());
             List<SqlSelect.Projection> ps = new ArrayList<>(starProjections(b));
@@ -2174,13 +2174,16 @@ public final class Lowerer {
             }
             return b.withProjections(ps);
         });
+        // a class-extent window closes its select (TypedExtendWindow
+        // .extentBoundary): the query's filter lands in the OUTER WHERE
+        return w.extentBoundary() ? isolate(out) : out;
     }
 
     /** extend(~total : x|$x.AGE : y|$y->sum()) — whole-relation window: SUM(x) OVER (). */
     private SqlSelect extendAgg(TypedExtendAgg ea) {
         SqlSelect src = relation(ea.source());
         SqlSelect base = Fold.windowFolds(src) ? src : isolate(src);
-        return foldOrIsolate(base, "extend aggregate", b -> {
+        SqlSelect out = foldOrIsolate(base, "extend aggregate", b -> {
             List<OutputCol> contract = outputsOf(ea.info());
             List<SqlSelect.Projection> ps = new ArrayList<>(starProjections(b));
             for (TypedAggCol a : ea.aggs()) {
@@ -2190,6 +2193,7 @@ public final class Lowerer {
             }
             return b.withProjections(ps);
         });
+        return ea.extentBoundary() ? isolate(out) : out;
     }
 
     private List<SqlSelect.Projection> starProjections(SqlSelect base) {

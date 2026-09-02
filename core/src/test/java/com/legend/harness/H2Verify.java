@@ -313,6 +313,66 @@ public final class H2Verify {
         }
     }
 
+    /** The engine-H2 spellings of "the current instant" in a golden:
+     * {@code now()}, {@code current_timestamp}/{@code current_date}/
+     * {@code current_time} (H2 keywords, no parens), {@code today()}. */
+    private static final java.util.regex.Pattern NOW_RELATIVE =
+            java.util.regex.Pattern.compile(
+                    "(?i)\\bnow\\s*\\(\\s*\\)|\\bcurrent_(?:timestamp|date|time)\\b"
+                    + "|\\btoday\\s*\\(");
+
+    /** Does the golden PROJECT a distance to the current instant — a
+     * {@code datediff(...)} in the select list (before the top-level
+     * FROM, paren depth 0) whose arguments spell {@link #NOW_RELATIVE}?
+     * That value IS the gap between "now" and a stored time, so it moves
+     * with every unit boundary the two executions straddle. Other
+     * projected uses of the instant are instant-INVARIANT in practice
+     * ({@code now()->adjust(1, DAYS) > now()} is always true —
+     * tdsProject testProjectEnumFromOpenVariable row-verifies) and
+     * predicate uses select the same rows seconds apart; both keep their
+     * row verdict. */
+    static boolean instantInSelectList(String sql) {
+        int depth = 0;
+        int n = sql.length();
+        int fromAt = n;
+        for (int i = 0; i < n; i++) {
+            char c = sql.charAt(i);
+            if (c == '(') {
+                depth++;
+            } else if (c == ')') {
+                depth--;
+            } else if (depth == 0 && (c == 'f' || c == 'F') && i + 4 <= n
+                    && sql.regionMatches(true, i, "from", 0, 4)
+                    && (i == 0 || !Character.isLetterOrDigit(sql.charAt(i - 1)))
+                    && (i + 4 == n || !Character.isLetterOrDigit(sql.charAt(i + 4)))) {
+                fromAt = i;
+                break;
+            }
+        }
+        String selectList = sql.substring(0, fromAt);
+        java.util.regex.Matcher dd = java.util.regex.Pattern
+                .compile("(?i)\\bdatediff\\s*\\(").matcher(selectList);
+        while (dd.find()) {
+            int open = dd.end() - 1;
+            int d = 0;
+            for (int i = open; i < selectList.length(); i++) {
+                char c = selectList.charAt(i);
+                if (c == '(') {
+                    d++;
+                } else if (c == ')') {
+                    d--;
+                    if (d == 0) {
+                        if (NOW_RELATIVE.matcher(selectList.substring(open, i)).find()) {
+                            return true;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     /** Kind dispatch for the golden compare: flat frames positionally,
      * the Graph frame by label ({@link ReplayOracle}-called — the
      * comparison policy seam). */
@@ -329,6 +389,28 @@ public final class H2Verify {
             throw new Unverifiable(
                     "forced-isolation golden over a VALUE frame"
                     + " (engine debug-mechanism pin)", null);
+        }
+        if (instantInSelectList(goldenSql)) {
+            // A golden that PROJECTS the current instant is TWO INSTANTS
+            // by construction: the oracle replays it later than our
+            // pipeline executed, so a dateDiff(x, now(), MINUTES) column
+            // flips at every minute boundary the two executions straddle
+            // (foundation probe 2026-09-01: the five sqlstring
+            // dateDiff-to-now goldens row-verified in three same-tree
+            // sweeps and dropped ONE different member in the next two —
+            // HOURS once, MINUTES once). No clock pin removes that race;
+            // the row verdict is non-reproducible by definition, so it
+            // declines BY NAME (counted; §3.7 makes TEXT the contract —
+            // byte-identical spelling still passes, deterministically).
+            // A predicate use (WHERE/ON x < now()) stays row-verified:
+            // the rows it selects do not move between two instants
+            // seconds apart, and four such goldens verified reliably
+            // (the first cut declined them too — an over-broad regex
+            // cost four flips and an M1 verify; the select-list
+            // datediff scan is the precise notion).
+            throw new Unverifiable(
+                    "datediff-to-now golden: oracle replay and our execution"
+                    + " are two instants — row verdict non-reproducible", null);
         }
         return ours instanceof ExecutionResult.Graph g
                 ? goldenGraphCompare(st, goldenSql, g, graphEnumProp)

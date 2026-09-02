@@ -1102,10 +1102,36 @@ public class RelationalCorpusRunner {
             // values-binding (the chartered referee-binding cut), 3
             // REAL platform divergences (testConstant cohort — the
             // burn list), 1 store-resolution.
-            org.junit.jupiter.api.Assertions.assertEquals(876L,
+            // 876/1697 -> 871/1702 (the foundation probe, docs/
+            // PLATFORM_FAIL_ADJUDICATION_2026_09_01.md). TWO burns, both
+            // roster-attributed: (1) the MAPPING-SEAM WINDOW RULE —
+            // a window inside a Relation ~func class extent is an
+            // evaluation boundary (ClassSources.sealExtentWindows +
+            // Lowerer.extentBoundary); the class filter had folded INTO
+            // the ~func's window select (testMappingWithWindowColumn:
+            // John ranked 1st, golden 2nd) — +1 flip, corpus 2349 ->
+            // 2350. (2) ONE TEST CLOCK — the engine runs its test JVM
+            // under -Duser.timezone=GMT; ours ran the H2 replay oracle
+            // on the machine's LOCAL zone against DuckDB's UTC, so the
+            // five dateDiff(..., now()) goldens (sqlstring
+            // testGenerateDateDiffExpressionForH2ForDifferenceIn*)
+            // row-diverged by the zone offset — and the DAYS one only
+            // AFTER 21:00 local, which is the ±1 wobble that made
+            // HEAD read 877/1696 against this pin in two same-tree
+            // evening sweeps. Root pom surefire argLine pins GMT — and
+            // because the oracle replays a golden LATER than we executed
+            // (two instants), a projected datediff-to-now still raced at
+            // unit boundaries under GMT (HOURS/MINUTES each dropped once
+            // in five sweeps), so H2Verify.compareFrame declines it BY
+            // NAME and §3.7's text contract flips it deterministically
+            // (byte-identical spelling). +5 flips, the ROW-verdict
+            // diverged bucket 10 -> 5, oracle verdict roster
+            // byte-identical, exec-passing unchanged, paired sweeps
+            // byte-identical on all three rosters.
+            org.junit.jupiter.api.Assertions.assertEquals(871L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(1697L,
+            org.junit.jupiter.api.Assertions.assertEquals(1702L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

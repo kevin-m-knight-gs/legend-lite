@@ -87,7 +87,7 @@ shared source registered by several families cannot double-count. Run with
 | tests/mapping/modelJoin | 48 | 45 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/multigrain | 5 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| tests/mapping/relation | 109 | 104 | 4 | 1 | 0 | 0 | 0 | 0 | 0 |
+| tests/mapping/relation | 109 | 105 | 3 | 1 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/relation/aggregation | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/selfJoin | 3 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 73 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 48 | 5 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 12 |
-| **total** | 2575 | **2349** | 53 | 135 | 38 | 12 | 14 | 30 | 165 |
+| **total** | 2575 | **2350** | 52 | 135 | 38 | 12 | 14 | 30 | 165 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2349 PASS = 2143 clean + 206 carrying softness (sqldiff 12, advisory 14, 0-asserts 30, text-rescued 165; flags overlap — the union is 206).
+SOFT-PASS RECONCILIATION (F2.1): 2350 PASS = 2144 clean + 206 carrying softness (sqldiff 12, advisory 14, 0-asserts 30, text-rescued 165; flags overlap — the union is 206).
 
 ### mapping walls (dropped at assembly)
 
@@ -1313,7 +1313,6 @@ SOFT-PASS RECONCILIATION (F2.1): 2349 PASS = 2143 clean + 206 carrying softness 
 - ERROR testSubFilter [tests/mapping/modelJoin]: nested navigation 'address.city' inside an exists/isEmpty predicate is not supported yet
 - ERROR testToManyWithQualifierWithFilterOnJoin [tests/mapping/multigrain]: multi-hop navigation account.incomeFunctionSplits#f0.incomeFunction.Classification.name through an embedded/slot head is not supported yet [assocs=[account]; head subNavs=[incomeFunctionSplits#f0]; head binding=TypedNativeCall]
 - FAIL testDateTimeInclusiveRangeQuery [tests/mapping/relation]: assertTdsEquivalent: expected 2 cells, got 1
-- FAIL testMappingWithWindowColumn [tests/mapping/relation]: assertEquals: expected #TDS\n   name,groupName,rank\n   David,Group D,1\n   Fabrice,Group C,1\n   John,Group A,2\n   Oliver,Group C,2\n#, got #TDS\n   name,groupName,rank\n   David,Group D,1\n   Fabrice,Group C,1\n   John,Group A,1\n   Oliver,Group C,2\n#
 - FAIL testMixedMappingWithFilterInProject [tests/mapping/relation]: assertEquals: expected #TDS\n   name1,name2\n   David,null\n   Fabrice,null\n   John,John\n   Oliver,Fabrice\n   Oliver,Oliver\n#, got #TDS\n   name1,name2\n   David,null\n   Fabrice,Oliver\n   John,John\n   Oliver,Oliver\n#
 - ERROR testRelationStoreAccessorOnView [tests/mapping/relation]: Catalog Error: Table with name personView does not exist! | Did you mean "personWithAddressTable"? |  | LINE 5: ... END) AS _tds_line FROM ( SELECT t1.ID, t1.age, t1.name FROM personView AS t1 ) AS t0 ) AS t0_a), '"sql":"select \"perso... |                                                            
 - FAIL testSimpleMappingQueryWithFilterInProject [tests/mapping/relation]: assertEquals: expected #TDS\n   name1,name2\n   David,null\n   Fabrice,null\n   John,John\n   Oliver,Fabrice\n   Oliver,Oliver\n#, got #TDS\n   name1,name2\n   David,null\n   Fabrice,Oliver\n   John,John\n   Oliver,Oliver\n#
