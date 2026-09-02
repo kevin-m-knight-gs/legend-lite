@@ -95,6 +95,13 @@ class JdbcSurfaceCensusTest {
             // carrier, so the comparison layer's java.sql value arms
             // are GONE — sql types never escape the fetch seam.)
             "core/src/main/java/com/legend/exec/Executor.java",
+            // THE SYSTEM DATABASE (user ruling 2026-09-02): the graph's
+            // metamodel rows in a database of their own, separate from
+            // every user connection — opened once per graph per engine,
+            // written once; the executor routes store-reading bodies to
+            // it. It opens the in-memory session and runs the seed DDL
+            // through Executor.executeRaw; no value is read here.
+            "core/src/main/java/com/legend/exec/SystemDatabase.java",
             // B7 (RaisedErrors): touches java.sql ONLY to rethrow a
             // SQLException whose raised-message envelope it removed —
             // the provenance seam at Executor's own funnel; it opens no

@@ -908,6 +908,8 @@ public final class Runner {
         } finally {
             com.legend.exec.TimingLedger.add("test.wall",
                     System.nanoTime() - tt0);
+            com.legend.exec.TimingLedger.addNamed(t.fqn(),
+                    System.nanoTime() - tt0);
         }
     }
 

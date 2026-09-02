@@ -30,6 +30,15 @@ public interface ModelContext {
     Optional<TypedClass> findClass(String fqn);
 
     /**
+     * A DERIVED FACT with the GRAPH's lifetime: {@code derive} runs once
+     * per compiled graph (execution overlays are views of the same graph
+     * and share it), keyed by the fact's class. For facts that are pure
+     * functions of the graph — the system database holding its metamodel
+     * rows — never for per-query state.
+     */
+    <T> T derived(Class<T> key, java.util.function.Function<ModelContext, T> derive);
+
+    /**
      * Every model element FQN (classes, enums, associations, mappings,
      * databases, runtimes, functions) — the wildcard-import candidate
      * universe for SECTION-scoped query resolution.

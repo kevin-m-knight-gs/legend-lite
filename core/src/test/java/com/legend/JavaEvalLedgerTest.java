@@ -673,6 +673,14 @@ class JavaEvalLedgerTest {
                     "Column.java", "CsvSeed.java",
                     "Ddl.java", "DynamicPivot.java",
                     "ExecutionResult.java", "Executor.java",
+                    // THE SYSTEM DATABASE (user ruling 2026-09-02): the
+                    // graph's metamodel rows in a database of their own,
+                    // separate from every user connection — opened once
+                    // per graph per engine, written once; store-reading
+                    // bodies ROUTE to it (StatementExecutor). Egress only:
+                    // seed DDL + content-addressed constructed rows; no
+                    // value a verdict reads is produced here
+                    "SystemDatabase.java",
                     // Phase 2 (One-Platform Plan): THE COMPARISON LAYER —
                     // the platform assert family (spec = legend-pure's
                     // essential/tests/*.pure) + the TDS-grid compare

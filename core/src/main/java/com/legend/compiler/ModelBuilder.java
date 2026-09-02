@@ -642,6 +642,36 @@ public final class ModelBuilder {
     // Lookups by FQN
     // ====================================================================
 
+    /** Lazily built DIRECT subclass index over the model's classes (super
+     * FQN &rarr; declaring classes, ingest order); the model is fully
+     * ingested before any consumer asks. */
+    private @com.legend.Nullable Map<String, List<String>> directSubclasses;
+
+    /** The model classes that DIRECTLY extend {@code fqn} (ingest order;
+     * empty when none) — "the subclasses of X" as a walk of X's subtree,
+     * never a scan of every class (UnionSynthesis's inheritance members
+     * scanned the whole universe per class per call). */
+    public List<String> directSubclasses(String fqn) {
+        Map<String, List<String>> index = directSubclasses;
+        if (index == null) {
+            index = new HashMap<>();
+            for (ClassDefinition cd : classes) {
+                if (cd == null) {
+                    continue;
+                }
+                for (TypeExpression sup : cd.superClasses()) {
+                    if (sup instanceof TypeExpression.NameRef nr) {
+                        index.computeIfAbsent(nr.name(), k -> new ArrayList<>())
+                                .add(cd.qualifiedName());
+                    }
+                }
+            }
+            directSubclasses = index;
+        }
+        List<String> subs = index.get(fqn);
+        return subs == null ? List.of() : Collections.unmodifiableList(subs);
+    }
+
     /** O(1). Returns {@link ClassDefinition} for {@code fqn}, if any. */
     public Optional<ClassDefinition> findClass(@com.legend.Nullable String fqn) {
         if (fqn == null) {

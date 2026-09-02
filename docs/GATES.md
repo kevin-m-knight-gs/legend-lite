@@ -162,6 +162,39 @@ already hoisted (FixtureCorpusParityTest 2.4s -> 0.5s); the next real
 lever, if the budget ever binds, is sharing one surefire JVM across
 gates 4/5 (the family-sharding speed leg), not thinning coverage.
 
+## Budget BREACH, 2026-09-02 — group F landed at 12m54s; the fix is batch 8
+
+The group F burn (eaf025c9) landed GREEN at **776s = 12m54s**: G1 114s,
+G4 173s, G5 196s, G6 158s (parser-only G8/G9 flat). Two causes, both
+per-execution or per-compile re-derivation of facts that are constant:
+
+1. **Normalizing the injected system metamodel per model compile** —
+   2.3ms -> 28.2ms per compile; ~3,000 compiles in G1. Profiled: 40% was
+   `UnionSynthesis.mergedScan` PRINTING syntax trees to compare them
+   (quadratic in the 21-member if-chain), 45% an unindexed subclass
+   search over the whole class universe per inheritance op. Both FIXED
+   in batch 8 (record equality; a direct-subclass index per model +
+   native catalog): 28.2ms -> 8.0ms. The residual 5.7ms is normalizer
+   re-derivation the boot-layer leg removes.
+2. **Seeding ~20 metamodel tables of a corpus-sized graph on EVERY
+   store-reading execution** (the four op-tree tables each re-walked the
+   whole graph). Batch 8: THE SYSTEM DATABASE (user ruling) — one
+   in-memory database per graph per engine, separate from every user
+   connection, written ONCE (exec/SystemDatabase, ModelContext.derived);
+   the executor ROUTES store-reading bodies to it. DuckDB lane 173s ->
+   66s; H2 lane 196s -> 159s.
+
+**Named residue (batch 9):** the H2 lane's remaining 110s is TEN
+typeInference tests (9–18s each — the per-test `slowest` ledger names
+them): their queries join the `RelationalOperationElement` extent, a
+UNION ALL over five store tables (tables/columns/views/table_aliases/
+relational_ops), which H2 cannot index (rescan per outer row; DuckDB
+hash-joins it in ~1ms). Fix = the store's own idiom: ONE table for the
+hierarchy (`kind` column, `id` PK — as data_types/relational_ops already
+are) so the extent is an indexed filtered scan, plus the plain-`id` key
+read for merged members. Then the boot layer (system elements compiled
+once per process). The 5.5-minute ceiling is re-armed when both land.
+
 ## The time budget: ~6m40s measured 2026-08-11 — re-pin pending
 
 The 5.5-minute lock (measured 2026-08-08) was already exceeded BEFORE the

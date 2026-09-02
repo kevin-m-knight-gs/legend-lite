@@ -125,9 +125,10 @@ class HarnessDisciplineTest {
             // Executor: the opt-in TIMING DIAGNOSTIC dump orders by
             // elapsed time (deterministic output, never comparison)
             Map.entry("Executor.java", 1),
-            // TimingLedger: TreeMap render of the diagnostic dump
+            // TimingLedger: TreeMap render of the diagnostic dump, and
+            // the slowest-30 per-test ordering of the same dump (batch 8)
             // (deterministic output, never comparison)
-            Map.entry("TimingLedger.java", 1),
+            Map.entry("TimingLedger.java", 2),
             // TYPED-IR Slice 1: census-class DISPLAY ordering
             // (largest-first report lines) — reporting, never a result
             // reordering; two-sided by construction (both sides of no

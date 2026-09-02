@@ -743,20 +743,51 @@ final class UnionSynthesis {
         // WHOLE class universe (user classes AND the native catalog: a
         // mapped metaclass's subclasses are natives; engine
         // getMappedLeafTypes walks every class)
-        List<String> subs = new ArrayList<>();
-        java.util.Set<String> universe = new LinkedHashSet<>();
-        model.classes().forEach(cd -> universe.add(cd.qualifiedName()));
-        for (ClassDefinition nc : com.legend.builtin.Pure.allNativeClasses()) {
-            universe.add(nc.qualifiedName());
-        }
-        for (String fqn : universe) {
-            if (!fqn.equals(base) && isSubclassOf(fqn, base, model)) {
-                subs.add(fqn);
+        // the strict subtree of base off the two DIRECT subclass indexes
+        // (model + native catalog, each built once); then the universe
+        // order (model classes, then natives — the member order the
+        // rosters pin) restricted to it. Was: isSubclassOf per universe
+        // class per call — 45% of the metamodel's 22ms normalization.
+        java.util.Set<String> subtree = new HashSet<>();
+        ArrayDeque<String> frontier = new ArrayDeque<>();
+        frontier.add(base);
+        while (!frontier.isEmpty()) {
+            String c = frontier.poll();
+            for (String sub : model.directSubclasses(c)) {
+                // MappingNormalizer.classDef: a natively declared FQN reads
+                // the NATIVE declaration (its edges come from the native
+                // index); a primitive is not a class for the calculus
+                if (com.legend.builtin.Pure.findNativeClass(sub).isEmpty()
+                        && com.legend.compiler.element.type.Type.Primitive
+                                .findByFqn(sub).isEmpty()
+                        && subtree.add(sub)) {
+                    frontier.add(sub);
+                }
+            }
+            for (String sub : com.legend.builtin.Pure.directNativeSubclasses(c)) {
+                if (com.legend.compiler.element.type.Type.Primitive
+                        .findByFqn(sub).isEmpty() && subtree.add(sub)) {
+                    frontier.add(sub);
+                }
             }
         }
+        subtree.remove(base);
+        List<String> subs = new ArrayList<>();
+        model.classes().forEach(cd -> {
+            if (subtree.contains(cd.qualifiedName())) {
+                subs.add(cd.qualifiedName());
+            }
+        });
+        for (ClassDefinition nc : com.legend.builtin.Pure.allNativeClasses()) {
+            if (subtree.contains(nc.qualifiedName()) && !subs.contains(nc.qualifiedName())) {
+                subs.add(nc.qualifiedName());
+            }
+        }
+        // a leaf has no subclass at all (every subclass of a member of the
+        // subtree is itself in the subtree)
         List<String> leaves = subs.stream()
-                .filter(c -> subs.stream().noneMatch(o -> !o.equals(c)
-                        && isSubclassOf(o, c, model)))
+                .filter(c -> model.directSubclasses(c).isEmpty()
+                        && com.legend.builtin.Pure.directNativeSubclasses(c).isEmpty())
                 .toList();
         for (String leaf : leaves) {
             // nearest mapped ancestor at or above the leaf, STRICTLY below base
@@ -1393,7 +1424,10 @@ final class UnionSynthesis {
             for (int k = threads.size() - 2; k >= 0; k--) {
                 ValueSpecification own = unwrapTrustOne(java.util.Objects.requireNonNull(
                         threads.get(k).cols().get(c).function1()).body().get(0));
-                if (own.toString().equals(value.toString())) {
+                // structural (record) equality — printing both trees to
+                // compare them rendered the growing if-chain per member per
+                // column: 40% of the metamodel's 22ms normalization
+                if (own.equals(value)) {
                     continue;   // the same value either way (a typed NULL no member owns)
                 }
                 value = new AppliedFunction("if", List.of(scans.get(k).pred(),

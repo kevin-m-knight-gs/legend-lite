@@ -431,6 +431,19 @@ public final class Ddl {
         out.add("Create Schema if not exists " + schema + ";");
         out.add(dropTable(schema, def.name()));
         out.add(createTable(def, schema, duckTarget));
+        String ins = metamodelInsert(def, schema, rows);
+        if (ins != null) {
+            out.add(ins);
+        }
+        return out;
+    }
+
+    /** ONE multi-row {@code INSERT} of {@code rows} into the store table
+     * (null when there are none) — the seed's insert half, also the
+     * content-addressed rows a query constructs. */
+    public static @com.legend.Nullable String metamodelInsert(
+            DatabaseDefinition.TableDefinition def, String schema,
+            java.util.List<java.util.List<String>> rows) {
         if (!rows.isEmpty()) {
             StringBuilder ins = new StringBuilder("insert into ")
                     .append(qualify(schema, def.name())).append(" values ");
@@ -454,9 +467,9 @@ public final class Ddl {
                 }
                 ins.append(')');
             }
-            out.add(ins.append(';').toString());
+            return ins.append(';').toString();
         }
-        return out;
+        return null;
     }
 
     private static String qualify(@com.legend.Nullable String schema, String table) {

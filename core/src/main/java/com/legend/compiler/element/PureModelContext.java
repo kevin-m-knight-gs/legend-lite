@@ -45,6 +45,8 @@ public final class PureModelContext implements ModelContext {
     private final Map<String, TypedClass> classCache;
     private final Map<String, TypedEnum> enumCache;
     private final Map<String, List<TypedFunction>> functionCache;
+    /** {@link #derived}: graph-lifetime facts, shared with overlays. */
+    private final Map<Class<?>, Object> derivedCache;
     /** DRIVER-SUPPLIED execution elements (PHASE_K_EXECUTION.md §4):
      * an overlay VIEW resolves exactly these two fqns to the supplied
      * records; null on ordinary contexts. */
@@ -67,6 +69,7 @@ public final class PureModelContext implements ModelContext {
         this.classCache = new HashMap<>();
         this.enumCache = new HashMap<>();
         this.functionCache = new HashMap<>();
+        this.derivedCache = new java.util.concurrent.ConcurrentHashMap<>();
         this.overlayRuntime = null;
         this.overlayConnection = null;
         // F.a + F.b: THE eager reference-safety pass — every reference every
@@ -114,6 +117,22 @@ public final class PureModelContext implements ModelContext {
     public Optional<Type> findType(String fqn) {
         Objects.requireNonNull(fqn, "fqn");
         return classifier.findType(fqn);
+    }
+
+    @Override
+    public <T> T derived(Class<T> key,
+            java.util.function.Function<ModelContext, T> derive) {
+        // get-then-put, not computeIfAbsent: a derivation may itself read
+        // another derived fact (ConcurrentHashMap forbids the recursion);
+        // a rare double derivation of a pure function is harmless. The
+        // derivation sees the BASE graph, never an overlay view.
+        Object hit = derivedCache.get(key);
+        if (hit == null) {
+            hit = Objects.requireNonNull(derive.apply(this), "derived fact");
+            derivedCache.putIfAbsent(key, hit);
+            hit = derivedCache.get(key);
+        }
+        return key.cast(hit);
     }
 
     @Override
@@ -336,6 +355,7 @@ public final class PureModelContext implements ModelContext {
         this.classCache = base.classCache;
         this.enumCache = base.enumCache;
         this.functionCache = base.functionCache;
+        this.derivedCache = base.derivedCache;
         this.overlayRuntime = Objects.requireNonNull(runtime, "runtime");
         this.overlayConnection = Objects.requireNonNull(connection, "connection");
     }

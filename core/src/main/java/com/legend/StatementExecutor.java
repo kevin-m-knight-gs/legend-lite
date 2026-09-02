@@ -96,8 +96,17 @@ final class StatementExecutor {
                     java.util.Map.of());
         }
 
+        /** The same environment over another session — the system
+         * database's connection for a body that reads the metamodel. */
+        ExecEnv withConnection(java.sql.Connection other) {
+            return other == connection ? this : new ExecEnv(ctx, runtimeFqn,
+                    dialect, other, addDriverTablePk, queryLets, tableReplace,
+                    instanceIds, assertListener, replayOracle, constructedSeeds);
+        }
+
         /** The resolver's side-output rows (constructed metamodel
-         * instances) — seeded after the model's own, per table. */
+         * instances) — inserted content-addressed into the system
+         * database, per table. */
         ExecEnv withConstructedSeeds(
                 java.util.Map<String, java.util.List<java.util.List<String>>> seeds) {
             return seeds.isEmpty() ? this : new ExecEnv(ctx, runtimeFqn, dialect,
@@ -2492,56 +2501,46 @@ final class StatementExecutor {
         }
     }
 
-    /** METAMODEL SEED (METAMODEL_STORE_HANDOFF.md §5): a resolved body
-     * reading the SYSTEM store gets its extent seeded from the ACTIVE
-     * model context first — the one execution-setup owner, beside the
-     * runtime setups. Content is a pure function of the context
-     * (overlays included), so the seed is idempotent DROP+CREATE+INSERT;
-     * a body that never reads the store pays one tree walk and nothing
-     * else. */
-    private static void seedMetamodelStore(java.util.List<TypedSpec> body,
+    /** THE SYSTEM DATABASE ROUTE (user ruling 2026-09-02): a body reading
+     * the metamodel store executes on the GRAPH's own system database —
+     * separate from every user connection, written once per graph, never
+     * per execution ({@link com.legend.exec.SystemDatabase}). A body reading
+     * BOTH the store and a user store has no single session: LOUD (the
+     * corpus census — none fired at this landing); a body reading no
+     * store pays one tree walk and nothing else. */
+    private static ExecEnv routeSystemDatabase(java.util.List<TypedSpec> body,
             ExecEnv env) {
-        if (body.stream().noneMatch(StatementExecutor::readsSystemStore)) {
-            return;
+        java.util.Set<String> stores = new java.util.TreeSet<>();
+        for (TypedSpec n : body) {
+            collectStores(n, stores);
         }
-        // EVERY table of the system store seeds (the store's own DDL
-        // enumerates them; SystemMetamodel.seedRows owns each table's
-        // row derivation from the active context)
-        var store = env.ctx().findDatabase(
-                com.legend.builtin.SystemMetamodel.STORE_FQN).orElseThrow(() ->
+        String storeFqn = com.legend.builtin.SystemMetamodel.STORE_FQN;
+        if (!stores.contains(storeFqn)) {
+            return env;
+        }
+        if (stores.size() > 1) {
+            throw new com.legend.error.NotImplementedException("a query reading"
+                    + " the system metamodel store AND a user store " + stores
+                    + " has no single session — the system database is"
+                    + " separate from user connections");
+        }
+        var store = env.ctx().findDatabase(storeFqn).orElseThrow(() ->
                 new IllegalStateException("the system metamodel store is"
                         + " not in the model — injection regressed"));
-        for (var schema : store.schemas()) {
-            for (var def : schema.tables()) {
-                java.util.List<java.util.List<String>> rows =
-                        MetamodelSeeds.rows(def.name(), env.ctx());
-                // the query's CONSTRUCTED instances (resolver side output)
-                java.util.List<java.util.List<String>> extra =
-                        env.constructedSeeds().get(def.name());
-                if (extra != null && !extra.isEmpty()) {
-                    rows = new java.util.ArrayList<>(rows);
-                    rows.addAll(extra);
-                }
-                for (String stmt : Ddl.metamodelSeed(def, schema.name(), rows,
-                        !env.dialect().rawH2IsNative())) {
-                    Executor.executeRaw(env.connection(), stmt);
-                }
-            }
-        }
+        ModelContext ctx = env.ctx();
+        return env.withConnection(com.legend.exec.SystemDatabase.of(ctx)
+                .connectionFor(env.connection(), env.dialect(), store,
+                        table -> MetamodelSeeds.rows(table, ctx),
+                        env.constructedSeeds()));
     }
 
-    private static boolean readsSystemStore(TypedSpec n) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedTableReference tr
-                && com.legend.builtin.SystemMetamodel.STORE_FQN
-                        .equals(tr.store())) {
-            return true;
+    private static void collectStores(TypedSpec n, java.util.Set<String> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedTableReference tr) {
+            out.add(tr.store());
         }
         for (TypedSpec c : n.children()) {
-            if (readsSystemStore(c)) {
-                return true;
-            }
+            collectStores(c, out);
         }
-        return false;
     }
 
     /** ONE VALUE expression through the ordinary back half (G½ inline →
@@ -2688,6 +2687,7 @@ final class StatementExecutor {
             boolean identityLane) {
         ModelContext ctx = env.ctx();
         String runtimeFqn = env.runtimeFqn();
+        env = routeSystemDatabase(body, env);
         java.sql.Connection connection = env.connection();
         // late-bound grids: FIRST-query schema pin — staged compilation:
         // the resolver pass takes the probed roster through the oracle
@@ -2710,7 +2710,6 @@ final class StatementExecutor {
             root = fr.source();
         }
         runRuntimeSetups(runtimeSetups, root, env);
-        seedMetamodelStore(body, env);
         // CATALOG DISPATCH (EFFECT rows, ladder census §10m): the
         // effectful K-natives run their registered arm when evaluation
         // reaches the call — one lookup, no name literals.

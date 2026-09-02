@@ -1081,6 +1081,36 @@ public final class Pure {
         return java.util.Optional.ofNullable(Index.CLASS_BY_FQN.get(fqn));
     }
 
+    /** The native catalog's DIRECT subclass index (super FQN &rarr; the
+     * native classes declaring it), built once: "the subclasses of X" is a
+     * walk of X's subtree, never a scan of the catalog. */
+    private static final class SubclassIndex {
+        static final java.util.Map<String, List<String>> DIRECT = build();
+
+        private static java.util.Map<String, List<String>> build() {
+            java.util.Map<String, List<String>> out = new java.util.HashMap<>();
+            for (ClassDefinition cd : ALL_CLASSES) {
+                for (com.legend.protocol.TypeExpression sup : cd.superClasses()) {
+                    if (sup instanceof com.legend.protocol.TypeExpression.NameRef nr) {
+                        out.computeIfAbsent(nr.name(), k -> new ArrayList<>())
+                                .add(cd.qualifiedName());
+                    }
+                }
+            }
+            // IMMUTABLE (Invariant 3: static collection state)
+            java.util.Map<String, List<String>> frozen = new java.util.HashMap<>();
+            out.forEach((k, v) -> frozen.put(k, List.copyOf(v)));
+            return java.util.Map.copyOf(frozen);
+        }
+    }
+
+    /** The native classes that DIRECTLY extend {@code fqn} (declaration
+     * order; empty when none). */
+    public static List<String> directNativeSubclasses(String fqn) {
+        List<String> subs = SubclassIndex.DIRECT.get(fqn);
+        return subs == null ? List.of() : subs;
+    }
+
     /** The native enumeration registered at {@code fqn}, if any. */
     public static java.util.Optional<EnumDefinition> findNativeEnum(String fqn) {
         return java.util.Optional.ofNullable(Index.ENUM_BY_FQN.get(fqn));

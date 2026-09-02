@@ -34,6 +34,14 @@ public final class TimingLedger {
         COUNT.computeIfAbsent(bucket, k -> new AtomicLong()).incrementAndGet();
     }
 
+    /** Per-NAME wall (a corpus test's fqn): the dump lists the slowest
+     * 30 — a lane that doubles names its tests, not just its buckets. */
+    private static final Map<String, AtomicLong> NAMED = new ConcurrentHashMap<>();
+
+    public static void addNamed(String name, long nanos) {
+        NAMED.computeIfAbsent(name, k -> new AtomicLong()).addAndGet(nanos);
+    }
+
     public static void dump() {
         StringBuilder sb = new StringBuilder();
         sb.append(String.format("jvm.wall\t%.1fs%n",
@@ -44,6 +52,11 @@ public final class TimingLedger {
                     e.getValue().get() / 1e9,
                     n == null ? 0 : n.get()));
         }
+        NAMED.entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue().get(), a.getValue().get()))
+                .limit(30)
+                .forEach(e -> sb.append(String.format("slowest\t%.2fs\t%s%n",
+                        e.getValue().get() / 1e9, e.getKey())));
         // ALSO print (the census idiom): the file write below resolved
         // against the fork's working dir and failed SILENTLY on the
         // corpus lane for weeks (root has no target/) — the G4 phase

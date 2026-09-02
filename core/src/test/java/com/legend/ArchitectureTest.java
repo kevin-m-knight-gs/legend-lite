@@ -856,6 +856,9 @@ final class ArchitectureTest {
                 // meaningless for a metrics sink
                 "com.legend.exec.TimingLedger.NS",
                 "com.legend.exec.TimingLedger.COUNT",
+                // per-test wall of the same ledger (batch 8: the corpus
+                // dump names its 30 slowest tests)
+                "com.legend.exec.TimingLedger.NAMED",
                 // R1 divergence instrument (CANONICAL_FORM_SPEC §0):
                 // bounded witness sample for the harness-published
                 // table; measurement only, never verdict-affecting

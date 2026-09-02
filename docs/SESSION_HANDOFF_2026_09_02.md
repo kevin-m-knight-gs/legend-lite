@@ -808,10 +808,70 @@ quarantine spellings retired).
   `inferRelationalType` reads a stamp, not a recursive query;
   `testTranslateDbType` (extension-lambda `TranslationContext`) stays a wall.
 
+**Batch 8 (2026-09-02) — chain speed: the system database + two normalizer
+bugs (docs/GATES.md "Budget BREACH, 2026-09-02").** Ratchet UNCHANGED
+820/1753; corpus report byte-identical; H2 verdicts identical. Landed:
+- **THE SYSTEM DATABASE (user ruling: "insert once at first compile,
+  separate from user connections").** `exec/SystemDatabase`: one in-memory
+  database per GRAPH per engine (the engine follows the session: H2 lane
+  stays on H2), created and written the first time a query of that graph
+  reads the metamodel, alive as long as the graph
+  (`ModelContext.derived` — graph-lifetime facts, overlays share them).
+  The executor ROUTES a store-reading body to it (`routeSystemStore`);
+  `seedMetamodelStore` (per-execution DROP+CREATE+INSERT) DELETED. A
+  query's constructed instances insert content-addressed (once per id).
+  A body reading the store AND a user store is LOUD (census: none).
+- **Normalizer**: `mergedScan` compared branch expressions by PRINTING
+  them (quadratic) — record equality; `collectInheritanceMembers` scanned
+  the whole class universe with chain walks per inheritance op — a
+  direct-subclass index (`ModelBuilder.directSubclasses`,
+  `Pure.directNativeSubclasses`), same membership and order. Model
+  compile 28.2 -> 8.0ms.
+- **Harness**: `TimingLedger.addNamed` — the corpus ledger lists the 30
+  slowest tests (`slowest` rows in target/timing-ledger.txt); allgates
+  keeps g4/g5 logs on failure like g1. (The corpus filter ALREADY exists:
+  `-Drcorpus.only=<family-substring>`, `-Drcorpus.test=<test>`.)
+- **Vocabulary**: "model" here = the GRAPH (the whole compiled universe:
+  every package, dependency and the platform; `Class.all()` = every class
+  in it). One system database per graph; many graphs only in the test JVM.
+
+**NEXT (user-ratified order 2026-09-02):** (1) ONE TABLE for the
+`RelationalOperationElement` hierarchy — merge tables/columns/views/
+table_aliases/relational_ops into `relational_elements` (kind, id PK,
+superset columns; the datatype/op-kind idiom), with the plain-`id` key
+read for merged members: the H2 lane's ten 9–18s typeInference tests
+(UNION ALL extent, unindexable on H2) become indexed lookups. (2) The
+BOOT LAYER: system elements normalized + compiled ONCE per process,
+keyed by the hash of the system source in the content store (Invariant
+3 — it persists across compiles, so it is content-addressed); every
+graph's context falls through to it for names it does not define;
+extents (`Class.all()`) union boot + graph; boot rows written once. A
+user compile then normalizes ONLY its own elements (target: the
+pre-group-F 2.3ms and below). (3) NORMALIZER PER-MAPPING INDEX (general,
+speeds every corpus mapping): the remaining 5.7ms/compile is facts
+re-derived per call — `setIdOf` re-spelled per lookup inside linear
+`findSetById` scans, `collectRootClassMappings` rebuilt per
+inheritance-member collection, `unionForClass` uncached across its ~10
+call sites, `memberOrdinalOf` chain walks. One index object per mapping
+normalization (set id -> set, root set per class, extends chain, union
+per class) built at entry and read everywhere — a LOCAL with one call's
+lifetime, not a cache (nothing to content-address). Verified by
+byte-identical paired sweeps. (4) CONSTRUCTED INSTANCES AS INLINE VALUES
+(user 2026-09-02): a query's `^DynaFunction(...)` trees today insert
+content-addressed rows (once per id) into the graph's system database —
+a per-query write into shared state; end state = the query carries its
+own constants as an inline relation (VALUES), the system database holds
+ONLY facts of the graph and is never written per query (the executor
+loses write access to it). (5) Then group D below.
+
+Batch 8 chain (gates9.log): G1 54s, G2 9s, G4 64s, G5 134s, G6 104s,
+G7 28s, G9 20s, G8 72s — **8m05s** (was 12m54s).
+
 **NEXT SESSION OPENS HERE — burn fallbacks, by census group (user
 ruling 2026-09-02: every batch must move the ratchet; no mechanism-only
 legs).** State: 820 fallbacks / 1753 flipped (group F LANDED — batch 7
-above), exec-passing 344, quarantine 125 rows / 9 walls.
+above; batch 8 = speed, ratchet unchanged), exec-passing 344, quarantine
+125 rows / 9 walls.
 1. **Group F — DONE (batch 7).** Was: mapping-metamodel query functions (27 tests; §1 of the
    homework: testRelationalExtension.pure 20, testExtendsForMainTable 5
    [DONE], testExtendsForPrimaryKey 1 [DONE], testSubtypeMapping 1)**:
